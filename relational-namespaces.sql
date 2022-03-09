@@ -54,9 +54,24 @@ CREATE TABLE namespace_definition (
 ) WITHOUT ROWID;
 
 
--- Allow finding term hashes by name and/or type.
+-- Allow finding definition hashes by name and/or type.
 CREATE INDEX namespace_definition_by_name ON namespace_definition (
   name_segment_id, definition_kind
+);
+
+-- Allow finding definition names by reference.
+-- This index can be joined with a recursive namespace query to
+-- limit its scope to a given namespace tree.
+CREATE INDEX namespace_definition_by_ref ON namespace_definition (
+  definition_builtin, definition_object_id, definition_component_index, definition_constructor_id
+  -- Do I need this too?
+  -- , parent_namespace_hash_id
+);
+
+-- Probably need EITHER this index or namespace_definition_by_ref, not BOTH.
+-- It'll depend on the semantics we want for looking up historical names.
+CREATE INDEX scoped_namespace_definition_by_ref ON namespace_definition (
+  parent_namespace_hash_id, definition_builtin, definition_object_id, definition_component_index, definition_constructor_id
 );
 
 CREATE TABLE namespace_metadata (
@@ -97,3 +112,44 @@ CREATE TABLE namespace_metadata (
   PRIMARY KEY(parent_namespace_hash_id, metadata_kind, name_segment_id, metadata_builtin, metadata_object_id, metadata_component_index),
   FOREIGN KEY(parent_namespace_hash_id, metadata_kind, name_segment_id) REFERENCES namespace_definition(parent_namespace_hash_id, metadata_kind, name_segment_id)
 ) WITHOUT ROWID;
+
+
+-- View representing all child namespaces reachable from the root namespace, and their paths.
+CREATE VIEW root_namespace AS
+  WITH RECURSIVE child_namespaces(parent_namespace_hash_id, path) AS (
+    SELECT value_hash_id, ""
+      FROM namespace_root
+      JOIN causal ON causal_id = causal.self_hash_id
+    UNION
+    SELECT causal.value_hash_id, path || '.' || text.text
+    FROM namespace_child
+      JOIN child_namespaces
+        ON child_namespaces.parent_namespace_hash_id = namespace_child.parent_namespace_hash_id
+      JOIN text
+        ON namespace_child.child_name_id = text.id
+      JOIN causal
+        ON child_hash_id = causal.self_hash_id
+  )
+SELECT * FROM child_namespaces;
+
+
+/* CREATE VIEW root_namespace_with_history AS */
+/*   WITH RECURSIVE child_namespaces(parent_namespace_hash_id, causal_something, path) AS ( */
+/*     SELECT value_hash_id, "" */
+/*       FROM namespace_root */
+/*       JOIN causal ON causal_id = causal.self_hash_id */
+/*     UNION */
+/*     SELECT (causal.value_hash_id, path || '.' || text.text), */
+/*            (causal, path || '.' || text.text), */
+/*     FROM namespace_child */
+/*       JOIN child_namespaces */
+/*         ON child_namespaces.parent_namespace_hash_id = namespace_child.parent_namespace_hash_id */
+/*       JOIN text */
+/*         ON namespace_child.child_name_id = text.id */
+/*       JOIN causal_parent */
+/*         ON causal_id = causal.self_hash_id */
+/*            OR causal_parent = causal.self_hash_id */
+/*       JOIN causal */
+/*         ON */
+/*   ) */
+/* SELECT * FROM child_namespaces; */
