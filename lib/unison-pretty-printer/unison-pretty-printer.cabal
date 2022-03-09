@@ -1,0 +1,150 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           unison-pretty-printer
+version:        0.0.0
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+copyright:      Copyright (C) 2013-2022 Unison Computing, PBC and contributors
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+flag optimized
+  manual: True
+  default: True
+
+library
+  exposed-modules:
+      Unison.Lexer.Pos
+      Unison.PrettyTerminal
+      Unison.Util.AnnotatedText
+      Unison.Util.ColorText
+      Unison.Util.Less
+      Unison.Util.Pretty
+      Unison.Util.Range
+      Unison.Util.SyntaxText
+  other-modules:
+      Paths_unison_pretty_printer
+  hs-source-dirs:
+      src
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveFunctor
+      DeriveGeneric
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  build-depends:
+      ListLike
+    , ansi-terminal
+    , base
+    , containers
+    , extra
+    , mtl
+    , process
+    , terminal-size
+    , text
+    , unison-core1
+    , unison-prelude
+    , unliftio
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+  default-language: Haskell2010
+
+executable prettyprintdemo
+  main-is: Main.hs
+  other-modules:
+      Paths_unison_pretty_printer
+  hs-source-dirs:
+      prettyprintdemo
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveFunctor
+      DeriveGeneric
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  build-depends:
+      base
+    , safe
+    , text
+    , unison-pretty-printer
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+  default-language: Haskell2010
+
+test-suite pretty-printer-tests
+  type: exitcode-stdio-1.0
+  main-is: Suite.hs
+  other-modules:
+      Unison.Test.Pretty
+      Unison.Test.Range
+      Paths_unison_pretty_printer
+  hs-source-dirs:
+      tests
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveFunctor
+      DeriveGeneric
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  build-depends:
+      base
+    , unison-pretty-printer
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+  default-language: Haskell2010

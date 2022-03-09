@@ -143,15 +143,6 @@ library:
     - generic-lens
 
 executables:
-  prettyprintdemo:
-    source-dirs: prettyprintdemo
-    main: Main.hs
-    dependencies:
-      - base
-      - safe
-      - text
-      - unison-parser-typechecker
-
   tests:
     source-dirs: tests
     main: Suite.hs
