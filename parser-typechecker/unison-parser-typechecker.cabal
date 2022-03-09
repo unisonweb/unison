@@ -173,7 +173,6 @@ library
       Unison.Util.Free
       Unison.Util.Logger
       Unison.Util.PinBoard
-      Unison.Util.Pretty
       Unison.Util.Rope
       Unison.Util.Star3
       Unison.Util.Text
@@ -293,6 +292,7 @@ library
     , unison-core
     , unison-core1
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio
@@ -321,7 +321,6 @@ executable tests
       Unison.Test.Codebase.Causal
       Unison.Test.Codebase.Path
       Unison.Test.CodebaseInit
-      Unison.Test.ColorText
       Unison.Test.Common
       Unison.Test.DataDeclaration
       Unison.Test.FileParser
@@ -397,6 +396,7 @@ executable tests
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio

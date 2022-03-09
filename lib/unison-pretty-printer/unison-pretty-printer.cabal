@@ -115,6 +115,7 @@ test-suite pretty-printer-tests
   type: exitcode-stdio-1.0
   main-is: Suite.hs
   other-modules:
+      Unison.Test.ColorText
       Unison.Test.Pretty
       Unison.Test.Range
       Paths_unison_pretty_printer

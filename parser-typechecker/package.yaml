@@ -136,6 +136,7 @@ library:
     - unison-core
     - unison-core1
     - unison-prelude
+    - unison-pretty-printer
     - unison-util
     - unison-util-relation
     - open-browser
@@ -178,3 +179,4 @@ executables:
       - unison-prelude
       - unison-util
       - unison-util-relation
+      - unison-pretty-printer
