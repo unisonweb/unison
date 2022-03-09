@@ -1,0 +1,19 @@
+# https://github.com/unisonweb/unison/issues/2110
+
+* Allow querying for the names of a set of references/referents within the scope of a given branch.
+  * Useful when 'use' statements bring branches into scope
+  * Backend uses this for something?
+  * Can be used to look up names within the root namespace using the ".> names #abcdef" command.
+* Allow querying for the hashes which match a given name, used for parsing.
+
+---
+
+* Efficiently look up old names.
+  * When a reference is orphaned we still want to be able to display _some_ name for it, we should be able to query our root branch's history to efficiently find old names for a given ref.
+
+
+* Lazily load a sub-namespace by path.
+    * Currently the only way to find our way to a given child branch is to parse and load the entire root namespace :| 
+
+
+How do we track the empty namespace? I suppose it's just the hash with no joins in the namespace tables?
