@@ -3,15 +3,15 @@ name: "release"
 on:
   push:
     tags:
-      - "test-release/*"
+      - "release/*"
 
 jobs:
   release:
     name: "create_release"
     runs-on: "ubuntu-latest"
     needs:
-      # - build_linux
-      # - build_macos
+      - build_linux
+      - build_macos
       - build_windows
 
     steps:
@@ -39,69 +39,69 @@ jobs:
             /tmp/ucm/**/*.tar.gz
             /tmp/ucm/**/*.zip
 
-  # build_linux:
+  build_linux:
 
-  #   name: "build_linux"
-  #   runs-on: ubuntu-18.04
+    name: "build_linux"
+    runs-on: ubuntu-18.04
 
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - name: install stack
-  #       run: |
-  #         curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
-  #         echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
+    steps:
+      - uses: actions/checkout@v2
+      - name: install stack
+        run: |
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
+          echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
 
-  #     - name: build
-  #       run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+      - name: build
+        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
-  #     - name: fetch latest codebase-ui and package with ucm
-  #       run: |
-  #         mkdir -p /tmp/ucm/ui
-  #         UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
-  #         cp $UCM /tmp/ucm/ucm
-  #         wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip
-  #         unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
-  #         tar -c -z -f ucm-linux.tar.gz -C /tmp/ucm .
+      - name: fetch latest codebase-ui and package with ucm
+        run: |
+          mkdir -p /tmp/ucm/ui
+          UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
+          cp $UCM /tmp/ucm/ucm
+          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip
+          unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
+          tar -c -z -f ucm-linux.tar.gz -C /tmp/ucm .
 
-  #     - name: Upload linux artifact
-  #       uses: actions/upload-artifact@v2
-  #       with:
-  #         if-no-files-found: error
-  #         name: build-linux
-  #         path: ucm-linux.tar.gz
+      - name: Upload linux artifact
+        uses: actions/upload-artifact@v2
+        with:
+          if-no-files-found: error
+          name: build-linux
+          path: ucm-linux.tar.gz
 
-  # build_macos:
-  #   name: "build_macos"
-  #   runs-on: macos-10.15
+  build_macos:
+    name: "build_macos"
+    runs-on: macos-10.15
 
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - name: install stack
-  #       run: |
-  #         curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
-  #         echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
+    steps:
+      - uses: actions/checkout@v2
+      - name: install stack
+        run: |
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
+          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
 
-  #     - name: remove ~/.stack/setup-exe-cache on macOS
-  #       run: rm -rf ~/.stack/setup-exe-cache
+      - name: remove ~/.stack/setup-exe-cache on macOS
+        run: rm -rf ~/.stack/setup-exe-cache
 
-  #     - name: build
-  #       run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+      - name: build
+        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
-  #     - name: fetch latest codebase-ui and package with ucm
-  #       run: |
-  #         mkdir -p /tmp/ucm/ui
-  #         UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
-  #         cp $UCM /tmp/ucm/ucm
-  #         wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip
-  #         unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
-  #         tar -c -z -f ucm-macos.tar.gz -C /tmp/ucm .
+      - name: fetch latest codebase-ui and package with ucm
+        run: |
+          mkdir -p /tmp/ucm/ui
+          UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
+          cp $UCM /tmp/ucm/ucm
+          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip
+          unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
+          tar -c -z -f ucm-macos.tar.gz -C /tmp/ucm .
 
-  #     - name: Upload macos artifact
-  #       uses: actions/upload-artifact@v2
-  #       with:
-  #         if-no-files-found: error
-  #         name: build-macos
-  #         path: ucm-macos.tar.gz
+      - name: Upload macos artifact
+        uses: actions/upload-artifact@v2
+        with:
+          if-no-files-found: error
+          name: build-macos
+          path: ucm-macos.tar.gz
 
   build_windows:
     name: "build_windows"
