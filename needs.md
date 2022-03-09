@@ -17,3 +17,5 @@
 
 
 How do we track the empty namespace? I suppose it's just the hash with no joins in the namespace tables?
+
+Queries need to be made relative to a specific namespace, since given a namespace hash I don't actually know where it's mounted within the root namespace, it might be mounted at several spots.
