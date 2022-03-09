@@ -7,7 +7,6 @@ import EasyTest
 import System.Environment (getArgs)
 import System.IO
 import System.IO.CodePage (withCP65001)
-import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.Range as Range
 import qualified Unison.Test.Util.Pretty as Pretty
@@ -17,7 +16,7 @@ test =
   tests
     [ Range.test,
       ColorText.test,
-      Pretty.test,
+      Pretty.test
     ]
 
 main :: IO ()

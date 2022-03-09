@@ -116,8 +116,8 @@ test-suite pretty-printer-tests
   main-is: Suite.hs
   other-modules:
       Unison.Test.ColorText
-      Unison.Test.Pretty
       Unison.Test.Range
+      Unison.Test.Util.Pretty
       Paths_unison_pretty_printer
   hs-source-dirs:
       tests
@@ -145,6 +145,10 @@ test-suite pretty-printer-tests
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       base
+    , code-page
+    , containers
+    , easytest
+    , raw-strings-qq
     , unison-pretty-printer
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
