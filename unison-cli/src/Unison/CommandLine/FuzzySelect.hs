@@ -14,10 +14,9 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import GHC.IO.Handle (hDuplicateTo)
-import System.Exit (ExitCode (ExitFailure, ExitSuccess))
 import System.IO (BufferMode (NoBuffering), hPutStrLn, stderr)
 import Unison.Prelude
-import UnliftIO (handleAny)
+import qualified UnliftIO
 import UnliftIO.Directory (findExecutable)
 import UnliftIO.Exception (bracket)
 import UnliftIO.IO (hGetBuffering, hSetBuffering, stdin)
@@ -46,7 +45,8 @@ optsToArgs opts =
       -- Don't show or match on the first column of input.
       -- This allows us to prepend each line with a number, and use that number to determine
       -- which values from the input list were selected.
-      [ "--with-nth", "2..",
+      [ "--with-nth",
+        "2..",
         -- Use only half the screen (it's nice to see what you were working on when searching)
         "--height=50%",
         -- But if 50% of the screen is too small, ensure show at least 10 results.
@@ -57,7 +57,7 @@ optsToArgs opts =
 -- If fzf is missing, or an error (other than ctrl-c) occurred, returns Nothing.
 fuzzySelect :: forall a. Options -> (a -> Text) -> [a] -> IO (Maybe [a])
 fuzzySelect opts intoSearchText choices =
-  handleAny handleException
+  UnliftIO.handleAny handleException
     . handleError
     . restoreBuffering
     . runExceptT
@@ -82,17 +82,16 @@ fuzzySelect opts intoSearchText choices =
       -- Generally no-buffering is helpful for highly interactive processes.
       hSetBuffering stdin NoBuffering
       hSetBuffering stdin' NoBuffering
-      -- Dump the search terms into fzf's stdin
-      liftIO $ traverse (Text.hPutStrLn stdin') searchTexts
-      -- Wire up the interactive terminal to fzf now that the inputs have been loaded.
-      liftIO $ hDuplicateTo stdin stdin'
-      exitCode <- Proc.waitForProcess procHandle
-      case exitCode of
-        ExitSuccess -> pure ()
-        -- Thrown on ctrl-c in fzf
-        ExitFailure 130 -> pure () -- output handle will be empty and no results will be returned.
-        ExitFailure _ -> throwError "Oops, something went wrong. No input selected."
-      selections <- Text.lines <$> liftIO (Text.hGetContents stdout')
+      result <- liftIO . UnliftIO.tryAny $ do
+        -- Dump the search terms into fzf's stdin
+        traverse (Text.hPutStrLn stdin') searchTexts
+        -- Wire up the interactive terminal to fzf now that the inputs have been loaded.
+        hDuplicateTo stdin stdin'
+        void $ Proc.waitForProcess procHandle
+        Text.lines <$> liftIO (Text.hGetContents stdout')
+      -- Ignore any errors from fzf, or from trying to write to pipes which may have been
+      -- closed by a ctrl-c, just treat it as an empty selection.
+      let selections = fromRight [] result
       -- Since we prefixed every search term with its number earlier, we know each result
       -- is prefixed with a number, we need to parse it and use it to select the matching
       -- value from our input list.
@@ -103,7 +102,7 @@ fuzzySelect opts intoSearchText choices =
       pure $ mapMaybe (\(n, a) -> if n `Set.member` selectedNumbers then Just a else Nothing) numberedChoices
   where
     handleException :: SomeException -> IO (Maybe [a])
-    handleException _ = hPutStrLn stderr "Oops, something went wrong. No input selected." *> pure Nothing
+    handleException err = traceShowM err *> hPutStrLn stderr "Oops, something went wrong. No input selected." *> pure Nothing
     handleError :: IO (Either Text [a]) -> IO (Maybe [a])
     handleError m =
       m >>= \case
