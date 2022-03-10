@@ -1,3 +1,50 @@
+-- This table encompasses the Sum type of an entity reference, which is complex because we don't store rows for each entity,
+-- they're stored in components. This gives us an entity ID which can refer to a definition as a single field, which makes a lot of joins
+-- much easier and lets us consolidate all the checks which dictate the rules of the sum-type in a single place.
+CREATE TABLE entity (
+  id INTEGER PRIMARY KEY,
+  -- Make a separate table for entity type descriptions?
+  -- Do we need this here or nah?
+  kind_id INTEGER NOT NULL,
+  builtin INTEGER NULL REFERENCES text(id),
+  object_id INTEGER NULL,
+  component_index INTEGER NULL,
+  constructor_index INTEGER NULL,
+
+  CONSTRAINT entity_validity CHECK (
+    CASE kind_id
+      WHEN 0 -- Term Component
+        THEN
+          (builtin IS NULL) =
+          (object_id IS NOT NULL
+            AND component_index IS NOT NULL
+          )
+      WHEN 1 -- Decl Component
+        THEN
+          (builtin IS NULL) =
+          (object_id IS NOT NULL
+            AND component_index IS NOT NULL
+            AND constructor_index IS NULL
+          )
+      WHEN 2 -- Currently Namespace
+        THEN FALSE -- This object type will be deleted as part of migrating to relational namespaces.
+      WHEN 3 -- Patch
+        THEN (   builtin IS NULL
+             AND component_index IS NULL
+             AND constructor_index IS NULL
+             )
+    END
+  ),
+
+  -- Index ensures kind_id's line up correctly when object_id isn't NULL.
+  FOREIGN KEY (object_id, kind_id) REFERENCES object_and_type(object_id, kind_id)
+);
+
+-- Allows efficient filtering by type in joins.
+CREATE INDEX entity_and_kind ON entity(id, kind_id);
+
+CREATE INDEX object_and_kind ON object(id, type_id);
+
 -- The basic namespace tree structure.
 -- Each namespace (identified by its branch's value_hash)
 -- Has connections to many children.
@@ -13,108 +60,47 @@ CREATE TABLE namespace_child (
   PRIMARY KEY (parent_namespace_hash_id, child_name_id)
 ) WITHOUT ROWID;
 
-CREATE TABLE namespace_definition (
+CREATE TABLE namespace_entity (
   parent_namespace_hash_id INTEGER NOT NULL REFERENCES hash(id),
-  definition_kind INTEGER NOT NULL REFERENCES object_type_description(id),
   name_segment_id INTEGER NOT NULL REFERENCES text(id),
+  entity_id INTEGER NOT NULL,
+  entity_kind INTEGER NOT NULL,
 
-
-  definition_builtin INTEGER NULL REFERENCES text(id),
-  definition_object_id INTEGER NULL REFERENCES object(id),
-  definition_component_index INTEGER NULL,
-  definition_constructor_id INTEGER NULL,
-
-  CONSTRAINT namespace_definition_validity CHECK (
-    CASE definition_kind
-      WHEN 0 -- Term Component
-        THEN
-          (definition_builtin IS NULL) =
-          (definition_object_id IS NOT NULL
-            AND definition_component_index IS NOT NULL
-          )
-      WHEN 1 -- Decl Component
-        THEN
-          (definition_builtin IS NULL) =
-          (definition_object_id IS NOT NULL
-            AND definition_component_index IS NOT NULL
-            AND definition_constructor_id IS NULL
-          )
-      WHEN 2 -- Currently Namespace
-        THEN FALSE -- This object type will be deleted as part of migrating to relational namespaces.
-      WHEN 3 -- Patch
-        THEN (   definition_builtin IS NULL
-             AND definition_component_index IS NULL
-             AND definition_constructor_id IS NULL
-             )
-    END
-  ),
-
-  -- Ensure we can only have at most one of each kind of definition at each name.
-  PRIMARY KEY (parent_namespace_hash_id, definition_kind, name_segment_id)
+  -- Ensure we can only have at most one of each kind of entity at each name.
+  PRIMARY KEY (parent_namespace_hash_id, name_segment_id, entity_kind),
+  -- Enforce consistency of entities and their kind.
+  FOREIGN KEY (entity_id, entity_kind) REFERENCES entity_and_kind(entity_id, entity_kind)
 ) WITHOUT ROWID;
 
 
--- Allow finding definition hashes by name and/or type.
-CREATE INDEX namespace_definition_by_name ON namespace_definition (
-  name_segment_id, definition_kind
+-- Allow finding definition hashes by name with an optional kind qualifier.
+CREATE INDEX namespace_entity_by_name ON namespace_entity (
+  name_segment_id, entity_kind
 );
 
--- Allow finding definition names by reference.
+-- Allow finding definition names by entity.
 -- This index can be joined with a recursive namespace query to
 -- limit its scope to a given namespace tree.
-CREATE INDEX namespace_definition_by_ref ON namespace_definition (
-  definition_builtin, definition_object_id, definition_component_index, definition_constructor_id
-  -- Do I need this too?
-  -- , parent_namespace_hash_id
-);
-
--- Probably need EITHER this index or namespace_definition_by_ref, not BOTH.
--- It'll depend on the semantics we want for looking up historical names.
-CREATE INDEX scoped_namespace_definition_by_ref ON namespace_definition (
-  parent_namespace_hash_id, definition_builtin, definition_object_id, definition_component_index, definition_constructor_id
+CREATE INDEX names_by_entity ON namespace_entity (
+  entity_id, parent_namespace_hash_id
 );
 
 CREATE TABLE namespace_metadata (
   parent_namespace_hash_id INTEGER NOT NULL REFERENCES hash(id),
-  metadata_kind INTEGER NOT NULL REFERENCES object_type_description(id),
   name_segment_id INTEGER NOT NULL REFERENCES text(id),
+  entity_kind INTEGER NOT NULL,
 
-  metadata_builtin INTEGER NULL REFERENCES text(id),
-  metadata_object_id INTEGER NULL REFERENCES object(id),
-  metadata_component_index INTEGER NULL,
-  metadata_constructor_id INTEGER NULL,
-
-
-  CONSTRAINT namespace_metadata_validity CHECK (
-    CASE metadata_kind
-      WHEN 0 -- Term Component
-        THEN
-          (metadata_builtin IS NULL) =
-          (metadata_object_id IS NOT NULL
-            AND metadata_component_index IS NOT NULL
-          )
-      WHEN 1 -- Decl Component
-        THEN
-          (metadata_builtin IS NULL) =
-          (metadata_object_id IS NOT NULL
-            AND metadata_component_index IS NOT NULL
-            AND metadata_constructor_id IS NULL
-          )
-      WHEN 2 -- Currently Namespace
-        THEN FALSE -- This object type will be deleted as part of migrating to relational namespaces.
-      WHEN 3 -- Patch
-        THEN FALSE -- Patches are invalid metadata.
-    END
-  ),
+  metadata_entity_id INTEGER NULL REFERENCES entity(id),
 
   -- Is there any primary key that actually makes sense?
   -- We might just want to use row IDs here and make indexes for what we need, but maybe there's value in asserting uniqueness on the entire row?
-  PRIMARY KEY(parent_namespace_hash_id, metadata_kind, name_segment_id, metadata_builtin, metadata_object_id, metadata_component_index),
-  FOREIGN KEY(parent_namespace_hash_id, metadata_kind, name_segment_id) REFERENCES namespace_definition(parent_namespace_hash_id, metadata_kind, name_segment_id)
+  PRIMARY KEY(parent_namespace_hash_id, name_segment_id, entity_kind, metadata_entity_id),
+  FOREIGN KEY(parent_namespace_hash_id, name_segment_id, entity_kind) REFERENCES namespace_entity(parent_namespace_hash_id, name_segment_id, entity_kind)
 ) WITHOUT ROWID;
 
 
 -- View representing all child namespaces reachable from the root namespace, and their paths.
+-- This view can be easily adapted to select ANY subtree by parameterizing the initial causal selection, but it's convenient to keep the root namespace as a view.
 CREATE VIEW root_namespace AS
   WITH RECURSIVE child_namespaces(parent_namespace_hash_id, path) AS (
     SELECT value_hash_id, ""

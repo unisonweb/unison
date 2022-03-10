@@ -1,81 +1,36 @@
--- * Allow querying for the names of a set of references/referents within the scope of a given branch.
+-- Select the entity for a given name within the root namespace
+-- Can either add an index over text to slightly speed this up, or just run with the assumption that a given branch will have a 'small' number 
+-- entities as direct children, which is probably good enough.
+SELECT entity.id
+  FROM root_namespace 
+    JOIN namespace_entity ON namespace_entity.parent_namespace_hash_id = root_namespace.parent_namespace_hash_id
+    JOIN entity on entity.id = namespace_entity.entity_id
+    JOIN text ON text.id = namespace_entity.name_segment_id
+  WHERE
+    root_namespace.path = ?
+    AND text.text = ?
+    ;
 
-WITH RECURSIVE child_namespaces(parent_namespace_hash_id, path) AS (
-  SELECT ?, ""
-  UNION
-  SELECT causal.value_hash_id, path || '.' || text.text
-  FROM namespace_child
-    JOIN child_namespaces
-      ON child_namespaces.parent_namespace_hash_id = namespace_child.parent_namespace_hash_id
-    JOIN text
-      ON namespace_child.child_name_id = text.id
-    JOIN causal
-      ON child_hash_id = causal.self_hash_id
-)
-
--- Select all definitions which match the provided object/component/constructor/builtin; as long as it exists in the root namespace.
-SELECT *
-  namespace_definition_by_ref
+-- Select names and paths within the root namespace for a given set of entities.
+SELECT root_namespace.path as path, text.text as name, entity_id
+  FROM entity
+    JOIN namespace_entity ON entity.id = entity_id
+    JOIN root_namespace ON namespace_entity.parent_namespace_hash_id
+    JOIN text ON text.id = namespace_entity.name_segment_id
     WHERE
-          definition_builtin = ?
-      AND definition_object_id = ?
-      AND definition_component_index = ?
-      AND definition_constructor_id = ?
-      AND parent_namespace_hash_id
-        IN (SELECT parent_namespace_hash_id FROM root_namespace)
-;
+      entity.id IN (1, 2, 3)
+      ;
 
--- * Efficiently look up old names.
+-- * Efficiently look up old names for an entity
 
 -- What semantics do we actually want for this?
 
-SELECT *
-  FROM root_namespace
-  JOIN scoped_namespace_definition_by_ref
-    ON scoped_namespace_definition_by_ref.parent_namespace_hash_id = root_namespace.parent_namespace_hash_id
-  WHERE
-        definition_builtin = ?
-    AND definition_object_id = ?
-    AND definition_component_index = ?
-    AND definition_constructor_id = ?
+-- Just use the above query for finding names in the root namespace, but replace with the
+-- root_namespace_with_history view instead (or any namespace view you like).
 
 -- * Lazily load a sub-namespace by path.
 
 SELECT parent_namespace_hash_id
   FROM root_namespace
   WHERE path = ?
-
----
-
--- Set up basic data
-
-INSERT INTO text(id, text)
-  VALUES
-    (1, "childone"),
-    (2, "childtwo"),
-    (3, "childthree");
-
-INSERT INTO hash(id, base32)
-  VALUES
-    (1, "roothash"),
-    (2, "childonehash"),
-    (3, "childtwohash"),
-    (4, "childthreehash"),
-    (5, "rootcausalhash"),
-    (6, "causaloneselfhash"),
-    (7, "causaltwoselfhash"),
-    (8, "causalthreeselfhash");
-
-INSERT INTO causal(self_hash_id, value_hash_id)
-  VALUES
-    (5, 1),
-    (6, 2),
-    (7, 3),
-    (8, 4);
-
-INSERT INTO namespace_child (parent_namespace_hash_id, child_name_id, child_hash_id)
-  VALUES
-    (1, 1, 6),
-    (2, 2, 7),
-    (3, 3, 8);
-
+  ;
