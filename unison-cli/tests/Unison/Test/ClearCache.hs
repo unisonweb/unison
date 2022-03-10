@@ -1,5 +1,4 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# Language OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Unison.Test.ClearCache where
@@ -19,7 +18,10 @@ test = scope "clearWatchCache" $
     let listWatches = io $ Ucm.lowLevel c \c ->
           Codebase.watches c WatchKind.RegularWatch
 
-    io $ Ucm.runTranscript c [i|
+    io $
+      Ucm.runTranscript
+        c
+        [i|
       ```ucm
       .> alias.term ##Nat.+ +
       ```
@@ -31,7 +33,10 @@ test = scope "clearWatchCache" $
     beforeClear <- listWatches
     expectNotEqual beforeClear []
 
-    io $ Ucm.runTranscript c [i|
+    io $
+      Ucm.runTranscript
+        c
+        [i|
       ```ucm
       .> debug.clear-cache
       ```

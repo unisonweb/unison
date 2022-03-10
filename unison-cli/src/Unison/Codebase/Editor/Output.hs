@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codebase.Editor.Output
@@ -17,7 +16,9 @@ module Unison.Codebase.Editor.Output
   )
 where
 
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
+import Data.Set.NonEmpty (NESet)
 import Unison.Codebase (GetRootBranchError)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
@@ -34,6 +35,7 @@ import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Type (GitError)
+import qualified Unison.CommandLine.InputPattern as Input
 import Unison.DataDeclaration (Decl)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -61,9 +63,6 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import Unison.Util.Relation (Relation)
 import qualified Unison.WatchKind as WK
-import Data.Set.NonEmpty (NESet)
-import qualified Unison.CommandLine.InputPattern as Input
-import Data.List.NonEmpty (NonEmpty)
 
 type ListDetailed = Bool
 
@@ -101,8 +100,8 @@ data NumberedOutput v
     CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
     DeletedDespiteDependents PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
-    -- |    size limit, history                       , how the history ends
-  | History
+  | -- |    size limit, history                       , how the history ends
+    History
       (Maybe Int) -- Amount of history to print
       HashLength
       [(Branch.Hash, Names.Diff)]
@@ -219,8 +218,8 @@ data Output v
   | ShowReflog [ReflogEntry]
   | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | PullSuccessful ReadRemoteNamespace Path'
-    -- | Indicates a trivial merge where the destination was empty and was just replaced.
-  | MergeOverEmpty Path'
+  | -- | Indicates a trivial merge where the destination was empty and was just replaced.
+    MergeOverEmpty Path'
   | MergeAlreadyUpToDate Path' Path'
   | PreviewMergeAlreadyUpToDate Path' Path'
   | -- | No conflicts or edits remain for the current patch.
@@ -361,7 +360,7 @@ isFailure o = case o of
   ShowReflog {} -> False
   LoadPullRequest {} -> False
   DefaultMetadataNotification -> False
-  HelpMessage{} -> True
+  HelpMessage {} -> True
   NoOp -> False
   ListDependencies {} -> False
   ListDependents {} -> False

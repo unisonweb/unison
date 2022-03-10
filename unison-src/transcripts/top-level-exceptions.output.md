@@ -90,6 +90,6 @@ unique type RuntimeError =
   
   The program halted with an unhandled exception:
   
-    Failure (typeLink RuntimeError) "oh noes!" !Any
+    Failure (typeLink RuntimeError) "oh noes!" (Any ())
 
 ```

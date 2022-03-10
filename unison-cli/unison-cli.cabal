@@ -35,6 +35,7 @@ library
       Unison.Codebase.Editor.Output.BranchDiff
       Unison.Codebase.Editor.Output.DumpNamespace
       Unison.Codebase.Editor.Propagate
+      Unison.Codebase.Editor.Slurp
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
       Unison.Codebase.Editor.TodoOutput
@@ -98,8 +99,10 @@ library
     , open-browser
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , stm
     , text
+    , these
     , transformers
     , unison-codebase-sqlite
     , unison-core1
@@ -146,11 +149,14 @@ executable integration-tests
       TypeApplications
       ViewPatterns
   ghc-options: -Wall -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  build-tools:
+      unison
   build-depends:
       ListLike
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -168,9 +174,11 @@ executable integration-tests
     , process
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , text
+    , these
     , time
     , transformers
     , unison-codebase-sqlite
@@ -214,13 +222,12 @@ executable transcripts
       TypeApplications
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
-  build-tools:
-      unison
   build-depends:
       ListLike
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -238,10 +245,13 @@ executable transcripts
     , process
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , text
+    , these
     , transformers
+    , unison-cli
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
@@ -291,6 +301,7 @@ executable unison
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -307,11 +318,13 @@ executable unison
     , optparse-applicative >=0.16.1.0
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , template-haskell
     , temporary
     , text
+    , these
     , transformers
     , unison-cli
     , unison-codebase-sqlite
@@ -367,6 +380,7 @@ test-suite tests
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -384,10 +398,12 @@ test-suite tests
     , open-browser
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , temporary
     , text
+    , these
     , transformers
     , unison-cli
     , unison-codebase-sqlite

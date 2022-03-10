@@ -2,7 +2,7 @@ These are commands that will likely be useful during development.
 
 __General:__ `./scripts/test.sh` compiles and builds the Haskell code and runs all tests. Recommended that you run this before pushing any code to a branch that others might be working on.
 
-_Disclaimer_ If you have trouble getting started, please get in touch via [Slack](https://unisonweb.org/community) so we can help.  If you have any fixes to the process, please send us a PR!
+_Disclaimer_ If you have trouble getting started, please get in touch via [Slack](https://unison-lang.org/community) so we can help.  If you have any fixes to the process, please send us a PR!
 
 ## Running Unison
 

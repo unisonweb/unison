@@ -62,7 +62,7 @@ function! unison#Complete(findstart, base) abort
     "
     " (List.fol<cursor>
     "  ^
-    while start > 0 && line[start - 1] !~ '\v\s|[(){}\[\]]'
+    while start > 0 && line[start - 1] !~ '\v\s|[!(){}\[\]]'
       let start -= 1
     endwhile
     return start

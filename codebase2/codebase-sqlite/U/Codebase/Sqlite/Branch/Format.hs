@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module U.Codebase.Sqlite.Branch.Format
   ( BranchFormat (..),
     BranchLocalIds (..),
@@ -6,7 +5,8 @@ module U.Codebase.Sqlite.Branch.Format
     localToDbBranch,
     localToDbDiff,
     -- dbToLocalDiff,
-  ) where
+  )
+where
 
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector

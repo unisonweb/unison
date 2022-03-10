@@ -11,8 +11,8 @@ where
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.Tokenizable as Tokenizable
 import qualified Unison.Hashing.V2.Tokenizable as H
+import qualified Unison.Hashing.V2.Tokenizable as Tokenizable
 
 hashCausal :: Causal -> Hash
 hashCausal = Tokenizable.hashTokenizable

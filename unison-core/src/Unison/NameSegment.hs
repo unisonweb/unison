@@ -1,17 +1,15 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.NameSegment where
 
+import qualified Data.Text as Text
+import qualified Data.Text.Lazy.Builder as Text (Builder)
+import qualified Data.Text.Lazy.Builder as Text.Builder
 import Unison.Prelude
-
-import qualified Data.Text                     as Text
-import qualified Data.Text.Lazy.Builder        as Text (Builder)
-import qualified Data.Text.Lazy.Builder        as Text.Builder
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 
 -- Represents the parts of a name between the `.`s
-newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord)
+newtype NameSegment = NameSegment {toText :: Text} deriving (Eq, Ord)
 
 instance Alphabetical NameSegment where
   compareAlphabetical n1 n2 = compareAlphabetical (toText n1) (toText n2)
@@ -39,12 +37,12 @@ segments' n = go split
 reverseSegments' :: Text -> [Text]
 reverseSegments' = go
   where
-    go ""    = []
-    go t    = let
-      seg0 = Text.takeWhileEnd (/= '.') t
-      seg = if Text.null seg0 then Text.takeEnd 1 t else seg0
-      rem = Text.dropEnd (Text.length seg + 1) t
-      in seg : go rem
+    go "" = []
+    go t =
+      let seg0 = Text.takeWhileEnd (/= '.') t
+          seg = if Text.null seg0 then Text.takeEnd 1 t else seg0
+          rem = Text.dropEnd (Text.length seg + 1) t
+       in seg : go rem
 
 isEmpty :: NameSegment -> Bool
 isEmpty ns = toText ns == mempty

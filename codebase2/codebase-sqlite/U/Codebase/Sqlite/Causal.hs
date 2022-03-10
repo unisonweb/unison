@@ -12,13 +12,21 @@ data GDbCausal causalHash valueHash = DbCausal
   }
 
 -- Causal Plan
+
 -- * Load a DbCausal (how do we do this)
+
 -- => new function Queries.localCausalByCausalHashId, can model after loadCausalByCausalHash or factor out of
+
 -- * Add valueHashId as a dependency if unmigrated
+
 -- * Add parent causal hash ids as dependencies if unmigrated
-  -- => Queries.loadCausalParents
+
+-- => Queries.loadCausalParents
+
 -- * Map over Branch hash IDs
+
 -- * Inside saveDBCausal (new / factored out of original)
+
 --   * Save as a new self-hash
 --    ==> Queries.saveCausal
 --   * Map over parent causal hash IDs

@@ -1,11 +1,10 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveGeneric #-}
 
 module Unison.Codebase.Editor.DisplayObject where
 
+import Data.Bifunctor
 import Unison.Prelude
 import Unison.ShortHash
-import Data.Bifunctor
 
 data DisplayObject b a = BuiltinObject b | MissingObject ShortHash | UserObject a
   deriving (Eq, Ord, Show, Functor, Generic)
@@ -19,4 +18,3 @@ toMaybe :: DisplayObject b a -> Maybe a
 toMaybe = \case
   UserObject a -> Just a
   _ -> Nothing
-

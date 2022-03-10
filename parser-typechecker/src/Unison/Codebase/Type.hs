@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -9,17 +8,21 @@ module Unison.Codebase.Type
     GitError (..),
     GetRootBranchError (..),
     SyncToDir,
+    LocalOrRemote (..),
+    gitErrorFromOpenCodebaseError,
   )
 where
 
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo)
+import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo)
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
+import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
 import Unison.DataDeclaration (Decl)
@@ -32,7 +35,6 @@ import Unison.ShortHash (ShortHash)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
-import qualified Unison.Codebase.Editor.Git as Git
 
 type SyncToDir m =
   CodebasePath -> -- dest codebase
@@ -101,7 +103,7 @@ data Codebase m v a = Codebase
     syncToDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     viewRemoteBranch' :: forall r. ReadRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
     -- | Push the given branch to the given repo, and optionally set it as the root branch.
-    pushGitBranch :: Branch m -> WriteRepo -> PushGitBranchOpts -> m (Either GitError ()),
+    pushGitBranch :: forall e. WriteRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
     -- | @watches k@ returns all of the references @r@ that were previously put by a @putWatch k r t@. @t@ can be
     -- retrieved by @getWatch k r@.
     watches :: WK.WatchKind -> m [Reference.Id],
@@ -158,6 +160,12 @@ data Codebase m v a = Codebase
     beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool)
   }
 
+-- | Whether a codebase is local or remote.
+data LocalOrRemote
+  = Local
+  | Remote
+  deriving (Show, Eq, Ord)
+
 data PushGitBranchOpts = PushGitBranchOpts
   { -- | Set the branch as root?
     setRoot :: Bool,
@@ -177,3 +185,9 @@ data GitError
   deriving (Show)
 
 instance Exception GitError
+
+gitErrorFromOpenCodebaseError :: CodebasePath -> ReadRepo -> OpenCodebaseError -> GitSqliteCodebaseError
+gitErrorFromOpenCodebaseError path repo = \case
+  OpenCodebaseDoesntExist -> NoDatabaseFile repo path
+  OpenCodebaseUnknownSchemaVersion v ->
+    UnrecognizedSchemaVersion repo path (fromIntegral v)

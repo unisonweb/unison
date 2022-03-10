@@ -100,6 +100,7 @@ library:
     - mwc-random
     - NanoID
     - lucid
+    - yaml
     - semialign
     - servant
     - servant-docs
@@ -159,6 +160,7 @@ executables:
       - async
       - base
       - bytestring
+      - code-page
       - containers
       - directory
       - easytest
@@ -185,14 +187,3 @@ executables:
       - unison-prelude
       - unison-util
       - unison-util-relation
-
-benchmarks:
-  runtime:
-    source-dirs: benchmarks/runtime
-    main: Main.hs
-    dependencies:
-      - base
-      - criterion
-      - containers
-      - unison-core1
-      - unison-parser-typechecker

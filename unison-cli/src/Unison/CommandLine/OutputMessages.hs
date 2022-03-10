@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
@@ -9,17 +8,20 @@
 module Unison.CommandLine.OutputMessages where
 
 import Control.Lens
+import Control.Monad.State
 import qualified Control.Monad.State.Strict as State
+import Control.Monad.Trans.Writer.CPS
 import Data.Bifunctor (first, second)
+import qualified Data.Foldable as Foldable
 import Data.List (sort, stripPrefix)
 import qualified Data.List as List
 import Data.List.Extra (notNull, nubOrd, nubOrdOn)
+import qualified Data.List.NonEmpty as NEList
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
-import Data.Text.IO (readFile, writeFile)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe, uncurry3)
 import System.Directory
@@ -28,9 +30,11 @@ import System.Directory
     getHomeDirectory,
   )
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
+import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
@@ -63,7 +67,7 @@ import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.InputPatterns (makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
-import Unison.ConstructorReference (GConstructorReference(..))
+import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.Hash as Hash
@@ -112,6 +116,7 @@ import qualified Unison.Result as Result
 import Unison.Server.Backend (ShallowListEntry (..), TermEntry (..), TypeEntry (..))
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.ShortHash as SH
+import qualified Unison.ShortHash as ShortHash
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TermPrinter
@@ -125,14 +130,6 @@ import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import Prelude hiding (readFile, writeFile)
-import qualified Data.List.NonEmpty as NEList
-import qualified U.Util.Monoid as Monoid
-import qualified Data.Foldable as Foldable
-import qualified Unison.Codebase.Branch as Branch
-import Control.Monad.State
-import Control.Monad.Trans.Writer.CPS
-import qualified Unison.ShortHash as ShortHash
 
 type Pretty = P.Pretty P.ColorText
 
@@ -314,34 +311,36 @@ notifyNumbered o = case o of
       (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
   TodoOutput names todo -> todoOutput names todo
   CantDeleteDefinitions ppeDecl endangerments ->
-    (P.warnCallout $
-      P.lines
-        [ P.wrap "I didn't delete the following definitions because they are still in use:",
-          "",
-          endangeredDependentsTable ppeDecl endangerments
-        ]
-    , numberedArgsForEndangerments ppeDecl endangerments)
+    ( P.warnCallout $
+        P.lines
+          [ P.wrap "I didn't delete the following definitions because they are still in use:",
+            "",
+            endangeredDependentsTable ppeDecl endangerments
+          ],
+      numberedArgsForEndangerments ppeDecl endangerments
+    )
   CantDeleteNamespace ppeDecl endangerments ->
-    (P.warnCallout $
-      P.lines
-        [ P.wrap "I didn't delete the namespace because the following definitions are still in use.",
-          "",
-          endangeredDependentsTable ppeDecl endangerments,
-          "",
-          P.wrap "If you want to proceed anyways and leave those definitions without names, use"
-            <> IP.patternName IP.deleteNamespaceForce
-        ]
-    , numberedArgsForEndangerments ppeDecl endangerments)
+    ( P.warnCallout $
+        P.lines
+          [ P.wrap "I didn't delete the namespace because the following definitions are still in use.",
+            "",
+            endangeredDependentsTable ppeDecl endangerments,
+            "",
+            P.wrap ("If you want to proceed anyways and leave those definitions without names, use " <> IP.patternName IP.deleteNamespaceForce)
+          ],
+      numberedArgsForEndangerments ppeDecl endangerments
+    )
   History _cap sbhLength history tail ->
     let (tailMsg, tailHashes) = handleTail (length history + 1)
         msg :: Pretty
-        msg = P.lines
-          [ note $ "The most recent namespace hash is immediately below this message.",
-            "",
-            P.sep "\n\n" [go i (toSBH h) diff | (i, (h, diff)) <- zip [1..] reversedHistory],
-            "",
-            tailMsg
-          ]
+        msg =
+          P.lines
+            [ note $ "The most recent namespace hash is immediately below this message.",
+              "",
+              P.sep "\n\n" [go i (toSBH h) diff | (i, (h, diff)) <- zip [1 ..] reversedHistory],
+              "",
+              tailMsg
+            ]
         branchHashes :: [Branch.Hash]
         branchHashes = (fst <$> reversedHistory) <> tailHashes
      in (msg, displayBranchHash <$> branchHashes)
@@ -353,31 +352,31 @@ notifyNumbered o = case o of
       handleTail :: Int -> (Pretty, [Branch.Hash])
       handleTail n = case tail of
         E.EndOfLog h ->
-          (P.lines
-            [ "□ " <> showNum n <> prettySBH (toSBH h) <> " (start of history)"
-            ]
-          , [h]
+          ( P.lines
+              [ "□ " <> showNum n <> prettySBH (toSBH h) <> " (start of history)"
+              ],
+            [h]
           )
         E.MergeTail h hs ->
-          (P.lines
-            [ P.wrap $ "This segment of history starts with a merge." <> ex,
-              "",
-              "⊙ " <> showNum n <> prettySBH (toSBH h),
-              "⑃",
-              P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySBH (toSBH h))
-            ]
-          , h : hs
+          ( P.lines
+              [ P.wrap $ "This segment of history starts with a merge." <> ex,
+                "",
+                "⊙ " <> showNum n <> prettySBH (toSBH h),
+                "⑃",
+                P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySBH (toSBH h))
+              ],
+            h : hs
           )
         E.PageEnd h _n ->
-          (P.lines
-            [ P.wrap $ "There's more history before the versions shown here." <> ex,
-              "",
-              dots,
-              "",
-              "⊙ " <> showNum n <> prettySBH (toSBH h),
-              ""
-            ]
-          , [h]
+          ( P.lines
+              [ P.wrap $ "There's more history before the versions shown here." <> ex,
+                "",
+                dots,
+                "",
+                "⊙ " <> showNum n <> prettySBH (toSBH h),
+                ""
+              ],
+            [h]
           )
       dots = "⠇"
       go i sbh diff =
@@ -390,13 +389,14 @@ notifyNumbered o = case o of
         "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
           <> "to view history starting from a given namespace hash."
   DeletedDespiteDependents ppeDecl endangerments ->
-    (P.warnCallout $
-      P.lines
-        [ P.wrap "Of the things I deleted, the following are still used in the following definitions. They now contain un-named references.",
-          "",
-          endangeredDependentsTable ppeDecl endangerments
-        ]
-    , numberedArgsForEndangerments ppeDecl endangerments)
+    ( P.warnCallout $
+        P.lines
+          [ P.wrap "Of the things I deleted, the following are still used in the following definitions. They now contain un-named references.",
+            "",
+            endangeredDependentsTable ppeDecl endangerments
+          ],
+      numberedArgsForEndangerments ppeDecl endangerments
+    )
   ListEdits patch ppe -> showListEdits patch ppe
   where
     absPathToBranchId = Right
@@ -501,7 +501,7 @@ showListEdits patch ppe =
             )
 
 prettyRemoteNamespace ::
-  ReadRemoteNamespace  ->
+  ReadRemoteNamespace ->
   Pretty
 prettyRemoteNamespace =
   P.group . P.blue . P.text . uncurry3 RemoteRepo.printNamespace
@@ -633,8 +633,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -643,6 +643,7 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
+
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1114,6 +1115,12 @@ notifyUser dir o = case o of
           push = P.group . P.backticked . IP.patternName $ IP.push
           pull = P.group . P.backticked . IP.patternName $ IP.pull
     GitCodebaseError e -> case e of
+      CouldntParseRemoteBranch repo s ->
+        P.wrap $
+          "I couldn't decode the root branch "
+            <> P.string s
+            <> "from the repository at"
+            <> prettyReadRepo repo
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"
@@ -1645,9 +1652,9 @@ displayRendered outputLoc pp =
           existingContents <- do
             exists <- doesFileExist path
             if exists
-              then readFile path
+              then readUtf8 path
               else pure ""
-          writeFile path . Text.pack . P.toPlain 80 $
+          writeUtf8 path . Text.pack . P.toPlain 80 $
             P.lines [pp, "", P.text existingContents]
         message pp path =
           P.callout "☝️" $
@@ -1667,7 +1674,7 @@ displayDefinitions ::
   IO Pretty
 displayDefinitions _outputLoc _ppe types terms
   | Map.null types && Map.null terms =
-    pure $ P.callout "😶" "No results to display."
+      pure $ P.callout "😶" "No results to display."
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
@@ -1681,9 +1688,9 @@ displayDefinitions outputLoc ppe types terms =
           existingContents <- do
             exists <- doesFileExist path
             if exists
-              then readFile path
+              then readUtf8 path
               else pure ""
-          writeFile path . Text.pack . P.toPlain 80 $
+          writeUtf8 path . Text.pack . P.toPlain 80 $
             P.lines
               [ code,
                 "",
@@ -1851,64 +1858,68 @@ prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
 renderNameConflicts :: PPE.PrettyPrintEnv -> Names -> Numbered Pretty
 renderNameConflicts ppe conflictedNames = do
   let conflictedTypeNames :: Map Name [HQ.HashQualified Name]
-      conflictedTypeNames = conflictedNames
-                          & Names.types
-                          & R.domain
-                          & fmap (foldMap (pure @[] . PPE.typeName ppe))
+      conflictedTypeNames =
+        conflictedNames
+          & Names.types
+          & R.domain
+          & fmap (foldMap (pure @[] . PPE.typeName ppe))
   let conflictedTermNames :: Map Name [HQ.HashQualified Name]
-      conflictedTermNames = conflictedNames
-                          & Names.terms
-                          & R.domain
-                          & fmap (foldMap (pure @[] . PPE.termName ppe))
+      conflictedTermNames =
+        conflictedNames
+          & Names.terms
+          & R.domain
+          & fmap (foldMap (pure @[] . PPE.termName ppe))
   let allConflictedNames :: [Name]
       allConflictedNames = Set.toList (Map.keysSet conflictedTermNames <> Map.keysSet conflictedTypeNames)
   prettyConflictedTypes <- showConflictedNames "type" conflictedTypeNames
   prettyConflictedTerms <- showConflictedNames "term" conflictedTermNames
-  pure $ Monoid.unlessM (null allConflictedNames) $
-           P.callout "❓" . P.sep "\n\n" . P.nonEmpty $
-             [ prettyConflictedTypes,
-               prettyConflictedTerms,
-               tip $
-                 "This occurs when merging branches that both independently introduce the same name."
-                   <> "Use "
-                   <> makeExample'
-                     ( if (not . null) conflictedTypeNames
-                         then IP.renameType
-                         else IP.renameTerm
-                     )
-                   <> " or "
-                   <> makeExample'
-                     ( if (not . null) conflictedTypeNames
-                         then IP.deleteType
-                         else IP.deleteTerm
-                     )
-                   <> "to resolve the conflicts."
-             ]
+  pure $
+    Monoid.unlessM (null allConflictedNames) $
+      P.callout "❓" . P.sep "\n\n" . P.nonEmpty $
+        [ prettyConflictedTypes,
+          prettyConflictedTerms,
+          tip $
+            "This occurs when merging branches that both independently introduce the same name."
+              <> "Use "
+              <> makeExample'
+                ( if (not . null) conflictedTypeNames
+                    then IP.renameType
+                    else IP.renameTerm
+                )
+              <> " or "
+              <> makeExample'
+                ( if (not . null) conflictedTypeNames
+                    then IP.deleteType
+                    else IP.deleteTerm
+                )
+              <> "to resolve the conflicts."
+        ]
   where
-
     showConflictedNames :: Pretty -> Map Name [HQ.HashQualified Name] -> Numbered Pretty
-    showConflictedNames thingKind conflictedNames = P.lines <$> do
-      for (Map.toList conflictedNames) $ \(name, hashes) -> do
-        prettyConflicts <- for hashes \hash -> do
-          n <- addNumberedArg (HQ.toString hash)
-          pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
-        pure . P.wrap $
-          ("The " <> thingKind <> " " <> P.green (prettyName name)
-          <> " has conflicting definitions:"
-          ) `P.hang` P.lines prettyConflicts
+    showConflictedNames thingKind conflictedNames =
+      P.lines <$> do
+        for (Map.toList conflictedNames) $ \(name, hashes) -> do
+          prettyConflicts <- for hashes \hash -> do
+            n <- addNumberedArg (HQ.toString hash)
+            pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
+          pure . P.wrap $
+            ( "The " <> thingKind <> " " <> P.green (prettyName name)
+                <> " has conflicting definitions:"
+            )
+              `P.hang` P.lines prettyConflicts
 
 renderEditConflicts ::
   PPE.PrettyPrintEnv -> Patch -> Numbered Pretty
 renderEditConflicts ppe Patch {..} = do
   formattedConflicts <- for editConflicts formatConflict
   pure . Monoid.unlessM (null editConflicts) . P.callout "❓" . P.sep "\n\n" $
-              [ P.wrap $
-                  "These" <> P.bold "definitions were edited differently"
-                    <> "in namespaces that have been merged into this one."
-                    <> "You'll have to tell me what to use as the new definition:",
-                P.indentN 2 (P.lines formattedConflicts)
-                --    , tip $ "Use " <> makeExample IP.resolve [name (head editConflicts), " <replacement>"] <> " to pick a replacement." -- todo: eventually something with `edit`
-              ]
+    [ P.wrap $
+        "These" <> P.bold "definitions were edited differently"
+          <> "in namespaces that have been merged into this one."
+          <> "You'll have to tell me what to use as the new definition:",
+      P.indentN 2 (P.lines formattedConflicts)
+      --    , tip $ "Use " <> makeExample IP.resolve [name (head editConflicts), " <replacement>"] <> " to pick a replacement." -- todo: eventually something with `edit`
+    ]
   where
     -- todo: could possibly simplify all of this, but today is a copy/paste day.
     editConflicts :: [Either (Reference, Set TypeEdit.TypeEdit) (Reference, Set TermEdit.TermEdit)]
@@ -1919,8 +1930,9 @@ renderEditConflicts ppe Patch {..} = do
     numberedHQName hqName = do
       n <- addNumberedArg (HQ.toString hqName)
       pure $ formatNum n <> styleHashQualified P.bold hqName
-    formatTypeEdits :: (Reference, Set TypeEdit.TypeEdit)
-                    -> Numbered Pretty
+    formatTypeEdits ::
+      (Reference, Set TypeEdit.TypeEdit) ->
+      Numbered Pretty
     formatTypeEdits (r, toList -> es) = do
       replacedType <- numberedHQName (PPE.typeName ppe r)
       replacements <- for [PPE.typeName ppe r | TypeEdit.Replace r <- es] numberedHQName
@@ -1931,8 +1943,9 @@ renderEditConflicts ppe Patch {..} = do
                  else "replaced with"
              )
           `P.hang` P.lines replacements
-    formatTermEdits :: (Reference.TermReference, Set TermEdit.TermEdit)
-                    -> Numbered Pretty
+    formatTermEdits ::
+      (Reference.TermReference, Set TermEdit.TermEdit) ->
+      Numbered Pretty
     formatTermEdits (r, toList -> es) = do
       replacedTerm <- numberedHQName (PPE.termName ppe (Referent.Ref r))
       replacements <- for [PPE.termName ppe (Referent.Ref r) | TermEdit.Replace r _ <- es] numberedHQName
@@ -1943,10 +1956,11 @@ renderEditConflicts ppe Patch {..} = do
                  else "replaced with"
              )
           `P.hang` P.lines replacements
-    formatConflict :: Either
-                       (Reference, Set TypeEdit.TypeEdit)
-                       (Reference.TermReference, Set TermEdit.TermEdit)
-                   -> Numbered Pretty
+    formatConflict ::
+      Either
+        (Reference, Set TypeEdit.TypeEdit)
+        (Reference.TermReference, Set TermEdit.TermEdit) ->
+      Numbered Pretty
     formatConflict = either formatTypeEdits formatTermEdits
 
 type Numbered = State.State (Int, Seq.Seq String)
@@ -2027,24 +2041,25 @@ todoOutput ppe todo = runNumbered do
         pure $ formatNum n <> prettyDeclPair ppeu (ref, displayObj)
       let filteredTerms = goodTerms (unscore <$> dirtyTerms)
       termNumbers <- for filteredTerms \(ref, _, _) -> do
-          n <- addNumberedArg (HQ.toString $ PPE.termName ppeu ref)
-          pure $ formatNum n
+        n <- addNumberedArg (HQ.toString $ PPE.termName ppeu ref)
+        pure $ formatNum n
       let formattedTerms = TypePrinter.prettySignaturesCT ppes filteredTerms
           numberedTerms = zipWith (<>) termNumbers formattedTerms
-      pure $ Monoid.unlessM (TO.noEdits todo) . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
-                  [ P.wrap
-                      ( "The namespace has" <> fromString (show (TO.todoScore todo))
-                          <> "transitive dependent(s) left to upgrade."
-                          <> "Your edit frontier is the dependents of these definitions:"
-                      ),
-                    P.indentN 2 . P.lines $
-                      ( (prettyDeclPair ppeu <$> toList frontierTypes)
-                          ++ TypePrinter.prettySignaturesCT ppes (goodTerms frontierTerms)
-                      ),
-                    P.wrap "I recommend working on them in the following order:",
-                    P.lines $ numberedTypes ++ numberedTerms,
-                    formatMissingStuff corruptTerms corruptTypes
-                  ]
+      pure $
+        Monoid.unlessM (TO.noEdits todo) . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
+          [ P.wrap
+              ( "The namespace has" <> fromString (show (TO.todoScore todo))
+                  <> "transitive dependent(s) left to upgrade."
+                  <> "Your edit frontier is the dependents of these definitions:"
+              ),
+            P.indentN 2 . P.lines $
+              ( (prettyDeclPair ppeu <$> toList frontierTypes)
+                  ++ TypePrinter.prettySignaturesCT ppes (goodTerms frontierTerms)
+              ),
+            P.wrap "I recommend working on them in the following order:",
+            P.lines $ numberedTypes ++ numberedTerms,
+            formatMissingStuff corruptTerms corruptTypes
+          ]
     unscore :: (a, b, c) -> (b, c)
     unscore (_score, b, c) = (b, c)
 
@@ -2095,7 +2110,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
@@ -2362,7 +2377,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
             [] -> mempty
             x : ys -> " (" <> P.commas (x <> " updates" : ys) <> ")"
       pure $ n <> P.bold " patch " <> prettyName name <> message
-    --	18. patch q
+    -- 	18. patch q
     prettyNamePatch prefix (name, _patchDiff) = do
       n <- numPatch prefix name
       pure $ n <> P.bold " patch " <> prettyName name
@@ -2495,7 +2510,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -- prefixBranchId ".base" "List.map" -> ".base.List.map"
     prefixBranchId :: Input.AbsBranchId -> Name -> String
     prefixBranchId branchId name = case branchId of
-      Left sbh -> "#" <> SBH.toString sbh <> ":" <> Name.toString (Name.makeAbsolute  name)
+      Left sbh -> "#" <> SBH.toString sbh <> ":" <> Name.toString (Name.makeAbsolute name)
       Right pathPrefix -> Name.toString (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
 
     addNumberedArg' :: String -> Numbered Pretty
@@ -2743,10 +2758,10 @@ prettyTypeName ppe r =
     prettyHashQualified (PPE.typeName ppe r)
 
 prettyReadRepo :: ReadRepo -> Pretty
-prettyReadRepo (RemoteRepo.ReadGitRepo{url}) = P.blue (P.text url)
+prettyReadRepo (RemoteRepo.ReadGitRepo {url}) = P.blue (P.text url)
 
 prettyWriteRepo :: WriteRepo -> Pretty
-prettyWriteRepo (RemoteRepo.WriteGitRepo{url'}) = P.blue (P.text url')
+prettyWriteRepo (RemoteRepo.WriteGitRepo {url'}) = P.blue (P.text url')
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

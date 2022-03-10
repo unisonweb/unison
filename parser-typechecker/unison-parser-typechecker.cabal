@@ -65,8 +65,12 @@ library
       Unison.Codebase.SqliteCodebase.Branch.Dependencies
       Unison.Codebase.SqliteCodebase.Conversions
       Unison.Codebase.SqliteCodebase.GitError
-      Unison.Codebase.SqliteCodebase.MigrateSchema12
-      Unison.Codebase.SqliteCodebase.MigrateSchema12.DbHelpers
+      Unison.Codebase.SqliteCodebase.Migrations
+      Unison.Codebase.SqliteCodebase.Migrations.Errors
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
+      Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.SyncMode
       Unison.Codebase.TermEdit
@@ -307,6 +311,7 @@ library
     , x509
     , x509-store
     , x509-system
+    , yaml
     , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
@@ -413,6 +418,7 @@ executable tests
       async
     , base
     , bytestring
+    , code-page
     , containers
     , directory
     , easytest
@@ -439,45 +445,6 @@ executable tests
     , unison-util
     , unison-util-relation
     , unliftio
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010
-
-benchmark runtime
-  type: exitcode-stdio-1.0
-  main-is: Main.hs
-  other-modules:
-      Paths_unison_parser_typechecker
-  hs-source-dirs:
-      benchmarks/runtime
-  default-extensions:
-      ApplicativeDo
-      BangPatterns
-      BlockArguments
-      DeriveFunctor
-      DeriveGeneric
-      DerivingStrategies
-      DoAndIfThenElse
-      FlexibleContexts
-      FlexibleInstances
-      GeneralizedNewtypeDeriving
-      LambdaCase
-      MultiParamTypeClasses
-      NamedFieldPuns
-      OverloadedStrings
-      PatternSynonyms
-      RankNTypes
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
-      ViewPatterns
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
-  build-depends:
-      base
-    , containers
-    , criterion
-    , unison-core1
-    , unison-parser-typechecker
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
