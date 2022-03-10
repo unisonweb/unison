@@ -1,7 +1,7 @@
 module Unison.Test.Range where
 
 import EasyTest
-import Unison.Lexer (Pos (..))
+import Unison.Lexer.Pos (Pos (..))
 import Unison.Util.Range
 
 test :: Test ()

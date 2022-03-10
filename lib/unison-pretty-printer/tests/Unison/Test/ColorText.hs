@@ -7,7 +7,7 @@ module Unison.Test.ColorText where
 import qualified Data.Map as Map
 import EasyTest
 import Text.RawString.QQ
-import Unison.Lexer (Pos (..))
+import Unison.Lexer.Pos (Pos (..))
 import Unison.Util.AnnotatedText
   ( AnnotatedExcerpt (..),
     condensedExcerptToText,

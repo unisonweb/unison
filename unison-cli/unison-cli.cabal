@@ -108,6 +108,7 @@ library
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio
@@ -185,6 +186,7 @@ executable integration-tests
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio
@@ -256,6 +258,7 @@ executable transcripts
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio
@@ -331,6 +334,7 @@ executable unison
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio
@@ -410,6 +414,7 @@ test-suite tests
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio

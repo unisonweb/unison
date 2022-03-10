@@ -136,6 +136,7 @@ library:
     - unison-core
     - unison-core1
     - unison-prelude
+    - unison-pretty-printer
     - unison-util
     - unison-util-relation
     - open-browser
@@ -143,15 +144,6 @@ library:
     - generic-lens
 
 executables:
-  prettyprintdemo:
-    source-dirs: prettyprintdemo
-    main: Main.hs
-    dependencies:
-      - base
-      - safe
-      - text
-      - unison-parser-typechecker
-
   tests:
     source-dirs: tests
     main: Suite.hs
@@ -187,3 +179,4 @@ executables:
       - unison-prelude
       - unison-util
       - unison-util-relation
+      - unison-pretty-printer

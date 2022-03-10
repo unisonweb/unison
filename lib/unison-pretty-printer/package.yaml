@@ -1,0 +1,76 @@
+name: unison-pretty-printer
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2022 Unison Computing, PBC and contributors
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - DeriveFunctor
+  - DeriveGeneric
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - ViewPatterns
+
+ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+
+flags:
+  optimized:
+    manual: true
+    default: true
+
+when:
+  - condition: flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+library:
+  source-dirs: src
+  dependencies:
+    - base
+    - unison-core1
+    - unison-prelude
+    - containers
+    - ListLike
+    - ansi-terminal
+    - text
+    - mtl
+    - unliftio
+    - process
+    - extra
+    - terminal-size
+
+executables:
+  prettyprintdemo:
+    source-dirs: prettyprintdemo
+    main: Main.hs
+    dependencies:
+      - base
+      - safe
+      - text
+      - unison-pretty-printer
+
+
+tests:
+  pretty-printer-tests:
+    source-dirs: tests
+    main: Suite.hs
+    ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+    dependencies:
+      - base
+      - unison-pretty-printer
+      - raw-strings-qq
+      - easytest
+      - containers
+      - code-page

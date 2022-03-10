@@ -24,6 +24,7 @@ packages:
 - lib/unison-prelude
 - lib/unison-sqlite
 - lib/unison-util-relation
+- lib/unison-pretty-printer
 
 #compiler-check: match-exact
 resolver: lts-18.13
