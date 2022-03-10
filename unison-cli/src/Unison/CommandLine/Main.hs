@@ -20,6 +20,7 @@ import Data.IORef
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified System.Console.Haskeline as Line
+import qualified System.Exit as Exit
 import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
 import Unison.Codebase (Codebase)
@@ -114,7 +115,11 @@ main ::
 main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl = do
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
-  welcomeEvents <- Welcome.run codebase welcome
+  let welcomeInterruptHandler = do
+        putStrLn "⚠️ Something went wrong during codebase creation. Shutting down."
+        Exit.exitFailure
+  welcomeEvents <- withInterruptHandler welcomeInterruptHandler $ do
+    Welcome.run codebase welcome
   do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef <- newIORef root

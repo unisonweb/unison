@@ -157,7 +157,8 @@ data Codebase m v a = Codebase
     -- `beforeImpl b1 b2` is undefined if `b2` not in the codebase
     --
     --  Use `Codebase.before` which wraps this in a nice API.
-    beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool)
+    beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool),
+    codebasePath :: CodebasePath
   }
 
 -- | Whether a codebase is local or remote.

@@ -98,7 +98,7 @@ determineFirstStep downloadBase codebase = do
   case downloadBase of
     DownloadBase ns
       | isEmptyCodebase ->
-          pure $ DownloadingBase ns
+        pure $ DownloadingBase ns
     _ ->
       pure PreviouslyOnboarded
 

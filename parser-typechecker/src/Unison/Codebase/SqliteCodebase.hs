@@ -669,9 +669,9 @@ sqliteCodebase debugName root localOrRemote action = do
         getWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
         getWatch k r@(Reference.Id h _i)
           | elem k standardWatchKinds =
-              runDB' conn $
-                Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
-                  >>= Cv.term2to1 h getDeclType
+            runDB' conn $
+              Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
+                >>= Cv.term2to1 h getDeclType
         getWatch _unknownKind _ = pure Nothing
 
         standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
@@ -679,11 +679,11 @@ sqliteCodebase debugName root localOrRemote action = do
         putWatch :: MonadUnliftIO m => UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
         putWatch k r@(Reference.Id h _i) tm
           | elem k standardWatchKinds =
-              runDB conn $
-                Ops.saveWatch
-                  (Cv.watchKind1to2 k)
-                  (Cv.referenceid1to2 r)
-                  (Cv.term1to2 h tm)
+            runDB conn $
+              Ops.saveWatch
+                (Cv.watchKind1to2 k)
+                (Cv.referenceid1to2 r)
+                (Cv.term1to2 h tm)
         putWatch _unknownKind _ _ = pure ()
 
         clearWatches :: MonadIO m => m ()
@@ -823,6 +823,7 @@ sqliteCodebase debugName root localOrRemote action = do
             branchHashesByPrefix
             (Just sqlLca)
             (Just \l r -> runDB conn $ fromJust <$> before l r)
+            root
 
     let finalizer :: MonadIO m => m ()
         finalizer = do
