@@ -1,6 +1,8 @@
 -- This table encompasses the Sum type of an entity reference, which is complex because we don't store rows for each entity,
 -- they're stored in components. This gives us an entity ID which can refer to a definition as a single field, which makes a lot of joins
 -- much easier and lets us consolidate all the checks which dictate the rules of the sum-type in a single place.
+--
+-- An entity is either a Term, Constructor, Type Decl, or Patch.
 CREATE TABLE entity (
   id INTEGER PRIMARY KEY,
   -- Make a separate table for entity type descriptions?
@@ -18,6 +20,7 @@ CREATE TABLE entity (
           (builtin IS NULL) =
           (object_id IS NOT NULL
             AND component_index IS NOT NULL
+            -- constructor_index may or may not be null
           )
       WHEN 1 -- Decl Component
         THEN
@@ -26,13 +29,14 @@ CREATE TABLE entity (
             AND component_index IS NOT NULL
             AND constructor_index IS NULL
           )
-      WHEN 2 -- Currently Namespace
-        THEN FALSE -- This object type will be deleted as part of migrating to relational namespaces.
       WHEN 3 -- Patch
         THEN (   builtin IS NULL
              AND component_index IS NULL
              AND constructor_index IS NULL
+             object_id IS NOT NULL
              )
+      -- Other object types aren't entities.
+      ELSE FALSE
     END
   ),
 
@@ -40,7 +44,7 @@ CREATE TABLE entity (
   FOREIGN KEY (object_id, kind_id) REFERENCES object_and_type(object_id, kind_id)
 );
 
--- Allows efficient filtering by type in joins.
+-- Allows efficient filtering by kind in joins.
 CREATE INDEX entity_and_kind ON entity(id, kind_id);
 
 CREATE INDEX object_and_kind ON object(id, type_id);
