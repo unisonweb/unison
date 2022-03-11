@@ -28,6 +28,7 @@ library
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleCommand
       Unison.Codebase.Editor.HandleInput
+      Unison.Codebase.Editor.HandleInput.DependencyGraph
       Unison.Codebase.Editor.HandleInput.LoopState
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.Input

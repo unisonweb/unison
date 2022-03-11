@@ -1686,6 +1686,16 @@ namespaceDependencies =
         _ -> Left (I.help namespaceDependencies)
     )
 
+dependencyGraph :: InputPattern
+dependencyGraph =
+  InputPattern
+    "graph"
+    ["dependency-graph"]
+    [(OnePlus, definitionQueryArg)]
+    "Graph the dependencies of the provided definitions."
+    ( \args -> Input.GraphDependenciesI <$> traverse parseHashQualifiedName args
+    )
+
 debugNumberedArgs :: InputPattern
 debugNumberedArgs =
   InputPattern
@@ -1947,6 +1957,7 @@ validInputs =
     dependents,
     dependencies,
     namespaceDependencies,
+    dependencyGraph,
     debugNumberedArgs,
     debugFileHashes,
     debugDumpNamespace,

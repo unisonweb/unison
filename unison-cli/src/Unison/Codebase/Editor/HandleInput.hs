@@ -139,7 +139,7 @@ import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Find as Find
 import Unison.Util.Free (Free)
 import Unison.Util.List (uniqueBy)
-import Unison.Util.Monoid (intercalateMap)
+import Unison.Util.Monoid (intercalateMap, foldMapM)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
@@ -151,6 +151,8 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import UnliftIO (MonadUnliftIO)
+import qualified Unison.Codebase.Editor.HandleInput.DependencyGraph as DependencyGraph
+import qualified Data.Text.IO as Text
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -433,6 +435,7 @@ loop = do
             ListDependenciesI {} -> wat
             ListDependentsI {} -> wat
             NamespaceDependenciesI {} -> wat
+            GraphDependenciesI {} -> wat
             HistoryI {} -> wat
             TestI {} -> wat
             LinksI {} -> wat
@@ -1554,6 +1557,13 @@ loop = do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
                   ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
                   respond $ ListNamespaceDependencies ppe path externalDependencies
+            GraphDependenciesI hqNames -> do
+              labeledDeps <- foldMapM resolveHQToLabeledDependencies hqNames
+              depGraph <- DependencyGraph.dependencyGraph labeledDeps
+              ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
+              let dotty = DependencyGraph.renderDottyGraph ppe depGraph
+              liftIO $ Text.putStrLn dotty
+
             DebugNumberedArgsI -> use LoopState.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
               Nothing -> respond NoUnisonFile

@@ -166,6 +166,7 @@ data Input
   | -- | List all external dependencies of a given namespace, or the current namespace if
     -- no path is provided.
     NamespaceDependenciesI (Maybe Path')
+  | GraphDependenciesI [HQ.HashQualified Name]
   | DebugNumberedArgsI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI
