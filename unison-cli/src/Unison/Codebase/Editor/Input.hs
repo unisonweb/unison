@@ -13,6 +13,7 @@ module Unison.Codebase.Editor.Input
   )
 where
 
+import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
@@ -166,7 +167,7 @@ data Input
   | -- | List all external dependencies of a given namespace, or the current namespace if
     -- no path is provided.
     NamespaceDependenciesI (Maybe Path')
-  | GraphDependenciesI [HQ.HashQualified Name]
+  | GraphDependenciesI Path' (NESet (HQ.HashQualified Name))
   | DebugNumberedArgsI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI

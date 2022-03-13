@@ -45,6 +45,7 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
+import qualified Unison.Codebase.Editor.HandleInput.DependencyGraph as DependencyGraph
 import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval)
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
@@ -139,7 +140,7 @@ import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Find as Find
 import Unison.Util.Free (Free)
 import Unison.Util.List (uniqueBy)
-import Unison.Util.Monoid (intercalateMap, foldMapM)
+import Unison.Util.Monoid (foldMapM, intercalateMap)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
@@ -151,8 +152,6 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import UnliftIO (MonadUnliftIO)
-import qualified Unison.Codebase.Editor.HandleInput.DependencyGraph as DependencyGraph
-import qualified Data.Text.IO as Text
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -696,8 +695,8 @@ loop = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                      -- Branch exists and isn't empty, print an error
-                      throwError (BranchAlreadyExists (Path.unsplit' dest))
+                    -- Branch exists and isn't empty, print an error
+                    throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -1388,11 +1387,11 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
-                      eval (MakeStandalone ppe ref output) >>= \case
-                        Just err -> respond $ EvaluationFailure err
-                        Nothing -> pure ()
+                    eval (MakeStandalone ppe ref output) >>= \case
+                      Just err -> respond $ EvaluationFailure err
+                      Nothing -> pure ()
                   | otherwise ->
-                      respond $ BadMainFunction smain ty ppe [mainType]
+                    respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -1557,13 +1556,20 @@ loop = do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
                   ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
                   respond $ ListNamespaceDependencies ppe path externalDependencies
-            GraphDependenciesI hqNames -> do
+            GraphDependenciesI scopePath' hqNames -> do
+              scopeBranch <- getAt (resolveToAbsolute scopePath')
               labeledDeps <- foldMapM resolveHQToLabeledDependencies hqNames
-              depGraph <- DependencyGraph.dependencyGraph labeledDeps
+              let notSelfEdge :: (LabeledDependency, LabeledDependency) -> Bool
+                  notSelfEdge (x, y) = x /= y
+              let inScope :: (LabeledDependency, LabeledDependency) -> Bool
+                  inScope (_, destRef) = case destRef of
+                    LD.TypeReference ref -> Relation.memberDom ref (Branch.deepTypes (Branch.head scopeBranch))
+                    LD.TermReferent ref -> Relation.memberDom ref (Branch.deepTerms (Branch.head scopeBranch))
+              depGraph <- DependencyGraph.dependencyGraph (\e -> inScope e && notSelfEdge e) labeledDeps
               ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
-              let dotty = DependencyGraph.renderDottyGraph ppe depGraph
-              liftIO $ Text.putStrLn dotty
-
+              let dotty = DependencyGraph.renderDottyMarkup ppe depGraph
+              liftIO $ DependencyGraph.renderDottyPng dotty
+              -- liftIO $ Text.putStrLn dotty
             DebugNumberedArgsI -> use LoopState.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
               Nothing -> respond NoUnisonFile
@@ -2397,10 +2403,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2417,10 +2423,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -2838,7 +2844,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-              respond $ ListOfLinks mempty []
+            respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>

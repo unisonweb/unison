@@ -10,6 +10,7 @@ import Data.List.Extra (nubOrdOn)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
@@ -1691,9 +1692,14 @@ dependencyGraph =
   InputPattern
     "graph"
     ["dependency-graph"]
-    [(OnePlus, definitionQueryArg)]
+    [(Required, namespaceArg), (OnePlus, definitionQueryArg)]
     "Graph the dependencies of the provided definitions."
-    ( \args -> Input.GraphDependenciesI <$> traverse parseHashQualifiedName args
+    ( \case
+        (pathStr : src : srcs) -> do
+          path' <- first fromString $ Path.parsePath' pathStr
+          hqSrcs <- traverse parseHashQualifiedName (src NE.:| srcs)
+          pure $ Input.GraphDependenciesI path' (NESet.fromList hqSrcs)
+        _ -> Left (I.help dependencyGraph)
     )
 
 debugNumberedArgs :: InputPattern
