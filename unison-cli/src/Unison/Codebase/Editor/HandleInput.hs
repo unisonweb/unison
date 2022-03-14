@@ -152,6 +152,7 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import UnliftIO (MonadUnliftIO)
+import qualified Data.Text.IO as Text
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -1565,11 +1566,13 @@ loop = do
                   inScope (_, destRef) = case destRef of
                     LD.TypeReference ref -> Relation.memberDom ref (Branch.deepTypes (Branch.head scopeBranch))
                     LD.TermReferent ref -> Relation.memberDom ref (Branch.deepTerms (Branch.head scopeBranch))
-              depGraph <- DependencyGraph.dependencyGraph (\e -> inScope e && notSelfEdge e) labeledDeps
+              depGraph <- DependencyGraph.dependencyGraph (\e -> (inScope e) && notSelfEdge e) labeledDeps
               ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
-              let dotty = DependencyGraph.renderDottyMarkup ppe depGraph
+              let namespaceGraph = DependencyGraph.toNamespaceDeps ppe (snd depGraph)
+              -- let dotty = DependencyGraph.renderDottyMarkup ppe depGraph
+              let dotty = DependencyGraph.renderNamespaceDotty namespaceGraph
+              liftIO $ Text.putStrLn dotty
               liftIO $ DependencyGraph.renderDottyPng dotty
-              -- liftIO $ Text.putStrLn dotty
             DebugNumberedArgsI -> use LoopState.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
               Nothing -> respond NoUnisonFile

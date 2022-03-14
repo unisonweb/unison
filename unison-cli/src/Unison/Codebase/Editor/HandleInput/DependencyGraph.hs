@@ -4,6 +4,8 @@ module Unison.Codebase.Editor.HandleInput.DependencyGraph
   ( dependencyGraph,
     renderDottyMarkup,
     renderDottyPng,
+    toNamespaceDeps,
+    renderNamespaceDotty,
   )
 where
 
@@ -100,7 +102,7 @@ collectDependencies edgeFilter src = do
       lift $ for_ termDeps (collectDependencies edgeFilter)
 
 renderDottyMarkup :: PrettyPrintEnv -> Graph -> Text
-renderDottyMarkup ppe (_origins, graph) = execWriter $ do
+renderDottyMarkup ppe (origins, graph) = execWriter $ do
   line "digraph deps {"
   line "  ratio=1"
   line "  fontname=\"Helvetica,Arial,sans-serif\""
@@ -108,9 +110,9 @@ renderDottyMarkup ppe (_origins, graph) = execWriter $ do
   line "  edge [fontname=\"Helvetica,Arial,sans-serif\"]"
   -- line "  node [shape=box];"
   -- We declare the origin nodes first so they'll appear prominently at the top of the graph.
-  -- for_ origins declareNode
+  for_ origins declareNode
   -- for_ ((Map.keysSet graph <> fold graph) `Set.difference` origins) declareNode
-  ifor_ (groupByNamespace $ Map.keysSet graph <> fold graph) declareNamespace
+  ifor_ (groupByNamespace $ (Map.keysSet graph <> fold graph) `Set.difference` origins) declareNamespace
   ifor prettyDepGraph $ \src dests -> do
     for_ dests $ \dest -> do
       line $ "  " <> quoted src <> " -> " <> quoted dest
@@ -125,7 +127,7 @@ renderDottyMarkup ppe (_origins, graph) = execWriter $ do
 
     declareNode :: LabeledDependency -> Writer Text ()
     declareNode ref =
-      let s = renderLabeled ref
+      let s = renderLabeled ppe ref
        in case ref of
             LD.TypeReference {} -> line $ "  " <> quoted s <> typeNode
             LD.TermReference {} -> line $ "  " <> quoted s <> termNode
@@ -134,23 +136,34 @@ renderDottyMarkup ppe (_origins, graph) = execWriter $ do
     typeNode = " [shape=ellipse, color=red]"
     termNode = " [shape=box, color=green]"
     constrNode = " [shape=box, style=rounded, color=orange]"
-    renderLabeled :: LabeledDependency -> Text
-    renderLabeled = HQ.toText . labeledRefName ppe
-
     prettyDepGraph :: (Map Text (Set Text))
-    prettyDepGraph = Map.bimap renderLabeled (Set.map renderLabeled) graph
+    prettyDepGraph = Map.bimap (renderLabeled ppe) (Set.map (renderLabeled ppe)) graph
 
     line :: Text -> Writer Text ()
     line s = tell (s <> "\n")
     quoted :: Text -> Text
     quoted s = "\"" <> s <> "\""
 
-    getNamespace :: Text -> Text
-    getNamespace = Text.intercalate "." . init . Text.splitOn "."
-
     groupByNamespace :: Set LabeledDependency -> Map Text [LabeledDependency]
     groupByNamespace =
-      List.groupBy (getNamespace . renderLabeled)
+      List.groupBy (getNamespace . (renderLabeled ppe))
+
+renderNamespaceDotty :: Map Text (Set Text) -> Text
+renderNamespaceDotty graph = execWriter $ do
+  line "digraph deps {"
+  line "  ratio=1"
+  line "  fontname=\"Helvetica,Arial,sans-serif\""
+  line "  node [fontname=\"Helvetica,Arial,sans-serif\"]"
+  line "  edge [fontname=\"Helvetica,Arial,sans-serif\"]"
+  ifor graph $ \src dests -> do
+    for_ dests $ \dest -> do
+      line $ "  " <> quoted src <> " -> " <> quoted dest
+  line "}"
+  where
+    line :: Text -> Writer Text ()
+    line s = tell (s <> "\n")
+    quoted :: Text -> Text
+    quoted s = "\"" <> s <> "\""
 
 renderDottyPng :: Text -> IO ()
 renderDottyPng input = do
@@ -162,3 +175,18 @@ renderDottyPng input = do
   -- Add mac/linux support
   callProcess "open" [pngFile]
   putStrLn $ "Opening " <> pngFile
+
+toNamespaceDeps :: PrettyPrintEnv -> DependencyGraph -> (Map Text (Set Text))
+toNamespaceDeps ppe graph =
+  prettyGraph
+    & fmap (Set.map getNamespace)
+    & Map.mapKeysWith (<>) getNamespace
+    & Map.mapWithKey (\k as -> Set.delete k as)
+  where
+    prettyGraph = Map.bimap (renderLabeled ppe) (Set.map (renderLabeled ppe)) graph
+
+renderLabeled :: PrettyPrintEnv -> LabeledDependency -> Text
+renderLabeled ppe = HQ.toText . labeledRefName ppe
+
+getNamespace :: Text -> Text
+getNamespace = Text.intercalate "." . init . Text.splitOn "."
