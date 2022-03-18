@@ -187,16 +187,48 @@ previewAdd =
     )
     $ \ws -> pure $ Input.PreviewAddI (Set.fromList $ map Name.unsafeFromString ws)
 
+updateNoPatch :: InputPattern
+updateNoPatch =
+  InputPattern
+    "update.nopatch"
+    ["un"]
+    [(ZeroPlus, noCompletions)]
+    ( P.wrap
+        ( makeExample' updateNoPatch
+            <> "works like"
+            <> P.group (makeExample' update <> ",")
+            <> "except it doesn't add a patch entry for any updates. "
+            <> "Use this when you want to make changes to definitions without "
+            <> "pushing those changes to dependents beyond your codebase. "
+            <> "An example is when updating docs, or when updating a term you "
+            <> "just added."
+        )
+        <> P.wrapColumn2
+          [ ( makeExample' updateNoPatch,
+              "updates all definitions in the .u file."
+            ),
+            ( makeExample updateNoPatch ["foo", "bar"],
+              "updates `foo`, `bar`, and their dependents from the .u file."
+            )
+          ]
+    )
+    ( \case
+        ws -> do
+          pure $
+            Input.UpdateI
+              Input.NoPatch
+              (Set.fromList $ map Name.unsafeFromString ws)
+    )
+
 update :: InputPattern
 update =
   InputPattern
     "update"
     []
-    [ (Optional, patchArg),
-      (ZeroPlus, noCompletions)
-    ]
+    [(Optional, patchArg), (ZeroPlus, noCompletions)]
     ( P.wrap
-        ( makeExample' update <> "works like"
+        ( makeExample' update
+            <> "works like"
             <> P.group (makeExample' add <> ",")
             <> "except that if a definition in the file has the same name as an"
             <> "existing definition, the name gets updated to point to the new"
@@ -221,9 +253,14 @@ update =
     )
     ( \case
         patchStr : ws -> do
-          patch <- first fromString $ Path.parseSplit' Path.definitionNameSegment patchStr
-          pure $ Input.UpdateI (Just patch) (Set.fromList $ map Name.unsafeFromString ws)
-        [] -> Right $ Input.UpdateI Nothing mempty
+          patch <-
+            first fromString $
+              Path.parseSplit' Path.definitionNameSegment patchStr
+          pure $
+            Input.UpdateI
+              (Input.UsePatch patch)
+              (Set.fromList $ map Name.unsafeFromString ws)
+        [] -> Right $ Input.UpdateI Input.DefaultPatch mempty
     )
 
 previewUpdate :: InputPattern
@@ -385,7 +422,7 @@ findShallow :: InputPattern
 findShallow =
   InputPattern
     "list"
-    ["ls"]
+    ["ls", "dir"]
     [(Optional, namespaceArg)]
     ( P.wrapColumn2
         [ ("`list`", "lists definitions and namespaces at the current level of the current namespace."),
@@ -1878,6 +1915,7 @@ validInputs =
     previewAdd,
     update,
     previewUpdate,
+    updateNoPatch,
     delete,
     forkLocal,
     mergeLocal,
