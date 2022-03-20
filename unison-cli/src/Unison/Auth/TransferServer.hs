@@ -11,8 +11,8 @@ import qualified Data.ByteString.Char8 as BSC
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Network.HTTP.Client (urlEncodedBody)
 import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.MultipartFormData as Form
 import qualified Network.HTTP.Client.TLS as HTTP
 import Network.HTTP.Types
 import Network.URI
@@ -26,6 +26,9 @@ import qualified Web.Browser as Web
 
 ucmClient :: ByteString
 ucmClient = "ucm"
+
+userAgent :: ByteString
+userAgent = "UCM"
 
 type Code = Text
 
@@ -68,42 +71,54 @@ openIDDiscovery httpClient = do
 initiateFlow :: IO (Either Text AccessToken)
 initiateFlow = do
   httpClient <- HTTP.getGlobalManager
-  (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- openIDDiscovery httpClient
+  -- (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- openIDDiscovery httpClient
+  let (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) = testDiscovery
   authResult <- UnliftIO.newEmptyMVar
+  -- Clean up this hack
+  redirectURIVar <- UnliftIO.newEmptyMVar
   (verifier, challenge, state) <- generateParams
   let codeHandler code = do
-        result <- exchangeCode httpClient tokenEndpoint code verifier
+        redirectURI <- UnliftIO.readMVar redirectURIVar
+        result <- exchangeCode httpClient tokenEndpoint code verifier redirectURI
+        traceShowM result
         UnliftIO.putMVar authResult result
         pure $ case result of
           Left _ -> Wai.responseLBS internalServerError500 [] "Something went wrong, please try again."
-          Right _ -> Wai.responseLBS ok200 [] ""
-
+          Right _ -> Wai.responseLBS ok200 [] "Authorization successful. You may close this page and return to UCM."
   Warp.withApplication (pure $ authTransferServer codeHandler) $ \port -> do
     let redirectURI = "http://localhost:" <> show port <> "/redirect"
-    let authorizationKickoff = authURI authorizationEndpoint state challenge
+    UnliftIO.putMVar redirectURIVar redirectURI
+    let authorizationKickoff = authURI authorizationEndpoint redirectURI state challenge
     void $ Web.openBrowser (show authorizationKickoff)
-    putStrLn $ "Please navigate to " <> redirectURI <> " to initiate authorization."
+    putStrLn $ "Please navigate to " <> show authorizationKickoff <> " to initiate authorization."
     UnliftIO.readMVar authResult
 
-authURI :: URI -> OAuthState -> PKCEChallenge -> URI
-authURI authEndpoint state challenge =
+authURI :: URI -> String -> OAuthState -> PKCEChallenge -> URI
+authURI authEndpoint redirectURI state challenge =
   authEndpoint
     & addQueryParam "state" state
+    & addQueryParam "redirect_uri" (BSC.pack redirectURI)
+    & addQueryParam "response_type" "code"
+    & addQueryParam "scope" "openid"
     & addQueryParam "client_id" ucmClient
     & addQueryParam "code_challenge" challenge
     & addQueryParam "code_challenge_method" "S256"
 
-exchangeCode :: HTTP.Manager -> URI -> Code -> PKCEVerifier -> IO (Either Text AccessToken)
-exchangeCode httpClient tokenEndpoint code verifier = do
+exchangeCode :: HTTP.Manager -> URI -> Code -> PKCEVerifier -> String -> IO (Either Text AccessToken)
+exchangeCode httpClient tokenEndpoint code verifier redirectURI = do
   req <- HTTP.requestFromURI tokenEndpoint
   let addFormData =
-        Form.formDataBody
-          [ Form.partBS "code" (Text.encodeUtf8 code),
-            Form.partBS "code_verifier" verifier
+        urlEncodedBody
+          [ ("code", Text.encodeUtf8 code),
+            ("code_verifier", verifier),
+            ("grant_type", "authorization_code"),
+            ("redirect_uri", BSC.pack redirectURI),
+            ("client_id", ucmClient)
           ]
-  fullReq <- addFormData $ req {HTTP.method = "POST"}
+  let fullReq = addFormData $ req {HTTP.method = "POST", HTTP.requestHeaders = [("Accept", "application/json")]}
   -- TODO: handle failure better
   resp <- HTTP.httpLbs fullReq httpClient
+  traceShowM resp
   let respBytes = HTTP.responseBody resp
   pure . mapLeft Text.pack $ accessToken <$> Aeson.eitherDecode respBytes
 
@@ -115,10 +130,11 @@ addQueryParam key val uri =
 
 generateParams :: IO (PKCEVerifier, PKCEChallenge, OAuthState)
 generateParams = do
-  verifier <- BE.convertToBase @ByteString BE.Base64URLUnpadded <$> getRandomBytes 100
-  digest <- maybe (error "Failed to digest SHA256 hash of PKCEVerifier") pure $ Crypto.digestFromByteString @Crypto.SHA256 verifier
+  verifier <- BE.convertToBase @ByteString BE.Base64URLUnpadded <$> getRandomBytes 50
+  traceM $ BSC.unpack verifier
+  let digest = Crypto.hashWith Crypto.SHA256 verifier
   let challenge = BE.convertToBase BE.Base64URLUnpadded digest
-  state <- BE.convertToBase @ByteString BE.Base64URLUnpadded <$> getRandomBytes 100
+  state <- BE.convertToBase @ByteString BE.Base64URLUnpadded <$> getRandomBytes 12
   pure (verifier, challenge, state)
 
 data TokenResponse = TokenResponse
@@ -141,6 +157,15 @@ data DiscoveryDoc = DiscoveryDoc
     tokenEndpoint :: URI,
     userInfoEndpoint :: URI
   }
+
+testDiscovery :: DiscoveryDoc
+testDiscovery =
+  DiscoveryDoc
+    { issuer = undefined,
+      authorizationEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/authorize",
+      tokenEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/token",
+      userInfoEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/user-info"
+    }
 
 newtype URIParam = URIParam URI
 

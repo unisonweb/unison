@@ -2002,7 +2002,8 @@ validInputs =
     debugDumpNamespace,
     debugDumpNamespaceSimple,
     debugClearWatchCache,
-    gist
+    gist,
+    shareLogin
   ]
 
 commandNames :: [String]
