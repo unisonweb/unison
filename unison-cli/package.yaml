@@ -42,6 +42,15 @@ dependencies:
   - unison-util-relation
   - unison-pretty-printer
   - unliftio
+  - network-uri
+  - aeson
+  - http-client
+  - http-client-tls
+  - http-types
+  - warp
+  - wai
+  - memory
+
 
 library:
   source-dirs: src

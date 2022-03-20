@@ -1906,6 +1906,18 @@ gist =
         _ -> Left (showPatternHelp gist)
     )
 
+shareLogin :: InputPattern
+shareLogin =
+  InputPattern
+    "share.login"
+    []
+    []
+    ("Obtain an authentication session with Unison Share")
+    ( \case
+        [] -> Right Input.ShareLoginI
+        _ -> Left (showPatternHelp shareLogin)
+    )
+
 validInputs :: [InputPattern]
 validInputs =
   [ help,
