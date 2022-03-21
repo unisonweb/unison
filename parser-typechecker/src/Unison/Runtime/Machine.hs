@@ -288,7 +288,13 @@ exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 LKUP i) = do
   m <- readTVarIO (intermed env)
   ustk <- bump ustk
   bstk <- case M.lookup link m of
-    Nothing -> bstk <$ poke ustk 0
+    Nothing
+      | Just w <- M.lookup link builtinTermNumbering,
+        Just sn <- EC.lookup w numberedTermLookup -> do
+          poke ustk 1
+          bstk <- bump bstk
+          bstk <$ pokeBi bstk (ANF.Rec [] sn)
+      | otherwise -> bstk <$ poke ustk 0
     Just sg -> do
       poke ustk 1
       bstk <- bump bstk
