@@ -26,7 +26,7 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Command (LoadSourceResult (..))
+import Unison.Codebase.Editor.Command (LoadSourceResult (..), UCMVersion)
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
@@ -110,8 +110,9 @@ main ::
   Runtime.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
+  UCMVersion ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl = do
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl ucmVersion = do
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
@@ -203,6 +204,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                     loadSourceFile
                     codebase
                     serverBaseUrl
+                    ucmVersion
                     (const Random.getSystemDRG)
                     free
             UnliftIO.race waitForInterrupt (try handleCommand) >>= \case
