@@ -27,9 +27,6 @@ import qualified Web.Browser as Web
 ucmClient :: ByteString
 ucmClient = "ucm"
 
-userAgent :: ByteString
-userAgent = "UCM"
-
 type Code = Text
 
 type OAuthState = ByteString

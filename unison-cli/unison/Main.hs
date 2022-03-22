@@ -29,8 +29,11 @@ import Data.Configurator.Types (Config)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Data.Text.IO as Text
 import qualified GHC.Conc
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client.TLS as HTTP
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName, withArgs)
 import qualified System.Exit as Exit
@@ -74,7 +77,6 @@ main = withCP65001 do
   withInterruptHandler interruptHandler $ do
     progName <- getProgName
     -- hSetBuffering stdout NoBuffering -- cool
-
     (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack Version.gitDescribeWithDate)
     let GlobalOptions {codebasePathOption = mCodePathOption} = globalOptions
     let mcodepath = fmap codebasePathOptionToPath mCodePathOption
@@ -221,6 +223,16 @@ main = withCP65001 do
               WithCLI -> do
                 PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
                 launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
+
+initHTTPClient :: IO ()
+initHTTPClient = do
+  let (ucmVersion, _date) = Version.gitDescribe
+  let userAgent = Text.encodeUtf8 $ "UCM/" <> ucmVersion
+  let addUserAgent req = do
+        pure $ req {HTTP.requestHeaders = ("User-Agent", userAgent) : HTTP.requestHeaders req}
+  let managerSettings = HTTP.defaultManagerSettings {HTTP.managerModifyRequest = addUserAgent}
+  manager <- HTTP.newTlsManagerWith managerSettings
+  HTTP.setGlobalManager manager
 
 prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> IO FilePath
 prepareTranscriptDir shouldFork mCodePathOption = do

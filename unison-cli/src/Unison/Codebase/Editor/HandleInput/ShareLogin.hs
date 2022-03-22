@@ -3,6 +3,7 @@
 module Unison.Codebase.Editor.HandleInput.ShareLogin (shareLogin) where
 
 import Unison.Auth.TransferServer (initiateFlow)
+import Unison.Codebase.Editor.Command (Command (UCMVersion))
 import Unison.Codebase.Editor.HandleInput.LoopState
 import Unison.Prelude
 
