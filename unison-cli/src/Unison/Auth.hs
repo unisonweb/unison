@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Auth.TransferServer where
+module Unison.Auth (obtainAccessToken) where
 
 import qualified Crypto.Hash as Crypto
 import Crypto.Random (getRandomBytes)
@@ -65,11 +65,11 @@ openIDDiscovery httpClient = do
   resp <- HTTP.httpLbs req httpClient
   either fail pure . Aeson.eitherDecode . HTTP.responseBody $ resp
 
-initiateFlow :: IO (Either Text AccessToken)
-initiateFlow = do
+obtainAccessToken :: IO (Either Text AccessToken)
+obtainAccessToken = do
   httpClient <- HTTP.getGlobalManager
-  -- (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- openIDDiscovery httpClient
-  let (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) = testDiscovery
+  (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- openIDDiscovery httpClient
+  -- let (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) = testDiscovery
   authResult <- UnliftIO.newEmptyMVar
   -- Clean up this hack
   redirectURIVar <- UnliftIO.newEmptyMVar
@@ -155,14 +155,14 @@ data DiscoveryDoc = DiscoveryDoc
     userInfoEndpoint :: URI
   }
 
-testDiscovery :: DiscoveryDoc
-testDiscovery =
-  DiscoveryDoc
-    { issuer = undefined,
-      authorizationEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/authorize",
-      tokenEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/token",
-      userInfoEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/user-info"
-    }
+-- testDiscovery :: DiscoveryDoc
+-- testDiscovery =
+--   DiscoveryDoc
+--     { issuer = undefined,
+--       authorizationEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/authorize",
+--       tokenEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/token",
+--       userInfoEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/user-info"
+--     }
 
 newtype URIParam = URIParam URI
 

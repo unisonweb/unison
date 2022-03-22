@@ -230,7 +230,7 @@ initHTTPClient = do
   let userAgent = Text.encodeUtf8 $ "UCM/" <> ucmVersion
   let addUserAgent req = do
         pure $ req {HTTP.requestHeaders = ("User-Agent", userAgent) : HTTP.requestHeaders req}
-  let managerSettings = HTTP.defaultManagerSettings {HTTP.managerModifyRequest = addUserAgent}
+  let managerSettings = HTTP.tlsManagerSettings {HTTP.managerModifyRequest = addUserAgent}
   manager <- HTTP.newTlsManagerWith managerSettings
   HTTP.setGlobalManager manager
 

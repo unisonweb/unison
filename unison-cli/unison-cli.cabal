@@ -24,7 +24,7 @@ flag optimized
 library
   exposed-modules:
       Compat
-      Unison.Auth.TransferServer
+      Unison.Auth
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleCommand
