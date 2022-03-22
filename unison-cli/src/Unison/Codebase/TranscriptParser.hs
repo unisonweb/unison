@@ -21,6 +21,7 @@ where
 import Control.Concurrent.STM (atomically)
 import Control.Error (rightMay)
 import Control.Lens (view)
+import Control.Monad.Reader
 import Control.Monad.State (runStateT)
 import qualified Crypto.Random as Random
 import qualified Data.Char as Char
@@ -154,7 +155,7 @@ withTranscriptRunner version configFile action = do
     action $ \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       let parsed = parse transcriptName transcriptSrc
       result <- for parsed $ \stanzas -> do
-        liftIO $ run codebaseDir stanzas codebase runtime config
+        liftIO $ run codebaseDir stanzas codebase runtime config (Text.pack version)
       pure $ join @(Either TranscriptError) result
   where
     withRuntime :: ((Runtime.Runtime Symbol -> m a) -> m a)
@@ -182,8 +183,9 @@ run ::
   Codebase IO Symbol Ann ->
   Runtime.Runtime Symbol ->
   Maybe Config ->
+  LoopState.UCMVersion ->
   IO (Either TranscriptError Text)
-run dir stanzas codebase runtime config = UnliftIO.try $ do
+run dir stanzas codebase runtime config version = UnliftIO.try $ do
   let initialPath = Path.absoluteEmpty
   putPrettyLn $
     P.lines
@@ -376,7 +378,13 @@ run dir stanzas codebase runtime config = UnliftIO.try $ do
 
         loop state = do
           writeIORef pathRef (view LoopState.currentPath state)
-          let free = runStateT (runMaybeT HandleInput.loop) state
+          let env = LoopState.Env version
+          let free =
+                HandleInput.loop
+                  & LoopState.runAction
+                  & runMaybeT
+                  & flip runReaderT env
+                  & flip runStateT state
               rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
           (o, state') <-
             HandleCommand.commandLine

@@ -255,6 +255,8 @@ loop = do
             when (not $ null tes) . respond $ TypeErrors text ppe tes
             when (not $ null cbs) . respond $ CompilerBugs text ppe cbs
           Just (Right uf) -> k uf
+      loadUnisonFile ::
+        Text -> Text -> Action m (Either Event Input) Symbol ()
       loadUnisonFile sourceName text = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
@@ -378,11 +380,12 @@ loop = do
             ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
             AddI _selection -> "add"
             UpdateI p _selection ->
-              "update" <> (case p of
-                NoPatch -> ".nopatch"
-                DefaultPatch -> " " <> ps' defaultPatchPath
-                UsePatch p -> " " <> ps' p
-              )
+              "update"
+                <> ( case p of
+                       NoPatch -> ".nopatch"
+                       DefaultPatch -> " " <> ps' defaultPatchPath
+                       UsePatch p -> " " <> ps' p
+                   )
             PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
             UndoI {} -> "undo"
             ApiI -> "api"
@@ -698,8 +701,8 @@ loop = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                      -- Branch exists and isn't empty, print an error
-                      throwError (BranchAlreadyExists (Path.unsplit' dest))
+                    -- Branch exists and isn't empty, print an error
+                    throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -1391,11 +1394,11 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
-                      eval (MakeStandalone ppe ref output) >>= \case
-                        Just err -> respond $ EvaluationFailure err
-                        Nothing -> pure ()
+                    eval (MakeStandalone ppe ref output) >>= \case
+                      Just err -> respond $ EvaluationFailure err
+                      Nothing -> pure ()
                   | otherwise ->
-                      respond $ BadMainFunction smain ty ppe [mainType]
+                    respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -1628,7 +1631,7 @@ loop = do
               doRemoveReplacement from patchPath False
             ShowDefinitionByPrefixI {} -> notImplemented
             UpdateBuiltinsI -> notImplemented
-            QuitI -> MaybeT $ pure Nothing
+            QuitI -> empty
             GistI input -> handleGist input
       where
         notImplemented = eval $ Notify NotImplemented
@@ -1829,9 +1832,9 @@ handleUpdate input optionalPatch requestedNames = do
             b <- getAt p
             eval . Eval $ Branch.getPatch seg (Branch.head b)
       let patchPath = case optionalPatch of
-                        NoPatch -> Nothing
-                        DefaultPatch -> Just defaultPatchPath
-                        UsePatch p -> Just p
+            NoPatch -> Nothing
+            DefaultPatch -> Just defaultPatchPath
+            UsePatch p -> Just p
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
       let sr = Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames
@@ -1936,14 +1939,17 @@ handleUpdate input optionalPatch requestedNames = do
         -- and make a patch diff to record a replacement from the old to new references
         stepManyAtMNoSync
           Branch.CompressHistory
-          ([ ( Path.unabsolute currentPath',
-              pure . doSlurpUpdates typeEdits termEdits termDeprecations
-            ),
-            ( Path.unabsolute currentPath',
-              pure . doSlurpAdds addsAndUpdates uf
-            )] ++ case patchOps of
-                    Nothing -> []
-                    Just (_, update, p) -> [(Path.unabsolute p, update)])
+          ( [ ( Path.unabsolute currentPath',
+                pure . doSlurpUpdates typeEdits termEdits termDeprecations
+              ),
+              ( Path.unabsolute currentPath',
+                pure . doSlurpAdds addsAndUpdates uf
+              )
+            ]
+              ++ case patchOps of
+                Nothing -> []
+                Just (_, update, p) -> [(Path.unabsolute p, update)]
+          )
         eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
       ppe <- prettyPrintEnvDecl =<< displayNames uf
       respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
@@ -1952,10 +1958,11 @@ handleUpdate input optionalPatch requestedNames = do
         (updatedPatch, _, _) -> void $ propagatePatchNoSync updatedPatch currentPath'
       addDefaultMetadata addsAndUpdates
       syncRoot $ case patchPath of
-                   Nothing -> "update.nopatch"
-                   Just p -> p & Path.unsplit'
-                               & Path.resolve @_ @_ @Path.Absolute currentPath'
-                               & tShow
+        Nothing -> "update.nopatch"
+        Just p ->
+          p & Path.unsplit'
+            & Path.resolve @_ @_ @Path.Absolute currentPath'
+            & tShow
 
 -- Add default metadata to all added types and terms in a slurp component.
 --
@@ -2243,7 +2250,7 @@ propagatePatchNoSync patch scopePath = do
   stepAtMNoSync'
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
-      lift . lift . Propagate.propagateAndApply nroot patch
+      LoopState.liftF . Propagate.propagateAndApply nroot patch
     )
 
 -- Returns True if the operation changed the namespace, False otherwise.
@@ -2260,7 +2267,7 @@ propagatePatch inputDescription patch scopePath = do
     Branch.CompressHistory
     (inputDescription <> " (applying patch)")
     ( Path.unabsolute scopePath,
-      lift . lift . Propagate.propagateAndApply nroot patch
+      LoopState.liftF . Propagate.propagateAndApply nroot patch
     )
 
 -- | Create the args needed for showTodoOutput and call it
@@ -2397,10 +2404,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2417,10 +2424,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -2838,7 +2845,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-              respond $ ListOfLinks mempty []
+            respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>

@@ -13,6 +13,7 @@ import Control.Concurrent.STM (atomically)
 import Control.Error (rightMay)
 import Control.Exception (catch, finally)
 import Control.Lens (view)
+import Control.Monad.Reader
 import Control.Monad.State (runStateT)
 import qualified Crypto.Random as Random
 import Data.Configurator.Types (Config)
@@ -110,8 +111,9 @@ main ::
   Runtime.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
+  LoopState.UCMVersion ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl = do
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl ucmVersion = do
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
@@ -188,7 +190,13 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
       let loop :: LoopState.LoopState IO Symbol -> IO ()
           loop state = do
             writeIORef pathRef (view LoopState.currentPath state)
-            let free = runStateT (runMaybeT HandleInput.loop) state
+            let env = LoopState.Env ucmVersion
+            let free =
+                  HandleInput.loop
+                    & LoopState.runAction
+                    & runMaybeT
+                    & flip runReaderT env
+                    & flip runStateT state
             let handleCommand =
                   HandleCommand.commandLine
                     config

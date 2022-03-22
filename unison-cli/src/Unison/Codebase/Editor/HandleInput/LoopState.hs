@@ -6,7 +6,8 @@ module Unison.Codebase.Editor.HandleInput.LoopState where
 
 import Control.Lens
 import Control.Monad.Except (ExceptT)
-import Control.Monad.State (StateT)
+import Control.Monad.Reader (MonadReader, ReaderT)
+import Control.Monad.State (MonadState, StateT)
 import Data.Configurator ()
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
@@ -22,13 +23,29 @@ import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
 
+type UCMVersion = Text
+
+data Env = Env
+  { ucmVersion :: Text
+  }
+
 type F m i v = Free (Command m i v)
 
-type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
+-- type Action m i v = MaybeT (ReaderT Env (StateT (LoopState m v) (F m i v)))
+newtype Action m i v a = Action {runAction :: MaybeT (ReaderT Env (StateT (LoopState m v) (F m i v))) a}
+  deriving newtype (Functor, Alternative, Applicative, Monad, MonadIO, MonadState (LoopState m v), MonadReader Env)
+  -- This instance is used, but questionable, we should revisit at some point.
+  deriving newtype (MonadFail)
+
+liftF :: F m i v a -> Action m i v a
+liftF m = Action (lift . lift . lift $ m)
 
 -- | A typeclass representing monads which can evaluate 'Command's.
-class Monad n => MonadCommand n m v i | n -> m v i where
-  eval :: Command m v i a -> n a
+class Monad n => MonadCommand n m i v | n -> m i v where
+  eval :: Command m i v a -> n a
+
+instance MonadCommand (Action m i v) m i v where
+  eval m = Action (eval m)
 
 instance MonadCommand (Free (Command m i v)) m i v where
   eval = Free.eval
@@ -40,6 +57,9 @@ instance MonadCommand n m i v => MonadCommand (MaybeT n) m i v where
   eval = lift . eval
 
 instance MonadCommand n m i v => MonadCommand (ExceptT e n) m i v where
+  eval = lift . eval
+
+instance MonadCommand n m i v => MonadCommand (ReaderT e n) m i v where
   eval = lift . eval
 
 type NumberedArgs = [String]
