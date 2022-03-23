@@ -27,7 +27,7 @@ packages:
 - lib/unison-pretty-printer
 
 #compiler-check: match-exact
-resolver: lts-18.13
+resolver: lts-18.28
 
 extra-deps:
 - github: unisonweb/configurator
