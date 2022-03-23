@@ -10,6 +10,7 @@ module Unison.Prelude
 
     -- * @Maybe@ control flow
     onNothing,
+    whenNothing,
 
     -- * @Either@ control flow
     whenLeft,
@@ -59,9 +60,17 @@ import qualified System.IO as IO
 import Text.Read as X (readMaybe)
 import qualified UnliftIO
 
-onNothing :: Applicative m => m a -> Maybe a -> m a
-onNothing x =
-  maybe x pure
+-- | E.g.
+--
+-- @@
+-- onNothing (throwIO MissingPerson) $ mayThing
+-- @@
+onNothing :: Applicative m => Maybe a -> m a -> m a
+onNothing may m = maybe m pure may
+
+-- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
+whenNothing :: Applicative m => Maybe a -> m a -> m a
+whenNothing may m = maybe m pure may
 
 whenLeft :: Applicative m => Either a b -> (a -> m b) -> m b
 whenLeft = \case
@@ -77,10 +86,10 @@ throwExceptTWith f action =
     Left e -> liftIO . UnliftIO.throwIO $ e
     Right a -> pure a
 
-throwEitherM :: (MonadIO m, Exception e) => m (Either e a) -> m a
+throwEitherM :: forall e m a. (MonadIO m, Exception e) => m (Either e a) -> m a
 throwEitherM = throwEitherMWith id
 
-throwEitherMWith :: (MonadIO m, Exception e') => (e -> e') -> m (Either e a) -> m a
+throwEitherMWith :: forall e e' m a. (MonadIO m, Exception e') => (e -> e') -> m (Either e a) -> m a
 throwEitherMWith f action = throwExceptT . withExceptT f $ (ExceptT action)
 
 tShow :: Show a => a -> Text

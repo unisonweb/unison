@@ -50,6 +50,9 @@ dependencies:
   - warp
   - wai
   - memory
+  - time
+  - lock-file
+  - jwt
 
 
 library:

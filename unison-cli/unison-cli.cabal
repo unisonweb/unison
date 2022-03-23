@@ -24,7 +24,11 @@ flag optimized
 library
   exposed-modules:
       Compat
-      Unison.Auth
+      Unison.Auth.Discovery
+      Unison.Auth.OAuth
+      Unison.Auth.Storage
+      Unison.Auth.Tokens
+      Unison.Auth.Types
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleCommand
@@ -98,7 +102,9 @@ library
     , http-client
     , http-client-tls
     , http-types
+    , jwt
     , lens
+    , lock-file
     , megaparsec >=5.0.0 && <7.0.0
     , memory
     , mtl
@@ -111,6 +117,7 @@ library
     , stm
     , text
     , these
+    , time
     , transformers
     , unison-codebase-sqlite
     , unison-core1
@@ -181,7 +188,9 @@ executable integration-tests
     , http-client
     , http-client-tls
     , http-types
+    , jwt
     , lens
+    , lock-file
     , megaparsec >=5.0.0 && <7.0.0
     , memory
     , mtl
@@ -261,7 +270,9 @@ executable transcripts
     , http-client
     , http-client-tls
     , http-types
+    , jwt
     , lens
+    , lock-file
     , megaparsec >=5.0.0 && <7.0.0
     , memory
     , mtl
@@ -276,6 +287,7 @@ executable transcripts
     , stm
     , text
     , these
+    , time
     , transformers
     , unison-cli
     , unison-codebase-sqlite
@@ -343,7 +355,9 @@ executable unison
     , http-client
     , http-client-tls
     , http-types
+    , jwt
     , lens
+    , lock-file
     , megaparsec >=5.0.0 && <7.0.0
     , memory
     , mtl
@@ -360,6 +374,7 @@ executable unison
     , temporary
     , text
     , these
+    , time
     , transformers
     , unison-cli
     , unison-codebase-sqlite
@@ -433,7 +448,9 @@ test-suite tests
     , http-client
     , http-client-tls
     , http-types
+    , jwt
     , lens
+    , lock-file
     , megaparsec >=5.0.0 && <7.0.0
     , memory
     , mtl
@@ -448,6 +465,7 @@ test-suite tests
     , temporary
     , text
     , these
+    , time
     , transformers
     , unison-cli
     , unison-codebase-sqlite
