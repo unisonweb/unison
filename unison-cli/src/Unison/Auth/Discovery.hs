@@ -10,8 +10,9 @@ import Unison.Auth.Types
 
 -- TODO: use the correct enpdpoint based on the environment.
 discoveryURI :: Audience -> URI
-discoveryURI Share =
-  fromJust $ URI.parseURI "http://localhost:5424/.well-known/openid-configuration"
+discoveryURI aud = fromJust . URI.parseURI $ case aud of
+  Share -> "https://enlil.unison-lang.org/.well-known/openid-configuration"
+  ShareStaging -> "https://enlil-staging.unison-lang.org/.well-known/openid-configuration"
 
 discoveryForAudience :: HTTP.Manager -> Audience -> IO (Either CredentialFailure DiscoveryDoc)
 discoveryForAudience httpClient aud = do

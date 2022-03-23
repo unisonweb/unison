@@ -125,12 +125,16 @@ instance Aeson.FromJSON DiscoveryDoc where
 -- Just Share for now, but it's possible people will eventually spin up their own
 -- servers, or that we'll provide private clouds or enterprise instances for customers,
 -- this allows us to store multiple auth credentials at once.
-data Audience = Share
+data Audience
+  = Share
+  | ShareStaging
   deriving anyclass (Aeson.ToJSONKey, Aeson.FromJSONKey)
   deriving stock (Eq, Ord, Show)
 
 instance Aeson.ToJSON Audience where
-  toJSON Share = Aeson.String "share"
+  toJSON = \case
+    Share -> Aeson.String "share"
+    ShareStaging -> Aeson.String "share-staging"
 
 instance Aeson.FromJSON Audience where
   parseJSON = Aeson.withText "Audience" \case
