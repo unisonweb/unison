@@ -45,7 +45,8 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval, liftF)
+import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
+import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval, liftF, respond, respondNumbered)
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.Input
@@ -151,7 +152,6 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import UnliftIO (MonadUnliftIO)
-import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -379,11 +379,12 @@ loop = do
             ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
             AddI _selection -> "add"
             UpdateI p _selection ->
-              "update" <> (case p of
-                NoPatch -> ".nopatch"
-                DefaultPatch -> " " <> ps' defaultPatchPath
-                UsePatch p -> " " <> ps' p
-              )
+              "update"
+                <> ( case p of
+                       NoPatch -> ".nopatch"
+                       DefaultPatch -> " " <> ps' defaultPatchPath
+                       UsePatch p -> " " <> ps' p
+                   )
             PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
             UndoI {} -> "undo"
             ApiI -> "api"
@@ -700,8 +701,8 @@ loop = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                      -- Branch exists and isn't empty, print an error
-                      throwError (BranchAlreadyExists (Path.unsplit' dest))
+                    -- Branch exists and isn't empty, print an error
+                    throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -1393,11 +1394,11 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
-                      eval (MakeStandalone ppe ref output) >>= \case
-                        Just err -> respond $ EvaluationFailure err
-                        Nothing -> pure ()
+                    eval (MakeStandalone ppe ref output) >>= \case
+                      Just err -> respond $ EvaluationFailure err
+                      Nothing -> pure ()
                   | otherwise ->
-                      respond $ BadMainFunction smain ty ppe [mainType]
+                    respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -1832,9 +1833,9 @@ handleUpdate input optionalPatch requestedNames = do
             b <- getAt p
             eval . Eval $ Branch.getPatch seg (Branch.head b)
       let patchPath = case optionalPatch of
-                        NoPatch -> Nothing
-                        DefaultPatch -> Just defaultPatchPath
-                        UsePatch p -> Just p
+            NoPatch -> Nothing
+            DefaultPatch -> Just defaultPatchPath
+            UsePatch p -> Just p
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
       let sr = Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames
@@ -1939,14 +1940,17 @@ handleUpdate input optionalPatch requestedNames = do
         -- and make a patch diff to record a replacement from the old to new references
         stepManyAtMNoSync
           Branch.CompressHistory
-          ([ ( Path.unabsolute currentPath',
-              pure . doSlurpUpdates typeEdits termEdits termDeprecations
-            ),
-            ( Path.unabsolute currentPath',
-              pure . doSlurpAdds addsAndUpdates uf
-            )] ++ case patchOps of
-                    Nothing -> []
-                    Just (_, update, p) -> [(Path.unabsolute p, update)])
+          ( [ ( Path.unabsolute currentPath',
+                pure . doSlurpUpdates typeEdits termEdits termDeprecations
+              ),
+              ( Path.unabsolute currentPath',
+                pure . doSlurpAdds addsAndUpdates uf
+              )
+            ]
+              ++ case patchOps of
+                Nothing -> []
+                Just (_, update, p) -> [(Path.unabsolute p, update)]
+          )
         eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
       ppe <- prettyPrintEnvDecl =<< displayNames uf
       respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
@@ -1955,10 +1959,11 @@ handleUpdate input optionalPatch requestedNames = do
         (updatedPatch, _, _) -> void $ propagatePatchNoSync updatedPatch currentPath'
       addDefaultMetadata addsAndUpdates
       syncRoot $ case patchPath of
-                   Nothing -> "update.nopatch"
-                   Just p -> p & Path.unsplit'
-                               & Path.resolve @_ @_ @Path.Absolute currentPath'
-                               & tShow
+        Nothing -> "update.nopatch"
+        Just p ->
+          p & Path.unsplit'
+            & Path.resolve @_ @_ @Path.Absolute currentPath'
+            & tShow
 
 -- Add default metadata to all added types and terms in a slurp component.
 --
@@ -2400,10 +2405,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2420,10 +2425,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -2446,15 +2451,6 @@ handleBackendError = \case
     respond $ BranchHashAmbiguous h hashes
   Backend.MissingSignatureForTerm r ->
     respond $ TermMissingType r
-
-respond :: MonadCommand n m i v => Output v -> n ()
-respond output = eval $ Notify output
-
-respondNumbered :: NumberedOutput v -> Action m i v ()
-respondNumbered output = do
-  args <- eval $ NotifyNumbered output
-  unless (null args) $
-    LoopState.numberedArgs .= toList args
 
 unlessError :: ExceptT (Output v) (Action' m v) () -> Action' m v ()
 unlessError ma = runExceptT ma >>= either respond pure
@@ -2841,7 +2837,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-              respond $ ListOfLinks mempty []
+            respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>

@@ -130,6 +130,7 @@ import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import Network.URI (URI)
 
 type Pretty = P.Pretty P.ColorText
 
@@ -500,6 +501,9 @@ showListEdits patch ppe =
               "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTypeName)
             )
 
+prettyURI :: URI -> Pretty
+prettyURI = P.bold . P.blue . P.shown
+
 prettyRemoteNamespace ::
   ReadRemoteNamespace ->
   Pretty
@@ -633,8 +637,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
+        pure $
+          P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -643,7 +647,6 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
-
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1529,6 +1532,10 @@ notifyUser dir o = case o of
     where
       remoteNamespace =
         (RemoteRepo.writeToRead repo, Just (SBH.fromHash hqLength hash), Path.empty)
+  InitiateAuthFlow authURI -> do
+    pure $
+      P.wrap $
+        "Please navigate to " <> prettyURI authURI <> " to authorize UCM with the codebase server."
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -1673,8 +1680,7 @@ displayDefinitions ::
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
   IO Pretty
 displayDefinitions _outputLoc _ppe types terms
-  | Map.null types && Map.null terms =
-      pure $ P.callout "😶" "No results to display."
+  | Map.null types && Map.null terms = pure $ P.callout "😶" "No results to display."
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
@@ -2110,7 +2116,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-      ("The namespaces are identical.", mempty)
+    ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where

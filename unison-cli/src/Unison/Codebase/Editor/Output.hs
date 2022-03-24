@@ -19,6 +19,7 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
+import Network.URI (URI)
 import Unison.Codebase (GetRootBranchError)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
@@ -248,6 +249,8 @@ data Output v
     RefusedToPush PushBehavior
   | -- | @GistCreated repo hash@ means causal @hash@ was just published to @repo@.
     GistCreated Int WriteRepo Branch.Hash
+  | -- | Directs the user to URI to begin an authorization flow.
+    InitiateAuthFlow URI
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
@@ -370,6 +373,7 @@ isFailure o = case o of
   NamespaceEmpty {} -> True
   RefusedToPush {} -> True
   GistCreated {} -> False
+  InitiateAuthFlow {} -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case
