@@ -24,10 +24,11 @@ flag optimized
 library
   exposed-modules:
       Compat
+      Unison.Auth.CredentialFile
+      Unison.Auth.CredentialManager
       Unison.Auth.Discovery
       Unison.Auth.HTTPClient
       Unison.Auth.OAuth
-      Unison.Auth.Storage
       Unison.Auth.Tokens
       Unison.Auth.Types
       Unison.Codebase.Editor.AuthorInfo
@@ -58,6 +59,7 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.Util.HTTP
   other-modules:
       Paths_unison_cli
   hs-source-dirs:

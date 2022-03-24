@@ -4,16 +4,24 @@ import qualified Data.Text.Encoding as Text
 import Network.HTTP.Client (Request)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
-import Unison.Auth.Storage (CredentialManager, getHostAudience, newCredentialManager)
+import Unison.Auth.CredentialManager (CredentialManager, getHostAudience, newCredentialManager)
 import Unison.Auth.Tokens (TokenProvider, newTokenProvider)
 import Unison.Auth.Types
+import Unison.Codebase.Editor.Command (UCMVersion)
 import Unison.Prelude
+import qualified Unison.Util.HTTP as HTTP
 
-newAuthorizedHTTPClient :: MonadIO m => m HTTP.Manager
-newAuthorizedHTTPClient = liftIO $ do
+-- | Returns a new http manager which applies the appropriate Authorization header to
+-- any hosts our UCM is authenticated with.
+newAuthorizedHTTPClient :: MonadIO m => UCMVersion -> m HTTP.Manager
+newAuthorizedHTTPClient ucmVersion = liftIO $ do
   credManager <- newCredentialManager
   let tokenProvider = newTokenProvider credManager
-  HTTP.newTlsManagerWith (HTTP.tlsManagerSettings {HTTP.managerModifyRequest = authMiddleware credManager tokenProvider})
+  let managerSettings =
+        HTTP.tlsManagerSettings
+          & HTTP.addRequestMiddleware (authMiddleware credManager tokenProvider)
+          & HTTP.setUserAgent (HTTP.ucmUserAgent ucmVersion)
+  HTTP.newTlsManagerWith managerSettings
 
 -- | Adds Bearer tokens to requests according to their host.
 -- If a CredentialFailure occurs (failure to refresh a token), auth is simply omitted,
