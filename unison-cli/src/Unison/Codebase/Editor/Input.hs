@@ -180,7 +180,7 @@ data Input
   | UiI
   | DocsToHtmlI Path' FilePath
   | GistI GistInput
-  | ShareLoginI
+  | AuthLoginI
   deriving (Eq, Show)
 
 -- | @"gist repo"@ pushes the contents of the current namespace to @repo@.

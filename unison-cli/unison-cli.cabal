@@ -33,9 +33,9 @@ library
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleCommand
       Unison.Codebase.Editor.HandleInput
+      Unison.Codebase.Editor.HandleInput.AuthLogin
       Unison.Codebase.Editor.HandleInput.LoopState
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
-      Unison.Codebase.Editor.HandleInput.ShareLogin
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff

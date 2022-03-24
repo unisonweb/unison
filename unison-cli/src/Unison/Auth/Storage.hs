@@ -32,7 +32,7 @@ lockfileConfig =
 
 getCredentialJSONFilePath :: IO FilePath
 getCredentialJSONFilePath = do
-  unisonDataDir <- getXdgDirectory XdgData "unison"
+  unisonDataDir <- getXdgDirectory XdgData "unisonlanguage"
   pure (unisonDataDir </> "credentials.json")
 
 -- | Saves credentials for profile and sets that to the active profile.

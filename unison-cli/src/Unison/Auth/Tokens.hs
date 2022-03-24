@@ -38,4 +38,4 @@ newTokenProvider manager aud = UnliftIO.try @_ @CredentialFailure $ do
 refreshTokens :: CredentialManager -> Audience -> Tokens -> IO (Either CredentialFailure Tokens)
 refreshTokens _manager _aud _tokens =
   -- Refreshing tokens is currently unsupported.
-  pure (Left (RefreshFailure . Text.pack $ "Unable to refresh authentication, please run " <> patternName IP.shareLogin <> " and try again."))
+  pure (Left (RefreshFailure . Text.pack $ "Unable to refresh authentication, please run " <> patternName IP.authLogin <> " and try again."))

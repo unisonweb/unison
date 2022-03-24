@@ -1906,16 +1906,16 @@ gist =
         _ -> Left (showPatternHelp gist)
     )
 
-shareLogin :: InputPattern
-shareLogin =
+authLogin :: InputPattern
+authLogin =
   InputPattern
-    "share.login"
+    "auth.login"
     []
     []
     ("Obtain an authentication session with Unison Share")
     ( \case
-        [] -> Right Input.ShareLoginI
-        _ -> Left (showPatternHelp shareLogin)
+        [] -> Right Input.AuthLoginI
+        _ -> Left (showPatternHelp authLogin)
     )
 
 validInputs :: [InputPattern]
@@ -2003,7 +2003,7 @@ validInputs =
     debugDumpNamespaceSimple,
     debugClearWatchCache,
     gist,
-    shareLogin
+    authLogin
   ]
 
 commandNames :: [String]

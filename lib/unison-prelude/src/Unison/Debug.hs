@@ -4,6 +4,7 @@ module Unison.Debug
   ( debug,
     debugM,
     whenDebug,
+    shouldDebug,
     debugLog,
     debugLogM,
     useStaging,

@@ -151,7 +151,7 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import UnliftIO (MonadUnliftIO)
-import Unison.Codebase.Editor.HandleInput.ShareLogin (shareLogin)
+import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -459,7 +459,7 @@ loop = do
             DeprecateTermI {} -> undefined
             DeprecateTypeI {} -> undefined
             GistI {} -> wat
-            ShareLoginI {} -> wat
+            AuthLoginI {} -> wat
             RemoveTermReplacementI src p ->
               "delete.term-replacement" <> HQ.toText src <> " " <> opatch p
             RemoveTypeReplacementI src p ->
@@ -1632,7 +1632,7 @@ loop = do
             UpdateBuiltinsI -> notImplemented
             QuitI -> MaybeT $ pure Nothing
             GistI input -> handleGist input
-            ShareLoginI -> shareLogin
+            AuthLoginI -> authLogin
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success
