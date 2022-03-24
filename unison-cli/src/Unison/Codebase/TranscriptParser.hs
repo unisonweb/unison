@@ -21,7 +21,6 @@ where
 import Control.Concurrent.STM (atomically)
 import Control.Error (rightMay)
 import Control.Lens (view)
-import Control.Monad.State (runStateT)
 import qualified Crypto.Random as Random
 import qualified Data.Char as Char
 import qualified Data.Configurator as Configurator
@@ -377,7 +376,7 @@ run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
 
         loop state = do
           writeIORef pathRef (view LoopState.currentPath state)
-          let free = runStateT (runMaybeT HandleInput.loop) state
+          let free = LoopState.runAction LoopState.Env state $ HandleInput.loop
               rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
           (o, state') <-
             HandleCommand.commandLine

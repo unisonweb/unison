@@ -13,7 +13,6 @@ import Control.Concurrent.STM (atomically)
 import Control.Error (rightMay)
 import Control.Exception (catch, finally)
 import Control.Lens (view)
-import Control.Monad.State (runStateT)
 import qualified Crypto.Random as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
@@ -189,7 +188,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
       let loop :: LoopState.LoopState IO Symbol -> IO ()
           loop state = do
             writeIORef pathRef (view LoopState.currentPath state)
-            let free = runStateT (runMaybeT HandleInput.loop) state
+            let free = LoopState.runAction LoopState.Env state HandleInput.loop
             let handleCommand =
                   HandleCommand.commandLine
                     config
