@@ -44,7 +44,7 @@ dependencies:
   - unliftio
   - network-uri
   - aeson
-  - http-client
+  - http-client >= 0.7.6
   - http-client-tls
   - http-types
   - warp

@@ -6,10 +6,12 @@ module Unison.Auth.Storage
     CredentialManager,
     newCredentialManager,
     getTokens,
+    getHostAudience,
   )
 where
 
 import qualified Data.Aeson as Aeson
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import System.FilePath (takeDirectory, (</>))
 import System.IO.LockFile
@@ -72,6 +74,11 @@ getTokens :: CredentialManager -> Audience -> IO (Either CredentialFailure Token
 getTokens (CredentialManager credsVar) aud = do
   creds <- readTVarIO credsVar
   pure $ getActiveTokens aud creds
+
+getHostAudience :: CredentialManager -> Host -> IO (Maybe Audience)
+getHostAudience (CredentialManager credsVar) host = do
+  creds <- readTVarIO credsVar
+  pure $ Map.lookup host (hostMap creds)
 
 -- getTokenMap :: IO (Maybe (Map Audience Tokens))
 -- getTokenMap = do

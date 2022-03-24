@@ -25,6 +25,7 @@ library
   exposed-modules:
       Compat
       Unison.Auth.Discovery
+      Unison.Auth.HTTPClient
       Unison.Auth.OAuth
       Unison.Auth.Storage
       Unison.Auth.Tokens
@@ -99,7 +100,7 @@ library
     , extra
     , filepath
     , haskeline
-    , http-client
+    , http-client >=0.7.6
     , http-client-tls
     , http-types
     , jwt
@@ -185,7 +186,7 @@ executable integration-tests
     , extra
     , filepath
     , haskeline
-    , http-client
+    , http-client >=0.7.6
     , http-client-tls
     , http-types
     , jwt
@@ -267,7 +268,7 @@ executable transcripts
     , extra
     , filepath
     , haskeline
-    , http-client
+    , http-client >=0.7.6
     , http-client-tls
     , http-types
     , jwt
@@ -352,7 +353,7 @@ executable unison
     , extra
     , filepath
     , haskeline
-    , http-client
+    , http-client >=0.7.6
     , http-client-tls
     , http-types
     , jwt
@@ -445,7 +446,7 @@ test-suite tests
     , filepath
     , haskeline
     , here
-    , http-client
+    , http-client >=0.7.6
     , http-client-tls
     , http-types
     , jwt

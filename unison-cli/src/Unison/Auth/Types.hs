@@ -15,6 +15,7 @@ module Unison.Auth.Types
     ProfileName,
     Audience (..),
     CredentialFailure (..),
+    Host (..),
     getActiveTokens,
     setActiveTokens,
     emptyCredentials,
@@ -22,7 +23,7 @@ module Unison.Auth.Types
 where
 
 import Control.Lens hiding ((.=))
-import Data.Aeson (FromJSON (..), KeyValue ((.=)), ToJSON (..), (.:), (.:?))
+import Data.Aeson (FromJSON (..), FromJSONKey, KeyValue ((.=)), ToJSON (..), ToJSONKey, (.:), (.:?))
 import qualified Data.Aeson as Aeson
 import Data.Either.Extra (maybeToEither)
 import qualified Data.Map as Map
@@ -143,14 +144,19 @@ instance Aeson.FromJSON Audience where
 
 type ProfileName = Text
 
+newtype Host = Host Text
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+
 data Credentials = Credentials
   { credentials :: Map ProfileName (Map Audience Tokens),
-    activeProfile :: ProfileName
+    activeProfile :: ProfileName,
+    hostMap :: Map Host Audience
   }
   deriving (Eq)
 
 emptyCredentials :: Credentials
-emptyCredentials = Credentials mempty mempty
+emptyCredentials = Credentials mempty mempty mempty
 
 getActiveTokens :: Audience -> Credentials -> Either CredentialFailure Tokens
 getActiveTokens aud (Credentials {credentials, activeProfile}) =
@@ -165,14 +171,16 @@ setActiveTokens aud tokens creds@(Credentials {credentials, activeProfile}) =
    in creds {credentials = newCredMap}
 
 instance Aeson.ToJSON Credentials where
-  toJSON (Credentials credMap activeProfile) =
+  toJSON (Credentials credMap activeProfile hostMap) =
     Aeson.object
       [ "credentials" .= credMap,
-        "active_profile" .= activeProfile
+        "active_profile" .= activeProfile,
+        "host_map" .= hostMap
       ]
 
 instance Aeson.FromJSON Credentials where
   parseJSON = Aeson.withObject "Credentials" $ \obj -> do
     credentials <- obj .: "credentials"
     activeProfile <- obj .: "active_profile"
+    hostMap <- obj .: "host_map"
     pure Credentials {..}
