@@ -11,6 +11,7 @@ import Control.Monad.State
 import Data.Configurator ()
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
+import qualified Network.HTTP.Client as HTTP
 import Unison.Codebase.Branch
   ( Branch (..),
   )
@@ -26,6 +27,8 @@ import qualified Unison.Util.Free as Free
 type F m i v = Free (Command m i v)
 
 data Env = Env
+  { authHTTPClient :: HTTP.Manager
+  }
 
 newtype Action m i v a = Action {unAction :: MaybeT (ReaderT Env (StateT (LoopState m v) (F m i v))) a}
   deriving newtype (Functor, Applicative, Alternative, Monad, MonadIO, MonadState (LoopState m v), MonadReader Env)

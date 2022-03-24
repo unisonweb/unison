@@ -13,8 +13,8 @@ import Web.JWT
 import qualified Web.JWT as JWT
 
 -- | Checks whether a JWT access token is expired.
-isExpired :: AccessToken -> IO Bool
-isExpired accessToken = do
+isExpired :: MonadIO m => AccessToken -> m Bool
+isExpired accessToken = liftIO do
   jwt <- JWT.decode accessToken `whenNothing` (throwIO $ InvalidJWT "Failed to decode JWT")
   now <- getPOSIXTime
   expDate <- JWT.exp (claims jwt) `whenNothing` (throwIO $ InvalidJWT "Missing exp claim on JWT")
@@ -35,7 +35,7 @@ newTokenProvider manager aud = UnliftIO.try @_ @CredentialFailure $ do
     else pure accessToken
 
 -- | Currently don't support refreshing tokens.
-refreshTokens :: CredentialManager -> Audience -> Tokens -> IO (Either CredentialFailure Tokens)
+refreshTokens :: MonadIO m => CredentialManager -> Audience -> Tokens -> m (Either CredentialFailure Tokens)
 refreshTokens _manager _aud _tokens =
   -- Refreshing tokens is currently unsupported.
   pure (Left (RefreshFailure . Text.pack $ "Unable to refresh authentication, please run " <> patternName IP.authLogin <> " and try again."))

@@ -32,18 +32,18 @@ lockfileConfig =
   where
     sleepTimeMicros = 100_000 -- 100ms
 
-getCredentialJSONFilePath :: IO FilePath
+getCredentialJSONFilePath :: MonadIO m => m FilePath
 getCredentialJSONFilePath = do
   unisonDataDir <- getXdgDirectory XdgData "unisonlanguage"
   pure (unisonDataDir </> "credentials.json")
 
 -- | Saves credentials for profile and sets that to the active profile.
-saveTokens :: CredentialManager -> Audience -> Tokens -> IO ()
+saveTokens :: MonadIO m => CredentialManager -> Audience -> Tokens -> m ()
 saveTokens credManager aud tokens = do
   void . modifyCredentials credManager $ setActiveTokens aud tokens
 
 -- | Atomically update the credential storage file, and update the in-memory cache.
-modifyCredentials :: CredentialManager -> (Credentials -> Credentials) -> IO Credentials
+modifyCredentials :: MonadIO m => CredentialManager -> (Credentials -> Credentials) -> m Credentials
 modifyCredentials (CredentialManager credsVar) f = do
   newCreds <- atomicModifyCredentialsFile f
   atomically $ writeTVar credsVar newCreds
@@ -51,8 +51,8 @@ modifyCredentials (CredentialManager credsVar) f = do
 
 -- | Atomically update the credential storage file.
 -- Creates an empty file automatically if one doesn't exist.
-atomicModifyCredentialsFile :: (Credentials -> Credentials) -> IO Credentials
-atomicModifyCredentialsFile f = do
+atomicModifyCredentialsFile :: MonadIO m => (Credentials -> Credentials) -> m Credentials
+atomicModifyCredentialsFile f = liftIO $ do
   credentialJSONPath <- getCredentialJSONFilePath
   doesFileExist credentialJSONPath >>= \case
     True -> pure ()
@@ -70,17 +70,17 @@ atomicModifyCredentialsFile f = do
       Aeson.encodeFile credentialJSONPath $ newCredentials
     pure newCredentials
 
-getTokens :: CredentialManager -> Audience -> IO (Either CredentialFailure Tokens)
+getTokens :: MonadIO m => CredentialManager -> Audience -> m (Either CredentialFailure Tokens)
 getTokens (CredentialManager credsVar) aud = do
   creds <- readTVarIO credsVar
   pure $ getActiveTokens aud creds
 
-getHostAudience :: CredentialManager -> Host -> IO (Maybe Audience)
+getHostAudience :: MonadIO m => CredentialManager -> Host -> m (Maybe Audience)
 getHostAudience (CredentialManager credsVar) host = do
   creds <- readTVarIO credsVar
   pure $ Map.lookup host (hostMap creds)
 
--- getTokenMap :: IO (Maybe (Map Audience Tokens))
+-- getTokenMap :: m (Maybe (Map Audience Tokens))
 -- getTokenMap = do
 --   credentialJSONPath <- getCredentialJSONFilePath
 --   Aeson.eitherDecodeFileStrict credentialJSONPath >>= \case
@@ -90,7 +90,7 @@ getHostAudience (CredentialManager credsVar) host = do
 --     Right (Credentials {credentials, activeProfile}) -> do
 --       pure $ credentials ^? ix activeProfile
 
-newCredentialManager :: IO CredentialManager
+newCredentialManager :: MonadIO m => m CredentialManager
 newCredentialManager = do
   credentials <- atomicModifyCredentialsFile id
   credentialsVar <- newTVarIO credentials

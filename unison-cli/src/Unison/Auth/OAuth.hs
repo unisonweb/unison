@@ -39,8 +39,8 @@ authTransferServer callback req respond =
       code <- join $ Prelude.lookup "code" (queryString req)
       pure $ Text.decodeUtf8 code
 
-obtainAccessToken :: Audience -> IO (Either CredentialFailure AccessToken)
-obtainAccessToken aud = UnliftIO.try @_ @CredentialFailure $ do
+obtainAccessToken :: MonadIO m => Audience -> m (Either CredentialFailure AccessToken)
+obtainAccessToken aud = liftIO . UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- HTTP.getGlobalManager
   (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ discoveryForAudience httpClient aud
   -- let (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) = testDiscovery
@@ -78,8 +78,8 @@ authURI authEndpoint redirectURI state challenge =
     & addQueryParam "code_challenge" challenge
     & addQueryParam "code_challenge_method" "S256"
 
-exchangeCode :: HTTP.Manager -> URI -> Code -> PKCEVerifier -> String -> IO (Either CredentialFailure AccessToken)
-exchangeCode httpClient tokenEndpoint code verifier redirectURI = do
+exchangeCode :: MonadIO m => HTTP.Manager -> URI -> Code -> PKCEVerifier -> String -> m (Either CredentialFailure AccessToken)
+exchangeCode httpClient tokenEndpoint code verifier redirectURI = liftIO $ do
   req <- HTTP.requestFromURI tokenEndpoint
   let addFormData =
         urlEncodedBody
@@ -103,8 +103,8 @@ addQueryParam key val uri =
       newParam = (key, Just val)
    in uri {uriQuery = BSC.unpack $ renderQuery True (existingQuery <> [newParam])}
 
-generateParams :: IO (PKCEVerifier, PKCEChallenge, OAuthState)
-generateParams = do
+generateParams :: MonadIO m => m (PKCEVerifier, PKCEChallenge, OAuthState)
+generateParams = liftIO $ do
   verifier <- BE.convertToBase @ByteString BE.Base64URLUnpadded <$> getRandomBytes 50
   traceM $ BSC.unpack verifier
   let digest = Crypto.hashWith Crypto.SHA256 verifier

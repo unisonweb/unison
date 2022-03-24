@@ -376,6 +376,7 @@ run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
 
         loop state = do
           writeIORef pathRef (view LoopState.currentPath state)
+          let env = Env{authHTTPClient = error "Network is disabled during Transcript runs."}
           let free = LoopState.runAction LoopState.Env state $ HandleInput.loop
               rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
           (o, state') <-

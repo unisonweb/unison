@@ -188,6 +188,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
       let loop :: LoopState.LoopState IO Symbol -> IO ()
           loop state = do
             writeIORef pathRef (view LoopState.currentPath state)
+            authorizedHTTPClient <- newAuthorizedHTTPClient
+            let env = Env{authHTTPClient = authorizedHTTPClient}
             let free = LoopState.runAction LoopState.Env state HandleInput.loop
             let handleCommand =
                   HandleCommand.commandLine

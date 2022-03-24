@@ -7,12 +7,13 @@ import qualified Network.HTTP.Client.TLS as HTTP
 import Unison.Auth.Storage (CredentialManager, getHostAudience, newCredentialManager)
 import Unison.Auth.Tokens (TokenProvider, newTokenProvider)
 import Unison.Auth.Types
+import Unison.Prelude
 
-newAuthorizedHTTPClient :: IO HTTP.Manager
-newAuthorizedHTTPClient = do
+newAuthorizedHTTPClient :: MonadIO m => m HTTP.Manager
+newAuthorizedHTTPClient = liftIO $ do
   credManager <- newCredentialManager
-  tokenProvider <- newTokenProvider credManager
-  HTTP.newTlsManagerWith (HTTP.tlsManagerSettings {HTTP.managerModifyRequest = authMiddleware})
+  let tokenProvider = newTokenProvider credManager
+  HTTP.newTlsManagerWith (HTTP.tlsManagerSettings {HTTP.managerModifyRequest = authMiddleware credManager tokenProvider})
 
 -- | Adds Bearer tokens to requests according to their host.
 -- If a CredentialFailure occurs (failure to refresh a token), auth is simply omitted,
@@ -26,5 +27,5 @@ authMiddleware credMan tokenProvider req = do
     Nothing -> pure req
     Just aud -> do
       tokenProvider aud >>= \case
-        Right token -> pure $ HTTP.applyBearer (Text.encodeUtf8 token) req
+        Right token -> pure $ HTTP.applyBearerAuth (Text.encodeUtf8 token) req
         Left _ -> pure req
