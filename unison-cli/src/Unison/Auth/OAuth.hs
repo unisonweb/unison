@@ -33,7 +33,6 @@ authTransferServer callback req respond =
   case (requestMethod req, pathInfo req, getCodeQuery req) of
     ("GET", ["redirect"], Just code) -> do
       callback code >>= respond
-    -- respond (responseLBS status200 [] "Successfully authenticated. You may close this page and return to UCM.")
     _ -> respond (responseLBS status404 [] "Not Found")
   where
     getCodeQuery req = do
@@ -44,7 +43,6 @@ authWithAudience :: MonadIO m => CredentialManager -> Audience -> m (Either Cred
 authWithAudience credsManager aud = liftIO . UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- HTTP.getGlobalManager
   (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ discoveryForAudience httpClient aud
-  -- let (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) = testDiscovery
   authResult <- UnliftIO.newEmptyMVar @_ @(Either CredentialFailure Tokens)
   -- Clean up this hack
   redirectURIVar <- UnliftIO.newEmptyMVar
@@ -52,7 +50,6 @@ authWithAudience credsManager aud = liftIO . UnliftIO.try @_ @CredentialFailure 
   let codeHandler code = do
         redirectURI <- UnliftIO.readMVar redirectURIVar
         result <- exchangeCode httpClient tokenEndpoint code verifier redirectURI
-        traceShowM result
         UnliftIO.putMVar authResult result
         pure $ case result of
           Left _ -> Wai.responseLBS internalServerError500 [] "Something went wrong, please try again."
@@ -108,17 +105,8 @@ addQueryParam key val uri =
 generateParams :: MonadIO m => m (PKCEVerifier, PKCEChallenge, OAuthState)
 generateParams = liftIO $ do
   verifier <- BE.convertToBase @ByteString BE.Base64URLUnpadded <$> getRandomBytes 50
-  traceM $ BSC.unpack verifier
+  BSC.unpack verifier
   let digest = Crypto.hashWith Crypto.SHA256 verifier
   let challenge = BE.convertToBase BE.Base64URLUnpadded digest
   state <- BE.convertToBase @ByteString BE.Base64URLUnpadded <$> getRandomBytes 12
   pure (verifier, challenge, state)
-
--- testDiscovery :: DiscoveryDoc
--- testDiscovery =
---   DiscoveryDoc
---     { issuer = undefined,
---       authorizationEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/authorize",
---       tokenEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/token",
---       userInfoEndpoint = fromJust $ URI.parseURI "http://localhost:5424/oauth/user-info"
---     }
