@@ -2,11 +2,11 @@
 
 module Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin) where
 
+import Control.Monad.Reader
 import Unison.Auth.OAuth
 import Unison.Auth.Types (Audience (Share, ShareStaging))
 import Unison.Codebase.Editor.HandleInput.LoopState
 import Unison.Debug
-import Unison.Prelude
 
 authLogin :: MonadIO m => Action m i v ()
 authLogin = do
@@ -14,4 +14,7 @@ authLogin = do
         if shouldDebug UseStaging
           then ShareStaging
           else Share
-  liftIO $ obtainAccessToken aud >>= print
+  credsMan <- asks credentialManager
+  authWithAudience credsMan aud >>= \case
+    Left err -> liftIO $ print err
+    Right () -> pure ()

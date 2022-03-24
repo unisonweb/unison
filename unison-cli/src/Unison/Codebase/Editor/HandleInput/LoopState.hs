@@ -12,6 +12,7 @@ import Data.Configurator ()
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Network.HTTP.Client as HTTP
+import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Codebase.Branch
   ( Branch (..),
   )
@@ -27,7 +28,8 @@ import qualified Unison.Util.Free as Free
 type F m i v = Free (Command m i v)
 
 data Env = Env
-  { authHTTPClient :: HTTP.Manager
+  { authHTTPClient :: HTTP.Manager,
+    credentialManager :: CredentialManager
   }
 
 newtype Action m i v a = Action {unAction :: MaybeT (ReaderT Env (StateT (LoopState m v) (F m i v))) a}

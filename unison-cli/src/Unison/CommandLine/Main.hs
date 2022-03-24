@@ -21,6 +21,7 @@ import qualified Data.Text as Text
 import qualified System.Console.Haskeline as Line
 import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
+import Unison.Auth.CredentialManager (newCredentialManager)
 import qualified Unison.Auth.HTTPClient as HTTP
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -189,8 +190,13 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
       let loop :: LoopState.LoopState IO Symbol -> IO ()
           loop state = do
             writeIORef pathRef (view LoopState.currentPath state)
-            authorizedHTTPClient <- HTTP.newAuthorizedHTTPClient ucmVersion
-            let env = LoopState.Env {LoopState.authHTTPClient = authorizedHTTPClient}
+            credMan <- newCredentialManager
+            authorizedHTTPClient <- HTTP.newAuthorizedHTTPClient credMan ucmVersion
+            let env =
+                  LoopState.Env
+                    { LoopState.authHTTPClient = authorizedHTTPClient,
+                      LoopState.credentialManager = credMan
+                    }
             let free = LoopState.runAction env state HandleInput.loop
             let handleCommand =
                   HandleCommand.commandLine

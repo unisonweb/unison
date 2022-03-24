@@ -4,7 +4,7 @@ import qualified Data.Text.Encoding as Text
 import Network.HTTP.Client (Request)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
-import Unison.Auth.CredentialManager (CredentialManager, getHostAudience, newCredentialManager)
+import Unison.Auth.CredentialManager (CredentialManager, getHostAudience)
 import Unison.Auth.Tokens (TokenProvider, newTokenProvider)
 import Unison.Auth.Types
 import Unison.Codebase.Editor.Command (UCMVersion)
@@ -13,13 +13,12 @@ import qualified Unison.Util.HTTP as HTTP
 
 -- | Returns a new http manager which applies the appropriate Authorization header to
 -- any hosts our UCM is authenticated with.
-newAuthorizedHTTPClient :: MonadIO m => UCMVersion -> m HTTP.Manager
-newAuthorizedHTTPClient ucmVersion = liftIO $ do
-  credManager <- newCredentialManager
-  let tokenProvider = newTokenProvider credManager
+newAuthorizedHTTPClient :: MonadIO m => CredentialManager -> UCMVersion -> m HTTP.Manager
+newAuthorizedHTTPClient credsMan ucmVersion = liftIO $ do
+  let tokenProvider = newTokenProvider credsMan
   let managerSettings =
         HTTP.tlsManagerSettings
-          & HTTP.addRequestMiddleware (authMiddleware credManager tokenProvider)
+          & HTTP.addRequestMiddleware (authMiddleware credsMan tokenProvider)
           & HTTP.setUserAgent (HTTP.ucmUserAgent ucmVersion)
   HTTP.newTlsManagerWith managerSettings
 

@@ -16,6 +16,10 @@ import Unison.Prelude
 import qualified UnliftIO
 
 -- | A 'CredentialManager' knows how to load, save, and cache credentials.
+-- It's thread-safe and safe for use across multiple UCM clients.
+-- Note: Currently the in-memory cache is _not_ updated if a different UCM updates
+-- the credentials file, however this shouldn't pose any problems, since auth will still
+-- be refreshed if we encounter any auth failures on requests.
 newtype CredentialManager = CredentialManager (UnliftIO.MVar Credentials)
 
 -- | Saves credentials for profile and sets that to the active profile.
