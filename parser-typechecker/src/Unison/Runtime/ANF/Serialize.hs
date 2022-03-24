@@ -214,6 +214,9 @@ deindex (v : vs) n
   | n == 0 = v
   | otherwise = deindex vs (n - 1)
 
+pushCtx :: [v] -> [v] -> [v]
+pushCtx us vs = reverse us ++ vs
+
 putIndex :: MonadPut m => Word64 -> m ()
 putIndex = serialize . VarInt
 
@@ -258,16 +261,18 @@ putGroup ::
 putGroup fops (Rec bs e) =
   putLength n *> traverse_ (putComb fops ctx) cs *> putComb fops ctx e
   where
-    n = length ctx
-    (ctx, cs) = unzip bs
+    n = length us
+    (us, cs) = unzip bs
+    ctx = pushCtx us []
 
 getGroup :: MonadGet m => Var v => m (SuperGroup v)
 getGroup = do
   l <- getLength
   let n = fromIntegral l
       vs = getFresh <$> take l [0 ..]
-  cs <- replicateM l (getComb vs n)
-  Rec (zip vs cs) <$> getComb vs n
+      ctx = pushCtx vs []
+  cs <- replicateM l (getComb ctx n)
+  Rec (zip ctx cs) <$> getComb ctx n
 
 putComb ::
   MonadPut m =>
@@ -277,7 +282,7 @@ putComb ::
   SuperNormal v ->
   m ()
 putComb fops ctx (Lambda ccs (TAbss us e)) =
-  putCCs ccs *> putNormal fops (reverse us ++ ctx) e
+  putCCs ccs *> putNormal fops (pushCtx us ctx) e
 
 getFresh :: Var v => Word64 -> v
 getFresh n = freshenId n $ typed ANFBlank
@@ -287,7 +292,7 @@ getComb ctx frsh0 = do
   ccs <- getCCs
   let us = zipWith (\_ -> getFresh) ccs [frsh0 ..]
       frsh = frsh0 + fromIntegral (length ccs)
-  Lambda ccs . TAbss us <$> getNormal (us ++ ctx) frsh
+  Lambda ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
 
 putNormal ::
   MonadPut m =>
@@ -314,10 +319,10 @@ putNormal fops ctx tm = case tm of
       *> putNormal fops (v : ctx) e
   TLets Direct us ccs l e ->
     putTag LetDirT *> putCCs ccs *> putNormal fops ctx l
-      *> putNormal fops (reverse us ++ ctx) e
+      *> putNormal fops (pushCtx us ctx) e
   TLets (Indirect w) us ccs l e ->
     putTag LetIndT *> putWord16be w *> putCCs ccs *> putNormal fops ctx l
-      *> putNormal fops (reverse us ++ ctx) e
+      *> putNormal fops (pushCtx us ctx) e
   _ -> exn "putNormal: malformed term"
 
 getNormal :: MonadGet m => Var v => [v] -> Word64 -> m (ANormal v)
@@ -354,7 +359,7 @@ getNormal ctx frsh0 =
           us = getFresh <$> take l [frsh0 ..]
       TLets Direct us ccs
         <$> getNormal ctx frsh0
-        <*> getNormal (us ++ ctx) frsh
+        <*> getNormal (pushCtx us ctx) frsh
     LetIndT -> do
       w <- getWord16be
       ccs <- getCCs
@@ -363,7 +368,7 @@ getNormal ctx frsh0 =
           us = getFresh <$> take l [frsh0 ..]
       TLets (Indirect w) us ccs
         <$> getNormal ctx frsh0
-        <*> getNormal (us ++ ctx) frsh
+        <*> getNormal (pushCtx us ctx) frsh
 
 putFunc ::
   MonadPut m =>
@@ -634,7 +639,7 @@ putCase ::
   ([Mem], ANormal v) ->
   m ()
 putCase fops ctx (ccs, (TAbss us e)) =
-  putCCs ccs *> putNormal fops (us ++ ctx) e
+  putCCs ccs *> putNormal fops (pushCtx us ctx) e
 
 getCase :: MonadGet m => Var v => [v] -> Word64 -> m ([Mem], ANormal v)
 getCase ctx frsh0 = do
@@ -642,7 +647,7 @@ getCase ctx frsh0 = do
   let l = length ccs
       frsh = frsh0 + fromIntegral l
       us = getFresh <$> take l [frsh0 ..]
-  (,) ccs . TAbss us <$> getNormal (us ++ ctx) frsh
+  (,) ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
 
 putCTag :: MonadPut m => CTag -> m ()
 putCTag c = serialize (VarInt $ fromEnum c)
