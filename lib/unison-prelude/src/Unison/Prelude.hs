@@ -11,6 +11,8 @@ module Unison.Prelude
     -- * @Maybe@ control flow
     onNothing,
     whenNothing,
+    eitherToMaybe,
+    maybeToEither,
 
     -- * @Either@ control flow
     whenLeft,
@@ -34,6 +36,7 @@ import Data.ByteString as X (ByteString)
 import Data.Coerce as X (Coercible, coerce)
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
+import Data.Either.Extra (eitherToMaybe, maybeToEither)
 import Data.Foldable as X (asum, fold, foldl', for_, toList, traverse_)
 import Data.Function as X ((&))
 import Data.Functor as X

@@ -1633,7 +1633,7 @@ loop = do
             UpdateBuiltinsI -> notImplemented
             QuitI -> empty
             GistI input -> handleGist input
-            AuthLoginI -> authLogin
+            AuthLoginI -> authLogin Nothing
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success

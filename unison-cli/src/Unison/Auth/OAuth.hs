@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Auth.OAuth (authenticateAudience) where
+module Unison.Auth.OAuth (authenticateHost) where
 
 import qualified Crypto.Hash as Crypto
 import Crypto.Random (getRandomBytes)
@@ -18,7 +18,7 @@ import Network.Wai
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import Unison.Auth.CredentialManager (CredentialManager, saveTokens)
-import Unison.Auth.Discovery (discoveryForAudience)
+import Unison.Auth.Discovery (discoveryForHost)
 import Unison.Auth.Types
 import Unison.Codebase.Editor.HandleInput.LoopState (MonadCommand, respond)
 import qualified Unison.Codebase.Editor.Output as Output
@@ -45,10 +45,10 @@ authTransferServer callback req respond =
 
 -- | Direct the user through an authentication flow with the given server and store the
 -- credentials in the provided credential manager.
-authenticateAudience :: forall m n i v. (UnliftIO.MonadUnliftIO m, MonadCommand m n i v) => CredentialManager -> Audience -> m (Either CredentialFailure ())
-authenticateAudience credsManager aud = UnliftIO.try @_ @CredentialFailure $ do
+authenticateHost :: forall m n i v. (UnliftIO.MonadUnliftIO m, MonadCommand m n i v) => CredentialManager -> Host -> m (Either CredentialFailure ())
+authenticateHost credsManager host = UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- liftIO HTTP.getGlobalManager
-  (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ discoveryForAudience httpClient aud
+  (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ discoveryForHost httpClient host
   authResult <- UnliftIO.newEmptyMVar @_ @(Either CredentialFailure Tokens)
   -- Clean up this hack
   redirectURIVar <- UnliftIO.newEmptyMVar
@@ -68,7 +68,7 @@ authenticateAudience credsManager aud = UnliftIO.try @_ @CredentialFailure $ do
     void . liftIO $ Web.openBrowser (show authorizationKickoff)
     respond . Output.InitiateAuthFlow $ authorizationKickoff
     tokens <- throwCredFailure $ UnliftIO.readMVar authResult
-    saveTokens credsManager aud tokens
+    saveTokens credsManager host tokens
   where
     throwCredFailure :: m (Either CredentialFailure a) -> m a
     throwCredFailure = throwEitherM

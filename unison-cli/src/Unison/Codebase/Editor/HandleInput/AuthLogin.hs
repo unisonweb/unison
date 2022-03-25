@@ -4,18 +4,18 @@ module Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin) where
 
 import Control.Monad.Reader
 import Unison.Auth.OAuth
-import Unison.Auth.Types (Audience (Share, ShareStaging))
+import Unison.Auth.Types (Host (..))
 import Unison.Codebase.Editor.HandleInput.LoopState
-import Unison.Debug
+import Unison.Prelude
 import qualified UnliftIO
 
-authLogin :: UnliftIO.MonadUnliftIO m => Action m i v ()
-authLogin = do
-  let aud =
-        if shouldDebug UseStaging
-          then ShareStaging
-          else Share
+defaultShareHost :: Host
+defaultShareHost = Host "https://enlil.unison-lang.org"
+
+authLogin :: UnliftIO.MonadUnliftIO m => Maybe Host -> Action m i v ()
+authLogin mayHost = do
+  let host = fromMaybe defaultShareHost mayHost
   credsMan <- asks credentialManager
-  (Action . lift . lift . lift $ authenticateAudience credsMan aud) >>= \case
+  (Action . lift . lift . lift $ authenticateHost credsMan host) >>= \case
     Left err -> liftIO $ print err
     Right () -> pure ()

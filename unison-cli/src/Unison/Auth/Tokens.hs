@@ -21,24 +21,24 @@ isExpired accessToken = liftIO do
   let expiry = JWT.secondsSinceEpoch expDate
   pure (now >= expiry)
 
--- | Given an 'Audience', provide a valid 'AccessToken' for the associated host.
+-- | Given a 'Host', provide a valid 'AccessToken' for the associated host.
 -- The TokenProvider may automatically refresh access tokens if we have a refresh token.
-type TokenProvider = Audience -> IO (Either CredentialFailure AccessToken)
+type TokenProvider = Host -> IO (Either CredentialFailure AccessToken)
 
 -- | Creates a 'TokenProvider' using the given 'CredentialManager'
 newTokenProvider :: CredentialManager -> TokenProvider
-newTokenProvider manager aud = UnliftIO.try @_ @CredentialFailure $ do
-  tokens@(Tokens {accessToken}) <- throwEitherM $ getTokens manager aud
+newTokenProvider manager host = UnliftIO.try @_ @CredentialFailure $ do
+  tokens@(Tokens {accessToken}) <- throwEitherM $ getTokens manager host
   expired <- isExpired accessToken
   if expired
     then do
-      newTokens@(Tokens {accessToken = newAccessToken}) <- throwEitherM $ refreshTokens manager aud tokens
-      saveTokens manager aud newTokens
+      newTokens@(Tokens {accessToken = newAccessToken}) <- throwEitherM $ refreshTokens manager host tokens
+      saveTokens manager host newTokens
       pure $ newAccessToken
     else pure accessToken
 
 -- | Don't yet support automatically refreshing tokens.
-refreshTokens :: MonadIO m => CredentialManager -> Audience -> Tokens -> m (Either CredentialFailure Tokens)
-refreshTokens _manager _aud _tokens =
+refreshTokens :: MonadIO m => CredentialManager -> Host -> Tokens -> m (Either CredentialFailure Tokens)
+refreshTokens _manager _host _tokens =
   -- Refreshing tokens is currently unsupported.
   pure (Left (RefreshFailure . Text.pack $ "Unable to refresh authentication, please run " <> patternName IP.authLogin <> " and try again."))

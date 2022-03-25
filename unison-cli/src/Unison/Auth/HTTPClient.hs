@@ -4,7 +4,7 @@ import qualified Data.Text.Encoding as Text
 import Network.HTTP.Client (Request)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
-import Unison.Auth.CredentialManager (CredentialManager, getHostAudience)
+import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.Tokens (TokenProvider, newTokenProvider)
 import Unison.Auth.Types
 import Unison.Codebase.Editor.Command (UCMVersion)
@@ -18,7 +18,7 @@ newAuthorizedHTTPClient credsMan ucmVersion = liftIO $ do
   let tokenProvider = newTokenProvider credsMan
   let managerSettings =
         HTTP.tlsManagerSettings
-          & HTTP.addRequestMiddleware (authMiddleware credsMan tokenProvider)
+          & HTTP.addRequestMiddleware (authMiddleware tokenProvider)
           & HTTP.setUserAgent (HTTP.ucmUserAgent ucmVersion)
   HTTP.newTlsManagerWith managerSettings
 
@@ -27,12 +27,9 @@ newAuthorizedHTTPClient credsMan ucmVersion = liftIO $ do
 -- and the request is likely to trigger a 401 response which the caller can detect and initiate a re-auth.
 --
 -- If a host isn't associated with any credentials auth is omitted.
-authMiddleware :: CredentialManager -> TokenProvider -> (Request -> IO Request)
-authMiddleware credMan tokenProvider req = do
-  mayAud <- getHostAudience credMan (Host . Text.decodeUtf8 $ HTTP.host req)
-  case mayAud of
-    Nothing -> pure req
-    Just aud -> do
-      tokenProvider aud >>= \case
-        Right token -> pure $ HTTP.applyBearerAuth (Text.encodeUtf8 token) req
-        Left _ -> pure req
+authMiddleware :: TokenProvider -> (Request -> IO Request)
+authMiddleware tokenProvider req = do
+  result <- tokenProvider (Host . Text.decodeUtf8 $ HTTP.host req)
+  case result of
+    Right token -> pure $ HTTP.applyBearerAuth (Text.encodeUtf8 token) req
+    Left _ -> pure req
