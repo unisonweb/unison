@@ -151,6 +151,7 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import UnliftIO (MonadUnliftIO)
+import Unison.Auth.Types (Host(Host))
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -1632,7 +1633,12 @@ loop = do
             UpdateBuiltinsI -> notImplemented
             QuitI -> empty
             GistI input -> handleGist input
-            AuthLoginI -> authLogin Nothing
+            AuthLoginI mayCodebaseServer -> do
+              case mayCodebaseServer of
+                Nothing -> authLogin Nothing
+                Just codebaseServer -> do
+                  mayHost <- eval $ ConfigLookup ("CodebaseServers." <> codebaseServer)
+                  authLogin (Host <$> mayHost)
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success

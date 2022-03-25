@@ -1451,6 +1451,14 @@ topicNameArg =
       globTargets = mempty
     }
 
+codebaseServerNameArg :: ArgumentType
+codebaseServerNameArg =
+  ArgumentType
+    { typeName = "codebase-server",
+      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
+      globTargets = mempty
+    }
+
 helpTopics :: InputPattern
 helpTopics =
   InputPattern
@@ -1995,9 +2003,10 @@ authLogin =
     []
     I.Hidden
     []
-    ("Obtain an authentication session with Unison Share")
+    ("Obtain an authentication session with Unison Share. ")
     ( \case
-        [] -> Right Input.AuthLoginI
+        [] -> Right $ Input.AuthLoginI Nothing
+        [codebaseServerName] -> Right . Input.AuthLoginI $ Just (Text.pack codebaseServerName)
         _ -> Left (showPatternHelp authLogin)
     )
 
