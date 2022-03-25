@@ -14,12 +14,6 @@ discoveryURI (Host host) =
   maybeToEither (InvalidHost (Host host) "Invalid URI") (URI.parseURI (Text.unpack host)) <&> \host ->
     host {uriPath = "/.well-known/openid-configuration"}
 
-shareHost :: Host
-shareHost = Host "https://enlil.unison-lang.org"
-
-shareStagingHost :: Host
-shareStagingHost = Host "https://enlil-staging.unison-lang.org"
-
 discoveryForHost :: MonadIO m => HTTP.Manager -> Host -> m (Either CredentialFailure DiscoveryDoc)
 discoveryForHost httpClient host = liftIO . UnliftIO.try @_ @CredentialFailure $ do
   uri <- UnliftIO.fromEither $ discoveryURI host
