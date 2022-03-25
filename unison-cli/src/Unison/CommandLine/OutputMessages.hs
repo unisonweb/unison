@@ -1536,6 +1536,11 @@ notifyUser dir o = case o of
     pure $
       P.wrap $
         "Please navigate to " <> prettyURI authURI <> " to authorize UCM with the codebase server."
+  UnknownCodeServer codeServerName -> do
+    pure $
+      P.lines [ P.wrap $ "No host configured for code server " <> P.red (P.text codeServerName) <> "."
+              , "You can configure code server hosts in your .unisonConfig file."
+              ]
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

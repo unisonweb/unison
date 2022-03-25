@@ -251,6 +251,7 @@ data Output v
     GistCreated Int WriteRepo Branch.Hash
   | -- | Directs the user to URI to begin an authorization flow.
     InitiateAuthFlow URI
+  | UnknownCodeServer Text
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
@@ -374,6 +375,7 @@ isFailure o = case o of
   RefusedToPush {} -> True
   GistCreated {} -> False
   InitiateAuthFlow {} -> False
+  UnknownCodeServer {} -> True
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

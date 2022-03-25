@@ -29,6 +29,7 @@ import Data.Tuple.Extra (uncurry3)
 import qualified Text.Megaparsec as P
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
+import Unison.Auth.Types (Host (Host))
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
@@ -151,7 +152,6 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import UnliftIO (MonadUnliftIO)
-import Unison.Auth.Types (Host(Host))
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -1636,9 +1636,11 @@ loop = do
             AuthLoginI mayCodebaseServer -> do
               case mayCodebaseServer of
                 Nothing -> authLogin Nothing
-                Just codebaseServer -> do
-                  mayHost <- eval $ ConfigLookup ("CodebaseServers." <> codebaseServer)
-                  authLogin (Host <$> mayHost)
+                Just codeServer -> do
+                  mayHost <- eval $ ConfigLookup ("CodeServers." <> codeServer)
+                  case mayHost of
+                    Nothing -> respond (UnknownCodeServer codeServer)
+                    Just host -> authLogin (Just $ Host host)
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success
