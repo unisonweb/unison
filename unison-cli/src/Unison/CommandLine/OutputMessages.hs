@@ -2528,9 +2528,15 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
 noResults :: Pretty
 noResults =
   P.callout "😶" $
-    P.wrap $
-      "No results. Check your spelling, or try using tab completion "
-        <> "to supply command arguments."
+    P.lines
+      [ P.wrap $
+          "No results. Check your spelling, or try using tab completion "
+            <> "to supply command arguments.",
+        "",
+        P.wrap $
+          IP.makeExample IP.findGlobal []
+            <> "can be used to search outside the current namespace."
+      ]
 
 listOfDefinitions' ::
   Var v =>

@@ -1951,6 +1951,7 @@ validInputs =
     renamePatch,
     copyPatch,
     find,
+    findGlobal,
     findShallow,
     findVerbose,
     view,
