@@ -234,7 +234,7 @@ loop = do
               L.Hash sh -> Just (HQ.HashOnly sh)
               _ -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        let parseNames = Backend.getCurrentParseNames (Backend.AllNames currentPath'') root'
+        let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') root'
         LoopState.latestFile .= Just (Text.unpack sourceName, False)
         LoopState.latestTypecheckedFile .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
@@ -441,7 +441,7 @@ loop = do
             HistoryI {} -> wat
             TestI {} -> wat
             LinksI {} -> wat
-            SearchByNameI {} -> wat
+            FindI {} -> wat
             FindShallowI {} -> wat
             FindPatchI {} -> wat
             ShowDefinitionI {} -> wat
@@ -1100,7 +1100,7 @@ loop = do
                           p | last p == '.' -> p ++ s
                           p -> p ++ "." ++ s
                         pathArgStr = show pathArg
-            SearchByNameI isVerbose _showAll ws -> do
+            FindI isVerbose global ws -> do
               let prettyPrintNames = basicPrettyPrintNames
               unlessError do
                 results <- case ws of
@@ -1131,7 +1131,9 @@ loop = do
 
                   -- name query
                   (map HQ.unsafeFromString -> qs) -> do
-                    let ns = basicPrettyPrintNames
+                    ns <- lift $
+                      if not global then basicParseNames
+                      else fst <$> basicNames' Backend.AllNames
                     let srs = searchBranchScored ns fuzzyNameDistance qs
                     pure $ uniqueBy SR.toReferent srs
                 lift do
@@ -1400,7 +1402,7 @@ loop = do
             IOTestI main -> do
               -- todo - allow this to run tests from scratch file, using addRunMain
               testType <- eval RuntimeTest
-              parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicPrettyPrintNamesA
+              parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
               ppe <- suffixifiedPPE parseNames
               -- use suffixed names for resolving the argument to display
               let oks results =
@@ -2537,7 +2539,7 @@ getMetadataFromName name = do
     getPPE = do
       currentPath' <- use LoopState.currentPath
       sbhLength <- eval BranchHashLength
-      Backend.basicSuffixifiedNames sbhLength <$> use LoopState.root <*> pure (Backend.AllNames $ Path.unabsolute currentPath')
+      Backend.basicSuffixifiedNames sbhLength <$> use LoopState.root <*> pure (Backend.Within $ Path.unabsolute currentPath')
 
 -- | Get the set of terms related to a hash-qualified name.
 getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
@@ -3116,7 +3118,7 @@ findHistoricalHQs lexedHQs0 = do
   pure rawHistoricalNames
 
 basicPrettyPrintNamesA :: Functor m => Action' m v Names
-basicPrettyPrintNamesA = snd <$> basicNames'
+basicPrettyPrintNamesA = snd <$> basicNames' Backend.AllNames
 
 makeShadowedPrintNamesFromHQ :: Monad m => Set (HQ.HashQualified Name) -> Names -> Action' m v NamesWithHistory
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
@@ -3131,7 +3133,7 @@ makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
       (NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames))
 
 basicParseNames, slurpResultNames :: Functor m => Action' m v Names
-basicParseNames = fst <$> basicNames'
+basicParseNames = fst <$> basicNames' Backend.Within
 -- we check the file against everything in the current path
 slurpResultNames = currentPathNames
 
@@ -3142,11 +3144,11 @@ currentPathNames = do
   pure $ Branch.toNames (Branch.head currentBranch')
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNames' :: (Functor m) => Action m i v (Names, Names)
-basicNames' = do
+basicNames' :: (Functor m) => (Path -> Backend.NameScoping) -> Action m i v (Names, Names)
+basicNames' nameScoping = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
-  pure $ Backend.basicNames' root' (Backend.AllNames $ Path.unabsolute currentPath')
+  pure $ Backend.basicNames' root' (nameScoping $ Path.unabsolute currentPath')
 
 data AddRunMainResult v
   = NoTermWithThatName

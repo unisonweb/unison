@@ -155,7 +155,7 @@ data Input
   | -- Display docs for provided terms. If list is empty, prompt a fuzzy search.
     DocsI [Path.HQSplit']
   | -- other
-    SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
+    FindI Bool Bool [String] -- SearchByName isVerbose global query
   | FindShallowI Path'
   | FindPatchI
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.

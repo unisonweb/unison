@@ -399,9 +399,15 @@ viewByPrefix =
     )
 
 find :: InputPattern
-find =
+find = find' "find" False
+
+findGlobal :: InputPattern
+findGlobal = find' "find.global" True
+
+find' :: String -> Bool -> InputPattern
+find' cmd global =
   InputPattern
-    "find"
+    cmd
     []
     [(ZeroPlus, fuzzyDefinitionQueryArg)]
     ( P.wrapColumn2
@@ -413,10 +419,13 @@ find =
           ( "`find foo bar`",
             "lists all definitions with a name similar to 'foo' or 'bar' in the "
               <> "current namespace."
+          ),
+          ( "find.global foo",
+            "lists all definitions with a name similar to 'foo' in any namespace"
           )
         ]
     )
-    (pure . Input.SearchByNameI False False)
+    (pure . Input.FindI False global)
 
 findShallow :: InputPattern
 findShallow =
@@ -442,12 +451,12 @@ findVerbose :: InputPattern
 findVerbose =
   InputPattern
     "find.verbose"
-    ["list.verbose", "ls.verbose"]
+    []
     [(ZeroPlus, fuzzyDefinitionQueryArg)]
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.SearchByNameI True False)
+    (pure . Input.FindI True False)
 
 findPatch :: InputPattern
 findPatch =
