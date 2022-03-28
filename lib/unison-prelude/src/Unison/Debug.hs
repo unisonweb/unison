@@ -1,6 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Debug (debug, debugM, whenDebug, debugLog, debugLogM, DebugFlag (..)) where
+module Unison.Debug
+  ( debug,
+    debugM,
+    whenDebug,
+    debugLog,
+    debugLogM,
+    DebugFlag (..),
+  )
+where
 
 import Control.Applicative (empty)
 import Control.Monad (when)
@@ -15,6 +23,7 @@ data DebugFlag
   = Git
   | Sqlite
   | Codebase
+  | Auth
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -29,6 +38,7 @@ debugFlags = pTraceShowId $ case pTraceShowId $ (unsafePerformIO (lookupEnv "UNI
       "GIT" -> pure Git
       "SQLITE" -> pure Sqlite
       "CODEBASE" -> pure Codebase
+      "AUTH" -> pure Auth
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -43,6 +53,10 @@ debugSqlite = Sqlite `Set.member` debugFlags
 debugCodebase :: Bool
 debugCodebase = Codebase `Set.member` debugFlags
 {-# NOINLINE debugCodebase #-}
+
+debugAuth :: Bool
+debugAuth = Auth `Set.member` debugFlags
+{-# NOINLINE debugAuth #-}
 
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
@@ -87,3 +101,4 @@ shouldDebug = \case
   Git -> debugGit
   Sqlite -> debugSqlite
   Codebase -> debugCodebase
+  Auth -> debugAuth

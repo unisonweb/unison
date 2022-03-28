@@ -22,6 +22,7 @@ import Unison.Auth.Discovery (discoveryForHost)
 import Unison.Auth.Types
 import Unison.Codebase.Editor.HandleInput.LoopState (MonadCommand, respond)
 import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Debug
 import Unison.Prelude
 import qualified UnliftIO
 import qualified Web.Browser as Web
@@ -48,18 +49,25 @@ authTransferServer callback req respond =
 authenticateHost :: forall m n i v. (UnliftIO.MonadUnliftIO m, MonadCommand m n i v) => CredentialManager -> Host -> m (Either CredentialFailure ())
 authenticateHost credsManager host = UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- liftIO HTTP.getGlobalManager
-  (DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ discoveryForHost httpClient host
-  authResult <- UnliftIO.newEmptyMVar @_ @(Either CredentialFailure Tokens)
-  -- Clean up this hack
+  doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ discoveryForHost httpClient host
+  debugM Auth "Discovery Doc" doc
+  authResultVar <- UnliftIO.newEmptyMVar @_ @(Either CredentialFailure Tokens)
+  -- The redirect_uri depends on the port, so we need to spin up the server first, but
+  -- we can't spin up the server without the code-handler which depends on the redirect_uri.
+  -- So, annoyingly we just embed an MVar which will be filled as soon as the server boots up,
+  -- and it all works out fine.
   redirectURIVar <- UnliftIO.newEmptyMVar
   (verifier, challenge, state) <- generateParams
   let codeHandler code = do
         redirectURI <- UnliftIO.readMVar redirectURIVar
         result <- exchangeCode httpClient tokenEndpoint code verifier redirectURI
-        UnliftIO.putMVar authResult result
-        pure $ case result of
-          Left _ -> Wai.responseLBS internalServerError500 [] "Something went wrong, please try again."
-          Right _ -> Wai.responseLBS ok200 [] "Authorization successful. You may close this page and return to UCM."
+        UnliftIO.putMVar authResultVar result
+        case result of
+          Left err -> do
+            debugM Auth "Auth Error" err
+            pure $ Wai.responseLBS internalServerError500 [] "Something went wrong, please try again."
+          Right _ ->
+            pure $ Wai.responseLBS ok200 [] "Authorization successful. You may close this page and return to UCM."
   toIO <- UnliftIO.askRunInIO
   liftIO . Warp.withApplication (pure $ authTransferServer codeHandler) $ \port -> toIO $ do
     let redirectURI = "http://localhost:" <> show port <> "/redirect"
@@ -67,7 +75,7 @@ authenticateHost credsManager host = UnliftIO.try @_ @CredentialFailure $ do
     let authorizationKickoff = authURI authorizationEndpoint redirectURI state challenge
     void . liftIO $ Web.openBrowser (show authorizationKickoff)
     respond . Output.InitiateAuthFlow $ authorizationKickoff
-    tokens <- throwCredFailure $ UnliftIO.readMVar authResult
+    tokens <- throwCredFailure $ UnliftIO.readMVar authResultVar
     saveTokens credsManager host tokens
   where
     throwCredFailure :: m (Either CredentialFailure a) -> m a
@@ -109,10 +117,10 @@ exchangeCode httpClient tokenEndpoint code verifier redirectURI = liftIO $ do
   case HTTP.responseStatus resp of
     status
       | status < status300 -> do
-        let respBytes = HTTP.responseBody resp
-        pure $ case Aeson.eitherDecode @Tokens respBytes of
-          Left err -> Left (InvalidTokenResponse tokenEndpoint (Text.pack err))
-          Right a -> Right a
+          let respBytes = HTTP.responseBody resp
+          pure $ case Aeson.eitherDecode @Tokens respBytes of
+            Left err -> Left (InvalidTokenResponse tokenEndpoint (Text.pack err))
+            Right a -> Right a
       | otherwise -> pure $ Left (InvalidTokenResponse tokenEndpoint $ "Received " <> tShow status <> " response from token endpoint")
 
 addQueryParam :: ByteString -> ByteString -> URI -> URI

@@ -77,6 +77,7 @@ data DiscoveryDoc = DiscoveryDoc
     tokenEndpoint :: URI,
     userInfoEndpoint :: URI
   }
+  deriving (Show)
 
 data Tokens = Tokens
   { accessToken :: AccessToken,
