@@ -1438,20 +1438,23 @@ notifyUser dir o = case o of
           P.lines
             [ "Dependents of " <> prettyLd <> ":",
               "",
-              P.indentN 2 (P.numberedColumn2Header num pairs)
+              P.indentN 2 (P.numberedColumn2Header num pairs),
+              "",
+              tip $ "Try " <> IP.makeExample IP.view ["1"] <> " to see the source of any numbered item in the above list."
             ]
     where
       prettyLd = P.syntaxToColor (prettyLabeledDependency hqLength ld)
       num n = P.hiBlack $ P.shown n <> "."
-      header = (P.hiBlack "Reference", P.hiBlack "Name")
-      pairs = header : map pair results
+      header = (P.hiBlack "Name", P.hiBlack "Reference")
+      pairs = header : map pair (List.sortOn (fmap (Name.convert :: Name -> HQ.HashQualified Name) . snd) results)
       pair :: (Reference, Maybe Name) -> (Pretty, Pretty)
       pair (reference, maybeName) =
-        ( prettyShortHash (SH.take hqLength (Reference.toShortHash reference)),
-          case maybeName of
+        ( case maybeName of
             Nothing -> ""
-            Just name -> prettyName name
+            Just name -> prettyName name,
+          prettyShortHash (SH.take hqLength (Reference.toShortHash reference))
         )
+
   -- this definition is identical to the previous one, apart from the word
   -- "Dependencies", but undecided about whether or how to refactor
   ListDependencies hqLength ld names missing ->
