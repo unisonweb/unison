@@ -159,11 +159,11 @@ prettyPrintEnvDecl :: MonadCommand n m i v => NamesWithHistory -> n PPE.PrettyPr
 prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: Action' m v PPE.PrettyPrintEnvDecl
-currentPrettyPrintEnvDecl = do
+currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action' m v PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl scoping = do
   root' <- use LoopState.root
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
-  prettyPrintEnvDecl (Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root')
+  prettyPrintEnvDecl (Backend.getCurrentPrettyNames (scoping currentPath') root')
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
@@ -535,7 +535,7 @@ loop = do
                     diffHelper (Branch.head root') (Branch.head root'')
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
                   else do
-                    ppeDecl <- currentPrettyPrintEnvDecl
+                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                     respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
             ApiI -> eval API
@@ -760,11 +760,11 @@ loop = do
                     then doDelete b0
                     else case insistence of
                       Force -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl
+                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                         doDelete b0
                         respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                       Try -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl
+                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                         respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
                 doDelete b0 = do
@@ -1560,7 +1560,7 @@ loop = do
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
+                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> use LoopState.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
@@ -1656,7 +1656,7 @@ handleDependents hq = do
            in LD.fold tp tm ld
         -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
         -- unambiguous name.
-        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
+        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
         let results :: [(Reference, Maybe Name)]
             results =
               -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
