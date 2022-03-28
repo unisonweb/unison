@@ -317,6 +317,10 @@ floater ::
   (Term v a -> FloatM v a (Term v a)) ->
   Term v a ->
   Maybe (FloatM v a (Term v a))
+floater top rec tm0@(Ann' tm ty) =
+  (fmap . fmap) (\tm -> ann a tm ty) (floater top rec tm)
+  where
+    a = ABT.annotation tm0
 floater top rec (LetRecNamed' vbs e) =
   Just $
     letFloater rec vbs e >>= \case
