@@ -12,6 +12,7 @@ module Unison.Auth.Types
     OAuthState,
     PKCEVerifier,
     PKCEChallenge,
+    ProfileName,
     CredentialFailure (..),
     Host (..),
     getActiveTokens,
@@ -20,6 +21,7 @@ module Unison.Auth.Types
   )
 where
 
+import Control.Lens hiding ((.=))
 import Data.Aeson (FromJSON (..), FromJSONKey, KeyValue ((.=)), ToJSON (..), ToJSONKey, (.:), (.:?))
 import qualified Data.Aeson as Aeson
 import qualified Data.Map as Map
@@ -119,33 +121,42 @@ instance Aeson.FromJSON DiscoveryDoc where
     URIParam userInfoEndpoint <- obj .: "userinfo_endpoint"
     pure (DiscoveryDoc {..})
 
+type ProfileName = Text
+
 newtype Host = Host Text
   deriving stock (Eq, Ord, Show)
   deriving newtype (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 data Credentials = Credentials
-  { credentials :: Map Host Tokens
+  { credentials :: Map ProfileName (Map Host Tokens),
+    activeProfile :: ProfileName
   }
   deriving (Eq)
 
 emptyCredentials :: Credentials
-emptyCredentials = Credentials mempty
+emptyCredentials = Credentials mempty mempty
 
 getActiveTokens :: Host -> Credentials -> Either CredentialFailure Tokens
-getActiveTokens host (Credentials {credentials}) =
-  maybeToEither (ReauthRequired host) $ Map.lookup host credentials
+getActiveTokens host (Credentials {credentials, activeProfile}) =
+  maybeToEither (ReauthRequired host) $
+    credentials ^? ix activeProfile . ix host
 
 setActiveTokens :: Host -> Tokens -> Credentials -> Credentials
-setActiveTokens host tokens creds@(Credentials {credentials}) =
-  creds {credentials = Map.insert host tokens credentials}
+setActiveTokens host tokens creds@(Credentials {credentials, activeProfile}) =
+  let newCredMap =
+        credentials
+          & at activeProfile . non Map.empty . at host .~ Just tokens
+   in creds {credentials = newCredMap}
 
 instance Aeson.ToJSON Credentials where
-  toJSON (Credentials credMap) =
+  toJSON (Credentials credMap activeProfile) =
     Aeson.object
-      [ "credentials" .= credMap
+      [ "credentials" .= credMap,
+        "active_profile" .= activeProfile
       ]
 
 instance Aeson.FromJSON Credentials where
   parseJSON = Aeson.withObject "Credentials" $ \obj -> do
     credentials <- obj .: "credentials"
+    activeProfile <- obj .: "active_profile"
     pure Credentials {..}
