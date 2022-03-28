@@ -11,7 +11,7 @@ import qualified UnliftIO
 
 discoveryURI :: Host -> Either CredentialFailure URI
 discoveryURI (Host host) =
-  maybeToEither (InvalidHost (Host host) "Invalid URI") (URI.parseURI (Text.unpack host)) <&> \host ->
+  maybeToEither (InvalidHost (Host host)) (URI.parseURI ("https://" <> Text.unpack host)) <&> \host ->
     host {uriPath = "/.well-known/openid-configuration"}
 
 discoveryForHost :: MonadIO m => HTTP.Manager -> Host -> m (Either CredentialFailure DiscoveryDoc)

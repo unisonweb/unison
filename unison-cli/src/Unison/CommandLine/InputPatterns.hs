@@ -2002,8 +2002,17 @@ authLogin =
     "auth.login"
     []
     I.Hidden
-    []
-    ("Obtain an authentication session with Unison Share. ")
+    [(Optional, noCompletions)]
+    ( P.lines
+        [ P.wrap "Obtain an authentication session with Unison Share or a specified codeserver host.",
+          makeExample authLogin []
+            <> "authenticates ucm with Unison Share.",
+          makeExample authLogin ["mycodeserver"]
+            <> "authenticates ucm with the host configured at"
+            <> P.backticked "CodeServers.mycodeserver"
+            <> "in your .unisonConfig"
+        ]
+    )
     ( \case
         [] -> Right $ Input.AuthLoginI Nothing
         [codebaseServerName] -> Right . Input.AuthLoginI $ Just (Text.pack codebaseServerName)

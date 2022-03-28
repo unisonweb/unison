@@ -43,7 +43,7 @@ type SourceName = Text -- "foo.u" or "buffer 7"
 
 type PatchPath = Path.Split'
 
-type CodeServerName = Text
+type CodebaseServerName = Text
 
 data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
   deriving (Eq, Ord, Show)
@@ -182,7 +182,7 @@ data Input
   | UiI
   | DocsToHtmlI Path' FilePath
   | GistI GistInput
-  | AuthLoginI (Maybe CodeServerName)
+  | AuthLoginI (Maybe CodebaseServerName)
   deriving (Eq, Show)
 
 -- | @"gist repo"@ pushes the contents of the current namespace to @repo@.

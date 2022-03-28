@@ -20,7 +20,7 @@ import qualified UnliftIO
 -- be refreshed if we encounter any auth failures on requests.
 newtype CredentialManager = CredentialManager (UnliftIO.MVar Credentials)
 
--- | Saves credentials for profile and sets that to the active profile.
+-- | Saves credentials to the active profile.
 saveTokens :: UnliftIO.MonadUnliftIO m => CredentialManager -> Host -> Tokens -> m ()
 saveTokens credManager aud tokens = do
   void . modifyCredentials credManager $ setActiveTokens aud tokens

@@ -31,6 +31,9 @@ import Network.URI
 import qualified Network.URI as URI
 import Unison.Prelude
 
+defaultProfileName :: ProfileName
+defaultProfileName = "default"
+
 data CredentialFailure
   = ReauthRequired Host
   | CredentialParseFailure FilePath Text
@@ -38,7 +41,7 @@ data CredentialFailure
   | InvalidJWT Text
   | RefreshFailure Text
   | InvalidTokenResponse URI Text
-  | InvalidHost Host Text
+  | InvalidHost Host
   deriving stock (Show, Eq)
   deriving anyclass (Exception)
 
@@ -123,6 +126,8 @@ instance Aeson.FromJSON DiscoveryDoc where
 
 type ProfileName = Text
 
+-- | The hostname of a server we may authenticate with,
+-- e.g. @Host "enlil.unison-lang.org"@
 newtype Host = Host Text
   deriving stock (Eq, Ord, Show)
   deriving newtype (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
@@ -134,7 +139,7 @@ data Credentials = Credentials
   deriving (Eq)
 
 emptyCredentials :: Credentials
-emptyCredentials = Credentials mempty mempty
+emptyCredentials = Credentials mempty defaultProfileName
 
 getActiveTokens :: Host -> Credentials -> Either CredentialFailure Tokens
 getActiveTokens host (Credentials {credentials, activeProfile}) =

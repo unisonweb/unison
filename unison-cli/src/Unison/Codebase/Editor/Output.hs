@@ -20,6 +20,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import Network.URI (URI)
+import Unison.Auth.Types (CredentialFailure)
 import Unison.Codebase (GetRootBranchError)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
@@ -252,6 +253,7 @@ data Output v
   | -- | Directs the user to URI to begin an authorization flow.
     InitiateAuthFlow URI
   | UnknownCodeServer Text
+  | CredentialFailureMsg CredentialFailure
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
@@ -376,6 +378,7 @@ isFailure o = case o of
   GistCreated {} -> False
   InitiateAuthFlow {} -> False
   UnknownCodeServer {} -> True
+  CredentialFailureMsg {} -> True
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

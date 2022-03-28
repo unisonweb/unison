@@ -24,6 +24,7 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe, uncurry3)
+import Network.URI (URI)
 import System.Directory
   ( canonicalizePath,
     doesFileExist,
@@ -32,6 +33,7 @@ import System.Directory
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
+import qualified Unison.Auth.Types as Auth
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -130,7 +132,6 @@ import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import Network.URI (URI)
 
 type Pretty = P.Pretty P.ColorText
 
@@ -637,8 +638,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -647,6 +648,7 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
+
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1538,9 +1540,44 @@ notifyUser dir o = case o of
         "Please navigate to " <> prettyURI authURI <> " to authorize UCM with the codebase server."
   UnknownCodeServer codeServerName -> do
     pure $
-      P.lines [ P.wrap $ "No host configured for code server " <> P.red (P.text codeServerName) <> "."
-              , "You can configure code server hosts in your .unisonConfig file."
-              ]
+      P.lines
+        [ P.wrap $ "No host configured for code server " <> P.red (P.text codeServerName) <> ".",
+          "You can configure code server hosts in your .unisonConfig file."
+        ]
+  CredentialFailureMsg err -> pure $ case err of
+    Auth.ReauthRequired (Auth.Host host) ->
+      P.lines
+        [ "Authentication for host " <> P.red (P.text host) <> " is required.",
+          "Run " <> IP.makeExample IP.help [IP.patternName IP.authLogin]
+            <> " to learn how."
+        ]
+    Auth.CredentialParseFailure fp txt ->
+      P.lines
+        [ "Failed to parse the credentials file at " <> prettyFilePath fp <> ", with error: " <> P.text txt <> ".",
+          "You can attempt to fix the issue, or may simply delete the credentials file and run " <> IP.makeExample IP.authLogin [] <> "."
+        ]
+    Auth.InvalidDiscoveryDocument uri txt ->
+      P.lines
+        [ "Failed to parse the discover document from " <> prettyURI uri <> ", with error: " <> P.text txt <> "."
+        ]
+    Auth.InvalidJWT txt ->
+      P.lines
+        [ "Failed to validate JWT from authentication server: " <> P.text txt
+        ]
+    Auth.RefreshFailure txt ->
+      P.lines
+        [ "Failed to refresh access token with authentication server: " <> P.text txt
+        ]
+    Auth.InvalidTokenResponse uri txt ->
+      P.lines
+        [ "Failed to parse token response from authentication server: " <> prettyURI uri,
+          "The error was: " <> P.text txt
+        ]
+    Auth.InvalidHost (Auth.Host host) ->
+      P.lines
+        [ "Failed to parse a URI from the hostname: " <> P.text host <> ".",
+          "Host names should NOT include a schema or path."
+        ]
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -1570,6 +1607,10 @@ notifyUser dir o = case o of
 --    where
 --      ns targets = P.oxfordCommas $
 --        map (fromString . Names.renderNameTarget) (toList targets)
+
+prettyFilePath :: FilePath -> Pretty
+prettyFilePath fp =
+  P.blue (P.string fp)
 
 prettyPath' :: Path.Path' -> Pretty
 prettyPath' p' =
@@ -2121,7 +2162,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
