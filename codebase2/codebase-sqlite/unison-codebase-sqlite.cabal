@@ -25,6 +25,7 @@ library
       U.Codebase.Sqlite.Connection
       U.Codebase.Sqlite.DbId
       U.Codebase.Sqlite.Decl.Format
+      U.Codebase.Sqlite.Entity
       U.Codebase.Sqlite.JournalMode
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject

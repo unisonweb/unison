@@ -19,7 +19,7 @@ module U.Codebase.Sqlite.Operations
     loadMaybeRootCausalHash,
     loadRootCausalHash,
     loadRootCausal,
-    saveBranch,
+    saveCausal,
     loadCausalBranchByCausalHash,
 
     -- * terms
@@ -156,7 +156,6 @@ import U.Codebase.ShortHash (ShortBranchHash (ShortBranchHash))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
 import qualified U.Codebase.Sqlite.Branch.Diff as S.BranchDiff
-import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)
 import qualified U.Codebase.Sqlite.Branch.Format as S
 import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as S
@@ -989,9 +988,9 @@ saveRootBranch c = do
 -- References, but also values
 -- Shallow - Hash? representation of the database relationships
 
-saveBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
-saveBranch (C.Causal hc he parents me) = do
-  when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
+saveCausal :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
+saveCausal (C.Causal hc he parents me) = do
+  when debug $ traceM $ "\nOperations.saveCausal \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
 
   (chId, bhId) <- flip Monad.fromMaybeM (liftQ $ Q.loadCausalByCausalHash hc) do
     -- if not exist, create these
@@ -1006,14 +1005,13 @@ saveBranch (C.Causal hc he parents me) = do
         -- by checking if there are causal parents associated with hc
         (flip Monad.fromMaybeM)
           (liftQ $ Q.loadCausalHashIdByCausalHash parentHash)
-          (mcausal >>= fmap snd . saveBranch)
+          (mcausal >>= fmap snd . saveCausal)
     unless (null parentCausalHashIds) $
       liftQ (Q.saveCausalParents chId parentCausalHashIds)
     pure (chId, bhId)
   boId <- flip Monad.fromMaybeM (liftQ $ Q.loadBranchObjectIdByCausalHashId chId) do
     branch <- c2sBranch =<< me
-    let (li, lBranch) = LocalizeObject.localizeBranch branch
-    saveBranchObject bhId li lBranch
+    saveBranch bhId branch
   pure (boId, chId)
   where
     c2sBranch :: EDB m => C.Branch.Branch m -> m S.DbBranch
@@ -1022,7 +1020,7 @@ saveBranch (C.Causal hc he parents me) = do
         <$> Map.bitraverse saveNameSegment (Map.bitraverse c2sReferent c2sMetadata) terms
         <*> Map.bitraverse saveNameSegment (Map.bitraverse c2sReference c2sMetadata) types
         <*> Map.bitraverse saveNameSegment savePatchObjectId patches
-        <*> Map.bitraverse saveNameSegment saveBranch children
+        <*> Map.bitraverse saveNameSegment saveCausal children
 
     saveNameSegment :: EDB m => C.Branch.NameSegment -> m Db.TextId
     saveNameSegment = liftQ . Q.saveText . C.Branch.unNameSegment
@@ -1040,12 +1038,45 @@ saveBranch (C.Causal hc he parents me) = do
           patch <- mp
           savePatch h patch
 
-saveBranchObject :: DB m => Db.BranchHashId -> BranchLocalIds -> S.Branch.Full.LocalBranch -> m Db.BranchObjectId
-saveBranchObject id@(Db.unBranchHashId -> hashId) li lBranch = do
-  when debug $ traceM $ "saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show li ++ "\n\tlBranch = " ++ show lBranch
-  let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full li lBranch
+saveBranch :: DB m => Db.BranchHashId -> S.DbBranch -> m Db.BranchObjectId
+saveBranch bhId dbBranch = do
+  -- when debug $ traceM $ "saveBranch\n\tid = " ++ show id ++ "\n\tli = " ++ show li ++ "\n\tlBranch = " ++ show lBranch
+  ifor (terms dbBranch) $ \nameSegmentId m -> ifor m $ \referent (Inline meta) -> do
+    -- Do we need to save entities here or just look them up?
+    -- We should probably save them when we save the term/decl/patch/etc.
+    eId <- Q.saveEntity (Entity.termEntity referent)
+    Q.saveNamespaceEntity bhId nameSegmentId eId
+
+    for meta $ \metaRef -> do
+      -- This entity should already exist, probably don't need to save it here.
+      metaEId <- Q.saveEntity (Entity.termEntity (C.Ref metaRef))
+      Q.saveNamespaceMetadata bhId nameSegmentId eId metaEId
+
+  ifor (types dbBranch) $ \nameSegmentId m -> ifor m $ \reference (Inline meta) -> do
+    -- Do we need to save entities here or just look them up?
+    -- We should probably save them when we save the term/decl/patch/etc.
+    eId <- Q.saveEntity (Entity.declEntity reference)
+    Q.saveNamespaceEntity bhId nameSegmentId eId
+
+    for meta $ \metaRef -> do
+      -- This entity should already exist, probably don't need to save it here.
+      metaEId <- Q.saveEntity (Entity.termEntity (C.Ref metaRef))
+      Q.saveNamespaceMetadata bhId nameSegmentId eId metaEId
+
+  ifor (patches dbBranch) $ \nameSegmentId patchObjId -> do
+    eId <- Q.saveEntity (Entity.patchEntity reference)
+
+  for (children dbBranch) $ \t -> _
   oId <- Q.saveObject hashId OT.Namespace bytes
   pure $ Db.BranchObjectId oId
+
+-- type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchHashId, CausalHashId)
+-- data Branch' t h p c = Branch
+-- { terms :: Map t (Map (Referent'' t h) (MetadataSetFormat' t h)),
+--   types :: Map t (Map (Reference' t h) (MetadataSetFormat' t h)),
+--   patches :: Map t p,
+--   children :: Map t c
+-- }
 
 loadRootCausal :: EDB m => m (C.Branch.Causal m)
 loadRootCausal = liftQ Q.loadNamespaceRoot >>= loadCausalByCausalHashId

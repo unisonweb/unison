@@ -6,7 +6,6 @@
 CREATE TABLE entity (
   id INTEGER PRIMARY KEY,
   -- Make a separate table for entity type descriptions?
-  -- Do we need this here or nah?
   kind_id INTEGER NOT NULL,
   builtin INTEGER NULL REFERENCES text(id),
   object_id INTEGER NULL,
@@ -64,16 +63,14 @@ CREATE TABLE namespace_child (
   PRIMARY KEY (parent_namespace_hash_id, child_name_id)
 ) WITHOUT ROWID;
 
+-- We don't enforce "at most one entity of a kind at a name", since definitions
+-- can be 'in conflict' after a merge.
 CREATE TABLE namespace_entity (
   parent_namespace_hash_id INTEGER NOT NULL REFERENCES hash(id),
   name_segment_id INTEGER NOT NULL REFERENCES text(id),
-  entity_id INTEGER NOT NULL,
-  entity_kind INTEGER NOT NULL,
+  entity_id INTEGER NOT NULL REFERENCES entity(id),
 
-  -- Ensure we can only have at most one of each kind of entity at each name.
-  PRIMARY KEY (parent_namespace_hash_id, name_segment_id, entity_kind),
-  -- Enforce consistency of entities and their kind.
-  FOREIGN KEY (entity_id, entity_kind) REFERENCES entity_and_kind(entity_id, entity_kind)
+  PRIMARY KEY (parent_namespace_hash_id, name_segment_id, entity_id),
 ) WITHOUT ROWID;
 
 
@@ -92,14 +89,10 @@ CREATE INDEX names_by_entity ON namespace_entity (
 CREATE TABLE namespace_metadata (
   parent_namespace_hash_id INTEGER NOT NULL REFERENCES hash(id),
   name_segment_id INTEGER NOT NULL REFERENCES text(id),
-  entity_kind INTEGER NOT NULL,
+  entity_id INTEGER NOT NULL REFERENCES entity(id),
+  metadata_entity_id INTEGER NOT NULL REFERENCES entity(id),
 
-  metadata_entity_id INTEGER NULL REFERENCES entity(id),
-
-  -- Is there any primary key that actually makes sense?
-  -- We might just want to use row IDs here and make indexes for what we need, but maybe there's value in asserting uniqueness on the entire row?
-  PRIMARY KEY(parent_namespace_hash_id, name_segment_id, entity_kind, metadata_entity_id),
-  FOREIGN KEY(parent_namespace_hash_id, name_segment_id, entity_kind) REFERENCES namespace_entity(parent_namespace_hash_id, name_segment_id, entity_kind)
+  PRIMARY KEY(parent_namespace_hash_id, name_segment_id, entity_id, metadata_entity_id),
 ) WITHOUT ROWID;
 
 

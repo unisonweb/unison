@@ -62,8 +62,9 @@ CREATE INDEX namespace_child_child ON namespace_child(child_hash_id, namespace_h
 CREATE TABLE namespace_term_metadata (
   namespace_hash_id INTEGER NOT NULL REFERENCES hash(id),
   namespace_term_id INTEGER NOT NULL REFERENCES namespace_term(id),
-  metadata_object_id INTEGER NOT NULL REFERENCES object(id),
-  metadata_component_id INTEGER NOT NULL,
+  metadata_object_id INTEGER NULL REFERENCES object(id),
+  metadata_component_id INTEGER NULL,
+  metadata_builtin INTEGER NULL REFERENCES text(id),
   PRIMARY KEY (
     namespace_hash_id,
     namespace_term_id,

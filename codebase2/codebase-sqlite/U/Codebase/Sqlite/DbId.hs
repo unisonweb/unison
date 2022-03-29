@@ -40,6 +40,10 @@ newtype BranchHashId = BranchHashId {unBranchHashId :: HashId}
   deriving (Eq, Ord)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via HashId
 
+newtype EntityId = EntityId {unEntityId :: HashId}
+  deriving (Eq, Ord)
+  deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via HashId
+
 newtype CausalHashId = CausalHashId {unCausalHashId :: HashId}
   deriving (Eq, Ord)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via HashId

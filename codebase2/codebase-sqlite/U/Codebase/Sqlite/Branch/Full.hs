@@ -13,7 +13,7 @@ import qualified Data.Set as Set
 import U.Codebase.Reference (Reference')
 import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Referent')
-import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
+import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
 import Unison.Prelude
 import qualified Unison.Util.Map as Map
@@ -39,7 +39,7 @@ type LocalBranch = Branch' LocalTextId LocalDefnId LocalPatchObjectId LocalBranc
 --     children :: Map TextId (BranchObjectId, CausalHashId)
 --   }
 -- @
-type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
+type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchHashId, CausalHashId)
 
 type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
 

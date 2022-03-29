@@ -64,6 +64,11 @@ module U.Codebase.Sqlite.Queries
     setNamespaceRoot,
     loadNamespaceRoot,
 
+    -- * entities
+    saveEntity,
+    saveNamespaceEntity,
+    saveNamespaceMetadata,
+
     -- * causals
 
     -- ** causal table
@@ -187,6 +192,7 @@ import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
     CausalHashId (..),
+    EntityId,
     HashId (..),
     HashVersion,
     ObjectId (..),
@@ -463,6 +469,46 @@ updateObjectBlob :: DB m => ObjectId -> ByteString -> m ()
 updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
   UPDATE object SET bytes = ? WHERE id = ?
 |]
+
+-- * Entities
+saveEntity :: DB m => Entity -> m EntityId
+saveEntity (Entity entityKind entityRef) = do
+  let (tid, oid, compInd, conInd) = Entity.expandRef entityRef
+  queryOne $ queryAtom sql (entityKind, tid, oid, compInd, conInd)
+  where
+  sql = [here|
+    INSERT INTO entity(kind_id, builtin, object_id, component_index, constructor_index)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT DO NOTHING
+    RETURNING id
+  |]
+
+saveNamespaceEntity :: DB m => BranchHashId -> TextId -> EntityId -> m ()
+saveNamespaceEntity bhId tId eId = do
+  execute sql (bhId, tId, eId)
+  where
+  sql = [here|
+    INSERT INTO namespace_entity(parent_namespace_hash_id, name_segment_id, entity_id)
+    VALUES (?, ?, ?)
+    ON CONFLICT DO NOTHING
+  |]
+
+saveNamespaceMetadata :: DB m => BranchHashId -> TextId -> EntityId -> EntityId -> m ()
+saveNamespaceMetadata bhId tId eId metaEId = do
+  execute sql (bhId, tId, eId, metaEId)
+  where
+  sql = [here|
+    INSERT INTO namespace_metadata(parent_namespace_hash_id, name_segment_id, entity_id,  metadata_entity_id)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT DO NOTHING
+  |]
+
+maybeEntityId :: DB m => HashId -> m (Maybe ObjectId)
+maybeObjectIdForPrimaryHashId h = queryAtom sql (Only h) where sql = [here|
+  SELECT id FROM object WHERE primary_hash_id = ?
+|]
+
+-- * Causal
 
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.

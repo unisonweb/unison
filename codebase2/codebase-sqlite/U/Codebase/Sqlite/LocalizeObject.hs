@@ -23,8 +23,7 @@
 --
 -- where all terms, types, etc. within the @branch@ structure refer to offsets in the associated vectors.
 module U.Codebase.Sqlite.LocalizeObject
-  ( localizeBranch,
-    localizePatch,
+  ( localizePatch,
   )
 where
 
@@ -34,16 +33,10 @@ import qualified Control.Monad.Trans.State.Strict as State
 import Data.Bitraversable (bitraverse)
 import Data.Generics.Product.Typed (HasType (typed))
 import qualified Data.Map.Strict as Map
-import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)
-import qualified U.Codebase.Sqlite.Branch.Format as Branch
-import U.Codebase.Sqlite.Branch.Full (Branch' (..), DbBranch, LocalBranch)
-import qualified U.Codebase.Sqlite.Branch.Full as Branch
-import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, HashId, ObjectId, PatchObjectId, TextId)
+import U.Codebase.Sqlite.DbId (HashId, ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds
-  ( LocalBranchChildId (..),
-    LocalDefnId (..),
+  ( LocalDefnId (..),
     LocalHashId (..),
-    LocalPatchObjectId (..),
     LocalTextId (..),
   )
 import U.Codebase.Sqlite.Patch.Format (PatchLocalIds)
@@ -51,8 +44,8 @@ import qualified U.Codebase.Sqlite.Patch.Format as Patch
 import U.Codebase.Sqlite.Patch.Full (LocalPatch, Patch, Patch' (..))
 import U.Codebase.Sqlite.Patch.TermEdit (LocalTermEdit, TermEdit)
 import U.Codebase.Sqlite.Patch.TypeEdit (LocalTypeEdit, TypeEdit)
-import U.Codebase.Sqlite.Reference (LocalReference, LocalReferenceH, Reference, ReferenceH)
-import U.Codebase.Sqlite.Referent (LocalReferent, LocalReferentH, Referent, ReferentH)
+import U.Codebase.Sqlite.Reference (LocalReferenceH, ReferenceH)
+import U.Codebase.Sqlite.Referent (LocalReferentH, ReferentH)
 import Unison.Prelude
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
@@ -61,18 +54,18 @@ import qualified Unison.Util.Set as Set
 -- High-level localization
 
 -- | Localize a branch object.
-localizeBranch :: DbBranch -> (BranchLocalIds, LocalBranch)
-localizeBranch (Branch terms types patches children) =
-  (runIdentity . runLocalizeBranch) do
-    Branch
-      <$> Map.bitraverse localizeText (Map.bitraverse localizeReferent localizeBranchMetadata) terms
-      <*> Map.bitraverse localizeText (Map.bitraverse localizeReference localizeBranchMetadata) types
-      <*> Map.bitraverse localizeText localizePatchReference patches
-      <*> Map.bitraverse localizeText localizeBranchReference children
-  where
-    localizeBranchMetadata :: (ContainsDefns s, ContainsText s, Monad m) => Branch.DbMetadataSet -> StateT s m Branch.LocalMetadataSet
-    localizeBranchMetadata (Branch.Inline refs) =
-      Branch.Inline <$> Set.traverse localizeReference refs
+-- localizeBranch :: DbBranch -> (BranchLocalIds, LocalBranch)
+-- localizeBranch (Branch terms types patches children) =
+--   (runIdentity . runLocalizeBranch) do
+--     Branch
+--       <$> Map.bitraverse localizeText (Map.bitraverse localizeReferent localizeBranchMetadata) terms
+--       <*> Map.bitraverse localizeText (Map.bitraverse localizeReference localizeBranchMetadata) types
+--       <*> Map.bitraverse localizeText localizePatchReference patches
+--       <*> Map.bitraverse localizeText localizeBranchReference children
+--   where
+--     localizeBranchMetadata :: (ContainsDefns s, ContainsText s, Monad m) => Branch.DbMetadataSet -> StateT s m Branch.LocalMetadataSet
+--     localizeBranchMetadata (Branch.Inline refs) =
+--       Branch.Inline <$> Set.traverse localizeReference refs
 
 -- | Localize a patch object.
 localizePatch :: Patch -> (PatchLocalIds, LocalPatch)
@@ -93,10 +86,6 @@ localizePatch (Patch termEdits typeEdits) =
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- General-purpose localization
 
--- Contains references to branch objects.
-type ContainsBranches s =
-  HasType (Map (BranchObjectId, CausalHashId) LocalBranchChildId) s
-
 -- Contains references to definition objects i.e. term/decl component objects.
 type ContainsDefns s =
   HasType (Map ObjectId LocalDefnId) s
@@ -105,35 +94,25 @@ type ContainsDefns s =
 type ContainsHashes =
   HasType (Map HashId LocalHashId)
 
--- Contains references to patch objects.
-type ContainsPatches =
-  HasType (Map PatchObjectId LocalPatchObjectId)
-
 -- Contains text.
 type ContainsText =
   HasType (Map TextId LocalTextId)
 
 -- The inner state of the localization of a branch object.
-type LocalizeBranchState =
-  ( Map TextId LocalTextId,
-    Map ObjectId LocalDefnId,
-    Map PatchObjectId LocalPatchObjectId,
-    Map (BranchObjectId, CausalHashId) LocalBranchChildId
-  )
 
 -- Run a computation that localizes a branch object, returning the local ids recorded within.
-runLocalizeBranch :: Monad m => StateT LocalizeBranchState m a -> m (BranchLocalIds, a)
-runLocalizeBranch action = do
-  (result, (localTexts, localDefns, localPatches, localChildren)) <- State.runStateT action (mempty @LocalizeBranchState)
-  let branchLocalIds :: BranchLocalIds
-      branchLocalIds =
-        Branch.LocalIds
-          { Branch.branchTextLookup = Map.valuesVector (Map.swap localTexts),
-            Branch.branchDefnLookup = Map.valuesVector (Map.swap localDefns),
-            Branch.branchPatchLookup = Map.valuesVector (Map.swap localPatches),
-            Branch.branchChildLookup = Map.valuesVector (Map.swap localChildren)
-          }
-  pure (branchLocalIds, result)
+-- runLocalizeBranch :: Monad m => StateT LocalizeBranchState m a -> m (BranchLocalIds, a)
+-- runLocalizeBranch action = do
+--   (result, (localTexts, localDefns, localPatches, localChildren)) <- State.runStateT action (mempty @LocalizeBranchState)
+--   let branchLocalIds :: BranchLocalIds
+--       branchLocalIds =
+--         Branch.LocalIds
+--           { Branch.branchTextLookup = Map.valuesVector (Map.swap localTexts),
+--             Branch.branchDefnLookup = Map.valuesVector (Map.swap localDefns),
+--             Branch.branchPatchLookup = Map.valuesVector (Map.swap localPatches),
+--             Branch.branchChildLookup = Map.valuesVector (Map.swap localChildren)
+--           }
+--   pure (branchLocalIds, result)
 
 -- The inner state of the localization of a patch object.
 type LocalizePatchState =
@@ -155,11 +134,6 @@ runLocalizePatch action = do
           }
   pure (patchLocalIds, result)
 
--- Localize a branch object reference in any monad that encapsulates the stateful localization of an object that contains branch references.
-localizeBranchReference :: (ContainsBranches s, Monad m) => (BranchObjectId, CausalHashId) -> StateT s m LocalBranchChildId
-localizeBranchReference =
-  zoom typed . localize
-
 -- Localize a definition object reference in any monad that encapsulates the stateful localization of an object that contains definition
 -- references.
 localizeDefn :: (ContainsDefns s, Monad m) => ObjectId -> StateT s m LocalDefnId
@@ -171,26 +145,11 @@ localizeHash :: (ContainsHashes s, Monad m) => HashId -> StateT s m LocalHashId
 localizeHash =
   zoom typed . localize
 
--- Localize a patch object reference in any monad that encapsulates the stateful localization of an object that contains patch references.
-localizePatchReference :: (ContainsPatches s, Monad m) => PatchObjectId -> StateT s m LocalPatchObjectId
-localizePatchReference =
-  zoom typed . localize
-
--- Localize a reference in any monad that encapsulates the stateful localization of an object that contains references.
-localizeReference :: (ContainsDefns s, ContainsText s, Monad m) => Reference -> StateT s m LocalReference
-localizeReference =
-  bitraverse localizeText localizeDefn
-
 -- Localize a possibly-missing reference in any monad that encapsulates the stateful localization of an object that contains
 -- possibly-missing references.
 localizeReferenceH :: (ContainsHashes s, ContainsText s, Monad m) => ReferenceH -> StateT s m LocalReferenceH
 localizeReferenceH =
   bitraverse localizeText localizeHash
-
--- Localize a referent in any monad that encapsulates the stateful localization of an object that contains referents.
-localizeReferent :: (ContainsDefns s, ContainsText s, Monad m) => Referent -> StateT s m LocalReferent
-localizeReferent =
-  bitraverse localizeReference localizeReference
 
 -- Localize a possibly-missing referent in any monad that encapsulates the stateful localization of an object that contains possibly-missing
 -- referents.

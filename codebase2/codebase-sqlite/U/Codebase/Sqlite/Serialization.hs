@@ -26,9 +26,6 @@ import U.Codebase.Reference (Reference' (ReferenceBuiltin, ReferenceDerived))
 import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Referent')
 import qualified U.Codebase.Referent as Referent
-import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
-import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
-import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
 import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
@@ -428,55 +425,6 @@ lookupDeclElement i =
     0 -> unsafeFramedArrayLookup (getPair getLocalIds getDeclElement) $ fromIntegral i
     other -> unknownTag "lookupDeclElement" other
 
-putBranchFormat :: MonadPut m => BranchFormat.BranchFormat -> m ()
-putBranchFormat b | debug && trace ("putBranchFormat " ++ show b) False = undefined
-putBranchFormat b = case b of
-  BranchFormat.Full li b -> do
-    putWord8 0
-    putBranchLocalIds li
-    putBranchFull b
-  BranchFormat.Diff r li d -> do
-    putWord8 1
-    putVarInt r
-    putBranchLocalIds li
-    putBranchDiff d
-  where
-    putBranchFull (BranchFull.Branch terms types patches children) = do
-      putMap putVarInt (putMap putReferent putMetadataSetFormat) terms
-      putMap putVarInt (putMap putReference putMetadataSetFormat) types
-      putMap putVarInt putVarInt patches
-      putMap putVarInt putVarInt children
-      where
-        putMetadataSetFormat (BranchFull.Inline s) =
-          putWord8 0 *> putFoldable putReference s
-    putBranchDiff (BranchDiff.Diff terms types patches children) = do
-      putMap putVarInt (putMap putReferent putDiffOp) terms
-      putMap putVarInt (putMap putReference putDiffOp) types
-      putMap putVarInt putPatchOp patches
-      putMap putVarInt putChildOp children
-      where
-        putAddRemove put map = do
-          let (adds, removes) = BranchDiff.addsRemoves map
-          putFoldable put adds
-          putFoldable put removes
-        putPatchOp = \case
-          BranchDiff.PatchRemove -> putWord8 0
-          BranchDiff.PatchAddReplace pId -> putWord8 1 *> putVarInt pId
-        putDiffOp = \case
-          BranchDiff.RemoveDef -> putWord8 0
-          BranchDiff.AddDefWithMetadata md -> putWord8 1 *> putFoldable putReference md
-          BranchDiff.AlterDefMetadata md -> putWord8 2 *> putAddRemove putReference md
-        putChildOp = \case
-          BranchDiff.ChildRemove -> putWord8 0
-          BranchDiff.ChildAddReplace b -> putWord8 1 *> putVarInt b
-
-putBranchLocalIds :: MonadPut m => BranchFormat.BranchLocalIds -> m ()
-putBranchLocalIds (BranchFormat.LocalIds ts os ps cs) = do
-  putFoldable putVarInt ts
-  putFoldable putVarInt os
-  putFoldable putVarInt ps
-  putFoldable (putPair putVarInt putVarInt) cs
-
 putPatchFormat :: MonadPut m => PatchFormat.PatchFormat -> m ()
 putPatchFormat = \case
   PatchFormat.Full ids p -> do
@@ -565,74 +513,6 @@ putTypeEdit :: MonadPut m => TypeEdit.LocalTypeEdit -> m ()
 putTypeEdit TypeEdit.Deprecate = putWord8 0
 putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
 
-getBranchFormat :: MonadGet m => m BranchFormat.BranchFormat
-getBranchFormat =
-  getWord8 >>= \case
-    0 -> getBranchFull
-    1 -> getBranchDiff
-    x -> unknownTag "getBranchFormat" x
-  where
-    getBranchFull :: MonadGet m => m BranchFormat.BranchFormat
-    getBranchFull =
-      BranchFormat.Full <$> getBranchLocalIds <*> getLocalBranch
-      where
-        getLocalBranch :: MonadGet m => m BranchFull.LocalBranch
-        getLocalBranch =
-          BranchFull.Branch
-            <$> getMap getVarInt (getMap getReferent getMetadataSetFormat)
-            <*> getMap getVarInt (getMap getReference getMetadataSetFormat)
-            <*> getMap getVarInt getVarInt
-            <*> getMap getVarInt getVarInt
-        getMetadataSetFormat :: MonadGet m => m BranchFull.LocalMetadataSet
-        getMetadataSetFormat =
-          getWord8 >>= \case
-            0 -> BranchFull.Inline <$> getSet getReference
-            x -> unknownTag "getMetadataSetFormat" x
-    getBranchDiff =
-      BranchFormat.Diff
-        <$> getVarInt
-        <*> getBranchLocalIds
-        <*> getLocalBranchDiff
-      where
-        getLocalBranchDiff :: MonadGet m => m BranchDiff.LocalDiff
-        getLocalBranchDiff =
-          BranchDiff.Diff
-            <$> getMap getVarInt (getMap getReferent getDiffOp)
-            <*> getMap getVarInt (getMap getReference getDiffOp)
-            <*> getMap getVarInt getPatchOp
-            <*> getMap getVarInt getChildOp
-        getDiffOp :: MonadGet m => m BranchDiff.LocalDefinitionOp
-        getDiffOp =
-          getWord8 >>= \case
-            0 -> pure BranchDiff.RemoveDef
-            1 -> BranchDiff.AddDefWithMetadata <$> getSet getReference
-            2 -> BranchDiff.AlterDefMetadata <$> getAddRemove getReference
-            x -> unknownTag "getDiffOp" x
-        getAddRemove get = do
-          adds <- getMap get (pure True)
-          -- and removes:
-          addToExistingMap get (pure False) adds
-        getPatchOp :: MonadGet m => m BranchDiff.LocalPatchOp
-        getPatchOp =
-          getWord8 >>= \case
-            0 -> pure BranchDiff.PatchRemove
-            1 -> BranchDiff.PatchAddReplace <$> getVarInt
-            x -> unknownTag "getPatchOp" x
-        getChildOp :: MonadGet m => m BranchDiff.LocalChildOp
-        getChildOp =
-          getWord8 >>= \case
-            0 -> pure BranchDiff.ChildRemove
-            1 -> BranchDiff.ChildAddReplace <$> getVarInt
-            x -> unknownTag "getChildOp" x
-
-getBranchLocalIds :: MonadGet m => m BranchFormat.BranchLocalIds
-getBranchLocalIds =
-  BranchFormat.LocalIds
-    <$> getVector getVarInt
-    <*> getVector getVarInt
-    <*> getVector getVarInt
-    <*> getVector (getPair getVarInt getVarInt)
-
 decomposeComponent :: MonadGet m => m [(LocalIds, BS.ByteString)]
 decomposeComponent = do
   offsets <- getList (getVarInt @_ @Int)
@@ -671,20 +551,6 @@ recomposePatchFormat = \case
     putWord8 0 *> putPatchLocalIds li *> putByteString bs
   PatchFormat.SyncDiff id li bs ->
     putWord8 1 *> putVarInt id *> putPatchLocalIds li *> putByteString bs
-
-decomposeBranchFormat :: MonadGet m => m BranchFormat.SyncBranchFormat
-decomposeBranchFormat =
-  getWord8 >>= \case
-    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getRemainingByteString
-    1 -> BranchFormat.SyncDiff <$> getVarInt <*> getBranchLocalIds <*> getRemainingByteString
-    x -> unknownTag "decomposeBranchFormat" x
-
-recomposeBranchFormat :: MonadPut m => BranchFormat.SyncBranchFormat -> m ()
-recomposeBranchFormat = \case
-  BranchFormat.SyncFull li bs ->
-    putWord8 0 *> putBranchLocalIds li *> putByteString bs
-  BranchFormat.SyncDiff id li bs ->
-    putWord8 1 *> putVarInt id *> putBranchLocalIds li *> putByteString bs
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText
