@@ -566,7 +566,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
   putEnumMap putNat putReference trs
   putNat ftm
   putNat fty
-  putMap putReference putGroup int
+  putMap putReference (putGroup mempty) int
   putMap putReference putNat rtm
   putMap putReference putNat rty
   putMap putReference (putFoldable putReference) sbs
