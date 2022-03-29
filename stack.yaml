@@ -23,6 +23,7 @@ packages:
 - codebase2/util-term
 - lib/unison-prelude
 - lib/unison-sqlite
+- lib/unison-sync
 - lib/unison-util-relation
 - lib/unison-pretty-printer
 
