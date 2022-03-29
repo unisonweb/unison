@@ -21,7 +21,7 @@ import ArgParse
     parseCLIArgs,
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
-import Control.Concurrent (newEmptyMVar, takeMVar)
+import Control.Concurrent (forkIO, newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
 import qualified Data.ByteString.Lazy as BL
@@ -75,6 +75,7 @@ main :: IO ()
 main = withCP65001 do
   interruptHandler <- defaultInterruptHandler
   withInterruptHandler interruptHandler $ do
+    forkIO initHTTPClient
     progName <- getProgName
     -- hSetBuffering stdout NoBuffering -- cool
     (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack Version.gitDescribeWithDate)
@@ -224,6 +225,8 @@ main = withCP65001 do
                 PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
                 launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
 
+-- | Set user agent and configure TLS on global http client.
+-- Note that the authorized http client is distinct from the global http client.
 initHTTPClient :: IO ()
 initHTTPClient = do
   let (ucmVersion, _date) = Version.gitDescribe

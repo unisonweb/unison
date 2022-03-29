@@ -27,7 +27,7 @@ data DebugFlag
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
-debugFlags = pTraceShowId $ case pTraceShowId $ (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
+debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
   Nothing -> Set.empty
   -- Enable all debugging flags for bare UNISON_DEBUG declarations like:
   -- UNISON_DEBUG= ucm
