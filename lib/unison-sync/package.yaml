@@ -20,6 +20,8 @@ dependencies:
   - cborg
   - serialise
   - http-media
+  - aeson
+  - memory
 
 ghc-options:
   -Wall

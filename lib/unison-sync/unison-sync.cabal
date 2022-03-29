@@ -51,11 +51,13 @@ library
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      base
+      aeson
+    , base
     , bytestring
     , cborg
     , containers
     , http-media
+    , memory
     , mtl
     , nonempty-containers
     , serialise
