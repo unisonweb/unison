@@ -39,18 +39,10 @@ data DownloadEntitiesResponse = DownloadEntities
   { entities :: Map Hash (Entity HashJWT Hash Text)
   }
 
--- -- data DownloadEntitiesFromRepoResponse =
--- --   DownloadEntitiesFromRepo
--- --     { entities :: Map Hash (Entity HashId TextId)
--- --     , hashLookup :: [HashJWT]
--- --     , textLookup :: [Text]
--- --     }
-
 data PushRequest = PushRequest
   { path :: RepoPath,
     expectedHash :: Maybe Hash, -- Nothing requires empty history at destination
     newHash :: Hash
-    -- extraHashes :: NESet Hash
   }
 
 data NeedDependencies hash = NeedDependencies
@@ -63,43 +55,21 @@ data OutOfDateHash = OutOfDateHash
     actualHash :: Maybe Hash
   }
 
--- data PushResponse
---   = SuccessfulPush
---   | OutOfDateHash {path :: RepoPath, actualHash :: Maybe Hash, expectedHash :: Maybe Hash}
---   | CantWrite RepoPath -- Can see repo, no write permission
---   | RepoNotFound Repo -- (Or we don't have permission to see it)
---   | NeedDependencies (NESet Hash)
-
 data UploadEntitiesRequest = UploadEntitiesRequest
   { repo :: RepoName,
     entities :: Map Hash (Entity Hash Hash Text)
   }
 
--- Possible optimisation path:
--- data UploadEntitiesRequest =
---   UploadEntitiesRequest
---     {   repo :: Repo,
---     , entities :: Map HashId (Entity HashId TextId)
---     , hashLookup :: [Hash]
---     , textLookup :: [Text]
---     }
-
--- data NeedDependencies = NeedDependencies
---   { neededHash :: NESet Hash
---   }
-
 data Entity hash optionalHash text
-  = TC [(LocalIds hash text, ByteString)]
-  | DC [(LocalIds hash text, ByteString)]
+  = TC (TermComponent hash text)
+  | DC (DeclComponent hash text)
   | P (Patch hash optionalHash text)
   | N (Namespace hash text)
   | C (Causal hash)
 
--- data TermComponent hash text = TermComponent [(LocalIds hash text, ByteString)]
+data TermComponent hash text = TermComponent [(LocalIds hash text, ByteString)]
 
--- data DeclComponent hash text = DeclComponent [(LocalIds hash text, ByteString)]
-
--- data DecComponent hash text = DeclComponent [(LocalIds hash text, ByteString)]
+data DeclComponent hash text = DeclComponent [(LocalIds hash text, ByteString)]
 
 data LocalIds hash text = LocalIds
   { hashes :: [hash],

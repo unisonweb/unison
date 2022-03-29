@@ -17,6 +17,7 @@ source-repository head
 
 library
   exposed-modules:
+      Servant.API.ContentTypes.CBOR
       Unison.Sync
       Unison.Sync.API
       Unison.Sync.Types
@@ -52,9 +53,12 @@ library
   build-depends:
       base
     , bytestring
+    , cborg
     , containers
+    , http-media
     , mtl
     , nonempty-containers
+    , serialise
     , servant
     , servant-client
     , text
