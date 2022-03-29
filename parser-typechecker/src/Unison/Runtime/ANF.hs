@@ -332,7 +332,7 @@ floater _ rec (Let1Named' v b e)
   | Just (vs0, _, vs1, bd) <- unLamsAnnot b =
       Just $
         rec bd
-          >>= lamFloater (null $ ABT.freeVars b) b (Just v) a (vs0 ++ vs1)
+          >>= lamFloater True b (Just v) a (vs0 ++ vs1)
           >>= \lv -> rec $ ABT.renames (Map.singleton v lv) e
   where
     a = ABT.annotation b
@@ -340,7 +340,7 @@ floater top rec tm@(LamsNamed' vs bd)
   | top = Just $ lam' a vs <$> rec bd
   | otherwise = Just $ do
       bd <- rec bd
-      lv <- lamFloater (null $ ABT.freeVars tm) tm Nothing a vs bd
+      lv <- lamFloater True tm Nothing a vs bd
       pure $ var a lv
   where
     a = ABT.annotation tm
