@@ -6,7 +6,7 @@ import Control.Monad.Reader
 import Unison.Auth.OAuth
 import Unison.Auth.Types (Host (..))
 import Unison.Codebase.Editor.HandleInput.LoopState
-import Unison.Codebase.Editor.Output (Output (CredentialFailureMsg))
+import Unison.Codebase.Editor.Output (Output (CredentialFailureMsg, Success))
 import Unison.Prelude
 import qualified UnliftIO
 
@@ -19,4 +19,4 @@ authLogin mayHost = do
   credsMan <- asks credentialManager
   (Action . lift . lift . lift $ authenticateHost credsMan host) >>= \case
     Left err -> respond (CredentialFailureMsg err)
-    Right () -> pure ()
+    Right () -> respond Success
