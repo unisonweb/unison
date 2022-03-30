@@ -11,11 +11,14 @@ import Control.Monad.State
 import Data.Configurator ()
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
+import qualified Network.HTTP.Client as HTTP
+import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Codebase.Branch
   ( Branch (..),
   )
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
+import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
@@ -26,6 +29,9 @@ import qualified Unison.Util.Free as Free
 type F m i v = Free (Command m i v)
 
 data Env = Env
+  { authHTTPClient :: HTTP.Manager,
+    credentialManager :: CredentialManager
+  }
 
 newtype Action m i v a = Action {unAction :: MaybeT (ReaderT Env (StateT (LoopState m v) (F m i v))) a}
   deriving newtype (Functor, Applicative, Alternative, Monad, MonadIO, MonadState (LoopState m v), MonadReader Env)
@@ -65,8 +71,6 @@ instance MonadCommand n m i v => MonadCommand (ReaderT r n) m i v where
 instance MonadCommand (Action m i v) m i v where
   eval = Action . eval
 
-type NumberedArgs = [String]
-
 data LoopState m v = LoopState
   { _root :: Branch m,
     _lastSavedRoot :: Branch m,
@@ -103,3 +107,12 @@ currentPath = currentPathStack . to Nel.head
 
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
 loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
+
+respond :: MonadCommand n m i v => Output v -> n ()
+respond output = eval $ Notify output
+
+respondNumbered :: NumberedOutput v -> Action m i v ()
+respondNumbered output = do
+  args <- eval $ NotifyNumbered output
+  unless (null args) $
+    numberedArgs .= toList args
