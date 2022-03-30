@@ -68,8 +68,8 @@ import qualified UnliftIO
 -- @@
 -- onNothing (throwIO MissingPerson) $ mayThing
 -- @@
-onNothing :: Applicative m => Maybe a -> m a -> m a
-onNothing may m = maybe m pure may
+onNothing :: Applicative m => m a -> Maybe a -> m a
+onNothing m may = maybe m pure may
 
 -- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
 whenNothing :: Applicative m => Maybe a -> m a -> m a
