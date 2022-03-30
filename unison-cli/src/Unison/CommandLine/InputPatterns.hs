@@ -87,7 +87,7 @@ mergeBuiltins =
   InputPattern
     "builtins.merge"
     []
-    I.Visible
+    I.Hidden
     []
     "Adds the builtins to `builtins.` in the current namespace (excluding `io` and misc)."
     (const . pure $ Input.MergeBuiltinsI)
@@ -97,7 +97,7 @@ mergeIOBuiltins =
   InputPattern
     "builtins.mergeio"
     []
-    I.Visible
+    I.Hidden
     []
     "Adds all the builtins to `builtins.` in the current namespace, including `io` and misc."
     (const . pure $ Input.MergeIOBuiltinsI)
