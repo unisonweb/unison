@@ -1116,6 +1116,23 @@ fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
 tru = TCon Ty.booleanRef 1 []
 
+renameCtx :: Var v => v -> v -> Ctx v -> (Ctx v, Bool)
+renameCtx v u (d, ctx) | (ctx, b) <- rn [] ctx = ((d, ctx), b)
+  where
+    swap w | w == v = u | otherwise = w
+
+    rn acc [] = (reverse acc, False)
+    rn acc (ST d vs ccs b : es)
+      | any (== v) vs = (reverse acc ++ e : es, True)
+      | otherwise = rn (e : acc) es
+      where
+        e = ST d vs ccs $ ABTN.rename v u b
+    rn acc (LZ w f as : es)
+      | w == v = (reverse acc ++ e : es, True)
+      | otherwise = rn (e : acc) es
+      where
+        e = LZ w (swap <$> f) (swap <$> as)
+
 anfBlock :: Var v => Term v a -> ANFM v (Ctx v, DNormal v)
 anfBlock (Var' v) = pure (mempty, pure $ TVar v)
 anfBlock (If' c t f) = do
@@ -1270,7 +1287,9 @@ anfBlock (Let1Named' v b e) =
   anfBlock b >>= \case
     (bctx, (Direct, TVar u)) -> do
       (ectx, ce) <- anfBlock e
-      pure (bctx <> ectx, ABTN.rename v u <$> ce)
+      (ectx, shaded) <- pure $ renameCtx v u ectx
+      ce <- pure $ if shaded then ce else ABTN.rename v u <$> ce
+      pure (bctx <> ectx, ce)
     (bctx, (d0, cb)) -> bindLocal [v] $ do
       (ectx, ce) <- anfBlock e
       d <- bindDirection d0
