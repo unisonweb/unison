@@ -21,6 +21,10 @@ library
       Unison.Sync
       Unison.Sync.API
       Unison.Sync.Types
+      Unison.Util.Avro
+      Unison.Util.Avro2
+      Unison.Util.CBOR
+      Unison.Util.MsgPack
   other-modules:
       Paths_unison_sync
   hs-source-dirs:
@@ -52,19 +56,23 @@ library
   ghc-options: -Wall
   build-depends:
       aeson
+    , avro
     , base
     , bytestring
     , cborg
     , containers
     , http-media
     , memory
+    , msgpack-binary
     , mtl
     , nonempty-containers
     , serialise
     , servant
     , servant-client
+    , tagged
     , text
     , transformers
+    , unison-core1
     , unison-prelude
     , unliftio
   default-language: Haskell2010

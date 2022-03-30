@@ -57,6 +57,7 @@ library
       Unison.Util.Components
       Unison.Util.List
       Unison.Util.Monoid
+      Unison.Util.Tritraversable
       Unison.Var
       Unison.Var.RefNamed
       Unison.WatchKind

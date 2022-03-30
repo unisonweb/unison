@@ -22,6 +22,10 @@ dependencies:
   - http-media
   - aeson
   - memory
+  - msgpack-binary
+  - avro
+  - tagged
+  - unison-core1
 
 ghc-options:
   -Wall

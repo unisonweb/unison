@@ -2,10 +2,12 @@
 
 module Unison.Sync.Types where
 
-import Codec.Serialise (Serialise)
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import Data.Bifoldable
+import Data.Bifunctor
+import Data.Bitraversable
 import Data.ByteArray.Encoding (Base (Base64), convertFromBase, convertToBase)
 import Data.ByteString (ByteString)
 import Data.Map (Map)
@@ -14,6 +16,7 @@ import Data.Set.NonEmpty (NESet)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Unison.Util.Tritraversable
 
 -- | A newtype for JSON encoding binary data.
 newtype Base64Bytes = Base64Bytes ByteString
@@ -26,16 +29,16 @@ instance FromJSON Base64Bytes where
     either fail (pure . Base64Bytes) $ convertFromBase Base64 (Text.encodeUtf8 txt)
 
 newtype RepoName = RepoName Text
-  deriving newtype (Show, Eq, Ord, ToJSON, FromJSON, Serialise)
+  deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
 newtype HashJWT = HashJWT Text
-  deriving newtype (Eq, Ord, ToJSON, FromJSON, Serialise)
+  deriving newtype (Eq, Ord, ToJSON, FromJSON)
 
 newtype Base32 = Base32 Text
-  deriving newtype (Show, Eq, Ord, ToJSON, FromJSON, Serialise)
+  deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
 newtype Hash = Hash Text
-  deriving newtype (Show, Eq, Ord, ToJSON, FromJSON, Serialise, ToJSONKey, FromJSONKey)
+  deriving newtype (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 data TypedHash = TypedHash
   { hash :: Hash,
@@ -123,7 +126,7 @@ instance FromJSON DownloadEntitiesRequest where
     pure DownloadEntitiesRequest {..}
 
 data DownloadEntitiesResponse = DownloadEntitiesResponse
-  { entities :: Map Hash (Entity HashJWT TypedHash Text)
+  { entities :: Map Hash (Entity HashJWT Hash Text)
   }
 
 instance ToJSON DownloadEntitiesResponse where
@@ -152,6 +155,10 @@ instance FromJSON PushRequest where
     expectedHash <- obj .: "expected_hash"
     newHash <- obj .: "new_hash"
     pure PushRequest {..}
+
+data PushResponse
+  = OutOfDate OutOfDateHash
+  | MissingDependencies (NeedDependencies Hash)
 
 data NeedDependencies hash = NeedDependencies
   { missingDependencies :: NESet hash
@@ -211,6 +218,15 @@ data Entity hash optionalHash text
   | P (Patch hash optionalHash text)
   | N (Namespace hash text)
   | C (Causal hash)
+  deriving anyclass (Trifunctor, Trifoldable)
+
+instance Tritraversable Entity where
+  tritraverse f g h = \case
+    TC tc -> TC <$> bitraverse f h tc
+    DC dc -> DC <$> bitraverse f h dc
+    P pa -> P <$> tritraverse f g h pa
+    N name -> N <$> bitraverse f h name
+    C ca -> C <$> traverse f ca
 
 instance (ToJSON hash, ToJSON optionalHash, ToJSON text) => ToJSON (Entity hash optionalHash text) where
   toJSON = \case
@@ -252,11 +268,32 @@ instance (FromJSON hash, FromJSON optionalHash, FromJSON text, Ord hash) => From
 
 data TermComponent hash text = TermComponent [(LocalIds hash text, ByteString)]
 
+instance Bifoldable TermComponent where
+  bifoldMap = bifoldMapDefault
+
+instance Bifunctor TermComponent where
+  bimap = bimapDefault
+
+instance Bitraversable TermComponent where
+  bitraverse f g (TermComponent xs) =
+    TermComponent <$> bitraverseComponents f g xs
+
 instance (ToJSON hash, ToJSON text) => ToJSON (TermComponent hash text) where
   toJSON (TermComponent components) =
     object
       [ "terms" .= (encodeComponentPiece <$> components)
       ]
+
+bitraverseComponents ::
+  Applicative f =>
+  (a -> f a') ->
+  (b -> f b') ->
+  [(LocalIds a b, ByteString)] ->
+  f [(LocalIds a' b', ByteString)]
+bitraverseComponents f g =
+  traverse . _1 $ bitraverse f g
+  where
+    _1 f (l, r) = (,r) <$> f l
 
 encodeComponentPiece :: (ToJSON hash, ToJSON text) => (LocalIds hash text, ByteString) -> Value
 encodeComponentPiece (localIDs, bytes) =
@@ -279,6 +316,16 @@ instance (FromJSON hash, FromJSON text) => FromJSON (TermComponent hash text) wh
 
 data DeclComponent hash text = DeclComponent [(LocalIds hash text, ByteString)]
 
+instance Bifoldable DeclComponent where
+  bifoldMap = bifoldMapDefault
+
+instance Bifunctor DeclComponent where
+  bimap = bimapDefault
+
+instance Bitraversable DeclComponent where
+  bitraverse f g (DeclComponent xs) =
+    DeclComponent <$> bitraverseComponents f g xs
+
 instance (ToJSON hash, ToJSON text) => ToJSON (DeclComponent hash text) where
   toJSON (DeclComponent components) =
     object
@@ -295,6 +342,16 @@ data LocalIds hash text = LocalIds
   { hashes :: [hash],
     texts :: [text]
   }
+
+instance Bifoldable LocalIds where
+  bifoldMap = bifoldMapDefault
+
+instance Bifunctor LocalIds where
+  bimap = bimapDefault
+
+instance Bitraversable LocalIds where
+  bitraverse f g (LocalIds hashes texts) =
+    LocalIds <$> traverse f hashes <*> traverse g texts
 
 instance (ToJSON hash, ToJSON text) => ToJSON (LocalIds hash text) where
   toJSON (LocalIds hashes texts) =
@@ -315,6 +372,10 @@ data Patch hash optionalHash text = Patch
     optionalHashLookup :: [optionalHash],
     bytes :: ByteString
   }
+  deriving anyclass (Trifunctor, Trifoldable)
+
+instance Tritraversable Patch where
+  tritraverse _f _g _h = undefined
 
 instance (ToJSON hash, ToJSON optionalHash, ToJSON text) => ToJSON (Patch hash optionalHash text) where
   toJSON (Patch textLookup hashLookup optionalHashLookup bytes) =
@@ -341,6 +402,15 @@ data Namespace hash text = Namespace
     bytes :: ByteString
   }
 
+instance Bifoldable Namespace where
+  bifoldMap = bifoldMapDefault
+
+instance Bifunctor Namespace where
+  bimap = bimapDefault
+
+instance Bitraversable Namespace where
+  bitraverse = undefined
+
 instance (ToJSON hash, ToJSON text) => ToJSON (Namespace hash text) where
   toJSON (Namespace textLookup defnLookup patchLookup childLookup bytes) =
     object
@@ -366,6 +436,15 @@ data Causal hash = Causal
   { namespaceHash :: hash,
     parents :: Set hash
   }
+
+instance Functor Causal where
+  fmap = undefined
+
+instance Foldable Causal where
+  foldMap = undefined
+
+instance Traversable Causal where
+  traverse = undefined
 
 instance (ToJSON hash) => ToJSON (Causal hash) where
   toJSON (Causal namespaceHash parents) =
