@@ -8,6 +8,7 @@ module Main (main) where
 import Data.Bifunctor (second)
 import Data.List
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import EasyTest
 import System.Directory
 import System.Environment (getArgs)
@@ -47,6 +48,8 @@ testBuilder dir prelude transcript = scope transcript $ do
           crash $ "Error parsing " <> filePath <> ": " <> Text.unpack msg
         TranscriptRunFailure errOutput -> do
           io $ writeUtf8 outputFile errOutput
+          io $ Text.putStrLn errOutput
+          crash $ "Failure in " <> filePath
     (filePath, Right out) -> do
       let outputFile = outputFileForTranscript filePath
       io $ writeUtf8 outputFile out
