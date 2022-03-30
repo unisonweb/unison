@@ -26,15 +26,15 @@ batchSize = 100
 
 -- Codebase action we may need.
 missingHashes :: Codebase m v a -> (NESet HashJWT) -> m (Maybe (NESet HashJWT))
-missingHashes = _
+missingHashes = undefined
 
 unpackHashJWT :: HashJWT -> TypedHash
-unpackHashJWT = _
+unpackHashJWT = undefined
 
 entityHash :: Sync.Hash -> Entity h oh t -> TypedHash
-entityHash = _
+entityHash = undefined
 
-saveAll :: Codebase m v a -> Map Sync.Hash (Entity HashJWT Sync.Hash Text) -> m (Maybe (NESet HashJWT))
+saveAll :: MonadSync m => Codebase m v a -> Map Sync.Hash (Entity HashJWT Sync.Hash Text) -> m (Maybe (NESet HashJWT))
 saveAll codebase entities =
   flip foldMapM (Map.toList entities) \(hash, entity) -> do
     tryToSave codebase hash entity
@@ -63,17 +63,17 @@ tryToSave _codebase = undefined
 downloadFromPath :: MonadSync m => RepoPath -> Codebase m v a -> m TypedHash
 downloadFromPath repoPath@(RepoPath {repoName}) codebase = do
   GetCausalHashByPathResponse chJWT <- getCausalHashForPath (GetCausalHashByPathRequest repoPath)
-  let tch = unpackHashJWT chJWT
   missingCH <- missingHashes codebase (NESet.singleton chJWT)
   for_ missingCH \chJWTs -> do
-    downloadEntitiesRecursively repoName chJWTs
-  -- DownloadEntitiesResponse {entities} <- downloadEntities (DownloadEntitiesRequest {repoName, hashes = chJWTs})
-  -- missingDeps <- saveNewEntities codebase entities
-  -- _
-  _
+    downloadEntitiesRecursively codebase repoName chJWTs
+  pure $ unpackHashJWT chJWT
+
+-- DownloadEntitiesResponse {entities} <- downloadEntities (DownloadEntitiesRequest {repoName, hashes = chJWTs})
+-- missingDeps <- saveNewEntities codebase entities
+-- _
 
 -- | Download in batches until we've saved all entities and dependencies from the given set.
-downloadEntitiesRecursively :: forall m v a. Codebase m v a -> RepoName -> NESet HashJWT -> m ()
+downloadEntitiesRecursively :: forall m v a. MonadSync m => Codebase m v a -> RepoName -> NESet HashJWT -> m ()
 downloadEntitiesRecursively codebase repoName hashJWTs = do
   void $ runStateT helper (NESet.toSet hashJWTs)
   where
@@ -113,8 +113,8 @@ class (MonadFail m) => MonadSync m where
 instance MonadFail Sync where
   fail str = Sync $ UnliftIO.throwIO (SyncFailure $ Text.pack str)
 
-instance MonadSync Sync where
-  getCausalHashForPath = _
-  pushForce = _
-  uploadToRepo = _
-  downloadEntities = _
+-- instance MonadSync Sync where
+--   getCausalHashForPath = _
+--   pushForce = _
+--   uploadToRepo = _
+--   downloadEntities = _
