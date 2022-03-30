@@ -45,7 +45,7 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval)
+import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval, liftF)
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.Input
@@ -1630,7 +1630,7 @@ loop = do
               doRemoveReplacement from patchPath False
             ShowDefinitionByPrefixI {} -> notImplemented
             UpdateBuiltinsI -> notImplemented
-            QuitI -> MaybeT $ pure Nothing
+            QuitI -> empty
             GistI input -> handleGist input
       where
         notImplemented = eval $ Notify NotImplemented
@@ -2245,7 +2245,7 @@ propagatePatchNoSync patch scopePath = do
   stepAtMNoSync'
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
-      lift . lift . Propagate.propagateAndApply nroot patch
+      liftF . Propagate.propagateAndApply nroot patch
     )
 
 -- Returns True if the operation changed the namespace, False otherwise.
@@ -2262,7 +2262,7 @@ propagatePatch inputDescription patch scopePath = do
     Branch.CompressHistory
     (inputDescription <> " (applying patch)")
     ( Path.unabsolute scopePath,
-      lift . lift . Propagate.propagateAndApply nroot patch
+      liftF . Propagate.propagateAndApply nroot patch
     )
 
 -- | Create the args needed for showTodoOutput and call it
