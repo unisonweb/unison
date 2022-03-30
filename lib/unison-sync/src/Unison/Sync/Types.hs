@@ -218,15 +218,6 @@ data Entity hash optionalHash text
   | P (Patch hash optionalHash text)
   | N (Namespace hash text)
   | C (Causal hash)
-  deriving anyclass (Trifunctor, Trifoldable)
-
-instance Tritraversable Entity where
-  tritraverse f g h = \case
-    TC tc -> TC <$> bitraverse f h tc
-    DC dc -> DC <$> bitraverse f h dc
-    P pa -> P <$> tritraverse f g h pa
-    N name -> N <$> bitraverse f h name
-    C ca -> C <$> traverse f ca
 
 instance (ToJSON hash, ToJSON optionalHash, ToJSON text) => ToJSON (Entity hash optionalHash text) where
   toJSON = \case
@@ -375,7 +366,12 @@ data Patch hash optionalHash text = Patch
   deriving anyclass (Trifunctor, Trifoldable)
 
 instance Tritraversable Patch where
-  tritraverse _f _g _h = undefined
+  tritraverse f g h (Patch tl hl ol b) =
+    Patch
+      <$> traverse h tl
+      <*> traverse f hl
+      <*> traverse g ol
+      <*> pure b
 
 instance (ToJSON hash, ToJSON optionalHash, ToJSON text) => ToJSON (Patch hash optionalHash text) where
   toJSON (Patch textLookup hashLookup optionalHashLookup bytes) =
@@ -409,7 +405,13 @@ instance Bifunctor Namespace where
   bimap = bimapDefault
 
 instance Bitraversable Namespace where
-  bitraverse = undefined
+  bitraverse f g (Namespace tl dl pl cl b) =
+    Namespace
+      <$> traverse g tl
+      <*> traverse f dl
+      <*> traverse f pl
+      <*> traverse f cl
+      <*> pure b
 
 instance (ToJSON hash, ToJSON text) => ToJSON (Namespace hash text) where
   toJSON (Namespace textLookup defnLookup patchLookup childLookup bytes) =
@@ -436,15 +438,6 @@ data Causal hash = Causal
   { namespaceHash :: hash,
     parents :: Set hash
   }
-
-instance Functor Causal where
-  fmap = undefined
-
-instance Foldable Causal where
-  foldMap = undefined
-
-instance Traversable Causal where
-  traverse = undefined
 
 instance (ToJSON hash) => ToJSON (Causal hash) where
   toJSON (Causal namespaceHash parents) =
