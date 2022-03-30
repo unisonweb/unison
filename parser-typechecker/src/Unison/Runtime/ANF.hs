@@ -1116,6 +1116,11 @@ fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
 tru = TCon Ty.booleanRef 1 []
 
+-- Helper function for renaming a variable arising from a
+--   let v = u
+-- binding during ANF translation. Renames a variable in a
+-- context, and returns an indication of whether the varible
+-- was shadowed by one of the context bindings.
 renameCtx :: Var v => v -> v -> Ctx v -> (Ctx v, Bool)
 renameCtx v u (d, ctx) | (ctx, b) <- rn [] ctx = ((d, ctx), b)
   where
