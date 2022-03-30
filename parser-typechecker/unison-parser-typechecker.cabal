@@ -147,6 +147,7 @@ library
       Unison.Server.Syntax
       Unison.Server.Types
       Unison.Sync
+      Unison.Sync.HTTP
       Unison.Sync.Types
       Unison.TermParser
       Unison.TermPrinter
@@ -241,6 +242,7 @@ library
     , hashable
     , hashtables
     , haskeline
+    , http-client
     , http-media
     , http-types
     , lens

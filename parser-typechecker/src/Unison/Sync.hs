@@ -12,7 +12,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
-import qualified Data.Text as Text
 import Unison.Codebase.Type
 import Unison.Prelude
 import Unison.Sync.Types
@@ -93,28 +92,12 @@ downloadEntitiesRecursively codebase repoName hashJWTs = do
 runParSync :: UnliftIO.Concurrently Sync a -> Sync a
 runParSync = UnliftIO.runConcurrently
 
-newtype Sync a = Sync (IO a)
-  deriving newtype (Functor, Applicative, Monad)
-
 newtype SyncFailure = SyncFailure Text
   deriving stock (Show)
   deriving anyclass (Exception)
 
-class (MonadFail m) => MonadSync m where
+class Monad m => MonadSync m where
   getCausalHashForPath :: GetCausalHashByPathRequest -> m GetCausalHashByPathResponse
   pushForce :: PushRequest -> m PushResponse
   uploadToRepo :: UploadEntitiesRequest -> m (Maybe (NeedDependencies Sync.Hash))
   downloadEntities :: DownloadEntitiesRequest -> m DownloadEntitiesResponse
-
--- instance MonadError SyncFailure Sync where
---   throwError = Sync . liftIO . UnliftIO.throwIO
---   catchError m h = undefined
-
-instance MonadFail Sync where
-  fail str = Sync $ UnliftIO.throwIO (SyncFailure $ Text.pack str)
-
--- instance MonadSync Sync where
---   getCausalHashForPath = _
---   pushForce = _
---   uploadToRepo = _
---   downloadEntities = _

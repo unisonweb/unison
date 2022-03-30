@@ -72,6 +72,7 @@ library:
     - haskeline
     - http-types
     - http-media
+    - http-client
     - lens
     - ListLike
     - megaparsec >= 5.0.0 && < 7.0.0
