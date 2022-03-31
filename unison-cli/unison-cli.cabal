@@ -98,6 +98,7 @@ library
     , containers >=0.6.3
     , cryptonite
     , directory
+    , either
     , errors
     , extra
     , filepath
@@ -184,6 +185,7 @@ executable integration-tests
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
     , extra
     , filepath
@@ -266,6 +268,7 @@ executable transcripts
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
     , extra
     , filepath
@@ -351,6 +354,7 @@ executable unison
     , containers >=0.6.3
     , cryptonite
     , directory
+    , either
     , errors
     , extra
     , filepath
@@ -443,6 +447,7 @@ test-suite tests
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
     , extra
     , filepath
