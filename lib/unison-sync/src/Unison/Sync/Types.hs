@@ -32,7 +32,7 @@ newtype RepoName = RepoName Text
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
 newtype HashJWT = HashJWT Text
-  deriving newtype (Eq, Ord, ToJSON, FromJSON)
+  deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
 newtype Base32 = Base32 Text
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
@@ -44,7 +44,7 @@ data TypedHash = TypedHash
   { hash :: Hash,
     entityType :: EntityType
   }
-  deriving (Eq, Ord)
+  deriving stock (Show, Eq, Ord)
 
 instance ToJSON TypedHash where
   toJSON (TypedHash hash entityType) =
@@ -63,6 +63,7 @@ data RepoPath = RepoPath
   { repoName :: RepoName,
     pathSegments :: [Text]
   }
+  deriving stock (Show, Eq, Ord)
 
 instance ToJSON RepoPath where
   toJSON (RepoPath name segments) =
@@ -80,6 +81,7 @@ instance FromJSON RepoPath where
 newtype GetCausalHashByPathRequest = GetCausalHashByPathRequest
   { repoPath :: RepoPath
   }
+  deriving stock (Show, Eq, Ord)
 
 instance ToJSON GetCausalHashByPathRequest where
   toJSON (GetCausalHashByPathRequest repoPath) =
@@ -95,6 +97,7 @@ instance FromJSON GetCausalHashByPathRequest where
 newtype GetCausalHashByPathResponse = GetCausalHashByPathResponse
   { causalHash :: HashJWT
   }
+  deriving stock (Show, Eq, Ord)
 
 instance ToJSON GetCausalHashByPathResponse where
   toJSON (GetCausalHashByPathResponse hashJWT) =
@@ -111,6 +114,7 @@ data DownloadEntitiesRequest = DownloadEntitiesRequest
   { repoName :: RepoName,
     hashes :: NESet HashJWT
   }
+  deriving stock (Show, Eq, Ord)
 
 instance ToJSON DownloadEntitiesRequest where
   toJSON (DownloadEntitiesRequest repoName hashes) =
@@ -128,6 +132,7 @@ instance FromJSON DownloadEntitiesRequest where
 data DownloadEntitiesResponse = DownloadEntitiesResponse
   { entities :: Map Hash (Entity HashJWT Hash Text)
   }
+  deriving stock (Show, Eq, Ord)
 
 instance ToJSON DownloadEntitiesResponse where
   toJSON (DownloadEntitiesResponse entities) =
@@ -135,34 +140,38 @@ instance ToJSON DownloadEntitiesResponse where
       [ "entities" .= entities
       ]
 
-data PushRequest = PushRequest
+data UpdatePathRequest = UpdatePathRequest
   { path :: RepoPath,
     expectedHash :: Maybe TypedHash, -- Nothing requires empty history at destination
     newHash :: TypedHash
   }
+  deriving stock (Show, Eq, Ord)
 
-instance ToJSON PushRequest where
-  toJSON (PushRequest path expectedHash newHash) =
+instance ToJSON UpdatePathRequest where
+  toJSON (UpdatePathRequest path expectedHash newHash) =
     object
       [ "path" .= path,
         "expected_hash" .= expectedHash,
         "new_hash" .= newHash
       ]
 
-instance FromJSON PushRequest where
-  parseJSON = Aeson.withObject "PushRequest" $ \obj -> do
+instance FromJSON UpdatePathRequest where
+  parseJSON = Aeson.withObject "UpdatePathRequest" $ \obj -> do
     path <- obj .: "path"
     expectedHash <- obj .: "expected_hash"
     newHash <- obj .: "new_hash"
-    pure PushRequest {..}
+    pure UpdatePathRequest {..}
 
-data PushResponse
+-- | Not used in the servant API, but is a useful return type for clients to use.
+data UpdatePathResponse
   = OutOfDate OutOfDateHash
   | MissingDependencies (NeedDependencies Hash)
+  deriving stock (Show, Eq, Ord)
 
 data NeedDependencies hash = NeedDependencies
   { missingDependencies :: NESet hash
   }
+  deriving stock (Show, Eq, Ord)
 
 instance ToJSON hash => ToJSON (NeedDependencies hash) where
   toJSON (NeedDependencies missingDependencies) =
@@ -178,6 +187,7 @@ data OutOfDateHash = OutOfDateHash
     expectedHash :: Maybe TypedHash,
     actualHash :: Maybe TypedHash
   }
+  deriving stock (Show, Eq, Ord)
 
 instance ToJSON OutOfDateHash where
   toJSON (OutOfDateHash repoPath expectedHash actualHash) =
@@ -198,6 +208,7 @@ data UploadEntitiesRequest = UploadEntitiesRequest
   { repoName :: RepoName,
     entities :: Map Hash (Entity TypedHash TypedHash Text)
   }
+  deriving stock (Show, Eq, Ord)
 
 instance ToJSON UploadEntitiesRequest where
   toJSON (UploadEntitiesRequest repoName entities) =
@@ -218,6 +229,7 @@ data Entity hash optionalHash text
   | P (Patch hash optionalHash text)
   | N (Namespace hash text)
   | C (Causal hash)
+  deriving stock (Show, Eq, Ord)
 
 instance (ToJSON hash, ToJSON optionalHash, ToJSON text) => ToJSON (Entity hash optionalHash text) where
   toJSON = \case
@@ -258,6 +270,7 @@ instance (FromJSON hash, FromJSON optionalHash, FromJSON text, Ord hash) => From
       CausalType -> C <$> obj .: "object"
 
 data TermComponent hash text = TermComponent [(LocalIds hash text, ByteString)]
+  deriving stock (Show, Eq, Ord)
 
 instance Bifoldable TermComponent where
   bifoldMap = bifoldMapDefault
@@ -306,6 +319,7 @@ instance (FromJSON hash, FromJSON text) => FromJSON (TermComponent hash text) wh
     pure (TermComponent terms)
 
 data DeclComponent hash text = DeclComponent [(LocalIds hash text, ByteString)]
+  deriving stock (Show, Eq, Ord)
 
 instance Bifoldable DeclComponent where
   bifoldMap = bifoldMapDefault
@@ -333,6 +347,7 @@ data LocalIds hash text = LocalIds
   { hashes :: [hash],
     texts :: [text]
   }
+  deriving stock (Show, Eq, Ord)
 
 instance Bifoldable LocalIds where
   bifoldMap = bifoldMapDefault
@@ -363,6 +378,7 @@ data Patch hash optionalHash text = Patch
     optionalHashLookup :: [optionalHash],
     bytes :: ByteString
   }
+  deriving stock (Show, Eq, Ord)
   deriving anyclass (Trifunctor, Trifoldable)
 
 instance Tritraversable Patch where
@@ -397,6 +413,7 @@ data Namespace hash text = Namespace
     childLookup :: [hash],
     bytes :: ByteString
   }
+  deriving stock (Eq, Ord, Show)
 
 instance Bifoldable Namespace where
   bifoldMap = bifoldMapDefault
@@ -438,6 +455,7 @@ data Causal hash = Causal
   { namespaceHash :: hash,
     parents :: Set hash
   }
+  deriving stock (Eq, Ord, Show)
 
 instance (ToJSON hash) => ToJSON (Causal hash) where
   toJSON (Causal namespaceHash parents) =
@@ -458,7 +476,7 @@ data EntityType
   | PatchType
   | NamespaceType
   | CausalType
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 instance ToJSON EntityType where
   toJSON et = String $ case et of
