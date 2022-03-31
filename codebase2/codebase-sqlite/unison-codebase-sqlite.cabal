@@ -53,6 +53,7 @@ library
       DeriveFunctor
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
@@ -64,12 +65,15 @@ library
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      QuasiQuotes
       RankNTypes
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
       TypeApplications
       TypeFamilies
       TypeFamilyDependencies
+      TypeOperators
       ViewPatterns
   build-depends:
       Only

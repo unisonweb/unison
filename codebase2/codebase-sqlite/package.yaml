@@ -42,6 +42,7 @@ default-extensions:
   - DeriveFunctor
   - DeriveGeneric
   - DerivingStrategies
+  - DerivingVia
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
@@ -53,10 +54,13 @@ default-extensions:
   - NamedFieldPuns
   - OverloadedStrings
   - PatternSynonyms
+  - QuasiQuotes
   - RankNTypes
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
   - TypeFamilies
   - TypeFamilyDependencies
+  - TypeOperators
   - ViewPatterns
