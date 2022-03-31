@@ -1,18 +1,18 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# Language DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Hashing.V2.Pattern where
-
-import Unison.Prelude
 
 import Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
 import qualified Data.Set as Set
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Reference (Reference)
+import qualified Unison.Hashing.V2.Tokenizable as H
 import qualified Unison.Hashing.V2.Type as Type
-import qualified Unison.Hashable as H
-
-type ConstructorId = Int
+import Unison.Prelude
 
 data Pattern loc
   = Unbound loc
@@ -23,36 +23,37 @@ data Pattern loc
   | Float loc !Double
   | Text loc !Text
   | Char loc !Char
-  | Constructor loc !Reference !Int [Pattern loc]
+  | Constructor loc !Reference !ConstructorId [Pattern loc]
   | As loc (Pattern loc)
   | EffectPure loc (Pattern loc)
-  | EffectBind loc !Reference !Int [Pattern loc] (Pattern loc)
+  | EffectBind loc !Reference !ConstructorId [Pattern loc] (Pattern loc)
   | SequenceLiteral loc [Pattern loc]
   | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
-    deriving (Ord,Generic,Functor,Foldable,Traversable)
+  deriving (Ord, Generic, Functor, Foldable, Traversable)
 
-data SeqOp = Cons
-           | Snoc
-           | Concat
-           deriving (Eq, Show, Ord, Generic)
+data SeqOp
+  = Cons
+  | Snoc
+  | Concat
+  deriving (Eq, Show, Ord, Generic)
 
-instance H.Hashable SeqOp where
+instance H.Tokenizable SeqOp where
   tokens Cons = [H.Tag 0]
   tokens Snoc = [H.Tag 1]
   tokens Concat = [H.Tag 2]
 
 instance Show (Pattern loc) where
-  show (Unbound _  ) = "Unbound"
-  show (Var     _  ) = "Var"
+  show (Unbound _) = "Unbound"
+  show (Var _) = "Var"
   show (Boolean _ x) = "Boolean " <> show x
-  show (Int   _ x) = "Int " <> show x
-  show (Nat  _ x) = "Nat " <> show x
-  show (Float   _ x) = "Float " <> show x
-  show (Text   _ t) = "Text " <> show t
-  show (Char   _ c) = "Char " <> show c
+  show (Int _ x) = "Int " <> show x
+  show (Nat _ x) = "Nat " <> show x
+  show (Float _ x) = "Float " <> show x
+  show (Text _ t) = "Text " <> show t
+  show (Char _ c) = "Char " <> show c
   show (Constructor _ r i ps) =
     "Constructor " <> unwords [show r, show i, show ps]
-  show (As         _ p) = "As " <> show p
+  show (As _ p) = "As " <> show p
   show (EffectPure _ k) = "EffectPure " <> show k
   show (EffectBind _ r i ps k) =
     "EffectBind " <> unwords [show r, show i, show ps, show k]
@@ -76,7 +77,7 @@ setLoc p loc = case p of
   SequenceOp _ ph op pt -> SequenceOp loc ph op pt
   x -> fmap (const loc) x
 
-instance H.Hashable (Pattern p) where
+instance H.Tokenizable (Pattern p) where
   tokens (Unbound _) = [H.Tag 0]
   tokens (Var _) = [H.Tag 1]
   tokens (Boolean _ b) = H.Tag 2 : [H.Tag $ if b then 1 else 0]
@@ -112,46 +113,47 @@ instance Eq (Pattern loc) where
 
 foldMap' :: Monoid m => (Pattern loc -> m) -> Pattern loc -> m
 foldMap' f p = case p of
-    Unbound _              -> f p
-    Var _                  -> f p
-    Boolean _ _            -> f p
-    Int _ _                -> f p
-    Nat _ _                -> f p
-    Float _ _              -> f p
-    Text _ _               -> f p
-    Char _ _               -> f p
-    Constructor _ _ _ ps   -> f p <> foldMap (foldMap' f) ps
-    As _ p'                -> f p <> foldMap' f p'
-    EffectPure _ p'        -> f p <> foldMap' f p'
-    EffectBind _ _ _ ps p' -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
-    SequenceLiteral _ ps   -> f p <> foldMap (foldMap' f) ps
-    SequenceOp _ p1 _ p2   -> f p <> foldMap' f p1 <> foldMap' f p2
+  Unbound _ -> f p
+  Var _ -> f p
+  Boolean _ _ -> f p
+  Int _ _ -> f p
+  Nat _ _ -> f p
+  Float _ _ -> f p
+  Text _ _ -> f p
+  Char _ _ -> f p
+  Constructor _ _ _ ps -> f p <> foldMap (foldMap' f) ps
+  As _ p' -> f p <> foldMap' f p'
+  EffectPure _ p' -> f p <> foldMap' f p'
+  EffectBind _ _ _ ps p' -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
+  SequenceLiteral _ ps -> f p <> foldMap (foldMap' f) ps
+  SequenceOp _ p1 _ p2 -> f p <> foldMap' f p1 <> foldMap' f p2
 
-generalizedDependencies
-  :: Ord r
-  => (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> Pattern loc
-  -> Set r
-generalizedDependencies literalType dataConstructor dataType effectConstructor effectType
-  = Set.fromList . foldMap'
-    (\case
-      Unbound _             -> mempty
-      Var     _             -> mempty
-      As _ _                -> mempty
-      Constructor _ r cid _ -> [dataType r, dataConstructor r cid]
-      EffectPure _ _        -> [effectType Type.effectRef]
-      EffectBind _ r cid _ _ ->
-        [effectType Type.effectRef, effectType r, effectConstructor r cid]
-      SequenceLiteral _ _ -> [literalType Type.listRef]
-      SequenceOp {}        -> [literalType Type.listRef]
-      Boolean _ _         -> [literalType Type.booleanRef]
-      Int     _ _         -> [literalType Type.intRef]
-      Nat     _ _         -> [literalType Type.natRef]
-      Float   _ _         -> [literalType Type.floatRef]
-      Text    _ _         -> [literalType Type.textRef]
-      Char    _ _         -> [literalType Type.charRef]
-    )
+generalizedDependencies ::
+  Ord r =>
+  (Reference -> r) ->
+  (Reference -> ConstructorId -> r) ->
+  (Reference -> r) ->
+  (Reference -> ConstructorId -> r) ->
+  (Reference -> r) ->
+  Pattern loc ->
+  Set r
+generalizedDependencies literalType dataConstructor dataType effectConstructor effectType =
+  Set.fromList
+    . foldMap'
+      ( \case
+          Unbound _ -> mempty
+          Var _ -> mempty
+          As _ _ -> mempty
+          Constructor _ r cid _ -> [dataType r, dataConstructor r cid]
+          EffectPure _ _ -> [effectType Type.effectRef]
+          EffectBind _ r cid _ _ ->
+            [effectType Type.effectRef, effectType r, effectConstructor r cid]
+          SequenceLiteral _ _ -> [literalType Type.listRef]
+          SequenceOp {} -> [literalType Type.listRef]
+          Boolean _ _ -> [literalType Type.booleanRef]
+          Int _ _ -> [literalType Type.intRef]
+          Nat _ _ -> [literalType Type.natRef]
+          Float _ _ -> [literalType Type.floatRef]
+          Text _ _ -> [literalType Type.textRef]
+          Char _ _ -> [literalType Type.charRef]
+      )

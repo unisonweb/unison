@@ -1,9 +1,9 @@
--- v2 codebase schema
+-- v3 codebase schema
 
 CREATE TABLE schema_version (
   version INTEGER NOT NULL
 );
-INSERT INTO schema_version (version) VALUES (1);
+INSERT INTO schema_version (version) VALUES (3);
 
 -- actually stores the 512-byte hashes
 CREATE TABLE hash (
@@ -120,19 +120,29 @@ CREATE TABLE causal_metadata (
 CREATE INDEX causal_metadata_causal_id ON causal_metadata(causal_id);
 
 CREATE TABLE watch_result (
+  -- See Note [Watch expression identifier]
   hash_id INTEGER NOT NULL CONSTRAINT watch_result_fk1 REFERENCES hash(id),
   component_index INTEGER NOT NULL,
-  result BLOB NOT NULL,
+
+  result BLOB NOT NULL, -- evaluated result of the watch expression
   PRIMARY KEY (hash_id, component_index)
 ) WITHOUT ROWID;
 
+
 CREATE TABLE watch (
+  -- See Note [Watch expression identifier]
   hash_id INTEGER NOT NULL CONSTRAINT watch_fk1 REFERENCES hash(id),
   component_index INTEGER NOT NULL,
+
   watch_kind_id INTEGER NOT NULL CONSTRAINT watch_fk2 REFERENCES watch_kind_description(id),
   PRIMARY KEY (hash_id, component_index, watch_kind_id)
 ) WITHOUT ROWID;
 CREATE INDEX watch_kind ON watch(watch_kind_id);
+
+-- Note [Watch expression identifier]
+-- The hash_id + component_index is an unevaluated term reference. We use hash_id instead of object_id because the 
+-- unevaluated term may not exist in the codebase: it is not added merely by watching it without a name, e.g `> 2 + 3`.
+
 
 CREATE TABLE watch_kind_description (
   id INTEGER PRIMARY KEY NOT NULL,

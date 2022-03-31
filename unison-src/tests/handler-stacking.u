@@ -11,9 +11,9 @@ main = '(tell get)
 
 replicate : Nat -> '{e} () -> {e} ()
 replicate n x =
-  if n `Nat.eq` 0 then () else
+  if Nat.eq n 0 then () else
     !x
-    replicate (n `drop` 1) x
+    replicate (drop n 1) x
 
 structural ability State a where
   get : {State a} a
@@ -30,5 +30,5 @@ stateHandler s = cases
 
 writerHandler : [w] -> Request {Writer w} a -> ([w], a)
 writerHandler ww = cases
-  { Writer.tell w -> k } -> handle k () with writerHandler (ww `snoc` w)
+  { Writer.tell w -> k } -> handle k () with writerHandler (snoc ww w)
   { a } -> (ww, a)

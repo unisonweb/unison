@@ -16,16 +16,23 @@ jobs:
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    defaults: 
+      run:
+        working-directory: unison
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
       matrix:
         os:
+          # temporarily disable non-windows builds to speed up iteration time
           - ubuntu-20.04
           - macOS-11.0
           - macOS-10.15
+          - windows-2019
     steps:
       - uses: actions/checkout@v2
+        with:
+          path: unison
 
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
@@ -67,14 +74,18 @@ jobs:
       # so this is split into two steps, only one of which will run on any particular build.
       - name: install stack (Linux)
         if: runner.os == 'Linux'
+        working-directory: ${{ github.workspace }}
         run: |
+          mkdir stack && cd stack
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
+          echo "$PWD/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
       - name: install stack (macOS)
+        working-directory: ${{ github.workspace }}
         if: runner.os == 'macOS'
         run: |
+          mkdir stack && cd stack
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
+          echo "$PWD/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
@@ -103,8 +114,10 @@ jobs:
       - name: transcripts
         run: |
           stack --no-terminal exec transcripts
-          git diff
-          x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
+          # Add all changes to the index for when we diff.
+          git add --all
+          # Fail if any transcripts cause git diffs.
+          git diff --cached --ignore-cr-at-eol --exit-code
       - name: prettyprint-round-trip
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
       - name: integration-tests

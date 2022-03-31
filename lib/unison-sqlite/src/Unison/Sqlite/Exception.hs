@@ -84,7 +84,7 @@ rethrowAsSqliteConnectException name file exception = do
 
 ------------------------------------------------------------------------------------------------------------------------
 -- SomeSqliteException
---   └── SqliteConnectException
+--   └── SqliteQueryException
 
 -- | A @SqliteQueryException@ represents an exception thrown during processing a query, paired with some context that
 -- resulted in the exception.
@@ -96,14 +96,22 @@ rethrowAsSqliteConnectException name file exception = do
 --   relation will have certain number of rows,
 -- * A postcondition violation of a function like 'Unison.Sqlite.queryListRowCheck', which takes a user-defined check as
 --   an argument.
+--
+-- A @SqliteQueryException@ should not be inspected or used for control flow when run in a trusted environment, where
+-- the database can be assumed to be uncorrupt. Rather, wherever possible, the user of this library should write code
+-- that is guaranteed not to throw exceptions, by checking the necessary preconditions first. If that is not possible,
+-- it should be considered a bug in this library.
+--
+-- When actions are run on an untrusted codebase, e.g. one downloaded from a remote server, it is sufficient to catch
+-- just one exception type, @SqliteQueryException@.
 data SqliteQueryException = SqliteQueryException
-  { threadId :: ThreadId,
-    connection :: String,
-    sql :: Sql,
+  { sql :: Sql,
     params :: String,
     -- | The inner exception. It is intentionally not 'SomeException', so that calling code cannot accidentally
     -- 'throwIO' domain-specific exception types, but must instead use a @*Check@ query variant.
-    exception :: SomeSqliteExceptionReason
+    exception :: SomeSqliteExceptionReason,
+    connection :: String,
+    threadId :: ThreadId
   }
   deriving stock (Show)
 
@@ -150,6 +158,5 @@ instance Show SomeSqliteExceptionReason where
 class (Show e, Typeable e) => SqliteExceptionReason e
 
 instance SqliteExceptionReason Sqlite.SQLError
-
 
 instance SqliteExceptionReason Void

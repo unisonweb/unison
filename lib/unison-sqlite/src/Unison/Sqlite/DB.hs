@@ -263,4 +263,4 @@ withSavepoint :: (DB m, MonadUnliftIO m) => Text -> (m () -> m a) -> m a
 withSavepoint name action = do
   conn <- ask
   withRunInIO \unlift ->
-    liftIO (Connection.withSavepoint conn name (unlift . action . liftIO))
+    liftIO (Connection.withSavepointIO conn name (unlift . action . liftIO))

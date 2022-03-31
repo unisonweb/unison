@@ -1,28 +1,49 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module U.Codebase.Referent where
 
-import Data.Text (Text)
+import Control.Lens (Prism, Traversal)
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bifunctor (Bifunctor (..))
+import Data.Bitraversable (Bitraversable (..))
+import Data.Generics.Sum (_Ctor)
+import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Reference (Reference, Reference')
 import qualified U.Codebase.Reference as Reference
 import U.Util.Hash (Hash)
-import Data.Bifunctor (Bifunctor(..))
-import Data.Bifoldable (Bifoldable(..))
-import Data.Bitraversable (Bitraversable(..))
-import U.Codebase.Decl (ConstructorId)
+import Unison.Prelude
 
 type Referent = Referent' Reference Reference
+
 type ReferentH = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
 
-data Referent' rTm rTp
-  = Ref rTm
-  | Con rTp ConstructorId
-  deriving (Eq, Ord, Show)
+data Referent' termRef typeRef
+  = Ref termRef
+  | Con typeRef ConstructorId
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+refs_ :: Traversal (Referent' ref ref) (Referent' ref' ref') ref ref'
+refs_ f r = bitraverse f f r
+
+typeRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef' termRef) typeRef typeRef'
+typeRef_ f = bitraverse f pure
+
+termRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef termRef') termRef termRef'
+termRef_ f = bitraverse pure f
+
+_Ref :: Prism (Referent' tmr tyr) (Referent' tmr' tyr) tmr tmr'
+_Ref = _Ctor @"Ref"
+
+_Con :: Prism (Referent' tmr tyr) (Referent' tmr tyr') (tyr, ConstructorId) (tyr', ConstructorId)
+_Con = _Ctor @"Con"
 
 type Id = Id' Hash Hash
+
 data Id' hTm hTp
   = RefId (Reference.Id' hTm)
   | ConId (Reference.Id' hTp) ConstructorId

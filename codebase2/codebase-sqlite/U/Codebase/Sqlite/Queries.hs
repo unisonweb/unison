@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DerivingVia #-}
@@ -12,107 +11,125 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE TypeOperators #-}
-module U.Codebase.Sqlite.Queries (
-  -- * text table
-  saveText,
-  loadText,
-  expectText,
-  loadTextById,
-  loadTextByIdCheck,
+module U.Codebase.Sqlite.Queries
+  ( -- * text table
+    saveText,
+    loadText,
+    expectText,
+    loadTextById,
+    loadTextByIdCheck,
 
-  -- * hash table
-  saveHash,
-  saveHashHash,
-  loadHashId,
-  loadHashById,
-  loadHashIdByHash,
-  expectHashIdByHash,
-  saveCausalHash,
-  loadCausalHash,
-  saveBranchHash,
+    -- * hash table
+    saveHash,
+    saveHashHash,
+    loadHashId,
+    loadHashById,
+    loadHashHashById,
+    loadHashIdByHash,
+    expectHashIdByHash,
+    saveCausalHash,
+    loadCausalHash,
+    saveBranchHash,
 
-  -- * hash_object table
-  saveHashObject,
-  hashIdsForObject,
-  hashIdWithVersionForObject,
-  expectObjectIdForPrimaryHashId,
-  expectObjectIdForAnyHashId,
-  maybeObjectIdForPrimaryHashId,
-  maybeObjectIdForAnyHashId,
+    -- * hash_object table
+    saveHashObject,
+    hashIdsForObject,
+    hashIdWithVersionForObject,
+    expectObjectIdForPrimaryHashId,
+    expectObjectIdForAnyHashId,
+    maybeObjectIdForPrimaryHashId,
+    maybeObjectIdForAnyHashId,
+    recordObjectRehash,
 
-  -- * object table
-  saveObject,
-  loadObjectById,
-  loadPrimaryHashByObjectId,
-  loadObjectWithTypeById,
-  expectDeclObjectById,
-  expectNamespaceObjectById,
-  expectPatchObjectById,
-  expectTermObjectById,
-  loadObjectWithHashIdAndTypeById,
-  updateObjectBlob, -- unused
+    -- * object table
+    saveObject,
+    loadObjectById,
+    loadPrimaryHashByObjectId,
+    loadObjectWithTypeById,
+    loadObjectWithHashIdAndTypeById,
+    expectDeclObjectById,
+    expectNamespaceObjectById,
+    expectPatchObjectById,
+    expectTermObjectById,
+    updateObjectBlob, -- unused
 
-  -- * namespace_root table
-  loadMaybeNamespaceRoot,
-  setNamespaceRoot,
-  loadNamespaceRoot,
+    -- * namespace_root table
+    loadMaybeNamespaceRoot,
+    setNamespaceRoot,
+    loadNamespaceRoot,
 
-  -- * causals
-  -- ** causal table
-  saveCausal,
-  isCausalHash,
-  loadCausalHashIdByCausalHash,
-  loadCausalValueHashId,
-  loadCausalByCausalHash,
-  loadBranchObjectIdByCausalHashId,
-  expectBranchObjectIdByCausalHashId,
+    -- * causals
 
-  -- ** causal_parent table
-  saveCausalParents,
-  loadCausalParents,
-  before,
-  lca,
+    -- ** causal table
+    saveCausal,
+    isCausalHash,
+    loadCausalHashIdByCausalHash,
+    loadCausalValueHashId,
+    loadCausalByCausalHash,
+    loadBranchObjectIdByCausalHashId,
+    expectBranchObjectIdByCausalHashId,
 
-  -- * watch table
-  saveWatch,
-  loadWatch,
-  loadWatchesByWatchKind,
-  loadWatchKindsByReference,
-  clearWatches,
+    -- ** causal_parent table
+    saveCausalParents,
+    loadCausalParents,
+    before,
+    lca,
 
-  -- * indexes
-  -- ** dependents index
-  addToDependentsIndex,
-  getDependentsForDependency,
-  getDependenciesForDependent,
-  getDependencyIdsForDependent,
-  -- ** type index
-  addToTypeIndex,
-  getReferentsByType,
-  getTypeReferenceForReferent,
-  getTypeReferencesForComponent,
-  -- ** type mentions index
-  addToTypeMentionsIndex,
-  getReferentsByTypeMention,
-  getTypeMentionsReferencesForComponent,
+    -- * watch table
+    saveWatch,
+    loadWatch,
+    loadWatchesByWatchKind,
+    loadWatchKindsByReference,
+    clearWatches,
 
-  -- * hash prefix lookup
-  objectIdByBase32Prefix,
-  namespaceHashIdByBase32Prefix,
-  causalHashIdByBase32Prefix,
+    -- * indexes
 
-  -- * db misc
-  createSchema,
-  schemaVersion,
+    -- ** dependents index
+    addToDependentsIndex,
+    getDependentsForDependency,
+    getDependentsForDependencyComponent,
+    getDependenciesForDependent,
+    getDependencyIdsForDependent,
 
-  savepoint,
-  release,
-  rollbackRelease,
-) where
+    -- ** migrations
+    countObjects,
+    countCausals,
+    countWatches,
+    getCausalsWithoutBranchObjects,
+    removeHashObjectsByHashingVersion,
+
+    -- ** type index
+    addToTypeIndex,
+    getReferentsByType,
+    getTypeReferenceForReferent,
+    getTypeReferencesForComponent,
+
+    -- ** type mentions index
+    addToTypeMentionsIndex,
+    getReferentsByTypeMention,
+    getTypeMentionsReferencesForComponent,
+
+    -- * hash prefix lookup
+    objectIdByBase32Prefix,
+    namespaceHashIdByBase32Prefix,
+    causalHashIdByBase32Prefix,
+
+    -- * garbage collection
+    vacuum,
+    garbageCollectObjectsWithoutHashes,
+    garbageCollectWatchesWithoutObjects,
+
+    -- * db misc
+    createSchema,
+    schemaVersion,
+    setSchemaVersion,
+    vacuumInto,
+  )
+where
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Data.ByteString (ByteString)
@@ -130,11 +147,13 @@ import Data.Tuple.Only (Only (..))
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
+import qualified UnliftIO
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
     CausalHashId (..),
     HashId (..),
+    HashVersion,
     ObjectId (..),
     SchemaVersion,
     TextId,
@@ -154,15 +173,36 @@ import qualified Unison.Sqlite.Transaction as Transaction
 import UnliftIO (MonadUnliftIO)
 
 -- * main squeeze
+
 createSchema :: (DB m, MonadUnliftIO m) => m ()
 createSchema =
   DB.runTransaction do
     traverse_ (Transaction.execute_ . fromString) $ List.splitOn ";" [hereFile|sql/create.sql|]
 
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
+-- | Copy the database into the specified location, performing a VACUUM in the process.
+vacuumInto :: DB m => FilePath -> m ()
+vacuumInto dest = do
+  execute "VACUUM INTO ?" [dest]
+
 schemaVersion :: DB m => m SchemaVersion
 schemaVersion = queryOneCol_ sql
   where sql = "SELECT version from schema_version;"
+
+setSchemaVersion :: DB m => SchemaVersion -> m ()
+setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
+  where
+    sql = "UPDATE schema_version SET version = ?"
+
+{- ORMOLU_DISABLE -}
+{- Please don't try to format the SQL blocks —AI -}
+countObjects :: DB m => m Int
+countObjects = queryOneCol_ [here| SELECT COUNT(*) FROM object |]
+
+countCausals :: DB m => m Int
+countCausals = queryOneCol_ [here| SELECT COUNT(*) FROM causal |]
+
+countWatches :: DB m => m Int
+countWatches = queryOneCol_ [here| SELECT COUNT(*) FROM watch |]
 
 saveHash :: DB m => Base32Hex -> m HashId
 saveHash base32 = execute sql (Only base32) >> expectHashId base32
@@ -241,7 +281,7 @@ loadTextByIdSql :: Sql
 loadTextByIdSql =
   [here| SELECT text FROM text WHERE id = ? |]
 
-saveHashObject :: DB m => HashId -> ObjectId -> Int -> m ()
+saveHashObject :: DB m => HashId -> ObjectId -> HashVersion -> m ()
 saveHashObject hId oId version = execute sql (hId, oId, version) where
   sql = [here|
     INSERT INTO hash_object (hash_id, object_id, hash_version)
@@ -252,7 +292,7 @@ saveHashObject hId oId version = execute sql (hId, oId, version) where
 saveObject :: DB m => HashId -> ObjectType -> ByteString -> m ObjectId
 saveObject h t blob = do
   oId <- execute sql (h, t, blob) >> expectObjectIdForPrimaryHashId h
-  saveHashObject h oId 1 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
+  saveHashObject h oId 2 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
   pure oId
   where
   sql = [here|
@@ -356,10 +396,23 @@ hashIdsForObject oId = do
     sql1 = "SELECT primary_hash_id FROM object WHERE id = ?"
     sql2 = "SELECT hash_id FROM hash_object WHERE object_id = ?"
 
-hashIdWithVersionForObject :: DB m => ObjectId -> m [(HashId, Int)]
+hashIdWithVersionForObject :: DB m => ObjectId -> m [(HashId, HashVersion)]
 hashIdWithVersionForObject = queryListRow sql . Only where sql = [here|
   SELECT hash_id, hash_version FROM hash_object WHERE object_id = ?
 |]
+
+-- | @recordObjectRehash old new@ records that object @old@ was rehashed and inserted as a new object, @new@.
+--
+-- This function rewrites @old@'s @hash_object@ rows in place to point at the new object.
+recordObjectRehash :: DB m => ObjectId -> ObjectId -> m ()
+recordObjectRehash old new =
+  execute sql (new, old)
+  where
+    sql = [here|
+      UPDATE hash_object
+      SET object_id = ?
+      WHERE object_id = ?
+    |]
 
 updateObjectBlob :: DB m => ObjectId -> ByteString -> m ()
 updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
@@ -504,7 +557,6 @@ clearWatches :: DB m => m ()
 clearWatches = do
   execute_ "DELETE FROM watch_result"
   execute_ "DELETE FROM watch"
-  execute_ "VACUUM"
 
 -- * Index-building
 addToTypeIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
@@ -604,6 +656,62 @@ getTypeMentionsReferencesForComponent r =
 fixupTypeIndexRow :: Reference' TextId HashId :. Referent.Id -> (Reference' TextId HashId, Referent.Id)
 fixupTypeIndexRow (rh :. ri) = (rh, ri)
 
+-- | Delete objects without hashes. An object typically *would* have a hash, but (for example) during a migration in which an object's hash
+-- may change, its corresponding hash_object row may be updated to point at a new version of that object. This procedure clears out all
+-- references to objects that do not have any corresponding hash_object rows.
+garbageCollectObjectsWithoutHashes :: DB m => m ()
+garbageCollectObjectsWithoutHashes = do
+  execute_
+    [here|
+      CREATE TEMPORARY TABLE object_without_hash AS
+        SELECT id
+        FROM object
+        WHERE id NOT IN (
+          SELECT object_id
+          FROM hash_object
+        )
+    |]
+  execute_
+    [here|
+      DELETE FROM dependents_index
+      WHERE dependency_object_id IN object_without_hash
+        OR dependent_object_id IN object_without_hash
+    |]
+  execute_
+    [here|
+      DELETE FROM find_type_index
+      WHERE term_referent_object_id IN object_without_hash
+    |]
+  execute_
+    [here|
+      DELETE FROM find_type_mentions_index
+      WHERE term_referent_object_id IN object_without_hash
+    |]
+  execute_
+    [here|
+      DELETE FROM object
+      WHERE id IN object_without_hash
+    |]
+  execute_
+    [here|
+      DROP TABLE object_without_hash
+    |]
+
+-- | Delete all
+garbageCollectWatchesWithoutObjects :: DB m => m ()
+garbageCollectWatchesWithoutObjects = do
+  execute_
+    [here|
+      DELETE FROM watch
+      WHERE watch.hash_id NOT IN
+      (SELECT hash_object.hash_id FROM hash_object)
+    |]
+
+-- | Clean the database and recover disk space.
+-- This is an expensive operation. Also note that it cannot be executed within a transaction.
+vacuum :: DB m => m ()
+vacuum = execute_ "VACUUM"
+
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)
   where sql = [here|
@@ -636,6 +744,22 @@ getDependentsForDependency dependency =
       case dependency of
         ReferenceBuiltin _ -> const True
         ReferenceDerived (C.Reference.Id oid0 _pos0) -> \(C.Reference.Id oid1 _pos1) -> oid0 /= oid1
+
+getDependentsForDependencyComponent :: DB m => ObjectId -> m [Reference.Id]
+getDependentsForDependencyComponent dependency =
+  filter isNotSelfReference <$> queryListRow sql (Only dependency)
+  where
+    sql =
+      [here|
+        SELECT dependent_object_id, dependent_component_index
+        FROM dependents_index
+        WHERE dependency_builtin IS NULL
+          AND dependency_object_id IS ?
+      |]
+
+    isNotSelfReference :: Reference.Id -> Bool
+    isNotSelfReference = \case
+      (C.Reference.Id oid1 _pos1) -> dependency /= oid1
 
 -- | Get non-self dependencies of a user-defined dependent.
 getDependenciesForDependent :: DB m => Reference.Id -> m [Reference.Reference]
@@ -695,7 +819,30 @@ namespaceHashIdByBase32Prefix prefix = queryListCol sql (Only $ prefix <> "%") w
   INNER JOIN hash ON id = value_hash_id
   WHERE base32 LIKE ?
 |]
+
+-- | Finds all causals that refer to a branch for which we don't have an object stored.
+-- Although there are plans to support this in the future, currently all such cases
+-- are the result of database inconsistencies and are unexpected.
+getCausalsWithoutBranchObjects :: DB m => m [CausalHashId]
+getCausalsWithoutBranchObjects = queryListCol_ sql
+  where sql = [here|
+    SELECT self_hash_id from causal
+    WHERE value_hash_id NOT IN (SELECT hash_id FROM hash_object)
+|]
+
 {- ORMOLU_ENABLE -}
+
+-- | Delete all hash objects of a given hash version.
+-- Leaves the corresponding `hash`es in the hash table alone.
+removeHashObjectsByHashingVersion :: DB m => HashVersion -> m ()
+removeHashObjectsByHashingVersion hashVersion =
+  execute sql (Only hashVersion)
+  where
+    sql =
+      [here|
+    DELETE FROM hash_object
+      WHERE hash_version = ?
+|]
 
 before :: DB m => CausalHashId -> CausalHashId -> m Bool
 before chId1 chId2 = queryOneCol sql (chId2, chId1)
@@ -728,7 +875,8 @@ lca x y cx cy =
     sql = fromString ancestorSql
 
 ancestorSql :: String
-ancestorSql = [here|
+ancestorSql =
+  [here|
     WITH RECURSIVE
       ancestor(id) AS (
         SELECT self_hash_id
@@ -742,15 +890,6 @@ ancestorSql = [here|
     SELECT * FROM ancestor
   |]
 
--- * helper functions
-
--- | low-level transaction stuff
-savepoint, release, rollbackTo, rollbackRelease :: DB m => String -> m ()
-savepoint name = execute_ (fromString $ "SAVEPOINT " ++ name)
-release name = execute_ (fromString $ "RELEASE " ++ name)
-rollbackTo name = execute_ (fromString $ "ROLLBACK TO " ++ name)
-rollbackRelease name = rollbackTo name *> release name
-
 -- * orphan instances
 
 deriving via Text instance ToField Base32Hex
@@ -763,7 +902,8 @@ instance ToField WatchKind where
     WatchKind.TestWatch -> SQLInteger 1
 
 instance FromField WatchKind where
-  fromField = fromField @Int8  <&> fmap \case
-    0 -> WatchKind.RegularWatch
-    1 -> WatchKind.TestWatch
-    tag -> error $ "Unknown WatchKind id " ++ show tag
+  fromField =
+    fromField @Int8 <&> fmap \case
+      0 -> WatchKind.RegularWatch
+      1 -> WatchKind.TestWatch
+      tag -> error $ "Unknown WatchKind id " ++ show tag

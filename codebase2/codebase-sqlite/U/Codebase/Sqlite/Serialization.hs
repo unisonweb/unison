@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
@@ -133,9 +132,10 @@ putWatchResultFormat = \case
     putTerm t
 
 getWatchResultFormat :: MonadGet m => m TermFormat.WatchResultFormat
-getWatchResultFormat = getWord8 >>= \case
-  0 -> TermFormat.WatchResult <$> getWatchLocalIds <*> getTerm
-  other -> unknownTag "getWatchResultFormat" other
+getWatchResultFormat =
+  getWord8 >>= \case
+    0 -> TermFormat.WatchResult <$> getWatchLocalIds <*> getTerm
+    other -> unknownTag "getWatchResultFormat" other
 
 putTermFormat :: MonadPut m => TermFormat.TermFormat -> m ()
 putTermFormat = \case
@@ -349,9 +349,10 @@ lookupTermElementDiscardingTerm i =
 getTType :: MonadGet m => m TermFormat.Type
 getTType = getType getReference
 
-getType :: MonadGet m => m r -> m (Type.TypeR r Symbol)
+getType :: forall m r. MonadGet m => m r -> m (Type.TypeR r Symbol)
 getType getReference = getABT getSymbol getUnit go
   where
+    go :: m x -> m (Type.F' r x)
     go getChild =
       getWord8 >>= \case
         0 -> Type.Ref <$> getReference
@@ -648,19 +649,21 @@ recomposeComponent = putFramedArray \(localIds, bytes) -> do
   putByteString bytes
 
 decomposeWatchFormat :: MonadGet m => m TermFormat.SyncWatchResultFormat
-decomposeWatchFormat = getWord8 >>= \case
-  0 -> TermFormat.SyncWatchResult <$> getWatchLocalIds <*> getRemainingByteString
-  x -> unknownTag "decomposeWatchFormat" x
+decomposeWatchFormat =
+  getWord8 >>= \case
+    0 -> TermFormat.SyncWatchResult <$> getWatchLocalIds <*> getRemainingByteString
+    x -> unknownTag "decomposeWatchFormat" x
 
 recomposeWatchFormat :: MonadPut m => TermFormat.SyncWatchResultFormat -> m ()
 recomposeWatchFormat (TermFormat.SyncWatchResult wli bs) =
   putWord8 0 *> putLocalIds wli *> putByteString bs
 
 decomposePatchFormat :: MonadGet m => m PatchFormat.SyncPatchFormat
-decomposePatchFormat = getWord8 >>= \case
-  0 -> PatchFormat.SyncFull <$> getPatchLocalIds <*> getRemainingByteString
-  1 -> PatchFormat.SyncDiff <$> getVarInt <*> getPatchLocalIds <*> getRemainingByteString
-  x -> unknownTag "decomposePatchFormat" x
+decomposePatchFormat =
+  getWord8 >>= \case
+    0 -> PatchFormat.SyncFull <$> getPatchLocalIds <*> getRemainingByteString
+    1 -> PatchFormat.SyncDiff <$> getVarInt <*> getPatchLocalIds <*> getRemainingByteString
+    x -> unknownTag "decomposePatchFormat" x
 
 recomposePatchFormat :: MonadPut m => PatchFormat.SyncPatchFormat -> m ()
 recomposePatchFormat = \case
@@ -670,10 +673,11 @@ recomposePatchFormat = \case
     putWord8 1 *> putVarInt id *> putPatchLocalIds li *> putByteString bs
 
 decomposeBranchFormat :: MonadGet m => m BranchFormat.SyncBranchFormat
-decomposeBranchFormat = getWord8 >>= \case
-  0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getRemainingByteString
-  1 -> BranchFormat.SyncDiff <$> getVarInt <*> getBranchLocalIds <*> getRemainingByteString
-  x -> unknownTag "decomposeBranchFormat" x
+decomposeBranchFormat =
+  getWord8 >>= \case
+    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getRemainingByteString
+    1 -> BranchFormat.SyncDiff <$> getVarInt <*> getBranchLocalIds <*> getRemainingByteString
+    x -> unknownTag "decomposeBranchFormat" x
 
 recomposeBranchFormat :: MonadPut m => BranchFormat.SyncBranchFormat -> m ()
 recomposeBranchFormat = \case
@@ -808,6 +812,7 @@ putDType :: MonadPut m => DeclFormat.Type Symbol -> m ()
 putDType = putType putRecursiveReference putSymbol
 
 putType ::
+  forall m r v.
   (MonadPut m, Ord v) =>
   (r -> m ()) ->
   (v -> m ()) ->
@@ -815,6 +820,7 @@ putType ::
   m ()
 putType putReference putVar = putABT putVar putUnit go
   where
+    go :: (x -> m ()) -> Type.F' r x -> m ()
     go putChild t = case t of
       Type.Ref r -> putWord8 0 *> putReference r
       Type.Arrow i o -> putWord8 1 *> putChild i *> putChild o

@@ -21,9 +21,11 @@ library
       U.Codebase.Sqlite.Branch.Diff
       U.Codebase.Sqlite.Branch.Format
       U.Codebase.Sqlite.Branch.Full
+      U.Codebase.Sqlite.Causal
       U.Codebase.Sqlite.DbId
       U.Codebase.Sqlite.Decl.Format
       U.Codebase.Sqlite.LocalIds
+      U.Codebase.Sqlite.LocalizeObject
       U.Codebase.Sqlite.ObjectType
       U.Codebase.Sqlite.Operations
       U.Codebase.Sqlite.Patch.Diff
@@ -46,6 +48,7 @@ library
       ApplicativeDo
       BangPatterns
       BlockArguments
+      ConstraintKinds
       DeriveAnyClass
       DeriveFunctor
       DeriveGeneric
@@ -53,7 +56,9 @@ library
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      FunctionalDependencies
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -63,6 +68,8 @@ library
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      TypeFamilies
+      TypeFamilyDependencies
       ViewPatterns
   build-depends:
       Only
@@ -71,6 +78,7 @@ library
     , bytestring
     , containers
     , extra
+    , generic-lens
     , here
     , lens
     , monad-validate

@@ -11,10 +11,20 @@ module Unison.Server.Endpoints.Projects where
 import Control.Error (runExceptT)
 import Control.Error.Util ((??))
 import Data.Aeson
-import Data.OpenApi (ToSchema)
+import Data.Char
+import Data.OpenApi
+  ( ToParamSchema (..),
+    ToSchema (..),
+  )
 import qualified Data.Text as Text
 import Servant (QueryParam, ServerError, throwError, (:>))
-import Servant.Docs (ToSample (..))
+import Servant.API (FromHttpApiData (..))
+import Servant.Docs
+  ( DocQueryParam (..),
+    ParamKind (Normal),
+    ToParam (..),
+    ToSample (..),
+  )
 import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -29,11 +39,12 @@ import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors (backendError, badNamespace)
 import Unison.Server.Types (APIGet, APIHeaders, UnisonHash, addHeaders)
+import Unison.Symbol (Symbol)
 import Unison.Util.Monoid (foldMapM)
-import Unison.Var (Var)
 
 type ProjectsAPI =
   "projects" :> QueryParam "rootBranch" ShortBranchHash
+    :> QueryParam "owner" ProjectOwner
     :> APIGet [ProjectListing]
 
 instance ToSample ProjectListing where
@@ -50,8 +61,32 @@ newtype ProjectOwner = ProjectOwner Text
   deriving stock (Generic, Show)
   deriving anyclass (ToSchema)
 
+instance ToParam (QueryParam "owner" ProjectOwner) where
+  toParam _ =
+    DocQueryParam
+      "owner"
+      ["unison", "alice", "bob"]
+      "The name of a project owner"
+      Normal
+
 instance ToJSON ProjectOwner where
   toEncoding = genericToEncoding defaultOptions
+
+deriving anyclass instance ToParamSchema ProjectOwner
+
+instance FromHttpApiData ProjectOwner where
+  parseUrlPiece = Right . ProjectOwner
+
+-- ProjectOwner is slightly more restrictive than a regular FQN in that we only
+-- want alphanumeric characters
+projectOwnerFromText :: Text -> Either Text ProjectOwner
+projectOwnerFromText raw =
+  if isAllAlphaNum raw
+    then Right (ProjectOwner raw)
+    else Left "Invalid owner name"
+  where
+    isAllAlphaNum t =
+      t & Text.unpack & all isAlphaNum
 
 data ProjectListing = ProjectListing
   { owner :: ProjectOwner,
@@ -65,9 +100,8 @@ instance ToJSON ProjectListing where
   toEncoding = genericToEncoding defaultOptions
 
 backendListEntryToProjectListing ::
-  Var v =>
   ProjectOwner ->
-  Backend.ShallowListEntry v a ->
+  Backend.ShallowListEntry Symbol a ->
   Maybe ProjectListing
 backendListEntryToProjectListing owner = \case
   Backend.ShallowBranchEntry name hash _ ->
@@ -80,8 +114,7 @@ backendListEntryToProjectListing owner = \case
   _ -> Nothing
 
 entryToOwner ::
-  Var v =>
-  Backend.ShallowListEntry v a ->
+  Backend.ShallowListEntry Symbol a ->
   Maybe ProjectOwner
 entryToOwner = \case
   Backend.ShallowBranchEntry name _ _ ->
@@ -89,13 +122,12 @@ entryToOwner = \case
   _ -> Nothing
 
 serve ::
-  forall v.
-  Var v =>
   Handler () ->
-  Codebase IO v Ann ->
+  Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
+  Maybe ProjectOwner ->
   Handler (APIHeaders [ProjectListing])
-serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
+serve tryAuth codebase mayRoot mayOwner = addHeaders <$> (tryAuth *> projects)
   where
     projects :: Handler [ProjectListing]
     projects = do
@@ -110,7 +142,11 @@ serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
           errFromEither backendError ea
 
       ownerEntries <- findShallow root
-      let owners = mapMaybe entryToOwner ownerEntries
+      -- If an owner is provided, we only want projects belonging to them
+      let owners =
+            case mayOwner of
+              Just o -> [o]
+              Nothing -> mapMaybe entryToOwner ownerEntries
       foldMapM (ownerToProjectListings root) owners
 
     ownerToProjectListings :: Branch.Branch IO -> ProjectOwner -> Handler [ProjectListing]
@@ -124,7 +160,7 @@ serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
 
     -- Minor helpers
 
-    findShallow :: Branch.Branch IO -> Handler [Backend.ShallowListEntry v Ann]
+    findShallow :: Branch.Branch IO -> Handler [Backend.ShallowListEntry Symbol Ann]
     findShallow branch =
       liftIO $ Backend.findShallowInBranch codebase branch
 

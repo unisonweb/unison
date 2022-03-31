@@ -34,8 +34,8 @@ fullFromHash = ShortBranchHash . Hash.base32Hex . coerce
 fromText :: Text -> Maybe ShortBranchHash
 fromText (Text.dropWhile (== '#') -> t)
   | Text.all (`Set.member` Hash.validBase32HexChars) t =
-    Just $
-      ShortBranchHash t
+      Just $
+        ShortBranchHash t
 fromText _ = Nothing
 
 instance Show ShortBranchHash where

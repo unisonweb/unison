@@ -45,7 +45,6 @@ library
       Unison.Pattern
       Unison.Position
       Unison.Reference
-      Unison.Reference.Util
       Unison.Referent
       Unison.Referent'
       Unison.Settings
@@ -93,6 +92,7 @@ library
     , either
     , extra
     , fuzzyfind
+    , generic-lens
     , lens
     , memory
     , mtl

@@ -63,3 +63,7 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Alberto Flores (@albertoefguerrero)
 * Shawn Bachlet (@shawn-bachlet)
 * Solomon Bothwell (@solomon-b)
+* Sameer Kolhar (@kolharsam)
+* Nicole Prindle (@nprindle)
+* Harald Gliebe (@hagl)
+* Phil de Joux (@philderbeast)

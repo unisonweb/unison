@@ -73,6 +73,7 @@ test-suite tests
   ghc-options: -Wall
   build-depends:
       base
+    , code-page
     , containers
     , deepseq
     , easytest
@@ -107,6 +108,7 @@ benchmark relation
   ghc-options: -Wall
   build-depends:
       base
+    , code-page
     , containers
     , deepseq
     , extra

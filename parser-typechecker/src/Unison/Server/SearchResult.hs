@@ -1,39 +1,40 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Server.SearchResult where
 
-import Unison.Prelude
-
-import qualified Data.Set              as Set
-import           Unison.HashQualified  (HashQualified)
+import qualified Data.Set as Set
+import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified' as HQ'
-import           Unison.Name           (Name)
-import           Unison.Names         (Names(..))
-import qualified Unison.Names         as Names
-import           Unison.Reference      (Reference)
-import           Unison.Referent       (Referent)
-import qualified Unison.Referent       as Referent
-import qualified Unison.Util.Relation  as R
+import Unison.Name (Name)
+import Unison.Names (Names (..))
+import qualified Unison.Names as Names
+import Unison.Prelude
+import Unison.Reference (Reference)
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
+import qualified Unison.Util.Relation as R
 
 data SearchResult = Tp TypeResult | Tm TermResult deriving (Eq, Ord, Show)
 
 data TermResult = TermResult
-  { termName    :: HashQualified Name
-  , referent    :: Referent
-  , termAliases :: Set (HQ'.HashQualified Name)
-  } deriving (Eq, Ord, Show)
+  { termName :: HashQualified Name,
+    referent :: Referent,
+    termAliases :: Set (HQ'.HashQualified Name)
+  }
+  deriving (Eq, Ord, Show)
 
 data TypeResult = TypeResult
-  { typeName    :: HashQualified Name
-  , reference   :: Reference
-  , typeAliases :: Set (HQ'.HashQualified Name)
-  } deriving (Eq, Ord, Show)
+  { typeName :: HashQualified Name,
+    reference :: Reference,
+    typeAliases :: Set (HQ'.HashQualified Name)
+  }
+  deriving (Eq, Ord, Show)
 
 pattern Tm' hq r as = Tm (TermResult hq r as)
+
 pattern Tp' hq r as = Tp (TypeResult hq r as)
 
 -- | Construct a term search result from a primary name, referent, and set of aliases.
-termResult
-  :: HashQualified Name -> Referent -> Set (HQ'.HashQualified Name) -> SearchResult
+termResult ::
+  HashQualified Name -> Referent -> Set (HQ'.HashQualified Name) -> SearchResult
 termResult hq r as = Tm (TermResult hq r as)
 
 termSearchResult :: Names -> Name -> Referent -> SearchResult
@@ -41,8 +42,8 @@ termSearchResult b n r =
   termResult (HQ'.toHQ (Names._hqTermName b n r)) r (Names._hqTermAliases b n r)
 
 -- | Construct a type search result from a primary name, reference, and set of aliases.
-typeResult
-  :: HashQualified Name -> Reference -> Set (HQ'.HashQualified Name) -> SearchResult
+typeResult ::
+  HashQualified Name -> Reference -> Set (HQ'.HashQualified Name) -> SearchResult
 typeResult hq r as = Tp (TypeResult hq r as)
 
 typeSearchResult :: Names -> Name -> Reference -> SearchResult
@@ -72,16 +73,17 @@ truncateAliases n = \case
 -- | You may want to sort this list differently afterward.
 fromNames :: Names -> [SearchResult]
 fromNames b =
-  map (uncurry (typeSearchResult b)) (R.toList . Names.types $ b) <>
-  map (uncurry (termSearchResult b)) (R.toList . Names.terms $ b)
+  map (uncurry (typeSearchResult b)) (R.toList . Names.types $ b)
+    <> map (uncurry (termSearchResult b)) (R.toList . Names.terms $ b)
 
 _fromNames :: Names -> [SearchResult]
-_fromNames n0@(Names terms types) = typeResults <> termResults where
-  typeResults =
-    [ typeSearchResult n0 name r
-    | (name, r) <- R.toList types ]
-  termResults =
-    [ termSearchResult n0 name r
-    | (name, r) <- R.toList terms]
-
-
+_fromNames n0@(Names terms types) = typeResults <> termResults
+  where
+    typeResults =
+      [ typeSearchResult n0 name r
+        | (name, r) <- R.toList types
+      ]
+    termResults =
+      [ termSearchResult n0 name r
+        | (name, r) <- R.toList terms
+      ]

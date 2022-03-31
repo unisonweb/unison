@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -13,69 +12,64 @@ module Unison.Codebase.SqliteCodebase
 where
 
 import qualified Control.Concurrent
-import Control.Monad (filterM, unless, when)
-import Control.Monad.Except (ExceptT (ExceptT), runExceptT, withExceptT)
+import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import qualified Control.Monad.Except as Except
-import Control.Monad.Extra (ifM, unlessM)
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.State (MonadState)
 import qualified Control.Monad.State as State
-import Control.Monad.Trans (MonadTrans (lift))
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap), second)
+import Data.Bitraversable (bitraverse)
 import qualified Data.Char as Char
-import qualified Data.Either.Combinators as Either
-import Data.Foldable (Foldable (toList), for_, traverse_)
-import Data.Functor (void, (<&>))
+import Data.Either.Extra ()
 import qualified Data.List as List
-import Data.Map (Map)
+import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Traversable (for)
-import Data.Word (Word64)
-import GHC.Stack (HasCallStack)
 import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
+import qualified System.FilePath.Posix as FilePath.Posix
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
-import U.Codebase.Sqlite.DbId (ObjectId, SchemaVersion (SchemaVersion))
+import U.Codebase.Sqlite.DbId (ObjectId)
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
 import qualified U.Codebase.Sync as Sync
-import qualified U.Codebase.WatchKind as WK
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
+import qualified U.Util.Monoid as Monoid
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
-import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch)
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (WriteGitRepo), printWriteRepo, writeToRead)
+import qualified Unison.Codebase.Causal.Type as Causal
+import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
+import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo (..), printWriteRepo, writeToRead)
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
+import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
+import Unison.Codebase.SqliteCodebase.Migrations (ensureCodebaseIsUpToDate)
+import Unison.Codebase.SqliteCodebase.Paths
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (PushGitBranchOpts (..))
+import Unison.Codebase.Type (LocalOrRemote (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase.Type as C
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -84,7 +78,7 @@ import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
-import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, isJust, trace, traceM)
+import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -93,18 +87,17 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import Unison.Sqlite (Connection, DB)
 import qualified Unison.Sqlite as Sqlite
+import qualified Unison.Sqlite.Connection as Sqlite.Connection
 import qualified Unison.Sqlite.Transaction as Sqlite.Transaction
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
-import UnliftIO (MonadIO, MonadUnliftIO, catchIO, finally, liftIO, throwIO)
-import qualified UnliftIO
-import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
+import UnliftIO (MonadUnliftIO, catchIO, finally, throwIO, try)
+import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.Exception (catch)
 import UnliftIO.STM
 
@@ -113,95 +106,80 @@ debug = False
 debugProcessBranches = False
 debugCommitFailedTransaction = False
 
-codebasePath :: FilePath
-codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
-
-v2dir :: FilePath -> FilePath
-v2dir root = root </> ".unison" </> "v2"
-
 init :: HasCallStack => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
-init = Codebase.Init
-  { withOpenCodebase=getCodebaseOrError
-  , withCreatedCodebase=createCodebaseOrError
-  , codebasePath=v2dir
-  }
+init =
+  Codebase.Init
+    { withOpenCodebase = withCodebaseOrError,
+      withCreatedCodebase = withCreatedCodebase',
+      codebasePath = makeCodebaseDirPath
+    }
+  where
+    withCreatedCodebase' debugName path action =
+      createCodebaseOrError debugName path (action . fst)
 
+data CodebaseStatus
+  = ExistingCodebase
+  | CreatedCodebase
+  deriving (Eq)
+
+-- | Open the codebase at the given location, or create it if one doesn't already exist.
+withOpenOrCreateCodebase ::
+  MonadUnliftIO m =>
+  Codebase.DebugName ->
+  CodebasePath ->
+  LocalOrRemote ->
+  ((CodebaseStatus, Codebase m Symbol Ann, Connection) -> m r) ->
+  m (Either Codebase1.OpenCodebaseError r)
+withOpenOrCreateCodebase debugName codebasePath localOrRemote action = do
+  createCodebaseOrError debugName codebasePath (action' CreatedCodebase) >>= \case
+    Left (Codebase1.CreateCodebaseAlreadyExists) -> do
+      sqliteCodebase debugName codebasePath localOrRemote (action' ExistingCodebase)
+    Right r -> pure (Right r)
+  where
+    action' openOrCreate (codebase, conn) = action (openOrCreate, codebase, conn)
+
+-- | Create a codebase at the given location.
 createCodebaseOrError ::
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
-  (Codebase m Symbol Ann -> m r) ->
+  ((Codebase m Symbol Ann, Connection) -> m r) ->
   m (Either Codebase1.CreateCodebaseError r)
-createCodebaseOrError debugName dir action = do
-  prettyDir <- P.string <$> canonicalizePath dir
-  let convertError = \case
-        CreateCodebaseAlreadyExists -> Codebase1.CreateCodebaseAlreadyExists
-        CreateCodebaseUnknownSchemaVersion v -> Codebase1.CreateCodebaseOther $ prettyError v
-      prettyError :: SchemaVersion -> Codebase1.Pretty
-      prettyError v = P.wrap $
-        "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
-  Either.mapLeft convertError <$> createCodebaseOrError' debugName dir action
-
-data CreateCodebaseError
-  = CreateCodebaseAlreadyExists
-  | CreateCodebaseUnknownSchemaVersion SchemaVersion
-  deriving (Show)
-
-createCodebaseOrError' ::
-  (MonadUnliftIO m) =>
-  Codebase.DebugName ->
-  CodebasePath ->
-  (Codebase m Symbol Ann -> m r) ->
-  m (Either CreateCodebaseError r)
-createCodebaseOrError' debugName path action = do
+createCodebaseOrError debugName path action = do
   ifM
-    (doesFileExist $ path </> codebasePath)
-    (pure $ Left CreateCodebaseAlreadyExists)
+    (doesFileExist $ makeCodebasePath path)
+    (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
     do
-      createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
-      liftIO $
-        withConnection (debugName ++ ".createSchema") path $
-          ( runReaderT do
-              Q.createSchema
-              void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty
-          )
+      createDirectoryIfMissing True (makeCodebaseDirPath path)
+      withConnection (debugName ++ ".createSchema") path $
+        runReaderT do
+          Q.createSchema
+          void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty
 
-      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase debugName path action)
+      sqliteCodebase debugName path Local action >>= \case
+        Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
+        Right result -> pure (Right result)
 
-withOpenOrCreateCodebaseConnection ::
-  (MonadUnliftIO m) =>
-  Codebase.DebugName ->
-  FilePath ->
-  (Connection -> m r) ->
-  m r
-withOpenOrCreateCodebaseConnection debugName path action = do
-  unlessM
-    (doesFileExist $ path </> codebasePath)
-    (initSchemaIfNotExist path)
-  withConnection debugName path action
-
--- get the codebase in dir
-getCodebaseOrError ::
+-- | Use the codebase in the provided path.
+-- The codebase is automatically closed when the action completes or throws an exception.
+withCodebaseOrError ::
   forall m r.
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
   (Codebase m Symbol Ann -> m r) ->
-  m (Either Codebase1.Pretty r)
-getCodebaseOrError debugName dir action = do
-  prettyDir <- liftIO $ P.string <$> canonicalizePath dir
-  let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
-  doesFileExist (dir </> codebasePath) >>= \case
-    -- If the codebase file doesn't exist, just return any string. The string is currently ignored (see
-    -- Unison.Codebase.Init.getCodebaseOrExit).
-    False -> pure (Left "codebase doesn't exist")
-    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase debugName dir action)
+  m (Either Codebase1.OpenCodebaseError r)
+withCodebaseOrError debugName dir action = do
+  doesFileExist (makeCodebasePath dir) >>= \case
+    False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
+    True ->
+      sqliteCodebase debugName dir Local (action . fst)
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
-  unlessM (doesDirectoryExist $ path </> FilePath.takeDirectory codebasePath) $
-    createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
-  unlessM (doesFileExist $ path </> codebasePath) $
+  unlessM (doesDirectoryExist $ makeCodebaseDirPath path) $
+    createDirectoryIfMissing True (makeCodebaseDirPath path)
+  unlessM (doesFileExist $ makeCodebasePath path) $
     withConnection "initSchemaIfNotExist" path $ runReaderT Q.createSchema
 
 -- 1) buffer up the component
@@ -261,97 +239,114 @@ withConnection ::
   CodebasePath ->
   (Connection -> m a) ->
   m a
-withConnection name root act =
-  Sqlite.withConnection name (root </> codebasePath) \conn -> do
+withConnection name root action =
+  Sqlite.withConnection name (makeCodebasePath root) \conn -> do
     liftIO (Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL)
-    act conn
+    action conn
 
 sqliteCodebase ::
-  (MonadUnliftIO m) =>
+  forall m r.
+  MonadUnliftIO m =>
   Codebase.DebugName ->
   CodebasePath ->
-  (Codebase m Symbol Ann -> m r) ->
-  m (Either SchemaVersion r)
-sqliteCodebase debugName root action = do
- Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
- withConnection debugName root $ \conn -> do
-  termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
-  typeOfTermCache <- Cache.semispaceCache 8192
-  declCache <- Cache.semispaceCache 1024
-  runReaderT Q.schemaVersion conn >>= \case
-    SchemaVersion 1 -> do
-      rootBranchCache <- newTVarIO Nothing
-      -- The v1 codebase interface has operations to read and write individual definitions
-      -- whereas the v2 codebase writes them as complete components.  These two fields buffer
-      -- the individual definitions until a complete component has been written.
-      termBuffer :: TVar (Map Hash TermBufferEntry) <- newTVarIO Map.empty
-      declBuffer :: TVar (Map Hash DeclBufferEntry) <- newTVarIO Map.empty
-      cycleLengthCache <- Cache.semispaceCache 8192
-      declTypeCache <- Cache.semispaceCache 2048
-      let getTerm :: MonadUnliftIO m => Reference.Id -> m (Maybe (Term Symbol Ann))
-          getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
-            runDB' conn do
-              term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
-              lift $ Cv.term2to1 h1 getCycleLen getDeclType term2
+  -- | When local, back up the existing codebase before migrating, in case there's a catastrophic bug in the migration.
+  LocalOrRemote ->
+  ((Codebase m Symbol Ann, Connection) -> m r) ->
+  m (Either Codebase1.OpenCodebaseError r)
+sqliteCodebase debugName root localOrRemote action = do
+  Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
+  withConnection debugName root $ \conn -> do
+    termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
+    typeOfTermCache <- Cache.semispaceCache 8192
+    declCache <- Cache.semispaceCache 1024
+    rootBranchCache <- newTVarIO Nothing
+    -- The v1 codebase interface has operations to read and write individual definitions
+    -- whereas the v2 codebase writes them as complete components.  These two fields buffer
+    -- the individual definitions until a complete component has been written.
+    termBuffer :: TVar (Map Hash TermBufferEntry) <- newTVarIO Map.empty
+    declBuffer :: TVar (Map Hash DeclBufferEntry) <- newTVarIO Map.empty
+    declTypeCache <- Cache.semispaceCache 2048
+    let getTerm :: MonadUnliftIO m => Reference.Id -> m (Maybe (Term Symbol Ann))
+        getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i) =
+          runDB' conn do
+            term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
+            Cv.term2to1 h1 getDeclType term2
 
-          getCycleLen :: (DB m, MonadUnliftIO m) => Hash -> m Reference.Size
-          getCycleLen = Cache.apply cycleLengthCache \h ->
-            (Ops.getCycleLen . Cv.hash1to2) h `catch` \(e :: Sqlite.SomeSqliteException) -> 
-              pure (error ("getCycleLen failed: " ++ show e))
+        getDeclType :: forall m. DB m => C.Reference.Reference -> m CT.ConstructorType
+        getDeclType = Cache.apply declTypeCache \case
+          C.Reference.ReferenceBuiltin t ->
+            let err =
+                  error $
+                    "I don't know about the builtin type ##"
+                      ++ show t
+                      ++ ", but I've been asked for it's ConstructorType."
+             in pure . fromMaybe err $
+                  Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType
+          C.Reference.ReferenceDerived i -> getDeclTypeById i
 
-          getDeclType :: DB m => C.Reference.Reference -> m CT.ConstructorType
-          getDeclType = Cache.apply declTypeCache \case
-            C.Reference.ReferenceBuiltin t ->
-              let err =
-                    error $
-                      "I don't know about the builtin type ##"
-                        ++ show t
-                        ++ ", but I've been asked for it's ConstructorType."
-               in pure . fromMaybe err $
-                    Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType
-            C.Reference.ReferenceDerived i -> getDeclTypeById i
+        getDeclTypeById :: forall m. DB m => C.Reference.Id -> m CT.ConstructorType
+        getDeclTypeById = fmap Cv.decltype2to1 . Ops.getDeclTypeById
 
-          getDeclTypeById :: DB m => C.Reference.Id -> m CT.ConstructorType
-          getDeclTypeById = fmap Cv.decltype2to1 . Ops.getDeclTypeByReference
+        getTypeOfTermImpl :: MonadIO m => Reference.Id -> m (Maybe (Type Symbol Ann))
+        getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
+        getTypeOfTermImpl (Reference.Id (Cv.hash1to2 -> h2) i) =
+          runDB' conn do
+            type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h2 i)
+            pure $ Cv.ttype2to1 type2
 
-          getTypeOfTermImpl :: MonadUnliftIO m => Reference.Id -> m (Maybe (Type Symbol Ann))
-          getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
-          getTypeOfTermImpl (Reference.Id (Cv.hash1to2 -> h2) i _n) =
-            runDB' conn do
-              type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h2 i)
-              lift (Cv.ttype2to1 getCycleLen type2)
+        getTermComponentWithTypes :: MonadIO m => Hash -> m (Maybe [(Term Symbol Ann, Type Symbol Ann)])
+        getTermComponentWithTypes h1@(Cv.hash1to2 -> h2) =
+          runDB' conn $ do
+            tms <- Ops.loadTermComponent h2
+            for tms (bitraverse (Cv.term2to1 h1 getDeclType) (pure . Cv.ttype2to1))
 
-          getTypeDeclaration :: MonadUnliftIO m => Reference.Id -> m (Maybe (Decl Symbol Ann))
-          getTypeDeclaration (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
-            runDB' conn do
-              decl2 <- Ops.loadDeclByReference (C.Reference.Id h2 i)
-              lift (Cv.decl2to1 h1 getCycleLen decl2)
+        getTypeDeclaration :: MonadIO m => Reference.Id -> m (Maybe (Decl Symbol Ann))
+        getTypeDeclaration (Reference.Id h1@(Cv.hash1to2 -> h2) i) =
+          runDB' conn do
+            decl2 <- Ops.loadDeclByReference (C.Reference.Id h2 i)
+            pure $ Cv.decl2to1 h1 decl2
 
-          putTerm :: MonadIO m => Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
-          putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
-          putTerm (Reference.Id h@(Cv.hash1to2 -> h2) i n') tm tp =
-            runDB conn $
+        getDeclComponent :: MonadIO m => Hash -> m (Maybe [Decl Symbol Ann])
+        getDeclComponent h1@(Cv.hash1to2 -> h2) =
+          runDB' conn $ map (Cv.decl2to1 h1) <$> Ops.loadDeclComponent h2
+
+        getCycleLength :: MonadIO m => Hash -> m (Maybe Reference.CycleSize)
+        getCycleLength (Cv.hash1to2 -> h2) =
+          Sqlite.runDB conn $ Ops.getCycleLen h2
+
+        -- putTermComponent :: MonadIO m => Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> m ()
+        -- putTerms :: MonadIO m => Map Reference.Id (Term Symbol Ann, Type Symbol Ann) -> m () -- dies horribly if missing dependencies?
+
+        -- option 1: tweak putTerm to incrementally notice the cycle length until each component is full
+        -- option 2: switch codebase interface from putTerm to putTerms -- buffering can be local to the function
+        -- option 3: switch from putTerm to putTermComponent -- needs to buffer dependencies non-locally (or require application to manage + die horribly)
+
+        putTerm :: MonadUnliftIO m => Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
+        putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
+        putTerm (Reference.Id h@(Cv.hash1to2 -> h2) i) tm tp =
+          Sqlite.runDB conn do
+            Sqlite.withSavepoint "putTerm" \_rollback -> do
               unlessM
                 (Ops.objectExistsForHash h2 >>= if debug then \b -> do traceM $ "objectExistsForHash " ++ show h2 ++ " = " ++ show b; pure b else pure)
                 ( withBuffer termBuffer h \be@(BufferEntry size comp missing waiting) -> do
                     Monad.when debug $ traceM $ "adding to BufferEntry" ++ show be
-                    let size' = Just n'
-                    -- if size was previously set, it's expected to match size'.
-                    case size of
-                      Just n
-                        | n /= n' ->
-                          error $ "targetSize for term " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size'
-                      _ -> pure ()
+                    let termDependencies = Set.toList $ Term.termDependencies tm
+                    -- update the component target size if we encounter any higher self-references
+                    let size' = max size (Just $ biggestSelfReference + 1)
+                          where
+                            biggestSelfReference =
+                              maximum1 $
+                                i :| [i' | Reference.Derived h' i' <- termDependencies, h == h']
                     let comp' = Map.insert i (tm, tp) comp
                     -- for the component element that's been passed in, add its dependencies to missing'
                     missingTerms' <-
                       filterM
                         (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
-                        [h | Reference.Derived h _i _n <- Set.toList $ Term.termDependencies tm]
+                        [h | Reference.Derived h _i <- termDependencies]
                     missingTypes' <-
                       filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) $
-                        [h | Reference.Derived h _i _n <- Set.toList $ Term.typeDependencies tm]
-                          ++ [h | Reference.Derived h _i _n <- Set.toList $ Type.dependencies tp]
+                        [h | Reference.Derived h _i <- Set.toList $ Term.typeDependencies tm]
+                          ++ [h | Reference.Derived h _i <- Set.toList $ Type.dependencies tp]
                     let missing' = missing <> Set.fromList (missingTerms' <> missingTypes')
                     -- notify each of the dependencies that h depends on them.
                     traverse (addBufferDependent h termBuffer) missingTerms'
@@ -360,428 +355,457 @@ sqliteCodebase debugName root action = do
                     tryFlushTermBuffer h
                 )
 
-          putBuffer :: (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> BufferEntry a -> m ()
-          putBuffer tv h e = do
-            Monad.when debug $ traceM $ "putBuffer " ++ prettyBufferEntry h e
-            atomically $ modifyTVar tv (Map.insert h e)
+        putBuffer :: forall a m. (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> BufferEntry a -> m ()
+        putBuffer tv h e = do
+          Monad.when debug $ traceM $ "putBuffer " ++ prettyBufferEntry h e
+          atomically $ modifyTVar tv (Map.insert h e)
 
-          withBuffer :: (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> (BufferEntry a -> m b) -> m b
-          withBuffer tv h f = do
-            Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "tv = " ++ show tv
-            Map.lookup h <$> readTVarIO tv >>= \case
-              Just e -> do
-                Monad.when debug $ traceM $ "SqliteCodebase.withBuffer " ++ prettyBufferEntry h e
-                f e
-              Nothing -> do
-                Monad.when debug $ traceM $ "SqliteCodebase.with(new)Buffer " ++ show h
-                f (BufferEntry Nothing Map.empty Set.empty Set.empty)
+        withBuffer :: forall a b m. (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> (BufferEntry a -> m b) -> m b
+        withBuffer tv h f = do
+          Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "tv = " ++ show tv
+          Map.lookup h <$> readTVarIO tv >>= \case
+            Just e -> do
+              Monad.when debug $ traceM $ "SqliteCodebase.withBuffer " ++ prettyBufferEntry h e
+              f e
+            Nothing -> do
+              Monad.when debug $ traceM $ "SqliteCodebase.with(new)Buffer " ++ show h
+              f (BufferEntry Nothing Map.empty Set.empty Set.empty)
 
-          removeBuffer :: (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
-          removeBuffer _tv h | debug && trace ("removeBuffer " ++ show h) False = undefined
-          removeBuffer tv h = do
-            Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "before delete: " ++ show tv
-            atomically $ modifyTVar tv (Map.delete h)
-            Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "after delete: " ++ show tv
+        removeBuffer :: forall a m. (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
+        removeBuffer _tv h | debug && trace ("removeBuffer " ++ show h) False = undefined
+        removeBuffer tv h = do
+          Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "before delete: " ++ show tv
+          atomically $ modifyTVar tv (Map.delete h)
+          Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "after delete: " ++ show tv
 
-          addBufferDependent :: (MonadIO m, Show a) => Hash -> TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
-          addBufferDependent dependent tv dependency = withBuffer tv dependency \be -> do
-            putBuffer tv dependency be {beWaitingDependents = Set.insert dependent $ beWaitingDependents be}
-          tryFlushBuffer ::
-            (DB m, Show a) =>
-            TVar (Map Hash (BufferEntry a)) ->
-            (H2.Hash -> [a] -> m ()) ->
-            (Hash -> m ()) ->
-            Hash ->
-            m ()
-          tryFlushBuffer _ _ _ h | debug && trace ("tryFlushBuffer " ++ show h) False = undefined
-          tryFlushBuffer buf saveComponent tryWaiting h@(Cv.hash1to2 -> h2) =
-            -- skip if it has already been flushed
-            unlessM (Ops.objectExistsForHash h2) $ withBuffer buf h try
-            where
-              try (BufferEntry size comp (Set.delete h -> missing) waiting) = case size of
-                Just size -> do
-                  missing' <-
-                    filterM
-                      (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
-                      (toList missing)
-                  Monad.when debug do
-                    traceM $ "tryFlushBuffer.missing' = " ++ show missing'
-                    traceM $ "tryFlushBuffer.size = " ++ show size
-                    traceM $ "tryFlushBuffer.length comp = " ++ show (length comp)
-                  if null missing' && size == fromIntegral (length comp)
-                    then do
-                      saveComponent h2 (toList comp)
-                      removeBuffer buf h
-                      Monad.when debug $ traceM $ "tryFlushBuffer.notify waiting " ++ show waiting
-                      traverse_ tryWaiting waiting
-                    else -- update
+        addBufferDependent :: forall a m. (MonadIO m, Show a) => Hash -> TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
+        addBufferDependent dependent tv dependency = withBuffer tv dependency \be -> do
+          putBuffer tv dependency be {beWaitingDependents = Set.insert dependent $ beWaitingDependents be}
+        tryFlushBuffer ::
+          forall a m.
+          (DB m, Show a) =>
+          TVar (Map Hash (BufferEntry a)) ->
+          (H2.Hash -> [a] -> m ()) ->
+          (Hash -> m ()) ->
+          Hash ->
+          m ()
+        tryFlushBuffer _ _ _ h | debug && trace ("tryFlushBuffer " ++ show h) False = undefined
+        tryFlushBuffer buf saveComponent tryWaiting h@(Cv.hash1to2 -> h2) =
+          -- skip if it has already been flushed
+          unlessM (Ops.objectExistsForHash h2) $ withBuffer buf h try
+          where
+            try (BufferEntry size comp (Set.delete h -> missing) waiting) = case size of
+              Just size -> do
+                missing' <-
+                  filterM
+                    (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
+                    (toList missing)
+                Monad.when debug do
+                  traceM $ "tryFlushBuffer.missing' = " ++ show missing'
+                  traceM $ "tryFlushBuffer.size = " ++ show size
+                  traceM $ "tryFlushBuffer.length comp = " ++ show (length comp)
+                if null missing' && size == fromIntegral (length comp)
+                  then do
+                    saveComponent h2 (toList comp)
+                    removeBuffer buf h
+                    Monad.when debug $ traceM $ "tryFlushBuffer.notify waiting " ++ show waiting
+                    traverse_ tryWaiting waiting
+                  else -- update
 
-                      putBuffer buf h $
-                        BufferEntry (Just size) comp (Set.fromList missing') waiting
-                Nothing ->
-                  -- it's never even been added, so there's nothing to do.
-                  pure ()
+                    putBuffer buf h $
+                      BufferEntry (Just size) comp (Set.fromList missing') waiting
+              Nothing ->
+                -- it's never even been added, so there's nothing to do.
+                pure ()
 
-          addTermComponentTypeIndex :: DB m => ObjectId -> [Type Symbol Ann] -> m ()
-          addTermComponentTypeIndex oId types = for_ (types `zip` [0..]) \(tp, i) -> do
-            let self = C.Referent.RefId (C.Reference.Id oId i)
-                typeForIndexing = Hashing.typeToReference tp
-                typeMentionsForIndexing = Hashing.typeToReferenceMentions tp
-            Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
-            Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
+        addTermComponentTypeIndex :: forall m. DB m => ObjectId -> [Type Symbol Ann] -> m ()
+        addTermComponentTypeIndex oId types = for_ (types `zip` [0 ..]) \(tp, i) -> do
+          let self = C.Referent.RefId (C.Reference.Id oId i)
+              typeForIndexing = Hashing.typeToReference tp
+              typeMentionsForIndexing = Hashing.typeToReferenceMentions tp
+          Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
+          Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
 
-          addDeclComponentTypeIndex :: DB m => ObjectId -> [[Type Symbol Ann]] -> m ()
-          addDeclComponentTypeIndex oId ctorss =
-            for_ (ctorss `zip` [0..]) \(ctors, i) ->
-              for_ (ctors `zip` [0..]) \(tp, j) -> do
-                let self = C.Referent.ConId (C.Reference.Id oId i) j
-                    typeForIndexing = Hashing.typeToReference tp
-                    typeMentionsForIndexing = Hashing.typeToReferenceMentions tp
-                Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
-                Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
+        addDeclComponentTypeIndex :: forall m. DB m => ObjectId -> [[Type Symbol Ann]] -> m ()
+        addDeclComponentTypeIndex oId ctorss =
+          for_ (ctorss `zip` [0 ..]) \(ctors, i) ->
+            for_ (ctors `zip` [0 ..]) \(tp, j) -> do
+              let self = C.Referent.ConId (C.Reference.Id oId i) j
+                  typeForIndexing = Hashing.typeToReference tp
+                  typeMentionsForIndexing = Hashing.typeToReferenceMentions tp
+              Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
+              Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
 
-          tryFlushTermBuffer :: DB m => Hash -> m ()
-          tryFlushTermBuffer h | debug && trace ("tryFlushTermBuffer " ++ show h) False = undefined
-          tryFlushTermBuffer h =
-            tryFlushBuffer
-              termBuffer
-              ( \h2 component -> do
-                  oId <- Ops.saveTermComponent h2
-                    $ fmap (bimap (Cv.term1to2 h) Cv.ttype1to2) component
-                  addTermComponentTypeIndex oId (fmap snd component)
-              )
-              tryFlushTermBuffer
-              h
+        tryFlushTermBuffer :: forall m. DB m => Hash -> m ()
+        tryFlushTermBuffer h | debug && trace ("tryFlushTermBuffer " ++ show h) False = undefined
+        tryFlushTermBuffer h =
+          tryFlushBuffer
+            termBuffer
+            ( \h2 component -> do
+                oId <-
+                  Ops.saveTermComponent h2 $
+                    fmap (bimap (Cv.term1to2 h) Cv.ttype1to2) component
+                addTermComponentTypeIndex oId (fmap snd component)
+            )
+            tryFlushTermBuffer
+            h
 
-          tryFlushDeclBuffer :: DB m => Hash -> m ()
-          tryFlushDeclBuffer h | debug && trace ("tryFlushDeclBuffer " ++ show h) False = undefined
-          tryFlushDeclBuffer h =
-            tryFlushBuffer
-              declBuffer
-              (\h2 component -> do
+        tryFlushDeclBuffer :: forall m. DB m => Hash -> m ()
+        tryFlushDeclBuffer h | debug && trace ("tryFlushDeclBuffer " ++ show h) False = undefined
+        tryFlushDeclBuffer h =
+          tryFlushBuffer
+            declBuffer
+            ( \h2 component -> do
                 oId <- Ops.saveDeclComponent h2 $ fmap (Cv.decl1to2 h) component
                 addDeclComponentTypeIndex oId $
                   fmap (map snd . Decl.constructors . Decl.asDataDecl) component
-              )
-              (\h -> tryFlushTermBuffer h >> tryFlushDeclBuffer h)
-              h
+            )
+            (\h -> tryFlushTermBuffer h >> tryFlushDeclBuffer h)
+            h
 
-          putTypeDeclaration :: MonadIO m => Reference.Id -> Decl Symbol Ann -> m ()
-          putTypeDeclaration (Reference.Id h@(Cv.hash1to2 -> h2) i n') decl =
-            runDB conn $
+        putTypeDeclaration :: MonadUnliftIO m => Reference.Id -> Decl Symbol Ann -> m ()
+        putTypeDeclaration (Reference.Id h@(Cv.hash1to2 -> h2) i) decl =
+          Sqlite.runDB conn do
+            Sqlite.withSavepoint "putTypeDeclaration" \_rollback -> do
               unlessM
                 (Ops.objectExistsForHash h2)
                 ( withBuffer declBuffer h \(BufferEntry size comp missing waiting) -> do
-                    let size' = Just n'
-                    case size of
-                      Just n
-                        | n /= n' ->
-                          error $ "targetSize for type " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size'
-                      _ -> pure ()
+                    let declDependencies = Set.toList $ Decl.declDependencies decl
+                    let size' = max size (Just $ biggestSelfReference + 1)
+                          where
+                            biggestSelfReference =
+                              maximum1 $
+                                i :| [i' | Reference.Derived h' i' <- declDependencies, h == h']
                     let comp' = Map.insert i decl comp
                     moreMissing <-
                       filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) $
-                        [h | Reference.Derived h _i _n <- Set.toList $ Decl.declDependencies decl]
+                        [h | Reference.Derived h _i <- declDependencies]
                     let missing' = missing <> Set.fromList moreMissing
                     traverse (addBufferDependent h declBuffer) moreMissing
                     putBuffer declBuffer h (BufferEntry size' comp' missing' waiting)
                     tryFlushDeclBuffer h
                 )
 
-          getRootBranch :: MonadUnliftIO m => TVar (Maybe (Sqlite.DataVersion, Branch m)) -> m (Branch m)
-          getRootBranch rootBranchCache =
-            readTVarIO rootBranchCache >>= \case
-              Nothing -> forceReload
-              Just (v, b) -> do
-                -- check to see if root namespace hash has been externally modified
-                -- and reload it if necessary
-                v' <- Sqlite.Transaction.runTransaction conn Sqlite.getDataVersion
-                if v == v' then pure b else do
-                  newRootHash <- runDB conn Ops.loadRootCausalHash
+        getRootBranch :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, Branch m)) -> m (Branch m)
+        getRootBranch rootBranchCache =
+          readTVarIO rootBranchCache >>= \case
+            Nothing -> forceReload
+            Just (v, b) -> do
+              -- check to see if root namespace hash has been externally modified
+              -- and reload it if necessary
+              v' <- Sqlite.Transaction.runTransaction conn Sqlite.getDataVersion
+              if v == v'
+                then pure b
+                else do
+                  newRootHash <- Sqlite.runDB conn Ops.loadRootCausalHash
                   if Branch.headHash b == Cv.branchHash2to1 newRootHash
                     then pure b
                     else do
                       traceM $ "database was externally modified (" ++ show v ++ " -> " ++ show v' ++ ")"
                       forceReload
-            where
-              forceReload = time "Get root branch" do
-                b <- runDB conn
-                    . fmap (Branch.transform (runDB conn))
-                    $ Cv.causalbranch2to1 getCycleLen getDeclType =<< Ops.loadRootCausal
-                v <- Sqlite.Transaction.runTransaction conn Sqlite.getDataVersion
-                atomically (writeTVar rootBranchCache (Just (v,b)))
-                pure b
+          where
+            forceReload = time "Get root branch" do
+              b <-
+                Sqlite.runDB conn
+                  . fmap (Branch.transform (Sqlite.runDB conn))
+                  $ Cv.causalbranch2to1 getDeclType =<< Ops.loadRootCausal
+              v <- Sqlite.Transaction.runTransaction conn Sqlite.getDataVersion
+              atomically (writeTVar rootBranchCache (Just (v, b)))
+              pure b
 
-          putRootBranch :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, Branch m)) -> Branch m -> m ()
-          putRootBranch rootBranchCache branch1 = do
-            -- todo: check to see if root namespace hash has been externally modified
-            -- and do something (merge?) it if necessary. But for now, we just overwrite it.
-            runDB conn
-              . void
-              . Ops.saveRootBranch
-              . Cv.causalbranch1to2
-              $ Branch.transform lift branch1
+        getRootBranchExists :: MonadIO m => m Bool
+        getRootBranchExists =
+          isJust <$> Sqlite.runDB conn (Ops.loadMaybeRootCausalHash)
+
+        putRootBranch :: MonadUnliftIO m => TVar (Maybe (Sqlite.DataVersion, Branch m)) -> Branch m -> m ()
+        putRootBranch rootBranchCache branch1 =
+          -- todo: check to see if root namespace hash has been externally modified
+          -- and do something (merge?) it if necessary. But for now, we just overwrite it.
+          Sqlite.runDB conn do
+            Sqlite.withSavepoint "putRootBranch" \_rollback -> do
+              void (Ops.saveRootBranch (Cv.causalbranch1to2 (Branch.transform lift branch1)))
             atomically $ modifyTVar rootBranchCache (fmap . second $ const branch1)
 
-          rootBranchUpdates :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
-          rootBranchUpdates _rootBranchCache = do
-            -- branchHeadChanges      <- TQueue.newIO
-            -- (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
-            -- watcher1               <-
-            --   liftIO . forkIO
-            --   $ forever
-            --   $ do
-            --       -- void ignores the name and time of the changed file,
-            --       -- and assume 'unison.sqlite3' has changed
-            --       (filename, time) <- watcher
-            --       traceM $ "SqliteCodebase.watcher " ++ show (filename, time)
-            --       readTVarIO rootBranchCache >>= \case
-            --         Nothing -> pure ()
-            --         Just (v, _) -> do
-            --           -- this use of `conn` in a separate thread may be problematic.
-            --           -- hopefully sqlite will produce an obvious error message if it is.
-            --           v' <- runDB conn Ops.dataVersion
-            --           if v /= v' then
-            --             atomically
-            --               . TQueue.enqueue branchHeadChanges =<< runDB conn Ops.loadRootCausalHash
-            --           else pure ()
+        rootBranchUpdates :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
+        rootBranchUpdates _rootBranchCache = do
+          -- branchHeadChanges      <- TQueue.newIO
+          -- (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
+          -- watcher1               <-
+          --   liftIO . forkIO
+          --   $ forever
+          --   $ do
+          --       -- void ignores the name and time of the changed file,
+          --       -- and assume 'unison.sqlite3' has changed
+          --       (filename, time) <- watcher
+          --       traceM $ "SqliteCodebase.watcher " ++ show (filename, time)
+          --       readTVarIO rootBranchCache >>= \case
+          --         Nothing -> pure ()
+          --         Just (v, _) -> do
+          --           -- this use of `conn` in a separate thread may be problematic.
+          --           -- hopefully sqlite will produce an obvious error message if it is.
+          --           v' <- runDB conn Ops.dataVersion
+          --           if v /= v' then
+          --             atomically
+          --               . TQueue.enqueue branchHeadChanges =<< runDB conn Ops.loadRootCausalHash
+          --           else pure ()
 
-            --       -- case hashFromFilePath filePath of
-            --       --   Nothing -> failWith $ CantParseBranchHead filePath
-            --       --   Just h ->
-            --       --     atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
-            -- -- smooth out intermediate queue
-            -- pure
-            --   ( cancelWatch >> killThread watcher1
-            --   , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
-            --   )
-            pure (cleanup, liftIO newRootsDiscovered)
-            where
-              newRootsDiscovered = do
-                Control.Concurrent.threadDelay maxBound -- hold off on returning
-                pure mempty -- returning nothing
-              cleanup = pure ()
+          --       -- case hashFromFilePath filePath of
+          --       --   Nothing -> failWith $ CantParseBranchHead filePath
+          --       --   Just h ->
+          --       --     atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
+          -- -- smooth out intermediate queue
+          -- pure
+          --   ( cancelWatch >> killThread watcher1
+          --   , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
+          --   )
+          pure (cleanup, liftIO newRootsDiscovered)
+          where
+            newRootsDiscovered = do
+              Control.Concurrent.threadDelay maxBound -- hold off on returning
+              pure mempty -- returning nothing
+            cleanup = pure ()
 
-          -- if this blows up on cromulent hashes, then switch from `hashToHashId`
-          -- to one that returns Maybe.
-          getBranchForHash :: MonadUnliftIO m => Branch.Hash -> m (Maybe (Branch m))
-          getBranchForHash h = runDB conn do
-            Ops.loadCausalBranchByCausalHash (Cv.branchHash1to2 h) >>= \case
-              Just b ->
-                pure . Just . Branch.transform (runDB conn)
-                  =<< Cv.causalbranch2to1 getCycleLen getDeclType b
-              Nothing -> pure Nothing
+        -- if this blows up on cromulent hashes, then switch from `hashToHashId`
+        -- to one that returns Maybe.
+        getBranchForHash :: MonadIO m => Branch.Hash -> m (Maybe (Branch m))
+        getBranchForHash h = Sqlite.runDB conn do
+          Ops.loadCausalBranchByCausalHash (Cv.branchHash1to2 h) >>= \case
+            Just b ->
+              pure . Just . Branch.transform (Sqlite.runDB conn)
+                =<< Cv.causalbranch2to1 getDeclType b
+            Nothing -> pure Nothing
 
-          putBranch :: MonadIO m => Branch m -> m ()
-          putBranch = runDB conn . putBranch'
+        putBranch :: MonadUnliftIO m => Branch m -> m ()
+        putBranch branch =
+          Sqlite.runDB conn do
+            Sqlite.withSavepoint "putBranch" \_rollback ->
+              putBranch' branch
 
-          isCausalHash :: MonadIO m => Branch.Hash -> m Bool
-          isCausalHash = runDB conn . isCausalHash'
+        isCausalHash :: MonadIO m => Branch.Hash -> m Bool
+        isCausalHash = Sqlite.runDB conn . isCausalHash'
 
-          getPatch :: MonadUnliftIO m => Branch.EditHash -> m (Maybe Patch)
-          getPatch h =
+        getPatch :: MonadIO m => Branch.EditHash -> m (Maybe Patch)
+        getPatch h =
+          Sqlite.runDB conn . runMaybeT $
+            MaybeT (Ops.primaryHashToMaybePatchObjectId (Cv.patchHash1to2 h))
+              >>= Ops.loadPatchById
+              <&> Cv.patch2to1
+
+        putPatch :: MonadUnliftIO m => Branch.EditHash -> Patch -> m ()
+        putPatch h p =
+          Sqlite.runDB conn do
+            Sqlite.withSavepoint "putPatch" \_rollback -> do
+              void $ Ops.savePatch (Cv.patchHash1to2 h) (Cv.patch1to2 p)
+
+        patchExists :: MonadIO m => Branch.EditHash -> m Bool
+        patchExists = Sqlite.runDB conn . patchExists'
+
+        dependentsImpl :: MonadIO m => Reference -> m (Set Reference.Id)
+        dependentsImpl r =
+          Sqlite.runDB conn $
+            Set.map Cv.referenceid2to1
+              <$> Ops.dependents (Cv.reference1to2 r)
+
+        dependentsOfComponentImpl :: MonadIO m => Hash -> m (Set Reference.Id)
+        dependentsOfComponentImpl h =
+          Sqlite.runDB conn $
+            Set.map Cv.referenceid2to1
+              <$> Ops.dependentsOfComponent (Cv.hash1to2 h)
+
+        syncFromDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
+        syncFromDirectory srcRoot _syncMode b = do
+          withConnection (debugName ++ ".sync.src") srcRoot $ \srcConn -> do
+            flip State.evalStateT emptySyncProgressState $ do
+              syncInternal syncProgress srcConn conn $ Branch.transform lift b
+
+        syncToDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
+        syncToDirectory destRoot _syncMode b =
+          withConnection (debugName ++ ".sync.dest") destRoot $ \destConn ->
+            flip State.evalStateT emptySyncProgressState $ do
+              initSchemaIfNotExist destRoot
+              syncInternal syncProgress conn destConn $ Branch.transform lift b
+
+        watches :: MonadIO m => UF.WatchKind -> m [Reference.Id]
+        watches w =
+          Sqlite.runDB conn $
+            Ops.listWatches (Cv.watchKind1to2 w)
+              <&> fmap Cv.referenceid2to1
+
+        getWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
+        getWatch k r@(Reference.Id h _i)
+          | elem k standardWatchKinds =
             runDB' conn $
-              MaybeT (Ops.primaryHashToMaybePatchObjectId (Cv.patchHash1to2 h))
-                >>= Ops.loadPatchById
-                >>= lift . Cv.patch2to1 getCycleLen
+              Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
+                >>= Cv.term2to1 h getDeclType
+        getWatch _unknownKind _ = pure Nothing
 
-          putPatch :: MonadIO m => Branch.EditHash -> Patch -> m ()
-          putPatch h p =
-            runDB conn . void $
-              Ops.savePatch (Cv.patchHash1to2 h) (Cv.patch1to2 p)
+        standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
 
-          patchExists :: MonadIO m => Branch.EditHash -> m Bool
-          patchExists = runDB conn . patchExists'
+        putWatch :: MonadUnliftIO m => UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
+        putWatch k r@(Reference.Id h _i) tm
+          | elem k standardWatchKinds =
+            Sqlite.runDB conn $
+              Ops.saveWatch
+                (Cv.watchKind1to2 k)
+                (Cv.referenceid1to2 r)
+                (Cv.term1to2 h tm)
+        putWatch _unknownKind _ _ = pure ()
 
-          dependentsImpl :: MonadUnliftIO m => Reference -> m (Set Reference.Id)
-          dependentsImpl r =
-            runDB conn $
-              Set.traverse (Cv.referenceid2to1 getCycleLen)
-                =<< Ops.dependents (Cv.reference1to2 r)
+        clearWatches :: MonadIO m => m ()
+        clearWatches = Sqlite.runDB conn Ops.clearWatches
 
-          syncFromDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
-          syncFromDirectory srcRoot _syncMode b = do
-            withConnection (debugName ++ ".sync.src") srcRoot $ \srcConn -> do
-              flip State.evalStateT emptySyncProgressState $ do
-                syncInternal syncProgress srcConn conn $ Branch.transform lift b
+        getReflog :: MonadIO m => m [Reflog.Entry Branch.Hash]
+        getReflog =
+          liftIO $
+            ( do
+                contents <- TextIO.readFile (reflogPath root)
+                let lines = Text.lines contents
+                let entries = parseEntry <$> lines
+                pure entries
+            )
+              `catchIO` const (pure [])
+          where
+            parseEntry t = fromMaybe (err t) (Reflog.fromText t)
+            err t =
+              error $
+                "I couldn't understand this line in " ++ reflogPath root ++ "\n\n"
+                  ++ Text.unpack t
 
-          syncToDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
-          syncToDirectory destRoot _syncMode b =
-            withConnection (debugName ++ ".sync.dest") destRoot $ \destConn ->
-              flip State.evalStateT emptySyncProgressState $ do
-                initSchemaIfNotExist destRoot
-                syncInternal syncProgress conn destConn $ Branch.transform lift b
+        appendReflog :: MonadIO m => Text -> Branch m -> Branch m -> m ()
+        appendReflog reason old new =
+          liftIO $ TextIO.appendFile (reflogPath root) (t <> "\n")
+          where
+            t = Reflog.toText $ Reflog.Entry (Branch.headHash old) (Branch.headHash new) reason
 
-          watches :: MonadUnliftIO m => UF.WatchKind -> m [Reference.Id]
-          watches w =
-            runDB conn $
-              Ops.listWatches (Cv.watchKind1to2 w)
-                >>= traverse (Cv.referenceid2to1 getCycleLen)
+        reflogPath :: CodebasePath -> FilePath
+        reflogPath root = root </> "reflog"
 
-          getWatch :: MonadUnliftIO m => UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
-          getWatch k r@(Reference.Id h _i _n)
-            | elem k standardWatchKinds =
-              runDB' conn $
-                Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
-                  >>= lift . Cv.term2to1 h getCycleLen getDeclType
-          getWatch _unknownKind _ = pure Nothing
+        termsOfTypeImpl :: MonadIO m => Reference -> m (Set Referent.Id)
+        termsOfTypeImpl r =
+          Sqlite.runDB conn $
+            Ops.termsHavingType (Cv.reference1to2 r)
+              >>= Set.traverse (Cv.referentid2to1 getDeclType)
 
-          standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
+        termsMentioningTypeImpl :: MonadIO m => Reference -> m (Set Referent.Id)
+        termsMentioningTypeImpl r =
+          Sqlite.runDB conn $
+            Ops.termsMentioningType (Cv.reference1to2 r)
+              >>= Set.traverse (Cv.referentid2to1 getDeclType)
 
-          putWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
-          putWatch k r@(Reference.Id h _i _n) tm
-            | elem k standardWatchKinds =
-              runDB conn $
-                Ops.saveWatch
-                  (Cv.watchKind1to2 k)
-                  (Cv.referenceid1to2 r)
-                  (Cv.term1to2 h tm)
-          putWatch _unknownKind _ _ = pure ()
+        hashLength :: Applicative m => m Int
+        hashLength = pure 10
 
-          clearWatches :: MonadIO m => m ()
-          clearWatches = runDB conn Ops.clearWatches
+        branchHashLength :: Applicative m => m Int
+        branchHashLength = pure 10
 
-          getReflog :: MonadIO m => m [Reflog.Entry Branch.Hash]
-          getReflog =
-            liftIO $
-              ( do
-                  contents <- TextIO.readFile (reflogPath root)
-                  let lines = Text.lines contents
-                  let entries = parseEntry <$> lines
-                  pure entries
-              )
-                `catchIO` const (pure [])
-            where
-              parseEntry t = fromMaybe (err t) (Reflog.fromText t)
-              err t =
-                error $
-                  "I couldn't understand this line in " ++ reflogPath root ++ "\n\n"
-                    ++ Text.unpack t
+        defnReferencesByPrefix :: MonadIO m => OT.ObjectType -> ShortHash -> m (Set Reference.Id)
+        defnReferencesByPrefix _ (ShortHash.Builtin _) = pure mempty
+        defnReferencesByPrefix ot (ShortHash.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) _cid) =
+          Monoid.fromMaybe <$> runDB' conn do
+            refs <- do
+              Ops.componentReferencesByPrefix ot prefix cycle
+                >>= traverse (C.Reference.idH Ops.loadHashByObjectId)
+                >>= pure . Set.fromList
 
-          appendReflog :: MonadIO m => Text -> Branch m -> Branch m -> m ()
-          appendReflog reason old new =
-            liftIO $ TextIO.appendFile (reflogPath root) (t <> "\n")
-            where
-              t = Reflog.toText $ Reflog.Entry (Branch.headHash old) (Branch.headHash new) reason
+            pure $ Set.map Cv.referenceid2to1 refs
 
-          reflogPath :: CodebasePath -> FilePath
-          reflogPath root = root </> "reflog"
+        termReferencesByPrefix :: MonadIO m => ShortHash -> m (Set Reference.Id)
+        termReferencesByPrefix = defnReferencesByPrefix OT.TermComponent
 
-          termsOfTypeImpl :: MonadUnliftIO m => Reference -> m (Set Referent.Id)
-          termsOfTypeImpl r =
-            runDB conn $
-              Ops.termsHavingType (Cv.reference1to2 r)
-                >>= Set.traverse (Cv.referentid2to1 getCycleLen getDeclType)
+        declReferencesByPrefix :: MonadIO m => ShortHash -> m (Set Reference.Id)
+        declReferencesByPrefix = defnReferencesByPrefix OT.DeclComponent
 
-          termsMentioningTypeImpl :: MonadUnliftIO m => Reference -> m (Set Referent.Id)
-          termsMentioningTypeImpl r =
-            runDB conn $
-              Ops.termsMentioningType (Cv.reference1to2 r)
-                >>= Set.traverse (Cv.referentid2to1 getCycleLen getDeclType)
+        referentsByPrefix :: MonadIO m => ShortHash -> m (Set Referent.Id)
+        referentsByPrefix SH.Builtin {} = pure mempty
+        referentsByPrefix (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) cid) = Sqlite.runDB conn do
+          termReferents <-
+            Ops.termReferentsByPrefix prefix cycle
+              >>= traverse (Cv.referentid2to1 getDeclType)
+          declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
+          let declReferents =
+                [ Referent.ConId (ConstructorReference (Reference.Id (Cv.hash2to1 h) pos) (fromIntegral cid)) (Cv.decltype2to1 ct)
+                  | (h, pos, ct, cids) <- declReferents',
+                    cid <- cids
+                ]
+          pure . Set.fromList $ termReferents <> declReferents
 
-          hashLength :: Applicative m => m Int
-          hashLength = pure 10
+        branchHashesByPrefix :: MonadIO m => ShortBranchHash -> m (Set Branch.Hash)
+        branchHashesByPrefix sh = Sqlite.runDB conn do
+          -- given that a Branch is shallow, it's really `CausalHash` that you'd
+          -- refer to to specify a full namespace w/ history.
+          -- but do we want to be able to refer to a namespace without its history?
+          cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
+          pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 
-          branchHashLength :: Applicative m => m Int
-          branchHashLength = pure 10
+        sqlLca :: MonadIO m => Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)
+        sqlLca h1 h2 =
+          liftIO $
+            withConnection (debugName ++ ".lca.left") root $ \c1 -> do
+              withConnection (debugName ++ ".lca.right") root $ \c2 -> do
+                Sqlite.runDB conn
+                  . (fmap . fmap) Cv.causalHash2to1
+                  $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
+    let codebase =
+          C.Codebase
+            (Cache.applyDefined termCache getTerm)
+            (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
+            (Cache.applyDefined declCache getTypeDeclaration)
+            putTerm
+            putTypeDeclaration
+            -- _getTermComponent
+            getTermComponentWithTypes
+            getDeclComponent
+            getCycleLength
+            (getRootBranch rootBranchCache)
+            getRootBranchExists
+            (putRootBranch rootBranchCache)
+            (rootBranchUpdates rootBranchCache)
+            getBranchForHash
+            putBranch
+            isCausalHash
+            getPatch
+            putPatch
+            patchExists
+            dependentsImpl
+            dependentsOfComponentImpl
+            syncFromDirectory
+            syncToDirectory
+            viewRemoteBranch'
+            (\r opts action -> pushGitBranch conn r opts action)
+            watches
+            getWatch
+            putWatch
+            clearWatches
+            getReflog
+            appendReflog
+            termsOfTypeImpl
+            termsMentioningTypeImpl
+            hashLength
+            termReferencesByPrefix
+            declReferencesByPrefix
+            referentsByPrefix
+            branchHashLength
+            branchHashesByPrefix
+            (Just sqlLca)
+            (Just \l r -> Sqlite.runDB conn $ fromJust <$> before l r)
 
-          defnReferencesByPrefix :: MonadUnliftIO m => OT.ObjectType -> ShortHash -> m (Set Reference.Id)
-          defnReferencesByPrefix _ (ShortHash.Builtin _) = pure mempty
-          defnReferencesByPrefix ot (ShortHash.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) _cid) =
-            runDB conn do
-              refs <- do
-                Ops.componentReferencesByPrefix ot prefix cycle
-                  >>= traverse (C.Reference.idH Ops.loadHashByObjectId)
-                  >>= pure . Set.fromList
+    let finalizer :: MonadIO m => m ()
+        finalizer = do
+          decls <- readTVarIO declBuffer
+          terms <- readTVarIO termBuffer
+          let printBuffer header b =
+                liftIO
+                  if b /= mempty
+                    then putStrLn header >> putStrLn "" >> print b
+                    else pure ()
+          printBuffer "Decls:" decls
+          printBuffer "Terms:" terms
 
-              Set.fromList <$> traverse (Cv.referenceid2to1 getCycleLen) (Set.toList refs)
-
-          termReferencesByPrefix :: MonadUnliftIO m => ShortHash -> m (Set Reference.Id)
-          termReferencesByPrefix = defnReferencesByPrefix OT.TermComponent
-
-          declReferencesByPrefix :: MonadUnliftIO m => ShortHash -> m (Set Reference.Id)
-          declReferencesByPrefix = defnReferencesByPrefix OT.DeclComponent
-
-          referentsByPrefix :: MonadUnliftIO m => ShortHash -> m (Set Referent.Id)
-          referentsByPrefix SH.Builtin {} = pure mempty
-          referentsByPrefix (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) cid) = runDB conn do
-            termReferents <-
-              Ops.termReferentsByPrefix prefix cycle
-                >>= traverse (Cv.referentid2to1 getCycleLen getDeclType)
-            declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
-            let declReferents =
-                  [ Referent.ConId (ConstructorReference (Reference.Id (Cv.hash2to1 h) pos len) (fromIntegral cid)) (Cv.decltype2to1 ct)
-                    | (h, pos, len, ct, cids) <- declReferents',
-                      cid <- cids
-                  ]
-            pure . Set.fromList $ termReferents <> declReferents
-
-          branchHashesByPrefix :: MonadIO m => ShortBranchHash -> m (Set Branch.Hash)
-          branchHashesByPrefix sh = runDB conn do
-            -- given that a Branch is shallow, it's really `CausalHash` that you'd
-            -- refer to to specify a full namespace w/ history.
-            -- but do we want to be able to refer to a namespace without its history?
-            cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
-            pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
-
-          sqlLca :: MonadIO m => Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)
-          sqlLca h1 h2 =
-            liftIO $ withConnection  (debugName ++ ".lca.left") root $ \c1 -> do
-                     withConnection  (debugName ++ ".lca.right") root $ \c2 -> do
-                       runDB conn
-                         . (fmap . fmap) Cv.causalHash2to1
-                         $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
-      let
-       codebase = C.Codebase
-        (Cache.applyDefined termCache getTerm)
-        (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
-        (Cache.applyDefined declCache getTypeDeclaration)
-        putTerm
-        putTypeDeclaration
-        (getRootBranch rootBranchCache)
-        (putRootBranch rootBranchCache)
-        (rootBranchUpdates rootBranchCache)
-        getBranchForHash
-        putBranch
-        isCausalHash
-        getPatch
-        putPatch
-        patchExists
-        dependentsImpl
-        syncFromDirectory
-        syncToDirectory
-        viewRemoteBranch'
-        (\b r opts -> pushGitBranch conn b r opts)
-        watches
-        getWatch
-        putWatch
-        clearWatches
-        getReflog
-        appendReflog
-        termsOfTypeImpl
-        termsMentioningTypeImpl
-        hashLength
-        termReferencesByPrefix
-        declReferencesByPrefix
-        referentsByPrefix
-        branchHashLength
-        branchHashesByPrefix
-        (Just sqlLca)
-        (Just \l r -> runDB conn $ fromJust <$> before l r)
-
-      let finalizer :: MonadIO m => m ()
-          finalizer = do
-            decls <- readTVarIO declBuffer
-            terms <- readTVarIO termBuffer
-            let printBuffer header b =
-                  liftIO
-                    if b /= mempty
-                      then putStrLn header >> putStrLn "" >> print b
-                      else pure ()
-            printBuffer "Decls:" decls
-            printBuffer "Terms:" terms
-      (Right <$> action codebase) `finally` finalizer
-    v -> pure $ Left v
+    flip finally finalizer $ do
+      -- Migrate if necessary.
+      ensureCodebaseIsUpToDate localOrRemote root conn codebase >>= \case
+        Left err -> pure $ Left err
+        Right () -> Right <$> action (codebase, conn)
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection m Bool
@@ -802,7 +826,7 @@ isCausalHash' (Causal.RawHash h) =
     Nothing -> pure False
     Just hId -> Q.isCausalHash hId
 
-before :: MonadIO m => Branch.Hash -> Branch.Hash -> ReaderT Connection m (Maybe Bool)
+before :: (MonadIO m, DB m) => Branch.Hash -> Branch.Hash -> m (Maybe Bool)
 before h1 h2 =
   Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
 
@@ -815,14 +839,16 @@ syncInternal ::
   Branch m ->
   m ()
 syncInternal progress srcConn destConn b = time "syncInternal" do
-  runDB srcConn $ Q.savepoint "sync"
-  runDB destConn $ Q.savepoint "sync"
+  -- We start a savepoint on the src connection because it seemed to speed things up.
+  -- Mitchell says: that doesn't sound right... why would that be the case?
+  -- TODO: look into this; this connection should be used only for reads.
+  liftIO (Sqlite.Connection.savepoint srcConn "sync")
+  liftIO (Sqlite.Connection.savepoint destConn "sync")
   result <- runExceptT do
     let syncEnv = Sync22.Env srcConn destConn (16 * 1024 * 1024)
     -- we want to use sync22 wherever possible
-    -- so for each branch, we'll check if it exists in the destination branch
-    -- or if it exists in the source branch, then we can sync22 it
-    -- oh god but we have to figure out the dbid
+    -- so for each source branch, we'll check if it exists in the destination codebase
+    -- or if it exists in the source codebase, then we can sync22 it
     -- if it doesn't exist in the dest or source branch,
     -- then just use putBranch to the dest
     let se :: forall m a. Functor m => (ExceptT Sync22.Error m a -> ExceptT SyncEphemeral.Error m a)
@@ -842,14 +868,14 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
             traceM $ "processBranches " ++ show b0
             traceM $ " queue: " ++ show rest
           ifM @(ExceptT Sync22.Error m)
-            (lift . runDB destConn $ isCausalHash' h)
+            (lift . Sqlite.runDB destConn $ isCausalHash' h)
             do
               when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " already exists in dest db"
               processBranches sync progress rest
             do
               when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in dest db"
               let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
-              lift (runDB srcConn (Q.loadCausalHashIdByCausalHash h2)) >>= \case
+              lift (Sqlite.runDB srcConn (Q.loadCausalHashIdByCausalHash h2)) >>= \case
                 Just chId -> do
                   when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
                   r $ Sync.sync' sync progress [Sync22.C chId]
@@ -863,7 +889,7 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
                       traceM $ "  terms: " ++ show ts
                       traceM $ "  decls: " ++ show ds
                       traceM $ "  edits: " ++ show es
-                    (cs, es, ts, ds) <- lift $ runDB destConn do
+                    (cs, es, ts, ds) <- lift $ Sqlite.runDB destConn do
                       cs <- filterM (fmap not . isCausalHash' . fst) branchDeps
                       es <- filterM (fmap not . patchExists') es
                       ts <- filterM (fmap not . termExists') ts
@@ -871,7 +897,7 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
                       pure (cs, es, ts, ds)
                     if null cs && null es && null ts && null ds
                       then do
-                        lift . runDB destConn $ putBranch' b
+                        lift . Sqlite.runDB destConn $ putBranch' b
                         processBranches @m sync progress rest
                       else do
                         let bs = map (uncurry B) cs
@@ -879,31 +905,30 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
                         processBranches @m sync progress (os ++ bs ++ b0 : rest)
         processBranches sync progress (O h : rest) = do
           when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
-          oId <- runDB srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)
+          oId <- Sqlite.runDB srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)
           r $ Sync.sync' sync progress [Sync22.O oId]
           processBranches sync progress rest
     sync <- se . r $ Sync22.sync22
     let progress' = Sync.transformProgress (lift . lift) progress
         bHash = Branch.headHash b
     se $ time "SyncInternal.processBranches" $ processBranches sync progress' [B bHash (pure b)]
-    testWatchRefs <- time "SyncInternal enumerate testWatches" $
-      lift . fmap concat $ for [WK.TestWatch] \wk ->
-        fmap (Sync22.W wk) <$> runDB srcConn (Q.loadWatchesByWatchKind wk)
-    se . r $ Sync.sync sync progress' testWatchRefs
-  let onSuccess a = runDB destConn (Q.release "sync") *> pure a
-      onFailure e = do
+  let onSuccess a = do
+        liftIO (Sqlite.Connection.release destConn "sync")
+        pure a
+      onFailure e = liftIO do
         if debugCommitFailedTransaction
-          then runDB destConn (Q.release "sync")
-          else runDB destConn (Q.rollbackRelease "sync")
+          then Sqlite.Connection.release destConn "sync"
+          else do
+            Sqlite.Connection.rollback destConn "sync"
+            Sqlite.Connection.release destConn "sync"
         error (show e)
-  runDB srcConn $ Q.rollbackRelease "sync" -- (we don't write to the src anyway)
+  -- (we don't write to the src anyway)
+  liftIO (Sqlite.Connection.rollback srcConn "sync")
+  liftIO (Sqlite.Connection.release srcConn "sync")
   either onFailure onSuccess result
 
 runDB' :: MonadIO m => Connection -> MaybeT (ReaderT Connection m) a -> m (Maybe a)
-runDB' conn = runDB conn . runMaybeT
-
-runDB :: MonadIO m => Connection -> ReaderT Connection m a -> m a
-runDB = flip runReaderT
+runDB' conn = Sqlite.runDB conn . runMaybeT
 
 data Entity m
   = B Branch.Hash (m (Branch m))
@@ -922,7 +947,7 @@ data SyncProgressState = SyncProgressState
 emptySyncProgressState :: SyncProgressState
 emptySyncProgressState = SyncProgressState (Just mempty) (Right mempty) (Right mempty)
 
-syncProgress :: MonadState SyncProgressState m => MonadIO m => Sync.Progress m Sync22.Entity
+syncProgress :: (MonadIO m, MonadState SyncProgressState m) => Sync.Progress m Sync22.Entity
 syncProgress = Sync.Progress need done warn allDone
   where
     quiet = False
@@ -972,10 +997,12 @@ syncProgress = Sync.Progress need done warn allDone
       State.get >>= liftIO . putStrLn . renderState ("  " ++ "Done syncing ")
 
     printSynced :: (MonadState SyncProgressState m, MonadIO m) => m ()
-    printSynced = State.get >>= \s -> liftIO $
-        finally
-          do ANSI.hideCursor; putStr . renderState ("  " ++ "Synced ") $ s
-          ANSI.showCursor
+    printSynced =
+      State.get >>= \s ->
+        liftIO $
+          finally
+            do ANSI.hideCursor; putStr . renderState ("  " ++ "Synced ") $ s
+            ANSI.showCursor
 
     renderState :: String -> SyncProgressState -> String
     renderState prefix = \case
@@ -997,109 +1024,127 @@ viewRemoteBranch' ::
   forall m r.
   (MonadUnliftIO m) =>
   ReadRemoteNamespace ->
+  Git.GitBranchBehavior ->
   ((Branch m, CodebasePath) -> m r) ->
   m (Either C.GitError r)
-viewRemoteBranch' (repo, sbh, path) action = UnliftIO.try do
+viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
   -- set up the cache dir
-  remotePath <- UnliftIO.fromEitherM . runExceptT . withExceptT C.GitProtocolError . time "Git fetch" $ pullBranch repo
+  time "Git fetch" $
+    throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
+      let remotePath = Git.gitDirToPath remoteRepo
+      -- Tickle the database before calling into `sqliteCodebase`; this covers the case that the database file either
+      -- doesn't exist at all or isn't a SQLite database file, but does not cover the case that the database file itself
+      -- is somehow corrupt, or not even a Unison database.
+      --
+      -- FIXME it would probably make more sense to define some proper preconditions on `sqliteCodebase`, and perhaps
+      -- update its output type, which currently indicates the only way it can fail is with an `UnknownSchemaVersion`
+      -- error.
+      (withConnection "codebase exists check" remotePath \_ -> pure ()) `catch` \exception ->
+        if Sqlite.isCantOpenException exception
+          then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
+          else throwIO exception
 
-  -- Tickle the database before calling into `sqliteCodebase`; this covers the case that the database file either
-  -- doesn't exist at all or isn't a SQLite database file, but does not cover the case that the database file itself is
-  -- somehow corrupt, or not even a Unison database.
-  --
-  -- FIXME it would probably make more sense to define some proper preconditions on `sqliteCodebase`, and perhaps update
-  -- its output type, which currently indicates the only way it can fail is with an `UnknownSchemaVersion` error.
-  (withConnection "codebase exists check" remotePath \_ -> pure ()) `catch` \exception ->
-    if Sqlite.isCantOpenException exception
-      then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
-      else throwIO exception
+      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote \(codebase, _conn) -> do
+        -- try to load the requested branch from it
+        branch <- time "Git fetch (sbh)" $ case sbh of
+          -- no sub-branch was specified, so use the root.
+          Nothing -> time "Get remote root branch" $ Codebase1.getRootBranch codebase
+          -- load from a specific `ShortBranchHash`
+          Just sbh -> do
+            branchCompletions <- Codebase1.branchHashesByPrefix codebase sbh
+            case toList branchCompletions of
+              [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+              [h] ->
+                (Codebase1.getBranchForHash codebase h) >>= \case
+                  Just b -> pure b
+                  Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+        case Branch.getAt path branch of
+          Just b -> action (b, remotePath)
+          Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
+      case result of
+        Left err -> throwIO . C.GitSqliteCodebaseError $ C.gitErrorFromOpenCodebaseError remotePath repo err
+        Right inner -> pure inner
 
-  result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath \codebase -> do
-    -- try to load the requested branch from it
-    branch <- time "Git fetch (sbh)" $ case sbh of
-      -- no sub-branch was specified, so use the root.
-      Nothing -> time "Get remote root branch" $ Codebase1.getRootBranch codebase
-      -- load from a specific `ShortBranchHash`
-      Just sbh -> do
-        branchCompletions <- Codebase1.branchHashesByPrefix codebase sbh
-        case toList branchCompletions of
-          [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-          [h] ->
-            (Codebase1.getBranchForHash codebase h) >>= \case
-              Just b -> pure b
-              Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-          _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
-    case Branch.getAt path branch of
-      Just b -> action (b, remotePath)
-      Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
-  case result of
-    Left schemaVersion -> throwIO . C.GitSqliteCodebaseError $ GitError.UnrecognizedSchemaVersion repo remotePath schemaVersion
-    Right inner -> pure inner
-
--- Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
+-- | Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
 -- the existing root.
 pushGitBranch ::
+  forall m e.
   (MonadUnliftIO m) =>
   Connection ->
-  Branch m ->
   WriteRepo ->
   PushGitBranchOpts ->
-  m (Either C.GitError ())
-pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExceptT @C.GitError do
-  -- pull the remote repo to the staging directory
-  -- open a connection to the staging codebase
-  -- create a savepoint on the staging codebase
+  -- An action which accepts the current root branch on the remote and computes a new branch.
+  (Branch m -> m (Either e (Branch m))) ->
+  m (Either C.GitError (Either e (Branch m)))
+pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = UnliftIO.try do
+  -- Pull the latest remote into our git cache
+  -- Use a local git clone to copy this git repo into a temp-dir
+  -- Delete the codebase in our temp-dir
+  -- Use sqlite's VACUUM INTO command to make a copy of the remote codebase into our temp-dir
+  -- Connect to the copied codebase and sync whatever it is we want to push.
   -- sync the branch to the staging codebase using `syncInternal`, which probably needs to be passed in instead of `syncToDirectory`
   -- if setting the remote root,
   --   do a `before` check on the staging codebase
   --   if it passes, proceed (see below)
-  --   if it fails, rollback to the savepoint and clean up.
-  -- otherwise, proceed: release the savepoint (commit it), clean up, and git-push the result
-
+  --   if it fails, throw an exception (which will rollback) and clean up.
+  -- push from the temp-dir to the remote.
+  -- Delete the temp-dir.
+  --
   -- set up the cache dir
-  remotePath <- time "Git fetch" $ withExceptT C.GitProtocolError $ pullBranch (writeToRead repo)
-  ExceptT . withOpenOrCreateCodebaseConnection "push.dest" remotePath $ \destConn -> do
-    runDB destConn $ Q.savepoint "push"
-    flip State.execStateT emptySyncProgressState $
-      syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
-    runDB destConn do
-      result <- if setRoot
-        then do
-          let newRootHash = Branch.headHash branch
+  throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
+    newBranchOrErr <- throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
+      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote
+      $ \(codebaseStatus, destCodebase, destConn) -> do
+        currentRootBranch <-
+          C.getRootBranchExists destCodebase >>= \case
+            False -> pure Branch.empty
+            True -> C.getRootBranch destCodebase
+        action currentRootBranch >>= \case
+          Left e -> pure $ Left e
+          Right newBranch -> do
+            Sqlite.Connection.withSavepoint destConn "push" \_rollback ->
+              throwExceptT $ doSync codebaseStatus (Git.gitDirToPath pushStaging) srcConn destConn newBranch
+            pure (Right newBranch)
+    for newBranchOrErr $ push pushStaging repo
+    pure newBranchOrErr
+  where
+    readRepo :: ReadRepo
+    readRepo = writeToRead repo
+    doSync :: CodebaseStatus -> FilePath -> Connection -> Connection -> Branch m -> ExceptT C.GitError m ()
+    doSync codebaseStatus remotePath srcConn destConn newBranch = do
+      _ <-
+        flip State.execStateT emptySyncProgressState $
+          syncInternal syncProgress srcConn destConn (Branch.transform (lift . lift) newBranch)
+      when setRoot $ overwriteRoot codebaseStatus remotePath destConn newBranch
+    overwriteRoot :: forall n. MonadIO n => CodebaseStatus -> FilePath -> Connection -> Branch m -> ExceptT C.GitError n ()
+    overwriteRoot codebaseStatus remotePath destConn newBranch = do
+      let newBranchHash = Branch.headHash newBranch
+      case codebaseStatus of
+        ExistingCodebase -> do
           -- the call to runDB "handles" the possible DB error by bombing
-          (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
-            Nothing -> do
-              setRepoRoot newRootHash
-              Q.release "push"
-              pure $ Right ()
-            Just oldRootHash -> do
-              before oldRootHash newRootHash >>= \case
+          maybeOldRootHash <- fmap Cv.branchHash2to1 <$> Sqlite.runDB destConn Ops.loadMaybeRootCausalHash
+          case maybeOldRootHash of
+            Nothing -> Sqlite.runDB destConn $ do
+              setRepoRoot newBranchHash
+            Just oldRootHash -> Sqlite.runDB destConn $ do
+              before oldRootHash newBranchHash >>= \case
                 Nothing ->
                   error $
-                    "I couldn't find the hash " ++ show newRootHash
+                    "I couldn't find the hash " ++ show newBranchHash
                       ++ " that I just synced to the cached copy of "
                       ++ repoString
                       ++ " in "
                       ++ show remotePath
                       ++ "."
                 Just False -> do
-                  Q.rollbackRelease "push"
-                  pure . Left . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-                Just True -> do
-                  setRepoRoot newRootHash
-                  Q.release "push"
-                  pure $ Right ()
-        else do
-          Q.release "push"
-          pure $ Right ()
+                  lift . throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                Just True -> pure ()
+        CreatedCodebase -> pure ()
+      Sqlite.runDB destConn $ setRepoRoot newBranchHash
 
-      liftIO (Sqlite.trySetJournalMode destConn Sqlite.JournalMode'DELETE)
-      pure result
-  liftIO do
-    void $ push remotePath repo
-  where
     repoString = Text.unpack $ printWriteRepo repo
-    setRepoRoot :: DB m => Branch.Hash -> m ()
+    setRepoRoot :: forall m. DB m => Branch.Hash -> m ()
     setRepoRoot h = do
       let h2 = Cv.causalHash1to2 h
           err = error $ "Called SqliteCodebase.setNamespaceRoot on unknown causal hash " ++ show h2
@@ -1133,21 +1178,25 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
         then Just (hasDeleteWal, hasDeleteShm)
         else Nothing
       where
+        -- `git status` always displays paths using posix forward-slashes,
+        -- so we have to convert our expected path to test.
+        posixCodebasePath =
+          FilePath.Posix.joinPath (FilePath.splitDirectories codebasePath)
         statusLines = Text.unpack <$> Text.lines status
         t = dropWhile Char.isSpace
-        okLine (t -> '?' : '?' : (t -> p)) | p == codebasePath = True
-        okLine (t -> 'M' : (t -> p)) | p == codebasePath = True
+        okLine (t -> '?' : '?' : (t -> p)) | p == posixCodebasePath = True
+        okLine (t -> 'M' : (t -> p)) | p == posixCodebasePath = True
         okLine line = isWalDelete line || isShmDelete line
-        isWalDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+        isWalDelete (t -> 'D' : (t -> p)) | p == posixCodebasePath ++ "-wal" = True
         isWalDelete _ = False
-        isShmDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+        isShmDelete (t -> 'D' : (t -> p)) | p == posixCodebasePath ++ "-wal" = True
         isShmDelete _ = False
         hasDeleteWal = any isWalDelete statusLines
         hasDeleteShm = any isShmDelete statusLines
 
     -- Commit our changes
-    push :: CodebasePath -> WriteRepo -> IO Bool -- withIOError needs IO
-    push remotePath (WriteGitRepo url) = time "SqliteCodebase.pushGitRootBranch.push" $ do
+    push :: forall n. MonadIO n => Git.GitRepo -> WriteRepo -> Branch m -> n Bool -- withIOError needs IO
+    push remotePath repo@(WriteGitRepo {url' = url, branch = mayGitBranch}) newRootBranch = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       -- note: -uall recursively shows status for all files in untracked directories
       --   we want this so that we see
@@ -1160,7 +1209,9 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
           Nothing ->
             error $
               "An error occurred during push.\n"
-                <> "I was expecting only to see .unison/v2/unison.sqlite3 modified, but saw:\n\n"
+                <> "I was expecting only to see "
+                <> codebasePath
+                <> " modified, but saw:\n\n"
                 <> Text.unpack status
                 <> "\n\n"
                 <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
@@ -1168,12 +1219,15 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
           Just (hasDeleteWal, hasDeleteShm) -> do
             -- Only stage files we're expecting; don't `git add --all .`
             -- which could accidentally commit some garbage
-            gitIn remotePath ["add", ".unison/v2/unison.sqlite3"]
-            when hasDeleteWal $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-wal"]
-            when hasDeleteShm $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-shm"]
+            gitIn remotePath ["add", Text.pack codebasePath]
+            when hasDeleteWal $ gitIn remotePath ["rm", Text.pack $ codebasePath <> "-wal"]
+            when hasDeleteShm $ gitIn remotePath ["rm", Text.pack $ codebasePath <> "-shm"]
             gitIn
               remotePath
-              ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
-            -- Push our changes to the repo
-            gitIn remotePath ["push", "--quiet", url]
+              ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash newRootBranch)]
+            -- Push our changes to the repo, silencing all output.
+            -- Even with quiet, the remote (Github) can still send output through,
+            -- so we capture stdout and stderr.
+            (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", "--quiet", url] ++ maybe [] (pure @[]) mayGitBranch
+            when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
             pure True

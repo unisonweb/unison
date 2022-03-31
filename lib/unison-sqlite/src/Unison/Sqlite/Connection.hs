@@ -50,6 +50,10 @@ module Unison.Sqlite.Connection
 
     -- * Low-level operations
     withSavepoint,
+    withSavepointIO,
+    savepoint,
+    rollback,
+    release,
     withStatement,
 
     -- * Exceptions
@@ -59,21 +63,17 @@ module Unison.Sqlite.Connection
 where
 
 import Data.Bifunctor (bimap)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
 import qualified Database.SQLite3.Direct as Sqlite (Database (..))
 import Debug.RecoverRTTI (anythingToString)
-import System.IO (stderr)
+import Unison.Debug (debugLogM, debugM)
+import qualified Unison.Debug as Debug
 import Unison.Prelude
 import Unison.Sqlite.Exception
 import Unison.Sqlite.Sql
-import UnliftIO (MonadUnliftIO)
+import UnliftIO (MonadUnliftIO, withRunInIO)
 import UnliftIO.Exception
-
-debugTraceQueries :: Bool
-debugTraceQueries = False
 
 -- | A /non-thread safe/ connection to a SQLite database.
 data Connection = Connection
@@ -127,8 +127,11 @@ closeConnection (Connection _ _ conn) =
 -- Without results, with parameters
 
 execute :: Sqlite.ToRow a => Connection -> Sql -> a -> IO ()
-execute conn@(Connection _ _ conn0) s params =
-  doExecute `catch` \(exception :: Sqlite.SQLError) ->
+execute conn@(Connection _ _ conn0) s params = do
+  debugM Debug.Sqlite "query" s
+  debugM Debug.Sqlite "params" (anythingToString params)
+  debugLogM Debug.Sqlite "----------"
+  Sqlite.execute conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
         { connection = conn,
@@ -136,21 +139,13 @@ execute conn@(Connection _ _ conn0) s params =
           params = Just params,
           sql = s
         }
-  where
-    doExecute =
-      if debugTraceQueries
-        then do
-          Text.hPutStrLn stderr ("query:  " <> coerce s)
-          Text.hPutStrLn stderr ("params: " <> Text.pack (anythingToString params))
-          Text.hPutStrLn stderr "----------"
-          run
-        else run
-      where
-        run = Sqlite.execute conn0 (coerce s) params
 
 executeMany :: Sqlite.ToRow a => Connection -> Sql -> [a] -> IO ()
-executeMany conn@(Connection _ _ conn0) s params =
-  doExecuteMany `catch` \(exception :: Sqlite.SQLError) ->
+executeMany conn@(Connection _ _ conn0) s params = do
+  debugM Debug.Sqlite "query" s
+  debugM Debug.Sqlite "params" (anythingToString params)
+  debugLogM Debug.Sqlite "----------"
+  Sqlite.executeMany conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
         { connection = conn,
@@ -158,23 +153,14 @@ executeMany conn@(Connection _ _ conn0) s params =
           params = Just params,
           sql = s
         }
-  where
-    doExecuteMany =
-      if debugTraceQueries
-        then do
-          Text.hPutStrLn stderr ("query:  " <> coerce s)
-          Text.hPutStrLn stderr ("params: " <> Text.pack (anythingToString params))
-          Text.hPutStrLn stderr "----------"
-          run
-        else run
-      where
-        run = Sqlite.executeMany conn0 (coerce s) params
 
 -- Without results, without parameters
 
 execute_ :: Connection -> Sql -> IO ()
-execute_ conn@(Connection _ _ conn0) s =
-  doExecute_ `catch` \(exception :: Sqlite.SQLError) ->
+execute_ conn@(Connection _ _ conn0) s = do
+  debugM Debug.Sqlite "query" s
+  debugLogM Debug.Sqlite "----------"
+  Sqlite.execute_ conn0 (coerce s) `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
         { connection = conn,
@@ -182,16 +168,6 @@ execute_ conn@(Connection _ _ conn0) s =
           params = Nothing,
           sql = s
         }
-  where
-    doExecute_ =
-      if debugTraceQueries
-        then do
-          Text.hPutStrLn stderr ("query:  " <> coerce s)
-          Text.hPutStrLn stderr "----------"
-          run
-        else run
-      where
-        run = Sqlite.execute_ conn0 (coerce s)
 
 -- With results, with parameters, without checks
 
@@ -206,18 +182,13 @@ queryListRow conn@(Connection _ _ conn0) s params =
           sql = s
         }
   where
-    doQueryListRow =
-      if debugTraceQueries
-        then do
-          Text.hPutStrLn stderr ("query:  " <> coerce s)
-          Text.hPutStrLn stderr ("params: " <> Text.pack (anythingToString params))
-          result <- run
-          Text.hPutStrLn stderr ("result: " <> Text.pack (anythingToString result))
-          Text.hPutStrLn stderr "----------"
-          pure result
-        else run
-      where
-        run = Sqlite.query conn0 (coerce s) params
+    doQueryListRow = do
+      debugM Debug.Sqlite "query" s
+      debugM Debug.Sqlite "params" (anythingToString params)
+      result <- Sqlite.query conn0 (coerce s) params
+      debugM Debug.Sqlite "result" (anythingToString result)
+      debugLogM Debug.Sqlite "----------"
+      pure result
 
 queryListCol :: forall a b. (Sqlite.FromField b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
 queryListCol conn s params =
@@ -347,17 +318,12 @@ queryListRow_ conn@(Connection _ _ conn0) s =
           sql = s
         }
   where
-    doQueryListRow_ =
-      if debugTraceQueries
-        then do
-          Text.hPutStrLn stderr ("query:  " <> coerce s)
-          result <- run
-          Text.hPutStrLn stderr ("result: " <> Text.pack (anythingToString result))
-          Text.hPutStrLn stderr "----------"
-          pure result
-        else run
-      where
-        run = Sqlite.query_ conn0 (coerce s)
+    doQueryListRow_ = do
+      debugM Debug.Sqlite "query" s
+      result <- Sqlite.query_ conn0 (coerce s)
+      debugM Debug.Sqlite "result" (anythingToString result)
+      debugLogM Debug.Sqlite "----------"
+      pure result
 
 queryListCol_ :: forall a. Sqlite.FromField a => Connection -> Sql -> IO [a]
 queryListCol_ conn s =
@@ -455,19 +421,40 @@ queryOneColCheck_ conn s check =
 -- Low-level
 
 -- | Perform an action within a named savepoint. The action is provided a rollback action.
-withSavepoint :: Connection -> Text -> (IO () -> IO a) -> IO a
-withSavepoint conn name action = do
+withSavepoint :: MonadUnliftIO m => Connection -> Text -> (m () -> m a) -> m a
+withSavepoint conn name action =
+  withRunInIO \runInIO ->
+    withSavepointIO conn name \rollback ->
+      runInIO (action (liftIO rollback))
+
+withSavepointIO :: Connection -> Text -> (IO () -> IO a) -> IO a
+withSavepointIO conn name action = do
   uninterruptibleMask \restore -> do
-    execute_ conn (Sql ("SAVEPOINT " <> name))
+    savepoint conn name
     result <-
-      restore (action rollback) `onException` do
-        rollback
-        release
-    release
+      restore (action doRollback) `onException` do
+        doRollback
+        doRelease
+    doRelease
     pure result
   where
-    rollback = execute_ conn (Sql ("ROLLBACK TO " <> name))
-    release = execute_ conn (Sql ("RELEASE " <> name))
+    doRollback = rollback conn name
+    doRelease = release conn name
+
+-- | @SAVEPOINT@
+savepoint :: Connection -> Text -> IO ()
+savepoint conn name =
+  execute_ conn (Sql ("SAVEPOINT " <> name))
+
+-- | @ROLLBACK TO@
+rollback :: Connection -> Text -> IO ()
+rollback conn name =
+  execute_ conn (Sql ("ROLLBACK TO " <> name))
+
+-- | @RELEASE@
+release :: Connection -> Text -> IO ()
+release conn name =
+  execute_ conn (Sql ("RELEASE " <> name))
 
 withStatement :: (Sqlite.FromRow a, Sqlite.ToRow b) => Connection -> Sql -> b -> (IO (Maybe a) -> IO c) -> IO c
 withStatement conn@(Connection _ _ conn0) s params callback =

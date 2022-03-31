@@ -1,46 +1,48 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# language PatternSynonyms #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Runtime.Serialize where
 
 import Control.Applicative (liftA2)
 import Control.Monad (replicateM)
-import Data.Foldable (traverse_)
-
-import qualified Data.Vector.Primitive as BA
-import qualified Data.ByteString as B
 import Data.Bits (Bits)
-import Data.Bytes.Put
+import qualified Data.ByteString as B
 import Data.Bytes.Get hiding (getBytes)
 import qualified Data.Bytes.Get as Ser
-import Data.Bytes.VarInt
-import Data.Bytes.Signed (Unsigned)
+import Data.Bytes.Put
 import Data.Bytes.Serial
+import Data.Bytes.Signed (Unsigned)
+import Data.Bytes.VarInt
+import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.Map.Strict as Map (Map, fromList, toList)
 import Data.Text (Text)
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Data.Word (Word8, Word64)
-
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
-import Unison.Reference (Reference(..), pattern Derived, Id(..))
-import Unison.Referent (Referent, pattern Ref, pattern Con)
-
-import qualified Unison.Util.Bytes as Bytes
-import Unison.Util.EnumContainers as EC
-import Unison.Hash (Hash)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import qualified Data.Vector.Primitive as BA
+import Data.Word (Word64, Word8)
 import qualified U.Util.Hash as Hash
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
+import Unison.Hash (Hash)
+import Unison.Reference (Id (..), Reference (..), pattern Derived)
+import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Exception
 import Unison.Runtime.MCode
-  (UPrim1(..), UPrim2(..), BPrim1(..), BPrim2(..))
+  ( BPrim1 (..),
+    BPrim2 (..),
+    UPrim1 (..),
+    UPrim2 (..),
+  )
+import qualified Unison.Util.Bytes as Bytes
+import Unison.Util.EnumContainers as EC
 
 unknownTag :: MonadGet m => String -> Word8 -> m a
-unknownTag t w
-  = remaining >>= \r ->
-      exn $
-        "unknown " ++ t ++ " word: " ++ show w ++
-        " (" ++ show (fromIntegral r) ++ " bytes remaining)"
+unknownTag t w =
+  remaining >>= \r ->
+    exn $
+      "unknown " ++ t ++ " word: " ++ show w
+        ++ " ("
+        ++ show (fromIntegral r)
+        ++ " bytes remaining)"
 
 class Tag t where
   tag2word :: t -> Word8
@@ -78,19 +80,28 @@ getInt :: MonadGet m => m Int64
 getInt = deserializeBE
 
 putLength ::
-  (MonadPut m, Integral n, Integral (Unsigned n),
-   Bits n, Bits (Unsigned n))
-  => n -> m ()
+  ( MonadPut m,
+    Integral n,
+    Integral (Unsigned n),
+    Bits n,
+    Bits (Unsigned n)
+  ) =>
+  n ->
+  m ()
 putLength = serialize . VarInt
 
 getLength ::
-  (MonadGet m, Integral n, Integral (Unsigned n),
-   Bits n, Bits (Unsigned n))
-  => m n
+  ( MonadGet m,
+    Integral n,
+    Integral (Unsigned n),
+    Bits n,
+    Bits (Unsigned n)
+  ) =>
+  m n
 getLength = unVarInt <$> deserialize
 
-putFoldable
-  :: (Foldable f, MonadPut m) => (a -> m ()) -> f a -> m ()
+putFoldable ::
+  (Foldable f, MonadPut m) => (a -> m ()) -> f a -> m ()
 putFoldable putA as = do
   putLength (length as)
   traverse_ putA as
@@ -104,10 +115,13 @@ getList a = getLength >>= (`replicateM` a)
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
 getMap getA getB = Map.fromList <$> getList (getPair getA getB)
 
-putEnumMap
-  :: MonadPut m
-  => EnumKey k
-  => (k -> m ()) -> (v -> m ()) -> EnumMap k v -> m ()
+putEnumMap ::
+  MonadPut m =>
+  EnumKey k =>
+  (k -> m ()) ->
+  (v -> m ()) ->
+  EnumMap k v ->
+  m ()
 putEnumMap pk pv m = putFoldable (putPair pk pv) (mapToList m)
 
 getEnumMap :: MonadGet m => EnumKey k => m k -> m v -> m (EnumMap k v)
@@ -124,15 +138,16 @@ putMaybe Nothing _ = putWord8 0
 putMaybe (Just a) putA = putWord8 1 *> putA a
 
 getMaybe :: MonadGet m => m a -> m (Maybe a)
-getMaybe getA = getWord8 >>= \tag -> case tag of
-  0 -> pure Nothing
-  1 -> Just <$> getA
-  _ -> unknownTag "Maybe" tag
+getMaybe getA =
+  getWord8 >>= \tag -> case tag of
+    0 -> pure Nothing
+    1 -> Just <$> getA
+    _ -> unknownTag "Maybe" tag
 
-putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
-putPair putA putB (a,b) = putA a *> putB b
+putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a, b) -> m ()
+putPair putA putB (a, b) = putA a *> putB b
 
-getPair :: MonadGet m => m a -> m b -> m (a,b)
+getPair :: MonadGet m => m a -> m b -> m (a, b)
 getPair = liftA2 (,)
 
 getBytes :: MonadGet m => m Bytes.Bytes
@@ -178,10 +193,11 @@ getReferent = do
     _ -> unknownTag "getReferent" tag
 
 getConstructorType :: MonadGet m => m CT.ConstructorType
-getConstructorType = getWord8 >>= \case
-  0 -> pure CT.Data
-  1 -> pure CT.Effect
-  t -> unknownTag "getConstructorType" t
+getConstructorType =
+  getWord8 >>= \case
+    0 -> pure CT.Data
+    1 -> pure CT.Effect
+    t -> unknownTag "getConstructorType" t
 
 putConstructorType :: MonadPut m => CT.ConstructorType -> m ()
 putConstructorType = \case
@@ -205,18 +221,17 @@ putReference r = case r of
   Builtin name -> do
     putWord8 0
     putText name
-  Derived hash i n -> do
+  Derived hash i -> do
     putWord8 1
     putHash hash
     putLength i
-    putLength n
 
 getReference :: MonadGet m => m Reference
 getReference = do
   tag <- getWord8
   case tag of
     0 -> Builtin <$> getText
-    1 -> DerivedId <$> (Id <$> getHash <*> getLength <*> getLength)
+    1 -> DerivedId <$> (Id <$> getHash <*> getLength)
     _ -> unknownTag "Reference" tag
 
 putConstructorReference :: MonadPut m => ConstructorReference -> m ()
@@ -229,16 +244,16 @@ getConstructorReference =
   ConstructorReference <$> getReference <*> getLength
 
 instance Tag UPrim1 where
-  tag2word DECI =  0
-  tag2word INCI =  1
-  tag2word NEGI =  2
-  tag2word SGNI =  3
-  tag2word LZRO =  4
-  tag2word TZRO =  5
-  tag2word COMN =  6
-  tag2word POPC =  7
-  tag2word ABSF =  8
-  tag2word EXPF =  9
+  tag2word DECI = 0
+  tag2word INCI = 1
+  tag2word NEGI = 2
+  tag2word SGNI = 3
+  tag2word LZRO = 4
+  tag2word TZRO = 5
+  tag2word COMN = 6
+  tag2word POPC = 7
+  tag2word ABSF = 8
+  tag2word EXPF = 9
   tag2word LOGF = 10
   tag2word SQRT = 11
   tag2word COSF = 12
@@ -260,16 +275,16 @@ instance Tag UPrim1 where
   tag2word TRNF = 28
   tag2word RNDF = 29
 
-  word2tag  0 = pure DECI
-  word2tag  1 = pure INCI
-  word2tag  2 = pure NEGI
-  word2tag  3 = pure SGNI
-  word2tag  4 = pure LZRO
-  word2tag  5 = pure TZRO
-  word2tag  6 = pure COMN
-  word2tag  7 = pure POPC
-  word2tag  8 = pure ABSF
-  word2tag  9 = pure EXPF
+  word2tag 0 = pure DECI
+  word2tag 1 = pure INCI
+  word2tag 2 = pure NEGI
+  word2tag 3 = pure SGNI
+  word2tag 4 = pure LZRO
+  word2tag 5 = pure TZRO
+  word2tag 6 = pure COMN
+  word2tag 7 = pure POPC
+  word2tag 8 = pure ABSF
+  word2tag 9 = pure EXPF
   word2tag 10 = pure LOGF
   word2tag 11 = pure SQRT
   word2tag 12 = pure COSF
@@ -293,16 +308,16 @@ instance Tag UPrim1 where
   word2tag n = unknownTag "UPrim1" n
 
 instance Tag UPrim2 where
-  tag2word ADDI =  0
-  tag2word SUBI =  1
-  tag2word MULI =  2
-  tag2word DIVI =  3
-  tag2word MODI =  4
-  tag2word DIVN =  5
-  tag2word MODN =  6
-  tag2word SHLI =  7
-  tag2word SHRI =  8
-  tag2word SHRN =  9
+  tag2word ADDI = 0
+  tag2word SUBI = 1
+  tag2word MULI = 2
+  tag2word DIVI = 3
+  tag2word MODI = 4
+  tag2word DIVN = 5
+  tag2word MODN = 6
+  tag2word SHLI = 7
+  tag2word SHRI = 8
+  tag2word SHRN = 9
   tag2word POWI = 10
   tag2word EQLI = 11
   tag2word LEQI = 12
@@ -322,16 +337,16 @@ instance Tag UPrim2 where
   tag2word MAXF = 26
   tag2word MINF = 27
 
-  word2tag  0 = pure ADDI
-  word2tag  1 = pure SUBI
-  word2tag  2 = pure MULI
-  word2tag  3 = pure DIVI
-  word2tag  4 = pure MODI
-  word2tag  5 = pure DIVN
-  word2tag  6 = pure MODN
-  word2tag  7 = pure SHLI
-  word2tag  8 = pure SHRI
-  word2tag  9 = pure SHRN
+  word2tag 0 = pure ADDI
+  word2tag 1 = pure SUBI
+  word2tag 2 = pure MULI
+  word2tag 3 = pure DIVI
+  word2tag 4 = pure MODI
+  word2tag 5 = pure DIVN
+  word2tag 6 = pure MODN
+  word2tag 7 = pure SHLI
+  word2tag 8 = pure SHRI
+  word2tag 9 = pure SHRN
   word2tag 10 = pure POWI
   word2tag 11 = pure EQLI
   word2tag 12 = pure LEQI
@@ -353,16 +368,16 @@ instance Tag UPrim2 where
   word2tag n = unknownTag "UPrim2" n
 
 instance Tag BPrim1 where
-  tag2word SIZT =  0
-  tag2word USNC =  1
-  tag2word UCNS =  2
-  tag2word ITOT =  3
-  tag2word NTOT =  4
-  tag2word FTOT =  5
-  tag2word TTOI =  6
-  tag2word TTON =  7
-  tag2word TTOF =  8
-  tag2word PAKT =  9
+  tag2word SIZT = 0
+  tag2word USNC = 1
+  tag2word UCNS = 2
+  tag2word ITOT = 3
+  tag2word NTOT = 4
+  tag2word FTOT = 5
+  tag2word TTOI = 6
+  tag2word TTON = 7
+  tag2word TTOF = 8
+  tag2word PAKT = 9
   tag2word UPKT = 10
   tag2word VWLS = 11
   tag2word VWRS = 12
@@ -379,16 +394,16 @@ instance Tag BPrim1 where
   tag2word VALU = 23
   tag2word TLTT = 24
 
-  word2tag  0 = pure SIZT
-  word2tag  1 = pure USNC
-  word2tag  2 = pure UCNS
-  word2tag  3 = pure ITOT
-  word2tag  4 = pure NTOT
-  word2tag  5 = pure FTOT
-  word2tag  6 = pure TTOI
-  word2tag  7 = pure TTON
-  word2tag  8 = pure TTOF
-  word2tag  9 = pure PAKT
+  word2tag 0 = pure SIZT
+  word2tag 1 = pure USNC
+  word2tag 2 = pure UCNS
+  word2tag 3 = pure ITOT
+  word2tag 4 = pure NTOT
+  word2tag 5 = pure FTOT
+  word2tag 6 = pure TTOI
+  word2tag 7 = pure TTON
+  word2tag 8 = pure TTOF
+  word2tag 9 = pure PAKT
   word2tag 10 = pure UPKT
   word2tag 11 = pure VWLS
   word2tag 12 = pure VWRS
@@ -407,16 +422,16 @@ instance Tag BPrim1 where
   word2tag n = unknownTag "BPrim1" n
 
 instance Tag BPrim2 where
-  tag2word EQLU =  0
-  tag2word CMPU =  1
-  tag2word DRPT =  2
-  tag2word CATT =  3
-  tag2word TAKT =  4
-  tag2word EQLT =  5
-  tag2word LEQT =  6
-  tag2word LEST =  7
-  tag2word DRPS =  8
-  tag2word CATS =  9
+  tag2word EQLU = 0
+  tag2word CMPU = 1
+  tag2word DRPT = 2
+  tag2word CATT = 3
+  tag2word TAKT = 4
+  tag2word EQLT = 5
+  tag2word LEQT = 6
+  tag2word LEST = 7
+  tag2word DRPS = 8
+  tag2word CATS = 9
   tag2word TAKS = 10
   tag2word CONS = 11
   tag2word SNOC = 12
@@ -429,17 +444,18 @@ instance Tag BPrim2 where
   tag2word CATB = 19
   tag2word THRO = 20
   tag2word TRCE = 21
+  tag2word SDBX = 22
 
-  word2tag  0 = pure EQLU
-  word2tag  1 = pure CMPU
-  word2tag  2 = pure DRPT
-  word2tag  3 = pure CATT
-  word2tag  4 = pure TAKT
-  word2tag  5 = pure EQLT
-  word2tag  6 = pure LEQT
-  word2tag  7 = pure LEST
-  word2tag  8 = pure DRPS
-  word2tag  9 = pure CATS
+  word2tag 0 = pure EQLU
+  word2tag 1 = pure CMPU
+  word2tag 2 = pure DRPT
+  word2tag 3 = pure CATT
+  word2tag 4 = pure TAKT
+  word2tag 5 = pure EQLT
+  word2tag 6 = pure LEQT
+  word2tag 7 = pure LEST
+  word2tag 8 = pure DRPS
+  word2tag 9 = pure CATS
   word2tag 10 = pure TAKS
   word2tag 11 = pure CONS
   word2tag 12 = pure SNOC
@@ -452,4 +468,5 @@ instance Tag BPrim2 where
   word2tag 19 = pure CATB
   word2tag 20 = pure THRO
   word2tag 21 = pure TRCE
+  word2tag 22 = pure SDBX
   word2tag n = unknownTag "BPrim2" n

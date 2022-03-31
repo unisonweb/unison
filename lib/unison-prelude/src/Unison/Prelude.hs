@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Prelude
   ( module X,
     readUtf8,
@@ -14,6 +13,10 @@ module Unison.Prelude
 
     -- * @Either@ control flow
     whenLeft,
+    throwEitherM,
+    throwEitherMWith,
+    throwExceptT,
+    throwExceptTWith,
   )
 where
 
@@ -24,9 +27,9 @@ import Control.Monad as X
 import Control.Monad.Extra as X (ifM, mapMaybeM, unlessM, whenM)
 import Control.Monad.IO.Class as X (MonadIO (liftIO))
 import Control.Monad.Trans as X (MonadTrans (lift))
+import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT, withExceptT)
 import Control.Monad.Trans.Maybe as X (MaybeT (MaybeT, runMaybeT))
 import Data.ByteString as X (ByteString)
-import qualified Data.ByteString as BS
 import Data.Coerce as X (Coercible, coerce)
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
@@ -43,14 +46,18 @@ import Data.String as X (IsString, fromString)
 import Data.Text as X (Text)
 import qualified Data.Text as Text
 import Data.Text.Encoding as X (decodeUtf8, encodeUtf8)
+import qualified Data.Text.IO as Text
 import Data.Traversable as X (for)
 import Data.Typeable as X (Typeable)
 import Data.Word as X
 import Debug.Trace as X
 import GHC.Generics as X (Generic, Generic1)
+import qualified GHC.IO.Handle as Handle
 import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
+import qualified System.IO as IO
 import Text.Read as X (readMaybe)
+import qualified UnliftIO
 
 onNothing :: Applicative m => m a -> Maybe a -> m a
 onNothing x =
@@ -61,25 +68,61 @@ whenLeft = \case
   Left a -> \f -> f a
   Right b -> \_ -> pure b
 
+throwExceptT :: (MonadIO m, Exception e) => ExceptT e m a -> m a
+throwExceptT = throwExceptTWith id
+
+throwExceptTWith :: (MonadIO m, Exception e') => (e -> e') -> ExceptT e m a -> m a
+throwExceptTWith f action =
+  runExceptT (withExceptT f action) >>= \case
+    Left e -> liftIO . UnliftIO.throwIO $ e
+    Right a -> pure a
+
+throwEitherM :: (MonadIO m, Exception e) => m (Either e a) -> m a
+throwEitherM = throwEitherMWith id
+
+throwEitherMWith :: (MonadIO m, Exception e') => (e -> e') -> m (Either e a) -> m a
+throwEitherMWith f action = throwExceptT . withExceptT f $ (ExceptT action)
+
 tShow :: Show a => a -> Text
 tShow = Text.pack . show
 
--- Read an entire file strictly assuming UTF8
+-- | Strictly read an entire file decoding UTF8.
+-- Converts \r\n -> \n on windows.
 readUtf8 :: FilePath -> IO Text
-readUtf8 p = decodeUtf8 <$> BS.readFile p
+readUtf8 fileName =
+  UnliftIO.withFile fileName UnliftIO.ReadMode readUtf8Handle
 
+-- | Strictly read from a handle, decoding UTF8, or failing if not valid UTF8
+-- Converts \r\n -> \n on windows.
 safeReadUtf8 :: FilePath -> IO (Either IOException Text)
 safeReadUtf8 p = try (readUtf8 p)
 
+-- | Strictly read from a handle, decoding UTF8.
+-- Note, this changes the newline-mode of the handle
+-- to convert \r\n -> \n on windows.
+readUtf8Handle :: IO.Handle -> IO Text
+readUtf8Handle handle = do
+  Handle.hSetEncoding handle IO.utf8
+  Text.hGetContents handle
+
+-- | Strictly read from stdin, decoding UTF8.
+-- Converts \r\n -> \n on windows.
 safeReadUtf8StdIn :: IO (Either IOException Text)
-safeReadUtf8StdIn = try $ decodeUtf8 <$> BS.getContents
+safeReadUtf8StdIn = do
+  handle <- Handle.hDuplicate IO.stdin
+  try $ readUtf8Handle handle
 
 uncurry4 :: (a -> b -> c -> d -> e) -> (a, b, c, d) -> e
 uncurry4 f (a, b, c, d) =
   f a b c d
 
+-- | Write a file strictly assuming UTF8
+-- Converts \n -> \r\n on windows.
 writeUtf8 :: FilePath -> Text -> IO ()
-writeUtf8 p txt = BS.writeFile p (encodeUtf8 txt)
+writeUtf8 fileName txt = do
+  UnliftIO.withFile fileName UnliftIO.WriteMode $ \handle -> do
+    Handle.hSetEncoding handle IO.utf8
+    Text.hPutStr handle txt
 
 reportBug :: String -> String -> String
 reportBug bugId msg =

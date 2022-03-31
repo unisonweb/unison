@@ -23,6 +23,7 @@ flag optimized
 
 library
   exposed-modules:
+      Compat
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleCommand
@@ -34,6 +35,7 @@ library
       Unison.Codebase.Editor.Output.BranchDiff
       Unison.Codebase.Editor.Output.DumpNamespace
       Unison.Codebase.Editor.Propagate
+      Unison.Codebase.Editor.Slurp
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
       Unison.Codebase.Editor.TodoOutput
@@ -97,18 +99,24 @@ library
     , open-browser
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , stm
     , text
+    , these
     , transformers
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
+  if !os(windows)
+    build-depends:
+        unix
   default-language: Haskell2010
 
 executable integration-tests
@@ -142,11 +150,14 @@ executable integration-tests
       TypeApplications
       ViewPatterns
   ghc-options: -Wall -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  build-tools:
+      unison
   build-depends:
       ListLike
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -164,15 +175,18 @@ executable integration-tests
     , process
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , text
+    , these
     , time
     , transformers
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio
@@ -210,13 +224,12 @@ executable transcripts
       TypeApplications
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
-  build-tools:
-      unison
   build-depends:
       ListLike
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -234,14 +247,18 @@ executable transcripts
     , process
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , text
+    , these
     , transformers
+    , unison-cli
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio
@@ -253,7 +270,6 @@ executable unison
   main-is: Main.hs
   other-modules:
       ArgParse
-      Compat
       System.Path
       Version
       Paths_unison_cli
@@ -288,6 +304,7 @@ executable unison
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -304,25 +321,25 @@ executable unison
     , optparse-applicative >=0.16.1.0
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , template-haskell
     , temporary
     , text
+    , these
     , transformers
     , unison-cli
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  if !os(windows)
-    build-depends:
-        unix
   default-language: Haskell2010
 
 test-suite tests
@@ -367,6 +384,7 @@ test-suite tests
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -384,16 +402,19 @@ test-suite tests
     , open-browser
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , temporary
     , text
+    , these
     , transformers
     , unison-cli
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-util
     , unison-util-relation
     , unliftio

@@ -1,30 +1,47 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 module Unison.Codebase.Editor.HandleInput.LoopState where
 
 import Control.Lens
-import Control.Monad.State (StateT)
+import Control.Monad.Except
+import Control.Monad.Reader
+import Control.Monad.State
 import Data.Configurator ()
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Branch
   ( Branch (..),
   )
+import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import qualified Unison.Codebase.Path as Path
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
-import Unison.Codebase.Editor.Command
-import qualified Data.List.NonEmpty as Nel
 import qualified Unison.Util.Free as Free
-import Control.Monad.Except (ExceptT)
 
 type F m i v = Free (Command m i v)
 
-type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
+data Env = Env
+
+newtype Action m i v a = Action {unAction :: MaybeT (ReaderT Env (StateT (LoopState m v) (F m i v))) a}
+  deriving newtype (Functor, Applicative, Alternative, Monad, MonadIO, MonadState (LoopState m v), MonadReader Env)
+  -- We should likely remove this MonadFail instance since it's really hard to debug,
+  -- but it's currently in use.
+  deriving newtype (MonadFail)
+
+runAction :: Env -> LoopState m v -> Action m i v a -> (F m i v (Maybe a, LoopState m v))
+runAction env state (Action m) =
+  m
+    & runMaybeT
+    & flip runReaderT env
+    & flip runStateT state
+
+liftF :: F m i v a -> Action m i v a
+liftF = Action . lift . lift . lift
 
 -- | A typeclass representing monads which can evaluate 'Command's.
 class Monad n => MonadCommand n m v i | n -> m v i where
@@ -41,6 +58,12 @@ instance MonadCommand n m i v => MonadCommand (MaybeT n) m i v where
 
 instance MonadCommand n m i v => MonadCommand (ExceptT e n) m i v where
   eval = lift . eval
+
+instance MonadCommand n m i v => MonadCommand (ReaderT r n) m i v where
+  eval = lift . eval
+
+instance MonadCommand (Action m i v) m i v where
+  eval = Action . eval
 
 type NumberedArgs = [String]
 

@@ -16,6 +16,7 @@ dependencies:
   - extra
   - here
   - lens
+  - generic-lens
   - monad-validate
   - mtl
   - safe
@@ -36,6 +37,7 @@ default-extensions:
   - ApplicativeDo
   - BangPatterns
   - BlockArguments
+  - ConstraintKinds
   - DeriveAnyClass
   - DeriveFunctor
   - DeriveGeneric
@@ -43,7 +45,9 @@ default-extensions:
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - FunctionalDependencies
   - GeneralizedNewtypeDeriving
+  - InstanceSigs
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
@@ -53,4 +57,6 @@ default-extensions:
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
+  - TypeFamilies
+  - TypeFamilyDependencies
   - ViewPatterns

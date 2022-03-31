@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -11,11 +10,11 @@ import Data.String.Here.Interpolated (i)
 import qualified Data.Text as Text
 import EasyTest
 import Shellmet ()
-import System.Directory (removeDirectoryRecursive)
+import System.Directory (removePathForcibly)
 import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
-import qualified Unison.Codebase as Codebase
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
@@ -25,7 +24,7 @@ import Unison.WatchKind (pattern TestWatch)
 
 transcriptOutputFile :: String -> FilePath
 transcriptOutputFile name =
-  (".." </> "unison-src"</>"transcripts"</>("GitSync22." ++ name ++ ".output.md"))
+  (".." </> "unison-src" </> "transcripts" </> ("GitSync22." ++ name ++ ".output.md"))
 
 -- keep it off for CI, since the random temp dirs it generates show up in the
 -- output, which causes the test output to change, and the "no change" check
@@ -34,14 +33,22 @@ writeTranscriptOutput :: Bool
 writeTranscriptOutput = False
 
 test :: Test ()
-test = scope "gitsync22" . tests $
-  fastForwardPush :
-  nonFastForwardPush :
-  destroyedRemote :
-  flip map [(Ucm.CodebaseFormat2, "sc")]
-  \(fmt, name) -> scope name $ tests [
-  pushPullTest  "pull-over-deleted-namespace" fmt
-    (\repo -> [i|
+test =
+  scope "gitsync22" . tests $
+    fastForwardPush :
+    nonFastForwardPush :
+    destroyedRemote :
+    flip
+      map
+      [(Ucm.CodebaseFormat2, "sc")]
+      \(fmt, name) ->
+        scope name $
+          tests
+            [ pushPullTest
+                "pull-over-deleted-namespace"
+                fmt
+                ( \repo ->
+                    [i|
       ```unison:hide
       x = 1
       ```
@@ -49,8 +56,10 @@ test = scope "gitsync22" . tests $
       .> add
       .> push.create ${repo}
       ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
       ```unison:hide
       child.y = 2
       ```
@@ -61,10 +70,13 @@ test = scope "gitsync22" . tests $
       .> delete.namespace child
       .> pull ${repo} child
       ```
-    |])
-  ,
-  pushPullTest  "pull.without-history" fmt
-    (\repo -> [i|
+    |]
+                ),
+              pushPullTest
+                "pull.without-history"
+                fmt
+                ( \repo ->
+                    [i|
       ```unison:hide
       child.x = 1
       ```
@@ -89,8 +101,10 @@ test = scope "gitsync22" . tests $
       .> update
       .> push.create ${repo}
       ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
       Should be able to pull the branch from the remote without its history.
       Note that this only tests that the pull succeeds, since (at time of writing) we don't
       track/test transcript output for these tests in the unison repo.
@@ -98,10 +112,13 @@ test = scope "gitsync22" . tests $
       .> pull.without-history ${repo}:.child .child
       .> history .child
       ```
-    |])
-  ,
-  pushPullTest  "push-over-deleted-namespace" fmt
-    (\repo -> [i|
+    |]
+                ),
+              pushPullTest
+                "push-over-deleted-namespace"
+                fmt
+                ( \repo ->
+                    [i|
       ```unison:hide
       child.x = 1
       y = 2
@@ -111,8 +128,10 @@ test = scope "gitsync22" . tests $
       .> delete.namespace child
       .> push.create ${repo}
       ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
       ```unison:hide
       child.z = 3
       ```
@@ -122,18 +141,23 @@ test = scope "gitsync22" . tests $
       .> add
       .> push.create ${repo}:.child child
       ```
-    |])
-  ,
-  pushPullTest  "typeAlias" fmt
-    (\repo -> [i|
+    |]
+                ),
+              pushPullTest
+                "typeAlias"
+                fmt
+                ( \repo ->
+                    [i|
       ```ucm
       .> alias.type ##Nat builtin.Nat
       .> history
       .> history builtin
       .> push.create ${repo}
       ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
       ```ucm
       .> pull ${repo}
       ```
@@ -141,10 +165,13 @@ test = scope "gitsync22" . tests $
       x : Nat
       x = 3
       ```
-    |])
-  ,
-  pushPullTest  "topLevelTerm" fmt
-    (\repo -> [i|
+    |]
+                ),
+              pushPullTest
+                "topLevelTerm"
+                fmt
+                ( \repo ->
+                    [i|
       ```unison:hide
       y = 3
       ```
@@ -153,8 +180,10 @@ test = scope "gitsync22" . tests $
       .> history
       .> push.create ${repo}
       ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
       ```ucm
       .> pull ${repo}
       .> find
@@ -162,10 +191,13 @@ test = scope "gitsync22" . tests $
       ```unison
       > y
       ```
-    |])
-  ,
-  pushPullTest  "metadataForTerm" fmt
-    (\repo -> [i|
+    |]
+                ),
+              pushPullTest
+                "metadataForTerm"
+                fmt
+                ( \repo ->
+                    [i|
           ```unison:hide
           doc = "y is the number 3"
           y = 3
@@ -178,16 +210,21 @@ test = scope "gitsync22" . tests $
           .> history
           .> push.create ${repo}
           ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
         ```ucm
         .> pull ${repo}
         .> links y
         ```
-    |])
-  ,
-  pushPullTest  "metadataForType" fmt
-    (\repo -> [i|
+    |]
+                ),
+              pushPullTest
+                "metadataForType"
+                fmt
+                ( \repo ->
+                    [i|
           ```unison:hide
           doc = "Nat means natural number"
           ```
@@ -197,16 +234,21 @@ test = scope "gitsync22" . tests $
           .> link doc Nat
           .> push.create ${repo}
           ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
         ```ucm
         .> pull ${repo}
         .> links Nat
         ```
-    |])
-  ,
-  pushPullTest  "subNamespace" fmt
-    (\repo -> [i|
+    |]
+                ),
+              pushPullTest
+                "subNamespace"
+                fmt
+                ( \repo ->
+                    [i|
           ```ucm
           .> alias.type ##Nat builtin.Nat
           ```
@@ -218,8 +260,10 @@ test = scope "gitsync22" . tests $
           .> add
           .> push.create ${repo}
           ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
         ```ucm
         .> pull.silent ${repo}
         .> find
@@ -227,10 +271,13 @@ test = scope "gitsync22" . tests $
         ```unison
         > a.b.C.C a.b.d
         ```
-    |])
-  ,
-  pushPullTest  "accessPatch" fmt
-    (\repo -> [i|
+    |]
+                ),
+              pushPullTest
+                "accessPatch"
+                fmt
+                ( \repo ->
+                    [i|
           ```ucm
           .> alias.type ##Nat builtin.Nat
           ```
@@ -254,16 +301,21 @@ test = scope "gitsync22" . tests $
           .> view.patch patch
           .> push.create ${repo}
           ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
         ```ucm
         .> pull.silent ${repo}
         .> view.patch patch
         ```
-    |])
-  ,
-  pushPullTest  "history" fmt
-    (\repo -> [i|
+    |]
+                ),
+              pushPullTest
+                "history"
+                fmt
+                ( \repo ->
+                    [i|
           ```unison
           foo = 3
           ```
@@ -278,43 +330,30 @@ test = scope "gitsync22" . tests $
           .> history
           .> push.create ${repo}
           ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
         ```ucm
         .> pull ${repo}
         .> history
-        .> reset-root #dshactmb93
+        .> reset-root #l43v9nr16v
         .> history
         ```
-    |])
-  ,
-
-  pushPullTest "one-term" fmt
--- simplest-author
-    (\repo -> [i|
-      ```unison
-      c = 3
-      ```
-      ```ucm
-      .> debug.file
-      .> add
-      .> push.create ${repo}
-      ```
-    |])
--- simplest-user
-    (\repo -> [i|
-      ```ucm
-      .> pull ${repo}
-      .> alias.term ##Nat.+ +
-      ```
-      ```unison
-      > #msp7bv40rv + 1
-      ```
-    |])
-  ,
-  pushPullTest "one-term2" fmt
--- simplest-author
-    (\repo -> [i|
+    |] -- Not sure why this hash is here.
+                    -- Is it to test `reset-root`?
+                    -- Or to notice a change in hashing?
+                    -- Or to test that two distinct points of history were pulled?
+                    -- It would be great to not need the explicit hash here,
+                    -- since it does change periodically.
+                    -- Though, I guess that should also be rare, so maybe this is fine.
+                ),
+              pushPullTest
+                "one-term"
+                fmt
+                -- simplest-author
+                ( \repo ->
+                    [i|
       ```unison
       c = 3
       ```
@@ -323,20 +362,25 @@ test = scope "gitsync22" . tests $
       .myLib> add
       .myLib> push.create ${repo}
       ```
-      |])
--- simplest-user
-    (\repo -> [i|
+      |]
+                )
+                -- simplest-user
+                ( \repo ->
+                    [i|
       ```ucm
       .yourLib> pull ${repo}
       ```
       ```unison
       > c
       ```
-      |])
-  ,
-  pushPullTest "one-type" fmt
--- simplest-author
-    (\repo -> [i|
+      |]
+                ),
+              pushPullTest
+                "one-type"
+                fmt
+                -- simplest-author
+                ( \repo ->
+                    [i|
       ```unison
       structural type Foo = Foo
       ```
@@ -345,19 +389,24 @@ test = scope "gitsync22" . tests $
       .myLib> add
       .myLib> push.create ${repo}
       ```
-      |])
--- simplest-user
-    (\repo -> [i|
+      |]
+                )
+                -- simplest-user
+                ( \repo ->
+                    [i|
       ```ucm
       .yourLib> pull ${repo}
       ```
       ```unison
       > Foo.Foo
       ```
-      |])
-  ,
-  pushPullTest "patching" fmt
-    (\repo -> [i|
+      |]
+                ),
+              pushPullTest
+                "patching"
+                fmt
+                ( \repo ->
+                    [i|
       ```ucm
       .myLib> alias.term ##Nat.+ +
       ```
@@ -379,8 +428,10 @@ test = scope "gitsync22" . tests $
       .workaround1552.myLib.v2> update
       .workaround1552.myLib> push.create ${repo}
       ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
       ```ucm
       .myApp> pull ${repo}:.v1 external.yourLib
       .myApp> alias.term ##Nat.* *
@@ -402,11 +453,14 @@ test = scope "gitsync22" . tests $
       ```unison
       > greatApp
       ```
-    |])
-  ,
-  -- TODO: remove the alias.type .defns.A A line once patch syncing is fixed
-  pushPullTest "lightweightPatch" fmt
-    (\repo -> [i|
+    |]
+                ),
+              -- TODO: remove the alias.type .defns.A A line once patch syncing is fixed
+              pushPullTest
+                "lightweightPatch"
+                fmt
+                ( \repo ->
+                    [i|
       ```ucm
       .> builtins.merge
       ```
@@ -423,17 +477,22 @@ test = scope "gitsync22" . tests $
       .patches> replace .defns.x .defns.y
       .patches> push.create ${repo}
       ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
       ```ucm
       .> builtins.merge
       .> pull ${repo} patches
       .> view.patch patches.patch
       ```
-    |])
-  ,
-  watchPushPullTest "test-watches" fmt
-    (\repo -> [i|
+    |]
+                ),
+              watchPushPullTest
+                "test-watches"
+                fmt
+                ( \repo ->
+                    [i|
         ```ucm
         .> builtins.merge
         ```
@@ -444,104 +503,118 @@ test = scope "gitsync22" . tests $
         .> add
         .> push.create ${repo}
         ```
-      |])
-    (\repo -> [i|
+      |]
+                )
+                ( \repo ->
+                    [i|
         ```ucm
         .> pull ${repo}
         ```
-      |])
-    (\cb -> do
-      void . fmap (fromJust . sequence) $
-        traverse (Codebase.getWatch cb TestWatch) =<<
-          Codebase.watches cb TestWatch)
-  ,
-  gistTest fmt,
-  pushPullTest "fix2068_a_" fmt
-    -- this triggers
-    {-
-gitsync22.sc.fix2068(a) EXCEPTION!!!: Called SqliteCodebase.setNamespaceRoot on unknown causal hash CausalHash (fromBase32Hex "codddvgt1ep57qpdkhe2j4pe1ehlpi5iitcrludtb8ves1aaqjl453onvfphqg83vukl7bbrj49itceqfob2b3alf47u4vves5s7pog")
-CallStack (from HasCallStack):
-  error, called at src/Unison/Codebase/SqliteCodebase.hs:1072:17 in unison-parser-typechecker-0.0.0-6U6boimwb8GAC5qrhLfs8h:Unison.Codebase.SqliteCodebase
-     -}
-    (\repo -> [i|
+      |]
+                )
+                ( \cb -> do
+                    void . fmap (fromJust . sequence) $
+                      traverse (Codebase.getWatch cb TestWatch)
+                        =<< Codebase.watches cb TestWatch
+                ),
+              gistTest fmt,
+              pushPullBranchesTests fmt,
+              pushPullTest
+                "fix2068_a_"
+                fmt
+                -- this triggers
+                {-
+                gitsync22.sc.fix2068(a) EXCEPTION!!!: Called SqliteCodebase.setNamespaceRoot on unknown causal hash CausalHash (fromBase32Hex "codddvgt1ep57qpdkhe2j4pe1ehlpi5iitcrludtb8ves1aaqjl453onvfphqg83vukl7bbrj49itceqfob2b3alf47u4vves5s7pog")
+                CallStack (from HasCallStack):
+                  error, called at src/Unison/Codebase/SqliteCodebase.hs:1072:17 in unison-parser-typechecker-0.0.0-6U6boimwb8GAC5qrhLfs8h:Unison.Codebase.SqliteCodebase
+                     -}
+                ( \repo ->
+                    [i|
       ```ucm
       .> alias.type ##Nat builtin.Nat2
       .> alias.type ##Int builtin.Int2
       .> push.create ${repo}:.foo.bar
       ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
       ```ucm
       .> pull ${repo} pulled
       .> view pulled.foo.bar.builtin.Nat2
       .> view pulled.foo.bar.builtin.Int2
       ```
-    |])
-  ,
-  pushPullTest "fix2068_b_" fmt
-    -- this triggers
-    {-
-     - gitsync22.sc.fix2068(b) EXCEPTION!!!: I couldn't find the hash ndn6fa85ggqtbgffqhd4d3bca2d08pgp3im36oa8k6p257aid90ovjq75htmh7lmg7akaqneva80ml1o21iscjmp9n1uc3lmqgg9rgg that I just synced to the cached copy of /private/var/folders/6m/p3szds2j67d8vwmxr51yrf5c0000gn/T/git-simple-1047398c149d3d5c/repo.git in "/Users/pchiusano/.cache/unisonlanguage/gitfiles/$x2F$private$x2F$var$x2F$folders$x2F$6m$x2F$p3szds2j67d8vwmxr51yrf5c0000gn$x2F$T$x2F$git-simple-1047398c149d3d5c$x2F$repo$dot$git".
-CallStack (from HasCallStack):
-  error, called at src/Unison/Codebase/SqliteCodebase.hs:1046:13 in unison-parser-typechecker-0.0.0-6U6boimwb8GAC5qrhLfs8h:Unison.Codebase.SqliteCodebase
-     -}
-    (\repo -> [i|
+    |]
+                ),
+              pushPullTest
+                "fix2068_b_"
+                fmt
+                -- this triggers
+                {-
+                     - gitsync22.sc.fix2068(b) EXCEPTION!!!: I couldn't find the hash ndn6fa85ggqtbgffqhd4d3bca2d08pgp3im36oa8k6p257aid90ovjq75htmh7lmg7akaqneva80ml1o21iscjmp9n1uc3lmqgg9rgg that I just synced to the cached copy of /private/var/folders/6m/p3szds2j67d8vwmxr51yrf5c0000gn/T/git-simple-1047398c149d3d5c/repo.git in "/Users/pchiusano/.cache/unisonlanguage/gitfiles/$x2F$private$x2F$var$x2F$folders$x2F$6m$x2F$p3szds2j67d8vwmxr51yrf5c0000gn$x2F$T$x2F$git-simple-1047398c149d3d5c$x2F$repo$dot$git".
+                CallStack (from HasCallStack):
+                  error, called at src/Unison/Codebase/SqliteCodebase.hs:1046:13 in unison-parser-typechecker-0.0.0-6U6boimwb8GAC5qrhLfs8h:Unison.Codebase.SqliteCodebase
+                     -}
+                ( \repo ->
+                    [i|
       ```ucm
       .> alias.type ##Nat builtin.Nat2
       .> alias.type ##Int builtin.Int2
       .> push.create ${repo}
       .> push.create ${repo}:.foo.bar
       ```
-    |])
-    (\repo -> [i|
+    |]
+                )
+                ( \repo ->
+                    [i|
       ```ucm
       .> pull ${repo} pulled
       .> view pulled.foo.bar.builtin.Nat2
       .> view pulled.foo.bar.builtin.Int2
       ```
-    |])
+    |]
+                )
+                -- m [Reference.Id]
 
-          -- m [Reference.Id]
+                -- traverse :: (Traversable t, Applicative f) => (a -> f b) -> t a -> f (t b)
+                -- watches            :: UF.WatchKind -> m [Reference.Id]
+                -- getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
 
--- traverse :: (Traversable t, Applicative f) => (a -> f b) -> t a -> f (t b)
--- watches            :: UF.WatchKind -> m [Reference.Id]
--- getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
+                -- pushPullTest "regular" fmt
+                --   (\repo -> [i|
+                --   ```ucm:hide
+                --   .builtin> alias.type ##Nat Nat
+                --   .builtin> alias.term ##Nat.+ Nat.+
+                --   ```
+                --   ```unison
+                --   unique type outside.A = A Nat
+                --   unique type outside.B = B Nat Nat
+                --   outside.c = 3
+                --   outside.d = 4
 
-  -- pushPullTest "regular" fmt
-  --   (\repo -> [i|
-  --   ```ucm:hide
-  --   .builtin> alias.type ##Nat Nat
-  --   .builtin> alias.term ##Nat.+ Nat.+
-  --   ```
-  --   ```unison
-  --   unique type outside.A = A Nat
-  --   unique type outside.B = B Nat Nat
-  --   outside.c = 3
-  --   outside.d = 4
+                --   unique type inside.X = X outside.A
+                --   inside.y = c + c
+                --   ```
+                --   ```ucm
+                --   .myLib> debug.file
+                --   .myLib> add
+                --   .myLib> push ${repo}
+                --   ```
+                --   |])
 
-  --   unique type inside.X = X outside.A
-  --   inside.y = c + c
-  --   ```
-  --   ```ucm
-  --   .myLib> debug.file
-  --   .myLib> add
-  --   .myLib> push ${repo}
-  --   ```
-  --   |])
-
-  --       (\repo -> [i|
-  --   ```ucm:hide
-  --   .builtin> alias.type ##Nat Nat
-  --   .builtin> alias.term ##Nat.+ Nat.+
-  --   ```
-  --   ```ucm
-  --   .yourLib> pull ${repo}:.inside
-  --   ```
-  --   ```unison
-  --   > y + #msp7bv40rv + 1
-  --   ```
-  --   |])
-  ]
+                --       (\repo -> [i|
+                --   ```ucm:hide
+                --   .builtin> alias.type ##Nat Nat
+                --   .builtin> alias.term ##Nat.+ Nat.+
+                --   ```
+                --   ```ucm
+                --   .yourLib> pull ${repo}:.inside
+                --   ```
+                --   ```unison
+                --   > y + #msp7bv40rv + 1
+                --   ```
+                --   |])
+            ]
 
 -- type inside.X#skinr6rvg7
 -- type outside.A#l2fmn9sdbk
@@ -565,12 +638,13 @@ pushPullTest name fmt authorScript userScript = scope name do
     user <- Ucm.initCodebase fmt
     userOutput <- Ucm.runTranscript user (userScript repo)
 
-    when writeTranscriptOutput $ writeFile
-      (transcriptOutputFile name)
-      (authorOutput <> "\n-------\n" <> userOutput)
+    when writeTranscriptOutput $
+      writeUtf8
+        (transcriptOutputFile name)
+        (Text.pack $ authorOutput <> "\n-------\n" <> userOutput)
 
     -- if we haven't crashed, clean up!
-    removeDirectoryRecursive repo
+    removePathForcibly repo
     Ucm.deleteCodebase author
     Ucm.deleteCodebase user
   ok
@@ -585,12 +659,13 @@ watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
     userOutput <- Ucm.runTranscript user (userScript repo)
     Ucm.lowLevel user codebaseCheck
 
-    when writeTranscriptOutput $ writeFile
-      (transcriptOutputFile name)
-      (authorOutput <> "\n-------\n" <> userOutput)
+    when writeTranscriptOutput $
+      writeUtf8
+        (transcriptOutputFile name)
+        (Text.pack $ authorOutput <> "\n-------\n" <> userOutput)
 
     -- if we haven't crashed, clean up!
-    removeDirectoryRecursive repo
+    removePathForcibly repo
     Ucm.deleteCodebase author
     Ucm.deleteCodebase user
   ok
@@ -612,7 +687,7 @@ gistTest fmt =
     userScript repo =
       [i|
         ```ucm
-        .> pull ${repo}:#n611nnppp5
+        .> pull ${repo}:#td09c6jlks
         .> find
         ```
         ```unison
@@ -620,12 +695,82 @@ gistTest fmt =
         ```
       |]
 
+pushPullBranchesTests :: CodebaseFormat -> Test ()
+pushPullBranchesTests fmt = scope "branches" $ do
+  simplePushPull
+  multiplePushPull
+  emptyBranchFailure
+  where
+    simplePushPull =
+      let authorScript repo =
+            [i|
+              ```unison:hide
+              y = 3
+              ```
+              ```ucm
+              .> add
+              .> push.create ${repo}:mybranch:.path
+              ```
+            |]
+          userScript repo =
+            [i|
+              ```ucm
+              .> pull ${repo}:mybranch .dest
+              .> view .dest.path.y
+              ```
+            |]
+       in pushPullTest "simple" fmt authorScript userScript
+    emptyBranchFailure =
+      let authorScript _repo = ""
+          userScript repo =
+            [i|
+              ```ucm:error
+              .> pull ${repo}:mybranch .dest
+              ```
+            |]
+       in pushPullTest "empty" fmt authorScript userScript
+    multiplePushPull =
+      let authorScript repo =
+            [i|
+              ```unison:hide
+              ns1.x = 10
+              ns2.y = 20
+              ```
+              ```ucm
+              .> add
+              .> push.create ${repo}:mybranch:.ns1 .ns1
+              .> push.create ${repo}:mybranch:.ns2 .ns2
+              ```
+              ```unison
+              ns1.x = 11
+              ns1.new = 12
+              ```
+              ```ucm
+              .> update
+              .> push ${repo}:mybranch:.ns1 .ns1
+              ```
+            |]
+          userScript repo =
+            [i|
+              ```ucm
+              .> pull ${repo}:mybranch:.ns1 .ns1
+              .> pull ${repo}:mybranch:.ns2 .ns2
+              .> view .ns1.x
+              .> view .ns1.new
+              .> view .ns2.y
+              ```
+            |]
+       in pushPullTest "multiple" fmt authorScript userScript
+
 fastForwardPush :: Test ()
 fastForwardPush = scope "fastforward-push" do
   io do
     repo <- initGitRepo
     author <- Ucm.initCodebase Ucm.CodebaseFormat2
-    void $ Ucm.runTranscript author [i|
+    void $
+      Ucm.runTranscript
+        author
+        [i|
       ```ucm
       .lib> alias.type ##Nat Nat
       .lib> push.create ${repo}
@@ -640,7 +785,10 @@ nonFastForwardPush = scope "non-fastforward-push" do
   io do
     repo <- initGitRepo
     author <- Ucm.initCodebase Ucm.CodebaseFormat2
-    void $ Ucm.runTranscript author [i|
+    void $
+      Ucm.runTranscript
+        author
+        [i|
       ```ucm:error
       .lib> alias.type ##Nat Nat
       .lib> push ${repo}
@@ -650,29 +798,34 @@ nonFastForwardPush = scope "non-fastforward-push" do
     |]
   ok
 
-destroyedRemote :: Test()
+destroyedRemote :: Test ()
 destroyedRemote = scope "destroyed-remote" do
   io do
     repo <- initGitRepo
     codebase <- Ucm.initCodebase Ucm.CodebaseFormat2
-    void $ Ucm.runTranscript codebase [i|
+    void $
+      Ucm.runTranscript
+        codebase
+        [i|
       ```ucm
       .lib> alias.type ##Nat Nat
       .lib> push.create ${repo}
       ```
     |]
     reinitRepo repo
-    void $ Ucm.runTranscript codebase [i|
+    void $
+      Ucm.runTranscript
+        codebase
+        [i|
       ```ucm
       .lib> push.create ${repo}
       ```
     |]
   ok
   where
-    reinitRepo (Text.pack -> repo) = do
-      "rm" ["-rf", repo]
+    reinitRepo repoStr@(Text.pack -> repo) = do
+      removePathForcibly repoStr
       "git" ["init", "--bare", repo]
-
 
 initGitRepo :: IO FilePath
 initGitRepo = do

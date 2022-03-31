@@ -39,13 +39,13 @@ The history of the namespace should still exist if requested explicitly.
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #qjc20aua9h
+  ⊙ 1. #nvh8d4j0fm
   
     - Deletes:
     
       x
   
-  □ #hkrqt3tm05 (start of history)
+  □ 2. #i52j9fd57b (start of history)
 
 ```
 Merging an empty namespace should still copy its history if it has some.
@@ -66,13 +66,13 @@ Merging an empty namespace should still copy its history if it has some.
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #qjc20aua9h
+  ⊙ 1. #nvh8d4j0fm
   
     - Deletes:
     
       x
   
-  □ #hkrqt3tm05 (start of history)
+  □ 2. #i52j9fd57b (start of history)
 
 ```
 Add and then delete a term to add some history to a deleted namespace.
@@ -81,6 +81,8 @@ Add and then delete a term to add some history to a deleted namespace.
 deleted.x = 1
 stuff.thing = 2
 ```
+
+## fork
 
 I should be allowed to fork over a deleted namespace
 
@@ -100,7 +102,7 @@ The history from the `deleted` namespace should have been overwritten by the his
   
   
   
-  □ #3bm1524lb7 (start of history)
+  □ 1. #q2dq4tsno1 (start of history)
 
 .> history deleted
 
@@ -109,6 +111,48 @@ The history from the `deleted` namespace should have been overwritten by the his
   
   
   
-  □ #3bm1524lb7 (start of history)
+  □ 1. #q2dq4tsno1 (start of history)
+
+```
+## move.namespace
+
+```unison
+moveoverme.x = 1
+moveme.y = 2
+```
+
+I should be able to move a namespace over-top of a deleted namespace.
+The history should be that of the moved namespace.
+
+```ucm
+.> delete.namespace moveoverme
+
+  Removed definitions:
+  
+    1. x : ##Nat
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
+
+.> history moveme
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #c5uisu4kll (start of history)
+
+.> move.namespace moveme moveoverme
+
+  Done.
+
+.> history moveoverme
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #c5uisu4kll (start of history)
 
 ```

@@ -1,54 +1,58 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Codebase.Editor.UriParser (repoPath,writeRepo,writeRepoPath) where
+module Unison.Codebase.Editor.UriParser (repoPath, writeRepo, writeRepoPath) where
 
-import qualified Text.Megaparsec as P
-import qualified Text.Megaparsec.Char.Lexer as L
-import qualified Text.Megaparsec.Char as C
+import Data.Char (isAlphaNum, isDigit, isSpace)
+import Data.Sequence as Seq
 import Data.Text as Text
-
-import Unison.Codebase.Path (Path(..))
+import Data.Void
+import qualified Text.Megaparsec as P
+import qualified Text.Megaparsec.Char as C
+import qualified Text.Megaparsec.Char.Lexer as L
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo (..), WriteRemotePath, WriteRepo (..))
+import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo (ReadGitRepo), WriteRemotePath, WriteRepo (WriteGitRepo))
-import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
-import Unison.Prelude
+import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
 import qualified Unison.Hash as Hash
 import qualified Unison.Lexer
-import Unison.NameSegment (NameSegment(..))
-import Data.Sequence as Seq
-import Data.Char (isAlphaNum, isSpace, isDigit)
+import Unison.NameSegment (NameSegment (..))
+import Unison.Prelude
 
-type P = P.Parsec () Text
+type P = P.Parsec Void Text.Text
 
 -- Here are the git protocols that we know how to parse
 -- Local Protocol
+
 -- $ git clone /srv/git/project.git
+
 -- $ git clone /srv/git/project.git[:treeish][:[#hash][.path]]
 -- File Protocol
+
 -- $ git clone file:///srv/git/project.git[:treeish][:[#hash][.path]]
 -- Smart / Dumb HTTP protocol
+
 -- $ git clone https://example.com/gitproject.git[:treeish][:[#hash][.path]]
 -- SSH Protocol
+
 -- $ git clone ssh://[user@]server/project.git[:treeish][:[#hash][.path]]
+
 -- $ git clone [user@]server:project.git[:treeish][:[#hash][.path]]
+
 repoPath :: P ReadRemoteNamespace
 repoPath = P.label "generic git repo" $ do
   protocol <- parseProtocol
   treeish <- P.optional treeishSuffix
-  case treeish of
-    Just t -> fail $ "Specifying a git 'commit-ish' (" ++ Text.unpack t ++ ") is not currently supported."
-      ++ " " ++ "If you need this, add your 2¢ at https://github.com/unisonweb/unison/issues/1436."
-    Nothing -> do
-      let repo = ReadGitRepo (printProtocol protocol)
-      nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
-      case nshashPath of
-        Nothing -> pure (repo, Nothing, Path.empty)
-        Just (sbh, p) -> pure (repo, sbh, p)
+  let repo = ReadGitRepo {url = printProtocol protocol, ref = treeish}
+  nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
+  case nshashPath of
+    Nothing -> pure (repo, Nothing, Path.empty)
+    Just (sbh, p) -> pure (repo, sbh, p)
 
 writeRepo :: P WriteRepo
 writeRepo = P.label "repo root for writing" $ do
-  WriteGitRepo . printProtocol <$> parseProtocol
+  uri <- parseProtocol
+  treeish <- P.optional treeishSuffix
+  pure WriteGitRepo {url' = printProtocol uri, branch = treeish}
 
 writeRepoPath :: P WriteRemotePath
 writeRepoPath = P.label "generic git repo" $ do
@@ -69,24 +73,26 @@ data GitProtocol
   deriving (Eq, Ord, Show)
 
 printProtocol :: GitProtocol -> Text
---printProtocol x | traceShow x False = undefined
+-- printProtocol x | traceShow x False = undefined
 printProtocol x = case x of
-  HttpsProtocol muser hostInfo path -> "https://"
-    <> printUser muser
-    <> printHostInfo hostInfo
-    <> path
-  SshProtocol muser hostInfo path -> "ssh://"
-    <> printUser muser
-    <> printHostInfo hostInfo
-    <> path
+  HttpsProtocol muser hostInfo path ->
+    "https://"
+      <> printUser muser
+      <> printHostInfo hostInfo
+      <> path
+  SshProtocol muser hostInfo path ->
+    "ssh://"
+      <> printUser muser
+      <> printHostInfo hostInfo
+      <> path
   ScpProtocol muser host path -> printUser muser <> host <> ":" <> path
   FileProtocol path -> "file://" <> path
   LocalProtocol path -> path
   where
-  printUser = maybe mempty (\(User u) -> u <> "@")
-  printHostInfo :: HostInfo -> Text
-  printHostInfo (HostInfo hostname mport) =
-    hostname <> maybe mempty (Text.cons ':') mport
+    printUser = maybe mempty (\(User u) -> u <> "@")
+    printHostInfo :: HostInfo -> Text
+    printHostInfo (HostInfo hostname mport) =
+      hostname <> maybe mempty (Text.cons ':') mport
 
 data Scheme = Ssh | Https
   deriving (Eq, Ord, Show)
@@ -105,51 +111,58 @@ type Host = Text -- no port
 -- (does anyone even want that?)
 -- or handle ipv6 addresses (https://en.wikipedia.org/wiki/IPv6#Addressing)
 parseProtocol :: P GitProtocol
-parseProtocol = P.label "parseProtocol" $
-  fileRepo <|> httpsRepo <|> sshRepo <|> scpRepo <|> localRepo
+parseProtocol =
+  P.label "parseProtocol" $
+    fileRepo <|> httpsRepo <|> sshRepo <|> scpRepo <|> localRepo
   where
-  localRepo, fileRepo, httpsRepo, sshRepo, scpRepo :: P GitProtocol
-  parsePath =
-    P.takeWhile1P (Just "repo path character")
-      (\c -> not (isSpace c || c == ':'))
-  localRepo = LocalProtocol <$> parsePath
-  fileRepo = P.label "fileRepo" $ do
-    void $ symbol "file://"
-    FileProtocol <$> parsePath
-  httpsRepo = P.label "httpsRepo" $ do
-    void $ symbol "https://"
-    HttpsProtocol <$> P.optional userInfo <*> parseHostInfo <*> parsePath
-  sshRepo = P.label "sshRepo" $ do
-    void $ symbol "ssh://"
-    SshProtocol <$> P.optional userInfo <*> parseHostInfo <*> parsePath
-  scpRepo = P.label "scpRepo" . P.try $
-    ScpProtocol <$> P.optional userInfo <*> parseHost <* symbol ":" <*> parsePath
-  userInfo :: P User
-  userInfo = P.label "userInfo" . P.try $ do
-    username <- P.takeWhile1P (Just "username character") (/= '@')
-    void $ C.char '@'
-    pure $ User username
-  parseHostInfo :: P HostInfo
-  parseHostInfo = P.label "parseHostInfo" $
-    HostInfo <$> parseHost <*> (P.optional $ do
-      void $ symbol ":"
-      P.takeWhile1P (Just "digits") isDigit)
+    localRepo, fileRepo, httpsRepo, sshRepo, scpRepo :: P GitProtocol
+    parsePath =
+      P.takeWhile1P
+        (Just "repo path character")
+        (\c -> not (isSpace c || c == ':'))
+    localRepo = LocalProtocol <$> parsePath
+    fileRepo = P.label "fileRepo" $ do
+      void $ symbol "file://"
+      FileProtocol <$> parsePath
+    httpsRepo = P.label "httpsRepo" $ do
+      void $ symbol "https://"
+      HttpsProtocol <$> P.optional userInfo <*> parseHostInfo <*> parsePath
+    sshRepo = P.label "sshRepo" $ do
+      void $ symbol "ssh://"
+      SshProtocol <$> P.optional userInfo <*> parseHostInfo <*> parsePath
+    scpRepo =
+      P.label "scpRepo" . P.try $
+        ScpProtocol <$> P.optional userInfo <*> parseHost <* symbol ":" <*> parsePath
+    userInfo :: P User
+    userInfo = P.label "userInfo" . P.try $ do
+      username <- P.takeWhile1P (Just "username character") (/= '@')
+      void $ C.char '@'
+      pure $ User username
+    parseHostInfo :: P HostInfo
+    parseHostInfo =
+      P.label "parseHostInfo" $
+        HostInfo <$> parseHost
+          <*> ( P.optional $ do
+                  void $ symbol ":"
+                  P.takeWhile1P (Just "digits") isDigit
+              )
 
-  parseHost = P.label "parseHost" $ hostname <|> ipv4 -- <|> ipv6
-    where
-    hostname =
-      P.takeWhile1P (Just "hostname character")
-                (\c -> isAlphaNum c || c == '.' || c == '-')
-    ipv4 = P.label "ipv4 address" $ do
-      o1 <- decOctet
-      void $ C.char '.'
-      o2 <- decOctet
-      void $ C.char '.'
-      o3 <- decOctet
-      void $ C.char '.'
-      o4 <- decOctet
-      pure $ Text.pack $ o1 <> "." <> o2 <> "." <> o3 <> "." <> o4
-    decOctet = P.count' 1 3 C.digitChar
+    parseHost = P.label "parseHost" $ hostname <|> ipv4 -- <|> ipv6
+      where
+        hostname =
+          P.takeWhile1P
+            (Just "hostname character")
+            (\c -> isAlphaNum c || c == '.' || c == '-')
+        ipv4 = P.label "ipv4 address" $ do
+          o1 <- decOctet
+          void $ C.char '.'
+          o2 <- decOctet
+          void $ C.char '.'
+          o3 <- decOctet
+          void $ C.char '.'
+          o4 <- decOctet
+          pure $ Text.pack $ o1 <> "." <> o2 <> "." <> o3 <> "." <> o4
+        decOctet = P.count' 1 3 C.digitChar
 
 -- #nshashabc.path.foo.bar or .path.foo.bar
 namespaceHashPath :: P (Maybe ShortBranchHash, Path)
@@ -161,10 +174,11 @@ namespaceHashPath = do
 absolutePath :: P Path
 absolutePath = do
   void $ C.char '.'
-  Path . Seq.fromList . fmap (NameSegment . Text.pack) <$>
-    P.sepBy1
-      ((:) <$> C.satisfy Unison.Lexer.wordyIdStartChar
-           <*> P.many (C.satisfy Unison.Lexer.wordyIdChar))
+  Path . Seq.fromList . fmap (NameSegment . Text.pack)
+    <$> P.sepBy1
+      ( (:) <$> C.satisfy Unison.Lexer.wordyIdStartChar
+          <*> P.many (C.satisfy Unison.Lexer.wordyIdChar)
+      )
       (C.char '.')
 
 treeishSuffix :: P Text
@@ -177,5 +191,5 @@ treeishSuffix = P.label "git treeish" . P.try $ do
 shortBranchHash :: P ShortBranchHash
 shortBranchHash = P.label "short branch hash" $ do
   void $ C.char '#'
-  ShortBranchHash <$>
-    P.takeWhile1P (Just "base32hex chars") (`elem` Hash.validBase32HexChars)
+  ShortBranchHash
+    <$> P.takeWhile1P (Just "base32hex chars") (`elem` Hash.validBase32HexChars)
