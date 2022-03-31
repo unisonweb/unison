@@ -1,3 +1,5 @@
+{-# LANGUAGE ImplicitParams #-}
+
 -- | Sqlite exception utils.
 module Unison.Sqlite.Exception
   ( -- * @SomeSqliteException@
@@ -24,7 +26,9 @@ import Data.Typeable (cast)
 import Data.Void (Void)
 import qualified Database.SQLite.Simple as Sqlite
 import Debug.RecoverRTTI (anythingToString)
+import GHC.Stack (currentCallStack)
 import Unison.Prelude
+import Unison.Sqlite.Connection.Internal (Connection)
 import Unison.Sqlite.Sql
 import UnliftIO.Exception
 
@@ -110,7 +114,8 @@ data SqliteQueryException = SqliteQueryException
     -- | The inner exception. It is intentionally not 'SomeException', so that calling code cannot accidentally
     -- 'throwIO' domain-specific exception types, but must instead use a @*Check@ query variant.
     exception :: SomeSqliteExceptionReason,
-    connection :: String,
+    callStack :: [String],
+    connection :: Connection,
     threadId :: ThreadId
   }
   deriving stock (Show)
@@ -128,22 +133,24 @@ isSqliteBusyException SqliteQueryException {exception = SomeSqliteExceptionReaso
     Just (Sqlite.SQLError Sqlite.ErrorBusy _ _) -> True
     _ -> False
 
-data SqliteQueryExceptionInfo params connection = SqliteQueryExceptionInfo
-  { connection :: connection,
+data SqliteQueryExceptionInfo params = SqliteQueryExceptionInfo
+  { connection :: Connection,
     sql :: Sql,
     params :: Maybe params,
     exception :: SomeSqliteExceptionReason
   }
 
-throwSqliteQueryException :: Show connection => SqliteQueryExceptionInfo params connection -> IO a
+throwSqliteQueryException :: SqliteQueryExceptionInfo params -> IO a
 throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, params, sql} = do
   threadId <- myThreadId
+  callStack <- currentCallStack
   throwIO
     SqliteQueryException
       { sql,
         params = maybe "" anythingToString params,
         exception,
-        connection = show connection,
+        callStack,
+        connection,
         threadId
       }
 

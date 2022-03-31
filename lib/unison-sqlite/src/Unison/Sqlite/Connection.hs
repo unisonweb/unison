@@ -65,26 +65,14 @@ where
 import Data.Bifunctor (bimap)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
-import qualified Database.SQLite3.Direct as Sqlite (Database (..))
 import Debug.RecoverRTTI (anythingToString)
-import Unison.Debug (debugLogM, debugM)
 import qualified Unison.Debug as Debug
 import Unison.Prelude
+import Unison.Sqlite.Connection.Internal (Connection (..))
 import Unison.Sqlite.Exception
 import Unison.Sqlite.Sql
 import UnliftIO (MonadUnliftIO, withRunInIO)
 import UnliftIO.Exception
-
--- | A /non-thread safe/ connection to a SQLite database.
-data Connection = Connection
-  { name :: String,
-    file :: FilePath,
-    conn :: Sqlite.Connection
-  }
-
-instance Show Connection where
-  show (Connection name file (Sqlite.Connection (Sqlite.Database conn))) =
-    "Connection " ++ show name ++ " " ++ show file ++ " " ++ show conn
 
 -- | Perform an action with a connection to a SQLite database.
 --
@@ -124,13 +112,33 @@ closeConnection (Connection _ _ conn) =
   --   2. Always ignore exceptions thrown by `close` (Mitchell prefers this one)
   Sqlite.close conn
 
+-- An internal type, for making prettier debug logs
+
+data Query = Query
+  { sql :: Sql,
+    params :: Maybe String,
+    result :: Maybe String
+  }
+
+instance Show Query where
+  show Query {sql, params, result} =
+    concat
+      [ "Query { sql = ",
+        show sql,
+        maybe "" (\p -> ", params = " ++ show p) params,
+        maybe "" (\r -> ", results = " ++ show r) result,
+        " }"
+      ]
+
+logQuery :: Sql -> Maybe a -> Maybe b -> IO ()
+logQuery sql params result =
+  Debug.debugM Debug.Sqlite "SQL query" (Query sql (anythingToString <$> params) (anythingToString <$> result))
+
 -- Without results, with parameters
 
 execute :: Sqlite.ToRow a => Connection -> Sql -> a -> IO ()
 execute conn@(Connection _ _ conn0) s params = do
-  debugM Debug.Sqlite "query" s
-  debugM Debug.Sqlite "params" (anythingToString params)
-  debugLogM Debug.Sqlite "----------"
+  logQuery s (Just params) Nothing
   Sqlite.execute conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
@@ -142,9 +150,7 @@ execute conn@(Connection _ _ conn0) s params = do
 
 executeMany :: Sqlite.ToRow a => Connection -> Sql -> [a] -> IO ()
 executeMany conn@(Connection _ _ conn0) s params = do
-  debugM Debug.Sqlite "query" s
-  debugM Debug.Sqlite "params" (anythingToString params)
-  debugLogM Debug.Sqlite "----------"
+  logQuery s (Just params) Nothing
   Sqlite.executeMany conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
@@ -158,8 +164,7 @@ executeMany conn@(Connection _ _ conn0) s params = do
 
 execute_ :: Connection -> Sql -> IO ()
 execute_ conn@(Connection _ _ conn0) s = do
-  debugM Debug.Sqlite "query" s
-  debugLogM Debug.Sqlite "----------"
+  logQuery s Nothing Nothing
   Sqlite.execute_ conn0 (coerce s) `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
@@ -172,23 +177,19 @@ execute_ conn@(Connection _ _ conn0) s = do
 -- With results, with parameters, without checks
 
 queryListRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
-queryListRow conn@(Connection _ _ conn0) s params =
-  doQueryListRow `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteQueryException
-      SqliteQueryExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          params = Just params,
-          sql = s
-        }
-  where
-    doQueryListRow = do
-      debugM Debug.Sqlite "query" s
-      debugM Debug.Sqlite "params" (anythingToString params)
-      result <- Sqlite.query conn0 (coerce s) params
-      debugM Debug.Sqlite "result" (anythingToString result)
-      debugLogM Debug.Sqlite "----------"
-      pure result
+queryListRow conn@(Connection _ _ conn0) s params = do
+  result <-
+    Sqlite.query conn0 (coerce s) params
+      `catch` \(exception :: Sqlite.SQLError) ->
+        throwSqliteQueryException
+          SqliteQueryExceptionInfo
+            { connection = conn,
+              exception = SomeSqliteExceptionReason exception,
+              params = Just params,
+              sql = s
+            }
+  logQuery s (Just params) (Just result)
+  pure result
 
 queryListCol :: forall a b. (Sqlite.FromField b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
 queryListCol conn s params =
@@ -308,22 +309,19 @@ queryOneColCheck conn s params check =
 -- With results, without parameters, without checks
 
 queryListRow_ :: Sqlite.FromRow a => Connection -> Sql -> IO [a]
-queryListRow_ conn@(Connection _ _ conn0) s =
-  doQueryListRow_ `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteQueryException
-      SqliteQueryExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          params = Nothing,
-          sql = s
-        }
-  where
-    doQueryListRow_ = do
-      debugM Debug.Sqlite "query" s
-      result <- Sqlite.query_ conn0 (coerce s)
-      debugM Debug.Sqlite "result" (anythingToString result)
-      debugLogM Debug.Sqlite "----------"
-      pure result
+queryListRow_ conn@(Connection _ _ conn0) s = do
+  result <-
+    Sqlite.query_ conn0 (coerce s)
+      `catch` \(exception :: Sqlite.SQLError) ->
+        throwSqliteQueryException
+          SqliteQueryExceptionInfo
+            { connection = conn,
+              exception = SomeSqliteExceptionReason exception,
+              params = Nothing,
+              sql = s
+            }
+  logQuery s Nothing (Just result)
+  pure result
 
 queryListCol_ :: forall a. Sqlite.FromField a => Connection -> Sql -> IO [a]
 queryListCol_ conn s =

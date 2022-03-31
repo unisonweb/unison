@@ -19,7 +19,6 @@ module Unison.Codebase.TranscriptParser
 where
 
 import Control.Concurrent.STM (atomically)
-import Control.Error (rightMay)
 import Control.Lens (view)
 import qualified Crypto.Random as Random
 import qualified Data.Char as Char
@@ -58,9 +57,6 @@ import qualified Unison.Runtime.Interface as RTI
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
-import qualified Unison.Codebase.Editor.Output as Output
-import Control.Lens (view)
-import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified UnliftIO
 import Prelude hiding (readFile, writeFile)
 

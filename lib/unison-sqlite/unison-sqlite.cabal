@@ -19,6 +19,7 @@ library
   exposed-modules:
       Unison.Sqlite
       Unison.Sqlite.Connection
+      Unison.Sqlite.Connection.Internal
       Unison.Sqlite.DB
       Unison.Sqlite.Transaction
   other-modules:

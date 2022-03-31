@@ -226,7 +226,6 @@ data Error
   = DecodeError DecodeError ByteString ErrString
   deriving stock (Show)
   deriving anyclass (SqliteExceptionReason)
--- instance Exception Error -- FIXME this came from trunk
 
 newtype NeedTypeForBuiltinMetadata
   = NeedTypeForBuiltinMetadata Text
