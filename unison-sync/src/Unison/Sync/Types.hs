@@ -35,7 +35,7 @@ newtype HashJWT = HashJWT Text
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
 data HashJWTClaims = HashJWTClaims
-  { hash :: Base32,
+  { hash :: Hash,
     entityType :: EntityType
   }
   deriving stock (Show, Eq, Ord)
@@ -53,10 +53,7 @@ instance FromJSON HashJWTClaims where
     entityType <- obj .: "t"
     pure HashJWTClaims {..}
 
-newtype Base32 = Base32 Text
-  deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
-
-newtype Hash = Hash Text
+newtype Hash = Hash {toBase32Hex :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 data TypedHash = TypedHash
