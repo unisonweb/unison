@@ -34,6 +34,25 @@ newtype RepoName = RepoName Text
 newtype HashJWT = HashJWT Text
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
+data HashJWTClaims = HashJWTClaims
+  { hash :: Base32,
+    entityType :: EntityType
+  }
+  deriving stock (Show, Eq, Ord)
+
+instance ToJSON HashJWTClaims where
+  toJSON (HashJWTClaims hash entityType) =
+    object
+      [ "h" .= hash,
+        "t" .= entityType
+      ]
+
+instance FromJSON HashJWTClaims where
+  parseJSON = Aeson.withObject "HashJWTClaims" $ \obj -> do
+    hash <- obj .: "h"
+    entityType <- obj .: "t"
+    pure HashJWTClaims {..}
+
 newtype Base32 = Base32 Text
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
