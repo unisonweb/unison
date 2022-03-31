@@ -21,10 +21,6 @@ library
       Unison.Sync
       Unison.Sync.API
       Unison.Sync.Types
-      Unison.Util.Avro
-      Unison.Util.Avro2
-      Unison.Util.CBOR
-      Unison.Util.MsgPack
   other-modules:
       Paths_unison_sync
   hs-source-dirs:
