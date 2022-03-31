@@ -59,7 +59,6 @@ library
     , servant
     , text
     , transformers
-    , unison-core1
     , unison-prelude
     , unliftio
   default-language: Haskell2010

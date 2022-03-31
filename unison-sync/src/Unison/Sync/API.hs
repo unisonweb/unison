@@ -18,7 +18,7 @@ type GetCausalHashByPathEndpoint =
 
 type UpdatePathEndpoint =
   ReqBody '[JSON] UpdatePathRequest
-    :> UVerb 'POST '[JSON] '[WithStatus 204 NoContent, WithStatus 404 (NeedDependencies HashJWT), WithStatus 412 OutOfDateHash]
+    :> UVerb 'POST '[JSON] '[WithStatus 204 NoContent, WithStatus 404 (NeedDependencies HashJWT), WithStatus 412 HashMismatch]
 
 type DownloadEntitiesEndpoint =
   ReqBody '[JSON] DownloadEntitiesRequest

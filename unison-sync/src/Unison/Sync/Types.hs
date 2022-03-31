@@ -11,12 +11,12 @@ import Data.Bitraversable
 import Data.ByteArray.Encoding (Base (Base64), convertFromBase, convertToBase)
 import Data.ByteString (ByteString)
 import Data.Map (Map)
+import Data.Map.NonEmpty (NEMap)
 import Data.Set (Set)
 import Data.Set.NonEmpty (NESet)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Unison.Util.Tritraversable
 
 -- | A newtype for JSON encoding binary data.
 newtype Base64Bytes = Base64Bytes ByteString
@@ -114,7 +114,7 @@ instance FromJSON GetCausalHashByPathRequest where
     pure GetCausalHashByPathRequest {..}
 
 newtype GetCausalHashByPathResponse = GetCausalHashByPathResponse
-  { causalHash :: HashJWT
+  { causalHash :: Maybe HashJWT
   }
   deriving stock (Show, Eq, Ord)
 
@@ -149,7 +149,7 @@ instance FromJSON DownloadEntitiesRequest where
     pure DownloadEntitiesRequest {..}
 
 data DownloadEntitiesResponse = DownloadEntitiesResponse
-  { entities :: Map Hash (Entity HashJWT Hash Text)
+  { entities :: NEMap Hash (Entity HashJWT Hash Text)
   }
   deriving stock (Show, Eq, Ord)
 
@@ -183,7 +183,7 @@ instance FromJSON UpdatePathRequest where
 
 -- | Not used in the servant API, but is a useful return type for clients to use.
 data UpdatePathResponse
-  = OutOfDate OutOfDateHash
+  = OutOfDate HashMismatch
   | MissingDependencies (NeedDependencies Hash)
   deriving stock (Show, Eq, Ord)
 
@@ -201,27 +201,27 @@ instance (FromJSON hash, Ord hash) => FromJSON (NeedDependencies hash) where
     missingDependencies <- obj .: "missing_dependencies"
     pure NeedDependencies {..}
 
-data OutOfDateHash = OutOfDateHash
+data HashMismatch = HashMismatch
   { repoPath :: RepoPath,
     expectedHash :: Maybe TypedHash,
     actualHash :: Maybe TypedHash
   }
   deriving stock (Show, Eq, Ord)
 
-instance ToJSON OutOfDateHash where
-  toJSON (OutOfDateHash repoPath expectedHash actualHash) =
+instance ToJSON HashMismatch where
+  toJSON (HashMismatch repoPath expectedHash actualHash) =
     object
       [ "repo_path" .= repoPath,
         "expected_hash" .= expectedHash,
         "actual_hash" .= actualHash
       ]
 
-instance FromJSON OutOfDateHash where
-  parseJSON = Aeson.withObject "OutOfDateHash" $ \obj -> do
+instance FromJSON HashMismatch where
+  parseJSON = Aeson.withObject "HashMismatch" $ \obj -> do
     repoPath <- obj .: "repo_path"
     expectedHash <- obj .: "expected_hash"
     actualHash <- obj .: "actual_hash"
-    pure OutOfDateHash {..}
+    pure HashMismatch {..}
 
 data UploadEntitiesRequest = UploadEntitiesRequest
   { repoName :: RepoName,
@@ -398,15 +398,6 @@ data Patch hash optionalHash text = Patch
     bytes :: ByteString
   }
   deriving stock (Show, Eq, Ord)
-  deriving anyclass (Trifunctor, Trifoldable)
-
-instance Tritraversable Patch where
-  tritraverse f g h (Patch tl hl ol b) =
-    Patch
-      <$> traverse h tl
-      <*> traverse f hl
-      <*> traverse g ol
-      <*> pure b
 
 instance (ToJSON hash, ToJSON optionalHash, ToJSON text) => ToJSON (Patch hash optionalHash text) where
   toJSON (Patch textLookup hashLookup optionalHashLookup bytes) =
