@@ -7,17 +7,17 @@ import Servant.API
 import Unison.Sync.Types
 
 type API =
-  ("get-path" :> GetCausalHashByPathEndpoint)
-    :<|> ("push" :> PushEndpoint)
-    :<|> ("download" :> DownloadEntitiesEndpoint)
-    :<|> ("upload" :> UploadEntitiesEndpoint)
+  "path" :> "get" :> GetCausalHashByPathEndpoint
+    :<|> "path" :> "update" :> UpdatePathEndpoint
+    :<|> "entities" :> "download" :> DownloadEntitiesEndpoint
+    :<|> "entities" :> "upload" :> UploadEntitiesEndpoint
 
 type GetCausalHashByPathEndpoint =
   ReqBody '[JSON] GetCausalHashByPathRequest
     :> Post '[JSON] GetCausalHashByPathResponse
 
-type PushEndpoint =
-  ReqBody '[JSON] PushRequest
+type UpdatePathEndpoint =
+  ReqBody '[JSON] UpdatePathRequest
     :> UVerb 'POST '[JSON] '[WithStatus 204 NoContent, WithStatus 404 (NeedDependencies HashJWT), WithStatus 412 OutOfDateHash]
 
 type DownloadEntitiesEndpoint =
