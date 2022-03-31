@@ -10,7 +10,6 @@ dependencies:
   - mtl
   - text
   - transformers
-  - unison-prelude
   - unliftio
   - servant
   - containers
