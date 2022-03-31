@@ -13,14 +13,11 @@ dependencies:
   - unison-prelude
   - unliftio
   - servant
-  - servant-client
   - containers
   - nonempty-containers
   - bytestring
-  - http-media
   - aeson
   - memory
-  - tagged
   - unison-core1
 
 ghc-options:

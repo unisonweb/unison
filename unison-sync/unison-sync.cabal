@@ -54,13 +54,10 @@ library
     , base
     , bytestring
     , containers
-    , http-media
     , memory
     , mtl
     , nonempty-containers
     , servant
-    , servant-client
-    , tagged
     , text
     , transformers
     , unison-core1
