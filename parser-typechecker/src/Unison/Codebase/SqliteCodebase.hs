@@ -497,7 +497,7 @@ sqliteCodebase debugName root localOrRemote action = do
               if v == v'
                 then pure b
                 else do
-                  newRootHash <- Sqlite.runDB conn Ops.loadRootCausalHash
+                  newRootHash <- Sqlite.runDB conn Ops.expectRootCausalHash
                   if Branch.headHash b == Cv.branchHash2to1 newRootHash
                     then pure b
                     else do
@@ -508,14 +508,14 @@ sqliteCodebase debugName root localOrRemote action = do
               b <-
                 Sqlite.runDB conn
                   . fmap (Branch.transform (Sqlite.runDB conn))
-                  $ Cv.causalbranch2to1 getDeclType =<< Ops.loadRootCausal
+                  $ Cv.causalbranch2to1 getDeclType =<< Ops.expectRootCausal
               v <- Sqlite.Transaction.runTransaction conn Sqlite.getDataVersion
               atomically (writeTVar rootBranchCache (Just (v, b)))
               pure b
 
         getRootBranchExists :: MonadIO m => m Bool
         getRootBranchExists =
-          isJust <$> Sqlite.runDB conn (Ops.loadMaybeRootCausalHash)
+          isJust <$> Sqlite.runDB conn (Ops.loadRootCausalHash)
 
         putRootBranch :: MonadUnliftIO m => TVar (Maybe (Sqlite.DataVersion, Branch m)) -> Branch m -> m ()
         putRootBranch rootBranchCache branch1 =
@@ -587,8 +587,8 @@ sqliteCodebase debugName root localOrRemote action = do
         getPatch :: MonadIO m => Branch.EditHash -> m (Maybe Patch)
         getPatch h =
           Sqlite.runDB conn . runMaybeT $
-            MaybeT (Ops.primaryHashToMaybePatchObjectId (Cv.patchHash1to2 h))
-              >>= Ops.loadPatchById
+            MaybeT (Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h))
+              >>= Ops.expectPatch
               <&> Cv.patch2to1
 
         putPatch :: MonadUnliftIO m => Branch.EditHash -> Patch -> m ()
@@ -704,7 +704,7 @@ sqliteCodebase debugName root localOrRemote action = do
           Monoid.fromMaybe <$> runDB' conn do
             refs <- do
               Ops.componentReferencesByPrefix ot prefix cycle
-                >>= traverse (C.Reference.idH Ops.loadHashByObjectId)
+                >>= traverse (C.Reference.idH Q.expectPrimaryHashByObjectId)
                 >>= pure . Set.fromList
 
             pure $ Set.map Cv.referenceid2to1 refs
@@ -809,11 +809,11 @@ sqliteCodebase debugName root localOrRemote action = do
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection m Bool
-termExists' = fmap isJust . Ops.primaryHashToMaybeObjectId . Cv.hash1to2
+termExists' = fmap isJust . Q.loadObjectIdForPrimaryHash . Cv.hash1to2
 declExists' = termExists'
 
 patchExists' :: MonadIO m => Branch.EditHash -> ReaderT Connection m Bool
-patchExists' h = fmap isJust $ Ops.primaryHashToMaybePatchObjectId (Cv.patchHash1to2 h)
+patchExists' h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h)
 
 putBranch' :: MonadIO m => Branch m -> ReaderT Connection m ()
 putBranch' branch1 =
@@ -1123,7 +1123,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
       case codebaseStatus of
         ExistingCodebase -> do
           -- the call to runDB "handles" the possible DB error by bombing
-          maybeOldRootHash <- fmap Cv.branchHash2to1 <$> Sqlite.runDB destConn Ops.loadMaybeRootCausalHash
+          maybeOldRootHash <- fmap Cv.branchHash2to1 <$> Sqlite.runDB destConn Ops.loadRootCausalHash
           case maybeOldRootHash of
             Nothing -> Sqlite.runDB destConn $ do
               setRepoRoot newBranchHash

@@ -1,21 +1,9 @@
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module U.Codebase.Sqlite.Operations
   ( -- * branches
     saveRootBranch,
-    loadMaybeRootCausalHash,
     loadRootCausalHash,
-    loadRootCausal,
+    expectRootCausalHash,
+    expectRootCausal,
     saveBranch,
     loadCausalBranchByCausalHash,
 
@@ -36,15 +24,10 @@ module U.Codebase.Sqlite.Operations
 
     -- * patches
     savePatch,
-    loadPatchById,
+    expectPatch,
 
     -- * test for stuff in codebase
     objectExistsForHash,
-
-    -- * dubiously exported stuff involving database ids
-    loadHashByObjectId,
-    primaryHashToMaybeObjectId,
-    primaryHashToMaybePatchObjectId,
 
     -- * watch expression cache
     saveWatch,
@@ -77,8 +60,8 @@ module U.Codebase.Sqlite.Operations
     termsMentioningType,
 
     -- * low-level stuff
-    loadDbBranchByObjectId,
-    loadDbPatchById,
+    expectDbBranch,
+    expectDbPatch,
     saveBranchObject,
     saveDbPatch,
 
@@ -239,59 +222,25 @@ getFromBytesOr e get bs = case runGetS get bs of
 
 -- * Database lookups
 
-loadTextById :: DB m => Db.TextId -> m Text
-loadTextById = Q.loadTextById
-
--- | look up an existing object by its primary hash
-primaryHashToExistingObjectId :: DB m => H.Hash -> m Db.ObjectId
-primaryHashToExistingObjectId h = do
-  hashId <- Q.expectHashIdByHash h
-  Q.expectObjectIdForPrimaryHashId hashId
-
-primaryHashToMaybeObjectId :: DB m => H.Hash -> m (Maybe Db.ObjectId)
-primaryHashToMaybeObjectId h = do
-  Q.loadHashIdByHash h >>= \case
-    Just hashId -> Q.maybeObjectIdForPrimaryHashId hashId
-    Nothing -> pure Nothing
-
-anyHashToMaybeObjectId :: DB m => H.Hash -> m (Maybe Db.ObjectId)
-anyHashToMaybeObjectId h = do
-  (Q.loadHashId . H.toBase32Hex) h >>= \case
-    Just hashId -> Q.maybeObjectIdForAnyHashId hashId
-    Nothing -> pure Nothing
-
-primaryHashToMaybePatchObjectId :: DB m => PatchHash -> m (Maybe Db.PatchObjectId)
-primaryHashToMaybePatchObjectId =
-  (fmap . fmap) Db.PatchObjectId . primaryHashToMaybeObjectId . unPatchHash
-
 objectExistsForHash :: DB m => H.Hash -> m Bool
 objectExistsForHash h =
   isJust <$> runMaybeT do
     id <- MaybeT . Q.loadHashId . H.toBase32Hex $ h
-    MaybeT $ Q.maybeObjectIdForAnyHashId id
+    MaybeT $ Q.loadObjectIdForAnyHashId id
 
-loadHashByObjectId :: DB m => Db.ObjectId -> m H.Hash
-loadHashByObjectId = fmap H.fromBase32Hex . Q.loadPrimaryHashByObjectId
-
-loadHashByHashId :: DB m => Db.HashId -> m H.Hash
-loadHashByHashId = fmap H.fromBase32Hex . Q.loadHashById
-
-loadCausalHashById :: DB m => Db.CausalHashId -> m CausalHash
-loadCausalHashById = fmap (CausalHash . H.fromBase32Hex) . Q.loadHashById . Db.unCausalHashId
-
-loadValueHashByCausalHashId :: DB m => Db.CausalHashId -> m BranchHash
-loadValueHashByCausalHashId = loadValueHashById <=< Q.loadCausalValueHashId
+expectValueHashByCausalHashId :: DB m => Db.CausalHashId -> m BranchHash
+expectValueHashByCausalHashId = loadValueHashById <=< Q.expectCausalValueHashId
   where
     loadValueHashById :: DB m => Db.BranchHashId -> m BranchHash
-    loadValueHashById = fmap (BranchHash . H.fromBase32Hex) . Q.loadHashById . Db.unBranchHashId
+    loadValueHashById = fmap BranchHash . Q.expectHash . Db.unBranchHashId
 
-loadRootCausalHash :: DB m => m CausalHash
-loadRootCausalHash = loadCausalHashById =<< Q.loadNamespaceRoot
+expectRootCausalHash :: DB m => m CausalHash
+expectRootCausalHash = Q.expectCausalHash =<< Q.expectNamespaceRoot
 
-loadMaybeRootCausalHash :: DB m => m (Maybe CausalHash)
-loadMaybeRootCausalHash =
+loadRootCausalHash :: DB m => m (Maybe CausalHash)
+loadRootCausalHash =
   runMaybeT $
-    loadCausalHashById =<< MaybeT Q.loadMaybeNamespaceRoot
+    Q.expectCausalHash =<< MaybeT Q.loadNamespaceRoot
 
 -- * Reference transformations
 
@@ -301,37 +250,37 @@ loadMaybeRootCausalHash =
 --  (by virtue of dependencies being stored before dependents), but does
 --  not assume a builtin reference would.
 c2sReference :: DB m => C.Reference -> m S.Reference
-c2sReference = bitraverse Q.saveText primaryHashToExistingObjectId
+c2sReference = bitraverse Q.saveText Q.expectObjectIdForPrimaryHash
 
 s2cReference :: DB m => S.Reference -> m C.Reference
-s2cReference = bitraverse loadTextById loadHashByObjectId
+s2cReference = bitraverse Q.expectText Q.expectPrimaryHashByObjectId
 
 c2sReferenceId :: DB m => C.Reference.Id -> m S.Reference.Id
-c2sReferenceId = C.Reference.idH primaryHashToExistingObjectId
+c2sReferenceId = C.Reference.idH Q.expectObjectIdForPrimaryHash
 
 s2cReferenceId :: DB m => S.Reference.Id -> m C.Reference.Id
-s2cReferenceId = C.Reference.idH loadHashByObjectId
+s2cReferenceId = C.Reference.idH Q.expectPrimaryHashByObjectId
 
 h2cReferenceId :: DB m => S.Reference.IdH -> m C.Reference.Id
-h2cReferenceId = C.Reference.idH loadHashByHashId
+h2cReferenceId = C.Reference.idH Q.expectHash
 
 h2cReference :: DB m => S.ReferenceH -> m C.Reference
-h2cReference = bitraverse loadTextById loadHashByHashId
+h2cReference = bitraverse Q.expectText Q.expectHash
 
 c2hReference :: DB m => C.Reference -> MaybeT m S.ReferenceH
-c2hReference = bitraverse (MaybeT . Q.loadText) (MaybeT . Q.loadHashIdByHash)
+c2hReference = bitraverse (MaybeT . Q.loadTextId) (MaybeT . Q.loadHashIdByHash)
 
 s2cReferent :: DB m => S.Referent -> m C.Referent
 s2cReferent = bitraverse s2cReference s2cReference
 
 s2cReferentId :: DB m => S.Referent.Id -> m C.Referent.Id
-s2cReferentId = bitraverse loadHashByObjectId loadHashByObjectId
+s2cReferentId = bitraverse Q.expectPrimaryHashByObjectId Q.expectPrimaryHashByObjectId
 
 c2sReferent :: DB m => C.Referent -> m S.Referent
 c2sReferent = bitraverse c2sReference c2sReference
 
 c2sReferentId :: DB m => C.Referent.Id -> m S.Referent.Id
-c2sReferentId = bitraverse primaryHashToExistingObjectId primaryHashToExistingObjectId
+c2sReferentId = bitraverse Q.expectObjectIdForPrimaryHash Q.expectObjectIdForPrimaryHash
 
 h2cReferent :: DB m => S.ReferentH -> m C.Referent
 h2cReferent = bitraverse h2cReference h2cReference
@@ -431,13 +380,13 @@ getCycleLen h = do
   when debug $ traceM $ "\ngetCycleLen " ++ (Text.unpack . Base32Hex.toText $ H.toBase32Hex h)
   runMaybeT do
     -- actually want Nothing in case of non term/decl component hash
-    oid <- MaybeT (anyHashToMaybeObjectId h)
+    oid <- MaybeT (Q.loadObjectIdForAnyHash h)
     -- todo: decodeComponentLengthOnly is unintentionally a hack that relies on
     -- the fact the two things that references can refer to (term and decl
     -- components) have the same basic serialized structure: first a format
     -- byte that is always 0 for now, followed by a framed array representing
     -- the strongly-connected component. :grimace:
-    Q.loadObjectById oid decodeComponentLengthOnly
+    Q.expectObject oid decodeComponentLengthOnly
 
 -- | Get the 'C.DeclType.DeclType' of a 'C.Reference.Id'.
 -- TODO rename to expectDeclTypeById
@@ -448,7 +397,7 @@ getDeclTypeById =
 componentByObjectId :: DB m => Db.ObjectId -> m [S.Reference.Id]
 componentByObjectId id = do
   when debug . traceM $ "Operations.componentByObjectId " ++ show id
-  len <- Q.loadObjectById id decodeComponentLengthOnly
+  len <- Q.expectObject id decodeComponentLengthOnly
   pure [C.Reference.Id id i | i <- [0 .. len - 1]]
 
 -- * Codebase operations
@@ -457,8 +406,8 @@ componentByObjectId id = do
 
 loadTermComponent :: DB m => H.Hash -> MaybeT m [(C.Term Symbol, C.Term.Type Symbol)]
 loadTermComponent h = do
-  oid <- MaybeT (anyHashToMaybeObjectId h)
-  S.Term.Term (S.Term.LocallyIndexedComponent elements) <- MaybeT (Q.loadTermObjectById oid decodeTermFormat)
+  oid <- MaybeT (Q.loadObjectIdForAnyHash h)
+  S.Term.Term (S.Term.LocallyIndexedComponent elements) <- MaybeT (Q.loadTermObject oid decodeTermFormat)
   lift . traverse (uncurry3 s2cTermWithType) $ Foldable.toList elements
 
 saveTermComponent :: DB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> m Db.ObjectId
@@ -612,40 +561,40 @@ c2xTerm saveText saveDefn tm tp =
 
 loadTermWithTypeByReference :: DB m => C.Reference.Id -> MaybeT m (C.Term Symbol, C.Term.Type Symbol)
 loadTermWithTypeByReference (C.Reference.Id h i) = do
-  oid <- MaybeT (primaryHashToMaybeObjectId h)
+  oid <- MaybeT (Q.loadObjectIdForPrimaryHash h)
   -- retrieve and deserialize the blob
-  (localIds, term, typ) <- MaybeT (Q.loadTermObjectById oid (decodeTermElementWithType i))
+  (localIds, term, typ) <- MaybeT (Q.loadTermObject oid (decodeTermElementWithType i))
   s2cTermWithType localIds term typ
 
 loadTermByReference :: DB m => C.Reference.Id -> MaybeT m (C.Term Symbol)
 loadTermByReference r@(C.Reference.Id h i) = do
   when debug . traceM $ "loadTermByReference " ++ show r
-  oid <- MaybeT (primaryHashToMaybeObjectId h)
+  oid <- MaybeT (Q.loadObjectIdForPrimaryHash h)
   -- retrieve and deserialize the blob
-  (localIds, term) <- MaybeT (Q.loadTermObjectById oid (decodeTermElementDiscardingType i))
+  (localIds, term) <- MaybeT (Q.loadTermObject oid (decodeTermElementDiscardingType i))
   s2cTerm localIds term
 
 loadTypeOfTermByTermReference :: DB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
 loadTypeOfTermByTermReference id@(C.Reference.Id h i) = do
   when debug . traceM $ "loadTypeOfTermByTermReference " ++ show id
-  oid <- MaybeT (primaryHashToMaybeObjectId h)
+  oid <- MaybeT (Q.loadObjectIdForPrimaryHash h)
   -- retrieve and deserialize the blob
-  (localIds, typ) <- MaybeT (Q.loadTermObjectById oid (decodeTermElementDiscardingTerm i))
+  (localIds, typ) <- MaybeT (Q.loadTermObject oid (decodeTermElementDiscardingTerm i))
   s2cTypeOfTerm localIds typ
 
 s2cTermWithType :: DB m => LocalIds -> S.Term.Term -> S.Term.Type -> m (C.Term Symbol, C.Term.Type Symbol)
 s2cTermWithType ids tm tp = do
-  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
+  (substText, substHash) <- localIdsToLookups Q.expectText Q.expectPrimaryHashByObjectId ids
   pure (x2cTerm substText substHash tm, x2cTType substText substHash tp)
 
 s2cTerm :: DB m => LocalIds -> S.Term.Term -> m (C.Term Symbol)
 s2cTerm ids tm = do
-  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
+  (substText, substHash) <- localIdsToLookups Q.expectText Q.expectPrimaryHashByObjectId ids
   pure $ x2cTerm substText substHash tm
 
 s2cTypeOfTerm :: DB m => LocalIds -> S.Term.Type -> m (C.Term.Type Symbol)
 s2cTypeOfTerm ids tp = do
-  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
+  (substText, substHash) <- localIdsToLookups Q.expectText Q.expectPrimaryHashByObjectId ids
   pure $ x2cTType substText substHash tp
 
 -- | implementation detail of {s,w}2c*Term* & s2cDecl
@@ -659,7 +608,7 @@ localIdsToLookups loadText loadHash localIds = do
 
 localIdsToTypeRefLookup :: DB m => LocalIds -> m (S.Decl.TypeRef -> C.Decl.TypeRef)
 localIdsToTypeRefLookup localIds = do
-  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId localIds
+  (substText, substHash) <- localIdsToLookups Q.expectText Q.expectPrimaryHashByObjectId localIds
   pure $ bimap substText (fmap substHash)
 
 -- | implementation detail of {s,w}2c*Term*
@@ -721,7 +670,7 @@ lookup_ stateLens writerLens mk t = do
     Just t' -> pure t'
 
 c2sTerm :: DB m => C.Term Symbol -> C.Term.Type Symbol -> m (LocalIds, S.Term.Term, S.Term.Type)
-c2sTerm tm tp = c2xTerm Q.saveText primaryHashToExistingObjectId tm (Just tp) <&> \(w, tm, Just tp) -> (w, tm, tp)
+c2sTerm tm tp = c2xTerm Q.saveText Q.expectObjectIdForPrimaryHash tm (Just tp) <&> \(w, tm, Just tp) -> (w, tm, tp)
 
 -- *** Watch expressions
 
@@ -750,21 +699,21 @@ c2wTerm tm = c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w,
 
 w2cTerm :: DB m => WatchLocalIds -> S.Term.Term -> m (C.Term Symbol)
 w2cTerm ids tm = do
-  (substText, substHash) <- localIdsToLookups loadTextById loadHashByHashId ids
+  (substText, substHash) <- localIdsToLookups Q.expectText Q.expectHash ids
   pure $ x2cTerm substText substHash tm
 
 -- ** Saving & loading type decls
 
 loadDeclComponent :: DB m => H.Hash -> MaybeT m [C.Decl Symbol]
 loadDeclComponent h = do
-  oid <- MaybeT (anyHashToMaybeObjectId h)
-  S.Decl.Decl (S.Decl.LocallyIndexedComponent elements) <- MaybeT (Q.loadDeclObjectById oid decodeDeclFormat)
+  oid <- MaybeT (Q.loadObjectIdForAnyHash h)
+  S.Decl.Decl (S.Decl.LocallyIndexedComponent elements) <- MaybeT (Q.loadDeclObject oid decodeDeclFormat)
   lift . traverse (uncurry s2cDecl) $ Foldable.toList elements
 
 saveDeclComponent :: DB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
 saveDeclComponent h decls = do
   when debug . traceM $ "Operations.saveDeclComponent " ++ show h
-  sDeclElements <- traverse (c2sDecl Q.saveText primaryHashToExistingObjectId) decls
+  sDeclElements <- traverse (c2sDecl Q.saveText Q.expectObjectIdForPrimaryHash) decls
   hashId <- Q.saveHashHash h
   let li = S.Decl.LocallyIndexedComponent $ Vector.fromList sDeclElements
       bytes = S.putBytes S.putDeclFormat $ S.Decl.Decl li
@@ -824,17 +773,16 @@ s2cDecl ids (C.Decl.DataDeclaration dt m b ct) = do
 loadDeclByReference :: DB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
 loadDeclByReference r@(C.Reference.Id h i) = do
   when debug . traceM $ "loadDeclByReference " ++ show r
-  oid <- MaybeT (primaryHashToMaybeObjectId h)
-  (localIds, decl) <- MaybeT (Q.loadDeclObjectById oid (decodeDeclElement i))
+  oid <- MaybeT (Q.loadObjectIdForPrimaryHash h)
+  (localIds, decl) <- MaybeT (Q.loadDeclObject oid (decodeDeclElement i))
   s2cDecl localIds decl
 
--- TODO rename expectDeclById
 expectDeclByReference :: DB m => C.Reference.Id -> m (C.Decl Symbol)
 expectDeclByReference r@(C.Reference.Id h i) = do
   when debug . traceM $ "expectDeclByReference " ++ show r
   -- retrieve the blob
-  primaryHashToExistingObjectId h
-    >>= (\oid -> Q.expectDeclObjectById oid (decodeDeclElement i))
+  Q.expectObjectIdForPrimaryHash h
+    >>= (\oid -> Q.expectDeclObject oid (decodeDeclElement i))
     >>= uncurry s2cDecl
 
 -- * Branch transformation
@@ -850,7 +798,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
     loadMetadataType :: DB m => S.Reference -> m C.Reference
     loadMetadataType = \case
       C.ReferenceBuiltin tId ->
-        Q.loadTextByIdCheck (Left . NeedTypeForBuiltinMetadata) tId
+        Q.expectTextCheck tId (Left . NeedTypeForBuiltinMetadata)
       C.ReferenceDerived id ->
         typeReferenceForTerm id >>= h2cReference
 
@@ -858,7 +806,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
     doTerms :: DB m => Map Db.TextId (Map S.Referent S.DbMetadataSet) -> m (Map C.Branch.NameSegment (Map C.Referent (m C.Branch.MdValues)))
     doTerms =
       Map.bitraverse
-        (fmap C.Branch.NameSegment . loadTextById)
+        (fmap C.Branch.NameSegment . Q.expectText)
         ( Map.bitraverse s2cReferent \case
             S.MetadataSet.Inline rs ->
               pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
@@ -866,22 +814,22 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
     doTypes :: DB m => Map Db.TextId (Map S.Reference S.DbMetadataSet) -> m (Map C.Branch.NameSegment (Map C.Reference (m C.Branch.MdValues)))
     doTypes =
       Map.bitraverse
-        (fmap C.Branch.NameSegment . loadTextById)
+        (fmap C.Branch.NameSegment . Q.expectText)
         ( Map.bitraverse s2cReference \case
             S.MetadataSet.Inline rs ->
               pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
         )
     doPatches :: DB m => Map Db.TextId Db.PatchObjectId -> m (Map C.Branch.NameSegment (PatchHash, m C.Branch.Patch))
-    doPatches = Map.bitraverse (fmap C.Branch.NameSegment . loadTextById) \patchId -> do
-      h <- PatchHash <$> (loadHashByObjectId . Db.unPatchObjectId) patchId
-      pure (h, loadPatchById patchId)
+    doPatches = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \patchId -> do
+      h <- PatchHash <$> (Q.expectPrimaryHashByObjectId . Db.unPatchObjectId) patchId
+      pure (h, expectPatch patchId)
 
     doChildren :: DB m => Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> m (Map C.Branch.NameSegment (C.Causal m CausalHash BranchHash (C.Branch.Branch m)))
-    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . loadTextById) \(boId, chId) ->
-      C.Causal <$> loadCausalHashById chId
-        <*> loadValueHashByCausalHashId chId
+    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \(boId, chId) ->
+      C.Causal <$> Q.expectCausalHash chId
+        <*> expectValueHashByCausalHashId chId
         <*> headParents chId
-        <*> pure (loadBranchByObjectId boId)
+        <*> pure (expectBranch boId)
       where
         headParents :: DB m => Db.CausalHashId -> m (Map CausalHash (m (C.Causal m CausalHash BranchHash (C.Branch.Branch m))))
         headParents chId = do
@@ -889,18 +837,18 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           fmap Map.fromList $ traverse pairParent parentsChIds
         pairParent :: DB m => Db.CausalHashId -> m (CausalHash, m (C.Causal m CausalHash BranchHash (C.Branch.Branch m)))
         pairParent chId = do
-          h <- loadCausalHashById chId
+          h <- Q.expectCausalHash chId
           pure (h, loadCausal chId)
         loadCausal :: DB m => Db.CausalHashId -> m (C.Causal m CausalHash BranchHash (C.Branch.Branch m))
         loadCausal chId = do
-          C.Causal <$> loadCausalHashById chId
-            <*> loadValueHashByCausalHashId chId
+          C.Causal <$> Q.expectCausalHash chId
+            <*> expectValueHashByCausalHashId chId
             <*> headParents chId
             <*> pure (loadValue chId)
         loadValue :: DB m => Db.CausalHashId -> m (C.Branch.Branch m)
         loadValue chId = do
           boId <- Q.expectBranchObjectIdByCausalHashId chId
-          loadBranchByObjectId boId
+          expectBranch boId
 
 saveRootBranch :: DB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveRootBranch c = do
@@ -993,7 +941,7 @@ saveBranch (C.Causal hc he parents me) = do
 
     savePatchObjectId :: DB m => (PatchHash, m C.Branch.Patch) -> m Db.PatchObjectId
     savePatchObjectId (h, mp) = do
-      primaryHashToMaybePatchObjectId h >>= \case
+      Q.loadPatchObjectIdForPrimaryHash h >>= \case
         Just patchOID -> pure patchOID
         Nothing -> do
           patch <- mp
@@ -1006,33 +954,32 @@ saveBranchObject id@(Db.unBranchHashId -> hashId) li lBranch = do
   oId <- Q.saveObject hashId OT.Namespace bytes
   pure $ Db.BranchObjectId oId
 
-loadRootCausal :: DB m => m (C.Branch.Causal m)
-loadRootCausal = Q.loadNamespaceRoot >>= loadCausalByCausalHashId
+expectRootCausal :: DB m => m (C.Branch.Causal m)
+expectRootCausal = Q.expectNamespaceRoot >>= expectCausalByCausalHashId
 
 loadCausalBranchByCausalHash :: DB m => CausalHash -> m (Maybe (C.Branch.Causal m))
 loadCausalBranchByCausalHash hc = do
   Q.loadCausalHashIdByCausalHash hc >>= \case
-    Just chId -> Just <$> loadCausalByCausalHashId chId
+    Just chId -> Just <$> expectCausalByCausalHashId chId
     Nothing -> pure Nothing
 
-loadCausalByCausalHashId :: DB m => Db.CausalHashId -> m (C.Branch.Causal m)
-loadCausalByCausalHashId id = do
-  hc <- loadCausalHashById id
-  hb <- loadValueHashByCausalHashId id
+expectCausalByCausalHashId :: DB m => Db.CausalHashId -> m (C.Branch.Causal m)
+expectCausalByCausalHashId id = do
+  hc <- Q.expectCausalHash id
+  hb <- expectValueHashByCausalHashId id
   parentHashIds <- Q.loadCausalParents id
   loadParents <- for parentHashIds \hId -> do
-    h <- loadCausalHashById hId
-    pure (h, loadCausalByCausalHashId hId)
-  pure $ C.Causal hc hb (Map.fromList loadParents) (loadBranchByCausalHashId id)
+    h <- Q.expectCausalHash hId
+    pure (h, expectCausalByCausalHashId hId)
+  pure $ C.Causal hc hb (Map.fromList loadParents) (expectBranchByCausalHashId id)
 
--- TODO rename expect
-loadBranchByCausalHashId :: DB m => Db.CausalHashId -> m (C.Branch.Branch m)
-loadBranchByCausalHashId id = do
+expectBranchByCausalHashId :: DB m => Db.CausalHashId -> m (C.Branch.Branch m)
+expectBranchByCausalHashId id = do
   boId <- Q.expectBranchObjectIdByCausalHashId id
-  loadBranchByObjectId boId
+  expectBranch boId
 
-loadDbBranchByObjectId :: DB m => Db.BranchObjectId -> m S.DbBranch
-loadDbBranchByObjectId id =
+expectDbBranch :: DB m => Db.BranchObjectId -> m S.DbBranch
+expectDbBranch id =
   deserializeBranchObject id >>= \case
     S.BranchFormat.Full li f -> pure (S.BranchFormat.localToDbBranch li f)
     S.BranchFormat.Diff r li d -> doDiff r [S.BranchFormat.localToDbDiff li d]
@@ -1040,7 +987,7 @@ loadDbBranchByObjectId id =
     deserializeBranchObject :: DB m => Db.BranchObjectId -> m S.BranchFormat
     deserializeBranchObject id = do
       when debug $ traceM $ "deserializeBranchObject " ++ show id
-      Q.expectNamespaceObjectById (Db.unBranchObjectId id) (getFromBytesOr (ErrBranch id) S.getBranchFormat)
+      Q.expectNamespaceObject (Db.unBranchObjectId id) (getFromBytesOr (ErrBranch id) S.getBranchFormat)
 
     doDiff :: DB m => Db.BranchObjectId -> [S.Branch.Diff] -> m S.DbBranch
     doDiff ref ds =
@@ -1137,18 +1084,18 @@ loadDbBranchByObjectId id =
             let (Set.fromList -> adds, Set.fromList -> removes) = S.BranchDiff.addsRemoves md'
              in Just . S.MetadataSet.Inline $ (Set.union adds $ Set.difference md removes)
 
-loadBranchByObjectId :: DB m => Db.BranchObjectId -> m (C.Branch.Branch m)
-loadBranchByObjectId id =
-  loadDbBranchByObjectId id >>= s2cBranch
+expectBranch :: DB m => Db.BranchObjectId -> m (C.Branch.Branch m)
+expectBranch id =
+  expectDbBranch id >>= s2cBranch
 
 -- * Patch transformation
 
-loadPatchById :: DB m => Db.PatchObjectId -> m C.Branch.Patch
-loadPatchById patchId =
-  loadDbPatchById patchId >>= s2cPatch
+expectPatch :: DB m => Db.PatchObjectId -> m C.Branch.Patch
+expectPatch patchId =
+  expectDbPatch patchId >>= s2cPatch
 
-loadDbPatchById :: DB m => Db.PatchObjectId -> m S.Patch
-loadDbPatchById patchId =
+expectDbPatch :: DB m => Db.PatchObjectId -> m S.Patch
+expectDbPatch patchId =
   deserializePatchObject patchId >>= \case
     S.Patch.Format.Full li p -> pure (S.Patch.Format.localPatchToPatch li p)
     S.Patch.Format.Diff ref li d -> doDiff ref [S.Patch.Format.localPatchDiffToPatchDiff li d]
@@ -1179,14 +1126,14 @@ s2cPatch (S.Patch termEdits typeEdits) =
 deserializePatchObject :: DB m => Db.PatchObjectId -> m S.PatchFormat
 deserializePatchObject id = do
   when debug $ traceM $ "Operations.deserializePatchObject " ++ show id
-  Q.expectPatchObjectById (Db.unPatchObjectId id) (getFromBytesOr (ErrPatch id) S.getPatchFormat)
+  Q.expectPatchObject (Db.unPatchObjectId id) (getFromBytesOr (ErrPatch id) S.getPatchFormat)
 
 lca :: DB m => CausalHash -> CausalHash -> Connection -> Connection -> m (Maybe CausalHash)
 lca h1 h2 c1 c2 = runMaybeT do
   chId1 <- MaybeT $ Q.loadCausalHashIdByCausalHash h1
   chId2 <- MaybeT $ Q.loadCausalHashIdByCausalHash h2
   chId3 <- MaybeT . liftIO $ Q.lca chId1 chId2 c1 c2
-  Q.loadCausalHash chId3
+  Q.expectCausalHash chId3
 
 before :: DB m => CausalHash -> CausalHash -> m (Maybe Bool)
 before h1 h2 = runMaybeT do
@@ -1243,12 +1190,12 @@ componentReferencesByPrefix ot b32prefix pos = do
 termReferencesByPrefix :: DB m => Text -> Maybe Word64 -> m [C.Reference.Id]
 termReferencesByPrefix t w =
   componentReferencesByPrefix OT.TermComponent t w
-    >>= traverse (C.Reference.idH loadHashByObjectId)
+    >>= traverse (C.Reference.idH Q.expectPrimaryHashByObjectId)
 
 declReferencesByPrefix :: DB m => Text -> Maybe Word64 -> m [C.Reference.Id]
 declReferencesByPrefix t w =
   componentReferencesByPrefix OT.DeclComponent t w
-    >>= traverse (C.Reference.idH loadHashByObjectId)
+    >>= traverse (C.Reference.idH Q.expectPrimaryHashByObjectId)
 
 termReferentsByPrefix :: DB m => Text -> Maybe Word64 -> m [C.Referent.Id]
 termReferentsByPrefix b32prefix pos =
@@ -1269,7 +1216,7 @@ declReferentsByPrefix b32prefix pos cid = do
     loadConstructors :: DB m => Maybe Word64 -> S.Reference.Id -> m (H.Hash, C.Reference.Pos, C.DeclType, [ConstructorId])
     loadConstructors cid rid@(C.Reference.Id oId pos) = do
       (dt, ctorCount) <- getDeclCtorCount rid
-      h <- loadHashByObjectId oId
+      h <- Q.expectPrimaryHashByObjectId oId
       let test :: ConstructorId -> Bool
           test = maybe (const True) (==) cid
           cids = [cid | cid <- [0 :: ConstructorId .. ctorCount - 1], test cid]
@@ -1277,20 +1224,20 @@ declReferentsByPrefix b32prefix pos cid = do
     getDeclCtorCount :: DB m => S.Reference.Id -> m (C.Decl.DeclType, ConstructorId)
     getDeclCtorCount id@(C.Reference.Id r i) = do
       when debug $ traceM $ "getDeclCtorCount " ++ show id
-      (_localIds, decl) <- Q.expectDeclObjectById r (decodeDeclElement i)
+      (_localIds, decl) <- Q.expectDeclObject r (decodeDeclElement i)
       pure (C.Decl.declType decl, fromIntegral $ length (C.Decl.constructorTypes decl))
 
 branchHashesByPrefix :: DB m => ShortBranchHash -> m (Set BranchHash)
 branchHashesByPrefix (ShortBranchHash b32prefix) = do
   hashIds <- Q.namespaceHashIdByBase32Prefix b32prefix
-  b32s <- traverse (Q.loadHashById . Db.unBranchHashId) hashIds
-  pure $ Set.fromList . fmap BranchHash . fmap H.fromBase32Hex $ b32s
+  hashes <- traverse (Q.expectHash . Db.unBranchHashId) hashIds
+  pure $ Set.fromList . map BranchHash $ hashes
 
 causalHashesByPrefix :: DB m => ShortBranchHash -> m (Set CausalHash)
 causalHashesByPrefix (ShortBranchHash b32prefix) = do
   hashIds <- Q.causalHashIdByBase32Prefix b32prefix
-  b32s <- traverse (Q.loadHashById . Db.unCausalHashId) hashIds
-  pure $ Set.fromList . fmap CausalHash . fmap H.fromBase32Hex $ b32s
+  hashes <- traverse (Q.expectHash . Db.unCausalHashId) hashIds
+  pure $ Set.fromList . map CausalHash $ hashes
 
 -- | returns a list of known definitions referencing `r`
 dependents :: DB m => C.Reference -> m (Set C.Reference.Id)
@@ -1303,7 +1250,7 @@ dependents r = do
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: DB m => H.Hash -> m (Set C.Reference.Id)
 dependentsOfComponent h = do
-  oId <- primaryHashToExistingObjectId h
+  oId <- Q.expectObjectIdForPrimaryHash h
   sIds :: [S.Reference.Id] <- Q.getDependentsForDependencyComponent oId
   cIds <- traverse s2cReferenceId sIds
   pure $ Set.fromList cIds
@@ -1315,5 +1262,3 @@ derivedDependencies cid = do
   sids <- Q.getDependencyIdsForDependent sid
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
-
--- lca              :: (forall he e. [Causal m CausalHash he e] -> m (Maybe BranchHash)),

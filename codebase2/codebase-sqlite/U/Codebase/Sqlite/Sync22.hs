@@ -112,8 +112,8 @@ trySync tCache hCache oCache cCache = \case
       Just {} -> pure Sync.PreviouslyDone
       Nothing -> do
         result <- runValidateT @(Set Entity) @m @() do
-          bhId <- runSrc $ Q.loadCausalValueHashId chId
-          mayBoId <- runSrc . Q.maybeObjectIdForAnyHashId $ unBranchHashId bhId
+          bhId <- runSrc $ Q.expectCausalValueHashId chId
+          mayBoId <- runSrc . Q.loadObjectIdForAnyHashId $ unBranchHashId bhId
           traverse_ syncLocalObjectId mayBoId
 
           parents' :: [CausalHashId] <- findParents' chId
@@ -133,7 +133,7 @@ trySync tCache hCache oCache cCache = \case
     isSyncedObject oId >>= \case
       Just {} -> pure Sync.PreviouslyDone
       Nothing -> do
-        (hId, objType, bytes) <- runSrc $ Q.loadObjectWithHashIdAndTypeById oId
+        (hId, objType, bytes) <- runSrc $ Q.expectObjectWithHashIdAndType oId
         hId' <- syncHashLiteral hId
         result <- runValidateT @(Set Entity) @m @ObjectId case objType of
           OT.TermComponent -> do
@@ -315,14 +315,14 @@ trySync tCache hCache oCache cCache = \case
 
     syncTextLiteral :: TextId -> m TextId
     syncTextLiteral = Cache.apply tCache \tId -> do
-      t <- runSrc $ Q.loadTextById tId
+      t <- runSrc $ Q.expectText tId
       tId' <- runDest $ Q.saveText t
       when debug $ traceM $ "Source " ++ show tId ++ " is Dest " ++ show tId' ++ " (" ++ show t ++ ")"
       pure tId'
 
     syncHashLiteral :: HashId -> m HashId
     syncHashLiteral = Cache.apply hCache \hId -> do
-      b32hex <- runSrc $ Q.loadHashById hId
+      b32hex <- runSrc $ Q.expectHash32 hId
       hId' <- runDest $ Q.saveHash b32hex
       when debug $ traceM $ "Source " ++ show hId ++ " is Dest " ++ show hId' ++ " (" ++ show b32hex ++ ")"
       pure hId'
@@ -390,10 +390,10 @@ trySync tCache hCache oCache cCache = \case
 
     isSyncedObject :: ObjectId -> m (Maybe ObjectId)
     isSyncedObject = Cache.applyDefined oCache \oId -> do
-      hIds <- toList <$> runSrc (Q.hashIdsForObject oId)
+      hIds <- toList <$> runSrc (Q.expectHashIdsForObject oId)
       hIds' <- traverse syncHashLiteral hIds
       ( nubOrd . catMaybes
-          <$> traverse (runDest . Q.maybeObjectIdForAnyHashId) hIds'
+          <$> traverse (runDest . Q.loadObjectIdForAnyHashId) hIds'
         )
         >>= \case
           [oId'] -> do

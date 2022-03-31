@@ -20,7 +20,6 @@ import qualified U.Codebase.Sqlite.Patch.TypeEdit as S.TypeEdit
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as S
 import qualified U.Codebase.Sqlite.Referent as S
-import qualified U.Util.Hash
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Branch (NameSegment (..))
@@ -93,7 +92,7 @@ s2hMetadataSet = \case
 
 s2hNameSegment :: DB m => Db.TextId -> m NameSegment
 s2hNameSegment =
-  fmap NameSegment . Q.loadTextById
+  fmap NameSegment . Q.expectText
 
 s2hReferent :: DB m => S.Referent -> m Hashing.Referent
 s2hReferent = \case
@@ -107,13 +106,13 @@ s2hReferentH = \case
 
 s2hReference :: DB m => S.Reference -> m Hashing.Reference
 s2hReference = \case
-  S.ReferenceBuiltin t -> Hashing.Reference.Builtin <$> Q.loadTextById t
+  S.ReferenceBuiltin t -> Hashing.Reference.Builtin <$> Q.expectText t
   S.Reference.Derived h i -> Hashing.Reference.Derived <$> objectIdToPrimaryHash h <*> pure i
 
 s2hReferenceH :: DB m => S.ReferenceH -> m Hashing.Reference
 s2hReferenceH = \case
-  S.ReferenceBuiltin t -> Hashing.Reference.Builtin <$> Q.loadTextById t
-  S.Reference.Derived h i -> Hashing.Reference.Derived <$> loadHashHashById h <*> pure i
+  S.ReferenceBuiltin t -> Hashing.Reference.Builtin <$> Q.expectText t
+  S.Reference.Derived h i -> Hashing.Reference.Derived <$> expectHash h <*> pure i
 
 s2hTermEdit :: DB m => S.TermEdit -> m Hashing.TermEdit
 s2hTermEdit = \case
@@ -129,12 +128,12 @@ s2hTypeEdit = \case
 
 causalHashIdToHash :: DB m => Db.CausalHashId -> m Hash
 causalHashIdToHash =
-  fmap Cv.hash2to1 . Q.loadHashHashById . Db.unCausalHashId
+  fmap Cv.hash2to1 . Q.expectHash . Db.unCausalHashId
 
 objectIdToPrimaryHash :: DB m => Db.ObjectId -> m Hash
 objectIdToPrimaryHash =
-  fmap (Cv.hash2to1 . U.Util.Hash.fromBase32Hex) . Q.loadPrimaryHashByObjectId
+  fmap Cv.hash2to1 . Q.expectPrimaryHashByObjectId
 
-loadHashHashById :: DB m => Db.HashId -> m Hash
-loadHashHashById =
-  fmap Cv.hash2to1 . Q.loadHashHashById
+expectHash :: DB m => Db.HashId -> m Hash
+expectHash =
+  fmap Cv.hash2to1 . Q.expectHash

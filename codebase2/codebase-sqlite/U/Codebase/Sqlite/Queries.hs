@@ -1,55 +1,64 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+-- | Some naming conventions used in this module:
+--
+-- * @32@: the base32 representation of a hash
+-- * @expect@: retrieve something that's known to exist
+-- * @load@: retrieve something that's not known to exist (so the return type is a Maybe, or another container that
+--     could be empty)
+-- * @save@: idempotent (on conflict do nothing) insert, and return the id of the thing (usually)
 module U.Codebase.Sqlite.Queries
   ( -- * text table
     saveText,
-    loadText,
+    loadTextId,
+    expectTextId,
     expectText,
-    loadTextById,
-    loadTextByIdCheck,
+    expectTextCheck,
 
     -- * hash table
     saveHash,
     saveHashHash,
     loadHashId,
-    loadHashById,
-    loadHashHashById,
+    expectHash,
+    expectHash32,
     loadHashIdByHash,
     expectHashIdByHash,
     saveCausalHash,
-    loadCausalHash,
+    expectCausalHash,
     saveBranchHash,
 
     -- * hash_object table
     saveHashObject,
-    hashIdsForObject,
+    expectHashIdsForObject,
     hashIdWithVersionForObject,
+    loadObjectIdForPrimaryHashId,
     expectObjectIdForPrimaryHashId,
+    loadObjectIdForPrimaryHash,
+    expectObjectIdForPrimaryHash,
+    loadPatchObjectIdForPrimaryHash,
+    loadObjectIdForAnyHash,
+    loadObjectIdForAnyHashId,
     expectObjectIdForAnyHashId,
-    maybeObjectIdForPrimaryHashId,
-    maybeObjectIdForAnyHashId,
     recordObjectRehash,
 
     -- * object table
     saveObject,
-    loadObjectById,
-    loadPrimaryHashByObjectId,
-    loadObjectWithTypeById,
-    loadObjectWithHashIdAndTypeById,
-    expectDeclObjectById,
-    loadDeclObjectById,
-    expectNamespaceObjectById,
-    loadNamespaceObjectById,
-    expectPatchObjectById,
-    loadPatchObjectById,
-    loadTermObjectById,
-    expectTermObjectById,
-    updateObjectBlob, -- unused
+    expectObject,
+    expectPrimaryHashByObjectId,
+    expectObjectWithHashIdAndType,
+    expectDeclObject,
+    loadDeclObject,
+    expectNamespaceObject,
+    loadNamespaceObject,
+    expectPatchObject,
+    loadPatchObject,
+    loadTermObject,
+    expectTermObject,
 
     -- * namespace_root table
-    loadMaybeNamespaceRoot,
-    setNamespaceRoot,
     loadNamespaceRoot,
+    setNamespaceRoot,
+    expectNamespaceRoot,
 
     -- * causals
 
@@ -57,7 +66,7 @@ module U.Codebase.Sqlite.Queries
     saveCausal,
     isCausalHash,
     loadCausalHashIdByCausalHash,
-    loadCausalValueHashId,
+    expectCausalValueHashId,
     loadCausalByCausalHash,
     loadBranchObjectIdByCausalHashId,
     expectBranchObjectIdByCausalHashId,
@@ -133,7 +142,7 @@ import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
 import Data.Tuple.Only (Only (..))
-import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
+import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
 import U.Codebase.Sqlite.DbId
@@ -143,6 +152,7 @@ import U.Codebase.Sqlite.DbId
     HashId (..),
     HashVersion,
     ObjectId (..),
+    PatchObjectId (..),
     SchemaVersion,
     TextId,
   )
@@ -230,44 +240,41 @@ loadCausalHashIdByCausalHash ch = runMaybeT do
 loadCausalByCausalHash :: DB m => CausalHash -> m (Maybe (CausalHashId, BranchHashId))
 loadCausalByCausalHash ch = runMaybeT do
   hId <- MaybeT $ loadHashIdByHash (unCausalHash ch)
-  bhId <- MaybeT $ loadMaybeCausalValueHashId hId
+  bhId <- MaybeT $ loadCausalValueHashId hId
   pure (CausalHashId hId, bhId)
 
 expectHashIdByHash :: DB m => Hash -> m HashId
 expectHashIdByHash = expectHashId . Hash.toBase32Hex
 
--- FIXME rename to expectHashHashById
-loadHashHashById :: DB m => HashId -> m Hash
-loadHashHashById h = Hash.fromBase32Hex <$> loadHashById h
+expectHash :: DB m => HashId -> m Hash
+expectHash h = Hash.fromBase32Hex <$> expectHash32 h
 
--- FIXME rename to expectHashById
-loadHashById :: DB m => HashId -> m Base32Hex
-loadHashById h = queryOneCol sql (Only h)
+expectHash32 :: DB m => HashId -> m Base32Hex
+expectHash32 h = queryOneCol sql (Only h)
   where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
 
 saveText :: DB m => Text -> m TextId
-saveText t = execute sql (Only t) >> expectText t
+saveText t = execute sql (Only t) >> expectTextId t
   where sql = [here| INSERT INTO text (text) VALUES (?) ON CONFLICT DO NOTHING|]
 
-loadText :: DB m => Text -> m (Maybe TextId)
-loadText t = queryMaybeCol loadTextSql (Only t)
+loadTextId :: DB m => Text -> m (Maybe TextId)
+loadTextId t = queryMaybeCol loadTextIdSql (Only t)
 
-expectText :: DB m => Text -> m TextId
-expectText t = queryOneCol loadTextSql (Only t)
+expectTextId :: DB m => Text -> m TextId
+expectTextId t = queryOneCol loadTextIdSql (Only t)
+
+loadTextIdSql :: Sql
+loadTextIdSql =
+  [here| SELECT id FROM text WHERE text = ? |]
+
+expectText :: DB m => TextId -> m Text
+expectText h = queryOneCol loadTextSql (Only h)
+
+expectTextCheck :: (DB m, SqliteExceptionReason e) => TextId -> (Text -> Either e a) -> m a
+expectTextCheck h = queryOneColCheck loadTextSql (Only h)
 
 loadTextSql :: Sql
 loadTextSql =
-  [here| SELECT id FROM text WHERE text = ? |]
-
--- FIXME rename to expectTextById
-loadTextById :: DB m => TextId -> m Text
-loadTextById h = queryOneCol loadTextByIdSql (Only h)
-
-loadTextByIdCheck :: (DB m, SqliteExceptionReason e) => (Text -> Either e a) -> TextId -> m a
-loadTextByIdCheck check h = queryOneColCheck loadTextByIdSql (Only h) check
-
-loadTextByIdSql :: Sql
-loadTextByIdSql =
   [here| SELECT text FROM text WHERE id = ? |]
 
 saveHashObject :: DB m => HashId -> ObjectId -> HashVersion -> m ()
@@ -290,37 +297,29 @@ saveObject h t blob = do
     ON CONFLICT DO NOTHING
   |]
 
--- FIXME rename to expectObjectById
-loadObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
-loadObjectById oId check = do
+expectObject :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
+expectObject oId check = do
  result <- queryOneColCheck sql (Only oId) check
  pure result
   where sql = [here|
   SELECT bytes FROM object WHERE id = ?
 |]
 
--- FIXME rename to expectObjectWithTypeById
-loadObjectWithTypeById :: DB m => ObjectId -> m (ObjectType, ByteString)
-loadObjectWithTypeById oId = queryOneRow sql (Only oId)
-  where sql = [here|
-    SELECT type_id, bytes FROM object WHERE id = ?
-  |]
-
-loadObjectOfTypeById ::
+loadObjectOfType ::
   (DB m, SqliteExceptionReason e) =>
   ObjectId ->
   ObjectType ->
   (ByteString -> Either e a) ->
   m (Maybe a)
-loadObjectOfTypeById oid ty =
-  queryMaybeColCheck loadObjectOfTypeByIdSql (oid, ty)
+loadObjectOfType oid ty =
+  queryMaybeColCheck loadObjectOfTypeSql (oid, ty)
 
-expectObjectOfTypeById :: (DB m, SqliteExceptionReason e) => ObjectId -> ObjectType -> (ByteString -> Either e a) -> m a
-expectObjectOfTypeById oid ty =
-  queryOneColCheck loadObjectOfTypeByIdSql (oid, ty)
+expectObjectOfType :: (DB m, SqliteExceptionReason e) => ObjectId -> ObjectType -> (ByteString -> Either e a) -> m a
+expectObjectOfType oid ty =
+  queryOneColCheck loadObjectOfTypeSql (oid, ty)
 
-loadObjectOfTypeByIdSql :: Sql
-loadObjectOfTypeByIdSql =
+loadObjectOfTypeSql :: Sql
+loadObjectOfTypeSql =
   [here|
     SELECT bytes
     FROM object
@@ -329,86 +328,117 @@ loadObjectOfTypeByIdSql =
   |]
 
 -- | Load a decl component object.
-loadDeclObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
-loadDeclObjectById oid =
-  loadObjectOfTypeById oid DeclComponent
+loadDeclObject :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
+loadDeclObject oid =
+  loadObjectOfType oid DeclComponent
 
 -- | Expect a decl component object.
-expectDeclObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
-expectDeclObjectById oid =
-  expectObjectOfTypeById oid DeclComponent
+expectDeclObject :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
+expectDeclObject oid =
+  expectObjectOfType oid DeclComponent
 
 -- | Load a namespace object.
-loadNamespaceObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
-loadNamespaceObjectById oid =
-  loadObjectOfTypeById oid Namespace
+loadNamespaceObject :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
+loadNamespaceObject oid =
+  loadObjectOfType oid Namespace
 
 -- | Expect a namespace object.
-expectNamespaceObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
-expectNamespaceObjectById oid =
-  expectObjectOfTypeById oid Namespace
+expectNamespaceObject :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
+expectNamespaceObject oid =
+  expectObjectOfType oid Namespace
 
 -- | Load a patch object.
-loadPatchObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
-loadPatchObjectById oid =
-  loadObjectOfTypeById oid Patch
+loadPatchObject :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
+loadPatchObject oid =
+  loadObjectOfType oid Patch
 
 -- | Expect a patch object.
-expectPatchObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
-expectPatchObjectById oid =
-  expectObjectOfTypeById oid Patch
+expectPatchObject :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
+expectPatchObject oid =
+  expectObjectOfType oid Patch
 
 -- | Load a term component object.
-loadTermObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
-loadTermObjectById oid =
-  loadObjectOfTypeById oid TermComponent
+loadTermObject :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
+loadTermObject oid =
+  loadObjectOfType oid TermComponent
 
 -- | Expect a term component object.
-expectTermObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
-expectTermObjectById oid =
-  expectObjectOfTypeById oid TermComponent
+expectTermObject :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
+expectTermObject oid =
+  expectObjectOfType oid TermComponent
 
--- | FIXME rename to expectObjectWithHashIdAndTypeById
-loadObjectWithHashIdAndTypeById :: DB m => ObjectId -> m (HashId, ObjectType, ByteString)
-loadObjectWithHashIdAndTypeById oId = queryOneRow sql (Only oId)
+expectObjectWithHashIdAndType :: DB m => ObjectId -> m (HashId, ObjectType, ByteString)
+expectObjectWithHashIdAndType oId = queryOneRow sql (Only oId)
   where sql = [here|
     SELECT primary_hash_id, type_id, bytes FROM object WHERE id = ?
   |]
 
--- |Not all hashes have corresponding objects; e.g., hashes of term types
+loadObjectIdForPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
+loadObjectIdForPrimaryHashId h =
+  queryMaybeCol loadObjectIdForPrimaryHashIdSql (Only h)
+
+-- | Not all hashes have corresponding objects; e.g., hashes of term types
 expectObjectIdForPrimaryHashId :: DB m => HashId -> m ObjectId
 expectObjectIdForPrimaryHashId h =
-  queryOneCol maybeObjectIdForPrimaryHashIdSql (Only h)
+  queryOneCol loadObjectIdForPrimaryHashIdSql (Only h)
 
-maybeObjectIdForPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
-maybeObjectIdForPrimaryHashId h = queryMaybeCol maybeObjectIdForPrimaryHashIdSql (Only h)
+loadObjectIdForPrimaryHashIdSql :: Sql
+loadObjectIdForPrimaryHashIdSql =
+  [here|
+    SELECT id
+    FROM object
+    WHERE primary_hash_id = ?
+  |]
 
-maybeObjectIdForPrimaryHashIdSql :: Sql
-maybeObjectIdForPrimaryHashIdSql =
-  [here| SELECT id FROM object WHERE primary_hash_id = ? |]
+loadObjectIdForPrimaryHash :: DB m => Hash -> m (Maybe ObjectId)
+loadObjectIdForPrimaryHash h =
+  loadHashIdByHash h >>= \case
+    Nothing -> pure Nothing
+    Just hashId -> loadObjectIdForPrimaryHashId hashId
+
+expectObjectIdForPrimaryHash :: DB m => Hash -> m ObjectId
+expectObjectIdForPrimaryHash h = do
+  hashId <- expectHashIdByHash h
+  expectObjectIdForPrimaryHashId hashId
+
+-- FIXME this doesn't check that the object is actually a patch
+loadPatchObjectIdForPrimaryHash :: DB m => PatchHash -> m (Maybe PatchObjectId)
+loadPatchObjectIdForPrimaryHash =
+  (fmap . fmap) PatchObjectId . loadObjectIdForPrimaryHash . unPatchHash
+
+loadObjectIdForAnyHash :: DB m => Hash -> m (Maybe ObjectId)
+loadObjectIdForAnyHash h =
+  loadHashIdByHash h >>= \case
+    Nothing -> pure Nothing
+    Just hashId -> loadObjectIdForAnyHashId hashId
+
+loadObjectIdForAnyHashId :: DB m => HashId -> m (Maybe ObjectId)
+loadObjectIdForAnyHashId h =
+  queryMaybeCol loadObjectIdForAnyHashIdSql (Only h)
 
 expectObjectIdForAnyHashId :: DB m => HashId -> m ObjectId
 expectObjectIdForAnyHashId h =
-  queryOneCol maybeObjectIdForAnyHashIdSql (Only h)
+  queryOneCol loadObjectIdForAnyHashIdSql (Only h)
 
-maybeObjectIdForAnyHashId :: DB m => HashId -> m (Maybe ObjectId)
-maybeObjectIdForAnyHashId h = queryMaybeCol maybeObjectIdForAnyHashIdSql (Only h)
-
-maybeObjectIdForAnyHashIdSql :: Sql
-maybeObjectIdForAnyHashIdSql =
+loadObjectIdForAnyHashIdSql :: Sql
+loadObjectIdForAnyHashIdSql =
   [here| SELECT object_id FROM hash_object WHERE hash_id = ? |]
 
--- |All objects have corresponding hashes.
-loadPrimaryHashByObjectId :: DB m => ObjectId -> m Base32Hex
-loadPrimaryHashByObjectId oId = queryOneCol sql (Only oId)
+-- | All objects have corresponding hashes.
+expectPrimaryHashByObjectId :: DB m => ObjectId -> m Hash
+expectPrimaryHashByObjectId =
+  fmap Hash.fromBase32Hex . expectPrimaryHash32ByObjectId
+
+expectPrimaryHash32ByObjectId :: DB m => ObjectId -> m Base32Hex
+expectPrimaryHash32ByObjectId oId = queryOneCol sql (Only oId)
  where sql = [here|
   SELECT hash.base32
   FROM hash INNER JOIN object ON object.primary_hash_id = hash.id
   WHERE object.id = ?
 |]
 
-hashIdsForObject :: DB m => ObjectId -> m (NonEmpty HashId)
-hashIdsForObject oId = do
+expectHashIdsForObject :: DB m => ObjectId -> m (NonEmpty HashId)
+expectHashIdsForObject oId = do
   primaryHashId <- queryOneCol sql1 (Only oId)
   hashIds <- queryListCol sql2 (Only oId)
   pure $ primaryHashId Nel.:| filter (/= primaryHashId) hashIds
@@ -433,11 +463,6 @@ recordObjectRehash old new =
       SET object_id = ?
       WHERE object_id = ?
     |]
-
-updateObjectBlob :: DB m => ObjectId -> ByteString -> m ()
-updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
-  UPDATE object SET bytes = ? WHERE id = ?
-|]
 
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
@@ -465,20 +490,19 @@ saveCausal self value = execute sql (self, value) where sql = [here|
 --     SELECT MAX(gc_generation) FROM causal;
 --   |]
 
--- FIXME rename to expectCausalValueHashId
-loadCausalValueHashId :: DB m => CausalHashId -> m BranchHashId
-loadCausalValueHashId (CausalHashId id) =
-  queryOneCol loadMaybeCausalValueHashIdSql (Only id)
+expectCausalValueHashId :: DB m => CausalHashId -> m BranchHashId
+expectCausalValueHashId (CausalHashId id) =
+  queryOneCol loadCausalValueHashIdSql (Only id)
 
-loadCausalHash :: DB m => CausalHashId -> m CausalHash
-loadCausalHash (CausalHashId id) = CausalHash <$> loadHashHashById id
+expectCausalHash :: DB m => CausalHashId -> m CausalHash
+expectCausalHash (CausalHashId id) = CausalHash <$> expectHash id
 
-loadMaybeCausalValueHashId :: DB m => HashId -> m (Maybe BranchHashId)
-loadMaybeCausalValueHashId id =
-  queryMaybeCol loadMaybeCausalValueHashIdSql (Only id)
+loadCausalValueHashId :: DB m => HashId -> m (Maybe BranchHashId)
+loadCausalValueHashId id =
+  queryMaybeCol loadCausalValueHashIdSql (Only id)
 
-loadMaybeCausalValueHashIdSql :: Sql
-loadMaybeCausalValueHashIdSql =
+loadCausalValueHashIdSql :: Sql
+loadCausalValueHashIdSql =
   [here| SELECT value_hash_id FROM causal WHERE self_hash_id = ? |]
 
 isCausalHash :: DB m => HashId -> m Bool
@@ -512,17 +536,20 @@ loadCausalParents h = queryListCol sql (Only h) where sql = [here|
   SELECT parent_id FROM causal_parent WHERE causal_id = ?
 |]
 
-loadNamespaceRoot :: DB m => m CausalHashId
+expectNamespaceRoot :: DB m => m CausalHashId
+expectNamespaceRoot =
+  queryOneCol_ loadNamespaceRootSql
+
+loadNamespaceRoot :: DB m => m (Maybe CausalHashId)
 loadNamespaceRoot =
-  queryOneCol_ loadMaybeNamespaceRootSql
+  queryMaybeCol_ loadNamespaceRootSql
 
-loadMaybeNamespaceRoot :: DB m => m (Maybe CausalHashId)
-loadMaybeNamespaceRoot =
-  queryMaybeCol_ loadMaybeNamespaceRootSql
-
-loadMaybeNamespaceRootSql :: Sql
-loadMaybeNamespaceRootSql =
-  "SELECT causal_id FROM namespace_root"
+loadNamespaceRootSql :: Sql
+loadNamespaceRootSql =
+  [here|
+    SELECT causal_id
+    FROM namespace_root
+  |]
 
 setNamespaceRoot :: forall m. DB m => CausalHashId -> m ()
 setNamespaceRoot id =

@@ -124,7 +124,7 @@ migrateSchema1To2 conn codebase =
         liftIO $ putStrLn $ "I'll go ahead with the migration, but will replace any corrupted namespaces with empty ones."
 
       liftIO $ putStrLn $ "Updating Namespace Root..."
-      rootCausalHashId <- Q.loadNamespaceRoot
+      rootCausalHashId <- Q.expectNamespaceRoot
       numEntitiesToMigrate <- sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
       v2EmptyBranchHashInfo <- saveV2EmptyBranch
       watches <-
@@ -234,12 +234,12 @@ migrateCausal :: MonadIO m => Sqlite.Connection -> CausalHashId -> StateT Migrat
 migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
   whenM (Map.member oldCausalHashId <$> use (field @"causalMapping")) (throwE Sync.PreviouslyDone)
 
-  oldBranchHashId <- Sqlite.runDB conn $ Q.loadCausalValueHashId oldCausalHashId
+  oldBranchHashId <- Sqlite.runDB conn $ Q.expectCausalValueHashId oldCausalHashId
   oldCausalParentHashIds <- Sqlite.runDB conn $ Q.loadCausalParents oldCausalHashId
 
   maybeOldBranchObjId <-
     Sqlite.runDB conn $
-      Q.maybeObjectIdForAnyHashId (unBranchHashId oldBranchHashId)
+      Q.loadObjectIdForAnyHashId (unBranchHashId oldBranchHashId)
   migratedObjIds <- gets objLookup
   -- If the branch for this causal hasn't been migrated, migrate it first.
   let unmigratedBranch =
@@ -299,9 +299,9 @@ migrateBranch :: MonadIO m => Sqlite.Connection -> ObjectId -> StateT MigrationS
 migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
   whenM (Map.member oldObjectId <$> use (field @"objLookup")) (throwE Sync.PreviouslyDone)
 
-  oldBranch <- Sqlite.runDB conn (Ops.loadDbBranchByObjectId (BranchObjectId oldObjectId))
-  oldHash <- fmap Cv.hash2to1 . Sqlite.runDB conn $ Ops.loadHashByObjectId oldObjectId
-  oldBranchWithHashes <- Sqlite.runDB conn (traverseOf S.branchHashes_ (fmap Cv.hash2to1 . Ops.loadHashByObjectId) oldBranch)
+  oldBranch <- Sqlite.runDB conn (Ops.expectDbBranch (BranchObjectId oldObjectId))
+  oldHash <- fmap Cv.hash2to1 . Sqlite.runDB conn $ Q.expectPrimaryHashByObjectId oldObjectId
+  oldBranchWithHashes <- Sqlite.runDB conn (traverseOf S.branchHashes_ (fmap Cv.hash2to1 . Q.expectPrimaryHashByObjectId) oldBranch)
   migratedRefs <- gets referenceMapping
   migratedObjects <- gets objLookup
   migratedCausals <- gets causalMapping
@@ -379,14 +379,14 @@ migratePatch ::
 migratePatch conn oldObjectId = fmap (either id id) . runExceptT $ do
   whenM (Map.member (unPatchObjectId oldObjectId) <$> use (field @"objLookup")) (throwE Sync.PreviouslyDone)
 
-  oldHash <- fmap Cv.hash2to1 . Sqlite.runDB conn $ Ops.loadHashByObjectId (unPatchObjectId oldObjectId)
-  oldPatch <- Sqlite.runDB conn (Ops.loadDbPatchById oldObjectId)
+  oldHash <- fmap Cv.hash2to1 . Sqlite.runDB conn $ Q.expectPrimaryHashByObjectId (unPatchObjectId oldObjectId)
+  oldPatch <- Sqlite.runDB conn (Ops.expectDbPatch oldObjectId)
   let hydrateHashes :: forall m. Sqlite.DB m => HashId -> m Hash
       hydrateHashes hashId = do
-        Cv.hash2to1 <$> Q.loadHashHashById hashId
+        Cv.hash2to1 <$> Q.expectHash hashId
   let hydrateObjectIds :: forall m. Sqlite.DB m => ObjectId -> m Hash
       hydrateObjectIds objId = do
-        Cv.hash2to1 <$> Ops.loadHashByObjectId objId
+        Cv.hash2to1 <$> Q.expectPrimaryHashByObjectId objId
 
   oldPatchWithHashes :: S.Patch' TextId Hash Hash <-
     Sqlite.runDB conn do
