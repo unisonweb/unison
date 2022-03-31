@@ -100,6 +100,7 @@ jobs:
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
       - name: build dependencies
+        shell: bash
         # Run up to 5 times in a row before giving up.
         # It's very unlikely that our build-dependencies step will fail on most builds,
         # so if it fails its almost certainly due to a race condition on the Windows
