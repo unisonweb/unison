@@ -8,6 +8,7 @@ module Main (main) where
 import Data.Bifunctor (second)
 import Data.List
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import EasyTest
 import System.Directory
 import System.Environment (getArgs)
@@ -31,8 +32,8 @@ data TestConfig = TestConfig
 type TestBuilder = FilePath -> [String] -> String -> Test ()
 
 testBuilder ::
-  FilePath -> [String] -> String -> Test ()
-testBuilder dir prelude transcript = scope transcript $ do
+  Bool -> FilePath -> [String] -> String -> Test ()
+testBuilder expectFailure dir prelude transcript = scope transcript $ do
   outputs <- io . withTemporaryUcmCodebase SC.init "transcript" $ \(codebasePath, codebase) -> do
     withTranscriptRunner "TODO: pass version here" Nothing $ \runTranscript -> do
       for files $ \filePath -> do
@@ -44,12 +45,15 @@ testBuilder dir prelude transcript = scope transcript $ do
       let outputFile = outputFileForTranscript filePath
       case err of
         TranscriptParseError msg -> do
-          crash $ "Error parsing " <> filePath <> ": " <> Text.unpack msg
+          when (not expectFailure) . crash $ "Error parsing " <> filePath <> ": " <> Text.unpack msg
         TranscriptRunFailure errOutput -> do
           io $ writeUtf8 outputFile errOutput
+          io $ Text.putStrLn errOutput
+          when (not expectFailure) . crash $ "Failure in " <> filePath
     (filePath, Right out) -> do
       let outputFile = outputFileForTranscript filePath
       io $ writeUtf8 outputFile out
+      when expectFailure $ crash "Expected a failure, but transcript was successful."
   ok
   where
     files = fmap (dir </>) (prelude ++ [transcript])
@@ -106,11 +110,11 @@ cleanup = do
 
 test :: TestConfig -> Test ()
 test config = do
-  buildTests config testBuilder $
+  buildTests config (testBuilder False) $
     "unison-src" </> "transcripts"
-  buildTests config testBuilder $
+  buildTests config (testBuilder False) $
     "unison-src" </> "transcripts-using-base"
-  buildTests config testBuilder $
+  buildTests config (testBuilder True) $
     "unison-src" </> "transcripts" </> "errors"
   cleanup
 

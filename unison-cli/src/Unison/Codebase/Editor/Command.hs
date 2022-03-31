@@ -13,6 +13,7 @@ module Unison.Codebase.Editor.Command
     EvalResult,
     commandName,
     lookupEvalResult,
+    UCMVersion,
   )
 where
 
@@ -92,6 +93,8 @@ type TypecheckingResult v =
   Result
     (Seq (Note v Ann))
     (Either Names (UF.TypecheckedUnisonFile v Ann))
+
+type UCMVersion = Text
 
 data
   Command
@@ -265,6 +268,7 @@ data
   -- Ideally we will eventually remove the Command type entirely and won't need
   -- this anymore.
   CmdUnliftIO :: Command m i v (UnliftIO (Free (Command m i v)))
+  UCMVersion :: Command m i v UCMVersion
 
 instance MonadIO m => MonadIO (Free (Command m i v)) where
   liftIO io = Free.eval $ Eval (liftIO io)
@@ -343,3 +347,4 @@ commandName = \case
   MakeStandalone {} -> "MakeStandalone"
   FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"
+  UCMVersion {} -> "UCMVersion"
