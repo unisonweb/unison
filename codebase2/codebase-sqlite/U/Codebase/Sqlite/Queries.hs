@@ -52,8 +52,12 @@ module U.Codebase.Sqlite.Queries
     loadObjectWithTypeById,
     loadObjectWithHashIdAndTypeById,
     expectDeclObjectById,
+    loadDeclObjectById,
     expectNamespaceObjectById,
+    loadNamespaceObjectById,
     expectPatchObjectById,
+    loadPatchObjectById,
+    loadTermObjectById,
     expectTermObjectById,
     updateObjectBlob, -- unused
 
@@ -147,7 +151,6 @@ import Data.Tuple.Only (Only (..))
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
-import qualified UnliftIO
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
@@ -158,7 +161,7 @@ import U.Codebase.Sqlite.DbId
     SchemaVersion,
     TextId,
   )
-import U.Codebase.Sqlite.ObjectType (ObjectType(DeclComponent, Namespace, Patch, TermComponent))
+import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.WatchKind (WatchKind)
@@ -186,7 +189,8 @@ vacuumInto dest = do
 
 schemaVersion :: DB m => m SchemaVersion
 schemaVersion = queryOneCol_ sql
-  where sql = "SELECT version from schema_version;"
+  where
+    sql = "SELECT version from schema_version;"
 
 setSchemaVersion :: DB m => SchemaVersion -> m ()
 setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
@@ -317,31 +321,62 @@ loadObjectWithTypeById oId = queryOneRow sql (Only oId)
     SELECT type_id, bytes FROM object WHERE id = ?
   |]
 
+loadObjectOfTypeById ::
+  (DB m, SqliteExceptionReason e) =>
+  ObjectId ->
+  ObjectType ->
+  (ByteString -> Either e a) ->
+  m (Maybe a)
+loadObjectOfTypeById oid ty =
+  queryMaybeColCheck loadObjectOfTypeByIdSql (oid, ty)
+
 expectObjectOfTypeById :: (DB m, SqliteExceptionReason e) => ObjectId -> ObjectType -> (ByteString -> Either e a) -> m a
 expectObjectOfTypeById oid ty =
-  queryOneColCheck
-    [here|
-      SELECT bytes
-      FROM object
-      WHERE id = ?
-        AND type_id = ?
-    |]
-    (oid, ty)
+  queryOneColCheck loadObjectOfTypeByIdSql (oid, ty)
+
+loadObjectOfTypeByIdSql :: Sql
+loadObjectOfTypeByIdSql =
+  [here|
+    SELECT bytes
+    FROM object
+    WHERE id = ?
+      AND type_id = ?
+  |]
+
+-- | Load a decl component object.
+loadDeclObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
+loadDeclObjectById oid =
+  loadObjectOfTypeById oid DeclComponent
 
 -- | Expect a decl component object.
 expectDeclObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
 expectDeclObjectById oid =
   expectObjectOfTypeById oid DeclComponent
 
+-- | Load a namespace object.
+loadNamespaceObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
+loadNamespaceObjectById oid =
+  loadObjectOfTypeById oid Namespace
+
 -- | Expect a namespace object.
 expectNamespaceObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
 expectNamespaceObjectById oid =
   expectObjectOfTypeById oid Namespace
 
+-- | Load a patch object.
+loadPatchObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
+loadPatchObjectById oid =
+  loadObjectOfTypeById oid Patch
+
 -- | Expect a patch object.
 expectPatchObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
 expectPatchObjectById oid =
   expectObjectOfTypeById oid Patch
+
+-- | Load a term component object.
+loadTermObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m (Maybe a)
+loadTermObjectById oid =
+  loadObjectOfTypeById oid TermComponent
 
 -- | Expect a term component object.
 expectTermObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
@@ -846,7 +881,8 @@ removeHashObjectsByHashingVersion hashVersion =
 
 before :: DB m => CausalHashId -> CausalHashId -> m Bool
 before chId1 chId2 = queryOneCol sql (chId2, chId1)
-  where sql = fromString $ "SELECT EXISTS (" ++ ancestorSql ++ " WHERE ancestor.id = ?)"
+  where
+    sql = fromString $ "SELECT EXISTS (" ++ ancestorSql ++ " WHERE ancestor.id = ?)"
 
 -- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
@@ -859,17 +895,22 @@ lca x y cx cy =
               (Just (Only px), Just (Only py)) ->
                 let seenX' = Set.insert px seenX
                     seenY' = Set.insert py seenY
-                  in if Set.member px seenY' then pure (Just px)
-                  else if Set.member py seenX' then pure (Just py)
-                  else loop2 seenX' seenY'
+                 in if Set.member px seenY'
+                      then pure (Just px)
+                      else
+                        if Set.member py seenX'
+                          then pure (Just py)
+                          else loop2 seenX' seenY'
               (Nothing, Nothing) -> pure Nothing
               (Just (Only px), Nothing) -> loop1 nextX seenY px
               (Nothing, Just (Only py)) -> loop1 nextY seenX py
           loop1 getNext matches v =
-            if Set.member v matches then pure (Just v)
-            else getNext >>= \case
-              Just (Only v) -> loop1 getNext matches v
-              Nothing -> pure Nothing
+            if Set.member v matches
+              then pure (Just v)
+              else
+                getNext >>= \case
+                  Just (Only v) -> loop1 getNext matches v
+                  Nothing -> pure Nothing
       loop2 (Set.singleton x) (Set.singleton y)
   where
     sql = fromString ancestorSql

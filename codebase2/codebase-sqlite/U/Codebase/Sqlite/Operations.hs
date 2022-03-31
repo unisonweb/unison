@@ -289,8 +289,9 @@ loadRootCausalHash :: DB m => m CausalHash
 loadRootCausalHash = loadCausalHashById =<< Q.loadNamespaceRoot
 
 loadMaybeRootCausalHash :: DB m => m (Maybe CausalHash)
-loadMaybeRootCausalHash = runMaybeT $
-  loadCausalHashById =<< MaybeT Q.loadMaybeNamespaceRoot
+loadMaybeRootCausalHash =
+  runMaybeT $
+    loadCausalHashById =<< MaybeT Q.loadMaybeNamespaceRoot
 
 -- * Reference transformations
 
@@ -456,13 +457,9 @@ componentByObjectId id = do
 
 loadTermComponent :: DB m => H.Hash -> MaybeT m [(C.Term Symbol, C.Term.Type Symbol)]
 loadTermComponent h = do
-  MaybeT (anyHashToMaybeObjectId h)
-    -- retrieve and deserialize the blob
-    >>= (\oid -> Q.expectTermObjectById oid decodeTermFormat)
-    >>= \case
-      S.Term.Term (S.Term.LocallyIndexedComponent elements) ->
-        lift . traverse (uncurry3 s2cTermWithType) $
-          Foldable.toList elements
+  oid <- MaybeT (anyHashToMaybeObjectId h)
+  S.Term.Term (S.Term.LocallyIndexedComponent elements) <- MaybeT (Q.loadTermObjectById oid decodeTermFormat)
+  lift . traverse (uncurry3 s2cTermWithType) $ Foldable.toList elements
 
 saveTermComponent :: DB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> m Db.ObjectId
 saveTermComponent h terms = do
@@ -614,27 +611,27 @@ c2xTerm saveText saveDefn tm tp =
       pure (ids, void tm, void <$> tp)
 
 loadTermWithTypeByReference :: DB m => C.Reference.Id -> MaybeT m (C.Term Symbol, C.Term.Type Symbol)
-loadTermWithTypeByReference (C.Reference.Id h i) =
-  MaybeT (primaryHashToMaybeObjectId h)
-    -- retrieve and deserialize the blob
-    >>= (\oId -> Q.expectTermObjectById oId (decodeTermElementWithType i))
-    >>= uncurry3 s2cTermWithType
+loadTermWithTypeByReference (C.Reference.Id h i) = do
+  oid <- MaybeT (primaryHashToMaybeObjectId h)
+  -- retrieve and deserialize the blob
+  (localIds, term, typ) <- MaybeT (Q.loadTermObjectById oid (decodeTermElementWithType i))
+  s2cTermWithType localIds term typ
 
 loadTermByReference :: DB m => C.Reference.Id -> MaybeT m (C.Term Symbol)
 loadTermByReference r@(C.Reference.Id h i) = do
   when debug . traceM $ "loadTermByReference " ++ show r
-  MaybeT (primaryHashToMaybeObjectId h)
-    -- retrieve and deserialize the blob
-    >>= (\oid -> lift (Q.expectTermObjectById oid (decodeTermElementDiscardingType i)))
-    >>= uncurry s2cTerm
+  oid <- MaybeT (primaryHashToMaybeObjectId h)
+  -- retrieve and deserialize the blob
+  (localIds, term) <- MaybeT (Q.loadTermObjectById oid (decodeTermElementDiscardingType i))
+  s2cTerm localIds term
 
 loadTypeOfTermByTermReference :: DB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
 loadTypeOfTermByTermReference id@(C.Reference.Id h i) = do
   when debug . traceM $ "loadTypeOfTermByTermReference " ++ show id
-  MaybeT (primaryHashToMaybeObjectId h)
-    -- retrieve and deserialize the blob
-    >>= (\oid -> lift (Q.expectTermObjectById oid (decodeTermElementDiscardingTerm i)))
-    >>= uncurry s2cTypeOfTerm
+  oid <- MaybeT (primaryHashToMaybeObjectId h)
+  -- retrieve and deserialize the blob
+  (localIds, typ) <- MaybeT (Q.loadTermObjectById oid (decodeTermElementDiscardingTerm i))
+  s2cTypeOfTerm localIds typ
 
 s2cTermWithType :: DB m => LocalIds -> S.Term.Term -> S.Term.Type -> m (C.Term Symbol, C.Term.Type Symbol)
 s2cTermWithType ids tm tp = do
@@ -733,11 +730,10 @@ listWatches k = Q.loadWatchesByWatchKind k >>= traverse h2cReferenceId
 
 -- | returns Nothing if the expression isn't cached.
 loadWatch :: DB m => WatchKind -> C.Reference.Id -> MaybeT m (C.Term Symbol)
-loadWatch k r =
-  C.Reference.idH Q.saveHashHash r
-    >>= (\r' -> MaybeT (Q.loadWatch k r' (getFromBytesOr (ErrWatch k r) S.getWatchResultFormat)))
-    >>= \case
-      S.Term.WatchResult wlids t -> w2cTerm wlids t
+loadWatch k r = do
+  r' <- C.Reference.idH Q.saveHashHash r
+  S.Term.WatchResult wlids t <- MaybeT (Q.loadWatch k r' (getFromBytesOr (ErrWatch k r) S.getWatchResultFormat))
+  w2cTerm wlids t
 
 saveWatch :: DB m => WatchKind -> C.Reference.Id -> C.Term Symbol -> m ()
 saveWatch w r t = do
@@ -761,11 +757,9 @@ w2cTerm ids tm = do
 
 loadDeclComponent :: DB m => H.Hash -> MaybeT m [C.Decl Symbol]
 loadDeclComponent h = do
-  MaybeT (anyHashToMaybeObjectId h)
-    >>= (\oid -> Q.expectDeclObjectById oid decodeDeclFormat)
-    >>= \case
-      S.Decl.Decl (S.Decl.LocallyIndexedComponent elements) ->
-        lift . traverse (uncurry s2cDecl) $ Foldable.toList elements
+  oid <- MaybeT (anyHashToMaybeObjectId h)
+  S.Decl.Decl (S.Decl.LocallyIndexedComponent elements) <- MaybeT (Q.loadDeclObjectById oid decodeDeclFormat)
+  lift . traverse (uncurry s2cDecl) $ Foldable.toList elements
 
 saveDeclComponent :: DB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
 saveDeclComponent h decls = do
@@ -830,10 +824,9 @@ s2cDecl ids (C.Decl.DataDeclaration dt m b ct) = do
 loadDeclByReference :: DB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
 loadDeclByReference r@(C.Reference.Id h i) = do
   when debug . traceM $ "loadDeclByReference " ++ show r
-  -- retrieve the blob
-  MaybeT (primaryHashToMaybeObjectId h)
-    >>= (\oid -> Q.expectDeclObjectById oid (decodeDeclElement i))
-    >>= uncurry s2cDecl
+  oid <- MaybeT (primaryHashToMaybeObjectId h)
+  (localIds, decl) <- MaybeT (Q.loadDeclObjectById oid (decodeDeclElement i))
+  s2cDecl localIds decl
 
 -- TODO rename expectDeclById
 expectDeclByReference :: DB m => C.Reference.Id -> m (C.Decl Symbol)
