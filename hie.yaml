@@ -30,7 +30,7 @@ cradle:
     - path: "lib/unison-sqlite/src"
       component: "unison-sqlite:lib"
 
-    - path: "lib/unison-sync/src"
+    - path: "unison-sync/src"
       component: "unison-sync:lib"
 
     - path: "lib/unison-util-relation/src"

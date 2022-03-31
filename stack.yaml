@@ -14,6 +14,7 @@ packages:
 - parser-typechecker
 - unison-core
 - unison-cli
+- unison-sync
 - codebase2/codebase
 - codebase2/codebase-sqlite
 - codebase2/codebase-sync
@@ -23,7 +24,6 @@ packages:
 - codebase2/util-term
 - lib/unison-prelude
 - lib/unison-sqlite
-- lib/unison-sync
 - lib/unison-util-relation
 - lib/unison-pretty-printer
 
