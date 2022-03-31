@@ -53,6 +53,7 @@ dependencies:
   - time
   - lock-file
   - jwt
+  - either
 
 
 library:
