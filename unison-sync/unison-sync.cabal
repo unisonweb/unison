@@ -17,7 +17,6 @@ source-repository head
 
 library
   exposed-modules:
-      Unison.Sync
       Unison.Sync.API
       Unison.Sync.Types
   other-modules:
