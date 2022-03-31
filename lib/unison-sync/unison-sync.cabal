@@ -17,7 +17,6 @@ source-repository head
 
 library
   exposed-modules:
-      Servant.API.ContentTypes.CBOR
       Unison.Sync
       Unison.Sync.API
       Unison.Sync.Types
@@ -52,17 +51,13 @@ library
   ghc-options: -Wall
   build-depends:
       aeson
-    , avro
     , base
     , bytestring
-    , cborg
     , containers
     , http-media
     , memory
-    , msgpack-binary
     , mtl
     , nonempty-containers
-    , serialise
     , servant
     , servant-client
     , tagged
