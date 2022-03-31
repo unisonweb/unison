@@ -21,7 +21,7 @@ import ArgParse
     parseCLIArgs,
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
-import Control.Concurrent (newEmptyMVar, takeMVar)
+import Control.Concurrent (forkIO, newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
 import qualified Data.ByteString.Lazy as BL
@@ -29,7 +29,11 @@ import Data.Configurator.Types (Config)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.IO as Text
 import qualified GHC.Conc
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client.TLS as HTTP
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName, withArgs)
 import qualified System.Exit as Exit
@@ -71,10 +75,10 @@ main :: IO ()
 main = withCP65001 do
   interruptHandler <- defaultInterruptHandler
   withInterruptHandler interruptHandler $ do
+    forkIO initHTTPClient
     progName <- getProgName
     -- hSetBuffering stdout NoBuffering -- cool
-
-    (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName Version.gitDescribeWithDate
+    (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack Version.gitDescribeWithDate)
     let GlobalOptions {codebasePathOption = mCodePathOption} = globalOptions
     let mcodepath = fmap codebasePathOptionToPath mCodePathOption
 
@@ -85,7 +89,7 @@ main = withCP65001 do
         Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
     case command of
       PrintVersion ->
-        putStrLn $ progName ++ " version: " ++ Version.gitDescribeWithDate
+        Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate
       Init -> do
         PT.putPrettyLn $
           P.callout
@@ -107,14 +111,14 @@ main = withCP65001 do
       Run (RunFromFile file mainName) args
         | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
         | otherwise -> do
-            e <- safeReadUtf8 file
-            case e of
-              Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
-              Right contents -> do
-                getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-                  rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
-                  let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                  launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
+          e <- safeReadUtf8 file
+          case e of
+            Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
+            Right contents -> do
+              getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+                rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
+                let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
@@ -159,7 +163,7 @@ main = withCP65001 do
               | not vmatch -> mismatchMsg
               | otherwise -> withArgs args $ RTI.runStandalone sto w
               where
-                vmatch = v == Text.pack Version.gitDescribeWithDate
+                vmatch = v == Version.gitDescribeWithDate
                 ws s = P.wrap (P.text s)
                 ifile
                   | 'c' : 'u' : '.' : rest <- reverse file = reverse rest
@@ -175,7 +179,7 @@ main = withCP65001 do
                       P.indentN 4 $ P.text v,
                       "",
                       "Your version",
-                      P.indentN 4 $ P.string Version.gitDescribeWithDate,
+                      P.indentN 4 $ P.text Version.gitDescribeWithDate,
                       "",
                       P.wrap $
                         "The program was compiled from hash "
@@ -220,6 +224,18 @@ main = withCP65001 do
               WithCLI -> do
                 PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
                 launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
+
+-- | Set user agent and configure TLS on global http client.
+-- Note that the authorized http client is distinct from the global http client.
+initHTTPClient :: IO ()
+initHTTPClient = do
+  let (ucmVersion, _date) = Version.gitDescribe
+  let userAgent = Text.encodeUtf8 $ "UCM/" <> ucmVersion
+  let addUserAgent req = do
+        pure $ req {HTTP.requestHeaders = ("User-Agent", userAgent) : HTTP.requestHeaders req}
+  let managerSettings = HTTP.tlsManagerSettings {HTTP.managerModifyRequest = addUserAgent}
+  manager <- HTTP.newTlsManagerWith managerSettings
+  HTTP.setGlobalManager manager
 
 prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> IO FilePath
 prepareTranscriptDir shouldFork mCodePathOption = do
@@ -364,8 +380,8 @@ launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initR
         CreatedCodebase {} -> NewlyCreatedCodebase
         _ -> PreviouslyCreatedCodebase
 
-      (gitRef, _date) = Version.gitDescribe
-      welcome = Welcome.welcome isNewCodebase downloadBase dir gitRef
+      (ucmVersion, _date) = Version.gitDescribe
+      welcome = Welcome.welcome isNewCodebase downloadBase dir ucmVersion
    in CommandLine.main
         dir
         welcome
@@ -375,6 +391,7 @@ launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initR
         runtime
         codebase
         serverBaseUrl
+        ucmVersion
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of
@@ -396,7 +413,7 @@ getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseD
 defaultBaseLib :: Maybe ReadRemoteNamespace
 defaultBaseLib =
   rightMay $
-    runParser VP.defaultBaseLib "version" (Text.pack gitRef)
+    runParser VP.defaultBaseLib "version" gitRef
   where
     (gitRef, _date) = Version.gitDescribe
 

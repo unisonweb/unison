@@ -87,7 +87,7 @@ mergeBuiltins =
   InputPattern
     "builtins.merge"
     []
-    I.Visible
+    I.Hidden
     []
     "Adds the builtins to `builtins.` in the current namespace (excluding `io` and misc)."
     (const . pure $ Input.MergeBuiltinsI)
@@ -97,7 +97,7 @@ mergeIOBuiltins =
   InputPattern
     "builtins.mergeio"
     []
-    I.Visible
+    I.Hidden
     []
     "Adds all the builtins to `builtins.` in the current namespace, including `io` and misc."
     (const . pure $ Input.MergeIOBuiltinsI)
@@ -1460,6 +1460,14 @@ topicNameArg =
       globTargets = mempty
     }
 
+codebaseServerNameArg :: ArgumentType
+codebaseServerNameArg =
+  ArgumentType
+    { typeName = "codebase-server",
+      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
+      globTargets = mempty
+    }
+
 helpTopics :: InputPattern
 helpTopics =
   InputPattern
@@ -1997,6 +2005,29 @@ gist =
         _ -> Left (showPatternHelp gist)
     )
 
+authLogin :: InputPattern
+authLogin =
+  InputPattern
+    "auth.login"
+    []
+    I.Hidden
+    [(Optional, noCompletions)]
+    ( P.lines
+        [ P.wrap "Obtain an authentication session with Unison Share or a specified codeserver host.",
+          makeExample authLogin []
+            <> "authenticates ucm with Unison Share.",
+          makeExample authLogin ["mycodeserver"]
+            <> "authenticates ucm with the host configured at"
+            <> P.backticked "CodeServers.mycodeserver"
+            <> "in your .unisonConfig"
+        ]
+    )
+    ( \case
+        [] -> Right $ Input.AuthLoginI Nothing
+        [codebaseServerName] -> Right . Input.AuthLoginI $ Just (Text.pack codebaseServerName)
+        _ -> Left (showPatternHelp authLogin)
+    )
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2084,7 +2115,8 @@ validInputs =
       debugDumpNamespace,
       debugDumpNamespaceSimple,
       debugClearWatchCache,
-      gist
+      gist,
+      authLogin
     ]
 
 visibleInputs :: [InputPattern]

@@ -15,7 +15,6 @@ import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
 import Data.Configurator ()
-import Data.Either.Extra (eitherToMaybe)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
@@ -30,6 +29,7 @@ import Data.Tuple.Extra (uncurry3)
 import qualified Text.Megaparsec as P
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
+import Unison.Auth.Types (Host (Host))
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
@@ -45,7 +45,8 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval, liftF)
+import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
+import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval, liftF, respond, respondNumbered)
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.Input
@@ -378,11 +379,12 @@ loop = do
             ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
             AddI _selection -> "add"
             UpdateI p _selection ->
-              "update" <> (case p of
-                NoPatch -> ".nopatch"
-                DefaultPatch -> " " <> ps' defaultPatchPath
-                UsePatch p -> " " <> ps' p
-              )
+              "update"
+                <> ( case p of
+                       NoPatch -> ".nopatch"
+                       DefaultPatch -> " " <> ps' defaultPatchPath
+                       UsePatch p -> " " <> ps' p
+                   )
             PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
             UndoI {} -> "undo"
             ApiI -> "api"
@@ -458,6 +460,7 @@ loop = do
             DeprecateTermI {} -> undefined
             DeprecateTypeI {} -> undefined
             GistI {} -> wat
+            AuthLoginI {} -> wat
             RemoveTermReplacementI src p ->
               "delete.term-replacement" <> HQ.toText src <> " " <> opatch p
             RemoveTypeReplacementI src p ->
@@ -1632,6 +1635,14 @@ loop = do
             UpdateBuiltinsI -> notImplemented
             QuitI -> empty
             GistI input -> handleGist input
+            AuthLoginI mayCodebaseServer -> do
+              case mayCodebaseServer of
+                Nothing -> authLogin Nothing
+                Just codeServer -> do
+                  mayHost <- eval $ ConfigLookup ("CodeServers." <> codeServer)
+                  case mayHost of
+                    Nothing -> respond (UnknownCodeServer codeServer)
+                    Just host -> authLogin (Just $ Host host)
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success
@@ -1831,9 +1842,9 @@ handleUpdate input optionalPatch requestedNames = do
             b <- getAt p
             eval . Eval $ Branch.getPatch seg (Branch.head b)
       let patchPath = case optionalPatch of
-                        NoPatch -> Nothing
-                        DefaultPatch -> Just defaultPatchPath
-                        UsePatch p -> Just p
+            NoPatch -> Nothing
+            DefaultPatch -> Just defaultPatchPath
+            UsePatch p -> Just p
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
       let sr = Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames
@@ -1938,14 +1949,17 @@ handleUpdate input optionalPatch requestedNames = do
         -- and make a patch diff to record a replacement from the old to new references
         stepManyAtMNoSync
           Branch.CompressHistory
-          ([ ( Path.unabsolute currentPath',
-              pure . doSlurpUpdates typeEdits termEdits termDeprecations
-            ),
-            ( Path.unabsolute currentPath',
-              pure . doSlurpAdds addsAndUpdates uf
-            )] ++ case patchOps of
-                    Nothing -> []
-                    Just (_, update, p) -> [(Path.unabsolute p, update)])
+          ( [ ( Path.unabsolute currentPath',
+                pure . doSlurpUpdates typeEdits termEdits termDeprecations
+              ),
+              ( Path.unabsolute currentPath',
+                pure . doSlurpAdds addsAndUpdates uf
+              )
+            ]
+              ++ case patchOps of
+                Nothing -> []
+                Just (_, update, p) -> [(Path.unabsolute p, update)]
+          )
         eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
       ppe <- prettyPrintEnvDecl =<< displayNames uf
       respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
@@ -1954,10 +1968,11 @@ handleUpdate input optionalPatch requestedNames = do
         (updatedPatch, _, _) -> void $ propagatePatchNoSync updatedPatch currentPath'
       addDefaultMetadata addsAndUpdates
       syncRoot $ case patchPath of
-                   Nothing -> "update.nopatch"
-                   Just p -> p & Path.unsplit'
-                               & Path.resolve @_ @_ @Path.Absolute currentPath'
-                               & tShow
+        Nothing -> "update.nopatch"
+        Just p ->
+          p & Path.unsplit'
+            & Path.resolve @_ @_ @Path.Absolute currentPath'
+            & tShow
 
 -- Add default metadata to all added types and terms in a slurp component.
 --
@@ -2445,15 +2460,6 @@ handleBackendError = \case
     respond $ BranchHashAmbiguous h hashes
   Backend.MissingSignatureForTerm r ->
     respond $ TermMissingType r
-
-respond :: MonadCommand n m i v => Output v -> n ()
-respond output = eval $ Notify output
-
-respondNumbered :: NumberedOutput v -> Action m i v ()
-respondNumbered output = do
-  args <- eval $ NotifyNumbered output
-  unless (null args) $
-    LoopState.numberedArgs .= toList args
 
 unlessError :: ExceptT (Output v) (Action' m v) () -> Action' m v ()
 unlessError ma = runExceptT ma >>= either respond pure
