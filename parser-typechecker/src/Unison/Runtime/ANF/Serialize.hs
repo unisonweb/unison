@@ -272,7 +272,7 @@ getGroup = do
       vs = getFresh <$> take l [0 ..]
       ctx = pushCtx vs []
   cs <- replicateM l (getComb ctx n)
-  Rec (zip ctx cs) <$> getComb ctx n
+  Rec (zip vs cs) <$> getComb ctx n
 
 putComb ::
   MonadPut m =>
