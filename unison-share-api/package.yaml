@@ -1,4 +1,4 @@
-name: unison-sync
+name: unison-share-api
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
@@ -44,4 +44,5 @@ default-extensions:
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
+  - TypeOperators
   - ViewPatterns

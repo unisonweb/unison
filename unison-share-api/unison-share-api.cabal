@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           unison-sync
+name:           unison-share-api
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
@@ -20,7 +20,7 @@ library
       Unison.Sync.API
       Unison.Sync.Types
   other-modules:
-      Paths_unison_sync
+      Paths_unison_share_api
   hs-source-dirs:
       src
   default-extensions:
@@ -46,6 +46,7 @@ library
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      TypeOperators
       ViewPatterns
   ghc-options: -Wall
   build-depends:

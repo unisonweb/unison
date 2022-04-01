@@ -14,7 +14,6 @@ import Data.Map.NonEmpty (NEMap)
 import Data.Set (Set)
 import Data.Set.NonEmpty (NESet)
 import Data.Text (Text)
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 
 -- | A newtype for JSON encoding binary data.
