@@ -61,7 +61,7 @@ import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
 import qualified System.IO as IO
 import Text.Read as X (readMaybe)
-import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, toIO, try, withUnliftIO)
+import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import qualified UnliftIO
 
 -- | E.g.
