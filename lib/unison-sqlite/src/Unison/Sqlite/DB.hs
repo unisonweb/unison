@@ -56,7 +56,6 @@ module Unison.Sqlite.DB
   )
 where
 
-import Control.Monad.IO.Unlift (withRunInIO)
 import Control.Monad.Reader (MonadReader, ReaderT, ask, runReaderT)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
