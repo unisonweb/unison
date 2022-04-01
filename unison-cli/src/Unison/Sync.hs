@@ -8,12 +8,14 @@ module Unison.Sync where
 
 import Control.Monad.Reader
 import Control.Monad.State
-import qualified Data.Map as Map
+import Data.Map.NonEmpty (NEMap)
+import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import Unison.Codebase.Type
 import Unison.Prelude
+import Unison.Sync.Class
 import Unison.Sync.Types
 import qualified Unison.Sync.Types as Sync
 import Unison.Util.Monoid (foldMapM)
@@ -33,9 +35,9 @@ unpackHashJWT = undefined
 entityHash :: Sync.Hash -> Entity h oh t -> TypedHash
 entityHash = undefined
 
-saveAll :: MonadSync m => Codebase m v a -> Map Sync.Hash (Entity HashJWT Sync.Hash Text) -> m (Maybe (NESet HashJWT))
+saveAll :: MonadSync m => Codebase m v a -> NEMap Sync.Hash (Entity HashJWT Sync.Hash Text) -> m (Maybe (NESet HashJWT))
 saveAll codebase entities =
-  flip foldMapM (Map.toList entities) \(hash, entity) -> do
+  flip foldMapM (NEMap.toList entities) \(hash, entity) -> do
     tryToSave codebase hash entity
 
 tryToSave :: Codebase m v a -> Sync.Hash -> Entity HashJWT Sync.Hash Text -> m (Maybe (NESet HashJWT))
@@ -59,13 +61,16 @@ tryToSave _codebase = undefined
 --       UploadToRepoFailure -> _
 --       UploadToRepoSuccess -> pure ()
 
-downloadFromPath :: MonadSync m => RepoPath -> Codebase m v a -> m TypedHash
+downloadFromPath :: MonadSync m => RepoPath -> Codebase m v a -> m (Maybe TypedHash)
 downloadFromPath repoPath@(RepoPath {repoName}) codebase = do
-  GetCausalHashByPathResponse chJWT <- getCausalHashForPath (GetCausalHashByPathRequest repoPath)
-  missingCH <- missingHashes codebase (NESet.singleton chJWT)
-  for_ missingCH \chJWTs -> do
-    downloadEntitiesRecursively codebase repoName chJWTs
-  pure $ unpackHashJWT chJWT
+  GetCausalHashByPathResponse mayChJWT <- getCausalHashByPath (GetCausalHashByPathRequest repoPath)
+  case mayChJWT of
+    Nothing -> pure Nothing
+    Just chJWT -> do
+      missingCH <- missingHashes codebase (NESet.singleton chJWT)
+      for_ missingCH \chJWTs -> do
+        downloadEntitiesRecursively codebase repoName chJWTs
+      pure . Just $ unpackHashJWT chJWT
 
 -- DownloadEntitiesResponse {entities} <- downloadEntities (DownloadEntitiesRequest {repoName, hashes = chJWTs})
 -- missingDeps <- saveNewEntities codebase entities
@@ -89,7 +94,7 @@ downloadEntitiesRecursively codebase repoName hashJWTs = do
             Just missingDeps -> modify (<> NESet.toSet missingDeps)
           helper
 
-runParSync :: UnliftIO.Concurrently Sync a -> Sync a
+runParSync :: MonadSync m => UnliftIO.Concurrently m a -> m a
 runParSync = UnliftIO.runConcurrently
 
 newtype SyncFailure = SyncFailure Text

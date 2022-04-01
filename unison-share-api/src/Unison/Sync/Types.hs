@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Sync.Types where
@@ -154,6 +156,10 @@ instance ToJSON DownloadEntitiesResponse where
       [ "entities" .= entities
       ]
 
+instance FromJSON DownloadEntitiesResponse where
+  parseJSON = Aeson.withObject "DownloadEntitiesResponse" $ \obj -> do
+    DownloadEntitiesResponse <$> obj .: "entities"
+
 data UpdatePathRequest = UpdatePathRequest
   { path :: RepoPath,
     expectedHash :: Maybe TypedHash, -- Nothing requires empty history at destination
@@ -176,11 +182,32 @@ instance FromJSON UpdatePathRequest where
     newHash <- obj .: "new_hash"
     pure UpdatePathRequest {..}
 
--- | Not used in the servant API, but is a useful return type for clients to use.
 data UpdatePathResponse
-  = UpdatePathHashMismatch HashMismatch
+  = UpdatePathSuccess
+  | UpdatePathHashMismatch HashMismatch
   | UpdatePathMissingDependencies (NeedDependencies Hash)
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq)
+
+jsonUnion :: ToJSON a => Text -> a -> Value
+jsonUnion typeName val =
+  Aeson.object
+    [ "type" .= String typeName,
+      "payload" .= val
+    ]
+
+instance ToJSON UpdatePathResponse where
+  toJSON = \case
+    UpdatePathSuccess -> jsonUnion "success" ()
+    UpdatePathHashMismatch hm -> jsonUnion "hash_mismatch" hm
+    UpdatePathMissingDependencies md -> jsonUnion "missing_dependencies" md
+
+instance FromJSON UpdatePathResponse where
+  parseJSON = Aeson.withObject "UploadEntitiesResponse" $ \obj ->
+    obj .: "type" >>= Aeson.withText "type" \case
+      "success" -> pure UpdatePathSuccess
+      "hash_mismatch" -> UpdatePathHashMismatch <$> obj .: "payload"
+      "missing_dependencies" -> UpdatePathMissingDependencies <$> obj .: "payload"
+      _ -> fail "Unknown UpdatePathResponse type"
 
 data NeedDependencies hash = NeedDependencies
   { missingDependencies :: NESet hash
@@ -236,6 +263,31 @@ instance FromJSON UploadEntitiesRequest where
     repoName <- obj .: "repo_name"
     entities <- obj .: "entities"
     pure UploadEntitiesRequest {..}
+
+data UploadEntitiesResponse
+  = UploadEntitiesSuccess
+  | UploadEntitiesNeedDependencies (NeedDependencies Hash)
+  deriving stock (Show, Eq, Ord)
+
+instance ToJSON UploadEntitiesResponse where
+  toJSON = \case
+    UploadEntitiesSuccess ->
+      object
+        [ "type" .= String "success",
+          "payload" .= Null
+        ]
+    UploadEntitiesNeedDependencies nd ->
+      object
+        [ "type" .= String "need_dependencies",
+          "payload" .= toJSON nd
+        ]
+
+instance FromJSON UploadEntitiesResponse where
+  parseJSON = Aeson.withObject "UploadEntitiesResponse" $ \obj ->
+    obj .: "type" >>= Aeson.withText "type" \case
+      "success" -> pure UploadEntitiesSuccess
+      "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
+      _ -> fail "Unknown UploadEntitiesResponse type"
 
 data Entity hash replacementHash text
   = TC (TermComponent hash text)

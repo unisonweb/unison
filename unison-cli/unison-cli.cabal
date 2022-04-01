@@ -121,6 +121,8 @@ library
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , stm
     , text
     , these
@@ -210,6 +212,8 @@ executable integration-tests
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , text
@@ -294,6 +298,8 @@ executable transcripts
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , text
@@ -381,6 +387,8 @@ executable unison
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , template-haskell
@@ -475,6 +483,8 @@ test-suite tests
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , temporary
