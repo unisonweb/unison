@@ -12,11 +12,13 @@ import Data.Bifunctor
 import Data.Bitraversable
 import Data.ByteArray.Encoding (Base (Base64), convertFromBase, convertToBase)
 import Data.ByteString (ByteString)
+import Data.Function ((&))
 import Data.Map.NonEmpty (NEMap)
 import Data.Set (Set)
 import Data.Set.NonEmpty (NESet)
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
+import GHC.Generics (Generic)
 
 -- | A newtype for JSON encoding binary data.
 newtype Base64Bytes = Base64Bytes ByteString
@@ -148,7 +150,7 @@ instance FromJSON DownloadEntitiesRequest where
 data DownloadEntitiesResponse = DownloadEntitiesResponse
   { entities :: NEMap Hash (Entity HashJWT Hash Text)
   }
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord, Generic)
 
 instance ToJSON DownloadEntitiesResponse where
   toJSON (DownloadEntitiesResponse entities) =
@@ -186,7 +188,7 @@ data UpdatePathResponse
   = UpdatePathSuccess
   | UpdatePathHashMismatch HashMismatch
   | UpdatePathMissingDependencies (NeedDependencies Hash)
-  deriving stock (Show, Eq)
+  deriving stock (Show, Eq, Ord, Generic)
 
 jsonUnion :: ToJSON a => Text -> a -> Value
 jsonUnion typeName val =
@@ -197,17 +199,18 @@ jsonUnion typeName val =
 
 instance ToJSON UpdatePathResponse where
   toJSON = \case
-    UpdatePathSuccess -> jsonUnion "success" ()
+    UpdatePathSuccess -> Aeson.Null
     UpdatePathHashMismatch hm -> jsonUnion "hash_mismatch" hm
     UpdatePathMissingDependencies md -> jsonUnion "missing_dependencies" md
 
 instance FromJSON UpdatePathResponse where
-  parseJSON = Aeson.withObject "UploadEntitiesResponse" $ \obj ->
-    obj .: "type" >>= Aeson.withText "type" \case
-      "success" -> pure UpdatePathSuccess
-      "hash_mismatch" -> UpdatePathHashMismatch <$> obj .: "payload"
-      "missing_dependencies" -> UpdatePathMissingDependencies <$> obj .: "payload"
-      _ -> fail "Unknown UpdatePathResponse type"
+  parseJSON Aeson.Null = pure UpdatePathSuccess
+  parseJSON v =
+    v & Aeson.withObject "UploadEntitiesResponse" \obj ->
+      obj .: "type" >>= Aeson.withText "type" \case
+        "hash_mismatch" -> UpdatePathHashMismatch <$> obj .: "payload"
+        "missing_dependencies" -> UpdatePathMissingDependencies <$> obj .: "payload"
+        _ -> fail "Unknown UpdatePathResponse type"
 
 data NeedDependencies hash = NeedDependencies
   { missingDependencies :: NESet hash
@@ -267,15 +270,11 @@ instance FromJSON UploadEntitiesRequest where
 data UploadEntitiesResponse
   = UploadEntitiesSuccess
   | UploadEntitiesNeedDependencies (NeedDependencies Hash)
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord, Generic)
 
 instance ToJSON UploadEntitiesResponse where
   toJSON = \case
-    UploadEntitiesSuccess ->
-      object
-        [ "type" .= String "success",
-          "payload" .= Null
-        ]
+    UploadEntitiesSuccess -> Aeson.Null
     UploadEntitiesNeedDependencies nd ->
       object
         [ "type" .= String "need_dependencies",
@@ -283,11 +282,12 @@ instance ToJSON UploadEntitiesResponse where
         ]
 
 instance FromJSON UploadEntitiesResponse where
-  parseJSON = Aeson.withObject "UploadEntitiesResponse" $ \obj ->
-    obj .: "type" >>= Aeson.withText "type" \case
-      "success" -> pure UploadEntitiesSuccess
-      "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
-      _ -> fail "Unknown UploadEntitiesResponse type"
+  parseJSON Aeson.Null = pure UploadEntitiesSuccess
+  parseJSON v =
+    v & Aeson.withObject "UploadEntitiesResponse" \obj ->
+      obj .: "type" >>= Aeson.withText "type" \case
+        "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
+        _ -> fail "Unknown UploadEntitiesResponse type"
 
 data Entity hash replacementHash text
   = TC (TermComponent hash text)

@@ -59,10 +59,10 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
-      Unison.Sync
       Unison.Sync.Class
       Unison.Sync.HTTP
       Unison.Util.HTTP
+      Unison.Util.Servant.Client
   other-modules:
       Paths_unison_cli
   hs-source-dirs:
@@ -105,6 +105,7 @@ library
     , errors
     , extra
     , filepath
+    , generic-lens
     , haskeline
     , http-client >=0.7.6
     , http-client-tls
@@ -123,6 +124,7 @@ library
     , semialign
     , servant
     , servant-client
+    , sop-core
     , stm
     , text
     , these
@@ -195,6 +197,7 @@ executable integration-tests
     , errors
     , extra
     , filepath
+    , generic-lens
     , haskeline
     , http-client >=0.7.6
     , http-client-tls
@@ -215,6 +218,7 @@ executable integration-tests
     , servant
     , servant-client
     , shellmet
+    , sop-core
     , stm
     , text
     , these
@@ -281,6 +285,7 @@ executable transcripts
     , errors
     , extra
     , filepath
+    , generic-lens
     , haskeline
     , http-client >=0.7.6
     , http-client-tls
@@ -301,6 +306,7 @@ executable transcripts
     , servant
     , servant-client
     , shellmet
+    , sop-core
     , stm
     , text
     , these
@@ -370,6 +376,7 @@ executable unison
     , errors
     , extra
     , filepath
+    , generic-lens
     , haskeline
     , http-client >=0.7.6
     , http-client-tls
@@ -390,6 +397,7 @@ executable unison
     , servant
     , servant-client
     , shellmet
+    , sop-core
     , stm
     , template-haskell
     , temporary
@@ -466,6 +474,7 @@ test-suite tests
     , errors
     , extra
     , filepath
+    , generic-lens
     , haskeline
     , here
     , http-client >=0.7.6
@@ -486,6 +495,7 @@ test-suite tests
     , servant
     , servant-client
     , shellmet
+    , sop-core
     , stm
     , temporary
     , text

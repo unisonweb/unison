@@ -57,6 +57,8 @@ dependencies:
   - unison-share-api
   - servant-client
   - servant
+  - sop-core
+  - generic-lens
 
 library:
   source-dirs: src

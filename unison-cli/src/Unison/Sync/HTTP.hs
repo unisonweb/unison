@@ -13,6 +13,7 @@ module Unison.Sync.HTTP
 where
 
 import Control.Monad.Reader
+import qualified Data.SOP as SOP
 import Servant.API
 import Servant.Client
 import qualified Unison.Auth.HTTPClient as Auth
@@ -21,6 +22,7 @@ import Unison.Prelude
 import qualified Unison.Sync.API as Sync
 import Unison.Sync.Class
 import Unison.Sync.Types
+import Unison.Util.Servant.Client (HasConstructor, collectUnion)
 
 newtype SyncT m a = SyncT (ReaderT (SyncHandlers IO) m a)
   deriving newtype (Functor, Applicative, Monad)
@@ -30,10 +32,21 @@ liftHandler handler req = SyncT do
   f <- asks handler
   liftIO $ f req
 
+liftHandlerUnion ::
+  forall result xs req m.
+  (MonadIO m, SOP.All (HasConstructor result) xs) =>
+  (SyncHandlers IO -> req -> IO (Union xs)) ->
+  req ->
+  SyncT m result
+liftHandlerUnion handler req = SyncT do
+  f <- asks handler
+  resp <- liftIO $ f req
+  pure $ collectUnion resp
+
 instance MonadIO m => MonadSync (SyncT m) where
   getCausalHashByPath = liftHandler getPathHandler
-  updatePath = liftHandler updatePathHandler
-  uploadEntities = liftHandler uploadEntitiesHandler
+  updatePath = liftHandlerUnion updatePathHandler
+  uploadEntities = liftHandlerUnion uploadEntitiesHandler
   downloadEntities = liftHandler downloadEntitiesHandler
 
 data SyncError
@@ -44,9 +57,29 @@ data SyncError
 
 data SyncHandlers m = SyncHandlers
   { getPathHandler :: GetCausalHashByPathRequest -> m GetCausalHashByPathResponse,
-    updatePathHandler :: UpdatePathRequest -> m UpdatePathResponse,
-    downloadEntitiesHandler :: DownloadEntitiesRequest -> m DownloadEntitiesResponse,
-    uploadEntitiesHandler :: UploadEntitiesRequest -> m UploadEntitiesResponse
+    updatePathHandler ::
+      ( UpdatePathRequest ->
+        m
+          ( Union
+              '[ WithStatus 204 (),
+                 WithStatus 404 (NeedDependencies Hash),
+                 WithStatus 412 HashMismatch
+               ]
+          )
+      ),
+    downloadEntitiesHandler ::
+      ( DownloadEntitiesRequest ->
+        m DownloadEntitiesResponse
+      ),
+    uploadEntitiesHandler ::
+      ( UploadEntitiesRequest ->
+        m
+          ( Union
+              '[ WithStatus 200 (),
+                 WithStatus 202 (NeedDependencies Hash)
+               ]
+          )
+      )
   }
 
 runSyncT :: MonadUnliftIO m => Auth.AuthorizedHttpClient -> BaseUrl -> SyncT m a -> m (Either SyncError a)
