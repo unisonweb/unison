@@ -17,7 +17,6 @@ import qualified Data.SOP as SOP
 import Servant.API
 import Servant.Client
 import qualified Unison.Auth.HTTPClient as Auth
-import qualified Unison.Auth.Types as Auth
 import Unison.Prelude
 import qualified Unison.Sync.API as Sync
 import Unison.Sync.Class
@@ -27,11 +26,13 @@ import Unison.Util.Servant.Client (HasConstructor, collectUnion)
 newtype SyncT m a = SyncT (ReaderT (SyncHandlers IO) m a)
   deriving newtype (Functor, Applicative, Monad)
 
+-- | Helper to interpret a simple (non-union) method.
 liftHandler :: MonadIO m => ((SyncHandlers IO -> t -> IO a) -> t -> SyncT m a)
 liftHandler handler req = SyncT do
   f <- asks handler
   liftIO $ f req
 
+-- | Helper to interpret a method with a union return-type.
 liftHandlerUnion ::
   forall result xs req m.
   (MonadIO m, SOP.All (HasConstructor result) xs) =>
@@ -50,8 +51,7 @@ instance MonadIO m => MonadSync (SyncT m) where
   downloadEntities = liftHandler downloadEntitiesHandler
 
 data SyncError
-  = InvalidHost Auth.Host
-  | ClientErr ClientError
+  = ClientErr ClientError
   deriving stock (Show)
   deriving anyclass (Exception)
 
@@ -82,6 +82,7 @@ data SyncHandlers m = SyncHandlers
       )
   }
 
+-- | Run a SyncT
 runSyncT :: MonadUnliftIO m => Auth.AuthorizedHttpClient -> BaseUrl -> SyncT m a -> m (Either SyncError a)
 runSyncT (Auth.AuthorizedHttpClient manager) baseUrl (SyncT m) = try $ do
   let clientEnv = mkClientEnv manager baseUrl
