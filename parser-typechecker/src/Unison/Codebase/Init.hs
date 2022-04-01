@@ -28,7 +28,6 @@ import Unison.Prelude
 import qualified Unison.PrettyTerminal as PT
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
-import UnliftIO (MonadUnliftIO)
 import qualified UnliftIO
 import UnliftIO.Directory (canonicalizePath)
 

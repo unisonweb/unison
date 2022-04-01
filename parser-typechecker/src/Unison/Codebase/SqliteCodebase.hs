@@ -97,7 +97,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
-import UnliftIO (MonadUnliftIO, catchIO, finally, throwIO, try)
+import UnliftIO (catchIO, finally, throwIO, try)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.Exception (bracket, catch)
 import UnliftIO.STM

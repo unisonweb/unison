@@ -146,9 +146,6 @@ library
       Unison.Server.SearchResult'
       Unison.Server.Syntax
       Unison.Server.Types
-      Unison.Sync
-      Unison.Sync.HTTP
-      Unison.Sync.Types
       Unison.TermParser
       Unison.TermPrinter
       Unison.Typechecker

@@ -59,6 +59,9 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.Sync
+      Unison.Sync.Class
+      Unison.Sync.HTTP
       Unison.Util.HTTP
   other-modules:
       Paths_unison_cli
@@ -128,6 +131,7 @@ library
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -217,6 +221,7 @@ executable integration-tests
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -301,6 +306,7 @@ executable transcripts
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -389,6 +395,7 @@ executable unison
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -481,6 +488,7 @@ test-suite tests
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio

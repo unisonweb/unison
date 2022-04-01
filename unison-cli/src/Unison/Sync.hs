@@ -95,9 +95,3 @@ runParSync = UnliftIO.runConcurrently
 newtype SyncFailure = SyncFailure Text
   deriving stock (Show)
   deriving anyclass (Exception)
-
-class Monad m => MonadSync m where
-  getCausalHashForPath :: GetCausalHashByPathRequest -> m GetCausalHashByPathResponse
-  pushForce :: PushRequest -> m PushResponse
-  uploadToRepo :: UploadEntitiesRequest -> m (Maybe (NeedDependencies Sync.Hash))
-  downloadEntities :: DownloadEntitiesRequest -> m DownloadEntitiesResponse

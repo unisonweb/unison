@@ -54,7 +54,7 @@ dependencies:
   - lock-file
   - jwt
   - either
-
+  - unison-share-api
 
 library:
   source-dirs: src
