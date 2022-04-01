@@ -401,7 +401,6 @@ expectObjectIdForPrimaryHash h = do
   hashId <- expectHashIdByHash h
   expectObjectIdForPrimaryHashId hashId
 
--- FIXME this doesn't check that the object is actually a patch
 loadPatchObjectIdForPrimaryHash :: DB m => PatchHash -> m (Maybe PatchObjectId)
 loadPatchObjectIdForPrimaryHash =
   (fmap . fmap) PatchObjectId . loadObjectIdForPrimaryHash . unPatchHash

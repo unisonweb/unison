@@ -282,10 +282,10 @@ sqliteCodebase debugName root localOrRemote action = do
                       ++ ", but I've been asked for it's ConstructorType."
              in pure . fromMaybe err $
                   Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType
-          C.Reference.ReferenceDerived i -> getDeclTypeById i
+          C.Reference.ReferenceDerived i -> expectDeclTypeById i
 
-        getDeclTypeById :: forall m. DB m => C.Reference.Id -> m CT.ConstructorType
-        getDeclTypeById = fmap Cv.decltype2to1 . Ops.getDeclTypeById
+        expectDeclTypeById :: forall m. DB m => C.Reference.Id -> m CT.ConstructorType
+        expectDeclTypeById = fmap Cv.decltype2to1 . Ops.expectDeclTypeById
 
         getTypeOfTermImpl :: MonadIO m => Reference.Id -> m (Maybe (Type Symbol Ann))
         getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
