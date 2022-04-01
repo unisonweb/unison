@@ -24,10 +24,18 @@ flag optimized
 library
   exposed-modules:
       Compat
+      Unison.Auth.CredentialFile
+      Unison.Auth.CredentialManager
+      Unison.Auth.Discovery
+      Unison.Auth.HTTPClient
+      Unison.Auth.OAuth
+      Unison.Auth.Tokens
+      Unison.Auth.Types
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleCommand
       Unison.Codebase.Editor.HandleInput
+      Unison.Codebase.Editor.HandleInput.AuthLogin
       Unison.Codebase.Editor.HandleInput.LoopState
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.Input
@@ -51,6 +59,7 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.Util.HTTP
   other-modules:
       Paths_unison_cli
   hs-source-dirs:
@@ -81,6 +90,7 @@ library
   ghc-options: -Wall
   build-depends:
       ListLike
+    , aeson
     , async
     , base
     , bytestring
@@ -88,13 +98,21 @@ library
     , containers >=0.6.3
     , cryptonite
     , directory
+    , either
     , errors
     , extra
     , filepath
     , haskeline
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
     , lens
+    , lock-file
     , megaparsec >=5.0.0 && <7.0.0
+    , memory
     , mtl
+    , network-uri
     , nonempty-containers
     , open-browser
     , random >=1.2.0
@@ -103,6 +121,7 @@ library
     , stm
     , text
     , these
+    , time
     , transformers
     , unison-codebase-sqlite
     , unison-core1
@@ -112,6 +131,8 @@ library
     , unison-util
     , unison-util-relation
     , unliftio
+    , wai
+    , warp
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   if !os(windows)
@@ -154,6 +175,7 @@ executable integration-tests
       unison
   build-depends:
       ListLike
+    , aeson
     , async
     , base
     , bytestring
@@ -163,13 +185,21 @@ executable integration-tests
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
     , extra
     , filepath
     , haskeline
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
     , lens
+    , lock-file
     , megaparsec >=5.0.0 && <7.0.0
+    , memory
     , mtl
+    , network-uri
     , nonempty-containers
     , open-browser
     , process
@@ -190,6 +220,8 @@ executable integration-tests
     , unison-util
     , unison-util-relation
     , unliftio
+    , wai
+    , warp
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
@@ -226,6 +258,7 @@ executable transcripts
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
   build-depends:
       ListLike
+    , aeson
     , async
     , base
     , bytestring
@@ -235,13 +268,21 @@ executable transcripts
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
     , extra
     , filepath
     , haskeline
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
     , lens
+    , lock-file
     , megaparsec >=5.0.0 && <7.0.0
+    , memory
     , mtl
+    , network-uri
     , nonempty-containers
     , open-browser
     , process
@@ -252,6 +293,7 @@ executable transcripts
     , stm
     , text
     , these
+    , time
     , transformers
     , unison-cli
     , unison-codebase-sqlite
@@ -262,6 +304,8 @@ executable transcripts
     , unison-util
     , unison-util-relation
     , unliftio
+    , wai
+    , warp
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
@@ -301,6 +345,7 @@ executable unison
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
       ListLike
+    , aeson
     , async
     , base
     , bytestring
@@ -309,13 +354,21 @@ executable unison
     , containers >=0.6.3
     , cryptonite
     , directory
+    , either
     , errors
     , extra
     , filepath
     , haskeline
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
     , lens
+    , lock-file
     , megaparsec >=5.0.0 && <7.0.0
+    , memory
     , mtl
+    , network-uri
     , nonempty-containers
     , open-browser
     , optparse-applicative >=0.16.1.0
@@ -328,6 +381,7 @@ executable unison
     , temporary
     , text
     , these
+    , time
     , transformers
     , unison-cli
     , unison-codebase-sqlite
@@ -338,6 +392,8 @@ executable unison
     , unison-util
     , unison-util-relation
     , unliftio
+    , wai
+    , warp
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
@@ -381,6 +437,7 @@ test-suite tests
   ghc-options: -Wall
   build-depends:
       ListLike
+    , aeson
     , async
     , base
     , bytestring
@@ -390,14 +447,22 @@ test-suite tests
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
     , extra
     , filepath
     , haskeline
     , here
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
     , lens
+    , lock-file
     , megaparsec >=5.0.0 && <7.0.0
+    , memory
     , mtl
+    , network-uri
     , nonempty-containers
     , open-browser
     , random >=1.2.0
@@ -408,6 +473,7 @@ test-suite tests
     , temporary
     , text
     , these
+    , time
     , transformers
     , unison-cli
     , unison-codebase-sqlite
@@ -418,6 +484,8 @@ test-suite tests
     , unison-util
     , unison-util-relation
     , unliftio
+    , wai
+    , warp
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010

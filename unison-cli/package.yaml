@@ -42,6 +42,19 @@ dependencies:
   - unison-util-relation
   - unison-pretty-printer
   - unliftio
+  - network-uri
+  - aeson
+  - http-client >= 0.7.6
+  - http-client-tls
+  - http-types
+  - warp
+  - wai
+  - memory
+  - time
+  - lock-file
+  - jwt
+  - either
+
 
 library:
   source-dirs: src

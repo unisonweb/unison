@@ -55,6 +55,7 @@ module Unison.Util.Bytes
   )
 where
 
+import Basement.Block.Mutable (Block (Block))
 import qualified Codec.Compression.GZip as GZip
 import qualified Codec.Compression.Zlib as Zlib
 import Control.DeepSeq (NFData (..))
@@ -65,7 +66,10 @@ import qualified Data.ByteArray.Encoding as BE
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import Data.Char
-import Data.Primitive.ByteArray (copyByteArrayToPtr)
+import Data.Primitive.ByteArray
+  ( ByteArray (ByteArray),
+    copyByteArrayToPtr,
+  )
 import Data.Primitive.Ptr (copyPtrToMutableByteArray)
 import qualified Data.Text as Text
 import qualified Data.Vector.Primitive as V
@@ -348,7 +352,11 @@ chunkToArray bs = BA.allocAndFreeze (V.length bs) $ \ptr ->
 arrayFromChunk = chunkToArray
 
 arrayToChunk, chunkFromArray :: BA.ByteArrayAccess b => b -> Chunk
-arrayToChunk bs = V.generate (BA.length bs) (BA.index bs)
+arrayToChunk bs = case BA.convert bs :: Block Word8 of
+  Block bs -> V.Vector 0 n (ByteArray bs)
+  where
+    n = BA.length bs
+{-# INLINE arrayToChunk #-}
 chunkFromArray = arrayToChunk
 
 fromBase16 :: Bytes -> Either Text.Text Bytes
