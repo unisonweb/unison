@@ -13,12 +13,25 @@ function. Also ask for its dependencies for display later.
 save : a -> Bytes
 save x = Value.serialize (Value.value x)
 
+Code.save : Code -> Bytes
+Code.save = Code.serialize
+
+Code.get : Link.Term -> Code
+Code.get tl = match Code.lookup tl with
+  Some co -> co
+  None -> throw "could not look up code"
+
 load : Bytes ->{io2.IO, Throw Text} a
 load b = match Value.deserialize b with
   Left _ -> throw "could not deserialize value"
   Right v -> match Value.load v with
     Left _ -> throw "could not load value"
     Right x -> x
+
+Code.load : Bytes ->{io2.IO, Throw Text} Code
+Code.load b = match Code.deserialize b with
+  Left _ -> throw "could not deserialize code"
+  Right co -> co
 
 roundtrip : a ->{io2.IO, Throw Text} a
 roundtrip x = load (save x)
@@ -82,6 +95,16 @@ extensionality t f = let
 identicality : Text -> a ->{io2.IO} Result
 identicality t x
   = handle identical "" x (roundtrip x) with handleTest t
+
+idempotence : Text -> Link.Term ->{io2.IO} Result
+idempotence t tl =
+  handle let
+    co1 = Code.get tl
+    b1 = Code.save co1
+    co2 = Code.load b1
+    b2 = Code.save co2
+    identical "" b1 b2
+  with handleTest t
 ```
 
 ```ucm
@@ -120,6 +143,13 @@ zapper : Three Nat Nat Nat -> Request {Zap} r -> r
 zapper t = cases
   { r } -> r
   { zap -> k } -> handle k t with zapper (rotate t)
+
+bigFun : Nat -> Nat -> Nat -> Nat
+bigFun i j k = let
+  f x y = i + x + y
+  g x y = j + x + y
+  h x y = k + x + y
+  f j k + g i k + h i j
 
 tests : '{io2.IO} [Result]
 tests =
@@ -165,6 +195,26 @@ to actual show that the serialization works.
 .> display fDeps
 .> io.test tests
 .> io.test badLoad
+```
+
+```unison
+codeTests : '{io2.IO} [Result]
+codeTests =
+  '[ idempotence "idem f" (termLink f)
+   , idempotence "idem h" (termLink h)
+   , idempotence "idem rotate" (termLink rotate)
+   , idempotence "idem zapper" (termLink zapper)
+   , idempotence "idem showThree" (termLink showThree)
+   , idempotence "idem concatMap" (termLink concatMap)
+   , idempotence "idem big" (termLink bigFun)
+   , idempotence "idem extensionality" (termLink extensionality)
+   , idempotence "idem identicality" (termLink identicality)
+   ]
+```
+
+```ucm
+.> add
+.> io.test codeTests
 ```
 
 ```unison
