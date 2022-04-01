@@ -79,7 +79,6 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Set as Set
 import Unison.Var (Var)
-import UnliftIO (MonadUnliftIO)
 import UnliftIO.Exception (bracket_, onException)
 
 -- todo:

@@ -67,7 +67,6 @@ import qualified Unison.Debug as Debug
 import Unison.Prelude
 import Unison.Sqlite.Exception
 import Unison.Sqlite.Sql
-import UnliftIO (MonadUnliftIO)
 import UnliftIO.Exception
 
 -- | A /non-thread safe/ connection to a SQLite database.
