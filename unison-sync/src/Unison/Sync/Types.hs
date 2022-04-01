@@ -10,7 +10,6 @@ import Data.Bifunctor
 import Data.Bitraversable
 import Data.ByteArray.Encoding (Base (Base64), convertFromBase, convertToBase)
 import Data.ByteString (ByteString)
-import Data.Map (Map)
 import Data.Map.NonEmpty (NEMap)
 import Data.Set (Set)
 import Data.Set.NonEmpty (NESet)
@@ -85,13 +84,13 @@ instance ToJSON RepoPath where
   toJSON (RepoPath name segments) =
     object
       [ "repo_name" .= name,
-        "path" .= Text.intercalate "." segments
+        "path" .= segments
       ]
 
 instance FromJSON RepoPath where
   parseJSON = Aeson.withObject "RepoPath" $ \obj -> do
     repoName <- obj .: "repo_name"
-    pathSegments <- Text.splitOn "." <$> (obj .: "path")
+    pathSegments <- obj .: "path"
     pure RepoPath {..}
 
 newtype GetCausalHashByPathRequest = GetCausalHashByPathRequest
@@ -180,8 +179,8 @@ instance FromJSON UpdatePathRequest where
 
 -- | Not used in the servant API, but is a useful return type for clients to use.
 data UpdatePathResponse
-  = OutOfDate HashMismatch
-  | MissingDependencies (NeedDependencies Hash)
+  = UpdatePathHashMismatch HashMismatch
+  | UpdatePathMissingDependencies (NeedDependencies Hash)
   deriving stock (Show, Eq, Ord)
 
 data NeedDependencies hash = NeedDependencies
@@ -222,7 +221,7 @@ instance FromJSON HashMismatch where
 
 data UploadEntitiesRequest = UploadEntitiesRequest
   { repoName :: RepoName,
-    entities :: Map Hash (Entity TypedHash TypedHash Text)
+    entities :: NEMap Hash (Entity TypedHash TypedHash Text)
   }
   deriving stock (Show, Eq, Ord)
 
@@ -239,15 +238,15 @@ instance FromJSON UploadEntitiesRequest where
     entities <- obj .: "entities"
     pure UploadEntitiesRequest {..}
 
-data Entity hash optionalHash text
+data Entity hash replacementHash text
   = TC (TermComponent hash text)
   | DC (DeclComponent hash text)
-  | P (Patch hash optionalHash text)
+  | P (Patch hash replacementHash text)
   | N (Namespace hash text)
   | C (Causal hash)
   deriving stock (Show, Eq, Ord)
 
-instance (ToJSON hash, ToJSON optionalHash, ToJSON text) => ToJSON (Entity hash optionalHash text) where
+instance (ToJSON hash, ToJSON replacementHash, ToJSON text) => ToJSON (Entity hash replacementHash text) where
   toJSON = \case
     TC tc ->
       object
@@ -271,11 +270,11 @@ instance (ToJSON hash, ToJSON optionalHash, ToJSON text) => ToJSON (Entity hash 
         ]
     C causal ->
       object
-        [ "type" .= NamespaceType,
+        [ "type" .= CausalType,
           "object" .= causal
         ]
 
-instance (FromJSON hash, FromJSON optionalHash, FromJSON text, Ord hash) => FromJSON (Entity hash optionalHash text) where
+instance (FromJSON hash, FromJSON replacementHash, FromJSON text, Ord hash) => FromJSON (Entity hash replacementHash text) where
   parseJSON = Aeson.withObject "Entity" $ \obj -> do
     entityType <- obj .: "type"
     case entityType of
@@ -388,15 +387,15 @@ instance (FromJSON hash, FromJSON text) => FromJSON (LocalIds hash text) where
     texts <- obj .: "texts"
     pure LocalIds {..}
 
-data Patch hash optionalHash text = Patch
+data Patch hash replacementHash text = Patch
   { textLookup :: [text],
-    hashLookup :: [hash],
-    optionalHashLookup :: [optionalHash],
+    oldHashLookup :: [hash],
+    replacementHashLookup :: [replacementHash],
     bytes :: ByteString
   }
   deriving stock (Show, Eq, Ord)
 
-instance (ToJSON hash, ToJSON optionalHash, ToJSON text) => ToJSON (Patch hash optionalHash text) where
+instance (ToJSON hash, ToJSON replacementHash, ToJSON text) => ToJSON (Patch hash replacementHash text) where
   toJSON (Patch textLookup hashLookup optionalHashLookup bytes) =
     object
       [ "text_lookup" .= textLookup,
@@ -405,11 +404,11 @@ instance (ToJSON hash, ToJSON optionalHash, ToJSON text) => ToJSON (Patch hash o
         "bytes" .= Base64Bytes bytes
       ]
 
-instance (FromJSON hash, FromJSON optionalHash, FromJSON text) => FromJSON (Patch hash optionalHash text) where
+instance (FromJSON hash, FromJSON replacementHash, FromJSON text) => FromJSON (Patch hash replacementHash text) where
   parseJSON = Aeson.withObject "Patch" $ \obj -> do
     textLookup <- obj .: "text_lookup"
-    hashLookup <- obj .: "hash_lookup"
-    optionalHashLookup <- obj .: "optional_hash_lookup"
+    oldHashLookup <- obj .: "hash_lookup"
+    replacementHashLookup <- obj .: "optional_hash_lookup"
     Base64Bytes bytes <- obj .: "bytes"
     pure (Patch {..})
 
