@@ -144,28 +144,18 @@ module U.Codebase.Sqlite.Queries
 where
 
 import qualified Control.Exception as Exception
-import Control.Monad (when)
 import Control.Monad.Except (MonadError)
 import qualified Control.Monad.Except as Except
-import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (MonadReader (ask))
 import qualified Control.Monad.Reader as Reader
-import Control.Monad.Trans (MonadIO (liftIO))
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import qualified Control.Monad.Writer as Writer
-import Data.ByteString (ByteString)
 import qualified Data.Char as Char
-import Data.Foldable (traverse_)
-import Data.Functor ((<&>))
-import Data.Int (Int8)
 import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Data.Maybe (fromJust)
 import qualified Data.Set as Set
-import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
-import Data.Text (Text)
 import Database.SQLite.Simple
   ( FromRow,
     Only (..),
@@ -175,9 +165,6 @@ import Database.SQLite.Simple
 import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple.FromField (FromField (..))
 import Database.SQLite.Simple.ToField (ToField (..))
-import Debug.Trace (trace, traceM)
-import GHC.Stack (HasCallStack)
-import Safe (headMay)
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
@@ -204,7 +191,8 @@ import qualified U.Util.Alternative as Alternative
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
-import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
+import Unison.Prelude
+import UnliftIO (throwIO, tryAny)
 import qualified UnliftIO
 import UnliftIO.Concurrent (myThreadId)
 
