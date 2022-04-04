@@ -34,7 +34,7 @@ import Control.Monad.State.Strict (State, execState, modify)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
 import qualified Data.ByteArray as BA
-import Data.ByteString (hGet, hPut)
+import Data.ByteString (hGet, hGetSome, hPut)
 import qualified Data.ByteString.Lazy as L
 import Data.Default (def)
 import Data.IORef as SYS
@@ -1789,6 +1789,9 @@ declareForeigns = do
 
   declareForeign Tracked "IO.getBytes.impl.v3" boxNatToEFBox . mkForeignIOF $
     \(h, n) -> Bytes.fromArray <$> hGet h n
+
+  declareForeign Tracked "IO.getSomeBytes.impl.v1" boxNatToEFBox . mkForeignIOF $
+    \(h, n) -> Bytes.fromArray <$> hGetSome h n
 
   declareForeign Tracked "IO.putBytes.impl.v3" boxBoxToEF0 . mkForeignIOF $ \(h, bs) -> hPut h (Bytes.toArray bs)
 
