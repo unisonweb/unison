@@ -188,7 +188,9 @@ library
       BlockArguments
       DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
@@ -352,7 +354,9 @@ executable tests
       BlockArguments
       DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances

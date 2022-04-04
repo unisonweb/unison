@@ -71,7 +71,6 @@ import Unison.Prelude
 import Unison.Sqlite.Connection.Internal (Connection (..))
 import Unison.Sqlite.Exception
 import Unison.Sqlite.Sql
-import UnliftIO (MonadUnliftIO, withRunInIO)
 import UnliftIO.Exception
 
 -- | Perform an action with a connection to a SQLite database.

@@ -19,7 +19,6 @@ import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Var (Var)
-import UnliftIO (MonadUnliftIO)
 import qualified UnliftIO
 
 type Migration m a v = Sqlite.Connection -> Codebase m v a -> m (Either MigrationError ())

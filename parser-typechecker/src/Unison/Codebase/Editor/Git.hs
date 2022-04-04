@@ -32,7 +32,6 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRepo (..))
 import Unison.Codebase.GitError (GitProtocolError)
 import qualified Unison.Codebase.GitError as GitError
 import Unison.Prelude
-import UnliftIO (MonadUnliftIO)
 import qualified UnliftIO
 import UnliftIO.Directory (XdgDirectory (XdgCache), doesDirectoryExist, findExecutable, getXdgDirectory)
 import UnliftIO.Environment (lookupEnv)

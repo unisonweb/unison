@@ -87,7 +87,9 @@ import Prelude hiding (drop, take)
 type Chunk = V.Vector Word8
 
 -- Bytes type represented as a rope of ByteStrings
-newtype Bytes = Bytes {underlying :: R.Rope Chunk} deriving (Semigroup, Monoid, Eq, Ord)
+newtype Bytes = Bytes {underlying :: R.Rope Chunk}
+  deriving stock (Eq, Ord)
+  deriving newtype (Semigroup, Monoid)
 
 instance R.Sized Chunk where size = V.length
 

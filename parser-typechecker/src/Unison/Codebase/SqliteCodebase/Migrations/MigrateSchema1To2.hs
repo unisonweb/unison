@@ -79,7 +79,6 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Set as Set
 import Unison.Var (Var)
-import UnliftIO (MonadUnliftIO)
 
 -- todo:
 --  * write a harness to call & seed algorithm

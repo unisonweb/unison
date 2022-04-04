@@ -7,7 +7,7 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase.SqliteCodebase.Migrations.Errors (MigrationError (IncorrectStartingSchemaVersion))
 import qualified Unison.Sqlite as Sqlite
 import Unison.Var (Var)
-import UnliftIO (MonadUnliftIO)
+import Unison.Prelude
 import qualified UnliftIO
 
 -- | The 1 to 2 migration kept around hash objects of hash version 1, unfortunately this

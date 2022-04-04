@@ -129,18 +129,11 @@ module U.Codebase.Sqlite.Queries
   )
 where
 
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
-import Data.ByteString (ByteString)
-import Data.Foldable (traverse_)
-import Data.Functor ((<&>))
-import Data.Int (Int8)
 import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set as Set
-import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
-import Data.Text (Text)
 import Data.Tuple.Only (Only (..))
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
@@ -168,7 +161,7 @@ import qualified U.Util.Hash as Hash
 import Unison.Sqlite
 import qualified Unison.Sqlite.DB as DB
 import qualified Unison.Sqlite.Transaction as Transaction
-import UnliftIO (MonadUnliftIO)
+import Unison.Prelude
 
 -- * main squeeze
 

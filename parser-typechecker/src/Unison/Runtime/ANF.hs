@@ -477,9 +477,13 @@ data ANormalF v e
 -- Types representing components that will go into the runtime tag of
 -- a data type value. RTags correspond to references, while CTags
 -- correspond to constructors.
-newtype RTag = RTag Word64 deriving (Eq, Ord, Show, Read, EC.EnumKey)
+newtype RTag = RTag Word64
+  deriving stock (Eq, Ord, Show, Read)
+  deriving newtype (EC.EnumKey)
 
-newtype CTag = CTag Word16 deriving (Eq, Ord, Show, Read, EC.EnumKey)
+newtype CTag = CTag Word16
+  deriving stock (Eq, Ord, Show, Read)
+  deriving newtype (EC.EnumKey)
 
 class Tag t where rawTag :: t -> Word64
 

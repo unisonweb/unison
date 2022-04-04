@@ -1,0 +1,48 @@
+name: unison-share-api
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+
+library:
+  source-dirs: src
+
+dependencies:
+  - base
+  - mtl
+  - text
+  - transformers
+  - unliftio
+  - servant
+  - containers
+  - nonempty-containers
+  - bytestring
+  - aeson
+  - memory
+
+ghc-options:
+  -Wall
+
+default-extensions:
+  - BlockArguments
+  - ConstraintKinds
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - GADTs
+  - GeneralizedNewtypeDeriving
+  - KindSignatures
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - NumericUnderscores
+  - OverloadedStrings
+  - PatternSynonyms
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - TypeOperators
+  - ViewPatterns

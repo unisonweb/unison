@@ -151,7 +151,6 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import UnliftIO (MonadUnliftIO)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
