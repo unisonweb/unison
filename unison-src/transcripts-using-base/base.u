@@ -198,6 +198,7 @@ isSeekable = compose reraise isSeekable.impl
 isFileEOF = compose reraise isFileEOF.impl
 Text.fromUtf8 = compose reraise fromUtf8.impl
 getBytes = compose2 reraise getBytes.impl
+getSomeBytes = compose2 reraise getSomeBytes.impl
 handlePosition = compose reraise handlePosition.impl
 getBuffering = compose reraise getBuffering.impl
 setBuffering mode = compose reraise (setBuffering.impl mode)
