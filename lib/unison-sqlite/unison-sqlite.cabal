@@ -20,7 +20,6 @@ library
       Unison.Sqlite
       Unison.Sqlite.Connection
       Unison.Sqlite.Connection.Internal
-      Unison.Sqlite.DB
       Unison.Sqlite.Transaction
   other-modules:
       Unison.Sqlite.DataVersion
@@ -59,6 +58,7 @@ library
     , direct-sqlite
     , exceptions
     , mtl
+    , random
     , recover-rtti
     , sqlite-simple
     , text

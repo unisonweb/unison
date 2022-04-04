@@ -8,18 +8,17 @@
 --
 --   * "Unison.Sqlite.Connection" provides an interface in @IO@, which takes the 'Connection' argument as an explicit
 --     argument.
---   * "Unison.Sqlite.DB" provides a type class interface, which moves the 'Connection' to an implicit argument. This
---     interface is also re-exported by this module, for convenient backwards compatibility with the existing queries.
---   * "Unison.Sqlite.Transaction" provides a newer, yet-unused interface that executes queries in transactions, with
---     automatic retries on @SQLITE_BUSY@ due to concurrent writers.
+--   * "Unison.Sqlite.Transaction" provides a safer interface that executes queries in transactions, with automatic
+--     retries on @SQLITE_BUSY@ due to concurrent writers.
 module Unison.Sqlite
   ( -- * Connection management
     Connection,
     withConnection,
 
-    -- * Type class query interface
-    DB,
-    runDB,
+    -- * Transaction interface
+    Transaction,
+    runTransaction,
+    savepoint,
 
     -- * Executing queries
     Sql (..),
@@ -77,7 +76,6 @@ module Unison.Sqlite
     trySetJournalMode,
 
     -- ** Low-level
-    withSavepoint,
     withStatement,
 
     -- * Exceptions
@@ -114,7 +112,6 @@ import Unison.Sqlite.Connection
     withConnection,
     withStatement,
   )
-import Unison.Sqlite.DB
 import Unison.Sqlite.DataVersion (DataVersion (..), getDataVersion)
 import Unison.Sqlite.Exception
   ( SomeSqliteException (..),
@@ -126,6 +123,7 @@ import Unison.Sqlite.Exception
   )
 import Unison.Sqlite.JournalMode (JournalMode (..), SetJournalModeException (..), trySetJournalMode)
 import Unison.Sqlite.Sql (Sql (..))
+import Unison.Sqlite.Transaction
 
 -- $query-naming-convention
 --

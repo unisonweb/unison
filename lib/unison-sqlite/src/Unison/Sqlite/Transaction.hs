@@ -2,6 +2,7 @@ module Unison.Sqlite.Transaction
   ( -- * Transaction management
     Transaction,
     runTransaction,
+    savepoint,
 
     -- * Executing queries
 
@@ -53,14 +54,16 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Exception (Exception (fromException), onException, throwIO)
 import Control.Monad.Trans.Reader (ReaderT (..))
+import qualified Data.Text as Text
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
-import Unison.Prelude hiding (try)
+import qualified System.Random as Random
+import Unison.Prelude
 import Unison.Sqlite.Connection (Connection (..))
 import qualified Unison.Sqlite.Connection as Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason, SqliteQueryException, pattern SqliteBusyException)
 import Unison.Sqlite.Sql
-import UnliftIO.Exception (catchAny, try, trySyncOrAsync, uninterruptibleMask)
+import UnliftIO.Exception (catchAny, trySyncOrAsync, uninterruptibleMask)
 
 newtype Transaction a
   = Transaction (Connection -> IO a)
@@ -99,6 +102,20 @@ runTransaction conn (Transaction f) = liftIO do
     ignoringExceptions :: IO () -> IO ()
     ignoringExceptions action =
       action `catchAny` \_ -> pure ()
+
+savepoint :: Transaction (Either a a) -> Transaction a
+savepoint (Transaction action) = do
+  Transaction \conn -> do
+    -- Generate a random name for the savepoint, so the caller isn't burdened with coming up with a name. Seems
+    -- extremely unlikely for this to go wrong (i.e. some super nested withSavepoint call that ends up generating the
+    -- same savepoint name twice in a single scope).
+    name <- Text.pack <$> replicateM 10 (Random.randomRIO ('a', 'z'))
+    Connection.withSavepointIO conn name \rollback ->
+      action conn >>= \case
+        Left result -> do
+          rollback
+          pure result
+        Right result -> pure result
 
 -- Without results, with parameters
 
