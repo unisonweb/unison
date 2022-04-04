@@ -59,6 +59,7 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.Share.Sync
       Unison.Util.HTTP
   other-modules:
       Paths_unison_cli
@@ -74,12 +75,14 @@ library
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -123,11 +126,13 @@ library
     , these
     , time
     , transformers
+    , unison-codebase
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -157,12 +162,14 @@ executable integration-tests
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -212,11 +219,13 @@ executable integration-tests
     , these
     , time
     , transformers
+    , unison-codebase
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -242,12 +251,14 @@ executable transcripts
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -296,11 +307,13 @@ executable transcripts
     , time
     , transformers
     , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -329,12 +342,14 @@ executable unison
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -384,11 +399,13 @@ executable unison
     , time
     , transformers
     , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -421,12 +438,14 @@ test-suite tests
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -476,11 +495,13 @@ test-suite tests
     , time
     , transformers
     , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio

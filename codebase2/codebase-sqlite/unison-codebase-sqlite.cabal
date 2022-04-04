@@ -52,6 +52,7 @@ library
       BlockArguments
       ConstraintKinds
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
