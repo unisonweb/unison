@@ -14,7 +14,9 @@ import qualified Unison.Util.Rope as R
 import Prelude hiding (drop, replicate, take)
 
 -- Text type represented as a `Rope` of chunks
-newtype Text = Text (R.Rope Chunk) deriving (Eq, Ord, Semigroup, Monoid)
+newtype Text = Text (R.Rope Chunk)
+  deriving stock (Eq, Ord)
+  deriving newtype (Semigroup, Monoid)
 
 data Chunk = Chunk {-# UNPACK #-} !Int {-# UNPACK #-} !T.Text
 

@@ -19,7 +19,6 @@ import Unison.Codebase.Type (Codebase, LocalOrRemote (..))
 import Unison.Prelude
 import Unison.Symbol (Symbol)
 import Unison.Var (Var)
-import UnliftIO (MonadUnliftIO)
 import qualified UnliftIO
 
 type Migration m a v = Connection -> Codebase m v a -> m (Either MigrationError ())

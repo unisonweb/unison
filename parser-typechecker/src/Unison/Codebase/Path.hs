@@ -84,7 +84,9 @@ import Unison.Prelude hiding (empty, toList)
 import Unison.Util.Monoid (intercalateMap)
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
-newtype Path = Path {toSeq :: Seq NameSegment} deriving (Eq, Ord, Semigroup, Monoid)
+newtype Path = Path {toSeq :: Seq NameSegment}
+  deriving stock (Eq, Ord)
+  deriving newtype (Semigroup, Monoid)
 
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
 

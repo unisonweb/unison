@@ -74,7 +74,7 @@ import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
 import qualified Unison.WatchKind as WK
-import UnliftIO (MonadUnliftIO (..), UnliftIO)
+import UnliftIO (UnliftIO)
 import qualified UnliftIO
 
 type AmbientAbilities v = [Type v Ann]
