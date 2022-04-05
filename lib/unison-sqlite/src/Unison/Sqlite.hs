@@ -19,6 +19,7 @@ module Unison.Sqlite
     Transaction,
     runTransaction,
     savepoint,
+    idempotentIO,
 
     -- * Executing queries
     Sql (..),
@@ -75,6 +76,10 @@ module Unison.Sqlite
     JournalMode (..),
     trySetJournalMode,
 
+    -- * Vacuum
+    vacuum,
+    vacuumInto,
+
     -- ** Low-level
     withStatement,
 
@@ -109,6 +114,8 @@ import Unison.Sqlite.Connection
   ( Connection,
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
+    vacuum,
+    vacuumInto,
     withConnection,
     withStatement,
   )

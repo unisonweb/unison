@@ -48,6 +48,10 @@ module Unison.Sqlite.Connection
     queryOneRowCheck_,
     queryOneColCheck_,
 
+    -- * Vacuum (into)
+    vacuum,
+    vacuumInto,
+
     -- * Low-level operations
     withSavepoint,
     withSavepointIO,
@@ -414,6 +418,18 @@ queryOneColCheck_ ::
   IO r
 queryOneColCheck_ conn s check =
   queryOneRowCheck_ conn s (coerce @(a -> Either e r) @(Sqlite.Only a -> Either e r) check)
+
+-- Vacuum
+
+-- | @VACUUM@
+vacuum :: Connection -> IO ()
+vacuum conn =
+  execute_ conn "VACUUM"
+
+-- | @VACUUM INTO@
+vacuumInto :: Connection -> Text -> IO ()
+vacuumInto conn file =
+  execute conn "VACUUM INTO ?" (Sqlite.Only file)
 
 -- Low-level
 

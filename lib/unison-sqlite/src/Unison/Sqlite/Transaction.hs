@@ -3,6 +3,7 @@ module Unison.Sqlite.Transaction
     Transaction,
     runTransaction,
     savepoint,
+    idempotentIO,
 
     -- * Executing queries
 
@@ -103,6 +104,7 @@ runTransaction conn (Transaction f) = liftIO do
     ignoringExceptions action =
       action `catchAny` \_ -> pure ()
 
+-- | Perform an atomic sub-computation within a transaction; if it returns 'Left', it's rolled back.
 savepoint :: Transaction (Either a a) -> Transaction a
 savepoint (Transaction action) = do
   Transaction \conn -> do
@@ -116,6 +118,11 @@ savepoint (Transaction action) = do
           rollback
           pure result
         Right result -> pure result
+
+-- | Perform IO inside a transaction, which should be idempotent, because it may be run more than once.
+idempotentIO :: IO a -> Transaction a
+idempotentIO action =
+  Transaction \_ -> action
 
 -- Without results, with parameters
 

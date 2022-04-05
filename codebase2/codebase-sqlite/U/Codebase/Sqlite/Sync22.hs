@@ -11,7 +11,6 @@ module U.Codebase.Sqlite.Sync22 where
 
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.RWS (MonadReader)
-import Control.Monad.Reader (ReaderT)
 import qualified Control.Monad.Reader as Reader
 import Control.Monad.Validate (ValidateT, runValidateT)
 import qualified Control.Monad.Validate as Validate
@@ -40,7 +39,7 @@ import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
 import Unison.Prelude
-import Unison.Sqlite (Connection)
+import Unison.Sqlite (Connection, Transaction, runTransaction)
 
 data Entity
   = O ObjectId
@@ -413,12 +412,8 @@ trySync tCache hCache oCache cCache = \case
 
 runSrc,
   runDest ::
-    MonadReader Env m =>
-    ReaderT Connection m a ->
+    (MonadIO m, MonadReader Env m) =>
+    Transaction a ->
     m a
-runSrc ma = Reader.reader srcDB >>= flip runDB ma
-runDest ma = Reader.reader destDB >>= flip runDB ma
-
-runDB :: Connection -> ReaderT Connection m a -> m a
-runDB conn action =
-  Reader.runReaderT action conn
+runSrc ma = Reader.reader srcDB >>= flip runTransaction ma
+runDest ma = Reader.reader destDB >>= flip runTransaction ma
