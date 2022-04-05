@@ -1,5 +1,13 @@
-module Unison.Share.Sync where
+module Unison.Share.Sync
+  ( push,
+    PushError (..),
+  )
+where
 
+import qualified Data.Map.NonEmpty as NEMap
+import qualified Data.Set as Set
+import Data.Set.NonEmpty (NESet)
+import qualified Data.Set.NonEmpty as NESet
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import U.Codebase.Sqlite.Causal (DbCausal, GDbCausal (..))
 import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal (GDbCausal (..))
@@ -8,16 +16,21 @@ import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
 import qualified Unison.Sync.Types as Share
+import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
 
 data UpdatePathResponse
   = UpdatePathSuccess
   | UpdatePathHashMismatch Share.HashMismatch
   | UpdatePathMissingDependencies (Share.NeedDependencies Share.Hash)
 
+data UploadEntitiesResponse
+  = UploadEntitiesSuccess
+  | UploadEntitiesNeedDependencies (Share.NeedDependencies Share.Hash)
+
 -- deriving stock (Show, Eq, Ord, Generic)
 
-__api_updatePath :: Share.UpdatePathRequest -> IO UpdatePathResponse
-__api_updatePath = undefined
+updatePath :: Share.UpdatePathRequest -> IO UpdatePathResponse
+updatePath = undefined
 
 -- Push
 --
@@ -28,7 +41,8 @@ __api_updatePath = undefined
 --
 
 data PushError
-  = PushErrorHashMismatch Share.HashMismatch
+  = PushErrorServerMissingDependencies (NESet Share.Hash)
+  | PushErrorHashMismatch Share.HashMismatch
 
 -- Option 1: have push be itself in the Transaction monad, use unsafePerformIdempotentIO
 -- fuction to do the interleaved IO calls (http, etc)
@@ -59,32 +73,63 @@ expectHash = undefined
 
 push :: Connection -> Share.RepoPath -> Maybe Share.Hash -> CausalHash -> IO (Either PushError ())
 push conn repoPath expectedHash causalHash = do
-  -- 1. Attempt to update path.
-
-  -- causalHash <-
-  --   _ (unCausalHashId (Sqlite.Causal.selfHash causal))
-  let request =
-        Share.UpdatePathRequest
-          { path = repoPath,
-            expectedHash =
-              expectedHash <&> \hash ->
-                Share.TypedHash
-                  { hash,
-                    entityType = Share.CausalType
-                  },
-            newHash =
-              Share.TypedHash
-                { hash =
-                    causalHash
-                      & unCausalHash
-                      & Hash.toBase32Hex
-                      & Base32Hex.toText
-                      & Share.Hash,
-                  entityType = Share.CausalType
-                }
-          }
-  __api_updatePath request >>= \case
+  updatePath request >>= \case
     UpdatePathSuccess -> pure (Right ())
     UpdatePathHashMismatch mismatch -> pure (Left (PushErrorHashMismatch mismatch))
-    UpdatePathMissingDependencies dependencies -> undefined
+    UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
+      upload conn (Share.RepoPath.repoName repoPath) dependencies
+      updatePath request <&> \case
+        UpdatePathSuccess -> Right ()
+        UpdatePathHashMismatch mismatch -> Left (PushErrorHashMismatch mismatch)
+        UpdatePathMissingDependencies (Share.NeedDependencies dependencies) ->
+          Left (PushErrorServerMissingDependencies dependencies)
+  where
+    request =
+      Share.UpdatePathRequest
+        { path = repoPath,
+          expectedHash =
+            expectedHash <&> \hash ->
+              Share.TypedHash
+                { hash,
+                  entityType = Share.CausalType
+                },
+          newHash =
+            Share.TypedHash
+              { hash =
+                  causalHash
+                    & unCausalHash
+                    & Hash.toBase32Hex
+                    & Base32Hex.toText
+                    & Share.Hash,
+                entityType = Share.CausalType
+              }
+        }
+
+-- { repoName :: RepoName,
+--   entities :: NEMap Hash (Entity Text Hash Hash)
+-- }
+upload :: Connection -> Share.RepoName -> NESet Share.Hash -> IO ()
+upload conn repoName dependencies = do
+  -- 1. Resolve each Hash to Entity
+  request <- do
+    entities <-
+      NEMap.fromAscList <$> traverse (\dep -> (dep,) <$> resolveHashToEntity conn dep) (NESet.toAscList dependencies)
+    pure Share.UploadEntitiesRequest {repoName, entities}
+
+  -- 2. Perform upload HTTP call
+
+  -- 3. If UploadEntitiesMissingDependencies, recur
+
   undefined
+
+-- FIXME rename, etc
+resolveHashToEntity :: Connection -> Share.Hash -> IO (Share.Entity Text Share.Hash Share.Hash)
+resolveHashToEntity = undefined
+
+-- let loop :: Set Share.Hash -> IO ()
+--     loop dependencies0 =
+--       case Set.minView dependencies0 of
+--         Nothing -> pure ()
+--         Just (dependency, dependencies) -> do
+--           undefined
+--  in loop (NESet.toSet dependencies1)

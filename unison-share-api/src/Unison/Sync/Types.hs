@@ -144,7 +144,7 @@ instance FromJSON DownloadEntitiesRequest where
     pure DownloadEntitiesRequest {..}
 
 data DownloadEntitiesResponse = DownloadEntitiesResponse
-  { entities :: NEMap Hash (Entity HashJWT Hash Text)
+  { entities :: NEMap Hash (Entity Text Hash HashJWT)
   }
   deriving stock (Show, Eq, Ord)
 
@@ -220,7 +220,7 @@ instance FromJSON HashMismatch where
 
 data UploadEntitiesRequest = UploadEntitiesRequest
   { repoName :: RepoName,
-    entities :: NEMap Hash (Entity TypedHash TypedHash Text)
+    entities :: NEMap Hash (Entity Text Hash Hash)
   }
   deriving stock (Show, Eq, Ord)
 
@@ -237,15 +237,15 @@ instance FromJSON UploadEntitiesRequest where
     entities <- obj .: "entities"
     pure UploadEntitiesRequest {..}
 
-data Entity hash replacementHash text
-  = TC (TermComponent hash text)
-  | DC (DeclComponent hash text)
-  | P (Patch hash replacementHash text)
-  | N (Namespace hash text)
+data Entity text noSyncHash hash
+  = TC (TermComponent text hash)
+  | DC (DeclComponent text hash)
+  | P (Patch text noSyncHash hash)
+  | N (Namespace text hash)
   | C (Causal hash)
   deriving stock (Show, Eq, Ord)
 
-instance (ToJSON hash, ToJSON replacementHash, ToJSON text) => ToJSON (Entity hash replacementHash text) where
+instance (ToJSON text, ToJSON noSyncHash, ToJSON hash) => ToJSON (Entity text noSyncHash hash) where
   toJSON = \case
     TC tc ->
       object
@@ -273,7 +273,7 @@ instance (ToJSON hash, ToJSON replacementHash, ToJSON text) => ToJSON (Entity ha
           "object" .= causal
         ]
 
-instance (FromJSON hash, FromJSON replacementHash, FromJSON text, Ord hash) => FromJSON (Entity hash replacementHash text) where
+instance (FromJSON text, FromJSON noSyncHash, FromJSON hash, Ord hash) => FromJSON (Entity text noSyncHash hash) where
   parseJSON = Aeson.withObject "Entity" $ \obj -> do
     entityType <- obj .: "type"
     case entityType of
@@ -283,7 +283,7 @@ instance (FromJSON hash, FromJSON replacementHash, FromJSON text, Ord hash) => F
       NamespaceType -> N <$> obj .: "object"
       CausalType -> C <$> obj .: "object"
 
-data TermComponent hash text = TermComponent [(LocalIds hash text, ByteString)]
+data TermComponent text hash = TermComponent [(LocalIds text hash, ByteString)]
   deriving stock (Show, Eq, Ord)
 
 instance Bifoldable TermComponent where
@@ -296,7 +296,7 @@ instance Bitraversable TermComponent where
   bitraverse f g (TermComponent xs) =
     TermComponent <$> bitraverseComponents f g xs
 
-instance (ToJSON hash, ToJSON text) => ToJSON (TermComponent hash text) where
+instance (ToJSON text, ToJSON hash) => ToJSON (TermComponent text hash) where
   toJSON (TermComponent components) =
     object
       [ "terms" .= (encodeComponentPiece <$> components)
@@ -313,26 +313,26 @@ bitraverseComponents f g =
   where
     _1 f (l, r) = (,r) <$> f l
 
-encodeComponentPiece :: (ToJSON hash, ToJSON text) => (LocalIds hash text, ByteString) -> Value
+encodeComponentPiece :: (ToJSON text, ToJSON hash) => (LocalIds text hash, ByteString) -> Value
 encodeComponentPiece (localIDs, bytes) =
   object
     [ "local_ids" .= localIDs,
       "bytes" .= Base64Bytes bytes
     ]
 
-decodeComponentPiece :: (FromJSON hash, FromJSON text) => Value -> Aeson.Parser (LocalIds hash text, ByteString)
+decodeComponentPiece :: (FromJSON text, FromJSON hash) => Value -> Aeson.Parser (LocalIds text hash, ByteString)
 decodeComponentPiece = Aeson.withObject "Component Piece" $ \obj -> do
   localIDs <- obj .: "local_ids"
   Base64Bytes bytes <- obj .: "local_ids"
   pure (localIDs, bytes)
 
-instance (FromJSON hash, FromJSON text) => FromJSON (TermComponent hash text) where
+instance (FromJSON text, FromJSON hash) => FromJSON (TermComponent text hash) where
   parseJSON = Aeson.withObject "TermComponent" $ \obj -> do
     pieces <- obj .: "terms"
     terms <- traverse decodeComponentPiece pieces
     pure (TermComponent terms)
 
-data DeclComponent hash text = DeclComponent [(LocalIds hash text, ByteString)]
+data DeclComponent text hash = DeclComponent [(LocalIds text hash, ByteString)]
   deriving stock (Show, Eq, Ord)
 
 instance Bifoldable DeclComponent where
@@ -345,21 +345,21 @@ instance Bitraversable DeclComponent where
   bitraverse f g (DeclComponent xs) =
     DeclComponent <$> bitraverseComponents f g xs
 
-instance (ToJSON hash, ToJSON text) => ToJSON (DeclComponent hash text) where
+instance (ToJSON text, ToJSON hash) => ToJSON (DeclComponent text hash) where
   toJSON (DeclComponent components) =
     object
       [ "decls" .= (encodeComponentPiece <$> components)
       ]
 
-instance (FromJSON hash, FromJSON text) => FromJSON (DeclComponent hash text) where
+instance (FromJSON text, FromJSON hash) => FromJSON (DeclComponent text hash) where
   parseJSON = Aeson.withObject "DeclComponent" $ \obj -> do
     pieces <- obj .: "decls"
     terms <- traverse decodeComponentPiece pieces
     pure (DeclComponent terms)
 
-data LocalIds hash text = LocalIds
-  { hashes :: [hash],
-    texts :: [text]
+data LocalIds text hash = LocalIds
+  { texts :: [text],
+    hashes :: [hash]
   }
   deriving stock (Show, Eq, Ord)
 
@@ -370,48 +370,48 @@ instance Bifunctor LocalIds where
   bimap = bimapDefault
 
 instance Bitraversable LocalIds where
-  bitraverse f g (LocalIds hashes texts) =
-    LocalIds <$> traverse f hashes <*> traverse g texts
+  bitraverse f g (LocalIds texts hashes) =
+    LocalIds <$> traverse f texts <*> traverse g hashes
 
-instance (ToJSON hash, ToJSON text) => ToJSON (LocalIds hash text) where
-  toJSON (LocalIds hashes texts) =
+instance (ToJSON text, ToJSON hash) => ToJSON (LocalIds text hash) where
+  toJSON (LocalIds texts hashes) =
     object
-      [ "hashes" .= hashes,
-        "texts" .= texts
+      [ "texts" .= texts,
+        "hashes" .= hashes
       ]
 
-instance (FromJSON hash, FromJSON text) => FromJSON (LocalIds hash text) where
+instance (FromJSON text, FromJSON hash) => FromJSON (LocalIds text hash) where
   parseJSON = Aeson.withObject "LocalIds" $ \obj -> do
-    hashes <- obj .: "hashes"
     texts <- obj .: "texts"
+    hashes <- obj .: "hashes"
     pure LocalIds {..}
 
-data Patch hash replacementHash text = Patch
+data Patch text oldHash newHash = Patch
   { textLookup :: [text],
-    oldHashLookup :: [hash],
-    replacementHashLookup :: [replacementHash],
+    oldHashLookup :: [oldHash],
+    newHashLookup :: [newHash],
     bytes :: ByteString
   }
   deriving stock (Show, Eq, Ord)
 
-instance (ToJSON hash, ToJSON replacementHash, ToJSON text) => ToJSON (Patch hash replacementHash text) where
-  toJSON (Patch textLookup hashLookup optionalHashLookup bytes) =
+instance (ToJSON text, ToJSON oldHash, ToJSON newHash) => ToJSON (Patch text oldHash newHash) where
+  toJSON (Patch textLookup oldHashLookup newHashLookup bytes) =
     object
       [ "text_lookup" .= textLookup,
-        "hash_lookup" .= hashLookup,
-        "optional_hash_lookup" .= optionalHashLookup,
+        "optional_hash_lookup" .= oldHashLookup,
+        "hash_lookup" .= newHashLookup,
         "bytes" .= Base64Bytes bytes
       ]
 
-instance (FromJSON hash, FromJSON replacementHash, FromJSON text) => FromJSON (Patch hash replacementHash text) where
+instance (FromJSON text, FromJSON oldHash, FromJSON newHash) => FromJSON (Patch text oldHash newHash) where
   parseJSON = Aeson.withObject "Patch" $ \obj -> do
     textLookup <- obj .: "text_lookup"
-    oldHashLookup <- obj .: "hash_lookup"
-    replacementHashLookup <- obj .: "optional_hash_lookup"
+    oldHashLookup <- obj .: "optional_hash_lookup"
+    newHashLookup <- obj .: "hash_lookup"
     Base64Bytes bytes <- obj .: "bytes"
-    pure (Patch {..})
+    pure Patch {..}
 
-data Namespace hash text = Namespace
+data Namespace text hash = Namespace
   { textLookup :: [text],
     defnLookup :: [hash],
     patchLookup :: [hash],
@@ -429,13 +429,13 @@ instance Bifunctor Namespace where
 instance Bitraversable Namespace where
   bitraverse f g (Namespace tl dl pl cl b) =
     Namespace
-      <$> traverse g tl
-      <*> traverse f dl
-      <*> traverse f pl
-      <*> traverse f cl
+      <$> traverse f tl
+      <*> traverse g dl
+      <*> traverse g pl
+      <*> traverse g cl
       <*> pure b
 
-instance (ToJSON hash, ToJSON text) => ToJSON (Namespace hash text) where
+instance (ToJSON text, ToJSON hash) => ToJSON (Namespace text hash) where
   toJSON (Namespace textLookup defnLookup patchLookup childLookup bytes) =
     object
       [ "text_lookup" .= textLookup,
@@ -445,7 +445,7 @@ instance (ToJSON hash, ToJSON text) => ToJSON (Namespace hash text) where
         "bytes" .= Base64Bytes bytes
       ]
 
-instance (FromJSON hash, FromJSON text) => FromJSON (Namespace hash text) where
+instance (FromJSON text, FromJSON hash) => FromJSON (Namespace text hash) where
   parseJSON = Aeson.withObject "Namespace" $ \obj -> do
     textLookup <- obj .: "text_lookup"
     defnLookup <- obj .: "defn_lookup"
