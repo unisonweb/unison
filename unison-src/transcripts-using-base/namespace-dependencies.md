@@ -10,6 +10,7 @@ myMetadata = "just some text"
 
 ```ucm:hide
 .metadata> add
+.> cd .
 ```
 
 ```unison:hide
@@ -21,6 +22,6 @@ hasMetadata = 3
 
 ```ucm
 .dependencies> add
-.dependencies> link .metadata.myMetadata hasMetadata 
+.dependencies> link .metadata.myMetadata hasMetadata
 .dependencies> namespace.dependencies
 ```

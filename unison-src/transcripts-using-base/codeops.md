@@ -3,7 +3,6 @@ Test for code serialization operations.
 
 ```ucm:hide
 .> builtins.merge
-.> cd builtin
 ```
 
 Define a function, serialize it, then deserialize it back to an actual
@@ -175,7 +174,7 @@ badLoad _ =
     match Value.deserialize payload with
       Left t -> Fail "deserialize exception"
       Right a -> match Value.load a with
-        Left terms -> 
+        Left terms ->
             bs = Value.serialize (Value.value terms)
             s = size bs
             Ok ("serialized" ++ toText s)
