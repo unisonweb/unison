@@ -10,6 +10,7 @@ homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
 build-type:     Simple
 extra-source-files:
+    sql/001-temp-entity-tables.sql
     sql/create.sql
 
 source-repository head

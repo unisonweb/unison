@@ -9,6 +9,8 @@ module Unison.Share.Sync
   )
 where
 
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
@@ -26,14 +28,12 @@ import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
 
-data GetCausalHashByPathResponse
-  = GetCausalHashByPathSuccess Share.HashJWT
-  | GetCausalHashByPathEmpty
-  | GetCausalHashByPathNoReadPermission
-
+-- | An error occurred when getting causal hash by path.
 data GetCausalHashByPathError
-  = GetCausalHashByPathErrorNoReadPermission
+  = -- | The user does not have permission to read this path.
+    GetCausalHashByPathErrorNoReadPermission
 
+-- | Get the causal hash of a path hosted on Unison Share.
 getCausalHashByPath :: Share.RepoPath -> IO (Either GetCausalHashByPathError (Maybe Share.HashJWT))
 getCausalHashByPath repoPath =
   _getCausalHashByPath (Share.GetCausalHashByPathRequest repoPath) <&> \case
@@ -41,67 +41,91 @@ getCausalHashByPath repoPath =
     GetCausalHashByPathEmpty -> Right Nothing
     GetCausalHashByPathNoReadPermission -> Left GetCausalHashByPathErrorNoReadPermission
 
-_getCausalHashByPath :: Share.GetCausalHashByPathRequest -> IO GetCausalHashByPathResponse
-_getCausalHashByPath = undefined
-
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
 
+-- | An error occurred while pushing code to Unison Share.
 data PushError
   = PushErrorServerMissingDependencies (NESet Share.Hash)
   | PushErrorHashMismatch Share.HashMismatch
 
-_updatePath :: Share.UpdatePathRequest -> IO UpdatePathResponse
-_updatePath = undefined
-
-_uploadEntities :: Share.UploadEntitiesRequest -> IO UploadEntitiesResponse
-_uploadEntities = undefined
-
-push :: Connection -> Share.RepoPath -> Maybe Share.Hash -> CausalHash -> IO (Either PushError ())
+-- | Push a causal to Unison Share.
+push ::
+  -- | SQLite connection, for reading entities to push.
+  Connection ->
+  -- | The repo+path to push to.
+  Share.RepoPath ->
+  -- | The hash that we expect this repo+path to be at on Unison Share. If not, we'll get back a hash mismatch error.
+  -- This prevents accidentally pushing over data that we didn't know was there.
+  Maybe Share.Hash ->
+  -- | The hash of our local causal to push.
+  CausalHash ->
+  IO (Either PushError ())
 push conn repoPath expectedHash causalHash = do
-  _updatePath request >>= \case
+  let theUpdatePathRequest :: Share.UpdatePathRequest
+      theUpdatePathRequest =
+        Share.UpdatePathRequest
+          { path = repoPath,
+            expectedHash =
+              expectedHash <&> \hash ->
+                Share.TypedHash
+                  { hash,
+                    entityType = Share.CausalType
+                  },
+            newHash =
+              Share.TypedHash
+                { hash =
+                    causalHash
+                      & unCausalHash
+                      & Hash.toBase32Hex
+                      & Base32Hex.toText
+                      & Share.Hash,
+                  entityType = Share.CausalType
+                }
+          }
+
+  -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it needs
+  -- this causal (UpdatePathMissingDependencies).
+  _updatePath theUpdatePathRequest >>= \case
     UpdatePathSuccess -> pure (Right ())
     UpdatePathHashMismatch mismatch -> pure (Left (PushErrorHashMismatch mismatch))
     UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
+      -- Upload the causal and all of its dependencies.
       upload conn (Share.RepoPath.repoName repoPath) dependencies
-      _updatePath request <&> \case
+
+      -- After uploading the causal and all of its dependencies, try setting the remote path again.
+      _updatePath theUpdatePathRequest <&> \case
         UpdatePathSuccess -> Right ()
+        -- Between the initial updatePath attempt and this one, someone else managed to update the path. That's ok; we
+        -- still managed to upload our causal, but the push has indeed failed overall.
         UpdatePathHashMismatch mismatch -> Left (PushErrorHashMismatch mismatch)
+        -- Unexpected, but possible: we thought we uploaded all we needed to, yet the server still won't accept our
+        -- causal. Bug in the client because we didn't upload enough? Bug in the server because we weren't told to
+        -- upload some dependency? Who knows.
         UpdatePathMissingDependencies (Share.NeedDependencies dependencies) ->
           Left (PushErrorServerMissingDependencies dependencies)
-  where
-    request =
-      Share.UpdatePathRequest
-        { path = repoPath,
-          expectedHash =
-            expectedHash <&> \hash ->
-              Share.TypedHash
-                { hash,
-                  entityType = Share.CausalType
-                },
-          newHash =
-            Share.TypedHash
-              { hash =
-                  causalHash
-                    & unCausalHash
-                    & Hash.toBase32Hex
-                    & Base32Hex.toText
-                    & Share.Hash,
-                entityType = Share.CausalType
-              }
-        }
 
 upload :: Connection -> Share.RepoName -> NESet Share.Hash -> IO ()
-upload conn repoName dependencies = do
-  request <- do
-    entities <-
-      NEMap.fromAscList <$> traverse (\dep -> (dep,) <$> resolveHashToEntity conn dep) (NESet.toAscList dependencies)
-    pure Share.UploadEntitiesRequest {repoName, entities}
+upload conn repoName =
+  loop
+  where
+    loop :: NESet Share.Hash -> IO ()
+    loop (NESet.toAscList -> hashes) = do
+      -- Get each entity that the server is missing out of the database.
+      entities <- traverse (resolveHashToEntity conn) hashes
 
-  _uploadEntities request >>= \case
-    UploadEntitiesNeedDependencies (Share.NeedDependencies dependencies) ->
-      upload conn repoName dependencies
-    UploadEntitiesSuccess -> pure ()
+      let theUploadEntitiesRequest :: Share.UploadEntitiesRequest
+          theUploadEntitiesRequest =
+            Share.UploadEntitiesRequest
+              { entities = NEMap.fromAscList (List.NonEmpty.zip hashes entities),
+                repoName
+              }
+
+      -- Upload all of the entities we know the server needs, and if the server responds that it needs yet more, loop to
+      -- upload those too.
+      _uploadEntities theUploadEntitiesRequest >>= \case
+        UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> loop moreHashes
+        UploadEntitiesSuccess -> pure ()
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
@@ -131,11 +155,6 @@ upload conn repoName dependencies = do
 
 ------------------------------------------------------------------------------------------------------------------------
 --
-
-data UpdatePathResponse
-  = UpdatePathSuccess
-  | UpdatePathHashMismatch Share.HashMismatch
-  | UpdatePathMissingDependencies (Share.NeedDependencies Share.Hash)
 
 data UploadEntitiesResponse
   = UploadEntitiesSuccess
@@ -176,3 +195,25 @@ pull _conn _repoPath = undefined
 -- FIXME rename, etc
 resolveHashToEntity :: Connection -> Share.Hash -> IO (Share.Entity Text Share.Hash Share.Hash)
 resolveHashToEntity = undefined
+
+------------------------------------------------------------------------------------------------------------------------
+-- TODO these things come from servant-client / api types module(s)
+
+data GetCausalHashByPathResponse
+  = GetCausalHashByPathSuccess Share.HashJWT
+  | GetCausalHashByPathEmpty
+  | GetCausalHashByPathNoReadPermission
+
+data UpdatePathResponse
+  = UpdatePathSuccess
+  | UpdatePathHashMismatch Share.HashMismatch
+  | UpdatePathMissingDependencies (Share.NeedDependencies Share.Hash)
+
+_getCausalHashByPath :: Share.GetCausalHashByPathRequest -> IO GetCausalHashByPathResponse
+_getCausalHashByPath = undefined
+
+_updatePath :: Share.UpdatePathRequest -> IO UpdatePathResponse
+_updatePath = undefined
+
+_uploadEntities :: Share.UploadEntitiesRequest -> IO UploadEntitiesResponse
+_uploadEntities = undefined
