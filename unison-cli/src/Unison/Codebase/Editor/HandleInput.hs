@@ -15,7 +15,6 @@ import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
 import Data.Configurator ()
-import Data.Either.Extra (eitherToMaybe)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
@@ -30,6 +29,7 @@ import Data.Tuple.Extra (uncurry3)
 import qualified Text.Megaparsec as P
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
+import Unison.Auth.Types (Host (Host))
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
@@ -45,7 +45,8 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval)
+import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
+import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval, liftF, respond, respondNumbered)
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.Input
@@ -377,7 +378,13 @@ loop = do
             ResolveTermNameI path -> "resolve.termName " <> hqs' path
             ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
             AddI _selection -> "add"
-            UpdateI p _selection -> "update " <> opatch p
+            UpdateI p _selection ->
+              "update"
+                <> ( case p of
+                       NoPatch -> ".nopatch"
+                       DefaultPatch -> " " <> ps' defaultPatchPath
+                       UsePatch p -> " " <> ps' p
+                   )
             PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
             UndoI {} -> "undo"
             ApiI -> "api"
@@ -453,6 +460,7 @@ loop = do
             DeprecateTermI {} -> undefined
             DeprecateTypeI {} -> undefined
             GistI {} -> wat
+            AuthLoginI {} -> wat
             RemoveTermReplacementI src p ->
               "delete.term-replacement" <> HQ.toText src <> " " <> opatch p
             RemoveTypeReplacementI src p ->
@@ -1283,7 +1291,8 @@ loop = do
                 let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
                 previewResponse sourceName sr uf
               _ -> respond NoUnisonFile
-            UpdateI maybePatchPath requestedNames -> handleUpdate input maybePatchPath requestedNames
+            UpdateI optionalPatch requestedNames ->
+              handleUpdate input optionalPatch requestedNames
             PreviewUpdateI requestedNames -> case (latestFile', uf) of
               (Just (sourceName, _), Just uf) -> do
                 let vars = Set.map Name.toVar requestedNames
@@ -1622,8 +1631,16 @@ loop = do
               doRemoveReplacement from patchPath False
             ShowDefinitionByPrefixI {} -> notImplemented
             UpdateBuiltinsI -> notImplemented
-            QuitI -> MaybeT $ pure Nothing
+            QuitI -> empty
             GistI input -> handleGist input
+            AuthLoginI mayCodebaseServer -> do
+              case mayCodebaseServer of
+                Nothing -> authLogin Nothing
+                Just codeServer -> do
+                  mayHost <- eval $ ConfigLookup ("CodeServers." <> codeServer)
+                  case mayHost of
+                    Nothing -> respond (UnknownCodeServer codeServer)
+                    Just host -> authLogin (Just $ Host host)
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success
@@ -1808,8 +1825,8 @@ handleShowDefinition outputLoc inputQuery = do
             Just (path, _) -> Just path
 
 -- | Handle an @update@ command.
-handleUpdate :: forall m v. (Monad m, Var v) => Input -> Maybe PatchPath -> Set Name -> Action' m v ()
-handleUpdate input maybePatchPath requestedNames = do
+handleUpdate :: forall m v. (Monad m, Var v) => Input -> OptionalPatch -> Set Name -> Action' m v ()
+handleUpdate input optionalPatch requestedNames = do
   let requestedVars = Set.map Name.toVar requestedNames
   use LoopState.latestTypecheckedFile >>= \case
     Nothing -> respond NoUnisonFile
@@ -1822,7 +1839,10 @@ handleUpdate input maybePatchPath requestedNames = do
             let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
             b <- getAt p
             eval . Eval $ Branch.getPatch seg (Branch.head b)
-      let patchPath = fromMaybe defaultPatchPath maybePatchPath
+      let patchPath = case optionalPatch of
+            NoPatch -> Nothing
+            DefaultPatch -> Just defaultPatchPath
+            UsePatch p -> Just p
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
       let sr = Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames
@@ -1871,82 +1891,86 @@ handleUpdate input maybePatchPath requestedNames = do
               | (oldTypeRef, _) <- Map.elems typeEdits,
                 (n, r) <- Names.constructorsForType oldTypeRef currentPathNames
             ]
+      patchOps <- for patchPath $ \patchPath -> do
+        ye'ol'Patch <- getPatchAt patchPath
+        -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
+        -- with (a0 -> a') in patch'.
+        -- So for all (a0 -> a) in patch, for all (a -> a') in `uf`,
+        -- we must know the type of a0, a, a'.
+        let -- we need:
+            -- all of the `old` references from the `new` edits,
+            -- plus all of the `old` references for edits from patch we're replacing
+            collectOldForTyping :: [(Reference, Reference)] -> Patch -> Set Reference
+            collectOldForTyping new old = foldl' f mempty (new ++ fromOld)
+              where
+                f acc (r, _r') = Set.insert r acc
+                newLHS = Set.fromList . fmap fst $ new
+                fromOld :: [(Reference, Reference)]
+                fromOld =
+                  [ (r, r') | (r, TermEdit.Replace r' _) <- R.toList . Patch._termEdits $ old, Set.member r' newLHS
+                  ]
+            neededTypes = collectOldForTyping (toList termEdits) ye'ol'Patch
 
-      ye'ol'Patch <- getPatchAt patchPath
-      -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
-      -- with (a0 -> a') in patch'.
-      -- So for all (a0 -> a) in patch, for all (a -> a') in `uf`,
-      -- we must know the type of a0, a, a'.
-      let -- we need:
-          -- all of the `old` references from the `new` edits,
-          -- plus all of the `old` references for edits from patch we're replacing
-          collectOldForTyping :: [(Reference, Reference)] -> Patch -> Set Reference
-          collectOldForTyping new old = foldl' f mempty (new ++ fromOld)
-            where
-              f acc (r, _r') = Set.insert r acc
-              newLHS = Set.fromList . fmap fst $ new
-              fromOld :: [(Reference, Reference)]
-              fromOld =
-                [ (r, r') | (r, TermEdit.Replace r' _) <- R.toList . Patch._termEdits $ old, Set.member r' newLHS
-                ]
-          neededTypes = collectOldForTyping (toList termEdits) ye'ol'Patch
+        allTypes :: Map Reference (Type v Ann) <-
+          fmap Map.fromList . for (toList neededTypes) $ \r ->
+            (r,) . fromMaybe (Type.builtin External "unknown type")
+              <$> (eval . LoadTypeOfTerm) r
 
-      allTypes :: Map Reference (Type v Ann) <-
-        fmap Map.fromList . for (toList neededTypes) $ \r ->
-          (r,) . fromMaybe (Type.builtin External "unknown type")
-            <$> (eval . LoadTypeOfTerm) r
+        let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 hashTerms) of
+              (Just t1, Just t2)
+                | Typechecker.isEqual t1 t2 -> TermEdit.Same
+                | Typechecker.isSubtype t1 t2 -> TermEdit.Subtype
+                | otherwise -> TermEdit.Different
+              e ->
+                error $
+                  "compiler bug: typing map not constructed properly\n"
+                    <> "typing "
+                    <> show r1
+                    <> " "
+                    <> show r2
+                    <> " : "
+                    <> show e
 
-      let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 hashTerms) of
-            (Just t1, Just t2)
-              | Typechecker.isEqual t1 t2 -> TermEdit.Same
-              | Typechecker.isSubtype t1 t2 -> TermEdit.Subtype
-              | otherwise -> TermEdit.Different
-            e ->
-              error $
-                "compiler bug: typing map not constructed properly\n"
-                  <> "typing "
-                  <> show r1
-                  <> " "
-                  <> show r2
-                  <> " : "
-                  <> show e
-
-      let updatePatch :: Patch -> Patch
-          updatePatch p = foldl' step2 p' termEdits
-            where
-              p' = foldl' step1 p typeEdits
-              step1 p (r, r') = Patch.updateType r (TypeEdit.Replace r') p
-              step2 p (r, r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
-          (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
-          updatePatches :: Branch0 m -> m (Branch0 m)
-          updatePatches = Branch.modifyPatches seg updatePatch
+            updatePatch :: Patch -> Patch
+            updatePatch p = foldl' step2 p' termEdits
+              where
+                p' = foldl' step1 p typeEdits
+                step1 p (r, r') = Patch.updateType r (TypeEdit.Replace r') p
+                step2 p (r, r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
+            (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
+            updatePatches :: Branch0 m -> m (Branch0 m)
+            updatePatches = Branch.modifyPatches seg updatePatch
+        pure (updatePatch ye'ol'Patch, updatePatches, p)
 
       when (Slurp.hasAddsOrUpdates sr) $ do
         -- take a look at the `updates` from the SlurpResult
         -- and make a patch diff to record a replacement from the old to new references
         stepManyAtMNoSync
           Branch.CompressHistory
-          [ ( Path.unabsolute currentPath',
-              pure . doSlurpUpdates typeEdits termEdits termDeprecations
-            ),
-            ( Path.unabsolute currentPath',
-              pure . doSlurpAdds addsAndUpdates uf
-            ),
-            (Path.unabsolute p, updatePatches)
-          ]
+          ( [ ( Path.unabsolute currentPath',
+                pure . doSlurpUpdates typeEdits termEdits termDeprecations
+              ),
+              ( Path.unabsolute currentPath',
+                pure . doSlurpAdds addsAndUpdates uf
+              )
+            ]
+              ++ case patchOps of
+                Nothing -> []
+                Just (_, update, p) -> [(Path.unabsolute p, update)]
+          )
         eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
       ppe <- prettyPrintEnvDecl =<< displayNames uf
       respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
       -- propagatePatch prints TodoOutput
-      void $ propagatePatchNoSync (updatePatch ye'ol'Patch) currentPath'
+      for_ patchOps $ \case
+        (updatedPatch, _, _) -> void $ propagatePatchNoSync updatedPatch currentPath'
       addDefaultMetadata addsAndUpdates
-      let patchString :: Text
-          patchString =
-            patchPath
-              & Path.unsplit'
-              & Path.resolve @_ @_ @Path.Absolute currentPath'
-              & tShow
-      syncRoot ("update " <> patchString)
+      syncRoot $ case patchPath of
+        Nothing -> "update.nopatch"
+        Just p ->
+          p & Path.unsplit'
+            & Path.resolve @_ @_ @Path.Absolute currentPath'
+            & tShow
 
 -- Add default metadata to all added types and terms in a slurp component.
 --
@@ -1955,6 +1979,7 @@ addDefaultMetadata :: (Monad m, Var v) => SlurpComponent v -> Action m (Either E
 addDefaultMetadata adds =
   when (not (SC.isEmpty adds)) do
     currentPath' <- use LoopState.currentPath
+
     let addedVs = Set.toList $ SC.types adds <> SC.terms adds
         addedNs = traverse (Path.hqSplitFromName' . Name.unsafeFromVar) addedVs
     case addedNs of
@@ -2233,7 +2258,7 @@ propagatePatchNoSync patch scopePath = do
   stepAtMNoSync'
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
-      lift . lift . Propagate.propagateAndApply nroot patch
+      liftF . Propagate.propagateAndApply nroot patch
     )
 
 -- Returns True if the operation changed the namespace, False otherwise.
@@ -2250,7 +2275,7 @@ propagatePatch inputDescription patch scopePath = do
     Branch.CompressHistory
     (inputDescription <> " (applying patch)")
     ( Path.unabsolute scopePath,
-      lift . lift . Propagate.propagateAndApply nroot patch
+      liftF . Propagate.propagateAndApply nroot patch
     )
 
 -- | Create the args needed for showTodoOutput and call it
@@ -2433,15 +2458,6 @@ handleBackendError = \case
     respond $ BranchHashAmbiguous h hashes
   Backend.MissingSignatureForTerm r ->
     respond $ TermMissingType r
-
-respond :: MonadCommand n m i v => Output v -> n ()
-respond output = eval $ Notify output
-
-respondNumbered :: NumberedOutput v -> Action m i v ()
-respondNumbered output = do
-  args <- eval $ NotifyNumbered output
-  unless (null args) $
-    LoopState.numberedArgs .= toList args
 
 unlessError :: ExceptT (Output v) (Action' m v) () -> Action' m v ()
 unlessError ma = runExceptT ma >>= either respond pure

@@ -50,8 +50,7 @@ import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
   Headers
-    '[ Header "Access-Control-Allow-Origin" String,
-       Header "Cache-Control" String
+    '[ Header "Cache-Control" String
      ]
     x
 
@@ -261,7 +260,7 @@ mayDefaultWidth :: Maybe Width -> Width
 mayDefaultWidth = fromMaybe defaultWidth
 
 addHeaders :: v -> APIHeaders v
-addHeaders = addHeader "*" . addHeader "public"
+addHeaders = addHeader "public"
 
 branchToUnisonHash :: Branch.Branch m -> UnisonHash
 branchToUnisonHash b =

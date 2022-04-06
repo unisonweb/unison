@@ -10,6 +10,7 @@ module Unison.Codebase.Editor.Input
     HashOrHQSplit',
     Insistence (..),
     PullMode (..),
+    OptionalPatch (..),
   )
 where
 
@@ -41,6 +42,11 @@ type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 
 type PatchPath = Path.Split'
+
+type CodebaseServerName = Text
+
+data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
+  deriving (Eq, Ord, Show)
 
 type BranchId = Either ShortBranchHash Path'
 
@@ -116,7 +122,7 @@ data Input
     LoadI (Maybe FilePath)
   | AddI (Set Name)
   | PreviewAddI (Set Name)
-  | UpdateI (Maybe PatchPath) (Set Name)
+  | UpdateI OptionalPatch (Set Name)
   | PreviewUpdateI (Set Name)
   | TodoI (Maybe PatchPath) Path'
   | PropagatePatchI PatchPath Path'
@@ -176,6 +182,7 @@ data Input
   | UiI
   | DocsToHtmlI Path' FilePath
   | GistI GistInput
+  | AuthLoginI (Maybe CodebaseServerName)
   deriving (Eq, Show)
 
 -- | @"gist repo"@ pushes the contents of the current namespace to @repo@.

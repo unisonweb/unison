@@ -23,9 +23,13 @@ data IsOptional
   | OnePlus -- 1 or more, at the end
   deriving (Show, Eq)
 
+data Visibility = Hidden | Visible
+  deriving (Show, Eq, Ord)
+
 data InputPattern = InputPattern
   { patternName :: String,
     aliases :: [String],
+    visibility :: Visibility, -- Allow hiding certain commands when debugging or work-in-progress
     argTypes :: [(IsOptional, ArgumentType)],
     help :: P.Pretty CT.ColorText,
     parse :: [String] -> Either (P.Pretty CT.ColorText) Input

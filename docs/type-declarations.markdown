@@ -18,7 +18,7 @@ data DataDeclaration' v a = DataDeclaration {
 
 ## Structural Types
 
-> 👉 These got implemented - it's the default, so there's no `structural` keyword.  
+> 👉 These got implemented - it's the default, so there's no `structural` keyword.
 
 Structural types are defined uniquely by their structure. Every constructor has a unique signature, which intrinsically defines the meaning of the constructor. For example, the following types are identical and interoperable:
 
@@ -40,7 +40,7 @@ The identity of a structural type is determined by normalizing the constructor o
 
 ## Unique types
 
-> 👉 This got implemented - see [here](http://unisonweb.org/docsite/languagereference.html#unique-types).
+> 👉 This got implemented - see [here](https://www.unison-lang.org/learn/language-reference/unique-types/).
 
 Unique types have extrinsic semantics, not completely defined by the constructor types.  Their representation includes a GUID, along with the constructors.  The constructors types need not be unique.  The GUID is typically auto-generated, but can be specified as part of the type declaration, in order to use a textual representation to declare an identical type.
 
@@ -55,9 +55,9 @@ Order of constructors having the same type is stable, but the relative construct
 
 ## Opaque Types
 
-How do we support modularity?  That is, how do we let people expose a 'public API' to their library, and avoid exposing the internals behind it, so that (a) you can keep your library's internal data invariants intact without having to explain them, (b) you're free to change the internals without breaking client code that uses the API, and (c) you can tame complexity in the overall system by decoupling client code from library code?  
+How do we support modularity?  That is, how do we let people expose a 'public API' to their library, and avoid exposing the internals behind it, so that (a) you can keep your library's internal data invariants intact without having to explain them, (b) you're free to change the internals without breaking client code that uses the API, and (c) you can tame complexity in the overall system by decoupling client code from library code?
 
-The key thing is to control access to the introduction and elimination of data types: who is allowed to create, and to pattern-match on, a value of your type?  Both of those necessarily expose the guts of the representation of the type.  
+The key thing is to control access to the introduction and elimination of data types: who is allowed to create, and to pattern-match on, a value of your type?  Both of those necessarily expose the guts of the representation of the type.
 
 An opaque type has a structure and a block of terms that can inspect structure. The hash of those terms is part of the type ID.  They have a flag in the decl so typechecker can prevent access.
 
@@ -76,7 +76,7 @@ Notes re Scala opaque types:
 
 ### Alternative take on opaque types
 
-The thread starting [here](https://unisonlanguage.slack.com/archives/CLKV43YE4/p1565135564409000) makes the case that it's not very 'open world' to force people to change your type's identity in order to add a function which is privileged - i.e. can create and pattern match on values of that type.  
+The thread starting [here](https://unisonlanguage.slack.com/archives/CLKV43YE4/p1565135564409000) makes the case that it's not very 'open world' to force people to change your type's identity in order to add a function which is privileged - i.e. can create and pattern match on values of that type.
 
 An alternative would be to say that, in terms of type identity, opaque types work exactly like unique types.  But that you can annotate terms as being a 'friend' of that type, and so allowed to create / pattern match.  So maybe here's what a term looks like that's a friend of types Foo and Bar:
 
@@ -90,7 +90,7 @@ This annotation would be metadata attached to the term.  You can get unison to l
 
 ### Private functions
 
-It's not quite true to say that controlling creation and pattern matching is enough for the three aspects of modularity mentioned above.  What about internal library helper functions which could be called in a way that creates data that doesn't respect the invariants?  Or that you might want to change or remove later?  Or that are not at the same semantic level as your API?  So maybe we'd want a `private[Foo]` annotation on terms, which both implies `friend[Foo]`, and can only be referenced from other `friend[Foo]` terms.  
+It's not quite true to say that controlling creation and pattern matching is enough for the three aspects of modularity mentioned above.  What about internal library helper functions which could be called in a way that creates data that doesn't respect the invariants?  Or that you might want to change or remove later?  Or that are not at the same semantic level as your API?  So maybe we'd want a `private[Foo]` annotation on terms, which both implies `friend[Foo]`, and can only be referenced from other `friend[Foo]` terms.
 
 ## Combinations?
 
@@ -98,7 +98,7 @@ _Structural + Unique:_ No.
 
 _Structural + Opaque:_ No.
 
-_Unique + Opaque:_ Sure why not.  
+_Unique + Opaque:_ Sure why not.
 
 (So note that Opaque implies Unique.)
 
@@ -129,7 +129,7 @@ data IsOptional
   | OnePlus -- 1 or more, at the end
   deriving Show
 ```
-I still want this to be the same type.  None of the semantics have changed, I just reordered the constructors for readability.  I don't think this would be possible with any of our current proposed type implementations.  Yes, I could create a new unique type, and refactor everything to use that, but that strikes me as unappealing, especially from a code-sharing perspective.  
+I still want this to be the same type.  None of the semantics have changed, I just reordered the constructors for readability.  I don't think this would be possible with any of our current proposed type implementations.  Yes, I could create a new unique type, and refactor everything to use that, but that strikes me as unappealing, especially from a code-sharing perspective.
 
 Thoughts?
 
