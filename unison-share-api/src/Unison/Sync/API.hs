@@ -1,9 +1,13 @@
 {-# LANGUAGE DataKinds #-}
 
-module Unison.Sync.API (API) where
+module Unison.Sync.API (API, api) where
 
+import Data.Proxy
 import Servant.API
 import Unison.Sync.Types
+
+api :: Proxy API
+api = Proxy
 
 type API =
   "path" :> "get" :> GetCausalHashByPathEndpoint
@@ -17,7 +21,7 @@ type GetCausalHashByPathEndpoint =
 
 type UpdatePathEndpoint =
   ReqBody '[JSON] UpdatePathRequest
-    :> UVerb 'POST '[JSON] '[WithStatus 204 NoContent, WithStatus 404 (NeedDependencies HashJWT), WithStatus 412 HashMismatch]
+    :> Post '[JSON] UpdatePathResponse
 
 type DownloadEntitiesEndpoint =
   ReqBody '[JSON] DownloadEntitiesRequest
@@ -25,4 +29,4 @@ type DownloadEntitiesEndpoint =
 
 type UploadEntitiesEndpoint =
   ReqBody '[JSON] UploadEntitiesRequest
-    :> UVerb 'POST '[JSON] '[WithStatus 200 NoContent, WithStatus 202 (NeedDependencies Hash)]
+    :> Post '[JSON] UploadEntitiesResponse

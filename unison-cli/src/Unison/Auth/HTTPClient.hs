@@ -1,4 +1,4 @@
-module Unison.Auth.HTTPClient where
+module Unison.Auth.HTTPClient (newAuthorizedHTTPClient, AuthorizedHttpClient(..)) where
 
 import qualified Data.Text.Encoding as Text
 import Network.HTTP.Client (Request)
@@ -10,6 +10,9 @@ import Unison.Auth.Types
 import Unison.Codebase.Editor.Command (UCMVersion)
 import Unison.Prelude
 import qualified Unison.Util.HTTP as HTTP
+
+-- | Newtype to delineate HTTP Managers with access-token logic.
+newtype AuthorizedHttpClient = AuthorizedHttpClient HTTP.Manager
 
 -- | Returns a new http manager which applies the appropriate Authorization header to
 -- any hosts our UCM is authenticated with.
