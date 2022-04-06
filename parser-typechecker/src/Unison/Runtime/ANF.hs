@@ -822,6 +822,10 @@ litRef (C _) = Ty.charRef
 litRef (LM _) = Ty.termLinkRef
 litRef (LY _) = Ty.typeLinkRef
 
+-- Note: Enum/Bounded instances should only be used for things like
+-- getting a list of all ops. Using auto-generated numberings for
+-- serialization, for instance, could cause observable changes to
+-- formats that we want to control and version.
 data POp
   = -- Int
     ADDI
@@ -954,7 +958,7 @@ data POp
   | TRCE
   | -- STM
     ATOM
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Enum, Bounded)
 
 type ANormal = ABTN.Term ANormalF
 
