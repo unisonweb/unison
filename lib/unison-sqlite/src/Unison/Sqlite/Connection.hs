@@ -17,6 +17,8 @@ module Unison.Sqlite.Connection
     -- ** With results
 
     -- *** With parameters
+    queryStreamRow,
+    queryStreamCol,
     queryListRow,
     queryListCol,
     queryMaybeRow,
@@ -58,7 +60,6 @@ module Unison.Sqlite.Connection
     savepoint,
     rollback,
     release,
-    withStatement,
 
     -- * Exceptions
     ExpectedAtMostOneRowException (..),
@@ -179,6 +180,36 @@ execute_ conn@(Connection _ _ conn0) s = do
 
 -- With results, with parameters, without checks
 
+queryStreamRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Connection -> Sql -> a -> (IO (Maybe b) -> IO r) -> IO r
+queryStreamRow conn@(Connection _ _ conn0) s params callback =
+  thing `catch` \(exception :: Sqlite.SQLError) ->
+    throwSqliteQueryException
+      SqliteQueryExceptionInfo
+        { connection = conn,
+          exception = SomeSqliteExceptionReason exception,
+          params = Just params,
+          sql = s
+        }
+  where
+    thing =
+      bracket (Sqlite.openStatement conn0 (coerce s)) Sqlite.closeStatement \statement -> do
+        Sqlite.bind statement params
+        callback (Sqlite.nextRow statement)
+
+queryStreamCol ::
+  forall a b r.
+  (Sqlite.FromField b, Sqlite.ToRow a) =>
+  Connection ->
+  Sql ->
+  a ->
+  (IO (Maybe b) -> IO r) ->
+  IO r
+queryStreamCol =
+  coerce
+    @(Connection -> Sql -> a -> (IO (Maybe (Sqlite.Only b)) -> IO r) -> IO r)
+    @(Connection -> Sql -> a -> (IO (Maybe b) -> IO r) -> IO r)
+    queryStreamRow
+
 queryListRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
 queryListRow conn@(Connection _ _ conn0) s params = do
   result <-
@@ -195,8 +226,8 @@ queryListRow conn@(Connection _ _ conn0) s params = do
   pure result
 
 queryListCol :: forall a b. (Sqlite.FromField b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
-queryListCol conn s params =
-  coerce @(IO [Sqlite.Only b]) @(IO [b]) (queryListRow conn s params)
+queryListCol =
+  coerce @(Connection -> Sql -> a -> IO [Sqlite.Only b]) @(Connection -> Sql -> a -> IO [b]) queryListRow
 
 queryMaybeRow :: (Sqlite.ToRow a, Sqlite.FromRow b) => Connection -> Sql -> a -> IO (Maybe b)
 queryMaybeRow conn s params =
@@ -468,22 +499,6 @@ rollback conn name =
 release :: Connection -> Text -> IO ()
 release conn name =
   execute_ conn (Sql ("RELEASE " <> name))
-
-withStatement :: (Sqlite.FromRow a, Sqlite.ToRow b) => Connection -> Sql -> b -> (IO (Maybe a) -> IO c) -> IO c
-withStatement conn@(Connection _ _ conn0) s params callback =
-  thing `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteQueryException
-      SqliteQueryExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          params = Just params,
-          sql = s
-        }
-  where
-    thing =
-      bracket (Sqlite.openStatement conn0 (coerce s)) Sqlite.closeStatement \statement -> do
-        Sqlite.bind statement params
-        callback (Sqlite.nextRow statement)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Exceptions

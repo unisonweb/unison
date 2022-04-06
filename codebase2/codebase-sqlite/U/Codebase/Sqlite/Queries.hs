@@ -157,6 +157,7 @@ import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
 import Unison.Sqlite
+import qualified Unison.Sqlite.Connection as Connection
 
 -- * main squeeze
 
@@ -880,12 +881,12 @@ before chId1 chId2 = queryOneCol sql (chId2, chId1)
 -- | the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
 lca x y cx cy =
-  withStatement cx sql (Only x) \nextX ->
-    withStatement cy sql (Only y) \nextY -> do
+  Connection.queryStreamCol cx sql (Only x) \nextX ->
+    Connection.queryStreamCol cy sql (Only y) \nextY -> do
       let getNext = (,) <$> nextX <*> nextY
           loop2 seenX seenY =
             getNext >>= \case
-              (Just (Only px), Just (Only py)) ->
+              (Just px, Just py) ->
                 let seenX' = Set.insert px seenX
                     seenY' = Set.insert py seenY
                  in if Set.member px seenY'
@@ -895,14 +896,14 @@ lca x y cx cy =
                           then pure (Just py)
                           else loop2 seenX' seenY'
               (Nothing, Nothing) -> pure Nothing
-              (Just (Only px), Nothing) -> loop1 nextX seenY px
-              (Nothing, Just (Only py)) -> loop1 nextY seenX py
+              (Just px, Nothing) -> loop1 nextX seenY px
+              (Nothing, Just py) -> loop1 nextY seenX py
           loop1 getNext matches v =
             if Set.member v matches
               then pure (Just v)
               else
                 getNext >>= \case
-                  Just (Only v) -> loop1 getNext matches v
+                  Just v -> loop1 getNext matches v
                   Nothing -> pure Nothing
       loop2 (Set.singleton x) (Set.singleton y)
   where

@@ -37,6 +37,8 @@ module Unison.Sqlite
     -- $query-naming-convention
 
     -- *** With parameters
+    queryStreamRow,
+    queryStreamCol,
     queryListRow,
     queryListCol,
     queryMaybeRow,
@@ -80,9 +82,6 @@ module Unison.Sqlite
     vacuum,
     vacuumInto,
 
-    -- ** Low-level
-    withStatement,
-
     -- * Exceptions
     SomeSqliteException (..),
     isCantOpenException,
@@ -117,7 +116,6 @@ import Unison.Sqlite.Connection
     vacuum,
     vacuumInto,
     withConnection,
-    withStatement,
   )
 import Unison.Sqlite.DataVersion (DataVersion (..), getDataVersion)
 import Unison.Sqlite.Exception
@@ -139,7 +137,7 @@ import Unison.Sqlite.Transaction
 -- Every function name begins with the string @__query__@.
 --
 --   1. /Row count/. The caller may expect /exactly one/, /zero or one/, or /zero or more/ rows, in which case the
---      function name includes the string @__List__@, @__Maybe__@, or @__One__@, respectively.
+--      function name includes the string @__One__@, @__Maybe__@, or (@__List__@ or @__Stream__@), respectively.
 --      Example: @query__List__Row@.
 --
 --   2. /Row width/. The caller may expect the returned rows may contain /exactly one/ or /more than one/ column, in

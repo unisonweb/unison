@@ -19,6 +19,8 @@ module Unison.Sqlite.Transaction
     -- ** With results
 
     -- *** With parameters
+    queryStreamRow,
+    queryStreamCol,
     queryListRow,
     queryListCol,
     queryMaybeRow,
@@ -71,6 +73,10 @@ newtype Transaction a
   -- Omit MonadIO instance because transactions may be retried
   -- Omit MonadThrow instance so we always throw SqliteException (via *Check) with lots of context
   deriving (Applicative, Functor, Monad) via (ReaderT Connection IO)
+
+unTransaction :: Transaction a -> Connection -> IO a
+unTransaction (Transaction action) =
+  action
 
 -- | Run a transaction on the given connection.
 runTransaction :: MonadIO m => Connection -> Transaction a -> m a
@@ -142,6 +148,30 @@ execute_ s =
   Transaction \conn -> Connection.execute_ conn s
 
 -- With results, with parameters, without checks
+
+queryStreamRow ::
+  (Sqlite.FromRow a, Sqlite.ToRow b) =>
+  Sql ->
+  b ->
+  (Transaction (Maybe a) -> Transaction r) ->
+  Transaction r
+queryStreamRow s params callback =
+  Transaction \conn ->
+    Connection.queryStreamRow conn s params \next ->
+      unTransaction (callback (idempotentIO next)) conn
+
+queryStreamCol ::
+  forall a b r.
+  (Sqlite.FromField a, Sqlite.ToRow b) =>
+  Sql ->
+  b ->
+  (Transaction (Maybe a) -> Transaction r) ->
+  Transaction r
+queryStreamCol =
+  coerce
+    @(Sql -> b -> (Transaction (Maybe (Sqlite.Only a)) -> Transaction r) -> Transaction r)
+    @(Sql -> b -> (Transaction (Maybe a) -> Transaction r) -> Transaction r)
+    queryStreamRow
 
 queryListRow :: (Sqlite.FromRow a, Sqlite.ToRow b) => Sql -> b -> Transaction [a]
 queryListRow s params =
