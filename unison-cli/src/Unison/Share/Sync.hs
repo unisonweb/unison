@@ -27,10 +27,20 @@ data UploadEntitiesResponse
   = UploadEntitiesSuccess
   | UploadEntitiesNeedDependencies (Share.NeedDependencies Share.Hash)
 
+data GetCausalHashByPathResponse
+  = GetCausalHashByPathSuccess Share.HashJWT
+  | GetCausalHashByPathEmpty
+
 -- deriving stock (Show, Eq, Ord, Generic)
 
 updatePath :: Share.UpdatePathRequest -> IO UpdatePathResponse
 updatePath = undefined
+
+uploadEntities :: Share.UploadEntitiesRequest -> IO UploadEntitiesResponse
+uploadEntities = undefined
+
+getCausalHashByPath :: Share.GetCausalHashByPathRequest -> IO GetCausalHashByPathResponse
+getCausalHashByPath = undefined
 
 -- Push
 --
@@ -43,6 +53,8 @@ updatePath = undefined
 data PushError
   = PushErrorServerMissingDependencies (NESet Share.Hash)
   | PushErrorHashMismatch Share.HashMismatch
+
+data PullError
 
 -- Option 1: have push be itself in the Transaction monad, use unsafePerformIdempotentIO
 -- fuction to do the interleaved IO calls (http, etc)
@@ -70,6 +82,9 @@ type Transaction a = ()
 
 expectHash :: HashId -> Transaction Hash.Hash
 expectHash = undefined
+
+pull :: Connection -> Share.RepoPath -> IO (Either PullError CausalHash)
+pull _conn _repoPath = undefined
 
 push :: Connection -> Share.RepoPath -> Maybe Share.Hash -> CausalHash -> IO (Either PushError ())
 push conn repoPath expectedHash causalHash = do
@@ -117,10 +132,11 @@ upload conn repoName dependencies = do
     pure Share.UploadEntitiesRequest {repoName, entities}
 
   -- 2. Perform upload HTTP call
-
-  -- 3. If UploadEntitiesMissingDependencies, recur
-
-  undefined
+  undefined "http call" request >>= \case
+    -- 3. If UploadEntitiesMissingDependencies, recur
+    UploadEntitiesNeedDependencies (Share.NeedDependencies dependencies) ->
+      upload conn repoName dependencies
+    UploadEntitiesSuccess -> pure ()
 
 -- FIXME rename, etc
 resolveHashToEntity :: Connection -> Share.Hash -> IO (Share.Entity Text Share.Hash Share.Hash)
