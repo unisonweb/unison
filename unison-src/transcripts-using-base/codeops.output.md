@@ -231,7 +231,7 @@ badLoad _ =
     match Value.deserialize payload with
       Left t -> Fail "deserialize exception"
       Right a -> match Value.load a with
-        Left terms -> 
+        Left terms ->
             bs = Value.serialize (Value.value terms)
             s = size bs
             Ok ("serialized" ++ toText s)
