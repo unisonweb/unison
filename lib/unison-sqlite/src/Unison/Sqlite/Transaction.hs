@@ -120,6 +120,7 @@ savepoint (Transaction action) = do
         Right result -> pure result
 
 -- | Perform IO inside a transaction, which should be idempotent, because it may be run more than once.
+-- FIXME rename to unsafeIO or something
 idempotentIO :: IO a -> Transaction a
 idempotentIO action =
   Transaction \_ -> action

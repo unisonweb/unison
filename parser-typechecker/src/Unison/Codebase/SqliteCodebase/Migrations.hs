@@ -42,7 +42,7 @@ migrations =
 -- Returns an error if the schema version is newer than this ucm knows about.
 ensureCodebaseIsUpToDate :: (MonadUnliftIO m, Var v) => LocalOrRemote -> CodebasePath -> Sqlite.Connection -> Codebase m v a -> m (Either Codebase.OpenCodebaseError ())
 ensureCodebaseIsUpToDate localOrRemote root conn codebase = UnliftIO.try do
-  schemaVersion <- runReaderT Q.schemaVersion conn
+  schemaVersion <- undefined -- runReaderT Q.schemaVersion conn
   when (schemaVersion > currentSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral schemaVersion)
   let migrationsToRun =
         Map.filterWithKey (\v _ -> v > schemaVersion) migrations
@@ -53,7 +53,7 @@ ensureCodebaseIsUpToDate localOrRemote root conn codebase = UnliftIO.try do
   when ((not . null) migrationsToRun) $ do
     -- Vacuum once now that any migrations have taken place.
     liftIO $ putStrLn $ "Cleaning up..."
-    liftIO . flip runReaderT conn $ Q.vacuum
+    undefined -- liftIO . flip runReaderT conn $ Q.vacuum
     liftIO . putStrLn $ "🏁 Migration complete. 🏁"
 
 -- | Copy the sqlite database to a new file with a unique name based on current time.

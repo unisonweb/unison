@@ -85,7 +85,7 @@ import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
-import Unison.Sqlite (Connection, DB)
+import Unison.Sqlite (Connection)
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sqlite.Connection as Sqlite.Connection
 import qualified Unison.Sqlite.Transaction as Sqlite.Transaction
@@ -146,19 +146,20 @@ createCodebaseOrError ::
   ((Codebase m Symbol Ann, Connection) -> m r) ->
   m (Either Codebase1.CreateCodebaseError r)
 createCodebaseOrError debugName path action = do
-  ifM
-    (doesFileExist $ makeCodebasePath path)
-    (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
-    do
-      createDirectoryIfMissing True (makeCodebaseDirPath path)
-      withConnection (debugName ++ ".createSchema") path $
-        runReaderT do
-          Q.createSchema
-          void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty
+  undefined
+  -- ifM
+  --   (doesFileExist $ makeCodebasePath path)
+  --   (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
+  --   do
+  --     createDirectoryIfMissing True (makeCodebaseDirPath path)
+  --     withConnection (debugName ++ ".createSchema") path $
+  --       runReaderT do
+  --         Q.createSchema
+  --         void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty
 
-      sqliteCodebase debugName path Local action >>= \case
-        Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
-        Right result -> pure (Right result)
+  --     sqliteCodebase debugName path Local action >>= \case
+  --       Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
+  --       Right result -> pure (Right result)
 
 -- | Use the codebase in the provided path.
 -- The codebase is automatically closed when the action completes or throws an exception.
@@ -177,10 +178,11 @@ withCodebaseOrError debugName dir action = do
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
-  unlessM (doesDirectoryExist $ makeCodebaseDirPath path) $
-    createDirectoryIfMissing True (makeCodebaseDirPath path)
-  unlessM (doesFileExist $ makeCodebasePath path) $
-    withConnection "initSchemaIfNotExist" path $ runReaderT Q.createSchema
+  undefined
+  -- unlessM (doesDirectoryExist $ makeCodebaseDirPath path) $
+  --   createDirectoryIfMissing True (makeCodebaseDirPath path)
+  -- unlessM (doesFileExist $ makeCodebasePath path) $
+  --   withConnection "initSchemaIfNotExist" path $ runReaderT Q.createSchema
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -254,11 +256,12 @@ sqliteCodebase ::
   ((Codebase m Symbol Ann, Connection) -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote action = do
+  undefined
+{-
   Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
   withConnection debugName root $ \conn -> do
     termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
-    typeOfTermCache <- Cache.semispaceCache 8192
-    declCache <- Cache.semispaceCache 1024
+    typeOfTermCache <- Cache.semispaceCache 8192 declCache <- Cache.semispaceCache 1024
     rootBranchCache <- newTVarIO Nothing
     -- The v1 codebase interface has operations to read and write individual definitions
     -- whereas the v2 codebase writes them as complete components.  These two fields buffer
@@ -1231,3 +1234,4 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
             (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", "--quiet", url] ++ maybe [] (pure @[]) mayGitBranch
             when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
             pure True
+-}

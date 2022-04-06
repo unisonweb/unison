@@ -27,8 +27,9 @@ import qualified UnliftIO
 -- weren't being used for anything anyways.
 migrateSchema2To3 :: forall a m v. (MonadUnliftIO m, Var v) => Sqlite.Connection -> Codebase m v a -> m (Either MigrationError ())
 migrateSchema2To3 conn _ = UnliftIO.try . flip runReaderT conn $
-  Sqlite.withSavepoint "MIGRATE_SCHEMA_2_TO_3" $ \_rollback -> do
-    version <- Q.schemaVersion
-    when (version /= 2) $ UnliftIO.throwIO (IncorrectStartingSchemaVersion version)
-    Q.removeHashObjectsByHashingVersion (HashVersion 1)
-    Q.setSchemaVersion (SchemaVersion 3)
+  undefined
+  -- Sqlite.withSavepoint "MIGRATE_SCHEMA_2_TO_3" $ \_rollback -> do
+  --   version <- Q.schemaVersion
+  --   when (version /= 2) $ UnliftIO.throwIO (IncorrectStartingSchemaVersion version)
+  --   Q.removeHashObjectsByHashingVersion (HashVersion 1)
+  --   Q.setSchemaVersion (SchemaVersion 3)
