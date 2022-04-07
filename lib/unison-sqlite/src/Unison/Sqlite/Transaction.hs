@@ -3,7 +3,10 @@ module Unison.Sqlite.Transaction
     Transaction,
     runTransaction,
     runTransactionWithAbort,
+    runReadOnlyTransaction,
+    runReadOnlyTransactionIO,
     runWriteTransaction,
+    runWriteTransactionIO,
     unsafeUnTransaction,
     savepoint,
     idempotentIO,
@@ -69,7 +72,7 @@ import Unison.Sqlite.Connection (Connection (..))
 import qualified Unison.Sqlite.Connection as Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason, SqliteQueryException, pattern SqliteBusyException)
 import Unison.Sqlite.Sql
-import UnliftIO.Exception (catchAny, trySyncOrAsync, uninterruptibleMask)
+import UnliftIO.Exception (bracketOnError_, catchAny, trySyncOrAsync, uninterruptibleMask)
 
 newtype Transaction a
   = Transaction (Connection -> IO a)
@@ -90,7 +93,7 @@ runTransaction conn (Transaction f) = liftIO do
           case fromException exception of
             Just SqliteBusyException -> do
               restore (threadDelay 100_000)
-              runWriteTransaction_ restore 200_000 conn f
+              runWriteTransaction_ restore 200_000 conn (f conn)
             _ -> throwIO exception
         Right result -> pure result
     Connection.commit conn
@@ -105,18 +108,57 @@ runTransactionWithAbort ::
 runTransactionWithAbort conn action =
   runTransaction conn (action \exception -> idempotentIO (throwIO exception))
 
+-- | Run a transaction that is known to only perform reads.
+--
+-- The transaction is never retried, so it is (more) safe to interleave arbitrary IO actions.
+--
+-- If the transaction does attempt a write and gets SQLITE_BUSY, it's your fault!
+runReadOnlyTransaction :: Connection -> ((forall x. IO x -> Transaction x) -> Transaction a) -> IO a
+runReadOnlyTransaction conn f =
+  runReadOnlyTransaction_ conn (unsafeUnTransaction (f idempotentIO) conn)
+
+-- | A variant of 'runReadOnlyTransaction' that may be more convenient for actions that perform more interleaved IO
+-- calls than database calls, because the transaction action itself is in IO.
+--
+-- The action is provided a function that peels off the 'Transaction' newtype without sending the corresponding
+-- BEGIN/COMMIT statements.
+runReadOnlyTransactionIO :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a
+runReadOnlyTransactionIO conn f =
+  runReadOnlyTransaction_ conn (f (\transaction -> unsafeUnTransaction transaction conn))
+
+runReadOnlyTransaction_ :: Connection -> IO a -> IO a
+runReadOnlyTransaction_ conn action = do
+  bracketOnError_
+    (Connection.begin conn)
+    (ignoringExceptions (Connection.rollback conn))
+    ( do
+        result <- action
+        Connection.commit conn
+        pure result
+    )
+
 -- | Run a transaction that is known to perform at least one write.
 --
 -- The transaction is never retried, so it is (more) safe to interleave arbitrary IO actions.
 runWriteTransaction :: Connection -> ((forall x. IO x -> Transaction x) -> Transaction a) -> IO a
 runWriteTransaction conn f =
   uninterruptibleMask \restore ->
-    runWriteTransaction_ restore 100_000 conn (unsafeUnTransaction (f idempotentIO))
+    runWriteTransaction_ restore 100_000 conn (unsafeUnTransaction (f idempotentIO) conn)
 
-runWriteTransaction_ :: (forall x. IO x -> IO x) -> Int -> Connection -> (Connection -> IO a) -> IO a
+-- | A variant of 'runWriteTransaction' that may be more convenient for actions that perform more interleaved IO calls
+-- than database calls, because the transaction action itself is in IO.
+--
+-- The action is provided a function that peels off the 'Transaction' newtype without sending the corresponding
+-- BEGIN/COMMIT statements.
+runWriteTransactionIO :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a
+runWriteTransactionIO conn f =
+  uninterruptibleMask \restore ->
+    runWriteTransaction_ restore 100_000 conn (f (\transaction -> unsafeUnTransaction transaction conn))
+
+runWriteTransaction_ :: (forall x. IO x -> IO x) -> Int -> Connection -> IO a -> IO a
 runWriteTransaction_ restore microseconds conn transaction = do
   keepTryingToBeginImmediate restore conn microseconds
-  restore (transaction conn) `onException` ignoringExceptions (Connection.rollback conn)
+  restore transaction `onException` ignoringExceptions (Connection.rollback conn)
 
 -- @BEGIN IMMEDIATE@ until success.
 keepTryingToBeginImmediate :: (forall x. IO x -> IO x) -> Connection -> Int -> IO ()
