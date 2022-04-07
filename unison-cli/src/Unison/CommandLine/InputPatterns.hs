@@ -883,7 +883,7 @@ renameBranch =
     ["rename.namespace"]
     I.Visible
     [(Required, namespaceArg), (Required, newNameArg)]
-    "`move.namespace foo bar` renames the path `bar` to `foo`."
+    "`move.namespace foo bar` renames the path `foo` to `bar`."
     ( \case
         [".", dest] -> first fromString $ do
           dest <- Path.parseSplit' Path.definitionNameSegment dest
