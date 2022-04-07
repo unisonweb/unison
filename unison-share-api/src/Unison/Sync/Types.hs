@@ -32,6 +32,12 @@ newtype RepoName = RepoName Text
 newtype HashJWT = HashJWT Text
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
+data DecodedHashJWT = DecodedHashJWT
+  { claims :: HashJWTClaims,
+    hashJWT :: HashJWT
+  }
+  deriving (Eq, Ord, Show)
+
 data HashJWTClaims = HashJWTClaims
   { hash :: Hash,
     entityType :: EntityType

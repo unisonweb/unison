@@ -9,16 +9,13 @@ module Unison.Share.Sync
   )
 where
 
-import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import U.Codebase.HashTags (CausalHash (unCausalHash))
-import U.Codebase.Sqlite.Causal (DbCausal, GDbCausal (..))
-import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal (GDbCausal (..))
-import U.Codebase.Sqlite.DbId (CausalHashId (..), HashId)
+import U.Codebase.Sqlite.DbId (HashId)
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
@@ -135,24 +132,41 @@ upload conn repoName =
 pull :: Connection -> Share.RepoPath -> IO (Either PullError CausalHash)
 pull _conn _repoPath = undefined
 
+decodedHashJWTHash :: Share.DecodedHashJWT -> Share.Hash
+decodedHashJWTHash = undefined
+
+decodeHashJWT :: Share.HashJWT -> Share.DecodedHashJWT
+decodeHashJWT = undefined
+
 download :: Connection -> Share.RepoName -> NESet Share.HashJWT -> IO ()
-download conn repoName =
-  let loop :: NESet Share.HashJWT -> IO ()
+download conn repoName = do
+  let inMainStorage :: Share.Hash -> IO Bool
+      inMainStorage = undefined
+  let inTempStorage :: Share.Hash -> IO Bool
+      inTempStorage = undefined
+  let directDepsOfEntity :: Share.Entity Text Share.Hash Share.HashJWT -> Set Share.DecodedHashJWT
+      directDepsOfEntity = undefined
+  let directDepsOfHash :: Share.Hash -> Set Share.DecodedHashJWT
+      directDepsOfHash = undefined
+  let loop :: NESet Share.DecodedHashJWT -> IO ()
       loop hashes0 = do
-        let elaborateHashes :: Set Share.HashJWT -> Set Share.HashJWT -> IO (Maybe (NESet Share.HashJWT))
+        let elaborateHashes :: Set Share.DecodedHashJWT -> Set Share.HashJWT -> IO (Maybe (NESet Share.HashJWT))
             elaborateHashes hashes outputs =
               case Set.minView hashes of
                 Nothing -> pure (NESet.nonEmptySet outputs)
-                Just (hash, hashes') ->
-                  let inMainStorage = undefined
-                      inTempStorage = undefined
-                      directDepsOf = undefined
-                   in inMainStorage hash >>= \case
+                Just (Share.DecodedHashJWT (Share.HashJWTClaims {hash}) jwt, hashes') ->
+                  inMainStorage hash >>= \case
+                    False ->
+                      inTempStorage hash >>= \case
                         False ->
-                          inTempStorage hash >>= \case
-                            False -> elaborateHashes hashes' (Set.insert hash outputs)
-                            True -> elaborateHashes (Set.union (directDepsOf hash) hashes') outputs
-                        True -> elaborateHashes hashes' outputs
+                          -- we need the entity, it's not in main or temp storage
+                          elaborateHashes hashes' (Set.insert jwt outputs)
+                        True ->
+                          -- entity already in temp storage
+                          elaborateHashes (Set.union (directDepsOfHash hash) hashes') outputs
+                    True ->
+                      -- hash already in main storage
+                      elaborateHashes hashes' outputs
 
         elaborateHashes (NESet.toSet hashes0) Set.empty >>= \case
           Nothing -> pure ()
@@ -166,25 +180,24 @@ download conn repoName =
 
             missingDependencies0 <-
               NEMap.toList entities & foldMapM \(hash, entity) -> do
-                let inMainStorage = undefined
-                let inTempStorage = undefined
-                let putInMainStorage hash entity = undefined
-                let putInTempStorage hash entity = undefined
+                let putInMainStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
+                    putInMainStorage _hash _entity = undefined
+                let putInTempStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
+                    putInTempStorage _hash _entity = undefined
                 let insertMissingDependencies = undefined
                 -- select dependency
                 -- from temp_entity_missing_dependency
                 -- where dependent = <this entity>
-                let getTempEntityMissingDependencies = undefined
-                let directDepsOf :: Share.Entity Text Share.Hash Share.HashJWT -> Set Share.HashJWT
-                    directDepsOf = undefined
+                let getTempEntityMissingDependencies :: Share.Entity Text Share.Hash Share.HashJWT -> IO (Set Share.DecodedHashJWT)
+                    getTempEntityMissingDependencies = undefined
 
                 inMainStorage hash >>= \case
                   True -> pure Set.empty
                   False ->
-                    inTempStorage entity >>= \case
+                    inTempStorage hash >>= \case
                       True -> getTempEntityMissingDependencies entity
                       False -> do
-                        missingDependencies <- Set.filterM inMainStorage (directDepsOf entity)
+                        missingDependencies <- Set.filterM (inMainStorage . decodedHashJWTHash) (directDepsOfEntity entity)
                         if Set.null missingDependencies
                           then putInMainStorage hash entity
                           else do
@@ -195,8 +208,58 @@ download conn repoName =
             case NESet.nonEmptySet missingDependencies0 of
               Nothing -> pure ()
               Just missingDependencies -> loop missingDependencies
-   in loop
+   in loop . NESet.map decodeHashJWT
 
+---------
+
+-- * we need hashjwts to make subsequent requests to the server
+
+-- * when look up missing dependencies, it's because we anticipate making a subsequent request to the server for them,
+
+--   so they should also be hashjwts
+
+-- * before making a subsequent request to the server, we elaborate the request set,
+
+--   which requires knowing hashjwts for the dependencies of the request set;
+--   so we need some way of looking up missing dependency hashjwts from a hash or hashjwt
+
+--    * one way of looking these up would be to include dependency hashjwts in the temp-entity-missing-dependency table
+--        (dependent -> (dependency, dependencyjwt))
+
+-- * we need `hash` to find entity in temp or main storage
+
+-- * different entities may arrive with different variations on the same dependency jwts
+
+-- * we need dependency hash (not only hashjwt) in temp-entity-missing-dependency so that we can also look up dependents
+
+--   of a hash without knowing which hashjwt was stored for it
+
+-- Mitchell is on team: add a column to temp-entity-missing-dependency that includes the jwt
+
+{-
+server sqlite db
+  -> sqlite object bytes
+  -> U.Codebase.Sqlite.decomposedComponent [(LocalIds' TextId ObjectId, ByteString)]
+  -> Sync.Types.Entity.TermComponent
+  -> cbor bytes
+  -> network
+  -> cbor bytes
+  -> Sync.Types.Entity.TermComponent
+      |-> temp_entity_missing_dependencies
+      |
+      |-> U.Codebase.Sqlite.decomposedComponent [(LocalIds' Text HashJWT, ByteString)]
+                                                (not Unison.Sync.Types.LocallyIndexedComponent)
+          -> serialize -> temp_entity (bytes)
+          -> time to move to MAIN table!!!!
+          -> deserialize -> U.Codebase.Sqlite.decomposedComponent [(LocalIds' Text HashJWT, ByteString)]
+          -> traverse -> U.Codebase.Sqlite.decomposedComponent [(LocalIds' TextId ObjectId, ByteString)]
+          -> serialize -> sqlite object bytes
+
+-- if we just have a hash for the localids (as opposed to a TypedHash)
+
+-}
+
+---------
 -- Do this at the top of the procedure.
 --
 -- deps0 = hashes we kinda-maybe think we should request
