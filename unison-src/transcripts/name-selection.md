@@ -20,6 +20,7 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 .a> add
 .a> alias.term b aaa.but.more.segments
 .a> view a
+.> cd .
 ```
 
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
@@ -34,6 +35,9 @@ c = 1
 d = c + 10
 ```
 
+```ucm:hide
+.a2> builtins.merge
+```
 ```ucm
 .a2> add
 .a2> alias.term c aaaa.tooManySegments

@@ -185,12 +185,12 @@ lookupHQRef ::
   Set r
 lookupHQRef which isPrefixOf hq NamesWithHistory {currentNames, oldNames} =
   case hq of
-    HQ.NameOnly n -> Name.searchBySuffix n currentRefs
+    HQ.NameOnly n -> Name.searchByRankedSuffix n currentRefs
     HQ.HashQualified n sh -> matches currentRefs `orIfEmpty` matches oldRefs
       where
         matches :: Relation Name r -> Set r
         matches ns =
-          Set.filter (isPrefixOf sh) (Name.searchBySuffix n ns)
+          Set.filter (isPrefixOf sh) (Name.searchByRankedSuffix n ns)
     HQ.HashOnly sh -> matches currentRefs `orIfEmpty` matches oldRefs
       where
         matches :: Relation Name r -> Set r

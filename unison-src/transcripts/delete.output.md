@@ -18,7 +18,7 @@ unambiguous type.
 
 ```unison
 foo = 1
-structural type Foo = Foo Nat
+structural type Foo = Foo ()
 ```
 
 ```ucm
@@ -49,7 +49,7 @@ structural type Foo = Foo Nat
 
   Removed definitions:
   
-    1. Foo.Foo : Nat -> #68k40ra7l7
+    1. Foo.Foo : '#089vmor9c5
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -128,7 +128,7 @@ A delete should remove both versions of the term.
 Let's repeat all that on a type, for completeness.
 
 ```unison
-structural type Foo = Foo Nat
+structural type Foo = Foo ()
 ```
 
 ```ucm
@@ -140,7 +140,7 @@ structural type Foo = Foo Nat
 
 ```
 ```unison
-structural type Foo = Foo Boolean
+structural type Foo = Foo
 ```
 
 ```ucm
@@ -157,18 +157,18 @@ structural type Foo = Foo Boolean
   
   New name conflicts:
   
-    1. structural type Foo#68k40ra7l7
+    1. structural type Foo#089vmor9c5
          
        ↓
-    2. ┌ structural type Foo#68k40ra7l7
+    2. ┌ structural type Foo#00nv2kob8f
            
-    3. └ structural type Foo#cbdjc64ffs
+    3. └ structural type Foo#089vmor9c5
            
     
-    4. Foo.Foo#68k40ra7l7#0 : Nat -> Foo#68k40ra7l7
+    4. Foo.Foo#089vmor9c5#0 : 'Foo#089vmor9c5
        ↓
-    5. ┌ Foo.Foo#68k40ra7l7#0 : Nat -> Foo#68k40ra7l7
-    6. └ Foo.Foo#cbdjc64ffs#0 : Boolean -> Foo#cbdjc64ffs
+    5. ┌ Foo.Foo#00nv2kob8f#0 : ()
+    6. └ Foo.Foo#089vmor9c5#0 : 'Foo#089vmor9c5
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -181,13 +181,14 @@ structural type Foo = Foo Boolean
 
   Removed definitions:
   
-    1. structural type a.Foo#68k40ra7l7
+    1. structural type a.Foo#089vmor9c5
   
   Name changes:
   
     Original               Changes
-    2. b.Foo            ┐  3. a.Foo#cbdjc64ffs (removed)
-    4. a.Foo#cbdjc64ffs ┘  
+    2. b.Foo            ┐  3. a.Foo#00nv2kob8f (removed)
+    4. builtin.Unit     │  
+    5. a.Foo#00nv2kob8f ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -197,13 +198,14 @@ structural type Foo = Foo Boolean
 
   Removed definitions:
   
-    1. a.Foo.Foo#68k40ra7l7#0 : Nat -> #68k40ra7l7
+    1. a.Foo.Foo#089vmor9c5#0 : '#089vmor9c5
   
   Name changes:
   
     Original                     Changes
-    2. b.Foo.Foo              ┐  3. a.Foo.Foo#cbdjc64ffs#0 (removed)
-    4. a.Foo.Foo#cbdjc64ffs#0 ┘  
+    2. b.Foo.Foo              ┐  3. a.Foo.Foo#00nv2kob8f#0 (removed)
+    4. builtin.Unit.Unit      │  
+    5. a.Foo.Foo#00nv2kob8f#0 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -212,7 +214,7 @@ Finally, let's try to delete a term and a type with the same name.
 
 ```unison
 foo = 1
-structural type foo = Foo Nat
+structural type foo = Foo ()
 ```
 
 ```ucm

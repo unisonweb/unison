@@ -8,7 +8,7 @@
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
 ```ucm
-.builtin> ls Bytes
+.> ls builtin.Bytes
 ```
 Notice the `fromBase16` and `toBase16` functions. Here's some convenience functions for converting `Bytes` to and from base-16 `Text`.
 
@@ -49,11 +49,12 @@ And here's the full API:
 
 ```ucm
 .builtin.crypto> find
+.> cd .
 ```
 
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
-```
+```unison
 > crypto.hash Sha3_256 (fromHex "3849238492")
 ```
 
@@ -166,11 +167,11 @@ test> blake2b_512.tests.ex3 =
 ```
 
 ```ucm:hide
-.scratch> add
+.> add
 ```
 
 ```ucm
-.scratch> test
+.> test
 ```
 
 ## HMAC tests
@@ -181,9 +182,9 @@ These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231
 ex' alg secret msg expected = checks [hmacBytes alg (fromHex secret) (ascii msg) == fromHex expected]
 
 test> hmac_sha2_256.tests.ex1 =
-  ex' Sha2_256 
-    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b" 
-    "Hi There" 
+  ex' Sha2_256
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
+    "Hi There"
     "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
 test> hmac_sha2_512.tests.ex1 =
   ex' Sha2_512
@@ -205,10 +206,10 @@ test> hmac_sha2_512.tests.ex2 =
 ```
 
 ```ucm:hide
-.scratch> add
+.> add
 ```
 
 ```ucm
-.scratch> test
+.> test
 ```
 
