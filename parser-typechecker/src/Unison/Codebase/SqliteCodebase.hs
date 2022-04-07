@@ -611,11 +611,11 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
         if debugCommitFailedTransaction
           then Sqlite.Connection.release destConn "sync"
           else do
-            Sqlite.Connection.rollback destConn "sync"
+            Sqlite.Connection.rollbackTo destConn "sync"
             Sqlite.Connection.release destConn "sync"
         error (show e)
   -- (we don't write to the src anyway)
-  liftIO (Sqlite.Connection.rollback srcConn "sync")
+  liftIO (Sqlite.Connection.rollbackTo srcConn "sync")
   liftIO (Sqlite.Connection.release srcConn "sync")
   either onFailure onSuccess result
 

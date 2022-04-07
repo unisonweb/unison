@@ -55,10 +55,18 @@ module Unison.Sqlite.Connection
     vacuumInto,
 
     -- * Low-level operations
+
+    -- ** Transaction
+    begin,
+    beginImmediate,
+    commit,
+    rollback,
+
+    -- ** Savepoint
     withSavepoint,
     withSavepointIO,
     savepoint,
-    rollback,
+    rollbackTo,
     release,
 
     -- * Exceptions
@@ -464,6 +472,26 @@ vacuumInto conn file =
 
 -- Low-level
 
+-- | @BEGIN@
+begin :: Connection -> IO ()
+begin conn =
+  execute_ conn "BEGIN"
+
+-- | @BEGIN IMMEDIATE@
+beginImmediate :: Connection -> IO ()
+beginImmediate conn =
+  execute_ conn "BEGIN IMMEDIATE"
+
+-- | @COMMIT@
+commit :: Connection -> IO ()
+commit conn =
+  execute_ conn "COMMIT"
+
+-- | @ROLLBACK@
+rollback :: Connection -> IO ()
+rollback conn =
+  execute_ conn "ROLLBACK"
+
 -- | Perform an action within a named savepoint. The action is provided a rollback action.
 withSavepoint :: MonadUnliftIO m => Connection -> Text -> (m () -> m a) -> m a
 withSavepoint conn name action =
@@ -476,13 +504,13 @@ withSavepointIO conn name action = do
   uninterruptibleMask \restore -> do
     savepoint conn name
     result <-
-      restore (action doRollback) `onException` do
-        doRollback
+      restore (action doRollbackTo) `onException` do
+        doRollbackTo
         doRelease
     doRelease
     pure result
   where
-    doRollback = rollback conn name
+    doRollbackTo = rollbackTo conn name
     doRelease = release conn name
 
 -- | @SAVEPOINT@
@@ -491,8 +519,8 @@ savepoint conn name =
   execute_ conn (Sql ("SAVEPOINT " <> name))
 
 -- | @ROLLBACK TO@
-rollback :: Connection -> Text -> IO ()
-rollback conn name =
+rollbackTo :: Connection -> Text -> IO ()
+rollbackTo conn name =
   execute_ conn (Sql ("ROLLBACK TO " <> name))
 
 -- | @RELEASE@

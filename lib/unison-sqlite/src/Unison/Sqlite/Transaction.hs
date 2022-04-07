@@ -3,6 +3,7 @@ module Unison.Sqlite.Transaction
     Transaction,
     runTransaction,
     runTransactionWithAbort,
+    runWriteTransaction,
     unsafeUnTransaction,
     savepoint,
     idempotentIO,
@@ -80,35 +81,22 @@ newtype Transaction a
 runTransaction :: MonadIO m => Connection -> Transaction a -> m a
 runTransaction conn (Transaction f) = liftIO do
   uninterruptibleMask \restore -> do
-    Connection.execute_ conn "BEGIN"
+    Connection.begin conn
     result <-
       -- Catch all exceptions (sync or async), because we want to ROLLBACK the BEGIN no matter what.
       trySyncOrAsync @_ @SomeException (restore (f conn)) >>= \case
         Left exception -> do
-          ignoringExceptions rollback
+          ignoringExceptions (Connection.rollback conn)
           case fromException exception of
-            Just SqliteBusyException ->
-              let loop microseconds = do
-                    restore (threadDelay microseconds)
-                    try @_ @SqliteQueryException (Connection.execute_ conn "BEGIN IMMEDIATE") >>= \case
-                      Left SqliteBusyException -> loop (microseconds * 2)
-                      Left exception -> throwIO exception
-                      Right () -> restore (f conn) `onException` ignoringExceptions rollback
-               in loop 100_000
+            Just SqliteBusyException -> do
+              restore (threadDelay 100_000)
+              runWriteTransaction_ restore 200_000 conn f
             _ -> throwIO exception
         Right result -> pure result
-    Connection.execute_ conn "COMMIT"
+    Connection.commit conn
     pure result
-  where
-    rollback :: IO ()
-    rollback =
-      Connection.execute_ conn "ROLLBACK"
 
-    ignoringExceptions :: IO () -> IO ()
-    ignoringExceptions action =
-      action `catchAny` \_ -> pure ()
-
--- | TODO document this
+-- | Run a transaction with a function that aborts the transaction with an exception.
 runTransactionWithAbort ::
   MonadIO m =>
   Connection ->
@@ -116,6 +104,35 @@ runTransactionWithAbort ::
   m a
 runTransactionWithAbort conn action =
   runTransaction conn (action \exception -> idempotentIO (throwIO exception))
+
+-- | Run a transaction that is known to perform at least one write.
+--
+-- The transaction is never retried, so it is (more) safe to interleave arbitrary IO actions.
+runWriteTransaction :: Connection -> ((forall x. IO x -> Transaction x) -> Transaction a) -> IO a
+runWriteTransaction conn f =
+  uninterruptibleMask \restore ->
+    runWriteTransaction_ restore 100_000 conn (unsafeUnTransaction (f idempotentIO))
+
+runWriteTransaction_ :: (forall x. IO x -> IO x) -> Int -> Connection -> (Connection -> IO a) -> IO a
+runWriteTransaction_ restore microseconds conn transaction = do
+  keepTryingToBeginImmediate restore conn microseconds
+  restore (transaction conn) `onException` ignoringExceptions (Connection.rollback conn)
+
+-- @BEGIN IMMEDIATE@ until success.
+keepTryingToBeginImmediate :: (forall x. IO x -> IO x) -> Connection -> Int -> IO ()
+keepTryingToBeginImmediate restore conn =
+  let loop microseconds =
+        try @_ @SqliteQueryException (Connection.beginImmediate conn) >>= \case
+          Left SqliteBusyException -> do
+            restore (threadDelay microseconds)
+            loop (microseconds * 2)
+          Left exception -> throwIO exception
+          Right () -> pure ()
+   in loop
+
+ignoringExceptions :: IO () -> IO ()
+ignoringExceptions action =
+  action `catchAny` \_ -> pure ()
 
 -- | Unwrap the transaction newtype, throwing away the sending of BEGIN/COMMIT + automatic retry.
 unsafeUnTransaction :: Transaction a -> Connection -> IO a
