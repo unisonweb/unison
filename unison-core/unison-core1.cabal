@@ -56,7 +56,6 @@ library
       Unison.Util.Alphabetical
       Unison.Util.Components
       Unison.Util.List
-      Unison.Util.Monoid
       Unison.Var
       Unison.Var.RefNamed
       Unison.WatchKind

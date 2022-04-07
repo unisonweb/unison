@@ -24,6 +24,8 @@ import qualified U.Util.Hash as Hash
 import Unison.Prelude
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
+import Unison.Util.Monoid (foldMapM)
+import qualified Unison.Util.Set as Set
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
@@ -130,18 +132,101 @@ upload conn repoName =
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
 
+pull :: Connection -> Share.RepoPath -> IO (Either PullError CausalHash)
+pull _conn _repoPath = undefined
+
+download :: Connection -> Share.RepoName -> NESet Share.HashJWT -> IO ()
+download conn repoName =
+  let loop :: NESet Share.HashJWT -> IO ()
+      loop hashes0 = do
+        let elaborateHashes :: Set Share.HashJWT -> Set Share.HashJWT -> IO (Maybe (NESet Share.HashJWT))
+            elaborateHashes hashes outputs =
+              case Set.minView hashes of
+                Nothing -> pure (NESet.nonEmptySet outputs)
+                Just (hash, hashes') ->
+                  let inMainStorage = undefined
+                      inTempStorage = undefined
+                      directDepsOf = undefined
+                   in inMainStorage hash >>= \case
+                        False ->
+                          inTempStorage hash >>= \case
+                            False -> elaborateHashes hashes' (Set.insert hash outputs)
+                            True -> elaborateHashes (Set.union (directDepsOf hash) hashes') outputs
+                        True -> elaborateHashes hashes' outputs
+
+        elaborateHashes (NESet.toSet hashes0) Set.empty >>= \case
+          Nothing -> pure ()
+          Just hashes1 -> do
+            Share.DownloadEntitiesResponse entities <-
+              _downloadEntities
+                Share.DownloadEntitiesRequest
+                  { repoName,
+                    hashes = hashes1
+                  }
+
+            missingDependencies0 <-
+              NEMap.toList entities & foldMapM \(hash, entity) -> do
+                let inMainStorage = undefined
+                let inTempStorage = undefined
+                let putInMainStorage hash entity = undefined
+                let putInTempStorage hash entity = undefined
+                let insertMissingDependencies = undefined
+                -- select dependency
+                -- from temp_entity_missing_dependency
+                -- where dependent = <this entity>
+                let getTempEntityMissingDependencies = undefined
+                let directDepsOf :: Share.Entity Text Share.Hash Share.HashJWT -> Set Share.HashJWT
+                    directDepsOf = undefined
+
+                inMainStorage hash >>= \case
+                  True -> pure Set.empty
+                  False ->
+                    inTempStorage entity >>= \case
+                      True -> getTempEntityMissingDependencies entity
+                      False -> do
+                        missingDependencies <- Set.filterM inMainStorage (directDepsOf entity)
+                        if Set.null missingDependencies
+                          then putInMainStorage hash entity
+                          else do
+                            putInTempStorage hash entity
+                            insertMissingDependencies hash missingDependencies
+                        pure missingDependencies
+
+            case NESet.nonEmptySet missingDependencies0 of
+              Nothing -> pure ()
+              Just missingDependencies -> loop missingDependencies
+   in loop
+
+-- Do this at the top of the procedure.
+--
+-- deps0 = hashes we kinda-maybe think we should request
+-- deps1 = hashes we will request
+--
+--   frobnicate : Set Hash -> Set Hash ->{IO} Set Hash
+--   frobnicate deps0 deps1 =
+--     case deps0 of
+--       Nothing -> deps1
+--       Just (dep0, deps0) ->
+--         cases
+--           inMainStorage dep0 -> frobnicate deps0 deps1
+--           inTempStorage dep0 -> frobnicate (deps0 + directDepsOf dep0) deps1
+--           otherwise          -> frobnicate deps0 (deps1 + {dep0})
+--
 -- If we just got #thing from the server,
 --   If we already have the entity in the main database, we're done.
 --     - This should't happen, why would the server have sent us this?
 --
---   Otherwise, if we already have the entity in temp_entity, ???
+--   Otherwise, if we already have the entity in temp_entity,
+--     1. Add to our work queue requesting all of its deps that we don't have in main storage
 --
 --   Otherwise (if we don't have it at all),
---     1. Extract dependencies #dep1, #dep2, #dep3 from #thing blob.
---     2. Filter down to just the dependencies we don't have. <-- "have" means in either real/temp storage.
---     3. If that's {}, then store it in the main table.
---     4. If that's (say) {#dep1, #dep2},
---         1. Add (#thing, #dep1), (#thing, #dep2) to temp_entity_missing_dependency
+--     1. Deserialize blob and extract dependencies #dep1, #dep2, #dep3 from #thing blob.
+--     2. If the {set of dependencies we don't have in the object/causal table} is empty, then store in object/causal.
+--     3. Otherwise,
+--         - Insert into temp_entity
+--         - For each #dependency in the {set of dependencies we don't have in the object/causal table}
+--             insert each (#thing, #dependency) into temp_entity_missing_dependency
+--         - Add to our work queue requesting {set of dependencies we don't have in object/causal}
 --
 --  Note: beef up insert_entity procedure to flush temp_entity table
 --    1. When inserting object #foo,
@@ -151,7 +236,6 @@ upload conn repoName =
 --    3. Delete #foo from temp_entity (if it's there)
 --    4. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
 --        insert_entity them.
---
 
 ------------------------------------------------------------------------------------------------------------------------
 --
@@ -189,9 +273,6 @@ type Transaction a = ()
 expectHash :: HashId -> Transaction Hash.Hash
 expectHash = undefined
 
-pull :: Connection -> Share.RepoPath -> IO (Either PullError CausalHash)
-pull _conn _repoPath = undefined
-
 -- FIXME rename, etc
 resolveHashToEntity :: Connection -> Share.Hash -> IO (Share.Entity Text Share.Hash Share.Hash)
 resolveHashToEntity = undefined
@@ -214,6 +295,9 @@ _getCausalHashByPath = undefined
 
 _updatePath :: Share.UpdatePathRequest -> IO UpdatePathResponse
 _updatePath = undefined
+
+_downloadEntities :: Share.DownloadEntitiesRequest -> IO Share.DownloadEntitiesResponse
+_downloadEntities = undefined
 
 _uploadEntities :: Share.UploadEntitiesRequest -> IO UploadEntitiesResponse
 _uploadEntities = undefined
