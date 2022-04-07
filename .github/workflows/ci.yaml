@@ -123,7 +123,7 @@ jobs:
       - name: unison-cli tests
         run: stack --no-terminal build --fast --test unison-cli
       - name: unison-parser-typechecker tests
-        run: stack --no-terminal exec tests
+        run: stack --no-terminal build --fast --test unison-parser-typechecker
       - name: unison-util-relation tests
         run: stack --no-terminal build --fast --test unison-util-relation
       - name: transcripts
@@ -135,5 +135,5 @@ jobs:
           git diff --cached --ignore-cr-at-eol --exit-code
       - name: prettyprint-round-trip
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
-      - name: integration-tests
-        run: stack --no-terminal exec integration-tests
+      - name: cli-integration-tests
+        run: stack --no-terminal exec cli-integration-tests
