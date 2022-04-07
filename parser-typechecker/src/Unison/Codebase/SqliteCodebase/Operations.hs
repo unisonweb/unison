@@ -592,14 +592,7 @@ branchHashesByPrefix sh = do
   cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
   pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 
-{-
-sqlLca :: MonadIO m => Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)
-sqlLca h1 h2 =
-  liftIO $
-    withConnection (debugName ++ ".lca.left") root $ \c1 -> do
-      withConnection (debugName ++ ".lca.right") root $ \c2 -> do
-        Sqlite.runDB conn
-          . (fmap . fmap) Cv.causalHash2to1
-          $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
-
--}
+sqlLca :: Branch.Hash -> Branch.Hash -> Transaction (Maybe Branch.Hash)
+sqlLca h1 h2 = do
+  h3 <- Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
+  pure (Cv.causalHash2to1 <$> h3)

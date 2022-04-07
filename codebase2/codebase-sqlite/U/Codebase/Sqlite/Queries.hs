@@ -157,7 +157,6 @@ import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
 import Unison.Sqlite
-import qualified Unison.Sqlite.Connection as Connection
 
 -- * main squeeze
 
@@ -878,11 +877,10 @@ before chId1 chId2 = queryOneCol sql (chId2, chId1)
   where
     sql = fromString $ "SELECT EXISTS (" ++ ancestorSql ++ " WHERE ancestor.id = ?)"
 
--- | the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
-lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
-lca x y cx cy =
-  Connection.queryStreamCol cx sql (Only x) \nextX ->
-    Connection.queryStreamCol cy sql (Only y) \nextY -> do
+lca :: CausalHashId -> CausalHashId -> Transaction (Maybe CausalHashId)
+lca x y =
+  queryStreamCol sql (Only x) \nextX ->
+    queryStreamCol sql (Only y) \nextY -> do
       let getNext = (,) <$> nextX <*> nextY
           loop2 seenX seenY =
             getNext >>= \case

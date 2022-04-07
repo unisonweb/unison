@@ -1135,11 +1135,11 @@ deserializePatchObject id = do
   when debug $ traceM $ "Operations.deserializePatchObject " ++ show id
   Q.expectPatchObject (Db.unPatchObjectId id) decodePatchFormat
 
-lca :: CausalHash -> CausalHash -> Connection -> Connection -> Transaction (Maybe CausalHash)
-lca h1 h2 c1 c2 = runMaybeT do
+lca :: CausalHash -> CausalHash -> Transaction (Maybe CausalHash)
+lca h1 h2 = runMaybeT do
   chId1 <- MaybeT $ Q.loadCausalHashIdByCausalHash h1
   chId2 <- MaybeT $ Q.loadCausalHashIdByCausalHash h2
-  chId3 <- MaybeT . idempotentIO $ Q.lca chId1 chId2 c1 c2
+  chId3 <- MaybeT $ Q.lca chId1 chId2
   lift (Q.expectCausalHash chId3)
 
 before :: CausalHash -> CausalHash -> Transaction (Maybe Bool)
