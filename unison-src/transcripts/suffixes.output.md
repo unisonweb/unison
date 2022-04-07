@@ -143,7 +143,7 @@ Note that we can always still view indirect dependencies by using more name segm
   Hash:   #nhup096n2s
   Names:  lib.distributed.lib.baz.qux
   
-  Tip: Try `names.global #abc123` to see more results.
+  Tip: Use `names.global` to see more results.
 
 ```
 ## Corner cases
