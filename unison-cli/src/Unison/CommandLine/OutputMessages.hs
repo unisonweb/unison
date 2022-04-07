@@ -857,7 +857,7 @@ notifyUser dir o = case o of
       globalTip =
         if global
           then mempty
-          else (tip $ "Try " <> IP.makeExample (IP.names True) ["#abc123"] <> " to see more results.")
+          else (tip $ "Use " <> IP.makeExample (IP.names True) [] <> " to see more results.")
       formatTerms tms =
         P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms)
         where
