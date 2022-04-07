@@ -839,15 +839,25 @@ notifyUser dir o = case o of
     listOfDefinitions ppe detailed results
   ListOfLinks ppe results ->
     listOfLinks ppe [(name, tm) | (name, _ref, tm) <- results]
-  ListNames _len [] [] ->
-    pure . P.callout "😶" $
-      P.wrap "I couldn't find anything by that name."
-  ListNames len types terms ->
-    pure . P.sepNonEmpty "\n\n" $
-      [ formatTypes types,
-        formatTerms terms
-      ]
+  ListNames global len types terms ->
+    if null types && null terms
+      then
+        pure . P.callout "😶" $
+          P.sepNonEmpty "\n\n" $
+            [ P.wrap "I couldn't find anything by that name.",
+              globalTip
+            ]
+      else
+        pure . P.sepNonEmpty "\n\n" $
+          [ formatTypes types,
+            formatTerms terms,
+            globalTip
+          ]
     where
+      globalTip =
+        if global
+          then mempty
+          else (tip $ "Try " <> IP.makeExample (IP.names global) ["#abc123"] <> " to see more results.")
       formatTerms tms =
         P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms)
         where

@@ -949,8 +949,8 @@ loop = do
 
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
                 fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
-            NamesI thing -> do
-              ns0 <- basicParseNames
+            NamesI global thing -> do
+              ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
               let ns = NamesWithHistory ns0 mempty
                   terms = NamesWithHistory.lookupHQTerm thing ns
                   types = NamesWithHistory.lookupHQType thing ns
@@ -963,7 +963,7 @@ loop = do
                   types' = Set.map go types
                     where
                       go r = (r, NamesWithHistory.typeName hqLength r printNames)
-              respond $ ListNames hqLength (toList types') (toList terms')
+              respond $ ListNames global hqLength (toList types') (toList terms')
             LinkI mdValue srcs -> do
               manageLinks False srcs [mdValue] Metadata.insert
               syncRoot

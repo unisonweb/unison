@@ -1752,23 +1752,25 @@ unlink =
         _ -> Left (I.help unlink)
     )
 
-names :: InputPattern
-names =
+names :: Input.IsGlobal -> InputPattern
+names isGlobal =
   InputPattern
-    "names"
+    cmdName
     []
     I.Visible
     [(Required, definitionQueryArg)]
-    "`names foo` shows the hash and all known names for `foo`."
+    (P.wrap $ makeExample (names isGlobal) ["foo"] <> " shows the hash and all known names for `foo`.")
     ( \case
         [thing] -> case HQ.fromString thing of
-          Just hq -> Right $ Input.NamesI hq
+          Just hq -> Right $ Input.NamesI isGlobal hq
           Nothing ->
             Left $
               "I was looking for one of these forms: "
                 <> P.blue "foo .foo.bar foo#abc #abcde .foo.bar#asdf"
-        _ -> Left (I.help names)
+        _ -> Left (I.help (names isGlobal))
     )
+  where
+    cmdName = if isGlobal then "names.global" else "names"
 
 dependents, dependencies :: InputPattern
 dependents =
@@ -2046,7 +2048,8 @@ validInputs =
       squashMerge,
       previewMergeLocal,
       diffNamespace,
-      names,
+      names True, -- names.global
+      names False, -- names
       push,
       pushCreate,
       pull,
