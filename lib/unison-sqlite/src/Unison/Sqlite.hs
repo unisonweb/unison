@@ -18,6 +18,8 @@ module Unison.Sqlite
     -- * Transaction interface
     Transaction,
     runTransaction,
+    runTransactionWithAbort,
+    unsafeUnTransaction,
     savepoint,
     idempotentIO,
 

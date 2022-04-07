@@ -2,6 +2,8 @@ module Unison.Sqlite.Transaction
   ( -- * Transaction management
     Transaction,
     runTransaction,
+    runTransactionWithAbort,
+    unsafeUnTransaction,
     savepoint,
     idempotentIO,
 
@@ -74,10 +76,6 @@ newtype Transaction a
   -- Omit MonadThrow instance so we always throw SqliteException (via *Check) with lots of context
   deriving (Applicative, Functor, Monad) via (ReaderT Connection IO)
 
-unTransaction :: Transaction a -> Connection -> IO a
-unTransaction (Transaction action) =
-  action
-
 -- | Run a transaction on the given connection.
 runTransaction :: MonadIO m => Connection -> Transaction a -> m a
 runTransaction conn (Transaction f) = liftIO do
@@ -109,6 +107,20 @@ runTransaction conn (Transaction f) = liftIO do
     ignoringExceptions :: IO () -> IO ()
     ignoringExceptions action =
       action `catchAny` \_ -> pure ()
+
+-- | TODO document this
+runTransactionWithAbort ::
+  MonadIO m =>
+  Connection ->
+  ((forall e x. Exception e => e -> Transaction x) -> Transaction a) ->
+  m a
+runTransactionWithAbort conn action =
+  runTransaction conn (action \exception -> idempotentIO (throwIO exception))
+
+-- | Unwrap the transaction newtype, throwing away the sending of BEGIN/COMMIT + automatic retry.
+unsafeUnTransaction :: Transaction a -> Connection -> IO a
+unsafeUnTransaction (Transaction action) =
+  action
 
 -- | Perform an atomic sub-computation within a transaction; if it returns 'Left', it's rolled back.
 savepoint :: Transaction (Either a a) -> Transaction a
@@ -158,7 +170,7 @@ queryStreamRow ::
 queryStreamRow s params callback =
   Transaction \conn ->
     Connection.queryStreamRow conn s params \next ->
-      unTransaction (callback (idempotentIO next)) conn
+      unsafeUnTransaction (callback (idempotentIO next)) conn
 
 queryStreamCol ::
   forall a b r.

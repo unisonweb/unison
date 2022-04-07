@@ -39,7 +39,7 @@ import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
 import Unison.Prelude
-import Unison.Sqlite (Connection, Transaction, runTransaction)
+import Unison.Sqlite (Connection, Transaction, unsafeUnTransaction)
 
 data Entity
   = O ObjectId
@@ -415,5 +415,5 @@ runSrc,
     (MonadIO m, MonadReader Env m) =>
     Transaction a ->
     m a
-runSrc ma = Reader.reader srcDB >>= flip runTransaction ma
-runDest ma = Reader.reader destDB >>= flip runTransaction ma
+runSrc ma = Reader.reader srcDB >>= liftIO . unsafeUnTransaction ma
+runDest ma = Reader.reader destDB >>= liftIO . unsafeUnTransaction ma

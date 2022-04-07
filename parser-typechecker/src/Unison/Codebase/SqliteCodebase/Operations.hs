@@ -539,15 +539,23 @@ standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
 clearWatches :: Transaction ()
 clearWatches = Ops.clearWatches
 
-termsOfTypeImpl :: Reference -> Transaction (Set Referent.Id)
-termsOfTypeImpl r =
+termsOfTypeImpl ::
+  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  Reference ->
+  Transaction (Set Referent.Id)
+termsOfTypeImpl doGetDeclType r =
   Ops.termsHavingType (Cv.reference1to2 r)
-    >>= Set.traverse (Cv.referentid2to1 getDeclType)
+    >>= Set.traverse (Cv.referentid2to1 doGetDeclType)
 
-termsMentioningTypeImpl :: Reference -> Transaction (Set Referent.Id)
-termsMentioningTypeImpl r =
+termsMentioningTypeImpl ::
+  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  Reference ->
+  Transaction (Set Referent.Id)
+termsMentioningTypeImpl doGetDeclType r =
   Ops.termsMentioningType (Cv.reference1to2 r)
-    >>= Set.traverse (Cv.referentid2to1 getDeclType)
+    >>= Set.traverse (Cv.referentid2to1 doGetDeclType)
 
 hashLength :: Transaction Int
 hashLength = pure 10
@@ -570,12 +578,16 @@ termReferencesByPrefix = defnReferencesByPrefix OT.TermComponent
 declReferencesByPrefix :: ShortHash -> Transaction (Set Reference.Id)
 declReferencesByPrefix = defnReferencesByPrefix OT.DeclComponent
 
-referentsByPrefix :: ShortHash -> Transaction (Set Referent.Id)
-referentsByPrefix SH.Builtin {} = pure mempty
-referentsByPrefix (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) cid) = do
+referentsByPrefix ::
+  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  ShortHash ->
+  Transaction (Set Referent.Id)
+referentsByPrefix _doGetDeclType SH.Builtin {} = pure mempty
+referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) cid) = do
   termReferents <-
     Ops.termReferentsByPrefix prefix cycle
-      >>= traverse (Cv.referentid2to1 getDeclType)
+      >>= traverse (Cv.referentid2to1 doGetDeclType)
   declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
   let declReferents =
         [ Referent.ConId (ConstructorReference (Reference.Id (Cv.hash2to1 h) pos) (fromIntegral cid)) (Cv.decltype2to1 ct)
@@ -596,3 +608,12 @@ sqlLca :: Branch.Hash -> Branch.Hash -> Transaction (Maybe Branch.Hash)
 sqlLca h1 h2 = do
   h3 <- Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
   pure (Cv.causalHash2to1 <$> h3)
+
+-- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
+termExists, declExists :: Hash -> Transaction Bool
+termExists = fmap isJust . Q.loadObjectIdForPrimaryHash . Cv.hash1to2
+declExists = termExists
+
+before :: Branch.Hash -> Branch.Hash -> Transaction (Maybe Bool)
+before h1 h2 =
+  Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)

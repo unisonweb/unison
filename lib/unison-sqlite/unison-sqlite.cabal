@@ -48,6 +48,7 @@ library
       NumericUnderscores
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
