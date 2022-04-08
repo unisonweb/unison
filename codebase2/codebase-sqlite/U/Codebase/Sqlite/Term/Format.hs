@@ -42,6 +42,9 @@ newtype LocallyIndexedComponent' t d
   = LocallyIndexedComponent (Vector (LocalIds' t d, Term, Type))
   deriving (Show)
 
+newtype SyncLocallyIndexedComponent' t d
+  = SyncLocallyIndexedComponent (Vector (LocalIds' t d, ByteString))
+
 {-
 message = "hello, world"     -> ABT { ... { Term.F.Text "hello, world" } }    -> hashes to (#abc, 0)
 program = printLine message  -> ABT { ... { Term.F.App (ReferenceBuiltin ##io.PrintLine) (Reference #abc 0) } } -> hashes to (#def, 0)
@@ -109,8 +112,13 @@ type FTT = Type.F' Sqlite.Reference
 
 type TypeOfTerm = ABT.Term FTT Symbol ()
 
-data TermFormat
-  = Term LocallyIndexedComponent
+type TermFormat = TermFormat' TextId ObjectId
+
+data TermFormat' t d = Term (LocallyIndexedComponent' t d)
+
+type SyncTermFormat = SyncLocallyIndexedComponent' TextId ObjectId
+
+data SyncTermFormat' t d = SyncTerm (SyncLocallyIndexedComponent' t d)
 
 data WatchResultFormat
   = WatchResult WatchLocalIds Term

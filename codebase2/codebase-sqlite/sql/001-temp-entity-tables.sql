@@ -28,6 +28,13 @@ create table temp_entity (
 -- A many-to-many relationship between `temp_entity` (entities we can't yet store due to missing dependencies), and the
 -- non-empty set of hashes of each entity's dependencies.
 --
+-- We store with each missing dependency the JWT that Unison Share provided us to download that dependency. For
+-- downloading a particular dependency #bar, we only need one JWT, even if it's in the table multiple times. (In fact,
+-- in this case, there is one "best" JWT - the one with the latest expiry time).
+--
+-- The JWTs are also encoded in the local ids part of entity itself (`temp_entity.blob`), but we don't want to have to
+-- keep going back there there to decode during a pull.
+--
 -- For example, if we wanted to store term #foo, but couldn't because it depends on term #bar which we don't have yet,
 -- we would end up with the following rows.
 --
@@ -39,14 +46,16 @@ create table temp_entity (
 -- +------------------------+
 --
 --  temp_entity_missing_dependency
--- +------------------------+
--- | dependent | dependency |
--- +------------------------+
--- | #foo      | #bar       |
--- +------------------------+
+-- +-----------------------------------+
+-- | dependent | dependency | jwt      |
+-- |===================================|
+-- | #foo      | #bar       | aT.Eb.cx |
+-- +-----------------------------------+
 create table temp_entity_missing_dependency (
   dependent text not null references temp_entity(hash),
-  dependency text not null
+  dependency text not null,
+  jwt text not null,
+  unique (dependent, dependency)
 );
 create index temp_entity_missing_dependency_ix_dependent on temp_entity_missing_dependency (dependent);
 create index temp_entity_missing_dependency_ix_dependency on temp_entity_missing_dependency (dependency);

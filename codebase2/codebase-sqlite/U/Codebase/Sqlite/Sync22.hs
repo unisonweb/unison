@@ -143,6 +143,8 @@ trySync tCache hCache oCache cCache = \case
             -- revisited when there are more formats.
             -- (or maybe i'll learn something by implementing sync for patches and namespaces,
             -- which have two formats already)
+            --
+            -- todo: replace all this with something that de/serializes to SyncTermFormat
             (fmt, unzip -> (localIds, bytes)) <-
               lift case flip runGetS bytes do
                 tag <- getWord8

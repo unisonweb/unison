@@ -9,17 +9,24 @@ module Unison.Share.Sync
   )
 where
 
+import Control.Monad.Extra ((||^))
+import Control.Monad.Reader (ReaderT, runReaderT)
 import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import U.Codebase.HashTags (CausalHash (unCausalHash))
+import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId (HashId)
+import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
+import qualified Data.Set.Lens as Lens (setOf)
+import Data.Generics.Product.Typed (typed)
 import Unison.Prelude
 import qualified Unison.Sync.Types as Share
+import qualified Unison.Sync.Types as Share.LocalIds (LocalIds (..))
 import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
@@ -140,14 +147,39 @@ decodeHashJWT = undefined
 
 download :: Connection -> Share.RepoName -> NESet Share.HashJWT -> IO ()
 download conn repoName = do
+  let runDB :: ReaderT Connection IO a -> IO a
+      runDB action = runReaderT action conn
   let inMainStorage :: Share.Hash -> IO Bool
-      inMainStorage = undefined
+      inMainStorage (Share.Hash b32) = runDB do
+        -- first get hashId if exists
+        Q.loadHashId (Base32Hex.UnsafeFromText b32) >>= \case
+          Nothing -> pure False
+          -- then check if is causal hash or if object exists for hash id
+          Just hashId -> Q.isCausalHash hashId ||^ Q.isObjectHash hashId
   let inTempStorage :: Share.Hash -> IO Bool
-      inTempStorage = undefined
+      inTempStorage (Share.Hash b32) = runDB $ Q.tempEntityExists (Base32Hex.UnsafeFromText b32)
   let directDepsOfEntity :: Share.Entity Text Share.Hash Share.HashJWT -> Set Share.DecodedHashJWT
-      directDepsOfEntity = undefined
-  let directDepsOfHash :: Share.Hash -> Set Share.DecodedHashJWT
-      directDepsOfHash = undefined
+      directDepsOfEntity =
+        Set.map decodeHashJWT . \case
+          Share.TC (Share.TermComponent terms) -> flip foldMap terms \(localIds, _term) ->
+            Set.fromList (Share.LocalIds.hashes localIds)
+          Share.DC (Share.DeclComponent terms) -> flip foldMap terms \(localIds, _term) ->
+            Set.fromList (Share.LocalIds.hashes localIds)
+          Share.P (Share.Patch {newHashLookup}) ->
+            Set.fromList newHashLookup
+          Share.N (Share.Namespace {defnLookup, patchLookup, childLookup}) ->
+            Set.fromList defnLookup <> Set.fromList patchLookup <> Set.fromList childLookup
+          Share.C (Share.Causal {parents}) -> parents
+  {-
+  let directDepsOfEntity2 :: Share.Entity Text Share.Hash Share.HashJWT -> Set Share.DecodedHashJWT
+      directDepsOfEntity2 =
+        Lens.setOf (typed @Share.HashJWT) -}
+
+  let directDepsOfHash :: Share.Hash -> IO (Set Share.DecodedHashJWT)
+      directDepsOfHash (Share.Hash b32) = do
+        jwts <- runDB (Q.getMissingDependencyJwtsForTempEntity (Base32Hex.UnsafeFromText b32))
+        let decode = decodeHashJWT . Share.HashJWT
+        pure (Set.fromList (map decode jwts))
   let loop :: NESet Share.DecodedHashJWT -> IO ()
       loop hashes0 = do
         let elaborateHashes :: Set Share.DecodedHashJWT -> Set Share.HashJWT -> IO (Maybe (NESet Share.HashJWT))
@@ -161,9 +193,10 @@ download conn repoName = do
                         False ->
                           -- we need the entity, it's not in main or temp storage
                           elaborateHashes hashes' (Set.insert jwt outputs)
-                        True ->
+                        True -> do
                           -- entity already in temp storage
-                          elaborateHashes (Set.union (directDepsOfHash hash) hashes') outputs
+                          deps <- directDepsOfHash hash
+                          elaborateHashes (Set.union deps hashes') outputs
                     True ->
                       -- hash already in main storage
                       elaborateHashes hashes' outputs
@@ -183,7 +216,13 @@ download conn repoName = do
                 let putInMainStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
                     putInMainStorage _hash _entity = undefined
                 let putInTempStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
-                    putInTempStorage _hash _entity = undefined
+                    putInTempStorage _hash _entity = let
+                      bytes = case _entity of
+
+                      -- convert the blob to the data type we have a serializer for
+                      -- serialize the blob
+                      -- insert the blob
+                      undefined
                 let insertMissingDependencies = undefined
                 -- select dependency
                 -- from temp_entity_missing_dependency
@@ -328,8 +367,6 @@ data PullError
 --     ...
 --
 -- newtype Transaction a = Transaction { unsafeUnTransaction :: Connection -> IO a }
-
-type Connection = ()
 
 type Transaction a = ()
 

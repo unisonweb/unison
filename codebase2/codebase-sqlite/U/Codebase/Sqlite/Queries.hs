@@ -53,6 +53,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * object table
     saveObject,
+    isObjectHash,
     loadObjectById,
     loadPrimaryHashByObjectId,
     loadObjectWithTypeById,
@@ -123,6 +124,11 @@ module U.Codebase.Sqlite.Queries
     vacuum,
     garbageCollectObjectsWithoutHashes,
     garbageCollectWatchesWithoutObjects,
+
+    -- * sync temp entities
+    getMissingDependencyJwtsForTempEntity,
+    tempEntityExists,
+    insertTempEntity,
 
     -- * db misc
     createSchema,
@@ -410,6 +416,12 @@ maybeObjectIdForAnyHashId :: DB m => HashId -> m (Maybe ObjectId)
 maybeObjectIdForAnyHashId h = queryAtom sql (Only h) where sql = [here|
     SELECT object_id FROM hash_object WHERE hash_id = ?
   |]
+
+-- | Does a hash correspond to an object?
+isObjectHash :: DB m => HashId -> m Bool
+isObjectHash h = queryOne $ queryAtom sql (Only h) where sql = [here|
+  SELECT EXISTS (SELECT 1 FROM object WHERE primary_hash_id = ?)
+|]
 
 -- |All objects have corresponding hashes.
 loadPrimaryHashByObjectId :: EDB m => ObjectId -> m Base32Hex
@@ -932,6 +944,29 @@ ancestorSql =
       )
     SELECT * FROM ancestor
   |]
+
+-- * share sync / temp entities
+
+getMissingDependencyJwtsForTempEntity :: DB m => Base32Hex -> m [Text]
+getMissingDependencyJwtsForTempEntity h =
+  queryAtoms
+    [here|
+      SELECT jwt FROM temp_entity_missing_dependency
+      WHERE dependent = ?
+    |]
+    (Only h)
+
+tempEntityExists :: DB m => Base32Hex -> m Bool
+tempEntityExists h = queryOne $ queryAtom sql (Only h)
+  where
+    sql =
+      [here|
+        SELECT EXISTS (
+          SELECT 1
+          FROM temp_entity
+          WHERE hash = ?
+        )
+      |]
 
 -- * helper functions
 
