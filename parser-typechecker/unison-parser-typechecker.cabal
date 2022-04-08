@@ -187,6 +187,7 @@ library
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveGeneric
       DeriveTraversable
@@ -353,6 +354,7 @@ executable tests
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveGeneric
       DeriveTraversable
