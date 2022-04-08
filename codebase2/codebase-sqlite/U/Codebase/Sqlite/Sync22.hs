@@ -87,7 +87,7 @@ sync22 ::
     MonadError Error m
   ) =>
   Env m ->
-  m (Sync m Entity)
+  IO (Sync m Entity)
 sync22 Env {runSrc, runDest, idCacheSize = size} = do
   tCache <- Cache.semispaceCache size
   hCache <- Cache.semispaceCache size
