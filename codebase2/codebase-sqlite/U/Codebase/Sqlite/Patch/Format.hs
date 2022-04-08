@@ -1,6 +1,7 @@
 module U.Codebase.Sqlite.Patch.Format
   ( PatchFormat (..),
-    PatchLocalIds (..),
+    PatchLocalIds,
+    PatchLocalIds' (..),
     SyncPatchFormat,
     SyncPatchFormat' (..),
     applyPatchDiffs,
@@ -36,10 +37,9 @@ data PatchLocalIds' t h d = LocalIds
 type SyncPatchFormat = SyncPatchFormat' PatchObjectId TextId HashId ObjectId
 
 data SyncPatchFormat' p t h d
-  = SyncFull (PatchLocalIds t h d) ByteString
-  -- | p is the identity of the thing that the diff is relative to
-  | SyncDiff p (PatchLocalIds t h d) ByteString
-
+  = SyncFull (PatchLocalIds' t h d) ByteString
+  | -- | p is the identity of the thing that the diff is relative to
+    SyncDiff p (PatchLocalIds' t h d) ByteString
 
 -- | Apply a list of patch diffs to a patch, left to right.
 applyPatchDiffs :: Patch -> [PatchDiff] -> Patch

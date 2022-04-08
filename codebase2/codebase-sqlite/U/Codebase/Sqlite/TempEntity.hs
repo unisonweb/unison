@@ -1,18 +1,18 @@
 module U.Codebase.Sqlite.TempEntity where
 
-data TempEntity text noSyncHash hash
-  = TC (TermFormat' text hash)
-  | DC (DeclComponent text hash)
-  | P (Patch text noSyncHash hash)
-  | N (Namespace text hash)
-  | C (Causal hash)
-  deriving stock (Show, Eq, Ord)
+import qualified U.Codebase.Sqlite.Decl.Format as Decl
+import qualified U.Codebase.Sqlite.Patch.Format as Patch
+import qualified U.Codebase.Sqlite.Term.Format as Term
+import U.Util.Base32Hex (Base32Hex)
+import Unison.Prelude
 
-type TempTermFormat text hash =
-  TermFormat
+-- should just newtype this somewhere
+type HashJWT = Text
 
-data TempDeclFormat text hash
-  = Decl [(LocalIds' text hash, ByteString)]
+data TempEntity
+  = TC (Term.SyncTermFormat' Text HashJWT)
+  | DC (Decl.SyncDeclFormat' Text HashJWT)
+  | P (Patch.SyncPatchFormat' HashJWT Text Base32Hex HashJWT)
 
-type TempPatchFormat text noSyncHash hash =
-  SyncPatchFormat' hash text noSyncHash hash
+--  | N (Namespace text hash)
+--  | C (Causal hash)

@@ -128,7 +128,7 @@ module U.Codebase.Sqlite.Queries
     -- * sync temp entities
     getMissingDependencyJwtsForTempEntity,
     tempEntityExists,
-    insertTempEntity,
+    -- insertTempEntity,
 
     -- * db misc
     createSchema,

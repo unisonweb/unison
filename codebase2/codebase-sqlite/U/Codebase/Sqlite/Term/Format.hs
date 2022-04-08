@@ -116,7 +116,7 @@ type TermFormat = TermFormat' TextId ObjectId
 
 data TermFormat' t d = Term (LocallyIndexedComponent' t d)
 
-type SyncTermFormat = SyncLocallyIndexedComponent' TextId ObjectId
+type SyncTermFormat = SyncTermFormat' TextId ObjectId
 
 data SyncTermFormat' t d = SyncTerm (SyncLocallyIndexedComponent' t d)
 
