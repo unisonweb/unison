@@ -5,9 +5,9 @@ import U.Codebase.Sqlite.DbId (HashVersion (..), SchemaVersion (..))
 import qualified U.Codebase.Sqlite.Queries as Q
 import Unison.Codebase (Codebase)
 import Unison.Codebase.SqliteCodebase.Migrations.Errors (MigrationError (IncorrectStartingSchemaVersion))
+import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import Unison.Var (Var)
-import Unison.Prelude
 import qualified UnliftIO
 
 -- | The 1 to 2 migration kept around hash objects of hash version 1, unfortunately this
@@ -26,10 +26,21 @@ import qualified UnliftIO
 -- This migration drops all the v1 hash objects to avoid this issue, since these hash objects
 -- weren't being used for anything anyways.
 migrateSchema2To3 :: forall a m v. (MonadUnliftIO m, Var v) => Sqlite.Connection -> Codebase m v a -> m (Either MigrationError ())
-migrateSchema2To3 conn _ = UnliftIO.try . flip runReaderT conn $
-  undefined
-  -- Sqlite.withSavepoint "MIGRATE_SCHEMA_2_TO_3" $ \_rollback -> do
-  --   version <- Q.schemaVersion
-  --   when (version /= 2) $ UnliftIO.throwIO (IncorrectStartingSchemaVersion version)
-  --   Q.removeHashObjectsByHashingVersion (HashVersion 1)
-  --   Q.setSchemaVersion (SchemaVersion 3)
+migrateSchema2To3 conn _ =
+  UnliftIO.try . flip runReaderT conn $
+    undefined
+
+-- Sqlite.withSavepoint "MIGRATE_SCHEMA_2_TO_3" $ \_rollback -> do
+--   version <- Q.schemaVersion
+--   when (version /= 2) $ UnliftIO.throwIO (IncorrectStartingSchemaVersion version)
+--   Q.removeHashObjectsByHashingVersion (HashVersion 1)
+--   Q.setSchemaVersion (SchemaVersion 3)
+
+migrateSchema2To3' :: MonadUnliftIO m => Sqlite.Connection -> m (Either MigrationError ())
+migrateSchema2To3' conn =
+  UnliftIO.try do
+    Sqlite.runTransactionWithAbort conn \abort -> do
+      version <- Q.schemaVersion
+      when (version /= 2) $ abort (IncorrectStartingSchemaVersion version)
+      Q.removeHashObjectsByHashingVersion (HashVersion 1)
+      Q.setSchemaVersion (SchemaVersion 3)

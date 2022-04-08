@@ -7,66 +7,29 @@
 -- are unified with non-sqlite operations in the Codebase interface, like 'appendReflog'.
 module Unison.Codebase.SqliteCodebase.Operations where
 
-import qualified Control.Concurrent
-import Control.Monad.Except (ExceptT, runExceptT, throwError)
-import qualified Control.Monad.Except as Except
-import qualified Control.Monad.Extra as Monad
-import Control.Monad.Reader (ReaderT (runReaderT))
-import Control.Monad.State (MonadState)
-import qualified Control.Monad.State as State
 import Data.Bifunctor (Bifunctor (bimap), second)
 import Data.Bitraversable (bitraverse)
-import qualified Data.Char as Char
 import Data.Either.Extra ()
 import qualified Data.List as List
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import qualified Data.Map as Map
-import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Data.Text.IO as TextIO
-import qualified System.Console.ANSI as ANSI
-import System.FilePath ((</>))
-import qualified System.FilePath as FilePath
-import qualified System.FilePath.Posix as FilePath.Posix
-import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
+import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
-import qualified U.Codebase.Sqlite.Sync22 as Sync22
-import qualified U.Codebase.Sync as Sync
-import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
-import qualified U.Util.Monoid as Monoid
-import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtins
-import Unison.Codebase (Codebase, CodebasePath)
-import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
-import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
-import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo (..), printWriteRepo, writeToRead)
-import qualified Unison.Codebase.GitError as GitError
-import qualified Unison.Codebase.Init as Codebase
-import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
-import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
-import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
-import Unison.Codebase.SqliteCodebase.Migrations (ensureCodebaseIsUpToDate)
-import Unison.Codebase.SqliteCodebase.Paths
-import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
-import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (LocalOrRemote (..), PushGitBranchOpts (..))
-import qualified Unison.Codebase.Type as C
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
@@ -81,9 +44,8 @@ import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
-import Unison.Sqlite (Connection, Transaction)
+import Unison.Sqlite (Transaction)
 import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sqlite.Connection as Sqlite.Connection
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -91,9 +53,6 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
-import UnliftIO (catchIO, finally, throwIO, try)
-import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
-import UnliftIO.Exception (catch)
 import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------
