@@ -241,6 +241,7 @@ library
     , hashable
     , hashtables
     , haskeline
+    , http-client
     , http-media
     , http-types
     , lens

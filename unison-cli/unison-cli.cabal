@@ -59,6 +59,7 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.Sync.HTTP
       Unison.Util.HTTP
   other-modules:
       Paths_unison_cli
@@ -118,6 +119,8 @@ library
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , stm
     , text
     , these
@@ -128,6 +131,7 @@ library
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -206,6 +210,8 @@ executable cli-integration-tests
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , text
@@ -217,6 +223,7 @@ executable cli-integration-tests
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -289,6 +296,8 @@ executable transcripts
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , text
@@ -301,6 +310,7 @@ executable transcripts
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -375,6 +385,8 @@ executable unison
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , template-haskell
@@ -389,6 +401,7 @@ executable unison
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio
@@ -468,6 +481,8 @@ test-suite cli-tests
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , temporary
@@ -481,6 +496,7 @@ test-suite cli-tests
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-share-api
     , unison-util
     , unison-util-relation
     , unliftio

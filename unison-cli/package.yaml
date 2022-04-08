@@ -54,7 +54,9 @@ dependencies:
   - lock-file
   - jwt
   - either
-
+  - unison-share-api
+  - servant-client
+  - servant
 
 library:
   source-dirs: src

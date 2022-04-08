@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Sync.Types where
@@ -10,6 +11,7 @@ import Data.Bifunctor
 import Data.Bitraversable
 import Data.ByteArray.Encoding (Base (Base64), convertFromBase, convertToBase)
 import Data.ByteString (ByteString)
+import Data.Function ((&))
 import Data.Map.NonEmpty (NEMap)
 import Data.Set (Set)
 import Data.Set.NonEmpty (NESet)
@@ -154,6 +156,10 @@ instance ToJSON DownloadEntitiesResponse where
       [ "entities" .= entities
       ]
 
+instance FromJSON DownloadEntitiesResponse where
+  parseJSON = Aeson.withObject "DownloadEntitiesResponse" $ \obj -> do
+    DownloadEntitiesResponse <$> obj .: "entities"
+
 data UpdatePathRequest = UpdatePathRequest
   { path :: RepoPath,
     expectedHash :: Maybe TypedHash, -- Nothing requires empty history at destination
@@ -176,11 +182,33 @@ instance FromJSON UpdatePathRequest where
     newHash <- obj .: "new_hash"
     pure UpdatePathRequest {..}
 
--- | Not used in the servant API, but is a useful return type for clients to use.
 data UpdatePathResponse
-  = UpdatePathHashMismatch HashMismatch
+  = UpdatePathSuccess
+  | UpdatePathHashMismatch HashMismatch
   | UpdatePathMissingDependencies (NeedDependencies Hash)
   deriving stock (Show, Eq, Ord)
+
+jsonUnion :: ToJSON a => Text -> a -> Value
+jsonUnion typeName val =
+  Aeson.object
+    [ "type" .= String typeName,
+      "payload" .= val
+    ]
+
+instance ToJSON UpdatePathResponse where
+  toJSON = \case
+    UpdatePathSuccess -> jsonUnion "success" (Object mempty)
+    UpdatePathHashMismatch hm -> jsonUnion "hash_mismatch" hm
+    UpdatePathMissingDependencies md -> jsonUnion "missing_dependencies" md
+
+instance FromJSON UpdatePathResponse where
+  parseJSON v =
+    v & Aeson.withObject "UploadEntitiesResponse" \obj ->
+      obj .: "type" >>= Aeson.withText "type" \case
+        "success" -> pure UpdatePathSuccess
+        "hash_mismatch" -> UpdatePathHashMismatch <$> obj .: "payload"
+        "missing_dependencies" -> UpdatePathMissingDependencies <$> obj .: "payload"
+        _ -> fail "Unknown UpdatePathResponse type"
 
 data NeedDependencies hash = NeedDependencies
   { missingDependencies :: NESet hash
@@ -236,6 +264,24 @@ instance FromJSON UploadEntitiesRequest where
     repoName <- obj .: "repo_name"
     entities <- obj .: "entities"
     pure UploadEntitiesRequest {..}
+
+data UploadEntitiesResponse
+  = UploadEntitiesSuccess
+  | UploadEntitiesNeedDependencies (NeedDependencies Hash)
+  deriving stock (Show, Eq, Ord)
+
+instance ToJSON UploadEntitiesResponse where
+  toJSON = \case
+    UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
+    UploadEntitiesNeedDependencies nd -> jsonUnion "need_dependencies" nd
+
+instance FromJSON UploadEntitiesResponse where
+  parseJSON v =
+    v & Aeson.withObject "UploadEntitiesResponse" \obj ->
+      obj .: "type" >>= Aeson.withText "type" \case
+        "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
+        "success" -> pure UploadEntitiesSuccess
+        _ -> fail "Unknown UploadEntitiesResponse type"
 
 data Entity hash replacementHash text
   = TC (TermComponent hash text)

@@ -56,7 +56,7 @@ encodeFileName s =
       go ('$' : rem) = "$$" <> go rem
       go (c : rem)
         | elem @[] c "/\\:*?\"<>|" || not (Char.isPrint c && Char.isAscii c) =
-            "$x" <> encodeHex [c] <> "$" <> go rem
+          "$x" <> encodeHex [c] <> "$" <> go rem
         | otherwise = c : go rem
       go [] = []
       encodeHex :: String -> String
