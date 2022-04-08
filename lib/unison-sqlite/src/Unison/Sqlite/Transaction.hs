@@ -98,6 +98,7 @@ runTransaction conn (Transaction f) = liftIO do
         Right result -> pure result
     Connection.commit conn
     pure result
+{-# SPECIALIZE runTransaction :: Connection -> Transaction a -> IO a #-}
 
 -- | Run a transaction with a function that aborts the transaction with an exception.
 runTransactionWithAbort ::
@@ -107,24 +108,33 @@ runTransactionWithAbort ::
   m a
 runTransactionWithAbort conn action =
   runTransaction conn (action \exception -> idempotentIO (throwIO exception))
+{-# SPECIALIZE runTransactionWithAbort ::
+  Connection ->
+  ((forall e x. Exception e => e -> Transaction x) -> Transaction a) ->
+  IO a
+  #-}
 
 -- | Run a transaction that is known to only perform reads.
 --
 -- The transaction is never retried, so it is (more) safe to interleave arbitrary IO actions.
 --
 -- If the transaction does attempt a write and gets SQLITE_BUSY, it's your fault!
-runReadOnlyTransaction :: Connection -> ((forall x. IO x -> Transaction x) -> Transaction a) -> IO a
+runReadOnlyTransaction :: MonadUnliftIO m => Connection -> ((forall x. m x -> Transaction x) -> Transaction a) -> m a
 runReadOnlyTransaction conn f =
-  runReadOnlyTransaction_ conn (unsafeUnTransaction (f idempotentIO) conn)
+  withRunInIO \runInIO ->
+    runReadOnlyTransaction_ conn (unsafeUnTransaction (f (idempotentIO . runInIO)) conn)
+{-# SPECIALIZE runReadOnlyTransaction :: Connection -> ((forall x. IO x -> Transaction x) -> Transaction a) -> IO a #-}
 
 -- | A variant of 'runReadOnlyTransaction' that may be more convenient for actions that perform more interleaved IO
 -- calls than database calls, because the transaction action itself is in IO.
 --
 -- The action is provided a function that peels off the 'Transaction' newtype without sending the corresponding
 -- BEGIN/COMMIT statements.
-runReadOnlyTransactionIO :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a
+runReadOnlyTransactionIO :: MonadUnliftIO m => Connection -> ((forall x. Transaction x -> m x) -> m a) -> m a
 runReadOnlyTransactionIO conn f =
-  runReadOnlyTransaction_ conn (f (\transaction -> unsafeUnTransaction transaction conn))
+  withRunInIO \runInIO ->
+    runReadOnlyTransaction_ conn (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
+{-# SPECIALIZE runReadOnlyTransactionIO :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a #-}
 
 runReadOnlyTransaction_ :: Connection -> IO a -> IO a
 runReadOnlyTransaction_ conn action = do
@@ -140,20 +150,28 @@ runReadOnlyTransaction_ conn action = do
 -- | Run a transaction that is known to perform at least one write.
 --
 -- The transaction is never retried, so it is (more) safe to interleave arbitrary IO actions.
-runWriteTransaction :: Connection -> ((forall x. IO x -> Transaction x) -> Transaction a) -> IO a
+runWriteTransaction :: MonadUnliftIO m => Connection -> ((forall x. m x -> Transaction x) -> Transaction a) -> m a
 runWriteTransaction conn f =
-  uninterruptibleMask \restore ->
-    runWriteTransaction_ restore 100_000 conn (unsafeUnTransaction (f idempotentIO) conn)
+  withRunInIO \runInIO ->
+    uninterruptibleMask \restore ->
+      runWriteTransaction_ restore 100_000 conn (unsafeUnTransaction (f (idempotentIO . runInIO)) conn)
+{-# SPECIALIZE runWriteTransaction :: Connection -> ((forall x. IO x -> Transaction x) -> Transaction a) -> IO a #-}
 
 -- | A variant of 'runWriteTransaction' that may be more convenient for actions that perform more interleaved IO calls
 -- than database calls, because the transaction action itself is in IO.
 --
 -- The action is provided a function that peels off the 'Transaction' newtype without sending the corresponding
 -- BEGIN/COMMIT statements.
-runWriteTransactionIO :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a
+runWriteTransactionIO :: MonadUnliftIO m => Connection -> ((forall x. Transaction x -> m x) -> m a) -> m a
 runWriteTransactionIO conn f =
-  uninterruptibleMask \restore ->
-    runWriteTransaction_ restore 100_000 conn (f (\transaction -> unsafeUnTransaction transaction conn))
+  withRunInIO \runInIO ->
+    uninterruptibleMask \restore ->
+      runWriteTransaction_
+        restore
+        100_000
+        conn
+        (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
+{-# SPECIALIZE runWriteTransactionIO :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a #-}
 
 runWriteTransaction_ :: (forall x. IO x -> IO x) -> Int -> Connection -> IO a -> IO a
 runWriteTransaction_ restore microseconds conn transaction = do
