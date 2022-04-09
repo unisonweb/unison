@@ -86,82 +86,51 @@ import qualified Unison.Type as Type
 import qualified Unison.Util.Set as Set
 import Unison.Var (Var)
 
--- todo:
---  * write a harness to call & seed algorithm
---    * [x] embed migration in a transaction/savepoint and ensure that we never leave the codebase in a
---            weird state even if we crash.
---    * [x] may involve writing a `Progress`
---    * raw DB things:
---    * [x] write new namespace root after migration.
---    * [x] overwrite object_id column in hash_object table to point at new objects
---    * [x] delete references to old objects in index tables (where else?)
---    * [x] delete old objects
---
---  * refer to github megaticket https://github.com/unisonweb/unison/issues/2471
---    ☢️ [x] incorporate type signature into hash of term <- chris/arya have started ☢️
---          [x] store type annotation in the term
---    * [x] Refactor Causal helper functions to use V2 hashing
---          * [x] I guess move Hashable to V2.Hashing pseudo-package
---          * [x] Delete V1 Hashing to ensure it's unused
---          * [x] Salt V2 hashes with version number
---    * [x] confirm that pulls are handled ok
---    * [x] Make a backup of the v1 codebase before migrating, in a temp directory.
---          Include a message explaining where we put it.
---    * [x] Improved error message (don't crash) if loading a codebase newer than your ucm
---    * [x] Update the schema version in the database after migrating so we only migrate
---    once.
-
 verboseOutput :: Bool
 verboseOutput =
   isJust (unsafePerformIO (lookupEnv "UNISON_MIGRATION_DEBUG"))
 {-# NOINLINE verboseOutput #-}
 
-migrateSchema1To2 :: forall a m v. (MonadUnliftIO m, Var v) => Sqlite.Connection -> Codebase m v a -> m (Either MigrationError ())
-migrateSchema1To2 = undefined
-
-migrateSchema1To2' ::
-  MonadIO m =>
-  Sqlite.Connection ->
+migrateSchema1To2 ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   TVar (Map Hash Ops2.TermBufferEntry) ->
   TVar (Map Hash Ops2.DeclBufferEntry) ->
-  m ()
-migrateSchema1To2' conn getDeclType termBuffer declBuffer = do
-  liftIO do
-    Sqlite.runWriteTransaction conn \runIO -> do
-      runIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
-      corruptedCausals <- Q.getCausalsWithoutBranchObjects
-      when (not . null $ corruptedCausals) $
-        runIO $ do
-          putStrLn $ "⚠️  I detected " <> show (length corruptedCausals) <> " corrupted namespace(s) in the history of the codebase."
-          putStrLn $ "This is due to a bug in a previous version of ucm."
-          putStrLn $ "This only affects the history of your codebase, the most up-to-date iteration will remain intact."
-          putStrLn $ "I'll go ahead with the migration, but will replace any corrupted namespaces with empty ones."
+  (forall x. IO x -> Sqlite.Transaction x) ->
+  Sqlite.Transaction ()
+migrateSchema1To2 getDeclType termBuffer declBuffer runIO = do
+  runIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
+  corruptedCausals <- Q.getCausalsWithoutBranchObjects
+  when (not . null $ corruptedCausals) $
+    runIO $ do
+      putStrLn $ "⚠️  I detected " <> show (length corruptedCausals) <> " corrupted namespace(s) in the history of the codebase."
+      putStrLn $ "This is due to a bug in a previous version of ucm."
+      putStrLn $ "This only affects the history of your codebase, the most up-to-date iteration will remain intact."
+      putStrLn $ "I'll go ahead with the migration, but will replace any corrupted namespaces with empty ones."
 
-      runIO $ putStrLn $ "Updating Namespace Root..."
-      rootCausalHashId <- Q.expectNamespaceRoot
-      numEntitiesToMigrate <- sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
-      v2EmptyBranchHashInfo <- saveV2EmptyBranch
-      watches <-
-        foldMapM
-          (\watchKind -> map (W watchKind) <$> Ops2.watches (Cv.watchKind2to1 watchKind))
-          [WK.RegularWatch, WK.TestWatch]
-      migrationState <-
-        Sync.sync @_ @Entity (migrationSync getDeclType termBuffer declBuffer) (progress runIO numEntitiesToMigrate) (CausalE rootCausalHashId : watches)
-          `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty 0 v2EmptyBranchHashInfo
-      let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
-      runIO $ putStrLn $ "Updating Namespace Root..."
-      Q.setNamespaceRoot newRootCausalHashId
-      runIO $ putStrLn $ "Rewriting old object IDs..."
-      ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
-        Q.recordObjectRehash oldObjId newObjId
-      runIO $ putStrLn $ "Garbage collecting orphaned objects..."
-      Q.garbageCollectObjectsWithoutHashes
-      runIO $ putStrLn $ "Garbage collecting orphaned watches..."
-      Q.garbageCollectWatchesWithoutObjects
-      runIO $ putStrLn $ "Updating Schema Version..."
-      Q.setSchemaVersion 2
+  runIO $ putStrLn $ "Updating Namespace Root..."
+  rootCausalHashId <- Q.expectNamespaceRoot
+  numEntitiesToMigrate <- sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
+  v2EmptyBranchHashInfo <- saveV2EmptyBranch
+  watches <-
+    foldMapM
+      (\watchKind -> map (W watchKind) <$> Ops2.watches (Cv.watchKind2to1 watchKind))
+      [WK.RegularWatch, WK.TestWatch]
+  migrationState <-
+    Sync.sync @_ @Entity (migrationSync getDeclType termBuffer declBuffer) (progress runIO numEntitiesToMigrate) (CausalE rootCausalHashId : watches)
+      `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty 0 v2EmptyBranchHashInfo
+  let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
+  runIO $ putStrLn $ "Updating Namespace Root..."
+  Q.setNamespaceRoot newRootCausalHashId
+  runIO $ putStrLn $ "Rewriting old object IDs..."
+  ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
+    Q.recordObjectRehash oldObjId newObjId
+  runIO $ putStrLn $ "Garbage collecting orphaned objects..."
+  Q.garbageCollectObjectsWithoutHashes
+  runIO $ putStrLn $ "Garbage collecting orphaned watches..."
+  Q.garbageCollectWatchesWithoutObjects
+  runIO $ putStrLn $ "Updating Schema Version..."
+  Q.setSchemaVersion 2
   where
     progress :: (forall a. IO a -> Sqlite.Transaction a) -> Int -> Sync.Progress (StateT MigrationState Sqlite.Transaction) Entity
     progress runIO numToMigrate =

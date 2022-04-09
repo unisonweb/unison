@@ -430,6 +430,7 @@ sqliteCodebase debugName root localOrRemote action = do
           Sqlite.runTransaction conn (Ops2.sqlLca h1 h2)
     let codebase =
           C.Codebase
+            -- FIXME urgh these caches :|
             (Cache.applyDefined termCache getTerm)
             (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
             (Cache.applyDefined declCache getTypeDeclaration)
@@ -485,7 +486,7 @@ sqliteCodebase debugName root localOrRemote action = do
 
     flip finally finalizer $ do
       -- Migrate if necessary.
-      ensureCodebaseIsUpToDate localOrRemote root conn codebase >>= \case
+      ensureCodebaseIsUpToDate localOrRemote root undefined undefined undefined conn >>= \case
         Left err -> pure $ Left err
         Right () -> Right <$> action (codebase, conn)
 
