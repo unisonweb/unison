@@ -134,7 +134,6 @@ instance ToSample FoundResult where
   toSamples _ = noSamples
 
 serveFuzzyFind ::
-  Handler () ->
   Codebase IO Symbol Ann ->
   Maybe SBH.ShortBranchHash ->
   Maybe HashQualifiedName ->
@@ -142,9 +141,8 @@ serveFuzzyFind ::
   Maybe Width ->
   Maybe String ->
   Handler (APIHeaders [(FZF.Alignment, FoundResult)])
-serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
+serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
   addHeaders <$> do
-    h
     rel <-
       maybe mempty Path.fromPath'
         <$> traverse (parsePath . Text.unpack) relativePath

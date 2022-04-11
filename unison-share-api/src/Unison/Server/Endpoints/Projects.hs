@@ -122,12 +122,11 @@ entryToOwner = \case
   _ -> Nothing
 
 serve ::
-  Handler () ->
   Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
   Maybe ProjectOwner ->
   Handler (APIHeaders [ProjectListing])
-serve tryAuth codebase mayRoot mayOwner = addHeaders <$> (tryAuth *> projects)
+serve codebase mayRoot mayOwner = addHeaders <$> projects
   where
     projects :: Handler [ProjectListing]
     projects = do

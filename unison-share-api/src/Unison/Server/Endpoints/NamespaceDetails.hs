@@ -77,14 +77,13 @@ instance ToJSON NamespaceDetails where
 deriving instance ToSchema NamespaceDetails
 
 serve ::
-  Handler () ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   NamespaceFQN ->
   Maybe ShortBranchHash ->
   Maybe Width ->
   Handler (APIHeaders NamespaceDetails)
-serve tryAuth runtime codebase namespaceName mayRoot mayWidth =
+serve runtime codebase namespaceName mayRoot mayWidth =
   let doBackend a = do
         ea <- liftIO $ runExceptT a
         errFromEither backendError ea
@@ -120,4 +119,4 @@ serve tryAuth runtime codebase namespaceName mayRoot mayWidth =
 
           pure $ NamespaceDetails namespaceName (branchToUnisonHash namespaceBranch) readme
 
-        addHeaders <$> (tryAuth $> namespaceDetails)
+        pure $ addHeaders namespaceDetails

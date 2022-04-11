@@ -157,13 +157,12 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
     PatchObject . NamedPatch $ NameSegment.toText name
 
 serve ::
-  Handler () ->
   Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
   Maybe NamespaceFQN ->
   Maybe NamespaceFQN ->
   Handler (APIHeaders NamespaceListing)
-serve tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
+serve codebase mayRoot mayRelativeTo mayNamespaceName =
   let -- Various helpers
       errFromEither f = either (throwError . f) pure
 
@@ -224,4 +223,4 @@ serve tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
         listingEntries <- findShallow listingBranch
 
         makeNamespaceListing shallowPPE listingFQN listingHash listingEntries
-   in addHeaders <$> (tryAuth *> namespaceListing)
+   in addHeaders <$> namespaceListing

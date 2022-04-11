@@ -113,7 +113,6 @@ instance ToSample DefinitionDisplayResults where
   toSamples _ = noSamples
 
 serveDefinitions ::
-  Handler () ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
@@ -122,9 +121,8 @@ serveDefinitions ::
   Maybe Width ->
   Maybe Suffixify ->
   Handler (APIHeaders DefinitionDisplayResults)
-serveDefinitions h rt codebase mayRoot relativePath rawHqns width suff =
+serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
   addHeaders <$> do
-    h
     rel <-
       fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
     ea <- liftIO . runExceptT $ do
