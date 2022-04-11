@@ -29,7 +29,7 @@ type SyncDeclFormat =
   SyncDeclFormat' TextId ObjectId
 
 data SyncDeclFormat' t d
-  = SyncTerm (SyncLocallyIndexedComponent' t d)
+  = SyncDecl (SyncLocallyIndexedComponent' t d)
 
 newtype SyncLocallyIndexedComponent' t d
   = SyncLocallyIndexedComponent (Vector (LocalIds' t d, ByteString))

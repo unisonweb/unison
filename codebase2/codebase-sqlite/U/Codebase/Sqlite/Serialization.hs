@@ -17,6 +17,7 @@ import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.Int (Int64)
 import Data.List (elemIndex)
 import qualified Data.Set as Set
+import Data.Text (Text)
 import Data.Word (Word64)
 import Debug.Trace (trace)
 import qualified U.Codebase.Decl as Decl
@@ -37,10 +38,13 @@ import qualified U.Codebase.Sqlite.Patch.Full as PatchFull
 import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
 import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
 import U.Codebase.Sqlite.Symbol (Symbol (..))
+import U.Codebase.Sqlite.TempEntity (TempEntity)
+import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
+import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization hiding (debug)
 import Prelude hiding (getChar, putChar)
@@ -108,9 +112,12 @@ getABT getVar getA getF = getList getVar >>= go []
         _ -> unknownTag "getABT" tag
 
 putLocalIds :: (MonadPut m, Integral t, Bits t, Integral d, Bits d) => LocalIds' t d -> m ()
-putLocalIds LocalIds {..} = do
-  putFoldable putVarInt textLookup
-  putFoldable putVarInt defnLookup
+putLocalIds = putLocalIdsWith putVarInt putVarInt
+
+putLocalIdsWith :: (MonadPut m) => (t -> m ()) -> (d -> m ()) -> LocalIds' t d -> m ()
+putLocalIdsWith putText putDefn LocalIds {textLookup, defnLookup} = do
+  putFoldable putText textLookup
+  putFoldable putDefn defnLookup
 
 getLocalIds :: MonadGet m => m LocalIds
 getLocalIds = LocalIds <$> getVector getVarInt <*> getVector getVarInt
@@ -685,6 +692,92 @@ recomposeBranchFormat = \case
     putWord8 0 *> putBranchLocalIds li *> putByteString bs
   BranchFormat.SyncDiff id li bs ->
     putWord8 1 *> putVarInt id *> putBranchLocalIds li *> putByteString bs
+
+putTempEntity :: MonadPut m => TempEntity -> m ()
+putTempEntity = \case
+  TempEntity.TC tc -> case tc of
+    TermFormat.SyncTerm term ->
+      putWord8 0 *> putSyncTerm term
+  TempEntity.DC dc -> case dc of
+    DeclFormat.SyncDecl decl ->
+      putWord8 0 *> putSyncDecl decl
+  TempEntity.P p -> case p of
+    PatchFormat.SyncFull lids bytes ->
+      putWord8 0 *> putSyncFullPatch lids bytes
+    PatchFormat.SyncDiff parent lids bytes ->
+      putWord8 1 *> putSyncDiffPatch parent lids bytes
+  TempEntity.N n -> case n of
+    BranchFormat.SyncFull lids bytes ->
+      putWord8 0 *> putSyncFullNamespace lids bytes
+    BranchFormat.SyncDiff parent lids bytes ->
+      putWord8 1 *> putSyncDiffNamespace parent lids bytes
+  TempEntity.C gdc ->
+    putSyncCausal gdc
+  where
+    putHashJWT = putText
+    putBase32Hex = putText . Base32Hex.toText
+    putPatchLocalIds PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup} = do
+      putFoldable putText patchTextLookup
+      putFoldable putBase32Hex patchHashLookup
+      putFoldable putHashJWT patchDefnLookup
+    putNamespaceLocalIds BranchFormat.LocalIds {branchTextLookup, branchDefnLookup, branchPatchLookup, branchChildLookup} = do
+      putFoldable putText branchTextLookup
+      putFoldable putHashJWT branchDefnLookup
+      putFoldable putHashJWT branchPatchLookup
+      putFoldable (putPair putHashJWT putHashJWT) branchChildLookup
+    putSyncCausal TempEntity.TempCausalFormat {valueHash, parents} = do
+      putHashJWT valueHash
+      putFoldable putHashJWT parents
+    putSyncFullPatch lids bytes = do
+      putPatchLocalIds lids
+      putByteString bytes
+    putSyncDiffPatch parent lids bytes = do
+      putHashJWT parent
+      putPatchLocalIds lids
+      putByteString bytes
+    putSyncFullNamespace lids bytes = do
+      putNamespaceLocalIds lids
+      putByteString bytes
+    putSyncDiffNamespace parent lids bytes = do
+      putHashJWT parent
+      putNamespaceLocalIds lids
+      putByteString bytes
+
+    putSyncTerm (TermFormat.SyncLocallyIndexedComponent vec) =
+      -- we're not leaving ourselves the ability to skip over the localIds
+      -- when deserializing, because we don't think we need to (and it adds a
+      -- little overhead.)
+      flip putFoldable vec \(localIds, bytes) -> do
+        putLocalIdsWith putHashJWT putHashJWT localIds
+        putByteString bytes
+    putSyncDecl (DeclFormat.SyncLocallyIndexedComponent vec) =
+      flip putFoldable vec \(localIds, bytes) -> do
+        putLocalIdsWith putHashJWT putHashJWT localIds
+        putByteString bytes
+
+getTempTermFormat :: MonadGet m => m TempEntity.TempTermFormat
+getTempTermFormat =
+  getWord8 >>= \case
+    0 -> undefined
+    tag -> unknownTag "getTempTermFormat" tag
+
+getTempDeclFormat :: MonadGet m => m TempEntity.TempDeclFormat
+getTempDeclFormat =
+  getWord8 >>= \case
+    tag -> unknownTag "getTempDeclFormat" tag
+
+getTempPatchFormat :: MonadGet m => m TempEntity.TempPatchFormat
+getTempPatchFormat =
+  getWord8 >>= \case
+    tag -> unknownTag "getTempPatchFormat" tag
+
+getTempNamespaceFormat :: MonadGet m => m TempEntity.TempNamespaceFormat
+getTempNamespaceFormat =
+  getWord8 >>= \case
+    tag -> unknownTag "getTempNamespaceFormat" tag
+
+getTempCausalFormat :: MonadGet m => m TempEntity.TempCausalFormat
+getTempCausalFormat = undefined
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText

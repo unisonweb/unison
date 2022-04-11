@@ -1,5 +1,6 @@
 module U.Codebase.Sqlite.TempEntity where
 
+import Data.Vector (Vector)
 import qualified U.Codebase.Sqlite.Branch.Format as Namespace
 import qualified U.Codebase.Sqlite.Decl.Format as Decl
 import qualified U.Codebase.Sqlite.Patch.Format as Patch
@@ -11,9 +12,18 @@ import Unison.Prelude
 type HashJWT = Text
 
 data TempEntity
-  = TC (Term.SyncTermFormat' Text HashJWT)
-  | DC (Decl.SyncDeclFormat' Text HashJWT)
-  | P (Patch.SyncPatchFormat' HashJWT Text Base32Hex HashJWT)
-  | N (Namespace.SyncBranchFormat' HashJWT Text HashJWT HashJWT (HashJWT, HashJWT))
+  = TC TempTermFormat
+  | DC TempDeclFormat
+  | P TempPatchFormat
+  | N TempNamespaceFormat
+  | C TempCausalFormat
 
---  | C (Causal hash)
+type TempTermFormat = Term.SyncTermFormat' Text HashJWT
+
+type TempDeclFormat = Decl.SyncDeclFormat' Text HashJWT
+
+type TempPatchFormat = Patch.SyncPatchFormat' HashJWT Text Base32Hex HashJWT
+
+type TempNamespaceFormat = Namespace.SyncBranchFormat' HashJWT Text HashJWT HashJWT (HashJWT, HashJWT)
+
+data TempCausalFormat = TempCausalFormat {valueHash :: HashJWT, parents :: Vector HashJWT}
