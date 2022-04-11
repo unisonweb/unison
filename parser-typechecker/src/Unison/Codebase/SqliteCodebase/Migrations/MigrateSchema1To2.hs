@@ -13,7 +13,6 @@ where
 import Control.Concurrent.STM (TVar)
 import Control.Lens
 import Control.Monad.Except (runExceptT)
-import Control.Monad.Reader (ReaderT (runReaderT), ask)
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Writer.CPS (Writer, execWriter, tell)
@@ -57,12 +56,9 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WK
 import U.Util.Monoid (foldMapM)
 import qualified Unison.ABT as ABT
-import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import Unison.Codebase.SqliteCodebase.Migrations.Errors (MigrationError)
 import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Hashing
 import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
-import Unison.Codebase.Type (Codebase (Codebase))
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
@@ -84,7 +80,6 @@ import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Set as Set
-import Unison.Var (Var)
 
 verboseOutput :: Bool
 verboseOutput =
@@ -196,9 +191,7 @@ migrationSync getDeclType termBuffer declBuffer = Sync \case
   TermComponent hash -> migrateTermComponent getDeclType termBuffer declBuffer hash
   DeclComponent hash -> migrateDeclComponent termBuffer declBuffer hash
   BranchE objectId -> migrateBranch objectId
-  -- CausalE causalHashId -> do
-  --   Env {db} <- ask
-  --   lift (migrateCausal db causalHashId)
+  CausalE causalHashId -> migrateCausal causalHashId
   PatchE objectId -> migratePatch (PatchObjectId objectId)
   W watchKind watchId -> migrateWatch getDeclType watchKind watchId
 

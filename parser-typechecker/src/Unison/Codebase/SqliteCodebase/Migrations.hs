@@ -12,19 +12,16 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import Unison.Codebase (CodebasePath)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUnknownSchemaVersion))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase
-import Unison.Codebase.SqliteCodebase.Migrations.Errors (MigrationError)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3)
 import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
 import Unison.Codebase.SqliteCodebase.Paths
-import Unison.Codebase.Type (Codebase, LocalOrRemote (..))
+import Unison.Codebase.Type (LocalOrRemote (..))
 import qualified Unison.ConstructorType as CT
 import Unison.Hash (Hash)
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sqlite.Connection as Sqlite.Connection
-import Unison.Symbol (Symbol)
-import Unison.Var (Var)
 import qualified UnliftIO
 
 -- | Mapping from schema version to the migration required to get there.
@@ -39,8 +36,8 @@ migrations ::
   Map SchemaVersion (Sqlite.Transaction ())
 migrations getDeclType termBuffer declBuffer runIO =
   Map.fromList
-    [ (2, migrateSchema1To2 getDeclType termBuffer declBuffer runIO)
-    -- (3, migrateSchema2To3)
+    [ (2, migrateSchema1To2 getDeclType termBuffer declBuffer runIO),
+      (3, migrateSchema2To3 runIO)
     ]
 
 -- | Migrates a codebase up to the most recent version known to ucm.
