@@ -434,7 +434,7 @@ importing shortToLongName ns =
     (foldl' go (types ns) shortToLongName)
   where
     go :: (Ord r) => Relation Name r -> (Name, Name) -> Relation Name r
-    go m (shortname, qname) = case Name.searchBySuffix qname m of
+    go m (shortname, qname) = case Name.searchByRankedSuffix qname m of
       s
         | Set.null s -> m
         | otherwise -> R.insertManyRan shortname s (R.deleteDom shortname m)

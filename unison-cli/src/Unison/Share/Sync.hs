@@ -216,8 +216,9 @@ download conn repoName = do
                 let putInMainStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
                     putInMainStorage _hash _entity = undefined
                 let putInTempStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
-                    putInTempStorage _hash _entity = let
-                      bytes = case _entity of
+                    putInTempStorage _hash _entity = do
+                      let bytes = case _entity of
+                                    _ -> undefined
 
                       -- convert the blob to the data type we have a serializer for
                       -- serialize the blob

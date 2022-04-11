@@ -33,7 +33,7 @@ The build uses [Stack](http://docs.haskellstack.org/). If you don't already have
 $ git clone https://github.com/unisonweb/unison.git
 $ cd unison
 $ stack --version # we'll want to know this version if you run into trouble
-$ stack build && stack exec tests && stack exec unison
+$ stack build --fast --test && stack exec unison
 ```
 
 To run a local codebase-ui while building from source, you can use the `/dev-ui-install.sh` script. It will download the latest release of the codebase-ui and put it in the expected location for the unison executable created by `stack build`. When you start unison, you'll see a url where the codebase-ui is running. 

@@ -241,6 +241,7 @@ library
     , hashable
     , hashtables
     , haskeline
+    , http-client
     , http-media
     , http-types
     , lens
@@ -312,7 +313,8 @@ library
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
 
-executable tests
+test-suite parser-typechecker-tests
+  type: exitcode-stdio-1.0
   main-is: Suite.hs
   other-modules:
       Unison.Core.Test.Name

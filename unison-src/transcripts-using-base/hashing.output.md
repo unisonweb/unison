@@ -3,7 +3,7 @@
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
 ```ucm
-.builtin> ls Bytes
+.> ls builtin.Bytes
 
   1.  ++                    (Bytes -> Bytes -> Bytes)
   2.  at                    (Nat -> Bytes -> Optional Nat)
@@ -87,6 +87,7 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
       ex4      : Text
       ex5      : Text
       f        : x -> x
+        (also named id)
       mysecret : Bytes
   
   Now evaluating any watch expressions (lines starting with
@@ -132,14 +133,29 @@ And here's the full API:
   12. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
   
 
+.> cd .
+
 ```
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
-```
+```unison
 > crypto.hash Sha3_256 (fromHex "3849238492")
-
 ```
 
+```ucm
+
+  ✅
+  
+  scratch.u changed.
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    1 | > crypto.hash Sha3_256 (fromHex "3849238492")
+          ⧩
+          0xse34b43a163bed5ed9e6961b667be73232441d7c9608d8c06aa49df705a19400c
+
+```
 ## Hashing tests
 
 Here are some test vectors (taken from [here](https://www.di-mgt.com.au/sha_testvectors.html) and [here](https://en.wikipedia.org/wiki/BLAKE_(hash_function))) for the various hashing algorithms:
@@ -249,7 +265,7 @@ test> blake2b_512.tests.ex3 =
 ```
 
 ```ucm
-.scratch> test
+.> test
 
   Cached test results (`help testcache` to learn more)
   
@@ -288,9 +304,9 @@ These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231
 ex' alg secret msg expected = checks [hmacBytes alg (fromHex secret) (ascii msg) == fromHex expected]
 
 test> hmac_sha2_256.tests.ex1 =
-  ex' Sha2_256 
-    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b" 
-    "Hi There" 
+  ex' Sha2_256
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
+    "Hi There"
     "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
 test> hmac_sha2_512.tests.ex1 =
   ex' Sha2_512
@@ -332,7 +348,7 @@ test> hmac_sha2_512.tests.ex2 =
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    4 |   ex' Sha2_256 
+    4 |   ex' Sha2_256
     
     ✅ Passed Passed
   
@@ -350,7 +366,7 @@ test> hmac_sha2_512.tests.ex2 =
 
 ```
 ```ucm
-.scratch> test
+.> test
 
   Cached test results (`help testcache` to learn more)
   

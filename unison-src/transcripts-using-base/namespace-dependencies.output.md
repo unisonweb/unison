@@ -23,7 +23,7 @@ hasMetadata = 3
     dependsOnNat       : Nat
     hasMetadata        : Nat
 
-.dependencies> link .metadata.myMetadata hasMetadata 
+.dependencies> link .metadata.myMetadata hasMetadata
 
   Updates:
   
@@ -32,17 +32,17 @@ hasMetadata = 3
 
 .dependencies> namespace.dependencies
 
-  External dependency    Dependents in .dependencies
-  .builtin.Int           dependsOnInt
-                         
-  .builtin.Nat           dependsOnIntAndNat
-                         dependsOnNat
-                         hasMetadata
-                         
-  .builtin.Text          hasMetadata
-                         
-  .builtin.Nat.drop      dependsOnIntAndNat
-                         
-  .metadata.myMetadata   hasMetadata
+  External dependency   Dependents in .dependencies
+  ##Int                 dependsOnInt
+                        
+  ##Nat                 dependsOnIntAndNat
+                        dependsOnNat
+                        hasMetadata
+                        
+  ##Text                hasMetadata
+                        
+  ##Nat.drop            dependsOnIntAndNat
+                        
+  #23g06bfjvi           hasMetadata
 
 ```
