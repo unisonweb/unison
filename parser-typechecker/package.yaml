@@ -50,6 +50,7 @@ library:
     - haskeline
     - http-types
     - http-media
+    - http-client
     - lens
     - ListLike
     - megaparsec >= 5.0.0 && < 7.0.0
@@ -121,8 +122,8 @@ library:
     - uri-encode
     - generic-lens
 
-executables:
-  tests:
+tests:
+  parser-typechecker-tests:
     source-dirs: tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0

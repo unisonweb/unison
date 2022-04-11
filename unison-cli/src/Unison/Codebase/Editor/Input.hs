@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.Input
     Insistence (..),
     PullMode (..),
     OptionalPatch (..),
+    IsGlobal,
   )
 where
 
@@ -69,6 +70,8 @@ data PullMode
   | PullWithoutHistory
   deriving (Eq, Show)
 
+type IsGlobal = Bool
+
 data Input
   = -- names stuff:
     -- directory ops
@@ -97,7 +100,7 @@ data Input
     -- > names .foo.bar
     -- > names .foo.bar#asdflkjsdf
     -- > names #sdflkjsdfhsdf
-    NamesI (HQ.HashQualified Name)
+    NamesI IsGlobal (HQ.HashQualified Name)
   | AliasTermI HashOrHQSplit' Path.Split'
   | AliasTypeI HashOrHQSplit' Path.Split'
   | AliasManyI [Path.HQSplit] Path'
@@ -157,7 +160,7 @@ data Input
   | -- Display docs for provided terms. If list is empty, prompt a fuzzy search.
     DocsI [Path.HQSplit']
   | -- other
-    SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
+    FindI Bool IsGlobal [String] -- FindI isVerbose global query
   | FindShallowI Path'
   | FindPatchI
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.

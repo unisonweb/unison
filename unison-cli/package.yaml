@@ -55,7 +55,9 @@ dependencies:
   - lock-file
   - jwt
   - either
-
+  - unison-share-api
+  - servant-client
+  - servant
 
 library:
   source-dirs: src
@@ -64,7 +66,7 @@ library:
       dependencies: unix
 
 tests:
-  tests:
+  cli-tests:
     dependencies:
       - code-page
       - easytest
@@ -99,7 +101,7 @@ executables:
       - shellmet
       - unison-cli
 
-  integration-tests:
+  cli-integration-tests:
     source-dirs: integration-tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0

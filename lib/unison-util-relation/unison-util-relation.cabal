@@ -48,7 +48,7 @@ library
     , unison-prelude
   default-language: Haskell2010
 
-test-suite tests
+test-suite util-relation-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:

@@ -823,15 +823,25 @@ notifyUser dir o = case o of
     listOfDefinitions ppe detailed results
   ListOfLinks ppe results ->
     listOfLinks ppe [(name, tm) | (name, _ref, tm) <- results]
-  ListNames _len [] [] ->
-    pure . P.callout "😶" $
-      P.wrap "I couldn't find anything by that name."
-  ListNames len types terms ->
-    pure . P.sepNonEmpty "\n\n" $
-      [ formatTypes types,
-        formatTerms terms
-      ]
+  ListNames global len types terms ->
+    if null types && null terms
+      then
+        pure . P.callout "😶" $
+          P.sepNonEmpty "\n\n" $
+            [ P.wrap "I couldn't find anything by that name.",
+              globalTip
+            ]
+      else
+        pure . P.sepNonEmpty "\n\n" $
+          [ formatTypes types,
+            formatTerms terms,
+            globalTip
+          ]
     where
+      globalTip =
+        if global
+          then mempty
+          else (tip $ "Use " <> IP.makeExample (IP.names True) [] <> " to see more results.")
       formatTerms tms =
         P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms)
         where
@@ -1427,20 +1437,23 @@ notifyUser dir o = case o of
           P.lines
             [ "Dependents of " <> prettyLd <> ":",
               "",
-              P.indentN 2 (P.numberedColumn2Header num pairs)
+              P.indentN 2 (P.numberedColumn2Header num pairs),
+              "",
+              tip $ "Try " <> IP.makeExample IP.view ["1"] <> " to see the source of any numbered item in the above list."
             ]
     where
       prettyLd = P.syntaxToColor (prettyLabeledDependency hqLength ld)
       num n = P.hiBlack $ P.shown n <> "."
-      header = (P.hiBlack "Reference", P.hiBlack "Name")
-      pairs = header : map pair results
+      header = (P.hiBlack "Name", P.hiBlack "Reference")
+      pairs = header : map pair (List.sortOn (fmap (Name.convert :: Name -> HQ.HashQualified Name) . snd) results)
       pair :: (Reference, Maybe Name) -> (Pretty, Pretty)
       pair (reference, maybeName) =
-        ( prettyShortHash (SH.take hqLength (Reference.toShortHash reference)),
-          case maybeName of
+        ( case maybeName of
             Nothing -> ""
-            Just name -> prettyName name
+            Just name -> prettyName name,
+          prettyShortHash (SH.take hqLength (Reference.toShortHash reference))
         )
+
   -- this definition is identical to the previous one, apart from the word
   -- "Dependencies", but undecided about whether or how to refactor
   ListDependencies hqLength ld names missing ->
@@ -2564,9 +2577,15 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
 noResults :: Pretty
 noResults =
   P.callout "😶" $
-    P.wrap $
-      "No results. Check your spelling, or try using tab completion "
-        <> "to supply command arguments."
+    P.lines
+      [ P.wrap $
+          "No results. Check your spelling, or try using tab completion "
+            <> "to supply command arguments.",
+        "",
+        P.wrap $
+          IP.makeExample IP.findGlobal []
+            <> "can be used to search outside the current namespace."
+      ]
 
 listOfDefinitions' ::
   Var v =>

@@ -57,6 +57,95 @@ Type-based search also benefits from this, we can just say `Nat` rather than `.b
   
 
 ```
+## Preferring names not in `lib`
+
+Suffix-based resolution prefers names with fewer name segments that are equal to "lib". This
+has the effect of preferring names defined in your project to names from dependencies of your project, and names from indirect dependencies have even lower weight.
+
+```unison
+cool.abra.cadabra = "my project"
+lib.distributed.abra.cadabra = "direct dependency 1"
+lib.distributed.baz.qux = "direct dependency 2"
+lib.distributed.lib.baz.qux = "indirect dependency"
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      cool.abra.cadabra            : Text
+      lib.distributed.abra.cadabra : Text
+      lib.distributed.baz.qux      : Text
+      lib.distributed.lib.baz.qux  : Text
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    cool.abra.cadabra            : Text
+    lib.distributed.abra.cadabra : Text
+    lib.distributed.baz.qux      : Text
+    lib.distributed.lib.baz.qux  : Text
+
+```
+```unison
+> abra.cadabra
+> baz.qux
+```
+
+```ucm
+
+  ✅
+  
+  scratch.u changed.
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    1 | > abra.cadabra
+          ⧩
+          "my project"
+  
+    2 | > baz.qux
+          ⧩
+          "direct dependency 2"
+
+```
+```ucm
+.> view abra.cadabra
+
+  cool.abra.cadabra : Text
+  cool.abra.cadabra = "my project"
+
+.> view baz.qux
+
+  lib.distributed.baz.qux : Text
+  lib.distributed.baz.qux = "direct dependency 2"
+
+```
+Note that we can always still view indirect dependencies by using more name segments:
+
+```ucm
+.> view distributed.abra.cadabra
+
+  lib.distributed.abra.cadabra : Text
+  lib.distributed.abra.cadabra = "direct dependency 1"
+
+.> names distributed.lib.baz.qux
+
+  Term
+  Hash:   #nhup096n2s
+  Names:  lib.distributed.lib.baz.qux
+  
+  Tip: Use `names.global` to see more results.
+
+```
 ## Corner cases
 
 If a definition is given in a scratch file, its suffixes shadow existing definitions that exist in the codebase with the same suffixes. For example:

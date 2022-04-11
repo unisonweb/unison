@@ -418,9 +418,15 @@ viewByPrefix =
     )
 
 find :: InputPattern
-find =
+find = find' "find" False
+
+findGlobal :: InputPattern
+findGlobal = find' "find.global" True
+
+find' :: String -> Bool -> InputPattern
+find' cmd global =
   InputPattern
-    "find"
+    cmd
     []
     I.Visible
     [(ZeroPlus, fuzzyDefinitionQueryArg)]
@@ -433,10 +439,13 @@ find =
           ( "`find foo bar`",
             "lists all definitions with a name similar to 'foo' or 'bar' in the "
               <> "current namespace."
+          ),
+          ( "find.global foo",
+            "lists all definitions with a name similar to 'foo' in any namespace"
           )
         ]
     )
-    (pure . Input.SearchByNameI False False)
+    (pure . Input.FindI False global)
 
 findShallow :: InputPattern
 findShallow =
@@ -469,7 +478,7 @@ findVerbose =
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.SearchByNameI True False)
+    (pure . Input.FindI True False)
 
 findPatch :: InputPattern
 findPatch =
@@ -874,7 +883,7 @@ renameBranch =
     ["rename.namespace"]
     I.Visible
     [(Required, namespaceArg), (Required, newNameArg)]
-    "`move.namespace foo bar` renames the path `bar` to `foo`."
+    "`move.namespace foo bar` renames the path `foo` to `bar`."
     ( \case
         [".", dest] -> first fromString $ do
           dest <- Path.parseSplit' Path.definitionNameSegment dest
@@ -1743,23 +1752,25 @@ unlink =
         _ -> Left (I.help unlink)
     )
 
-names :: InputPattern
-names =
+names :: Input.IsGlobal -> InputPattern
+names isGlobal =
   InputPattern
-    "names"
+    cmdName
     []
     I.Visible
     [(Required, definitionQueryArg)]
-    "`names foo` shows the hash and all known names for `foo`."
+    (P.wrap $ makeExample (names isGlobal) ["foo"] <> " shows the hash and all known names for `foo`.")
     ( \case
         [thing] -> case HQ.fromString thing of
-          Just hq -> Right $ Input.NamesI hq
+          Just hq -> Right $ Input.NamesI isGlobal hq
           Nothing ->
             Left $
               "I was looking for one of these forms: "
                 <> P.blue "foo .foo.bar foo#abc #abcde .foo.bar#asdf"
-        _ -> Left (I.help names)
+        _ -> Left (I.help (names isGlobal))
     )
+  where
+    cmdName = if isGlobal then "names.global" else "names"
 
 dependents, dependencies :: InputPattern
 dependents =
@@ -2037,7 +2048,8 @@ validInputs =
       squashMerge,
       previewMergeLocal,
       diffNamespace,
-      names,
+      names True, -- names.global
+      names False, -- names
       push,
       pushCreate,
       pull,
@@ -2057,6 +2069,7 @@ validInputs =
       renamePatch,
       copyPatch,
       find,
+      findGlobal,
       findShallow,
       findVerbose,
       view,

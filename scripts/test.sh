@@ -1,2 +1,2 @@
 #!/bin/sh
-stack build && stack exec tests
+stack build --fast --test

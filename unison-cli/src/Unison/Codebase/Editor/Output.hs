@@ -160,6 +160,7 @@ data Output v
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames
+      IsGlobal
       Int -- hq length to print References
       [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
       [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
@@ -318,7 +319,7 @@ isFailure o = case o of
   DeleteBranchConfirmation {} -> False
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
-  ListNames _ tys tms -> null tms && null tys
+  ListNames _ _ tys tms -> null tms && null tys
   ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
