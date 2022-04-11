@@ -9,14 +9,13 @@
 
 module Unison.Server.Endpoints.NamespaceDetails where
 
-import Control.Error (runExceptT)
+import Control.Monad.Except
 import Data.Aeson
 import Data.OpenApi (ToSchema)
 import qualified Data.Text as Text
-import Servant (Capture, QueryParam, throwError, (:>))
+import Servant (Capture, QueryParam, (:>))
 import Servant.Docs (DocCapture (..), ToCapture (..), ToSample (..))
 import Servant.OpenApi ()
-import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Path as Path
@@ -25,16 +24,14 @@ import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Server.Backend
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Doc (Doc)
-import Unison.Server.Errors (backendError, badNamespace)
 import Unison.Server.Types
   ( APIGet,
-    APIHeaders,
     NamespaceFQN,
     UnisonHash,
     UnisonName,
-    addHeaders,
     branchToUnisonHash,
     mayDefaultWidth,
   )
@@ -82,24 +79,20 @@ serve ::
   NamespaceFQN ->
   Maybe ShortBranchHash ->
   Maybe Width ->
-  Handler (APIHeaders NamespaceDetails)
+  Backend IO NamespaceDetails
 serve runtime codebase namespaceName mayRoot mayWidth =
-  let doBackend a = do
-        ea <- liftIO $ runExceptT a
-        errFromEither backendError ea
-
-      errFromEither f = either (throwError . f) pure
+  let errFromEither f = either (throwError . f) pure
 
       fqnToPath fqn = do
         let fqnS = Text.unpack fqn
-        path' <- errFromEither (`badNamespace` fqnS) $ parsePath' fqnS
+        path' <- errFromEither (`Backend.BadNamespace` fqnS) $ parsePath' fqnS
         pure (Path.fromPath' path')
 
       width = mayDefaultWidth mayWidth
    in do
         namespacePath <- fqnToPath namespaceName
 
-        namespaceDetails <- doBackend $ do
+        namespaceDetails <- do
           root <- Backend.resolveRootBranchHash mayRoot codebase
 
           let namespaceBranch = Branch.getAt' namespacePath root
@@ -119,4 +112,4 @@ serve runtime codebase namespaceName mayRoot mayWidth =
 
           pure $ NamespaceDetails namespaceName (branchToUnisonHash namespaceBranch) readme
 
-        pure $ addHeaders namespaceDetails
+        pure $ namespaceDetails

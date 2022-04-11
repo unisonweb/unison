@@ -259,8 +259,8 @@ discard = const $ pure ()
 mayDefaultWidth :: Maybe Width -> Width
 mayDefaultWidth = fromMaybe defaultWidth
 
-addHeaders :: v -> APIHeaders v
-addHeaders = addHeader "public"
+setCacheControl :: v -> APIHeaders v
+setCacheControl = addHeader @"Cache-Control" "public"
 
 branchToUnisonHash :: Branch.Branch m -> UnisonHash
 branchToUnisonHash b =

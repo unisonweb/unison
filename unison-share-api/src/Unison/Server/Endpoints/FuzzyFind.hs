@@ -10,13 +10,12 @@
 
 module Unison.Server.Endpoints.FuzzyFind where
 
-import Control.Error (runExceptT)
+import Control.Monad.Except
 import Data.Aeson (ToJSON (toEncoding), defaultOptions, genericToEncoding)
 import Data.OpenApi (ToSchema)
 import qualified Data.Text as Text
 import Servant
   ( QueryParam,
-    throwError,
     (:>),
   )
 import Servant.Docs
@@ -27,7 +26,6 @@ import Servant.Docs
     noSamples,
   )
 import Servant.OpenApi ()
-import Servant.Server (Handler)
 import qualified Text.FuzzyFind as FZF
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -41,18 +39,12 @@ import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
-import Unison.Server.Errors
-  ( backendError,
-    badNamespace,
-  )
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
   ( APIGet,
-    APIHeaders,
     HashQualifiedName,
     NamedTerm,
     NamedType,
-    addHeaders,
     mayDefaultWidth,
   )
 import Unison.Symbol (Symbol)
@@ -134,20 +126,22 @@ instance ToSample FoundResult where
   toSamples _ = noSamples
 
 serveFuzzyFind ::
-  Codebase IO Symbol Ann ->
+  forall m.
+  MonadIO m =>
+  Codebase m Symbol Ann ->
   Maybe SBH.ShortBranchHash ->
   Maybe HashQualifiedName ->
   Maybe Int ->
   Maybe Width ->
   Maybe String ->
-  Handler (APIHeaders [(FZF.Alignment, FoundResult)])
+  Backend.Backend m [(FZF.Alignment, FoundResult)]
 serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
-  addHeaders <$> do
+  do
     rel <-
       maybe mempty Path.fromPath'
         <$> traverse (parsePath . Text.unpack) relativePath
-    hashLength <- liftIO $ Codebase.hashLength codebase
-    ea <- liftIO . runExceptT $ do
+    hashLength <- lift $ Codebase.hashLength codebase
+    ea <- lift . runExceptT $ do
       root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
       branch <- Backend.resolveBranchHash root codebase
       let b0 = Branch.head branch
@@ -156,7 +150,7 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
           -- Use AllNames to render source
           ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.AllNames rel)
       join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
-    errFromEither backendError ea
+    liftEither ea
   where
     loadEntry _root _rel ppe b0 (a, HQ'.NameOnly . NameSegment -> n, refs) =
       for refs $
@@ -179,5 +173,5 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
             let ft = FoundType typeName typeHeader namedType
             pure (a, FoundTypeResult ft)
 
-    parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
+    parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
     errFromEither f = either (throwError . f) pure

@@ -12,6 +12,7 @@ import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
 import Control.Lens ((.~))
+import Control.Monad.Trans.Except
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
 import Data.ByteString.Char8 (unpack)
@@ -26,6 +27,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import GHC.Generics ()
 import Network.HTTP.Media ((//), (/:))
+import Network.HTTP.Types (HeaderName)
 import Network.HTTP.Types.Status (ok200)
 import qualified Network.URI.Encode as URI
 import Network.Wai (responseLBS)
@@ -39,7 +41,8 @@ import Network.Wai.Handler.Warp
     withApplicationSettings,
   )
 import Servant
-  ( HasServer,
+  ( Handler,
+    HasServer,
     MimeRender (..),
     ServerT,
     serve,
@@ -65,7 +68,7 @@ import Servant.Docs
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
   ( Application,
-    Handler,
+    Handler (Handler),
     Server,
     ServerError (..),
     Tagged (Tagged),
@@ -83,6 +86,7 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Server.Backend (Backend)
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
@@ -91,7 +95,8 @@ import Unison.Server.Endpoints.GetDefinitions
 import qualified Unison.Server.Endpoints.NamespaceDetails as NamespaceDetails
 import qualified Unison.Server.Endpoints.NamespaceListing as NamespaceListing
 import qualified Unison.Server.Endpoints.Projects as Projects
-import Unison.Server.Types (mungeString)
+import Unison.Server.Errors (backendError)
+import Unison.Server.Types (mungeString, setCacheControl)
 import Unison.Symbol (Symbol)
 
 -- HTML content type
@@ -201,7 +206,7 @@ app ::
 app rt codebase uiPath expectedToken =
   serve appAPI $ server rt codebase uiPath expectedToken
 
--- The Token is used to help prevent multiple users on a machine gain access to
+-- | The Token is used to help prevent multiple users on a machine gain access to
 -- each others codebases.
 genToken :: IO Strict.ByteString
 genToken = do
@@ -311,14 +316,20 @@ server rt codebase uiPath expectedToken =
     serveServer :: Server ServerAPI
     serveServer =
       ( serveUI uiPath
-          :<|> serveUnisonAndDocs
+          :<|> serveUnisonAndDocs rt codebase
       )
 
-    serveUnisonAndDocs :: Server UnisonAndDocsAPI
-    serveUnisonAndDocs = serveUnison codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
-    serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
-    serveOpenAPI = pure openAPI
+serveUnisonAndDocs :: Rt.Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
+serveUnisonAndDocs rt codebase = serveUnison codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
+
+serveDocs :: Application
+serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
+  where
+    plain :: (HeaderName, ByteString)
     plain = ("Content-Type", "text/plain")
+
+serveOpenAPI :: Handler OpenApi
+serveOpenAPI = pure openAPI
 
 hoistWithAuth :: forall api. HasServer api '[] => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
 hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handler api (\h -> handleAuth expectedToken token *> h) server
@@ -328,8 +339,13 @@ serveUnison ::
   Rt.Runtime Symbol ->
   Server UnisonAPI
 serveUnison codebase rt =
-  NamespaceListing.serve codebase
-    :<|> NamespaceDetails.serve rt codebase
-    :<|> Projects.serve codebase
-    :<|> serveDefinitions rt codebase
-    :<|> serveFuzzyFind codebase
+  hoistServer (Proxy @UnisonAPI) backendHandler $
+    (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase root rel name)
+      :<|> (\namespaceName mayRoot mayWidth -> setCacheControl <$> NamespaceDetails.serve rt codebase namespaceName mayRoot mayWidth)
+      :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase mayRoot mayOwner)
+      :<|> (\mayRoot relativePath rawHqns width suff -> setCacheControl <$> serveDefinitions rt codebase mayRoot relativePath rawHqns width suff)
+      :<|> (\mayRoot relativePath limit typeWidth query -> setCacheControl <$> serveFuzzyFind codebase mayRoot relativePath limit typeWidth query)
+
+backendHandler :: Backend IO a -> Handler a
+backendHandler m =
+  Handler $ withExceptT backendError m

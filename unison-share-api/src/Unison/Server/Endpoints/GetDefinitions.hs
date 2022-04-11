@@ -6,12 +6,11 @@
 
 module Unison.Server.Endpoints.GetDefinitions where
 
-import Control.Error (runExceptT)
+import Control.Monad.Except
 import qualified Data.Text as Text
 import Servant
   ( QueryParam,
     QueryParams,
-    throwError,
     (:>),
   )
 import Servant.Docs
@@ -21,7 +20,6 @@ import Servant.Docs
     ToSample (..),
     noSamples,
   )
-import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
@@ -33,18 +31,12 @@ import qualified Unison.HashQualified as HQ
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
-import Unison.Server.Errors
-  ( backendError,
-    badNamespace,
-  )
 import Unison.Server.Types
   ( APIGet,
-    APIHeaders,
     DefinitionDisplayResults,
     HashQualifiedName,
     NamespaceFQN,
     Suffixify (..),
-    addHeaders,
     defaultWidth,
   )
 import Unison.Symbol (Symbol)
@@ -113,6 +105,7 @@ instance ToSample DefinitionDisplayResults where
   toSamples _ = noSamples
 
 serveDefinitions ::
+  MonadIO m =>
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
@@ -120,9 +113,9 @@ serveDefinitions ::
   [HashQualifiedName] ->
   Maybe Width ->
   Maybe Suffixify ->
-  Handler (APIHeaders DefinitionDisplayResults)
+  Backend.Backend m DefinitionDisplayResults
 serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
-  addHeaders <$> do
+  do
     rel <-
       fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
     ea <- liftIO . runExceptT $ do
@@ -141,7 +134,7 @@ serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
         rt
         codebase
         hqns
-    errFromEither backendError ea
+    liftEither ea
   where
-    parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
+    parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
     errFromEither f = either (throwError . f) pure

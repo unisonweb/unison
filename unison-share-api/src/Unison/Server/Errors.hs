@@ -36,6 +36,7 @@ backendError :: Backend.BackendError -> ServerError
 backendError = \case
   Backend.NoSuchNamespace n ->
     noSuchNamespace . Path.toText $ Path.unabsolute n
+  Backend.BadNamespace err namespace -> badNamespace err namespace
   Backend.BadRootBranch e -> rootBranchError e
   Backend.NoBranchForHash h ->
     noSuchNamespace . Text.toStrict . Text.pack $ show h
