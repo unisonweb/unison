@@ -36,10 +36,10 @@ data PatchLocalIds' t h d = LocalIds
 
 type SyncPatchFormat = SyncPatchFormat' PatchObjectId TextId HashId ObjectId
 
-data SyncPatchFormat' p t h d
-  = SyncFull (PatchLocalIds' t h d) ByteString
+data SyncPatchFormat' parent text hash defn
+  = SyncFull (PatchLocalIds' text hash defn) ByteString
   | -- | p is the identity of the thing that the diff is relative to
-    SyncDiff p (PatchLocalIds' t h d) ByteString
+    SyncDiff parent (PatchLocalIds' text hash defn) ByteString
 
 -- | Apply a list of patch diffs to a patch, left to right.
 applyPatchDiffs :: Patch -> [PatchDiff] -> Patch

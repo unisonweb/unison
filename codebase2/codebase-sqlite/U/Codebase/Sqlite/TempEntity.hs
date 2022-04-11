@@ -1,5 +1,6 @@
 module U.Codebase.Sqlite.TempEntity where
 
+import qualified U.Codebase.Sqlite.Branch.Format as Namespace
 import qualified U.Codebase.Sqlite.Decl.Format as Decl
 import qualified U.Codebase.Sqlite.Patch.Format as Patch
 import qualified U.Codebase.Sqlite.Term.Format as Term
@@ -13,6 +14,6 @@ data TempEntity
   = TC (Term.SyncTermFormat' Text HashJWT)
   | DC (Decl.SyncDeclFormat' Text HashJWT)
   | P (Patch.SyncPatchFormat' HashJWT Text Base32Hex HashJWT)
+  | N (Namespace.SyncBranchFormat' HashJWT Text HashJWT HashJWT (HashJWT, HashJWT))
 
---  | N (Namespace text hash)
 --  | C (Causal hash)
