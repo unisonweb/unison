@@ -88,8 +88,11 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 
   Dependents of #ukd7tu6kds:
   
-       Reference   Name
-    1. #nkgohbke6n inside.r
+       Name     Reference
+    1. inside.r #nkgohbke6n
+  
+  Tip: Try `view 1` to see the source of any numbered item in
+       the above list.
 
 ```
 We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the structural type that provided the constructor.

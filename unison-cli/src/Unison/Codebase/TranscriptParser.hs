@@ -21,7 +21,6 @@ where
 import Control.Concurrent.STM (atomically)
 import Control.Error (rightMay)
 import Control.Lens (view)
-import Control.Monad.State (runStateT)
 import qualified Crypto.Random as Random
 import qualified Data.Char as Char
 import qualified Data.Configurator as Configurator
@@ -38,7 +37,7 @@ import qualified Text.Megaparsec as P
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Command (LoadSourceResult (..))
+import Unison.Codebase.Editor.Command (LoadSourceResult (..), UCMVersion)
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
@@ -145,22 +144,22 @@ type TranscriptRunner =
 withTranscriptRunner ::
   forall m r.
   UnliftIO.MonadUnliftIO m =>
-  String ->
+  UCMVersion ->
   Maybe FilePath ->
   (TranscriptRunner -> m r) ->
   m r
-withTranscriptRunner version configFile action = do
+withTranscriptRunner ucmVersion configFile action = do
   withRuntime $ \runtime -> withConfig $ \config -> do
     action $ \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       let parsed = parse transcriptName transcriptSrc
       result <- for parsed $ \stanzas -> do
-        liftIO $ run codebaseDir stanzas codebase runtime config
+        liftIO $ run codebaseDir stanzas codebase runtime config ucmVersion
       pure $ join @(Either TranscriptError) result
   where
     withRuntime :: ((Runtime.Runtime Symbol -> m a) -> m a)
     withRuntime action =
       UnliftIO.bracket
-        (liftIO $ RTI.startRuntime RTI.UCM version)
+        (liftIO $ RTI.startRuntime RTI.UCM ucmVersion)
         (liftIO . Runtime.terminate)
         action
     withConfig :: forall a. ((Maybe Config -> m a) -> m a)
@@ -182,8 +181,9 @@ run ::
   Codebase IO Symbol Ann ->
   Runtime.Runtime Symbol ->
   Maybe Config ->
+  UCMVersion ->
   IO (Either TranscriptError Text)
-run dir stanzas codebase runtime config = UnliftIO.try $ do
+run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
   let initialPath = Path.absoluteEmpty
   putPrettyLn $
     P.lines
@@ -376,7 +376,12 @@ run dir stanzas codebase runtime config = UnliftIO.try $ do
 
         loop state = do
           writeIORef pathRef (view LoopState.currentPath state)
-          let free = runStateT (runMaybeT HandleInput.loop) state
+          let env =
+                LoopState.Env
+                  { LoopState.authHTTPClient = error "Error: No access to authorized requests from transcripts.",
+                    LoopState.credentialManager = error "Error: No access to credentials from transcripts."
+                  }
+          let free = LoopState.runAction env state $ HandleInput.loop
               rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
           (o, state') <-
             HandleCommand.commandLine
@@ -389,6 +394,7 @@ run dir stanzas codebase runtime config = UnliftIO.try $ do
               loadPreviousUnisonBlock
               codebase
               Nothing
+              ucmVersion
               rng
               free
           case o of

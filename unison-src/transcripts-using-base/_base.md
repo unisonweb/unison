@@ -26,7 +26,7 @@ test> hex.tests.ex1 = checks let
 ```
 
 ```ucm:hide
-.scratch> test
+.> test
 ```
 
 Lets do some basic testing of our test harness to make sure its

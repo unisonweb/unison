@@ -500,7 +500,7 @@ renderTypeError e env src = case e of
             "\n\n",
             annotatedAsErrorSite src termSite,
             case expectedType of
-              Type.Var' (TypeVar.Existential {}) -> "\nThere are no constraints on its type."
+              Type.Var' (TypeVar.Existential {}) -> "\nThere are no constraints on its type. "
               _ ->
                 "\nWhatever it is, it has a type that conforms to "
                   <> style Type1 (renderType' env expectedType)

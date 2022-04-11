@@ -44,6 +44,8 @@ structural type MyType = MyType Text
   
   
 
+.> cd .
+
 ```
 ## A merge with conflicting updates.
 

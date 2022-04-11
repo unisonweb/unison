@@ -6,7 +6,7 @@ library:
   source-dirs: src
 
 tests:
-  tests:
+  util-relation-tests:
     dependencies:
       - code-page
       - easytest

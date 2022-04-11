@@ -16,6 +16,7 @@ import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup)
 import qualified Data.Sequence as Seq
 import Data.Serialize.Put (runPutLazy)
+import Data.Text (Text)
 import Data.Word (Word16, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
@@ -23,6 +24,7 @@ import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.Exception
 import Unison.Runtime.Serialize
+import qualified Unison.Util.EnumContainers as EC
 import qualified Unison.Util.Text as Util.Text
 import Unison.Var (Type (ANFBlank), Var (..))
 import Prelude hiding (getChar, putChar)
@@ -47,6 +49,7 @@ data FnTag
   | FConT
   | FReqT
   | FPrimT
+  | FForeignT
 
 data MtTag
   = MIntT
@@ -106,6 +109,7 @@ instance Tag FnTag where
     FConT -> 3
     FReqT -> 4
     FPrimT -> 5
+    FForeignT -> 6
 
   word2tag = \case
     0 -> pure FVarT
@@ -114,6 +118,7 @@ instance Tag FnTag where
     3 -> pure FConT
     4 -> pure FReqT
     5 -> pure FPrimT
+    6 -> pure FForeignT
     n -> unknownTag "FnTag" n
 
 instance Tag MtTag where
@@ -209,6 +214,9 @@ deindex (v : vs) n
   | n == 0 = v
   | otherwise = deindex vs (n - 1)
 
+pushCtx :: [v] -> [v] -> [v]
+pushCtx us vs = reverse us ++ vs
+
 putIndex :: MonadPut m => Word64 -> m ()
 putIndex = serialize . VarInt
 
@@ -244,24 +252,37 @@ getCCs =
       1 -> BX
       _ -> exn "getCCs: bad calling convention"
 
-putGroup :: MonadPut m => Var v => SuperGroup v -> m ()
-putGroup (Rec bs e) =
-  putLength n *> traverse_ (putComb ctx) cs *> putComb ctx e
+putGroup ::
+  MonadPut m =>
+  Var v =>
+  EC.EnumMap FOp Text ->
+  SuperGroup v ->
+  m ()
+putGroup fops (Rec bs e) =
+  putLength n *> traverse_ (putComb fops ctx) cs *> putComb fops ctx e
   where
-    n = length ctx
-    (ctx, cs) = unzip bs
+    n = length us
+    (us, cs) = unzip bs
+    ctx = pushCtx us []
 
 getGroup :: MonadGet m => Var v => m (SuperGroup v)
 getGroup = do
   l <- getLength
   let n = fromIntegral l
       vs = getFresh <$> take l [0 ..]
-  cs <- replicateM l (getComb vs n)
-  Rec (zip vs cs) <$> getComb vs n
+      ctx = pushCtx vs []
+  cs <- replicateM l (getComb ctx n)
+  Rec (zip vs cs) <$> getComb ctx n
 
-putComb :: MonadPut m => Var v => [v] -> SuperNormal v -> m ()
-putComb ctx (Lambda ccs (TAbss us e)) =
-  putCCs ccs *> putNormal (us ++ ctx) e
+putComb ::
+  MonadPut m =>
+  Var v =>
+  EC.EnumMap FOp Text ->
+  [v] ->
+  SuperNormal v ->
+  m ()
+putComb fops ctx (Lambda ccs (TAbss us e)) =
+  putCCs ccs *> putNormal fops (pushCtx us ctx) e
 
 getFresh :: Var v => Word64 -> v
 getFresh n = freshenId n $ typed ANFBlank
@@ -271,31 +292,37 @@ getComb ctx frsh0 = do
   ccs <- getCCs
   let us = zipWith (\_ -> getFresh) ccs [frsh0 ..]
       frsh = frsh0 + fromIntegral (length ccs)
-  Lambda ccs . TAbss us <$> getNormal (us ++ ctx) frsh
+  Lambda ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
 
-putNormal :: MonadPut m => Var v => [v] -> ANormal v -> m ()
-putNormal ctx tm = case tm of
+putNormal ::
+  MonadPut m =>
+  Var v =>
+  EC.EnumMap FOp Text ->
+  [v] ->
+  ANormal v ->
+  m ()
+putNormal fops ctx tm = case tm of
   TVar v -> putTag VarT *> putVar ctx v
   TFrc v -> putTag ForceT *> putVar ctx v
-  TApp f as -> putTag AppT *> putFunc ctx f *> putArgs ctx as
+  TApp f as -> putTag AppT *> putFunc fops ctx f *> putArgs ctx as
   THnd rs h e ->
-    putTag HandleT *> putRefs rs *> putVar ctx h *> putNormal ctx e
+    putTag HandleT *> putRefs rs *> putVar ctx h *> putNormal fops ctx e
   TShift r v e ->
-    putTag ShiftT *> putReference r *> putNormal (v : ctx) e
-  TMatch v bs -> putTag MatchT *> putVar ctx v *> putBranches ctx bs
+    putTag ShiftT *> putReference r *> putNormal fops (v : ctx) e
+  TMatch v bs -> putTag MatchT *> putVar ctx v *> putBranches fops ctx bs
   TLit l -> putTag LitT *> putLit l
   TName v (Left r) as e ->
     putTag NameRefT *> putReference r *> putArgs ctx as
-      *> putNormal (v : ctx) e
+      *> putNormal fops (v : ctx) e
   TName v (Right u) as e ->
     putTag NameVarT *> putVar ctx u *> putArgs ctx as
-      *> putNormal (v : ctx) e
+      *> putNormal fops (v : ctx) e
   TLets Direct us ccs l e ->
-    putTag LetDirT *> putCCs ccs *> putNormal ctx l
-      *> putNormal (us ++ ctx) e
+    putTag LetDirT *> putCCs ccs *> putNormal fops ctx l
+      *> putNormal fops (pushCtx us ctx) e
   TLets (Indirect w) us ccs l e ->
-    putTag LetIndT *> putWord16be w *> putCCs ccs *> putNormal ctx l
-      *> putNormal (us ++ ctx) e
+    putTag LetIndT *> putWord16be w *> putCCs ccs *> putNormal fops ctx l
+      *> putNormal fops (pushCtx us ctx) e
   _ -> exn "putNormal: malformed term"
 
 getNormal :: MonadGet m => Var v => [v] -> Word64 -> m (ANormal v)
@@ -332,7 +359,7 @@ getNormal ctx frsh0 =
           us = getFresh <$> take l [frsh0 ..]
       TLets Direct us ccs
         <$> getNormal ctx frsh0
-        <*> getNormal (us ++ ctx) frsh
+        <*> getNormal (pushCtx us ctx) frsh
     LetIndT -> do
       w <- getWord16be
       ccs <- getCCs
@@ -341,17 +368,26 @@ getNormal ctx frsh0 =
           us = getFresh <$> take l [frsh0 ..]
       TLets (Indirect w) us ccs
         <$> getNormal ctx frsh0
-        <*> getNormal (us ++ ctx) frsh
+        <*> getNormal (pushCtx us ctx) frsh
 
-putFunc :: MonadPut m => Var v => [v] -> Func v -> m ()
-putFunc ctx f = case f of
+putFunc ::
+  MonadPut m =>
+  Var v =>
+  EC.EnumMap FOp Text ->
+  [v] ->
+  Func v ->
+  m ()
+putFunc fops ctx f = case f of
   FVar v -> putTag FVarT *> putVar ctx v
   FComb r -> putTag FCombT *> putReference r
   FCont v -> putTag FContT *> putVar ctx v
   FCon r c -> putTag FConT *> putReference r *> putCTag c
   FReq r c -> putTag FReqT *> putReference r *> putCTag c
   FPrim (Left p) -> putTag FPrimT *> putPOp p
-  FPrim _ -> exn "putFunc: can't serialize foreign func"
+  FPrim (Right f)
+    | Just nm <- EC.lookup f fops ->
+        putTag FForeignT *> putText nm
+    | otherwise -> exn $ "putFUnc: unknown FOp: " ++ show f
 
 getFunc :: MonadGet m => Var v => [v] -> m (Func v)
 getFunc ctx =
@@ -362,11 +398,12 @@ getFunc ctx =
     FConT -> FCon <$> getReference <*> getCTag
     FReqT -> FReq <$> getReference <*> getCTag
     FPrimT -> FPrim . Left <$> getPOp
+    FForeignT -> exn "getFunc: can't deserialize a foreign func"
 
 putPOp :: MonadPut m => POp -> m ()
 putPOp op
   | Just w <- Map.lookup op pop2word = putWord16be w
-  | otherwise = exn "putPOp: unknown POp"
+  | otherwise = exn $ "putPOp: unknown POp: " ++ show op
 
 getPOp :: MonadGet m => m POp
 getPOp =
@@ -374,116 +411,129 @@ getPOp =
     Just op -> pure op
     Nothing -> exn "getPOp: unknown enum code"
 
+pOpCode :: POp -> Word16
+pOpCode op = case op of
+  ADDI -> 0
+  SUBI -> 1
+  MULI -> 2
+  DIVI -> 3
+  SGNI -> 4
+  NEGI -> 5
+  MODI -> 6
+  POWI -> 7
+  SHLI -> 8
+  SHRI -> 9
+  INCI -> 10
+  DECI -> 11
+  LEQI -> 12
+  EQLI -> 13
+  ADDN -> 14
+  SUBN -> 15
+  MULN -> 16
+  DIVN -> 17
+  MODN -> 18
+  TZRO -> 19
+  LZRO -> 20
+  POWN -> 21
+  SHLN -> 22
+  SHRN -> 23
+  ANDN -> 24
+  IORN -> 25
+  XORN -> 26
+  COMN -> 27
+  INCN -> 28
+  DECN -> 29
+  LEQN -> 30
+  EQLN -> 31
+  ADDF -> 32
+  SUBF -> 33
+  MULF -> 34
+  DIVF -> 35
+  MINF -> 36
+  MAXF -> 37
+  LEQF -> 38
+  EQLF -> 39
+  POWF -> 40
+  EXPF -> 41
+  SQRT -> 42
+  LOGF -> 43
+  LOGB -> 44
+  ABSF -> 45
+  CEIL -> 46
+  FLOR -> 47
+  TRNF -> 48
+  RNDF -> 49
+  COSF -> 50
+  ACOS -> 51
+  COSH -> 52
+  ACSH -> 53
+  SINF -> 54
+  ASIN -> 55
+  SINH -> 56
+  ASNH -> 57
+  TANF -> 58
+  ATAN -> 59
+  TANH -> 60
+  ATNH -> 61
+  ATN2 -> 62
+  CATT -> 63
+  TAKT -> 64
+  DRPT -> 65
+  SIZT -> 66
+  UCNS -> 67
+  USNC -> 68
+  EQLT -> 69
+  LEQT -> 70
+  PAKT -> 71
+  UPKT -> 72
+  CATS -> 73
+  TAKS -> 74
+  DRPS -> 75
+  SIZS -> 76
+  CONS -> 77
+  SNOC -> 78
+  IDXS -> 79
+  BLDS -> 80
+  VWLS -> 81
+  VWRS -> 82
+  SPLL -> 83
+  SPLR -> 84
+  PAKB -> 85
+  UPKB -> 86
+  TAKB -> 87
+  DRPB -> 88
+  IDXB -> 89
+  SIZB -> 90
+  FLTB -> 91
+  CATB -> 92
+  ITOF -> 93
+  NTOF -> 94
+  ITOT -> 95
+  NTOT -> 96
+  TTOI -> 97
+  TTON -> 98
+  TTOF -> 99
+  FTOT -> 100
+  FORK -> 101
+  EQLU -> 102
+  CMPU -> 103
+  EROR -> 104
+  PRNT -> 105
+  INFO -> 106
+  POPC -> 107
+  MISS -> 108
+  CACH -> 109
+  LKUP -> 110
+  LOAD -> 111
+  CVLD -> 112
+  SDBX -> 113
+  VALU -> 114
+  TLTT -> 115
+  TRCE -> 116
+  ATOM -> 117
+
 pOpAssoc :: [(POp, Word16)]
-pOpAssoc =
-  [ (ADDI, 0),
-    (SUBI, 1),
-    (MULI, 2),
-    (DIVI, 3),
-    (SGNI, 4),
-    (NEGI, 5),
-    (MODI, 6),
-    (POWI, 7),
-    (SHLI, 8),
-    (SHRI, 9),
-    (INCI, 10),
-    (DECI, 11),
-    (LEQI, 12),
-    (EQLI, 13),
-    (ADDN, 14),
-    (SUBN, 15),
-    (MULN, 16),
-    (DIVN, 17),
-    (MODN, 18),
-    (TZRO, 19),
-    (LZRO, 20),
-    (POWN, 21),
-    (SHLN, 22),
-    (SHRN, 23),
-    (ANDN, 24),
-    (IORN, 25),
-    (XORN, 26),
-    (COMN, 27),
-    (INCN, 28),
-    (DECN, 29),
-    (LEQN, 30),
-    (EQLN, 31),
-    (ADDF, 32),
-    (SUBF, 33),
-    (MULF, 34),
-    (DIVF, 35),
-    (MINF, 36),
-    (MAXF, 37),
-    (LEQF, 38),
-    (EQLF, 39),
-    (POWF, 40),
-    (EXPF, 41),
-    (SQRT, 42),
-    (LOGF, 43),
-    (LOGB, 44),
-    (ABSF, 45),
-    (CEIL, 46),
-    (FLOR, 47),
-    (TRNF, 48),
-    (RNDF, 49),
-    (COSF, 50),
-    (ACOS, 51),
-    (COSH, 52),
-    (ACSH, 53),
-    (SINF, 54),
-    (ASIN, 55),
-    (SINH, 56),
-    (ASNH, 57),
-    (TANF, 58),
-    (ATAN, 59),
-    (TANH, 60),
-    (ATNH, 61),
-    (ATN2, 62),
-    (CATT, 63),
-    (TAKT, 64),
-    (DRPT, 65),
-    (SIZT, 66),
-    (UCNS, 67),
-    (USNC, 68),
-    (EQLT, 69),
-    (LEQT, 70),
-    (PAKT, 71),
-    (UPKT, 72),
-    (CATS, 73),
-    (TAKS, 74),
-    (DRPS, 75),
-    (SIZS, 76),
-    (CONS, 77),
-    (SNOC, 78),
-    (IDXS, 79),
-    (BLDS, 80),
-    (VWLS, 81),
-    (VWRS, 82),
-    (SPLL, 83),
-    (SPLR, 84),
-    (PAKB, 85),
-    (UPKB, 86),
-    (TAKB, 87),
-    (DRPB, 88),
-    (IDXB, 89),
-    (SIZB, 90),
-    (FLTB, 91),
-    (CATB, 92),
-    (ITOF, 93),
-    (NTOF, 94),
-    (ITOT, 95),
-    (NTOT, 96),
-    (TTOI, 97),
-    (TTON, 98),
-    (TTOF, 99),
-    (FTOT, 100),
-    (FORK, 101),
-    (EQLU, 102),
-    (CMPU, 103),
-    (EROR, 104),
-    (PRNT, 105),
-    (INFO, 106)
-  ]
+pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]
 
 pop2word :: Map POp Word16
 pop2word = fromList pOpAssoc
@@ -535,31 +585,37 @@ putRefs rs = putFoldable putReference rs
 getRefs :: MonadGet m => m [Reference]
 getRefs = getList getReference
 
-putBranches :: MonadPut m => Var v => [v] -> Branched (ANormal v) -> m ()
-putBranches ctx bs = case bs of
+putBranches ::
+  MonadPut m =>
+  Var v =>
+  EC.EnumMap FOp Text ->
+  [v] ->
+  Branched (ANormal v) ->
+  m ()
+putBranches fops ctx bs = case bs of
   MatchEmpty -> putTag MEmptyT
   MatchIntegral m df -> do
     putTag MIntT
-    putEnumMap putWord64be (putNormal ctx) m
-    putMaybe df $ putNormal ctx
+    putEnumMap putWord64be (putNormal fops ctx) m
+    putMaybe df $ putNormal fops ctx
   MatchText m df -> do
     putTag MTextT
-    putMap (putText . Util.Text.toText) (putNormal ctx) m
-    putMaybe df $ putNormal ctx
+    putMap (putText . Util.Text.toText) (putNormal fops ctx) m
+    putMaybe df $ putNormal fops ctx
   MatchRequest m (TAbs v df) -> do
     putTag MReqT
-    putMap putReference (putEnumMap putCTag (putCase ctx)) m
-    putNormal (v : ctx) df
+    putMap putReference (putEnumMap putCTag (putCase fops ctx)) m
+    putNormal fops (v : ctx) df
     where
 
   MatchData r m df -> do
     putTag MDataT
     putReference r
-    putEnumMap putCTag (putCase ctx) m
-    putMaybe df $ putNormal ctx
+    putEnumMap putCTag (putCase fops ctx) m
+    putMaybe df $ putNormal fops ctx
   MatchSum m -> do
     putTag MSumT
-    putEnumMap putWord64be (putCase ctx) m
+    putEnumMap putWord64be (putCase fops ctx) m
   _ -> exn "putBranches: malformed intermediate term"
 
 getBranches ::
@@ -588,8 +644,15 @@ getBranches ctx frsh0 =
         <*> getMaybe (getNormal ctx frsh0)
     MSumT -> MatchSum <$> getEnumMap getWord64be (getCase ctx frsh0)
 
-putCase :: MonadPut m => Var v => [v] -> ([Mem], ANormal v) -> m ()
-putCase ctx (ccs, (TAbss us e)) = putCCs ccs *> putNormal (us ++ ctx) e
+putCase ::
+  MonadPut m =>
+  Var v =>
+  EC.EnumMap FOp Text ->
+  [v] ->
+  ([Mem], ANormal v) ->
+  m ()
+putCase fops ctx (ccs, (TAbss us e)) =
+  putCCs ccs *> putNormal fops (pushCtx us ctx) e
 
 getCase :: MonadGet m => Var v => [v] -> Word64 -> m ([Mem], ANormal v)
 getCase ctx frsh0 = do
@@ -597,7 +660,7 @@ getCase ctx frsh0 = do
   let l = length ccs
       frsh = frsh0 + fromIntegral l
       us = getFresh <$> take l [frsh0 ..]
-  (,) ccs . TAbss us <$> getNormal (us ++ ctx) frsh
+  (,) ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
 
 putCTag :: MonadPut m => CTag -> m ()
 putCTag c = serialize (VarInt $ fromEnum c)
@@ -684,8 +747,9 @@ deserializeGroup bs = runGetS (getVersion *> getGroup) bs
         1 -> pure ()
         n -> fail $ "deserializeGroup: unknown version: " ++ show n
 
-serializeGroup :: Var v => SuperGroup v -> ByteString
-serializeGroup sg = runPutS (putVersion *> putGroup sg)
+serializeGroup ::
+  Var v => EC.EnumMap FOp Text -> SuperGroup v -> ByteString
+serializeGroup fops sg = runPutS (putVersion *> putGroup fops sg)
   where
     putVersion = putWord32be 1
 

@@ -24,6 +24,7 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe, uncurry3)
+import Network.URI (URI)
 import System.Directory
   ( canonicalizePath,
     doesFileExist,
@@ -32,6 +33,7 @@ import System.Directory
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
+import qualified Unison.Auth.Types as Auth
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -500,6 +502,9 @@ showListEdits patch ppe =
               "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTypeName)
             )
 
+prettyURI :: URI -> Pretty
+prettyURI = P.bold . P.blue . P.shown
+
 prettyRemoteNamespace ::
   ReadRemoteNamespace ->
   Pretty
@@ -834,15 +839,25 @@ notifyUser dir o = case o of
     listOfDefinitions ppe detailed results
   ListOfLinks ppe results ->
     listOfLinks ppe [(name, tm) | (name, _ref, tm) <- results]
-  ListNames _len [] [] ->
-    pure . P.callout "😶" $
-      P.wrap "I couldn't find anything by that name."
-  ListNames len types terms ->
-    pure . P.sepNonEmpty "\n\n" $
-      [ formatTypes types,
-        formatTerms terms
-      ]
+  ListNames global len types terms ->
+    if null types && null terms
+      then
+        pure . P.callout "😶" $
+          P.sepNonEmpty "\n\n" $
+            [ P.wrap "I couldn't find anything by that name.",
+              globalTip
+            ]
+      else
+        pure . P.sepNonEmpty "\n\n" $
+          [ formatTypes types,
+            formatTerms terms,
+            globalTip
+          ]
     where
+      globalTip =
+        if global
+          then mempty
+          else (tip $ "Use " <> IP.makeExample (IP.names True) [] <> " to see more results.")
       formatTerms tms =
         P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms)
         where
@@ -1438,20 +1453,23 @@ notifyUser dir o = case o of
           P.lines
             [ "Dependents of " <> prettyLd <> ":",
               "",
-              P.indentN 2 (P.numberedColumn2Header num pairs)
+              P.indentN 2 (P.numberedColumn2Header num pairs),
+              "",
+              tip $ "Try " <> IP.makeExample IP.view ["1"] <> " to see the source of any numbered item in the above list."
             ]
     where
       prettyLd = P.syntaxToColor (prettyLabeledDependency hqLength ld)
       num n = P.hiBlack $ P.shown n <> "."
-      header = (P.hiBlack "Reference", P.hiBlack "Name")
-      pairs = header : map pair results
+      header = (P.hiBlack "Name", P.hiBlack "Reference")
+      pairs = header : map pair (List.sortOn (fmap (Name.convert :: Name -> HQ.HashQualified Name) . snd) results)
       pair :: (Reference, Maybe Name) -> (Pretty, Pretty)
       pair (reference, maybeName) =
-        ( prettyShortHash (SH.take hqLength (Reference.toShortHash reference)),
-          case maybeName of
+        ( case maybeName of
             Nothing -> ""
-            Just name -> prettyName name
+            Just name -> prettyName name,
+          prettyShortHash (SH.take hqLength (Reference.toShortHash reference))
         )
+
   -- this definition is identical to the previous one, apart from the word
   -- "Dependencies", but undecided about whether or how to refactor
   ListDependencies hqLength ld names missing ->
@@ -1529,6 +1547,50 @@ notifyUser dir o = case o of
     where
       remoteNamespace =
         (RemoteRepo.writeToRead repo, Just (SBH.fromHash hqLength hash), Path.empty)
+  InitiateAuthFlow authURI -> do
+    pure $
+      P.wrap $
+        "Please navigate to " <> prettyURI authURI <> " to authorize UCM with the codebase server."
+  UnknownCodeServer codeServerName -> do
+    pure $
+      P.lines
+        [ P.wrap $ "No host configured for code server " <> P.red (P.text codeServerName) <> ".",
+          "You can configure code server hosts in your .unisonConfig file."
+        ]
+  CredentialFailureMsg err -> pure $ case err of
+    Auth.ReauthRequired (Auth.Host host) ->
+      P.lines
+        [ "Authentication for host " <> P.red (P.text host) <> " is required.",
+          "Run " <> IP.makeExample IP.help [IP.patternName IP.authLogin]
+            <> " to learn how."
+        ]
+    Auth.CredentialParseFailure fp txt ->
+      P.lines
+        [ "Failed to parse the credentials file at " <> prettyFilePath fp <> ", with error: " <> P.text txt <> ".",
+          "You can attempt to fix the issue, or may simply delete the credentials file and run " <> IP.makeExample IP.authLogin [] <> "."
+        ]
+    Auth.InvalidDiscoveryDocument uri txt ->
+      P.lines
+        [ "Failed to parse the discover document from " <> prettyURI uri <> ", with error: " <> P.text txt <> "."
+        ]
+    Auth.InvalidJWT txt ->
+      P.lines
+        [ "Failed to validate JWT from authentication server: " <> P.text txt
+        ]
+    Auth.RefreshFailure txt ->
+      P.lines
+        [ "Failed to refresh access token with authentication server: " <> P.text txt
+        ]
+    Auth.InvalidTokenResponse uri txt ->
+      P.lines
+        [ "Failed to parse token response from authentication server: " <> prettyURI uri,
+          "The error was: " <> P.text txt
+        ]
+    Auth.InvalidHost (Auth.Host host) ->
+      P.lines
+        [ "Failed to parse a URI from the hostname: " <> P.text host <> ".",
+          "Host names should NOT include a schema or path."
+        ]
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -1558,6 +1620,10 @@ notifyUser dir o = case o of
 --    where
 --      ns targets = P.oxfordCommas $
 --        map (fromString . Names.renderNameTarget) (toList targets)
+
+prettyFilePath :: FilePath -> Pretty
+prettyFilePath fp =
+  P.blue (P.string fp)
 
 prettyPath' :: Path.Path' -> Pretty
 prettyPath' p' =
@@ -1673,8 +1739,7 @@ displayDefinitions ::
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
   IO Pretty
 displayDefinitions _outputLoc _ppe types terms
-  | Map.null types && Map.null terms =
-      pure $ P.callout "😶" "No results to display."
+  | Map.null types && Map.null terms = pure $ P.callout "😶" "No results to display."
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
@@ -2528,9 +2593,15 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
 noResults :: Pretty
 noResults =
   P.callout "😶" $
-    P.wrap $
-      "No results. Check your spelling, or try using tab completion "
-        <> "to supply command arguments."
+    P.lines
+      [ P.wrap $
+          "No results. Check your spelling, or try using tab completion "
+            <> "to supply command arguments.",
+        "",
+        P.wrap $
+          IP.makeExample IP.findGlobal []
+            <> "can be used to search outside the current namespace."
+      ]
 
 listOfDefinitions' ::
   Var v =>

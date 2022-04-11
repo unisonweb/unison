@@ -10,6 +10,9 @@ module Unison.Prelude
 
     -- * @Maybe@ control flow
     onNothing,
+    whenNothing,
+    eitherToMaybe,
+    maybeToEither,
 
     -- * @Either@ control flow
     whenLeft,
@@ -22,7 +25,7 @@ where
 
 import Control.Applicative as X
 import Control.Category as X ((>>>))
-import Control.Exception as X (Exception, IOException, SomeException, try)
+import Control.Exception as X (Exception, IOException, SomeException)
 import Control.Monad as X
 import Control.Monad.Extra as X (ifM, mapMaybeM, unlessM, whenM)
 import Control.Monad.IO.Class as X (MonadIO (liftIO))
@@ -33,6 +36,7 @@ import Data.ByteString as X (ByteString)
 import Data.Coerce as X (Coercible, coerce)
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
+import Data.Either.Extra (eitherToMaybe, maybeToEither)
 import Data.Foldable as X (asum, fold, foldl', for_, toList, traverse_)
 import Data.Function as X ((&))
 import Data.Functor as X
@@ -57,11 +61,20 @@ import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
 import qualified System.IO as IO
 import Text.Read as X (readMaybe)
+import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import qualified UnliftIO
 
+-- | E.g.
+--
+-- @@
+-- onNothing (throwIO MissingPerson) $ mayThing
+-- @@
 onNothing :: Applicative m => m a -> Maybe a -> m a
-onNothing x =
-  maybe x pure
+onNothing m may = maybe m pure may
+
+-- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
+whenNothing :: Applicative m => Maybe a -> m a -> m a
+whenNothing may m = maybe m pure may
 
 whenLeft :: Applicative m => Either a b -> (a -> m b) -> m b
 whenLeft = \case
@@ -77,10 +90,10 @@ throwExceptTWith f action =
     Left e -> liftIO . UnliftIO.throwIO $ e
     Right a -> pure a
 
-throwEitherM :: (MonadIO m, Exception e) => m (Either e a) -> m a
+throwEitherM :: forall e m a. (MonadIO m, Exception e) => m (Either e a) -> m a
 throwEitherM = throwEitherMWith id
 
-throwEitherMWith :: (MonadIO m, Exception e') => (e -> e') -> m (Either e a) -> m a
+throwEitherMWith :: forall e e' m a. (MonadIO m, Exception e') => (e -> e') -> m (Either e a) -> m a
 throwEitherMWith f action = throwExceptT . withExceptT f $ (ExceptT action)
 
 tShow :: Show a => a -> Text

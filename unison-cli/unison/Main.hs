@@ -21,15 +21,19 @@ import ArgParse
     parseCLIArgs,
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
-import Control.Concurrent (newEmptyMVar, takeMVar)
+import Control.Concurrent (forkIO, newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
 import qualified Data.ByteString.Lazy as BL
 import Data.Configurator.Types (Config)
+import Data.Either.Validation (Validation (..))
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.IO as Text
 import qualified GHC.Conc
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client.TLS as HTTP
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName, withArgs)
 import qualified System.Exit as Exit
@@ -66,15 +70,16 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import UnliftIO.Directory (getHomeDirectory)
 import qualified Version
+import Data.Bifunctor
 
 main :: IO ()
 main = withCP65001 do
   interruptHandler <- defaultInterruptHandler
   withInterruptHandler interruptHandler $ do
+    forkIO initHTTPClient
     progName <- getProgName
     -- hSetBuffering stdout NoBuffering -- cool
-
-    (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName Version.gitDescribeWithDate
+    (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack Version.gitDescribeWithDate)
     let GlobalOptions {codebasePathOption = mCodePathOption} = globalOptions
     let mcodepath = fmap codebasePathOptionToPath mCodePathOption
 
@@ -85,7 +90,7 @@ main = withCP65001 do
         Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
     case command of
       PrintVersion ->
-        putStrLn $ progName ++ " version: " ++ Version.gitDescribeWithDate
+        Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate
       Init -> do
         PT.putPrettyLn $
           P.callout
@@ -107,14 +112,14 @@ main = withCP65001 do
       Run (RunFromFile file mainName) args
         | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
         | otherwise -> do
-            e <- safeReadUtf8 file
-            case e of
-              Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
-              Right contents -> do
-                getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-                  rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
-                  let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                  launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
+          e <- safeReadUtf8 file
+          case e of
+            Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
+            Right contents -> do
+              getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+                rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
+                let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
@@ -159,7 +164,7 @@ main = withCP65001 do
               | not vmatch -> mismatchMsg
               | otherwise -> withArgs args $ RTI.runStandalone sto w
               where
-                vmatch = v == Text.pack Version.gitDescribeWithDate
+                vmatch = v == Version.gitDescribeWithDate
                 ws s = P.wrap (P.text s)
                 ifile
                   | 'c' : 'u' : '.' : rest <- reverse file = reverse rest
@@ -175,7 +180,7 @@ main = withCP65001 do
                       P.indentN 4 $ P.text v,
                       "",
                       "Your version",
-                      P.indentN 4 $ P.string Version.gitDescribeWithDate,
+                      P.indentN 4 $ P.text Version.gitDescribeWithDate,
                       "",
                       P.wrap $
                         "The program was compiled from hash "
@@ -221,6 +226,18 @@ main = withCP65001 do
                 PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
                 launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
 
+-- | Set user agent and configure TLS on global http client.
+-- Note that the authorized http client is distinct from the global http client.
+initHTTPClient :: IO ()
+initHTTPClient = do
+  let (ucmVersion, _date) = Version.gitDescribe
+  let userAgent = Text.encodeUtf8 $ "UCM/" <> ucmVersion
+  let addUserAgent req = do
+        pure $ req {HTTP.requestHeaders = ("User-Agent", userAgent) : HTTP.requestHeaders req}
+  let managerSettings = HTTP.tlsManagerSettings {HTTP.managerModifyRequest = addUserAgent}
+  manager <- HTTP.newTlsManagerWith managerSettings
+  HTTP.setGlobalManager manager
+
 prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> IO FilePath
 prepareTranscriptDir shouldFork mCodePathOption = do
   tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
@@ -246,20 +263,19 @@ runTranscripts' ::
   String ->
   Maybe FilePath ->
   FilePath ->
-  NonEmpty String ->
+  NonEmpty MarkdownFile ->
   IO Bool
-runTranscripts' progName mcodepath transcriptDir args = do
+runTranscripts' progName mcodepath transcriptDir markdownFiles = do
   currentDir <- getCurrentDirectory
-  let (markdownFiles, invalidArgs) = NonEmpty.partition isMarkdown args
   configFilePath <- getConfigFilePath mcodepath
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
-  getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) \(_, codebasePath, theCodebase) -> do
+  and <$> getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) \(_, codebasePath, theCodebase) -> do
     TR.withTranscriptRunner Version.gitDescribeWithDate (Just configFilePath) $ \runTranscript -> do
-      for_ markdownFiles $ \fileName -> do
+      for markdownFiles $ \(MarkdownFile fileName) -> do
         transcriptSrc <- readUtf8 fileName
         result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
         let outputFile = FP.replaceExtension (currentDir FP.</> fileName) ".output.md"
-        output <- case result of
+        (output, succeeded) <- case result of
           Left err -> case err of
             TR.TranscriptParseError err -> do
               PT.putPrettyLn $
@@ -271,7 +287,7 @@ runTranscripts' progName mcodepath transcriptDir args = do
                         P.indentN 2 $ P.text err
                       ]
                   )
-              pure err
+              pure (err, False)
             TR.TranscriptRunFailure err -> do
               PT.putPrettyLn $
                 P.callout
@@ -289,24 +305,12 @@ runTranscripts' progName mcodepath transcriptDir args = do
                             <> "to do more work with it."
                       ]
                   )
-              pure err
+              pure (err, False)
           Right mdOut -> do
-            pure mdOut
+            pure (mdOut, True)
         writeUtf8 outputFile output
         putStrLn $ "💾  Wrote " <> outputFile
-
-  when (not . null $ invalidArgs) $ do
-    PT.putPrettyLn $
-      P.callout
-        "❓"
-        ( P.lines
-            [ P.indentN 2 "Transcripts must have an .md or .markdown extension.",
-              P.indentN 2 "Skipping the following invalid files:",
-              "",
-              P.bulleted $ fmap (P.bold . P.string . (<> "\n")) invalidArgs
-            ]
-        )
-  pure True
+        pure succeeded
 
 runTranscripts ::
   UsageRenderer ->
@@ -316,32 +320,43 @@ runTranscripts ::
   NonEmpty String ->
   IO ()
 runTranscripts renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption args = do
+  markdownFiles <- case traverse (first (pure @[]) . markdownFile) args of
+    Failure invalidArgs -> do
+      PT.putPrettyLn $
+        P.callout
+          "❓"
+          ( P.lines
+              [ P.indentN 2 "Transcripts must have an .md or .markdown extension.",
+                "",
+                P.bulleted $ fmap (P.bold . P.string . (<> "\n")) invalidArgs
+              ]
+          )
+      putStrLn (renderUsageInfo $ Just "transcript")
+      Exit.exitWith (Exit.ExitFailure 1)
+    Success markdownFiles -> pure markdownFiles
   progName <- getProgName
   transcriptDir <- prepareTranscriptDir shouldFork mCodePathOption
   completed <-
-    runTranscripts' progName (Just transcriptDir) transcriptDir args
+    runTranscripts' progName (Just transcriptDir) transcriptDir markdownFiles
   case shouldSaveTempCodebase of
     DontSaveCodebase -> removeDirectoryRecursive transcriptDir
     SaveCodebase ->
-      if completed
-        then
-          PT.putPrettyLn $
-            P.callout
-              "🌸"
-              ( P.lines
-                  [ "I've finished running the transcript(s) in this codebase:",
-                    "",
-                    P.indentN 2 (P.string transcriptDir),
-                    "",
-                    P.wrap $
-                      "You can run"
-                        <> P.backticked (P.string progName <> " --codebase " <> P.string transcriptDir)
-                        <> "to do more work with it."
-                  ]
-              )
-        else do
-          putStrLn (renderUsageInfo $ Just "transcript")
-          Exit.exitWith (Exit.ExitFailure 1)
+      when completed $ do
+        PT.putPrettyLn $
+          P.callout
+            "🌸"
+            ( P.lines
+                [ "I've finished running the transcript(s) in this codebase:",
+                  "",
+                  P.indentN 2 (P.string transcriptDir),
+                  "",
+                  P.wrap $
+                    "You can run"
+                      <> P.backticked (P.string progName <> " --codebase " <> P.string transcriptDir)
+                      <> "to do more work with it."
+                ]
+            )
+  when (not completed) $ Exit.exitWith (Exit.ExitFailure 1)
 
 initialPath :: Path.Absolute
 initialPath = Path.absoluteEmpty
@@ -364,8 +379,8 @@ launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initR
         CreatedCodebase {} -> NewlyCreatedCodebase
         _ -> PreviouslyCreatedCodebase
 
-      (gitRef, _date) = Version.gitDescribe
-      welcome = Welcome.welcome isNewCodebase downloadBase dir gitRef
+      (ucmVersion, _date) = Version.gitDescribe
+      welcome = Welcome.welcome isNewCodebase downloadBase dir ucmVersion
    in CommandLine.main
         dir
         welcome
@@ -375,12 +390,15 @@ launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initR
         runtime
         codebase
         serverBaseUrl
+        ucmVersion
 
-isMarkdown :: String -> Bool
-isMarkdown md = case FP.takeExtension md of
-  ".md" -> True
-  ".markdown" -> True
-  _ -> False
+newtype MarkdownFile = MarkdownFile FilePath
+
+markdownFile :: FilePath -> Validation FilePath MarkdownFile
+markdownFile md = case FP.takeExtension md of
+  ".md" -> Success $ MarkdownFile md
+  ".markdown" -> Success $ MarkdownFile md
+  _ -> Failure md
 
 isDotU :: String -> Bool
 isDotU file = FP.takeExtension file == ".u"
@@ -396,7 +414,7 @@ getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseD
 defaultBaseLib :: Maybe ReadRemoteNamespace
 defaultBaseLib =
   rightMay $
-    runParser VP.defaultBaseLib "version" (Text.pack gitRef)
+    runParser VP.defaultBaseLib "version" gitRef
   where
     (gitRef, _date) = Version.gitDescribe
 

@@ -18,6 +18,9 @@ The deleted namespace shouldn't appear in `ls` output.
   
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
+  
+  `find.global` can be used to search outside the current
+  namespace.
 
 ```
 ```ucm
@@ -27,6 +30,9 @@ The deleted namespace shouldn't appear in `ls` output.
   
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
+  
+  `find.global` can be used to search outside the current
+  namespace.
 
 ```
 ## history

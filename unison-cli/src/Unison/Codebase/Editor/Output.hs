@@ -19,6 +19,8 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
+import Network.URI (URI)
+import Unison.Auth.Types (CredentialFailure)
 import Unison.Codebase (GetRootBranchError)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
@@ -159,6 +161,7 @@ data Output v
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames
+      IsGlobal
       Int -- hq length to print References
       [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
       [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
@@ -248,6 +251,10 @@ data Output v
     RefusedToPush PushBehavior
   | -- | @GistCreated repo hash@ means causal @hash@ was just published to @repo@.
     GistCreated Int WriteRepo Branch.Hash
+  | -- | Directs the user to URI to begin an authorization flow.
+    InitiateAuthFlow URI
+  | UnknownCodeServer Text
+  | CredentialFailureMsg CredentialFailure
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
@@ -315,7 +322,7 @@ isFailure o = case o of
   DeleteBranchConfirmation {} -> False
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
-  ListNames _ tys tms -> null tms && null tys
+  ListNames _ _ tys tms -> null tms && null tys
   ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
@@ -370,6 +377,9 @@ isFailure o = case o of
   NamespaceEmpty {} -> True
   RefusedToPush {} -> True
   GistCreated {} -> False
+  InitiateAuthFlow {} -> False
+  UnknownCodeServer {} -> True
+  CredentialFailureMsg {} -> True
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

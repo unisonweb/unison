@@ -158,7 +158,8 @@ import qualified Unison.Util.SyntaxText as ST
 import Prelude hiding (lines, map)
 
 newtype Width = Width {widthToInt :: Int}
-  deriving (Eq, Ord, Show, Generic, Num, Bounded)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Num, Bounded)
 
 type ColorText = CT.ColorText
 

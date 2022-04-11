@@ -2,28 +2,6 @@ name: unison-parser-typechecker
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
-default-extensions:
-  - ApplicativeDo
-  - BangPatterns
-  - BlockArguments
-  - DeriveFunctor
-  - DeriveGeneric
-  - DerivingStrategies
-  - DoAndIfThenElse
-  - FlexibleContexts
-  - FlexibleInstances
-  - GeneralizedNewtypeDeriving
-  - LambdaCase
-  - MultiParamTypeClasses
-  - NamedFieldPuns
-  - OverloadedStrings
-  - PatternSynonyms
-  - RankNTypes
-  - ScopedTypeVariables
-  - TupleSections
-  - TypeApplications
-  - ViewPatterns
-
 ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
 flags:
@@ -72,6 +50,7 @@ library:
     - haskeline
     - http-types
     - http-media
+    - http-client
     - lens
     - ListLike
     - megaparsec >= 5.0.0 && < 7.0.0
@@ -136,23 +115,15 @@ library:
     - unison-core
     - unison-core1
     - unison-prelude
+    - unison-pretty-printer
     - unison-util
     - unison-util-relation
     - open-browser
     - uri-encode
     - generic-lens
 
-executables:
-  prettyprintdemo:
-    source-dirs: prettyprintdemo
-    main: Main.hs
-    dependencies:
-      - base
-      - safe
-      - text
-      - unison-parser-typechecker
-
-  tests:
+tests:
+  parser-typechecker-tests:
     source-dirs: tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
@@ -187,3 +158,28 @@ executables:
       - unison-prelude
       - unison-util
       - unison-util-relation
+      - unison-pretty-printer
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - ViewPatterns
