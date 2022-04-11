@@ -63,6 +63,7 @@ data InitError
   = FoundV1Codebase
   | InitErrorOpen OpenCodebaseError
   | CouldntCreateCodebase Pretty
+  deriving (Show, Eq)
 
 data InitResult
   = OpenedCodebase
