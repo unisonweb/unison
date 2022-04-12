@@ -156,6 +156,7 @@ import qualified Control.Monad.Except as Except
 import Control.Monad.Reader (MonadReader (ask))
 import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.Writer as Writer
+import Data.Bytes.Put (runPutS)
 import qualified Data.Char as Char
 import qualified Data.Foldable as Foldable
 import qualified Data.List.Extra as List
@@ -195,7 +196,9 @@ import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
-import U.Codebase.Sqlite.TempEntity (HashJWT)
+import U.Codebase.Sqlite.Serialization as Serialization
+import U.Codebase.Sqlite.TempEntity (HashJWT, TempEntity)
+import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import U.Codebase.Sqlite.TempEntityType (TempEntityType)
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WatchKind
@@ -982,24 +985,29 @@ tempEntityExists h = queryOne $ queryAtom sql (Only h)
 -- Preconditions:
 --   1. The entity does not already exist in "main" storage (`object` / `causal`)
 --   2. The entity does not already exist in `temp_entity`.
-insertTempEntity :: DB m => Base32Hex -> ByteString -> TempEntityType -> NESet (Base32Hex, HashJWT) -> m ()
-insertTempEntity dependentHash dependentBlob dependentType missingDependencies = do
+insertTempEntity :: DB m => Base32Hex -> TempEntity -> NESet (Base32Hex, HashJWT) -> m ()
+insertTempEntity entityHash entity missingDependencies = do
   execute
     [here|
       INSERT INTO temp_entity (hash, blob, typeId)
       VALUES (?, ?, ?)
     |]
-    (dependentHash, dependentBlob, dependentType)
+    (entityHash, entityBlob, entityType)
 
   executeMany
     [here|
       INSERT INTO temp_entity_missing_dependencies (dependent, dependency, dependencyJwt)
       VALUES (?, ?, ?)
     |]
-    ( NESet.map
-        (\(dependencyHash, dependencyHashJwt) -> (dependentHash, dependencyHash, dependencyHashJwt))
-        missingDependencies
-    )
+    (map (\(depHash, depHashJwt) -> (entityHash, depHash, depHashJwt)) (Foldable.toList missingDependencies))
+  where
+    entityBlob :: ByteString
+    entityBlob =
+      runPutS (Serialization.putTempEntity entity)
+
+    entityType :: TempEntityType
+    entityType =
+      TempEntity.tempEntityType entity
 
 -- | takes a dependent's hash and multiple dependency hashes
 deleteTempDependencies :: (DB m, Foldable f) => Base32Hex -> f Base32Hex -> m ()

@@ -13,7 +13,6 @@ import qualified Control.Lens as Lens
 import Control.Monad.Extra ((||^))
 import Control.Monad.Reader (ReaderT, runReaderT)
 import Data.Bitraversable (bitraverse)
-import Data.Bytes.Put (runPutS)
 import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
@@ -27,10 +26,8 @@ import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId, HashId, ObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Queries as Q
-import qualified U.Codebase.Sqlite.Serialization as S
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
-import qualified U.Codebase.Sqlite.TempEntityType as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
@@ -234,27 +231,6 @@ download conn repoName = do
               NEMap.toList entities & foldMapM \(hash, entity) -> do
                 let putInMainStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
                     putInMainStorage _hash _entity = undefined
-                let putInTempStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> NESet Share.DecodedHashJWT -> IO ()
-                    putInTempStorage hash entity missingDependencies = do
-                      -- convert the blob to the data type we have a serializer for
-                      let tempEntity = makeTempEntity entity
-                          entityType = tempEntityType entity
-                      -- serialize the blob
-                      let bytes = runPutS (S.putTempEntity tempEntity)
-                      -- insert the blob
-                      runDB do
-                        Q.insertTempEntity
-                          (Base32Hex.UnsafeFromText $ Share.toBase32Hex hash)
-                          bytes
-                          entityType
-                          ( NESet.map
-                              ( \Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}, hashJWT} ->
-                                  ( Base32Hex.UnsafeFromText $ Share.toBase32Hex hash,
-                                    Share.unHashJWT hashJWT
-                                  )
-                              )
-                              missingDependencies
-                          )
 
                 -- still trying to figure out missing dependencies of hash/entity.
                 inMainStorage hash >>= \case
@@ -271,7 +247,19 @@ download conn repoName = do
                         missingDependencies0 <- Set.filterM (inMainStorage . decodedHashJWTHash) (directDepsOfEntity entity)
                         case NESet.nonEmptySet missingDependencies0 of
                           Nothing -> putInMainStorage hash entity
-                          Just missingDependencies -> putInTempStorage hash entity missingDependencies
+                          Just missingDependencies ->
+                            runDB do
+                              Q.insertTempEntity
+                                (Base32Hex.UnsafeFromText $ Share.toBase32Hex hash)
+                                (makeTempEntity entity)
+                                ( NESet.map
+                                    ( \Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}, hashJWT} ->
+                                        ( Base32Hex.UnsafeFromText $ Share.toBase32Hex hash,
+                                          Share.unHashJWT hashJWT
+                                        )
+                                    )
+                                    missingDependencies
+                                )
                         pure missingDependencies0
 
             case NESet.nonEmptySet missingDependencies0 of
@@ -480,11 +468,3 @@ tempToSyncCausal = do
 -- Q.saveCausalHash :: DB m => CausalHash -> m CausalHashId -- only affects `hash` table
 -- Q.saveCausal :: DB m => CausalHashId -> BranchHashId -> m ()
 -- Q.saveCausalParents :: DB m => CausalHashId -> [CausalHashId] -> m ()
-
-tempEntityType :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity.TempEntityType
-tempEntityType = \case
-  Share.TC tc -> TempEntity.TermComponentType
-  Share.DC dc -> TempEntity.DeclComponentType
-  Share.P pa -> TempEntity.PatchType
-  Share.N name -> TempEntity.NamespaceType
-  Share.C ca -> TempEntity.CausalType
