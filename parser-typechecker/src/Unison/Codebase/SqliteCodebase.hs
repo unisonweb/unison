@@ -669,9 +669,9 @@ sqliteCodebase debugName root localOrRemote action = do
         getWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
         getWatch k r@(Reference.Id h _i)
           | elem k standardWatchKinds =
-              runDB' conn $
-                Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
-                  >>= Cv.term2to1 h getDeclType
+            runDB' conn $
+              Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
+                >>= Cv.term2to1 h getDeclType
         getWatch _unknownKind _ = pure Nothing
 
         standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
@@ -679,11 +679,11 @@ sqliteCodebase debugName root localOrRemote action = do
         putWatch :: MonadUnliftIO m => UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
         putWatch k r@(Reference.Id h _i) tm
           | elem k standardWatchKinds =
-              runDB conn $
-                Ops.saveWatch
-                  (Cv.watchKind1to2 k)
-                  (Cv.referenceid1to2 r)
-                  (Cv.term1to2 h tm)
+            runDB conn $
+              Ops.saveWatch
+                (Cv.watchKind1to2 k)
+                (Cv.referenceid1to2 r)
+                (Cv.term1to2 h tm)
         putWatch _unknownKind _ _ = pure ()
 
         clearWatches :: MonadIO m => m ()
@@ -782,47 +782,49 @@ sqliteCodebase debugName root localOrRemote action = do
                   $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
     let codebase =
           C.Codebase
-            (Cache.applyDefined termCache getTerm)
-            (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
-            (Cache.applyDefined declCache getTypeDeclaration)
-            putTerm
-            putTypeDeclaration
-            -- _getTermComponent
-            getTermComponentWithTypes
-            getDeclComponent
-            getCycleLength
-            (getRootBranch rootBranchCache)
-            getRootBranchExists
-            (putRootBranch rootBranchCache)
-            (rootBranchUpdates rootBranchCache)
-            getBranchForHash
-            putBranch
-            isCausalHash
-            getPatch
-            putPatch
-            patchExists
-            dependentsImpl
-            dependentsOfComponentImpl
-            syncFromDirectory
-            syncToDirectory
-            viewRemoteBranch'
-            (\r opts action -> pushGitBranch conn r opts action)
-            watches
-            getWatch
-            putWatch
-            clearWatches
-            getReflog
-            appendReflog
-            termsOfTypeImpl
-            termsMentioningTypeImpl
-            hashLength
-            termReferencesByPrefix
-            declReferencesByPrefix
-            referentsByPrefix
-            branchHashLength
-            branchHashesByPrefix
-            (Just sqlLca)
-            (Just \l r -> runDB conn $ fromJust <$> before l r)
+            { getTerm = (Cache.applyDefined termCache getTerm),
+              getTypeOfTermImpl = (Cache.applyDefined typeOfTermCache getTypeOfTermImpl),
+              getTypeDeclaration = (Cache.applyDefined declCache getTypeDeclaration),
+              putTerm = putTerm,
+              putTypeDeclaration = putTypeDeclaration,
+              getTermComponentWithTypes = getTermComponentWithTypes,
+              getDeclComponent = getDeclComponent,
+              getComponentLength = getCycleLength,
+              getShallowRootBranch = undefined,
+              getRootBranch = (getRootBranch rootBranchCache),
+              getRootBranchExists = getRootBranchExists,
+              putRootBranch = (putRootBranch rootBranchCache),
+              rootBranchUpdates = (rootBranchUpdates rootBranchCache),
+              getShallowBranchForHash = undefined,
+              getBranchForHashImpl = getBranchForHash,
+              putBranch = putBranch,
+              branchExists = isCausalHash,
+              getPatch = getPatch,
+              putPatch = putPatch,
+              patchExists = patchExists,
+              dependentsImpl = dependentsImpl,
+              dependentsOfComponentImpl = dependentsOfComponentImpl,
+              syncFromDirectory = syncFromDirectory,
+              syncToDirectory = syncToDirectory,
+              viewRemoteBranch' = viewRemoteBranch',
+              pushGitBranch = (\r opts action -> pushGitBranch conn r opts action),
+              watches = watches,
+              getWatch = getWatch,
+              putWatch = putWatch,
+              clearWatches = clearWatches,
+              getReflog = getReflog,
+              appendReflog = appendReflog,
+              termsOfTypeImpl = termsOfTypeImpl,
+              termsMentioningTypeImpl = termsMentioningTypeImpl,
+              hashLength = hashLength,
+              termReferencesByPrefix = termReferencesByPrefix,
+              typeReferencesByPrefix = declReferencesByPrefix,
+              termReferentsByPrefix = referentsByPrefix,
+              branchHashLength = branchHashLength,
+              branchHashesByPrefix = branchHashesByPrefix,
+              lcaImpl = (Just sqlLca),
+              beforeImpl = (Just \l r -> runDB conn $ fromJust <$> before l r)
+            }
 
     let finalizer :: MonadIO m => m ()
         finalizer = do
