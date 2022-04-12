@@ -10,58 +10,59 @@ flags:
 ghc-options: -Wall
 
 dependencies:
-  - semialign
-  - these
   - ListLike
+  - aeson
   - async
   - base
   - bytes
   - bytestring
   - configurator
   - containers >= 0.6.3
-  - nonempty-containers
   - cryptonite
   - directory
+  - either
   - errors
   - extra
   - filepath
   - generic-lens
   - haskeline
+  - http-client >= 0.7.6
+  - http-client-tls
+  - http-types
+  - jwt
   - lens
+  - lock-file
   - megaparsec >= 5.0.0 && < 7.0.0
+  - memory
   - mtl
-  - transformers
+  - network-uri
+  - nonempty-containers
   - open-browser
   - random >= 1.2.0
   - regex-tdfa
+  - semialign
+  - servant
+  - servant-client
   - stm
   - text
+  - these
+  - time
+  - transformers
   - unison-codebase
   - unison-codebase-sqlite
   - unison-core1
   - unison-parser-typechecker
   - unison-prelude
+  - unison-pretty-printer
+  - unison-share-api
+  - unison-share-api
   - unison-util
   - unison-util-base32hex
   - unison-util-relation
-  - unison-pretty-printer
-  - unison-share-api
   - unliftio
-  - network-uri
-  - aeson
-  - http-client >= 0.7.6
-  - http-client-tls
-  - http-types
-  - warp
+  - vector
   - wai
-  - memory
-  - time
-  - lock-file
-  - jwt
-  - either
-  - unison-share-api
-  - servant-client
-  - servant
+  - warp
 
 library:
   source-dirs: src

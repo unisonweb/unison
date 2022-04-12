@@ -18,12 +18,14 @@ import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
+import qualified Data.Vector as Vector
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
 import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId, HashId, ObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import U.Codebase.Sqlite.LocalIds (LocalIds' (..))
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
@@ -481,19 +483,31 @@ insertTempEntity ::
 insertTempEntity hash entity missingDependencies =
   Q.insertTempEntity
     (Share.toBase32Hex hash)
-    tempEntity
+    (entityToTempEntity entity)
     ( NESet.map
         ( \Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}, hashJWT} ->
             (Share.toBase32Hex hash, Share.unHashJWT hashJWT)
         )
         missingDependencies
     )
+
+entityToTempEntity :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity
+entityToTempEntity = \case
+  Share.TC (Share.TermComponent terms) ->
+    terms
+      & Vector.fromList
+      & Vector.map (Lens.over Lens._1 mungeLocalIds)
+      & TermFormat.SyncLocallyIndexedComponent
+      & TermFormat.SyncTerm
+      & TempEntity.TC
+  Share.DC _ -> undefined -- (TempEntity.DC _)
+  Share.P _ -> undefined -- (TempEntity.P _)
+  Share.N _ -> undefined -- (TempEntity.N _)
+  Share.C _ -> undefined -- (TempEntity.C _)
   where
-    tempEntity :: TempEntity
-    tempEntity =
-      case entity of
-        Share.TC _ -> undefined -- (TempEntity.TC _)
-        Share.DC _ -> undefined -- (TempEntity.DC _)
-        Share.P _ -> undefined -- (TempEntity.P _)
-        Share.N _ -> undefined -- (TempEntity.N _)
-        Share.C _ -> undefined -- (TempEntity.C _)
+    mungeLocalIds :: Share.LocalIds Text Share.HashJWT -> LocalIds' Text TempEntity.HashJWT
+    mungeLocalIds Share.LocalIds {texts, hashes} =
+      LocalIds
+        { textLookup = Vector.fromList texts,
+          defnLookup = Vector.map Share.unHashJWT (Vector.fromList hashes)
+        }
