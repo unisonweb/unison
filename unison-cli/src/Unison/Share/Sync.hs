@@ -9,8 +9,10 @@ module Unison.Share.Sync
   )
 where
 
+import qualified Control.Lens as Lens
 import Control.Monad.Extra ((||^))
 import Control.Monad.Reader (ReaderT, runReaderT)
+import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
 import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Map.NonEmpty as NEMap
@@ -20,7 +22,7 @@ import qualified Data.Set.NonEmpty as NESet
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import U.Codebase.Sqlite.Connection (Connection)
-import U.Codebase.Sqlite.DbId (CausalHashId, HashId)
+import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId, HashId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -431,25 +433,41 @@ makeTempEntity e = case e of
 -- have to convert from Entity format to TempEntity format (`makeTempEntity` on 414)
 
 -- also have to convert from TempEntity format to Sync format — this means exchanging Text for TextId and `Base32Hex`es for `HashId`s and/or `ObjectId`s
-convertTempTermComponent :: TempEntity.TempTermFormat -> IO TermFormat.SyncTermFormat
-convertTempTermComponent = do
+tempToSyncTermComponent :: TempEntity.TempTermFormat -> IO TermFormat.SyncTermFormat
+tempToSyncTermComponent = \case
+  TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent vec) ->
+    TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
+      <$> traverse
+        ( \(localIds, bytes) -> do
+            localIds' <- bitraverse _saveText _hashJWT_to_expectHashId_expectObjectId localIds
+            undefined localIds' bytes {-recompose something-}
+        )
+        vec
+
+-- Serialization.recomposeComponent :: MonadPut m => [(LocalIds, BS.ByteString)] -> m ()
+-- Serialization.recomposePatchFormat :: MonadPut m => PatchFormat.SyncPatchFormat -> m ()
+-- Serialization.recomposeBranchFormat :: MonadPut m => BranchFormat.SyncBranchFormat -> m ()
+-- Q.saveObject :: DB m => HashId -> ObjectType -> ByteString -> m ObjectId
+
+tempToSyncDeclComponent :: TempEntity.TempDeclFormat -> IO DeclFormat.SyncDeclFormat
+tempToSyncDeclComponent = do
   undefined
 
-convertTempDeclComponent :: TempEntity.TempDeclFormat -> IO DeclFormat.SyncDeclFormat
-convertTempDeclComponent = do
+tempToSyncPatch :: TempEntity.TempPatchFormat -> IO PatchFormat.SyncPatchFormat
+tempToSyncPatch = do
   undefined
 
-convertTempPatch :: TempEntity.TempPatchFormat -> IO PatchFormat.SyncPatchFormat
-convertTempPatch = do
+tempToSyncNamespace :: TempEntity.TempNamespaceFormat -> IO NamespaceFormat.SyncBranchFormat
+tempToSyncNamespace = do
   undefined
 
-convertTempNamespace :: TempEntity.TempNamespaceFormat -> IO NamespaceFormat.SyncBranchFormat
-convertTempNamespace = do
+tempToSyncCausal :: TempEntity.TempCausalFormat -> IO (Causal.SyncCausalFormat' CausalHashId BranchHashId) -- could probably use a better type name here
+tempToSyncCausal = do
   undefined
 
-convertTempCausal :: TempEntity.TempCausalFormat -> IO (TempEntity.TempCausalFormat' CausalHashId CausalHashId) -- could probably use a better type name here
-convertTempCausal = do
-  undefined
+-- Q.saveCausalHash :: DB m => CausalHash -> m CausalHashId -- only affects `hash` table
+-- Q.saveCausal :: DB m => CausalHashId -> BranchHashId -> m ()
+-- Q.saveCausalParents :: DB m => CausalHashId -> [CausalHashId] -> m ()
 
 tempEntityType :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity.TempEntityType
 tempEntityType = \case
