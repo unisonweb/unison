@@ -30,7 +30,6 @@ import U.Codebase.Sqlite.TempEntity (TempEntity)
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Util.Base32Hex (Base32Hex)
-import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
 import qualified Unison.Sync.Types as Share
@@ -92,7 +91,6 @@ push conn repoPath expectedHash causalHash = do
                     causalHash
                       & unCausalHash
                       & Hash.toBase32Hex
-                      & Base32Hex.toText
                       & Share.Hash,
                   entityType = Share.CausalType
                 }
@@ -158,7 +156,7 @@ decodeHashJWT = undefined
 
 hashJWTHash :: Share.HashJWT -> Base32Hex
 hashJWTHash =
-  Base32Hex.UnsafeFromText . Share.toBase32Hex . decodedHashJWTHash . decodeHashJWT
+  Share.toBase32Hex . decodedHashJWTHash . decodeHashJWT
 
 -- Download a set of entities from Unison Share.
 download :: Connection -> Share.RepoName -> NESet Share.HashJWT -> IO ()
@@ -168,12 +166,12 @@ download conn repoName = do
   let inMainStorage :: Share.Hash -> IO Bool
       inMainStorage (Share.Hash b32) = runDB do
         -- first get hashId if exists
-        Q.loadHashId (Base32Hex.UnsafeFromText b32) >>= \case
+        Q.loadHashId b32 >>= \case
           Nothing -> pure False
           -- then check if is causal hash or if object exists for hash id
           Just hashId -> Q.isCausalHash hashId ||^ Q.isObjectHash hashId
   let inTempStorage :: Share.Hash -> IO Bool
-      inTempStorage (Share.Hash b32) = runDB $ Q.tempEntityExists (Base32Hex.UnsafeFromText b32)
+      inTempStorage (Share.Hash b32) = runDB $ Q.tempEntityExists b32
   let directDepsOfEntity :: Share.Entity Text Share.Hash Share.HashJWT -> Set Share.DecodedHashJWT
       directDepsOfEntity =
         Set.map decodeHashJWT . \case
@@ -193,7 +191,7 @@ download conn repoName = do
 
   let directDepsOfHash :: Share.Hash -> IO (Set Share.DecodedHashJWT)
       directDepsOfHash (Share.Hash b32) = do
-        maybeJwts <- runDB (Q.getMissingDependencyJwtsForTempEntity (Base32Hex.UnsafeFromText b32))
+        maybeJwts <- runDB (Q.getMissingDependencyJwtsForTempEntity b32)
         let decode = decodeHashJWT . Share.HashJWT
         pure (maybe Set.empty (Set.map decode . NESet.toSet) maybeJwts)
   let loop :: NESet Share.DecodedHashJWT -> IO ()
@@ -236,7 +234,7 @@ download conn repoName = do
                 inMainStorage hash >>= \case
                   True -> pure Set.empty
                   False ->
-                    runDB (Q.getMissingDependencyJwtsForTempEntity (Base32Hex.UnsafeFromText (Share.toBase32Hex hash))) >>= \case
+                    runDB (Q.getMissingDependencyJwtsForTempEntity (Share.toBase32Hex hash)) >>= \case
                       Just missingDependencies ->
                         -- already in temp storage, due to missing dependencies
                         pure (Set.map (decodeHashJWT . Share.HashJWT) (NESet.toSet missingDependencies))
@@ -250,13 +248,11 @@ download conn repoName = do
                           Just missingDependencies ->
                             runDB do
                               Q.insertTempEntity
-                                (Base32Hex.UnsafeFromText $ Share.toBase32Hex hash)
+                                (Share.toBase32Hex hash)
                                 (makeTempEntity entity)
                                 ( NESet.map
                                     ( \Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}, hashJWT} ->
-                                        ( Base32Hex.UnsafeFromText $ Share.toBase32Hex hash,
-                                          Share.unHashJWT hashJWT
-                                        )
+                                        (Share.toBase32Hex hash, Share.unHashJWT hashJWT)
                                     )
                                     missingDependencies
                                 )

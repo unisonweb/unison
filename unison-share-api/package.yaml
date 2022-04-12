@@ -6,17 +6,18 @@ library:
   source-dirs: src
 
 dependencies:
+  - aeson
   - base
+  - bytestring
+  - containers
+  - memory
   - mtl
+  - nonempty-containers
+  - servant
   - text
   - transformers
+  - unison-util-base32hex
   - unliftio
-  - servant
-  - containers
-  - nonempty-containers
-  - bytestring
-  - aeson
-  - memory
 
 ghc-options:
   -Wall

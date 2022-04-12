@@ -60,5 +60,6 @@ library
     , servant
     , text
     , transformers
+    , unison-util-base32hex
     , unliftio
   default-language: Haskell2010

@@ -17,6 +17,7 @@ import Data.Set (Set)
 import Data.Set.NonEmpty (NESet)
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
+import U.Util.Base32Hex (Base32Hex (..))
 
 -- | A newtype for JSON encoding binary data.
 newtype Base64Bytes = Base64Bytes ByteString
@@ -59,8 +60,8 @@ instance FromJSON HashJWTClaims where
     entityType <- obj .: "t"
     pure HashJWTClaims {..}
 
-newtype Hash = Hash {toBase32Hex :: Text}
-  deriving newtype (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+newtype Hash = Hash {toBase32Hex :: Base32Hex}
+  deriving (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (Text)
 
 data TypedHash = TypedHash
   { hash :: Hash,
