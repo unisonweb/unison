@@ -139,6 +139,7 @@ library
     , unison-pretty-printer
     , unison-share-api
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
     , wai
@@ -236,6 +237,7 @@ executable cli-integration-tests
     , unison-pretty-printer
     , unison-share-api
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
     , wai
@@ -328,6 +330,7 @@ executable transcripts
     , unison-pretty-printer
     , unison-share-api
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
     , wai
@@ -424,6 +427,7 @@ executable unison
     , unison-pretty-printer
     , unison-share-api
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
     , wai
@@ -524,6 +528,7 @@ test-suite cli-tests
     , unison-pretty-printer
     , unison-share-api
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
     , wai

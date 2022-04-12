@@ -117,6 +117,7 @@ library:
     - unison-prelude
     - unison-pretty-printer
     - unison-util
+    - unison-util-base32hex
     - unison-util-relation
     - open-browser
     - uri-encode

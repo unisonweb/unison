@@ -17,10 +17,8 @@ source-repository head
 library
   exposed-modules:
       U.Util.Alternative
-      U.Util.Base32Hex
       U.Util.Cache
       U.Util.Components
-      U.Util.Hash
       U.Util.Lens
       U.Util.Monoid
       U.Util.String

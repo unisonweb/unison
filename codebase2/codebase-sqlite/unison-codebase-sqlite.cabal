@@ -95,6 +95,7 @@ library
     , unison-core
     , unison-prelude
     , unison-util
+    , unison-util-base32hex
     , unison-util-serialization
     , unison-util-term
     , unliftio

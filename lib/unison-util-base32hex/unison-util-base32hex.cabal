@@ -4,10 +4,11 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           unison-codebase
+name:           unison-util-base32hex
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
+copyright:      Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 build-type:     Simple
 
 source-repository head
@@ -16,49 +17,41 @@ source-repository head
 
 library
   exposed-modules:
-      U.Codebase.Branch
-      U.Codebase.Causal
-      U.Codebase.Decl
-      U.Codebase.HashTags
-      U.Codebase.Kind
-      U.Codebase.Reference
-      U.Codebase.Referent
-      U.Codebase.Reflog
-      U.Codebase.ShortHash
-      U.Codebase.Term
-      U.Codebase.TermEdit
-      U.Codebase.Type
-      U.Codebase.TypeEdit
-      U.Codebase.WatchKind
+      U.Util.Base32Hex
+      U.Util.Hash
   other-modules:
-      Paths_unison_codebase
+      Paths_unison_util_base32hex
   hs-source-dirs:
-      ./
+      src
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      ViewPatterns
+  ghc-options: -Wall
   build-depends:
       base
+    , base32
+    , bytestring
     , containers
-    , generic-lens
-    , lens
-    , mtl
     , text
-    , unison-core
     , unison-prelude
-    , unison-util
-    , unison-util-base32hex
   default-language: Haskell2010
