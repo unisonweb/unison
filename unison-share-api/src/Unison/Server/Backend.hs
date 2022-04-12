@@ -127,7 +127,8 @@ listEntryName = \case
 
 data BackendError
   = NoSuchNamespace Path.Absolute
-  | BadNamespace
+  | -- Failed to parse path
+    BadNamespace
       String
       -- ^ error message
       String
