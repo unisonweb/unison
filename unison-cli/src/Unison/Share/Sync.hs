@@ -23,7 +23,7 @@ import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
 import U.Codebase.Sqlite.Connection (Connection)
-import U.Codebase.Sqlite.DbId (ObjectId, BranchHashId, CausalHashId, HashId)
+import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId, HashId, ObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -41,7 +41,6 @@ import qualified Unison.Sync.Types as Share.LocalIds (LocalIds (..))
 import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
-import qualified Unison.Sync.Types as Share
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
@@ -447,14 +446,9 @@ makeTempEntity e = case e of
 tempToSyncTermComponent :: Connection -> TempEntity.TempTermFormat -> IO TermFormat.SyncTermFormat
 tempToSyncTermComponent conn =
   flip runReaderT conn . \case
-    TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent vec) ->
+    TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms) ->
       TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
-        <$> traverse
-          ( \(localIds, bytes) -> do
-              localIds' <- bitraverse Q.saveText expectObjectIdForHashJWT localIds
-              undefined localIds' bytes {-recompose something-}
-          )
-          vec
+        <$> Lens.traverseOf (traverse . Lens._1) (bitraverse Q.saveText expectObjectIdForHashJWT) terms
 
 expectObjectIdForHashJWT :: Q.DB m => TempEntity.HashJWT -> m ObjectId
 expectObjectIdForHashJWT hashJwt = do
