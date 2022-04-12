@@ -491,6 +491,7 @@ insertTempEntity hash entity missingDependencies =
         missingDependencies
     )
 
+-- FIXME mitchell says: working on this again made me wonder whether formats (e.g. patch diff) should be in the API
 entityToTempEntity :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity
 entityToTempEntity = \case
   Share.TC (Share.TermComponent terms) ->
@@ -500,10 +501,41 @@ entityToTempEntity = \case
       & TermFormat.SyncLocallyIndexedComponent
       & TermFormat.SyncTerm
       & TempEntity.TC
-  Share.DC _ -> undefined -- (TempEntity.DC _)
-  Share.P _ -> undefined -- (TempEntity.P _)
-  Share.N _ -> undefined -- (TempEntity.N _)
-  Share.C _ -> undefined -- (TempEntity.C _)
+  Share.DC (Share.DeclComponent decls) ->
+    decls
+      & Vector.fromList
+      & Vector.map (Lens.over Lens._1 mungeLocalIds)
+      & DeclFormat.SyncLocallyIndexedComponent
+      & DeclFormat.SyncDecl
+      & TempEntity.DC
+  Share.P Share.Patch {textLookup, oldHashLookup, newHashLookup, bytes} ->
+    TempEntity.P
+      ( PatchFormat.SyncFull
+          PatchFormat.LocalIds
+            { patchTextLookup = Vector.fromList textLookup,
+              patchHashLookup = Vector.fromList (coerce @[Share.Hash] @[Base32Hex] oldHashLookup),
+              patchDefnLookup = Vector.fromList (coerce @[Share.HashJWT] @[TempEntity.HashJWT] newHashLookup)
+            }
+          bytes
+      )
+  Share.N Share.Namespace {textLookup, defnLookup, patchLookup, childLookup, bytes} ->
+    TempEntity.N
+      ( NamespaceFormat.SyncFull
+          NamespaceFormat.LocalIds
+            { branchTextLookup = Vector.fromList textLookup,
+              branchDefnLookup = Vector.fromList (coerce @[Share.HashJWT] @[TempEntity.HashJWT] defnLookup),
+              branchPatchLookup = Vector.fromList (coerce @[Share.HashJWT] @[TempEntity.HashJWT] patchLookup),
+              -- FIXME need values hashes in API type
+              branchChildLookup = undefined childLookup
+            }
+          bytes
+      )
+  Share.C Share.Causal {namespaceHash, parents} ->
+    TempEntity.C
+      Causal.SyncCausalFormat
+        { valueHash = coerce @Share.HashJWT @TempEntity.HashJWT namespaceHash,
+          parents = Vector.fromList (coerce @[Share.HashJWT] @[TempEntity.HashJWT] (Set.toList parents))
+        }
   where
     mungeLocalIds :: Share.LocalIds Text Share.HashJWT -> LocalIds' Text TempEntity.HashJWT
     mungeLocalIds Share.LocalIds {texts, hashes} =
