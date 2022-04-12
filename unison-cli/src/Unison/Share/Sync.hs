@@ -184,9 +184,9 @@ download conn repoName = do
 
   let directDepsOfHash :: Share.Hash -> IO (Set Share.DecodedHashJWT)
       directDepsOfHash (Share.Hash b32) = do
-        jwts <- runDB (Q.getMissingDependencyJwtsForTempEntity (Base32Hex.UnsafeFromText b32))
+        maybeJwts <- runDB (Q.getMissingDependencyJwtsForTempEntity (Base32Hex.UnsafeFromText b32))
         let decode = decodeHashJWT . Share.HashJWT
-        pure (Set.fromList (map decode jwts))
+        pure (maybe Set.empty (Set.map decode . NESet.toSet) maybeJwts)
   let loop :: NESet Share.DecodedHashJWT -> IO ()
       loop hashes0 = do
         let elaborateHashes :: Set Share.DecodedHashJWT -> Set Share.HashJWT -> IO (Maybe (NESet Share.HashJWT))
@@ -223,7 +223,7 @@ download conn repoName = do
                 let putInMainStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
                     putInMainStorage _hash _entity = undefined
                 let putInTempStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> NESet Share.DecodedHashJWT -> IO ()
-                    putInTempStorage _hash entity _missingDependencies = do
+                    putInTempStorage hash entity missingDependencies = do
                       -- convert the blob to the data type we have a serializer for
                       let tempEntity = makeTempEntity entity
                           entityType = tempEntityType entity
@@ -231,23 +231,36 @@ download conn repoName = do
                       let bytes = runPutS (S.putTempEntity tempEntity)
                       -- insert the blob
                       runDB do
-                        Q.insertTempEntity _hash _bytes _entityType _missingDependencies
+                        Q.insertTempEntity
+                          (Base32Hex.UnsafeFromText $ Share.toBase32Hex hash)
+                          bytes
+                          entityType
+                          ( NESet.map
+                              ( \Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}, hashJWT} ->
+                                  ( Base32Hex.UnsafeFromText $ Share.toBase32Hex hash,
+                                    Share.unHashJWT hashJWT
+                                  )
+                              )
+                              missingDependencies
+                          )
 
-                inMainStorage hash >>= \case
-                  True -> pure Set.empty
+                -- still trying to figure out missing dependencies of hash/entity.
                 inMainStorage hash >>= \case
                   True -> pure Set.empty
                   False ->
-                        missingDependencies <- Set.filterM (inMainStorage . decodedHashJWTHash) (directDepsOfEntity entity)
-                        if Set.null missingDependencies
-                        missingDependencies <- Set.filterM (inMainStorage . decodedHashJWTHash) (directDepsOfEntity entity)
-                        if Set.null missingDependencies
-                          then putInMainStorage hash entity
-                          else do
-                            putInTempStorage hash entity
-                            insertMissingDependencies hash missingDependencies
-                        pure missingDependencies
-            case NESet.nonEmptySet missingDependencies0 of
+                    runDB (Q.getMissingDependencyJwtsForTempEntity (Base32Hex.UnsafeFromText (Share.toBase32Hex hash))) >>= \case
+                      Just missingDependencies ->
+                        -- already in temp storage, due to missing dependencies
+                        pure (Set.map (decodeHashJWT . Share.HashJWT) (NESet.toSet missingDependencies))
+                      Nothing -> do
+                        -- not in temp storage.
+                        -- if it has missing dependencies, add it to temp storage;
+                        -- otherwise add it to main storage.
+                        missingDependencies0 <- Set.filterM (inMainStorage . decodedHashJWTHash) (directDepsOfEntity entity)
+                        case NESet.nonEmptySet missingDependencies0 of
+                          Nothing -> putInMainStorage hash entity
+                          Just missingDependencies -> putInTempStorage hash entity missingDependencies
+                        pure missingDependencies0
 
             case NESet.nonEmptySet missingDependencies0 of
               Nothing -> pure ()
@@ -409,6 +422,8 @@ _uploadEntities = undefined
 
 makeTempEntity :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity
 makeTempEntity e = case e of
+  Share.TC _ -> undefined -- (TempEntity.TC _)
+  Share.DC _ -> undefined -- (TempEntity.DC _)
   Share.P _ -> undefined -- (TempEntity.P _)
   Share.N _ -> undefined -- (TempEntity.N _)
   Share.C _ -> undefined -- (TempEntity.C _)
@@ -435,8 +450,6 @@ convertTempNamespace = do
 convertTempCausal :: TempEntity.TempCausalFormat -> IO (TempEntity.TempCausalFormat' CausalHashId CausalHashId) -- could probably use a better type name here
 convertTempCausal = do
   undefined
-
-tempEntityType :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity.TempEntityType
 
 tempEntityType :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity.TempEntityType
 tempEntityType = \case

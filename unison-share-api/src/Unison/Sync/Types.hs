@@ -31,7 +31,7 @@ instance FromJSON Base64Bytes where
 newtype RepoName = RepoName Text
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
-newtype HashJWT = HashJWT Text
+newtype HashJWT = HashJWT {unHashJWT :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
 data DecodedHashJWT = DecodedHashJWT
