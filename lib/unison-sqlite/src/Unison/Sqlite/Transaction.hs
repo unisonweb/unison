@@ -85,19 +85,18 @@ runTransaction :: MonadIO m => Connection -> Transaction a -> m a
 runTransaction conn (Transaction f) = liftIO do
   uninterruptibleMask \restore -> do
     Connection.begin conn
-    result <-
-      -- Catch all exceptions (sync or async), because we want to ROLLBACK the BEGIN no matter what.
-      trySyncOrAsync @_ @SomeException (restore (f conn)) >>= \case
-        Left exception -> do
-          ignoringExceptions (Connection.rollback conn)
-          case fromException exception of
-            Just SqliteBusyException -> do
-              restore (threadDelay 100_000)
-              runWriteTransaction_ restore 200_000 conn (f conn)
-            _ -> throwIO exception
-        Right result -> pure result
-    Connection.commit conn
-    pure result
+    -- Catch all exceptions (sync or async), because we want to ROLLBACK the BEGIN no matter what.
+    trySyncOrAsync @_ @SomeException (restore (f conn)) >>= \case
+      Left exception -> do
+        ignoringExceptions (Connection.rollback conn)
+        case fromException exception of
+          Just SqliteBusyException -> do
+            restore (threadDelay 100_000)
+            runWriteTransaction_ restore 200_000 conn (f conn)
+          _ -> throwIO exception
+      Right result -> do
+        Connection.commit conn
+        pure result
 {-# SPECIALIZE runTransaction :: Connection -> Transaction a -> IO a #-}
 
 -- | Run a transaction with a function that aborts the transaction with an exception.
@@ -176,7 +175,9 @@ runWriteTransactionIO conn f =
 runWriteTransaction_ :: (forall x. IO x -> IO x) -> Int -> Connection -> IO a -> IO a
 runWriteTransaction_ restore microseconds conn transaction = do
   keepTryingToBeginImmediate restore conn microseconds
-  restore transaction `onException` ignoringExceptions (Connection.rollback conn)
+  result <- restore transaction `onException` ignoringExceptions (Connection.rollback conn)
+  Connection.commit conn
+  pure result
 
 -- @BEGIN IMMEDIATE@ until success.
 keepTryingToBeginImmediate :: (forall x. IO x -> IO x) -> Connection -> Int -> IO ()
