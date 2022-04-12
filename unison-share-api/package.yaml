@@ -17,6 +17,33 @@ dependencies:
   - bytestring
   - aeson
   - memory
+  - unison-util-relation
+  - unison-core1
+  - unison-prelude
+  - unison-parser-typechecker
+  - unison-pretty-printer
+  - lucid
+  - openapi3
+  - extra
+  - lens
+  - fuzzyfind
+  - filepath
+  - directory
+  - yaml
+  - errors
+  - servant-server
+  - servant-docs
+  - servant-openapi3
+  - mwc-random
+  - warp
+  - wai
+  - uri-encode
+  - http-types
+  - http-media
+  - NanoID
+  - utf8-string
+  - async
+  - regex-tdfa
 
 ghc-options:
   -Wall
