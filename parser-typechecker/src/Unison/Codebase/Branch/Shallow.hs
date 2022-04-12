@@ -1,4 +1,4 @@
-module Unison.Codebase.Branch.Raw where
+module Unison.Codebase.Branch.Shallow where
 
 import Data.Map (Map)
 import qualified Unison.Codebase.Metadata as Metadata
@@ -13,7 +13,7 @@ type Star r n = Metadata.Star r n
 type EditHash = Hash.Hash
 
 -- The raw Branch
-data Raw = Raw
+data ShallowBranch = ShallowBranch
   { _termsR :: Star Referent NameSegment,
     _typesR :: Star Reference NameSegment,
     _childrenR :: Map NameSegment Hash,

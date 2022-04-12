@@ -72,6 +72,8 @@ data Codebase m v a = Codebase
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
     -- | Get the root branch.
     getRootBranch :: m (Either GetRootBranchError (Branch m)),
+
+    getShallowRootBranch :: m (Either GetRootBranchError (Branch m)),
     -- | Get whether the root branch exists.
     getRootBranchExists :: m Bool,
     -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.

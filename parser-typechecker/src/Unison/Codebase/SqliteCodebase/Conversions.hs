@@ -347,10 +347,10 @@ referentid2to1 lookupCT = \case
 hash2to1 :: V2.Hash.Hash -> Hash
 hash2to1 (V2.Hash.Hash sbs) = V1.Hash sbs
 
-causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.Raw
+causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.ShallowBranch
 causalHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
 
-causalHash1to2 :: V1.Causal.RawHash V1.Branch.Raw -> V2.CausalHash
+causalHash1to2 :: V1.Causal.RawHash V1.Branch.ShallowBranch -> V2.CausalHash
 causalHash1to2 = V2.CausalHash . hash1to2 . V1.Causal.unRawHash
 
 ttype2to1 :: V2.Term.Type V2.Symbol -> V1.Type.Type V1.Symbol Ann
@@ -441,7 +441,7 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
     hash1to2c :: V1.Branch.Hash -> V2.CausalHash
     hash1to2c = V2.CausalHash . hash1to2 . V1.Causal.unRawHash
 
-    causal1to2' = causal1to2 @m @V1.Branch.Raw @V2.CausalHash @V2.BranchHash @(V1.Branch.Branch0 m) @(V2.Branch.Branch m)
+    causal1to2' = causal1to2 @m @V1.Branch.ShallowBranch @V2.CausalHash @V2.BranchHash @(V1.Branch.Branch0 m) @(V2.Branch.Branch m)
 
     causal1to2 :: forall m h h2c h2e e e2. (Monad m, Ord h2c) => (V1.Causal.RawHash h -> (h2c, h2e)) -> (V1.Causal.RawHash h -> h2c) -> (e -> m e2) -> V1.Causal.Causal m h e -> V2.Causal m h2c h2e e2
     causal1to2 h1to22 h1to2 e1to2 = \case

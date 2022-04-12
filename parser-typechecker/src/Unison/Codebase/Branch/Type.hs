@@ -5,7 +5,7 @@ module Unison.Codebase.Branch.Type where
 import Control.Lens
 import Data.Map (Map)
 import Data.Set (Set)
-import Unison.Codebase.Branch.Raw (Raw)
+import Unison.Codebase.Branch.Shallow (ShallowBranch)
 import Unison.Codebase.Causal.Type (Causal)
 import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Metadata as Metadata
@@ -23,9 +23,9 @@ import Unison.Util.Relation (Relation)
 newtype Branch m = Branch {_history :: UnwrappedBranch m}
   deriving (Eq, Ord)
 
-type UnwrappedBranch m = Causal m Raw (Branch0 m)
+type UnwrappedBranch m = Causal m ShallowBranch (Branch0 m)
 
-type Hash = Causal.RawHash Raw
+type Hash = Causal.RawHash ShallowBranch
 
 type EditHash = Hash.Hash
 
