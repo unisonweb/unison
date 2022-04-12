@@ -26,4 +26,6 @@ type TempPatchFormat = Patch.SyncPatchFormat' HashJWT Text Base32Hex HashJWT
 
 type TempNamespaceFormat = Namespace.SyncBranchFormat' HashJWT Text HashJWT HashJWT (HashJWT, HashJWT)
 
-data TempCausalFormat = TempCausalFormat {valueHash :: HashJWT, parents :: Vector HashJWT}
+type TempCausalFormat = TempCausalFormat' HashJWT HashJWT
+
+data TempCausalFormat' valueHash parent = TempCausalFormat' {valueHash :: valueHash, parents :: Vector parent}

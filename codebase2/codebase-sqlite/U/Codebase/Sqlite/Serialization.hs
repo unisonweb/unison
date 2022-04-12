@@ -729,7 +729,7 @@ putTempEntity = \case
       putFoldable putHashJWT branchDefnLookup
       putFoldable putHashJWT branchPatchLookup
       putFoldable (putPair putHashJWT putHashJWT) branchChildLookup
-    putSyncCausal TempEntity.TempCausalFormat {valueHash, parents} = do
+    putSyncCausal TempEntity.TempCausalFormat' {valueHash, parents} = do
       putHashJWT valueHash
       putFoldable putHashJWT parents
     putSyncFullPatch lids bytes = do
@@ -827,7 +827,7 @@ getTempNamespaceFormat =
 
 getTempCausalFormat :: MonadGet m => m TempEntity.TempCausalFormat
 getTempCausalFormat =
-  TempEntity.TempCausalFormat
+  TempEntity.TempCausalFormat'
     <$> getHashJWT
     <*> getVector getHashJWT
 

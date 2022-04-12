@@ -42,6 +42,7 @@ dependencies:
   - generic-lens
   - monad-validate
   - mtl
+  - nonempty-containers
   - safe
   - sqlite-simple
   - text

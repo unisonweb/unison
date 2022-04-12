@@ -18,13 +18,17 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import U.Codebase.HashTags (CausalHash (unCausalHash))
+import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import U.Codebase.Sqlite.Connection (Connection)
-import U.Codebase.Sqlite.DbId (HashId)
+import U.Codebase.Sqlite.DbId (CausalHashId, HashId)
+import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Serialization as S
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.TempEntityType as TempEntity
+import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
@@ -218,28 +222,24 @@ download conn repoName = do
               NEMap.toList entities & foldMapM \(hash, entity) -> do
                 let putInMainStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
                     putInMainStorage _hash _entity = undefined
-                let putInTempStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
-                    putInTempStorage _hash entity = do
+                let putInTempStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> NESet Share.DecodedHashJWT -> IO ()
+                    putInTempStorage _hash entity _missingDependencies = do
                       -- convert the blob to the data type we have a serializer for
                       let tempEntity = makeTempEntity entity
-                          _entityType = tempEntityType entity
+                          entityType = tempEntityType entity
                       -- serialize the blob
-                      let _bytes = runPutS (S.putTempEntity tempEntity)
+                      let bytes = runPutS (S.putTempEntity tempEntity)
                       -- insert the blob
-                      undefined
-                let insertMissingDependencies = undefined
-                -- select dependency
-                -- from temp_entity_missing_dependency
-                -- where dependent = <this entity>
-                let getTempEntityMissingDependencies :: Share.Entity Text Share.Hash Share.HashJWT -> IO (Set Share.DecodedHashJWT)
-                    getTempEntityMissingDependencies = undefined
+                      runDB do
+                        Q.insertTempEntity _hash _bytes _entityType _missingDependencies
 
                 inMainStorage hash >>= \case
                   True -> pure Set.empty
+                inMainStorage hash >>= \case
+                  True -> pure Set.empty
                   False ->
-                    inTempStorage hash >>= \case
-                      True -> getTempEntityMissingDependencies entity
-                      False -> do
+                        missingDependencies <- Set.filterM (inMainStorage . decodedHashJWTHash) (directDepsOfEntity entity)
+                        if Set.null missingDependencies
                         missingDependencies <- Set.filterM (inMainStorage . decodedHashJWTHash) (directDepsOfEntity entity)
                         if Set.null missingDependencies
                           then putInMainStorage hash entity
@@ -247,6 +247,7 @@ download conn repoName = do
                             putInTempStorage hash entity
                             insertMissingDependencies hash missingDependencies
                         pure missingDependencies
+            case NESet.nonEmptySet missingDependencies0 of
 
             case NESet.nonEmptySet missingDependencies0 of
               Nothing -> pure ()
@@ -408,11 +409,34 @@ _uploadEntities = undefined
 
 makeTempEntity :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity
 makeTempEntity e = case e of
-  Share.TC _ -> (TempEntity.TC _)
-  Share.DC _ -> (TempEntity.DC _)
-  Share.P _ -> (TempEntity.P _)
-  Share.N _ -> (TempEntity.N _)
-  Share.C _ -> (TempEntity.C _)
+  Share.P _ -> undefined -- (TempEntity.P _)
+  Share.N _ -> undefined -- (TempEntity.N _)
+  Share.C _ -> undefined -- (TempEntity.C _)
+
+-- have to convert from Entity format to TempEntity format (`makeTempEntity` on 414)
+
+-- also have to convert from TempEntity format to Sync format — this means exchanging Text for TextId and `Base32Hex`es for `HashId`s and/or `ObjectId`s
+convertTempTermComponent :: TempEntity.TempTermFormat -> IO TermFormat.SyncTermFormat
+convertTempTermComponent = do
+  undefined
+
+convertTempDeclComponent :: TempEntity.TempDeclFormat -> IO DeclFormat.SyncDeclFormat
+convertTempDeclComponent = do
+  undefined
+
+convertTempPatch :: TempEntity.TempPatchFormat -> IO PatchFormat.SyncPatchFormat
+convertTempPatch = do
+  undefined
+
+convertTempNamespace :: TempEntity.TempNamespaceFormat -> IO NamespaceFormat.SyncBranchFormat
+convertTempNamespace = do
+  undefined
+
+convertTempCausal :: TempEntity.TempCausalFormat -> IO (TempEntity.TempCausalFormat' CausalHashId CausalHashId) -- could probably use a better type name here
+convertTempCausal = do
+  undefined
+
+tempEntityType :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity.TempEntityType
 
 tempEntityType :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity.TempEntityType
 tempEntityType = \case

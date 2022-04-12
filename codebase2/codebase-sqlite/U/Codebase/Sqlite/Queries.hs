@@ -128,7 +128,8 @@ module U.Codebase.Sqlite.Queries
     -- * sync temp entities
     getMissingDependencyJwtsForTempEntity,
     tempEntityExists,
-    -- insertTempEntity,
+    insertTempEntity,
+    deleteTempDependencies,
 
     -- * db misc
     createSchema,
@@ -156,11 +157,14 @@ import Control.Monad.Reader (MonadReader (ask))
 import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.Writer as Writer
 import qualified Data.Char as Char
+import qualified Data.Foldable as Foldable
 import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Data.Maybe (fromJust)
 import qualified Data.Set as Set
+import Data.Set.NonEmpty (NESet)
+import qualified Data.Set.NonEmpty as NESet
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Database.SQLite.Simple
   ( FromRow,
@@ -191,6 +195,8 @@ import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
+import U.Codebase.Sqlite.TempEntity (HashJWT)
+import U.Codebase.Sqlite.TempEntityType (TempEntityType)
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WatchKind
 import qualified U.Util.Alternative as Alternative
@@ -947,14 +953,16 @@ ancestorSql =
 
 -- * share sync / temp entities
 
-getMissingDependencyJwtsForTempEntity :: DB m => Base32Hex -> m [Text]
+--
+getMissingDependencyJwtsForTempEntity :: DB m => Base32Hex -> m (Maybe (NESet Text))
 getMissingDependencyJwtsForTempEntity h =
-  queryAtoms
-    [here|
-      SELECT jwt FROM temp_entity_missing_dependency
-      WHERE dependent = ?
-    |]
-    (Only h)
+  NESet.nonEmptySet . Set.fromList
+    <$> queryAtoms
+      [here|
+        SELECT dependencyJwt FROM temp_entity_missing_dependency
+        WHERE dependent = ?
+      |]
+      (Only h)
 
 tempEntityExists :: DB m => Base32Hex -> m Bool
 tempEntityExists h = queryOne $ queryAtom sql (Only h)
@@ -966,6 +974,42 @@ tempEntityExists h = queryOne $ queryAtom sql (Only h)
           FROM temp_entity
           WHERE hash = ?
         )
+      |]
+
+-- | Insert a new `temp_entity` row, and its associated 1+ `temp_entity_missing_dependency` rows.
+--
+-- Preconditions:
+--   1. The entity does not already exist in "main" storage (`object` / `causal`)
+--   2. The entity does not already exist in `temp_entity`.
+insertTempEntity :: DB m => Base32Hex -> ByteString -> TempEntityType -> NESet (Base32Hex, HashJWT) -> m ()
+insertTempEntity dependentHash dependentBlob dependentType missingDependencies = do
+  execute
+    [here|
+      INSERT INTO temp_entity (hash, blob, typeId)
+      VALUES (?, ?, ?)
+    |]
+    (dependentHash, dependentBlob, dependentType)
+
+  executeMany
+    [here|
+      INSERT INTO temp_entity_missing_dependencies (dependent, dependency, dependencyJwt)
+      VALUES (?, ?, ?)
+    |]
+    ( NESet.map
+        (\(dependencyHash, dependencyHashJwt) -> (dependentHash, dependencyHash, dependencyHashJwt))
+        missingDependencies
+    )
+
+-- | takes a dependent's hash and multiple dependency hashes
+deleteTempDependencies :: (DB m, Foldable f) => Base32Hex -> f Base32Hex -> m ()
+deleteTempDependencies dependent (Foldable.toList -> dependencies) =
+  executeMany sql (map (dependent,) dependencies)
+  where
+    sql =
+      [here|
+        DELETE FROM temp_entity_missing_dependencies
+        WHERE dependent = ?
+          AND dependency = ?
       |]
 
 -- * helper functions
@@ -1060,8 +1104,8 @@ execute_ q = do
   header <- debugHeader
   liftIO . queryTrace_ (header ++ " " ++ "execute_") q $ SQLite.execute_ c q
 
-executeMany :: (DB m, ToRow q, Show q) => SQLite.Query -> [q] -> m ()
-executeMany q r = do
+executeMany :: (DB m, Foldable f, ToRow q, Show q) => SQLite.Query -> f q -> m ()
+executeMany q (Foldable.toList -> r) = do
   c <- Reader.reader Connection.underlying
   header <- debugHeader
   liftIO . queryTrace (header ++ " " ++ "executeMany") q r $ SQLite.executeMany c q r

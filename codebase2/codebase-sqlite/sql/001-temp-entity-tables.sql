@@ -46,15 +46,15 @@ create table temp_entity (
 -- +------------------------+
 --
 --  temp_entity_missing_dependency
--- +-----------------------------------+
--- | dependent | dependency | jwt      |
--- |===================================|
--- | #foo      | #bar       | aT.Eb.cx |
--- +-----------------------------------+
+-- +----------------------------------------+
+-- | dependent | dependency | dependencyJwt |
+-- |========================================|
+-- | #foo      | #bar       | aT.Eb.cx      |
+-- +----------------------------------------+
 create table temp_entity_missing_dependency (
   dependent text not null references temp_entity(hash),
   dependency text not null,
-  jwt text not null,
+  dependencyJwt text not null,
   unique (dependent, dependency)
 );
 create index temp_entity_missing_dependency_ix_dependent on temp_entity_missing_dependency (dependent);
