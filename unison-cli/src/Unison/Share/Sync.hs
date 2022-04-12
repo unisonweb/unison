@@ -22,8 +22,6 @@ import U.Codebase.Sqlite.DbId (HashId)
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
-import qualified Data.Set.Lens as Lens (setOf)
-import Data.Generics.Product.Typed (typed)
 import Unison.Prelude
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Sync.Types as Share.LocalIds (LocalIds (..))

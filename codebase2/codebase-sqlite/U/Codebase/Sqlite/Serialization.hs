@@ -17,7 +17,6 @@ import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.Int (Int64)
 import Data.List (elemIndex)
 import qualified Data.Set as Set
-import Data.Text (Text)
 import Data.Word (Word64)
 import Debug.Trace (trace)
 import qualified U.Codebase.Decl as Decl
@@ -760,7 +759,7 @@ putTempEntity = \case
         putFramedByteString bytes
 
 getHashJWT :: MonadGet m => m TempEntity.HashJWT
-getHashJWT = error "getHashJWT" undefined
+getHashJWT = getText
 
 getBase32Hex :: MonadGet m => m Base32Hex
 getBase32Hex = Base32Hex.UnsafeFromText <$> getText
@@ -815,10 +814,22 @@ getTempPatchFormat =
 getTempNamespaceFormat :: MonadGet m => m TempEntity.TempNamespaceFormat
 getTempNamespaceFormat =
   getWord8 >>= \case
+    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getFramedByteString
+    1 -> BranchFormat.SyncDiff <$> getHashJWT <*> getBranchLocalIds <*> getFramedByteString
     tag -> unknownTag "getTempNamespaceFormat" tag
+  where
+    getBranchLocalIds =
+      BranchFormat.LocalIds
+        <$> getVector getText
+        <*> getVector getHashJWT
+        <*> getVector getHashJWT
+        <*> getVector (getPair getHashJWT getHashJWT)
 
 getTempCausalFormat :: MonadGet m => m TempEntity.TempCausalFormat
-getTempCausalFormat = undefined
+getTempCausalFormat =
+  TempEntity.TempCausalFormat
+    <$> getHashJWT
+    <*> getVector getHashJWT
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText
