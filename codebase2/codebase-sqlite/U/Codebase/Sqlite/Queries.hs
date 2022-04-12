@@ -244,6 +244,7 @@ data Integrity
   | MultipleSchemaVersions [SchemaVersion]
   | NoTypeIndexForTerm Referent.Id
   deriving (Show)
+  deriving anyclass (Exception)
 
 orError :: Err m => Integrity -> Maybe b -> m b
 orError e = maybe (throwError e) pure

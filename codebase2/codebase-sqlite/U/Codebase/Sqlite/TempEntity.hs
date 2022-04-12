@@ -1,7 +1,7 @@
 module U.Codebase.Sqlite.TempEntity where
 
-import Data.Vector (Vector)
 import qualified U.Codebase.Sqlite.Branch.Format as Namespace
+import qualified U.Codebase.Sqlite.Causal as Causal
 import qualified U.Codebase.Sqlite.Decl.Format as Decl
 import qualified U.Codebase.Sqlite.Patch.Format as Patch
 import qualified U.Codebase.Sqlite.Term.Format as Term
@@ -26,6 +26,4 @@ type TempPatchFormat = Patch.SyncPatchFormat' HashJWT Text Base32Hex HashJWT
 
 type TempNamespaceFormat = Namespace.SyncBranchFormat' HashJWT Text HashJWT HashJWT (HashJWT, HashJWT)
 
-type TempCausalFormat = SyncCausalFormat' HashJWT HashJWT
-
-data SyncCausalFormat' causalHash namespaceHash = SyncCausalFormat {valueHash :: namespaceHash, parents :: Vector causalHash}
+type TempCausalFormat = Causal.SyncCausalFormat' HashJWT HashJWT

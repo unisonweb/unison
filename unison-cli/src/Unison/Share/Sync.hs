@@ -21,8 +21,9 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
+import qualified U.Codebase.Sqlite.Causal as Causal
 import U.Codebase.Sqlite.Connection (Connection)
-import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId, HashId)
+import U.Codebase.Sqlite.DbId (ObjectId, BranchHashId, CausalHashId, HashId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -31,6 +32,7 @@ import U.Codebase.Sqlite.TempEntity (TempEntity)
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.TempEntityType as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
+import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
@@ -39,6 +41,7 @@ import qualified Unison.Sync.Types as Share.LocalIds (LocalIds (..))
 import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
+import qualified Unison.Sync.Types as Share
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
@@ -120,6 +123,9 @@ push conn repoPath expectedHash causalHash = do
         UpdatePathMissingDependencies (Share.NeedDependencies dependencies) ->
           Left (PushErrorServerMissingDependencies dependencies)
 
+-- Upload a set of entities to Unison Share. If the server responds that it cannot yet store any hash(es) due to missing
+-- dependencies, send those dependencies too, and on and on, until the server stops responding that it's missing
+-- anything.
 upload :: Connection -> Share.RepoName -> NESet Share.Hash -> IO ()
 upload conn repoName =
   loop
@@ -154,6 +160,11 @@ decodedHashJWTHash = undefined
 decodeHashJWT :: Share.HashJWT -> Share.DecodedHashJWT
 decodeHashJWT = undefined
 
+hashJWTHash :: Share.HashJWT -> Base32Hex
+hashJWTHash =
+  Base32Hex.UnsafeFromText . Share.toBase32Hex . decodedHashJWTHash . decodeHashJWT
+
+-- Download a set of entities from Unison Share.
 download :: Connection -> Share.RepoName -> NESet Share.HashJWT -> IO ()
 download conn repoName = do
   let runDB :: ReaderT Connection IO a -> IO a
@@ -433,16 +444,23 @@ makeTempEntity e = case e of
 -- have to convert from Entity format to TempEntity format (`makeTempEntity` on 414)
 
 -- also have to convert from TempEntity format to Sync format — this means exchanging Text for TextId and `Base32Hex`es for `HashId`s and/or `ObjectId`s
-tempToSyncTermComponent :: TempEntity.TempTermFormat -> IO TermFormat.SyncTermFormat
-tempToSyncTermComponent = \case
-  TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent vec) ->
-    TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
-      <$> traverse
-        ( \(localIds, bytes) -> do
-            localIds' <- bitraverse _saveText _hashJWT_to_expectHashId_expectObjectId localIds
-            undefined localIds' bytes {-recompose something-}
-        )
-        vec
+tempToSyncTermComponent :: Connection -> TempEntity.TempTermFormat -> IO TermFormat.SyncTermFormat
+tempToSyncTermComponent conn =
+  flip runReaderT conn . \case
+    TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent vec) ->
+      TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
+        <$> traverse
+          ( \(localIds, bytes) -> do
+              localIds' <- bitraverse Q.saveText expectObjectIdForHashJWT localIds
+              undefined localIds' bytes {-recompose something-}
+          )
+          vec
+
+expectObjectIdForHashJWT :: Q.DB m => TempEntity.HashJWT -> m ObjectId
+expectObjectIdForHashJWT hashJwt = do
+  hashId <- throwExceptT (Q.expectHashIdByHash (Hash.fromBase32Hex (hashJWTHash (Share.HashJWT hashJwt))))
+  -- FIXME mitchell: should this be "for primary hash id" or "for any hash id"?
+  throwExceptT (Q.expectObjectIdForAnyHashId hashId)
 
 -- Serialization.recomposeComponent :: MonadPut m => [(LocalIds, BS.ByteString)] -> m ()
 -- Serialization.recomposePatchFormat :: MonadPut m => PatchFormat.SyncPatchFormat -> m ()

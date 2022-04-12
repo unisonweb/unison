@@ -32,7 +32,7 @@ import qualified U.Codebase.Referent as UReferent
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import U.Codebase.Sqlite.Causal (GDbCausal (..))
-import qualified U.Codebase.Sqlite.Causal as SC
+import qualified U.Codebase.Sqlite.Causal as SC.DbCausal (GDbCausal (..))
 import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
@@ -302,8 +302,8 @@ migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
             parents = newParentHashIds
           }
   runDB conn do
-    Q.saveCausal (SC.selfHash newCausal) (SC.valueHash newCausal)
-    Q.saveCausalParents (SC.selfHash newCausal) (Set.toList $ SC.parents newCausal)
+    Q.saveCausal (SC.DbCausal.selfHash newCausal) (SC.DbCausal.valueHash newCausal)
+    Q.saveCausalParents (SC.DbCausal.selfHash newCausal) (Set.toList $ SC.DbCausal.parents newCausal)
 
   field @"causalMapping" %= Map.insert oldCausalHashId (newCausalHash, newCausalHashId)
 

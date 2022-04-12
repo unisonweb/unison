@@ -6,10 +6,12 @@ default-extensions:
   - BangPatterns
   - BlockArguments
   - ConstraintKinds
+  - DeriveAnyClass
   - DeriveFunctor
   - DeriveGeneric
   - DerivingStrategies
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
   - FunctionalDependencies

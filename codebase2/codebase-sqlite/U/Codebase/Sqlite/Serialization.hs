@@ -29,6 +29,7 @@ import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
+import qualified U.Codebase.Sqlite.Causal as Causal
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
 import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
@@ -729,7 +730,7 @@ putTempEntity = \case
       putFoldable putHashJWT branchDefnLookup
       putFoldable putHashJWT branchPatchLookup
       putFoldable (putPair putHashJWT putHashJWT) branchChildLookup
-    putSyncCausal TempEntity.TempCausalFormat' {valueHash, parents} = do
+    putSyncCausal Causal.SyncCausalFormat {valueHash, parents} = do
       putHashJWT valueHash
       putFoldable putHashJWT parents
     putSyncFullPatch lids bytes = do
@@ -827,7 +828,7 @@ getTempNamespaceFormat =
 
 getTempCausalFormat :: MonadGet m => m TempEntity.TempCausalFormat
 getTempCausalFormat =
-  TempEntity.TempCausalFormat'
+  Causal.SyncCausalFormat
     <$> getHashJWT
     <*> getVector getHashJWT
 
