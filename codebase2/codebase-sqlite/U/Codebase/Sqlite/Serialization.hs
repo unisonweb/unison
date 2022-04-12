@@ -44,6 +44,7 @@ import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
+import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization hiding (debug)
@@ -120,10 +121,14 @@ putLocalIdsWith putText putDefn LocalIds {textLookup, defnLookup} = do
   putFoldable putDefn defnLookup
 
 getLocalIds :: MonadGet m => m LocalIds
-getLocalIds = LocalIds <$> getVector getVarInt <*> getVector getVarInt
+getLocalIds = getLocalIdsWith getVarInt getVarInt
 
 getWatchLocalIds :: MonadGet m => m WatchLocalIds
-getWatchLocalIds = LocalIds <$> getVector getVarInt <*> getVector getVarInt
+getWatchLocalIds = getLocalIdsWith getVarInt getVarInt
+
+getLocalIdsWith :: MonadGet m => m t -> m d -> m (LocalIds' t d)
+getLocalIdsWith getText getDefn =
+  LocalIds <$> getVector getText <*> getVector getDefn
 
 putUnit :: Applicative m => () -> m ()
 putUnit _ = pure ()
@@ -730,46 +735,82 @@ putTempEntity = \case
       putFoldable putHashJWT parents
     putSyncFullPatch lids bytes = do
       putPatchLocalIds lids
-      putByteString bytes
+      putFramedByteString bytes
     putSyncDiffPatch parent lids bytes = do
       putHashJWT parent
       putPatchLocalIds lids
-      putByteString bytes
+      putFramedByteString bytes
     putSyncFullNamespace lids bytes = do
       putNamespaceLocalIds lids
       putByteString bytes
     putSyncDiffNamespace parent lids bytes = do
       putHashJWT parent
       putNamespaceLocalIds lids
-      putByteString bytes
-
+      putFramedByteString bytes
     putSyncTerm (TermFormat.SyncLocallyIndexedComponent vec) =
       -- we're not leaving ourselves the ability to skip over the localIds
       -- when deserializing, because we don't think we need to (and it adds a
       -- little overhead.)
       flip putFoldable vec \(localIds, bytes) -> do
         putLocalIdsWith putHashJWT putHashJWT localIds
-        putByteString bytes
+        putFramedByteString bytes
     putSyncDecl (DeclFormat.SyncLocallyIndexedComponent vec) =
       flip putFoldable vec \(localIds, bytes) -> do
         putLocalIdsWith putHashJWT putHashJWT localIds
-        putByteString bytes
+        putFramedByteString bytes
+
+getHashJWT :: MonadGet m => m TempEntity.HashJWT
+getHashJWT = error "getHashJWT" undefined
+
+getBase32Hex :: MonadGet m => m Base32Hex
+getBase32Hex = Base32Hex.UnsafeFromText <$> getText
+
+putFramedBytes :: MonadPut m => BS.ByteString -> m ()
+putFramedBytes bs = do
+  putVarInt (BS.length bs)
+  putByteString bs
+
+getFramedBytes :: MonadGet m => m BS.ByteString
+getFramedBytes = do
+  length <- getVarInt
+  getByteString length
 
 getTempTermFormat :: MonadGet m => m TempEntity.TempTermFormat
 getTempTermFormat =
   getWord8 >>= \case
-    0 -> undefined
+    0 ->
+      TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
+        <$> getVector
+          ( getPair
+              (getLocalIdsWith getHashJWT getHashJWT)
+              getFramedByteString
+          )
     tag -> unknownTag "getTempTermFormat" tag
 
 getTempDeclFormat :: MonadGet m => m TempEntity.TempDeclFormat
 getTempDeclFormat =
   getWord8 >>= \case
+    0 ->
+      DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
+        <$> getVector
+          ( getPair
+              (getLocalIdsWith getHashJWT getHashJWT)
+              getFramedByteString
+          )
     tag -> unknownTag "getTempDeclFormat" tag
 
 getTempPatchFormat :: MonadGet m => m TempEntity.TempPatchFormat
 getTempPatchFormat =
   getWord8 >>= \case
+    0 -> PatchFormat.SyncFull <$> getPatchLocalIds <*> getFramedByteString
+    1 -> PatchFormat.SyncDiff <$> getHashJWT <*> getPatchLocalIds <*> getFramedByteString
     tag -> unknownTag "getTempPatchFormat" tag
+  where
+    getPatchLocalIds =
+      PatchFormat.LocalIds
+        <$> getVector getText
+        <*> getVector getBase32Hex
+        <*> getVector getHashJWT
 
 getTempNamespaceFormat :: MonadGet m => m TempEntity.TempNamespaceFormat
 getTempNamespaceFormat =
