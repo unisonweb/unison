@@ -163,15 +163,6 @@ download :: Connection -> Share.RepoName -> NESet Share.HashJWT -> IO ()
 download conn repoName = do
   let runDB :: ReaderT Connection IO a -> IO a
       runDB action = runReaderT action conn
-  let inMainStorage :: Share.Hash -> IO Bool
-      inMainStorage (Share.Hash b32) = runDB do
-        -- first get hashId if exists
-        Q.loadHashId b32 >>= \case
-          Nothing -> pure False
-          -- then check if is causal hash or if object exists for hash id
-          Just hashId -> Q.isCausalHash hashId ||^ Q.isObjectHash hashId
-  let inTempStorage :: Share.Hash -> IO Bool
-      inTempStorage (Share.Hash b32) = runDB $ Q.tempEntityExists b32
   let directDepsOfEntity :: Share.Entity Text Share.Hash Share.HashJWT -> Set Share.DecodedHashJWT
       directDepsOfEntity =
         Set.map decodeHashJWT . \case
@@ -189,33 +180,9 @@ download conn repoName = do
       directDepsOfEntity2 =
         Lens.setOf (typed @Share.HashJWT) -}
 
-  let directDepsOfHash :: Share.Hash -> IO (Set Share.DecodedHashJWT)
-      directDepsOfHash (Share.Hash b32) = do
-        maybeJwts <- runDB (Q.getMissingDependencyJwtsForTempEntity b32)
-        let decode = decodeHashJWT . Share.HashJWT
-        pure (maybe Set.empty (Set.map decode . NESet.toSet) maybeJwts)
   let loop :: NESet Share.DecodedHashJWT -> IO ()
       loop hashes0 = do
-        let elaborateHashes :: Set Share.DecodedHashJWT -> Set Share.HashJWT -> IO (Maybe (NESet Share.HashJWT))
-            elaborateHashes hashes outputs =
-              case Set.minView hashes of
-                Nothing -> pure (NESet.nonEmptySet outputs)
-                Just (Share.DecodedHashJWT (Share.HashJWTClaims {hash}) jwt, hashes') ->
-                  inMainStorage hash >>= \case
-                    False ->
-                      inTempStorage hash >>= \case
-                        False ->
-                          -- we need the entity, it's not in main or temp storage
-                          elaborateHashes hashes' (Set.insert jwt outputs)
-                        True -> do
-                          -- entity already in temp storage
-                          deps <- directDepsOfHash hash
-                          elaborateHashes (Set.union deps hashes') outputs
-                    True ->
-                      -- hash already in main storage
-                      elaborateHashes hashes' outputs
-
-        elaborateHashes (NESet.toSet hashes0) Set.empty >>= \case
+        runDB (elaborateHashes (NESet.toSet hashes0) Set.empty) >>= \case
           Nothing -> pure ()
           Just hashes1 -> do
             Share.DownloadEntitiesResponse entities <-
@@ -226,37 +193,26 @@ download conn repoName = do
                   }
 
             missingDependencies0 <-
-              NEMap.toList entities & foldMapM \(hash, entity) -> do
-                let putInMainStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
-                    putInMainStorage _hash _entity = undefined
-
-                -- still trying to figure out missing dependencies of hash/entity.
-                inMainStorage hash >>= \case
-                  True -> pure Set.empty
-                  False ->
-                    runDB (Q.getMissingDependencyJwtsForTempEntity (Share.toBase32Hex hash)) >>= \case
-                      Just missingDependencies ->
-                        -- already in temp storage, due to missing dependencies
-                        pure (Set.map (decodeHashJWT . Share.HashJWT) (NESet.toSet missingDependencies))
-                      Nothing -> do
-                        -- not in temp storage.
-                        -- if it has missing dependencies, add it to temp storage;
-                        -- otherwise add it to main storage.
-                        missingDependencies0 <- Set.filterM (inMainStorage . decodedHashJWTHash) (directDepsOfEntity entity)
-                        case NESet.nonEmptySet missingDependencies0 of
-                          Nothing -> putInMainStorage hash entity
-                          Just missingDependencies ->
-                            runDB do
-                              Q.insertTempEntity
-                                (Share.toBase32Hex hash)
-                                (makeTempEntity entity)
-                                ( NESet.map
-                                    ( \Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}, hashJWT} ->
-                                        (Share.toBase32Hex hash, Share.unHashJWT hashJWT)
-                                    )
-                                    missingDependencies
-                                )
-                        pure missingDependencies0
+              runDB do
+                NEMap.toList entities & foldMapM \(hash, entity) -> do
+                  -- still trying to figure out missing dependencies of hash/entity.
+                  entityExists hash >>= \case
+                    True -> pure Set.empty
+                    False ->
+                      Q.getMissingDependencyJwtsForTempEntity (Share.toBase32Hex hash) >>= \case
+                        Just missingDependencies ->
+                          -- already in temp storage, due to missing dependencies
+                          pure (Set.map (decodeHashJWT . Share.HashJWT) (NESet.toSet missingDependencies))
+                        Nothing -> do
+                          -- not in temp storage.
+                          -- if it has missing dependencies, add it to temp storage;
+                          -- otherwise add it to main storage.
+                          missingDependencies0 <-
+                            Set.filterM (entityExists . decodedHashJWTHash) (directDepsOfEntity entity)
+                          case NESet.nonEmptySet missingDependencies0 of
+                            Nothing -> insertEntity hash entity
+                            Just missingDependencies -> insertTempEntity hash entity missingDependencies
+                          pure missingDependencies0
 
             case NESet.nonEmptySet missingDependencies0 of
               Nothing -> pure ()
@@ -416,14 +372,6 @@ _downloadEntities = undefined
 _uploadEntities :: Share.UploadEntitiesRequest -> IO UploadEntitiesResponse
 _uploadEntities = undefined
 
-makeTempEntity :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity
-makeTempEntity e = case e of
-  Share.TC _ -> undefined -- (TempEntity.TC _)
-  Share.DC _ -> undefined -- (TempEntity.DC _)
-  Share.P _ -> undefined -- (TempEntity.P _)
-  Share.N _ -> undefined -- (TempEntity.N _)
-  Share.C _ -> undefined -- (TempEntity.C _)
-
 -- have to convert from Entity format to TempEntity format (`makeTempEntity` on 414)
 
 -- also have to convert from TempEntity format to Sync format — this means exchanging Text for TextId and `Base32Hex`es for `HashId`s and/or `ObjectId`s
@@ -464,3 +412,88 @@ tempToSyncCausal = do
 -- Q.saveCausalHash :: DB m => CausalHash -> m CausalHashId -- only affects `hash` table
 -- Q.saveCausal :: DB m => CausalHashId -> BranchHashId -> m ()
 -- Q.saveCausalParents :: DB m => CausalHashId -> [CausalHashId] -> m ()
+
+------------------------------------------------------------------------------------------------------------------------
+-- Database operations
+
+-- | Where is an entity stored?
+data EntityLocation
+  = -- | `object` / `causal`
+    EntityInMainStorage
+  | -- | `temp_entity`
+    EntityInTempStorage
+  | -- | Nowhere
+    EntityNotStored
+
+-- | Does this entity already exist in the database, i.e. in the `object` or `causal` table?
+entityExists :: Q.DB m => Share.Hash -> m Bool
+entityExists (Share.Hash b32) = do
+  -- first get hashId if exists
+  Q.loadHashId b32 >>= \case
+    Nothing -> pure False
+    -- then check if is causal hash or if object exists for hash id
+    Just hashId -> Q.isCausalHash hashId ||^ Q.isObjectHash hashId
+
+-- | Does this entity already exist in the `temp_entity` table?
+tempEntityExists :: Q.DB m => Share.Hash -> m Bool
+tempEntityExists (Share.Hash b32) =
+  Q.tempEntityExists b32
+
+-- | Where is an entity stored?
+entityLocation :: Q.DB m => Share.Hash -> m EntityLocation
+entityLocation hash =
+  entityExists hash >>= \case
+    True -> pure EntityInMainStorage
+    False ->
+      tempEntityExists hash >>= \case
+        True -> pure EntityInTempStorage
+        False -> pure EntityNotStored
+
+-- FIXME comment
+elaborateHashes :: forall m. Q.DB m => Set Share.DecodedHashJWT -> Set Share.HashJWT -> m (Maybe (NESet Share.HashJWT))
+elaborateHashes hashes outputs =
+  case Set.minView hashes of
+    Nothing -> pure (NESet.nonEmptySet outputs)
+    Just (Share.DecodedHashJWT (Share.HashJWTClaims {hash}) jwt, hashes') ->
+      entityLocation hash >>= \case
+        EntityNotStored -> elaborateHashes hashes' (Set.insert jwt outputs)
+        EntityInTempStorage -> do
+          deps <- directDepsOfHash hash
+          elaborateHashes (Set.union deps hashes') outputs
+        EntityInMainStorage -> elaborateHashes hashes' outputs
+  where
+    directDepsOfHash :: Share.Hash -> m (Set Share.DecodedHashJWT)
+    directDepsOfHash (Share.Hash b32) = do
+      maybeJwts <- Q.getMissingDependencyJwtsForTempEntity b32
+      let decode = decodeHashJWT . Share.HashJWT
+      pure (maybe Set.empty (Set.map decode . NESet.toSet) maybeJwts)
+
+insertEntity :: Q.DB m => Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> m ()
+insertEntity _hash = undefined
+
+-- | Insert an entity and its missing dependencies.
+insertTempEntity ::
+  Q.DB m =>
+  Share.Hash ->
+  Share.Entity Text Share.Hash Share.HashJWT ->
+  NESet Share.DecodedHashJWT ->
+  m ()
+insertTempEntity hash entity missingDependencies =
+  Q.insertTempEntity
+    (Share.toBase32Hex hash)
+    tempEntity
+    ( NESet.map
+        ( \Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}, hashJWT} ->
+            (Share.toBase32Hex hash, Share.unHashJWT hashJWT)
+        )
+        missingDependencies
+    )
+  where
+    tempEntity :: TempEntity
+    tempEntity =
+      case entity of
+        Share.TC _ -> undefined -- (TempEntity.TC _)
+        Share.DC _ -> undefined -- (TempEntity.DC _)
+        Share.P _ -> undefined -- (TempEntity.P _)
+        Share.N _ -> undefined -- (TempEntity.N _)
+        Share.C _ -> undefined -- (TempEntity.C _)
