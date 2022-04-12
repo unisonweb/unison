@@ -11,6 +11,7 @@ where
 
 import Control.Monad.Extra ((||^))
 import Control.Monad.Reader (ReaderT, runReaderT)
+import Data.Bytes.Put (runPutS)
 import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
@@ -20,6 +21,10 @@ import U.Codebase.HashTags (CausalHash (unCausalHash))
 import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId (HashId)
 import qualified U.Codebase.Sqlite.Queries as Q
+import qualified U.Codebase.Sqlite.Serialization as S
+import U.Codebase.Sqlite.TempEntity (TempEntity)
+import qualified U.Codebase.Sqlite.TempEntity as TempEntity
+import qualified U.Codebase.Sqlite.TempEntityType as TempEntity
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
@@ -214,12 +219,12 @@ download conn repoName = do
                 let putInMainStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
                     putInMainStorage _hash _entity = undefined
                 let putInTempStorage :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> IO ()
-                    putInTempStorage _hash _entity = do
-                      let bytes = case _entity of
-                                    _ -> undefined
-
+                    putInTempStorage _hash entity = do
                       -- convert the blob to the data type we have a serializer for
+                      let tempEntity = makeTempEntity entity
+                          _entityType = tempEntityType entity
                       -- serialize the blob
+                      let _bytes = runPutS (S.putTempEntity tempEntity)
                       -- insert the blob
                       undefined
                 let insertMissingDependencies = undefined
@@ -400,3 +405,19 @@ _downloadEntities = undefined
 
 _uploadEntities :: Share.UploadEntitiesRequest -> IO UploadEntitiesResponse
 _uploadEntities = undefined
+
+makeTempEntity :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity
+makeTempEntity e = case e of
+  Share.TC _ -> (TempEntity.TC _)
+  Share.DC _ -> (TempEntity.DC _)
+  Share.P _ -> (TempEntity.P _)
+  Share.N _ -> (TempEntity.N _)
+  Share.C _ -> (TempEntity.C _)
+
+tempEntityType :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity.TempEntityType
+tempEntityType = \case
+  Share.TC tc -> TempEntity.TermComponentType
+  Share.DC dc -> TempEntity.DeclComponentType
+  Share.P pa -> TempEntity.PatchType
+  Share.N name -> TempEntity.NamespaceType
+  Share.C ca -> TempEntity.CausalType

@@ -43,6 +43,7 @@ library
       U.Codebase.Sqlite.Symbol
       U.Codebase.Sqlite.Sync22
       U.Codebase.Sqlite.TempEntity
+      U.Codebase.Sqlite.TempEntityType
       U.Codebase.Sqlite.Term.Format
   other-modules:
       Paths_unison_codebase_sqlite

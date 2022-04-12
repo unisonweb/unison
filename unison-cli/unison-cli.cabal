@@ -97,6 +97,7 @@ library
     , aeson
     , async
     , base
+    , bytes
     , bytestring
     , configurator
     , containers >=0.6.3
@@ -189,6 +190,7 @@ executable cli-integration-tests
     , aeson
     , async
     , base
+    , bytes
     , bytestring
     , code-page
     , configurator
@@ -279,6 +281,7 @@ executable transcripts
     , aeson
     , async
     , base
+    , bytes
     , bytestring
     , code-page
     , configurator
@@ -373,6 +376,7 @@ executable unison
     , aeson
     , async
     , base
+    , bytes
     , bytestring
     , code-page
     , configurator
@@ -472,6 +476,7 @@ test-suite cli-tests
     , aeson
     , async
     , base
+    , bytes
     , bytestring
     , code-page
     , configurator

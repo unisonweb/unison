@@ -15,6 +15,7 @@ dependencies:
   - ListLike
   - async
   - base
+  - bytes
   - bytestring
   - configurator
   - containers >= 0.6.3
