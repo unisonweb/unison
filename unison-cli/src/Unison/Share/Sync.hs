@@ -13,6 +13,7 @@ import qualified Control.Lens as Lens
 import Control.Monad.Extra ((||^))
 import Control.Monad.Reader (ReaderT, runReaderT)
 import Data.Bitraversable (bitraverse)
+import qualified Data.Foldable as Foldable
 import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
@@ -175,7 +176,8 @@ download conn repoName = do
           Share.P (Share.Patch {newHashLookup}) ->
             Set.fromList newHashLookup
           Share.N (Share.Namespace {defnLookup, patchLookup, childLookup}) ->
-            Set.fromList defnLookup <> Set.fromList patchLookup <> Set.fromList childLookup
+            Set.fromList defnLookup <> Set.fromList patchLookup
+              <> Foldable.foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
           Share.C (Share.Causal {parents}) -> parents
   {-
   let directDepsOfEntity2 :: Share.Entity Text Share.Hash Share.HashJWT -> Set Share.DecodedHashJWT
@@ -525,8 +527,7 @@ entityToTempEntity = \case
             { branchTextLookup = Vector.fromList textLookup,
               branchDefnLookup = Vector.fromList (coerce @[Share.HashJWT] @[TempEntity.HashJWT] defnLookup),
               branchPatchLookup = Vector.fromList (coerce @[Share.HashJWT] @[TempEntity.HashJWT] patchLookup),
-              -- FIXME need values hashes in API type
-              branchChildLookup = undefined childLookup
+              branchChildLookup = Vector.fromList (coerce @[(Share.HashJWT, Share.HashJWT)] @[(TempEntity.HashJWT, TempEntity.HashJWT)] childLookup)
             }
           bytes
       )

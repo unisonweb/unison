@@ -468,7 +468,7 @@ data Namespace text hash = Namespace
   { textLookup :: [text],
     defnLookup :: [hash],
     patchLookup :: [hash],
-    childLookup :: [hash],
+    childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
     bytes :: ByteString
   }
   deriving stock (Eq, Ord, Show)
@@ -485,7 +485,7 @@ instance Bitraversable Namespace where
       <$> traverse f tl
       <*> traverse g dl
       <*> traverse g pl
-      <*> traverse g cl
+      <*> traverse (bitraverse g g) cl
       <*> pure b
 
 instance (ToJSON text, ToJSON hash) => ToJSON (Namespace text hash) where
