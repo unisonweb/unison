@@ -142,6 +142,7 @@ data Output v
   | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
+  | BadNamespace String String
   | BranchNotFound Path'
   | NameNotFound Path.HQSplit'
   | PatchNotFound Path.Split'
@@ -307,6 +308,7 @@ isFailure o = case o of
   TermAmbiguous {} -> True
   BranchHashAmbiguous {} -> True
   BadName {} -> True
+  BadNamespace {} -> True
   BranchNotFound {} -> True
   NameNotFound {} -> True
   PatchNotFound {} -> True

@@ -1,0 +1,16 @@
+
+handleBackendError :: Backend.BackendError -> Action m i v ()
+handleBackendError = \case
+  Backend.NoSuchNamespace path ->
+    respond . BranchNotFound $ Path.absoluteToPath' path
+  Backend.BadRootBranch e -> respond $ BadRootBranch e
+  Backend.NoBranchForHash h -> do
+    sbhLength <- eval BranchHashLength
+    respond . NoBranchWithHash $ SBH.fromHash sbhLength h
+  Backend.CouldntLoadBranch h -> do
+    respond . CouldntLoadBranch $ h
+  Backend.CouldntExpandBranchHash sbh -> respond $ NoBranchWithHash sbh
+  Backend.AmbiguousBranchHash h hashes ->
+    respond $ BranchHashAmbiguous h hashes
+  Backend.MissingSignatureForTerm r ->
+    respond $ TermMissingType r

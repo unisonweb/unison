@@ -158,7 +158,7 @@ withTranscriptRunner ucmVersion configFile action = do
     withRuntime :: ((Runtime.Runtime Symbol -> m a) -> m a)
     withRuntime action =
       UnliftIO.bracket
-        (liftIO $ RTI.startRuntime RTI.UCM ucmVersion)
+        (liftIO $ RTI.startRuntime RTI.Persistent ucmVersion)
         (liftIO . Runtime.terminate)
         action
     withConfig :: forall a. ((Maybe Config -> m a) -> m a)
