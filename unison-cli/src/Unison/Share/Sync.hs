@@ -37,7 +37,7 @@ import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import Unison.Auth.HTTPClient (AuthorizedHttpClient)
 import Unison.Prelude
-import qualified Unison.Sync.HTTP as Share (updatePathHandler, uploadEntitiesHandler)
+import qualified Unison.Sync.HTTP as Share (downloadEntitiesHandler, updatePathHandler, uploadEntitiesHandler)
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
 import Unison.Util.Monoid (foldMapM)
@@ -179,8 +179,14 @@ pull ::
 pull httpClient unisonShareUrl _conn _repoPath = undefined
 
 -- Download a set of entities from Unison Share.
-download :: Connection -> Share.RepoName -> NESet Share.HashJWT -> IO ()
-download conn repoName = do
+download ::
+  AuthorizedHttpClient ->
+  BaseUrl ->
+  Connection ->
+  Share.RepoName ->
+  NESet Share.HashJWT ->
+  IO ()
+download httpClient unisonShareUrl conn repoName = do
   let runDB :: ReaderT Connection IO a -> IO a
       runDB action = runReaderT action conn
 
@@ -190,7 +196,9 @@ download conn repoName = do
           Nothing -> pure ()
           Just hashes1 -> do
             Share.DownloadEntitiesResponse entities <-
-              _downloadEntities
+              Share.downloadEntitiesHandler
+                httpClient
+                unisonShareUrl
                 Share.DownloadEntitiesRequest
                   { repoName,
                     hashes = hashes1
@@ -339,9 +347,6 @@ data GetCausalHashByPathResponse
 
 _getCausalHashByPath :: Share.GetCausalHashByPathRequest -> IO GetCausalHashByPathResponse
 _getCausalHashByPath = undefined
-
-_downloadEntities :: Share.DownloadEntitiesRequest -> IO Share.DownloadEntitiesResponse
-_downloadEntities = undefined
 
 -- have to convert from Entity format to TempEntity format (`makeTempEntity` on 414)
 
