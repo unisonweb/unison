@@ -37,7 +37,7 @@ import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as Hash
 import Unison.Auth.HTTPClient (AuthorizedHttpClient)
 import Unison.Prelude
-import qualified Unison.Sync.HTTP as Share (updatePathHandler)
+import qualified Unison.Sync.HTTP as Share (updatePathHandler, uploadEntitiesHandler)
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Sync.Types as Share.LocalIds (LocalIds (..))
 import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
@@ -92,7 +92,7 @@ push httpClient unisonShareUrl conn repoPath expectedHash causalHash = do
     Share.UpdatePathHashMismatch mismatch -> pure (Left (PushErrorHashMismatch mismatch))
     Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
       -- Upload the causal and all of its dependencies.
-      upload conn (Share.RepoPath.repoName repoPath) dependencies
+      upload httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath) dependencies
 
       -- After uploading the causal and all of its dependencies, try setting the remote path again.
       updatePath <&> \case
@@ -133,8 +133,14 @@ push httpClient unisonShareUrl conn repoPath expectedHash causalHash = do
 -- Upload a set of entities to Unison Share. If the server responds that it cannot yet store any hash(es) due to missing
 -- dependencies, send those dependencies too, and on and on, until the server stops responding that it's missing
 -- anything.
-upload :: Connection -> Share.RepoName -> NESet Share.Hash -> IO ()
-upload conn repoName =
+upload ::
+  AuthorizedHttpClient ->
+  BaseUrl ->
+  Connection ->
+  Share.RepoName ->
+  NESet Share.Hash ->
+  IO ()
+upload httpClient unisonShareUrl conn repoName =
   loop
   where
     loop :: NESet Share.Hash -> IO ()
@@ -142,18 +148,21 @@ upload conn repoName =
       -- Get each entity that the server is missing out of the database.
       entities <- traverse (resolveHashToEntity conn) hashes
 
-      let theUploadEntitiesRequest :: Share.UploadEntitiesRequest
-          theUploadEntitiesRequest =
-            Share.UploadEntitiesRequest
-              { entities = NEMap.fromAscList (List.NonEmpty.zip hashes entities),
-                repoName
-              }
+      let uploadEntities :: IO Share.UploadEntitiesResponse
+          uploadEntities =
+            Share.uploadEntitiesHandler
+              httpClient
+              unisonShareUrl
+              Share.UploadEntitiesRequest
+                { entities = NEMap.fromAscList (List.NonEmpty.zip hashes entities),
+                  repoName
+                }
 
       -- Upload all of the entities we know the server needs, and if the server responds that it needs yet more, loop to
       -- upload those too.
-      _uploadEntities theUploadEntitiesRequest >>= \case
-        UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> loop moreHashes
-        UploadEntitiesSuccess -> pure ()
+      uploadEntities >>= \case
+        Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> loop moreHashes
+        Share.UploadEntitiesSuccess -> pure ()
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
@@ -326,10 +335,6 @@ server sqlite db
 ------------------------------------------------------------------------------------------------------------------------
 --
 
-data UploadEntitiesResponse
-  = UploadEntitiesSuccess
-  | UploadEntitiesNeedDependencies (Share.NeedDependencies Share.Hash)
-
 data PullError
 
 type Transaction a = ()
@@ -354,9 +359,6 @@ _getCausalHashByPath = undefined
 
 _downloadEntities :: Share.DownloadEntitiesRequest -> IO Share.DownloadEntitiesResponse
 _downloadEntities = undefined
-
-_uploadEntities :: Share.UploadEntitiesRequest -> IO UploadEntitiesResponse
-_uploadEntities = undefined
 
 -- have to convert from Entity format to TempEntity format (`makeTempEntity` on 414)
 
