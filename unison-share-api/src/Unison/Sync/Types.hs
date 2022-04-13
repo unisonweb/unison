@@ -14,6 +14,7 @@ import Data.ByteString (ByteString)
 import Data.Function ((&))
 import Data.Map.NonEmpty (NEMap)
 import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
@@ -35,11 +36,27 @@ newtype RepoName = RepoName Text
 newtype HashJWT = HashJWT {unHashJWT :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
+-- | Grab the hash out of a hash JWT.
+--
+-- This decodes the whole JWT, then throws away the claims; use it if you really only need the hash!
+hashJWTHash :: HashJWT -> Hash
+hashJWTHash =
+  decodedHashJWTHash . decodeHashJWT
+
+-- | A decoded hash JWT that retains the original encoded JWT.
 data DecodedHashJWT = DecodedHashJWT
   { claims :: HashJWTClaims,
     hashJWT :: HashJWT
   }
   deriving (Eq, Ord, Show)
+
+-- | Decode a hash JWT.
+decodeHashJWT :: HashJWT -> DecodedHashJWT
+decodeHashJWT = undefined
+
+-- | Grab the hash out of a decoded hash JWT.
+decodedHashJWTHash :: DecodedHashJWT -> Hash
+decodedHashJWTHash = undefined
 
 data HashJWTClaims = HashJWTClaims
   { hash :: Hash,
@@ -335,6 +352,19 @@ instance (FromJSON text, FromJSON noSyncHash, FromJSON hash, Ord hash) => FromJS
       PatchType -> P <$> obj .: "object"
       NamespaceType -> N <$> obj .: "object"
       CausalType -> C <$> obj .: "object"
+
+-- | Get the direct dependencies of an entity (which are actually sync'd).
+--
+-- FIXME use generic-lens here? (typed @hash)
+entityDependencies :: Ord hash => Entity text noSyncHash hash -> Set hash
+entityDependencies = \case
+  TC (TermComponent terms) -> flip foldMap terms \(LocalIds {hashes}, _term) -> Set.fromList hashes
+  DC (DeclComponent decls) -> flip foldMap decls \(LocalIds {hashes}, _decl) -> Set.fromList hashes
+  P Patch {newHashLookup} -> Set.fromList newHashLookup
+  N Namespace {defnLookup, patchLookup, childLookup} ->
+    Set.fromList defnLookup <> Set.fromList patchLookup
+      <> foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
+  C Causal {parents} -> parents
 
 data TermComponent text hash = TermComponent [(LocalIds text hash, ByteString)]
   deriving stock (Show, Eq, Ord)

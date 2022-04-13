@@ -13,7 +13,6 @@ import qualified Control.Lens as Lens
 import Control.Monad.Extra ((||^))
 import Control.Monad.Reader (ReaderT, runReaderT)
 import Data.Bitraversable (bitraverse)
-import qualified Data.Foldable as Foldable
 import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
@@ -34,12 +33,12 @@ import U.Codebase.Sqlite.TempEntity (TempEntity)
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Util.Base32Hex (Base32Hex)
+import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import Unison.Auth.HTTPClient (AuthorizedHttpClient)
 import Unison.Prelude
 import qualified Unison.Sync.HTTP as Share (updatePathHandler, uploadEntitiesHandler)
 import qualified Unison.Sync.Types as Share
-import qualified Unison.Sync.Types as Share.LocalIds (LocalIds (..))
 import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
@@ -167,41 +166,23 @@ upload httpClient unisonShareUrl conn repoName =
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
 
-pull :: Connection -> Share.RepoPath -> IO (Either PullError CausalHash)
-pull _conn _repoPath = undefined
-
-decodedHashJWTHash :: Share.DecodedHashJWT -> Share.Hash
-decodedHashJWTHash = undefined
-
-decodeHashJWT :: Share.HashJWT -> Share.DecodedHashJWT
-decodeHashJWT = undefined
-
-hashJWTHash :: Share.HashJWT -> Base32Hex
-hashJWTHash =
-  Share.toBase32Hex . decodedHashJWTHash . decodeHashJWT
+pull ::
+  -- | The HTTP client to use for Unison Share requests.
+  AuthorizedHttpClient ->
+  -- | The Unison Share URL.
+  BaseUrl ->
+  -- | SQLite connection, for storing entities we pull.
+  Connection ->
+  -- | The repo+path to pull from.
+  Share.RepoPath ->
+  IO (Either PullError CausalHash)
+pull httpClient unisonShareUrl _conn _repoPath = undefined
 
 -- Download a set of entities from Unison Share.
 download :: Connection -> Share.RepoName -> NESet Share.HashJWT -> IO ()
 download conn repoName = do
   let runDB :: ReaderT Connection IO a -> IO a
       runDB action = runReaderT action conn
-  let directDepsOfEntity :: Share.Entity Text Share.Hash Share.HashJWT -> Set Share.DecodedHashJWT
-      directDepsOfEntity =
-        Set.map decodeHashJWT . \case
-          Share.TC (Share.TermComponent terms) -> flip foldMap terms \(localIds, _term) ->
-            Set.fromList (Share.LocalIds.hashes localIds)
-          Share.DC (Share.DeclComponent terms) -> flip foldMap terms \(localIds, _term) ->
-            Set.fromList (Share.LocalIds.hashes localIds)
-          Share.P (Share.Patch {newHashLookup}) ->
-            Set.fromList newHashLookup
-          Share.N (Share.Namespace {defnLookup, patchLookup, childLookup}) ->
-            Set.fromList defnLookup <> Set.fromList patchLookup
-              <> Foldable.foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
-          Share.C (Share.Causal {parents}) -> parents
-  {-
-  let directDepsOfEntity2 :: Share.Entity Text Share.Hash Share.HashJWT -> Set Share.DecodedHashJWT
-      directDepsOfEntity2 =
-        Lens.setOf (typed @Share.HashJWT) -}
 
   let loop :: NESet Share.DecodedHashJWT -> IO ()
       loop hashes0 = do
@@ -225,13 +206,15 @@ download conn repoName = do
                       Q.getMissingDependencyJwtsForTempEntity (Share.toBase32Hex hash) >>= \case
                         Just missingDependencies ->
                           -- already in temp storage, due to missing dependencies
-                          pure (Set.map (decodeHashJWT . Share.HashJWT) (NESet.toSet missingDependencies))
+                          pure (Set.map (Share.decodeHashJWT . Share.HashJWT) (NESet.toSet missingDependencies))
                         Nothing -> do
                           -- not in temp storage.
                           -- if it has missing dependencies, add it to temp storage;
                           -- otherwise add it to main storage.
                           missingDependencies0 <-
-                            Set.filterM (entityExists . decodedHashJWTHash) (directDepsOfEntity entity)
+                            Set.filterM
+                              (entityExists . Share.decodedHashJWTHash)
+                              (Set.map Share.decodeHashJWT (Share.entityDependencies entity))
                           case NESet.nonEmptySet missingDependencies0 of
                             Nothing -> insertEntity hash entity
                             Just missingDependencies -> insertTempEntity hash entity missingDependencies
@@ -240,7 +223,7 @@ download conn repoName = do
             case NESet.nonEmptySet missingDependencies0 of
               Nothing -> pure ()
               Just missingDependencies -> loop missingDependencies
-   in loop . NESet.map decodeHashJWT
+   in loop . NESet.map Share.decodeHashJWT
 
 ---------
 
@@ -372,9 +355,12 @@ tempToSyncTermComponent conn =
 
 expectObjectIdForHashJWT :: Q.DB m => TempEntity.HashJWT -> m ObjectId
 expectObjectIdForHashJWT hashJwt = do
-  hashId <- throwExceptT (Q.expectHashIdByHash (Hash.fromBase32Hex (hashJWTHash (Share.HashJWT hashJwt))))
-  -- FIXME mitchell: should this be "for primary hash id" or "for any hash id"?
+  hashId <- throwExceptT (Q.expectHashIdByHash (decode hashJwt))
   throwExceptT (Q.expectObjectIdForAnyHashId hashId)
+  where
+    decode :: TempEntity.HashJWT -> Hash
+    decode =
+      Hash.fromBase32Hex . Share.toBase32Hex . Share.hashJWTHash . Share.HashJWT
 
 -- Serialization.recomposeComponent :: MonadPut m => [(LocalIds, BS.ByteString)] -> m ()
 -- Serialization.recomposePatchFormat :: MonadPut m => PatchFormat.SyncPatchFormat -> m ()
@@ -453,8 +439,7 @@ elaborateHashes hashes outputs =
     directDepsOfHash :: Share.Hash -> m (Set Share.DecodedHashJWT)
     directDepsOfHash (Share.Hash b32) = do
       maybeJwts <- Q.getMissingDependencyJwtsForTempEntity b32
-      let decode = decodeHashJWT . Share.HashJWT
-      pure (maybe Set.empty (Set.map decode . NESet.toSet) maybeJwts)
+      pure (maybe Set.empty (Set.map (Share.decodeHashJWT . Share.HashJWT) . NESet.toSet) maybeJwts)
 
 insertEntity :: Q.DB m => Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> m ()
 insertEntity _hash = undefined
