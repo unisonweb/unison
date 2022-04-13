@@ -6,6 +6,10 @@ module Unison.Share.Sync
     -- * Push
     push,
     PushError (..),
+
+    -- * Pull
+    pull,
+    PullError (..),
   )
 where
 
@@ -20,11 +24,11 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Vector as Vector
 import Servant.Client (BaseUrl)
-import U.Codebase.HashTags (CausalHash (unCausalHash))
+import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
 import U.Codebase.Sqlite.Connection (Connection)
-import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId, HashId, ObjectId)
+import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId, ObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds' (..))
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
@@ -166,6 +170,11 @@ upload httpClient unisonShareUrl conn repoName =
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
 
+-- | An error occurred while pulling code from Unison Share.
+data PullError
+  = -- | An error occurred while resolving a repo+path to a causal hash.
+    PullErrorGetCausalHashByPath GetCausalHashByPathError
+
 pull ::
   -- | The HTTP client to use for Unison Share requests.
   AuthorizedHttpClient ->
@@ -175,8 +184,26 @@ pull ::
   Connection ->
   -- | The repo+path to pull from.
   Share.RepoPath ->
-  IO (Either PullError CausalHash)
-pull httpClient unisonShareUrl _conn _repoPath = undefined
+  IO (Either PullError (Maybe CausalHash))
+pull httpClient unisonShareUrl conn repoPath = do
+  getCausalHashByPath repoPath >>= \case
+    Left err -> pure (Left (PullErrorGetCausalHashByPath err))
+    -- There's nothing at the remote path, so there's no causal to pull.
+    Right Nothing -> pure (Right Nothing)
+    Right (Just hashJwt) -> do
+      let hash = Share.hashJWTHash hashJwt
+      let success = pure (Right (Just (CausalHash (Hash.fromBase32Hex (Share.toBase32Hex hash)))))
+      runDB (entityLocation2 hash) >>= \case
+        EntityInMainStorage2 -> success
+        EntityInTempStorage2 missingDependencies -> do
+          download httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath) missingDependencies
+          success
+        EntityNotStored2 -> do
+          download httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath) (NESet.singleton hashJwt)
+          success
+  where
+    runDB :: ReaderT Connection IO a -> IO a
+    runDB action = runReaderT action conn
 
 -- Download a set of entities from Unison Share.
 download ::
@@ -184,6 +211,7 @@ download ::
   BaseUrl ->
   Connection ->
   Share.RepoName ->
+  -- FIXME mitchell: less decoding if this is a DecodedHashJWT
   NESet Share.HashJWT ->
   IO ()
 download httpClient unisonShareUrl conn repoName = do
@@ -208,25 +236,21 @@ download httpClient unisonShareUrl conn repoName = do
               runDB do
                 NEMap.toList entities & foldMapM \(hash, entity) -> do
                   -- still trying to figure out missing dependencies of hash/entity.
-                  entityExists hash >>= \case
-                    True -> pure Set.empty
-                    False ->
-                      Q.getMissingDependencyJwtsForTempEntity (Share.toBase32Hex hash) >>= \case
-                        Just missingDependencies ->
-                          -- already in temp storage, due to missing dependencies
-                          pure (Set.map (Share.decodeHashJWT . Share.HashJWT) (NESet.toSet missingDependencies))
-                        Nothing -> do
-                          -- not in temp storage.
-                          -- if it has missing dependencies, add it to temp storage;
-                          -- otherwise add it to main storage.
-                          missingDependencies0 <-
-                            Set.filterM
-                              (entityExists . Share.decodedHashJWTHash)
-                              (Set.map Share.decodeHashJWT (Share.entityDependencies entity))
-                          case NESet.nonEmptySet missingDependencies0 of
-                            Nothing -> insertEntity hash entity
-                            Just missingDependencies -> insertTempEntity hash entity missingDependencies
-                          pure missingDependencies0
+                  entityLocation2 hash >>= \case
+                    EntityInMainStorage2 -> pure Set.empty
+                    EntityInTempStorage2 missingDependencies ->
+                      pure (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies))
+                    EntityNotStored2 -> do
+                      -- if it has missing dependencies, add it to temp storage;
+                      -- otherwise add it to main storage.
+                      missingDependencies0 <-
+                        Set.filterM
+                          (entityExists . Share.decodedHashJWTHash)
+                          (Set.map Share.decodeHashJWT (Share.entityDependencies entity))
+                      case NESet.nonEmptySet missingDependencies0 of
+                        Nothing -> insertEntity hash entity
+                        Just missingDependencies -> insertTempEntity hash entity missingDependencies
+                      pure missingDependencies0
 
             case NESet.nonEmptySet missingDependencies0 of
               Nothing -> pure ()
@@ -326,13 +350,6 @@ server sqlite db
 ------------------------------------------------------------------------------------------------------------------------
 --
 
-data PullError
-
-type Transaction a = ()
-
-expectHash :: HashId -> Transaction Hash.Hash
-expectHash = undefined
-
 -- FIXME rename, etc
 resolveHashToEntity :: Connection -> Share.Hash -> IO (Share.Entity Text Share.Hash Share.Hash)
 resolveHashToEntity = undefined
@@ -404,6 +421,15 @@ data EntityLocation
   | -- | Nowhere
     EntityNotStored
 
+-- | Where is an entity stored?
+data EntityLocation2
+  = -- | `object` / `causal`
+    EntityInMainStorage2
+  | -- | `temp_entity`, evidenced by these missing dependencies.
+    EntityInTempStorage2 (NESet Share.HashJWT)
+  | -- | Nowhere
+    EntityNotStored2
+
 -- | Does this entity already exist in the database, i.e. in the `object` or `causal` table?
 entityExists :: Q.DB m => Share.Hash -> m Bool
 entityExists (Share.Hash b32) = do
@@ -427,6 +453,16 @@ entityLocation hash =
       tempEntityExists hash >>= \case
         True -> pure EntityInTempStorage
         False -> pure EntityNotStored
+
+-- | Where is an entity stored?
+entityLocation2 :: Q.DB m => Share.Hash -> m EntityLocation2
+entityLocation2 hash =
+  entityExists hash >>= \case
+    True -> pure EntityInMainStorage2
+    False ->
+      Q.getMissingDependencyJwtsForTempEntity (Share.toBase32Hex hash) <&> \case
+        Nothing -> EntityNotStored2
+        Just missingDependencies -> EntityInTempStorage2 (NESet.map Share.HashJWT missingDependencies)
 
 -- FIXME comment
 elaborateHashes :: forall m. Q.DB m => Set Share.DecodedHashJWT -> Set Share.HashJWT -> m (Maybe (NESet Share.HashJWT))
