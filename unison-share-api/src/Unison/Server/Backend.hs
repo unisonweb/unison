@@ -36,9 +36,10 @@ import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch, Branch0)
+import Unison.Codebase.Branch (Branch, Branch0, ShallowBranch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
+import qualified Unison.Codebase.Branch.Shallow as ShallowBranch
 import qualified Unison.Codebase.Causal.Type (RawHash (RawHash))
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
@@ -113,8 +114,7 @@ type SyntaxText = UST.SyntaxText' Reference
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
   | ShallowTypeEntry TypeEntry
-  | -- The integer here represents the number of children
-    ShallowBranchEntry NameSegment ShortBranchHash Int
+  | ShallowBranchEntry NameSegment ShortBranchHash
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
@@ -122,7 +122,7 @@ listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
   ShallowTermEntry (TermEntry _ s _ _) -> HQ'.toText s
   ShallowTypeEntry (TypeEntry _ s _) -> HQ'.toText s
-  ShallowBranchEntry n _ _ -> NameSegment.toText n
+  ShallowBranchEntry n _ -> NameSegment.toText n
   ShallowPatchEntry n -> NameSegment.toText n
 
 data BackendError
@@ -183,6 +183,14 @@ basicSuffixifiedNames hashLength root nameScope =
 
 basicPrettyPrintNames :: Branch m -> NameScoping -> Names
 basicPrettyPrintNames root = snd . basicNames' root
+
+shallowPPE :: Int -> ShallowBranch -> PPE.PrettyPrintEnv
+shallowPPE hashLength b =
+  let names0 = basicPrettyPrintNames root nameScope
+   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
+
+shallowPrettyPrintNames :: ShallowBranch -> Names
+shallowPrettyPrintNames b = snd . basicNames' root
 
 basicParseNames :: Branch m -> NameScoping -> Names
 basicParseNames root = fst . basicNames' root
@@ -326,15 +334,12 @@ isDoc' typeOfTerm = do
 termListEntry ::
   Monad m =>
   Codebase m Symbol Ann ->
-  Branch0 m ->
+  Bool ->
   Referent ->
   HQ'.HQSegment ->
   Backend m (TermEntry Symbol Ann)
-termListEntry codebase b0 r n = do
+termListEntry codebase isTest r n = do
   ot <- lift $ loadReferentType codebase r
-
-  -- A term is a test if it has a link of type `IsTest`.
-  let isTest = Metadata.hasMetadataWithType' r Decls.isTestRef $ Branch.deepTermMetadata b0
 
   let tag =
         if (isDoc' ot)
@@ -345,6 +350,14 @@ termListEntry codebase b0 r n = do
               else Nothing
 
   pure $ TermEntry r n ot tag
+
+checkIsTestForBranch :: Branch0 m -> Referent -> Bool
+checkIsTestForBranch b0 r =
+  Metadata.hasMetadataWithType' r Decls.isTestRef $ Branch.deepTermMetadata b0
+
+checkIsTestForShallowBranch :: ShallowBranch -> Referent -> Bool
+checkIsTestForShallowBranch b r =
+  Metadata.hasMetadataWithType' r Decls.isTestRef . Metadata.starToR4 . ShallowBranch.terms $ b
 
 typeListEntry ::
   Monad m =>
@@ -413,6 +426,7 @@ typeEntryToNamedType (TypeEntry r name tag) =
       typeTag = tag
     }
 
+-- | TODO: Can I delete this in favor of the shallow branch version?
 findShallowInBranch ::
   Monad m =>
   Codebase m Symbol Ann ->
@@ -430,24 +444,58 @@ findShallowInBranch codebase b = do
          in case length refs of
               1 -> HQ'.fromName ns
               _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
-      defnCount b =
-        (R.size . Branch.deepTerms $ Branch.head b)
-          + (R.size . Branch.deepTypes $ Branch.head b)
       b0 = Branch.head b
   termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
-    ShallowTermEntry <$> termListEntry codebase b0 r (hqTerm b0 ns r)
+    ShallowTermEntry <$> termListEntry codebase (checkIsTestForBranch b0 r) r (hqTerm b0 ns r)
   typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0) $
     \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
   let branchEntries =
         [ ShallowBranchEntry
             ns
             (SBH.fullFromHash $ Branch.headHash b)
-            (defnCount b)
           | (ns, b) <- Map.toList $ Branch.nonEmptyChildren b0
         ]
       patchEntries =
         [ ShallowPatchEntry ns
           | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
+        ]
+  pure
+    . List.sortOn listEntryName
+    $ termEntries
+      ++ typeEntries
+      ++ branchEntries
+      ++ patchEntries
+
+findInShallowBranch ::
+  Monad m =>
+  Codebase m Symbol Ann ->
+  ShallowBranch ->
+  Backend m [ShallowListEntry Symbol Ann]
+findInShallowBranch codebase b0 = do
+  hashLength <- lift $ Codebase.hashLength codebase
+  let hqTerm b0 ns r =
+        let refs = Star3.lookupD1 ns . ShallowBranch.terms $ b0
+         in case length refs of
+              1 -> HQ'.fromName ns
+              _ -> HQ'.take hashLength $ HQ'.fromNamedReferent ns r
+      hqType b0 ns r =
+        let refs = Star3.lookupD1 ns . ShallowBranch.types $ b0
+         in case length refs of
+              1 -> HQ'.fromName ns
+              _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
+  termEntries <- for (R.toList . Star3.d1 $ ShallowBranch.terms b0) $ \(r, ns) ->
+    ShallowTermEntry <$> termListEntry codebase (checkIsTestForShallowBranch b0 r) r (hqTerm b0 ns r)
+  typeEntries <- for (R.toList . Star3.d1 $ ShallowBranch.types b0) $
+    \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
+  let branchEntries =
+        [ ShallowBranchEntry
+            ns
+            (SBH.fullFromHash h)
+          | (ns, h) <- Map.toList $ ShallowBranch.children b0
+        ]
+      patchEntries =
+        [ ShallowPatchEntry ns
+          | (ns, _h) <- Map.toList $ ShallowBranch.patches b0
         ]
   pure
     . List.sortOn listEntryName
@@ -763,14 +811,15 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
             ExceptT BackendError IO TermDefinition
           )
         mkTermDefinition r tm = do
+          let referent = Referent.Ref r
           ts <- lift (Codebase.getTypeOfTerm codebase r)
           let bn = bestNameForTerm @Symbol (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
           tag <-
             termEntryTag
               <$> termListEntry
                 codebase
-                (Branch.head branch)
-                (Referent.Ref r)
+                (checkIsTestForBranch (Branch.head branch) referent)
+                referent
                 (HQ'.NameOnly (NameSegment bn))
           docs <- docResults [r] $ docNames (NamesWithHistory.termName hqLength (Referent.Ref r) printNames)
           mk docs ts bn tag

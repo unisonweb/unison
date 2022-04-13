@@ -88,12 +88,11 @@ import qualified Data.Map as Map
 import qualified Data.Semialign as Align
 import qualified Data.Set as Set
 import Data.These (These (..))
-import Unison.Codebase.Branch.Shallow (ShallowBranch (ShallowBranch))
+import Unison.Codebase.Branch.Shallow (Hash, ShallowBranch (ShallowBranch))
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0 (..),
     EditHash,
-    Hash,
     Star,
     UnwrappedBranch,
     edits,

@@ -27,6 +27,7 @@ import Servant.Docs
 import Servant.OpenApi ()
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
+import Unison.Codebase.Branch (Branch, ShallowBranch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
@@ -36,6 +37,7 @@ import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Server.Backend (Backend)
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Types
   ( APIGet,
@@ -73,7 +75,7 @@ instance ToSample NamespaceListing where
         NamespaceListing
           "."
           "#gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
-          [Subnamespace $ NamedNamespace "base" "#19d1o9hi5n642t8jttg" 1244]
+          [Subnamespace $ NamedNamespace "base" "#19d1o9hi5n642t8jttg"]
       )
     ]
 
@@ -103,8 +105,7 @@ deriving instance ToSchema NamespaceObject
 
 data NamedNamespace = NamedNamespace
   { namespaceName :: UnisonName,
-    namespaceHash :: UnisonHash,
-    namespaceSize :: Size
+    namespaceHash :: UnisonHash
   }
   deriving (Generic, Show)
 
@@ -137,12 +138,11 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowTermEntry te ->
     TermObject $ Backend.termEntryToNamedTerm ppe typeWidth te
   Backend.ShallowTypeEntry te -> TypeObject $ Backend.typeEntryToNamedType te
-  Backend.ShallowBranchEntry name hash size ->
+  Backend.ShallowBranchEntry name hash ->
     Subnamespace $
       NamedNamespace
         { namespaceName = NameSegment.toText name,
-          namespaceHash = "#" <> SBH.toText hash,
-          namespaceSize = size
+          namespaceHash = "#" <> SBH.toText hash
         }
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name
@@ -157,10 +157,22 @@ serve codebase mayRoot mayRelativeTo mayNamespaceName =
   let -- Various helpers
       errFromEither f = either (throwError . f) pure
 
+      parsePath :: String -> Backend IO Path.Path'
       parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
 
-      findShallow branch = Backend.findShallowInBranch codebase branch
+      findShallow ::
+        ( ShallowBranch ->
+          Backend IO [Backend.ShallowListEntry Symbol Ann]
+        )
+      findShallow branch = Backend.findInShallowBranch codebase branch
 
+      makeNamespaceListing ::
+        ( PPE.PrettyPrintEnv ->
+          UnisonName ->
+          UnisonHash ->
+          [Backend.ShallowListEntry Symbol a] ->
+          ExceptT Backend.BackendError IO NamespaceListing
+        )
       makeNamespaceListing ppe fqn hash entries =
         pure . NamespaceListing fqn hash $
           fmap
@@ -168,15 +180,16 @@ serve codebase mayRoot mayRelativeTo mayNamespaceName =
             entries
 
       -- Lookup paths, root and listing and construct response
+      namespaceListing :: Backend IO NamespaceListing
       namespaceListing = do
-        root <- case mayRoot of
+        shallowRoot <- case mayRoot of
           Nothing -> do
-            gotRoot <- liftIO $ Codebase.getRootBranch codebase
+            gotRoot <- liftIO $ Codebase.getShallowRootBranch codebase
             errFromEither Backend.BadRootBranch gotRoot
           Just sbh -> do
             ea <- liftIO . runExceptT $ do
               h <- Backend.expandShortBranchHash codebase sbh
-              mayBranch <- lift $ Codebase.getBranchForHash codebase h
+              mayBranch <- lift $ Codebase.getShallowBranchForHash codebase h
               mayBranch ?? Backend.CouldntLoadBranch h
             liftEither ea
 

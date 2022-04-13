@@ -103,7 +103,7 @@ backendListEntryToProjectListing ::
   Backend.ShallowListEntry Symbol a ->
   Maybe ProjectListing
 backendListEntryToProjectListing owner = \case
-  Backend.ShallowBranchEntry name hash _ ->
+  Backend.ShallowBranchEntry name hash ->
     Just $
       ProjectListing
         { owner = owner,
@@ -116,7 +116,7 @@ entryToOwner ::
   Backend.ShallowListEntry Symbol a ->
   Maybe ProjectOwner
 entryToOwner = \case
-  Backend.ShallowBranchEntry name _ _ ->
+  Backend.ShallowBranchEntry name _ ->
     Just $ ProjectOwner $ NameSegment.toText name
   _ -> Nothing
 

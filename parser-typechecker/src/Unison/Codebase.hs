@@ -35,6 +35,9 @@ module Unison.Codebase
     branchHashesByPrefix,
     lca,
     beforeImpl,
+    shallowBranchAtPath,
+    getShallowBranchForHash,
+    getShallowRootBranch,
 
     -- * Root branch
     getRootBranch,
@@ -104,14 +107,17 @@ import qualified Data.Set as Set
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Terms as Builtin
-import Unison.Codebase.Branch (Branch)
+import Unison.Codebase.Branch (Branch, ShallowBranch)
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Shallow as ShallowBranch
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
 import qualified Unison.Codebase.CodeLookup as CL
 import Unison.Codebase.Editor.Git (withStatus)
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.GitError as GitError
+import Unison.Codebase.Path
+import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
@@ -142,6 +148,23 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
+
+-- | Get the shallow root branch.
+getShallowRootBranch :: m (Either GetRootBranchError ShallowBranch)
+getShallowRootBranch = error "TODO: implement me"
+
+-- | Recursively descend into shallow branches following the given path.
+shallowBranchAtPath :: Monad m => Codebase m v a -> Path -> ShallowBranch -> m (Maybe ShallowBranch)
+shallowBranchAtPath codebase path b = do
+  case path of
+    Path.Empty -> pure (Just b)
+    (ns Path.:< p) -> do
+      case (ShallowBranch.childAt ns b) of
+        Nothing -> pure Nothing
+        Just childHash -> do
+          getShallowBranchForHash codebase childHash >>= \case
+            Nothing -> error $ "Expected branch for hash: " <> show childHash
+            Just newSB -> shallowBranchAtPath codebase p newSB
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
