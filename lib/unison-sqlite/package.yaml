@@ -15,6 +15,7 @@ dependencies:
   - direct-sqlite
   - exceptions
   - mtl
+  - pretty-simple
   - random
   - recover-rtti
   - sqlite-simple

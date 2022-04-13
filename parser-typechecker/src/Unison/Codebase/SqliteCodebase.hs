@@ -209,7 +209,8 @@ sqliteCodebase debugName root localOrRemote action = do
 
         getDeclType :: C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType
         getDeclType =
-          Sqlite.idempotentIO . Cache.apply declTypeCache (Sqlite.runTransaction conn . Ops2.getDeclType)
+          Sqlite.idempotentIO
+            . Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (Ops2.getDeclType ref) conn)
 
         getTypeOfTermImpl :: Reference.Id -> m (Maybe (Type Symbol Ann))
         getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
@@ -250,8 +251,8 @@ sqliteCodebase debugName root localOrRemote action = do
 
         getRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> m (Branch m)
         getRootBranch rootBranchCache =
-          Branch.transform (Sqlite.runTransaction conn)
-            <$> Sqlite.runTransaction conn (Ops2.getRootBranch getDeclType rootBranchCache)
+          Sqlite.runReadOnlyTransactionIO conn \run ->
+            Branch.transform run <$> run (Ops2.getRootBranch getDeclType rootBranchCache)
 
         getRootBranchExists :: m Bool
         getRootBranchExists =
@@ -306,8 +307,8 @@ sqliteCodebase debugName root localOrRemote action = do
         -- to one that returns Maybe.
         getBranchForHash :: Branch.Hash -> m (Maybe (Branch m))
         getBranchForHash h =
-          fmap (Branch.transform (Sqlite.runTransaction conn))
-            <$> Sqlite.runTransaction conn (Ops2.getBranchForHash getDeclType h)
+          Sqlite.runReadOnlyTransactionIO conn \run ->
+            fmap (Branch.transform run) <$> run (Ops2.getBranchForHash getDeclType h)
 
         putBranch :: Branch m -> m ()
         putBranch branch =

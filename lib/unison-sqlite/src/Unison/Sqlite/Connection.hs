@@ -78,7 +78,9 @@ where
 import Data.Bifunctor (bimap)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
+import Debug.Pretty.Simple (pTraceShowM)
 import Debug.RecoverRTTI (anythingToString)
+import GHC.Stack (currentCallStack)
 import qualified Unison.Debug as Debug
 import Unison.Prelude
 import Unison.Sqlite.Connection.Internal (Connection (..))
@@ -129,22 +131,32 @@ closeConnection (Connection _ _ conn) =
 data Query = Query
   { sql :: Sql,
     params :: Maybe String,
-    result :: Maybe String
+    result :: Maybe String,
+    callStack :: [String]
   }
 
 instance Show Query where
-  show Query {sql, params, result} =
+  show Query {sql, params, result, callStack} =
     concat
       [ "Query { sql = ",
         show sql,
         maybe "" (\p -> ", params = " ++ show p) params,
         maybe "" (\r -> ", results = " ++ show r) result,
+        if null callStack then "" else ", callStack = " ++ show callStack,
         " }"
       ]
 
 logQuery :: Sql -> Maybe a -> Maybe b -> IO ()
 logQuery sql params result =
-  Debug.debugM Debug.Sqlite "SQL query" (Query sql (anythingToString <$> params) (anythingToString <$> result))
+  Debug.whenDebug Debug.Sqlite do
+    callStack <- currentCallStack
+    pTraceShowM
+      Query
+        { sql,
+          params = anythingToString <$> params,
+          result = anythingToString <$> result,
+          callStack
+        }
 
 -- Without results, with parameters
 
