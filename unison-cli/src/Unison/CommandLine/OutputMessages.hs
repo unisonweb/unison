@@ -798,6 +798,8 @@ notifyUser dir o = case o of
         "The file "
           <> P.blue (P.shown name)
           <> " could not be loaded."
+  BadNamespace msg path ->
+    pure . P.warnCallout $ "Invalid namespace " <> P.blue (P.string path) <> ", " <> P.string msg
   BranchNotFound b ->
     pure . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " doesn't exist."
   CreatedNewBranch path ->

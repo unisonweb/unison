@@ -1,11 +1,11 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE ApplicativeDo #-}
 
 module Unison.Server.Backend where
 
@@ -127,6 +127,12 @@ listEntryName = \case
 
 data BackendError
   = NoSuchNamespace Path.Absolute
+  | -- Failed to parse path
+    BadNamespace
+      String
+      -- ^ error message
+      String
+      -- ^ namespace
   | BadRootBranch Codebase.GetRootBranchError
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
@@ -289,7 +295,7 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
   let ppe hqLen = PPE.fromNamesDecl hqLen printNames
 
       renderReadme ppe r = do
-        (_, _, doc) <- liftIO $ renderDoc ppe width runtime codebase (Referent.toReference r)
+        (_, _, doc) <- renderDoc ppe width runtime codebase (Referent.toReference r)
         pure doc
 
       -- allow any of these capitalizations
@@ -299,8 +305,8 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
         where
           lookup seg = R.lookupRan seg rel
           rel = Star3.d1 (Branch._terms (Branch.head namespaceBranch))
-   in do
-        hqLen <- liftIO $ Codebase.hashLength codebase
+   in liftIO $ do
+        hqLen <- Codebase.hashLength codebase
         traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
 
 isDoc :: Monad m => Codebase m Symbol Ann -> Referent -> m Bool

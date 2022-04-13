@@ -8,8 +8,8 @@
 
 module Unison.Server.Endpoints.Projects where
 
-import Control.Error (ExceptT, runExceptT)
 import Control.Error.Util ((??))
+import Control.Monad.Except
 import Data.Aeson
 import Data.Char
 import Data.OpenApi
@@ -17,7 +17,7 @@ import Data.OpenApi
     ToSchema (..),
   )
 import qualified Data.Text as Text
-import Servant (QueryParam, ServerError, throwError, (:>))
+import Servant (QueryParam, (:>))
 import Servant.API (FromHttpApiData (..))
 import Servant.Docs
   ( DocQueryParam (..),
@@ -25,7 +25,6 @@ import Servant.Docs
     ToParam (..),
     ToSample (..),
   )
-import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -36,9 +35,9 @@ import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Server.Backend
 import qualified Unison.Server.Backend as Backend
-import Unison.Server.Errors (backendError, badNamespace, rootBranchError)
-import Unison.Server.Types (APIGet, APIHeaders, UnisonHash, addHeaders)
+import Unison.Server.Types (APIGet, UnisonHash)
 import Unison.Symbol (Symbol)
 import Unison.Util.Monoid (foldMapM)
 
@@ -122,25 +121,26 @@ entryToOwner = \case
   _ -> Nothing
 
 serve ::
-  Handler () ->
-  Codebase IO Symbol Ann ->
+  forall m.
+  MonadIO m =>
+  Codebase m Symbol Ann ->
   Maybe ShortBranchHash ->
   Maybe ProjectOwner ->
-  Handler (APIHeaders [ProjectListing])
-serve tryAuth codebase mayRoot mayOwner = addHeaders <$> (tryAuth *> projects)
+  Backend m [ProjectListing]
+serve codebase mayRoot mayOwner = projects
   where
-    projects :: Handler [ProjectListing]
+    projects :: Backend m [ProjectListing]
     projects = do
       root <- case mayRoot of
         Nothing -> do
-          gotRoot <- liftIO $ Codebase.getRootBranch codebase
-          errFromEither rootBranchError gotRoot
+          gotRoot <- lift $ Codebase.getRootBranch codebase
+          errFromEither BadRootBranch gotRoot
         Just sbh -> do
-          ea <- liftIO . runExceptT $ do
+          ea <- lift . runExceptT $ do
             h <- Backend.expandShortBranchHash codebase sbh
             mayBranch <- lift $ Codebase.getBranchForHash codebase h
             mayBranch ?? Backend.CouldntLoadBranch h
-          errFromEither backendError ea
+          liftEither ea
 
       ownerEntries <- findShallow root
       -- If an owner is provided, we only want projects belonging to them
@@ -150,7 +150,7 @@ serve tryAuth codebase mayRoot mayOwner = addHeaders <$> (tryAuth *> projects)
               Nothing -> mapMaybe entryToOwner ownerEntries
       foldMapM (ownerToProjectListings root) owners
 
-    ownerToProjectListings :: Branch.Branch IO -> ProjectOwner -> Handler [ProjectListing]
+    ownerToProjectListings :: Branch.Branch m -> ProjectOwner -> Backend m [ProjectListing]
     ownerToProjectListings root owner = do
       let (ProjectOwner ownerName) = owner
       ownerPath' <- (parsePath . Text.unpack) ownerName
@@ -161,19 +161,14 @@ serve tryAuth codebase mayRoot mayOwner = addHeaders <$> (tryAuth *> projects)
 
     -- Minor helpers
 
-    findShallow :: Branch.Branch IO -> Handler [Backend.ShallowListEntry Symbol Ann]
+    findShallow :: Branch.Branch m -> Backend m [Backend.ShallowListEntry Symbol Ann]
     findShallow branch =
-      doBackend $ Backend.findShallowInBranch codebase branch
+      Backend.findShallowInBranch codebase branch
 
-    parsePath :: String -> Handler Path.Path'
+    parsePath :: String -> Backend m Path.Path'
     parsePath p =
-      errFromEither (`badNamespace` p) $ Path.parsePath' p
+      errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
 
-    errFromEither :: (a -> ServerError) -> Either a a1 -> Handler a1
+    errFromEither :: (e -> BackendError) -> Either e a -> Backend m a
     errFromEither f =
       either (throwError . f) pure
-
-    doBackend :: ExceptT Backend.BackendError IO b -> Handler b
-    doBackend a = do
-      ea <- liftIO $ runExceptT a
-      errFromEither backendError ea
