@@ -192,18 +192,18 @@ pull httpClient unisonShareUrl conn repoPath = do
     Right Nothing -> pure (Right Nothing)
     Right (Just hashJwt) -> do
       let hash = Share.hashJWTHash hashJwt
-      let success = pure (Right (Just (CausalHash (Hash.fromBase32Hex (Share.toBase32Hex hash)))))
       runDB (entityLocation2 hash) >>= \case
-        EntityInMainStorage2 -> success
-        EntityInTempStorage2 missingDependencies -> do
-          download httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath) missingDependencies
-          success
-        EntityNotStored2 -> do
-          download httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath) (NESet.singleton hashJwt)
-          success
+        EntityInMainStorage2 -> pure ()
+        EntityInTempStorage2 missingDependencies -> doDownload missingDependencies
+        EntityNotStored2 -> doDownload (NESet.singleton hashJwt)
+      pure (Right (Just (CausalHash (Hash.fromBase32Hex (Share.toBase32Hex hash)))))
   where
     runDB :: ReaderT Connection IO a -> IO a
     runDB action = runReaderT action conn
+
+    doDownload :: NESet Share.HashJWT -> IO ()
+    doDownload =
+      download httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath)
 
 -- Download a set of entities from Unison Share.
 download ::
