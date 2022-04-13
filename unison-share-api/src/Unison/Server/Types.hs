@@ -28,6 +28,8 @@ import Servant.API
     addHeader,
   )
 import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch.Shallow (ShallowBranch)
+import Unison.Codebase.Causal (Causal)
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
@@ -265,3 +267,7 @@ setCacheControl = addHeader @"Cache-Control" "public"
 branchToUnisonHash :: Branch.Branch m -> UnisonHash
 branchToUnisonHash b =
   ("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash b
+
+shallowBranchToUnisonHash :: Causal m ShallowBranch ShallowBranch -> UnisonHash
+shallowBranchToUnisonHash b =
+  ("#" <>) . Hash.base32Hex . Causal.unRawHash $ Causal.currentHash b

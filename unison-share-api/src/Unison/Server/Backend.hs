@@ -186,11 +186,8 @@ basicPrettyPrintNames root = snd . basicNames' root
 
 shallowPPE :: Int -> ShallowBranch -> PPE.PrettyPrintEnv
 shallowPPE hashLength b =
-  let names0 = basicPrettyPrintNames root nameScope
-   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
-
-shallowPrettyPrintNames :: ShallowBranch -> Names
-shallowPrettyPrintNames b = snd . basicNames' root
+  let names = ShallowBranch.shallowNames b
+   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names mempty
 
 basicParseNames :: Branch m -> NameScoping -> Names
 basicParseNames root = fst . basicNames' root

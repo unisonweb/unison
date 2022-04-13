@@ -15,6 +15,7 @@ where
 
 import Unison.Codebase.Branch (Branch, ShallowBranch)
 import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Causal (Causal)
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo)
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
@@ -72,12 +73,14 @@ data Codebase m v a = Codebase
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
     -- | Get the root branch.
     getRootBranch :: m (Either GetRootBranchError (Branch m)),
+    -- | Get the root branch Hash.
+    getRootBranchHash :: m Branch.Hash,
     -- | Get whether the root branch exists.
     getRootBranchExists :: m Bool,
     -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
     putRootBranch :: Branch m -> m (),
     rootBranchUpdates :: m (IO (), IO (Set Branch.Hash)),
-    getShallowBranchForHash :: Branch.Hash -> m (Maybe ShallowBranch),
+    getShallowBranchForHash :: Branch.Hash -> m (Maybe (Causal m ShallowBranch ShallowBranch)),
     getBranchForHashImpl :: Branch.Hash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.

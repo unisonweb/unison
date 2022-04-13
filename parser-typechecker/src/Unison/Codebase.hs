@@ -111,6 +111,8 @@ import Unison.Codebase.Branch (Branch, ShallowBranch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Shallow as ShallowBranch
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
+import Unison.Codebase.Causal (Causal)
+import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.CodeLookup as CL
 import Unison.Codebase.Editor.Git (withStatus)
 import qualified Unison.Codebase.Editor.Git as Git
@@ -150,16 +152,20 @@ import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 
 -- | Get the shallow root branch.
-getShallowRootBranch :: m (Either GetRootBranchError ShallowBranch)
-getShallowRootBranch = error "TODO: implement me"
+getShallowRootBranch :: Monad m => Codebase m v a -> m (Either GetRootBranchError (Causal m ShallowBranch ShallowBranch))
+getShallowRootBranch codebase = do
+  hash <- getRootBranchHash codebase
+  getShallowBranchForHash codebase hash >>= \case
+    Nothing -> pure $ Left (CouldntLoadRootBranch hash)
+    Just b -> pure (Right b)
 
 -- | Recursively descend into shallow branches following the given path.
-shallowBranchAtPath :: Monad m => Codebase m v a -> Path -> ShallowBranch -> m (Maybe ShallowBranch)
+shallowBranchAtPath :: Monad m => Codebase m v a -> Path -> Causal m ShallowBranch ShallowBranch -> m (Maybe (Causal m ShallowBranch ShallowBranch))
 shallowBranchAtPath codebase path b = do
   case path of
     Path.Empty -> pure (Just b)
     (ns Path.:< p) -> do
-      case (ShallowBranch.childAt ns b) of
+      case (ShallowBranch.childAt ns (Causal.head b)) of
         Nothing -> pure Nothing
         Just childHash -> do
           getShallowBranchForHash codebase childHash >>= \case

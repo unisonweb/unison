@@ -511,6 +511,9 @@ sqliteCodebase debugName root localOrRemote action = do
                   tryFlushDeclBuffer h
               )
 
+        getRootBranchHash :: MonadIO m => m Branch.Hash
+        getRootBranchHash = do
+          Cv.branchHash2to1 <$> runDB conn Ops.loadRootCausalHash
         getRootBranch :: MonadIO m => TVar (Maybe (Q.DataVersion, Branch m)) -> m (Either Codebase1.GetRootBranchError (Branch m))
         getRootBranch rootBranchCache =
           readTVarIO rootBranchCache >>= \case
@@ -522,8 +525,8 @@ sqliteCodebase debugName root localOrRemote action = do
               if v == v'
                 then pure (Right b)
                 else do
-                  newRootHash <- runDB conn Ops.loadRootCausalHash
-                  if Branch.headHash b == Cv.branchHash2to1 newRootHash
+                  newRootHash <- getRootBranchHash
+                  if Branch.headHash b == newRootHash
                     then pure (Right b)
                     else do
                       traceM $ "database was externally modified (" ++ show v ++ " -> " ++ show v' ++ ")"
@@ -791,6 +794,7 @@ sqliteCodebase debugName root localOrRemote action = do
               getDeclComponent = getDeclComponent,
               getComponentLength = getCycleLength,
               getRootBranch = (getRootBranch rootBranchCache),
+              getRootBranchHash = getRootBranchHash,
               getRootBranchExists = getRootBranchExists,
               putRootBranch = (putRootBranch rootBranchCache),
               rootBranchUpdates = (rootBranchUpdates rootBranchCache),

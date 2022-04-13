@@ -1094,7 +1094,7 @@ loop = do
                       fixup $ case e of
                         ShallowTypeEntry (TypeEntry _ hq _) -> HQ'.toString hq
                         ShallowTermEntry (TermEntry _ hq _ _) -> HQ'.toString hq
-                        ShallowBranchEntry ns _ _ -> NameSegment.toString ns
+                        ShallowBranchEntry ns _ -> NameSegment.toString ns
                         ShallowPatchEntry ns -> NameSegment.toString ns
                       where
                         fixup s = case pathArgStr of
