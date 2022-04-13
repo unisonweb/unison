@@ -20,6 +20,7 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Vector as Vector
+import Servant.Client (BaseUrl)
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
@@ -34,7 +35,9 @@ import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as Hash
+import Unison.Auth.HTTPClient (AuthorizedHttpClient)
 import Unison.Prelude
+import qualified Unison.Sync.HTTP as Share (updatePathHandler)
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Sync.Types as Share.LocalIds (LocalIds (..))
 import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
@@ -67,6 +70,10 @@ data PushError
 
 -- | Push a causal to Unison Share.
 push ::
+  -- | The HTTP client to use for Unison Share requests.
+  AuthorizedHttpClient ->
+  -- | The Unison Share URL.
+  BaseUrl ->
   -- | SQLite connection, for reading entities to push.
   Connection ->
   -- | The repo+path to push to.
@@ -77,9 +84,33 @@ push ::
   -- | The hash of our local causal to push.
   CausalHash ->
   IO (Either PushError ())
-push conn repoPath expectedHash causalHash = do
-  let theUpdatePathRequest :: Share.UpdatePathRequest
-      theUpdatePathRequest =
+push httpClient unisonShareUrl conn repoPath expectedHash causalHash = do
+  -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it needs
+  -- this causal (UpdatePathMissingDependencies).
+  updatePath >>= \case
+    Share.UpdatePathSuccess -> pure (Right ())
+    Share.UpdatePathHashMismatch mismatch -> pure (Left (PushErrorHashMismatch mismatch))
+    Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
+      -- Upload the causal and all of its dependencies.
+      upload conn (Share.RepoPath.repoName repoPath) dependencies
+
+      -- After uploading the causal and all of its dependencies, try setting the remote path again.
+      updatePath <&> \case
+        Share.UpdatePathSuccess -> Right ()
+        -- Between the initial updatePath attempt and this one, someone else managed to update the path. That's ok; we
+        -- still managed to upload our causal, but the push has indeed failed overall.
+        Share.UpdatePathHashMismatch mismatch -> Left (PushErrorHashMismatch mismatch)
+        -- Unexpected, but possible: we thought we uploaded all we needed to, yet the server still won't accept our
+        -- causal. Bug in the client because we didn't upload enough? Bug in the server because we weren't told to
+        -- upload some dependency? Who knows.
+        Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) ->
+          Left (PushErrorServerMissingDependencies dependencies)
+  where
+    updatePath :: IO Share.UpdatePathResponse
+    updatePath =
+      Share.updatePathHandler
+        httpClient
+        unisonShareUrl
         Share.UpdatePathRequest
           { path = repoPath,
             expectedHash =
@@ -98,27 +129,6 @@ push conn repoPath expectedHash causalHash = do
                   entityType = Share.CausalType
                 }
           }
-
-  -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it needs
-  -- this causal (UpdatePathMissingDependencies).
-  _updatePath theUpdatePathRequest >>= \case
-    UpdatePathSuccess -> pure (Right ())
-    UpdatePathHashMismatch mismatch -> pure (Left (PushErrorHashMismatch mismatch))
-    UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
-      -- Upload the causal and all of its dependencies.
-      upload conn (Share.RepoPath.repoName repoPath) dependencies
-
-      -- After uploading the causal and all of its dependencies, try setting the remote path again.
-      _updatePath theUpdatePathRequest <&> \case
-        UpdatePathSuccess -> Right ()
-        -- Between the initial updatePath attempt and this one, someone else managed to update the path. That's ok; we
-        -- still managed to upload our causal, but the push has indeed failed overall.
-        UpdatePathHashMismatch mismatch -> Left (PushErrorHashMismatch mismatch)
-        -- Unexpected, but possible: we thought we uploaded all we needed to, yet the server still won't accept our
-        -- causal. Bug in the client because we didn't upload enough? Bug in the server because we weren't told to
-        -- upload some dependency? Who knows.
-        UpdatePathMissingDependencies (Share.NeedDependencies dependencies) ->
-          Left (PushErrorServerMissingDependencies dependencies)
 
 -- Upload a set of entities to Unison Share. If the server responds that it cannot yet store any hash(es) due to missing
 -- dependencies, send those dependencies too, and on and on, until the server stops responding that it's missing
@@ -322,26 +332,6 @@ data UploadEntitiesResponse
 
 data PullError
 
--- Option 1: have push be itself in the Transaction monad, use unsafePerformIdempotentIO
--- fuction to do the interleaved IO calls (http, etc)
---
---   push :: RepoPath -> ... -> Transaction (Either PushError ())
---   push = do
---     unsafePerformIdempotentIO (updatePath ...)
---
--- Option 2: have push "go around" the Transaction abstraction by beginning/commiting explicitly,
--- and immediately un-Transaction-newtyping the low-level calls like loadHashId
---
---   push :: Connection -> RepoPath -> ... -> IO (Either PushError ())
---   push conn = do
---     let foo transaction = unsafeUnTransaction transaction conn
---
---     ...
---     result <- foo (loadHashId hashId)
---     ...
---
--- newtype Transaction a = Transaction { unsafeUnTransaction :: Connection -> IO a }
-
 type Transaction a = ()
 
 expectHash :: HashId -> Transaction Hash.Hash
@@ -359,16 +349,8 @@ data GetCausalHashByPathResponse
   | GetCausalHashByPathEmpty
   | GetCausalHashByPathNoReadPermission
 
-data UpdatePathResponse
-  = UpdatePathSuccess
-  | UpdatePathHashMismatch Share.HashMismatch
-  | UpdatePathMissingDependencies (Share.NeedDependencies Share.Hash)
-
 _getCausalHashByPath :: Share.GetCausalHashByPathRequest -> IO GetCausalHashByPathResponse
 _getCausalHashByPath = undefined
-
-_updatePath :: Share.UpdatePathRequest -> IO UpdatePathResponse
-_updatePath = undefined
 
 _downloadEntities :: Share.DownloadEntitiesRequest -> IO Share.DownloadEntitiesResponse
 _downloadEntities = undefined
@@ -493,7 +475,8 @@ insertTempEntity hash entity missingDependencies =
         missingDependencies
     )
 
--- FIXME mitchell says: working on this again made me wonder whether formats (e.g. patch diff) should be in the API
+-- | Convert an entity that came over the wire from Unison Share into an equivalent type that we can store in the
+-- `temp_entity` table.
 entityToTempEntity :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity
 entityToTempEntity = \case
   Share.TC (Share.TermComponent terms) ->
