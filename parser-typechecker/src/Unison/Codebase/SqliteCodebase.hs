@@ -130,7 +130,7 @@ createCodebaseOrError debugName path action = do
     (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
     do
       createDirectoryIfMissing True (makeCodebaseDirPath path)
-      Sqlite.withConnection (debugName ++ ".createSchema") path \conn ->
+      withConnection (debugName ++ ".createSchema") path \conn ->
         Sqlite.runTransaction conn do
           Q.createSchema
           void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty

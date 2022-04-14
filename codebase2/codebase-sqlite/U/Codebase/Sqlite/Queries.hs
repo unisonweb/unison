@@ -127,6 +127,7 @@ module U.Codebase.Sqlite.Queries
   )
 where
 
+import qualified Data.List.Extra as List (splitOn)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set as Set
@@ -162,7 +163,7 @@ import Unison.Sqlite
 
 createSchema :: Transaction ()
 createSchema =
-  execute_ [hereFile|sql/create.sql|]
+  traverse_ (execute_ . fromString) $ List.splitOn ";" [hereFile|sql/create.sql|]
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion = queryOneCol_ sql
