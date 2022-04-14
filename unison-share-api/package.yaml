@@ -18,6 +18,7 @@ dependencies:
   - aeson
   - memory
   - unison-util-relation
+  - unison-codebase
   - unison-core1
   - unison-prelude
   - unison-parser-typechecker

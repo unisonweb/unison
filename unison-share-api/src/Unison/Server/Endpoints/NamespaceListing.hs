@@ -25,6 +25,7 @@ import Servant.Docs
     ToSample (..),
   )
 import Servant.OpenApi ()
+import qualified U.Codebase.Branch as V2Branch
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (ShallowBranch)
@@ -34,6 +35,7 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -161,7 +163,7 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
       parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
 
       findShallow ::
-        ( ShallowBranch ->
+        ( V2Branch.Branch IO ->
           Backend IO [Backend.ShallowListEntry Symbol Ann]
         )
       findShallow branch = Backend.findInShallowBranch codebase branch
@@ -189,7 +191,7 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
           Just sbh -> do
             ea <- liftIO . runExceptT $ do
               h <- Backend.expandShortBranchHash codebase sbh
-              mayBranch <- lift $ Codebase.getShallowBranchForHash codebase h
+              mayBranch <- lift $ Codebase.getShallowBranchForHash codebase (Cv.branchHash1to2 h)
               mayBranch ?? Backend.CouldntLoadBranch h
             liftEither ea
 
@@ -212,8 +214,13 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
         let path = Path.fromPath' relativeToPath' <> Path.fromPath' namespacePath'
         let path' = Path.toPath' path
 
+        listingCausal <-
+          (liftIO $ Codebase.shallowBranchAtPath codebase path shallowRoot) >>= \case
+            Nothing -> _
+            Just lc -> pure lc
         -- Actually construct the NamespaceListing
-        listingBranch <- fromMaybe (Causal.one ShallowBranch.Empty) <$> (liftIO $ Codebase.shallowBranchAtPath codebase path shallowRoot)
+        -- listingBranch <- fromMaybe (Causal.one ShallowBranch.Empty) <$>
+
         hashLength <- liftIO $ Codebase.hashLength codebase
 
         let shallowPPE = Backend.shallowPPE hashLength (Causal.head listingBranch)

@@ -133,10 +133,6 @@ instance AsEmpty (Branch m) where
 instance H.Hashable (Branch0 m) where
   hash = H.hashBranch0
 
--- | TODO: What can we do about this orphan instance?
-instance H.Hashable (ShallowBranch) where
-  hash = H.hashShallowBranch
-
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
 

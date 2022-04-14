@@ -31,6 +31,7 @@ import qualified Lucid
 import System.Directory
 import System.FilePath
 import qualified Text.FuzzyFind as FZF
+import qualified U.Codebase.Branch as V2Branch
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -466,7 +467,7 @@ findShallowInBranch codebase b = do
 findInShallowBranch ::
   Monad m =>
   Codebase m Symbol Ann ->
-  ShallowBranch ->
+  V2Branch.Branch m ->
   Backend m [ShallowListEntry Symbol Ann]
 findInShallowBranch codebase b0 = do
   hashLength <- lift $ Codebase.hashLength codebase

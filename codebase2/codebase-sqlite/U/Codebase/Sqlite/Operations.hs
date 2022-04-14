@@ -943,7 +943,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
             Nothing -> throwError (ExpectedBranch' chId)
             Just boId -> loadBranchByObjectId boId
 
-saveRootBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
+saveRootBranch :: EDB m => C.Branch.CausalBranch m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveRootBranch c = do
   when debug $ traceM $ "Operations.saveRootBranch " ++ show (C.causalHash c)
   (boId, chId) <- saveBranch c
@@ -989,7 +989,7 @@ saveRootBranch c = do
 -- References, but also values
 -- Shallow - Hash? representation of the database relationships
 
-saveBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
+saveBranch :: EDB m => C.Branch.CausalBranch m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveBranch (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
 
@@ -1047,19 +1047,19 @@ saveBranchObject id@(Db.unBranchHashId -> hashId) li lBranch = do
   oId <- Q.saveObject hashId OT.Namespace bytes
   pure $ Db.BranchObjectId oId
 
-loadRootCausal :: EDB m => m (C.Branch.Causal m)
+loadRootCausal :: EDB m => m (C.Branch.CausalBranch m)
 loadRootCausal = liftQ Q.loadNamespaceRoot >>= loadCausalByCausalHashId
 
 dataVersion :: DB m => m Q.DataVersion
 dataVersion = Q.dataVersion
 
-loadCausalBranchByCausalHash :: EDB m => CausalHash -> m (Maybe (C.Branch.Causal m))
+loadCausalBranchByCausalHash :: EDB m => CausalHash -> m (Maybe (C.Branch.CausalBranch m))
 loadCausalBranchByCausalHash hc = do
   Q.loadCausalHashIdByCausalHash hc >>= \case
     Just chId -> Just <$> loadCausalByCausalHashId chId
     Nothing -> pure Nothing
 
-loadCausalByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Causal m)
+loadCausalByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.CausalBranch m)
 loadCausalByCausalHashId id = do
   hc <- loadCausalHashById id
   hb <- loadValueHashByCausalHashId id

@@ -35,6 +35,7 @@ import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
+import qualified U.Codebase.Branch as V2Branch
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
@@ -511,9 +512,15 @@ sqliteCodebase debugName root localOrRemote action = do
                   tryFlushDeclBuffer h
               )
 
-        getRootBranchHash :: MonadIO m => m Branch.Hash
+        getRootBranchHash :: MonadIO m => m V2Branch.CausalHash
         getRootBranchHash = do
-          Cv.branchHash2to1 <$> runDB conn Ops.loadRootCausalHash
+          runDB conn Ops.loadRootCausalHash
+
+        getShallowBranchForHash :: MonadIO m => V2Branch.CausalHash -> m (Maybe (V2Branch.CausalBranch m))
+        getShallowBranchForHash bh = do
+          x <- runDB conn (Ops.loadCausalBranchByCausalHash bh)
+          pure $ fmap (V2Branch.hoistCausalBranch (runDB conn)) x
+
         getRootBranch :: MonadIO m => TVar (Maybe (Q.DataVersion, Branch m)) -> m (Either Codebase1.GetRootBranchError (Branch m))
         getRootBranch rootBranchCache =
           readTVarIO rootBranchCache >>= \case
@@ -526,7 +533,7 @@ sqliteCodebase debugName root localOrRemote action = do
                 then pure (Right b)
                 else do
                   newRootHash <- getRootBranchHash
-                  if Branch.headHash b == newRootHash
+                  if Branch.headHash b == Cv.branchHash2to1 newRootHash
                     then pure (Right b)
                     else do
                       traceM $ "database was externally modified (" ++ show v ++ " -> " ++ show v' ++ ")"
@@ -798,7 +805,7 @@ sqliteCodebase debugName root localOrRemote action = do
               getRootBranchExists = getRootBranchExists,
               putRootBranch = (putRootBranch rootBranchCache),
               rootBranchUpdates = (rootBranchUpdates rootBranchCache),
-              getShallowBranchForHash = error "implement getShallowBranchForHash",
+              getShallowBranchForHash = getShallowBranchForHash,
               getBranchForHashImpl = getBranchForHash,
               putBranch = putBranch,
               branchExists = isCausalHash,

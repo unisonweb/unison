@@ -4,7 +4,6 @@
 module Unison.Hashing.V2.Convert
   ( ResolutionResult,
     hashBranch0,
-    hashShallowBranch,
     hashCausal,
     hashDataDecls,
     hashDecls,
