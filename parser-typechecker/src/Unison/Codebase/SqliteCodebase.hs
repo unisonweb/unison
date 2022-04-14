@@ -71,7 +71,6 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sqlite.Connection as Sqlite.Connection
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -343,14 +342,18 @@ sqliteCodebase debugName root localOrRemote action = do
         syncFromDirectory srcRoot _syncMode b = do
           withConnection (debugName ++ ".sync.src") srcRoot $ \srcConn -> do
             progressStateRef <- liftIO (newIORef emptySyncProgressState)
-            syncInternal (syncProgress progressStateRef) srcConn conn b
+            Sqlite.runReadOnlyTransactionIO srcConn \runSrc ->
+              Sqlite.runWriteTransactionIO conn \runDest -> do
+                syncInternal (syncProgress progressStateRef) runSrc runDest b
 
         syncToDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
         syncToDirectory destRoot _syncMode b =
           withConnection (debugName ++ ".sync.dest") destRoot $ \destConn -> do
             progressStateRef <- liftIO (newIORef emptySyncProgressState)
             initSchemaIfNotExist destRoot
-            syncInternal (syncProgress progressStateRef) conn destConn b
+            Sqlite.runReadOnlyTransactionIO conn \runSrc ->
+              Sqlite.runWriteTransactionIO destConn \runDest -> do
+                syncInternal (syncProgress progressStateRef) runSrc runDest b
 
         watches :: UF.WatchKind -> m [Reference.Id]
         watches w =
@@ -494,77 +497,75 @@ syncInternal ::
   forall m.
   MonadUnliftIO m =>
   Sync.Progress m Sync22.Entity ->
-  Sqlite.Connection ->
-  Sqlite.Connection ->
+  (forall a. Sqlite.Transaction a -> m a) ->
+  (forall a. Sqlite.Transaction a -> m a) ->
   Branch m ->
   m ()
-syncInternal progress srcConn destConn b = time "syncInternal" do
+syncInternal progress runSrc runDest b = time "syncInternal" do
   UnliftIO runInIO <- askUnliftIO
 
-  Sqlite.runReadOnlyTransactionIO srcConn \runSrc -> do
-    Sqlite.runWriteTransactionIO destConn \runDest -> do
-      let syncEnv = Sync22.Env runSrc runDest (16 * 1024 * 1024)
-      -- we want to use sync22 wherever possible
-      -- so for each source branch, we'll check if it exists in the destination codebase
-      -- or if it exists in the source codebase, then we can sync22 it
-      -- if it doesn't exist in the dest or source branch,
-      -- then just use putBranch to the dest
-      sync <- liftIO (Sync22.sync22 (Sync22.mapEnv lift syncEnv))
-      let doSync :: [Sync22.Entity] -> m ()
-          doSync =
-            throwExceptT
-              . Except.withExceptT SyncEphemeral.Sync22Error
-              . Sync.sync' sync (Sync.transformProgress lift progress)
-      let processBranches :: [Entity m] -> m ()
-          processBranches = \case
-            [] -> pure ()
-            b0@(B h mb) : rest -> do
-              when debugProcessBranches do
-                traceM $ "processBranches " ++ show b0
-                traceM $ " queue: " ++ show rest
-              ifM
-                (runDest (Ops2.isCausalHash h))
-                do
-                  when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " already exists in dest db"
-                  processBranches rest
-                do
-                  when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in dest db"
-                  let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
-                  runSrc (Q.loadCausalHashIdByCausalHash h2) >>= \case
-                    Just chId -> do
-                      when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
-                      doSync [Sync22.C chId]
-                      processBranches rest
-                    Nothing ->
-                      mb >>= \b -> do
-                        when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in either db, so delegating to Codebase.putBranch"
-                        let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
-                        when debugProcessBranches do
-                          traceM $ "  branchDeps: " ++ show (fst <$> branchDeps)
-                          traceM $ "  terms: " ++ show ts
-                          traceM $ "  decls: " ++ show ds
-                          traceM $ "  edits: " ++ show es
-                        (cs, es, ts, ds) <- runDest do
-                          cs <- filterM (fmap not . Ops2.isCausalHash . fst) branchDeps
-                          es <- filterM (fmap not . Ops2.patchExists) es
-                          ts <- filterM (fmap not . Ops2.termExists) ts
-                          ds <- filterM (fmap not . Ops2.declExists) ds
-                          pure (cs, es, ts, ds)
-                        if null cs && null es && null ts && null ds
-                          then do
-                            runDest (Ops2.putBranch (Branch.transform (Sqlite.idempotentIO . runInIO) b))
-                            processBranches rest
-                          else do
-                            let bs = map (uncurry B) cs
-                                os = map O (es <> ts <> ds)
-                            processBranches (os ++ bs ++ b0 : rest)
-            O h : rest -> do
-              when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
-              oId <- runSrc (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)
-              doSync [Sync22.O oId]
+  let syncEnv = Sync22.Env runSrc runDest (16 * 1024 * 1024)
+  -- we want to use sync22 wherever possible
+  -- so for each source branch, we'll check if it exists in the destination codebase
+  -- or if it exists in the source codebase, then we can sync22 it
+  -- if it doesn't exist in the dest or source branch,
+  -- then just use putBranch to the dest
+  sync <- liftIO (Sync22.sync22 (Sync22.mapEnv lift syncEnv))
+  let doSync :: [Sync22.Entity] -> m ()
+      doSync =
+        throwExceptT
+          . Except.withExceptT SyncEphemeral.Sync22Error
+          . Sync.sync' sync (Sync.transformProgress lift progress)
+  let processBranches :: [Entity m] -> m ()
+      processBranches = \case
+        [] -> pure ()
+        b0@(B h mb) : rest -> do
+          when debugProcessBranches do
+            traceM $ "processBranches " ++ show b0
+            traceM $ " queue: " ++ show rest
+          ifM
+            (runDest (Ops2.isCausalHash h))
+            do
+              when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " already exists in dest db"
               processBranches rest
-      let bHash = Branch.headHash b
-      time "SyncInternal.processBranches" $ processBranches [B bHash (pure b)]
+            do
+              when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in dest db"
+              let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
+              runSrc (Q.loadCausalHashIdByCausalHash h2) >>= \case
+                Just chId -> do
+                  when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
+                  doSync [Sync22.C chId]
+                  processBranches rest
+                Nothing ->
+                  mb >>= \b -> do
+                    when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in either db, so delegating to Codebase.putBranch"
+                    let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
+                    when debugProcessBranches do
+                      traceM $ "  branchDeps: " ++ show (fst <$> branchDeps)
+                      traceM $ "  terms: " ++ show ts
+                      traceM $ "  decls: " ++ show ds
+                      traceM $ "  edits: " ++ show es
+                    (cs, es, ts, ds) <- runDest do
+                      cs <- filterM (fmap not . Ops2.isCausalHash . fst) branchDeps
+                      es <- filterM (fmap not . Ops2.patchExists) es
+                      ts <- filterM (fmap not . Ops2.termExists) ts
+                      ds <- filterM (fmap not . Ops2.declExists) ds
+                      pure (cs, es, ts, ds)
+                    if null cs && null es && null ts && null ds
+                      then do
+                        runDest (Ops2.putBranch (Branch.transform (Sqlite.idempotentIO . runInIO) b))
+                        processBranches rest
+                      else do
+                        let bs = map (uncurry B) cs
+                            os = map O (es <> ts <> ds)
+                        processBranches (os ++ bs ++ b0 : rest)
+        O h : rest -> do
+          when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
+          oId <- runSrc (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)
+          doSync [Sync22.O oId]
+          processBranches rest
+  let bHash = Branch.headHash b
+  time "SyncInternal.processBranches" $ processBranches [B bHash (pure b)]
 
 data Entity m
   = B Branch.Hash (m (Branch m))
@@ -738,38 +739,36 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
         action currentRootBranch >>= \case
           Left e -> pure $ Left e
           Right newBranch -> do
-            Sqlite.Connection.withSavepoint destConn "push" \_rollback ->
-              doSync codebaseStatus (Git.gitDirToPath pushStaging) srcConn destConn newBranch
+            doSync codebaseStatus (Git.gitDirToPath pushStaging) destConn newBranch
             pure (Right newBranch)
     for newBranchOrErr $ push pushStaging repo
     pure newBranchOrErr
   where
     readRepo :: ReadRepo
     readRepo = writeToRead repo
-    doSync :: CodebaseStatus -> FilePath -> Sqlite.Connection -> Sqlite.Connection -> Branch m -> m ()
-    doSync codebaseStatus remotePath srcConn destConn newBranch = do
+    doSync :: CodebaseStatus -> FilePath -> Sqlite.Connection -> Branch m -> m ()
+    doSync codebaseStatus remotePath destConn newBranch = do
       progressStateRef <- liftIO (newIORef emptySyncProgressState)
-      _ <- syncInternal (syncProgress progressStateRef) srcConn destConn newBranch
-      when setRoot . liftIO $
-        Sqlite.runTransactionWithAbort
-          destConn
-          (\abort -> overwriteRoot abort codebaseStatus remotePath newBranch)
+      Sqlite.runReadOnlyTransactionIO srcConn \runSrc -> do
+        Sqlite.runWriteTransactionIO destConn \runDest -> do
+          _ <- syncInternal (syncProgress progressStateRef) runSrc runDest newBranch
+          when setRoot (overwriteRoot runDest codebaseStatus remotePath newBranch)
     overwriteRoot ::
-      (forall e x. Exception e => e -> Sqlite.Transaction x) ->
+      (forall a. Sqlite.Transaction a -> m a) ->
       CodebaseStatus ->
       FilePath ->
       Branch m ->
-      Sqlite.Transaction ()
-    overwriteRoot abort codebaseStatus remotePath newBranch = do
+      m ()
+    overwriteRoot run codebaseStatus remotePath newBranch = do
       let newBranchHash = Branch.headHash newBranch
       case codebaseStatus of
         ExistingCodebase -> do
           -- the call to runDB "handles" the possible DB error by bombing
-          maybeOldRootHash <- fmap Cv.branchHash2to1 <$> Ops.loadRootCausalHash
+          maybeOldRootHash <- fmap Cv.branchHash2to1 <$> run Ops.loadRootCausalHash
           case maybeOldRootHash of
-            Nothing -> setRepoRoot newBranchHash
+            Nothing -> run (setRepoRoot newBranchHash)
             Just oldRootHash -> do
-              Ops2.before oldRootHash newBranchHash >>= \case
+              run (Ops2.before oldRootHash newBranchHash) >>= \case
                 Nothing ->
                   error $
                     "I couldn't find the hash " ++ show newBranchHash
@@ -779,10 +778,10 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
                       ++ show remotePath
                       ++ "."
                 Just False ->
-                  abort . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                  throwIO . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
                 Just True -> pure ()
         CreatedCodebase -> pure ()
-      setRepoRoot newBranchHash
+      run (setRepoRoot newBranchHash)
     repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: Branch.Hash -> Sqlite.Transaction ()
     setRepoRoot h = do
