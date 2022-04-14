@@ -779,6 +779,7 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
                   (formatSuffixedType ppe width typeSig)
                   docs
         mkTypeDefinition r tp = do
+          traceM $ "Making type definition for " <> show r
           let bn = bestNameForType @Symbol (PPE.suffixifiedPPE ppe) width r
           tag <-
             Just . typeEntryTag

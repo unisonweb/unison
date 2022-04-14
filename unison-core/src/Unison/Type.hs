@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Type where
@@ -290,6 +291,9 @@ valueRef = Reference.Builtin "Value"
 
 anyRef :: Reference
 anyRef = Reference.Builtin "Any"
+
+timeSpecRef :: Reference
+timeSpecRef = Reference.Builtin "TimeSpec"
 
 any :: Ord v => a -> Type v a
 any a = ref a anyRef
@@ -596,7 +600,7 @@ removePureEffects :: ABT.Var v => Type v a -> Type v a
 removePureEffects t
   | not Settings.removePureEffects = t
   | otherwise =
-      generalize vs $ removeEffectVars fvs tu
+    generalize vs $ removeEffectVars fvs tu
   where
     (vs, tu) = unforall' t
     vss = Set.fromList vs

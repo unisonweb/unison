@@ -74,6 +74,7 @@ import Network.Socket as SYS
   )
 import Network.TLS as TLS
 import Network.TLS.Extra.Cipher as Cipher
+import System.Clock (Clock (..), getTime, nsec, sec)
 import System.Directory as SYS
   ( createDirectoryIfMissing,
     doesDirectoryExist,
@@ -1287,6 +1288,18 @@ unitToEFBox =
   where
     (unit, stack1, stack2, stack3, fail, result) = fresh6
 
+-- a -> Int
+boxToInt :: ForeignOp
+boxToInt = inBx arg result (TCon Ty.intRef 0 [result])
+  where
+    (arg, result) = fresh2
+
+-- a -> Nat
+boxToNat :: ForeignOp
+boxToNat = inBx arg result (TCon Ty.natRef 0 [result])
+  where
+    (arg, result) = fresh2
+
 boxIomrToEFBox :: ForeignOp
 boxIomrToEFBox =
   inBxIomr arg1 arg2 enum result $
@@ -1469,6 +1482,12 @@ boxNatToEFBox =
     outIoFail stack1 stack2 fail result
   where
     (arg1, arg2, nat, stack1, stack2, fail, result) = fresh7
+
+-- Nat -> Either Failure b
+-- natToEFBox :: ForeignOp
+-- natToEFBox = inNat arg nat result $ outIoFail stack1 stack2 fail result
+--   where
+--     (arg, nat, stack1, stack2, fail, result) = fresh6
 
 -- Nat -> Either Failure ()
 natToEFUnit :: ForeignOp
@@ -1797,6 +1816,26 @@ declareForeigns = do
 
   declareForeign Tracked "IO.systemTimeMicroseconds.v1" unitToInt $
     mkForeign $ \() -> fmap (1e6 *) getPOSIXTime
+
+  declareForeign Tracked "Clock.internals.monotonic.v1" unitToEFBox $
+    mkForeignIOF $ \() -> getTime MonotonicRaw <|> getTime Monotonic
+
+  declareForeign Tracked "Clock.internals.realtime.v1" unitToEFBox $
+    mkForeignIOF $ \() -> getTime Realtime
+
+  declareForeign Tracked "Clock.internals.processCPUTime.v1" unitToEFBox $
+    mkForeignIOF $ \() -> getTime ProcessCPUTime
+
+  declareForeign Tracked "Clock.internals.threadCPUTime.v1" unitToEFBox $
+    mkForeignIOF $ \() -> getTime ThreadCPUTime
+
+  declareForeign Untracked "Clock.internals.sec.v1" boxToInt $
+    mkForeign (\n -> pure (fromIntegral $ sec n :: Word64))
+
+  -- A TimeSpec that comes from getTime never has negative nanos,
+  -- so we can safely cast to Nat
+  declareForeign Untracked "Clock.internals.nsec.v1" boxToNat $
+    mkForeign (\n -> pure (fromIntegral $ nsec n :: Word64))
 
   declareForeign Tracked "IO.getTempDirectory.impl.v3" unitToEFBox $
     mkForeignIOF $ \() -> getTemporaryDirectory

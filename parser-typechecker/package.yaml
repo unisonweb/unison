@@ -50,6 +50,7 @@ library:
     - bytestring
     - bytestring-to-vector
     - cereal
+    - clock
     - containers >= 0.6.3
     - configurator
     - cryptonite
