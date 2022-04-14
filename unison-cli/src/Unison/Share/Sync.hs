@@ -259,29 +259,12 @@ download httpClient unisonShareUrl conn repoName = do
 
 ---------
 
--- * we need hashjwts to make subsequent requests to the server
-
--- * when look up missing dependencies, it's because we anticipate making a subsequent request to the server for them,
-
---   so they should also be hashjwts
-
--- * before making a subsequent request to the server, we elaborate the request set,
-
---   which requires knowing hashjwts for the dependencies of the request set;
---   so we need some way of looking up missing dependency hashjwts from a hash or hashjwt
-
---    * one way of looking these up would be to include dependency hashjwts in the temp-entity-missing-dependency table
---        (dependent -> (dependency, dependencyjwt))
-
--- * we need `hash` to find entity in temp or main storage
-
--- * different entities may arrive with different variations on the same dependency jwts
-
--- * we need dependency hash (not only hashjwt) in temp-entity-missing-dependency so that we can also look up dependents
-
---   of a hash without knowing which hashjwt was stored for it
-
--- Mitchell is on team: add a column to temp-entity-missing-dependency that includes the jwt
+-- Some remaining work:
+--
+--   [ ] Beef up insert_entity to flush temp entities
+--   [ ] Write resolveHashToEntity
+--   [ ] Add "no read permission" to GetCausalHashByPathResponse in Share.Types
+--   [ ] The tempToSync* stuff
 
 {-
 server sqlite db
@@ -307,36 +290,6 @@ server sqlite db
 -}
 
 ---------
--- Do this at the top of the procedure.
---
--- deps0 = hashes we kinda-maybe think we should request
--- deps1 = hashes we will request
---
---   frobnicate : Set Hash -> Set Hash ->{IO} Set Hash
---   frobnicate deps0 deps1 =
---     case deps0 of
---       Nothing -> deps1
---       Just (dep0, deps0) ->
---         cases
---           inMainStorage dep0 -> frobnicate deps0 deps1
---           inTempStorage dep0 -> frobnicate (deps0 + directDepsOf dep0) deps1
---           otherwise          -> frobnicate deps0 (deps1 + {dep0})
---
--- If we just got #thing from the server,
---   If we already have the entity in the main database, we're done.
---     - This should't happen, why would the server have sent us this?
---
---   Otherwise, if we already have the entity in temp_entity,
---     1. Add to our work queue requesting all of its deps that we don't have in main storage
---
---   Otherwise (if we don't have it at all),
---     1. Deserialize blob and extract dependencies #dep1, #dep2, #dep3 from #thing blob.
---     2. If the {set of dependencies we don't have in the object/causal table} is empty, then store in object/causal.
---     3. Otherwise,
---         - Insert into temp_entity
---         - For each #dependency in the {set of dependencies we don't have in the object/causal table}
---             insert each (#thing, #dependency) into temp_entity_missing_dependency
---         - Add to our work queue requesting {set of dependencies we don't have in object/causal}
 --
 --  Note: beef up insert_entity procedure to flush temp_entity table
 --    1. When inserting object #foo,
