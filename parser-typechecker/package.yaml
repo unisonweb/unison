@@ -48,6 +48,7 @@ library:
     - hashable
     - hashtables
     - haskeline
+    - here
     - http-types
     - http-media
     - http-client

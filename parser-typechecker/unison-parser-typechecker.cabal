@@ -70,6 +70,7 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.SyncMode
@@ -241,6 +242,7 @@ library
     , hashable
     , hashtables
     , haskeline
+    , here
     , http-client
     , http-media
     , http-types

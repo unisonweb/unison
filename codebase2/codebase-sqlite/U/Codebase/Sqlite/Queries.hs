@@ -133,6 +133,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * db misc
     createSchema,
+    addTempEntityTables,
     schemaVersion,
     setSchemaVersion,
     setFlags,
@@ -256,8 +257,17 @@ orError e = maybe (throwError e) pure
 
 createSchema :: (DB m, MonadUnliftIO m) => m ()
 createSchema = do
-  withImmediateTransaction . traverse_ (execute_ . fromString) $
-    List.splitOn ";" [hereFile|sql/create.sql|]
+  withImmediateTransaction do
+    executeFile [hereFile|sql/create.sql|]
+    addTempEntityTables
+
+addTempEntityTables :: DB m => m ()
+addTempEntityTables =
+  executeFile [hereFile|sql/001-temp-entity-tables.sql|]
+
+executeFile :: DB m => String -> m ()
+executeFile =
+  traverse_ (execute_ . fromString) . filter (not . null) . List.splitOn ";"
 
 setJournalMode :: DB m => JournalMode -> m ()
 setJournalMode m =

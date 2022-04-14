@@ -14,6 +14,7 @@ import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase
 import Unison.Codebase.SqliteCodebase.Migrations.Errors (MigrationError)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchema3To4)
 import Unison.Codebase.SqliteCodebase.Paths
 import Unison.Codebase.Type (Codebase, LocalOrRemote (..))
 import Unison.Prelude
@@ -34,7 +35,8 @@ migrations :: forall m v a. (MonadUnliftIO m, Var v) => Map SchemaVersion (Migra
 migrations =
   Map.fromList
     [ (2, migrateSchema1To2),
-      (3, migrateSchema2To3)
+      (3, migrateSchema2To3),
+      (4, migrateSchema3To4)
     ]
 
 -- | Migrates a codebase up to the most recent version known to ucm.

@@ -58,4 +58,4 @@ create table temp_entity_missing_dependency (
   unique (dependent, dependency)
 );
 create index temp_entity_missing_dependency_ix_dependent on temp_entity_missing_dependency (dependent);
-create index temp_entity_missing_dependency_ix_dependency on temp_entity_missing_dependency (dependency);
+create index temp_entity_missing_dependency_ix_dependency on temp_entity_missing_dependency (dependency)
