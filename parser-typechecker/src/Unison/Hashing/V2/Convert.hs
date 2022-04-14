@@ -29,7 +29,6 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import qualified Unison.Codebase.Branch.Shallow as Memory.ShallowBranch
 import qualified Unison.Codebase.Branch.Type as Memory.Branch
 import qualified Unison.Codebase.Causal.Type as Memory.Causal
 import qualified Unison.Codebase.Patch as Memory.Patch
@@ -360,64 +359,10 @@ hashPatch = Hashing.Patch.hashPatch . m2hPatch
 hashBranch0 :: Memory.Branch.Branch0 m -> Hash
 hashBranch0 = Hashing.Branch.hashBranch . m2hBranch0
 
-hashShallowBranch :: Memory.ShallowBranch.ShallowBranch -> Hash
-hashShallowBranch = Hashing.Branch.hashBranch . m2hShallowBranch
-
 hashCausal :: Hashable e => e -> Set (Memory.Causal.RawHash h) -> Hash
 hashCausal e tails =
   Hashing.Causal.hashCausal $
     Hashing.Causal.Causal (Hashable.hash e) (Set.map Memory.Causal.unRawHash tails)
-
-m2hShallowBranch :: Memory.ShallowBranch.ShallowBranch -> Hashing.Branch.Raw
-m2hShallowBranch b =
-  Hashing.Branch.Raw
-    (doTerms (Memory.ShallowBranch.terms b))
-    (doTypes (Memory.ShallowBranch.types b))
-    (doPatches (Memory.ShallowBranch.patches b))
-    (doChildren (Memory.ShallowBranch.children b))
-  where
-    doTerms ::
-      Memory.Branch.Star Memory.Referent.Referent Memory.NameSegment.NameSegment ->
-      Map Hashing.Branch.NameSegment (Map Hashing.Referent.Referent Hashing.Branch.MdValues)
-    doTerms s =
-      Map.fromList
-        [ (m2hNameSegment ns, m2)
-          | ns <- toList . Relation.ran $ Memory.Star3.d1 s,
-            let m2 =
-                  Map.fromList
-                    [ (fst (Writer.runWriter (m2hReferent r)), md)
-                      | r <- toList . Relation.lookupRan ns $ Memory.Star3.d1 s,
-                        let mdrefs1to2 (_typeR1, valR1) = m2hReference valR1
-                            md = Hashing.Branch.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ Memory.Star3.d3 s
-                    ]
-        ]
-
-    doTypes ::
-      Memory.Branch.Star Memory.Reference.Reference Memory.NameSegment.NameSegment ->
-      Map Hashing.Branch.NameSegment (Map Hashing.Reference.Reference Hashing.Branch.MdValues)
-    doTypes s =
-      Map.fromList
-        [ (m2hNameSegment ns, m2)
-          | ns <- toList . Relation.ran $ Memory.Star3.d1 s,
-            let m2 =
-                  Map.fromList
-                    [ (m2hReference r, md)
-                      | r <- toList . Relation.lookupRan ns $ Memory.Star3.d1 s,
-                        let mdrefs1to2 (_typeR1, valR1) = m2hReference valR1
-                            md :: Hashing.Branch.MdValues
-                            md = Hashing.Branch.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ Memory.Star3.d3 s
-                    ]
-        ]
-
-    doPatches ::
-      Map Memory.NameSegment.NameSegment (Memory.Branch.EditHash) ->
-      Map Hashing.Branch.NameSegment Hash
-    doPatches = Map.mapKeys m2hNameSegment
-
-    doChildren ::
-      Map Memory.NameSegment.NameSegment Memory.ShallowBranch.Hash ->
-      Map Hashing.Branch.NameSegment Hash
-    doChildren = Map.bimap m2hNameSegment Memory.Causal.unRawHash
 
 m2hBranch0 :: Memory.Branch.Branch0 m -> Hashing.Branch.Raw
 m2hBranch0 b =

@@ -795,6 +795,7 @@ sqliteCodebase debugName root localOrRemote action = do
             { getTerm = (Cache.applyDefined termCache getTerm),
               getTypeOfTermImpl = (Cache.applyDefined typeOfTermCache getTypeOfTermImpl),
               getTypeDeclaration = (Cache.applyDefined declCache getTypeDeclaration),
+              getDeclType = runDB conn . getDeclType,
               putTerm = putTerm,
               putTypeDeclaration = putTypeDeclaration,
               getTermComponentWithTypes = getTermComponentWithTypes,

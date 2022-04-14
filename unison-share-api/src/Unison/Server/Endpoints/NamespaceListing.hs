@@ -26,9 +26,11 @@ import Servant.Docs
   )
 import Servant.OpenApi ()
 import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Causal as V2Causal
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (ShallowBranch)
+import qualified Unison.Codebase.Branch as V1Branch
 import qualified Unison.Codebase.Branch.Shallow as ShallowBranch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
@@ -216,14 +218,14 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
 
         listingCausal <-
           (liftIO $ Codebase.shallowBranchAtPath codebase path shallowRoot) >>= \case
-            Nothing -> _
+            Nothing -> pure $ Cv.causalbranch1to2 (V1Branch.empty)
             Just lc -> pure lc
         -- Actually construct the NamespaceListing
         -- listingBranch <- fromMaybe (Causal.one ShallowBranch.Empty) <$>
 
         hashLength <- liftIO $ Codebase.hashLength codebase
 
-        let shallowPPE = Backend.shallowPPE hashLength (Causal.head listingBranch)
+        let shallowPPE = Backend.shallowPPE hashLength (V2Causal.value listingCausal)
         let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
         let listingHash = shallowBranchToUnisonHash listingBranch
         listingEntries <- findShallow (Causal.head listingBranch)

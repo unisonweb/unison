@@ -14,6 +14,7 @@ module Unison.Codebase.Type
 where
 
 import qualified U.Codebase.Branch as V2
+import qualified U.Codebase.Reference as V2
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Git as Git
@@ -26,6 +27,7 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
+import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Prelude
@@ -60,6 +62,8 @@ data Codebase m v a = Codebase
     -- Note that it is possible to call 'putTypeDeclaration', then 'getTypeDeclaration', and receive @Nothing@, per the
     -- semantics of 'putTypeDeclaration'.
     getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a)),
+    -- | Get the type of a given decl.
+    getDeclType :: V2.Reference -> m CT.ConstructorType,
     -- | Enqueue the put of a user-defined term (with its type) into the codebase, if it doesn't already exist. The
     -- implementation may choose to delay the put until all of the term's (and its type's) references are stored as
     -- well.

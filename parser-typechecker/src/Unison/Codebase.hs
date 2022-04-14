@@ -7,6 +7,7 @@ module Unison.Codebase
     unsafeGetTermWithType,
     getTermComponentWithTypes,
     getTypeOfTerm,
+    getDeclType,
     unsafeGetTypeOfTermById,
     isTerm,
     putTerm,
