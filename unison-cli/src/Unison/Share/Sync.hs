@@ -192,10 +192,10 @@ pull httpClient unisonShareUrl conn repoPath = do
     Right Nothing -> pure (Right Nothing)
     Right (Just hashJwt) -> do
       let hash = Share.hashJWTHash hashJwt
-      runDB (entityLocation2 hash) >>= \case
-        EntityInMainStorage2 -> pure ()
-        EntityInTempStorage2 missingDependencies -> doDownload missingDependencies
-        EntityNotStored2 -> doDownload (NESet.singleton hashJwt)
+      runDB (entityLocation hash) >>= \case
+        EntityInMainStorage -> pure ()
+        EntityInTempStorage missingDependencies -> doDownload missingDependencies
+        EntityNotStored -> doDownload (NESet.singleton hashJwt)
       pure (Right (Just (CausalHash (Hash.fromBase32Hex (Share.toBase32Hex hash)))))
   where
     runDB :: ReaderT Connection IO a -> IO a
@@ -236,11 +236,11 @@ download httpClient unisonShareUrl conn repoName = do
               runDB do
                 NEMap.toList entities & foldMapM \(hash, entity) -> do
                   -- still trying to figure out missing dependencies of hash/entity.
-                  entityLocation2 hash >>= \case
-                    EntityInMainStorage2 -> pure Set.empty
-                    EntityInTempStorage2 missingDependencies ->
+                  entityLocation hash >>= \case
+                    EntityInMainStorage -> pure Set.empty
+                    EntityInTempStorage missingDependencies ->
                       pure (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies))
-                    EntityNotStored2 -> do
+                    EntityNotStored -> do
                       -- if it has missing dependencies, add it to temp storage;
                       -- otherwise add it to main storage.
                       missingDependencies0 <-
@@ -416,19 +416,10 @@ tempToSyncCausal = do
 data EntityLocation
   = -- | `object` / `causal`
     EntityInMainStorage
-  | -- | `temp_entity`
-    EntityInTempStorage
+  | -- | `temp_entity`, evidenced by these missing dependencies.
+    EntityInTempStorage (NESet Share.HashJWT)
   | -- | Nowhere
     EntityNotStored
-
--- | Where is an entity stored?
-data EntityLocation2
-  = -- | `object` / `causal`
-    EntityInMainStorage2
-  | -- | `temp_entity`, evidenced by these missing dependencies.
-    EntityInTempStorage2 (NESet Share.HashJWT)
-  | -- | Nowhere
-    EntityNotStored2
 
 -- | Does this entity already exist in the database, i.e. in the `object` or `causal` table?
 entityExists :: Q.DB m => Share.Hash -> m Bool
@@ -450,19 +441,9 @@ entityLocation hash =
   entityExists hash >>= \case
     True -> pure EntityInMainStorage
     False ->
-      tempEntityExists hash >>= \case
-        True -> pure EntityInTempStorage
-        False -> pure EntityNotStored
-
--- | Where is an entity stored?
-entityLocation2 :: Q.DB m => Share.Hash -> m EntityLocation2
-entityLocation2 hash =
-  entityExists hash >>= \case
-    True -> pure EntityInMainStorage2
-    False ->
       Q.getMissingDependencyJwtsForTempEntity (Share.toBase32Hex hash) <&> \case
-        Nothing -> EntityNotStored2
-        Just missingDependencies -> EntityInTempStorage2 (NESet.map Share.HashJWT missingDependencies)
+        Nothing -> EntityNotStored
+        Just missingDependencies -> EntityInTempStorage (NESet.map Share.HashJWT missingDependencies)
 
 -- FIXME comment
 elaborateHashes :: forall m. Q.DB m => Set Share.DecodedHashJWT -> Set Share.HashJWT -> m (Maybe (NESet Share.HashJWT))
@@ -472,15 +453,9 @@ elaborateHashes hashes outputs =
     Just (Share.DecodedHashJWT (Share.HashJWTClaims {hash}) jwt, hashes') ->
       entityLocation hash >>= \case
         EntityNotStored -> elaborateHashes hashes' (Set.insert jwt outputs)
-        EntityInTempStorage -> do
-          deps <- directDepsOfHash hash
-          elaborateHashes (Set.union deps hashes') outputs
+        EntityInTempStorage missingDependencies ->
+          elaborateHashes (Set.union (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies)) hashes') outputs
         EntityInMainStorage -> elaborateHashes hashes' outputs
-  where
-    directDepsOfHash :: Share.Hash -> m (Set Share.DecodedHashJWT)
-    directDepsOfHash (Share.Hash b32) = do
-      maybeJwts <- Q.getMissingDependencyJwtsForTempEntity b32
-      pure (maybe Set.empty (Set.map (Share.decodeHashJWT . Share.HashJWT) . NESet.toSet) maybeJwts)
 
 insertEntity :: Q.DB m => Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> m ()
 insertEntity _hash = undefined
