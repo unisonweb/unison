@@ -25,13 +25,14 @@ import Servant.Docs
     ToParam (..),
     ToSample (..),
   )
+import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -108,7 +109,7 @@ backendListEntryToProjectListing owner = \case
       ProjectListing
         { owner = owner,
           name = NameSegment.toText name,
-          hash = "#" <> SBH.toText hash
+          hash = "#" <> Hash.toBase32HexText (Causal.unRawHash hash)
         }
   _ -> Nothing
 

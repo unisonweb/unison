@@ -45,6 +45,7 @@ dependencies:
   - utf8-string
   - async
   - regex-tdfa
+  - unison-util
 
 ghc-options:
   -Wall

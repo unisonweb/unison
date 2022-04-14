@@ -132,6 +132,7 @@ import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import qualified U.Util.Hash as Hash
 
 type Pretty = P.Pretty P.ColorText
 
@@ -529,7 +530,7 @@ notifyUser dir o = case o of
       pure
         . P.warnCallout
         $ "I couldn't find a root namespace with the hash "
-          <> prettySBH (SBH.fullFromHash h)
+          <> prettyCausalHash h
           <> "."
   CouldntLoadBranch h ->
     pure . P.fatalCallout . P.wrap $
@@ -1643,6 +1644,9 @@ prettyAbsolute = P.blue . P.shown
 
 prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
+
+prettyCausalHash :: IsString s => Causal.RawHash x -> P.Pretty s
+prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unRawHash $ hash)
 
 formatMissingStuff ::
   (Show tm, Show typ) =>

@@ -38,10 +38,9 @@ import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch, Branch0, ShallowBranch)
+import Unison.Codebase.Branch (Branch, Branch0)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.Branch.Shallow as ShallowBranch
 import qualified Unison.Codebase.Causal.Type (RawHash (RawHash))
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
@@ -188,10 +187,11 @@ basicSuffixifiedNames hashLength root nameScope =
 basicPrettyPrintNames :: Branch m -> NameScoping -> Names
 basicPrettyPrintNames root = snd . basicNames' root
 
-shallowPPE :: Int -> ShallowBranch -> PPE.PrettyPrintEnv
-shallowPPE hashLength b =
-  let names = ShallowBranch.shallowNames b
-   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names mempty
+shallowPPE :: Monad m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
+shallowPPE codebase b = do
+  hashLength <- Codebase.hashLength codebase
+  names <- shallowNames codebase b
+  pure $ PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names mempty
 
 -- | A 'Names' which only includes mappings for things _directly_ accessible from the branch.
 --

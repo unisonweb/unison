@@ -27,16 +27,14 @@ import Servant.Docs
 import Servant.OpenApi ()
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (ShallowBranch)
 import qualified Unison.Codebase.Branch as V1Branch
-import qualified Unison.Codebase.Branch.Shallow as ShallowBranch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
@@ -52,7 +50,7 @@ import Unison.Server.Types
     NamespaceFQN,
     UnisonHash,
     UnisonName,
-    shallowBranchToUnisonHash,
+    v2CausalBranchToUnisonHash,
   )
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
@@ -146,7 +144,7 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
     Subnamespace $
       NamedNamespace
         { namespaceName = NameSegment.toText name,
-          namespaceHash = "#" <> SBH.toText hash
+          namespaceHash = "#" <> Hash.toBase32HexText (Causal.unRawHash hash)
         }
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name
@@ -223,12 +221,11 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
         -- Actually construct the NamespaceListing
         -- listingBranch <- fromMaybe (Causal.one ShallowBranch.Empty) <$>
 
-        hashLength <- liftIO $ Codebase.hashLength codebase
-
-        let shallowPPE = Backend.shallowPPE hashLength (V2Causal.value listingCausal)
+        listingBranch <- liftIO $ V2Causal.value listingCausal
+        shallowPPE <- liftIO $ Backend.shallowPPE codebase listingBranch
         let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-        let listingHash = shallowBranchToUnisonHash listingBranch
-        listingEntries <- findShallow (Causal.head listingBranch)
+        let listingHash = v2CausalBranchToUnisonHash listingCausal
+        listingEntries <- findShallow listingBranch
 
         makeNamespaceListing shallowPPE listingFQN listingHash listingEntries
    in namespaceListing
