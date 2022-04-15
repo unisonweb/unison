@@ -17,6 +17,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import U.Util.Base32Hex (Base32Hex (..))
 
@@ -134,21 +135,22 @@ instance FromJSON GetCausalHashByPathRequest where
     repoPath <- obj .: "repo_path"
     pure GetCausalHashByPathRequest {..}
 
-newtype GetCausalHashByPathResponse = GetCausalHashByPathResponse
-  { causalHash :: Maybe HashJWT
-  }
+data GetCausalHashByPathResponse
+  = GetCausalHashByPathSuccess (Maybe HashJWT)
+  | GetCausalHashByPathNoReadPermission RepoPath
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON GetCausalHashByPathResponse where
-  toJSON (GetCausalHashByPathResponse hashJWT) =
-    object
-      [ "causal_hash" .= hashJWT
-      ]
+  toJSON = \case
+    GetCausalHashByPathSuccess hashJWT -> jsonUnion "success" hashJWT
+    GetCausalHashByPathNoReadPermission repoPath -> jsonUnion "no_read_permission" repoPath
 
 instance FromJSON GetCausalHashByPathResponse where
-  parseJSON = Aeson.withObject "GetCausalHashByPathResponse" $ \obj -> do
-    causalHash <- obj .: "causal_hash"
-    pure GetCausalHashByPathResponse {..}
+  parseJSON = Aeson.withObject "GetCausalHashByPathResponse" \obj -> do
+    obj .: "type" >>= Aeson.withText "type" \case
+      "success" -> GetCausalHashByPathSuccess <$> obj .: "payload"
+      "no_read_permission" -> GetCausalHashByPathNoReadPermission <$> obj .: "payload"
+      t -> failText $ "Unexpected GetCausalHashByPathResponse type: " <> t
 
 data DownloadEntitiesRequest = DownloadEntitiesRequest
   { repoName :: RepoName,
@@ -210,6 +212,7 @@ data UpdatePathResponse
   = UpdatePathSuccess
   | UpdatePathHashMismatch HashMismatch
   | UpdatePathMissingDependencies (NeedDependencies Hash)
+  | UpdatePathNoWritePermission RepoPath
   deriving stock (Show, Eq, Ord)
 
 jsonUnion :: ToJSON a => Text -> a -> Value
@@ -224,6 +227,7 @@ instance ToJSON UpdatePathResponse where
     UpdatePathSuccess -> jsonUnion "success" (Object mempty)
     UpdatePathHashMismatch hm -> jsonUnion "hash_mismatch" hm
     UpdatePathMissingDependencies md -> jsonUnion "missing_dependencies" md
+    UpdatePathNoWritePermission repoPath -> jsonUnion "no_write_permission" repoPath
 
 instance FromJSON UpdatePathResponse where
   parseJSON v =
@@ -232,7 +236,8 @@ instance FromJSON UpdatePathResponse where
         "success" -> pure UpdatePathSuccess
         "hash_mismatch" -> UpdatePathHashMismatch <$> obj .: "payload"
         "missing_dependencies" -> UpdatePathMissingDependencies <$> obj .: "payload"
-        _ -> fail "Unknown UpdatePathResponse type"
+        "no_write_permission" -> UpdatePathNoWritePermission <$> obj .: "payload"
+        t -> failText $ "Unexpected UpdatePathResponse type: " <> t
 
 data NeedDependencies hash = NeedDependencies
   { missingDependencies :: NESet hash
@@ -292,20 +297,23 @@ instance FromJSON UploadEntitiesRequest where
 data UploadEntitiesResponse
   = UploadEntitiesSuccess
   | UploadEntitiesNeedDependencies (NeedDependencies Hash)
+  | UploadEntitiesNoWritePermission RepoName
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON UploadEntitiesResponse where
   toJSON = \case
     UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
     UploadEntitiesNeedDependencies nd -> jsonUnion "need_dependencies" nd
+    UploadEntitiesNoWritePermission repoName -> jsonUnion "no_write_permission" repoName
 
 instance FromJSON UploadEntitiesResponse where
   parseJSON v =
     v & Aeson.withObject "UploadEntitiesResponse" \obj ->
       obj .: "type" >>= Aeson.withText "type" \case
-        "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
         "success" -> pure UploadEntitiesSuccess
-        _ -> fail "Unknown UploadEntitiesResponse type"
+        "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
+        "no_write_permission" -> UploadEntitiesNoWritePermission <$> obj .: "payload"
+        t -> failText $ "Unexpected UploadEntitiesResponse type: " <> t
 
 data Entity text noSyncHash hash
   = TC (TermComponent text hash)
@@ -408,6 +416,9 @@ decodeComponentPiece = Aeson.withObject "Component Piece" $ \obj -> do
   localIDs <- obj .: "local_ids"
   Base64Bytes bytes <- obj .: "local_ids"
   pure (localIDs, bytes)
+
+failText :: MonadFail m => Text -> m a
+failText = fail . Text.unpack
 
 instance (FromJSON text, FromJSON hash) => FromJSON (TermComponent text hash) where
   parseJSON = Aeson.withObject "TermComponent" $ \obj -> do
@@ -581,4 +592,4 @@ instance FromJSON EntityType where
     "patch" -> pure PatchType
     "namespace" -> pure NamespaceType
     "causal" -> pure CausalType
-    _ -> fail "Unexpected entity type"
+    t -> failText $ "Unexpected entity type: " <> t
