@@ -58,7 +58,7 @@ import U.Util.Monoid (foldMapM)
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Hashing
-import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
+import qualified Unison.Codebase.SqliteCodebase.Operations as CodebaseOps
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
@@ -89,8 +89,8 @@ verboseOutput =
 migrateSchema1To2 ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
-  TVar (Map Hash Ops2.TermBufferEntry) ->
-  TVar (Map Hash Ops2.DeclBufferEntry) ->
+  TVar (Map Hash CodebaseOps.TermBufferEntry) ->
+  TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
   Sqlite.Transaction ()
 migrateSchema1To2 getDeclType termBuffer declBuffer = do
   Sqlite.unsafeIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
@@ -108,7 +108,7 @@ migrateSchema1To2 getDeclType termBuffer declBuffer = do
   v2EmptyBranchHashInfo <- saveV2EmptyBranch
   watches <-
     foldMapM
-      (\watchKind -> map (W watchKind) <$> Ops2.watches (Cv.watchKind2to1 watchKind))
+      (\watchKind -> map (W watchKind) <$> CodebaseOps.watches (Cv.watchKind2to1 watchKind))
       [WK.RegularWatch, WK.TestWatch]
   migrationState <-
     Sync.sync @_ @Entity (migrationSync getDeclType termBuffer declBuffer) (progress numEntitiesToMigrate) (CausalE rootCausalHashId : watches)
@@ -183,8 +183,8 @@ data Entity
 migrationSync ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
-  TVar (Map Hash Ops2.TermBufferEntry) ->
-  TVar (Map Hash Ops2.DeclBufferEntry) ->
+  TVar (Map Hash CodebaseOps.TermBufferEntry) ->
+  TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
   Sync (StateT MigrationState Sqlite.Transaction) Entity
 migrationSync getDeclType termBuffer declBuffer = Sync \case
   TermComponent hash -> migrateTermComponent getDeclType termBuffer declBuffer hash
@@ -402,7 +402,7 @@ migrateWatch ::
 migrateWatch getDeclType watchKind oldWatchId = fmap (either id id) . runExceptT $ do
   let watchKindV1 = Cv.watchKind2to1 watchKind
   watchResultTerm <-
-    (lift . lift) (Ops2.getWatch getDeclType watchKindV1 oldWatchId) >>= \case
+    (lift . lift) (CodebaseOps.getWatch getDeclType watchKindV1 oldWatchId) >>= \case
       -- The hash which we're watching doesn't exist in the codebase, throw out this watch.
       Nothing -> throwE Sync.Done
       Just term -> pure term
@@ -418,7 +418,7 @@ migrateWatch getDeclType watchKind oldWatchId = fmap (either id id) . runExceptT
     -- One or more references in the result didn't exist in our codebase.
     Nothing -> pure Sync.NonFatalError
     Just remappedTerm -> do
-      lift . lift $ Ops2.putWatch watchKindV1 newWatchId remappedTerm
+      lift . lift $ CodebaseOps.putWatch watchKindV1 newWatchId remappedTerm
       pure Sync.Done
 
 uRefIdAsRefId_ :: Iso' (SomeReference (UReference.Id' Hash)) SomeReferenceId
@@ -502,15 +502,15 @@ typeEditRefs_ _f (TypeEdit.Deprecate) = pure TypeEdit.Deprecate
 migrateTermComponent ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
-  TVar (Map Hash Ops2.TermBufferEntry) ->
-  TVar (Map Hash Ops2.DeclBufferEntry) ->
+  TVar (Map Hash CodebaseOps.TermBufferEntry) ->
+  TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
   Unison.Hash ->
   StateT MigrationState Sqlite.Transaction (Sync.TrySyncResult Entity)
 migrateTermComponent getDeclType termBuffer declBuffer oldHash = fmap (either id id) . runExceptT $ do
   whenM (Set.member oldHash <$> use (field @"migratedDefnHashes")) (throwE Sync.PreviouslyDone)
 
   oldComponent <-
-    (lift . lift $ Ops2.getTermComponentWithTypes getDeclType oldHash) >>= \case
+    (lift . lift $ CodebaseOps.getTermComponentWithTypes getDeclType oldHash) >>= \case
       Nothing -> error $ "Hash was missing from codebase: " <> show oldHash
       Just c -> pure c
 
@@ -565,7 +565,7 @@ migrateTermComponent getDeclType termBuffer declBuffer oldHash = fmap (either id
   ifor newTermComponents $ \v (newReferenceId, trm, typ) -> do
     let oldReferenceId = vToOldReferenceMapping ^?! ix v
     field @"referenceMapping" %= Map.insert (TermReference oldReferenceId) (TermReference newReferenceId)
-    lift . lift $ Ops2.putTerm termBuffer declBuffer newReferenceId trm typ
+    lift . lift $ CodebaseOps.putTerm termBuffer declBuffer newReferenceId trm typ
 
   -- Need to get one of the new references to grab its hash, doesn't matter which one since
   -- all hashes in the component are the same.
@@ -577,15 +577,15 @@ migrateTermComponent getDeclType termBuffer declBuffer oldHash = fmap (either id
   pure Sync.Done
 
 migrateDeclComponent ::
-  TVar (Map Hash Ops2.TermBufferEntry) ->
-  TVar (Map Hash Ops2.DeclBufferEntry) ->
+  TVar (Map Hash CodebaseOps.TermBufferEntry) ->
+  TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
   Unison.Hash ->
   StateT MigrationState Sqlite.Transaction (Sync.TrySyncResult Entity)
 migrateDeclComponent termBuffer declBuffer oldHash = fmap (either id id) . runExceptT $ do
   whenM (Set.member oldHash <$> use (field @"migratedDefnHashes")) (throwE Sync.PreviouslyDone)
 
   declComponent :: [DD.Decl v a] <-
-    (lift . lift $ Ops2.getDeclComponent oldHash) >>= \case
+    (lift . lift $ CodebaseOps.getDeclComponent oldHash) >>= \case
       Nothing -> error $ "Expected decl component for hash:" <> show oldHash
       Just dc -> pure dc
 
@@ -662,7 +662,7 @@ migrateDeclComponent termBuffer declBuffer oldHash = fmap (either id id) . runEx
           (ConstructorReference oldReferenceId (oldConstructorIds ^?! ix constructorName))
           (ConstructorReference newReferenceId newConstructorId)
 
-    lift . lift $ Ops2.putTypeDeclaration termBuffer declBuffer newReferenceId dd
+    lift . lift $ CodebaseOps.putTypeDeclaration termBuffer declBuffer newReferenceId dd
 
   -- Need to get one of the new references to grab its hash, doesn't matter which one since
   -- all hashes in the component are the same.

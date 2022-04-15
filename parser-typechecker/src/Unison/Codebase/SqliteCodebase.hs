@@ -55,7 +55,7 @@ import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
 import Unison.Codebase.SqliteCodebase.Migrations (ensureCodebaseIsUpToDate)
-import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
+import qualified Unison.Codebase.SqliteCodebase.Operations as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Paths
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
@@ -190,7 +190,7 @@ sqliteCodebase ::
   ((Codebase m Symbol Ann, Sqlite.Connection) -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote action = do
-  -- Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
+  Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
   withConnection debugName root $ \conn -> do
     termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
     typeOfTermCache <- Cache.semispaceCache 8192
@@ -199,37 +199,37 @@ sqliteCodebase debugName root localOrRemote action = do
     -- The v1 codebase interface has operations to read and write individual definitions
     -- whereas the v2 codebase writes them as complete components.  These two fields buffer
     -- the individual definitions until a complete component has been written.
-    termBuffer :: TVar (Map Hash Ops2.TermBufferEntry) <- newTVarIO Map.empty
-    declBuffer :: TVar (Map Hash Ops2.DeclBufferEntry) <- newTVarIO Map.empty
+    termBuffer :: TVar (Map Hash CodebaseOps.TermBufferEntry) <- newTVarIO Map.empty
+    declBuffer :: TVar (Map Hash CodebaseOps.DeclBufferEntry) <- newTVarIO Map.empty
     declTypeCache <- Cache.semispaceCache 2048
     let getTerm :: Reference.Id -> m (Maybe (Term Symbol Ann))
         getTerm id =
-          Sqlite.runTransaction conn (Ops2.getTerm getDeclType id)
+          Sqlite.runTransaction conn (CodebaseOps.getTerm getDeclType id)
 
         getDeclType :: C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType
         getDeclType =
-          Sqlite.unsafeIO . Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (Ops2.getDeclType ref) conn)
+          Sqlite.unsafeIO . Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (CodebaseOps.getDeclType ref) conn)
 
         getTypeOfTermImpl :: Reference.Id -> m (Maybe (Type Symbol Ann))
         getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
         getTypeOfTermImpl id =
-          Sqlite.runTransaction conn (Ops2.getTypeOfTermImpl id)
+          Sqlite.runTransaction conn (CodebaseOps.getTypeOfTermImpl id)
 
         getTermComponentWithTypes :: Hash -> m (Maybe [(Term Symbol Ann, Type Symbol Ann)])
         getTermComponentWithTypes h =
-          Sqlite.runTransaction conn (Ops2.getTermComponentWithTypes getDeclType h)
+          Sqlite.runTransaction conn (CodebaseOps.getTermComponentWithTypes getDeclType h)
 
         getTypeDeclaration :: Reference.Id -> m (Maybe (Decl Symbol Ann))
         getTypeDeclaration id =
-          Sqlite.runTransaction conn (Ops2.getTypeDeclaration id)
+          Sqlite.runTransaction conn (CodebaseOps.getTypeDeclaration id)
 
         getDeclComponent :: Hash -> m (Maybe [Decl Symbol Ann])
         getDeclComponent h =
-          Sqlite.runTransaction conn (Ops2.getDeclComponent h)
+          Sqlite.runTransaction conn (CodebaseOps.getDeclComponent h)
 
         getCycleLength :: Hash -> m (Maybe Reference.CycleSize)
         getCycleLength h =
-          Sqlite.runTransaction conn (Ops2.getCycleLength h)
+          Sqlite.runTransaction conn (CodebaseOps.getCycleLength h)
 
         -- putTermComponent :: MonadIO m => Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> m ()
         -- putTerms :: MonadIO m => Map Reference.Id (Term Symbol Ann, Type Symbol Ann) -> m () -- dies horribly if missing dependencies?
@@ -241,26 +241,26 @@ sqliteCodebase debugName root localOrRemote action = do
         putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
         putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
         putTerm id tm tp =
-          Sqlite.runTransaction conn (Ops2.putTerm termBuffer declBuffer id tm tp)
+          Sqlite.runTransaction conn (CodebaseOps.putTerm termBuffer declBuffer id tm tp)
 
         putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> m ()
         putTypeDeclaration id decl =
-          Sqlite.runTransaction conn (Ops2.putTypeDeclaration termBuffer declBuffer id decl)
+          Sqlite.runTransaction conn (CodebaseOps.putTypeDeclaration termBuffer declBuffer id decl)
 
         getRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> m (Branch m)
         getRootBranch rootBranchCache =
           Sqlite.runReadOnlyTransaction conn \run ->
-            Branch.transform run <$> run (Ops2.getRootBranch getDeclType rootBranchCache)
+            Branch.transform run <$> run (CodebaseOps.getRootBranch getDeclType rootBranchCache)
 
         getRootBranchExists :: m Bool
         getRootBranchExists =
-          Sqlite.runTransaction conn Ops2.getRootBranchExists
+          Sqlite.runTransaction conn CodebaseOps.getRootBranchExists
 
         putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> Branch m -> m ()
         putRootBranch rootBranchCache branch1 =
           withRunInIO \runInIO ->
             Sqlite.runTransaction conn do
-              Ops2.putRootBranch rootBranchCache (Branch.transform (Sqlite.unsafeIO . runInIO) branch1)
+              CodebaseOps.putRootBranch rootBranchCache (Branch.transform (Sqlite.unsafeIO . runInIO) branch1)
 
         rootBranchUpdates :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
         rootBranchUpdates _rootBranchCache = do
@@ -306,36 +306,36 @@ sqliteCodebase debugName root localOrRemote action = do
         getBranchForHash :: Branch.Hash -> m (Maybe (Branch m))
         getBranchForHash h =
           Sqlite.runReadOnlyTransaction conn \run ->
-            fmap (Branch.transform run) <$> run (Ops2.getBranchForHash getDeclType h)
+            fmap (Branch.transform run) <$> run (CodebaseOps.getBranchForHash getDeclType h)
 
         putBranch :: Branch m -> m ()
         putBranch branch =
           withRunInIO \runInIO ->
-            Sqlite.runTransaction conn (Ops2.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch))
+            Sqlite.runTransaction conn (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch))
 
         isCausalHash :: Branch.Hash -> m Bool
         isCausalHash h =
-          Sqlite.runTransaction conn (Ops2.isCausalHash h)
+          Sqlite.runTransaction conn (CodebaseOps.isCausalHash h)
 
         getPatch :: Branch.EditHash -> m (Maybe Patch)
         getPatch h =
-          Sqlite.runTransaction conn (Ops2.getPatch h)
+          Sqlite.runTransaction conn (CodebaseOps.getPatch h)
 
         putPatch :: Branch.EditHash -> Patch -> m ()
         putPatch h p =
-          Sqlite.runTransaction conn (Ops2.putPatch h p)
+          Sqlite.runTransaction conn (CodebaseOps.putPatch h p)
 
         patchExists :: Branch.EditHash -> m Bool
         patchExists h =
-          Sqlite.runTransaction conn (Ops2.patchExists h)
+          Sqlite.runTransaction conn (CodebaseOps.patchExists h)
 
         dependentsImpl :: Reference -> m (Set Reference.Id)
         dependentsImpl r =
-          Sqlite.runTransaction conn (Ops2.dependentsImpl r)
+          Sqlite.runTransaction conn (CodebaseOps.dependentsImpl r)
 
         dependentsOfComponentImpl :: Hash -> m (Set Reference.Id)
         dependentsOfComponentImpl h =
-          Sqlite.runTransaction conn (Ops2.dependentsOfComponentImpl h)
+          Sqlite.runTransaction conn (CodebaseOps.dependentsOfComponentImpl h)
 
         syncFromDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
         syncFromDirectory srcRoot _syncMode b = do
@@ -356,19 +356,19 @@ sqliteCodebase debugName root localOrRemote action = do
 
         watches :: UF.WatchKind -> m [Reference.Id]
         watches w =
-          Sqlite.runTransaction conn (Ops2.watches w)
+          Sqlite.runTransaction conn (CodebaseOps.watches w)
 
         getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
         getWatch k r =
-          Sqlite.runTransaction conn (Ops2.getWatch getDeclType k r)
+          Sqlite.runTransaction conn (CodebaseOps.getWatch getDeclType k r)
 
         putWatch :: UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
         putWatch k r tm =
-          Sqlite.runTransaction conn (Ops2.putWatch k r tm)
+          Sqlite.runTransaction conn (CodebaseOps.putWatch k r tm)
 
         clearWatches :: m ()
         clearWatches =
-          Sqlite.runTransaction conn Ops2.clearWatches
+          Sqlite.runTransaction conn CodebaseOps.clearWatches
 
         getReflog :: m [Reflog.Entry Branch.Hash]
         getReflog =
@@ -398,39 +398,39 @@ sqliteCodebase debugName root localOrRemote action = do
 
         termsOfTypeImpl :: Reference -> m (Set Referent.Id)
         termsOfTypeImpl r =
-          Sqlite.runTransaction conn (Ops2.termsOfTypeImpl getDeclType r)
+          Sqlite.runTransaction conn (CodebaseOps.termsOfTypeImpl getDeclType r)
 
         termsMentioningTypeImpl :: Reference -> m (Set Referent.Id)
         termsMentioningTypeImpl r =
-          Sqlite.runTransaction conn (Ops2.termsMentioningTypeImpl getDeclType r)
+          Sqlite.runTransaction conn (CodebaseOps.termsMentioningTypeImpl getDeclType r)
 
         hashLength :: m Int
         hashLength =
-          Sqlite.runTransaction conn Ops2.hashLength
+          Sqlite.runTransaction conn CodebaseOps.hashLength
 
         branchHashLength :: m Int
         branchHashLength =
-          Sqlite.runTransaction conn Ops2.branchHashLength
+          Sqlite.runTransaction conn CodebaseOps.branchHashLength
 
         termReferencesByPrefix :: ShortHash -> m (Set Reference.Id)
         termReferencesByPrefix sh =
-          Sqlite.runTransaction conn (Ops2.termReferencesByPrefix sh)
+          Sqlite.runTransaction conn (CodebaseOps.termReferencesByPrefix sh)
 
         declReferencesByPrefix :: ShortHash -> m (Set Reference.Id)
         declReferencesByPrefix sh =
-          Sqlite.runTransaction conn (Ops2.declReferencesByPrefix sh)
+          Sqlite.runTransaction conn (CodebaseOps.declReferencesByPrefix sh)
 
         referentsByPrefix :: ShortHash -> m (Set Referent.Id)
         referentsByPrefix sh =
-          Sqlite.runTransaction conn (Ops2.referentsByPrefix getDeclType sh)
+          Sqlite.runTransaction conn (CodebaseOps.referentsByPrefix getDeclType sh)
 
         branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
         branchHashesByPrefix sh =
-          Sqlite.runTransaction conn (Ops2.branchHashesByPrefix sh)
+          Sqlite.runTransaction conn (CodebaseOps.branchHashesByPrefix sh)
 
         sqlLca :: Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)
         sqlLca h1 h2 =
-          Sqlite.runTransaction conn (Ops2.sqlLca h1 h2)
+          Sqlite.runTransaction conn (CodebaseOps.sqlLca h1 h2)
     let codebase =
           C.Codebase
             (Cache.applyDefined termCache getTerm)
@@ -473,7 +473,7 @@ sqliteCodebase debugName root localOrRemote action = do
             branchHashLength
             branchHashesByPrefix
             (Just sqlLca)
-            (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> Ops2.before l r)
+            (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r)
     let finalizer :: MonadIO m => m ()
         finalizer = do
           decls <- readTVarIO declBuffer
@@ -523,7 +523,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
             traceM $ "processBranches " ++ show b0
             traceM $ " queue: " ++ show rest
           ifM
-            (runDest (Ops2.isCausalHash h))
+            (runDest (CodebaseOps.isCausalHash h))
             do
               when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " already exists in dest db"
               processBranches rest
@@ -545,14 +545,14 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
                       traceM $ "  decls: " ++ show ds
                       traceM $ "  edits: " ++ show es
                     (cs, es, ts, ds) <- runDest do
-                      cs <- filterM (fmap not . Ops2.isCausalHash . fst) branchDeps
-                      es <- filterM (fmap not . Ops2.patchExists) es
-                      ts <- filterM (fmap not . Ops2.termExists) ts
-                      ds <- filterM (fmap not . Ops2.declExists) ds
+                      cs <- filterM (fmap not . CodebaseOps.isCausalHash . fst) branchDeps
+                      es <- filterM (fmap not . CodebaseOps.patchExists) es
+                      ts <- filterM (fmap not . CodebaseOps.termExists) ts
+                      ds <- filterM (fmap not . CodebaseOps.declExists) ds
                       pure (cs, es, ts, ds)
                     if null cs && null es && null ts && null ds
                       then do
-                        runDest (Ops2.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) b))
+                        runDest (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) b))
                         processBranches rest
                       else do
                         let bs = map (uncurry B) cs
@@ -767,7 +767,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
           case maybeOldRootHash of
             Nothing -> run (setRepoRoot newBranchHash)
             Just oldRootHash -> do
-              run (Ops2.before oldRootHash newBranchHash) >>= \case
+              run (CodebaseOps.before oldRootHash newBranchHash) >>= \case
                 Nothing ->
                   error $
                     "I couldn't find the hash " ++ show newBranchHash

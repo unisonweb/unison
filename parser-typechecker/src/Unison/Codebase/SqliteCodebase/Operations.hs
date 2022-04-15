@@ -366,45 +366,6 @@ putRootBranch rootBranchCache branch1 = do
   void (Ops.saveRootBranch (Cv.causalbranch1to2 branch1))
   Sqlite.unsafeIO (atomically $ modifyTVar' rootBranchCache (fmap . second $ const branch1))
 
--- rootBranchUpdates :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
--- rootBranchUpdates _rootBranchCache = do
---   -- branchHeadChanges      <- TQueue.newIO
---   -- (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
---   -- watcher1               <-
---   --   liftIO . forkIO
---   --   $ forever
---   --   $ do
---   --       -- void ignores the name and time of the changed file,
---   --       -- and assume 'unison.sqlite3' has changed
---   --       (filename, time) <- watcher
---   --       traceM $ "SqliteCodebase.watcher " ++ show (filename, time)
---   --       readTVarIO rootBranchCache >>= \case
---   --         Nothing -> pure ()
---   --         Just (v, _) -> do
---   --           -- this use of `conn` in a separate thread may be problematic.
---   --           -- hopefully sqlite will produce an obvious error message if it is.
---   --           v' <- runDB conn Ops.dataVersion
---   --           if v /= v' then
---   --             atomically
---   --               . TQueue.enqueue branchHeadChanges =<< runDB conn Ops.loadRootCausalHash
---   --           else pure ()
-
---   --       -- case hashFromFilePath filePath of
---   --       --   Nothing -> failWith $ CantParseBranchHead filePath
---   --       --   Just h ->
---   --       --     atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
---   -- -- smooth out intermediate queue
---   -- pure
---   --   ( cancelWatch >> killThread watcher1
---   --   , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
---   --   )
---   pure (cleanup, liftIO newRootsDiscovered)
---   where
---     newRootsDiscovered = do
---       Control.Concurrent.threadDelay maxBound -- hold off on returning
---       pure mempty -- returning nothing
---     cleanup = pure ()
-
 -- if this blows up on cromulent hashes, then switch from `hashToHashId`
 -- to one that returns Maybe.
 getBranchForHash ::
@@ -452,19 +413,6 @@ dependentsOfComponentImpl :: Hash -> Transaction (Set Reference.Id)
 dependentsOfComponentImpl h =
   Set.map Cv.referenceid2to1
     <$> Ops.dependentsOfComponent (Cv.hash1to2 h)
-
--- syncFromDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
--- syncFromDirectory srcRoot _syncMode b = do
---   withConnection (debugName ++ ".sync.src") srcRoot $ \srcConn -> do
---     flip State.evalStateT emptySyncProgressState $ do
---       syncInternal syncProgress srcConn conn $ Branch.transform lift b
-
--- syncToDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
--- syncToDirectory destRoot _syncMode b =
---   withConnection (debugName ++ ".sync.dest") destRoot $ \destConn ->
---     flip State.evalStateT emptySyncProgressState $ do
---       initSchemaIfNotExist destRoot
---       syncInternal syncProgress conn destConn $ Branch.transform lift b
 
 watches :: UF.WatchKind -> Transaction [Reference.Id]
 watches w =
