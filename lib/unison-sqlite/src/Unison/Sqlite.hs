@@ -22,7 +22,7 @@ module Unison.Sqlite
     runWriteTransaction,
     unsafeUnTransaction,
     savepoint,
-    idempotentIO,
+    unsafeIO,
 
     -- * Executing queries
     Sql (..),

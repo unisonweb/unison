@@ -6,7 +6,7 @@ module Unison.Sqlite.Transaction
     runWriteTransaction,
     unsafeUnTransaction,
     savepoint,
-    idempotentIO,
+    unsafeIO,
 
     -- * Executing queries
 
@@ -182,8 +182,8 @@ savepoint (Transaction action) = do
 
 -- | Perform IO inside a transaction, which should be idempotent, because it may be run more than once.
 -- FIXME rename to unsafeIO or something
-idempotentIO :: IO a -> Transaction a
-idempotentIO action =
+unsafeIO :: IO a -> Transaction a
+unsafeIO action =
   Transaction \_ -> action
 
 -- Without results, with parameters
@@ -213,7 +213,7 @@ queryStreamRow ::
 queryStreamRow s params callback =
   Transaction \conn ->
     Connection.queryStreamRow conn s params \next ->
-      unsafeUnTransaction (callback (idempotentIO next)) conn
+      unsafeUnTransaction (callback (unsafeIO next)) conn
 
 queryStreamCol ::
   forall a b r.

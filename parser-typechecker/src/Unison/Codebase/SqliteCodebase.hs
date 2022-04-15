@@ -208,8 +208,7 @@ sqliteCodebase debugName root localOrRemote action = do
 
         getDeclType :: C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType
         getDeclType =
-          Sqlite.idempotentIO
-            . Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (Ops2.getDeclType ref) conn)
+          Sqlite.unsafeIO . Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (Ops2.getDeclType ref) conn)
 
         getTypeOfTermImpl :: Reference.Id -> m (Maybe (Type Symbol Ann))
         getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
@@ -261,7 +260,7 @@ sqliteCodebase debugName root localOrRemote action = do
         putRootBranch rootBranchCache branch1 =
           withRunInIO \runInIO ->
             Sqlite.runTransaction conn do
-              Ops2.putRootBranch rootBranchCache (Branch.transform (Sqlite.idempotentIO . runInIO) branch1)
+              Ops2.putRootBranch rootBranchCache (Branch.transform (Sqlite.unsafeIO . runInIO) branch1)
 
         rootBranchUpdates :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
         rootBranchUpdates _rootBranchCache = do
@@ -312,7 +311,7 @@ sqliteCodebase debugName root localOrRemote action = do
         putBranch :: Branch m -> m ()
         putBranch branch =
           withRunInIO \runInIO ->
-            Sqlite.runTransaction conn (Ops2.putBranch (Branch.transform (Sqlite.idempotentIO . runInIO) branch))
+            Sqlite.runTransaction conn (Ops2.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch))
 
         isCausalHash :: Branch.Hash -> m Bool
         isCausalHash h =
@@ -553,7 +552,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
                       pure (cs, es, ts, ds)
                     if null cs && null es && null ts && null ds
                       then do
-                        runDest (Ops2.putBranch (Branch.transform (Sqlite.idempotentIO . runInIO) b))
+                        runDest (Ops2.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) b))
                         processBranches rest
                       else do
                         let bs = map (uncurry B) cs

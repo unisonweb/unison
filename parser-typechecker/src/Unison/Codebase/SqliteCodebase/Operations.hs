@@ -138,16 +138,16 @@ tryFlushBuffer ::
 tryFlushBuffer buf saveComponent tryWaiting h@(Cv.hash1to2 -> h2) =
   -- skip if it has already been flushed
   unlessM (Ops.objectExistsForHash h2) do
-    BufferEntry size comp (Set.delete h -> missing) waiting <- Sqlite.idempotentIO (getBuffer buf h)
+    BufferEntry size comp (Set.delete h -> missing) waiting <- Sqlite.unsafeIO (getBuffer buf h)
     case size of
       Just size -> do
         missing' <- filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) (toList missing)
         if null missing' && size == fromIntegral (length comp)
           then do
             saveComponent h2 (toList comp)
-            Sqlite.idempotentIO (removeBuffer buf h)
+            Sqlite.unsafeIO (removeBuffer buf h)
             traverse_ tryWaiting waiting
-          else Sqlite.idempotentIO do
+          else Sqlite.unsafeIO do
             putBuffer buf h $
               BufferEntry (Just size) comp (Set.fromList missing') waiting
       Nothing ->
@@ -223,7 +223,7 @@ putTerm ::
   Transaction ()
 putTerm termBuffer declBuffer (Reference.Id h@(Cv.hash1to2 -> h2) i) tm tp =
   unlessM (Ops.objectExistsForHash h2) do
-    BufferEntry size comp missing waiting <- Sqlite.idempotentIO (getBuffer termBuffer h)
+    BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer termBuffer h)
     let termDependencies = Set.toList $ Term.termDependencies tm
     -- update the component target size if we encounter any higher self-references
     let size' = max size (Just $ biggestSelfReference + 1)
@@ -242,7 +242,7 @@ putTerm termBuffer declBuffer (Reference.Id h@(Cv.hash1to2 -> h2) i) tm tp =
         [h | Reference.Derived h _i <- Set.toList $ Term.typeDependencies tm]
           ++ [h | Reference.Derived h _i <- Set.toList $ Type.dependencies tp]
     let missing' = missing <> Set.fromList (missingTerms' <> missingTypes')
-    Sqlite.idempotentIO do
+    Sqlite.unsafeIO do
       -- notify each of the dependencies that h depends on them.
       traverse_ (addBufferDependent h termBuffer) missingTerms'
       traverse_ (addBufferDependent h declBuffer) missingTypes'
@@ -290,7 +290,7 @@ putTypeDeclaration ::
   Transaction ()
 putTypeDeclaration termBuffer declBuffer (Reference.Id h@(Cv.hash1to2 -> h2) i) decl =
   unlessM (Ops.objectExistsForHash h2) do
-    BufferEntry size comp missing waiting <- Sqlite.idempotentIO (getBuffer declBuffer h)
+    BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer declBuffer h)
     let declDependencies = Set.toList $ Decl.declDependencies decl
     let size' = max size (Just $ biggestSelfReference + 1)
           where
@@ -302,7 +302,7 @@ putTypeDeclaration termBuffer declBuffer (Reference.Id h@(Cv.hash1to2 -> h2) i) 
       filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) $
         [h | Reference.Derived h _i <- declDependencies]
     let missing' = missing <> Set.fromList moreMissing
-    Sqlite.idempotentIO do
+    Sqlite.unsafeIO do
       traverse_ (addBufferDependent h declBuffer) moreMissing
       putBuffer declBuffer h (BufferEntry size' comp' missing' waiting)
     tryFlushDeclBuffer termBuffer declBuffer h
@@ -331,7 +331,7 @@ getRootBranch ::
   TVar (Maybe (Sqlite.DataVersion, Branch Transaction)) ->
   Transaction (Branch Transaction)
 getRootBranch doGetDeclType rootBranchCache =
-  Sqlite.idempotentIO (readTVarIO rootBranchCache) >>= \case
+  Sqlite.unsafeIO (readTVarIO rootBranchCache) >>= \case
     Nothing -> forceReload
     Just (v, b) -> do
       -- check to see if root namespace hash has been externally modified
@@ -352,7 +352,7 @@ getRootBranch doGetDeclType rootBranchCache =
       causal2 <- Ops.expectRootCausal
       branch1 <- Cv.causalbranch2to1 doGetDeclType causal2
       ver <- Sqlite.getDataVersion
-      Sqlite.idempotentIO (atomically (writeTVar rootBranchCache (Just (ver, branch1))))
+      Sqlite.unsafeIO (atomically (writeTVar rootBranchCache (Just (ver, branch1))))
       pure branch1
 
 getRootBranchExists :: Transaction Bool
@@ -364,7 +364,7 @@ putRootBranch rootBranchCache branch1 = do
   -- todo: check to see if root namespace hash has been externally modified
   -- and do something (merge?) it if necessary. But for now, we just overwrite it.
   void (Ops.saveRootBranch (Cv.causalbranch1to2 branch1))
-  Sqlite.idempotentIO (atomically $ modifyTVar' rootBranchCache (fmap . second $ const branch1))
+  Sqlite.unsafeIO (atomically $ modifyTVar' rootBranchCache (fmap . second $ const branch1))
 
 -- rootBranchUpdates :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
 -- rootBranchUpdates _rootBranchCache = do

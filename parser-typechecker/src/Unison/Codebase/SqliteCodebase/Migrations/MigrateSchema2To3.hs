@@ -1,8 +1,6 @@
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3) where
 
-import Control.Exception (throwIO)
-import Control.Monad.Reader
-import U.Codebase.Sqlite.DbId (HashVersion (..), SchemaVersion (..))
+import U.Codebase.Sqlite.DbId (HashVersion (..))
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified Unison.Sqlite as Sqlite
 

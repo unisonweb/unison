@@ -93,16 +93,16 @@ migrateSchema1To2 ::
   TVar (Map Hash Ops2.DeclBufferEntry) ->
   Sqlite.Transaction ()
 migrateSchema1To2 getDeclType termBuffer declBuffer = do
-  Sqlite.idempotentIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
+  Sqlite.unsafeIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
   corruptedCausals <- Q.getCausalsWithoutBranchObjects
   when (not . null $ corruptedCausals) $
-    Sqlite.idempotentIO $ do
+    Sqlite.unsafeIO $ do
       putStrLn $ "⚠️  I detected " <> show (length corruptedCausals) <> " corrupted namespace(s) in the history of the codebase."
       putStrLn $ "This is due to a bug in a previous version of ucm."
       putStrLn $ "This only affects the history of your codebase, the most up-to-date iteration will remain intact."
       putStrLn $ "I'll go ahead with the migration, but will replace any corrupted namespaces with empty ones."
 
-  Sqlite.idempotentIO $ putStrLn $ "Updating Namespace Root..."
+  Sqlite.unsafeIO $ putStrLn $ "Updating Namespace Root..."
   rootCausalHashId <- Q.expectNamespaceRoot
   numEntitiesToMigrate <- sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
   v2EmptyBranchHashInfo <- saveV2EmptyBranch
@@ -114,16 +114,16 @@ migrateSchema1To2 getDeclType termBuffer declBuffer = do
     Sync.sync @_ @Entity (migrationSync getDeclType termBuffer declBuffer) (progress numEntitiesToMigrate) (CausalE rootCausalHashId : watches)
       `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty 0 v2EmptyBranchHashInfo
   let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
-  Sqlite.idempotentIO $ putStrLn $ "Updating Namespace Root..."
+  Sqlite.unsafeIO $ putStrLn $ "Updating Namespace Root..."
   Q.setNamespaceRoot newRootCausalHashId
-  Sqlite.idempotentIO $ putStrLn $ "Rewriting old object IDs..."
+  Sqlite.unsafeIO $ putStrLn $ "Rewriting old object IDs..."
   ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
     Q.recordObjectRehash oldObjId newObjId
-  Sqlite.idempotentIO $ putStrLn $ "Garbage collecting orphaned objects..."
+  Sqlite.unsafeIO $ putStrLn $ "Garbage collecting orphaned objects..."
   Q.garbageCollectObjectsWithoutHashes
-  Sqlite.idempotentIO $ putStrLn $ "Garbage collecting orphaned watches..."
+  Sqlite.unsafeIO $ putStrLn $ "Garbage collecting orphaned watches..."
   Q.garbageCollectWatchesWithoutObjects
-  Sqlite.idempotentIO $ putStrLn $ "Updating Schema Version..."
+  Sqlite.unsafeIO $ putStrLn $ "Updating Schema Version..."
   Q.setSchemaVersion 2
   where
     progress :: Int -> Sync.Progress (StateT MigrationState Sqlite.Transaction) Entity
@@ -131,22 +131,22 @@ migrateSchema1To2 getDeclType termBuffer declBuffer = do
       let incrementProgress :: StateT MigrationState Sqlite.Transaction ()
           incrementProgress = do
             numDone <- field @"numMigrated" <+= 1
-            lift $ Sqlite.idempotentIO $ putStr $ "\r 🏗  " <> show numDone <> " / ~" <> show numToMigrate <> " entities migrated. 🚧"
+            lift $ Sqlite.unsafeIO $ putStr $ "\r 🏗  " <> show numDone <> " / ~" <> show numToMigrate <> " entities migrated. 🚧"
           need :: Entity -> StateT MigrationState Sqlite.Transaction ()
-          need e = when verboseOutput $ lift $ Sqlite.idempotentIO $ putStrLn $ "Need: " ++ show e
+          need e = when verboseOutput $ lift $ Sqlite.unsafeIO $ putStrLn $ "Need: " ++ show e
           done :: Entity -> StateT MigrationState Sqlite.Transaction ()
           done e = do
-            when verboseOutput $ lift $ Sqlite.idempotentIO $ putStrLn $ "Done: " ++ show e
+            when verboseOutput $ lift $ Sqlite.unsafeIO $ putStrLn $ "Done: " ++ show e
             incrementProgress
           errorHandler :: Entity -> StateT MigrationState Sqlite.Transaction ()
           errorHandler e = do
             case e of
               -- We expect non-fatal errors when migrating watches.
               W {} -> pure ()
-              e -> lift $ Sqlite.idempotentIO $ putStrLn $ "Error: " ++ show e
+              e -> lift $ Sqlite.unsafeIO $ putStrLn $ "Error: " ++ show e
             incrementProgress
           allDone :: StateT MigrationState Sqlite.Transaction ()
-          allDone = lift $ Sqlite.idempotentIO $ putStrLn $ "\nFinished migrating, initiating cleanup."
+          allDone = lift $ Sqlite.unsafeIO $ putStrLn $ "\nFinished migrating, initiating cleanup."
        in Sync.Progress {need, done, error = errorHandler, allDone}
 
 type Old a = a
