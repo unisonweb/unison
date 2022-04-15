@@ -32,12 +32,11 @@ migrations ::
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   TVar (Map Hash Ops2.TermBufferEntry) ->
   TVar (Map Hash Ops2.DeclBufferEntry) ->
-  (forall x. IO x -> Sqlite.Transaction x) ->
   Map SchemaVersion (Sqlite.Transaction ())
-migrations getDeclType termBuffer declBuffer runIO =
+migrations getDeclType termBuffer declBuffer =
   Map.fromList
-    [ (2, migrateSchema1To2 getDeclType termBuffer declBuffer runIO),
-      (3, migrateSchema2To3 runIO)
+    [ (2, migrateSchema1To2 getDeclType termBuffer declBuffer),
+      (3, migrateSchema2To3)
     ]
 
 -- | Migrates a codebase up to the most recent version known to ucm.
@@ -57,18 +56,18 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
   UnliftIO.try do
     liftIO do
       ranMigrations <-
-        Sqlite.runWriteTransaction conn \runIO -> do
-          schemaVersion <- Q.schemaVersion
-          let migs = migrations getDeclType termBuffer declBuffer runIO
+        Sqlite.runWriteTransaction conn \run -> do
+          schemaVersion <- run Q.schemaVersion
+          let migs = migrations getDeclType termBuffer declBuffer
           -- The highest schema that this ucm knows how to migrate to.
           let currentSchemaVersion = fst . head $ Map.toDescList migs
-          when (schemaVersion > currentSchemaVersion) $ runIO $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral schemaVersion)
+          when (schemaVersion > currentSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral schemaVersion)
           let migrationsToRun =
                 Map.filterWithKey (\v _ -> v > schemaVersion) migs
-          when (localOrRemote == Local && (not . null) migrationsToRun) $ runIO $ backupCodebase root
+          when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase root
           for_ (Map.toAscList migrationsToRun) $ \(SchemaVersion v, migration) -> do
-            runIO . putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
-            migration
+            putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
+            run migration
           pure (not (null migrationsToRun))
       when ranMigrations do
         -- Vacuum once now that any migrations have taken place.

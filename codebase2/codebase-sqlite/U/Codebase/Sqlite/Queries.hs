@@ -123,6 +123,7 @@ module U.Codebase.Sqlite.Queries
     -- * db misc
     createSchema,
     schemaVersion,
+    expectSchemaVersion,
     setSchemaVersion,
   )
 where
@@ -169,6 +170,23 @@ schemaVersion :: Transaction SchemaVersion
 schemaVersion = queryOneCol_ sql
   where
     sql = "SELECT version from schema_version;"
+
+data UnexpectedSchemaVersion = UnexpectedSchemaVersion
+  { actual :: SchemaVersion,
+    expected :: SchemaVersion
+  }
+  deriving stock (Show)
+  deriving anyclass (SqliteExceptionReason)
+
+-- | Expect the given schema version.
+expectSchemaVersion :: SchemaVersion -> Transaction ()
+expectSchemaVersion expected =
+  queryOneColCheck_
+    [here|
+      SELECT version
+      FROM schema_version
+    |]
+    (\actual -> if actual /= expected then Left UnexpectedSchemaVersion {actual, expected} else Right ())
 
 setSchemaVersion :: SchemaVersion -> Transaction ()
 setSchemaVersion schemaVersion = execute sql (Only schemaVersion)

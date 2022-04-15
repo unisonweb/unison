@@ -250,7 +250,7 @@ sqliteCodebase debugName root localOrRemote action = do
 
         getRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> m (Branch m)
         getRootBranch rootBranchCache =
-          Sqlite.runReadOnlyTransactionIO conn \run ->
+          Sqlite.runReadOnlyTransaction conn \run ->
             Branch.transform run <$> run (Ops2.getRootBranch getDeclType rootBranchCache)
 
         getRootBranchExists :: m Bool
@@ -306,7 +306,7 @@ sqliteCodebase debugName root localOrRemote action = do
         -- to one that returns Maybe.
         getBranchForHash :: Branch.Hash -> m (Maybe (Branch m))
         getBranchForHash h =
-          Sqlite.runReadOnlyTransactionIO conn \run ->
+          Sqlite.runReadOnlyTransaction conn \run ->
             fmap (Branch.transform run) <$> run (Ops2.getBranchForHash getDeclType h)
 
         putBranch :: Branch m -> m ()
@@ -342,8 +342,8 @@ sqliteCodebase debugName root localOrRemote action = do
         syncFromDirectory srcRoot _syncMode b = do
           withConnection (debugName ++ ".sync.src") srcRoot $ \srcConn -> do
             progressStateRef <- liftIO (newIORef emptySyncProgressState)
-            Sqlite.runReadOnlyTransactionIO srcConn \runSrc ->
-              Sqlite.runWriteTransactionIO conn \runDest -> do
+            Sqlite.runReadOnlyTransaction srcConn \runSrc ->
+              Sqlite.runWriteTransaction conn \runDest -> do
                 syncInternal (syncProgress progressStateRef) runSrc runDest b
 
         syncToDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
@@ -351,8 +351,8 @@ sqliteCodebase debugName root localOrRemote action = do
           withConnection (debugName ++ ".sync.dest") destRoot $ \destConn -> do
             progressStateRef <- liftIO (newIORef emptySyncProgressState)
             initSchemaIfNotExist destRoot
-            Sqlite.runReadOnlyTransactionIO conn \runSrc ->
-              Sqlite.runWriteTransactionIO destConn \runDest -> do
+            Sqlite.runReadOnlyTransaction conn \runSrc ->
+              Sqlite.runWriteTransaction destConn \runDest -> do
                 syncInternal (syncProgress progressStateRef) runSrc runDest b
 
         watches :: UF.WatchKind -> m [Reference.Id]
@@ -749,8 +749,8 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
     doSync :: CodebaseStatus -> FilePath -> Sqlite.Connection -> Branch m -> m ()
     doSync codebaseStatus remotePath destConn newBranch = do
       progressStateRef <- liftIO (newIORef emptySyncProgressState)
-      Sqlite.runReadOnlyTransactionIO srcConn \runSrc -> do
-        Sqlite.runWriteTransactionIO destConn \runDest -> do
+      Sqlite.runReadOnlyTransaction srcConn \runSrc -> do
+        Sqlite.runWriteTransaction destConn \runDest -> do
           _ <- syncInternal (syncProgress progressStateRef) runSrc runDest newBranch
           when setRoot (overwriteRoot runDest codebaseStatus remotePath newBranch)
     overwriteRoot ::
