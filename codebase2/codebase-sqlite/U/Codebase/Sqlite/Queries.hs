@@ -126,6 +126,7 @@ module U.Codebase.Sqlite.Queries
     garbageCollectWatchesWithoutObjects,
 
     -- * sync temp entities
+    getMissingDependentsForTempEntity,
     getMissingDependencyJwtsForTempEntity,
     tempEntityExists,
     insertTempEntity,
@@ -157,6 +158,7 @@ import qualified Control.Monad.Except as Except
 import Control.Monad.Reader (MonadReader (ask))
 import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.Writer as Writer
+import Data.Bytes.Get (runGetS)
 import Data.Bytes.Put (runPutS)
 import qualified Data.Char as Char
 import qualified Data.Foldable as Foldable
@@ -180,6 +182,7 @@ import Database.SQLite.Simple.ToField (ToField (..))
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
+import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal
 import U.Codebase.Sqlite.Connection (Connection)
 import qualified U.Codebase.Sqlite.Connection as Connection
 import U.Codebase.Sqlite.DbId
@@ -195,12 +198,16 @@ import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.JournalMode (JournalMode)
 import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import U.Codebase.Sqlite.ObjectType (ObjectType)
+import qualified U.Codebase.Sqlite.ObjectType as ObjectType
+import U.Codebase.Sqlite.ReadyEntity (ReadyEntity)
+import qualified U.Codebase.Sqlite.ReadyEntity as ReadyEntity
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.TempEntity (HashJWT, TempEntity)
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import U.Codebase.Sqlite.TempEntityType (TempEntityType)
+import qualified U.Codebase.Sqlite.TempEntityType as TempEntityType
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WatchKind
 import qualified U.Util.Alternative as Alternative
@@ -208,6 +215,23 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
+  ( ByteString,
+    Exception,
+    HasCallStack,
+    Int8,
+    IsString (fromString),
+    MaybeT (MaybeT, runMaybeT),
+    MonadIO (..),
+    MonadUnliftIO (..),
+    Text,
+    headMay,
+    trace,
+    traceM,
+    traverse_,
+    try,
+    when,
+    (<&>),
+  )
 import UnliftIO (throwIO, tryAny)
 import qualified UnliftIO
 import UnliftIO.Concurrent (myThreadId)
@@ -486,17 +510,127 @@ updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
 
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
-saveCausal :: DB m => CausalHashId -> BranchHashId -> m ()
-saveCausal self value = execute sql (self, value) where sql = [here|
-  INSERT INTO causal (self_hash_id, value_hash_id)
-  VALUES (?, ?)
-  ON CONFLICT DO NOTHING
-|]
--- saveCausal self value = execute sql (self, value, Committed True, Generation 0) where sql = [here|
---   INSERT INTO causal (self_hash_id, value_hash_id, commit_flag, gc_generation)
---   VALUES (?, ?, ?, ?)
---   ON CONFLICT DO NOTHING
--- |]
+saveCausal :: EDB m => CausalHashId -> BranchHashId -> [CausalHashId] -> m ()
+saveCausal self value parents = do
+  execute insertCausalSql (self, value)
+  changes >>= \case
+    0 -> pure ()
+    _ -> do
+      executeMany insertCausalParentsSql (fmap (self,) parents)
+      flushCausalDependents self
+  where
+    insertCausalSql = [here|
+      INSERT INTO causal (self_hash_id, value_hash_id)
+      VALUES (?, ?)
+      ON CONFLICT DO NOTHING
+    |]
+    insertCausalParentsSql = [here|
+      INSERT INTO causal_parent (causal_id, parent_id) VALUES (?, ?)
+    |]
+
+flushCausalDependents :: EDB m => CausalHashId -> m ()
+flushCausalDependents chId = loadHashById (unCausalHashId chId) >>= tryMoveTempEntityDependents
+
+--  Note: beef up insert_entity procedure to flush temp_entity table
+
+-- | flushTempEntity does this:
+--    1. When inserting object #foo,
+--        look up all dependents of #foo in
+--        temp_entity_missing_dependency table (say #bar, #baz).
+--    2. Delete (#bar, #foo) and (#baz, #foo) from temp_entity_missing_dependency.
+--    3. Delete #foo from temp_entity (if it's there)
+--    4. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
+--        insert_entity them.
+--
+-- Precondition: Must have inserted the entity with hash b32 already.
+tryMoveTempEntityDependents :: EDB m => Base32Hex -> m ()
+tryMoveTempEntityDependents dependencyBase32 = do
+  dependents <- getMissingDependentsForTempEntity dependencyBase32
+  executeMany deleteTempDependents (dependents <&> (,dependencyBase32))
+  deleteTempEntity dependencyBase32
+  traverse_ moveTempEntityToMain =<< tempEntitiesWithNoMissingDependencies
+  where
+    deleteTempDependents :: SQLite.Query
+    deleteTempDependents = [here|
+      DELETE FROM temp_entity_missing_dependency
+      WHERE dependent = ?
+        AND dependency = ?
+    |]
+
+    tempEntitiesWithNoMissingDependencies :: DB m => m [Base32Hex]
+    tempEntitiesWithNoMissingDependencies = fmap (map fromOnly) $ query_ [here|
+      SELECT hash FROM temp_entity
+        WHERE NOT EXISTS(
+          SELECT COUNT (1)
+          FROM temp_entity_missing_dependency
+          WHERE dependent = hash
+        )
+      |]
+
+moveTempEntityToMain :: EDB m => Base32Hex -> m ()
+moveTempEntityToMain b32 = do
+  loadTempEntity b32 >>= \case
+    Left _ -> undefined
+    Right t -> do
+      r <- readyTempEntity t
+      _ <- saveReadyEntity b32 r
+      pure ()
+
+loadTempEntity :: DB m => Base32Hex -> m (Either String TempEntity)
+loadTempEntity b32 = do
+  (blob, typeId) <- queryOne $ queryMaybe sql (Only b32)
+  pure $ case typeId of
+    TempEntityType.TermComponentType ->
+      TempEntity.TC <$> runGetS Serialization.getTempTermFormat blob
+    TempEntityType.DeclComponentType ->
+      TempEntity.DC <$> runGetS Serialization.getTempDeclFormat blob
+    TempEntityType.NamespaceType ->
+      TempEntity.N <$> runGetS Serialization.getTempNamespaceFormat  blob
+    TempEntityType.PatchType ->
+      TempEntity.P <$> runGetS Serialization.getTempPatchFormat blob
+    TempEntityType.CausalType ->
+      TempEntity.C <$> runGetS Serialization.getTempCausalFormat blob
+
+  where sql = [here|
+    SELECT (blob, type_id)
+    FROM temp_entity
+    WHERE hash = ?
+  |]
+
+readyTempEntity :: DB m => TempEntity -> m ReadyEntity
+readyTempEntity = \case
+  TempEntity.TC stf -> undefined
+  TempEntity.DC sdf -> undefined
+  TempEntity.N sbf -> undefined
+  TempEntity.P spf -> undefined
+  TempEntity.C scf -> undefined
+
+saveReadyEntity :: EDB m => Base32Hex -> ReadyEntity -> m (Either CausalHashId ObjectId)
+saveReadyEntity b32Hex entity = do
+  hashId <- saveHash b32Hex
+  case entity of
+    ReadyEntity.TC stf -> do
+      let bytes = runPutS (Serialization.recomposeTermFormat stf)
+      Right <$> saveObject hashId ObjectType.TermComponent bytes
+    ReadyEntity.DC sdf -> do
+      let bytes = runPutS (Serialization.recomposeDeclFormat sdf)
+      Right <$> saveObject hashId ObjectType.DeclComponent bytes
+    ReadyEntity.N sbf -> do
+      let bytes = runPutS (Serialization.recomposeBranchFormat sbf)
+      Right <$> saveObject hashId ObjectType.Namespace bytes
+    ReadyEntity.P spf -> do
+      let bytes = runPutS (Serialization.recomposePatchFormat spf)
+      Right <$> saveObject hashId ObjectType.Patch bytes
+    ReadyEntity.C scf -> case scf of
+      Sqlite.Causal.SyncCausalFormat{valueHash, parents} -> do
+        let causalHashId = CausalHashId hashId
+        saveCausal causalHashId valueHash (Foldable.toList parents)
+        pure $ Left causalHashId
+
+changes :: DB m => m Int
+changes = do
+  conn <- Reader.reader Connection.underlying
+  liftIO (SQLite.changes conn)
 
 -- -- maybe: look at whether parent causal is "committed"; if so, then increment;
 -- -- otherwise, don't.
@@ -978,6 +1112,16 @@ getMissingDependencyJwtsForTempEntity h =
       |]
       (Only h)
 
+getMissingDependentsForTempEntity :: DB m => Base32Hex -> m [Base32Hex]
+getMissingDependentsForTempEntity h =
+  queryAtoms
+    [here|
+      SELECT dependent
+      FROM temp_entity_missing_dependency
+      WHERE dependency = ?
+    |]
+    (Only h)
+
 tempEntityExists :: DB m => Base32Hex -> m Bool
 tempEntityExists h = queryOne $ queryAtom sql (Only h)
   where
@@ -1018,6 +1162,17 @@ insertTempEntity entityHash entity missingDependencies = do
     entityType :: TempEntityType
     entityType =
       TempEntity.tempEntityType entity
+
+-- | Delete a row from the `temp_entity` table, if it exists.
+deleteTempEntity :: DB m => Base32Hex -> m ()
+deleteTempEntity hash =
+  execute
+    [here|
+      DELETE
+      FROM temp_entity
+      WHERE hash = ?
+    |]
+    (Only hash)
 
 -- | takes a dependent's hash and multiple dependency hashes
 deleteTempDependencies :: (DB m, Foldable f) => Base32Hex -> f Base32Hex -> m ()

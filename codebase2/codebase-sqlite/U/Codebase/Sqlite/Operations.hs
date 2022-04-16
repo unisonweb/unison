@@ -997,8 +997,18 @@ saveBranch (C.Causal hc he parents me) = do
     -- if not exist, create these
     chId <- liftQ (Q.saveCausalHash hc)
     bhId <- liftQ (Q.saveBranchHash he)
-    liftQ (Q.saveCausal chId bhId)
-    -- save the link between child and parents
+
+    -- Mitchell's Idea
+    -- ===============
+    -- 1. Compute [CausalHashId] of parents' hashes, by doing the same short-circuity thing below
+    --    (just returning the hash id if it exists, or else calling this function recusrively to store the whole parent causal(s))
+    -- 2. With that [CausalHashId], proceed to store this causal with a `saveCausal chId bhId parentIds`
+    -- 3. Beef up that `saveCausal` to do flushing things
+
+    -- Iterate over the parent branches/causal in the in-memory Causal,
+    -- either looking up their CausalHashIds if they have been saved previously,
+    -- or storing them to the db now and collecting the resulting CausalHashIds.
+    -- In the end, all the parent branches/causals are saved and we have the CausalHashIds for them.
     parentCausalHashIds <-
       -- so try to save each parent (recursively) before continuing to save hc
       for (Map.toList parents) $ \(parentHash, mcausal) ->
@@ -1007,8 +1017,9 @@ saveBranch (C.Causal hc he parents me) = do
         (flip Monad.fromMaybeM)
           (liftQ $ Q.loadCausalHashIdByCausalHash parentHash)
           (mcausal >>= fmap snd . saveBranch)
-    unless (null parentCausalHashIds) $
-      liftQ (Q.saveCausalParents chId parentCausalHashIds)
+
+    -- Save these CausalHashIds to the causal_parents table,
+    liftQ (Q.saveCausal chId bhId parentCausalHashIds)
     pure (chId, bhId)
   boId <- flip Monad.fromMaybeM (liftQ $ Q.loadBranchObjectIdByCausalHashId chId) do
     branch <- c2sBranch =<< me

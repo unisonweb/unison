@@ -263,7 +263,8 @@ download httpClient unisonShareUrl conn repoName = do
 --
 --   [ ] Beef up insert_entity to flush temp entities
 --   [ ] Write resolveHashToEntity
---   [ ] Add "no read permission" to GetCausalHashByPathResponse in Share.Types
+--   [x] Add "no read permission" to GetCausalHashByPathResponse in Share.Types
+--   [x] Add "no write permission" to UpdatePathResponse in Share.Types
 --   [ ] The tempToSync* stuff
 
 {-

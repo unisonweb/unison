@@ -18,14 +18,16 @@ import Control.Monad.Validate (ValidateT, runValidateT)
 import qualified Control.Monad.Validate as Validate
 import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
-import Data.Bytes.Get (getWord8, runGetS)
-import Data.Bytes.Put (putWord8, runPutS)
+import Data.Bytes.Get (runGetS)
+import Data.Bytes.Put (runPutS)
 import Data.List.Extra (nubOrd)
 import qualified Data.Set as Set
+import qualified Data.Vector as Vector
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
 import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId
+import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Format as PL
@@ -35,6 +37,7 @@ import qualified U.Codebase.Sqlite.Reference as Sqlite.Reference
 import qualified U.Codebase.Sqlite.Referent as Sqlite.Referent
 import qualified U.Codebase.Sqlite.Serialization as S
 import qualified U.Codebase.Sqlite.Term.Format as TL
+import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Codebase.Sync (Sync (Sync), TrySyncResult)
 import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
@@ -121,8 +124,7 @@ trySync tCache hCache oCache cCache = \case
           bhId' <- lift $ syncBranchHashId bhId
           chId' <- lift $ syncCausalHashId chId
           runDest do
-            Q.saveCausal chId' bhId'
-            Q.saveCausalParents chId' parents'
+            Q.saveCausal chId' bhId' parents'
 
         case result of
           Left deps -> pure . Sync.Missing $ toList deps
@@ -139,69 +141,69 @@ trySync tCache hCache oCache cCache = \case
         result <- runValidateT @(Set Entity) @m @ObjectId case objType of
           OT.TermComponent -> do
             -- split up the localIds (parsed), term, and type blobs
-            -- note: this whole business with `fmt` is pretty weird, and will need to be
-            -- revisited when there are more formats.
-            -- (or maybe i'll learn something by implementing sync for patches and namespaces,
-            -- which have two formats already)
-            --
-            -- todo: replace all this with something that de/serializes to SyncTermFormat
-            (fmt, unzip -> (localIds, bytes)) <-
-              lift case flip runGetS bytes do
-                tag <- getWord8
-                component <- S.decomposeComponent
-                pure (tag, component) of
-                Right x -> pure x
-                Left s -> throwError $ DecodeError ErrTermComponent bytes s
-            -- iterate through the local ids looking for missing deps;
-            -- then either enqueue the missing deps, or proceed to move the object
-            when debug $ traceM $ "LocalIds for Source " ++ show oId ++ ": " ++ show localIds
-            localIds' <- traverse syncLocalIds localIds
-            when debug $ traceM $ "LocalIds for Dest: " ++ show localIds'
-            -- reassemble and save the reindexed term
-            let bytes' =
-                  runPutS $
-                    putWord8 fmt >> S.recomposeComponent (zip localIds' bytes)
-            oId' <- runDest $ Q.saveObject hId' objType bytes'
-            lift do
-              -- copy reference-specific stuff
-              for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-                let ref = Reference.Id oId idx
-                    refH = Reference.Id hId idx
-                    ref' = Reference.Id oId' idx
-                -- sync watch results
-                for_ [WK.TestWatch] \wk ->
-                  syncWatch wk refH
-                syncDependenciesIndex ref ref'
-              syncTypeIndex oId oId'
-              syncTypeMentionsIndex oId oId'
-            pure oId'
+            case flip runGetS bytes S.decomposeTermFormat of
+              Left s -> throwError $ DecodeError ErrTermComponent bytes s
+              Right
+                ( TermFormat.SyncTerm
+                    ( TermFormat.SyncLocallyIndexedComponent
+                        (Vector.unzip -> (localIds, bytes))
+                      )
+                  ) -> do
+                  -- iterate through the local ids looking for missing deps;
+                  -- then either enqueue the missing deps, or proceed to move the object
+                  when debug $ traceM $ "LocalIds for Source " ++ show oId ++ ": " ++ show localIds
+                  localIds' <- traverse syncLocalIds localIds
+                  when debug $ traceM $ "LocalIds for Dest: " ++ show localIds'
+                  -- reassemble and save the reindexed term
+                  let bytes' =
+                        runPutS
+                          . S.recomposeTermFormat
+                          . TermFormat.SyncTerm
+                          . TermFormat.SyncLocallyIndexedComponent
+                          $ Vector.zip localIds' bytes
+                  oId' <- runDest $ Q.saveObject hId' objType bytes'
+                  lift do
+                    -- copy reference-specific stuff
+                    for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+                      let ref = Reference.Id oId idx
+                          refH = Reference.Id hId idx
+                          ref' = Reference.Id oId' idx
+                      -- sync watch results
+                      for_ [WK.TestWatch] \wk ->
+                        syncWatch wk refH
+                      syncDependenciesIndex ref ref'
+                    syncTypeIndex oId oId'
+                    syncTypeMentionsIndex oId oId'
+                  pure oId'
           OT.DeclComponent -> do
             -- split up the localIds (parsed), decl blobs
-            (fmt, unzip -> (localIds, declBytes)) <-
-              case flip runGetS bytes do
-                tag <- getWord8
-                component <- S.decomposeComponent
-                pure (tag, component) of
-                Right x -> pure x
-                Left s -> throwError $ DecodeError ErrDeclComponent bytes s
-            -- iterate through the local ids looking for missing deps;
-            -- then either enqueue the missing deps, or proceed to move the object
-            localIds' <- traverse syncLocalIds localIds
-            -- reassemble and save the reindexed term
-            let bytes' =
-                  runPutS $
-                    putWord8 fmt
-                      >> S.recomposeComponent (zip localIds' declBytes)
-            oId' <- runDest $ Q.saveObject hId' objType bytes'
-            lift do
-              -- copy per-element-of-the-component stuff
-              for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-                let ref = Reference.Id oId idx
-                    ref' = Reference.Id oId' idx
-                syncDependenciesIndex ref ref'
-              syncTypeIndex oId oId'
-              syncTypeMentionsIndex oId oId'
-            pure oId'
+            case flip runGetS bytes S.decomposeDeclFormat of
+              Left s -> throwError $ DecodeError ErrDeclComponent bytes s
+              Right
+                ( DeclFormat.SyncDecl
+                    ( DeclFormat.SyncLocallyIndexedComponent
+                        (Vector.unzip -> (localIds, declBytes))
+                      )
+                  ) -> do
+                  -- iterate through the local ids looking for missing deps;
+                  -- then either enqueue the missing deps, or proceed to move the object
+                  localIds' <- traverse syncLocalIds localIds
+                  -- reassemble and save the reindexed term
+                  let bytes' =
+                        runPutS . S.recomposeDeclFormat
+                          . DeclFormat.SyncDecl
+                          . DeclFormat.SyncLocallyIndexedComponent
+                          $ Vector.zip localIds' declBytes
+                  oId' <- runDest $ Q.saveObject hId' objType bytes'
+                  lift do
+                    -- copy per-element-of-the-component stuff
+                    for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+                      let ref = Reference.Id oId idx
+                          ref' = Reference.Id oId' idx
+                      syncDependenciesIndex ref ref'
+                    syncTypeIndex oId oId'
+                    syncTypeMentionsIndex oId oId'
+                  pure oId'
           OT.Namespace -> case flip runGetS bytes S.decomposeBranchFormat of
             Right (BL.SyncFull ids body) -> do
               ids' <- syncBranchLocalIds ids

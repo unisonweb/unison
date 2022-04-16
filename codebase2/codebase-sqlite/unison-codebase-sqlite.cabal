@@ -37,6 +37,7 @@ library
       U.Codebase.Sqlite.Patch.TermEdit
       U.Codebase.Sqlite.Patch.TypeEdit
       U.Codebase.Sqlite.Queries
+      U.Codebase.Sqlite.ReadyEntity
       U.Codebase.Sqlite.Reference
       U.Codebase.Sqlite.Referent
       U.Codebase.Sqlite.Serialization

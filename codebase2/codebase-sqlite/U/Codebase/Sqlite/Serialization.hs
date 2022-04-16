@@ -17,6 +17,7 @@ import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.Int (Int64)
 import Data.List (elemIndex)
 import qualified Data.Set as Set
+import Data.Vector (Vector)
 import Data.Word (Word64)
 import Debug.Trace (trace)
 import qualified U.Codebase.Decl as Decl
@@ -645,7 +646,25 @@ getBranchLocalIds =
     <*> getVector getVarInt
     <*> getVector (getPair getVarInt getVarInt)
 
-decomposeComponent :: MonadGet m => m [(LocalIds, BS.ByteString)]
+decomposeTermFormat :: MonadGet m => m TermFormat.SyncTermFormat
+decomposeTermFormat =
+  getWord8 >>= \case
+    0 ->
+      TermFormat.SyncTerm
+        . TermFormat.SyncLocallyIndexedComponent
+        <$> decomposeComponent
+    tag -> error $ "todo: unknown term format tag " ++ show tag
+
+decomposeDeclFormat :: MonadGet m => m DeclFormat.SyncDeclFormat
+decomposeDeclFormat =
+  getWord8 >>= \case
+    0 ->
+      DeclFormat.SyncDecl
+        . DeclFormat.SyncLocallyIndexedComponent
+        <$> decomposeComponent
+    tag -> error $ "todo: unknown term format tag " ++ show tag
+
+decomposeComponent :: MonadGet m => m (Vector (LocalIds, BS.ByteString))
 decomposeComponent = do
   offsets <- getList (getVarInt @_ @Int)
   componentBytes <- getByteString (last offsets)
@@ -655,7 +674,17 @@ decomposeComponent = do
       split = (,) <$> getLocalIds <*> getRemainingByteString
   Monoid.foldMapM get1 (zip offsets (tail offsets))
 
-recomposeComponent :: MonadPut m => [(LocalIds, BS.ByteString)] -> m ()
+recomposeTermFormat :: MonadPut m => TermFormat.SyncTermFormat -> m ()
+recomposeTermFormat = \case
+  TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent x) ->
+    putWord8 0 >> recomposeComponent x
+
+recomposeDeclFormat :: MonadPut m => DeclFormat.SyncDeclFormat -> m ()
+recomposeDeclFormat = \case
+  DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent x) ->
+    putWord8 0 >> recomposeComponent x
+
+recomposeComponent :: MonadPut m => Vector (LocalIds, BS.ByteString) -> m ()
 recomposeComponent = putFramedArray \(localIds, bytes) -> do
   putLocalIds localIds
   putByteString bytes
