@@ -573,10 +573,10 @@ loop = do
                         (Just new)
                         (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
                         rest
-            ResetRootI src0 ->
+            ResetRootI src0 -> unsafeTime "reset-root" $
               case src0 of
                 Left hash -> unlessError do
-                  newRoot <- resolveShortBranchHash hash
+                  newRoot <- unsafeTime "resolveShortBranchHash" $ resolveShortBranchHash hash
                   lift do
                     updateRoot newRoot
                     success
