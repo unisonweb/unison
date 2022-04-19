@@ -269,11 +269,7 @@ download httpClient unisonShareUrl conn repoName = do
 
 -- Some remaining work:
 --
---   [ ] Beef up insert_entity to flush temp entities
 --   [ ] Write resolveHashToEntity
---   [x] Add "no read permission" to GetCausalHashByPathResponse in Share.Types
---   [x] Add "no write permission" to UpdatePathResponse in Share.Types
---   [ ] The tempToSync* stuff
 
 {-
 server sqlite db
@@ -297,20 +293,6 @@ server sqlite db
 -- if we just have a hash for the localids (as opposed to a TypedHash)
 
 -}
-
----------
---
---  Note: beef up insert_entity procedure to flush temp_entity table
---    1. When inserting object #foo,
---        look up all dependents of #foo in
---        temp_entity_missing_dependency table (say #bar, #baz).
---    2. Delete (#bar, #foo) and (#baz, #foo) from temp_entity_missing_dependency.
---    3. Delete #foo from temp_entity (if it's there)
---    4. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
---        insert_entity them.
-
-------------------------------------------------------------------------------------------------------------------------
---
 
 -- FIXME rename, etc
 resolveHashToEntity :: Connection -> Share.Hash -> IO (Share.Entity Text Share.Hash Share.Hash)
@@ -375,8 +357,12 @@ elaborateHashes hashes outputs =
           elaborateHashes (Set.union (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies)) hashes') outputs
         EntityInMainStorage -> elaborateHashes hashes' outputs
 
+-- | Insert an entity that doesn't have any missing dependencies.
 insertEntity :: Q.DB m => Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> m ()
-insertEntity _hash = undefined
+insertEntity hash entity = do
+  readyEntity <- Q.tempToSyncEntity (entityToTempEntity entity)
+  _id <- Q.saveReadyEntity (Share.toBase32Hex hash) readyEntity
+  pure ()
 
 -- | Insert an entity and its missing dependencies.
 insertTempEntity ::

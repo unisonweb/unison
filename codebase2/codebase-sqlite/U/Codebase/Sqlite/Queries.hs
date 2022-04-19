@@ -129,7 +129,9 @@ module U.Codebase.Sqlite.Queries
     getMissingDependentsForTempEntity,
     getMissingDependencyJwtsForTempEntity,
     tempEntityExists,
+    tempToSyncEntity,
     insertTempEntity,
+    saveReadyEntity,
     deleteTempDependencies,
 
     -- * db misc
@@ -406,9 +408,9 @@ saveObject h t blob = do
   changes >>= \case
     0 -> pure ()
     _ -> do
-      _ <- Except.runExceptT do
-        hash <- loadHashById h
-        tryMoveTempEntityDependents hash
+      Except.runExceptT (loadHashById h) >>= \case
+        Left _ -> undefined -- will be better after unison-sqlite PR merges
+        Right hash -> tryMoveTempEntityDependents hash
       pure ()
   pure oId
   where
@@ -508,7 +510,7 @@ updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
 
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
-saveCausal :: EDB m => CausalHashId -> BranchHashId -> [CausalHashId] -> m ()
+saveCausal :: DB m => CausalHashId -> BranchHashId -> [CausalHashId] -> m ()
 saveCausal self value parents = do
   execute insertCausalSql (self, value)
   changes >>= \case
@@ -526,8 +528,11 @@ saveCausal self value parents = do
       INSERT INTO causal_parent (causal_id, parent_id) VALUES (?, ?)
     |]
 
-flushCausalDependents :: EDB m => CausalHashId -> m ()
-flushCausalDependents chId = loadHashById (unCausalHashId chId) >>= tryMoveTempEntityDependents
+flushCausalDependents :: DB m => CausalHashId -> m ()
+flushCausalDependents chId =
+  Except.runExceptT (loadHashById (unCausalHashId chId)) >>= \case
+    Left _ -> undefined -- will be better after unison-sqlite PR merges
+    Right hash -> tryMoveTempEntityDependents hash
 
 expectObjectIdForHashJWT :: DB m => TempEntity.HashJWT -> m ObjectId
 expectObjectIdForHashJWT hashJwt = do
@@ -566,7 +571,7 @@ expectCausalHashIdForHashJWT = undefined
 --        insert_entity them.
 --
 -- Precondition: Must have inserted the entity with hash b32 already.
-tryMoveTempEntityDependents :: EDB m => Base32Hex -> m ()
+tryMoveTempEntityDependents :: DB m => Base32Hex -> m ()
 tryMoveTempEntityDependents dependencyBase32 = do
   dependents <- getMissingDependentsForTempEntity dependencyBase32
   executeMany deleteTempDependents (dependents <&> (,dependencyBase32))
@@ -591,7 +596,7 @@ tryMoveTempEntityDependents dependencyBase32 = do
       )
     |]
 
-moveTempEntityToMain :: EDB m => Base32Hex -> m ()
+moveTempEntityToMain :: DB m => Base32Hex -> m ()
 moveTempEntityToMain b32 = do
   loadTempEntity b32 >>= \case
     Left _ -> undefined
@@ -687,7 +692,7 @@ tempToSyncEntity = \case
         TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
           <$> Lens.traverseOf (traverse . Lens._1) (bitraverse saveText expectObjectIdForHashJWT) terms
 
-saveReadyEntity :: EDB m => Base32Hex -> ReadyEntity -> m (Either CausalHashId ObjectId)
+saveReadyEntity :: DB m => Base32Hex -> ReadyEntity -> m (Either CausalHashId ObjectId)
 saveReadyEntity b32Hex entity = do
   hashId <- saveHash b32Hex
   case entity of
