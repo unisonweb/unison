@@ -1,6 +1,7 @@
 module U.Codebase.Sqlite.Causal
   ( DbCausal,
     GDbCausal (..),
+    SyncCausalFormat,
     SyncCausalFormat' (..),
   )
 where
@@ -21,3 +22,5 @@ data SyncCausalFormat' causalHash valueHash = SyncCausalFormat
   { valueHash :: valueHash,
     parents :: Vector causalHash
   }
+
+type SyncCausalFormat = SyncCausalFormat' CausalHashId BranchHashId

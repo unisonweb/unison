@@ -33,6 +33,10 @@ type TempDeclFormat = Decl.SyncDeclFormat' Text HashJWT
 
 type TempPatchFormat = Patch.SyncPatchFormat' HashJWT Text Base32Hex HashJWT
 
+type TempPatchLocalIds = Patch.PatchLocalIds' Text Base32Hex HashJWT
+
 type TempNamespaceFormat = Namespace.SyncBranchFormat' HashJWT Text HashJWT HashJWT (HashJWT, HashJWT)
+
+type TempNamespaceLocalIds = Namespace.BranchLocalIds' Text HashJWT HashJWT (HashJWT, HashJWT)
 
 type TempCausalFormat = Causal.SyncCausalFormat' HashJWT HashJWT

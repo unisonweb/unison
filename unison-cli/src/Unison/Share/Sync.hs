@@ -373,18 +373,15 @@ tempToSyncDeclComponent = \case
 
 tempToSyncPatch :: Q.DB m => TempEntity.TempPatchFormat -> m PatchFormat.SyncPatchFormat
 tempToSyncPatch = \case
-  PatchFormat.SyncFull localIds bytes -> PatchFormat.SyncFull <$> localizePatchLocalIds localIds <*> pure bytes
+  PatchFormat.SyncFull localIds bytes -> PatchFormat.SyncFull <$> tempToSyncPatchLocalIds localIds <*> pure bytes
   PatchFormat.SyncDiff parent localIds bytes ->
     PatchFormat.SyncDiff
       <$> expectPatchObjectIdForHashJWT parent
-      <*> localizePatchLocalIds localIds
+      <*> tempToSyncPatchLocalIds localIds
       <*> pure bytes
 
-localizePatchLocalIds ::
-  Q.DB m =>
-  PatchFormat.PatchLocalIds' Text Base32Hex TempEntity.HashJWT ->
-  m (PatchFormat.PatchLocalIds' TextId HashId ObjectId)
-localizePatchLocalIds (PatchFormat.LocalIds texts hashes defns) =
+tempToSyncPatchLocalIds :: Q.DB m => TempEntity.TempPatchLocalIds -> m PatchFormat.PatchLocalIds
+tempToSyncPatchLocalIds (PatchFormat.LocalIds texts hashes defns) =
   PatchFormat.LocalIds
     <$> traverse Q.saveText texts
     <*> traverse Q.saveHash hashes
@@ -393,18 +390,15 @@ localizePatchLocalIds (PatchFormat.LocalIds texts hashes defns) =
 tempToSyncNamespace :: Q.DB m => TempEntity.TempNamespaceFormat -> m NamespaceFormat.SyncBranchFormat
 tempToSyncNamespace = \case
   NamespaceFormat.SyncFull localIds bytes ->
-    NamespaceFormat.SyncFull <$> localizeNamespaceLocalIds localIds <*> pure bytes
+    NamespaceFormat.SyncFull <$> tempToSyncNamespaceLocalIds localIds <*> pure bytes
   NamespaceFormat.SyncDiff parent localIds bytes ->
     NamespaceFormat.SyncDiff
       <$> expectBranchObjectIdForHashJWT parent
-      <*> localizeNamespaceLocalIds localIds
+      <*> tempToSyncNamespaceLocalIds localIds
       <*> pure bytes
 
-localizeNamespaceLocalIds ::
-  Q.DB m =>
-  NamespaceFormat.BranchLocalIds' Text TempEntity.HashJWT TempEntity.HashJWT (TempEntity.HashJWT, TempEntity.HashJWT) ->
-  m (NamespaceFormat.BranchLocalIds' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId))
-localizeNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children) =
+tempToSyncNamespaceLocalIds :: Q.DB m => TempEntity.TempNamespaceLocalIds -> m NamespaceFormat.BranchLocalIds
+tempToSyncNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children) =
   NamespaceFormat.LocalIds
     <$> traverse Q.saveText texts
     <*> traverse expectObjectIdForHashJWT defns
@@ -417,7 +411,7 @@ localizeNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children
       )
       children
 
-tempToSyncCausal :: Q.DB m => TempEntity.TempCausalFormat -> m (Causal.SyncCausalFormat' CausalHashId BranchHashId) -- could probably use a better type name here
+tempToSyncCausal :: Q.DB m => TempEntity.TempCausalFormat -> m Causal.SyncCausalFormat -- could probably use a better type name here
 tempToSyncCausal Causal.SyncCausalFormat {valueHash, parents} =
   Causal.SyncCausalFormat
     <$> expectBranchHashIdForHashJWT valueHash
