@@ -140,7 +140,7 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowTermEntry te ->
     TermObject $ Backend.termEntryToNamedTerm ppe typeWidth te
   Backend.ShallowTypeEntry te -> TypeObject $ Backend.typeEntryToNamedType te
-  Backend.ShallowBranchEntry name hash ->
+  Backend.ShallowBranchEntry name hash _size ->
     Subnamespace $
       NamedNamespace
         { namespaceName = NameSegment.toText name,
@@ -166,7 +166,7 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
         ( V2Branch.Branch IO ->
           Backend IO [Backend.ShallowListEntry Symbol Ann]
         )
-      findShallow branch = Backend.findInShallowBranch codebase branch
+      findShallow branch = Backend.lsShallowBranch codebase branch
 
       makeNamespaceListing ::
         ( PPE.PrettyPrintEnv ->

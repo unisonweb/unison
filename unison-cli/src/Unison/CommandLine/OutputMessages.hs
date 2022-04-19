@@ -31,6 +31,7 @@ import System.Directory
     getHomeDirectory,
   )
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
+import qualified U.Util.Hash as Hash
 import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
@@ -132,7 +133,6 @@ import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import qualified U.Util.Hash as Hash
 
 type Pretty = P.Pretty P.ColorText
 
@@ -905,9 +905,12 @@ notifyUser dir o = case o of
           ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq,
             isBuiltin r
           )
-        ShallowBranchEntry ns _ ->
+        ShallowBranchEntry ns _ count ->
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/",
-            "(namespace)"
+            case count of
+              Nothing -> "(namespace)"
+              Just 1 -> P.lit "(1 definition)"
+              Just n -> P.lit "(" <> P.shown n <> P.lit " definitions)"
           )
         ShallowPatchEntry ns ->
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns,

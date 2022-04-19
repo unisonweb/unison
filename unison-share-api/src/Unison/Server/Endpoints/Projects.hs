@@ -104,7 +104,7 @@ backendListEntryToProjectListing ::
   Backend.ShallowListEntry Symbol a ->
   Maybe ProjectListing
 backendListEntryToProjectListing owner = \case
-  Backend.ShallowBranchEntry name hash ->
+  Backend.ShallowBranchEntry name hash _size ->
     Just $
       ProjectListing
         { owner = owner,
@@ -117,7 +117,7 @@ entryToOwner ::
   Backend.ShallowListEntry Symbol a ->
   Maybe ProjectOwner
 entryToOwner = \case
-  Backend.ShallowBranchEntry name _ ->
+  Backend.ShallowBranchEntry name _ _size ->
     Just $ ProjectOwner $ NameSegment.toText name
   _ -> Nothing
 
@@ -164,7 +164,7 @@ serve codebase mayRoot mayOwner = projects
 
     findShallow :: Branch.Branch m -> Backend m [Backend.ShallowListEntry Symbol Ann]
     findShallow branch =
-      Backend.findShallowInBranch codebase branch
+      Backend.lsBranch codebase branch
 
     parsePath :: String -> Backend m Path.Path'
     parsePath p =

@@ -117,7 +117,9 @@ type SyntaxText = UST.SyntaxText' Reference
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
   | ShallowTypeEntry TypeEntry
-  | ShallowBranchEntry NameSegment Branch.Hash
+  | -- The integer here represents the number of children.
+    -- it may be omitted depending on the context the query is run in.
+    ShallowBranchEntry NameSegment Branch.Hash (Maybe Int)
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
@@ -125,7 +127,7 @@ listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
   ShallowTermEntry (TermEntry _ s _ _) -> HQ'.toText s
   ShallowTypeEntry (TypeEntry _ s _) -> HQ'.toText s
-  ShallowBranchEntry n _ -> NameSegment.toText n
+  ShallowBranchEntry n _ _ -> NameSegment.toText n
   ShallowPatchEntry n -> NameSegment.toText n
 
 data BackendError
@@ -311,7 +313,7 @@ findShallow codebase path' = do
   let mayb = Branch.getAt path root
   case mayb of
     Nothing -> pure []
-    Just b -> findShallowInBranch codebase b
+    Just b -> lsBranch codebase b
 
 findShallowReadmeInBranchAndRender ::
   Width ->
@@ -453,13 +455,15 @@ typeEntryToNamedType (TypeEntry r name tag) =
       typeTag = tag
     }
 
--- | TODO: Can I delete this in favor of the shallow branch version?
-findShallowInBranch ::
+-- | Find all definitions and children reachable from the given branch.
+-- Note: this differs from 'lsShallowBranch' in that it takes a fully loaded 'Branch' object,
+-- and thus can include definition counts for child namespaces.
+lsBranch ::
   Monad m =>
   Codebase m Symbol Ann ->
   Branch m ->
   Backend m [ShallowListEntry Symbol Ann]
-findShallowInBranch codebase b = do
+lsBranch codebase b = do
   hashLength <- lift $ Codebase.hashLength codebase
   let hqTerm b0 ns r =
         let refs = Star3.lookupD1 ns . Branch._terms $ b0
@@ -471,6 +475,9 @@ findShallowInBranch codebase b = do
          in case length refs of
               1 -> HQ'.fromName ns
               _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
+      defnCount b =
+        (R.size . Branch.deepTerms $ Branch.head b)
+          + (R.size . Branch.deepTypes $ Branch.head b)
       b0 = Branch.head b
   termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
     ShallowTermEntry <$> termListEntry codebase (checkIsTestForBranch b0 r) r (hqTerm b0 ns r)
@@ -480,6 +487,7 @@ findShallowInBranch codebase b = do
         [ ShallowBranchEntry
             ns
             (Branch.headHash b)
+            (Just $ defnCount b)
           | (ns, b) <- Map.toList $ Branch.nonEmptyChildren b0
         ]
       patchEntries =
@@ -493,12 +501,16 @@ findShallowInBranch codebase b = do
       ++ branchEntries
       ++ patchEntries
 
-findInShallowBranch ::
+-- | Find all definitions and children reachable from the given 'V2Branch.Branch',
+-- Note: this differs from 'lsBranch' in that it takes a shallow v2 branch,
+-- As a result, it omits definition counts from child-namespaces in its results,
+-- but doesn't require loading the entire sub-tree to do so.
+lsShallowBranch ::
   Monad m =>
   Codebase m Symbol Ann ->
   V2Branch.Branch m ->
   Backend m [ShallowListEntry Symbol Ann]
-findInShallowBranch codebase b0 = do
+lsShallowBranch codebase b0 = do
   hashLength <- lift $ Codebase.hashLength codebase
   let hqTerm ::
         ( V2Branch.Branch m ->
@@ -535,7 +547,7 @@ findInShallowBranch codebase b0 = do
     let v1Ref = Cv.reference2to1 r
     ShallowTypeEntry <$> typeListEntry codebase v1Ref (hqType b0 ns v1Ref)
   let branchEntries =
-        [ ShallowBranchEntry (Cv.namesegment2to1 ns) (Cv.causalHash2to1 . V2Causal.causalHash $ h)
+        [ ShallowBranchEntry (Cv.namesegment2to1 ns) (Cv.causalHash2to1 . V2Causal.causalHash $ h) Nothing
           | (ns, h) <- Map.toList $ V2Branch.children b0
         ]
       patchEntries =
