@@ -28,7 +28,15 @@ import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
 import U.Codebase.Sqlite.Connection (Connection)
-import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId, ObjectId)
+import U.Codebase.Sqlite.DbId
+  ( BranchHashId,
+    BranchObjectId (..),
+    CausalHashId,
+    HashId,
+    ObjectId,
+    PatchObjectId (..),
+    TextId,
+  )
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds' (..))
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
@@ -338,26 +346,82 @@ expectObjectIdForHashJWT hashJwt = do
     decode =
       Hash.fromBase32Hex . Share.toBase32Hex . Share.hashJWTHash . Share.HashJWT
 
+expectBranchObjectIdForHashJWT :: Q.DB m => TempEntity.HashJWT -> m BranchObjectId
+expectBranchObjectIdForHashJWT =
+  fmap BranchObjectId . expectObjectIdForHashJWT
+
+expectPatchObjectIdForHashJWT :: Q.DB m => TempEntity.HashJWT -> m PatchObjectId
+expectPatchObjectIdForHashJWT =
+  fmap PatchObjectId . expectObjectIdForHashJWT
+
+expectBranchHashIdForHashJWT :: Q.DB m => TempEntity.HashJWT -> m BranchHashId
+expectBranchHashIdForHashJWT = undefined
+
+expectCausalHashIdForHashJWT :: Q.DB m => TempEntity.HashJWT -> m CausalHashId
+expectCausalHashIdForHashJWT = undefined
+
 -- Serialization.recomposeComponent :: MonadPut m => [(LocalIds, BS.ByteString)] -> m ()
 -- Serialization.recomposePatchFormat :: MonadPut m => PatchFormat.SyncPatchFormat -> m ()
 -- Serialization.recomposeBranchFormat :: MonadPut m => BranchFormat.SyncBranchFormat -> m ()
 -- Q.saveObject :: DB m => HashId -> ObjectType -> ByteString -> m ObjectId
 
-tempToSyncDeclComponent :: TempEntity.TempDeclFormat -> IO DeclFormat.SyncDeclFormat
-tempToSyncDeclComponent = do
-  undefined
+tempToSyncDeclComponent :: Q.DB m => TempEntity.TempDeclFormat -> m DeclFormat.SyncDeclFormat
+tempToSyncDeclComponent = \case
+  DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent decls) ->
+    DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
+      <$> Lens.traverseOf (traverse . Lens._1) (bitraverse Q.saveText expectObjectIdForHashJWT) decls
 
-tempToSyncPatch :: TempEntity.TempPatchFormat -> IO PatchFormat.SyncPatchFormat
-tempToSyncPatch = do
-  undefined
+tempToSyncPatch :: Q.DB m => TempEntity.TempPatchFormat -> m PatchFormat.SyncPatchFormat
+tempToSyncPatch = \case
+  PatchFormat.SyncFull localIds bytes -> PatchFormat.SyncFull <$> localizePatchLocalIds localIds <*> pure bytes
+  PatchFormat.SyncDiff parent localIds bytes ->
+    PatchFormat.SyncDiff
+      <$> expectPatchObjectIdForHashJWT parent
+      <*> localizePatchLocalIds localIds
+      <*> pure bytes
 
-tempToSyncNamespace :: TempEntity.TempNamespaceFormat -> IO NamespaceFormat.SyncBranchFormat
-tempToSyncNamespace = do
-  undefined
+localizePatchLocalIds ::
+  Q.DB m =>
+  PatchFormat.PatchLocalIds' Text Base32Hex TempEntity.HashJWT ->
+  m (PatchFormat.PatchLocalIds' TextId HashId ObjectId)
+localizePatchLocalIds (PatchFormat.LocalIds texts hashes defns) =
+  PatchFormat.LocalIds
+    <$> traverse Q.saveText texts
+    <*> traverse Q.saveHash hashes
+    <*> traverse expectObjectIdForHashJWT defns
 
-tempToSyncCausal :: TempEntity.TempCausalFormat -> IO (Causal.SyncCausalFormat' CausalHashId BranchHashId) -- could probably use a better type name here
-tempToSyncCausal = do
-  undefined
+tempToSyncNamespace :: Q.DB m => TempEntity.TempNamespaceFormat -> m NamespaceFormat.SyncBranchFormat
+tempToSyncNamespace = \case
+  NamespaceFormat.SyncFull localIds bytes ->
+    NamespaceFormat.SyncFull <$> localizeNamespaceLocalIds localIds <*> pure bytes
+  NamespaceFormat.SyncDiff parent localIds bytes ->
+    NamespaceFormat.SyncDiff
+      <$> expectBranchObjectIdForHashJWT parent
+      <*> localizeNamespaceLocalIds localIds
+      <*> pure bytes
+
+localizeNamespaceLocalIds ::
+  Q.DB m =>
+  NamespaceFormat.BranchLocalIds' Text TempEntity.HashJWT TempEntity.HashJWT (TempEntity.HashJWT, TempEntity.HashJWT) ->
+  m (NamespaceFormat.BranchLocalIds' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId))
+localizeNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children) =
+  NamespaceFormat.LocalIds
+    <$> traverse Q.saveText texts
+    <*> traverse expectObjectIdForHashJWT defns
+    <*> traverse expectPatchObjectIdForHashJWT patches
+    <*> traverse
+      ( \(branch, causal) ->
+          (,)
+            <$> expectBranchObjectIdForHashJWT branch
+            <*> expectCausalHashIdForHashJWT causal
+      )
+      children
+
+tempToSyncCausal :: Q.DB m => TempEntity.TempCausalFormat -> m (Causal.SyncCausalFormat' CausalHashId BranchHashId) -- could probably use a better type name here
+tempToSyncCausal Causal.SyncCausalFormat {valueHash, parents} =
+  Causal.SyncCausalFormat
+    <$> expectBranchHashIdForHashJWT valueHash
+    <*> traverse expectCausalHashIdForHashJWT parents
 
 -- Q.saveCausalHash :: DB m => CausalHash -> m CausalHashId -- only affects `hash` table
 -- Q.saveCausal :: DB m => CausalHashId -> BranchHashId -> m ()
