@@ -302,8 +302,11 @@ migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
             parents = newParentHashIds
           }
   runDB conn do
-    Q.saveCausal (SC.DbCausal.selfHash newCausal) (SC.DbCausal.valueHash newCausal)
-    Q.saveCausalParents (SC.DbCausal.selfHash newCausal) (Set.toList $ SC.DbCausal.parents newCausal)
+    liftQ do
+      Q.saveCausal
+        (SC.DbCausal.selfHash newCausal)
+        (SC.DbCausal.valueHash newCausal)
+        (Set.toList $ SC.DbCausal.parents newCausal)
 
   field @"causalMapping" %= Map.insert oldCausalHashId (newCausalHash, newCausalHashId)
 
