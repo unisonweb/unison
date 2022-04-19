@@ -215,23 +215,6 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
-  ( ByteString,
-    Exception,
-    HasCallStack,
-    Int8,
-    IsString (fromString),
-    MaybeT (MaybeT, runMaybeT),
-    MonadIO (..),
-    MonadUnliftIO (..),
-    Text,
-    headMay,
-    trace,
-    traceM,
-    traverse_,
-    try,
-    when,
-    (<&>),
-  )
 import UnliftIO (throwIO, tryAny)
 import qualified UnliftIO
 import UnliftIO.Concurrent (myThreadId)
