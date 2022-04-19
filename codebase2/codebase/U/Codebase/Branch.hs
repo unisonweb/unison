@@ -18,7 +18,7 @@ where
 
 import Control.Lens (AsEmpty (..), nearly)
 import qualified Data.Map as Map
-import qualified U.Codebase.Causal as C
+import U.Codebase.Causal (Causal)
 import qualified U.Codebase.Causal as Causal
 import U.Codebase.HashTags (BranchHash, CausalHash, PatchHash)
 import U.Codebase.Reference (Reference)
@@ -35,7 +35,7 @@ type MetadataValue = Reference
 
 data MdValues = MdValues (Map MetadataValue MetadataType) deriving (Eq, Ord, Show)
 
-type CausalBranch m = C.Causal m CausalHash BranchHash (Branch m)
+type CausalBranch m = Causal m CausalHash BranchHash (Branch m)
 
 -- | A re-imagining of Unison.Codebase.Branch which is less eager in what it loads,
 -- which can often speed up load times and keep fewer things in memory.

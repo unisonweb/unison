@@ -18,9 +18,6 @@ data Causal m hc he e = Causal
   }
   deriving (Functor)
 
-instance Eq hc => Eq (Causal m hc he e) where
-  l == r = causalHash l == causalHash r
-
 hoist :: Functor n => (forall x. m x -> n x) -> Causal m hc he e -> Causal n hc he e
 hoist f (Causal {..}) =
   Causal
