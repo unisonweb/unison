@@ -31,15 +31,7 @@ execute ::
   IO ()
 execute codebase runtime mainName =
   (`finally` Runtime.terminate runtime) $ do
-    root <-
-      Codebase.getRootBranch codebase >>= \case
-        Right r -> pure r
-        Left Codebase.NoRootBranch ->
-          die "Couldn't identify a root namespace."
-        Left (Codebase.CouldntLoadRootBranch h) ->
-          die ("Couldn't load root branch " ++ show h)
-        Left (Codebase.CouldntParseRootBranch h) ->
-          die ("Couldn't parse root branch head " ++ show h)
+    root <- Codebase.getRootBranch codebase
     let parseNames = Names.makeAbsolute (Branch.toNames (Branch.head root))
         loadTypeOfTerm = Codebase.getTypeOfTerm codebase
     let mainType = Runtime.mainType runtime

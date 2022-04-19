@@ -149,10 +149,10 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
             take (fromMaybe 10 limit) $ Backend.fuzzyFind rel branch (fromMaybe "" query)
           -- Use AllNames to render source
           ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.AllNames rel)
-      join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
+      lift (join <$> traverse (loadEntry ppe b0) alignments)
     liftEither ea
   where
-    loadEntry _root _rel ppe b0 (a, HQ'.NameOnly . NameSegment -> n, refs) =
+    loadEntry ppe b0 (a, HQ'.NameOnly . NameSegment -> n, refs) =
       for refs $
         \case
           Backend.FoundTermRef r ->

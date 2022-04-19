@@ -8,18 +8,21 @@
 --
 --   * "Unison.Sqlite.Connection" provides an interface in @IO@, which takes the 'Connection' argument as an explicit
 --     argument.
---   * "Unison.Sqlite.DB" provides a type class interface, which moves the 'Connection' to an implicit argument. This
---     interface is also re-exported by this module, for convenient backwards compatibility with the existing queries.
---   * "Unison.Sqlite.Transaction" provides a newer, yet-unused interface that executes queries in transactions, with
---     automatic retries on @SQLITE_BUSY@ due to concurrent writers.
+--   * "Unison.Sqlite.Transaction" provides a safer interface that executes queries in transactions, with automatic
+--     retries on @SQLITE_BUSY@ due to concurrent writers.
 module Unison.Sqlite
   ( -- * Connection management
     Connection,
     withConnection,
 
-    -- * Type class query interface
-    DB,
-    runDB,
+    -- * Transaction interface
+    Transaction,
+    runTransaction,
+    runReadOnlyTransaction,
+    runWriteTransaction,
+    unsafeUnTransaction,
+    savepoint,
+    unsafeIO,
 
     -- * Executing queries
     Sql (..),
@@ -37,6 +40,8 @@ module Unison.Sqlite
     -- $query-naming-convention
 
     -- *** With parameters
+    queryStreamRow,
+    queryStreamCol,
     queryListRow,
     queryListCol,
     queryMaybeRow,
@@ -76,12 +81,13 @@ module Unison.Sqlite
     JournalMode (..),
     trySetJournalMode,
 
-    -- ** Low-level
-    withSavepoint,
-    withStatement,
+    -- * Vacuum
+    vacuum,
+    vacuumInto,
 
     -- * Exceptions
     SomeSqliteException (..),
+    isCantOpenException,
     SqliteConnectException (..),
     SqliteQueryException (..),
     SqliteExceptionReason,
@@ -89,16 +95,31 @@ module Unison.Sqlite
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
     SetJournalModeException (..),
+
+    -- * Re-exports
+    Sqlite.Simple.field,
+    (Sqlite.Simple.:.) (..),
+    Sqlite.Simple.FromField (fromField),
+    Sqlite.Simple.FromRow (fromRow),
+    Sqlite.Simple.RowParser,
+    Sqlite.Simple.SQLData (..),
+    Sqlite.Simple.ToField (toField),
+    Sqlite.Simple.ToRow (toRow),
   )
 where
 
+import qualified Database.SQLite.Simple as Sqlite.Simple
+import qualified Database.SQLite.Simple.FromField as Sqlite.Simple
+import qualified Database.SQLite.Simple.FromRow as Sqlite.Simple
+import qualified Database.SQLite.Simple.ToField as Sqlite.Simple
 import Unison.Sqlite.Connection
   ( Connection,
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
+    vacuum,
+    vacuumInto,
     withConnection,
   )
-import Unison.Sqlite.DB
 import Unison.Sqlite.DataVersion (DataVersion (..), getDataVersion)
 import Unison.Sqlite.Exception
   ( SomeSqliteException (..),
@@ -106,9 +127,11 @@ import Unison.Sqlite.Exception
     SqliteConnectException (..),
     SqliteExceptionReason,
     SqliteQueryException (..),
+    isCantOpenException,
   )
 import Unison.Sqlite.JournalMode (JournalMode (..), SetJournalModeException (..), trySetJournalMode)
 import Unison.Sqlite.Sql (Sql (..))
+import Unison.Sqlite.Transaction
 
 -- $query-naming-convention
 --
@@ -117,7 +140,7 @@ import Unison.Sqlite.Sql (Sql (..))
 -- Every function name begins with the string @__query__@.
 --
 --   1. /Row count/. The caller may expect /exactly one/, /zero or one/, or /zero or more/ rows, in which case the
---      function name includes the string @__List__@, @__Maybe__@, or @__One__@, respectively.
+--      function name includes the string @__One__@, @__Maybe__@, or (@__List__@ or @__Stream__@), respectively.
 --      Example: @query__List__Row@.
 --
 --   2. /Row width/. The caller may expect the returned rows may contain /exactly one/ or /more than one/ column, in

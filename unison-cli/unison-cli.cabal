@@ -116,6 +116,7 @@ library
     , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
     , semialign
@@ -206,6 +207,7 @@ executable cli-integration-tests
     , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , process
     , random >=1.2.0
     , regex-tdfa
@@ -292,6 +294,7 @@ executable transcripts
     , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , process
     , random >=1.2.0
     , regex-tdfa
@@ -382,6 +385,7 @@ executable unison
     , nonempty-containers
     , open-browser
     , optparse-applicative >=0.16.1.0
+    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
     , semialign
@@ -478,6 +482,7 @@ test-suite cli-tests
     , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
     , semialign

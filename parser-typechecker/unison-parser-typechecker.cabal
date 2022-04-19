@@ -66,10 +66,10 @@ library
       Unison.Codebase.SqliteCodebase.Conversions
       Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.Migrations
-      Unison.Codebase.SqliteCodebase.Migrations.Errors
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
+      Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.SyncMode
@@ -170,6 +170,7 @@ library
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveGeneric
       DeriveTraversable
@@ -260,7 +261,6 @@ library
     , servant-openapi3
     , servant-server
     , shellmet
-    , sqlite-simple
     , stm
     , strings
     , tagged
@@ -280,6 +280,7 @@ library
     , unison-core1
     , unison-prelude
     , unison-pretty-printer
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio
@@ -338,6 +339,7 @@ test-suite parser-typechecker-tests
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveGeneric
       DeriveTraversable

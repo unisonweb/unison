@@ -170,9 +170,7 @@ serve codebase mayRoot mayRelativeTo mayNamespaceName =
       -- Lookup paths, root and listing and construct response
       namespaceListing = do
         root <- case mayRoot of
-          Nothing -> do
-            gotRoot <- liftIO $ Codebase.getRootBranch codebase
-            errFromEither Backend.BadRootBranch gotRoot
+          Nothing -> lift (Codebase.getRootBranch codebase)
           Just sbh -> do
             ea <- liftIO . runExceptT $ do
               h <- Backend.expandShortBranchHash codebase sbh
@@ -207,7 +205,7 @@ serve codebase mayRoot mayRelativeTo mayNamespaceName =
         let shallowPPE = Backend.basicSuffixifiedNames hashLength root $ (Backend.Within $ Path.fromPath' path')
         let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
         let listingHash = branchToUnisonHash listingBranch
-        listingEntries <- findShallow listingBranch
+        listingEntries <- lift (findShallow listingBranch)
 
         makeNamespaceListing shallowPPE listingFQN listingHash listingEntries
    in namespaceListing

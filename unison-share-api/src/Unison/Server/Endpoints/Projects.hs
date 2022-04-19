@@ -132,9 +132,7 @@ serve codebase mayRoot mayOwner = projects
     projects :: Backend m [ProjectListing]
     projects = do
       root <- case mayRoot of
-        Nothing -> do
-          gotRoot <- lift $ Codebase.getRootBranch codebase
-          errFromEither BadRootBranch gotRoot
+        Nothing -> lift (Codebase.getRootBranch codebase)
         Just sbh -> do
           ea <- lift . runExceptT $ do
             h <- Backend.expandShortBranchHash codebase sbh
@@ -163,7 +161,7 @@ serve codebase mayRoot mayOwner = projects
 
     findShallow :: Branch.Branch m -> Backend m [Backend.ShallowListEntry Symbol Ann]
     findShallow branch =
-      Backend.findShallowInBranch codebase branch
+      lift (Backend.findShallowInBranch codebase branch)
 
     parsePath :: String -> Backend m Path.Path'
     parsePath p =
