@@ -16,7 +16,6 @@ module U.Codebase.Branch
   )
 where
 
-import Control.Lens hiding (children)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -39,7 +38,8 @@ data MdValues = MdValues (Map MetadataValue MetadataType) deriving (Eq, Ord, Sho
 
 type CausalBranch m = C.Causal m CausalHash BranchHash (Branch m)
 
--- | V2.Branch is like V1.Branch0; I would rename it, at least temporarily, but too hard.
+-- | A re-imagining of Unison.Codebase.Branch which is less eager in what it loads,
+-- which can often speed up load times and keep fewer things in memory.
 data Branch m = Branch
   { terms :: Map NameSegment (Map Referent (m MdValues)),
     types :: Map NameSegment (Map Reference (m MdValues)),
@@ -74,10 +74,10 @@ childAt ns (Branch {children}) = Map.lookup ns children
 hoist :: Functor n => (forall x. m x -> n x) -> Branch m -> Branch n
 hoist f Branch {..} =
   Branch
-    { terms = terms & traversed . traversed %~ f,
-      types = types & traversed . traversed %~ f,
-      patches = patches & traversed . _2 %~ f,
-      children = children & traversed %~ fmap (hoist f) . Causal.hoist f
+    { terms = (traverse . traverse) f terms,
+      types = (traverse . traverse) f types,
+      patches = (traverse . traverse) f patches,
+      children = fmap (fmap (hoist f) . Causal.hoist f) children
     }
 
 hoistCausalBranch :: Functor n => (forall x. m x -> n x) -> CausalBranch m -> CausalBranch n

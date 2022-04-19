@@ -153,7 +153,8 @@ import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 
--- | Get the shallow root branch.
+-- | Get the shallow representation of the root branches without loading the children or
+-- history.
 getShallowRootBranch :: Monad m => Codebase m v a -> m (Either GetRootBranchError (V2.CausalBranch m))
 getShallowRootBranch codebase = do
   hash <- getRootBranchHash codebase
@@ -162,15 +163,15 @@ getShallowRootBranch codebase = do
     Just b -> pure (Right b)
 
 -- | Recursively descend into shallow branches following the given path.
-shallowBranchAtPath :: Monad m => Codebase m v a -> Path -> V2Branch.CausalBranch m -> m (Maybe (V2Branch.CausalBranch m))
-shallowBranchAtPath codebase path causal = do
+shallowBranchAtPath :: Monad m => Path -> V2Branch.CausalBranch m -> m (Maybe (V2Branch.CausalBranch m))
+shallowBranchAtPath path causal = do
   case path of
     Path.Empty -> pure (Just causal)
     (ns Path.:< p) -> do
       b <- V2Causal.value causal
       case (V2Branch.childAt (Cv.namesegment1to2 ns) b) of
         Nothing -> pure Nothing
-        Just childCausal -> shallowBranchAtPath codebase p childCausal
+        Just childCausal -> shallowBranchAtPath p childCausal
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
