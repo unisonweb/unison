@@ -108,7 +108,7 @@ where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
-import Control.Monad (MonadPlus (mzero), join, unless, when, (<=<))
+import Control.Monad (MonadPlus (mzero), join, when, (<=<))
 import Control.Monad.Except (ExceptT, MonadError, MonadIO (liftIO), runExceptT)
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad

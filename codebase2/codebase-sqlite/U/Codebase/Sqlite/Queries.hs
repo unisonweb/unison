@@ -395,6 +395,13 @@ saveObject :: DB m => HashId -> ObjectType -> ByteString -> m ObjectId
 saveObject h t blob = do
   oId <- execute sql (h, t, blob) >> queryOne (maybeObjectIdForPrimaryHashId h)
   saveHashObject h oId 2 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
+  changes >>= \case
+    0 -> pure ()
+    _ -> do
+      _ <- Except.runExceptT do
+        hash <- loadHashById h
+        tryMoveTempEntityDependents hash
+      pure ()
   pure oId
   where
   sql = [here|
