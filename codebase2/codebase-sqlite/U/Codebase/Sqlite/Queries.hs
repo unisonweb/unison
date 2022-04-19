@@ -559,13 +559,14 @@ tryMoveTempEntityDependents dependencyBase32 = do
 
     tempEntitiesWithNoMissingDependencies :: DB m => m [Base32Hex]
     tempEntitiesWithNoMissingDependencies = fmap (map fromOnly) $ query_ [here|
-      SELECT hash FROM temp_entity
-        WHERE NOT EXISTS(
-          SELECT COUNT (1)
-          FROM temp_entity_missing_dependency
-          WHERE dependent = hash
-        )
-      |]
+      SELECT hash
+      FROM temp_entity
+      WHERE NOT EXISTS(
+        SELECT 1
+        FROM temp_entity_missing_dependency dep
+        WHERE dep.dependent = temp_entity.hash
+      )
+    |]
 
 moveTempEntityToMain :: EDB m => Base32Hex -> m ()
 moveTempEntityToMain b32 = do
