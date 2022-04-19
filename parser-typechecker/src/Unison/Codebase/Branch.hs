@@ -9,7 +9,7 @@ module Unison.Codebase.Branch
     Branch (..),
     UnwrappedBranch,
     Branch0 (..),
-    ShallowBranch (..),
+    Raw,
     Star,
     Hash,
     EditHash,
@@ -88,11 +88,12 @@ import qualified Data.Map as Map
 import qualified Data.Semialign as Align
 import qualified Data.Set as Set
 import Data.These (These (..))
-import Unison.Codebase.Branch.Shallow (Hash, ShallowBranch (ShallowBranch))
+import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0 (..),
     EditHash,
+    Hash,
     Star,
     UnwrappedBranch,
     edits,
@@ -642,8 +643,8 @@ transform f b = case _history b of
     transformB0s ::
       Functor m =>
       (forall a. m a -> n a) ->
-      Causal m ShallowBranch (Branch0 m) ->
-      Causal m ShallowBranch (Branch0 n)
+      Causal m Raw (Branch0 m) ->
+      Causal m Raw (Branch0 n)
     transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
 
 -- | Traverse the head branch of all direct children.

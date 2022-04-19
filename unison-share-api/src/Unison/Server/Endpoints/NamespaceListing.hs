@@ -215,7 +215,7 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
         let path' = Path.toPath' path
 
         listingCausal <-
-          (liftIO $ Codebase.shallowBranchAtPath codebase path shallowRoot) >>= \case
+          (liftIO $ Codebase.shallowBranchAtPath path shallowRoot) >>= \case
             Nothing -> pure $ Cv.causalbranch1to2 (V1Branch.empty)
             Just lc -> pure lc
         -- Actually construct the NamespaceListing

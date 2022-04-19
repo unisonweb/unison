@@ -31,7 +31,7 @@ library
       Unison.Codebase.Branch.BranchDiff
       Unison.Codebase.Branch.Merge
       Unison.Codebase.Branch.Names
-      Unison.Codebase.Branch.Shallow
+      Unison.Codebase.Branch.Raw
       Unison.Codebase.Branch.Type
       Unison.Codebase.BranchDiff
       Unison.Codebase.BranchUtil

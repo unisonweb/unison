@@ -16,10 +16,8 @@ module U.Codebase.Branch
   )
 where
 
-import Data.Map (Map)
+import Control.Lens (AsEmpty (..), nearly)
 import qualified Data.Map as Map
-import Data.Set (Set)
-import Data.Text (Text)
 import qualified U.Codebase.Causal as C
 import qualified U.Codebase.Causal as Causal
 import U.Codebase.HashTags (BranchHash, CausalHash, PatchHash)
@@ -27,6 +25,7 @@ import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
 import U.Codebase.TermEdit (TermEdit)
 import U.Codebase.TypeEdit (TypeEdit)
+import Unison.Prelude
 
 newtype NameSegment = NameSegment {unNameSegment :: Text} deriving (Eq, Ord, Show)
 
@@ -74,9 +73,9 @@ childAt ns (Branch {children}) = Map.lookup ns children
 hoist :: Functor n => (forall x. m x -> n x) -> Branch m -> Branch n
 hoist f Branch {..} =
   Branch
-    { terms = (traverse . traverse) f terms,
-      types = (traverse . traverse) f types,
-      patches = (traverse . traverse) f patches,
+    { terms = (fmap . fmap) f terms,
+      types = (fmap . fmap) f types,
+      patches = (fmap . fmap) f patches,
       children = fmap (fmap (hoist f) . Causal.hoist f) children
     }
 
