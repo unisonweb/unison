@@ -173,16 +173,18 @@ execute conn@(Connection _ _ conn0) s params = do
         }
 
 executeMany :: Sqlite.ToRow a => Connection -> Sql -> [a] -> IO ()
-executeMany conn@(Connection _ _ conn0) s params = do
-  logQuery s (Just params) Nothing
-  Sqlite.executeMany conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteQueryException
-      SqliteQueryExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          params = Just params,
-          sql = s
-        }
+executeMany conn@(Connection _ _ conn0) s = \case
+  [] -> pure ()
+  params -> do
+    logQuery s (Just params) Nothing
+    Sqlite.executeMany conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
+      throwSqliteQueryException
+        SqliteQueryExceptionInfo
+          { connection = conn,
+            exception = SomeSqliteExceptionReason exception,
+            params = Just params,
+            sql = s
+          }
 
 -- Without results, without parameters
 
