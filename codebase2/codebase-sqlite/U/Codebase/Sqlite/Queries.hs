@@ -153,11 +153,13 @@ module U.Codebase.Sqlite.Queries
 where
 
 import qualified Control.Exception as Exception
+import qualified Control.Lens as Lens
 import Control.Monad.Except (MonadError)
 import qualified Control.Monad.Except as Except
 import Control.Monad.Reader (MonadReader (ask))
 import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.Writer as Writer
+import Data.Bitraversable (bitraverse)
 import Data.Bytes.Get (runGetS)
 import Data.Bytes.Put (runPutS)
 import qualified Data.Char as Char
@@ -182,6 +184,8 @@ import Database.SQLite.Simple.ToField (ToField (..))
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
+import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
+import qualified U.Codebase.Sqlite.Causal as Causal
 import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal
 import U.Codebase.Sqlite.Connection (Connection)
 import qualified U.Codebase.Sqlite.Connection as Connection
@@ -192,13 +196,16 @@ import U.Codebase.Sqlite.DbId
     HashId (..),
     HashVersion,
     ObjectId (..),
+    PatchObjectId (..),
     SchemaVersion,
     TextId,
   )
+import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.JournalMode (JournalMode)
 import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
+import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import U.Codebase.Sqlite.ReadyEntity (ReadyEntity)
 import qualified U.Codebase.Sqlite.ReadyEntity as ReadyEntity
 import qualified U.Codebase.Sqlite.Reference as Reference
@@ -208,6 +215,7 @@ import U.Codebase.Sqlite.TempEntity (HashJWT, TempEntity)
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import U.Codebase.Sqlite.TempEntityType (TempEntityType)
 import qualified U.Codebase.Sqlite.TempEntityType as TempEntityType
+import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WatchKind
 import qualified U.Util.Alternative as Alternative
@@ -521,6 +529,31 @@ saveCausal self value parents = do
 flushCausalDependents :: EDB m => CausalHashId -> m ()
 flushCausalDependents chId = loadHashById (unCausalHashId chId) >>= tryMoveTempEntityDependents
 
+expectObjectIdForHashJWT :: DB m => TempEntity.HashJWT -> m ObjectId
+expectObjectIdForHashJWT hashJwt = do
+  hashId <- throwExceptT (expectHashIdByHash (decode hashJwt))
+  throwExceptT (expectObjectIdForAnyHashId hashId)
+  where
+    decode :: TempEntity.HashJWT -> Hash
+    decode =
+      undefined
+      -- FIXME need to know how to go HashJWT -> Hash at the DB layer too, not just Share API layer
+      -- Hash.fromBase32Hex . Share.toBase32Hex . Share.hashJWTHash . Share.HashJWT
+
+expectBranchObjectIdForHashJWT :: DB m => TempEntity.HashJWT -> m BranchObjectId
+expectBranchObjectIdForHashJWT =
+  fmap BranchObjectId . expectObjectIdForHashJWT
+
+expectPatchObjectIdForHashJWT :: DB m => TempEntity.HashJWT -> m PatchObjectId
+expectPatchObjectIdForHashJWT =
+  fmap PatchObjectId . expectObjectIdForHashJWT
+
+expectBranchHashIdForHashJWT :: DB m => TempEntity.HashJWT -> m BranchHashId
+expectBranchHashIdForHashJWT = undefined
+
+expectCausalHashIdForHashJWT :: DB m => TempEntity.HashJWT -> m CausalHashId
+expectCausalHashIdForHashJWT = undefined
+
 --  Note: beef up insert_entity procedure to flush temp_entity table
 
 -- | flushTempEntity does this:
@@ -563,7 +596,7 @@ moveTempEntityToMain b32 = do
   loadTempEntity b32 >>= \case
     Left _ -> undefined
     Right t -> do
-      r <- readyTempEntity t
+      r <- tempToSyncEntity t
       _ <- saveReadyEntity b32 r
       pure ()
 
@@ -588,13 +621,71 @@ loadTempEntity b32 = do
     WHERE hash = ?
   |]
 
-readyTempEntity :: DB m => TempEntity -> m ReadyEntity
-readyTempEntity = \case
-  TempEntity.TC stf -> undefined
-  TempEntity.DC sdf -> undefined
-  TempEntity.N sbf -> undefined
-  TempEntity.P spf -> undefined
-  TempEntity.C scf -> undefined
+tempToSyncEntity :: DB m => TempEntity -> m ReadyEntity
+tempToSyncEntity = \case
+  TempEntity.TC term -> ReadyEntity.TC <$> tempToSyncTermComponent term
+  TempEntity.DC decl -> ReadyEntity.DC <$> tempToSyncDeclComponent decl
+  TempEntity.N namespace -> ReadyEntity.N <$> tempToSyncNamespace namespace
+  TempEntity.P patch -> ReadyEntity.P <$> tempToSyncPatch patch
+  TempEntity.C causal -> ReadyEntity.C <$> tempToSyncCausal causal
+  where
+    tempToSyncCausal :: DB m => TempEntity.TempCausalFormat -> m Causal.SyncCausalFormat
+    tempToSyncCausal Causal.SyncCausalFormat {valueHash, parents} =
+      Causal.SyncCausalFormat
+        <$> expectBranchHashIdForHashJWT valueHash
+        <*> traverse expectCausalHashIdForHashJWT parents
+
+    tempToSyncDeclComponent :: DB m => TempEntity.TempDeclFormat -> m DeclFormat.SyncDeclFormat
+    tempToSyncDeclComponent = \case
+      DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent decls) ->
+        DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
+          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse saveText expectObjectIdForHashJWT) decls
+
+    tempToSyncNamespace :: DB m => TempEntity.TempNamespaceFormat -> m NamespaceFormat.SyncBranchFormat
+    tempToSyncNamespace = \case
+      NamespaceFormat.SyncFull localIds bytes ->
+        NamespaceFormat.SyncFull <$> tempToSyncNamespaceLocalIds localIds <*> pure bytes
+      NamespaceFormat.SyncDiff parent localIds bytes ->
+        NamespaceFormat.SyncDiff
+          <$> expectBranchObjectIdForHashJWT parent
+          <*> tempToSyncNamespaceLocalIds localIds
+          <*> pure bytes
+
+    tempToSyncNamespaceLocalIds :: DB m => TempEntity.TempNamespaceLocalIds -> m NamespaceFormat.BranchLocalIds
+    tempToSyncNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children) =
+      NamespaceFormat.LocalIds
+        <$> traverse saveText texts
+        <*> traverse expectObjectIdForHashJWT defns
+        <*> traverse expectPatchObjectIdForHashJWT patches
+        <*> traverse
+          ( \(branch, causal) ->
+              (,)
+                <$> expectBranchObjectIdForHashJWT branch
+                <*> expectCausalHashIdForHashJWT causal
+          )
+          children
+
+    tempToSyncPatch :: DB m => TempEntity.TempPatchFormat -> m PatchFormat.SyncPatchFormat
+    tempToSyncPatch = \case
+      PatchFormat.SyncFull localIds bytes -> PatchFormat.SyncFull <$> tempToSyncPatchLocalIds localIds <*> pure bytes
+      PatchFormat.SyncDiff parent localIds bytes ->
+        PatchFormat.SyncDiff
+          <$> expectPatchObjectIdForHashJWT parent
+          <*> tempToSyncPatchLocalIds localIds
+          <*> pure bytes
+
+    tempToSyncPatchLocalIds :: DB m => TempEntity.TempPatchLocalIds -> m PatchFormat.PatchLocalIds
+    tempToSyncPatchLocalIds (PatchFormat.LocalIds texts hashes defns) =
+      PatchFormat.LocalIds
+        <$> traverse saveText texts
+        <*> traverse saveHash hashes
+        <*> traverse expectObjectIdForHashJWT defns
+
+    tempToSyncTermComponent :: DB m => TempEntity.TempTermFormat -> m TermFormat.SyncTermFormat
+    tempToSyncTermComponent = \case
+      TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms) ->
+        TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
+          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse saveText expectObjectIdForHashJWT) terms
 
 saveReadyEntity :: EDB m => Base32Hex -> ReadyEntity -> m (Either CausalHashId ObjectId)
 saveReadyEntity b32Hex entity = do
