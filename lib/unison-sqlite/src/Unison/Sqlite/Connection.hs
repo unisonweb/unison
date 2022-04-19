@@ -204,7 +204,7 @@ execute_ conn@(Connection _ _ conn0) s = do
 
 queryStreamRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Connection -> Sql -> a -> (IO (Maybe b) -> IO r) -> IO r
 queryStreamRow conn@(Connection _ _ conn0) s params callback =
-  thing `catch` \(exception :: Sqlite.SQLError) ->
+  run `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
         { connection = conn,
@@ -213,7 +213,7 @@ queryStreamRow conn@(Connection _ _ conn0) s params callback =
           sql = s
         }
   where
-    thing =
+    run =
       bracket (Sqlite.openStatement conn0 (coerce s)) Sqlite.closeStatement \statement -> do
         Sqlite.bind statement params
         callback (Sqlite.nextRow statement)
