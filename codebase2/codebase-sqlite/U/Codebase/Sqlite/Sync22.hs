@@ -70,8 +70,8 @@ data Env m = Env
     idCacheSize :: Word
   }
 
-mapEnv :: (forall x. m x -> n x) -> Env m -> Env n
-mapEnv f Env {runSrc, runDest, idCacheSize} =
+hoistEnv :: (forall x. m x -> n x) -> Env m -> Env n
+hoistEnv f Env {runSrc, runDest, idCacheSize} =
   Env
     { runSrc = f . runSrc,
       runDest = f . runDest,

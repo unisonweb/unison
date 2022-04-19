@@ -509,7 +509,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
   -- or if it exists in the source codebase, then we can sync22 it
   -- if it doesn't exist in the dest or source branch,
   -- then just use putBranch to the dest
-  sync <- liftIO (Sync22.sync22 (Sync22.mapEnv lift syncEnv))
+  sync <- liftIO (Sync22.sync22 (Sync22.hoistEnv lift syncEnv))
   let doSync :: [Sync22.Entity] -> m ()
       doSync =
         throwExceptT
