@@ -37,7 +37,12 @@ import qualified U.Util.Hash as Hash
 import Unison.Auth.HTTPClient (AuthorizedHttpClient)
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sync.HTTP as Share (downloadEntitiesHandler, updatePathHandler, uploadEntitiesHandler)
+import qualified Unison.Sync.HTTP as Share
+  ( downloadEntitiesHandler,
+    getPathHandler,
+    updatePathHandler,
+    uploadEntitiesHandler,
+  )
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
 import Unison.Util.Monoid (foldMapM)
@@ -49,15 +54,20 @@ import qualified Unison.Util.Set as Set
 -- | An error occurred when getting causal hash by path.
 data GetCausalHashByPathError
   = -- | The user does not have permission to read this path.
-    GetCausalHashByPathErrorNoReadPermission
+    GetCausalHashByPathErrorNoReadPermission Share.RepoPath
 
 -- | Get the causal hash of a path hosted on Unison Share.
-getCausalHashByPath :: Share.RepoPath -> IO (Either GetCausalHashByPathError (Maybe Share.HashJWT))
-getCausalHashByPath repoPath =
-  _getCausalHashByPath (Share.GetCausalHashByPathRequest repoPath) <&> \case
-    GetCausalHashByPathSuccess hashJwt -> Right (Just hashJwt)
-    GetCausalHashByPathEmpty -> Right Nothing
-    GetCausalHashByPathNoReadPermission -> Left GetCausalHashByPathErrorNoReadPermission
+getCausalHashByPath ::
+  -- | The HTTP client to use for Unison Share requests.
+  AuthorizedHttpClient ->
+  -- | The Unison Share URL.
+  BaseUrl ->
+  Share.RepoPath ->
+  IO (Either GetCausalHashByPathError (Maybe Share.HashJWT))
+getCausalHashByPath httpClient unisonShareUrl repoPath =
+  Share.getPathHandler httpClient unisonShareUrl (Share.GetCausalHashByPathRequest repoPath) <&> \case
+    Share.GetCausalHashByPathSuccess maybeHashJwt -> Right maybeHashJwt
+    Share.GetCausalHashByPathNoReadPermission _ -> Left (GetCausalHashByPathErrorNoReadPermission repoPath)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
@@ -187,7 +197,7 @@ pull ::
   Share.RepoPath ->
   IO (Either PullError (Maybe CausalHash))
 pull httpClient unisonShareUrl runDB repoPath = do
-  getCausalHashByPath repoPath >>= \case
+  getCausalHashByPath httpClient unisonShareUrl repoPath >>= \case
     Left err -> pure (Left (PullErrorGetCausalHashByPath err))
     -- There's nothing at the remote path, so there's no causal to pull.
     Right Nothing -> pure (Right Nothing)
@@ -284,17 +294,6 @@ server sqlite db
 -- FIXME rename, etc
 resolveHashToEntity :: Share.Hash -> Sqlite.Transaction (Share.Entity Text Share.Hash Share.Hash)
 resolveHashToEntity = undefined
-
-------------------------------------------------------------------------------------------------------------------------
--- TODO these things come from servant-client / api types module(s)
-
-data GetCausalHashByPathResponse
-  = GetCausalHashByPathSuccess Share.HashJWT
-  | GetCausalHashByPathEmpty
-  | GetCausalHashByPathNoReadPermission
-
-_getCausalHashByPath :: Share.GetCausalHashByPathRequest -> IO GetCausalHashByPathResponse
-_getCausalHashByPath = undefined
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
