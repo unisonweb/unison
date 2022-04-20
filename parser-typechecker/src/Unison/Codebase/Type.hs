@@ -6,7 +6,6 @@ module Unison.Codebase.Type
     CodebasePath,
     PushGitBranchOpts (..),
     GitError (..),
-    GetRootBranchError (..),
     SyncToDir,
     LocalOrRemote (..),
     gitErrorFromOpenCodebaseError,
@@ -71,7 +70,7 @@ data Codebase m v a = Codebase
     getDeclComponent :: Hash -> m (Maybe [Decl v a]),
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
     -- | Get the root branch.
-    getRootBranch :: m (Either GetRootBranchError (Branch m)),
+    getRootBranch :: m (Branch m),
     -- | Get whether the root branch exists.
     getRootBranchExists :: m Bool,
     -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
@@ -171,12 +170,6 @@ data PushGitBranchOpts = PushGitBranchOpts
     setRoot :: Bool,
     syncMode :: SyncMode
   }
-
-data GetRootBranchError
-  = NoRootBranch
-  | CouldntParseRootBranch String
-  | CouldntLoadRootBranch Branch.Hash
-  deriving (Show)
 
 data GitError
   = GitProtocolError GitProtocolError

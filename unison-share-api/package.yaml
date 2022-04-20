@@ -6,18 +6,45 @@ library:
   source-dirs: src
 
 dependencies:
+  - NanoID
   - aeson
+  - async
   - base
   - bytestring
   - containers
+  - directory
+  - errors
+  - extra
+  - filepath
+  - fuzzyfind
+  - http-media
+  - http-types
+  - lens
+  - lucid
   - memory
   - mtl
+  - mwc-random
   - nonempty-containers
+  - openapi3
+  - regex-tdfa
   - servant
+  - servant-docs
+  - servant-openapi3
+  - servant-server
   - text
   - transformers
+  - unison-core1
+  - unison-parser-typechecker
+  - unison-prelude
+  - unison-pretty-printer
   - unison-util-base32hex
+  - unison-util-relation
   - unliftio
+  - uri-encode
+  - utf8-string
+  - wai
+  - warp
+  - yaml
 
 ghc-options:
   -Wall

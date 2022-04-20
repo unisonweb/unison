@@ -21,7 +21,6 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import Network.URI (URI)
 import Unison.Auth.Types (CredentialFailure)
-import Unison.Codebase (GetRootBranchError)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
@@ -143,6 +142,7 @@ data Output v
   | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
+  | BadNamespace String String
   | BranchNotFound Path'
   | NameNotFound Path.HQSplit'
   | PatchNotFound Path.Split'
@@ -242,7 +242,6 @@ data Output v
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
-  | BadRootBranch GetRootBranchError
   | CouldntLoadBranch Branch.Hash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
@@ -286,7 +285,6 @@ isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success {} -> False
   PrintMessage {} -> False
-  BadRootBranch {} -> True
   CouldntLoadBranch {} -> True
   NoUnisonFile {} -> True
   InvalidSourceName {} -> True
@@ -310,6 +308,7 @@ isFailure o = case o of
   TermAmbiguous {} -> True
   BranchHashAmbiguous {} -> True
   BadName {} -> True
+  BadNamespace {} -> True
   BranchNotFound {} -> True
   NameNotFound {} -> True
   PatchNotFound {} -> True

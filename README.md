@@ -3,7 +3,7 @@ The Unison language
 
 [![Build Status](https://travis-ci.org/unisonweb/unison.svg?branch=master)](https://travis-ci.org/unisonweb/unison)
 
-[Unison](https://unisonweb.org) is a new programming language, currently under active development. It's a modern, statically-typed purely functional language, similar to Haskell, but with the ability to describe entire distributed systems with a single program. Here's an example of a distributed map-reduce implementation:
+[Unison](https://unisonweb.org) is a modern, statically-typed purely functional language with the ability to describe entire distributed systems using a single program. Here's an example of a distributed map-reduce implementation:
 
 ```Haskell
 -- comments start with `--`
@@ -11,16 +11,20 @@ mapReduce loc fn ifEmpty reduce data = match split data with
   Empty          -> ifEmpty
   One a          -> fn a
   Two left right ->
-    fl = at loc '(mapReduce loc fn ifEmpty reduce !left)
-    fr = at loc '(mapReduce loc fn ifEmpty reduce !right)
-    reduce !fl !fr
+    fl = forkAt loc '(mapReduce loc fn ifEmpty reduce !left)
+    fr = forkAt loc '(mapReduce loc fn ifEmpty reduce !right)
+    reduce (await fl) (await fr)
 ```
 
-This function can be either simulated locally (possibly with faults injected for testing purposes), or run atop a distributed pool of compute. 
+This function can be either simulated locally (possibly with faults injected for testing purposes), or run atop a distributed pool of compute. See [this article](https://www.unison-lang.org/articles/distributed-datasets/) for more in-depth coverage of how to build distributed computing libraries like this.
 
-If you'd like to learn more about the project, [this Strange Loop talk is a good introduction](https://www.youtube.com/watch?v=gCWtkvDQ2ZI). You can also follow along with [project website](https://unisonweb.org) or you can also say hello or lurk [in the Slack chat](https://unisonweb.org/slack).
+Other resources:
 
-We are currently alpha testing Unison. If you'd like to participate in alpha testing, you can go to [the docs site](https://www.unisonweb.org/docs) to get started.
+* [Learn about the big idea behind Unison](https://www.unison-lang.org/learn/the-big-idea/)
+* Check out [the project website](https://unison-lang.org)
+* Say hello or lurk [in the Slack chat](https://unison-lang.org/slack)
+* Explore [the Unison ecosystem](https://share.unison-lang.org/)
+* [Learn Unison](https://www.unison-lang.org/learn/)
 
 Building using Stack
 --------------------

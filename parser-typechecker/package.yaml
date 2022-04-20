@@ -89,7 +89,6 @@ library:
     - shellmet
     - stm
     - strings
-    - sqlite-simple
     - tagged
     - temporary
     - terminal-size
@@ -117,6 +116,7 @@ library:
     - unison-core1
     - unison-prelude
     - unison-pretty-printer
+    - unison-sqlite
     - unison-util
     - unison-util-base32hex
     - unison-util-relation
@@ -166,6 +166,7 @@ default-extensions:
   - ApplicativeDo
   - BangPatterns
   - BlockArguments
+  - DeriveAnyClass
   - DeriveFunctor
   - DeriveGeneric
   - DeriveTraversable

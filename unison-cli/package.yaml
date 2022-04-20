@@ -38,6 +38,7 @@ dependencies:
   - network-uri
   - nonempty-containers
   - open-browser
+  - pretty-simple
   - random >= 1.2.0
   - regex-tdfa
   - semialign
@@ -55,7 +56,7 @@ dependencies:
   - unison-prelude
   - unison-pretty-printer
   - unison-share-api
-  - unison-share-api
+  - unison-sqlite
   - unison-util
   - unison-util-base32hex
   - unison-util-relation

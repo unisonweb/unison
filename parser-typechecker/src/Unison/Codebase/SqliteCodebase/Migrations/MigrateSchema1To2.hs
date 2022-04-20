@@ -10,9 +10,9 @@ module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
   )
 where
 
+import Control.Concurrent.STM (TVar)
 import Control.Lens
-import Control.Monad.Except (ExceptT, runExceptT)
-import Control.Monad.Reader (ReaderT (runReaderT), ask, mapReaderT)
+import Control.Monad.Except (runExceptT)
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Writer.CPS (Writer, execWriter, tell)
@@ -27,13 +27,13 @@ import qualified Data.Zip as Zip
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
+import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Reference as UReference
 import qualified U.Codebase.Referent as UReferent
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import U.Codebase.Sqlite.Causal (GDbCausal (..))
 import qualified U.Codebase.Sqlite.Causal as SC.DbCausal (GDbCausal (..))
-import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
@@ -56,128 +56,102 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WK
 import U.Util.Monoid (foldMapM)
 import qualified Unison.ABT as ABT
-import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import Unison.Codebase.SqliteCodebase.Migrations.Errors (MigrationError)
 import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Hashing
-import Unison.Codebase.Type (Codebase (Codebase))
+import qualified Unison.Codebase.SqliteCodebase.Operations as CodebaseOps
 import qualified Unison.ConstructorReference as ConstructorReference
+import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Unison
 import qualified Unison.Hashing.V2.Causal as Hashing
 import qualified Unison.Hashing.V2.Convert as Convert
+import Unison.Parser.Ann (Ann)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent'
+import qualified Unison.Sqlite as Sqlite
+import Unison.Symbol (Symbol)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Set as Set
-import Unison.Var (Var)
-import UnliftIO.Exception (bracket_, onException)
-
--- todo:
---  * write a harness to call & seed algorithm
---    * [x] embed migration in a transaction/savepoint and ensure that we never leave the codebase in a
---            weird state even if we crash.
---    * [x] may involve writing a `Progress`
---    * raw DB things:
---    * [x] write new namespace root after migration.
---    * [x] overwrite object_id column in hash_object table to point at new objects
---    * [x] delete references to old objects in index tables (where else?)
---    * [x] delete old objects
---
---  * refer to github megaticket https://github.com/unisonweb/unison/issues/2471
---    ☢️ [x] incorporate type signature into hash of term <- chris/arya have started ☢️
---          [x] store type annotation in the term
---    * [x] Refactor Causal helper functions to use V2 hashing
---          * [x] I guess move Hashable to V2.Hashing pseudo-package
---          * [x] Delete V1 Hashing to ensure it's unused
---          * [x] Salt V2 hashes with version number
---    * [x] confirm that pulls are handled ok
---    * [x] Make a backup of the v1 codebase before migrating, in a temp directory.
---          Include a message explaining where we put it.
---    * [x] Improved error message (don't crash) if loading a codebase newer than your ucm
---    * [x] Update the schema version in the database after migrating so we only migrate
---    once.
+import Prelude hiding (log)
 
 verboseOutput :: Bool
 verboseOutput =
   isJust (unsafePerformIO (lookupEnv "UNISON_MIGRATION_DEBUG"))
 {-# NOINLINE verboseOutput #-}
 
-migrateSchema1To2 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codebase m v a -> m (Either MigrationError ())
-migrateSchema1To2 conn codebase = do
-  withinSavepoint "MIGRATESCHEMA12" $ do
-    liftIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
-    corruptedCausals <- runDB conn (liftQ Q.getCausalsWithoutBranchObjects)
-    when (not . null $ corruptedCausals) $ do
-      liftIO $ putStrLn $ "⚠️  I detected " <> show (length corruptedCausals) <> " corrupted namespace(s) in the history of the codebase."
-      liftIO $ putStrLn $ "This is due to a bug in a previous version of ucm."
-      liftIO $ putStrLn $ "This only affects the history of your codebase, the most up-to-date iteration will remain intact."
-      liftIO $ putStrLn $ "I'll go ahead with the migration, but will replace any corrupted namespaces with empty ones."
+migrateSchema1To2 ::
+  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  TVar (Map Hash CodebaseOps.TermBufferEntry) ->
+  TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
+  Sqlite.Transaction ()
+migrateSchema1To2 getDeclType termBuffer declBuffer = do
+  log "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
+  corruptedCausals <- Q.getCausalsWithoutBranchObjects
+  when (not . null $ corruptedCausals) do
+    log $ "⚠️  I detected " <> show (length corruptedCausals) <> " corrupted namespace(s) in the history of the codebase."
+    log "This is due to a bug in a previous version of ucm."
+    log "This only affects the history of your codebase, the most up-to-date iteration will remain intact."
+    log "I'll go ahead with the migration, but will replace any corrupted namespaces with empty ones."
 
-    liftIO $ putStrLn $ "Updating Namespace Root..."
-    rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
-    numEntitiesToMigrate <- runDB conn . liftQ $ do
-      sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
-    v2EmptyBranchHashInfo <- saveV2EmptyBranch conn
-    watches <-
-      foldMapM
-        (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
-        [WK.RegularWatch, WK.TestWatch]
-    migrationState <-
-      (Sync.sync @_ @Entity migrationSync (progress numEntitiesToMigrate) (CausalE rootCausalHashId : watches))
-        `runReaderT` Env {db = conn, codebase}
-        `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty 0 v2EmptyBranchHashInfo
-    let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
-    liftIO $ putStrLn $ "Updating Namespace Root..."
-    runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
-    liftIO $ putStrLn $ "Rewriting old object IDs..."
-    ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
-      (runDB conn . liftQ) do
-        Q.recordObjectRehash oldObjId newObjId
-    liftIO $ putStrLn $ "Garbage collecting orphaned objects..."
-    runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
-    liftIO $ putStrLn $ "Garbage collecting orphaned watches..."
-    runDB conn (liftQ Q.garbageCollectWatchesWithoutObjects)
-    liftIO $ putStrLn $ "Updating Schema Version..."
-    runDB conn . liftQ $ Q.setSchemaVersion 2
-  pure $ Right ()
+  log "Updating Namespace Root..."
+  rootCausalHashId <- Q.expectNamespaceRoot
+  numEntitiesToMigrate <- sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
+  v2EmptyBranchHashInfo <- saveV2EmptyBranch
+  watches <-
+    foldMapM
+      (\watchKind -> map (W watchKind) <$> CodebaseOps.watches (Cv.watchKind2to1 watchKind))
+      [WK.RegularWatch, WK.TestWatch]
+  migrationState <-
+    Sync.sync @_ @Entity (migrationSync getDeclType termBuffer declBuffer) (progress numEntitiesToMigrate) (CausalE rootCausalHashId : watches)
+      `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty 0 v2EmptyBranchHashInfo
+  let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
+  log "Updating Namespace Root..."
+  Q.setNamespaceRoot newRootCausalHashId
+  log "Rewriting old object IDs..."
+  ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
+    Q.recordObjectRehash oldObjId newObjId
+  log "Garbage collecting orphaned objects..."
+  Q.garbageCollectObjectsWithoutHashes
+  log "Garbage collecting orphaned watches..."
+  Q.garbageCollectWatchesWithoutObjects
+  log "Updating Schema Version..."
+  Q.setSchemaVersion 2
   where
-    withinSavepoint :: (String -> m c -> m c)
-    withinSavepoint name act =
-      bracket_
-        (runDB conn $ Q.savepoint name)
-        (runDB conn $ Q.release name)
-        (act `onException` runDB conn (Q.rollbackTo name))
-    progress :: Int -> Sync.Progress (ReaderT (Env m v a) (StateT MigrationState m)) Entity
+    progress :: Int -> Sync.Progress (StateT MigrationState Sqlite.Transaction) Entity
     progress numToMigrate =
-      let incrementProgress :: ReaderT (Env m v a) (StateT MigrationState m) ()
+      let incrementProgress :: StateT MigrationState Sqlite.Transaction ()
           incrementProgress = do
             numDone <- field @"numMigrated" <+= 1
-            liftIO $ putStr $ "\r 🏗  " <> show numDone <> " / ~" <> show numToMigrate <> " entities migrated. 🚧"
-          need :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
-          need e = when verboseOutput $ liftIO $ putStrLn $ "Need: " ++ show e
-          done :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
+            lift $ Sqlite.unsafeIO $ putStr $ "\r 🏗  " <> show numDone <> " / ~" <> show numToMigrate <> " entities migrated. 🚧"
+          need :: Entity -> StateT MigrationState Sqlite.Transaction ()
+          need e = when verboseOutput $ lift $ log $ "Need: " ++ show e
+          done :: Entity -> StateT MigrationState Sqlite.Transaction ()
           done e = do
-            when verboseOutput $ liftIO $ putStrLn $ "Done: " ++ show e
+            when verboseOutput $ lift $ log $ "Done: " ++ show e
             incrementProgress
-          errorHandler :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
+          errorHandler :: Entity -> StateT MigrationState Sqlite.Transaction ()
           errorHandler e = do
             case e of
               -- We expect non-fatal errors when migrating watches.
               W {} -> pure ()
-              e -> liftIO $ putStrLn $ "Error: " ++ show e
+              e -> lift $ log $ "Error: " ++ show e
             incrementProgress
-          allDone :: ReaderT (Env m v a) (StateT MigrationState m) ()
-          allDone = liftIO $ putStrLn $ "\nFinished migrating, initiating cleanup."
+          allDone :: StateT MigrationState Sqlite.Transaction ()
+          allDone = lift $ log $ "\nFinished migrating, initiating cleanup."
        in Sync.Progress {need, done, error = errorHandler, allDone}
+
+log :: String -> Sqlite.Transaction ()
+log =
+  Sqlite.unsafeIO . putStrLn
 
 type Old a = a
 
@@ -210,50 +184,30 @@ data Entity
   | W WK.WatchKind Reference.Id
   deriving (Eq, Ord, Show)
 
-data Env m v a = Env {db :: Connection, codebase :: Codebase m v a}
-
 migrationSync ::
-  (MonadIO m, Var v) =>
-  Sync (ReaderT (Env m v a) (StateT MigrationState m)) Entity
-migrationSync = Sync \case
-  TermComponent hash -> do
-    Env {codebase, db} <- ask
-    lift (migrateTermComponent db codebase hash)
-  DeclComponent hash -> do
-    Env {codebase, db} <- ask
-    lift (migrateDeclComponent db codebase hash)
-  BranchE objectId -> do
-    Env {db} <- ask
-    lift (migrateBranch db objectId)
-  CausalE causalHashId -> do
-    Env {db} <- ask
-    lift (migrateCausal db causalHashId)
-  PatchE objectId -> do
-    Env {db} <- ask
-    lift (migratePatch db (PatchObjectId objectId))
-  W watchKind watchId -> do
-    Env {codebase} <- ask
-    lift (migrateWatch codebase watchKind watchId)
+  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  TVar (Map Hash CodebaseOps.TermBufferEntry) ->
+  TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
+  Sync (StateT MigrationState Sqlite.Transaction) Entity
+migrationSync getDeclType termBuffer declBuffer = Sync \case
+  TermComponent hash -> migrateTermComponent getDeclType termBuffer declBuffer hash
+  DeclComponent hash -> migrateDeclComponent termBuffer declBuffer hash
+  BranchE objectId -> migrateBranch objectId
+  CausalE causalHashId -> migrateCausal causalHashId
+  PatchE objectId -> migratePatch (PatchObjectId objectId)
+  W watchKind watchId -> migrateWatch getDeclType watchKind watchId
 
-runDB :: MonadIO m => Connection -> ReaderT Connection (ExceptT Ops.Error (ExceptT Q.Integrity m)) a -> m a
-runDB conn = (runExceptT >=> err) . (runExceptT >=> err) . flip runReaderT conn
-  where
-    err :: forall e x m. (Show e, Applicative m) => (Either e x -> m x)
-    err = \case Left err -> error $ show err; Right a -> pure a
-
-liftQ :: Monad m => ReaderT Connection (ExceptT Q.Integrity m) a -> ReaderT Connection (ExceptT Ops.Error (ExceptT Q.Integrity m)) a
-liftQ = mapReaderT lift
-
-migrateCausal :: MonadIO m => Connection -> CausalHashId -> StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
+migrateCausal :: CausalHashId -> StateT MigrationState Sqlite.Transaction (Sync.TrySyncResult Entity)
+migrateCausal oldCausalHashId = fmap (either id id) . runExceptT $ do
   whenM (Map.member oldCausalHashId <$> use (field @"causalMapping")) (throwE Sync.PreviouslyDone)
 
-  oldBranchHashId <- runDB conn . liftQ $ Q.loadCausalValueHashId oldCausalHashId
-  oldCausalParentHashIds <- runDB conn . liftQ $ Q.loadCausalParents oldCausalHashId
+  oldBranchHashId <- lift . lift $ Q.expectCausalValueHashId oldCausalHashId
+  oldCausalParentHashIds <- lift . lift $ Q.loadCausalParents oldCausalHashId
 
   maybeOldBranchObjId <-
-    runDB conn . liftQ $
-      Q.maybeObjectIdForAnyHashId (unBranchHashId oldBranchHashId)
+    lift . lift $
+      Q.loadObjectIdForAnyHashId (unBranchHashId oldBranchHashId)
   migratedObjIds <- gets objLookup
   -- If the branch for this causal hasn't been migrated, migrate it first.
   let unmigratedBranch =
@@ -294,31 +248,30 @@ migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
                   parents = Set.mapMonotonic Cv.hash2to1 newParentHashes
                 }
             )
-  newCausalHashId <- runDB conn (Q.saveCausalHash newCausalHash)
+  newCausalHashId <- lift . lift $ Q.saveCausalHash newCausalHash
   let newCausal =
         DbCausal
           { selfHash = newCausalHashId,
             valueHash = newBranchHashId,
             parents = newParentHashIds
           }
-  runDB conn do
-    liftQ do
-      Q.saveCausal
-        (SC.DbCausal.selfHash newCausal)
-        (SC.DbCausal.valueHash newCausal)
-        (Set.toList $ SC.DbCausal.parents newCausal)
+  (lift . lift) do
+    Q.saveCausal
+      (SC.DbCausal.selfHash newCausal)
+      (SC.DbCausal.valueHash newCausal)
+      (Set.toList $ SC.DbCausal.parents newCausal)
 
   field @"causalMapping" %= Map.insert oldCausalHashId (newCausalHash, newCausalHashId)
 
   pure Sync.Done
 
-migrateBranch :: MonadIO m => Connection -> ObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
+migrateBranch :: ObjectId -> StateT MigrationState Sqlite.Transaction (Sync.TrySyncResult Entity)
+migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
   whenM (Map.member oldObjectId <$> use (field @"objLookup")) (throwE Sync.PreviouslyDone)
 
-  oldBranch <- runDB conn (Ops.loadDbBranchByObjectId (BranchObjectId oldObjectId))
-  oldHash <- fmap Cv.hash2to1 . runDB conn $ Ops.loadHashByObjectId oldObjectId
-  oldBranchWithHashes <- runDB conn (traverseOf S.branchHashes_ (fmap Cv.hash2to1 . Ops.loadHashByObjectId) oldBranch)
+  oldBranch <- lift . lift $ Ops.expectDbBranch (BranchObjectId oldObjectId)
+  oldHash <- lift . lift $ fmap Cv.hash2to1 $ Q.expectPrimaryHashByObjectId oldObjectId
+  oldBranchWithHashes <- lift . lift $ traverseOf S.branchHashes_ (fmap Cv.hash2to1 . Q.expectPrimaryHashByObjectId) oldBranch
   migratedRefs <- gets referenceMapping
   migratedObjects <- gets objLookup
   migratedCausals <- gets causalMapping
@@ -381,33 +334,28 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
           & S.childrenHashes_ %~ (remapBranchObjectId *** remapCausalHashId)
 
   let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch newBranch
-  newHash <- runDB conn (Ops.liftQ (Hashing.dbBranchHash newBranch))
-  newHashId <- runDB conn (Ops.liftQ (Q.saveBranchHash (BranchHash (Cv.hash1to2 newHash))))
-  newObjectId <- runDB conn (Ops.saveBranchObject newHashId localBranchIds localBranch)
+  newHash <- lift . lift $ Hashing.dbBranchHash newBranch
+  newHashId <- lift . lift $ Q.saveBranchHash (BranchHash (Cv.hash1to2 newHash))
+  newObjectId <- lift . lift $ Ops.saveBranchObject newHashId localBranchIds localBranch
   field @"objLookup" %= Map.insert oldObjectId (unBranchObjectId newObjectId, unBranchHashId newHashId, newHash, oldHash)
   pure Sync.Done
 
-migratePatch ::
-  forall m.
-  MonadIO m =>
-  Connection ->
-  Old PatchObjectId ->
-  StateT MigrationState m (Sync.TrySyncResult Entity)
-migratePatch conn oldObjectId = fmap (either id id) . runExceptT $ do
+migratePatch :: Old PatchObjectId -> StateT MigrationState Sqlite.Transaction (Sync.TrySyncResult Entity)
+migratePatch oldObjectId = fmap (either id id) . runExceptT $ do
   whenM (Map.member (unPatchObjectId oldObjectId) <$> use (field @"objLookup")) (throwE Sync.PreviouslyDone)
 
-  oldHash <- fmap Cv.hash2to1 . runDB conn $ Ops.loadHashByObjectId (unPatchObjectId oldObjectId)
-  oldPatch <- runDB conn (Ops.loadDbPatchById oldObjectId)
-  let hydrateHashes :: forall m. Q.EDB m => HashId -> m Hash
+  oldHash <- lift . lift $ fmap Cv.hash2to1 $ Q.expectPrimaryHashByObjectId (unPatchObjectId oldObjectId)
+  oldPatch <- lift . lift $ Ops.expectDbPatch oldObjectId
+  let hydrateHashes :: HashId -> Sqlite.Transaction Hash
       hydrateHashes hashId = do
-        Cv.hash2to1 <$> Q.loadHashHashById hashId
-  let hydrateObjectIds :: forall m. Ops.EDB m => ObjectId -> m Hash
+        Cv.hash2to1 <$> Q.expectHash hashId
+  let hydrateObjectIds :: ObjectId -> Sqlite.Transaction Hash
       hydrateObjectIds objId = do
-        Cv.hash2to1 <$> Ops.loadHashByObjectId objId
+        Cv.hash2to1 <$> Q.expectPrimaryHashByObjectId objId
 
   oldPatchWithHashes :: S.Patch' TextId Hash Hash <-
-    runDB conn do
-      (oldPatch & S.patchH_ %%~ liftQ . hydrateHashes)
+    lift . lift $
+      (oldPatch & S.patchH_ %%~ hydrateHashes)
         >>= (S.patchO_ %%~ hydrateObjectIds)
 
   migratedRefs <- gets referenceMapping
@@ -419,10 +367,10 @@ migratePatch conn oldObjectId = fmap (either id id) . runExceptT $ do
           <> oldPatchWithHashes ^.. patchSomeRefsO_ . uRefIdAsRefId_ . filtered isUnmigratedRef . to someReferenceIdToEntity
   when (not . null $ unmigratedDependencies) (throwE (Sync.Missing unmigratedDependencies))
 
-  let hashToHashId :: forall m. Q.EDB m => Hash -> m HashId
+  let hashToHashId :: Hash -> Sqlite.Transaction HashId
       hashToHashId h =
         fromMaybe (error $ "expected hashId for hash: " <> show h) <$> (Q.loadHashIdByHash (Cv.hash1to2 h))
-  let hashToObjectId :: forall m. Q.EDB m => Hash -> m ObjectId
+  let hashToObjectId :: Hash -> Sqlite.Transaction ObjectId
       hashToObjectId = hashToHashId >=> Q.expectObjectIdForPrimaryHashId
 
   migratedReferences <- gets referenceMapping
@@ -435,14 +383,14 @@ migratePatch conn oldObjectId = fmap (either id id) . runExceptT $ do
           & patchSomeRefsO_ . uRefIdAsRefId_ %~ remapRef
 
   newPatchWithIds :: S.Patch <-
-    runDB conn . liftQ $ do
+    lift . lift $
       (newPatch & S.patchH_ %%~ hashToHashId)
         >>= (S.patchO_ %%~ hashToObjectId)
 
   let (localPatchIds, localPatch) = S.LocalizeObject.localizePatch newPatchWithIds
-  newHash <- runDB conn (liftQ (Hashing.dbPatchHash newPatchWithIds))
-  newObjectId <- runDB conn (Ops.saveDbPatch (PatchHash (Cv.hash1to2 newHash)) (S.Patch.Format.Full localPatchIds localPatch))
-  newHashId <- runDB conn (liftQ (Q.expectHashIdByHash (Cv.hash1to2 newHash)))
+  newHash <- lift . lift $ Hashing.dbPatchHash newPatchWithIds
+  newObjectId <- lift . lift $ Ops.saveDbPatch (PatchHash (Cv.hash1to2 newHash)) (S.Patch.Format.Full localPatchIds localPatch)
+  newHashId <- lift . lift $ Q.expectHashIdByHash (Cv.hash1to2 newHash)
   field @"objLookup" %= Map.insert (unPatchObjectId oldObjectId) (unPatchObjectId newObjectId, newHashId, newHash, oldHash)
   pure Sync.Done
 
@@ -452,16 +400,15 @@ migratePatch conn oldObjectId = fmap (either id id) . runExceptT $ do
 -- This is because it's difficult for us to know otherwise whether a reference refers to something which doesn't exist, or just
 -- something that hasn't been migrated yet. If we do it last, we know that missing references are indeed just missing from the codebase.
 migrateWatch ::
-  forall m v a.
-  (MonadIO m, Ord v) =>
-  Codebase m v a ->
+  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   WatchKind ->
   Reference.Id ->
-  StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateWatch Codebase {getWatch, putWatch} watchKind oldWatchId = fmap (either id id) . runExceptT $ do
+  StateT MigrationState Sqlite.Transaction (Sync.TrySyncResult Entity)
+migrateWatch getDeclType watchKind oldWatchId = fmap (either id id) . runExceptT $ do
   let watchKindV1 = Cv.watchKind2to1 watchKind
   watchResultTerm <-
-    (lift . lift) (getWatch watchKindV1 oldWatchId) >>= \case
+    (lift . lift) (CodebaseOps.getWatch getDeclType watchKindV1 oldWatchId) >>= \case
       -- The hash which we're watching doesn't exist in the codebase, throw out this watch.
       Nothing -> throwE Sync.Done
       Just term -> pure term
@@ -469,7 +416,7 @@ migrateWatch Codebase {getWatch, putWatch} watchKind oldWatchId = fmap (either i
   newWatchId <- case Map.lookup (TermReference oldWatchId) migratedReferences of
     (Just (TermReference newRef)) -> pure newRef
     _ -> throwE Sync.NonFatalError
-  let maybeRemappedTerm :: Maybe (Term.Term v a)
+  let maybeRemappedTerm :: Maybe (Term.Term Symbol Ann)
       maybeRemappedTerm =
         watchResultTerm
           & termReferences_ %%~ \someRef -> Map.lookup someRef migratedReferences
@@ -477,7 +424,7 @@ migrateWatch Codebase {getWatch, putWatch} watchKind oldWatchId = fmap (either i
     -- One or more references in the result didn't exist in our codebase.
     Nothing -> pure Sync.NonFatalError
     Just remappedTerm -> do
-      lift . lift $ putWatch watchKindV1 newWatchId remappedTerm
+      lift . lift $ CodebaseOps.putWatch watchKindV1 newWatchId remappedTerm
       pure Sync.Done
 
 uRefIdAsRefId_ :: Iso' (SomeReference (UReference.Id' Hash)) SomeReferenceId
@@ -506,11 +453,6 @@ someReferent_ typeOrTermTraversal_ =
         <&> \(ConstructorReference.ConstructorReference newId newConId) ->
           (UReference.ReferenceDerived newId, fromIntegral newConId)
     asPair_ _ (UReference.ReferenceBuiltin x, conId) = pure (UReference.ReferenceBuiltin x, conId)
-
--- asPair_ f (UReference.ReferenceDerived id', conId) =
---   f (id', fromIntegral conId)
---     <&> \(newId, newConId) -> (UReference.ReferenceDerived newId, fromIntegral newConId)
--- asPair_ _ (UReference.ReferenceBuiltin x, conId) = pure (UReference.ReferenceBuiltin x, conId)
 
 someReference_ ::
   (forall ref. Traversal' ref (SomeReference ref)) ->
@@ -564,25 +506,25 @@ typeEditRefs_ f (TypeEdit.Replace ref) =
 typeEditRefs_ _f (TypeEdit.Deprecate) = pure TypeEdit.Deprecate
 
 migrateTermComponent ::
-  forall m v a.
-  (Ord v, Var v, Monad m, MonadIO m) =>
-  Connection ->
-  Codebase m v a ->
+  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  TVar (Map Hash CodebaseOps.TermBufferEntry) ->
+  TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
   Unison.Hash ->
-  StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateTermComponent conn Codebase {..} oldHash = fmap (either id id) . runExceptT $ do
+  StateT MigrationState Sqlite.Transaction (Sync.TrySyncResult Entity)
+migrateTermComponent getDeclType termBuffer declBuffer oldHash = fmap (either id id) . runExceptT $ do
   whenM (Set.member oldHash <$> use (field @"migratedDefnHashes")) (throwE Sync.PreviouslyDone)
 
   oldComponent <-
-    (lift . lift $ getTermComponentWithTypes oldHash) >>= \case
+    (lift . lift $ CodebaseOps.getTermComponentWithTypes getDeclType oldHash) >>= \case
       Nothing -> error $ "Hash was missing from codebase: " <> show oldHash
       Just c -> pure c
 
-  let componentIDMap :: Map (Old Reference.Id) (Term.Term v a, Type v a)
+  let componentIDMap :: Map (Old Reference.Id) (Term.Term Symbol Ann, Type Symbol Ann)
       componentIDMap = Map.fromList $ Reference.componentFor oldHash oldComponent
-  let unhashed :: Map (Old Reference.Id) (v, Term.Term v a)
+  let unhashed :: Map (Old Reference.Id) (Symbol, Term.Term Symbol Ann)
       unhashed = Term.unhashComponent (fst <$> componentIDMap)
-  let vToOldReferenceMapping :: Map v (Old Reference.Id)
+  let vToOldReferenceMapping :: Map Symbol (Old Reference.Id)
       vToOldReferenceMapping =
         unhashed
           & Map.toList
@@ -607,7 +549,7 @@ migrateTermComponent conn Codebase {..} oldHash = fmap (either id id) . runExcep
       getMigratedReference ref =
         Map.findWithDefault (error $ "unmigrated reference" <> show ref) ref referencesMap
 
-  let remappedReferences :: Map (Old Reference.Id) (v, Term.Term v a, Type v a) =
+  let remappedReferences :: Map (Old Reference.Id) (Symbol, Term.Term Symbol Ann, Type Symbol Ann) =
         Zip.zipWith
           ( \(v, trm) (_, typ) ->
               ( v,
@@ -618,7 +560,7 @@ migrateTermComponent conn Codebase {..} oldHash = fmap (either id id) . runExcep
           unhashed
           componentIDMap
 
-  let newTermComponents :: Map v (New Reference.Id, Term.Term v a, Type v a)
+  let newTermComponents :: Map Symbol (New Reference.Id, Term.Term Symbol Ann, Type Symbol Ann)
       newTermComponents =
         remappedReferences
           & Map.elems
@@ -629,29 +571,27 @@ migrateTermComponent conn Codebase {..} oldHash = fmap (either id id) . runExcep
   ifor newTermComponents $ \v (newReferenceId, trm, typ) -> do
     let oldReferenceId = vToOldReferenceMapping ^?! ix v
     field @"referenceMapping" %= Map.insert (TermReference oldReferenceId) (TermReference newReferenceId)
-    lift . lift $ putTerm newReferenceId trm typ
+    lift . lift $ CodebaseOps.putTerm termBuffer declBuffer newReferenceId trm typ
 
   -- Need to get one of the new references to grab its hash, doesn't matter which one since
   -- all hashes in the component are the same.
   case newTermComponents ^? traversed . _1 . to Reference.idToHash of
     Nothing -> pure ()
-    Just newHash -> insertObjectMappingForHash conn oldHash newHash
+    Just newHash -> lift (insertObjectMappingForHash oldHash newHash)
 
   field @"migratedDefnHashes" %= Set.insert oldHash
   pure Sync.Done
 
 migrateDeclComponent ::
-  forall m v a.
-  (Ord v, Var v, Monad m, MonadIO m) =>
-  Connection ->
-  Codebase m v a ->
+  TVar (Map Hash CodebaseOps.TermBufferEntry) ->
+  TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
   Unison.Hash ->
-  StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateDeclComponent conn Codebase {..} oldHash = fmap (either id id) . runExceptT $ do
+  StateT MigrationState Sqlite.Transaction (Sync.TrySyncResult Entity)
+migrateDeclComponent termBuffer declBuffer oldHash = fmap (either id id) . runExceptT $ do
   whenM (Set.member oldHash <$> use (field @"migratedDefnHashes")) (throwE Sync.PreviouslyDone)
 
   declComponent :: [DD.Decl v a] <-
-    (lift . lift $ getDeclComponent oldHash) >>= \case
+    (lift . lift $ CodebaseOps.getDeclComponent oldHash) >>= \case
       Nothing -> error $ "Expected decl component for hash:" <> show oldHash
       Just dc -> pure dc
 
@@ -728,25 +668,20 @@ migrateDeclComponent conn Codebase {..} oldHash = fmap (either id id) . runExcep
           (ConstructorReference oldReferenceId (oldConstructorIds ^?! ix constructorName))
           (ConstructorReference newReferenceId newConstructorId)
 
-    lift . lift $ putTypeDeclaration newReferenceId dd
+    lift . lift $ CodebaseOps.putTypeDeclaration termBuffer declBuffer newReferenceId dd
 
   -- Need to get one of the new references to grab its hash, doesn't matter which one since
   -- all hashes in the component are the same.
   case newComponent ^? traversed . _2 . to Reference.idToHash of
     Nothing -> pure ()
-    Just newHash -> insertObjectMappingForHash conn oldHash newHash
+    Just newHash -> lift (insertObjectMappingForHash oldHash newHash)
   field @"migratedDefnHashes" %= Set.insert oldHash
 
   pure Sync.Done
 
-insertObjectMappingForHash ::
-  (MonadIO m, MonadState MigrationState m) =>
-  Connection ->
-  Old Hash ->
-  New Hash ->
-  m ()
-insertObjectMappingForHash conn oldHash newHash = do
-  (oldObjectId, newHashId, newObjectId) <- runDB conn . liftQ $ do
+insertObjectMappingForHash :: Old Hash -> New Hash -> StateT MigrationState Sqlite.Transaction ()
+insertObjectMappingForHash oldHash newHash = do
+  (oldObjectId, newHashId, newObjectId) <- lift do
     oldHashId <- Q.expectHashIdByHash . Cv.hash1to2 $ oldHash
     oldObjectId <- Q.expectObjectIdForPrimaryHashId $ oldHashId
     newHashId <- Q.expectHashIdByHash . Cv.hash1to2 $ newHash
@@ -911,11 +846,11 @@ foldSetter t s = execWriter (s & t %%~ \a -> tell [a] *> pure a)
 
 -- | Save an empty branch and get its new hash to use when replacing
 -- branches which are missing due to database corruption.
-saveV2EmptyBranch :: MonadIO m => Connection -> m (BranchHashId, Hash)
-saveV2EmptyBranch conn = do
+saveV2EmptyBranch :: Sqlite.Transaction (BranchHashId, Hash)
+saveV2EmptyBranch = do
   let branch = S.emptyBranch
   let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch branch
-  newHash <- runDB conn (Ops.liftQ (Hashing.dbBranchHash branch))
-  newHashId <- runDB conn (Ops.liftQ (Q.saveBranchHash (BranchHash (Cv.hash1to2 newHash))))
-  _ <- runDB conn (Ops.saveBranchObject newHashId localBranchIds localBranch)
+  newHash <- Hashing.dbBranchHash branch
+  newHashId <- Q.saveBranchHash (BranchHash (Cv.hash1to2 newHash))
+  _ <- Ops.saveBranchObject newHashId localBranchIds localBranch
   pure (newHashId, newHash)

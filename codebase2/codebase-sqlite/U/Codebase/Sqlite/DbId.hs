@@ -9,8 +9,7 @@ module U.Codebase.Sqlite.DbId where
 
 import Data.Bits (Bits)
 import Data.Word (Word64)
-import Database.SQLite.Simple.FromField
-import Database.SQLite.Simple.ToField
+import Unison.Sqlite (FromField, ToField)
 
 newtype HashVersion = HashVersion Word64
   deriving stock (Eq, Ord, Show)

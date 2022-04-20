@@ -59,8 +59,7 @@ import Unison.Result
     Result,
   )
 import Unison.Server.Backend
-  ( BackendError,
-    DefinitionResults,
+  ( DefinitionResults,
     IncludeCycles,
     ShallowListEntry,
   )
@@ -132,7 +131,7 @@ data
     Command m i v (DefinitionResults v)
   FindShallow ::
     Path.Absolute ->
-    Command m i v (Either BackendError [ShallowListEntry v Ann])
+    Command m i v [ShallowListEntry v Ann]
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)
   Input :: Command m i v i
   -- Presents some output to the user

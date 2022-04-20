@@ -24,6 +24,7 @@ import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (forkIO, newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
+import Data.Bifunctor
 import qualified Data.ByteString.Lazy as BL
 import Data.Configurator.Types (Config)
 import Data.Either.Validation (Validation (..))
@@ -31,6 +32,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.IO as Text
+import GHC.Conc (setUncaughtExceptionHandler)
 import qualified GHC.Conc
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
@@ -38,11 +40,13 @@ import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryR
 import System.Environment (getProgName, withArgs)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
+import System.IO (stderr)
 import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
 import qualified System.IO.Temp as Temp
 import qualified System.Path as Path
 import Text.Megaparsec (runParser)
+import Text.Pretty.Simple (pHPrint)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Editor.Input as Input
@@ -70,10 +74,12 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import UnliftIO.Directory (getHomeDirectory)
 import qualified Version
-import Data.Bifunctor
 
 main :: IO ()
 main = withCP65001 do
+  -- Replace the default exception handler with one that pretty-prints.
+  setUncaughtExceptionHandler (pHPrint stderr)
+
   interruptHandler <- defaultInterruptHandler
   withInterruptHandler interruptHandler $ do
     forkIO initHTTPClient
@@ -107,7 +113,7 @@ main = withCP65001 do
             )
       Run (RunFromSymbol mainName) args -> do
         getCodebaseOrExit mCodePathOption \(_, _, theCodebase) -> do
-          runtime <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
+          runtime <- RTI.startRuntime RTI.OneOff Version.gitDescribeWithDate
           withArgs args $ execute theCodebase runtime mainName
       Run (RunFromFile file mainName) args
         | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
@@ -117,7 +123,7 @@ main = withCP65001 do
             Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
             Right contents -> do
               getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-                rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
+                rt <- RTI.startRuntime RTI.OneOff Version.gitDescribeWithDate
                 let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                 launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
       Run (RunFromPipe mainName) args -> do
@@ -126,7 +132,7 @@ main = withCP65001 do
           Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
           Right contents -> do
             getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-              rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
+              rt <- RTI.startRuntime RTI.OneOff Version.gitDescribeWithDate
               let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
               launch
                 currentDir
@@ -202,7 +208,7 @@ main = withCP65001 do
         runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
       Launch isHeadless codebaseServerOpts downloadBase -> do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-          runtime <- RTI.startRuntime RTI.UCM Version.gitDescribeWithDate
+          runtime <- RTI.startRuntime RTI.Persistent Version.gitDescribeWithDate
           Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
             case isHeadless of
               Headless -> do

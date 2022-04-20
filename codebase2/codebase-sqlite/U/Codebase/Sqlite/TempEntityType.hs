@@ -1,8 +1,6 @@
 module U.Codebase.Sqlite.TempEntityType where
 
-import Database.SQLite.Simple (SQLData (SQLInteger))
-import Database.SQLite.Simple.FromField (FromField (..))
-import Database.SQLite.Simple.ToField (ToField (..))
+import Unison.Sqlite (FromField (..), SQLData (SQLInteger), ToField (..))
 
 -- | Don't reorder these, they are part of the database,
 --  and the ToField and FromField implementation currently
