@@ -9,7 +9,6 @@
 
 module Unison.Server.Endpoints.NamespaceListing where
 
-import Control.Error.Util ((??))
 import Control.Monad.Except
 import Data.Aeson
 import Data.OpenApi (ToSchema)
@@ -164,7 +163,7 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
 
       findShallow ::
         ( V2Branch.Branch IO ->
-          Backend IO [Backend.ShallowListEntry Symbol Ann]
+          IO [Backend.ShallowListEntry Symbol Ann]
         )
       findShallow branch = Backend.lsShallowBranch codebase branch
 
@@ -185,15 +184,10 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
       namespaceListing :: Backend IO NamespaceListing
       namespaceListing = do
         shallowRoot <- case mayRootHash of
-          Nothing -> do
-            gotRoot <- liftIO $ Codebase.getShallowRootBranch codebase
-            errFromEither Backend.BadRootBranch gotRoot
+          Nothing -> liftIO (Codebase.getShallowRootBranch codebase)
           Just sbh -> do
-            ea <- liftIO . runExceptT $ do
-              h <- Backend.expandShortBranchHash codebase sbh
-              mayBranch <- lift $ Codebase.getShallowBranchForHash codebase (Cv.branchHash1to2 h)
-              mayBranch ?? Backend.CouldntLoadBranch h
-            liftEither ea
+            h <- Backend.expandShortBranchHash codebase sbh
+            liftIO $ Codebase.getShallowBranchForHash codebase (Cv.branchHash1to2 h)
 
         -- Relative and Listing Path resolution
         --
@@ -225,7 +219,7 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
         shallowPPE <- liftIO $ Backend.shallowPPE codebase listingBranch
         let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
         let listingHash = v2CausalBranchToUnisonHash listingCausal
-        listingEntries <- findShallow listingBranch
+        listingEntries <- lift (findShallow listingBranch)
 
         makeNamespaceListing shallowPPE listingFQN listingHash listingEntries
    in namespaceListing

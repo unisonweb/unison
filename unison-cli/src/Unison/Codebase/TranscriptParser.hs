@@ -19,7 +19,6 @@ module Unison.Codebase.TranscriptParser
 where
 
 import Control.Concurrent.STM (atomically)
-import Control.Error (rightMay)
 import Control.Lens (view)
 import qualified Crypto.Random as Random
 import qualified Data.Char as Char
@@ -192,7 +191,7 @@ run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
         "Running the provided transcript file...",
         ""
       ]
-  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
+  root <- Codebase.getRootBranch codebase
   do
     pathRef <- newIORef initialPath
     rootBranchRef <- newIORef root

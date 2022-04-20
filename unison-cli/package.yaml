@@ -30,6 +30,7 @@ dependencies:
   - mtl
   - transformers
   - open-browser
+  - pretty-simple
   - random >= 1.2.0
   - regex-tdfa
   - stm

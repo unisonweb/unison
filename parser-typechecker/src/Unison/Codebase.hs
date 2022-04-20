@@ -43,7 +43,6 @@ module Unison.Codebase
     -- * Root branch
     getRootBranch,
     getRootBranchExists,
-    GetRootBranchError (..),
     putRootBranch,
     rootBranchUpdates,
 
@@ -99,7 +98,6 @@ module Unison.Codebase
   )
 where
 
-import Control.Error.Util (hush)
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Control.Monad.Trans.Except (throwE)
 import Data.List as List
@@ -125,7 +123,6 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
-    GetRootBranchError (..),
     GitError (GitCodebaseError),
     PushGitBranchOpts (..),
     SyncToDir,
@@ -155,12 +152,10 @@ import qualified Unison.WatchKind as WK
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
-getShallowRootBranch :: Monad m => Codebase m v a -> m (Either GetRootBranchError (V2.CausalBranch m))
+getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
 getShallowRootBranch codebase = do
   hash <- getRootBranchHash codebase
-  getShallowBranchForHash codebase hash >>= \case
-    Nothing -> pure $ Left (CouldntLoadRootBranch . Cv.causalHash2to1 $ hash)
-    Just b -> pure (Right b)
+  getShallowBranchForHash codebase hash
 
 -- | Recursively descend into shallow branches following the given path.
 shallowBranchAtPath :: Monad m => Path -> V2Branch.CausalBranch m -> m (Maybe (V2Branch.CausalBranch m))
@@ -187,10 +182,8 @@ getBranchForHash codebase h =
 
       find rb = List.find headHashEq (nestedChildrenForDepth 3 rb)
    in do
-        rootBranch <- hush <$> getRootBranch codebase
-        case rootBranch of
-          Just rb -> maybe (getBranchForHashImpl codebase h) (pure . Just) (find rb)
-          Nothing -> getBranchForHashImpl codebase h
+        rootBranch <- getRootBranch codebase
+        maybe (getBranchForHashImpl codebase h) (pure . Just) (find rootBranch)
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
 lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))

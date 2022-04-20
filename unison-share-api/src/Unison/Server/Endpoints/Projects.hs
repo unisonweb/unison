@@ -133,9 +133,7 @@ serve codebase mayRoot mayOwner = projects
     projects :: Backend m [ProjectListing]
     projects = do
       root <- case mayRoot of
-        Nothing -> do
-          gotRoot <- lift $ Codebase.getRootBranch codebase
-          errFromEither BadRootBranch gotRoot
+        Nothing -> lift (Codebase.getRootBranch codebase)
         Just sbh -> do
           ea <- lift . runExceptT $ do
             h <- Backend.expandShortBranchHash codebase sbh
@@ -143,7 +141,7 @@ serve codebase mayRoot mayOwner = projects
             mayBranch ?? Backend.CouldntLoadBranch h
           liftEither ea
 
-      ownerEntries <- findShallow root
+      ownerEntries <- lift $ findShallow root
       -- If an owner is provided, we only want projects belonging to them
       let owners =
             case mayOwner of
@@ -157,12 +155,12 @@ serve codebase mayRoot mayOwner = projects
       ownerPath' <- (parsePath . Text.unpack) ownerName
       let path = Path.fromPath' ownerPath'
       let ownerBranch = Branch.getAt' path root
-      entries <- findShallow ownerBranch
+      entries <- lift $ findShallow ownerBranch
       pure $ mapMaybe (backendListEntryToProjectListing owner) entries
 
     -- Minor helpers
 
-    findShallow :: Branch.Branch m -> Backend m [Backend.ShallowListEntry Symbol Ann]
+    findShallow :: Branch.Branch m -> m [Backend.ShallowListEntry Symbol Ann]
     findShallow branch =
       Backend.lsBranch codebase branch
 

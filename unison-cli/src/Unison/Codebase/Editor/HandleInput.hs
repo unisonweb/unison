@@ -700,8 +700,8 @@ loop = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                      -- Branch exists and isn't empty, print an error
-                      throwError (BranchAlreadyExists (Path.unsplit' dest))
+                    -- Branch exists and isn't empty, print an error
+                    throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -1081,27 +1081,24 @@ loop = do
                       sbhLength
                       root'
                       (Backend.AllNames $ Path.fromPath' pathArg)
-              res <- eval $ FindShallow pathArgAbs
-              case res of
-                Left e -> handleBackendError e
-                Right entries -> do
-                  -- caching the result as an absolute path, for easier jumping around
-                  LoopState.numberedArgs .= fmap entryToHQString entries
-                  respond $ ListShallow ppe entries
+              entries <- eval $ FindShallow pathArgAbs
+              -- caching the result as an absolute path, for easier jumping around
+              LoopState.numberedArgs .= fmap entryToHQString entries
+              respond $ ListShallow ppe entries
+              where
+                entryToHQString :: ShallowListEntry v Ann -> String
+                entryToHQString e =
+                  fixup $ case e of
+                    ShallowTypeEntry (TypeEntry _ hq _) -> HQ'.toString hq
+                    ShallowTermEntry (TermEntry _ hq _ _) -> HQ'.toString hq
+                    ShallowBranchEntry ns _ _ -> NameSegment.toString ns
+                    ShallowPatchEntry ns -> NameSegment.toString ns
                   where
-                    entryToHQString :: ShallowListEntry v Ann -> String
-                    entryToHQString e =
-                      fixup $ case e of
-                        ShallowTypeEntry (TypeEntry _ hq _) -> HQ'.toString hq
-                        ShallowTermEntry (TermEntry _ hq _ _) -> HQ'.toString hq
-                        ShallowBranchEntry ns _ _ -> NameSegment.toString ns
-                        ShallowPatchEntry ns -> NameSegment.toString ns
-                      where
-                        fixup s = case pathArgStr of
-                          "" -> s
-                          p | last p == '.' -> p ++ s
-                          p -> p ++ "." ++ s
-                        pathArgStr = show pathArg
+                    fixup s = case pathArgStr of
+                      "" -> s
+                      p | last p == '.' -> p ++ s
+                      p -> p ++ "." ++ s
+                    pathArgStr = show pathArg
             FindI isVerbose global ws -> do
               let prettyPrintNames = basicPrettyPrintNames
               unlessError do
@@ -1133,9 +1130,11 @@ loop = do
 
                   -- name query
                   (map HQ.unsafeFromString -> qs) -> do
-                    ns <- lift $
-                      if not global then basicParseNames
-                      else fst <$> basicNames' Backend.AllNames
+                    ns <-
+                      lift $
+                        if not global
+                          then basicParseNames
+                          else fst <$> basicNames' Backend.AllNames
                     let srs = searchBranchScored ns fuzzyNameDistance qs
                     pure $ uniqueBy SR.toReferent srs
                 lift do
@@ -1395,11 +1394,11 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
-                      eval (MakeStandalone ppe ref output) >>= \case
-                        Just err -> respond $ EvaluationFailure err
-                        Nothing -> pure ()
+                    eval (MakeStandalone ppe ref output) >>= \case
+                      Just err -> respond $ EvaluationFailure err
+                      Nothing -> pure ()
                   | otherwise ->
-                      respond $ BadMainFunction smain ty ppe [mainType]
+                    respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -2413,10 +2412,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2433,34 +2432,16 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
             pair qn = case score qn name of
               Just score -> Set.singleton (Just score, result)
               Nothing -> mempty
-
-handleBackendError :: Backend.BackendError -> Action m i v ()
-handleBackendError = \case
-  Backend.NoSuchNamespace path ->
-    respond . BranchNotFound $ Path.absoluteToPath' path
-  Backend.BadNamespace msg namespace ->
-    respond $ BadNamespace msg namespace
-  Backend.BadRootBranch e -> respond $ BadRootBranch e
-  Backend.NoBranchForHash h -> do
-    sbhLength <- eval BranchHashLength
-    respond . NoBranchWithHash $ SBH.fromHash sbhLength h
-  Backend.CouldntLoadBranch h -> do
-    respond . CouldntLoadBranch $ h
-  Backend.CouldntExpandBranchHash sbh -> respond $ NoBranchWithHash sbh
-  Backend.AmbiguousBranchHash h hashes ->
-    respond $ BranchHashAmbiguous h hashes
-  Backend.MissingSignatureForTerm r ->
-    respond $ TermMissingType r
 
 unlessError :: ExceptT (Output v) (Action' m v) () -> Action' m v ()
 unlessError ma = runExceptT ma >>= either respond pure
@@ -2847,7 +2828,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-              respond $ ListOfLinks mempty []
+            respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>
