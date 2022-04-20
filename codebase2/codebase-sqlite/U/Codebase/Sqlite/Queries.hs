@@ -124,7 +124,6 @@ module U.Codebase.Sqlite.Queries
     -- * sync temp entities
     getMissingDependentsForTempEntity,
     getMissingDependencyJwtsForTempEntity,
-    tempEntityExists,
     tempToSyncEntity,
     insertTempEntity,
     saveReadyEntity,
@@ -1219,19 +1218,6 @@ getMissingDependentsForTempEntity h =
       WHERE dependency = ?
     |]
     (Only h)
-
-tempEntityExists :: Base32Hex -> Transaction Bool
-tempEntityExists h =
-  queryOneCol sql (Only h)
-  where
-    sql =
-      [here|
-        SELECT EXISTS (
-          SELECT 1
-          FROM temp_entity
-          WHERE hash = ?
-        )
-      |]
 
 -- | Insert a new `temp_entity` row, and its associated 1+ `temp_entity_missing_dependency` rows.
 --
