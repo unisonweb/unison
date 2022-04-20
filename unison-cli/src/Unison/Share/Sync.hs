@@ -64,8 +64,9 @@ getCausalHashByPath repoPath =
 
 -- | An error occurred while pushing code to Unison Share.
 data PushError
-  = PushErrorServerMissingDependencies (NESet Share.Hash)
-  | PushErrorHashMismatch Share.HashMismatch
+  = PushErrorHashMismatch Share.HashMismatch
+  | PushErrorNoWritePermission Share.RepoPath
+  | PushErrorServerMissingDependencies (NESet Share.Hash)
 
 -- | Push a causal to Unison Share.
 push ::
@@ -91,19 +92,22 @@ push httpClient unisonShareUrl runDB repoPath expectedHash causalHash = do
     Share.UpdatePathHashMismatch mismatch -> pure (Left (PushErrorHashMismatch mismatch))
     Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
       -- Upload the causal and all of its dependencies.
-      upload httpClient unisonShareUrl runDB (Share.RepoPath.repoName repoPath) dependencies
-
-      -- After uploading the causal and all of its dependencies, try setting the remote path again.
-      updatePath <&> \case
-        Share.UpdatePathSuccess -> Right ()
-        -- Between the initial updatePath attempt and this one, someone else managed to update the path. That's ok; we
-        -- still managed to upload our causal, but the push has indeed failed overall.
-        Share.UpdatePathHashMismatch mismatch -> Left (PushErrorHashMismatch mismatch)
-        -- Unexpected, but possible: we thought we uploaded all we needed to, yet the server still won't accept our
-        -- causal. Bug in the client because we didn't upload enough? Bug in the server because we weren't told to
-        -- upload some dependency? Who knows.
-        Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) ->
-          Left (PushErrorServerMissingDependencies dependencies)
+      upload httpClient unisonShareUrl runDB (Share.RepoPath.repoName repoPath) dependencies >>= \case
+        False -> pure (Left (PushErrorNoWritePermission repoPath))
+        True ->
+          -- After uploading the causal and all of its dependencies, try setting the remote path again.
+          updatePath <&> \case
+            Share.UpdatePathSuccess -> Right ()
+            -- Between the initial updatePath attempt and this one, someone else managed to update the path. That's ok;
+            -- we still managed to upload our causal, but the push has indeed failed overall.
+            Share.UpdatePathHashMismatch mismatch -> Left (PushErrorHashMismatch mismatch)
+            -- Unexpected, but possible: we thought we uploaded all we needed to, yet the server still won't accept our
+            -- causal. Bug in the client because we didn't upload enough? Bug in the server because we weren't told to
+            -- upload some dependency? Who knows.
+            Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) ->
+              Left (PushErrorServerMissingDependencies dependencies)
+            Share.UpdatePathNoWritePermission _ -> Left (PushErrorNoWritePermission repoPath)
+    Share.UpdatePathNoWritePermission _ -> pure (Left (PushErrorNoWritePermission repoPath))
   where
     updatePath :: IO Share.UpdatePathResponse
     updatePath =
@@ -138,11 +142,11 @@ upload ::
   (forall a. Sqlite.Transaction a -> IO a) ->
   Share.RepoName ->
   NESet Share.Hash ->
-  IO ()
+  IO Bool
 upload httpClient unisonShareUrl runDB repoName =
   loop
   where
-    loop :: NESet Share.Hash -> IO ()
+    loop :: NESet Share.Hash -> IO Bool
     loop (NESet.toAscList -> hashes) = do
       -- Get each entity that the server is missing out of the database.
       entities <- traverse (runDB . resolveHashToEntity) hashes
@@ -161,7 +165,8 @@ upload httpClient unisonShareUrl runDB repoName =
       -- upload those too.
       uploadEntities >>= \case
         Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> loop moreHashes
-        Share.UploadEntitiesSuccess -> pure ()
+        Share.UploadEntitiesNoWritePermission _ -> pure False
+        Share.UploadEntitiesSuccess -> pure True
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
