@@ -508,10 +508,10 @@ s <| r = go s (domain r)
     go s _ | Set.null s = mempty
     go s (Map.Bin _ amid bs l r) = here <> go sl l <> go sr r
       where
-        (sl, sr) = Set.split amid s
+        (sl, hasMid, sr) = Set.splitMember amid s
         mids = Set.singleton amid
         here =
-          if Set.member amid s
+          if hasMid
             then Relation (Map.singleton amid bs) (Map.fromList $ (,mids) <$> (Set.toList bs))
             else mempty
 
