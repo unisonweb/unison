@@ -317,11 +317,6 @@ entityExists (Share.Hash b32) = do
     -- then check if is causal hash or if object exists for hash id
     Just hashId -> Q.isCausalHash hashId ||^ Q.isObjectHash hashId
 
--- | Does this entity already exist in the `temp_entity` table?
-tempEntityExists :: Share.Hash -> Sqlite.Transaction Bool
-tempEntityExists (Share.Hash b32) =
-  Q.tempEntityExists b32
-
 -- | Where is an entity stored?
 entityLocation :: Share.Hash -> Sqlite.Transaction EntityLocation
 entityLocation hash =
