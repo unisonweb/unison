@@ -212,9 +212,6 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
           (liftIO $ Codebase.shallowBranchAtPath path shallowRoot) >>= \case
             Nothing -> pure $ Cv.causalbranch1to2 (V1Branch.empty)
             Just lc -> pure lc
-        -- Actually construct the NamespaceListing
-        -- listingBranch <- fromMaybe (Causal.one ShallowBranch.Empty) <$>
-
         listingBranch <- liftIO $ V2Causal.value listingCausal
         shallowPPE <- liftIO $ Backend.shallowPPE codebase listingBranch
         let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
