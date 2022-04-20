@@ -107,7 +107,7 @@ watchBranchUpdates currentRoot q codebase = do
     Codebase.rootBranchUpdates codebase
   thread <- forkIO . forever $ do
     updatedBranches <- externalBranchUpdates
-    currentRoot <- currentRoot
+    currentRoot' <- currentRoot
     -- Since there's some lag between when branch files are written and when
     -- the OS generates a file watch event, we skip branch update events
     -- that are causally before the current root.
@@ -117,7 +117,7 @@ watchBranchUpdates currentRoot q codebase = do
     -- heuristic. If a fairly recent head gets deposited at just the right
     -- time, it would get ignored by this logic. This seems unavoidable.
     let maxDepth = 20 -- if it's further back than this, consider it new
-    let isNew b = not <$> Causal.beforeHash maxDepth b (Branch._history currentRoot)
+    let isNew b = not <$> Causal.beforeHash maxDepth b (Branch._history currentRoot')
     notBefore <- filterM isNew (toList updatedBranches)
     when (length notBefore > 0) $
       atomically . Q.enqueue q . IncomingRootBranch $ Set.fromList notBefore
@@ -244,7 +244,7 @@ fixupCompletion q cs@(h : t) =
 
 parseInput ::
   -- | Root branch, used to expand globs
-  Branch0 m ->
+  m (Branch0 m) ->
   -- | Current path from root, used to expand globs
   Path.Absolute ->
   -- | Numbered arguments
@@ -254,7 +254,7 @@ parseInput ::
   -- | command:arguments
   [String] ->
   Either (P.Pretty CT.ColorText) Input
-parseInput rootBranch currentPath numberedArgs patterns segments = do
+parseInput _loadRootBranch currentPath numberedArgs patterns segments = do
   case segments of
     [] -> Left ""
     command : args -> case Map.lookup command patterns of
@@ -265,6 +265,8 @@ parseInput rootBranch currentPath numberedArgs patterns segments = do
           let targets = case InputPattern.argType pat i of
                 Just argT -> InputPattern.globTargets argT
                 Nothing -> mempty
+          -- TODO: fix this
+          let rootBranch = Branch.empty0
           case Globbing.expandGlobs targets rootBranch currentPath arg of
             -- No globs encountered
             Nothing -> pure [arg]

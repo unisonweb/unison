@@ -37,6 +37,7 @@ import qualified Unison.Util.Pretty as P
 data Event
   = UnisonFileChanged SourceName Source
   | IncomingRootBranch (Set Branch.Hash)
+  deriving (Show)
 
 type Source = Text -- "id x = x\nconst a b = a"
 

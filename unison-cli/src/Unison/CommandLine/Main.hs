@@ -57,14 +57,14 @@ getUserInput ::
   (MonadIO m, Line.MonadException m) =>
   Map String InputPattern ->
   Codebase m v a ->
-  Branch m ->
+  IO (Branch m) ->
   Path.Absolute ->
   [String] ->
   m Input
-getUserInput patterns codebase rootBranch currentPath numberedArgs =
+getUserInput patterns codebase loadRootBranch currentPath numberedArgs =
   Line.runInputT
     settings
-    (haskelineCtrlCHandling go)
+    (haskelineCtrlCHandling go >>= (\i -> traceShowM i *> pure i))
   where
     -- Catch ctrl-c and simply re-render the prompt.
     haskelineCtrlCHandling :: Line.InputT m b -> Line.InputT m b
@@ -84,7 +84,7 @@ getUserInput patterns codebase rootBranch currentPath numberedArgs =
         Just l -> case words l of
           [] -> go
           ws ->
-            case parseInput (Branch.head rootBranch) currentPath numberedArgs patterns $ ws of
+            case parseInput (Branch.head <$> liftIO loadRootBranch) currentPath numberedArgs patterns $ ws of
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
@@ -101,6 +101,8 @@ getUserInput patterns codebase rootBranch currentPath numberedArgs =
           h : t -> fromMaybe (pure []) $ do
             p <- Map.lookup h patterns
             argType <- IP.argType p (length t)
+            -- TODO: fix this
+            let rootBranch = error "no branch available in suggestions"
             pure $ suggestions argType word codebase rootBranch currentPath
           _ -> pure []
 
@@ -116,7 +118,9 @@ main ::
   UCMVersion ->
   IO ()
 main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl ucmVersion = do
-  rootLoader <- once $ Codebase.getRootBranch codebase
+  rootLoader <-
+    once $ do
+      Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
   do
@@ -124,6 +128,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
     rootLoaderRef :: IORef (IO (Branch IO)) <- newIORef rootLoader
     let loadLatestRoot :: IO (Branch IO)
         loadLatestRoot = join $ readIORef rootLoaderRef
+
     pathRef <- newIORef initialPath
     initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
     numberedArgsRef <- newIORef []
@@ -141,10 +146,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
               >>= (\p -> (patternName p, p) : ((,p) <$> aliases p))
     let getInput :: IO Input
         getInput = do
-          root <- loadLatestRoot
           path <- readIORef pathRef
           numberedArgs <- readIORef numberedArgsRef
-          getUserInput patternMap codebase root path numberedArgs
+          getUserInput patternMap codebase loadLatestRoot path numberedArgs
     let loadSourceFile :: Text -> IO LoadSourceResult
         loadSourceFile fname =
           if allow $ Text.unpack fname
@@ -191,16 +195,16 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                   pure x
     (onInterrupt, waitForInterrupt) <- buildInterruptHandler
     withInterruptHandler onInterrupt $ do
+      credMan <- newCredentialManager
+      authorizedHTTPClient <- HTTP.newAuthorizedHTTPClient credMan ucmVersion
+      let env =
+            LoopState.Env
+              { LoopState.authHTTPClient = authorizedHTTPClient,
+                LoopState.credentialManager = credMan
+              }
       let loop :: LoopState.LoopState IO Symbol -> IO ()
           loop state = do
             writeIORef pathRef (view LoopState.currentPath state)
-            credMan <- newCredentialManager
-            authorizedHTTPClient <- HTTP.newAuthorizedHTTPClient credMan ucmVersion
-            let env =
-                  LoopState.Env
-                    { LoopState.authHTTPClient = authorizedHTTPClient,
-                      LoopState.credentialManager = credMan
-                    }
             let free = LoopState.runAction env state HandleInput.loop
             let handleCommand =
                   HandleCommand.commandLine

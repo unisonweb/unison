@@ -170,7 +170,6 @@ loop = do
   uf <- use LoopState.latestTypecheckedFile
   currentPath' <- use LoopState.currentPath
   latestFile' <- use LoopState.latestFile
-  currentBranch' <- getAt currentPath'
   e <- eval Input
   hqLength <- eval CodebaseHashLength
   sbhLength <- eval BranchHashLength
@@ -178,7 +177,6 @@ loop = do
       hqNameQuery q = do
         root' <- LoopState.loadRoot
         eval $ HQNameQuery (Just currentPath'') root' q
-      currentBranch0 = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
       defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
       resolveSplit' :: (Path', a) -> (Path, a)

@@ -254,8 +254,8 @@ run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
                       args -> do
                         output ("\n" <> show p <> "\n")
                         numberedArgs <- readIORef numberedArgsRef
-                        currentRoot <- Branch.head <$> readIORef rootBranchRef
-                        case parseInput currentRoot curPath numberedArgs patternMap args of
+                        let currentRoot0 = Branch.head <$> readIORef rootBranchRef
+                        case parseInput currentRoot0 curPath numberedArgs patternMap args of
                           -- invalid command is treated as a failure
                           Left msg -> dieWithMsg $ P.toPlain terminalWidth msg
                           Right input -> pure $ Right input
