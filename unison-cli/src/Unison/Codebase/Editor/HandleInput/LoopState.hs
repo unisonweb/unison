@@ -15,11 +15,15 @@ import qualified Network.HTTP.Client as HTTP
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Codebase.Branch
   ( Branch (..),
+    Branch0,
   )
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Path as Path
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.UnisonFile as UF
@@ -49,6 +53,9 @@ runAction env state (Action m) =
 liftF :: F m i v a -> Action m i v a
 liftF = Action . lift . lift . lift
 
+actionLiftM :: m a -> Action m i v a
+actionLiftM = Action . eval . Eval
+
 -- | A typeclass representing monads which can evaluate 'Command's.
 class Monad n => MonadCommand n m v i | n -> m v i where
   eval :: Command m v i a -> n a
@@ -72,8 +79,8 @@ instance MonadCommand (Action m i v) m i v where
   eval = Action . eval
 
 data LoopState m v = LoopState
-  { _root :: Branch m,
-    _lastSavedRoot :: Branch m,
+  { _root :: m (Branch m),
+    _lastSavedRoot :: m (Branch m),
     -- the current position in the namespace
     _currentPathStack :: NonEmpty Path.Absolute,
     -- TBD
@@ -101,12 +108,36 @@ type InputDescription = Text
 
 makeLenses ''LoopState
 
+loadRoot :: Action m i v (Branch m)
+loadRoot = do
+  loader <- use root
+  actionLiftM $ loader
+
+loadRoot0 :: Action m i v (Branch0 m)
+loadRoot0 = do
+  Branch.head <$> loadRoot
+
+loadLastSavedRoot :: Action m i v (Branch m)
+loadLastSavedRoot = do
+  loader <- use lastSavedRoot
+  actionLiftM loader
+
+loadCurrentBranch :: Action m i v (Branch m)
+loadCurrentBranch = do
+  path <- use currentPath
+  rootBranch <- loadRoot
+  pure $ Branch.getAt' (Path.unabsolute path) rootBranch
+
 -- replacing the old read/write scalar Lens with "peek" Getter for the NonEmpty
 currentPath :: Getter (LoopState m v) Path.Absolute
 currentPath = currentPathStack . to Nel.head
 
-loopState0 :: Branch m -> Path.Absolute -> LoopState m v
+loopState0 :: m (Branch m) -> Path.Absolute -> LoopState m v
 loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
+
+getRootNames :: Action' m v Names
+getRootNames = do
+  Branch.toNames <$> loadRoot0
 
 respond :: MonadCommand n m i v => Output v -> n ()
 respond output = eval $ Notify output

@@ -402,9 +402,9 @@ run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
               pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
             Just () -> do
               writeIORef numberedArgsRef (LoopState._numberedArgs state')
-              writeIORef rootBranchRef (LoopState._root state')
+              writeIORef rootBranchRef =<< (LoopState._root state')
               loop state'
-    loop (LoopState.loopState0 root initialPath)
+    loop (LoopState.loopState0 (pure root) initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do

@@ -9,6 +9,7 @@ where
 
 import Compat (withInterruptHandler)
 import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Extra (once)
 import Control.Concurrent.STM (atomically)
 import Control.Exception (catch, finally)
 import Control.Lens (view)
@@ -115,12 +116,14 @@ main ::
   UCMVersion ->
   IO ()
 main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl ucmVersion = do
-  root <- Codebase.getRootBranch codebase
+  rootLoader <- once $ Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
   do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
-    rootRef <- newIORef root
+    rootLoaderRef :: IORef (IO (Branch IO)) <- newIORef rootLoader
+    let loadLatestRoot :: IO (Branch IO)
+        loadLatestRoot = join $ readIORef rootLoaderRef
     pathRef <- newIORef initialPath
     initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
     numberedArgsRef <- newIORef []
@@ -128,7 +131,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
     cancelFileSystemWatch <- watchFileSystem eventQueue dir
     cancelWatchBranchUpdates <-
       watchBranchUpdates
-        (readIORef rootRef)
+        loadLatestRoot
         eventQueue
         codebase
     let patternMap :: Map String InputPattern
@@ -138,7 +141,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
               >>= (\p -> (patternName p, p) : ((,p) <$> aliases p))
     let getInput :: IO Input
         getInput = do
-          root <- readIORef rootRef
+          root <- loadLatestRoot
           path <- readIORef pathRef
           numberedArgs <- readIORef numberedArgsRef
           getUserInput patternMap codebase root path numberedArgs
@@ -203,7 +206,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                   HandleCommand.commandLine
                     config
                     awaitInput
-                    (writeIORef rootRef)
+                    (writeIORef rootLoaderRef . pure)
                     runtime
                     notify
                     ( \o ->
@@ -235,7 +238,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
 
       -- Run the main program loop, always run cleanup,
       -- If an exception occurred, print it before exiting.
-      loop (LoopState.loopState0 root initialPath)
+      loop (LoopState.loopState0 rootLoader initialPath)
         `finally` cleanup
   where
     printException :: SomeException -> IO ()
