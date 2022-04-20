@@ -80,6 +80,7 @@ library:
     - NanoID
     - lucid
     - yaml
+    - resource-pool
     - semialign
     - servant
     - servant-docs

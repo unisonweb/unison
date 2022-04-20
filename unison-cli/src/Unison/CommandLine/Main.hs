@@ -9,7 +9,7 @@ where
 
 import Compat (withInterruptHandler)
 import qualified Control.Concurrent.Async as Async
-import Control.Concurrent.Extra (once)
+import Control.Concurrent.Extra (onceFork)
 import Control.Concurrent.STM (atomically)
 import Control.Exception (catch, finally)
 import Control.Lens (view)
@@ -64,7 +64,7 @@ getUserInput ::
 getUserInput patterns codebase loadRootBranch currentPath numberedArgs =
   Line.runInputT
     settings
-    (haskelineCtrlCHandling go >>= (\i -> traceShowM i *> pure i))
+    (haskelineCtrlCHandling go)
   where
     -- Catch ctrl-c and simply re-render the prompt.
     haskelineCtrlCHandling :: Line.InputT m b -> Line.InputT m b
@@ -119,7 +119,7 @@ main ::
   IO ()
 main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl ucmVersion = do
   rootLoader <-
-    once $ do
+    onceFork $ do
       Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome

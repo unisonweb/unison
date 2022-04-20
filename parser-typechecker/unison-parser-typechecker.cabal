@@ -253,6 +253,7 @@ library
     , raw-strings-qq
     , regex-base
     , regex-tdfa
+    , resource-pool
     , safe
     , safe-exceptions
     , semialign

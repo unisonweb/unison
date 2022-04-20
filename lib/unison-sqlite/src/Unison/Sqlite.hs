@@ -14,6 +14,7 @@ module Unison.Sqlite
   ( -- * Connection management
     Connection,
     withConnection,
+    withConnectionPool,
 
     -- * Transaction interface
     Transaction,
@@ -119,6 +120,7 @@ import Unison.Sqlite.Connection
     vacuum,
     vacuumInto,
     withConnection,
+    withConnectionPool,
   )
 import Unison.Sqlite.DataVersion (DataVersion (..), getDataVersion)
 import Unison.Sqlite.Exception

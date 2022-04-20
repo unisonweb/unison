@@ -2,6 +2,7 @@ module Unison.Sqlite.Connection
   ( -- * Connection management
     Connection (..),
     withConnection,
+    withConnectionPool,
 
     -- * Executing queries
 
@@ -76,6 +77,8 @@ module Unison.Sqlite.Connection
 where
 
 import Data.Bifunctor (bimap)
+import qualified Data.Pool as Pool
+import qualified Data.Time as Time
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
 import Debug.Pretty.Simple (pTraceShowM)
@@ -93,16 +96,71 @@ import UnliftIO.Exception
 -- Note: the connection is created with @PRAGMA foreign_keys = ON@ automatically, to work around the fact that SQLite
 -- does not automatically enforce foreign key integrity, because it elected to maintain backwards compatibility with
 -- code that was written before the foreign key integrity feature was implemented.
+-- withConnection ::
+--   MonadUnliftIO m =>
+--   -- | Connection name, for debugging.
+--   String ->
+--   -- | Path to SQLite database file.
+--   FilePath ->
+--   (Connection -> m a) ->
+--   m a
+-- withConnection name file =
+--   bracket (liftIO (openConnection name file)) (liftIO . closeConnection)
 withConnection ::
+  MonadUnliftIO m =>
+  Pool.Pool Connection ->
+  (Connection -> m a) ->
+  m a
+withConnection pool action =
+  withRunInIO \runInIO ->
+    Pool.withResource pool (runInIO . action)
+
+-- withConnectionGetter ::
+--   MonadUnliftIO m =>
+--   -- | Connection name, for debugging.
+--   String ->
+--   -- | Path to SQLite database file.
+--   FilePath ->
+--   ((forall a. (Connection -> m a) -> m a) -> m r) ->
+--   m r
+-- withConnectionGetter name file action = do
+--   bracket mkPool (liftIO . Pool.destroyAllResources) \pool -> do
+--     action
+--       ( \useConn -> do
+--           runner <- askRunInIO
+--           liftIO $ Pool.withResource pool (runner . useConn)
+--       )
+--   where
+--     mkPool = liftIO $ do
+--       let maxConcurrentConnections = 10
+--           connectionTTL = Time.nominalDay
+--       Pool.createPool
+--         (openConnection name file)
+--         (closeConnection)
+--         1
+--         connectionTTL
+--         maxConcurrentConnections
+
+withConnectionPool ::
   MonadUnliftIO m =>
   -- | Connection name, for debugging.
   String ->
   -- | Path to SQLite database file.
   FilePath ->
-  (Connection -> m a) ->
-  m a
-withConnection name file =
-  bracket (liftIO (openConnection name file)) (liftIO . closeConnection)
+  (Pool.Pool Connection -> m r) ->
+  m r
+withConnectionPool name file action = do
+  bracket mkPool (liftIO . Pool.destroyAllResources) action
+  where
+    mkPool = liftIO $ do
+      let maxConcurrentConnections = 10
+          connectionTTL = Time.nominalDay
+      Pool.createPool
+        (openConnection name file)
+        (closeConnection)
+        1
+        connectionTTL
+        maxConcurrentConnections
 
 -- Open a connection to a SQLite database.
 openConnection ::

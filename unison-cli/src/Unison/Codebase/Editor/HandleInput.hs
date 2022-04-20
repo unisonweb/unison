@@ -935,7 +935,8 @@ loop = do
                   Path.HQSplit ->
                   ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
                 go root0 (missingSrcs, actions) hqsrc =
-                  let src :: Path.Split
+                  let currentBranch0 = Branch.getAt0 currentPath'' root0
+                      src :: Path.Split
                       src = second HQ'.toName hqsrc
                       proposedDest :: Path.Split
                       proposedDest = second HQ'.toName hqProposedDest
@@ -1108,6 +1109,7 @@ loop = do
               traverse_ (displayI basicPPNames outputLoc) names
             ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
             FindPatchI -> do
+              currentBranch0 <- LoopState.loadCurrentBranch0
               let patches =
                     [ Path.toName $ Path.snoc p seg
                       | (p, b) <- Branch.toList0 currentBranch0,
@@ -1143,11 +1145,12 @@ loop = do
                     pathArgStr = show pathArg
             FindI isVerbose global ws -> do
               root0 <- LoopState.loadRoot0
+              currentBranch0 <- LoopState.loadCurrentBranch0
               prettyPrintNames <- basicPrettyPrintNames
               unlessError do
                 results <- case ws of
                   -- no query, list everything
-                  [] -> pure . listBranch $ Branch.head currentBranch'
+                  [] -> pure . listBranch $ currentBranch0
                   -- type query
                   ":" : ws ->
                     ExceptT (parseSearchType (show input) (unwords ws)) >>= \typ ->
@@ -1349,6 +1352,7 @@ loop = do
               patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
               doShowTodoOutput patch $ resolveToAbsolute branchPath'
             TestI showOk showFail -> do
+              currentBranch0 <- LoopState.loadCurrentBranch0
               let testTerms =
                     Map.keys . R4.d1 . uncurry R4.selectD34 isTest
                       . Branch.deepTermMetadata

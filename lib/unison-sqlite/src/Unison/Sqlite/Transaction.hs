@@ -60,6 +60,7 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Exception (Exception (fromException), onException, throwIO)
 import Control.Monad.Trans.Reader (ReaderT (..))
+import qualified Data.Pool as Pool
 import qualified Data.Text as Text
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
@@ -78,23 +79,24 @@ newtype Transaction a
   deriving (Applicative, Functor, Monad) via (ReaderT Connection IO)
 
 -- | Run a transaction on the given connection.
-runTransaction :: MonadIO m => Connection -> Transaction a -> m a
-runTransaction conn (Transaction f) = liftIO do
-  uninterruptibleMask \restore -> do
-    Connection.begin conn
-    -- Catch all exceptions (sync or async), because we want to ROLLBACK the BEGIN no matter what.
-    trySyncOrAsync @_ @SomeException (restore (f conn)) >>= \case
-      Left exception -> do
-        ignoringExceptions (Connection.rollback conn)
-        case fromException exception of
-          Just SqliteBusyException -> do
-            restore (threadDelay 100_000)
-            runWriteTransaction_ restore 200_000 conn (f conn)
-          _ -> throwIO exception
-      Right result -> do
-        Connection.commit conn
-        pure result
-{-# SPECIALIZE runTransaction :: Connection -> Transaction a -> IO a #-}
+runTransaction :: MonadIO m => Pool.Pool Connection -> Transaction a -> m a
+runTransaction pool (Transaction f) = liftIO do
+  Connection.withConnection pool \conn -> do
+    uninterruptibleMask \restore -> do
+      Connection.begin conn
+      -- Catch all exceptions (sync or async), because we want to ROLLBACK the BEGIN no matter what.
+      trySyncOrAsync @_ @SomeException (restore (f conn)) >>= \case
+        Left exception -> do
+          ignoringExceptions (Connection.rollback conn)
+          case fromException exception of
+            Just SqliteBusyException -> do
+              restore (threadDelay 100_000)
+              runWriteTransaction_ restore 200_000 conn (f conn)
+            _ -> throwIO exception
+        Right result -> do
+          Connection.commit conn
+          pure result
+{-# SPECIALIZE runTransaction :: Pool.Pool Connection -> Transaction a -> IO a #-}
 
 -- | Run a transaction that is known to only perform reads.
 --
@@ -103,11 +105,12 @@ runTransaction conn (Transaction f) = liftIO do
 --
 -- The transaction is never retried, so it is (more) safe to interleave arbitrary IO actions. If the transaction does
 -- attempt a write and gets SQLITE_BUSY, it's your fault!
-runReadOnlyTransaction :: MonadUnliftIO m => Connection -> ((forall x. Transaction x -> m x) -> m a) -> m a
-runReadOnlyTransaction conn f =
-  withRunInIO \runInIO ->
-    runReadOnlyTransaction_ conn (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
-{-# SPECIALIZE runReadOnlyTransaction :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a #-}
+runReadOnlyTransaction :: MonadUnliftIO m => Pool.Pool Connection -> ((forall x. Transaction x -> m x) -> m a) -> m a
+runReadOnlyTransaction pool f =
+  Connection.withConnection pool \conn ->
+    withRunInIO \runInIO ->
+      runReadOnlyTransaction_ conn (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
+{-# SPECIALIZE runReadOnlyTransaction :: Pool.Pool Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a #-}
 
 runReadOnlyTransaction_ :: Connection -> IO a -> IO a
 runReadOnlyTransaction_ conn action = do
@@ -126,16 +129,17 @@ runReadOnlyTransaction_ conn action = do
 -- BEGIN/COMMIT statements.
 --
 -- The transaction is never retried, so it is (more) safe to interleave arbitrary IO actions.
-runWriteTransaction :: MonadUnliftIO m => Connection -> ((forall x. Transaction x -> m x) -> m a) -> m a
-runWriteTransaction conn f =
-  withRunInIO \runInIO ->
-    uninterruptibleMask \restore ->
-      runWriteTransaction_
-        restore
-        100_000
-        conn
-        (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
-{-# SPECIALIZE runWriteTransaction :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a #-}
+runWriteTransaction :: MonadUnliftIO m => Pool.Pool Connection -> ((forall x. Transaction x -> m x) -> m a) -> m a
+runWriteTransaction pool f =
+  Connection.withConnection pool \conn ->
+    withRunInIO \runInIO ->
+      uninterruptibleMask \restore ->
+        runWriteTransaction_
+          restore
+          100_000
+          conn
+          (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
+{-# SPECIALIZE runWriteTransaction :: Pool.Pool Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a #-}
 
 runWriteTransaction_ :: (forall x. IO x -> IO x) -> Int -> Connection -> IO a -> IO a
 runWriteTransaction_ restore microseconds conn transaction = do

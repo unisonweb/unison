@@ -3,6 +3,7 @@ module Unison.Codebase.SqliteCodebase.Migrations where
 import Control.Concurrent.STM (TVar)
 import Control.Monad.Reader
 import qualified Data.Map as Map
+import qualified Data.Pool as Pool
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import System.Directory (copyFile)
 import System.FilePath ((</>))
@@ -50,13 +51,13 @@ ensureCodebaseIsUpToDate ::
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   TVar (Map Hash Ops2.TermBufferEntry) ->
   TVar (Map Hash Ops2.DeclBufferEntry) ->
-  Sqlite.Connection ->
+  Pool.Pool Sqlite.Connection ->
   m (Either Codebase.OpenCodebaseError ())
-ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer conn =
+ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer pool =
   UnliftIO.try do
     liftIO do
       ranMigrations <-
-        Sqlite.runWriteTransaction conn \run -> do
+        Sqlite.runWriteTransaction pool \run -> do
           schemaVersion <- run Q.schemaVersion
           let migs = migrations getDeclType termBuffer declBuffer
           -- The highest schema that this ucm knows how to migrate to.
@@ -72,7 +73,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
       when ranMigrations do
         -- Vacuum once now that any migrations have taken place.
         putStrLn $ "Cleaning up..."
-        Sqlite.Connection.vacuum conn
+        Sqlite.withConnection pool Sqlite.Connection.vacuum
         putStrLn $ "🏁 Migration complete. 🏁"
 
 -- | Copy the sqlite database to a new file with a unique name based on current time.

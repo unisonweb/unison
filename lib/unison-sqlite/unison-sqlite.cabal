@@ -62,8 +62,10 @@ library
     , pretty-simple
     , random
     , recover-rtti
+    , resource-pool
     , sqlite-simple
     , text
+    , time
     , transformers
     , unison-prelude
     , unliftio

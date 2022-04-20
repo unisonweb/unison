@@ -128,6 +128,10 @@ loadCurrentBranch = do
   rootBranch <- loadRoot
   pure $ Branch.getAt' (Path.unabsolute path) rootBranch
 
+loadCurrentBranch0 :: Action m i v (Branch0 m)
+loadCurrentBranch0 = do
+  Branch.head <$> loadCurrentBranch
+
 -- replacing the old read/write scalar Lens with "peek" Getter for the NonEmpty
 currentPath :: Getter (LoopState m v) Path.Absolute
 currentPath = currentPathStack . to Nel.head
