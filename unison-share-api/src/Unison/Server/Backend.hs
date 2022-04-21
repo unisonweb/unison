@@ -632,38 +632,39 @@ fixupNamesRelative root = Names.map fixName
 -- | A @Search r@ is a small bag of functions that is used to power a search for @r@s.
 --
 -- Construct a 'Search' with 'makeTypeSearch' or 'makeTermSearch', and eliminate it with 'applySearch'.
-data Search r = Search
-  { lookupNames :: r -> Set (HQ'.HashQualified Name),
-    lookupRelativeHQRefs' :: HQ'.HashQualified Name -> Set r,
+data Search m r = Search
+  { lookupNames :: r -> m (Set (HQ'.HashQualified Name)),
+    lookupRelativeHQRefs' :: HQ'.HashQualified Name -> m (Set r),
     makeResult :: HQ.HashQualified Name -> r -> Set (HQ'.HashQualified Name) -> SR.SearchResult,
     matchesNamedRef :: Name -> r -> HQ'.HashQualified Name -> Bool
   }
 
 -- | Make a type search, given a short hash length and names to search in.
-makeTypeSearch :: Int -> NamesWithHistory -> Search Reference
+makeTypeSearch :: Applicative m => Int -> NamesWithHistory -> Search m Reference
 makeTypeSearch len names =
   Search
-    { lookupNames = \ref -> NamesWithHistory.typeName len ref names,
-      lookupRelativeHQRefs' = \name -> NamesWithHistory.lookupRelativeHQType' name names,
+    { lookupNames = \ref -> pure $ NamesWithHistory.typeName len ref names,
+      lookupRelativeHQRefs' = \name -> pure $ NamesWithHistory.lookupRelativeHQType' name names,
       matchesNamedRef = HQ'.matchesNamedReference,
       makeResult = SR.typeResult
     }
 
 -- | Make a term search, given a short hash length and names to search in.
-makeTermSearch :: Int -> NamesWithHistory -> Search Referent
+makeTermSearch :: Applicative m => Int -> NamesWithHistory -> Search m Referent
 makeTermSearch len names =
   Search
-    { lookupNames = \ref -> NamesWithHistory.termName len ref names,
-      lookupRelativeHQRefs' = \name -> NamesWithHistory.lookupRelativeHQTerm' name names,
+    { lookupNames = \ref -> pure $ NamesWithHistory.termName len ref names,
+      lookupRelativeHQRefs' = \name -> pure $ NamesWithHistory.lookupRelativeHQTerm' name names,
       matchesNamedRef = HQ'.matchesNamedReferent,
       makeResult = SR.termResult
     }
 
 -- | Interpret a 'Search' as a function from name to search results.
-applySearch :: Show r => Search r -> HQ'.HashQualified Name -> [SR.SearchResult]
-applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} query =
+applySearch :: (Show r, Monad m) => Search m r -> HQ'.HashQualified Name -> m [SR.SearchResult]
+applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} query = do
   -- a bunch of references will match a HQ ref.
-  toList (lookupRelativeHQRefs' query) <&> \ref ->
+  refs <- (toList <$> lookupRelativeHQRefs' query)
+  for refs \ref -> do
     let -- Precondition: the input set is non-empty
         prioritize :: Set (HQ'.HashQualified Name) -> (HQ'.HashQualified Name, Set (HQ'.HashQualified Name))
         prioritize =
@@ -672,21 +673,21 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
             >>> List.uncons
             >>> fromMaybe (error (reportBug "E839404" ("query = " ++ show query ++ ", ref = " ++ show ref)))
             >>> over _2 Set.fromList
-        (primaryName, aliases) =
+    names <- lookupNames ref
+    let (primaryName, aliases) =
           -- The precondition of `prioritize` should hold here because we are passing in the set of names that are
           -- related to this ref, which is itself one of the refs that the query name was related to! (Hence it should
           -- be non-empty).
-          prioritize (lookupNames ref)
-     in makeResult (HQ'.toHQ primaryName) ref aliases
+          prioritize names
+    pure $ makeResult (HQ'.toHQ primaryName) ref aliases
 
 hqNameQuery ::
   Monad m =>
-  NameScoping ->
-  Branch m ->
   Codebase m v Ann ->
+  NamesWithHistory ->
   [HQ.HashQualified Name] ->
   m QueryResult
-hqNameQuery namesScope root codebase hqs = do
+hqNameQuery codebase parseNames hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hashes, hqnames) = partitionEithers (map HQ'.fromHQ2 hqs)
   -- Find the terms with those hashes.
@@ -705,8 +706,7 @@ hqNameQuery namesScope root codebase hqs = do
   -- The hq-name search needs a hash-qualifier length
   hqLength <- Codebase.hashLength codebase
   -- We need to construct the names that we want to use / search by.
-  let parseNames = getCurrentParseNames namesScope root
-      mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty
+  let mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty
       mkTypeResult sh r = SR.typeResult (HQ.HashOnly sh) r Set.empty
       -- Transform the hash results a bit
       termResults =
@@ -715,11 +715,11 @@ hqNameQuery namesScope root codebase hqs = do
         (\(sh, tps) -> mkTypeResult sh <$> toList tps) <$> typeRefs
       -- Now do the actual name query
       resultss =
-        let typeSearch :: Search Reference
+        let typeSearch :: Search Identity Reference
             typeSearch = makeTypeSearch hqLength parseNames
-            termSearch :: Search Referent
+            termSearch :: Search Identity Referent
             termSearch = makeTermSearch hqLength parseNames
-         in map (\name -> applySearch typeSearch name <> applySearch termSearch name) hqnames
+         in hqnames <&> (\name -> runIdentity (applySearch typeSearch name) <> runIdentity (applySearch termSearch name))
       (misses, hits) =
         zip hqnames resultss
           & map (\(hqname, results) -> if null results then Left hqname else Right results)
@@ -790,8 +790,149 @@ prettyDefinitionsBySuffixes ::
   Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt codebase query = do
   branch <- resolveBranchHash root codebase
+  let parseNames = getCurrentParseNames namesScope branch
   DefinitionResults terms types misses <-
-    lift (definitionsBySuffixes namesScope branch codebase DontIncludeCycles query)
+    lift (definitionsBySuffixes codebase parseNames DontIncludeCycles query)
+  hqLength <- lift $ Codebase.hashLength codebase
+  -- We might like to make sure that the user search terms get used as
+  -- the names in the pretty-printer, but the current implementation
+  -- doesn't.
+  let -- We use printNames for names in source and parseNames to lookup
+      -- definitions, thus printNames use the allNames scope, to ensure
+      -- external references aren't hashes.
+      printNames =
+        getCurrentPrettyNames (toAllNames namesScope) branch
+
+      parseNames =
+        getCurrentParseNames namesScope branch
+
+      ppe =
+        PPE.fromNamesDecl hqLength printNames
+
+      width =
+        mayDefaultWidth renderWidth
+
+      termFqns :: Map Reference (Set Text)
+      termFqns = Map.mapWithKey f terms
+        where
+          rel = Names.terms $ currentNames parseNames
+          f k _ =
+            Set.fromList . fmap Name.toText . toList $
+              R.lookupRan (Referent.Ref k) rel
+
+      typeFqns :: Map Reference (Set Text)
+      typeFqns = Map.mapWithKey f types
+        where
+          rel = Names.types $ currentNames parseNames
+          f k _ =
+            Set.fromList . fmap Name.toText . toList $
+              R.lookupRan k rel
+
+      flatten = Set.toList . fromMaybe Set.empty
+
+      docNames :: Set (HQ'.HashQualified Name) -> [Name]
+      docNames hqs = fmap docify . nubOrd . join . map toList . Set.toList $ hqs
+        where
+          docify n = Name.joinDot n "doc"
+
+      selectDocs :: [Referent] -> IO [Reference]
+      selectDocs rs = do
+        rts <- fmap join . for rs $ \case
+          Referent.Ref r ->
+            maybe [] (pure . (r,)) <$> Codebase.getTypeOfTerm codebase r
+          _ -> pure []
+        pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
+
+      -- rs0 can be empty or the term fetched, so when viewing a doc term
+      -- you get both its source and its rendered form
+      docResults :: [Reference] -> [Name] -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      docResults rs0 docs = do
+        let refsFor n = NamesWithHistory.lookupHQTerm (HQ.NameOnly n) parseNames
+        let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
+        -- lookup the type of each, make sure it's a doc
+        docs <- selectDocs (toList rs)
+        -- render all the docs
+        traverse (renderDoc ppe width rt codebase) docs
+
+      mkTermDefinition ::
+        ( Reference ->
+          DisplayObject
+            (AnnotatedText (UST.Element Reference))
+            (AnnotatedText (UST.Element Reference)) ->
+          ExceptT BackendError IO TermDefinition
+        )
+      mkTermDefinition r tm = do
+        let referent = Referent.Ref r
+        ts <- lift (Codebase.getTypeOfTerm codebase r)
+        let bn = bestNameForTerm @Symbol (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
+        tag <-
+          lift
+            ( termEntryTag
+                <$> termListEntry
+                  codebase
+                  (checkIsTestForBranch (Branch.head branch) referent)
+                  referent
+                  (HQ'.NameOnly (NameSegment bn))
+            )
+        docs <- lift (docResults [r] $ docNames (NamesWithHistory.termName hqLength (Referent.Ref r) printNames))
+        mk docs ts bn tag
+        where
+          mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
+          mk docs (Just typeSig) bn tag =
+            pure $
+              TermDefinition
+                (flatten $ Map.lookup r termFqns)
+                bn
+                tag
+                (bimap mungeSyntaxText mungeSyntaxText tm)
+                (formatSuffixedType ppe width typeSig)
+                docs
+      mkTypeDefinition r tp = do
+        let bn = bestNameForType @Symbol (PPE.suffixifiedPPE ppe) width r
+        tag <-
+          Just . typeEntryTag
+            <$> typeListEntry
+              codebase
+              r
+              (HQ'.NameOnly (NameSegment bn))
+        docs <- docResults [] $ docNames (NamesWithHistory.typeName hqLength r printNames)
+        pure $
+          TypeDefinition
+            (flatten $ Map.lookup r typeFqns)
+            bn
+            tag
+            (bimap mungeSyntaxText mungeSyntaxText tp)
+            docs
+  typeDefinitions <-
+    lift do
+      Map.traverseWithKey mkTypeDefinition $
+        typesToSyntax suffixifyBindings width ppe types
+  termDefinitions <-
+    Map.traverseWithKey mkTermDefinition $
+      termsToSyntax suffixifyBindings width ppe terms
+  let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
+      renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
+      renderedMisses = fmap HQ.toText misses
+  pure $
+    DefinitionDisplayResults
+      renderedDisplayTerms
+      renderedDisplayTypes
+      renderedMisses
+
+shallowPrettyDefinitionsBySuffixes ::
+  NameScoping ->
+  Maybe Branch.Hash ->
+  Maybe Width ->
+  Suffixify ->
+  Rt.Runtime Symbol ->
+  Codebase IO Symbol Ann ->
+  [HQ.HashQualified Name] ->
+  Backend IO DefinitionDisplayResults
+shallowPrettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt codebase query = do
+  branch <- resolveBranchHash root codebase
+  let parseNames = getCurrentParseNames namesScope branch
+  DefinitionResults terms types misses <-
+    lift (definitionsBySuffixes codebase parseNames DontIncludeCycles query)
   hqLength <- lift $ Codebase.hashLength codebase
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
@@ -1074,14 +1215,13 @@ data IncludeCycles
 definitionsBySuffixes ::
   forall m.
   MonadIO m =>
-  NameScoping ->
-  Branch m ->
   Codebase m Symbol Ann ->
+  NamesWithHistory ->
   IncludeCycles ->
   [HQ.HashQualified Name] ->
   m (DefinitionResults Symbol)
-definitionsBySuffixes namesScope branch codebase includeCycles query = do
-  QueryResult misses results <- hqNameQuery namesScope branch codebase query
+definitionsBySuffixes codebase parseNames includeCycles query = do
+  QueryResult misses results <- hqNameQuery codebase parseNames query
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- do
