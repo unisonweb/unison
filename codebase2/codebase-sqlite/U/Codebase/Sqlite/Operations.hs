@@ -90,7 +90,6 @@ import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.Bytes.Get (runGetS)
 import qualified Data.Bytes.Get as Get
 import qualified Data.Foldable as Foldable
-import Data.Functor.Identity (Identity)
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
 import qualified Data.Sequence as Seq

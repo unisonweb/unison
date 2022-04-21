@@ -91,7 +91,6 @@ where
 import Control.Lens (Lens', lens, use, (%%~), (.=))
 import Control.Monad.State (MonadState)
 import qualified Data.Foldable as Foldable
-import Data.Functor.Identity (Identity (Identity), runIdentity)
 import Data.List hiding (cycle, find)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -320,17 +319,17 @@ renames rn0 t0@(Term fvs ann t)
   | Map.null rn = t0
   | Var v <- t,
     Just u <- Map.lookup v rn =
-      annotatedVar ann u
+    annotatedVar ann u
   | Cycle body <- t =
-      cycle' ann (renames rn body)
+    cycle' ann (renames rn body)
   | Abs v t <- t,
     -- rename iterated variables all at once to avoid a capture issue
     AbsNA' (unzip -> (as, vs)) body <- t,
     (rn, us) <- mangle (freeVars body) rn (v : vs),
     not $ Map.null rn =
-      absChain' (zip (ann : as) us) (renames rn body)
+    absChain' (zip (ann : as) us) (renames rn body)
   | Tm body <- t =
-      tm' ann (renames rn <$> body)
+    tm' ann (renames rn <$> body)
   | otherwise = t0
   where
     rn = Map.restrictKeys rn0 fvs
@@ -340,7 +339,7 @@ renames rn0 t0@(Term fvs ann t)
     mangle1 avs m v
       | any (== v) vs,
         u <- freshIn (avs <> Set.fromList vs) v =
-          (Map.insert v u m, u)
+        (Map.insert v u m, u)
       | otherwise = (Map.delete v m, v)
       where
         vs = toList m
@@ -404,20 +403,20 @@ subst' :: (Foldable f, Functor f, Var v) => (a -> Term f v a) -> v -> Set v -> T
 subst' replace v r t2@(Term fvs ann body)
   | Set.notMember v fvs = t2 -- subtrees not containing the var can be skipped
   | otherwise = case body of
-      Var v'
-        | v == v' -> replace ann -- var match; perform replacement
-        | otherwise -> t2 -- var did not match one being substituted; ignore
-      Cycle body -> cycle' ann (subst' replace v r body)
-      Abs x _ | x == v -> t2 -- x shadows v; ignore subtree
-      Abs x e -> abs' ann x' e'
-        where
-          x' = freshIn (fvs `Set.union` r) x
-          -- rename x to something that cannot be captured by `r`
-          e' =
-            if x /= x'
-              then subst' replace v r (rename x x' e)
-              else subst' replace v r e
-      Tm body -> tm' ann (fmap (subst' replace v r) body)
+    Var v'
+      | v == v' -> replace ann -- var match; perform replacement
+      | otherwise -> t2 -- var did not match one being substituted; ignore
+    Cycle body -> cycle' ann (subst' replace v r body)
+    Abs x _ | x == v -> t2 -- x shadows v; ignore subtree
+    Abs x e -> abs' ann x' e'
+      where
+        x' = freshIn (fvs `Set.union` r) x
+        -- rename x to something that cannot be captured by `r`
+        e' =
+          if x /= x'
+            then subst' replace v r (rename x x' e)
+            else subst' replace v r e
+    Tm body -> tm' ann (fmap (subst' replace v r) body)
 
 -- Like `subst`, but the annotation of the replacement is inherited from
 -- the previous annotation at each replacement point.

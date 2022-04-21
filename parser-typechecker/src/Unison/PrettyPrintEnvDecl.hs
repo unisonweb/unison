@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..)) where
+module Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl, PrettyPrintEnvDeclM (..)) where
 
+import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 
-type PrettyPrintEnvDecl = PrettyPrintEnvDecl Identity
+type PrettyPrintEnvDecl = PrettyPrintEnvDeclM Identity
 
 -- A pair of PrettyPrintEnvs:
 --   - suffixifiedPPE uses the shortest unique suffix
