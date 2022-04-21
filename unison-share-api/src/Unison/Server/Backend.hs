@@ -639,6 +639,11 @@ data Search m r = Search
     matchesNamedRef :: Name -> r -> HQ'.HashQualified Name -> Bool
   }
 
+data NameSearch m = NameSearch
+  { typeSearch :: Search m Reference,
+    termSearch :: Search m Referent
+  }
+
 -- | Make a type search, given a short hash length and names to search in.
 makeTypeSearch :: Applicative m => Int -> NamesWithHistory -> Search m Reference
 makeTypeSearch len names =
@@ -657,6 +662,13 @@ makeTermSearch len names =
       lookupRelativeHQRefs' = \name -> pure $ NamesWithHistory.lookupRelativeHQTerm' name names,
       matchesNamedRef = HQ'.matchesNamedReferent,
       makeResult = SR.termResult
+    }
+
+makeNameSearch :: Applicative m => Int -> NamesWithHistory -> NameSearch m
+makeNameSearch hashLength names =
+  NameSearch
+    { typeSearch = makeTypeSearch hashLength names,
+      termSearch = makeTermSearch hashLength names
     }
 
 -- | Interpret a 'Search' as a function from name to search results.
@@ -684,10 +696,10 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
 hqNameQuery ::
   Monad m =>
   Codebase m v Ann ->
-  NamesWithHistory ->
+  NameSearch m ->
   [HQ.HashQualified Name] ->
   m QueryResult
-hqNameQuery codebase parseNames hqs = do
+hqNameQuery codebase (NameSearch {typeSearch, termSearch}) hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hashes, hqnames) = partitionEithers (map HQ'.fromHQ2 hqs)
   -- Find the terms with those hashes.
@@ -703,9 +715,6 @@ hqNameQuery codebase parseNames hqs = do
         (typeReferencesByShortHash codebase)
         hashes
   -- Now do the name queries.
-  -- The hq-name search needs a hash-qualifier length
-  hqLength <- Codebase.hashLength codebase
-  -- We need to construct the names that we want to use / search by.
   let mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty
       mkTypeResult sh r = SR.typeResult (HQ.HashOnly sh) r Set.empty
       -- Transform the hash results a bit
@@ -713,14 +722,9 @@ hqNameQuery codebase parseNames hqs = do
         (\(sh, tms) -> mkTermResult sh <$> toList tms) <$> termRefs
       typeResults =
         (\(sh, tps) -> mkTypeResult sh <$> toList tps) <$> typeRefs
-      -- Now do the actual name query
-      resultss =
-        let typeSearch :: Search Identity Reference
-            typeSearch = makeTypeSearch hqLength parseNames
-            termSearch :: Search Identity Referent
-            termSearch = makeTermSearch hqLength parseNames
-         in hqnames <&> (\name -> runIdentity (applySearch typeSearch name) <> runIdentity (applySearch termSearch name))
-      (misses, hits) =
+  -- Now do the actual name query
+  resultss <- for hqnames (\name -> liftA2 (<>) (applySearch typeSearch name) (applySearch termSearch name))
+  let (misses, hits) =
         zip hqnames resultss
           & map (\(hqname, results) -> if null results then Left hqname else Right results)
           & partitionEithers
@@ -790,10 +794,12 @@ prettyDefinitionsBySuffixes ::
   Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt codebase query = do
   branch <- resolveBranchHash root codebase
-  let parseNames = getCurrentParseNames namesScope branch
-  DefinitionResults terms types misses <-
-    lift (definitionsBySuffixes codebase parseNames DontIncludeCycles query)
   hqLength <- lift $ Codebase.hashLength codebase
+  let parseNames = getCurrentParseNames namesScope branch
+      nameSearch :: NameSearch IO
+      nameSearch = makeNameSearch hqLength parseNames
+  DefinitionResults terms types misses <-
+    lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
@@ -930,9 +936,12 @@ shallowPrettyDefinitionsBySuffixes ::
   Backend IO DefinitionDisplayResults
 shallowPrettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt codebase query = do
   branch <- resolveBranchHash root codebase
+  hqLength <- lift $ Codebase.hashLength codebase
   let parseNames = getCurrentParseNames namesScope branch
+      nameSearch :: NameSearch IO
+      nameSearch = makeNameSearch hqLength parseNames
   DefinitionResults terms types misses <-
-    lift (definitionsBySuffixes codebase parseNames DontIncludeCycles query)
+    lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
   hqLength <- lift $ Codebase.hashLength codebase
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
@@ -1216,12 +1225,12 @@ definitionsBySuffixes ::
   forall m.
   MonadIO m =>
   Codebase m Symbol Ann ->
-  NamesWithHistory ->
+  NameSearch m ->
   IncludeCycles ->
   [HQ.HashQualified Name] ->
   m (DefinitionResults Symbol)
-definitionsBySuffixes codebase parseNames includeCycles query = do
-  QueryResult misses results <- hqNameQuery codebase parseNames query
+definitionsBySuffixes codebase nameSearch includeCycles query = do
+  QueryResult misses results <- hqNameQuery codebase nameSearch query
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- do
