@@ -151,6 +151,7 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import qualified UnliftIO
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -159,7 +160,7 @@ prettyPrintEnvDecl :: MonadCommand n m i v => NamesWithHistory -> n PPE.PrettyPr
 prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action' m v PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl :: MonadIO m => (Path -> Backend.NameScoping) -> Action' m v PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl scoping = do
   root' <- LoopState.loadRoot
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
@@ -1629,7 +1630,7 @@ loop = do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
                   getCausal b = (Branch.headHash b, pure $ Branch._history b)
-                  goCausal :: forall m. Monad m => [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
+                  goCausal :: forall m. MonadIO m => [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
                   goCausal [] = pure ()
                   goCausal ((h, mc) : queue) = do
                     ifM (seen h) (goCausal queue) do
@@ -1637,7 +1638,7 @@ loop = do
                         Causal.One h b -> goBranch h b mempty queue
                         Causal.Cons h b tail -> goBranch h b [fst tail] (tail : queue)
                         Causal.Merge h b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
-                  goBranch :: forall m. Monad m => Branch.Hash -> Branch0 m -> [Branch.Hash] -> [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
+                  goBranch :: forall m. MonadIO m => Branch.Hash -> Branch0 m -> [Branch.Hash] -> [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
                   goBranch h b (Set.fromList -> causalParents) queue = case b of
                     Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ ->
                       let wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
@@ -1703,7 +1704,7 @@ loop = do
     Right input -> LoopState.lastInput .= Just input
     _ -> pure ()
 
-handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
+handleDependents :: (MonadIO m) => HQ.HashQualified Name -> Action' m v ()
 handleDependents hq = do
   hqLength <- eval CodebaseHashLength
   -- todo: add flag to handle transitive efficiently
@@ -1815,7 +1816,7 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition ::
   forall m v.
-  Functor m =>
+  (MonadIO m) =>
   OutputLocation ->
   [HQ.HashQualified Name] ->
   Action' m v ()
@@ -1879,7 +1880,7 @@ handleShowDefinition outputLoc inputQuery = do
             Just (path, _) -> Just path
 
 -- | Handle an @update@ command.
-handleUpdate :: forall m v. (Monad m, Var v) => Input -> OptionalPatch -> Set Name -> Action' m v ()
+handleUpdate :: forall m v. (Var v, MonadIO m) => Input -> OptionalPatch -> Set Name -> Action' m v ()
 handleUpdate input optionalPatch requestedNames = do
   let requestedVars = Set.map Name.toVar requestedNames
   use LoopState.latestTypecheckedFile >>= \case
@@ -2029,7 +2030,7 @@ handleUpdate input optionalPatch requestedNames = do
 -- Add default metadata to all added types and terms in a slurp component.
 --
 -- No-op if the slurp component is empty.
-addDefaultMetadata :: (Monad m, Var v) => SlurpComponent v -> Action m (Either Event Input) v ()
+addDefaultMetadata :: (MonadIO m, Var v) => SlurpComponent v -> Action m (Either Event Input) v ()
 addDefaultMetadata adds =
   when (not (SC.isEmpty adds)) do
     currentPath' <- use LoopState.currentPath
@@ -2079,7 +2080,7 @@ resolveDefaultMetadata path = do
 --   e.g. `Metadata.insert` is passed to add metadata links.
 manageLinks ::
   forall m v.
-  (Monad m, Var v) =>
+  (Var v, MonadIO m) =>
   Bool ->
   [(Path', HQ'.HQSegment)] ->
   [HQ.HashQualified Name] ->
@@ -2190,7 +2191,7 @@ syncRemoteBranch repo opts action =
   ExceptT . eval $ SyncRemoteBranch repo opts action
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
-resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
+resolveHQToLabeledDependencies :: MonadIO m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
   HQ.NameOnly n -> do
     parseNames <- basicParseNames
@@ -2236,7 +2237,7 @@ doDisplay outputLoc names tm = do
   respond $ DisplayRendered loc rendered
 
 getLinks ::
-  (Var v, Monad m) =>
+  (Var v, MonadIO m) =>
   SrcLoc ->
   Path.HQSplit' ->
   Either (Set Reference) (Maybe String) ->
@@ -2258,7 +2259,7 @@ getLinks srcLoc src mdTypeStr = ExceptT $ do
         Right typ -> go . Just . Set.singleton $ Hashing.typeToReference typ
 
 getLinks' ::
-  (Var v, Monad m) =>
+  (Var v, MonadIO m) =>
   Path.HQSplit' -> -- definition to print metadata of
   Maybe (Set Reference) -> -- return all metadata if empty
   Action'
@@ -2302,7 +2303,7 @@ resolveShortBranchHash hash = ExceptT do
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatchNoSync ::
-  (Monad m, Var v) =>
+  (Var v, MonadIO m) =>
   Patch ->
   Path.Absolute ->
   Action' m v Bool
@@ -2316,7 +2317,7 @@ propagatePatchNoSync patch scopePath = do
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch ::
-  (Monad m, Var v) =>
+  (Var v, MonadIO m) =>
   LoopState.InputDescription ->
   Patch ->
   Path.Absolute ->
@@ -2331,7 +2332,7 @@ propagatePatch inputDescription patch scopePath = do
     )
 
 -- | Create the args needed for showTodoOutput and call it
-doShowTodoOutput :: Monad m => Patch -> Path.Absolute -> Action' m v ()
+doShowTodoOutput :: MonadIO m => Patch -> Path.Absolute -> Action' m v ()
 doShowTodoOutput patch scopePath = do
   scope <- getAt scopePath
   let names0 = Branch.toNames (Branch.head scope)
@@ -2343,6 +2344,7 @@ doShowTodoOutput patch scopePath = do
 
 -- | Show todo output if there are any conflicts or edits.
 showTodoOutput ::
+  MonadIO m =>
   -- | Action that fetches the pretty print env. It's expensive because it
   -- involves looking up historical names, so only call it if necessary.
   Action' m v PPE.PrettyPrintEnvDecl ->
@@ -2361,7 +2363,7 @@ showTodoOutput getPpe patch names0 = do
       ppe <- getPpe
       respondNumbered $ TodoOutput ppe todo
 
-checkTodo :: Patch -> Names -> Action m i v (TO.TodoOutput v Ann)
+checkTodo :: MonadIO m => Patch -> Names -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
   let shouldUpdate = Names.contains names0
   f <- Propagate.computeFrontier (eval . GetDependents) patch shouldUpdate
@@ -2386,7 +2388,7 @@ checkTodo patch names0 = do
       (Patch.conflicts patch)
   where
     frontierTransitiveDependents ::
-      Monad m => (Reference -> m (Set Reference)) -> Names -> Set Reference -> m (Set Reference)
+      MonadIO m => (Reference -> m (Set Reference)) -> Names -> Set Reference -> m (Set Reference)
     frontierTransitiveDependents dependents names0 rs = do
       let branchDependents r = Set.filter (Names.contains names0) <$> dependents r
       tdeps <- transitiveClosure branchDependents rs
@@ -2504,7 +2506,7 @@ unlessError' f ma = unlessError $ withExceptT f ma
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
 mergeBranchAndPropagateDefaultPatch ::
-  (Monad m, Var v) =>
+  (MonadIO m, Var v) =>
   Branch.MergeMode ->
   LoopState.InputDescription ->
   Maybe (Output v) ->
@@ -2519,7 +2521,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     (for_ unchangedMessage respond)
   where
     mergeBranch ::
-      (Monad m, Var v) =>
+      (MonadIO m, Var v) =>
       Branch.MergeMode ->
       LoopState.InputDescription ->
       Branch m ->
@@ -2536,7 +2538,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
       pure b
 
 loadPropagateDiffDefaultPatch ::
-  (Monad m, Var v) =>
+  (MonadIO m, Var v) =>
   LoopState.InputDescription ->
   Maybe Path.Path' ->
   Path.Absolute ->
@@ -2559,7 +2561,8 @@ loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagat
 --     type.
 --   * 'MetadataAmbiguous', if the given name is associated with more than one reference.
 getMetadataFromName ::
-  Var v =>
+  forall m v.
+  (Var v, MonadIO m) =>
   HQ.HashQualified Name ->
   Action m (Either Event Input) v (Either (Output v) (Metadata.Type, Metadata.Value))
 getMetadataFromName name = do
@@ -2582,7 +2585,7 @@ getMetadataFromName name = do
       Backend.basicSuffixifiedNames sbhLength <$> LoopState.loadRoot <*> pure (Backend.Within $ Path.unabsolute currentPath')
 
 -- | Get the set of terms related to a hash-qualified name.
-getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
+getHQTerms :: MonadIO m => HQ.HashQualified Name -> Action' m v (Set Referent)
 getHQTerms = \case
   HQ.NameOnly n -> do
     root0 <- LoopState.loadRoot0
@@ -2600,14 +2603,14 @@ getHQTerms = \case
   where
     hashOnly sh = eval $ TermReferentsByShortHash sh
 
-getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
+getAt :: (MonadIO m) => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
   LoopState.loadRoot <&> fromMaybe Branch.empty . Branch.getAt p
 
 -- Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM ::
-  Applicative m =>
+  MonadIO m =>
   LoopState.InputDescription ->
   Path.Absolute ->
   (Branch m -> Action m i v (Branch m)) ->
@@ -2620,7 +2623,7 @@ updateAtM reason (Path.Absolute p) f = do
 
 stepAt ::
   forall m i v.
-  Monad m =>
+  MonadIO m =>
   LoopState.InputDescription ->
   Branch.UpdateStrategy ->
   (Path, Branch0 m -> Branch0 m) ->
@@ -2629,7 +2632,7 @@ stepAt cause strat = stepManyAt @m @[] cause strat . pure
 
 stepAtNoSync ::
   forall m i v.
-  Monad m =>
+  MonadIO m =>
   Branch.UpdateStrategy ->
   (Path, Branch0 m -> Branch0 m) ->
   Action m i v ()
@@ -2637,7 +2640,7 @@ stepAtNoSync strat = stepManyAtNoSync @m @[] strat . pure
 
 stepAtM ::
   forall m i v.
-  Monad m =>
+  MonadIO m =>
   Branch.UpdateStrategy ->
   LoopState.InputDescription ->
   (Path, Branch0 m -> m (Branch0 m)) ->
@@ -2646,7 +2649,7 @@ stepAtM cause strat = stepManyAtM @m @[] cause strat . pure
 
 stepAtM' ::
   forall m i v.
-  Monad m =>
+  MonadIO m =>
   Branch.UpdateStrategy ->
   LoopState.InputDescription ->
   (Path, Branch0 m -> Action m i v (Branch0 m)) ->
@@ -2655,14 +2658,14 @@ stepAtM' cause strat = stepManyAtM' @m @[] cause strat . pure
 
 stepAtMNoSync' ::
   forall m i v.
-  Monad m =>
+  MonadIO m =>
   Branch.UpdateStrategy ->
   (Path, Branch0 m -> Action m i v (Branch0 m)) ->
   Action m i v Bool
 stepAtMNoSync' strat = stepManyAtMNoSync' @m @[] strat . pure
 
 stepManyAt ::
-  (Monad m, Foldable f) =>
+  (MonadIO m, Foldable f) =>
   LoopState.InputDescription ->
   Branch.UpdateStrategy ->
   f (Path, Branch0 m -> Branch0 m) ->
@@ -2674,17 +2677,16 @@ stepManyAt reason strat actions = do
 
 -- Like stepManyAt, but doesn't update the LoopState.root
 stepManyAtNoSync ::
-  (Monad m, Foldable f) =>
+  (MonadIO m, Foldable f) =>
   Branch.UpdateStrategy ->
   f (Path, Branch0 m -> Branch0 m) ->
   Action m i v ()
 stepManyAtNoSync strat actions = do
-  b <- LoopState.loadRoot
-  let new = Branch.stepManyAt strat actions b
-  LoopState.root .= pure new
+  rootVar <- use LoopState.root
+  liftIO $ UnliftIO.modifyMVar_ rootVar (pure . Branch.stepManyAt strat actions)
 
 stepManyAtM ::
-  (Monad m, Foldable f) =>
+  (MonadIO m, Foldable f) =>
   Branch.UpdateStrategy ->
   LoopState.InputDescription ->
   f (Path, Branch0 m -> m (Branch0 m)) ->
@@ -2695,17 +2697,18 @@ stepManyAtM strat reason actions = do
   updateRoot b reason
 
 stepManyAtMNoSync ::
-  (Monad m, Foldable f) =>
+  (Foldable f, MonadIO m) =>
   Branch.UpdateStrategy ->
   f (Path, Branch0 m -> m (Branch0 m)) ->
   Action m i v ()
 stepManyAtMNoSync strat actions = do
-  b <- LoopState.loadRoot
-  b' <- eval . Eval $ Branch.stepManyAtM strat actions b
-  LoopState.root .= pure b'
+  rootVar <- use LoopState.root
+  b <- UnliftIO.readMVar rootVar
+  new <- eval . Eval $ Branch.stepManyAtM strat actions b
+  UnliftIO.putMVar rootVar new
 
 stepManyAtM' ::
-  (Monad m, Foldable f) =>
+  (MonadIO m, Foldable f) =>
   Branch.UpdateStrategy ->
   LoopState.InputDescription ->
   f (Path, Branch0 m -> Action m i v (Branch0 m)) ->
@@ -2717,30 +2720,33 @@ stepManyAtM' strat reason actions = do
   pure (b /= b')
 
 stepManyAtMNoSync' ::
-  (Monad m, Foldable f) =>
+  (MonadIO m, Foldable f) =>
   Branch.UpdateStrategy ->
   f (Path, Branch0 m -> Action m i v (Branch0 m)) ->
   Action m i v Bool
 stepManyAtMNoSync' strat actions = do
-  b <- LoopState.loadRoot
-  b' <- Branch.stepManyAtM strat actions b
-  LoopState.root .= pure b'
-  pure (b /= b')
+  rootVar <- use LoopState.root
+  b <- UnliftIO.readMVar rootVar
+  new <- Branch.stepManyAtM strat actions b
+  UnliftIO.putMVar rootVar new
+  pure (new /= b)
 
 -- | Sync the in-memory root branch.
-syncRoot :: Applicative m => LoopState.InputDescription -> Action m i v ()
+syncRoot :: MonadIO m => LoopState.InputDescription -> Action m i v ()
 syncRoot description = do
   root' <- LoopState.loadRoot
   Unison.Codebase.Editor.HandleInput.updateRoot root' description
 
-updateRoot :: Applicative m => Branch m -> LoopState.InputDescription -> Action m i v ()
+updateRoot :: MonadIO m => Branch m -> LoopState.InputDescription -> Action m i v ()
 updateRoot new reason = do
   old <- LoopState.loadLastSavedRoot
   when (old /= new) $ do
-    LoopState.root .= pure new
+    rootVar <- use LoopState.root
+    UnliftIO.putMVar rootVar new
     eval $ SyncLocalRootBranch new
     eval $ AppendToReflog reason old new
-    LoopState.lastSavedRoot .= pure new
+    lastSavedVar <- use LoopState.lastSavedRoot
+    UnliftIO.putMVar lastSavedVar new
 
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible
@@ -2755,7 +2761,7 @@ zeroOneOrMore f zero one more = case toList f of
 -- user about these "endangered" definitions which would now contain unnamed references.
 getEndangeredDependents ::
   forall m.
-  Monad m =>
+  MonadIO m =>
   -- | Function to acquire dependencies
   (Reference -> m (Set Reference)) ->
   -- | Which names we want to delete
@@ -2789,7 +2795,7 @@ getEndangeredDependents getDependents namesToDelete rootNames = do
   pure extinctToEndangered
 
 displayI ::
-  Monad m =>
+  MonadIO m =>
   Names ->
   OutputLocation ->
   HQ.HashQualified Name ->
@@ -2824,7 +2830,7 @@ displayI prettyPrintNames outputLoc hq = do
             doDisplay outputLoc ns tm
 
 docsI ::
-  Monad m =>
+  MonadIO m =>
   SrcLoc ->
   Names ->
   Path.HQSplit' ->
@@ -2911,7 +2917,7 @@ filterBySlurpResult
 -- updates the namespace for adding `slurp`
 doSlurpAdds ::
   forall m v.
-  (Monad m, Var v) =>
+  (MonadIO m, Var v) =>
   SlurpComponent v ->
   UF.TypecheckedUnisonFile v Ann ->
   (Branch0 m -> Branch0 m)
@@ -2956,7 +2962,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
     errorMissingVar v = error $ "expected to find " ++ show v ++ " in " ++ show uf
 
 doSlurpUpdates ::
-  Monad m =>
+  MonadIO m =>
   Map Name (Reference, Reference) ->
   Map Name (Reference, Reference) ->
   [(Name, Referent)] ->
@@ -3031,7 +3037,7 @@ fixupNamesRelative currentPath' = Names.map fixName
         else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
 
 makeHistoricalParsingNames ::
-  Monad m => Set (HQ.HashQualified Name) -> Action' m v NamesWithHistory
+  MonadIO m => Set (HQ.HashQualified Name) -> Action' m v NamesWithHistory
 makeHistoricalParsingNames lexedHQs = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames <- basicParseNames
@@ -3051,7 +3057,7 @@ loadTypeDisplayObject = \case
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> eval (LoadType id)
 
-lexedSource :: Monad m => SourceName -> Source -> Action' m v (NamesWithHistory, LexedSource)
+lexedSource :: MonadIO m => SourceName -> Source -> Action' m v (NamesWithHistory, LexedSource)
 lexedSource name src = do
   let tokens = L.lexer (Text.unpack name) (Text.unpack src)
       getHQ = \case
@@ -3070,7 +3076,7 @@ fqnPPE :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnv
 fqnPPE ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
 
 parseSearchType ::
-  (Monad m, Var v) =>
+  (MonadIO m, Var v) =>
   SrcLoc ->
   String ->
   Action' m v (Either (Output v) (Type v Ann))
@@ -3080,7 +3086,7 @@ parseSearchType srcLoc typ = fmap Type.removeAllEffectVars <$> parseType srcLoc 
 type SrcLoc = String
 
 parseType ::
-  (Monad m, Var v) =>
+  (MonadIO m, Var v) =>
   SrcLoc ->
   String ->
   Action' m v (Either (Output v) (Type v Ann))
@@ -3101,12 +3107,12 @@ parseType input src = do
       Right typ -> Right typ
 
 makeShadowedPrintNamesFromLabeled ::
-  Monad m => Set LabeledDependency -> Names -> Action' m v NamesWithHistory
+  MonadIO m => Set LabeledDependency -> Names -> Action' m v NamesWithHistory
 makeShadowedPrintNamesFromLabeled deps shadowing =
   NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeled' deps
 
 makePrintNamesFromLabeled' ::
-  Monad m => Set LabeledDependency -> Action' m v NamesWithHistory
+  MonadIO m => Set LabeledDependency -> Action' m v NamesWithHistory
 makePrintNamesFromLabeled' deps = do
   root' <- LoopState.loadRoot
   curPath <- use LoopState.currentPath
@@ -3119,7 +3125,7 @@ makePrintNamesFromLabeled' deps = do
   pure $ NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames)
 
 getTermsIncludingHistorical ::
-  Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
+  MonadIO m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
 getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
   [] -> case hq of
     HQ'.HashQualified n hs -> do
@@ -3134,7 +3140,7 @@ getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
 
 -- discards inputs that aren't hashqualified;
 -- I'd enforce it with finer-grained types if we had them.
-findHistoricalHQs :: Monad m => Set (HQ.HashQualified Name) -> Action' m v Names
+findHistoricalHQs :: MonadIO m => Set (HQ.HashQualified Name) -> Action' m v Names
 findHistoricalHQs lexedHQs0 = do
   root' <- LoopState.loadRoot
   curPath <- use LoopState.currentPath
@@ -3157,10 +3163,10 @@ findHistoricalHQs lexedHQs0 = do
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root'
   pure rawHistoricalNames
 
-basicPrettyPrintNamesA :: Functor m => Action' m v Names
+basicPrettyPrintNamesA :: MonadIO m => Action' m v Names
 basicPrettyPrintNamesA = snd <$> basicNames' Backend.AllNames
 
-makeShadowedPrintNamesFromHQ :: Monad m => Set (HQ.HashQualified Name) -> Names -> Action' m v NamesWithHistory
+makeShadowedPrintNamesFromHQ :: MonadIO m => Set (HQ.HashQualified Name) -> Names -> Action' m v NamesWithHistory
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames <- basicPrettyPrintNamesA
@@ -3172,19 +3178,19 @@ makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
       shadowing
       (NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames))
 
-basicParseNames, slurpResultNames :: Functor m => Action' m v Names
+basicParseNames, slurpResultNames :: MonadIO m => Action' m v Names
 basicParseNames = fst <$> basicNames' Backend.Within
 -- we check the file against everything in the current path
 slurpResultNames = currentPathNames
 
-currentPathNames :: Functor m => Action' m v Names
+currentPathNames :: MonadIO m => Action' m v Names
 currentPathNames = do
   currentPath' <- use LoopState.currentPath
   currentBranch' <- getAt currentPath'
   pure $ Branch.toNames (Branch.head currentBranch')
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNames' :: (Functor m) => (Path -> Backend.NameScoping) -> Action m i v (Names, Names)
+basicNames' :: (MonadIO m) => (Path -> Backend.NameScoping) -> Action m i v (Names, Names)
 basicNames' nameScoping = do
   root' <- LoopState.loadRoot
   currentPath' <- use LoopState.currentPath
@@ -3201,7 +3207,7 @@ data AddRunMainResult v
 --
 -- Otherwise, returns `Nothing`.
 addWatch ::
-  (Monad m, Var v) =>
+  (MonadIO m, Var v) =>
   String ->
   Maybe (TypecheckedUnisonFile v Ann) ->
   Action' m v (Maybe (v, TypecheckedUnisonFile v Ann))
@@ -3230,7 +3236,7 @@ addWatch watchName (Just uf) = do
 -- If that function doesn't exist in the typechecked file, the
 -- codebase is consulted.
 addRunMain ::
-  (Monad m, Var v) =>
+  (MonadIO m, Var v) =>
   String ->
   Maybe (TypecheckedUnisonFile v Ann) ->
   Action' m v (AddRunMainResult v)
@@ -3270,7 +3276,7 @@ addRunMain mainName (Just uf) = do
     _ -> addRunMain mainName Nothing
 
 executePPE ::
-  (Var v, Monad m) =>
+  (Var v, MonadIO m) =>
   TypecheckedUnisonFile v a ->
   Action' m v PPE.PrettyPrintEnv
 executePPE unisonFile =
@@ -3278,7 +3284,7 @@ executePPE unisonFile =
 
 -- Produce a `Names` needed to display all the hashes used in the given file.
 displayNames ::
-  (Var v, Monad m) =>
+  (Var v, MonadIO m) =>
   TypecheckedUnisonFile v a ->
   Action' m v NamesWithHistory
 displayNames unisonFile =
@@ -3288,7 +3294,7 @@ displayNames unisonFile =
     (UF.typecheckedToNames unisonFile)
 
 diffHelper ::
-  (Monad m) =>
+  (MonadIO m) =>
   Branch0 m ->
   Branch0 m ->
   Action' m v (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput v Ann)
@@ -3299,7 +3305,7 @@ diffHelper before after = do
 
 -- | A version of diffHelper that only requires a MonadCommand constraint
 diffHelperCmd ::
-  (Monad m, MonadCommand n m i v) =>
+  (MonadIO m, MonadCommand n m i v) =>
   Branch m ->
   Path.Absolute ->
   Branch0 m ->
@@ -3375,7 +3381,7 @@ fuzzySelectNamespace pos searchBranch0 = do
 
 -- | Get a branch from a BranchId, returning an empty one if missing, or failing with an
 -- appropriate error message if a hash cannot be found.
-branchForBranchId :: Functor m => AbsBranchId -> ExceptT (Output v) (Action' m v) (Branch m)
+branchForBranchId :: MonadIO m => AbsBranchId -> ExceptT (Output v) (Action' m v) (Branch m)
 branchForBranchId = \case
   Left hash -> do
     resolveShortBranchHash hash

@@ -57,11 +57,13 @@ getUserInput ::
   (MonadIO m, Line.MonadException m) =>
   Map String InputPattern ->
   Codebase m v a ->
-  IO (Branch m) ->
+  -- Root branch may not be loaded yet, that's okay we just can't use it for globbing or
+  -- tab-completion until it's ready.
+  m (Maybe (Branch m)) ->
   Path.Absolute ->
   [String] ->
   m Input
-getUserInput patterns codebase loadRootBranch currentPath numberedArgs =
+getUserInput patterns codebase maybeRootBranch currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
@@ -83,8 +85,9 @@ getUserInput patterns codebase loadRootBranch currentPath numberedArgs =
         Nothing -> pure QuitI
         Just l -> case words l of
           [] -> go
-          ws ->
-            case parseInput (Branch.head <$> liftIO loadRootBranch) currentPath numberedArgs patterns $ ws of
+          ws -> do
+            root0 <- maybe Branch.empty0 Branch.head <$> lift maybeRootBranch
+            case parseInput root0 currentPath numberedArgs patterns $ ws of
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
@@ -96,15 +99,15 @@ getUserInput patterns codebase loadRootBranch currentPath numberedArgs =
       -- User hasn't finished a command name, complete from command names
       if null prev
         then pure . exactComplete word $ Map.keys patterns
-        else -- User has finished a command name; use completions for that command
-        case words $ reverse prev of
-          h : t -> fromMaybe (pure []) $ do
-            p <- Map.lookup h patterns
-            argType <- IP.argType p (length t)
-            -- TODO: fix this
-            let rootBranch = error "no branch available in suggestions"
-            pure $ suggestions argType word codebase rootBranch currentPath
-          _ -> pure []
+        else do
+          -- User has finished a command name; use completions for that command
+          root <- fromMaybe Branch.empty <$> maybeRootBranch
+          case words $ reverse prev of
+            h : t -> fromMaybe (pure []) $ do
+              p <- Map.lookup h patterns
+              argType <- IP.argType p (length t)
+              pure $ suggestions argType word codebase root currentPath
+            _ -> pure []
 
 main ::
   FilePath ->
@@ -118,16 +121,17 @@ main ::
   UCMVersion ->
   IO ()
 main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl ucmVersion = do
-  rootLoader <-
-    onceFork $ do
-      Codebase.getRootBranch codebase
+  rootVar <- UnliftIO.newEmptyMVar
+  onceFork $ do
+    root <- Codebase.getRootBranch codebase
+    UnliftIO.putMVar rootVar root
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
   do
-    -- we watch for root branch tip changes, but want to ignore ones we expect.
-    rootLoaderRef :: IORef (IO (Branch IO)) <- newIORef rootLoader
     let loadLatestRoot :: IO (Branch IO)
-        loadLatestRoot = join $ readIORef rootLoaderRef
+        loadLatestRoot = UnliftIO.readMVar rootVar
+        rootIfLoaded :: IO (Maybe (Branch IO))
+        rootIfLoaded = UnliftIO.tryReadMVar rootVar
 
     pathRef <- newIORef initialPath
     initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
@@ -148,7 +152,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
         getInput = do
           path <- readIORef pathRef
           numberedArgs <- readIORef numberedArgsRef
-          getUserInput patternMap codebase loadLatestRoot path numberedArgs
+          getUserInput patternMap codebase rootIfLoaded path numberedArgs
     let loadSourceFile :: Text -> IO LoadSourceResult
         loadSourceFile fname =
           if allow $ Text.unpack fname
@@ -210,7 +214,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                   HandleCommand.commandLine
                     config
                     awaitInput
-                    (writeIORef rootLoaderRef . pure)
+                    -- (writeIORef rootLoaderRef . pure)
                     runtime
                     notify
                     ( \o ->
@@ -242,7 +246,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
 
       -- Run the main program loop, always run cleanup,
       -- If an exception occurred, print it before exiting.
-      loop (LoopState.loopState0 rootLoader initialPath)
+      loop (LoopState.loopState0 rootVar initialPath)
         `finally` cleanup
   where
     printException :: SomeException -> IO ()

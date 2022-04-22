@@ -29,6 +29,7 @@ import Unison.Prelude
 import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
+import UnliftIO
 
 type F m i v = Free (Command m i v)
 
@@ -79,8 +80,8 @@ instance MonadCommand (Action m i v) m i v where
   eval = Action . eval
 
 data LoopState m v = LoopState
-  { _root :: m (Branch m),
-    _lastSavedRoot :: m (Branch m),
+  { _root :: MVar (Branch m),
+    _lastSavedRoot :: MVar (Branch m),
     -- the current position in the namespace
     _currentPathStack :: NonEmpty Path.Absolute,
     -- TBD
@@ -108,27 +109,27 @@ type InputDescription = Text
 
 makeLenses ''LoopState
 
-loadRoot :: Action m i v (Branch m)
+loadRoot :: MonadIO m => Action m i v (Branch m)
 loadRoot = do
-  loader <- use root
-  actionLiftM $ loader
+  rootVar <- use root
+  liftIO . readMVar $ rootVar
 
-loadRoot0 :: Action m i v (Branch0 m)
+loadRoot0 :: MonadIO m => Action m i v (Branch0 m)
 loadRoot0 = do
   Branch.head <$> loadRoot
 
-loadLastSavedRoot :: Action m i v (Branch m)
+loadLastSavedRoot :: MonadIO m => Action m i v (Branch m)
 loadLastSavedRoot = do
-  loader <- use lastSavedRoot
-  actionLiftM loader
+  rootVar <- use lastSavedRoot
+  actionLiftM . readMVar $ rootVar
 
-loadCurrentBranch :: Action m i v (Branch m)
+loadCurrentBranch :: MonadIO m => Action m i v (Branch m)
 loadCurrentBranch = do
   path <- use currentPath
   rootBranch <- loadRoot
   pure $ Branch.getAt' (Path.unabsolute path) rootBranch
 
-loadCurrentBranch0 :: Action m i v (Branch0 m)
+loadCurrentBranch0 :: MonadIO m => Action m i v (Branch0 m)
 loadCurrentBranch0 = do
   Branch.head <$> loadCurrentBranch
 
@@ -136,10 +137,10 @@ loadCurrentBranch0 = do
 currentPath :: Getter (LoopState m v) Path.Absolute
 currentPath = currentPathStack . to Nel.head
 
-loopState0 :: m (Branch m) -> Path.Absolute -> LoopState m v
+loopState0 :: MVar (Branch m) -> Path.Absolute -> LoopState m v
 loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
 
-getRootNames :: Action' m v Names
+getRootNames :: MonadIO m => Action' m v Names
 getRootNames = do
   Branch.toNames <$> loadRoot0
 

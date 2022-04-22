@@ -18,7 +18,6 @@ import System.Environment (withArgs)
 import qualified Unison.Builtin as B
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
@@ -86,7 +85,6 @@ commandLine ::
   Random.DRG gen =>
   Config ->
   IO i ->
-  (Branch IO -> IO ()) ->
   Runtime Symbol ->
   (Output Symbol -> IO ()) ->
   (NumberedOutput Symbol -> IO NumberedArgs) ->
@@ -97,7 +95,7 @@ commandLine ::
   (Int -> IO gen) ->
   Free (Command IO i Symbol) a ->
   IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl ucmVersion rngGen free = do
+commandLine config awaitInput rt notifyUser notifyNumbered loadSource codebase serverBaseUrl ucmVersion rngGen free = do
   rndSeed <- STM.newTVarIO 0
   flip runReaderT rndSeed . Free.fold go $ free
   where
@@ -148,7 +146,6 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       Merge mode b1 b2 ->
         lift $ Branch.merge'' (Codebase.lca codebase) mode b1 b2
       SyncLocalRootBranch branch -> lift $ do
-        setBranchRef branch
         Codebase.putRootBranch codebase branch
       ViewRemoteBranch ns gitBranchBehavior action -> do
         -- TODO: We probably won'd need to unlift anything once we remove the Command

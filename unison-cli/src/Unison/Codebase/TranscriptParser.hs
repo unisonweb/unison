@@ -192,6 +192,7 @@ run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
         ""
       ]
   root <- Codebase.getRootBranch codebase
+  rootVar <- UnliftIO.newMVar root
   do
     pathRef <- newIORef initialPath
     rootBranchRef <- newIORef root
@@ -254,8 +255,8 @@ run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
                       args -> do
                         output ("\n" <> show p <> "\n")
                         numberedArgs <- readIORef numberedArgsRef
-                        let currentRoot0 = Branch.head <$> readIORef rootBranchRef
-                        case parseInput currentRoot0 curPath numberedArgs patternMap args of
+                        currentRoot <- Branch.head <$> readIORef rootBranchRef
+                        case parseInput currentRoot curPath numberedArgs patternMap args of
                           -- invalid command is treated as a failure
                           Left msg -> dieWithMsg $ P.toPlain terminalWidth msg
                           Right input -> pure $ Right input
@@ -386,7 +387,6 @@ run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
             HandleCommand.commandLine
               (fromMaybe Configurator.empty config)
               awaitInput
-              (const $ pure ())
               runtime
               print
               printNumbered
@@ -402,9 +402,9 @@ run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
               pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
             Just () -> do
               writeIORef numberedArgsRef (LoopState._numberedArgs state')
-              writeIORef rootBranchRef =<< (LoopState._root state')
+              writeIORef rootBranchRef =<< (UnliftIO.readMVar $ LoopState._root state')
               loop state'
-    loop (LoopState.loopState0 (pure root) initialPath)
+    loop (LoopState.loopState0 rootVar initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do

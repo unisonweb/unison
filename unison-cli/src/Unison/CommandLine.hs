@@ -244,7 +244,7 @@ fixupCompletion q cs@(h : t) =
 
 parseInput ::
   -- | Root branch, used to expand globs
-  m (Branch0 m) ->
+  Branch0 m ->
   -- | Current path from root, used to expand globs
   Path.Absolute ->
   -- | Numbered arguments
@@ -254,7 +254,7 @@ parseInput ::
   -- | command:arguments
   [String] ->
   Either (P.Pretty CT.ColorText) Input
-parseInput _loadRootBranch currentPath numberedArgs patterns segments = do
+parseInput rootBranch currentPath numberedArgs patterns segments = do
   case segments of
     [] -> Left ""
     command : args -> case Map.lookup command patterns of
@@ -265,8 +265,6 @@ parseInput _loadRootBranch currentPath numberedArgs patterns segments = do
           let targets = case InputPattern.argType pat i of
                 Just argT -> InputPattern.globTargets argT
                 Nothing -> mempty
-          -- TODO: fix this
-          let rootBranch = Branch.empty0
           case Globbing.expandGlobs targets rootBranch currentPath arg of
             -- No globs encountered
             Nothing -> pure [arg]
