@@ -19,6 +19,7 @@ import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
+import qualified U.Codebase.Sqlite.Name as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -36,6 +37,9 @@ import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.Name as Name
+import Unison.Names (Names (Names))
+import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -51,6 +55,7 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
+import qualified Unison.Util.Relation as Rel
 import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
 import UnliftIO.STM
@@ -355,6 +360,13 @@ getRootBranch doGetDeclType rootBranchCache =
       Sqlite.unsafeIO (atomically (writeTVar rootBranchCache (Just (ver, branch1))))
       pure branch1
 
+-- | Get a root branch without any caching. This may be used in migrations where a codebase
+-- isn't available.
+uncachedGetRootBranch :: Transaction (Branch Transaction)
+uncachedGetRootBranch = do
+  causal2 <- Ops.expectRootCausal
+  Cv.causalbranch2to1 getDeclType causal2
+
 getRootBranchExists :: Transaction Bool
 getRootBranchExists =
   isJust <$> Ops.loadRootCausalHash
@@ -524,3 +536,22 @@ declExists = termExists
 before :: Branch.Hash -> Branch.Hash -> Transaction (Maybe Bool)
 before h1 h2 =
   Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
+
+rootNames ::
+  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  Transaction Names
+rootNames doGetDeclType = do
+  (termNames, typeNames) <- Ops.loadRootBranchNames
+  terms <- Rel.fromList <$> traverse (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name,) <$> Cv.referent2to1 doGetDeclType ref) termNames
+  let types = Rel.fromList $ fmap (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name, Cv.reference2to1 ref)) typeNames
+  pure $
+    Names {terms, types}
+
+saveRootNamesIndex :: Names -> Transaction ()
+saveRootNamesIndex (Names {Names.terms, Names.types}) = do
+  let termNames :: [(S.Name C.Referent.Referent)]
+      termNames = Rel.toList terms <&> \(name, ref) -> S.Name {S.name = Name.toText name, S.ref = Cv.referent1to2 ref}
+  let typeNames :: [(S.Name C.Reference.Reference)]
+      typeNames = Rel.toList types <&> \(name, ref) -> S.Name {S.name = Name.toText name, S.ref = Cv.reference1to2 ref}
+  Ops.rebuildNameIndex termNames typeNames

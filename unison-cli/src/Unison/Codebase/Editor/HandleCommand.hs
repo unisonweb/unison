@@ -209,12 +209,19 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       LoadReflog -> lift $ Codebase.getReflog codebase
       CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
       HQNameQuery mayPath branch query -> do
+        hqLength <- lift $ Codebase.hashLength codebase
         let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
-        lift $ Backend.hqNameQuery namingScope branch codebase query
+        let parseNames = Backend.getCurrentParseNames namingScope branch
+        let nameSearch = Backend.makeNameSearch hqLength parseNames
+        lift $ Backend.hqNameQuery codebase nameSearch query
       LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
       GetDefinitionsBySuffixes mayPath branch includeCycles query -> do
         let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
-        lift (Backend.definitionsBySuffixes namingScope branch codebase includeCycles query)
+        hqLength <- lift $ Codebase.hashLength codebase
+        let parseNames = Backend.getCurrentParseNames namingScope branch
+        let nameSearch :: Backend.NameSearch _
+            nameSearch = Backend.makeNameSearch hqLength parseNames
+        lift (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
       FindShallow path -> liftIO $ Backend.findShallow codebase path
       MakeStandalone ppe ref out -> lift $ do
         let cl = Codebase.toCodeLookup codebase

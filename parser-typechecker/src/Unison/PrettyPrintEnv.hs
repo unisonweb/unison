@@ -25,60 +25,59 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 
-data PrettyPrintEnv m = PrettyPrintEnv
+data PrettyPrintEnv = PrettyPrintEnv
   { -- names for terms, constructors, and requests
-    terms :: Referent -> m (Maybe (HQ'.HashQualified Name)),
+    terms :: Referent -> Maybe (HQ'.HashQualified Name),
     -- names for types
-    types :: Reference -> m (Maybe (HQ'.HashQualified Name))
+    types :: Reference -> Maybe (HQ'.HashQualified Name)
   }
 
-patterns :: Applicative m => PrettyPrintEnv m -> ConstructorReference -> m (Maybe (HQ'.HashQualified Name))
+patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
 patterns ppe r =
-  liftA2
-    (<|>)
-    (terms ppe (Referent.Con r CT.Data))
-    (terms ppe (Referent.Con r CT.Effect))
+  terms ppe (Referent.Con r CT.Data)
+    <|> terms ppe (Referent.Con r CT.Effect)
 
-instance Show (PrettyPrintEnv m) where
+instance Show PrettyPrintEnv where
   show _ = "PrettyPrintEnv"
 
 -- Left-biased union of environments
-unionLeft :: Applicative m => PrettyPrintEnv m -> PrettyPrintEnv m -> PrettyPrintEnv m
+unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
 unionLeft e1 e2 =
   PrettyPrintEnv
-    (\r -> liftA2 (<|>) (terms e1 r) (terms e2 r))
-    (\r -> liftA2 (<|>) (types e1 r) (types e2 r))
+    (\r -> terms e1 r <|> terms e2 r)
+    (\r -> types e1 r <|> types e2 r)
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
 todoHashLength = 10
 
-termName :: Functor m => PrettyPrintEnv m -> Referent -> m (HashQualified Name)
+termName :: PrettyPrintEnv -> Referent -> HashQualified Name
 termName env r =
-  terms env r <&> \case
+  case terms env r of
     Nothing -> HQ.take todoHashLength (HQ.fromReferent r)
     Just name -> HQ'.toHQ name
 
-typeName :: Functor m => PrettyPrintEnv m -> Reference -> m (HashQualified Name)
+typeName :: PrettyPrintEnv -> Reference -> HashQualified Name
 typeName env r =
-  types env r <&> \case
+  case types env r of
     Nothing -> HQ.take todoHashLength (HQ.fromReference r)
     Just name -> HQ'.toHQ name
 
 -- | Get a name for a LabeledDependency from the PPE.
-labeledRefName :: Functor m => PrettyPrintEnv m -> LabeledDependency -> m (HashQualified Name)
+labeledRefName :: PrettyPrintEnv -> LabeledDependency -> HashQualified Name
 labeledRefName ppe = \case
   LD.TermReferent ref -> termName ppe ref
   LD.TypeReference ref -> typeName ppe ref
 
-patternName :: (Functor m, Applicative m) => PrettyPrintEnv m -> ConstructorReference -> m (HashQualified Name)
+patternName :: PrettyPrintEnv -> ConstructorReference -> HashQualified Name
 patternName env r =
-  patterns env r <&> \case
+  case patterns env r of
     Just name -> HQ'.toHQ name
     Nothing -> HQ.take todoHashLength $ HQ.fromPattern r
 
-instance Applicative m => Monoid (PrettyPrintEnv m) where
-  mempty = PrettyPrintEnv (const $ pure Nothing) (const $ pure Nothing)
+instance Monoid PrettyPrintEnv where
+  mempty = PrettyPrintEnv (const Nothing) (const Nothing)
+  mappend = unionLeft
 
-instance Applicative m => Semigroup (PrettyPrintEnv m) where
-  (<>) = unionLeft
+instance Semigroup PrettyPrintEnv where
+  (<>) = mappend

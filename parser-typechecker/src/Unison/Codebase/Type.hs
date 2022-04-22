@@ -29,6 +29,7 @@ import Unison.CodebasePath (CodebasePath)
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
+import Unison.Names (Names)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -164,7 +165,8 @@ data Codebase m v a = Codebase
     -- `beforeImpl b1 b2` is undefined if `b2` not in the codebase
     --
     --  Use `Codebase.before` which wraps this in a nice API.
-    beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool)
+    beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool),
+    rootNames :: m Names
   }
 
 -- | Whether a codebase is local or remote.

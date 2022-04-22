@@ -118,6 +118,14 @@ module U.Codebase.Sqlite.Queries
     namespaceHashIdByBase32Prefix,
     causalHashIdByBase32Prefix,
 
+    -- * Name Lookup
+    resetNameLookupTables,
+    insertTermName,
+    insertTypeName,
+    -- loadRootBranchNames,
+    rootTermNames,
+    rootTypeNames,
+
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
     garbageCollectWatchesWithoutObjects,
@@ -150,6 +158,7 @@ import U.Codebase.Sqlite.DbId
     SchemaVersion,
     TextId,
   )
+import qualified U.Codebase.Sqlite.Name as S
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
@@ -903,6 +912,72 @@ removeHashObjectsByHashingVersion hashVersion =
     DELETE FROM hash_object
       WHERE hash_version = ?
 |]
+
+resetNameLookupTables :: Transaction ()
+resetNameLookupTables =
+  execute_ sql
+  where
+    sql =
+      [here|
+      DROP TABLE IF EXISTS term_name_lookup;
+      DROP TABLE IF EXISTS type_name_lookup;
+      CREATE TABLE term_name_lookup (
+        name TEXT PRIMARY KEY NOT NULL,
+        referent_builtin INTEGER NULL REFERENCES text(id),
+        referent_object_id INTEGER NULL REFERENCES object(id),
+        referent_component_index INTEGER NOT NULL,
+        referent_constructor_index INTEGER NULL,
+      );
+      CREATE INDEX term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_object_id, referent_component_index, referent_constructor_index);
+      CREATE TABLE type_name_lookup (
+        name TEXT PRIMARY KEY NOT NULL,
+        reference_builtin INTEGER NULL REFERENCES text(id),
+        reference_object_id INTEGER NULL REFERENCES object(id),
+        reference_component_index INTEGER NOT NULL,
+      );
+      CREATE INDEX type_name_by_reference_lookup ON term_name_lookup(reference_builtin, reference_object_id, reference_component_index);
+        |]
+
+insertTermName :: Text -> Referent.Referent -> Transaction ()
+insertTermName name ref =
+  execute sql (Only name :. ref)
+  where
+    sql =
+      [here|
+      INSERT INTO term_name_lookup (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+      );
+        |]
+
+insertTypeName :: Text -> Reference.Reference -> Transaction ()
+insertTypeName name ref =
+  execute sql (Only name :. ref)
+  where
+    sql =
+      [here|
+      INSERT INTO type_name_lookup (name, reference_builtin, reference_object_id, reference_component_index)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+      );
+        |]
+
+rootTermNames :: Transaction [S.Name Referent.Referent]
+rootTermNames = queryListRow_ sql
+  where
+    sql =
+      [here|
+        SELECT (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index) FROM term_name_lookup
+        |]
+
+rootTypeNames :: Transaction [S.Name Reference.Reference]
+rootTypeNames = queryListRow_ sql
+  where
+    sql =
+      [here|
+        SELECT (name, reference_builtin, reference_object_id, reference_component_index) FROM type_name_lookup
+      );
+        |]
 
 before :: CausalHashId -> CausalHashId -> Transaction Bool
 before chId1 chId2 = queryOneCol sql (chId2, chId1)

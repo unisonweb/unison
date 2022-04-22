@@ -60,6 +60,10 @@ module U.Codebase.Sqlite.Operations
     addTypeMentionsToIndexForTerm,
     termsMentioningType,
 
+    -- ** name lookup index
+    rebuildNameIndex,
+    loadRootBranchNames,
+
     -- * low-level stuff
     expectDbBranch,
     expectDbPatch,
@@ -128,6 +132,7 @@ import U.Codebase.Sqlite.LocalIds
   )
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.LocalizeObject as LocalizeObject
+import qualified U.Codebase.Sqlite.Name as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Diff as S
 import qualified U.Codebase.Sqlite.Patch.Format as S
@@ -1273,3 +1278,15 @@ derivedDependencies cid = do
   sids <- Q.getDependencyIdsForDependent sid
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
+
+rebuildNameIndex :: [S.Name C.Referent] -> [S.Name C.Reference] -> Transaction ()
+rebuildNameIndex termNames typeNames = do
+  Q.resetNameLookupTables
+  for_ termNames \(S.Name {S.name, S.ref}) -> c2sReferent ref >>= Q.insertTermName name
+  for_ typeNames \(S.Name {S.name, S.ref}) -> c2sReference ref >>= Q.insertTypeName name
+
+loadRootBranchNames :: Transaction ([S.Name C.Referent], [S.Name C.Reference])
+loadRootBranchNames = do
+  termNames :: [S.Name C.Referent] <- Q.rootTermNames >>= (traverse . traverse) s2cReferent
+  typeNames :: [S.Name C.Reference] <- Q.rootTypeNames >>= (traverse . traverse) s2cReference
+  pure (termNames, typeNames)
