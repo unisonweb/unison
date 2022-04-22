@@ -147,20 +147,27 @@ withConnectionPool ::
   String ->
   -- | Path to SQLite database file.
   FilePath ->
+  (Connection -> m ()) ->
   (Pool.Pool Connection -> m r) ->
   m r
-withConnectionPool name file action = do
+withConnectionPool name file initializer action = do
   bracket mkPool (liftIO . Pool.destroyAllResources) action
   where
-    mkPool = liftIO $ do
+    newConnection = do
+      conn <- liftIO $ openConnection name file
+      initializer conn
+      pure conn
+    mkPool = do
       let maxConcurrentConnections = 10
           connectionTTL = Time.nominalDay
-      Pool.createPool
-        (openConnection name file)
-        (closeConnection)
-        1
-        connectionTTL
-        maxConcurrentConnections
+      runInIO <- askRunInIO
+      liftIO $
+        Pool.createPool
+          (runInIO newConnection)
+          closeConnection
+          1
+          connectionTTL
+          maxConcurrentConnections
 
 -- Open a connection to a SQLite database.
 openConnection ::

@@ -189,7 +189,10 @@ withConnectionPool ::
   (Pool.Pool Sqlite.Connection -> m a) ->
   m a
 withConnectionPool name root action =
-  Sqlite.withConnectionPool name (makeCodebasePath root) action
+  Sqlite.withConnectionPool name (makeCodebasePath root) initializeConnection action
+  where
+    initializeConnection conn = do
+      liftIO (Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL)
 
 sqliteCodebase ::
   forall m r.
