@@ -39,6 +39,7 @@ and update the codebase to use the new type `Foo`...
 
 ```ucm
 .subpath> view fooToInt
+.> cd .
 ```
 
 ### Preserving user type variables
@@ -60,6 +61,7 @@ Add that to the codebase:
 
 ```ucm
 .subpath.preserve> add
+.> cd .
 ```
 
 Let's now edit the dependency:
@@ -75,6 +77,7 @@ Update...
 
 ```ucm
 .subpath.preserve> update
+.> cd .
 ```
 
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
@@ -110,6 +113,7 @@ We'll make two copies of this namespace.
 ```ucm
 .subpath.one> add
 .subpath> fork one two
+.> cd .
 ```
 
 Now let's edit one of the terms...

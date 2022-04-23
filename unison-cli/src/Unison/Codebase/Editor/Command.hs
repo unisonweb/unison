@@ -13,6 +13,7 @@ module Unison.Codebase.Editor.Command
     EvalResult,
     commandName,
     lookupEvalResult,
+    UCMVersion,
   )
 where
 
@@ -58,8 +59,7 @@ import Unison.Result
     Result,
   )
 import Unison.Server.Backend
-  ( BackendError,
-    DefinitionResults,
+  ( DefinitionResults,
     IncludeCycles,
     ShallowListEntry,
   )
@@ -73,7 +73,7 @@ import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
 import qualified Unison.WatchKind as WK
-import UnliftIO (MonadUnliftIO (..), UnliftIO)
+import UnliftIO (UnliftIO)
 import qualified UnliftIO
 
 type AmbientAbilities v = [Type v Ann]
@@ -93,6 +93,8 @@ type TypecheckingResult v =
   Result
     (Seq (Note v Ann))
     (Either Names (UF.TypecheckedUnisonFile v Ann))
+
+type UCMVersion = Text
 
 data
   Command
@@ -129,7 +131,7 @@ data
     Command m i v (DefinitionResults v)
   FindShallow ::
     Path.Absolute ->
-    Command m i v (Either BackendError [ShallowListEntry v Ann])
+    Command m i v [ShallowListEntry v Ann]
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)
   Input :: Command m i v i
   -- Presents some output to the user
@@ -266,6 +268,7 @@ data
   -- Ideally we will eventually remove the Command type entirely and won't need
   -- this anymore.
   CmdUnliftIO :: Command m i v (UnliftIO (Free (Command m i v)))
+  UCMVersion :: Command m i v UCMVersion
 
 instance MonadIO m => MonadIO (Free (Command m i v)) where
   liftIO io = Free.eval $ Eval (liftIO io)
@@ -344,3 +347,4 @@ commandName = \case
   MakeStandalone {} -> "MakeStandalone"
   FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"
+  UCMVersion {} -> "UCMVersion"

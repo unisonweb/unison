@@ -15,7 +15,6 @@ import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
 import Data.Configurator ()
-import Data.Either.Extra (eitherToMaybe)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
@@ -30,6 +29,7 @@ import Data.Tuple.Extra (uncurry3)
 import qualified Text.Megaparsec as P
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
+import Unison.Auth.Types (Host (Host))
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
@@ -45,7 +45,8 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval)
+import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
+import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval, liftF, respond, respondNumbered)
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.Input
@@ -150,7 +151,6 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import UnliftIO (MonadUnliftIO)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -159,11 +159,11 @@ prettyPrintEnvDecl :: MonadCommand n m i v => NamesWithHistory -> n PPE.PrettyPr
 prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: Action' m v PPE.PrettyPrintEnvDecl
-currentPrettyPrintEnvDecl = do
+currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action' m v PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl scoping = do
   root' <- use LoopState.root
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
-  prettyPrintEnvDecl (Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root')
+  prettyPrintEnvDecl (Backend.getCurrentPrettyNames (scoping currentPath') root')
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
@@ -234,10 +234,10 @@ loop = do
               L.Hash sh -> Just (HQ.HashOnly sh)
               _ -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        let parseNames = Backend.getCurrentParseNames (Backend.AllNames currentPath'') root'
+        let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') root'
         LoopState.latestFile .= Just (Text.unpack sourceName, False)
         LoopState.latestTypecheckedFile .= Nothing
-        Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
+        Result notes r <- unsafeTime "typechecking" $ eval $ Typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
           Nothing ->
@@ -258,19 +258,19 @@ loop = do
       loadUnisonFile sourceName text = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
-          currentNames <- currentPathNames
+          currentNames <- unsafeTime "currentPathNames" currentPathNames
           let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-          names <- displayNames unisonFile
+          names <- unsafeTime "displayNames" $ displayNames unisonFile
           pped <- prettyPrintEnvDecl names
           let ppe = PPE.suffixifiedPPE pped
-          respond $ Typechecked sourceName ppe sr unisonFile
+          unsafeTime "typechecked.respond" $ respond $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
-            (bindings, e) <- ExceptT . eval . Evaluate ppe $ unisonFile
+            (bindings, e) <- unsafeTime "evaluate" $ ExceptT . eval . Evaluate ppe $ unisonFile
             lift do
               let e' = Map.map go e
                   go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
               unless (null e') $
-                respond $ Evaluated text ppe bindings e'
+                unsafeTime "evaluate.respond" $ respond $ Evaluated text ppe bindings e'
               LoopState.latestTypecheckedFile .= Just unisonFile
 
   case e of
@@ -378,11 +378,12 @@ loop = do
             ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
             AddI _selection -> "add"
             UpdateI p _selection ->
-              "update" <> (case p of
-                NoPatch -> ".nopatch"
-                DefaultPatch -> " " <> ps' defaultPatchPath
-                UsePatch p -> " " <> ps' p
-              )
+              "update"
+                <> ( case p of
+                       NoPatch -> ".nopatch"
+                       DefaultPatch -> " " <> ps' defaultPatchPath
+                       UsePatch p -> " " <> ps' p
+                   )
             PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
             UndoI {} -> "undo"
             ApiI -> "api"
@@ -441,7 +442,7 @@ loop = do
             HistoryI {} -> wat
             TestI {} -> wat
             LinksI {} -> wat
-            SearchByNameI {} -> wat
+            FindI {} -> wat
             FindShallowI {} -> wat
             FindPatchI {} -> wat
             ShowDefinitionI {} -> wat
@@ -458,6 +459,7 @@ loop = do
             DeprecateTermI {} -> undefined
             DeprecateTypeI {} -> undefined
             GistI {} -> wat
+            AuthLoginI {} -> wat
             RemoveTermReplacementI src p ->
               "delete.term-replacement" <> HQ.toText src <> " " <> opatch p
             RemoveTypeReplacementI src p ->
@@ -535,7 +537,7 @@ loop = do
                     diffHelper (Branch.head root') (Branch.head root'')
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
                   else do
-                    ppeDecl <- currentPrettyPrintEnvDecl
+                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                     respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
             ApiI -> eval API
@@ -571,10 +573,10 @@ loop = do
                         (Just new)
                         (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
                         rest
-            ResetRootI src0 ->
+            ResetRootI src0 -> unsafeTime "reset-root" $
               case src0 of
                 Left hash -> unlessError do
-                  newRoot <- resolveShortBranchHash hash
+                  newRoot <- unsafeTime "resolveShortBranchHash" $ resolveShortBranchHash hash
                   lift do
                     updateRoot newRoot
                     success
@@ -625,7 +627,7 @@ loop = do
                     else
                       diffHelper (Branch.head destb) (Branch.head merged)
                         >>= respondNumbered . uncurry (ShowDiffAfterMergePreview dest0 dest)
-            DiffNamespaceI before after -> unlessError do
+            DiffNamespaceI before after -> unsafeTime "diff.namespace" $ unlessError do
               let (absBefore, absAfter) = (resolveToAbsolute <$> before, resolveToAbsolute <$> after)
               beforeBranch0 <- Branch.head <$> branchForBranchId absBefore
               afterBranch0 <- Branch.head <$> branchForBranchId absAfter
@@ -698,8 +700,8 @@ loop = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                      -- Branch exists and isn't empty, print an error
-                      throwError (BranchAlreadyExists (Path.unsplit' dest))
+                    -- Branch exists and isn't empty, print an error
+                    throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -760,11 +762,11 @@ loop = do
                     then doDelete b0
                     else case insistence of
                       Force -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl
+                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                         doDelete b0
                         respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                       Try -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl
+                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                         respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
                 doDelete b0 = do
@@ -947,8 +949,8 @@ loop = do
 
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
                 fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
-            NamesI thing -> do
-              ns0 <- basicParseNames
+            NamesI global thing -> do
+              ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
               let ns = NamesWithHistory ns0 mempty
                   terms = NamesWithHistory.lookupHQTerm thing ns
                   types = NamesWithHistory.lookupHQType thing ns
@@ -961,7 +963,7 @@ loop = do
                   types' = Set.map go types
                     where
                       go r = (r, NamesWithHistory.typeName hqLength r printNames)
-              respond $ ListNames hqLength (toList types') (toList terms')
+              respond $ ListNames global hqLength (toList types') (toList terms')
             LinkI mdValue srcs -> do
               manageLinks False srcs [mdValue] Metadata.insert
               syncRoot
@@ -1079,28 +1081,25 @@ loop = do
                       sbhLength
                       root'
                       (Backend.AllNames $ Path.fromPath' pathArg)
-              res <- eval $ FindShallow pathArgAbs
-              case res of
-                Left e -> handleBackendError e
-                Right entries -> do
-                  -- caching the result as an absolute path, for easier jumping around
-                  LoopState.numberedArgs .= fmap entryToHQString entries
-                  respond $ ListShallow ppe entries
+              entries <- eval $ FindShallow pathArgAbs
+              -- caching the result as an absolute path, for easier jumping around
+              LoopState.numberedArgs .= fmap entryToHQString entries
+              respond $ ListShallow ppe entries
+              where
+                entryToHQString :: ShallowListEntry v Ann -> String
+                entryToHQString e =
+                  fixup $ case e of
+                    ShallowTypeEntry (TypeEntry _ hq _) -> HQ'.toString hq
+                    ShallowTermEntry (TermEntry _ hq _ _) -> HQ'.toString hq
+                    ShallowBranchEntry ns _ _ -> NameSegment.toString ns
+                    ShallowPatchEntry ns -> NameSegment.toString ns
                   where
-                    entryToHQString :: ShallowListEntry v Ann -> String
-                    entryToHQString e =
-                      fixup $ case e of
-                        ShallowTypeEntry (TypeEntry _ hq _) -> HQ'.toString hq
-                        ShallowTermEntry (TermEntry _ hq _ _) -> HQ'.toString hq
-                        ShallowBranchEntry ns _ _ -> NameSegment.toString ns
-                        ShallowPatchEntry ns -> NameSegment.toString ns
-                      where
-                        fixup s = case pathArgStr of
-                          "" -> s
-                          p | last p == '.' -> p ++ s
-                          p -> p ++ "." ++ s
-                        pathArgStr = show pathArg
-            SearchByNameI isVerbose _showAll ws -> do
+                    fixup s = case pathArgStr of
+                      "" -> s
+                      p | last p == '.' -> p ++ s
+                      p -> p ++ "." ++ s
+                    pathArgStr = show pathArg
+            FindI isVerbose global ws -> do
               let prettyPrintNames = basicPrettyPrintNames
               unlessError do
                 results <- case ws of
@@ -1131,7 +1130,11 @@ loop = do
 
                   -- name query
                   (map HQ.unsafeFromString -> qs) -> do
-                    let ns = basicPrettyPrintNames
+                    ns <-
+                      lift $
+                        if not global
+                          then basicParseNames
+                          else fst <$> basicNames' Backend.AllNames
                     let srs = searchBranchScored ns fuzzyNameDistance qs
                     pure $ uniqueBy SR.toReferent srs
                 lift do
@@ -1391,16 +1394,16 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
-                      eval (MakeStandalone ppe ref output) >>= \case
-                        Just err -> respond $ EvaluationFailure err
-                        Nothing -> pure ()
+                    eval (MakeStandalone ppe ref output) >>= \case
+                      Just err -> respond $ EvaluationFailure err
+                      Nothing -> pure ()
                   | otherwise ->
-                      respond $ BadMainFunction smain ty ppe [mainType]
+                    respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               -- todo - allow this to run tests from scratch file, using addRunMain
               testType <- eval RuntimeTest
-              parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicPrettyPrintNamesA
+              parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
               ppe <- suffixifiedPPE parseNames
               -- use suffixed names for resolving the argument to display
               let oks results =
@@ -1558,7 +1561,7 @@ loop = do
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
+                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> use LoopState.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
@@ -1628,8 +1631,16 @@ loop = do
               doRemoveReplacement from patchPath False
             ShowDefinitionByPrefixI {} -> notImplemented
             UpdateBuiltinsI -> notImplemented
-            QuitI -> MaybeT $ pure Nothing
+            QuitI -> empty
             GistI input -> handleGist input
+            AuthLoginI mayCodebaseServer -> do
+              case mayCodebaseServer of
+                Nothing -> authLogin Nothing
+                Just codeServer -> do
+                  mayHost <- eval $ ConfigLookup ("CodeServers." <> codeServer)
+                  case mayHost of
+                    Nothing -> respond (UnknownCodeServer codeServer)
+                    Just host -> authLogin (Just $ Host host)
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success
@@ -1654,7 +1665,7 @@ handleDependents hq = do
            in LD.fold tp tm ld
         -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
         -- unambiguous name.
-        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
+        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
         let results :: [(Reference, Maybe Name)]
             results =
               -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
@@ -1829,9 +1840,9 @@ handleUpdate input optionalPatch requestedNames = do
             b <- getAt p
             eval . Eval $ Branch.getPatch seg (Branch.head b)
       let patchPath = case optionalPatch of
-                        NoPatch -> Nothing
-                        DefaultPatch -> Just defaultPatchPath
-                        UsePatch p -> Just p
+            NoPatch -> Nothing
+            DefaultPatch -> Just defaultPatchPath
+            UsePatch p -> Just p
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
       let sr = Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames
@@ -1936,26 +1947,30 @@ handleUpdate input optionalPatch requestedNames = do
         -- and make a patch diff to record a replacement from the old to new references
         stepManyAtMNoSync
           Branch.CompressHistory
-          ([ ( Path.unabsolute currentPath',
-              pure . doSlurpUpdates typeEdits termEdits termDeprecations
-            ),
-            ( Path.unabsolute currentPath',
-              pure . doSlurpAdds addsAndUpdates uf
-            )] ++ case patchOps of
-                    Nothing -> []
-                    Just (_, update, p) -> [(Path.unabsolute p, update)])
+          ( [ ( Path.unabsolute currentPath',
+                pure . doSlurpUpdates typeEdits termEdits termDeprecations
+              ),
+              ( Path.unabsolute currentPath',
+                pure . doSlurpAdds addsAndUpdates uf
+              )
+            ]
+              ++ case patchOps of
+                Nothing -> []
+                Just (_, update, p) -> [(Path.unabsolute p, update)]
+          )
         eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
       ppe <- prettyPrintEnvDecl =<< displayNames uf
       respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
       -- propagatePatch prints TodoOutput
       for_ patchOps $ \case
         (updatedPatch, _, _) -> void $ propagatePatchNoSync updatedPatch currentPath'
-      addDefaultMetadata addsAndUpdates
+      unsafeTime "addDefaultMetadata" $ addDefaultMetadata addsAndUpdates
       syncRoot $ case patchPath of
-                   Nothing -> "update.nopatch"
-                   Just p -> p & Path.unsplit'
-                               & Path.resolve @_ @_ @Path.Absolute currentPath'
-                               & tShow
+        Nothing -> "update.nopatch"
+        Just p ->
+          p & Path.unsplit'
+            & Path.resolve @_ @_ @Path.Absolute currentPath'
+            & tShow
 
 -- Add default metadata to all added types and terms in a slurp component.
 --
@@ -2237,13 +2252,13 @@ propagatePatchNoSync ::
   Patch ->
   Path.Absolute ->
   Action' m v Bool
-propagatePatchNoSync patch scopePath = do
+propagatePatchNoSync patch scopePath = unsafeTime "propagate" $ do
   r <- use LoopState.root
   let nroot = Branch.toNames (Branch.head r)
   stepAtMNoSync'
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
-      lift . lift . Propagate.propagateAndApply nroot patch
+      liftF . Propagate.propagateAndApply nroot patch
     )
 
 -- Returns True if the operation changed the namespace, False otherwise.
@@ -2260,7 +2275,7 @@ propagatePatch inputDescription patch scopePath = do
     Branch.CompressHistory
     (inputDescription <> " (applying patch)")
     ( Path.unabsolute scopePath,
-      lift . lift . Propagate.propagateAndApply nroot patch
+      liftF . Propagate.propagateAndApply nroot patch
     )
 
 -- | Create the args needed for showTodoOutput and call it
@@ -2397,10 +2412,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2417,41 +2432,16 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
             pair qn = case score qn name of
               Just score -> Set.singleton (Just score, result)
               Nothing -> mempty
-
-handleBackendError :: Backend.BackendError -> Action m i v ()
-handleBackendError = \case
-  Backend.NoSuchNamespace path ->
-    respond . BranchNotFound $ Path.absoluteToPath' path
-  Backend.BadRootBranch e -> respond $ BadRootBranch e
-  Backend.NoBranchForHash h -> do
-    sbhLength <- eval BranchHashLength
-    respond . NoBranchWithHash $ SBH.fromHash sbhLength h
-  Backend.CouldntLoadBranch h -> do
-    respond . CouldntLoadBranch $ h
-  Backend.CouldntExpandBranchHash sbh -> respond $ NoBranchWithHash sbh
-  Backend.AmbiguousBranchHash h hashes ->
-    respond $ BranchHashAmbiguous h hashes
-  Backend.MissingSignatureForTerm r ->
-    respond $ TermMissingType r
-
-respond :: MonadCommand n m i v => Output v -> n ()
-respond output = eval $ Notify output
-
-respondNumbered :: NumberedOutput v -> Action m i v ()
-respondNumbered output = do
-  args <- eval $ NotifyNumbered output
-  unless (null args) $
-    LoopState.numberedArgs .= toList args
 
 unlessError :: ExceptT (Output v) (Action' m v) () -> Action' m v ()
 unlessError ma = runExceptT ma >>= either respond pure
@@ -2537,7 +2527,7 @@ getMetadataFromName name = do
     getPPE = do
       currentPath' <- use LoopState.currentPath
       sbhLength <- eval BranchHashLength
-      Backend.basicSuffixifiedNames sbhLength <$> use LoopState.root <*> pure (Backend.AllNames $ Path.unabsolute currentPath')
+      Backend.basicSuffixifiedNames sbhLength <$> use LoopState.root <*> pure (Backend.Within $ Path.unabsolute currentPath')
 
 -- | Get the set of terms related to a hash-qualified name.
 getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
@@ -2687,12 +2677,12 @@ stepManyAtMNoSync' strat actions = do
 
 -- | Sync the in-memory root branch.
 syncRoot :: LoopState.InputDescription -> Action m i v ()
-syncRoot description = do
+syncRoot description = unsafeTime "syncRoot" $ do
   root' <- use LoopState.root
   Unison.Codebase.Editor.HandleInput.updateRoot root' description
 
 updateRoot :: Branch m -> LoopState.InputDescription -> Action m i v ()
-updateRoot new reason = do
+updateRoot new reason = unsafeTime "updateRoot" $ do
   old <- use LoopState.lastSavedRoot
   when (old /= new) $ do
     LoopState.root .= new
@@ -2838,7 +2828,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-              respond $ ListOfLinks mempty []
+            respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>
@@ -3116,7 +3106,7 @@ findHistoricalHQs lexedHQs0 = do
   pure rawHistoricalNames
 
 basicPrettyPrintNamesA :: Functor m => Action' m v Names
-basicPrettyPrintNamesA = snd <$> basicNames'
+basicPrettyPrintNamesA = snd <$> basicNames' Backend.AllNames
 
 makeShadowedPrintNamesFromHQ :: Monad m => Set (HQ.HashQualified Name) -> Names -> Action' m v NamesWithHistory
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
@@ -3131,7 +3121,7 @@ makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
       (NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames))
 
 basicParseNames, slurpResultNames :: Functor m => Action' m v Names
-basicParseNames = fst <$> basicNames'
+basicParseNames = fst <$> basicNames' Backend.Within
 -- we check the file against everything in the current path
 slurpResultNames = currentPathNames
 
@@ -3142,11 +3132,11 @@ currentPathNames = do
   pure $ Branch.toNames (Branch.head currentBranch')
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNames' :: (Functor m) => Action m i v (Names, Names)
-basicNames' = do
+basicNames' :: (Functor m) => (Path -> Backend.NameScoping) -> Action m i v (Names, Names)
+basicNames' nameScoping = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
-  pure $ Backend.basicNames' root' (Backend.AllNames $ Path.unabsolute currentPath')
+  pure $ Backend.basicNames' root' (nameScoping $ Path.unabsolute currentPath')
 
 data AddRunMainResult v
   = NoTermWithThatName
@@ -3250,7 +3240,7 @@ diffHelper ::
   Branch0 m ->
   Branch0 m ->
   Action' m v (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput v Ann)
-diffHelper before after = do
+diffHelper before after = unsafeTime "HandleInput.diffHelper" $ do
   currentRoot <- use LoopState.root
   currentPath <- use LoopState.currentPath
   diffHelperCmd currentRoot currentPath before after

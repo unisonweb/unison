@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -126,7 +127,12 @@ listEntryName = \case
 
 data BackendError
   = NoSuchNamespace Path.Absolute
-  | BadRootBranch Codebase.GetRootBranchError
+  | -- Failed to parse path
+    BadNamespace
+      String
+      -- ^ error message
+      String
+      -- ^ namespace
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
   | NoBranchForHash Branch.Hash
@@ -200,10 +206,6 @@ loadReferentType codebase = \case
         "Don't know how to getTypeOfConstructor "
           ++ show r
 
-getRootBranch :: Functor m => Codebase m v Ann -> Backend m (Branch m)
-getRootBranch =
-  ExceptT . (first BadRootBranch <$>) . Codebase.getRootBranch
-
 data TermEntry v a = TermEntry
   { termEntryReferent :: Referent,
     termEntryName :: HQ'.HQSegment,
@@ -268,10 +270,10 @@ findShallow ::
   Monad m =>
   Codebase m Symbol Ann ->
   Path.Absolute ->
-  Backend m [ShallowListEntry Symbol Ann]
+  m [ShallowListEntry Symbol Ann]
 findShallow codebase path' = do
   let path = Path.unabsolute path'
-  root <- getRootBranch codebase
+  root <- Codebase.getRootBranch codebase
   let mayb = Branch.getAt path root
   case mayb of
     Nothing -> pure []
@@ -288,7 +290,7 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
   let ppe hqLen = PPE.fromNamesDecl hqLen printNames
 
       renderReadme ppe r = do
-        (_, _, doc) <- liftIO $ renderDoc ppe width runtime codebase (Referent.toReference r)
+        (_, _, doc) <- renderDoc ppe width runtime codebase (Referent.toReference r)
         pure doc
 
       -- allow any of these capitalizations
@@ -298,8 +300,8 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
         where
           lookup seg = R.lookupRan seg rel
           rel = Star3.d1 (Branch._terms (Branch.head namespaceBranch))
-   in do
-        hqLen <- liftIO $ Codebase.hashLength codebase
+   in liftIO $ do
+        hqLen <- Codebase.hashLength codebase
         traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
 
 isDoc :: Monad m => Codebase m Symbol Ann -> Referent -> m Bool
@@ -322,9 +324,9 @@ termListEntry ::
   Branch0 m ->
   Referent ->
   HQ'.HQSegment ->
-  Backend m (TermEntry Symbol Ann)
+  m (TermEntry Symbol Ann)
 termListEntry codebase b0 r n = do
-  ot <- lift $ loadReferentType codebase r
+  ot <- loadReferentType codebase r
 
   -- A term is a test if it has a link of type `IsTest`.
   let isTest = Metadata.hasMetadataWithType' r Decls.isTestRef $ Branch.deepTermMetadata b0
@@ -345,12 +347,12 @@ typeListEntry ::
   Codebase m v Ann ->
   Reference ->
   HQ'.HQSegment ->
-  Backend m TypeEntry
+  m TypeEntry
 typeListEntry codebase r n = do
   -- The tag indicates whether the type is a data declaration or an ability.
   tag <- case Reference.toId r of
     Just r -> do
-      decl <- lift $ Codebase.getTypeDeclaration codebase r
+      decl <- Codebase.getTypeDeclaration codebase r
       pure $ case decl of
         Just (Left _) -> Ability
         _ -> Data
@@ -364,10 +366,10 @@ typeDeclHeader ::
   Codebase m v Ann ->
   PPE.PrettyPrintEnv ->
   Reference ->
-  Backend m (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
+  m (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
 typeDeclHeader code ppe r = case Reference.toId r of
   Just rid ->
-    (lift $ Codebase.getTypeDeclaration code rid) <&> \case
+    Codebase.getTypeDeclaration code rid <&> \case
       Nothing -> DisplayObject.MissingObject (Reference.toShortHash r)
       Just decl ->
         DisplayObject.UserObject $
@@ -410,9 +412,9 @@ findShallowInBranch ::
   Monad m =>
   Codebase m Symbol Ann ->
   Branch m ->
-  Backend m [ShallowListEntry Symbol Ann]
+  m [ShallowListEntry Symbol Ann]
 findShallowInBranch codebase b = do
-  hashLength <- lift $ Codebase.hashLength codebase
+  hashLength <- Codebase.hashLength codebase
   let hqTerm b0 ns r =
         let refs = Star3.lookupD1 ns . Branch._terms $ b0
          in case length refs of
@@ -682,133 +684,134 @@ prettyDefinitionsBySuffixes ::
   Codebase IO Symbol Ann ->
   [HQ.HashQualified Name] ->
   Backend IO DefinitionDisplayResults
-prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt codebase query =
-  do
-    branch <- resolveBranchHash root codebase
-    DefinitionResults terms types misses <-
-      lift (definitionsBySuffixes namesScope branch codebase DontIncludeCycles query)
-    hqLength <- lift $ Codebase.hashLength codebase
-    -- We might like to make sure that the user search terms get used as
-    -- the names in the pretty-printer, but the current implementation
-    -- doesn't.
-    let -- We use printNames for names in source and parseNames to lookup
-        -- definitions, thus printNames use the allNames scope, to ensure
-        -- external references aren't hashes.
-        printNames =
-          getCurrentPrettyNames (toAllNames namesScope) branch
+prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt codebase query = do
+  branch <- resolveBranchHash root codebase
+  DefinitionResults terms types misses <-
+    lift (definitionsBySuffixes namesScope branch codebase DontIncludeCycles query)
+  hqLength <- lift $ Codebase.hashLength codebase
+  -- We might like to make sure that the user search terms get used as
+  -- the names in the pretty-printer, but the current implementation
+  -- doesn't.
+  let -- We use printNames for names in source and parseNames to lookup
+      -- definitions, thus printNames use the allNames scope, to ensure
+      -- external references aren't hashes.
+      printNames =
+        getCurrentPrettyNames (toAllNames namesScope) branch
 
-        parseNames =
-          getCurrentParseNames namesScope branch
+      parseNames =
+        getCurrentParseNames namesScope branch
 
-        ppe =
-          PPE.fromNamesDecl hqLength printNames
+      ppe =
+        PPE.fromNamesDecl hqLength printNames
 
-        width =
-          mayDefaultWidth renderWidth
+      width =
+        mayDefaultWidth renderWidth
 
-        termFqns :: Map Reference (Set Text)
-        termFqns = Map.mapWithKey f terms
-          where
-            rel = Names.terms $ currentNames parseNames
-            f k _ =
-              Set.fromList . fmap Name.toText . toList $
-                R.lookupRan (Referent.Ref k) rel
+      termFqns :: Map Reference (Set Text)
+      termFqns = Map.mapWithKey f terms
+        where
+          rel = Names.terms $ currentNames parseNames
+          f k _ =
+            Set.fromList . fmap Name.toText . toList $
+              R.lookupRan (Referent.Ref k) rel
 
-        typeFqns :: Map Reference (Set Text)
-        typeFqns = Map.mapWithKey f types
-          where
-            rel = Names.types $ currentNames parseNames
-            f k _ =
-              Set.fromList . fmap Name.toText . toList $
-                R.lookupRan k rel
+      typeFqns :: Map Reference (Set Text)
+      typeFqns = Map.mapWithKey f types
+        where
+          rel = Names.types $ currentNames parseNames
+          f k _ =
+            Set.fromList . fmap Name.toText . toList $
+              R.lookupRan k rel
 
-        flatten = Set.toList . fromMaybe Set.empty
+      flatten = Set.toList . fromMaybe Set.empty
 
-        docNames :: Set (HQ'.HashQualified Name) -> [Name]
-        docNames hqs = fmap docify . nubOrd . join . map toList . Set.toList $ hqs
-          where
-            docify n = Name.joinDot n "doc"
+      docNames :: Set (HQ'.HashQualified Name) -> [Name]
+      docNames hqs = fmap docify . nubOrd . join . map toList . Set.toList $ hqs
+        where
+          docify n = Name.joinDot n "doc"
 
-        selectDocs :: [Referent] -> Backend IO [Reference]
-        selectDocs rs = do
-          rts <- fmap join . for rs $ \case
-            Referent.Ref r ->
-              maybe [] (pure . (r,)) <$> lift (Codebase.getTypeOfTerm codebase r)
-            _ -> pure []
-          pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
+      selectDocs :: [Referent] -> IO [Reference]
+      selectDocs rs = do
+        rts <- fmap join . for rs $ \case
+          Referent.Ref r ->
+            maybe [] (pure . (r,)) <$> Codebase.getTypeOfTerm codebase r
+          _ -> pure []
+        pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
 
-        -- rs0 can be empty or the term fetched, so when viewing a doc term
-        -- you get both its source and its rendered form
-        docResults :: [Reference] -> [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
-        docResults rs0 docs = do
-          let refsFor n = NamesWithHistory.lookupHQTerm (HQ.NameOnly n) parseNames
-          let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
-          -- lookup the type of each, make sure it's a doc
-          docs <- selectDocs (toList rs)
-          -- render all the docs
-          liftIO (traverse (renderDoc ppe width rt codebase) docs)
+      -- rs0 can be empty or the term fetched, so when viewing a doc term
+      -- you get both its source and its rendered form
+      docResults :: [Reference] -> [Name] -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      docResults rs0 docs = do
+        let refsFor n = NamesWithHistory.lookupHQTerm (HQ.NameOnly n) parseNames
+        let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
+        -- lookup the type of each, make sure it's a doc
+        docs <- selectDocs (toList rs)
+        -- render all the docs
+        traverse (renderDoc ppe width rt codebase) docs
 
-        mkTermDefinition ::
-          ( Reference ->
-            DisplayObject
-              (AnnotatedText (UST.Element Reference))
-              (AnnotatedText (UST.Element Reference)) ->
-            ExceptT BackendError IO TermDefinition
-          )
-        mkTermDefinition r tm = do
-          ts <- lift (Codebase.getTypeOfTerm codebase r)
-          let bn = bestNameForTerm @Symbol (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
-          tag <-
-            termEntryTag
-              <$> termListEntry
-                codebase
-                (Branch.head branch)
-                (Referent.Ref r)
-                (HQ'.NameOnly (NameSegment bn))
-          docs <- docResults [r] $ docNames (NamesWithHistory.termName hqLength (Referent.Ref r) printNames)
-          mk docs ts bn tag
-          where
-            mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
-            mk docs (Just typeSig) bn tag =
-              pure $
-                TermDefinition
-                  (flatten $ Map.lookup r termFqns)
-                  bn
-                  tag
-                  (bimap mungeSyntaxText mungeSyntaxText tm)
-                  (formatSuffixedType ppe width typeSig)
-                  docs
-        mkTypeDefinition r tp = do
-          traceM $ "Making type definition for " <> show r
-          let bn = bestNameForType @Symbol (PPE.suffixifiedPPE ppe) width r
-          tag <-
-            Just . typeEntryTag
-              <$> typeListEntry
-                codebase
-                r
-                (HQ'.NameOnly (NameSegment bn))
-          docs <- docResults [] $ docNames (NamesWithHistory.typeName hqLength r printNames)
-          pure $
-            TypeDefinition
-              (flatten $ Map.lookup r typeFqns)
-              bn
-              tag
-              (bimap mungeSyntaxText mungeSyntaxText tp)
-              docs
-    typeDefinitions <-
+      mkTermDefinition ::
+        ( Reference ->
+          DisplayObject
+            (AnnotatedText (UST.Element Reference))
+            (AnnotatedText (UST.Element Reference)) ->
+          ExceptT BackendError IO TermDefinition
+        )
+      mkTermDefinition r tm = do
+        ts <- lift (Codebase.getTypeOfTerm codebase r)
+        let bn = bestNameForTerm @Symbol (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
+        tag <-
+          lift
+            ( termEntryTag
+                <$> termListEntry
+                  codebase
+                  (Branch.head branch)
+                  (Referent.Ref r)
+                  (HQ'.NameOnly (NameSegment bn))
+            )
+        docs <- lift (docResults [r] $ docNames (NamesWithHistory.termName hqLength (Referent.Ref r) printNames))
+        mk docs ts bn tag
+        where
+          mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
+          mk docs (Just typeSig) bn tag =
+            pure $
+              TermDefinition
+                (flatten $ Map.lookup r termFqns)
+                bn
+                tag
+                (bimap mungeSyntaxText mungeSyntaxText tm)
+                (formatSuffixedType ppe width typeSig)
+                docs
+      mkTypeDefinition r tp = do
+        let bn = bestNameForType @Symbol (PPE.suffixifiedPPE ppe) width r
+        tag <-
+          Just . typeEntryTag
+            <$> typeListEntry
+              codebase
+              r
+              (HQ'.NameOnly (NameSegment bn))
+        docs <- docResults [] $ docNames (NamesWithHistory.typeName hqLength r printNames)
+        pure $
+          TypeDefinition
+            (flatten $ Map.lookup r typeFqns)
+            bn
+            tag
+            (bimap mungeSyntaxText mungeSyntaxText tp)
+            docs
+  typeDefinitions <-
+    lift do
       Map.traverseWithKey mkTypeDefinition $
         typesToSyntax suffixifyBindings width ppe types
-    termDefinitions <-
-      Map.traverseWithKey mkTermDefinition $
-        termsToSyntax suffixifyBindings width ppe terms
-    let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
-        renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
-        renderedMisses = fmap HQ.toText misses
-    pure $
-      DefinitionDisplayResults
-        renderedDisplayTerms
-        renderedDisplayTypes
-        renderedMisses
+  termDefinitions <-
+    Map.traverseWithKey mkTermDefinition $
+      termsToSyntax suffixifyBindings width ppe terms
+  let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
+      renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
+      renderedMisses = fmap HQ.toText misses
+  pure $
+    DefinitionDisplayResults
+      renderedDisplayTerms
+      renderedDisplayTypes
+      renderedMisses
 
 renderDoc ::
   PPE.PrettyPrintEnvDecl ->
@@ -944,7 +947,7 @@ bestNameForType ppe width =
 resolveBranchHash ::
   Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)
 resolveBranchHash h codebase = case h of
-  Nothing -> getRootBranch codebase
+  Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
     mayBranch ?? NoBranchForHash bhash
@@ -953,7 +956,7 @@ resolveRootBranchHash ::
   Monad m => Maybe ShortBranchHash -> Codebase m v Ann -> Backend m (Branch m)
 resolveRootBranchHash mayRoot codebase = case mayRoot of
   Nothing ->
-    getRootBranch codebase
+    lift (Codebase.getRootBranch codebase)
   Just sbh -> do
     h <- expandShortBranchHash codebase sbh
     resolveBranchHash (Just h) codebase

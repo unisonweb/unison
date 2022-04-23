@@ -30,6 +30,7 @@ dependencies:
   - mtl
   - transformers
   - open-browser
+  - pretty-simple
   - random >= 1.2.0
   - regex-tdfa
   - stm
@@ -42,6 +43,21 @@ dependencies:
   - unison-util-relation
   - unison-pretty-printer
   - unliftio
+  - network-uri
+  - aeson
+  - http-client >= 0.7.6
+  - http-client-tls
+  - http-types
+  - warp
+  - wai
+  - memory
+  - time
+  - lock-file
+  - jwt
+  - either
+  - unison-share-api
+  - servant-client
+  - servant
 
 library:
   source-dirs: src
@@ -50,7 +66,7 @@ library:
       dependencies: unix
 
 tests:
-  tests:
+  cli-tests:
     dependencies:
       - code-page
       - easytest
@@ -85,7 +101,7 @@ executables:
       - shellmet
       - unison-cli
 
-  integration-tests:
+  cli-integration-tests:
     source-dirs: integration-tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0

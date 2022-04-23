@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.Input
     Insistence (..),
     PullMode (..),
     OptionalPatch (..),
+    IsGlobal,
   )
 where
 
@@ -43,6 +44,8 @@ type SourceName = Text -- "foo.u" or "buffer 7"
 
 type PatchPath = Path.Split'
 
+type CodebaseServerName = Text
+
 data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
   deriving (Eq, Ord, Show)
 
@@ -66,6 +69,8 @@ data PullMode
   = PullWithHistory
   | PullWithoutHistory
   deriving (Eq, Show)
+
+type IsGlobal = Bool
 
 data Input
   = -- names stuff:
@@ -95,7 +100,7 @@ data Input
     -- > names .foo.bar
     -- > names .foo.bar#asdflkjsdf
     -- > names #sdflkjsdfhsdf
-    NamesI (HQ.HashQualified Name)
+    NamesI IsGlobal (HQ.HashQualified Name)
   | AliasTermI HashOrHQSplit' Path.Split'
   | AliasTypeI HashOrHQSplit' Path.Split'
   | AliasManyI [Path.HQSplit] Path'
@@ -155,7 +160,7 @@ data Input
   | -- Display docs for provided terms. If list is empty, prompt a fuzzy search.
     DocsI [Path.HQSplit']
   | -- other
-    SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
+    FindI Bool IsGlobal [String] -- FindI isVerbose global query
   | FindShallowI Path'
   | FindPatchI
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.
@@ -180,6 +185,7 @@ data Input
   | UiI
   | DocsToHtmlI Path' FilePath
   | GistI GistInput
+  | AuthLoginI (Maybe CodebaseServerName)
   deriving (Eq, Show)
 
 -- | @"gist repo"@ pushes the contents of the current namespace to @repo@.

@@ -12,6 +12,7 @@ import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
 import Control.Lens ((.~))
+import Control.Monad.Trans.Except
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
 import Data.ByteString.Char8 (unpack)
@@ -26,6 +27,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import GHC.Generics ()
 import Network.HTTP.Media ((//), (/:))
+import Network.HTTP.Types (HeaderName)
 import Network.HTTP.Types.Status (ok200)
 import qualified Network.URI.Encode as URI
 import Network.Wai (responseLBS)
@@ -39,7 +41,10 @@ import Network.Wai.Handler.Warp
     withApplicationSettings,
   )
 import Servant
-  ( MimeRender (..),
+  ( Handler,
+    HasServer,
+    MimeRender (..),
+    ServerT,
     serve,
     throwError,
   )
@@ -63,12 +68,13 @@ import Servant.Docs
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
   ( Application,
-    Handler,
+    Handler (Handler),
     Server,
     ServerError (..),
     Tagged (Tagged),
     err401,
     err404,
+    hoistServer,
   )
 import Servant.Server.StaticFiles (serveDirectoryWebApp)
 import System.Directory (canonicalizePath, doesFileExist)
@@ -80,6 +86,7 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Server.Backend (Backend)
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
@@ -88,7 +95,8 @@ import Unison.Server.Endpoints.GetDefinitions
 import qualified Unison.Server.Endpoints.NamespaceDetails as NamespaceDetails
 import qualified Unison.Server.Endpoints.NamespaceListing as NamespaceListing
 import qualified Unison.Server.Endpoints.Projects as Projects
-import Unison.Server.Types (mungeString)
+import Unison.Server.Errors (backendError)
+import Unison.Server.Types (mungeString, setCacheControl)
 import Unison.Symbol (Symbol)
 
 -- HTML content type
@@ -104,7 +112,7 @@ instance MimeRender HTML RawHtml where
 
 type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
-type DocAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
+type UnisonAndDocsAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
 
 type UnisonAPI =
   NamespaceListing.NamespaceListingAPI
@@ -115,9 +123,13 @@ type UnisonAPI =
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
-type ServerAPI = ("ui" :> WebUI) :<|> ("api" :> DocAPI)
+type ServerAPI = ("ui" :> WebUI) :<|> ("api" :> UnisonAndDocsAPI)
 
-type AuthedServerAPI = ("static" :> Raw) :<|> (Capture "token" Text :> ServerAPI)
+type StaticAPI = "static" :> Raw
+
+type Authed api = (Capture "token" Text :> api)
+
+type AppAPI = StaticAPI :<|> Authed ServerAPI
 
 instance ToSample Char where
   toSamples _ = singleSample 'x'
@@ -173,14 +185,17 @@ docsBS = mungeString . markdown $ docsWithIntros [intro] api
         (Text.unpack $ _infoTitle infoObject)
         (toList $ Text.unpack <$> _infoDescription infoObject)
 
-docAPI :: Proxy DocAPI
-docAPI = Proxy
+unisonAndDocsAPI :: Proxy UnisonAndDocsAPI
+unisonAndDocsAPI = Proxy
 
 api :: Proxy UnisonAPI
 api = Proxy
 
-serverAPI :: Proxy AuthedServerAPI
+serverAPI :: Proxy ServerAPI
 serverAPI = Proxy
+
+appAPI :: Proxy AppAPI
+appAPI = Proxy
 
 app ::
   Rt.Runtime Symbol ->
@@ -189,9 +204,9 @@ app ::
   Strict.ByteString ->
   Application
 app rt codebase uiPath expectedToken =
-  serve serverAPI $ server rt codebase uiPath expectedToken
+  serve appAPI $ server rt codebase uiPath expectedToken
 
--- The Token is used to help prevent multiple users on a machine gain access to
+-- | The Token is used to help prevent multiple users on a machine gain access to
 -- each others codebases.
 genToken :: IO Strict.ByteString
 genToken = do
@@ -285,31 +300,52 @@ serveIndex path = do
                   <> " environment variable to the directory where the UI is installed."
           }
 
-serveUI :: Handler () -> FilePath -> Server WebUI
-serveUI tryAuth path _ = tryAuth *> serveIndex path
+serveUI :: FilePath -> Server WebUI
+serveUI path _ = serveIndex path
 
 server ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   FilePath ->
   Strict.ByteString ->
-  Server AuthedServerAPI
-server rt codebase uiPath token =
+  Server AppAPI
+server rt codebase uiPath expectedToken =
   serveDirectoryWebApp (uiPath </> "static")
-    :<|> ( \token ->
-             serveUI (tryAuth token) uiPath
-               :<|> unisonApi token
-               :<|> serveOpenAPI
-               :<|> Tagged serveDocs
-         )
+    :<|> hoistWithAuth serverAPI expectedToken serveServer
   where
-    serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
-    serveOpenAPI = pure openAPI
+    serveServer :: Server ServerAPI
+    serveServer =
+      ( serveUI uiPath
+          :<|> serveUnisonAndDocs rt codebase
+      )
+
+serveUnisonAndDocs :: Rt.Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
+serveUnisonAndDocs rt codebase = serveUnison codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
+
+serveDocs :: Application
+serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
+  where
+    plain :: (HeaderName, ByteString)
     plain = ("Content-Type", "text/plain")
-    tryAuth = handleAuth token
-    unisonApi t =
-      NamespaceListing.serve (tryAuth t) codebase
-        :<|> NamespaceDetails.serve (tryAuth t) rt codebase
-        :<|> Projects.serve (tryAuth t) codebase
-        :<|> serveDefinitions (tryAuth t) rt codebase
-        :<|> serveFuzzyFind (tryAuth t) codebase
+
+serveOpenAPI :: Handler OpenApi
+serveOpenAPI = pure openAPI
+
+hoistWithAuth :: forall api. HasServer api '[] => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
+hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handler api (\h -> handleAuth expectedToken token *> h) server
+
+serveUnison ::
+  Codebase IO Symbol Ann ->
+  Rt.Runtime Symbol ->
+  Server UnisonAPI
+serveUnison codebase rt =
+  hoistServer (Proxy @UnisonAPI) backendHandler $
+    (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase root rel name)
+      :<|> (\namespaceName mayRoot mayWidth -> setCacheControl <$> NamespaceDetails.serve rt codebase namespaceName mayRoot mayWidth)
+      :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase mayRoot mayOwner)
+      :<|> (\mayRoot relativePath rawHqns width suff -> setCacheControl <$> serveDefinitions rt codebase mayRoot relativePath rawHqns width suff)
+      :<|> (\mayRoot relativePath limit typeWidth query -> setCacheControl <$> serveFuzzyFind codebase mayRoot relativePath limit typeWidth query)
+
+backendHandler :: Backend IO a -> Handler a
+backendHandler m =
+  Handler $ withExceptT backendError m

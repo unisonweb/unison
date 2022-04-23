@@ -19,7 +19,8 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
-import Unison.Codebase (GetRootBranchError)
+import Network.URI (URI)
+import Unison.Auth.Types (CredentialFailure)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
@@ -141,6 +142,7 @@ data Output v
   | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
+  | BadNamespace String String
   | BranchNotFound Path'
   | NameNotFound Path.HQSplit'
   | PatchNotFound Path.Split'
@@ -159,6 +161,7 @@ data Output v
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames
+      IsGlobal
       Int -- hq length to print References
       [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
       [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
@@ -239,7 +242,6 @@ data Output v
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
-  | BadRootBranch GetRootBranchError
   | CouldntLoadBranch Branch.Hash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
@@ -248,6 +250,10 @@ data Output v
     RefusedToPush PushBehavior
   | -- | @GistCreated repo hash@ means causal @hash@ was just published to @repo@.
     GistCreated Int WriteRepo Branch.Hash
+  | -- | Directs the user to URI to begin an authorization flow.
+    InitiateAuthFlow URI
+  | UnknownCodeServer Text
+  | CredentialFailureMsg CredentialFailure
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
@@ -279,7 +285,6 @@ isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success {} -> False
   PrintMessage {} -> False
-  BadRootBranch {} -> True
   CouldntLoadBranch {} -> True
   NoUnisonFile {} -> True
   InvalidSourceName {} -> True
@@ -303,6 +308,7 @@ isFailure o = case o of
   TermAmbiguous {} -> True
   BranchHashAmbiguous {} -> True
   BadName {} -> True
+  BadNamespace {} -> True
   BranchNotFound {} -> True
   NameNotFound {} -> True
   PatchNotFound {} -> True
@@ -315,7 +321,7 @@ isFailure o = case o of
   DeleteBranchConfirmation {} -> False
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
-  ListNames _ tys tms -> null tms && null tys
+  ListNames _ _ tys tms -> null tms && null tys
   ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
@@ -370,6 +376,9 @@ isFailure o = case o of
   NamespaceEmpty {} -> True
   RefusedToPush {} -> True
   GistCreated {} -> False
+  InitiateAuthFlow {} -> False
+  UnknownCodeServer {} -> True
+  CredentialFailureMsg {} -> True
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

@@ -39,7 +39,6 @@ module Unison.Codebase
     -- * Root branch
     getRootBranch,
     getRootBranchExists,
-    GetRootBranchError (..),
     putRootBranch,
     rootBranchUpdates,
 
@@ -95,7 +94,6 @@ module Unison.Codebase
   )
 where
 
-import Control.Error.Util (hush)
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Control.Monad.Trans.Except (throwE)
 import Data.List as List
@@ -115,7 +113,6 @@ import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
-    GetRootBranchError (..),
     GitError (GitCodebaseError),
     PushGitBranchOpts (..),
     SyncToDir,
@@ -142,7 +139,6 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
-import UnliftIO (MonadUnliftIO)
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
@@ -158,10 +154,8 @@ getBranchForHash codebase h =
 
       find rb = List.find headHashEq (nestedChildrenForDepth 3 rb)
    in do
-        rootBranch <- hush <$> getRootBranch codebase
-        case rootBranch of
-          Just rb -> maybe (getBranchForHashImpl codebase h) (pure . Just) (find rb)
-          Nothing -> getBranchForHashImpl codebase h
+        rootBranch <- getRootBranch codebase
+        maybe (getBranchForHashImpl codebase h) (pure . Just) (find rootBranch)
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
 lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))

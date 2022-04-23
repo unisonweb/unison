@@ -6,7 +6,6 @@ scratch.u
 
 # Stack
 .stack-work
-stack.yaml.lock
 
 # Cabal
 dist-newstyle

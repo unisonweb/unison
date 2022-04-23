@@ -42,7 +42,7 @@ import Data.Set as Set
     (\\),
   )
 import qualified Data.Set as Set
-import Data.Text (Text, isPrefixOf, pack)
+import Data.Text (Text, isPrefixOf)
 import Data.Traversable (for)
 import Data.Word (Word64)
 import GHC.Stack (HasCallStack)
@@ -337,9 +337,9 @@ prepareEvaluation ppe tm ctx = do
             $ Map.fromList bs,
         mn <- Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0,
         rmn <- RF.DerivedId $ Hashing.hashClosedTerm mn =
-          (rmn, (rmn, mn) : Map.elems hcs)
+        (rmn, (rmn, mn) : Map.elems hcs)
       | rmn <- RF.DerivedId $ Hashing.hashClosedTerm tm =
-          (rmn, [(rmn, tm)])
+        (rmn, [(rmn, tm)])
 
     (rgrp, rbkr) = intermediateTerms ppe ctx rtms
 
@@ -407,50 +407,50 @@ executeMainComb init cc =
 bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
 bugMsg ppe name tm
   | name == "blank expression" =
-      P.callout icon . P.lines $
-        [ P.wrap
-            ( "I encountered a" <> P.red (P.text name)
-                <> "with the following name/message:"
-            ),
-          "",
-          P.indentN 2 $ pretty ppe tm,
-          "",
-          sorryMsg
-        ]
+    P.callout icon . P.lines $
+      [ P.wrap
+          ( "I encountered a" <> P.red (P.text name)
+              <> "with the following name/message:"
+          ),
+        "",
+        P.indentN 2 $ pretty ppe tm,
+        "",
+        sorryMsg
+      ]
   | "pattern match failure" `isPrefixOf` name =
-      P.callout icon . P.lines $
-        [ P.wrap
-            ( "I've encountered a" <> P.red (P.text name)
-                <> "while scrutinizing:"
-            ),
-          "",
-          P.indentN 2 $ pretty ppe tm,
-          "",
-          "This happens when calling a function that doesn't handle all \
-          \possible inputs",
-          sorryMsg
-        ]
+    P.callout icon . P.lines $
+      [ P.wrap
+          ( "I've encountered a" <> P.red (P.text name)
+              <> "while scrutinizing:"
+          ),
+        "",
+        P.indentN 2 $ pretty ppe tm,
+        "",
+        "This happens when calling a function that doesn't handle all \
+        \possible inputs",
+        sorryMsg
+      ]
   | name == "builtin.raise" =
-      P.callout icon . P.lines $
-        [ P.wrap ("The program halted with an unhandled exception:"),
-          "",
-          P.indentN 2 $ pretty ppe tm
-        ]
+    P.callout icon . P.lines $
+      [ P.wrap ("The program halted with an unhandled exception:"),
+        "",
+        P.indentN 2 $ pretty ppe tm
+      ]
   | name == "builtin.bug",
     RF.TupleTerm' [Tm.Text' msg, x] <- tm,
     "pattern match failure" `isPrefixOf` msg =
-      P.callout icon . P.lines $
-        [ P.wrap
-            ( "I've encountered a" <> P.red (P.text msg)
-                <> "while scrutinizing:"
-            ),
-          "",
-          P.indentN 2 $ pretty ppe x,
-          "",
-          "This happens when calling a function that doesn't handle all \
-          \possible inputs",
-          sorryMsg
-        ]
+    P.callout icon . P.lines $
+      [ P.wrap
+          ( "I've encountered a" <> P.red (P.text msg)
+              <> "while scrutinizing:"
+          ),
+        "",
+        P.indentN 2 $ pretty ppe x,
+        "",
+        "This happens when calling a function that doesn't handle all \
+        \possible inputs",
+        sorryMsg
+      ]
 bugMsg ppe name tm =
   P.callout icon . P.lines $
     [ P.wrap
@@ -490,21 +490,22 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
         <*> getNat
         <*> getStoredCache
 
--- | Whether the runtime is hosted within a UCM session or as a standalone process.
+-- | Whether the runtime is hosted within a persistent session or as a one-off process.
+-- This affects the amount of clean-up and book-keeping the runtime does.
 data RuntimeHost
-  = Standalone
-  | UCM
+  = OneOff
+  | Persistent
 
-startRuntime :: RuntimeHost -> String -> IO (Runtime Symbol)
+startRuntime :: RuntimeHost -> Text -> IO (Runtime Symbol)
 startRuntime runtimeHost version = do
   ctxVar <- newIORef =<< baseContext
   (activeThreads, cleanupThreads) <- case runtimeHost of
     -- Don't bother tracking open threads when running standalone, they'll all be cleaned up
     -- when the process itself exits.
-    Standalone -> pure (Nothing, pure ())
+    OneOff -> pure (Nothing, pure ())
     -- Track all forked threads so that they can be killed when the main process returns,
     -- otherwise they'll be orphaned and left running.
-    UCM -> do
+    Persistent -> do
       activeThreads <- newIORef Set.empty
       let cleanupThreads = do
             threads <- readIORef activeThreads
@@ -528,7 +529,7 @@ startRuntime runtimeHost version = do
           Just w <- Map.lookup rf <$> readTVarIO (refTm cc)
           sto <- standalone cc w
           BL.writeFile path . runPutL $ do
-            serialize $ pack version
+            serialize $ version
             serialize $ RF.showShort 8 rf
             putNat w
             putStoredCache sto,
@@ -566,7 +567,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
   putEnumMap putNat putReference trs
   putNat ftm
   putNat fty
-  putMap putReference putGroup int
+  putMap putReference (putGroup mempty) int
   putMap putReference putNat rtm
   putMap putReference putNat rty
   putMap putReference (putFoldable putReference) sbs
@@ -616,7 +617,7 @@ traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init
     go acc w
       | hasKey w acc = pure acc
       | Just co <- EC.lookup w src =
-          foldlM go (mapInsert w co acc) (foldMap combDeps co)
+        foldlM go (mapInsert w co acc) (foldMap combDeps co)
       | otherwise = die $ "traceNeeded: unknown combinator: " ++ show w
 
 buildSCache ::

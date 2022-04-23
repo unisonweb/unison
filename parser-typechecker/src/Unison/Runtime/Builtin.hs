@@ -34,7 +34,7 @@ import Control.Monad.State.Strict (State, execState, modify)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
 import qualified Data.ByteArray as BA
-import Data.ByteString (hGet, hPut)
+import Data.ByteString (hGet, hGetSome, hPut)
 import qualified Data.ByteString.Lazy as L
 import Data.Default (def)
 import Data.IORef as SYS
@@ -1702,7 +1702,7 @@ builtinLookup =
       ++ foreignWrappers
 
 type FDecl v =
-  State (Word64, [(Data.Text.Text, (Sandbox, SuperNormal v))], EnumMap Word64 ForeignFunc)
+  State (Word64, [(Data.Text.Text, (Sandbox, SuperNormal v))], EnumMap Word64 (Data.Text.Text, ForeignFunc))
 
 -- Data type to determine whether a builtin should be tracked for
 -- sandboxing. Untracked means that it can be freely used, and Tracked
@@ -1719,7 +1719,7 @@ declareForeign ::
   FDecl Symbol ()
 declareForeign sand name op func =
   modify $ \(w, cs, fs) ->
-    (w + 1, (name, (sand, uncurry Lambda (op w))) : cs, mapInsert w func fs)
+    (w + 1, (name, (sand, uncurry Lambda (op w))) : cs, mapInsert w (name, func) fs)
 
 mkForeignIOF ::
   (ForeignConvention a, ForeignConvention r) =>
@@ -1808,6 +1808,9 @@ declareForeigns = do
 
   declareForeign Tracked "IO.getBytes.impl.v3" boxNatToEFBox . mkForeignIOF $
     \(h, n) -> Bytes.fromArray <$> hGet h n
+
+  declareForeign Tracked "IO.getSomeBytes.impl.v1" boxNatToEFBox . mkForeignIOF $
+    \(h, n) -> Bytes.fromArray <$> hGetSome h n
 
   declareForeign Tracked "IO.putBytes.impl.v3" boxBoxToEF0 . mkForeignIOF $ \(h, bs) -> hPut h (Bytes.toArray bs)
 
@@ -2125,7 +2128,7 @@ declareForeigns = do
   declareForeign Untracked "Code.serialize" boxDirect
     . mkForeign
     $ \(sg :: SuperGroup Symbol) ->
-      pure . Bytes.fromArray $ serializeGroup sg
+      pure . Bytes.fromArray $ serializeGroup builtinForeignNames sg
   declareForeign Untracked "Code.deserialize" boxToEBoxBox
     . mkForeign
     $ pure . deserializeGroup @Symbol . Bytes.toArray
@@ -2244,7 +2247,7 @@ typeReferences = zip rs [1 ..]
         ++ [DerivedId i | (_, i, _) <- Ty.builtinEffectDecls]
 
 foreignDeclResults ::
-  (Word64, [(Data.Text.Text, (Sandbox, SuperNormal Symbol))], EnumMap Word64 ForeignFunc)
+  (Word64, [(Data.Text.Text, (Sandbox, SuperNormal Symbol))], EnumMap Word64 (Data.Text.Text, ForeignFunc))
 foreignDeclResults = execState declareForeigns (0, [], mempty)
 
 foreignWrappers :: [(Data.Text.Text, (Sandbox, SuperNormal Symbol))]
@@ -2271,7 +2274,10 @@ builtinTypeBackref = mapFromList $ swap <$> typeReferences
     swap (x, y) = (y, x)
 
 builtinForeigns :: EnumMap Word64 ForeignFunc
-builtinForeigns | (_, _, m) <- foreignDeclResults = m
+builtinForeigns | (_, _, m) <- foreignDeclResults = snd <$> m
+
+builtinForeignNames :: EnumMap Word64 Data.Text.Text
+builtinForeignNames | (_, _, m) <- foreignDeclResults = fst <$> m
 
 -- Bootstrapping for sandbox check. The eventual map will be one with
 -- associations `r -> s` where `s` is all the 'sensitive' base

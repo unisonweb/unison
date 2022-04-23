@@ -66,10 +66,10 @@ library
       Unison.Codebase.SqliteCodebase.Conversions
       Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.Migrations
-      Unison.Codebase.SqliteCodebase.Migrations.Errors
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
+      Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.SyncMode
@@ -131,21 +131,6 @@ library
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector
-      Unison.Server.Backend
-      Unison.Server.CodebaseServer
-      Unison.Server.Doc
-      Unison.Server.Doc.AsHtml
-      Unison.Server.Endpoints.FuzzyFind
-      Unison.Server.Endpoints.GetDefinitions
-      Unison.Server.Endpoints.NamespaceDetails
-      Unison.Server.Endpoints.NamespaceListing
-      Unison.Server.Endpoints.Projects
-      Unison.Server.Errors
-      Unison.Server.QueryResult
-      Unison.Server.SearchResult
-      Unison.Server.SearchResult'
-      Unison.Server.Syntax
-      Unison.Server.Types
       Unison.TermParser
       Unison.TermPrinter
       Unison.Typechecker
@@ -169,7 +154,6 @@ library
       Unison.Util.CyclicOrd
       Unison.Util.EnumContainers
       Unison.Util.Exception
-      Unison.Util.Find
       Unison.Util.Free
       Unison.Util.Logger
       Unison.Util.PinBoard
@@ -186,9 +170,12 @@ library
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
@@ -240,6 +227,7 @@ library
     , hashable
     , hashtables
     , haskeline
+    , http-client
     , http-media
     , http-types
     , lens
@@ -274,7 +262,6 @@ library
     , servant-openapi3
     , servant-server
     , shellmet
-    , sqlite-simple
     , stm
     , strings
     , tagged
@@ -294,6 +281,7 @@ library
     , unison-core1
     , unison-prelude
     , unison-pretty-printer
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio
@@ -311,7 +299,8 @@ library
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
 
-executable tests
+test-suite parser-typechecker-tests
+  type: exitcode-stdio-1.0
   main-is: Suite.hs
   other-modules:
       Unison.Core.Test.Name
@@ -351,9 +340,12 @@ executable tests
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances

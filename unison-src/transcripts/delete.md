@@ -18,7 +18,7 @@ unambiguous type.
 
 ```unison:hide
 foo = 1
-structural type Foo = Foo Nat
+structural type Foo = Foo ()
 ```
 
 ```ucm
@@ -60,7 +60,7 @@ A delete should remove both versions of the term.
 Let's repeat all that on a type, for completeness.
 
 ```unison:hide
-structural type Foo = Foo Nat
+structural type Foo = Foo ()
 ```
 
 ```ucm
@@ -68,7 +68,7 @@ structural type Foo = Foo Nat
 ```
 
 ```unison:hide
-structural type Foo = Foo Boolean
+structural type Foo = Foo
 ```
 
 ```ucm
@@ -88,7 +88,7 @@ Finally, let's try to delete a term and a type with the same name.
 
 ```unison:hide
 foo = 1
-structural type foo = Foo Nat
+structural type foo = Foo ()
 ```
 
 ```ucm

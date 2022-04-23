@@ -6,12 +6,13 @@
 module U.Codebase.Sqlite.Referent where
 
 import Control.Applicative (liftA3)
-import Database.SQLite.Simple (FromRow (..), Only (..), SQLData (..), ToRow (..), field)
+import Data.Tuple.Only (Only (..))
 import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Id', Referent')
 import qualified U.Codebase.Referent as Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
 import qualified U.Codebase.Sqlite.Reference as Sqlite
+import Unison.Sqlite (FromRow (..), SQLData (..), ToRow (..), field)
 
 type Referent = Referent' Sqlite.Reference Sqlite.Reference
 

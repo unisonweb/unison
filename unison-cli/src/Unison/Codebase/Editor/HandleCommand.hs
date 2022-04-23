@@ -8,7 +8,6 @@
 module Unison.Codebase.Editor.HandleCommand where
 
 import qualified Control.Concurrent.STM as STM
-import Control.Monad.Except (runExceptT)
 import Control.Monad.Reader (ReaderT (runReaderT), ask)
 import qualified Crypto.Random as Random
 import qualified Data.Configurator as Config
@@ -23,7 +22,7 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
-import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UseCache)
+import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UCMVersion, UseCache)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
@@ -94,10 +93,11 @@ commandLine ::
   (SourceName -> IO LoadSourceResult) ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
+  UCMVersion ->
   (Int -> IO gen) ->
   Free (Command IO i Symbol) a ->
   IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen free = do
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl ucmVersion rngGen free = do
   rndSeed <- STM.newTVarIO 0
   flip runReaderT rndSeed . Free.fold go $ free
   where
@@ -143,7 +143,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       TypecheckFile file ambient -> lift $ typecheck' ambient codebase file
       Evaluate ppe unisonFile -> lift $ evalUnisonFile ppe unisonFile []
       Evaluate1 ppe useCache term -> lift $ eval1 ppe useCache term
-      LoadLocalRootBranch -> lift $ either (const Branch.empty) id <$> Codebase.getRootBranch codebase
+      LoadLocalRootBranch -> lift $ Codebase.getRootBranch codebase
       LoadLocalBranch h -> lift $ fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
       Merge mode b1 b2 ->
         lift $ Branch.merge'' (Codebase.lca codebase) mode b1 b2
@@ -215,7 +215,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       GetDefinitionsBySuffixes mayPath branch includeCycles query -> do
         let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
         lift (Backend.definitionsBySuffixes namingScope branch codebase includeCycles query)
-      FindShallow path -> lift . runExceptT $ Backend.findShallow codebase path
+      FindShallow path -> liftIO $ Backend.findShallow codebase path
       MakeStandalone ppe ref out -> lift $ do
         let cl = Codebase.toCodeLookup codebase
         Runtime.compileTo rt (() <$ cl) ppe ref (out <> ".uc")
@@ -232,6 +232,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
               -- in-scope.
               UnliftIO.UnliftIO toIO -> toIO . Free.fold go
         pure runF
+      UCMVersion -> pure ucmVersion
 
     watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
     watchCache h = do
