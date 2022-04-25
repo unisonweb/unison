@@ -84,8 +84,8 @@ push ::
   AuthorizedHttpClient ->
   -- | The Unison Share URL.
   BaseUrl ->
-  -- | SQLite statement-sending function, for reading entities to push.
-  (forall a. Sqlite.Transaction a -> IO a) ->
+  -- | SQLite connection, for reading entities to push.
+  Sqlite.Connection ->
   -- | The repo+path to push to.
   Share.RepoPath ->
   -- | The hash that we expect this repo+path to be at on Unison Share. If not, we'll get back a hash mismatch error.
@@ -94,7 +94,7 @@ push ::
   -- | The hash of our local causal to push.
   CausalHash ->
   IO (Either PushError ())
-push httpClient unisonShareUrl runDB repoPath expectedHash causalHash = do
+push httpClient unisonShareUrl conn repoPath expectedHash causalHash = do
   -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it needs
   -- this causal (UpdatePathMissingDependencies).
   updatePath >>= \case
@@ -102,7 +102,7 @@ push httpClient unisonShareUrl runDB repoPath expectedHash causalHash = do
     Share.UpdatePathHashMismatch mismatch -> pure (Left (PushErrorHashMismatch mismatch))
     Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
       -- Upload the causal and all of its dependencies.
-      upload httpClient unisonShareUrl runDB (Share.RepoPath.repoName repoPath) dependencies >>= \case
+      upload httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath) dependencies >>= \case
         False -> pure (Left (PushErrorNoWritePermission repoPath))
         True ->
           -- After uploading the causal and all of its dependencies, try setting the remote path again.
@@ -149,17 +149,17 @@ push httpClient unisonShareUrl runDB repoPath expectedHash causalHash = do
 upload ::
   AuthorizedHttpClient ->
   BaseUrl ->
-  (forall a. Sqlite.Transaction a -> IO a) ->
+  Sqlite.Connection ->
   Share.RepoName ->
   NESet Share.Hash ->
   IO Bool
-upload httpClient unisonShareUrl runDB repoName =
+upload httpClient unisonShareUrl conn repoName =
   loop
   where
     loop :: NESet Share.Hash -> IO Bool
     loop (NESet.toAscList -> hashes) = do
       -- Get each entity that the server is missing out of the database.
-      entities <- traverse (runDB . resolveHashToEntity) hashes
+      entities <- Sqlite.runTransaction conn (traverse resolveHashToEntity hashes)
 
       let uploadEntities :: IO Share.UploadEntitiesResponse
           uploadEntities =
@@ -191,19 +191,19 @@ pull ::
   AuthorizedHttpClient ->
   -- | The Unison Share URL.
   BaseUrl ->
-  -- | SQLite statement-sending function, for reading entities to push.
-  (forall a. Sqlite.Transaction a -> IO a) ->
+  -- | SQLite connection, for writing entities we pull.
+  Sqlite.Connection ->
   -- | The repo+path to pull from.
   Share.RepoPath ->
   IO (Either PullError (Maybe CausalHash))
-pull httpClient unisonShareUrl runDB repoPath = do
+pull httpClient unisonShareUrl conn repoPath = do
   getCausalHashByPath httpClient unisonShareUrl repoPath >>= \case
     Left err -> pure (Left (PullErrorGetCausalHashByPath err))
     -- There's nothing at the remote path, so there's no causal to pull.
     Right Nothing -> pure (Right Nothing)
     Right (Just hashJwt) -> do
       let hash = Share.hashJWTHash hashJwt
-      runDB (entityLocation hash) >>= \case
+      Sqlite.runTransaction conn (entityLocation hash) >>= \case
         EntityInMainStorage -> pure ()
         EntityInTempStorage missingDependencies -> doDownload missingDependencies
         EntityNotStored -> doDownload (NESet.singleton hashJwt)
@@ -211,21 +211,21 @@ pull httpClient unisonShareUrl runDB repoPath = do
   where
     doDownload :: NESet Share.HashJWT -> IO ()
     doDownload =
-      download httpClient unisonShareUrl runDB (Share.RepoPath.repoName repoPath)
+      download httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath)
 
 -- Download a set of entities from Unison Share.
 download ::
   AuthorizedHttpClient ->
   BaseUrl ->
-  (forall a. Sqlite.Transaction a -> IO a) ->
+  Sqlite.Connection ->
   Share.RepoName ->
   -- FIXME mitchell: less decoding if this is a DecodedHashJWT
   NESet Share.HashJWT ->
   IO ()
-download httpClient unisonShareUrl runDB repoName = do
+download httpClient unisonShareUrl conn repoName = do
   let loop :: NESet Share.DecodedHashJWT -> IO ()
       loop hashes0 = do
-        runDB (elaborateHashes (NESet.toSet hashes0) Set.empty) >>= \case
+        Sqlite.runTransaction conn (elaborateHashes (NESet.toSet hashes0) Set.empty) >>= \case
           Nothing -> pure ()
           Just hashes1 -> do
             Share.DownloadEntitiesResponse entities <-
@@ -238,7 +238,7 @@ download httpClient unisonShareUrl runDB repoName = do
                   }
 
             missingDependencies0 <-
-              runDB do
+              Sqlite.runTransaction conn do
                 NEMap.toList entities & foldMapM \(hash, entity) -> do
                   -- still trying to figure out missing dependencies of hash/entity.
                   entityLocation hash >>= \case
