@@ -1282,8 +1282,11 @@ derivedDependencies cid = do
 rebuildNameIndex :: [S.Name C.Referent] -> [S.Name C.Reference] -> Transaction ()
 rebuildNameIndex termNames typeNames = do
   Q.resetNameLookupTables
-  for_ termNames \(S.Name {S.name, S.ref}) -> c2sReferent ref >>= Q.insertTermName name
-  for_ typeNames \(S.Name {S.name, S.ref}) -> c2sReference ref >>= Q.insertTypeName name
+  traceM "Tables created..."
+  traceM "Inserting terms"
+  Q.insertTermNames termNames
+  traceM "Inserting types"
+  Q.insertTypeNames typeNames
 
 loadRootBranchNames :: Transaction ([S.Name C.Referent], [S.Name C.Reference])
 loadRootBranchNames = do

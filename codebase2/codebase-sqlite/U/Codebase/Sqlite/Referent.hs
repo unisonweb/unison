@@ -5,7 +5,7 @@
 
 module U.Codebase.Sqlite.Referent where
 
-import Control.Applicative (liftA3, optional)
+import Control.Applicative (liftA3)
 import Data.Tuple.Only (Only (..))
 import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Id', Referent')
@@ -38,13 +38,13 @@ instance FromRow Id where
 
 instance ToRow Referent where
   toRow = \case
-    Referent.Ref ref -> toRow ref
+    Referent.Ref ref -> toRow ref <> [SQLNull]
     Referent.Con ref conId -> toRow ref <> [toField conId]
 
 instance FromRow Referent where
   fromRow = do
     ref <- fromRow
-    mayCid <- optional field
+    mayCid <- field
     case mayCid of
       Nothing -> pure $ Referent.Ref ref
       Just cid -> pure $ Referent.Con ref cid

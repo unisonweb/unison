@@ -269,11 +269,11 @@ sqliteCodebase debugName root localOrRemote action = do
           Sqlite.runTransaction conn CodebaseOps.getRootBranchExists
 
         putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> Branch m -> m ()
-        putRootBranch rootBranchCache branch1 =
-          withRunInIO \runInIO ->
+        putRootBranch rootBranchCache branch1 = do
+          withRunInIO \runInIO -> do
             Sqlite.runTransaction conn do
               CodebaseOps.putRootBranch rootBranchCache (Branch.transform (Sqlite.unsafeIO . runInIO) branch1)
-              CodebaseOps.saveRootNamesIndex (Branch.toNames $ Branch.head branch1)
+            liftIO $ Sqlite.unsafeUnTransaction (CodebaseOps.saveRootNamesIndex (Branch.toNames $ Branch.head branch1)) conn
 
         rootBranchUpdates :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
         rootBranchUpdates _rootBranchCache = do

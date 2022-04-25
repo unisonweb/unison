@@ -120,8 +120,8 @@ module U.Codebase.Sqlite.Queries
 
     -- * Name Lookup
     resetNameLookupTables,
-    insertTermName,
-    insertTypeName,
+    insertTermNames,
+    insertTypeNames,
     -- loadRootBranchNames,
     rootTermNames,
     rootTypeNames,
@@ -147,6 +147,7 @@ import Data.Tuple.Only (Only (..))
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
+import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
@@ -914,52 +915,74 @@ removeHashObjectsByHashingVersion hashVersion =
 |]
 
 resetNameLookupTables :: Transaction ()
-resetNameLookupTables =
-  execute_ sql
-  where
-    sql =
-      [here|
-      DROP TABLE IF EXISTS term_name_lookup;
-      DROP TABLE IF EXISTS type_name_lookup;
-      CREATE TABLE term_name_lookup (
+resetNameLookupTables = do
+  execute_ "DROP TABLE IF EXISTS term_name_lookup"
+  execute_ "DROP TABLE IF EXISTS type_name_lookup"
+  execute_
+    [here|
+      CREATE TABLE IF NOT EXISTS term_name_lookup (
         name TEXT PRIMARY KEY NOT NULL,
-        referent_builtin INTEGER NULL REFERENCES text(id),
-        referent_object_id INTEGER NULL REFERENCES object(id),
-        referent_component_index INTEGER NOT NULL,
-        referent_constructor_index INTEGER NULL,
-      );
-      CREATE INDEX term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_object_id, referent_component_index, referent_constructor_index);
-      CREATE TABLE type_name_lookup (
+        referent_builtin INTEGER NULL,
+        referent_object_id INTEGER NULL,
+        referent_component_index INTEGER NULL,
+        referent_constructor_index INTEGER NULL
+      )
+    |]
+  execute_
+    [here|
+      CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
+    |]
+  execute_
+    [here|
+      CREATE TABLE IF NOT EXISTS type_name_lookup (
         name TEXT PRIMARY KEY NOT NULL,
-        reference_builtin INTEGER NULL REFERENCES text(id),
-        reference_object_id INTEGER NULL REFERENCES object(id),
-        reference_component_index INTEGER NOT NULL,
+        reference_builtin INTEGER NULL,
+        reference_object_id INTEGER NULL,
+        reference_component_index INTEGER NULL
       );
-      CREATE INDEX type_name_by_reference_lookup ON term_name_lookup(reference_builtin, reference_object_id, reference_component_index);
-        |]
+    |]
+  execute_
+    [here|
+      CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index);
+    |]
 
-insertTermName :: Text -> Referent.Referent -> Transaction ()
-insertTermName name ref =
-  execute sql (Only name :. ref)
+insertTermNames :: [S.Name C.Referent.Referent] -> Transaction ()
+insertTermNames names = do
+  executeMany sql (cReferentNameToRow <$> names)
   where
     sql =
       [here|
       INSERT INTO term_name_lookup (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
         VALUES (?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
-      );
         |]
 
-insertTypeName :: Text -> Reference.Reference -> Transaction ()
-insertTypeName name ref =
-  execute sql (Only name :. ref)
+cReferentNameToRow :: S.Name C.Referent.Referent -> [SQLData]
+cReferentNameToRow S.Name {S.name, S.ref} =
+  [toField name]
+    <> ( case ref of
+           C.Referent.Ref ref' -> cReferenceToRow ref' <> [SQLNull]
+           C.Referent.Con ref' wo -> cReferenceToRow ref' <> [toField wo]
+       )
+
+cReferenceNameToRow :: S.Name C.Reference.Reference -> [SQLData]
+cReferenceNameToRow S.Name {S.name, S.ref} =
+  [toField name] <> cReferenceToRow ref
+
+cReferenceToRow :: C.Reference.Reference -> [SQLData]
+cReferenceToRow ref = case ref of
+  C.Reference.ReferenceBuiltin txt -> [SQLText txt, SQLNull, SQLNull]
+  C.Reference.ReferenceDerived (C.Reference.Id h p) -> [SQLNull, toField $ Hash.toBase32HexText h, toField p]
+
+insertTypeNames :: [S.Name C.Reference.Reference] -> Transaction ()
+insertTypeNames names =
+  executeMany sql (cReferenceNameToRow <$> names)
   where
     sql =
       [here|
       INSERT INTO type_name_lookup (name, reference_builtin, reference_object_id, reference_component_index)
         VALUES (?, ?, ?, ?)
         ON CONFLICT DO NOTHING
-      );
         |]
 
 rootTermNames :: Transaction [S.Name Referent.Referent]
@@ -976,7 +999,7 @@ rootTypeNames = queryListRow_ sql
     sql =
       [here|
         SELECT (name, reference_builtin, reference_object_id, reference_component_index) FROM type_name_lookup
-      );
+      )
         |]
 
 before :: CausalHashId -> CausalHashId -> Transaction Bool

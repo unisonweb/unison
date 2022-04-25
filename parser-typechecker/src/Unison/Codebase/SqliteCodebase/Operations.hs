@@ -15,6 +15,7 @@ import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Time as Time
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
@@ -378,6 +379,8 @@ putRootBranch rootBranchCache branch1 = do
   void (Ops.saveRootBranch (Cv.causalbranch1to2 branch1))
   Sqlite.unsafeIO (atomically $ modifyTVar' rootBranchCache (fmap . second $ const branch1))
 
+-- saveRootNamesIndex (Branch.toNames $ Branch.head branch1)
+
 -- if this blows up on cromulent hashes, then switch from `hashToHashId`
 -- to one that returns Maybe.
 getBranchForHash ::
@@ -550,8 +553,12 @@ rootNames doGetDeclType = do
 
 saveRootNamesIndex :: Names -> Transaction ()
 saveRootNamesIndex (Names {Names.terms, Names.types}) = do
+  traceM "Rebuilding Names index..."
+  start <- Sqlite.unsafeIO Time.getCurrentTime
   let termNames :: [(S.Name C.Referent.Referent)]
       termNames = Rel.toList terms <&> \(name, ref) -> S.Name {S.name = Name.toText name, S.ref = Cv.referent1to2 ref}
   let typeNames :: [(S.Name C.Reference.Reference)]
       typeNames = Rel.toList types <&> \(name, ref) -> S.Name {S.name = Name.toText name, S.ref = Cv.reference1to2 ref}
   Ops.rebuildNameIndex termNames typeNames
+  end <- Sqlite.unsafeIO Time.getCurrentTime
+  traceShowM (Time.diffUTCTime end start)
