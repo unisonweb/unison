@@ -25,6 +25,7 @@ library
       U.Codebase.Sqlite.Causal
       U.Codebase.Sqlite.DbId
       U.Codebase.Sqlite.Decl.Format
+      U.Codebase.Sqlite.Entity
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
       U.Codebase.Sqlite.ObjectType
@@ -35,7 +36,6 @@ library
       U.Codebase.Sqlite.Patch.TermEdit
       U.Codebase.Sqlite.Patch.TypeEdit
       U.Codebase.Sqlite.Queries
-      U.Codebase.Sqlite.ReadyEntity
       U.Codebase.Sqlite.Reference
       U.Codebase.Sqlite.Referent
       U.Codebase.Sqlite.Serialization

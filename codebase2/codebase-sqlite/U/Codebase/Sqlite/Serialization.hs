@@ -40,6 +40,7 @@ import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
 import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
 import U.Codebase.Sqlite.Symbol (Symbol (..))
 import U.Codebase.Sqlite.TempEntity (TempEntity)
+import qualified U.Codebase.Sqlite.Entity as Entity
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import qualified U.Codebase.Term as Term
@@ -729,23 +730,23 @@ recomposeBranchFormat = \case
 
 putTempEntity :: MonadPut m => TempEntity -> m ()
 putTempEntity = \case
-  TempEntity.TC tc -> case tc of
+  Entity.TC tc -> case tc of
     TermFormat.SyncTerm term ->
       putWord8 0 *> putSyncTerm term
-  TempEntity.DC dc -> case dc of
+  Entity.DC dc -> case dc of
     DeclFormat.SyncDecl decl ->
       putWord8 0 *> putSyncDecl decl
-  TempEntity.P p -> case p of
+  Entity.P p -> case p of
     PatchFormat.SyncFull lids bytes ->
       putWord8 0 *> putSyncFullPatch lids bytes
     PatchFormat.SyncDiff parent lids bytes ->
       putWord8 1 *> putSyncDiffPatch parent lids bytes
-  TempEntity.N n -> case n of
+  Entity.N n -> case n of
     BranchFormat.SyncFull lids bytes ->
       putWord8 0 *> putSyncFullNamespace lids bytes
     BranchFormat.SyncDiff parent lids bytes ->
       putWord8 1 *> putSyncDiffNamespace parent lids bytes
-  TempEntity.C gdc ->
+  Entity.C gdc ->
     putSyncCausal gdc
   where
     putBase32Hex = putText . Base32Hex.toText

@@ -4,28 +4,20 @@ import qualified U.Codebase.Sqlite.Branch.Format as Namespace
 import qualified U.Codebase.Sqlite.Causal as Causal
 import qualified U.Codebase.Sqlite.Decl.Format as Decl
 import qualified U.Codebase.Sqlite.Patch.Format as Patch
-import U.Codebase.Sqlite.TempEntityType (TempEntityType (..))
 import qualified U.Codebase.Sqlite.Term.Format as Term
+import qualified U.Codebase.Sqlite.Entity as Entity
 import U.Util.Base32Hex (Base32Hex)
 import Unison.Prelude
 
--- should just newtype this somewhere
-type HashJWT = Text
-
-data TempEntity
-  = TC TempTermFormat
-  | DC TempDeclFormat
-  | N TempNamespaceFormat
-  | P TempPatchFormat
-  | C TempCausalFormat
-
-tempEntityType :: TempEntity -> TempEntityType
-tempEntityType = \case
-  TC _ -> TermComponentType
-  DC _ -> DeclComponentType
-  N _ -> NamespaceType
-  P _ -> PatchType
-  C _ -> CausalType
+-- |
+-- data TempEntity
+--   = TC TempTermFormat
+--   | DC TempDeclFormat
+--   | N TempNamespaceFormat
+--   | P TempPatchFormat
+--   | C TempCausalFormat
+type TempEntity =
+  Entity.SyncEntity' Text Base32Hex Base32Hex Base32Hex Base32Hex Base32Hex Base32Hex
 
 type TempTermFormat = Term.SyncTermFormat' Text Base32Hex
 

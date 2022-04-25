@@ -26,11 +26,11 @@ import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import qualified U.Codebase.Sqlite.Entity as Entity
 import U.Codebase.Sqlite.LocalIds (LocalIds' (..))
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
-import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as Hash
@@ -342,7 +342,7 @@ elaborateHashes hashes outputs =
 insertEntity :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> Sqlite.Transaction ()
 insertEntity hash entity = do
   readyEntity <- Q.tempToSyncEntity (entityToTempEntity entity)
-  _id <- Q.saveReadyEntity (Share.toBase32Hex hash) readyEntity
+  _id <- Q.saveSyncEntity (Share.toBase32Hex hash) readyEntity
   pure ()
 
 -- | Insert an entity and its missing dependencies.
@@ -372,16 +372,16 @@ entityToTempEntity = \case
       & Vector.map (Lens.over Lens._1 mungeLocalIds)
       & TermFormat.SyncLocallyIndexedComponent
       & TermFormat.SyncTerm
-      & TempEntity.TC
+      & Entity.TC
   Share.DC (Share.DeclComponent decls) ->
     decls
       & Vector.fromList
       & Vector.map (Lens.over Lens._1 mungeLocalIds)
       & DeclFormat.SyncLocallyIndexedComponent
       & DeclFormat.SyncDecl
-      & TempEntity.DC
+      & Entity.DC
   Share.P Share.Patch {textLookup, oldHashLookup, newHashLookup, bytes} ->
-    TempEntity.P
+    Entity.P
       ( PatchFormat.SyncFull
           PatchFormat.LocalIds
             { patchTextLookup = Vector.fromList textLookup,
@@ -391,7 +391,7 @@ entityToTempEntity = \case
           bytes
       )
   Share.N Share.Namespace {textLookup, defnLookup, patchLookup, childLookup, bytes} ->
-    TempEntity.N
+    Entity.N
       ( NamespaceFormat.SyncFull
           NamespaceFormat.LocalIds
             { branchTextLookup = Vector.fromList textLookup,
@@ -402,7 +402,7 @@ entityToTempEntity = \case
           bytes
       )
   Share.C Share.Causal {namespaceHash, parents} ->
-    TempEntity.C
+    Entity.C
       Causal.SyncCausalFormat
         { valueHash = jwt32 namespaceHash,
           parents = Vector.fromList (map jwt32 (Set.toList parents))

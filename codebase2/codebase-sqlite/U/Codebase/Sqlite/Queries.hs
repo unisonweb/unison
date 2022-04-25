@@ -126,7 +126,7 @@ module U.Codebase.Sqlite.Queries
     getMissingDependencyJwtsForTempEntity,
     tempToSyncEntity,
     insertTempEntity,
-    saveReadyEntity,
+    saveSyncEntity,
     deleteTempDependencies,
 
     -- * db misc
@@ -176,12 +176,12 @@ import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
-import U.Codebase.Sqlite.ReadyEntity (ReadyEntity)
-import qualified U.Codebase.Sqlite.ReadyEntity as ReadyEntity
+import U.Codebase.Sqlite.Entity (SyncEntity)
+import qualified U.Codebase.Sqlite.Entity as Entity
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.Sqlite.Serialization as Serialization
-import U.Codebase.Sqlite.TempEntity (HashJWT, TempEntity)
+import U.Codebase.Sqlite.TempEntity (TempEntity)
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import U.Codebase.Sqlite.TempEntityType (TempEntityType)
 import qualified U.Codebase.Sqlite.TempEntityType as TempEntityType
@@ -607,7 +607,7 @@ moveTempEntityToMain :: Base32Hex -> Transaction ()
 moveTempEntityToMain b32 = do
   t <- expectTempEntity b32
   r <- tempToSyncEntity t
-  _ <- saveReadyEntity b32 r
+  _ <- saveSyncEntity b32 r
   pure ()
 
 expectTempEntity :: Base32Hex -> Transaction TempEntity
@@ -615,28 +615,28 @@ expectTempEntity b32 = do
   queryOneRowCheck sql (Only b32) \(blob, typeId) ->
     case typeId of
       TempEntityType.TermComponentType ->
-        TempEntity.TC <$> getFromBytesOr "getTempTermFormat" Serialization.getTempTermFormat blob
+        Entity.TC <$> getFromBytesOr "getTempTermFormat" Serialization.getTempTermFormat blob
       TempEntityType.DeclComponentType ->
-        TempEntity.DC <$> getFromBytesOr "getTempDeclFormat" Serialization.getTempDeclFormat blob
+        Entity.DC <$> getFromBytesOr "getTempDeclFormat" Serialization.getTempDeclFormat blob
       TempEntityType.NamespaceType ->
-        TempEntity.N <$> getFromBytesOr "getTempNamespaceFormat" Serialization.getTempNamespaceFormat blob
+        Entity.N <$> getFromBytesOr "getTempNamespaceFormat" Serialization.getTempNamespaceFormat blob
       TempEntityType.PatchType ->
-        TempEntity.P <$> getFromBytesOr "getTempPatchFormat" Serialization.getTempPatchFormat blob
+        Entity.P <$> getFromBytesOr "getTempPatchFormat" Serialization.getTempPatchFormat blob
       TempEntityType.CausalType ->
-        TempEntity.C <$> getFromBytesOr "getTempCausalFormat" Serialization.getTempCausalFormat blob
+        Entity.C <$> getFromBytesOr "getTempCausalFormat" Serialization.getTempCausalFormat blob
   where sql = [here|
     SELECT (blob, type_id)
     FROM temp_entity
     WHERE hash = ?
   |]
 
-tempToSyncEntity :: TempEntity -> Transaction ReadyEntity
+tempToSyncEntity :: TempEntity -> Transaction SyncEntity
 tempToSyncEntity = \case
-  TempEntity.TC term -> ReadyEntity.TC <$> tempToSyncTermComponent term
-  TempEntity.DC decl -> ReadyEntity.DC <$> tempToSyncDeclComponent decl
-  TempEntity.N namespace -> ReadyEntity.N <$> tempToSyncNamespace namespace
-  TempEntity.P patch -> ReadyEntity.P <$> tempToSyncPatch patch
-  TempEntity.C causal -> ReadyEntity.C <$> tempToSyncCausal causal
+  Entity.TC term -> Entity.TC <$> tempToSyncTermComponent term
+  Entity.DC decl -> Entity.DC <$> tempToSyncDeclComponent decl
+  Entity.N namespace -> Entity.N <$> tempToSyncNamespace namespace
+  Entity.P patch -> Entity.P <$> tempToSyncPatch patch
+  Entity.C causal -> Entity.C <$> tempToSyncCausal causal
   where
     tempToSyncCausal :: TempEntity.TempCausalFormat -> Transaction Causal.SyncCausalFormat
     tempToSyncCausal Causal.SyncCausalFormat {valueHash, parents} =
@@ -696,23 +696,23 @@ tempToSyncEntity = \case
         TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
           <$> Lens.traverseOf (traverse . Lens._1) (bitraverse saveText expectObjectIdForHash32) terms
 
-saveReadyEntity :: Base32Hex -> ReadyEntity -> Transaction (Either CausalHashId ObjectId)
-saveReadyEntity b32Hex entity = do
+saveSyncEntity :: Base32Hex -> SyncEntity -> Transaction (Either CausalHashId ObjectId)
+saveSyncEntity b32Hex entity = do
   hashId <- saveHash b32Hex
   case entity of
-    ReadyEntity.TC stf -> do
+    Entity.TC stf -> do
       let bytes = runPutS (Serialization.recomposeTermFormat stf)
       Right <$> saveObject hashId ObjectType.TermComponent bytes
-    ReadyEntity.DC sdf -> do
+    Entity.DC sdf -> do
       let bytes = runPutS (Serialization.recomposeDeclFormat sdf)
       Right <$> saveObject hashId ObjectType.DeclComponent bytes
-    ReadyEntity.N sbf -> do
+    Entity.N sbf -> do
       let bytes = runPutS (Serialization.recomposeBranchFormat sbf)
       Right <$> saveObject hashId ObjectType.Namespace bytes
-    ReadyEntity.P spf -> do
+    Entity.P spf -> do
       let bytes = runPutS (Serialization.recomposePatchFormat spf)
       Right <$> saveObject hashId ObjectType.Patch bytes
-    ReadyEntity.C scf -> case scf of
+    Entity.C scf -> case scf of
       Sqlite.Causal.SyncCausalFormat{valueHash, parents} -> do
         let causalHashId = CausalHashId hashId
         saveCausal causalHashId valueHash (Foldable.toList parents)
@@ -1210,7 +1210,7 @@ getMissingDependentsForTempEntity h =
 -- Preconditions:
 --   1. The entity does not already exist in "main" storage (`object` / `causal`)
 --   2. The entity does not already exist in `temp_entity`.
-insertTempEntity :: Base32Hex -> TempEntity -> NESet (Base32Hex, HashJWT) -> Transaction ()
+insertTempEntity :: Base32Hex -> TempEntity -> NESet (Base32Hex, Text) -> Transaction ()
 insertTempEntity entityHash entity missingDependencies = do
   execute
     [here|
@@ -1232,7 +1232,7 @@ insertTempEntity entityHash entity missingDependencies = do
 
     entityType :: TempEntityType
     entityType =
-      TempEntity.tempEntityType entity
+      Entity.entityType entity
 
 -- | Delete a row from the `temp_entity` table, if it exists.
 deleteTempEntity :: Base32Hex -> Transaction ()
