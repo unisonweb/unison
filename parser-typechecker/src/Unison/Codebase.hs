@@ -43,8 +43,11 @@ module Unison.Codebase
     -- * Root branch
     getRootBranch,
     getRootBranchExists,
+    getRootBranchHash,
     putRootBranch,
     rootBranchUpdates,
+    namesWithinPath,
+    rootNames,
 
     -- * Patches
     patchExists,
@@ -133,6 +136,7 @@ import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Names (Names)
 import qualified Unison.Parser.Ann as Parser
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -149,6 +153,9 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
+
+rootNames :: Codebase m v a -> m Names
+rootNames codebase = namesWithinPath codebase Path.empty
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.

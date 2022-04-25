@@ -21,6 +21,7 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRe
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Patch (Patch)
+import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
@@ -166,7 +167,8 @@ data Codebase m v a = Codebase
     --
     --  Use `Codebase.before` which wraps this in a nice API.
     beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool),
-    rootNames :: m Names
+    -- Build a 'Names' for all names found within 'Path' of the current root namespace.
+    namesWithinPath :: Path -> m Names
   }
 
 -- | Whether a codebase is local or remote.
