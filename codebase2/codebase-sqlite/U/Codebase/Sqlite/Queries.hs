@@ -66,6 +66,7 @@ module U.Codebase.Sqlite.Queries
     -- ** causal table
     saveCausal,
     isCausalHash,
+    expectCausal,
     loadCausalHashIdByCausalHash,
     expectCausalValueHashId,
     loadCausalByCausalHash,
@@ -122,6 +123,7 @@ module U.Codebase.Sqlite.Queries
     garbageCollectWatchesWithoutObjects,
 
     -- * sync temp entities
+    expectEntity,
     getMissingDependentsForTempEntity,
     getMissingDependencyJwtsForTempEntity,
     tempToSyncEntity,
@@ -155,6 +157,7 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Tuple.Only (Only (..))
+import qualified Data.Vector as Vector
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
@@ -173,11 +176,11 @@ import U.Codebase.Sqlite.DbId
     TextId,
   )
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import U.Codebase.Sqlite.Entity (SyncEntity)
+import qualified U.Codebase.Sqlite.Entity as Entity
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
-import U.Codebase.Sqlite.Entity (SyncEntity)
-import qualified U.Codebase.Sqlite.Entity as Entity
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.Sqlite.Serialization as Serialization
@@ -418,6 +421,12 @@ expectTermObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either
 expectTermObject oid =
   expectObjectOfType oid TermComponent
 
+expectObjectWithType :: ObjectId -> Transaction (ObjectType, ByteString)
+expectObjectWithType oId = queryOneRow sql (Only oId)
+  where sql = [here|
+    SELECT type_id, bytes FROM object WHERE id = ?
+  |]
+
 expectObjectWithHashIdAndType :: ObjectId -> Transaction (HashId, ObjectType, ByteString)
 expectObjectWithHashIdAndType oId = queryOneRow sql (Only oId)
   where sql = [here|
@@ -602,6 +611,39 @@ tryMoveTempEntityDependents dependencyBase32 = do
         WHERE dep.dependent = temp_entity.hash
       )
     |]
+
+expectCausal :: CausalHashId -> Transaction Causal.SyncCausalFormat
+expectCausal hashId = do
+  valueHash <-
+    queryOneCol
+      [here|
+        SELECT value_hash_id
+        FROM causal
+        WHERE self_hash_id = ?
+      |]
+      (Only hashId)
+  parents <-
+    fmap Vector.fromList do
+      -- is the random ordering from the database ok? (seems so, for now)
+      queryListCol
+        [here|
+          SELECT parent_id
+          FROM causal_parent
+          WHERE causal_id = ?
+        |]
+        (Only hashId)
+  pure Causal.SyncCausalFormat {parents, valueHash}
+
+-- | Read an entity out of main storage.
+expectEntity :: Base32Hex -> Transaction SyncEntity
+expectEntity hash = do
+  hashId <- expectHashId hash
+  -- We don't know if this is an object or a causal, so just try one, then the other.
+  loadObjectIdForPrimaryHashId hashId >>= \case
+    Nothing -> Entity.C <$> expectCausal (CausalHashId hashId)
+    Just objectId -> do
+      (typ, bytes) <- expectObjectWithType objectId
+      undefined
 
 moveTempEntityToMain :: Base32Hex -> Transaction ()
 moveTempEntityToMain b32 = do
