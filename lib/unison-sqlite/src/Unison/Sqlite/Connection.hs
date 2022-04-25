@@ -50,6 +50,9 @@ module Unison.Sqlite.Connection
     queryOneRowCheck_,
     queryOneColCheck_,
 
+    -- * Rows modified
+    rowsModified,
+
     -- * Vacuum (into)
     vacuum,
     vacuumInto,
@@ -471,6 +474,12 @@ queryOneColCheck_ ::
   IO r
 queryOneColCheck_ conn s check =
   queryOneRowCheck_ conn s (coerce @(a -> Either e r) @(Sqlite.Only a -> Either e r) check)
+
+-- Rows modified
+
+rowsModified :: Connection -> IO Int
+rowsModified (Connection _ _ conn) =
+  Sqlite.changes conn
 
 -- Vacuum
 

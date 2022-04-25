@@ -54,6 +54,9 @@ module Unison.Sqlite.Transaction
     queryMaybeColCheck_,
     queryOneRowCheck_,
     queryOneColCheck_,
+
+    -- * Rows modified
+    rowsModified,
   )
 where
 
@@ -361,3 +364,9 @@ queryOneRowCheck_ s check =
 queryOneColCheck_ :: (Sqlite.FromField a, SqliteExceptionReason e) => Sql -> (a -> Either e r) -> Transaction r
 queryOneColCheck_ s check =
   Transaction \conn -> Connection.queryOneColCheck_ conn s check
+
+-- Rows modified
+
+rowsModified :: Transaction Int
+rowsModified =
+  Transaction Connection.rowsModified

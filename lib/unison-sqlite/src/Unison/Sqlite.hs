@@ -73,6 +73,9 @@ module Unison.Sqlite
     queryOneRowCheck_,
     queryOneColCheck_,
 
+    -- * Rows modified
+    rowsModified,
+
     -- * Data version
     DataVersion (..),
     getDataVersion,

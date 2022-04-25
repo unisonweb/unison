@@ -335,7 +335,7 @@ saveObject :: HashId -> ObjectType -> ByteString -> Transaction ObjectId
 saveObject h t blob = do
   oId <- execute sql (h, t, blob) >> expectObjectIdForPrimaryHashId h
   saveHashObject h oId 2 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
-  changes >>= \case
+  rowsModified >>= \case
     0 -> pure ()
     _ -> do
       hash <- expectHash32 h
@@ -528,7 +528,7 @@ recordObjectRehash old new =
 saveCausal :: CausalHashId -> BranchHashId -> [CausalHashId] -> Transaction ()
 saveCausal self value parents = do
   execute insertCausalSql (self, value)
-  changes >>= \case
+  rowsModified >>= \case
     0 -> pure ()
     _ -> do
       executeMany insertCausalParentsSql (fmap (self,) parents)
@@ -724,13 +724,6 @@ saveReadyEntity b32Hex entity = do
         let causalHashId = CausalHashId hashId
         saveCausal causalHashId valueHash (Foldable.toList parents)
         pure $ Left causalHashId
-
--- FIXME
-changes :: Transaction Int
-changes = do
-  undefined
-  -- conn <- Reader.reader Connection.underlying
-  -- liftIO (SQLite.changes conn)
 
 -- -- maybe: look at whether parent causal is "committed"; if so, then increment;
 -- -- otherwise, don't.
