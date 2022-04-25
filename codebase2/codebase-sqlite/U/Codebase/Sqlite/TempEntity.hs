@@ -27,16 +27,16 @@ tempEntityType = \case
   P _ -> PatchType
   C _ -> CausalType
 
-type TempTermFormat = Term.SyncTermFormat' Text HashJWT
+type TempTermFormat = Term.SyncTermFormat' Text Base32Hex
 
-type TempDeclFormat = Decl.SyncDeclFormat' Text HashJWT
+type TempDeclFormat = Decl.SyncDeclFormat' Text Base32Hex
 
-type TempPatchFormat = Patch.SyncPatchFormat' HashJWT Text Base32Hex HashJWT
+type TempPatchFormat = Patch.SyncPatchFormat' Base32Hex Text Base32Hex Base32Hex
 
-type TempPatchLocalIds = Patch.PatchLocalIds' Text Base32Hex HashJWT
+type TempPatchLocalIds = Patch.PatchLocalIds' Text Base32Hex Base32Hex
 
-type TempNamespaceFormat = Namespace.SyncBranchFormat' HashJWT Text HashJWT HashJWT (HashJWT, HashJWT)
+type TempNamespaceFormat = Namespace.SyncBranchFormat' Base32Hex Text Base32Hex Base32Hex (Base32Hex, Base32Hex)
 
-type TempNamespaceLocalIds = Namespace.BranchLocalIds' Text HashJWT HashJWT (HashJWT, HashJWT)
+type TempNamespaceLocalIds = Namespace.BranchLocalIds' Text Base32Hex Base32Hex (Base32Hex, Base32Hex)
 
-type TempCausalFormat = Causal.SyncCausalFormat' HashJWT HashJWT
+type TempCausalFormat = Causal.SyncCausalFormat' Base32Hex Base32Hex

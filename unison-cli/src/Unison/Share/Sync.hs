@@ -386,7 +386,7 @@ entityToTempEntity = \case
           PatchFormat.LocalIds
             { patchTextLookup = Vector.fromList textLookup,
               patchHashLookup = Vector.fromList (coerce @[Share.Hash] @[Base32Hex] oldHashLookup),
-              patchDefnLookup = Vector.fromList (coerce @[Share.HashJWT] @[TempEntity.HashJWT] newHashLookup)
+              patchDefnLookup = Vector.fromList (map jwt32 newHashLookup)
             }
           bytes
       )
@@ -395,22 +395,26 @@ entityToTempEntity = \case
       ( NamespaceFormat.SyncFull
           NamespaceFormat.LocalIds
             { branchTextLookup = Vector.fromList textLookup,
-              branchDefnLookup = Vector.fromList (coerce @[Share.HashJWT] @[TempEntity.HashJWT] defnLookup),
-              branchPatchLookup = Vector.fromList (coerce @[Share.HashJWT] @[TempEntity.HashJWT] patchLookup),
-              branchChildLookup = Vector.fromList (coerce @[(Share.HashJWT, Share.HashJWT)] @[(TempEntity.HashJWT, TempEntity.HashJWT)] childLookup)
+              branchDefnLookup = Vector.fromList (map jwt32 defnLookup),
+              branchPatchLookup = Vector.fromList (map jwt32 patchLookup),
+              branchChildLookup = Vector.fromList (map (\(x, y) -> (jwt32 x, jwt32 y)) childLookup)
             }
           bytes
       )
   Share.C Share.Causal {namespaceHash, parents} ->
     TempEntity.C
       Causal.SyncCausalFormat
-        { valueHash = coerce @Share.HashJWT @TempEntity.HashJWT namespaceHash,
-          parents = Vector.fromList (coerce @[Share.HashJWT] @[TempEntity.HashJWT] (Set.toList parents))
+        { valueHash = jwt32 namespaceHash,
+          parents = Vector.fromList (map jwt32 (Set.toList parents))
         }
   where
-    mungeLocalIds :: Share.LocalIds Text Share.HashJWT -> LocalIds' Text TempEntity.HashJWT
+    mungeLocalIds :: Share.LocalIds Text Share.HashJWT -> LocalIds' Text Base32Hex
     mungeLocalIds Share.LocalIds {texts, hashes} =
       LocalIds
         { textLookup = Vector.fromList texts,
-          defnLookup = Vector.map Share.unHashJWT (Vector.fromList hashes)
+          defnLookup = Vector.map jwt32 (Vector.fromList hashes)
         }
+
+    jwt32 :: Share.HashJWT -> Base32Hex
+    jwt32 =
+      Share.toBase32Hex . Share.hashJWTHash

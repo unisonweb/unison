@@ -448,9 +448,27 @@ loadObjectIdForPrimaryHash h =
     Just hashId -> loadObjectIdForPrimaryHashId hashId
 
 expectObjectIdForPrimaryHash :: Hash -> Transaction ObjectId
-expectObjectIdForPrimaryHash h = do
-  hashId <- expectHashIdByHash h
+expectObjectIdForPrimaryHash =
+  expectObjectIdForHash32 . Hash.toBase32Hex
+
+expectObjectIdForHash32 :: Base32Hex -> Transaction ObjectId
+expectObjectIdForHash32 hash = do
+  hashId <- expectHashId hash
   expectObjectIdForPrimaryHashId hashId
+
+expectBranchObjectIdForHash32 :: Base32Hex -> Transaction BranchObjectId
+expectBranchObjectIdForHash32 =
+  fmap BranchObjectId . expectObjectIdForHash32
+
+expectPatchObjectIdForHash32 :: Base32Hex -> Transaction PatchObjectId
+expectPatchObjectIdForHash32 =
+  fmap PatchObjectId . expectObjectIdForHash32
+
+expectBranchHashIdForHash32 :: Base32Hex -> Transaction BranchHashId
+expectBranchHashIdForHash32 = undefined
+
+expectCausalHashIdForHash32 :: Base32Hex -> Transaction CausalHashId
+expectCausalHashIdForHash32 = undefined
 
 loadPatchObjectIdForPrimaryHash :: PatchHash -> Transaction (Maybe PatchObjectId)
 loadPatchObjectIdForPrimaryHash =
@@ -548,31 +566,6 @@ flushCausalDependents chId = do
   hash <- expectHash32 (unCausalHashId chId)
   tryMoveTempEntityDependents hash
 
-expectObjectIdForHashJWT :: TempEntity.HashJWT -> Transaction ObjectId
-expectObjectIdForHashJWT hashJwt = do
-  hashId <- expectHashIdByHash (decode hashJwt)
-  expectObjectIdForAnyHashId hashId
-  where
-    decode :: TempEntity.HashJWT -> Hash
-    decode =
-      undefined
-      -- FIXME need to know how to go HashJWT -> Hash at the DB layer too, not just Share API layer
-      -- Hash.fromBase32Hex . Share.toBase32Hex . Share.hashJWTHash . Share.HashJWT
-
-expectBranchObjectIdForHashJWT :: TempEntity.HashJWT -> Transaction BranchObjectId
-expectBranchObjectIdForHashJWT =
-  fmap BranchObjectId . expectObjectIdForHashJWT
-
-expectPatchObjectIdForHashJWT :: TempEntity.HashJWT -> Transaction PatchObjectId
-expectPatchObjectIdForHashJWT =
-  fmap PatchObjectId . expectObjectIdForHashJWT
-
-expectBranchHashIdForHashJWT :: TempEntity.HashJWT -> Transaction BranchHashId
-expectBranchHashIdForHashJWT = undefined
-
-expectCausalHashIdForHashJWT :: TempEntity.HashJWT -> Transaction CausalHashId
-expectCausalHashIdForHashJWT = undefined
-
 --  Note: beef up insert_entity procedure to flush temp_entity table
 
 -- | flushTempEntity does this:
@@ -648,14 +641,14 @@ tempToSyncEntity = \case
     tempToSyncCausal :: TempEntity.TempCausalFormat -> Transaction Causal.SyncCausalFormat
     tempToSyncCausal Causal.SyncCausalFormat {valueHash, parents} =
       Causal.SyncCausalFormat
-        <$> expectBranchHashIdForHashJWT valueHash
-        <*> traverse expectCausalHashIdForHashJWT parents
+        <$> expectBranchHashIdForHash32 valueHash
+        <*> traverse expectCausalHashIdForHash32 parents
 
     tempToSyncDeclComponent :: TempEntity.TempDeclFormat -> Transaction DeclFormat.SyncDeclFormat
     tempToSyncDeclComponent = \case
       DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent decls) ->
         DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
-          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse saveText expectObjectIdForHashJWT) decls
+          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse saveText expectObjectIdForHash32) decls
 
     tempToSyncNamespace :: TempEntity.TempNamespaceFormat -> Transaction NamespaceFormat.SyncBranchFormat
     tempToSyncNamespace = \case
@@ -663,7 +656,7 @@ tempToSyncEntity = \case
         NamespaceFormat.SyncFull <$> tempToSyncNamespaceLocalIds localIds <*> pure bytes
       NamespaceFormat.SyncDiff parent localIds bytes ->
         NamespaceFormat.SyncDiff
-          <$> expectBranchObjectIdForHashJWT parent
+          <$> expectBranchObjectIdForHash32 parent
           <*> tempToSyncNamespaceLocalIds localIds
           <*> pure bytes
 
@@ -671,13 +664,13 @@ tempToSyncEntity = \case
     tempToSyncNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children) =
       NamespaceFormat.LocalIds
         <$> traverse saveText texts
-        <*> traverse expectObjectIdForHashJWT defns
-        <*> traverse expectPatchObjectIdForHashJWT patches
+        <*> traverse expectObjectIdForHash32 defns
+        <*> traverse expectPatchObjectIdForHash32 patches
         <*> traverse
           ( \(branch, causal) ->
               (,)
-                <$> expectBranchObjectIdForHashJWT branch
-                <*> expectCausalHashIdForHashJWT causal
+                <$> expectBranchObjectIdForHash32 branch
+                <*> expectCausalHashIdForHash32 causal
           )
           children
 
@@ -686,7 +679,7 @@ tempToSyncEntity = \case
       PatchFormat.SyncFull localIds bytes -> PatchFormat.SyncFull <$> tempToSyncPatchLocalIds localIds <*> pure bytes
       PatchFormat.SyncDiff parent localIds bytes ->
         PatchFormat.SyncDiff
-          <$> expectPatchObjectIdForHashJWT parent
+          <$> expectPatchObjectIdForHash32 parent
           <*> tempToSyncPatchLocalIds localIds
           <*> pure bytes
 
@@ -695,13 +688,13 @@ tempToSyncEntity = \case
       PatchFormat.LocalIds
         <$> traverse saveText texts
         <*> traverse saveHash hashes
-        <*> traverse expectObjectIdForHashJWT defns
+        <*> traverse expectObjectIdForHash32 defns
 
     tempToSyncTermComponent :: TempEntity.TempTermFormat -> Transaction TermFormat.SyncTermFormat
     tempToSyncTermComponent = \case
       TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms) ->
         TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
-          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse saveText expectObjectIdForHashJWT) terms
+          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse saveText expectObjectIdForHash32) terms
 
 saveReadyEntity :: Base32Hex -> ReadyEntity -> Transaction (Either CausalHashId ObjectId)
 saveReadyEntity b32Hex entity = do

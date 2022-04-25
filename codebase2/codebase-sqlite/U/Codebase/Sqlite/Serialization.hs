@@ -748,32 +748,31 @@ putTempEntity = \case
   TempEntity.C gdc ->
     putSyncCausal gdc
   where
-    putHashJWT = putText
     putBase32Hex = putText . Base32Hex.toText
     putPatchLocalIds PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup} = do
       putFoldable putText patchTextLookup
       putFoldable putBase32Hex patchHashLookup
-      putFoldable putHashJWT patchDefnLookup
+      putFoldable putBase32Hex patchDefnLookup
     putNamespaceLocalIds BranchFormat.LocalIds {branchTextLookup, branchDefnLookup, branchPatchLookup, branchChildLookup} = do
       putFoldable putText branchTextLookup
-      putFoldable putHashJWT branchDefnLookup
-      putFoldable putHashJWT branchPatchLookup
-      putFoldable (putPair putHashJWT putHashJWT) branchChildLookup
+      putFoldable putBase32Hex branchDefnLookup
+      putFoldable putBase32Hex branchPatchLookup
+      putFoldable (putPair putBase32Hex putBase32Hex) branchChildLookup
     putSyncCausal Causal.SyncCausalFormat {valueHash, parents} = do
-      putHashJWT valueHash
-      putFoldable putHashJWT parents
+      putBase32Hex valueHash
+      putFoldable putBase32Hex parents
     putSyncFullPatch lids bytes = do
       putPatchLocalIds lids
       putFramedByteString bytes
     putSyncDiffPatch parent lids bytes = do
-      putHashJWT parent
+      putBase32Hex parent
       putPatchLocalIds lids
       putFramedByteString bytes
     putSyncFullNamespace lids bytes = do
       putNamespaceLocalIds lids
       putByteString bytes
     putSyncDiffNamespace parent lids bytes = do
-      putHashJWT parent
+      putBase32Hex parent
       putNamespaceLocalIds lids
       putFramedByteString bytes
     putSyncTerm (TermFormat.SyncLocallyIndexedComponent vec) =
@@ -781,15 +780,12 @@ putTempEntity = \case
       -- when deserializing, because we don't think we need to (and it adds a
       -- little overhead.)
       flip putFoldable vec \(localIds, bytes) -> do
-        putLocalIdsWith putHashJWT putHashJWT localIds
+        putLocalIdsWith putText putBase32Hex localIds
         putFramedByteString bytes
     putSyncDecl (DeclFormat.SyncLocallyIndexedComponent vec) =
       flip putFoldable vec \(localIds, bytes) -> do
-        putLocalIdsWith putHashJWT putHashJWT localIds
+        putLocalIdsWith putText putBase32Hex localIds
         putFramedByteString bytes
-
-getHashJWT :: MonadGet m => m TempEntity.HashJWT
-getHashJWT = getText
 
 getBase32Hex :: MonadGet m => m Base32Hex
 getBase32Hex = Base32Hex.UnsafeFromText <$> getText
@@ -811,7 +807,7 @@ getTempTermFormat =
       TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
         <$> getVector
           ( getPair
-              (getLocalIdsWith getHashJWT getHashJWT)
+              (getLocalIdsWith getText getBase32Hex)
               getFramedByteString
           )
     tag -> unknownTag "getTempTermFormat" tag
@@ -823,7 +819,7 @@ getTempDeclFormat =
       DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
         <$> getVector
           ( getPair
-              (getLocalIdsWith getHashJWT getHashJWT)
+              (getLocalIdsWith getText getBase32Hex)
               getFramedByteString
           )
     tag -> unknownTag "getTempDeclFormat" tag
@@ -832,34 +828,34 @@ getTempPatchFormat :: MonadGet m => m TempEntity.TempPatchFormat
 getTempPatchFormat =
   getWord8 >>= \case
     0 -> PatchFormat.SyncFull <$> getPatchLocalIds <*> getFramedByteString
-    1 -> PatchFormat.SyncDiff <$> getHashJWT <*> getPatchLocalIds <*> getFramedByteString
+    1 -> PatchFormat.SyncDiff <$> getBase32Hex <*> getPatchLocalIds <*> getFramedByteString
     tag -> unknownTag "getTempPatchFormat" tag
   where
     getPatchLocalIds =
       PatchFormat.LocalIds
         <$> getVector getText
         <*> getVector getBase32Hex
-        <*> getVector getHashJWT
+        <*> getVector getBase32Hex
 
 getTempNamespaceFormat :: MonadGet m => m TempEntity.TempNamespaceFormat
 getTempNamespaceFormat =
   getWord8 >>= \case
     0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getFramedByteString
-    1 -> BranchFormat.SyncDiff <$> getHashJWT <*> getBranchLocalIds <*> getFramedByteString
+    1 -> BranchFormat.SyncDiff <$> getBase32Hex <*> getBranchLocalIds <*> getFramedByteString
     tag -> unknownTag "getTempNamespaceFormat" tag
   where
     getBranchLocalIds =
       BranchFormat.LocalIds
         <$> getVector getText
-        <*> getVector getHashJWT
-        <*> getVector getHashJWT
-        <*> getVector (getPair getHashJWT getHashJWT)
+        <*> getVector getBase32Hex
+        <*> getVector getBase32Hex
+        <*> getVector (getPair getBase32Hex getBase32Hex)
 
 getTempCausalFormat :: MonadGet m => m TempEntity.TempCausalFormat
 getTempCausalFormat =
   Causal.SyncCausalFormat
-    <$> getHashJWT
-    <*> getVector getHashJWT
+    <$> getBase32Hex
+    <*> getVector getBase32Hex
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText
