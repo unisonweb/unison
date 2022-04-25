@@ -29,6 +29,7 @@ library
       U.Codebase.Sqlite.Name
       U.Codebase.Sqlite.ObjectType
       U.Codebase.Sqlite.Operations
+      U.Codebase.Sqlite.Orphans
       U.Codebase.Sqlite.Patch.Diff
       U.Codebase.Sqlite.Patch.Format
       U.Codebase.Sqlite.Patch.Full

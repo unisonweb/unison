@@ -3,6 +3,7 @@
 
 module U.Util.Hash
   ( Hash (Hash, toShort),
+    unsafeFromBase32HexText,
     fromBase32Hex,
     fromByteString,
     toBase32Hex,
@@ -30,6 +31,9 @@ toBase32HexText = Base32Hex.toText . toBase32Hex
 
 fromBase32Hex :: Base32Hex -> Hash
 fromBase32Hex = Hash . B.Short.toShort . Base32Hex.toByteString
+
+unsafeFromBase32HexText :: Text -> Hash
+unsafeFromBase32HexText = fromBase32Hex . Base32Hex.UnsafeFromText
 
 toByteString :: Hash -> ByteString
 toByteString = fromShort . toShort

@@ -161,6 +161,7 @@ import U.Codebase.Sqlite.DbId
   )
 import qualified U.Codebase.Sqlite.Name as S
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
+import U.Codebase.Sqlite.Orphans
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.WatchKind (WatchKind)
@@ -985,16 +986,16 @@ insertTypeNames names =
         ON CONFLICT DO NOTHING
         |]
 
-rootTermNames :: Transaction [S.Name Referent.Referent]
-rootTermNames = queryListRow_ sql
+rootTermNames :: Transaction [S.Name C.Referent.Referent]
+rootTermNames = fromSqliteRows <$> queryListRow_ sql
   where
     sql =
       [here|
         SELECT (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index) FROM term_name_lookup
         |]
 
-rootTypeNames :: Transaction [S.Name Reference.Reference]
-rootTypeNames = queryListRow_ sql
+rootTypeNames :: Transaction [S.Name C.Reference.Reference]
+rootTypeNames = fromSqliteRows <$> queryListRow_ sql
   where
     sql =
       [here|
