@@ -997,7 +997,9 @@ scopedNamesForBranchHash codebase mbh path = do
     rootNames = do
       absoluteRootNames <- lift $ Codebase.rootNames codebase
       relativeScopedNames <- lift $ Codebase.namesWithinPath codebase (Just path)
-      let absoluteExternalNames = Names.prefix0 (Path.toName path) relativeScopedNames
+      let absoluteExternalNames = case path of
+            Empty -> relativeScopedNames
+            p -> Names.prefix0 (Path.toName p) relativeScopedNames
       pure $
         ScopedNames
           { absoluteExternalNames = absoluteExternalNames,

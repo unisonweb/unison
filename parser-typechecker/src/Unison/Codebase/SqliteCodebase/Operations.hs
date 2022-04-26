@@ -555,7 +555,8 @@ namesWithinPath doGetDeclType path = do
     Names {terms, types}
 
 saveRootNamesIndex :: Names -> Transaction ()
-saveRootNamesIndex (Names {Names.terms, Names.types}) = do
+saveRootNamesIndex names = do
+  let Names {Names.terms, Names.types} = Names.makeAbsolute names
   start <- Sqlite.unsafeIO Time.getCurrentTime
   let termNames :: [(S.Name C.Referent.Referent)]
       termNames = Rel.toList terms <&> \(name, ref) -> S.Name {S.name = Name.toText name, S.ref = Cv.referent1to2 ref}

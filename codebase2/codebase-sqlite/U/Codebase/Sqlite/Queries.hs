@@ -937,7 +937,7 @@ resetNameLookupTables = do
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS type_name_lookup (
-        name TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
         reference_builtin INTEGER NULL,
         reference_object_id INTEGER NULL,
         reference_component_index INTEGER NULL,
