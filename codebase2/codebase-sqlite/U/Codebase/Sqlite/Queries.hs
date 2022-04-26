@@ -991,7 +991,7 @@ rootTermNamesWithin pathPrefix = fromSqliteRows <$> queryListRow sql (Only $ fro
   where
     sql =
       [here|
-        SELECT (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index) FROM term_name_lookup
+        SELECT name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index FROM term_name_lookup
           WHERE name LIKE ?
         |]
 
@@ -1000,9 +1000,8 @@ rootTypeNamesWithin pathPrefix = fromSqliteRows <$> queryListRow sql (Only $ fro
   where
     sql =
       [here|
-        SELECT (name, reference_builtin, reference_object_id, reference_component_index) FROM type_name_lookup
+        SELECT name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
           WHERE name LIKE ?
-      )
         |]
 
 before :: CausalHashId -> CausalHashId -> Transaction Bool
