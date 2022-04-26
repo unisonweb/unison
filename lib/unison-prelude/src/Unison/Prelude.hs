@@ -11,6 +11,8 @@ module Unison.Prelude
     -- * @Maybe@ control flow
     onNothing,
     whenNothing,
+    whenJust,
+    whenJustM,
     eitherToMaybe,
     maybeToEither,
 
@@ -75,6 +77,14 @@ onNothing m may = maybe m pure may
 -- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
 whenNothing :: Applicative m => Maybe a -> m a -> m a
 whenNothing may m = maybe m pure may
+
+whenJust :: Applicative m => Maybe a -> (a -> m ()) -> m ()
+whenJust mx f =
+  maybe (pure ()) f mx
+
+whenJustM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
+whenJustM mx f = do
+  mx >>= maybe (pure ()) f
 
 whenLeft :: Applicative m => Either a b -> (a -> m b) -> m b
 whenLeft = \case
