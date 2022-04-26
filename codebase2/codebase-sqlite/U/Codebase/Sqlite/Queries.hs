@@ -987,21 +987,21 @@ insertTypeNames names =
         |]
 
 rootTermNamesWithin :: Maybe Text -> Transaction [S.Name C.Referent.Referent]
-rootTermNamesWithin pathPrefix = fromSqliteRows <$> queryListRow sql (Only $ fromMaybe "" pathPrefix)
+rootTermNamesWithin pathPrefix = fromSqliteRows <$> queryListRow sql (Only $ fromMaybe "" pathPrefix <> "%")
   where
     sql =
       [here|
         SELECT (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index) FROM term_name_lookup
-          WHERE name LIKE "?%"
+          WHERE name LIKE ?
         |]
 
 rootTypeNamesWithin :: Maybe Text -> Transaction [S.Name C.Reference.Reference]
-rootTypeNamesWithin pathPrefix = fromSqliteRows <$> queryListRow sql (Only $ fromMaybe "" pathPrefix)
+rootTypeNamesWithin pathPrefix = fromSqliteRows <$> queryListRow sql (Only $ fromMaybe "" pathPrefix <> "%")
   where
     sql =
       [here|
         SELECT (name, reference_builtin, reference_object_id, reference_component_index) FROM type_name_lookup
-          WHERE name LIKE "?%"
+          WHERE name LIKE ?
       )
         |]
 
