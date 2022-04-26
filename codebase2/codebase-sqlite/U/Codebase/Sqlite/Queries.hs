@@ -137,16 +137,11 @@ module U.Codebase.Sqlite.Queries
     schemaVersion,
     expectSchemaVersion,
     setSchemaVersion,
-
-    -- * errors
-    DecodeError,
-    getFromBytesOr,
   )
 where
 
 import qualified Control.Lens as Lens
 import Data.Bitraversable (bitraverse)
-import Data.Bytes.Get (runGetS)
 import Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
 import qualified Data.List.Extra as List
@@ -176,6 +171,7 @@ import U.Codebase.Sqlite.DbId
     TextId,
   )
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.Entity (SyncEntity)
 import qualified U.Codebase.Sqlite.Entity as Entity
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
@@ -195,7 +191,6 @@ import qualified U.Util.Alternative as Alternative
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
-import U.Util.Serialization (Get)
 import Unison.Prelude
 import Unison.Sqlite
 
@@ -652,20 +647,16 @@ moveTempEntityToMain b32 = do
   _ <- saveSyncEntity b32 r
   pure ()
 
+-- | Read an entity out of temp storage.
 expectTempEntity :: Base32Hex -> Transaction TempEntity
 expectTempEntity b32 = do
   queryOneRowCheck sql (Only b32) \(blob, typeId) ->
     case typeId of
-      TempEntityType.TermComponentType ->
-        Entity.TC <$> getFromBytesOr "getTempTermFormat" Serialization.getTempTermFormat blob
-      TempEntityType.DeclComponentType ->
-        Entity.DC <$> getFromBytesOr "getTempDeclFormat" Serialization.getTempDeclFormat blob
-      TempEntityType.NamespaceType ->
-        Entity.N <$> getFromBytesOr "getTempNamespaceFormat" Serialization.getTempNamespaceFormat blob
-      TempEntityType.PatchType ->
-        Entity.P <$> getFromBytesOr "getTempPatchFormat" Serialization.getTempPatchFormat blob
-      TempEntityType.CausalType ->
-        Entity.C <$> getFromBytesOr "getTempCausalFormat" Serialization.getTempCausalFormat blob
+      TempEntityType.TermComponentType -> Entity.TC <$> decodeTempTermFormat blob
+      TempEntityType.DeclComponentType -> Entity.DC <$> decodeTempDeclFormat blob
+      TempEntityType.NamespaceType -> Entity.N <$> decodeTempNamespaceFormat blob
+      TempEntityType.PatchType -> Entity.P <$> decodeTempPatchFormat blob
+      TempEntityType.CausalType -> Entity.C <$> decodeTempCausalFormat blob
   where sql = [here|
     SELECT (blob, type_id)
     FROM temp_entity
@@ -1298,20 +1289,6 @@ deleteTempDependencies dependent (Foldable.toList -> dependencies) =
         WHERE dependent = ?
           AND dependency = ?
       |]
-
--- * errors
-
-data DecodeError = DecodeError
-  { decoder :: Text, -- the name of the decoder
-    err :: String -- the error message
-  }
-  deriving stock (Show)
-  deriving anyclass (SqliteExceptionReason)
-
-getFromBytesOr :: Text -> Get a -> ByteString -> Either DecodeError a
-getFromBytesOr decoder get bs = case runGetS get bs of
-  Left err -> Left (DecodeError decoder err)
-  Right a -> Right a
 
 -- * orphan instances
 

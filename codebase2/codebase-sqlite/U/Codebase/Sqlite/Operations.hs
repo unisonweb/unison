@@ -86,7 +86,6 @@ import Control.Monad.Writer (MonadWriter, runWriterT)
 import qualified Control.Monad.Writer as Writer
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
-import qualified Data.Bytes.Get as Get
 import qualified Data.Foldable as Foldable
 import Data.Functor.Identity (Identity)
 import qualified Data.Map as Map
@@ -118,6 +117,7 @@ import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
+import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.LocalIds
   ( LocalDefnId (..),
     LocalIds,
@@ -304,37 +304,6 @@ diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
         (Ord k, Ord a) => Map.WhenMatched Identity k (Set a) (Set a) (Set a)
     addDiffSet = Map.zipWithMatched (const Set.difference)
     removeDiffSet = Map.zipWithMatched (const (flip Set.difference))
-
--- * Deserialization helpers
-
-decodeBranchFormat :: ByteString -> Either Q.DecodeError S.BranchFormat.BranchFormat
-decodeBranchFormat = Q.getFromBytesOr "getBranchFormat" S.getBranchFormat
-
-decodePatchFormat :: ByteString -> Either Q.DecodeError S.Patch.Format.PatchFormat
-decodePatchFormat = Q.getFromBytesOr "getPatchFormat" S.getPatchFormat
-
-decodeTermFormat :: ByteString -> Either Q.DecodeError S.Term.TermFormat
-decodeTermFormat = Q.getFromBytesOr "getTermFormat" S.getTermFormat
-
-decodeComponentLengthOnly :: ByteString -> Either Q.DecodeError Word64
-decodeComponentLengthOnly = Q.getFromBytesOr "lengthFramedArray" (Get.skip 1 >> S.lengthFramedArray)
-
-decodeTermElementWithType :: C.Reference.Pos -> ByteString -> Either Q.DecodeError (LocalIds, S.Term.Term, S.Term.Type)
-decodeTermElementWithType i = Q.getFromBytesOr ("lookupTermElement" <> tShow i) (S.lookupTermElement i)
-
-decodeTermElementDiscardingTerm :: C.Reference.Pos -> ByteString -> Either Q.DecodeError (LocalIds, S.Term.Type)
-decodeTermElementDiscardingTerm i =
-  Q.getFromBytesOr ("lookupTermElementDiscardingTerm " <> tShow i) (S.lookupTermElementDiscardingTerm i)
-
-decodeTermElementDiscardingType :: C.Reference.Pos -> ByteString -> Either Q.DecodeError (LocalIds, S.Term.Term)
-decodeTermElementDiscardingType i =
-  Q.getFromBytesOr ("lookupTermElementDiscardingType " <> tShow i) (S.lookupTermElementDiscardingType i)
-
-decodeDeclFormat :: ByteString -> Either Q.DecodeError S.Decl.DeclFormat
-decodeDeclFormat = Q.getFromBytesOr "getDeclFormat" S.getDeclFormat
-
-decodeDeclElement :: Word64 -> ByteString -> Either Q.DecodeError (LocalIds, S.Decl.Decl Symbol)
-decodeDeclElement i = Q.getFromBytesOr ("lookupDeclElement " <> tShow i) (S.lookupDeclElement i)
 
 getCycleLen :: H.Hash -> Transaction (Maybe Word64)
 getCycleLen h = do
@@ -641,7 +610,7 @@ listWatches k = Q.loadWatchesByWatchKind k >>= traverse h2cReferenceId
 loadWatch :: WatchKind -> C.Reference.Id -> MaybeT Transaction (C.Term Symbol)
 loadWatch k r = do
   r' <- C.Reference.idH (lift . Q.saveHashHash) r
-  S.Term.WatchResult wlids t <- MaybeT (Q.loadWatch k r' (Q.getFromBytesOr "getWatchResultFormat" S.getWatchResultFormat))
+  S.Term.WatchResult wlids t <- MaybeT (Q.loadWatch k r' decodeWatchResultFormat)
   lift (w2cTerm wlids t)
 
 saveWatch :: WatchKind -> C.Reference.Id -> C.Term Symbol -> Transaction ()

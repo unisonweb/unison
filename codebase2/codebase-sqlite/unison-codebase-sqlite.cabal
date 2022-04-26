@@ -25,6 +25,7 @@ library
       U.Codebase.Sqlite.Causal
       U.Codebase.Sqlite.DbId
       U.Codebase.Sqlite.Decl.Format
+      U.Codebase.Sqlite.Decode
       U.Codebase.Sqlite.Entity
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
