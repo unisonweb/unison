@@ -321,6 +321,7 @@ data Entity text noSyncHash hash
   | P (Patch text noSyncHash hash)
   | PD (PatchDiff text noSyncHash hash)
   | N (Namespace text hash)
+  | ND (NamespaceDiff text hash)
   | C (Causal hash)
   deriving stock (Show, Eq, Ord)
 
@@ -351,6 +352,11 @@ instance (ToJSON text, ToJSON noSyncHash, ToJSON hash) => ToJSON (Entity text no
         [ "type" .= NamespaceType,
           "object" .= ns
         ]
+    ND ns ->
+      object
+        [ "type" .= NamespaceDiffType,
+          "object" .= ns
+        ]
     C causal ->
       object
         [ "type" .= CausalType,
@@ -366,6 +372,7 @@ instance (FromJSON text, FromJSON noSyncHash, FromJSON hash, Ord hash) => FromJS
       PatchType -> P <$> obj .: "object"
       PatchDiffType -> PD <$> obj .: "object"
       NamespaceType -> N <$> obj .: "object"
+      NamespaceDiffType -> ND <$> obj .: "object"
       CausalType -> C <$> obj .: "object"
 
 -- | Get the direct dependencies of an entity (which are actually sync'd).
@@ -378,8 +385,18 @@ entityDependencies = \case
   P Patch {newHashLookup} -> Set.fromList newHashLookup
   PD PatchDiff {parent, newHashLookup} -> Set.insert parent (Set.fromList newHashLookup)
   N Namespace {defnLookup, patchLookup, childLookup} ->
-    Set.fromList defnLookup <> Set.fromList patchLookup
-      <> foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
+    Set.unions
+      [ Set.fromList defnLookup,
+        Set.fromList patchLookup,
+        foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
+      ]
+  ND NamespaceDiff {parent, defnLookup, patchLookup, childLookup} ->
+    Set.unions
+      [ Set.singleton parent,
+        Set.fromList defnLookup,
+        Set.fromList patchLookup,
+        foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
+      ]
   C Causal {parents} -> parents
 
 data TermComponent text hash = TermComponent [(LocalIds text hash, ByteString)]
@@ -584,6 +601,37 @@ instance (FromJSON text, FromJSON hash) => FromJSON (Namespace text hash) where
     Base64Bytes bytes <- obj .: "bytes"
     pure Namespace {..}
 
+data NamespaceDiff text hash = NamespaceDiff
+  { parent :: hash,
+    textLookup :: [text],
+    defnLookup :: [hash],
+    patchLookup :: [hash],
+    childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
+    bytes :: ByteString
+  }
+  deriving stock (Eq, Ord, Show)
+
+instance (ToJSON text, ToJSON hash) => ToJSON (NamespaceDiff text hash) where
+  toJSON (NamespaceDiff parent textLookup defnLookup patchLookup childLookup bytes) =
+    object
+      [ "parent" .= parent,
+        "text_lookup" .= textLookup,
+        "defn_lookup" .= defnLookup,
+        "patch_lookup" .= patchLookup,
+        "child_lookup" .= childLookup,
+        "bytes" .= Base64Bytes bytes
+      ]
+
+instance (FromJSON text, FromJSON hash) => FromJSON (NamespaceDiff text hash) where
+  parseJSON = Aeson.withObject "NamespaceDiff" \obj -> do
+    parent <- obj .: "parent"
+    textLookup <- obj .: "text_lookup"
+    defnLookup <- obj .: "defn_lookup"
+    patchLookup <- obj .: "patch_lookup"
+    childLookup <- obj .: "child_lookup"
+    Base64Bytes bytes <- obj .: "bytes"
+    pure NamespaceDiff {..}
+
 -- Client _may_ choose not to download the namespace entity in the future, but
 -- we still send them the hash/hashjwt.
 data Causal hash = Causal
@@ -611,6 +659,7 @@ data EntityType
   | PatchType
   | PatchDiffType
   | NamespaceType
+  | NamespaceDiffType
   | CausalType
   deriving stock (Eq, Ord, Show)
 
@@ -621,6 +670,7 @@ instance ToJSON EntityType where
     PatchType -> "patch"
     PatchDiffType -> "patch_diff"
     NamespaceType -> "namespace"
+    NamespaceDiffType -> "namespace_diff"
     CausalType -> "causal"
 
 instance FromJSON EntityType where
@@ -630,5 +680,6 @@ instance FromJSON EntityType where
     "patch" -> pure PatchType
     "patch_diff" -> pure PatchDiffType
     "namespace" -> pure NamespaceType
+    "namespace_diff" -> pure NamespaceDiffType
     "causal" -> pure CausalType
     t -> failText $ "Unexpected entity type: " <> t

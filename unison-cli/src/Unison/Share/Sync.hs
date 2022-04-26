@@ -393,14 +393,12 @@ entityToTempEntity = \case
   Share.PD Share.PatchDiff {parent, textLookup, oldHashLookup, newHashLookup, bytes} ->
     Entity.P (PatchFormat.SyncDiff (jwt32 parent) (mungePatchLocalIds textLookup oldHashLookup newHashLookup) bytes)
   Share.N Share.Namespace {textLookup, defnLookup, patchLookup, childLookup, bytes} ->
+    Entity.N (NamespaceFormat.SyncFull (mungeNamespaceLocalIds textLookup defnLookup patchLookup childLookup) bytes)
+  Share.ND Share.NamespaceDiff {parent, textLookup, defnLookup, patchLookup, childLookup, bytes} ->
     Entity.N
-      ( NamespaceFormat.SyncFull
-          NamespaceFormat.LocalIds
-            { branchTextLookup = Vector.fromList textLookup,
-              branchDefnLookup = Vector.fromList (map jwt32 defnLookup),
-              branchPatchLookup = Vector.fromList (map jwt32 patchLookup),
-              branchChildLookup = Vector.fromList (map (\(x, y) -> (jwt32 x, jwt32 y)) childLookup)
-            }
+      ( NamespaceFormat.SyncDiff
+          (jwt32 parent)
+          (mungeNamespaceLocalIds textLookup defnLookup patchLookup childLookup)
           bytes
       )
   Share.C Share.Causal {namespaceHash, parents} ->
@@ -415,6 +413,20 @@ entityToTempEntity = \case
       LocalIds
         { textLookup = Vector.fromList texts,
           defnLookup = Vector.map jwt32 (Vector.fromList hashes)
+        }
+
+    mungeNamespaceLocalIds ::
+      [Text] ->
+      [Share.HashJWT] ->
+      [Share.HashJWT] ->
+      [(Share.HashJWT, Share.HashJWT)] ->
+      TempEntity.TempNamespaceLocalIds
+    mungeNamespaceLocalIds textLookup defnLookup patchLookup childLookup =
+      NamespaceFormat.LocalIds
+        { branchTextLookup = Vector.fromList textLookup,
+          branchDefnLookup = Vector.fromList (map jwt32 defnLookup),
+          branchPatchLookup = Vector.fromList (map jwt32 patchLookup),
+          branchChildLookup = Vector.fromList (map (\(x, y) -> (jwt32 x, jwt32 y)) childLookup)
         }
 
     mungePatchLocalIds :: [Text] -> [Share.Hash] -> [Share.HashJWT] -> TempEntity.TempPatchLocalIds
@@ -482,7 +494,26 @@ tempEntityToEntity = \case
                     (coerce @(Vector (Base32Hex, Base32Hex)) @(Vector (Share.Hash, Share.Hash)) branchChildLookup),
                 bytes
               }
-      NamespaceFormat.SyncDiff _ _ _ -> undefined
+      NamespaceFormat.SyncDiff
+        parent
+        NamespaceFormat.LocalIds
+          { branchTextLookup,
+            branchDefnLookup,
+            branchPatchLookup,
+            branchChildLookup
+          }
+        bytes ->
+          Share.ND
+            Share.NamespaceDiff
+              { parent = Share.Hash parent,
+                textLookup = Vector.toList branchTextLookup,
+                defnLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchDefnLookup),
+                patchLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchPatchLookup),
+                childLookup =
+                  Vector.toList
+                    (coerce @(Vector (Base32Hex, Base32Hex)) @(Vector (Share.Hash, Share.Hash)) branchChildLookup),
+                bytes
+              }
   Entity.C Causal.SyncCausalFormat {valueHash, parents} ->
     Share.C
       Share.Causal
