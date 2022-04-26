@@ -18,10 +18,12 @@ import Servant.Docs (DocCapture (..), ToCapture (..), ToSample (..))
 import Servant.OpenApi ()
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Path.Parse (parsePath')
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import qualified Unison.Names.Scoped as ScopedNames
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -97,12 +99,12 @@ serve runtime codebase namespaceName mayRoot mayWidth =
           root <- Backend.resolveRootBranchHash mayRoot codebase
 
           let namespaceBranch = Branch.getAt' namespacePath root
-          let scopedNames = Backend.scopedNamesForBranch namespacePath root
+          let scopedNames = Branch.toScopedNames namespacePath (Branch.head root)
 
           -- Names used in the README should not be confined to the namespace
           -- of the README (since it could be referencing definitions from all
           -- over the codebase)
-          let printNames = Backend.scopedPrettyNames Backend.AllNames scopedNames
+          let printNames = ScopedNames.prettyNames scopedNames
 
           readme <-
             Backend.findShallowReadmeInBranchAndRender

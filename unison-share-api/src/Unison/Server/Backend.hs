@@ -70,6 +70,8 @@ import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
+import Unison.Names.Scoped (ScopedNames (..))
+import qualified Unison.Names.Scoped as ScopedNames
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
@@ -146,45 +148,14 @@ data BackendError
 
 type Backend m a = ExceptT BackendError m a
 
--- | Contains all useful permutations of names scoped to a given branch.
-data ScopedNames = ScopedNames
-  { absoluteExternalNames :: Names,
-    relativeScopedNames :: Names,
-    absoluteRootNames :: Names
-  }
+-- basicSuffixifiedNames :: Int -> ScopedNames -> NameScoping -> PPE.PrettyPrintEnv
+-- basicSuffixifiedNames hashLength scopedNames nameScope =
+--   let names0 = scopedPrettyNames nameScope scopedNames
+--    in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
 
-scopedPrettyNames :: NameScoping -> ScopedNames -> Names
-scopedPrettyNames AllNames (ScopedNames {relativeScopedNames, absoluteExternalNames}) = relativeScopedNames `Names.unionLeft` absoluteExternalNames
-scopedPrettyNames Scoped (ScopedNames {relativeScopedNames}) = relativeScopedNames
-
-scopedParseNames :: NameScoping -> ScopedNames -> Names
-scopedParseNames AllNames (ScopedNames {relativeScopedNames, absoluteRootNames}) = relativeScopedNames <> absoluteRootNames
-scopedParseNames Scoped (ScopedNames {relativeScopedNames}) = relativeScopedNames
-
--- | Compute all useful permutations of names scoped to a given path.
-scopedNamesForBranch :: Path -> Branch m -> ScopedNames
-scopedNamesForBranch path root =
-  ScopedNames
-    { absoluteExternalNames = externalNames,
-      relativeScopedNames = currentPathNames,
-      absoluteRootNames = absoluteRootNames
-    }
-  where
-    root0 = Branch.head root
-    rootNames = Branch.toNames root0
-    currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
-    absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
-    currentBranch0 = Branch.head currentBranch
-    currentPathNames = Branch.toNames currentBranch0
-    externalNames = Names.mapNames Name.makeAbsolute (rootNames `Names.difference` pathPrefixed currentPathNames)
-    pathPrefixed = case path of
-      Path.Path (toList -> []) -> const mempty
-      p -> Names.prefix0 (Path.toName p)
-
-basicSuffixifiedNames :: Int -> ScopedNames -> NameScoping -> PPE.PrettyPrintEnv
-basicSuffixifiedNames hashLength scopedNames nameScope =
-  let names0 = scopedPrettyNames nameScope scopedNames
-   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
+suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
+suffixifyNames hashLength names =
+  PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
 
 shallowPPE :: Monad m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
 shallowPPE codebase b = do
@@ -262,14 +233,11 @@ data FoundRef
 --      we dedupe on the found refs to avoid having several rows of a
 --      definition with different names in the result set.
 fuzzyFind ::
-  ScopedNames ->
+  Names ->
   String ->
   [(FZF.Alignment, UnisonName, [FoundRef])]
-fuzzyFind scopedNames query =
-  let printNames =
-        scopedPrettyNames Scoped scopedNames
-
-      fzfNames =
+fuzzyFind printNames query =
+  let fzfNames =
         Names.fuzzyFind (words query) printNames
 
       toFoundRef =
@@ -574,16 +542,6 @@ termReferentsByShortHash codebase sh = do
 -- currentPathNames :: Path -> Names
 -- currentPathNames = Branch.toNames . Branch.head . Branch.getAt
 
--- | Configure how names will be constructed and filtered.
---   this is typically used when fetching names for printing source code or when finding
---   definitions by name.
-data NameScoping
-  = -- | Find all names, making any names which are children of this path,
-    -- otherwise leave them absolute.
-    AllNames
-  | -- | Filter returned names to only include names within this path.
-    Scoped
-
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
 -- converted to absolute names. For example:
@@ -756,7 +714,6 @@ mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes ::
   Path ->
-  NameScoping ->
   Maybe Branch.Hash ->
   Maybe Width ->
   Suffixify ->
@@ -764,16 +721,15 @@ prettyDefinitionsBySuffixes ::
   Codebase IO Symbol Ann ->
   [HQ.HashQualified Name] ->
   Backend IO DefinitionDisplayResults
-prettyDefinitionsBySuffixes path namesScope root renderWidth suffixifyBindings rt codebase query = do
+prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase query = do
   hqLength <- lift $ Codebase.hashLength codebase
   scopedNames <- scopedNamesForBranchHash codebase root path
-  let parseNames = scopedParseNames namesScope scopedNames
+  let parseNames = ScopedNames.parseNames scopedNames
   let parseNamesWithHistory = NamesWithHistory {currentNames = parseNames, oldNames = mempty}
-  let -- We use printNames for names in source and parseNames to lookup
-      -- definitions, thus printNames use the allNames scope, to ensure
-      -- external references aren't hashes.
-      printNames =
-        scopedPrettyNames AllNames scopedNames
+  -- We use printNames for names in source and parseNames to lookup
+  -- definitions, thus printNames use the allNames scope, to ensure
+  -- external references aren't hashes.
+  let printNames = ScopedNames.prettyNames scopedNames
   let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
   let nameSearch :: NameSearch IO
       nameSearch = makeNameSearch hqLength parseNamesWithHistory
@@ -944,8 +900,9 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   docTermsWithNames <- filterM (isDoc codebase . fst) allTerms
   let docNamesByRef = Map.fromList docTermsWithNames
   hqLength <- Codebase.hashLength codebase
-  let scopedNames = scopedNamesForBranch currentPath root
-  let printNames = scopedPrettyNames AllNames scopedNames
+  let root0 = Branch.head root
+  let scopedNames = Branch.toScopedNames currentPath root0
+  let printNames = ScopedNames.prettyNames scopedNames
   let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
   let ppe = PPE.fromNamesDecl hqLength printNamesWithHistory
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
@@ -1035,7 +992,7 @@ scopedNamesForBranchHash codebase mbh path = do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
       if Causal.unRawHash bh == V2.Hash.unCausalHash rootHash
         then rootNames
-        else scopedNamesForBranch path <$> resolveBranchHash (Just bh) codebase
+        else Branch.toScopedNames path . Branch.head <$> resolveBranchHash (Just bh) codebase
   where
     rootNames = do
       absoluteRootNames <- lift $ Codebase.rootNames codebase

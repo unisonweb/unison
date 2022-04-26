@@ -29,12 +29,15 @@ import Servant.OpenApi ()
 import qualified Text.FuzzyFind as FZF
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment
+import qualified Unison.Names.Scoped as ScopedNames
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
@@ -143,8 +146,8 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
     hashLength <- lift $ Codebase.hashLength codebase
     ea <- lift . runExceptT $ do
       root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-      branch <- Backend.resolveBranchHash root codebase
-      let scopedNames = Backend.scopedNamesForBranch rel branch
+      branch0 <- Branch.head <$> Backend.resolveBranchHash root codebase
+      let scopedNames = Branch.toScopedNames rel branch0
       let alignments ::
             ( [ ( FZF.Alignment,
                   UnisonName,
@@ -153,9 +156,8 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
               ]
             )
           alignments =
-            take (fromMaybe 10 limit) $ Backend.fuzzyFind scopedNames (fromMaybe "" query)
-          -- Use AllNames to render source
-          ppe = Backend.basicSuffixifiedNames hashLength scopedNames Backend.AllNames
+            take (fromMaybe 10 limit) $ Backend.fuzzyFind (ScopedNames.relativeLocalNames scopedNames) (fromMaybe "" query)
+          ppe = Backend.suffixifyNames hashLength (ScopedNames.prettyNames scopedNames)
       lift (join <$> traverse (loadEntry ppe) alignments)
     liftEither ea
   where

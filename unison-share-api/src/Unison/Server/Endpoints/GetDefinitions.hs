@@ -121,14 +121,8 @@ serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
     ea <- liftIO . runExceptT $ do
       root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
       let hqns = HQ.unsafeFromText <$> rawHqns
-          scope = case hqns of
-            -- TODO: Change this API to support being queried by just 1 name/hash
-            HQ.HashOnly _ : _ -> Backend.AllNames
-            _ -> Backend.Scoped
-
       Backend.prettyDefinitionsBySuffixes
         (fromMaybe Path.empty rel)
-        scope
         root
         width
         (fromMaybe (Suffixify True) suff)

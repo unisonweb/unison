@@ -151,6 +151,8 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import qualified Unison.Names.Scoped as ScopedNames
+import Unison.Names.Scoped (ScopedNames)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -159,14 +161,12 @@ prettyPrintEnvDecl :: MonadCommand n m i v => NamesWithHistory -> n PPE.PrettyPr
 prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: Backend.NameScoping -> Action' m v PPE.PrettyPrintEnvDecl
-currentPrettyPrintEnvDecl scoping = do
+currentPrettyPrintEnvDecl :: Action' m v PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl = do
   root' <- use LoopState.root
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
-  let scopedNames = Backend.scopedNamesForBranch currentPath' root'
-  prettyPrintEnvDecl (NamesWithHistory.fromCurrentNames (Backend.scopedPrettyNames scoping scopedNames))
-
--- prettyPrintEnvDecl (Backend.getCurrentPrettyNames (scoping currentPath') root')
+  let scopedNames = Branch.toScopedNames currentPath' (Branch.head root')
+  prettyPrintEnvDecl (NamesWithHistory.fromCurrentNames (ScopedNames.prettyNames scopedNames))
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
@@ -205,12 +205,12 @@ loop = do
       getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
 
-      scopedNames :: Backend.ScopedNames
-      scopedNames = Backend.scopedNamesForBranch currentPath'' root'
+      scopedNames :: ScopedNames
+      scopedNames = Branch.toScopedNames currentPath'' root0
       rootPrettyPrintNames :: Names
-      rootPrettyPrintNames = Backend.scopedPrettyNames Backend.AllNames scopedNames
-      scopedPrettyPrintNames :: Names
-      scopedPrettyPrintNames = Backend.scopedPrettyNames Backend.Scoped scopedNames
+      rootPrettyPrintNames = ScopedNames.prettyNames scopedNames
+      namesAtPath :: Names
+      namesAtPath = ScopedNames.namesAtPath Backend.Scoped scopedNames
       rootParseNames :: Names
       rootParseNames = Backend.scopedParseNames Backend.AllNames scopedNames
       scopedParseNames :: Names
@@ -3145,11 +3145,11 @@ currentPathNames = do
   pure $ Branch.toNames (Branch.head currentBranch')
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
-scopedNames :: (Functor m) => Path -> Action m i v Backend.ScopedNames
-scopedNames path nameScoping = do
+scopedNames :: (Functor m) => Action m i v Backend.ScopedNames
+scopedNames = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
-  pure $ Backend.scopedNamesForBranch path root' Path.unabsolute currentPath'
+  pure $ Backend.scopedNamesForBranch (Path.unabsolute currentPath') root'
 
 data AddRunMainResult v
   = NoTermWithThatName
