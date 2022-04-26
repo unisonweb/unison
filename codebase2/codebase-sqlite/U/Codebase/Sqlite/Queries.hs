@@ -922,11 +922,12 @@ resetNameLookupTables = do
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS term_name_lookup (
-        name TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
         referent_builtin INTEGER NULL,
         referent_object_id INTEGER NULL,
         referent_component_index INTEGER NULL,
-        referent_constructor_index INTEGER NULL
+        referent_constructor_index INTEGER NULL,
+        PRIMARY KEY (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
       )
     |]
   execute_
@@ -939,7 +940,8 @@ resetNameLookupTables = do
         name TEXT PRIMARY KEY NOT NULL,
         reference_builtin INTEGER NULL,
         reference_object_id INTEGER NULL,
-        reference_component_index INTEGER NULL
+        reference_component_index INTEGER NULL,
+        PRIMARY KEY (name, reference_builtin, reference_object_id, reference_component_index)
       );
     |]
   execute_
