@@ -127,6 +127,7 @@ module U.Codebase.Sqlite.Queries
     getMissingDependentsForTempEntity,
     getMissingDependencyJwtsForTempEntity,
     tempToSyncEntity,
+    syncToTempEntity,
     insertTempEntity,
     saveSyncEntity,
     deleteTempDependencies,
@@ -732,6 +733,72 @@ tempToSyncEntity = \case
       TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms) ->
         TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
           <$> Lens.traverseOf (traverse . Lens._1) (bitraverse saveText expectObjectIdForHash32) terms
+
+syncToTempEntity :: SyncEntity -> Transaction TempEntity
+syncToTempEntity = \case
+  Entity.TC term -> Entity.TC <$> syncToTempTermComponent term
+  Entity.DC decl -> Entity.DC <$> syncToTempDeclComponent decl
+  Entity.N namespace -> Entity.N <$> syncToTempNamespace namespace
+  Entity.P patch -> Entity.P <$> syncToTempPatch patch
+  Entity.C causal -> Entity.C <$> syncToTempCausal causal
+  where
+    syncToTempCausal :: Causal.SyncCausalFormat -> Transaction TempEntity.TempCausalFormat
+    syncToTempCausal Causal.SyncCausalFormat {valueHash, parents} =
+      Causal.SyncCausalFormat
+        <$> expectHash32 (unBranchHashId valueHash)
+        <*> traverse (expectHash32 . unCausalHashId) parents
+
+    syncToTempDeclComponent :: DeclFormat.SyncDeclFormat -> Transaction TempEntity.TempDeclFormat
+    syncToTempDeclComponent = \case
+      DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent decls) ->
+        DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
+          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse expectText expectPrimaryHash32ByObjectId) decls
+
+    syncToTempNamespace :: NamespaceFormat.SyncBranchFormat -> Transaction TempEntity.TempNamespaceFormat
+    syncToTempNamespace = \case
+      NamespaceFormat.SyncFull localIds bytes ->
+        NamespaceFormat.SyncFull <$> syncToTempNamespaceLocalIds localIds <*> pure bytes
+      NamespaceFormat.SyncDiff parent localIds bytes ->
+        NamespaceFormat.SyncDiff
+          <$> expectPrimaryHash32ByObjectId (unBranchObjectId parent)
+          <*> syncToTempNamespaceLocalIds localIds
+          <*> pure bytes
+
+    syncToTempNamespaceLocalIds :: NamespaceFormat.BranchLocalIds -> Transaction TempEntity.TempNamespaceLocalIds
+    syncToTempNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children) =
+      NamespaceFormat.LocalIds
+        <$> traverse expectText texts
+        <*> traverse expectPrimaryHash32ByObjectId defns
+        <*> traverse (expectPrimaryHash32ByObjectId . unPatchObjectId) patches
+        <*> traverse
+          ( \(branch, causal) ->
+              (,)
+                <$> expectPrimaryHash32ByObjectId (unBranchObjectId branch)
+                <*> expectHash32 (unCausalHashId causal)
+          )
+          children
+
+    syncToTempPatch :: PatchFormat.SyncPatchFormat -> Transaction TempEntity.TempPatchFormat
+    syncToTempPatch = \case
+      PatchFormat.SyncFull localIds bytes -> PatchFormat.SyncFull <$> syncToTempPatchLocalIds localIds <*> pure bytes
+      PatchFormat.SyncDiff parent localIds bytes ->
+        PatchFormat.SyncDiff
+          <$> expectPrimaryHash32ByObjectId (unPatchObjectId parent)
+          <*> syncToTempPatchLocalIds localIds
+          <*> pure bytes
+
+    syncToTempPatchLocalIds :: PatchFormat.PatchLocalIds -> Transaction TempEntity.TempPatchLocalIds
+    syncToTempPatchLocalIds (PatchFormat.LocalIds texts hashes defns) =
+      PatchFormat.LocalIds
+        <$> traverse expectText texts
+        <*> traverse expectHash32 hashes
+        <*> traverse expectPrimaryHash32ByObjectId defns
+
+    syncToTempTermComponent :: TermFormat.SyncTermFormat -> Transaction TempEntity.TempTermFormat
+    syncToTempTermComponent = \case
+      TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms) ->
+        TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
+          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse expectText expectPrimaryHash32ByObjectId) terms
 
 saveSyncEntity :: Base32Hex -> SyncEntity -> Transaction (Either CausalHashId ObjectId)
 saveSyncEntity b32Hex entity = do

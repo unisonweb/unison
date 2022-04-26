@@ -20,6 +20,7 @@ import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
+import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import Servant.Client (BaseUrl)
 import U.Codebase.HashTags (CausalHash (..))
@@ -159,7 +160,7 @@ upload httpClient unisonShareUrl conn repoName =
     loop :: NESet Share.Hash -> IO Bool
     loop (NESet.toAscList -> hashes) = do
       -- Get each entity that the server is missing out of the database.
-      entities <- Sqlite.runTransaction conn (traverse resolveHashToEntity hashes)
+      entities <- Sqlite.runTransaction conn (traverse expectEntity hashes)
 
       let uploadEntities :: IO Share.UploadEntitiesResponse
           uploadEntities =
@@ -291,10 +292,6 @@ server sqlite db
 
 -}
 
--- FIXME rename, etc
-resolveHashToEntity :: Share.Hash -> Sqlite.Transaction (Share.Entity Text Share.Hash Share.Hash)
-resolveHashToEntity = undefined
-
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
 
@@ -338,11 +335,18 @@ elaborateHashes hashes outputs =
           elaborateHashes (Set.union (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies)) hashes') outputs
         EntityInMainStorage -> elaborateHashes hashes' outputs
 
+-- FIXME comment
+expectEntity :: Share.Hash -> Sqlite.Transaction (Share.Entity Text Share.Hash Share.Hash)
+expectEntity hash = do
+  syncEntity <- Q.expectEntity (Share.toBase32Hex hash)
+  tempEntity <- Q.syncToTempEntity syncEntity
+  pure (tempEntityToEntity tempEntity)
+
 -- | Insert an entity that doesn't have any missing dependencies.
 insertEntity :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> Sqlite.Transaction ()
 insertEntity hash entity = do
-  readyEntity <- Q.tempToSyncEntity (entityToTempEntity entity)
-  _id <- Q.saveSyncEntity (Share.toBase32Hex hash) readyEntity
+  syncEntity <- Q.tempToSyncEntity (entityToTempEntity entity)
+  _id <- Q.saveSyncEntity (Share.toBase32Hex hash) syncEntity
   pure ()
 
 -- | Insert an entity and its missing dependencies.
@@ -361,6 +365,9 @@ insertTempEntity hash entity missingDependencies =
         )
         missingDependencies
     )
+
+------------------------------------------------------------------------------------------------------------------------
+-- Entity conversions
 
 -- | Convert an entity that came over the wire from Unison Share into an equivalent type that we can store in the
 -- `temp_entity` table.
@@ -418,3 +425,63 @@ entityToTempEntity = \case
     jwt32 :: Share.HashJWT -> Base32Hex
     jwt32 =
       Share.toBase32Hex . Share.hashJWTHash
+
+tempEntityToEntity :: TempEntity -> Share.Entity Text Share.Hash Share.Hash
+tempEntityToEntity = \case
+  Entity.TC (TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms)) ->
+    terms
+      & Vector.map (Lens.over Lens._1 mungeLocalIds)
+      & Vector.toList
+      & Share.TermComponent
+      & Share.TC
+  Entity.DC (DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent decls)) ->
+    decls
+      & Vector.map (Lens.over Lens._1 mungeLocalIds)
+      & Vector.toList
+      & Share.DeclComponent
+      & Share.DC
+  Entity.P format ->
+    case format of
+      PatchFormat.SyncFull PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup} bytes ->
+        Share.P
+          Share.Patch
+            { textLookup = Vector.toList patchTextLookup,
+              oldHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchHashLookup),
+              newHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchDefnLookup),
+              bytes
+            }
+      PatchFormat.SyncDiff _ _ _ -> undefined
+  Entity.N format ->
+    case format of
+      NamespaceFormat.SyncFull
+        NamespaceFormat.LocalIds
+          { branchTextLookup,
+            branchDefnLookup,
+            branchPatchLookup,
+            branchChildLookup
+          }
+        bytes ->
+          Share.N
+            Share.Namespace
+              { textLookup = Vector.toList branchTextLookup,
+                defnLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchDefnLookup),
+                patchLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchPatchLookup),
+                childLookup =
+                  Vector.toList
+                    (coerce @(Vector (Base32Hex, Base32Hex)) @(Vector (Share.Hash, Share.Hash)) branchChildLookup),
+                bytes
+              }
+      NamespaceFormat.SyncDiff _ _ _ -> undefined
+  Entity.C Causal.SyncCausalFormat {valueHash, parents} ->
+    Share.C
+      Share.Causal
+        { namespaceHash = Share.Hash valueHash,
+          parents = Set.fromList (coerce @[Base32Hex] @[Share.Hash] (Vector.toList parents))
+        }
+  where
+    mungeLocalIds :: LocalIds' Text Base32Hex -> Share.LocalIds Text Share.Hash
+    mungeLocalIds LocalIds {textLookup, defnLookup} =
+      Share.LocalIds
+        { texts = Vector.toList textLookup,
+          hashes = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) defnLookup)
+        }
