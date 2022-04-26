@@ -410,10 +410,10 @@ type1to2' convertRef =
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
 
 -- | forces loading v1 branches even if they may not exist
-causalbranch2to1 :: Monad m => (V2.Reference -> m CT.ConstructorType) -> V2.Branch.Causal m -> m (V1.Branch.Branch m)
+causalbranch2to1 :: Monad m => (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.Branch m)
 causalbranch2to1 lookupCT = fmap V1.Branch.Branch . causalbranch2to1' lookupCT
 
-causalbranch2to1' :: Monad m => (V2.Reference -> m CT.ConstructorType) -> V2.Branch.Causal m -> m (V1.Branch.UnwrappedBranch m)
+causalbranch2to1' :: Monad m => (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.UnwrappedBranch m)
 causalbranch2to1' lookupCT (V2.Causal hc _he (Map.toList -> parents) me) = do
   let currentHash = causalHash2to1 hc
   case parents of
@@ -428,7 +428,7 @@ causalbranch2to1' lookupCT (V2.Causal hc _he (Map.toList -> parents) me) = do
       e <- me
       V1.Causal.UnsafeMerge currentHash <$> branch2to1 lookupCT e <*> pure (Map.fromList tailsList)
 
-causalbranch1to2 :: forall m. Monad m => V1.Branch.Branch m -> V2.Branch.Causal m
+causalbranch1to2 :: forall m. Monad m => V1.Branch.Branch m -> V2.Branch.CausalBranch m
 causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1to2 c
   where
     hash1to2cb :: V1.Branch.Hash -> (V2.CausalHash, V2.BranchHash)
@@ -491,7 +491,7 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
         doPatches :: Map V1.NameSegment (V1.Branch.EditHash, m V1.Patch) -> Map V2.Branch.NameSegment (V2.PatchHash, m V2.Branch.Patch)
         doPatches = Map.bimap namesegment1to2 (bimap edithash1to2 (fmap patch1to2))
 
-        doChildren :: Map V1.NameSegment (V1.Branch.Branch m) -> Map V2.Branch.NameSegment (V2.Branch.Causal m)
+        doChildren :: Map V1.NameSegment (V1.Branch.Branch m) -> Map V2.Branch.NameSegment (V2.Branch.CausalBranch m)
         doChildren = Map.bimap namesegment1to2 causalbranch1to2
 
 patch2to1 :: V2.Branch.Patch -> V1.Patch

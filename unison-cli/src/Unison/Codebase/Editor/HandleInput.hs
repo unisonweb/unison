@@ -237,7 +237,7 @@ loop = do
         let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') root'
         LoopState.latestFile .= Just (Text.unpack sourceName, False)
         LoopState.latestTypecheckedFile .= Nothing
-        Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
+        Result notes r <- unsafeTime "typechecking" $ eval $ Typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
           Nothing ->
@@ -258,19 +258,19 @@ loop = do
       loadUnisonFile sourceName text = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
-          currentNames <- currentPathNames
+          currentNames <- unsafeTime "currentPathNames" currentPathNames
           let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-          names <- displayNames unisonFile
+          names <- unsafeTime "displayNames" $ displayNames unisonFile
           pped <- prettyPrintEnvDecl names
           let ppe = PPE.suffixifiedPPE pped
-          respond $ Typechecked sourceName ppe sr unisonFile
+          unsafeTime "typechecked.respond" $ respond $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
-            (bindings, e) <- ExceptT . eval . Evaluate ppe $ unisonFile
+            (bindings, e) <- unsafeTime "evaluate" $ ExceptT . eval . Evaluate ppe $ unisonFile
             lift do
               let e' = Map.map go e
                   go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
               unless (null e') $
-                respond $ Evaluated text ppe bindings e'
+                unsafeTime "evaluate.respond" $ respond $ Evaluated text ppe bindings e'
               LoopState.latestTypecheckedFile .= Just unisonFile
 
   case e of
@@ -573,10 +573,10 @@ loop = do
                         (Just new)
                         (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
                         rest
-            ResetRootI src0 ->
+            ResetRootI src0 -> unsafeTime "reset-root" $
               case src0 of
                 Left hash -> unlessError do
-                  newRoot <- resolveShortBranchHash hash
+                  newRoot <- unsafeTime "resolveShortBranchHash" $ resolveShortBranchHash hash
                   lift do
                     updateRoot newRoot
                     success
@@ -627,7 +627,7 @@ loop = do
                     else
                       diffHelper (Branch.head destb) (Branch.head merged)
                         >>= respondNumbered . uncurry (ShowDiffAfterMergePreview dest0 dest)
-            DiffNamespaceI before after -> unlessError do
+            DiffNamespaceI before after -> unsafeTime "diff.namespace" $ unlessError do
               let (absBefore, absAfter) = (resolveToAbsolute <$> before, resolveToAbsolute <$> after)
               beforeBranch0 <- Branch.head <$> branchForBranchId absBefore
               afterBranch0 <- Branch.head <$> branchForBranchId absAfter
@@ -1964,7 +1964,7 @@ handleUpdate input optionalPatch requestedNames = do
       -- propagatePatch prints TodoOutput
       for_ patchOps $ \case
         (updatedPatch, _, _) -> void $ propagatePatchNoSync updatedPatch currentPath'
-      addDefaultMetadata addsAndUpdates
+      unsafeTime "addDefaultMetadata" $ addDefaultMetadata addsAndUpdates
       syncRoot $ case patchPath of
         Nothing -> "update.nopatch"
         Just p ->
@@ -2252,7 +2252,7 @@ propagatePatchNoSync ::
   Patch ->
   Path.Absolute ->
   Action' m v Bool
-propagatePatchNoSync patch scopePath = do
+propagatePatchNoSync patch scopePath = unsafeTime "propagate" $ do
   r <- use LoopState.root
   let nroot = Branch.toNames (Branch.head r)
   stepAtMNoSync'
@@ -2677,12 +2677,12 @@ stepManyAtMNoSync' strat actions = do
 
 -- | Sync the in-memory root branch.
 syncRoot :: LoopState.InputDescription -> Action m i v ()
-syncRoot description = do
+syncRoot description = unsafeTime "syncRoot" $ do
   root' <- use LoopState.root
   Unison.Codebase.Editor.HandleInput.updateRoot root' description
 
 updateRoot :: Branch m -> LoopState.InputDescription -> Action m i v ()
-updateRoot new reason = do
+updateRoot new reason = unsafeTime "updateRoot" $ do
   old <- use LoopState.lastSavedRoot
   when (old /= new) $ do
     LoopState.root .= new
@@ -3240,7 +3240,7 @@ diffHelper ::
   Branch0 m ->
   Branch0 m ->
   Action' m v (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput v Ann)
-diffHelper before after = do
+diffHelper before after = unsafeTime "HandleInput.diffHelper" $ do
   currentRoot <- use LoopState.root
   currentPath <- use LoopState.currentPath
   diffHelperCmd currentRoot currentPath before after

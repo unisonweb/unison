@@ -12,6 +12,8 @@ module Unison.Codebase.Type
   )
 where
 
+import qualified U.Codebase.Branch as V2
+import qualified U.Codebase.Reference as V2
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Git as Git
@@ -24,6 +26,7 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
+import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Prelude
@@ -58,6 +61,8 @@ data Codebase m v a = Codebase
     -- Note that it is possible to call 'putTypeDeclaration', then 'getTypeDeclaration', and receive @Nothing@, per the
     -- semantics of 'putTypeDeclaration'.
     getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a)),
+    -- | Get the type of a given decl.
+    getDeclType :: V2.Reference -> m CT.ConstructorType,
     -- | Enqueue the put of a user-defined term (with its type) into the codebase, if it doesn't already exist. The
     -- implementation may choose to delay the put until all of the term's (and its type's) references are stored as
     -- well.
@@ -69,6 +74,8 @@ data Codebase m v a = Codebase
     getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)]),
     getDeclComponent :: Hash -> m (Maybe [Decl v a]),
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
+    -- | Get the root branch Hash.
+    getRootBranchHash :: m V2.CausalHash,
     -- | Get the root branch.
     getRootBranch :: m (Branch m),
     -- | Get whether the root branch exists.
@@ -76,6 +83,7 @@ data Codebase m v a = Codebase
     -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
     putRootBranch :: Branch m -> m (),
     rootBranchUpdates :: m (IO (), IO (Set Branch.Hash)),
+    getShallowBranchForHash :: V2.CausalHash -> m (V2.CausalBranch m),
     getBranchForHashImpl :: Branch.Hash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
