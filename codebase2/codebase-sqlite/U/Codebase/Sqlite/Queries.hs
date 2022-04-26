@@ -416,8 +416,8 @@ expectTermObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either
 expectTermObject oid =
   expectObjectOfType oid TermComponent
 
-expectObjectWithType :: ObjectId -> Transaction (ObjectType, ByteString)
-expectObjectWithType oId = queryOneRow sql (Only oId)
+expectObjectWithType :: SqliteExceptionReason e => ObjectId -> (ObjectType -> ByteString -> Either e a) -> Transaction a
+expectObjectWithType oId check = queryOneRowCheck sql (Only oId) (\(typ, bytes) -> check typ bytes)
   where sql = [here|
     SELECT type_id, bytes FROM object WHERE id = ?
   |]
@@ -636,9 +636,13 @@ expectEntity hash = do
   -- We don't know if this is an object or a causal, so just try one, then the other.
   loadObjectIdForPrimaryHashId hashId >>= \case
     Nothing -> Entity.C <$> expectCausal (CausalHashId hashId)
-    Just objectId -> do
-      (typ, bytes) <- expectObjectWithType objectId
-      undefined
+    Just objectId ->
+      expectObjectWithType objectId \typ bytes ->
+        case typ of
+          TermComponent -> Entity.TC <$> decodeSyncTermFormat bytes
+          DeclComponent -> Entity.DC <$> decodeSyncDeclFormat bytes
+          Namespace -> Entity.N <$> decodeSyncNamespaceFormat bytes
+          Patch -> Entity.P <$> decodeSyncPatchFormat bytes
 
 moveTempEntityToMain :: Base32Hex -> Transaction ()
 moveTempEntityToMain b32 = do

@@ -8,10 +8,14 @@ module U.Codebase.Sqlite.Decode
     decodeDeclElement,
     decodeDeclFormat,
     decodePatchFormat,
-    decodeTermFormat,
+    decodeSyncDeclFormat,
+    decodeSyncNamespaceFormat,
+    decodeSyncPatchFormat,
+    decodeSyncTermFormat,
     decodeTermElementDiscardingTerm,
     decodeTermElementDiscardingType,
     decodeTermElementWithType,
+    decodeTermFormat,
 
     -- * @temp_entity.blob@
     decodeTempCausalFormat,
@@ -78,6 +82,22 @@ decodeDeclFormat =
 decodePatchFormat :: ByteString -> Either DecodeError PatchFormat.PatchFormat
 decodePatchFormat =
   getFromBytesOr "getPatchFormat" Serialization.getPatchFormat
+
+decodeSyncDeclFormat :: ByteString -> Either DecodeError DeclFormat.SyncDeclFormat
+decodeSyncDeclFormat =
+  getFromBytesOr "decomposeDeclFormat" Serialization.decomposeDeclFormat
+
+decodeSyncNamespaceFormat :: ByteString -> Either DecodeError NamespaceFormat.SyncBranchFormat
+decodeSyncNamespaceFormat =
+  getFromBytesOr "decomposeNamespaceFormat" Serialization.decomposeBranchFormat
+
+decodeSyncPatchFormat :: ByteString -> Either DecodeError PatchFormat.SyncPatchFormat
+decodeSyncPatchFormat =
+  getFromBytesOr "decomposePatchFormat" Serialization.decomposePatchFormat
+
+decodeSyncTermFormat :: ByteString -> Either DecodeError TermFormat.SyncTermFormat
+decodeSyncTermFormat =
+  getFromBytesOr "decomposeTermFormat" Serialization.decomposeTermFormat
 
 decodeTermFormat :: ByteString -> Either DecodeError TermFormat.TermFormat
 decodeTermFormat =
