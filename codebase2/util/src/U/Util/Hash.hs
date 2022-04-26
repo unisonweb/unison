@@ -6,6 +6,7 @@ module U.Util.Hash
     fromBase32Hex,
     fromByteString,
     toBase32Hex,
+    toBase32HexText,
     toByteString,
   )
 where

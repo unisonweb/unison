@@ -6,6 +6,7 @@ module U.Codebase.Sqlite.Operations
     expectRootCausal,
     saveBranch,
     loadCausalBranchByCausalHash,
+    expectCausalBranchByCausalHash,
 
     -- * terms
     saveTermComponent,
@@ -857,7 +858,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           boId <- Q.expectBranchObjectIdByCausalHashId chId
           expectBranch boId
 
-saveRootBranch :: C.Branch.Causal Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
+saveRootBranch :: C.Branch.CausalBranch Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
 saveRootBranch c = do
   when debug $ traceM $ "Operations.saveRootBranch " ++ show (C.causalHash c)
   (boId, chId) <- saveBranch c
@@ -903,7 +904,7 @@ saveRootBranch c = do
 -- References, but also values
 -- Shallow - Hash? representation of the database relationships
 
-saveBranch :: C.Branch.Causal Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
+saveBranch :: C.Branch.CausalBranch Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
 saveBranch (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
 
@@ -961,24 +962,29 @@ saveBranchObject id@(Db.unBranchHashId -> hashId) li lBranch = do
   oId <- Q.saveObject hashId OT.Namespace bytes
   pure $ Db.BranchObjectId oId
 
-expectRootCausal :: Transaction (C.Branch.Causal Transaction)
-expectRootCausal = Q.expectNamespaceRoot >>= expectCausalByCausalHashId
+expectRootCausal :: Transaction (C.Branch.CausalBranch Transaction)
+expectRootCausal = Q.expectNamespaceRoot >>= expectCausalBranchByCausalHashId
 
-loadCausalBranchByCausalHash :: CausalHash -> Transaction (Maybe (C.Branch.Causal Transaction))
+loadCausalBranchByCausalHash :: CausalHash -> Transaction (Maybe (C.Branch.CausalBranch Transaction))
 loadCausalBranchByCausalHash hc = do
   Q.loadCausalHashIdByCausalHash hc >>= \case
-    Just chId -> Just <$> expectCausalByCausalHashId chId
+    Just chId -> Just <$> expectCausalBranchByCausalHashId chId
     Nothing -> pure Nothing
 
-expectCausalByCausalHashId :: Db.CausalHashId -> Transaction (C.Branch.Causal Transaction)
-expectCausalByCausalHashId id = do
+expectCausalBranchByCausalHashId :: Db.CausalHashId -> Transaction (C.Branch.CausalBranch Transaction)
+expectCausalBranchByCausalHashId id = do
   hc <- Q.expectCausalHash id
   hb <- expectValueHashByCausalHashId id
   parentHashIds <- Q.loadCausalParents id
   loadParents <- for parentHashIds \hId -> do
     h <- Q.expectCausalHash hId
-    pure (h, expectCausalByCausalHashId hId)
+    pure (h, expectCausalBranchByCausalHashId hId)
   pure $ C.Causal hc hb (Map.fromList loadParents) (expectBranchByCausalHashId id)
+
+expectCausalBranchByCausalHash :: CausalHash -> Transaction (C.Branch.CausalBranch Transaction)
+expectCausalBranchByCausalHash hash = do
+  chId <- Q.expectCausalHashIdByCausalHash hash
+  expectCausalBranchByCausalHashId chId
 
 expectBranchByCausalHashId :: Db.CausalHashId -> Transaction (C.Branch.Branch Transaction)
 expectBranchByCausalHashId id = do

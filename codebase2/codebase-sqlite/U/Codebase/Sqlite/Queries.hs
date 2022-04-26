@@ -66,8 +66,10 @@ module U.Codebase.Sqlite.Queries
     saveCausal,
     isCausalHash,
     loadCausalHashIdByCausalHash,
+    expectCausalHashIdByCausalHash,
     expectCausalValueHashId,
     loadCausalByCausalHash,
+    expectCausalByCausalHash,
     loadBranchObjectIdByCausalHashId,
     expectBranchObjectIdByCausalHashId,
 
@@ -238,11 +240,22 @@ loadCausalHashIdByCausalHash ch = runMaybeT do
   hId <- MaybeT $ loadHashIdByHash (unCausalHash ch)
   Alternative.whenM (lift (isCausalHash hId)) (CausalHashId hId)
 
+expectCausalHashIdByCausalHash :: CausalHash -> Transaction CausalHashId
+expectCausalHashIdByCausalHash ch = do
+  hId <- expectHashIdByHash (unCausalHash ch)
+  pure (CausalHashId hId)
+
 loadCausalByCausalHash :: CausalHash -> Transaction (Maybe (CausalHashId, BranchHashId))
 loadCausalByCausalHash ch = runMaybeT do
   hId <- MaybeT $ loadHashIdByHash (unCausalHash ch)
   bhId <- MaybeT $ loadCausalValueHashId hId
   pure (CausalHashId hId, bhId)
+
+expectCausalByCausalHash :: CausalHash -> Transaction (CausalHashId, BranchHashId)
+expectCausalByCausalHash ch = do
+  hId <- expectCausalHashIdByCausalHash ch
+  bhId <- expectCausalValueHashId hId
+  pure (hId, bhId)
 
 expectHashIdByHash :: Hash -> Transaction HashId
 expectHashIdByHash = expectHashId . Hash.toBase32Hex

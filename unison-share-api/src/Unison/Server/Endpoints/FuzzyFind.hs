@@ -164,7 +164,7 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
                     $ Backend.termEntryToNamedTerm ppe typeWidth te
                 )
             )
-              <$> Backend.termListEntry codebase b0 r n
+              <$> Backend.termListEntry codebase (Backend.checkIsTestForBranch b0 r) r n
           Backend.FoundTypeRef r -> do
             te <- Backend.typeListEntry codebase r n
             let namedType = Backend.typeEntryToNamedType te
