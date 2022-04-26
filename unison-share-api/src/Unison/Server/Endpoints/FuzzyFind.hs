@@ -156,7 +156,7 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
               ]
             )
           alignments =
-            take (fromMaybe 10 limit) $ Backend.fuzzyFind (ScopedNames.relativeLocalNames scopedNames) (fromMaybe "" query)
+            take (fromMaybe 10 limit) $ Backend.fuzzyFind (ScopedNames.namesAtPath scopedNames) (fromMaybe "" query)
           ppe = Backend.suffixifyNames hashLength (ScopedNames.prettyNames scopedNames)
       lift (join <$> traverse (loadEntry ppe) alignments)
     liftEither ea
