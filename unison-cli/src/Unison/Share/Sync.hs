@@ -32,6 +32,7 @@ import U.Codebase.Sqlite.LocalIds (LocalIds' (..))
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
+import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as Hash
@@ -388,15 +389,9 @@ entityToTempEntity = \case
       & DeclFormat.SyncDecl
       & Entity.DC
   Share.P Share.Patch {textLookup, oldHashLookup, newHashLookup, bytes} ->
-    Entity.P
-      ( PatchFormat.SyncFull
-          PatchFormat.LocalIds
-            { patchTextLookup = Vector.fromList textLookup,
-              patchHashLookup = Vector.fromList (coerce @[Share.Hash] @[Base32Hex] oldHashLookup),
-              patchDefnLookup = Vector.fromList (map jwt32 newHashLookup)
-            }
-          bytes
-      )
+    Entity.P (PatchFormat.SyncFull (mungePatchLocalIds textLookup oldHashLookup newHashLookup) bytes)
+  Share.PD Share.PatchDiff {parent, textLookup, oldHashLookup, newHashLookup, bytes} ->
+    Entity.P (PatchFormat.SyncDiff (jwt32 parent) (mungePatchLocalIds textLookup oldHashLookup newHashLookup) bytes)
   Share.N Share.Namespace {textLookup, defnLookup, patchLookup, childLookup, bytes} ->
     Entity.N
       ( NamespaceFormat.SyncFull
@@ -415,11 +410,19 @@ entityToTempEntity = \case
           parents = Vector.fromList (map jwt32 (Set.toList parents))
         }
   where
-    mungeLocalIds :: Share.LocalIds Text Share.HashJWT -> LocalIds' Text Base32Hex
+    mungeLocalIds :: Share.LocalIds Text Share.HashJWT -> TempEntity.TempLocalIds
     mungeLocalIds Share.LocalIds {texts, hashes} =
       LocalIds
         { textLookup = Vector.fromList texts,
           defnLookup = Vector.map jwt32 (Vector.fromList hashes)
+        }
+
+    mungePatchLocalIds :: [Text] -> [Share.Hash] -> [Share.HashJWT] -> TempEntity.TempPatchLocalIds
+    mungePatchLocalIds textLookup oldHashLookup newHashLookup =
+      PatchFormat.LocalIds
+        { patchTextLookup = Vector.fromList textLookup,
+          patchHashLookup = Vector.fromList (coerce @[Share.Hash] @[Base32Hex] oldHashLookup),
+          patchDefnLookup = Vector.fromList (map jwt32 newHashLookup)
         }
 
     jwt32 :: Share.HashJWT -> Base32Hex

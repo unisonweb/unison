@@ -319,6 +319,7 @@ data Entity text noSyncHash hash
   = TC (TermComponent text hash)
   | DC (DeclComponent text hash)
   | P (Patch text noSyncHash hash)
+  | PD (PatchDiff text noSyncHash hash)
   | N (Namespace text hash)
   | C (Causal hash)
   deriving stock (Show, Eq, Ord)
@@ -340,6 +341,11 @@ instance (ToJSON text, ToJSON noSyncHash, ToJSON hash) => ToJSON (Entity text no
         [ "type" .= PatchType,
           "object" .= patch
         ]
+    PD patch ->
+      object
+        [ "type" .= PatchDiffType,
+          "object" .= patch
+        ]
     N ns ->
       object
         [ "type" .= NamespaceType,
@@ -358,6 +364,7 @@ instance (FromJSON text, FromJSON noSyncHash, FromJSON hash, Ord hash) => FromJS
       TermComponentType -> TC <$> obj .: "object"
       DeclComponentType -> DC <$> obj .: "object"
       PatchType -> P <$> obj .: "object"
+      PatchDiffType -> PD <$> obj .: "object"
       NamespaceType -> N <$> obj .: "object"
       CausalType -> C <$> obj .: "object"
 
@@ -369,6 +376,7 @@ entityDependencies = \case
   TC (TermComponent terms) -> flip foldMap terms \(LocalIds {hashes}, _term) -> Set.fromList hashes
   DC (DeclComponent decls) -> flip foldMap decls \(LocalIds {hashes}, _decl) -> Set.fromList hashes
   P Patch {newHashLookup} -> Set.fromList newHashLookup
+  PD PatchDiff {parent, newHashLookup} -> Set.insert parent (Set.fromList newHashLookup)
   N Namespace {defnLookup, patchLookup, childLookup} ->
     Set.fromList defnLookup <> Set.fromList patchLookup
       <> foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
@@ -505,6 +513,34 @@ instance (FromJSON text, FromJSON oldHash, FromJSON newHash) => FromJSON (Patch 
     Base64Bytes bytes <- obj .: "bytes"
     pure Patch {..}
 
+data PatchDiff text oldHash hash = PatchDiff
+  { parent :: hash,
+    textLookup :: [text],
+    oldHashLookup :: [oldHash],
+    newHashLookup :: [hash],
+    bytes :: ByteString
+  }
+  deriving stock (Eq, Ord, Show)
+
+instance (ToJSON text, ToJSON oldHash, ToJSON hash) => ToJSON (PatchDiff text oldHash hash) where
+  toJSON (PatchDiff parent textLookup oldHashLookup newHashLookup bytes) =
+    object
+      [ "parent" .= parent,
+        "text_lookup" .= textLookup,
+        "optional_hash_lookup" .= oldHashLookup,
+        "hash_lookup" .= newHashLookup,
+        "bytes" .= Base64Bytes bytes
+      ]
+
+instance (FromJSON text, FromJSON oldHash, FromJSON hash) => FromJSON (PatchDiff text oldHash hash) where
+  parseJSON = Aeson.withObject "PatchDiff" \obj -> do
+    parent <- obj .: "parent"
+    textLookup <- obj .: "text_lookup"
+    oldHashLookup <- obj .: "optional_hash_lookup"
+    newHashLookup <- obj .: "hash_lookup"
+    Base64Bytes bytes <- obj .: "bytes"
+    pure PatchDiff {..}
+
 data Namespace text hash = Namespace
   { textLookup :: [text],
     defnLookup :: [hash],
@@ -573,6 +609,7 @@ data EntityType
   = TermComponentType
   | DeclComponentType
   | PatchType
+  | PatchDiffType
   | NamespaceType
   | CausalType
   deriving stock (Eq, Ord, Show)
@@ -582,6 +619,7 @@ instance ToJSON EntityType where
     TermComponentType -> "term_component"
     DeclComponentType -> "decl_component"
     PatchType -> "patch"
+    PatchDiffType -> "patch_diff"
     NamespaceType -> "namespace"
     CausalType -> "causal"
 
@@ -590,6 +628,7 @@ instance FromJSON EntityType where
     "term_component" -> pure TermComponentType
     "decl_component" -> pure DeclComponentType
     "patch" -> pure PatchType
+    "patch_diff" -> pure PatchDiffType
     "namespace" -> pure NamespaceType
     "causal" -> pure CausalType
     t -> failText $ "Unexpected entity type: " <> t
