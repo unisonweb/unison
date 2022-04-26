@@ -453,7 +453,15 @@ tempEntityToEntity = \case
               newHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchDefnLookup),
               bytes
             }
-      PatchFormat.SyncDiff _ _ _ -> undefined
+      PatchFormat.SyncDiff parent PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup} bytes ->
+        Share.PD
+          Share.PatchDiff
+            { parent = Share.Hash parent,
+              textLookup = Vector.toList patchTextLookup,
+              oldHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchHashLookup),
+              newHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchDefnLookup),
+              bytes
+            }
   Entity.N format ->
     case format of
       NamespaceFormat.SyncFull
