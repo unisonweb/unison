@@ -29,7 +29,6 @@ import Servant.OpenApi ()
 import qualified Text.FuzzyFind as FZF
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
@@ -45,6 +44,7 @@ import Unison.Server.Types
     HashQualifiedName,
     NamedTerm,
     NamedType,
+    UnisonName,
     mayDefaultWidth,
   )
 import Unison.Symbol (Symbol)
@@ -144,15 +144,22 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
     ea <- lift . runExceptT $ do
       root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
       branch <- Backend.resolveBranchHash root codebase
-      let b0 = Branch.head branch
+      let scopedNames = Backend.scopedNamesForBranch rel branch
+      let alignments ::
+            ( [ ( FZF.Alignment,
+                  UnisonName,
+                  [Backend.FoundRef]
+                )
+              ]
+            )
           alignments =
-            take (fromMaybe 10 limit) $ Backend.fuzzyFind rel branch (fromMaybe "" query)
+            take (fromMaybe 10 limit) $ Backend.fuzzyFind scopedNames (fromMaybe "" query)
           -- Use AllNames to render source
-          ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.AllNames rel)
-      lift (join <$> traverse (loadEntry ppe b0) alignments)
+          ppe = Backend.basicSuffixifiedNames hashLength scopedNames Backend.AllNames
+      lift (join <$> traverse (loadEntry ppe) alignments)
     liftEither ea
   where
-    loadEntry ppe b0 (a, HQ'.NameOnly . NameSegment -> n, refs) =
+    loadEntry ppe (a, HQ'.NameOnly . NameSegment -> n, refs) =
       for refs $
         \case
           Backend.FoundTermRef r ->
@@ -164,7 +171,7 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
                     $ Backend.termEntryToNamedTerm ppe typeWidth te
                 )
             )
-              <$> Backend.termListEntry codebase (Backend.checkIsTestForBranch b0 r) r n
+              <$> Backend.termListEntry codebase r n
           Backend.FoundTypeRef r -> do
             te <- Backend.typeListEntry codebase r n
             let namedType = Backend.typeEntryToNamedType te

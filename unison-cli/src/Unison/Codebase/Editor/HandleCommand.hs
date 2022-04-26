@@ -30,6 +30,7 @@ import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
 import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.NamesWithHistory (NamesWithHistory (..))
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
@@ -210,17 +211,19 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
       HQNameQuery mayPath branch query -> do
         hqLength <- lift $ Codebase.hashLength codebase
-        let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
-        let parseNames = Backend.getCurrentParseNames namingScope branch
-        let nameSearch = Backend.makeNameSearch hqLength parseNames
+        let scope = Backend.AllNames
+        let scopedNames = Backend.scopedNamesForBranch (fromMaybe Path.empty mayPath) branch
+        let parseNames = Backend.scopedParseNames scope scopedNames
+        let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory {currentNames = parseNames, oldNames = mempty})
         lift $ Backend.hqNameQuery codebase nameSearch query
       LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
       GetDefinitionsBySuffixes mayPath branch includeCycles query -> do
-        let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
+        let scope = Backend.AllNames
+        let scopedNames = Backend.scopedNamesForBranch (fromMaybe Path.empty mayPath) branch
         hqLength <- lift $ Codebase.hashLength codebase
-        let parseNames = Backend.getCurrentParseNames namingScope branch
+        let parseNames = Backend.scopedParseNames scope scopedNames
         let nameSearch :: Backend.NameSearch _
-            nameSearch = Backend.makeNameSearch hqLength parseNames
+            nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory {currentNames = parseNames, oldNames = mempty})
         lift (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
       FindShallow path -> liftIO $ Backend.findShallow codebase path
       MakeStandalone ppe ref out -> lift $ do

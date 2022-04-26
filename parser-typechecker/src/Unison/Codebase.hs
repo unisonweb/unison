@@ -155,7 +155,7 @@ import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 
 rootNames :: Codebase m v a -> m Names
-rootNames codebase = namesWithinPath codebase Path.empty
+rootNames codebase = namesWithinPath codebase Nothing
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.

@@ -62,7 +62,7 @@ module U.Codebase.Sqlite.Operations
 
     -- ** name lookup index
     rebuildNameIndex,
-    loadRootBranchNames,
+    rootBranchNamesWithin,
 
     -- * low-level stuff
     expectDbBranch,
@@ -1285,8 +1285,8 @@ rebuildNameIndex termNames typeNames = do
   Q.insertTermNames termNames
   Q.insertTypeNames typeNames
 
-loadRootBranchNames :: Transaction ([S.Name C.Referent], [S.Name C.Reference])
-loadRootBranchNames = do
-  termNames :: [S.Name C.Referent] <- Q.rootTermNames -- >>= (traverse . traverse) s2cReferent
-  typeNames :: [S.Name C.Reference] <- Q.rootTypeNames -- >>= (traverse . traverse) s2cReference
+rootBranchNamesWithin :: Maybe Text -> Transaction ([S.Name C.Referent], [S.Name C.Reference])
+rootBranchNamesWithin pathPrefix = do
+  termNames :: [S.Name C.Referent] <- Q.rootTermNamesWithin pathPrefix -- >>= (traverse . traverse) s2cReferent
+  typeNames :: [S.Name C.Reference] <- Q.rootTypeNamesWithin pathPrefix -- >>= (traverse . traverse) s2cReference
   pure (termNames, typeNames)

@@ -159,11 +159,14 @@ prettyPrintEnvDecl :: MonadCommand n m i v => NamesWithHistory -> n PPE.PrettyPr
 prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action' m v PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl :: Backend.NameScoping -> Action' m v PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl scoping = do
   root' <- use LoopState.root
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
-  prettyPrintEnvDecl (Backend.getCurrentPrettyNames (scoping currentPath') root')
+  let scopedNames = Backend.scopedNamesForBranch currentPath' root'
+  prettyPrintEnvDecl (NamesWithHistory.fromCurrentNames (Backend.scopedPrettyNames scoping scopedNames))
+
+-- prettyPrintEnvDecl (Backend.getCurrentPrettyNames (scoping currentPath') root')
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
@@ -202,9 +205,16 @@ loop = do
       getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
 
-      basicPrettyPrintNames :: Names
-      basicPrettyPrintNames =
-        Backend.basicPrettyPrintNames root' (Backend.AllNames $ Path.unabsolute currentPath')
+      scopedNames :: Backend.ScopedNames
+      scopedNames = Backend.scopedNamesForBranch currentPath'' root'
+      rootPrettyPrintNames :: Names
+      rootPrettyPrintNames = Backend.scopedPrettyNames Backend.AllNames scopedNames
+      scopedPrettyPrintNames :: Names
+      scopedPrettyPrintNames = Backend.scopedPrettyNames Backend.Scoped scopedNames
+      rootParseNames :: Names
+      rootParseNames = Backend.scopedParseNames Backend.AllNames scopedNames
+      scopedParseNames :: Names
+      scopedParseNames = Backend.scopedParseNames Backend.Scoped scopedNames
 
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
       resolveHHQS'Types =
@@ -234,10 +244,10 @@ loop = do
               L.Hash sh -> Just (HQ.HashOnly sh)
               _ -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') root'
+        let parseNames = Backend.scopedParseNames Backend.Scoped scopedNames
         LoopState.latestFile .= Just (Text.unpack sourceName, False)
         LoopState.latestTypecheckedFile .= Nothing
-        Result notes r <- unsafeTime "typechecking" $ eval $ Typecheck ambient parseNames sourceName lexed
+        Result notes r <- unsafeTime "typechecking" $ eval $ Typecheck ambient (NamesWithHistory.fromCurrentNames parseNames) sourceName lexed
         case r of
           -- Parsing failed
           Nothing ->
@@ -537,7 +547,7 @@ loop = do
                     diffHelper (Branch.head root') (Branch.head root'')
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
                   else do
-                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Scoped
                     respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
             ApiI -> eval API
@@ -762,11 +772,11 @@ loop = do
                     then doDelete b0
                     else case insistence of
                       Force -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Scoped
                         doDelete b0
                         respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                       Try -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Scoped
                         respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
                 doDelete b0 = do
@@ -950,11 +960,11 @@ loop = do
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
                 fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
             NamesI global thing -> do
-              ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
+              ns0 <- if global then pure rootPrettyPrintNames else pure scopedPrettyPrintNames
               let ns = NamesWithHistory ns0 mempty
                   terms = NamesWithHistory.lookupHQTerm thing ns
                   types = NamesWithHistory.lookupHQType thing ns
-                  printNames = NamesWithHistory basicPrettyPrintNames mempty
+                  printNames = NamesWithHistory rootPrettyPrintNames mempty
                   terms' :: Set (Referent, Set (HQ'.HashQualified Name))
                   terms' = Set.map go terms
                     where
@@ -991,7 +1001,7 @@ loop = do
                       -- that don't to satisfy the type-checker.
                       pure . mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString) $ defs
                 xs -> pure xs
-              for_ srcs' (docsI (show input) basicPrettyPrintNames)
+              for_ srcs' (docsI (show input) rootPrettyPrintNames)
             CreateAuthorI authorNameSegment authorFullName -> do
               initialBranch <- getAt currentPath'
               AuthorInfo
@@ -1064,7 +1074,7 @@ loop = do
                     Nothing -> respond (HelpMessage InputPatterns.display) $> []
                     Just defs -> pure defs
                 ns -> pure ns
-              traverse_ (displayI basicPrettyPrintNames outputLoc) names
+              traverse_ (displayI rootPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
             FindPatchI -> do
               let patches =
@@ -1100,7 +1110,7 @@ loop = do
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
             FindI isVerbose global ws -> do
-              let prettyPrintNames = basicPrettyPrintNames
+              let prettyPrintNames = rootPrettyPrintNames
               unlessError do
                 results <- case ws of
                   -- no query, list everything
@@ -1561,7 +1571,7 @@ loop = do
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Scoped
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> use LoopState.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
@@ -1665,7 +1675,7 @@ handleDependents hq = do
            in LD.fold tp tm ld
         -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
         -- unambiguous name.
-        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Scoped
         let results :: [(Reference, Maybe Name)]
             results =
               -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
@@ -1784,8 +1794,9 @@ handleShowDefinition outputLoc inputQuery = do
     eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
-    let printNames = Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root'
-    let ppe = PPE.fromNamesDecl hqLength printNames
+    let scopedNames = Backend.scopedNamesForBranch currentPath' root'
+    let printNames = Backend.scopedPrettyNames Backend.AllNames scopedNames
+    let ppe = PPE.fromNamesDecl hqLength (NamesWithHistory.fromCurrentNames printNames)
     respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (respond (SearchTermsNotFound misses))
   -- We set latestFile to be programmatically generated, if we
@@ -2527,7 +2538,9 @@ getMetadataFromName name = do
     getPPE = do
       currentPath' <- use LoopState.currentPath
       sbhLength <- eval BranchHashLength
-      Backend.basicSuffixifiedNames sbhLength <$> use LoopState.root <*> pure (Backend.Within $ Path.unabsolute currentPath')
+      rootBranch <- use LoopState.root
+      let scopedNames = Backend.scopedNamesForBranch (Path.unabsolute currentPath') rootBranch
+      pure $ Backend.basicSuffixifiedNames sbhLength scopedNames Backend.Scoped
 
 -- | Get the set of terms related to a hash-qualified name.
 getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
@@ -3121,7 +3134,7 @@ makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
       (NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames))
 
 basicParseNames, slurpResultNames :: Functor m => Action' m v Names
-basicParseNames = fst <$> basicNames' Backend.Within
+basicParseNames = fst <$> basicNames' Backend.Scoped
 -- we check the file against everything in the current path
 slurpResultNames = currentPathNames
 
@@ -3132,11 +3145,11 @@ currentPathNames = do
   pure $ Branch.toNames (Branch.head currentBranch')
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNames' :: (Functor m) => (Path -> Backend.NameScoping) -> Action m i v (Names, Names)
-basicNames' nameScoping = do
+scopedNames :: (Functor m) => Path -> Action m i v Backend.ScopedNames
+scopedNames path nameScoping = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
-  pure $ Backend.basicNames' root' (nameScoping $ Path.unabsolute currentPath')
+  pure $ Backend.scopedNamesForBranch path root' Path.unabsolute currentPath'
 
 data AddRunMainResult v
   = NoTermWithThatName
@@ -3256,8 +3269,9 @@ diffHelperCmd ::
 diffHelperCmd currentRoot currentPath before after = do
   hqLength <- eval CodebaseHashLength
   diff <- eval . Eval $ BranchDiff.diff0 before after
-  let (_parseNames, prettyNames0) = Backend.basicNames' currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
+  let scopedNames = Backend.scopedNamesForBranch (Path.unabsolute currentPath) currentRoot
+  let prettyNames0 = Backend.scopedPrettyNames Backend.AllNames scopedNames
+  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory.fromCurrentNames prettyNames0)
   (ppe,)
     <$> OBranchDiff.toOutput
       loadTypeOfTerm

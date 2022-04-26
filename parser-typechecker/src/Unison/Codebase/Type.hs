@@ -168,7 +168,8 @@ data Codebase m v a = Codebase
     --  Use `Codebase.before` which wraps this in a nice API.
     beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool),
     -- Build a 'Names' for all names found within 'Path' of the current root namespace.
-    namesWithinPath :: Path -> m Names
+    -- or within the whole root namespace if provided Nothing.
+    namesWithinPath :: Maybe Path -> m Names
   }
 
 -- | Whether a codebase is local or remote.

@@ -30,6 +30,8 @@ import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Patch (Patch)
+import Unison.Codebase.Path (Path)
+import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -540,12 +542,13 @@ before :: Branch.Hash -> Branch.Hash -> Transaction (Maybe Bool)
 before h1 h2 =
   Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
 
-rootNames ::
+namesWithinPath ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  Maybe Path ->
   Transaction Names
-rootNames doGetDeclType = do
-  (termNames, typeNames) <- Ops.loadRootBranchNames
+namesWithinPath doGetDeclType path = do
+  (termNames, typeNames) <- Ops.rootBranchNamesWithin ((("." <>) . Path.toText) <$> path)
   terms <- Rel.fromList <$> traverse (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name,) <$> Cv.referent2to1 doGetDeclType ref) termNames
   let types = Rel.fromList $ fmap (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name, Cv.reference2to1 ref)) typeNames
   pure $
@@ -553,7 +556,6 @@ rootNames doGetDeclType = do
 
 saveRootNamesIndex :: Names -> Transaction ()
 saveRootNamesIndex (Names {Names.terms, Names.types}) = do
-  traceM "Rebuilding Names index..."
   start <- Sqlite.unsafeIO Time.getCurrentTime
   let termNames :: [(S.Name C.Referent.Referent)]
       termNames = Rel.toList terms <&> \(name, ref) -> S.Name {S.name = Name.toText name, S.ref = Cv.referent1to2 ref}

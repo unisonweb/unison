@@ -22,6 +22,7 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Path.Parse (parsePath')
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
@@ -96,18 +97,19 @@ serve runtime codebase namespaceName mayRoot mayWidth =
           root <- Backend.resolveRootBranchHash mayRoot codebase
 
           let namespaceBranch = Branch.getAt' namespacePath root
+          let scopedNames = Backend.scopedNamesForBranch namespacePath root
 
           -- Names used in the README should not be confined to the namespace
           -- of the README (since it could be referencing definitions from all
           -- over the codebase)
-          let printNames = Backend.getCurrentPrettyNames (Backend.AllNames namespacePath) root
+          let printNames = Backend.scopedPrettyNames Backend.AllNames scopedNames
 
           readme <-
             Backend.findShallowReadmeInBranchAndRender
               width
               runtime
               codebase
-              printNames
+              (NamesWithHistory {currentNames = printNames, oldNames = mempty})
               namespaceBranch
 
           pure $ NamespaceDetails namespaceName (branchToUnisonHash namespaceBranch) readme

@@ -489,8 +489,8 @@ sqliteCodebase debugName root localOrRemote action = do
               branchHashesByPrefix = branchHashesByPrefix,
               lcaImpl = (Just sqlLca),
               beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r),
-              rootNames = Sqlite.runReadOnlyTransaction conn \runTx ->
-                runTx (CodebaseOps.rootNames getDeclType)
+              namesWithinPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
+                runTx (CodebaseOps.namesWithinPath getDeclType path)
             }
     let finalizer :: MonadIO m => m ()
         finalizer = do

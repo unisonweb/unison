@@ -123,8 +123,8 @@ module U.Codebase.Sqlite.Queries
     insertTermNames,
     insertTypeNames,
     -- loadRootBranchNames,
-    rootTermNames,
-    rootTypeNames,
+    rootTermNamesWithin,
+    rootTypeNamesWithin,
 
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
@@ -986,20 +986,22 @@ insertTypeNames names =
         ON CONFLICT DO NOTHING
         |]
 
-rootTermNames :: Transaction [S.Name C.Referent.Referent]
-rootTermNames = fromSqliteRows <$> queryListRow_ sql
+rootTermNamesWithin :: Maybe Text -> Transaction [S.Name C.Referent.Referent]
+rootTermNamesWithin pathPrefix = fromSqliteRows <$> queryListRow sql (Only $ fromMaybe "" pathPrefix)
   where
     sql =
       [here|
         SELECT (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index) FROM term_name_lookup
+          WHERE name LIKE "?%"
         |]
 
-rootTypeNames :: Transaction [S.Name C.Reference.Reference]
-rootTypeNames = fromSqliteRows <$> queryListRow_ sql
+rootTypeNamesWithin :: Maybe Text -> Transaction [S.Name C.Reference.Reference]
+rootTypeNamesWithin pathPrefix = fromSqliteRows <$> queryListRow sql (Only $ fromMaybe "" pathPrefix)
   where
     sql =
       [here|
         SELECT (name, reference_builtin, reference_object_id, reference_component_index) FROM type_name_lookup
+          WHERE name LIKE "?%"
       )
         |]
 

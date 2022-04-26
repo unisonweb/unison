@@ -34,19 +34,17 @@ import qualified Text.FuzzyFind as FZF
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.HashTags as V2.Hash
-import qualified U.Codebase.Referent as V2
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch, Branch0)
+import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
-import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
@@ -148,24 +146,24 @@ data BackendError
 
 type Backend m a = ExceptT BackendError m a
 
--- | Contains all useful permutations of naems scoped to a given branch.
+-- | Contains all useful permutations of names scoped to a given branch.
 data ScopedNames = ScopedNames
   { absoluteExternalNames :: Names,
     relativeScopedNames :: Names,
     absoluteRootNames :: Names
   }
 
-prettyNames :: NameScoping -> ScopedNames -> Names
-prettyNames AllNames (ScopedNames {relativeScopedNames, absoluteExternalNames}) = relativeScopedNames `Names.unionLeft` absoluteExternalNames
-prettyNames Scoped (ScopedNames {relativeScopedNames}) = relativeScopedNames
+scopedPrettyNames :: NameScoping -> ScopedNames -> Names
+scopedPrettyNames AllNames (ScopedNames {relativeScopedNames, absoluteExternalNames}) = relativeScopedNames `Names.unionLeft` absoluteExternalNames
+scopedPrettyNames Scoped (ScopedNames {relativeScopedNames}) = relativeScopedNames
 
-parseNames :: NameScoping -> ScopedNames -> Names
-parseNames AllNames (ScopedNames {relativeScopedNames, absoluteRootNames}) = relativeScopedNames <> absoluteRootNames
-parseNames Scoped (ScopedNames {relativeScopedNames}) = relativeScopedNames
+scopedParseNames :: NameScoping -> ScopedNames -> Names
+scopedParseNames AllNames (ScopedNames {relativeScopedNames, absoluteRootNames}) = relativeScopedNames <> absoluteRootNames
+scopedParseNames Scoped (ScopedNames {relativeScopedNames}) = relativeScopedNames
 
 -- | Compute all useful permutations of names scoped to a given path.
-scopedNamesForBranch :: Branch m -> Path -> ScopedNames
-scopedNamesForBranch root path =
+scopedNamesForBranch :: Path -> Branch m -> ScopedNames
+scopedNamesForBranch path root =
   ScopedNames
     { absoluteExternalNames = externalNames,
       relativeScopedNames = currentPathNames,
@@ -185,7 +183,7 @@ scopedNamesForBranch root path =
 
 basicSuffixifiedNames :: Int -> ScopedNames -> NameScoping -> PPE.PrettyPrintEnv
 basicSuffixifiedNames hashLength scopedNames nameScope =
-  let names0 = prettyNames nameScope scopedNames
+  let names0 = scopedPrettyNames nameScope scopedNames
    in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
 
 shallowPPE :: Monad m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
@@ -264,13 +262,12 @@ data FoundRef
 --      we dedupe on the found refs to avoid having several rows of a
 --      definition with different names in the result set.
 fuzzyFind ::
-  Monad m =>
   ScopedNames ->
   String ->
   [(FZF.Alignment, UnisonName, [FoundRef])]
 fuzzyFind scopedNames query =
   let printNames =
-        prettyNames Scoped scopedNames
+        scopedPrettyNames Scoped scopedNames
 
       fzfNames =
         Names.fuzzyFind (words query) printNames
@@ -345,7 +342,7 @@ isDoc' typeOfTerm = do
         || Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
     Nothing -> False
 
-isTestResultList :: (Var v, Monoid loc) => Maybe (Type v loc) -> Bool
+isTestResultList :: forall v a. (Var v, Monoid a) => Maybe (Type v a) -> Bool
 isTestResultList typ = case typ of
   Nothing -> False
   Just t -> Typechecker.isSubtype t resultListType
@@ -769,14 +766,14 @@ prettyDefinitionsBySuffixes ::
   Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes path namesScope root renderWidth suffixifyBindings rt codebase query = do
   hqLength <- lift $ Codebase.hashLength codebase
-  scopedNames <- _parseNamesForBranchHash codebase root
-  let parseNames' = parseNames namesScope scopedNames
-  let parseNamesWithHistory = NamesWithHistory {currentNames = parseNames', oldNames = mempty}
+  scopedNames <- scopedNamesForBranchHash codebase root path
+  let parseNames = scopedParseNames namesScope scopedNames
+  let parseNamesWithHistory = NamesWithHistory {currentNames = parseNames, oldNames = mempty}
   let -- We use printNames for names in source and parseNames to lookup
       -- definitions, thus printNames use the allNames scope, to ensure
       -- external references aren't hashes.
       printNames =
-        prettyNames AllNames scopedNames
+        scopedPrettyNames AllNames scopedNames
   let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
   let nameSearch :: NameSearch IO
       nameSearch = makeNameSearch hqLength parseNamesWithHistory
@@ -794,7 +791,7 @@ prettyDefinitionsBySuffixes path namesScope root renderWidth suffixifyBindings r
       termFqns :: Map Reference (Set Text)
       termFqns = Map.mapWithKey f terms
         where
-          rel = Names.terms parseNames'
+          rel = Names.terms parseNames
           f k _ =
             Set.fromList . fmap Name.toText . toList $
               R.lookupRan (Referent.Ref k) rel
@@ -802,7 +799,7 @@ prettyDefinitionsBySuffixes path namesScope root renderWidth suffixifyBindings r
       typeFqns :: Map Reference (Set Text)
       typeFqns = Map.mapWithKey f types
         where
-          rel = Names.types parseNames'
+          rel = Names.types parseNames
           f k _ =
             Set.fromList . fmap Name.toText . toList $
               R.lookupRan k rel
@@ -849,7 +846,6 @@ prettyDefinitionsBySuffixes path namesScope root renderWidth suffixifyBindings r
             ( termEntryTag
                 <$> termListEntry
                   codebase
-                  (checkIsTestForBranch (Branch.head branch) referent)
                   referent
                   (HQ'.NameOnly (NameSegment bn))
             )
@@ -948,8 +944,8 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   docTermsWithNames <- filterM (isDoc codebase . fst) allTerms
   let docNamesByRef = Map.fromList docTermsWithNames
   hqLength <- Codebase.hashLength codebase
-  let scopedNames = scopedNamesForBranch root currentPath
-  let printNames = prettyNames AllNames scopedNames
+  let scopedNames = scopedNamesForBranch currentPath root
+  let printNames = scopedPrettyNames AllNames scopedNames
   let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
   let ppe = PPE.fromNamesDecl hqLength printNamesWithHistory
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
@@ -1031,15 +1027,26 @@ bestNameForType ppe width =
     . TypePrinter.pretty0 @v ppe mempty (-1)
     . Type.ref ()
 
-prettyAndParseNamesForBranchHash :: Monad m => Codebase m v a -> Maybe Branch.Hash -> Backend m Names
-prettyAndParseNamesForBranchHash codebase mbh = do
+scopedNamesForBranchHash :: Monad m => Codebase m v a -> Maybe Branch.Hash -> Path -> Backend m ScopedNames
+scopedNamesForBranchHash codebase mbh path = do
   case mbh of
-    Nothing -> lift $ Codebase.rootNames codebase
+    Nothing -> rootNames
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
       if Causal.unRawHash bh == V2.Hash.unCausalHash rootHash
-        then lift $ Codebase.rootNames codebase
-        else Branch.toNames . Branch.head <$> resolveBranchHash (Just bh) codebase
+        then rootNames
+        else scopedNamesForBranch path <$> resolveBranchHash (Just bh) codebase
+  where
+    rootNames = do
+      absoluteRootNames <- lift $ Codebase.rootNames codebase
+      relativeScopedNames <- lift $ Codebase.namesWithinPath codebase (Just path)
+      let absoluteExternalNames = Names.prefix0 (Path.toName path) relativeScopedNames
+      pure $
+        ScopedNames
+          { absoluteExternalNames = absoluteExternalNames,
+            relativeScopedNames = relativeScopedNames,
+            absoluteRootNames = absoluteRootNames
+          }
 
 resolveBranchHash ::
   Monad m => Maybe Branch.Hash -> Codebase m v a -> Backend m (Branch m)
