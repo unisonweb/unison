@@ -987,25 +987,15 @@ bestNameForType ppe width =
 scopedNamesForBranchHash :: Monad m => Codebase m v a -> Maybe Branch.Hash -> Path -> Backend m ScopedNames
 scopedNamesForBranchHash codebase mbh path = do
   case mbh of
-    Nothing -> rootNames
+    Nothing -> scopedNames
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
       if Causal.unRawHash bh == V2.Hash.unCausalHash rootHash
-        then rootNames
+        then scopedNames
         else Branch.toScopedNames path . Branch.head <$> resolveBranchHash (Just bh) codebase
   where
-    rootNames = do
-      absoluteRootNames <- lift $ Codebase.rootNames codebase
-      relativeScopedNames <- lift $ Codebase.namesWithinPath codebase (Just path)
-      let absoluteExternalNames = case path of
-            Empty -> relativeScopedNames
-            p -> Names.prefix0 (Path.toName p) relativeScopedNames
-      pure $
-        ScopedNames
-          { absoluteExternalNames = absoluteExternalNames,
-            relativeScopedNames = relativeScopedNames,
-            absoluteRootNames = absoluteRootNames
-          }
+    scopedNames = do
+      lift $ Codebase.namesWithinPath codebase (Just path)
 
 resolveBranchHash ::
   Monad m => Maybe Branch.Hash -> Codebase m v a -> Backend m (Branch m)

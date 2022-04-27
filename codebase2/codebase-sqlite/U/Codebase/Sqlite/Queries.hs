@@ -988,22 +988,38 @@ insertTypeNames names =
         ON CONFLICT DO NOTHING
         |]
 
-rootTermNamesWithin :: Maybe Text -> Transaction [S.Name C.Referent.Referent]
-rootTermNamesWithin pathPrefix = fromSqliteRows <$> queryListRow sql (Only $ fromMaybe "" pathPrefix <> "%")
+rootTermNamesWithin :: Maybe Text -> Transaction ([S.Name C.Referent.Referent], [S.Name C.Referent.Referent])
+rootTermNamesWithin pathPrefix = do
+  inPath <- fromSqliteRows <$> queryListRow inPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
+  outOfPath <- fromSqliteRows <$> queryListRow outOfPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
+  pure (inPath, outOfPath)
   where
-    sql =
+    inPathSQL =
       [here|
         SELECT name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index FROM term_name_lookup
           WHERE name LIKE ?
         |]
+    outOfPathSQL =
+      [here|
+        SELECT name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index FROM term_name_lookup
+          WHERE name NOT LIKE ?
+        |]
 
-rootTypeNamesWithin :: Maybe Text -> Transaction [S.Name C.Reference.Reference]
-rootTypeNamesWithin pathPrefix = fromSqliteRows <$> queryListRow sql (Only $ fromMaybe "" pathPrefix <> "%")
+rootTypeNamesWithin :: Maybe Text -> Transaction ([S.Name C.Reference.Reference], [S.Name C.Reference.Reference])
+rootTypeNamesWithin pathPrefix = do
+  inPath <- fromSqliteRows <$> queryListRow inPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
+  outOfPath <- fromSqliteRows <$> queryListRow outOfPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
+  pure (inPath, outOfPath)
   where
-    sql =
+    inPathSQL =
       [here|
         SELECT name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
           WHERE name LIKE ?
+        |]
+    outOfPathSQL =
+      [here|
+        SELECT name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
+          WHERE name NOT LIKE ?
         |]
 
 before :: CausalHashId -> CausalHashId -> Transaction Bool

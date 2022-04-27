@@ -18,6 +18,7 @@ module Unison.Names
     filterTypes,
     map,
     makeAbsolute,
+    makeRelative,
     fuzzyFind,
     hqName,
     hqTermName,
@@ -112,6 +113,9 @@ map f (Names {terms, types}) = Names terms' types'
 
 makeAbsolute :: Names -> Names
 makeAbsolute = map Name.makeAbsolute
+
+makeRelative :: Names -> Names
+makeRelative = map Name.makeRelative
 
 -- Finds names that are supersequences of all the given strings, ordered by
 -- score and grouped by name.

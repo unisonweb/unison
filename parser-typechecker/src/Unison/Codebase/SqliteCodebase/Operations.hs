@@ -43,6 +43,7 @@ import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Name as Name
 import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
+import Unison.Names.Scoped (ScopedNames (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -546,13 +547,42 @@ namesWithinPath ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   Maybe Path ->
-  Transaction Names
-namesWithinPath doGetDeclType path = do
-  (termNames, typeNames) <- Ops.rootBranchNamesWithin ((("." <>) . Path.toText) <$> path)
-  terms <- Rel.fromList <$> traverse (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name,) <$> Cv.referent2to1 doGetDeclType ref) termNames
-  let types = Rel.fromList $ fmap (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name, Cv.reference2to1 ref)) typeNames
+  Transaction ScopedNames
+namesWithinPath _doGetDeclType path = do
+  ((termNamesInPath, termNamesOutOfPath), (typeNamesInPath, typeNamesOutOfPath)) <- Ops.rootBranchNamesWithin ((("." <>) . Path.toText) <$> path)
+  termsInPath <- Rel.fromList <$> traverse (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name,) <$> unsafeReferent2To1 ref) termNamesInPath
+  termsOutOfPath <- Rel.fromList <$> traverse (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name,) <$> unsafeReferent2To1 ref) termNamesOutOfPath
+  let typesInPath = Rel.fromList $ fmap (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name, Cv.reference2to1 ref)) typeNamesInPath
+  let typesOutOfPath = Rel.fromList $ fmap (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name, Cv.reference2to1 ref)) typeNamesOutOfPath
+  let absoluteExternalNames = Names {terms = termsOutOfPath, types = typesOutOfPath}
+  let absoluteNamesInPath = Names {terms = termsInPath, types = typesInPath}
+  let absoluteRootNames = absoluteExternalNames <> absoluteNamesInPath
+  let relativeScopedNames =
+        case path of
+          Just p@(_ Path.:> _) -> Names.map (\n -> fromMaybe n $ Name.stripNamePrefix (Path.toName p) n) (Names {terms = termsInPath, types = typesInPath})
+          _ -> Names.makeRelative absoluteRootNames
   pure $
-    Names {terms, types}
+    ScopedNames -- {terms, types}
+      { absoluteExternalNames,
+        relativeScopedNames,
+        absoluteRootNames
+      }
+  where
+    unsafeReferent2To1 = Cv.referent2to1 (const $ pure (error "Required decl type, but was skipped"))
+
+-- scopedNamesAt :: Path -> Codebase m v a -> m Names
+-- scopedNamesAt path = do
+--   absoluteRootNames <- lift $ rootNames codebase
+--   -- relativeScopedNames <- lift $ namesWithinPath codebase (Just path)
+--   let absoluteExternalNames = case path of
+--         Empty -> relativeScopedNames
+--         p -> Names.prefix0 (Path.toName p) relativeScopedNames
+--   pure $
+--     ScopedNames
+--       { absoluteExternalNames = absoluteExternalNames,
+--         relativeScopedNames = relativeScopedNames,
+--         absoluteRootNames = absoluteRootNames
+--       }
 
 saveRootNamesIndex :: Names -> Transaction ()
 saveRootNamesIndex names = do

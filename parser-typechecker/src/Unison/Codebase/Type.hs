@@ -30,7 +30,7 @@ import Unison.CodebasePath (CodebasePath)
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
-import Unison.Names (Names)
+import Unison.Names.Scoped (ScopedNames)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -169,7 +169,7 @@ data Codebase m v a = Codebase
     beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool),
     -- Build a 'Names' for all names found within 'Path' of the current root namespace.
     -- or within the whole root namespace if provided Nothing.
-    namesWithinPath :: Maybe Path -> m Names
+    namesWithinPath :: Maybe Path -> m ScopedNames
   }
 
 -- | Whether a codebase is local or remote.

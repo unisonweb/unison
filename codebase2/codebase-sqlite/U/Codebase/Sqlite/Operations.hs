@@ -1285,8 +1285,8 @@ rebuildNameIndex termNames typeNames = do
   Q.insertTermNames termNames
   Q.insertTypeNames typeNames
 
-rootBranchNamesWithin :: Maybe Text -> Transaction ([S.Name C.Referent], [S.Name C.Reference])
+rootBranchNamesWithin :: Maybe Text -> Transaction (([S.Name C.Referent], [S.Name C.Referent]), ([S.Name C.Reference], [S.Name C.Reference]))
 rootBranchNamesWithin pathPrefix = do
-  termNames :: [S.Name C.Referent] <- Q.rootTermNamesWithin pathPrefix -- >>= (traverse . traverse) s2cReferent
-  typeNames :: [S.Name C.Reference] <- Q.rootTypeNamesWithin pathPrefix -- >>= (traverse . traverse) s2cReference
+  termNames <- Q.rootTermNamesWithin pathPrefix -- >>= (traverse . traverse) s2cReferent
+  typeNames <- Q.rootTypeNamesWithin pathPrefix -- >>= (traverse . traverse) s2cReference
   pure (termNames, typeNames)
