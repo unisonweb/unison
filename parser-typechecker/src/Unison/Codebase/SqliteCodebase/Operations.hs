@@ -560,7 +560,8 @@ namesWithinPath _doGetDeclType path = do
   let relativeScopedNames =
         case path of
           Just p@(_ Path.:> _) -> Names.map (\n -> fromMaybe n $ Name.stripNamePrefix (Path.toName p) n) (Names {terms = termsInPath, types = typesInPath})
-          _ -> Names.makeRelative absoluteRootNames
+          -- TODO: Should these be relative names?
+          _ -> absoluteRootNames -- Names.makeRelative
   pure $
     ScopedNames -- {terms, types}
       { absoluteExternalNames,
@@ -568,7 +569,10 @@ namesWithinPath _doGetDeclType path = do
         absoluteRootNames
       }
   where
-    unsafeReferent2To1 = Cv.referent2to1 (const $ pure (error "Required decl type, but was skipped"))
+    -- TODO: This constructor-type tag is just plain wrong, I'm testing out how much skipping
+    -- the look-up
+    -- it up affects performance.
+    unsafeReferent2To1 = Cv.referent2to1 (const $ pure CT.Data)
 
 -- scopedNamesAt :: Path -> Codebase m v a -> m Names
 -- scopedNamesAt path = do
