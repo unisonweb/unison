@@ -378,6 +378,7 @@ run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
           let env =
                 LoopState.Env
                   { LoopState.authHTTPClient = error "Error: No access to authorized requests from transcripts.",
+                    LoopState.codebase = codebase,
                     LoopState.credentialManager = error "Error: No access to credentials from transcripts."
                   }
           let free = LoopState.runAction env state $ HandleInput.loop

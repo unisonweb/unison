@@ -196,6 +196,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
             let env =
                   LoopState.Env
                     { LoopState.authHTTPClient = authorizedHTTPClient,
+                      LoopState.codebase = codebase,
                       LoopState.credentialManager = credMan
                     }
             let free = LoopState.runAction env state HandleInput.loop
