@@ -490,7 +490,9 @@ sqliteCodebase debugName root localOrRemote action = do
               lcaImpl = (Just sqlLca),
               beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r),
               namesWithinPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
-                runTx (CodebaseOps.namesWithinPath path)
+                runTx (CodebaseOps.namesWithinPath path),
+              updateNameLookup = \names -> Sqlite.runWriteTransaction conn $ \runTx -> do
+                runTx $ CodebaseOps.saveRootNamesIndex names
             }
     let finalizer :: MonadIO m => m ()
         finalizer = do

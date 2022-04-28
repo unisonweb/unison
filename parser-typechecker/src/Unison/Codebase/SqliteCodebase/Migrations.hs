@@ -14,7 +14,6 @@ import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUn
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3)
-import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchema3To4)
 import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
 import Unison.Codebase.SqliteCodebase.Paths
 import Unison.Codebase.Type (LocalOrRemote (..))
@@ -37,8 +36,7 @@ migrations ::
 migrations getDeclType termBuffer declBuffer =
   Map.fromList
     [ (2, migrateSchema1To2 getDeclType termBuffer declBuffer),
-      (3, migrateSchema2To3),
-      (4, migrateSchema3To4)
+      (3, migrateSchema2To3)
     ]
 
 -- | Migrates a codebase up to the most recent version known to ucm.
