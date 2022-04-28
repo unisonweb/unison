@@ -166,7 +166,7 @@ currentPrettyPrintEnvDecl = do
   root' <- use LoopState.root
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   let scopedNames = Branch.toScopedNames currentPath' (Branch.head root')
-  prettyPrintEnvDecl (NamesWithHistory.fromCurrentNames (ScopedNames.prettyNames scopedNames))
+  prettyPrintEnvDecl (NamesWithHistory.fromCurrentNames (ScopedNames.namesAtPath scopedNames))
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
