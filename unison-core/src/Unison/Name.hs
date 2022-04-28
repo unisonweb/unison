@@ -8,6 +8,7 @@ module Unison.Name
     joinDot,
     fromSegment,
     fromSegments,
+    fromReverseSegments,
 
     -- ** Unsafe construction
     unsafeFromString,
@@ -267,6 +268,16 @@ fromSegment s =
 fromSegments :: NonEmpty NameSegment -> Name
 fromSegments ss =
   Name Relative (List.NonEmpty.reverse ss)
+
+-- | Construct a relative name from a list of name segments which are in reverse order
+--
+-- >>> fromReverseSegments ("c" :| ["b", "a"])
+-- a.b.c
+--
+-- /O(1)/
+fromReverseSegments :: NonEmpty NameSegment -> Name
+fromReverseSegments rs =
+  Name Relative rs
 
 -- | Return the name segments of a name, in reverse order.
 --

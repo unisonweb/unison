@@ -35,7 +35,13 @@ import Unison.Prelude
 --
 -- When @Con'@ then @r@ is a type declaration.
 data Referent' r = Ref' r | Con' (GConstructorReference r) ConstructorType
-  deriving (Show, Ord, Eq, Functor, Generic)
+  deriving (Show, Eq, Functor, Generic)
+
+instance Ord r => Ord (Referent' r) where
+  compare (Ref' l) (Ref' r) = compare l r
+  compare (Ref' {}) _ = LT
+  compare (Con' {}) (Ref' {}) = GT
+  compare (Con' l _conType) (Con' r _conType') = compare l r
 
 -- | A lens onto the reference in a referent.
 reference_ :: Lens (Referent' r) (Referent' r') r r'

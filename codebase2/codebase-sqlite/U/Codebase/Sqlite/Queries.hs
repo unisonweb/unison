@@ -147,7 +147,6 @@ import Data.Tuple.Only (Only (..))
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
-import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
@@ -171,6 +170,8 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
+import qualified Unison.Reference as V1
+import qualified Unison.Referent as V1
 import Unison.Sqlite
 
 -- * main squeeze
@@ -927,6 +928,7 @@ resetNameLookupTables = do
         referent_object_id INTEGER NULL,
         referent_component_index INTEGER NULL,
         referent_constructor_index INTEGER NULL,
+        referent_constructor_type INTEGER NULL,
         PRIMARY KEY (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
       )
     |]
@@ -949,37 +951,20 @@ resetNameLookupTables = do
       CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index);
     |]
 
-insertTermNames :: [S.Name C.Referent.Referent] -> Transaction ()
+insertTermNames :: [S.NamedRef V1.Referent] -> Transaction ()
 insertTermNames names = do
-  executeMany sql (cReferentNameToRow <$> names)
+  executeMany sql (coerce @[S.NamedRef V1.Referent] @[S.NamedRef (AsSqlite V1.Referent)] names)
   where
     sql =
       [here|
-      INSERT INTO term_name_lookup (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
-        VALUES (?, ?, ?, ?, ?)
+      INSERT INTO term_name_lookup (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
 
-cReferentNameToRow :: S.Name C.Referent.Referent -> [SQLData]
-cReferentNameToRow S.Name {S.name, S.ref} =
-  [toField name]
-    <> ( case ref of
-           C.Referent.Ref ref' -> cReferenceToRow ref' <> [SQLNull]
-           C.Referent.Con ref' wo -> cReferenceToRow ref' <> [toField wo]
-       )
-
-cReferenceNameToRow :: S.Name C.Reference.Reference -> [SQLData]
-cReferenceNameToRow S.Name {S.name, S.ref} =
-  [toField name] <> cReferenceToRow ref
-
-cReferenceToRow :: C.Reference.Reference -> [SQLData]
-cReferenceToRow ref = case ref of
-  C.Reference.ReferenceBuiltin txt -> [SQLText txt, SQLNull, SQLNull]
-  C.Reference.ReferenceDerived (C.Reference.Id h p) -> [SQLNull, toField $ Hash.toBase32HexText h, toField p]
-
-insertTypeNames :: [S.Name C.Reference.Reference] -> Transaction ()
+insertTypeNames :: [S.NamedRef V1.Reference] -> Transaction ()
 insertTypeNames names =
-  executeMany sql (cReferenceNameToRow <$> names)
+  executeMany sql (coerce @[S.NamedRef V1.Reference] @[S.NamedRef (AsSqlite V1.Reference)] names)
   where
     sql =
       [here|
@@ -988,29 +973,33 @@ insertTypeNames names =
         ON CONFLICT DO NOTHING
         |]
 
-rootTermNamesWithin :: Maybe Text -> Transaction ([S.Name C.Referent.Referent], [S.Name C.Referent.Referent])
+rootTermNamesWithin :: Maybe Text -> Transaction ([S.NamedRef V1.Referent], [S.NamedRef V1.Referent])
 rootTermNamesWithin pathPrefix = do
-  inPath <- fromSqliteRows <$> queryListRow inPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
-  outOfPath <- fromSqliteRows <$> queryListRow outOfPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
+  inPath <- unSQLiteNames <$> queryListRow inPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
+  outOfPath <- unSQLiteNames <$> queryListRow outOfPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
   pure (inPath, outOfPath)
   where
+    unSQLiteNames :: [S.NamedRef (AsSqlite r)] -> [S.NamedRef r]
+    unSQLiteNames = coerce
     inPathSQL =
       [here|
-        SELECT name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index FROM term_name_lookup
+        SELECT name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
           WHERE name LIKE ?
         |]
     outOfPathSQL =
       [here|
-        SELECT name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index FROM term_name_lookup
+        SELECT name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
           WHERE name NOT LIKE ?
         |]
 
-rootTypeNamesWithin :: Maybe Text -> Transaction ([S.Name C.Reference.Reference], [S.Name C.Reference.Reference])
+rootTypeNamesWithin :: Maybe Text -> Transaction ([S.NamedRef V1.Reference], [S.NamedRef V1.Reference])
 rootTypeNamesWithin pathPrefix = do
-  inPath <- fromSqliteRows <$> queryListRow inPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
-  outOfPath <- fromSqliteRows <$> queryListRow outOfPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
+  inPath <- unSQLiteNames <$> queryListRow inPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
+  outOfPath <- unSQLiteNames <$> queryListRow outOfPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
   pure (inPath, outOfPath)
   where
+    unSQLiteNames :: [S.NamedRef (AsSqlite r)] -> [S.NamedRef r]
+    unSQLiteNames = coerce
     inPathSQL =
       [here|
         SELECT name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup

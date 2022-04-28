@@ -40,6 +40,7 @@ import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
@@ -544,16 +545,14 @@ before h1 h2 =
   Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
 
 namesWithinPath ::
-  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   Maybe Path ->
   Transaction ScopedNames
-namesWithinPath _doGetDeclType path = do
+namesWithinPath path = do
   ((termNamesInPath, termNamesOutOfPath), (typeNamesInPath, typeNamesOutOfPath)) <- Ops.rootBranchNamesWithin ((("." <>) . Path.toText) <$> path)
-  termsInPath <- Rel.fromList <$> traverse (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name,) <$> unsafeReferent2To1 ref) termNamesInPath
-  termsOutOfPath <- Rel.fromList <$> traverse (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name,) <$> unsafeReferent2To1 ref) termNamesOutOfPath
-  let typesInPath = Rel.fromList $ fmap (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name, Cv.reference2to1 ref)) typeNamesInPath
-  let typesOutOfPath = Rel.fromList $ fmap (\(S.Name {S.name, S.ref}) -> (Name.unsafeFromText name, Cv.reference2to1 ref)) typeNamesOutOfPath
+  let termsInPath = Rel.fromList $ coerce @[S.NamedRef Referent.Referent] @[(Name, Referent.Referent)] termNamesInPath
+  let termsOutOfPath = Rel.fromList $ coerce @[S.NamedRef Referent.Referent] @[(Name, Referent.Referent)] termNamesOutOfPath
+  let typesInPath = Rel.fromList $ coerce @[S.NamedRef Reference.Reference] @[(Name, Reference.Reference)] typeNamesInPath
+  let typesOutOfPath = Rel.fromList $ coerce @[S.NamedRef Reference.Reference] @[(Name, Reference.Reference)] typeNamesOutOfPath
   let absoluteExternalNames = Names {terms = termsOutOfPath, types = typesOutOfPath}
   let absoluteNamesInPath = Names {terms = termsInPath, types = typesInPath}
   let absoluteRootNames = absoluteExternalNames <> absoluteNamesInPath
@@ -568,34 +567,14 @@ namesWithinPath _doGetDeclType path = do
         relativeScopedNames,
         absoluteRootNames
       }
-  where
-    -- TODO: This constructor-type tag is just plain wrong, I'm testing out how much skipping
-    -- the look-up
-    -- it up affects performance.
-    unsafeReferent2To1 = Cv.referent2to1 (const $ pure CT.Data)
-
--- scopedNamesAt :: Path -> Codebase m v a -> m Names
--- scopedNamesAt path = do
---   absoluteRootNames <- lift $ rootNames codebase
---   -- relativeScopedNames <- lift $ namesWithinPath codebase (Just path)
---   let absoluteExternalNames = case path of
---         Empty -> relativeScopedNames
---         p -> Names.prefix0 (Path.toName p) relativeScopedNames
---   pure $
---     ScopedNames
---       { absoluteExternalNames = absoluteExternalNames,
---         relativeScopedNames = relativeScopedNames,
---         absoluteRootNames = absoluteRootNames
---       }
 
 saveRootNamesIndex :: Names -> Transaction ()
-saveRootNamesIndex names = do
-  let Names {Names.terms, Names.types} = Names.makeAbsolute names
+saveRootNamesIndex Names {Names.terms, Names.types} = do
   start <- Sqlite.unsafeIO Time.getCurrentTime
-  let termNames :: [(S.Name C.Referent.Referent)]
-      termNames = Rel.toList terms <&> \(name, ref) -> S.Name {S.name = Name.toText name, S.ref = Cv.referent1to2 ref}
-  let typeNames :: [(S.Name C.Reference.Reference)]
-      typeNames = Rel.toList types <&> \(name, ref) -> S.Name {S.name = Name.toText name, S.ref = Cv.reference1to2 ref}
+  let termNames :: [(S.NamedRef Referent.Referent)]
+      termNames = coerce @[(Name, Referent.Referent)] @[S.NamedRef Referent.Referent] $ Rel.toList terms
+  let typeNames :: [(S.NamedRef Reference.Reference)]
+      typeNames = coerce @[(Name, Reference.Reference)] @[S.NamedRef Reference.Reference] $ Rel.toList types
   Ops.rebuildNameIndex termNames typeNames
   end <- Sqlite.unsafeIO Time.getCurrentTime
   traceShowM (Time.diffUTCTime end start)

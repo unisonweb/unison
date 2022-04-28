@@ -166,6 +166,8 @@ import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
 import Unison.Prelude
+import qualified Unison.Reference as V1
+import qualified Unison.Referent as V1
 import Unison.Sqlite
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
@@ -1279,13 +1281,13 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
-rebuildNameIndex :: [S.Name C.Referent] -> [S.Name C.Reference] -> Transaction ()
+rebuildNameIndex :: [S.NamedRef V1.Referent] -> [S.NamedRef V1.Reference] -> Transaction ()
 rebuildNameIndex termNames typeNames = do
   Q.resetNameLookupTables
   Q.insertTermNames termNames
   Q.insertTypeNames typeNames
 
-rootBranchNamesWithin :: Maybe Text -> Transaction (([S.Name C.Referent], [S.Name C.Referent]), ([S.Name C.Reference], [S.Name C.Reference]))
+rootBranchNamesWithin :: Maybe Text -> Transaction (([S.NamedRef V1.Referent], [S.NamedRef V1.Referent]), ([S.NamedRef V1.Reference], [S.NamedRef V1.Reference]))
 rootBranchNamesWithin pathPrefix = do
   termNames <- Q.rootTermNamesWithin pathPrefix -- >>= (traverse . traverse) s2cReferent
   typeNames <- Q.rootTypeNamesWithin pathPrefix -- >>= (traverse . traverse) s2cReference
