@@ -16,14 +16,14 @@ newtype AuthorizedHttpClient = AuthorizedHttpClient HTTP.Manager
 
 -- | Returns a new http manager which applies the appropriate Authorization header to
 -- any hosts our UCM is authenticated with.
-newAuthorizedHTTPClient :: MonadIO m => CredentialManager -> UCMVersion -> m HTTP.Manager
+newAuthorizedHTTPClient :: MonadIO m => CredentialManager -> UCMVersion -> m AuthorizedHttpClient
 newAuthorizedHTTPClient credsMan ucmVersion = liftIO $ do
   let tokenProvider = newTokenProvider credsMan
   let managerSettings =
         HTTP.tlsManagerSettings
           & HTTP.addRequestMiddleware (authMiddleware tokenProvider)
           & HTTP.setUserAgent (HTTP.ucmUserAgent ucmVersion)
-  HTTP.newTlsManagerWith managerSettings
+  AuthorizedHttpClient <$> HTTP.newTlsManagerWith managerSettings
 
 -- | Adds Bearer tokens to requests according to their host.
 -- If a CredentialFailure occurs (failure to refresh a token), auth is simply omitted,
