@@ -20,14 +20,6 @@ data ScopedNames = ScopedNames
     absoluteRootNames :: Names
   }
 
--- scopedPrettyNames :: NamesFilter -> ScopedNames -> Names
--- scopedPrettyNames AllNames (ScopedNames {relativeScopedNames, absoluteExternalNames}) = relativeScopedNames `Names.unionLeft` absoluteExternalNames
--- scopedPrettyNames Scoped (ScopedNames {relativeScopedNames}) = relativeScopedNames
-
--- scopedParseNames :: NamesFilter -> ScopedNames -> Names
--- scopedParseNames AllNames (ScopedNames {relativeScopedNames, absoluteRootNames}) = relativeScopedNames <> absoluteRootNames
--- scopedParseNames Scoped (ScopedNames {relativeScopedNames}) = relativeScopedNames
-
 -- | Return all names contained in the path, relative to that path.
 namesAtPath :: ScopedNames -> Names
 namesAtPath (ScopedNames {relativeScopedNames}) = relativeScopedNames

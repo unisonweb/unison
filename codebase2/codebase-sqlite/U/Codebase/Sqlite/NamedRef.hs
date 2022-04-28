@@ -1,6 +1,4 @@
-{-# LANGUAGE RecordWildCards #-}
-
-module U.Codebase.Sqlite.Name where
+module U.Codebase.Sqlite.NamedRef where
 
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -12,6 +10,9 @@ import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import Unison.Sqlite (FromRow (..), ToField (..), ToRow (..), field)
 
+-- | Note: This is a newtype over a tuple so that we have a place to attach sqlite instances,
+-- but can still use `coerce` to pack/unpack when building the list of [(Name, ref)] for the
+-- Names relations.
 newtype NamedRef ref = NamedRef (Name, ref)
   deriving stock (Show, Functor, Foldable, Traversable)
 

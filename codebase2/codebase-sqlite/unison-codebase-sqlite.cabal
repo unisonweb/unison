@@ -26,7 +26,7 @@ library
       U.Codebase.Sqlite.Decl.Format
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
-      U.Codebase.Sqlite.Name
+      U.Codebase.Sqlite.NamedRef
       U.Codebase.Sqlite.ObjectType
       U.Codebase.Sqlite.Operations
       U.Codebase.Sqlite.Orphans

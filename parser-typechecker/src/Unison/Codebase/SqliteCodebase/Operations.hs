@@ -20,7 +20,7 @@ import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
-import qualified U.Codebase.Sqlite.Name as S
+import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -549,24 +549,29 @@ namesWithinPath ::
   Transaction ScopedNames
 namesWithinPath path = do
   ((termNamesInPath, termNamesOutOfPath), (typeNamesInPath, typeNamesOutOfPath)) <- Ops.rootBranchNamesWithin ((("." <>) . Path.toText) <$> path)
-  let termsInPath = Rel.fromList $ coerce @[S.NamedRef Referent.Referent] @[(Name, Referent.Referent)] termNamesInPath
-  let termsOutOfPath = Rel.fromList $ coerce @[S.NamedRef Referent.Referent] @[(Name, Referent.Referent)] termNamesOutOfPath
-  let typesInPath = Rel.fromList $ coerce @[S.NamedRef Reference.Reference] @[(Name, Reference.Reference)] typeNamesInPath
-  let typesOutOfPath = Rel.fromList $ coerce @[S.NamedRef Reference.Reference] @[(Name, Reference.Reference)] typeNamesOutOfPath
+  let termsInPath = Rel.fromListDomainAsc $ coerce @[S.NamedRef Referent.Referent] @[(Name, Referent.Referent)] termNamesInPath
+  let termsOutOfPath = Rel.fromListDomainAsc $ coerce @[S.NamedRef Referent.Referent] @[(Name, Referent.Referent)] termNamesOutOfPath
+  let typesInPath = Rel.fromListDomainAsc $ coerce @[S.NamedRef Reference.Reference] @[(Name, Reference.Reference)] typeNamesInPath
+  let typesOutOfPath = Rel.fromListDomainAsc $ coerce @[S.NamedRef Reference.Reference] @[(Name, Reference.Reference)] typeNamesOutOfPath
   let absoluteExternalNames = Names {terms = termsOutOfPath, types = typesOutOfPath}
   let absoluteNamesInPath = Names {terms = termsInPath, types = typesInPath}
   let absoluteRootNames = absoluteExternalNames <> absoluteNamesInPath
   let relativeScopedNames =
         case path of
-          Just p@(_ Path.:> _) -> Names.map (\n -> fromMaybe n $ Name.stripNamePrefix (Path.toName p) n) (Names {terms = termsInPath, types = typesInPath})
-          -- TODO: Should these be relative names?
-          _ -> absoluteRootNames -- Names.makeRelative
+          Just p@(_ Path.:> _) -> Names.map (stripPathPrefix p) (Names {terms = termsInPath, types = typesInPath})
+          _ -> absoluteRootNames
   pure $
-    ScopedNames -- {terms, types}
+    ScopedNames
       { absoluteExternalNames,
         relativeScopedNames,
         absoluteRootNames
       }
+  where
+    stripPathPrefix :: Path -> Name -> Name
+    stripPathPrefix p n =
+      case (Name.stripNamePrefix (Path.toName p) n) of
+        Nothing -> n
+        Just n' -> Name.makeRelative n'
 
 saveRootNamesIndex :: Names -> Transaction ()
 saveRootNamesIndex Names {Names.terms, Names.types} = do

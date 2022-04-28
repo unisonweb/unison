@@ -132,7 +132,7 @@ import U.Codebase.Sqlite.LocalIds
   )
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.LocalizeObject as LocalizeObject
-import qualified U.Codebase.Sqlite.Name as S
+import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Diff as S
 import qualified U.Codebase.Sqlite.Patch.Format as S
@@ -1289,6 +1289,6 @@ rebuildNameIndex termNames typeNames = do
 
 rootBranchNamesWithin :: Maybe Text -> Transaction (([S.NamedRef V1.Referent], [S.NamedRef V1.Referent]), ([S.NamedRef V1.Reference], [S.NamedRef V1.Reference]))
 rootBranchNamesWithin pathPrefix = do
-  termNames <- Q.rootTermNamesWithin pathPrefix -- >>= (traverse . traverse) s2cReferent
-  typeNames <- Q.rootTypeNamesWithin pathPrefix -- >>= (traverse . traverse) s2cReference
+  termNames <- Q.rootTermNamesWithin pathPrefix
+  typeNames <- Q.rootTypeNamesWithin pathPrefix
   pure (termNames, typeNames)

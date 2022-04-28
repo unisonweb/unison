@@ -122,7 +122,6 @@ module U.Codebase.Sqlite.Queries
     resetNameLookupTables,
     insertTermNames,
     insertTypeNames,
-    -- loadRootBranchNames,
     rootTermNamesWithin,
     rootTypeNamesWithin,
 
@@ -158,7 +157,7 @@ import U.Codebase.Sqlite.DbId
     SchemaVersion,
     TextId,
   )
-import qualified U.Codebase.Sqlite.Name as S
+import qualified U.Codebase.Sqlite.NamedRef as S
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import U.Codebase.Sqlite.Orphans
 import qualified U.Codebase.Sqlite.Reference as Reference
@@ -923,13 +922,13 @@ resetNameLookupTables = do
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS term_name_lookup (
-        name TEXT NOT NULL,
+        reversed_name TEXT NOT NULL,
         referent_builtin INTEGER NULL,
         referent_object_id INTEGER NULL,
         referent_component_index INTEGER NULL,
         referent_constructor_index INTEGER NULL,
         referent_constructor_type INTEGER NULL,
-        PRIMARY KEY (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
+        PRIMARY KEY (reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
       )
     |]
   execute_
@@ -939,11 +938,11 @@ resetNameLookupTables = do
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS type_name_lookup (
-        name TEXT NOT NULL,
+        reversed_name TEXT NOT NULL,
         reference_builtin INTEGER NULL,
         reference_object_id INTEGER NULL,
         reference_component_index INTEGER NULL,
-        PRIMARY KEY (name, reference_builtin, reference_object_id, reference_component_index)
+        PRIMARY KEY (reversed_name, reference_builtin, reference_object_id, reference_component_index)
       );
     |]
   execute_
@@ -957,7 +956,7 @@ insertTermNames names = do
   where
     sql =
       [here|
-      INSERT INTO term_name_lookup (name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type)
+      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
@@ -968,7 +967,7 @@ insertTypeNames names =
   where
     sql =
       [here|
-      INSERT INTO type_name_lookup (name, reference_builtin, reference_object_id, reference_component_index)
+      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_object_id, reference_component_index)
         VALUES (?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
@@ -983,13 +982,15 @@ rootTermNamesWithin pathPrefix = do
     unSQLiteNames = coerce
     inPathSQL =
       [here|
-        SELECT name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
-          WHERE name LIKE ?
+        SELECT reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
+          WHERE reversed_name LIKE ?
+          ORDER BY reversed_name ASC
         |]
     outOfPathSQL =
       [here|
-        SELECT name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
-          WHERE name NOT LIKE ?
+        SELECT reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
+          WHERE reversed_name NOT LIKE ?
+          ORDER BY reversed_name ASC
         |]
 
 rootTypeNamesWithin :: Maybe Text -> Transaction ([S.NamedRef V1.Reference], [S.NamedRef V1.Reference])
@@ -1002,13 +1003,13 @@ rootTypeNamesWithin pathPrefix = do
     unSQLiteNames = coerce
     inPathSQL =
       [here|
-        SELECT name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
-          WHERE name LIKE ?
+        SELECT reversed_name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
+          WHERE reversed_name LIKE ?
         |]
     outOfPathSQL =
       [here|
-        SELECT name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
-          WHERE name NOT LIKE ?
+        SELECT reversed_name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
+          WHERE reversed_name NOT LIKE ?
         |]
 
 before :: CausalHashId -> CausalHashId -> Transaction Bool

@@ -148,11 +148,6 @@ data BackendError
 
 type Backend m a = ExceptT BackendError m a
 
--- basicSuffixifiedNames :: Int -> ScopedNames -> NameScoping -> PPE.PrettyPrintEnv
--- basicSuffixifiedNames hashLength scopedNames nameScope =
---   let names0 = scopedPrettyNames nameScope scopedNames
---    in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
-
 suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
   PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
