@@ -81,7 +81,7 @@ import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
-import Unison.Codebase.Type (GitError)
+import Unison.Codebase.Type (Codebase (..), GitError)
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
@@ -126,8 +126,11 @@ import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
+import qualified Unison.Share.Sync as Share
 import qualified Unison.ShortHash as SH
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
+import qualified Unison.Sync.Types as Share (RepoName (..), RepoPath (..), hashJWTHash)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -1757,6 +1760,33 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
       case pushBehavior of
         PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
+
+handlePushToUnisonShare :: MonadIO m => Text -> Path -> Action' m v ()
+handlePushToUnisonShare remoteRepo remotePath = do
+  let repoPath = Share.RepoPath (Share.RepoName remoteRepo) (coerce @[NameSegment] @[Text] (Path.toList remotePath))
+  Codebase {connection} <- LoopState.askCodebase
+
+  liftIO (Share.getCausalHashByPath httpClient unisonShareUrl repoPath) >>= \case
+    Left err -> undefined
+    Right causalHashJwt -> do
+      localCausalHash <- do
+        localPath <- use LoopState.currentPath
+        Sqlite.runTransaction connection (undefined (Path.toList (Path.unabsolute localPath)))
+      liftIO
+        ( Share.push
+            httpClient
+            unisonShareUrl
+            connection
+            repoPath
+            (Share.hashJWTHash <$> causalHashJwt)
+            localCausalHash
+        )
+        >>= \case
+          Left pushError -> undefined
+          Right () -> pure ()
+  where
+    httpClient = undefined
+    unisonShareUrl = undefined
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition ::
