@@ -144,22 +144,20 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
       maybe mempty Path.fromPath'
         <$> traverse (parsePath . Text.unpack) relativePath
     hashLength <- lift $ Codebase.hashLength codebase
-    ea <- lift . runExceptT $ do
-      root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-      branch0 <- Branch.head <$> Backend.resolveBranchHash root codebase
-      let scopedNames = Branch.toScopedNames rel branch0
-      let alignments ::
-            ( [ ( FZF.Alignment,
-                  UnisonName,
-                  [Backend.FoundRef]
-                )
-              ]
-            )
-          alignments =
-            take (fromMaybe 10 limit) $ Backend.fuzzyFind (ScopedNames.namesAtPath scopedNames) (fromMaybe "" query)
-          ppe = Backend.suffixifyNames hashLength (ScopedNames.prettyNames scopedNames)
-      lift (join <$> traverse (loadEntry ppe) alignments)
-    liftEither ea
+    root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
+    branch0 <- Branch.head <$> Backend.resolveBranchHash root codebase
+    let scopedNames = Branch.toScopedNames rel branch0
+    let alignments ::
+          ( [ ( FZF.Alignment,
+                UnisonName,
+                [Backend.FoundRef]
+              )
+            ]
+          )
+        alignments =
+          take (fromMaybe 10 limit) $ Backend.fuzzyFind (ScopedNames.namesAtPath scopedNames) (fromMaybe "" query)
+        ppe = Backend.suffixifyNames hashLength (ScopedNames.prettyNames scopedNames)
+    lift (join <$> traverse (loadEntry ppe) alignments)
   where
     loadEntry ppe (a, HQ'.NameOnly . NameSegment -> n, refs) =
       for refs $

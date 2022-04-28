@@ -12,6 +12,7 @@ import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
 import Control.Lens ((.~))
+import Control.Monad.Reader
 import Control.Monad.Trans.Except
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
@@ -86,7 +87,7 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.Server.Backend (Backend)
+import Unison.Server.Backend (Backend, BackendEnv, runBackend)
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
@@ -198,13 +199,14 @@ appAPI :: Proxy AppAPI
 appAPI = Proxy
 
 app ::
+  BackendEnv ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   FilePath ->
   Strict.ByteString ->
   Application
-app rt codebase uiPath expectedToken =
-  serve appAPI $ server rt codebase uiPath expectedToken
+app env rt codebase uiPath expectedToken =
+  serve appAPI $ server env rt codebase uiPath expectedToken
 
 -- | The Token is used to help prevent multiple users on a machine gain access to
 -- each others codebases.
@@ -250,12 +252,13 @@ data CodebaseServerOpts = CodebaseServerOpts
 
 -- The auth token required for accessing the server is passed to the function k
 startServer ::
+  BackendEnv ->
   CodebaseServerOpts ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   (BaseUrl -> IO ()) ->
   IO ()
-startServer opts rt codebase onStart = do
+startServer env opts rt codebase onStart = do
   -- the `canonicalizePath` resolves symlinks
   exePath <- canonicalizePath =<< getExecutablePath
   envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") (codebaseUIPath opts)
@@ -267,7 +270,7 @@ startServer opts rt codebase onStart = do
         defaultSettings
           & maybe id setPort (port opts)
           & maybe id (setHost . fromString) (host opts)
-  let a = app rt codebase envUI token
+  let a = app env rt codebase envUI token
   case port opts of
     Nothing -> withApplicationSettings settings (pure a) (onStart . baseUrl)
     Just p -> do
@@ -304,23 +307,24 @@ serveUI :: FilePath -> Server WebUI
 serveUI path _ = serveIndex path
 
 server ::
+  BackendEnv ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   FilePath ->
   Strict.ByteString ->
   Server AppAPI
-server rt codebase uiPath expectedToken =
+server backendEnv rt codebase uiPath expectedToken =
   serveDirectoryWebApp (uiPath </> "static")
     :<|> hoistWithAuth serverAPI expectedToken serveServer
   where
     serveServer :: Server ServerAPI
     serveServer =
       ( serveUI uiPath
-          :<|> serveUnisonAndDocs rt codebase
+          :<|> serveUnisonAndDocs backendEnv rt codebase
       )
 
-serveUnisonAndDocs :: Rt.Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
-serveUnisonAndDocs rt codebase = serveUnison codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
+serveUnisonAndDocs :: BackendEnv -> Rt.Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
+serveUnisonAndDocs env rt codebase = serveUnison env codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
 
 serveDocs :: Application
 serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
@@ -335,17 +339,18 @@ hoistWithAuth :: forall api. HasServer api '[] => Proxy api -> ByteString -> Ser
 hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handler api (\h -> handleAuth expectedToken token *> h) server
 
 serveUnison ::
+  BackendEnv ->
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
   Server UnisonAPI
-serveUnison codebase rt =
-  hoistServer (Proxy @UnisonAPI) backendHandler $
+serveUnison env codebase rt =
+  hoistServer (Proxy @UnisonAPI) (backendHandler env) $
     (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase root rel name)
       :<|> (\namespaceName mayRoot mayWidth -> setCacheControl <$> NamespaceDetails.serve rt codebase namespaceName mayRoot mayWidth)
       :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase mayRoot mayOwner)
       :<|> (\mayRoot relativePath rawHqns width suff -> setCacheControl <$> serveDefinitions rt codebase mayRoot relativePath rawHqns width suff)
       :<|> (\mayRoot relativePath limit typeWidth query -> setCacheControl <$> serveFuzzyFind codebase mayRoot relativePath limit typeWidth query)
 
-backendHandler :: Backend IO a -> Handler a
-backendHandler m =
-  Handler $ withExceptT backendError m
+backendHandler :: BackendEnv -> Backend IO a -> Handler a
+backendHandler env m =
+  Handler $ withExceptT backendError (runReaderT (runBackend m) env)

@@ -10,12 +10,10 @@
 
 module Unison.Server.Backend where
 
-import Control.Error.Util (hush, (??))
+import Control.Error.Util (hush)
 import Control.Lens hiding ((??))
 import Control.Monad.Except
-  ( ExceptT (..),
-    throwError,
-  )
+import Control.Monad.Reader
 import Data.Bifunctor (first)
 import Data.Containers.ListUtils (nubOrdOn)
 import qualified Data.List as List
@@ -146,7 +144,16 @@ data BackendError
   | CouldntLoadBranch Branch.Hash
   | MissingSignatureForTerm Reference
 
-type Backend m a = ExceptT BackendError m a
+data BackendEnv = BackendEnv
+  { -- | Whether to use the sqlite name-lookup table to generate Names objects rather than building Names from the root branch.
+    useNamesIndex :: Bool
+  }
+
+newtype Backend m a = Backend {runBackend :: ReaderT BackendEnv (ExceptT BackendError m) a}
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader BackendEnv, MonadError BackendError)
+
+instance MonadTrans Backend where
+  lift m = Backend (lift . lift $ m)
 
 suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
@@ -786,7 +793,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
           DisplayObject
             (AnnotatedText (UST.Element Reference))
             (AnnotatedText (UST.Element Reference)) ->
-          ExceptT BackendError IO TermDefinition
+          Backend IO TermDefinition
         )
       mkTermDefinition r tm = do
         let referent = Referent.Ref r
@@ -998,7 +1005,7 @@ resolveBranchHash h codebase = case h of
   Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
-    mayBranch ?? NoBranchForHash bhash
+    whenNothing mayBranch (throwError $ NoBranchForHash bhash)
 
 resolveRootBranchHash ::
   Monad m => Maybe ShortBranchHash -> Codebase m v a -> Backend m (Branch m)

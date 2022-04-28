@@ -172,7 +172,7 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
           UnisonName ->
           UnisonHash ->
           [Backend.ShallowListEntry Symbol a] ->
-          ExceptT Backend.BackendError IO NamespaceListing
+          Backend IO NamespaceListing
         )
       makeNamespaceListing ppe fqn hash entries =
         pure . NamespaceListing fqn hash $

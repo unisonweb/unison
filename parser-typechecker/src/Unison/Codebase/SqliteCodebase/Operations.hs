@@ -365,13 +365,6 @@ getRootBranch doGetDeclType rootBranchCache =
       Sqlite.unsafeIO (atomically (writeTVar rootBranchCache (Just (ver, branch1))))
       pure branch1
 
--- | Get a root branch without any caching. This may be used in migrations where a codebase
--- isn't available.
-uncachedGetRootBranch :: Transaction (Branch Transaction)
-uncachedGetRootBranch = do
-  causal2 <- Ops.expectRootCausal
-  Cv.causalbranch2to1 getDeclType causal2
-
 getRootBranchExists :: Transaction Bool
 getRootBranchExists =
   isJust <$> Ops.loadRootCausalHash
