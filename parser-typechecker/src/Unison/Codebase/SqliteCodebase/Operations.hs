@@ -573,11 +573,8 @@ namesWithinPath path = do
 
 saveRootNamesIndex :: Names -> Transaction ()
 saveRootNamesIndex Names {Names.terms, Names.types} = do
-  start <- Sqlite.unsafeIO Time.getCurrentTime
   let termNames :: [(S.NamedRef Referent.Referent)]
       termNames = coerce @[(Name, Referent.Referent)] @[S.NamedRef Referent.Referent] $ Rel.toList terms
   let typeNames :: [(S.NamedRef Reference.Reference)]
       typeNames = coerce @[(Name, Reference.Reference)] @[S.NamedRef Reference.Reference] $ Rel.toList types
   Ops.rebuildNameIndex termNames typeNames
-  end <- Sqlite.unsafeIO Time.getCurrentTime
-  traceShowM (Time.diffUTCTime end start)
