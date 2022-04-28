@@ -42,6 +42,7 @@ import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
 import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment)
 import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
 import Unison.Names.Scoped (ScopedNames (..))
@@ -541,18 +542,22 @@ namesWithinPath ::
   Maybe Path ->
   Transaction ScopedNames
 namesWithinPath path = do
-  ((termNamesInPath, termNamesOutOfPath), (typeNamesInPath, typeNamesOutOfPath)) <- Ops.rootBranchNamesWithin ((("." <>) . Path.toText) <$> path)
-  let termsInPath = Rel.fromListDomainAsc $ coerce @[S.NamedRef Referent.Referent] @[(Name, Referent.Referent)] termNamesInPath
-  let termsOutOfPath = Rel.fromListDomainAsc $ coerce @[S.NamedRef Referent.Referent] @[(Name, Referent.Referent)] termNamesOutOfPath
-  let typesInPath = Rel.fromListDomainAsc $ coerce @[S.NamedRef Reference.Reference] @[(Name, Reference.Reference)] typeNamesInPath
-  let typesOutOfPath = Rel.fromListDomainAsc $ coerce @[S.NamedRef Reference.Reference] @[(Name, Reference.Reference)] typeNamesOutOfPath
-  let absoluteExternalNames = Names {terms = termsOutOfPath, types = typesOutOfPath}
-  let absoluteNamesInPath = Names {terms = termsInPath, types = typesInPath}
-  let absoluteRootNames = absoluteExternalNames <> absoluteNamesInPath
-  let relativeScopedNames =
+  (termNames, typeNames) <- Ops.rootBranchNames
+  let allTerms = coerce @[S.NamedRef Referent.Referent] @[(Name, Referent.Referent)] termNames
+  let allTypes = coerce @[S.NamedRef Reference.Reference] @[(Name, Reference.Reference)] typeNames
+  let rootTerms = Rel.fromListDomainAsc allTerms
+  let rootTypes = Rel.fromListDomainAsc allTypes
+  let absoluteRootNames = Names {terms = rootTerms, types = rootTypes}
+  let (relativeScopedNames, absoluteExternalNames) =
         case path of
-          Just p@(_ Path.:> _) -> Names.map (stripPathPrefix p) (Names {terms = termsInPath, types = typesInPath})
-          _ -> absoluteRootNames
+          Just p@(_ Path.:> _) ->
+            let reversedPathSegments = reverse . Path.toList $ p
+                (relativeTerms, externalTerms) = foldMap (partitionByPathPrefix reversedPathSegments) allTerms
+                (relativeTypes, externalTypes) = foldMap (partitionByPathPrefix reversedPathSegments) allTypes
+             in ( Names {terms = Rel.fromListDomainAsc relativeTerms, types = Rel.fromListDomainAsc relativeTypes},
+                  Names {terms = Rel.fromListDomainAsc externalTerms, types = Rel.fromListDomainAsc externalTypes}
+                )
+          _ -> (absoluteRootNames, mempty)
   pure $
     ScopedNames
       { absoluteExternalNames,
@@ -560,11 +565,11 @@ namesWithinPath path = do
         absoluteRootNames
       }
   where
-    stripPathPrefix :: Path -> Name -> Name
-    stripPathPrefix p n =
-      case (Name.stripNamePrefix (Path.toName p) n) of
-        Nothing -> n
-        Just n' -> Name.makeRelative n'
+    partitionByPathPrefix :: [NameSegment] -> (Name, r) -> ([(Name, r)], [(Name, r)])
+    partitionByPathPrefix reversedPathSegments (n, ref) =
+      case Name.stripReversedPrefix n reversedPathSegments of
+        Nothing -> (mempty, [(n, ref)])
+        Just stripped -> ([(Name.makeRelative stripped, ref)], mempty)
 
 saveRootNamesIndex :: Names -> Transaction ()
 saveRootNamesIndex Names {Names.terms, Names.types} = do

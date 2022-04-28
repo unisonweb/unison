@@ -210,7 +210,7 @@ main = withCP65001 do
       Launch isHeadless codebaseServerOpts downloadBase -> do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime RTI.Persistent Version.gitDescribeWithDate
-          Server.startServer (Backend.BackendEnv {Backend.useNamesIndex=False}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
+          Server.startServer (Backend.BackendEnv {Backend.useNamesIndex=True}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
             case isHeadless of
               Headless -> do
                 PT.putPrettyLn $

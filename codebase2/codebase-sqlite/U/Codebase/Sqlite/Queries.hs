@@ -122,8 +122,8 @@ module U.Codebase.Sqlite.Queries
     resetNameLookupTables,
     insertTermNames,
     insertTypeNames,
-    rootTermNamesWithin,
-    rootTypeNamesWithin,
+    rootTermNames,
+    rootTypeNames,
 
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
@@ -972,44 +972,28 @@ insertTypeNames names =
         ON CONFLICT DO NOTHING
         |]
 
-rootTermNamesWithin :: Maybe Text -> Transaction ([S.NamedRef V1.Referent], [S.NamedRef V1.Referent])
-rootTermNamesWithin pathPrefix = do
-  inPath <- unSQLiteNames <$> queryListRow inPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
-  outOfPath <- unSQLiteNames <$> queryListRow outOfPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
-  pure (inPath, outOfPath)
+rootTermNames :: Transaction [S.NamedRef V1.Referent]
+rootTermNames = do
+  unSQLiteNames <$> queryListRow_ sql
   where
     unSQLiteNames :: [S.NamedRef (AsSqlite r)] -> [S.NamedRef r]
     unSQLiteNames = coerce
-    inPathSQL =
+    sql =
       [here|
         SELECT reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
-          WHERE reversed_name LIKE ?
-          ORDER BY reversed_name ASC
-        |]
-    outOfPathSQL =
-      [here|
-        SELECT reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
-          WHERE reversed_name NOT LIKE ?
           ORDER BY reversed_name ASC
         |]
 
-rootTypeNamesWithin :: Maybe Text -> Transaction ([S.NamedRef V1.Reference], [S.NamedRef V1.Reference])
-rootTypeNamesWithin pathPrefix = do
-  inPath <- unSQLiteNames <$> queryListRow inPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
-  outOfPath <- unSQLiteNames <$> queryListRow outOfPathSQL (Only $ fromMaybe "" pathPrefix <> "%")
-  pure (inPath, outOfPath)
+rootTypeNames :: Transaction [S.NamedRef V1.Reference]
+rootTypeNames = do
+  unSQLiteNames <$> queryListRow_ sql
   where
     unSQLiteNames :: [S.NamedRef (AsSqlite r)] -> [S.NamedRef r]
     unSQLiteNames = coerce
-    inPathSQL =
+    sql =
       [here|
         SELECT reversed_name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
-          WHERE reversed_name LIKE ?
-        |]
-    outOfPathSQL =
-      [here|
-        SELECT reversed_name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
-          WHERE reversed_name NOT LIKE ?
+        ORDER BY reversed_name ASC
         |]
 
 before :: CausalHashId -> CausalHashId -> Transaction Bool
