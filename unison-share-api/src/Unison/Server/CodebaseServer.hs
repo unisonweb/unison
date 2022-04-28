@@ -248,13 +248,22 @@ data CodebaseServerOpts = CodebaseServerOpts
   }
   deriving (Show, Eq)
 
+defaultCodebaseServerOpts :: CodebaseServerOpts
+defaultCodebaseServerOpts =
+  CodebaseServerOpts
+    { token = Nothing,
+      host = Nothing,
+      port = Nothing,
+      codebaseUIPath = Nothing
+    }
+
 -- The auth token required for accessing the server is passed to the function k
 startServer ::
   CodebaseServerOpts ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  (BaseUrl -> IO ()) ->
-  IO ()
+  (BaseUrl -> IO a) ->
+  IO a
 startServer opts rt codebase onStart = do
   -- the `canonicalizePath` resolves symlinks
   exePath <- canonicalizePath =<< getExecutablePath
