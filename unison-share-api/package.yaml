@@ -19,6 +19,7 @@ dependencies:
   - fuzzyfind
   - http-media
   - http-types
+  - jwt
   - lens
   - lucid
   - memory
@@ -42,6 +43,7 @@ dependencies:
   - unison-util-base32hex
   - unison-util-relation
   - unliftio
+  - unordered-containers
   - uri-encode
   - utf8-string
   - wai

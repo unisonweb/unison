@@ -10,16 +10,16 @@ import Data.Bifoldable
 import Data.Bifunctor
 import Data.Bitraversable
 import Data.ByteArray.Encoding (Base (Base64), convertFromBase, convertToBase)
-import Data.ByteString (ByteString)
-import Data.Function ((&))
+import qualified Data.HashMap.Strict as HashMap
 import Data.Map.NonEmpty (NEMap)
-import Data.Set (Set)
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import U.Util.Base32Hex (Base32Hex (..))
+import Unison.Prelude
+import qualified Web.JWT as JWT
 
 -- | A newtype for JSON encoding binary data.
 newtype Base64Bytes = Base64Bytes ByteString
@@ -53,11 +53,34 @@ data DecodedHashJWT = DecodedHashJWT
 
 -- | Decode a hash JWT.
 decodeHashJWT :: HashJWT -> DecodedHashJWT
-decodeHashJWT = undefined
+decodeHashJWT hashJWT =
+  DecodedHashJWT
+    { claims = decodeHashJWTClaims hashJWT,
+      hashJWT
+    }
+
+-- | Decode the claims out of a hash JWT.
+decodeHashJWTClaims :: HashJWT -> HashJWTClaims
+decodeHashJWTClaims (HashJWT text) =
+  case JWT.decode text of
+    Nothing -> error "bad JWT"
+    Just jwt ->
+      let object =
+            jwt
+              & JWT.claims
+              & JWT.unregisteredClaims
+              & JWT.unClaimsMap
+              & Map.toList
+              & HashMap.fromList
+              & Aeson.Object
+       in case Aeson.fromJSON object of
+            Aeson.Error err -> error ("bad JWT: " ++ err)
+            Aeson.Success claims -> claims
 
 -- | Grab the hash out of a decoded hash JWT.
 decodedHashJWTHash :: DecodedHashJWT -> Hash
-decodedHashJWTHash = undefined
+decodedHashJWTHash DecodedHashJWT {claims = HashJWTClaims {hash}} =
+  hash
 
 data HashJWTClaims = HashJWTClaims
   { hash :: Hash,
