@@ -486,7 +486,8 @@ sqliteCodebase debugName root localOrRemote action = do
               branchHashLength = branchHashLength,
               branchHashesByPrefix = branchHashesByPrefix,
               lcaImpl = (Just sqlLca),
-              beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r)
+              beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r),
+              connection = conn
             }
     let finalizer :: MonadIO m => m ()
         finalizer = do
