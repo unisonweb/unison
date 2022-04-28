@@ -169,12 +169,9 @@ withTranscriptRunner ::
 withTranscriptRunner ucmVersion configFile action = do
   withRuntime $ \runtime -> withConfig $ \config -> do
     action $ \transcriptName transcriptSrc (codebaseDir, codebase) -> do
-      traceM "Starting server"
       Server.startServer Server.defaultCodebaseServerOpts runtime codebase $ \baseUrl -> do
-        traceM "Server started"
         let parsed = parse transcriptName transcriptSrc
         result <- for parsed $ \stanzas -> do
-          traceM "Parsed"
           liftIO $ run codebaseDir stanzas codebase runtime config ucmVersion (tShow baseUrl)
         pure $ join @(Either TranscriptError) result
   where
@@ -252,13 +249,14 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
         apiRequest :: APIRequest -> IO ()
         apiRequest req@(GetRequest path) = do
           output (show req <> "\n")
-          req <- HTTP.parseRequest (Text.unpack $ baseURL <> path)
-          traceM $ "Making request to: " <> (Text.unpack $ baseURL <> path)
+          req <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
+            Left err -> dieWithMsg (show err)
+            Right req -> pure req
           respBytes <- HTTP.httpLbs req httpManager
           case Aeson.eitherDecode (HTTP.responseBody respBytes) of
             Right (v :: Aeson.Value) -> output . BL.unpack $ Aeson.encodePretty v
             Left err -> dieWithMsg err
-          traceM $ "done request"
+          output "\n"
 
         awaitInput :: IO (Either Event Input)
         awaitInput = do
@@ -484,7 +482,6 @@ ucmLine = ucmCommand <|> ucmComment
 
 apiRequest :: P APIRequest
 apiRequest = do
-  traceM "Parsing apiRequest"
   word "GET"
   spaces
   getRequest <- P.takeWhile1P Nothing (/= '\n') <* spaces
@@ -514,11 +511,8 @@ fenced = do
           blob <- spaces *> untilFence
           pure $ Unison hide err fileName blob
       "api" -> do
-        traceM "API fence"
         _ <- spaces
-        traceM "After spaces"
         apiRequests <- many apiRequest
-        traceShowM apiRequests
         pure $ API apiRequests
       _ -> UnprocessedFence fenceType <$> untilFence
   fence
