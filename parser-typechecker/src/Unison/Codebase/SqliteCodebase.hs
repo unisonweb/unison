@@ -240,7 +240,7 @@ sqliteCodebase debugName root localOrRemote action = do
         -- option 3: switch from putTerm to putTermComponent -- needs to buffer dependencies non-locally (or require application to manage + die horribly)
 
         putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
-        putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
+        putTerm id tm tp | debug && trace ("SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
         putTerm id tm tp =
           Sqlite.runTransaction conn (CodebaseOps.putTerm termBuffer declBuffer id tm tp)
 

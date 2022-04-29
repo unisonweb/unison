@@ -219,7 +219,7 @@ decl2to1 h (V2.Decl.DataDeclaration dt m bound cts) =
     goCT = \case
       V2.Decl.Data -> Right
       V2.Decl.Effect -> Left . V1.Decl.EffectDeclaration
-    cts' = map mkCtor (zip cts [0 ..])
+    cts' = map mkCtor (zip cts [0 :: V2.Decl.ConstructorId ..])
     mkCtor (type1, i) =
       (Ann.External, V1.symbol . pack $ "Constructor" ++ show i, type2)
       where
