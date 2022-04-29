@@ -202,7 +202,7 @@ run ::
   Codebase IO Symbol Ann ->
   Runtime.Runtime Symbol ->
   Maybe Config ->
-  Text ->
+  UCMVersion ->
   Text ->
   IO (Either TranscriptError Text)
 run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
