@@ -30,7 +30,6 @@ import Unison.CodebasePath (CodebasePath)
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
-import Unison.Names (Names)
 import Unison.Names.Scoped (ScopedNames)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -174,8 +173,9 @@ data Codebase m v a = Codebase
     -- NOTE: this method requires an up-to-date name lookup index, which is
     -- currently not kept up-to-date automatically (because it's slow to do so).
     namesWithinPath :: Maybe Path -> m ScopedNames,
-    -- Deletes the existing name lookup index and replaces it with the provided names.
-    updateNameLookup :: Names -> m ()
+    -- Updates the root namespace names index.
+    -- This isn't run automatically because it can be a bit slow.
+    updateNameLookup :: m ()
   }
 
 -- | Whether a codebase is local or remote.
