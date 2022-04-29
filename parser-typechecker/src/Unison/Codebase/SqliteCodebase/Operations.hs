@@ -15,7 +15,6 @@ import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Data.Time as Time
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
