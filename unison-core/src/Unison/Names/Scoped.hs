@@ -3,16 +3,6 @@ module Unison.Names.Scoped where
 import Unison.Names (Names)
 import qualified Unison.Names as Names
 
--- | Configure how names will be filtered.
---   this is typically used when fetching names for printing source code or when finding
---   definitions by name.
-data NamesFilter
-  = -- | Include all names
-    -- otherwise leave them absolute.
-    AllNames
-  | -- | Filter returned names to only include names within this path.
-    Scoped
-
 -- | Contains all useful permutations of names scoped to a given branch.
 data ScopedNames = ScopedNames
   { absoluteExternalNames :: Names,

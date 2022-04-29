@@ -29,15 +29,12 @@ import Servant.OpenApi ()
 import qualified Text.FuzzyFind as FZF
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment
-import qualified Unison.Names.Scoped as ScopedNames
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
@@ -145,8 +142,7 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
         <$> traverse (parsePath . Text.unpack) relativePath
     hashLength <- lift $ Codebase.hashLength codebase
     root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    branch0 <- Branch.head <$> Backend.resolveBranchHash root codebase
-    let scopedNames = Branch.toScopedNames rel branch0
+    branch <- Backend.resolveBranchHash root codebase
     let alignments ::
           ( [ ( FZF.Alignment,
                 UnisonName,
@@ -155,8 +151,8 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
             ]
           )
         alignments =
-          take (fromMaybe 10 limit) $ Backend.fuzzyFind (ScopedNames.namesAtPath scopedNames) (fromMaybe "" query)
-        ppe = Backend.suffixifyNames hashLength (ScopedNames.prettyNames scopedNames)
+          take (fromMaybe 10 limit) $ Backend.fuzzyFind (Backend.prettyNamesForBranch branch (Backend.Within rel)) (fromMaybe "" query)
+        ppe = Backend.suffixifyNames hashLength (Backend.prettyNamesForBranch branch (Backend.AllNames rel))
     lift (join <$> traverse (loadEntry ppe) alignments)
   where
     loadEntry ppe (a, HQ'.NameOnly . NameSegment -> n, refs) =

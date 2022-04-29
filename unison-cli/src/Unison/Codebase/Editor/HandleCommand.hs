@@ -21,7 +21,6 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UCMVersion, UseCache)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
@@ -31,8 +30,7 @@ import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
 import qualified Unison.Hashing.V2.Convert as Hashing
-import qualified Unison.Names.Scoped as ScopedNames
-import Unison.NamesWithHistory (NamesWithHistory (..))
+import qualified Unison.NamesWithHistory as NamesWithHistory
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
@@ -213,17 +211,16 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
       HQNameQuery mayPath branch query -> do
         hqLength <- lift $ Codebase.hashLength codebase
-        let scopedNames = Branch.toScopedNames (fromMaybe Path.empty mayPath) (Branch.head branch)
-        let parseNames = ScopedNames.parseNames scopedNames
-        let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory {currentNames = parseNames, oldNames = mempty})
+        let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
+        let parseNames = Backend.parseNamesForBranch branch namingScope
+        let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
         lift $ Backend.hqNameQuery codebase nameSearch query
       LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
       GetDefinitionsBySuffixes mayPath branch includeCycles query -> do
-        let scopedNames = Branch.toScopedNames (fromMaybe Path.empty mayPath) (Branch.head branch)
         hqLength <- lift $ Codebase.hashLength codebase
-        let parseNames = ScopedNames.parseNames scopedNames
-        let nameSearch :: Backend.NameSearch _
-            nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory {currentNames = parseNames, oldNames = mempty})
+        let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
+        let parseNames = Backend.parseNamesForBranch branch namingScope
+        let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
         lift (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
       FindShallow path -> liftIO $ Backend.findShallow codebase path
       MakeStandalone ppe ref out -> lift $ do

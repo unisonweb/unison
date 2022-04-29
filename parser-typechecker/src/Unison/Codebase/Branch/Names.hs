@@ -10,25 +10,19 @@ module Unison.Codebase.Branch.Names
     findHistoricalRefs',
     namesDiff,
     toNames,
-    toScopedNames,
   )
 where
 
 import qualified Data.Set as Set
 import Unison.Codebase.Branch
-import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal.FoldHistory as Causal
-import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.Names (Names (..))
 import qualified Unison.Names as Names
-import Unison.Names.Scoped (ScopedNames (..))
 import qualified Unison.NamesWithHistory as Names
 import Unison.Prelude hiding (empty)
 import Unison.Reference (Reference)
@@ -42,24 +36,6 @@ toNames b =
   Names
     (R.swap . deepTerms $ b)
     (R.swap . deepTypes $ b)
-
--- | Compute all useful permutations of names scoped to a given path.
-toScopedNames :: Path -> Branch0 m -> ScopedNames
-toScopedNames path root0 =
-  ScopedNames
-    { absoluteExternalNames = externalNames,
-      relativeScopedNames = currentPathNames,
-      absoluteRootNames = absoluteRootNames
-    }
-  where
-    rootNames = toNames root0
-    currentBranch0 = Branch.getAt0 path root0
-    absoluteRootNames = Names.makeAbsolute (toNames root0)
-    currentPathNames = toNames currentBranch0
-    externalNames = Names.mapNames Name.makeAbsolute (rootNames `Names.difference` pathPrefixed currentPathNames)
-    pathPrefixed = case path of
-      Path.Empty -> const mempty
-      p -> Names.prefix0 (Path.toName p)
 
 -- This stops searching for a given HashQualified once it encounters
 -- any term or type in any Branch0 that satisfies that HashQualified.

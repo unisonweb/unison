@@ -174,6 +174,7 @@ data Codebase m v a = Codebase
     -- NOTE: this method requires an up-to-date name lookup index, which is
     -- currently not kept up-to-date automatically (because it's slow to do so).
     namesWithinPath :: Maybe Path -> m ScopedNames,
+    -- Deletes the existing name lookup index and replaces it with the provided names.
     updateNameLookup :: Names -> m ()
   }
 

@@ -376,8 +376,6 @@ putRootBranch rootBranchCache branch1 = do
   void (Ops.saveRootBranch (Cv.causalbranch1to2 branch1))
   Sqlite.unsafeIO (atomically $ modifyTVar' rootBranchCache (fmap . second $ const branch1))
 
--- saveRootNamesIndex (Branch.toNames $ Branch.head branch1)
-
 -- if this blows up on cromulent hashes, then switch from `hashToHashId`
 -- to one that returns Maybe.
 getBranchForHash ::
