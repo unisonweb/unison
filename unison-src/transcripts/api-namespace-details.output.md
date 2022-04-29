@@ -33,6 +33,7 @@ nested.names.readme = {{ I'm a readme! }}
 ```api
 GET /api/namespaces/nested.names
 {
+    "fqn": "nested.names",
     "hash": "#oms19b4f9s3c8tb5skeb8jii95ij35n3hdg038pu6rv5b0fikqe4gd7lnu6a1i6aq5tdh2opdo4s0sfrupvk6vfkr9lf0n752gbl8o0",
     "readme": {
         "contents": [
@@ -50,7 +51,6 @@ GET /api/namespaces/nested.names
             }
         ],
         "tag": "Paragraph"
-    },
-    "fqn": "nested.names"
+    }
 }
 ```

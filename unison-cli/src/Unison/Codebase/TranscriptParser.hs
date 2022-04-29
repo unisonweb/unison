@@ -259,7 +259,9 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
                 Right req -> pure req
               respBytes <- HTTP.httpLbs req httpManager
               case Aeson.eitherDecode (HTTP.responseBody respBytes) of
-                Right (v :: Aeson.Value) -> output . (<> "\n") . BL.unpack $ Aeson.encodePretty v
+                Right (v :: Aeson.Value) -> do
+                  let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
+                  output . (<> "\n") . BL.unpack $ prettyBytes
                 Left err -> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err)
 
         awaitInput :: IO (Either Event Input)

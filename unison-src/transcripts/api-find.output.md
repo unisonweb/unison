@@ -38,7 +38,6 @@ GET /api/find?query=http
 [
     [
         {
-            "score": 156,
             "result": {
                 "segments": [
                     {
@@ -54,7 +53,8 @@ GET /api/find?query=http
                         "tag": "Gap"
                     }
                 ]
-            }
+            },
+            "score": 156
         },
         {
             "contents": {
@@ -79,7 +79,6 @@ GET /api/find?query=http
     ],
     [
         {
-            "score": 156,
             "result": {
                 "segments": [
                     {
@@ -95,7 +94,8 @@ GET /api/find?query=http
                         "tag": "Gap"
                     }
                 ]
-            }
+            },
+            "score": 156
         },
         {
             "contents": {
@@ -124,7 +124,6 @@ GET /api/find?query=Server
 [
     [
         {
-            "score": 223,
             "result": {
                 "segments": [
                     {
@@ -140,7 +139,8 @@ GET /api/find?query=Server
                         "tag": "Gap"
                     }
                 ]
-            }
+            },
+            "score": 223
         },
         {
             "contents": {
@@ -169,7 +169,6 @@ GET /api/find?query=lesys
 [
     [
         {
-            "score": 175,
             "result": {
                 "segments": [
                     {
@@ -185,7 +184,8 @@ GET /api/find?query=lesys
                         "tag": "Gap"
                     }
                 ]
-            }
+            },
+            "score": 175
         },
         {
             "contents": {
@@ -214,7 +214,6 @@ GET /api/find?query=joey.http
 [
     [
         {
-            "score": 300,
             "result": {
                 "segments": [
                     {
@@ -226,7 +225,8 @@ GET /api/find?query=joey.http
                         "tag": "Gap"
                     }
                 ]
-            }
+            },
+            "score": 300
         },
         {
             "contents": {

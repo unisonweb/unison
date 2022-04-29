@@ -30,8 +30,11 @@ nested.names.x = 42
 --  Should find names by suffix
 GET /api/getDefinition?names=x
 {
+    "missingDefinitions": [],
     "termDefinitions": {
         "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8": {
+            "bestTermName": "x",
+            "defnTermTag": null,
             "signature": [
                 {
                     "annotation": {
@@ -40,21 +43,6 @@ GET /api/getDefinition?names=x
                     },
                     "segment": "Nat"
                 }
-            ],
-            "termDocs": [
-                [
-                    "doc",
-                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
-                    {
-                        "contents": [
-                            {
-                                "contents": "Documentation",
-                                "tag": "Word"
-                            }
-                        ],
-                        "tag": "Paragraph"
-                    }
-                ]
             ],
             "termDefinition": {
                 "contents": [
@@ -112,21 +100,36 @@ GET /api/getDefinition?names=x
                 ],
                 "tag": "UserObject"
             },
+            "termDocs": [
+                [
+                    "doc",
+                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
+                    {
+                        "contents": [
+                            {
+                                "contents": "Documentation",
+                                "tag": "Word"
+                            }
+                        ],
+                        "tag": "Paragraph"
+                    }
+                ]
+            ],
             "termNames": [
                 "nested.names.x"
-            ],
-            "defnTermTag": null,
-            "bestTermName": "x"
+            ]
         }
     },
-    "typeDefinitions": {},
-    "missingDefinitions": []
+    "typeDefinitions": {}
 }
 --  Term names should strip relativeTo prefix.
 GET /api/getDefinition?names=x&relativeTo=nested
 {
+    "missingDefinitions": [],
     "termDefinitions": {
         "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8": {
+            "bestTermName": "x",
+            "defnTermTag": null,
             "signature": [
                 {
                     "annotation": {
@@ -135,21 +138,6 @@ GET /api/getDefinition?names=x&relativeTo=nested
                     },
                     "segment": "Nat"
                 }
-            ],
-            "termDocs": [
-                [
-                    "doc",
-                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
-                    {
-                        "contents": [
-                            {
-                                "contents": "Documentation",
-                                "tag": "Word"
-                            }
-                        ],
-                        "tag": "Paragraph"
-                    }
-                ]
             ],
             "termDefinition": {
                 "contents": [
@@ -207,14 +195,26 @@ GET /api/getDefinition?names=x&relativeTo=nested
                 ],
                 "tag": "UserObject"
             },
+            "termDocs": [
+                [
+                    "doc",
+                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
+                    {
+                        "contents": [
+                            {
+                                "contents": "Documentation",
+                                "tag": "Word"
+                            }
+                        ],
+                        "tag": "Paragraph"
+                    }
+                ]
+            ],
             "termNames": [
                 "names.x"
-            ],
-            "defnTermTag": null,
-            "bestTermName": "x"
+            ]
         }
     },
-    "typeDefinitions": {},
-    "missingDefinitions": []
+    "typeDefinitions": {}
 }
 ```
