@@ -84,9 +84,11 @@ data UcmLine
 
 data APIRequest
   = GetRequest Text
+  | APIComment Text
 
 instance Show APIRequest where
   show (GetRequest txt) = "GET " <> Text.unpack txt
+  show (APIComment txt) = "-- " <> Text.unpack txt
 
 data Stanza
   = Ucm Hidden ExpectingError [UcmLine]
@@ -247,16 +249,18 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
         outputEcho = output' True
 
         apiRequest :: APIRequest -> IO ()
-        apiRequest req@(GetRequest path) = do
+        apiRequest req = do
           output (show req <> "\n")
-          req <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
-            Left err -> dieWithMsg (show err)
-            Right req -> pure req
-          respBytes <- HTTP.httpLbs req httpManager
-          case Aeson.eitherDecode (HTTP.responseBody respBytes) of
-            Right (v :: Aeson.Value) -> output . BL.unpack $ Aeson.encodePretty v
-            Left err -> dieWithMsg err
-          output "\n"
+          case req of
+            (APIComment {}) -> pure ()
+            (GetRequest path) -> do
+              req <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
+                Left err -> dieWithMsg (show err)
+                Right req -> pure req
+              respBytes <- HTTP.httpLbs req httpManager
+              case Aeson.eitherDecode (HTTP.responseBody respBytes) of
+                Right (v :: Aeson.Value) -> output . (<> "\n") . BL.unpack $ Aeson.encodePretty v
+                Left err -> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err)
 
         awaitInput :: IO (Either Event Input)
         awaitInput = do
@@ -327,7 +331,7 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
                     API apiRequests -> do
                       output "```api\n"
                       for_ apiRequests apiRequest
-                      output "\n```"
+                      output "```"
                       awaitInput
                     Ucm hide errOk cmds -> do
                       writeIORef hidden hide
@@ -482,10 +486,19 @@ ucmLine = ucmCommand <|> ucmComment
 
 apiRequest :: P APIRequest
 apiRequest = do
-  word "GET"
-  spaces
-  getRequest <- P.takeWhile1P Nothing (/= '\n') <* spaces
-  pure $ GetRequest getRequest
+  apiComment <|> getRequest
+  where
+    getRequest = do
+      word "GET"
+      spaces
+      path <- P.takeWhile1P Nothing (/= '\n')
+      spaces
+      pure (GetRequest path)
+    apiComment = do
+      word "--"
+      comment <- P.takeWhileP Nothing (/= '\n')
+      spaces
+      pure (APIComment comment)
 
 fenced :: P Stanza
 fenced = do
