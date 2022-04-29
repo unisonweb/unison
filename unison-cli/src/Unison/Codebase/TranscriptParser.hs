@@ -204,7 +204,7 @@ run dir stanzas codebase runtime config ucmVersion = UnliftIO.try $ do
     allowErrors <- newIORef False
     hasErrors <- newIORef False
     mStanza <- newIORef Nothing
-    traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 ..])
+    traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 :: Int ..])
     let patternMap =
           Map.fromList $
             validInputs

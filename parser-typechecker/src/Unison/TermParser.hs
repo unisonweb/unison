@@ -1073,9 +1073,9 @@ data BlockElement v
   | Action (Term v Ann)
 
 instance Show v => Show (BlockElement v) where
-  show (Binding ((pos, name), _)) = show ("binding: ", pos, name)
-  show (DestructuringBind (pos, _)) = show ("destructuring bind: ", pos)
-  show (Action tm) = show ("action: ", ann tm)
+  show (Binding ((pos, name), _)) = show ("binding: " :: Text, pos, name)
+  show (DestructuringBind (pos, _)) = show ("destructuring bind: " :: Text, pos)
+  show (Action tm) = show ("action: " :: Text, ann tm)
 
 -- subst
 -- use Foo.Bar + blah
