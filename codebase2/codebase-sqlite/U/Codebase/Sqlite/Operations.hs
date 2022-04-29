@@ -4,6 +4,7 @@ module U.Codebase.Sqlite.Operations
     loadRootCausalHash,
     expectRootCausalHash,
     expectRootCausal,
+    loadCausalHashAtPath,
     saveBranch,
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
@@ -195,6 +196,23 @@ loadRootCausalHash :: Transaction (Maybe CausalHash)
 loadRootCausalHash =
   runMaybeT $
     lift . Q.expectCausalHash =<< MaybeT Q.loadNamespaceRoot
+
+-- | Load the causal hash at the given path from the root.
+--
+-- FIXME should we move some Path type here?
+loadCausalHashAtPath :: [Text] -> Transaction (Maybe CausalHash)
+loadCausalHashAtPath =
+  let go :: Db.CausalHashId -> [Text] -> MaybeT Transaction CausalHash
+      go hashId = \case
+        [] -> lift (Q.expectCausalHash hashId)
+        t : ts -> do
+          tid <- MaybeT (Q.loadTextId t)
+          S.Branch{children} <- MaybeT (loadDbBranchByCausalHashId hashId)
+          (_, hashId') <- MaybeT (pure (Map.lookup tid children))
+          go hashId' ts
+  in \path -> do
+    hashId <- Q.expectNamespaceRoot
+    runMaybeT (go hashId path)
 
 -- * Reference transformations
 
@@ -945,6 +963,13 @@ expectBranchByCausalHashId :: Db.CausalHashId -> Transaction (C.Branch.Branch Tr
 expectBranchByCausalHashId id = do
   boId <- Q.expectBranchObjectIdByCausalHashId id
   expectBranch boId
+
+-- | Load a branch value given its causal hash id.
+loadDbBranchByCausalHashId :: Db.CausalHashId -> Transaction (Maybe S.DbBranch)
+loadDbBranchByCausalHashId causalHashId =
+  Q.loadBranchObjectIdByCausalHashId causalHashId >>= \case
+    Nothing -> pure Nothing
+    Just branchObjectId -> Just <$> expectDbBranch branchObjectId
 
 expectDbBranch :: Db.BranchObjectId -> Transaction S.DbBranch
 expectDbBranch id =
