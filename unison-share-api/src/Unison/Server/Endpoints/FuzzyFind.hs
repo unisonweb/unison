@@ -141,8 +141,8 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
       maybe mempty Path.fromPath'
         <$> traverse (parsePath . Text.unpack) relativePath
     hashLength <- lift $ Codebase.hashLength codebase
-    root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    branch <- Backend.resolveBranchHash root codebase
+    rootHash <- traverse (Backend.expandShortBranchHash codebase) mayRoot
+    (_parseNames, prettyNames) <- Backend.scopedNamesForBranchHash codebase rootHash rel
     let alignments ::
           ( [ ( FZF.Alignment,
                 UnisonName,
@@ -151,8 +151,8 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
             ]
           )
         alignments =
-          take (fromMaybe 10 limit) $ Backend.fuzzyFind (Backend.prettyNamesForBranch branch (Backend.Within rel)) (fromMaybe "" query)
-        ppe = Backend.suffixifyNames hashLength (Backend.prettyNamesForBranch branch (Backend.AllNames rel))
+          take (fromMaybe 10 limit) $ Backend.fuzzyFind prettyNames (fromMaybe "" query)
+        ppe = Backend.suffixifyNames hashLength prettyNames
     lift (join <$> traverse (loadEntry ppe) alignments)
   where
     loadEntry ppe (a, HQ'.NameOnly . NameSegment -> n, refs) =
