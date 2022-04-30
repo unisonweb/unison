@@ -29,12 +29,12 @@ import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
 import qualified Text.Megaparsec as P
 import U.Codebase.HashTags (CausalHash)
+import qualified U.Codebase.Sqlite.Operations as Ops
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
 import Unison.Auth.Types (Host (Host))
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
-import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified Unison.Builtin.Terms as Builtin
 import Unison.Codebase (Preprocessing (..), PushGitBranchOpts (..))
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
@@ -133,7 +133,14 @@ import qualified Unison.Share.Sync as Share
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Sync.Types as Share (RepoName (..), RepoPath (..), hashJWTHash)
+import qualified Unison.Sync.Types as Share
+  ( Hash,
+    HashMismatch (..),
+    RepoName (..),
+    RepoPath (..),
+    hashJWTHash,
+  )
+import qualified Unison.Sync.Types as Share.TypedHash (TypedHash (..))
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -1696,6 +1703,18 @@ handleGist :: MonadUnliftIO m => GistInput -> Action' m v ()
 handleGist (GistInput repo) =
   doPushRemoteBranch repo Path.relativeEmpty' SyncMode.ShortCircuit Nothing
 
+handlePullFromUnisonShare :: MonadIO m => Text -> Path -> Action' m v ()
+handlePullFromUnisonShare remoteRepo remotePath = do
+  let repoPath = Share.RepoPath (Share.RepoName remoteRepo) (coerce @[NameSegment] @[Text] (Path.toList remotePath))
+
+  LoopState.Env {authHTTPClient, codebase = Codebase {connection}, unisonShareUrl} <- ask
+
+  liftIO (Share.pull authHTTPClient unisonShareUrl connection repoPath) >>= \case
+    Left (Share.PullErrorGetCausalHashByPath (Share.GetCausalHashByPathErrorNoReadPermission _)) -> undefined
+    Right Nothing -> undefined
+    Right (Just causalHash) -> do
+      undefined
+
 -- | Handle a @push@ command.
 handlePushRemoteBranch ::
   forall m v.
@@ -1774,25 +1793,30 @@ handlePushToUnisonShare remoteRepo remotePath = do
   -- semantics, as the user doesn't provide the expected remote hash themselves, ala `git push --force-with-lease`.
   -- Then, with our trusty remote causal hash, do the push.
 
-  liftIO (Share.getCausalHashByPath authHTTPClient unisonShareUrl repoPath) >>= \case
-    Left err -> undefined
-    Right causalHashJwt -> do
-      localCausalHash <- do
-        localPath <- use LoopState.currentPath
-        Sqlite.runTransaction connection do
-          Ops.expectCausalHashAtPath (coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute localPath)))
-      liftIO
-        ( Share.push
-            authHTTPClient
-            unisonShareUrl
-            connection
-            repoPath
-            (Share.hashJWTHash <$> causalHashJwt)
-            localCausalHash
-        )
-        >>= \case
-          Left pushError -> undefined
+  localCausalHash <- do
+    localPath <- use LoopState.currentPath
+    Sqlite.runTransaction connection do
+      Ops.expectCausalHashAtPath (coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute localPath)))
+
+  let doPush :: Maybe Share.Hash -> IO ()
+      doPush expectedHash =
+        Share.push authHTTPClient unisonShareUrl connection repoPath expectedHash localCausalHash >>= \case
+          Left pushError ->
+            case pushError of
+              -- Race condition: inbetween getting the remote causal hash and attempting to overwrite it, it changed.
+              -- So, because this push has force-push semantics anyway, just loop again with the latest known remote
+              -- causal hash and attempt the push again.
+              Share.PushErrorHashMismatch Share.HashMismatch {actualHash} ->
+                doPush (Share.TypedHash.hash <$> actualHash)
+              Share.PushErrorNoWritePermission _ -> undefined
+              -- Meh; bug in client or server? Even though we (thought we) pushed all of the entities we were supposed
+              -- to, the server still said it was missing some when we tried to set the remote causal hash.
+              Share.PushErrorServerMissingDependencies missingDependencies -> undefined
           Right () -> pure ()
+
+  liftIO (Share.getCausalHashByPath authHTTPClient unisonShareUrl repoPath) >>= \case
+    Left (Share.GetCausalHashByPathErrorNoReadPermission _) -> undefined
+    Right causalHashJwt -> liftIO (doPush (Share.hashJWTHash <$> causalHashJwt))
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition ::
