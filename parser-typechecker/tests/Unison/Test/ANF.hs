@@ -1,10 +1,12 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Unison.Test.ANF where
 
 import Control.Monad.Reader (ReaderT (..))
 import Control.Monad.State (evalState)
+import Data.Int (Int64)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Word (Word64)
@@ -88,7 +90,7 @@ denormalize (TApp f args)
   | FCon r 0 <- f,
     r `elem` [Ty.natRef, Ty.intRef],
     [v] <- args =
-      Term.var () v
+    Term.var () v
 denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
   where
     df = case f of
@@ -120,16 +122,16 @@ denormalizeMatch ::
 denormalizeMatch b
   | MatchEmpty <- b = []
   | MatchIntegral m df <- b =
-      (dcase (ipat Ty.intRef) <$> mapToList m) ++ dfcase df
+    (dcase (ipat @Int64 Ty.intRef) <$> mapToList m) ++ dfcase df
   | MatchText m df <- b =
-      (dcase (const $ P.Text () . Util.Text.toText) <$> Map.toList m) ++ dfcase df
+    (dcase (const $ P.Text () . Util.Text.toText) <$> Map.toList m) ++ dfcase df
   | MatchData r cs Nothing <- b,
     [(0, ([UN], zb))] <- mapToList cs,
     TAbs i (TMatch j (MatchIntegral m df)) <- zb,
     i == j =
-      (dcase (ipat r) <$> mapToList m) ++ dfcase df
+    (dcase (ipat r) <$> mapToList m) ++ dfcase df
   | MatchData r m df <- b =
-      (dcase (dpat r) . fmap snd <$> mapToList m) ++ dfcase df
+    (dcase (dpat r) . fmap snd <$> mapToList m) ++ dfcase df
   | MatchRequest hs df <- b = denormalizeHandler hs df
   | MatchSum _ <- b = error "MatchSum not a compilation target"
   where
@@ -141,6 +143,7 @@ denormalizeMatch b
       where
         (n, dbr) = denormalizeBranch br
 
+    ipat :: Integral a => Reference -> p -> a -> P.Pattern ()
     ipat r _ i
       | r == Ty.natRef = P.Nat () $ fromIntegral i
       | otherwise = P.Int () $ fromIntegral i
@@ -170,7 +173,7 @@ denormalizeHandler cs df = dcs
           db
       ]
       where
-        (_, db) = denormalizeBranch df
+        (_, db) = denormalizeBranch @Int df
     rf r rcs = foldMapWithKey (cf r) rcs
     cf r t b =
       [ Term.MatchCase
