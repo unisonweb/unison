@@ -11,6 +11,7 @@ where
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
 import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
+import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
@@ -27,11 +28,13 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
 import qualified Text.Megaparsec as P
+import U.Codebase.HashTags (CausalHash)
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
 import Unison.Auth.Types (Host (Host))
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
+import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified Unison.Builtin.Terms as Builtin
 import Unison.Codebase (Preprocessing (..), PushGitBranchOpts (..))
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
@@ -1764,17 +1767,23 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
 handlePushToUnisonShare :: MonadIO m => Text -> Path -> Action' m v ()
 handlePushToUnisonShare remoteRepo remotePath = do
   let repoPath = Share.RepoPath (Share.RepoName remoteRepo) (coerce @[NameSegment] @[Text] (Path.toList remotePath))
-  Codebase {connection} <- LoopState.askCodebase
 
-  liftIO (Share.getCausalHashByPath httpClient unisonShareUrl repoPath) >>= \case
+  LoopState.Env {authHTTPClient, codebase = Codebase {connection}, unisonShareUrl} <- ask
+
+  -- First, get the remote causal's hash at the requested path. This effectively gives `push.share` force-push
+  -- semantics, as the user doesn't provide the expected remote hash themselves, ala `git push --force-with-lease`.
+  -- Then, with our trusty remote causal hash, do the push.
+
+  liftIO (Share.getCausalHashByPath authHTTPClient unisonShareUrl repoPath) >>= \case
     Left err -> undefined
     Right causalHashJwt -> do
       localCausalHash <- do
         localPath <- use LoopState.currentPath
-        Sqlite.runTransaction connection (undefined (Path.toList (Path.unabsolute localPath)))
+        Sqlite.runTransaction connection do
+          Ops.expectCausalHashAtPath (coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute localPath)))
       liftIO
         ( Share.push
-            httpClient
+            authHTTPClient
             unisonShareUrl
             connection
             repoPath
@@ -1784,9 +1793,6 @@ handlePushToUnisonShare remoteRepo remotePath = do
         >>= \case
           Left pushError -> undefined
           Right () -> pure ()
-  where
-    httpClient = undefined
-    unisonShareUrl = undefined
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition ::
