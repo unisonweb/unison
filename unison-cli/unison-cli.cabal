@@ -92,6 +92,7 @@ library
   build-depends:
       ListLike
     , aeson
+    , aeson-pretty
     , async
     , base
     , bytestring
@@ -181,6 +182,7 @@ executable cli-integration-tests
   build-depends:
       ListLike
     , aeson
+    , aeson-pretty
     , async
     , base
     , bytestring
@@ -268,6 +270,7 @@ executable transcripts
   build-depends:
       ListLike
     , aeson
+    , aeson-pretty
     , async
     , base
     , bytestring
@@ -359,6 +362,7 @@ executable unison
   build-depends:
       ListLike
     , aeson
+    , aeson-pretty
     , async
     , base
     , bytestring
@@ -455,6 +459,7 @@ test-suite cli-tests
   build-depends:
       ListLike
     , aeson
+    , aeson-pretty
     , async
     , base
     , bytestring
