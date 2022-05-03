@@ -931,10 +931,11 @@ resetNameLookupTables = do
         PRIMARY KEY (reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
       )
     |]
-  execute_
-    [here|
-      CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
-    |]
+  -- Don't need this index at the moment, but will likely be useful later.
+  -- execute_
+  --   [here|
+  --     CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
+  --   |]
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS type_name_lookup (
@@ -945,10 +946,12 @@ resetNameLookupTables = do
         PRIMARY KEY (reversed_name, reference_builtin, reference_object_id, reference_component_index)
       );
     |]
-  execute_
-    [here|
-      CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index);
-    |]
+
+-- Don't need this index at the moment, but will likely be useful later.
+-- execute_
+--   [here|
+--     CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index);
+--   |]
 
 insertTermNames :: [S.NamedRef V1.Referent] -> Transaction ()
 insertTermNames names = do
