@@ -211,14 +211,13 @@ GET /api/getDefinition?names=x&relativeTo=nested
                 ]
             ],
             "termNames": [
-                "names.x",
-                "nested.names.x"
+                "names.x"
             ]
         }
     },
     "typeDefinitions": {}
 }
---  Term names should strip relativeTo prefix.
+--  Should find definitions by hash.
 GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
 {
     "missingDefinitions": [],
@@ -307,8 +306,8 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
                 ]
             ],
             "termNames": [
-                "names.x",
-                "nested.names.x"
+                ".nested.names.x",
+                "names.x"
             ]
         }
     },

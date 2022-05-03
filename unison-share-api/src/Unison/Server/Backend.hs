@@ -1047,16 +1047,21 @@ bestNameForType ppe width =
 
 scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe Branch.Hash -> Path -> Backend m (Names, Names)
 scopedNamesForBranchHash codebase mbh path = do
+  shouldUseNamesIndex <- asks useNamesIndex
   case mbh of
-    Nothing -> prettyAndParseNames
+    Nothing
+      | shouldUseNamesIndex -> indexPrettyAndParseNames
+      | otherwise -> do
+        rootBranch <- lift $ Codebase.getRootBranch codebase
+        pure $ prettyAndParseNamesForBranch rootBranch (AllNames path)
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
-      if Causal.unRawHash bh == V2.Hash.unCausalHash rootHash
-        then prettyAndParseNames
+      if (Causal.unRawHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
+        then indexPrettyAndParseNames
         else flip prettyAndParseNamesForBranch (AllNames path) <$> resolveBranchHash (Just bh) codebase
   where
-    prettyAndParseNames :: Backend m (Names, Names)
-    prettyAndParseNames = do
+    indexPrettyAndParseNames :: Backend m (Names, Names)
+    indexPrettyAndParseNames = do
       names <- lift $ Codebase.namesWithinPath codebase (Just path)
       pure (ScopedNames.parseNames names, ScopedNames.prettyNames names)
 
