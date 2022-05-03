@@ -211,7 +211,8 @@ GET /api/getDefinition?names=x&relativeTo=nested
                 ]
             ],
             "termNames": [
-                "names.x"
+                "names.x",
+                "nested.names.x"
             ]
         }
     },
