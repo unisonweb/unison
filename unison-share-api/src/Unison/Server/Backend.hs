@@ -195,7 +195,7 @@ prettyAndParseNamesForBranch root scope =
 basicSuffixifiedNames :: Int -> Branch m -> NameScoping -> PPE.PrettyPrintEnv
 basicSuffixifiedNames hashLength root nameScope =
   let names0 = prettyNamesForBranch root nameScope
-   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
+   in suffixifyNames hashLength names0
 
 parseNamesForBranch :: Branch m -> NameScoping -> Names
 parseNamesForBranch root = fst . prettyAndParseNamesForBranch root
