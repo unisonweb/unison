@@ -6,7 +6,6 @@ module Unison.Test.ANF where
 
 import Control.Monad.Reader (ReaderT (..))
 import Control.Monad.State (evalState)
-import Data.Int (Int64)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Word (Word64)
@@ -122,14 +121,14 @@ denormalizeMatch ::
 denormalizeMatch b
   | MatchEmpty <- b = []
   | MatchIntegral m df <- b =
-    (dcase (ipat @Int64 Ty.intRef) <$> mapToList m) ++ dfcase df
+    (dcase (ipat @Word64 @Integer Ty.intRef) <$> mapToList m) ++ dfcase df
   | MatchText m df <- b =
-    (dcase (const $ P.Text () . Util.Text.toText) <$> Map.toList m) ++ dfcase df
+    (dcase (const @_ @Integer $ P.Text () . Util.Text.toText) <$> Map.toList m) ++ dfcase df
   | MatchData r cs Nothing <- b,
     [(0, ([UN], zb))] <- mapToList cs,
     TAbs i (TMatch j (MatchIntegral m df)) <- zb,
     i == j =
-    (dcase (ipat r) <$> mapToList m) ++ dfcase df
+    (dcase (ipat @Word64 @Integer r) <$> mapToList m) ++ dfcase df
   | MatchData r m df <- b =
     (dcase (dpat r) . fmap snd <$> mapToList m) ++ dfcase df
   | MatchRequest hs df <- b = denormalizeHandler hs df
