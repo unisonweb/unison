@@ -2030,6 +2030,20 @@ authLogin =
         _ -> Left (showPatternHelp authLogin)
     )
 
+printVersion :: InputPattern
+printVersion =
+  InputPattern
+    "version"
+    []
+    I.Visible
+    []
+    ( P.wrap "Print the version of unison you're running"
+    )
+    ( \case
+        [] -> Right $ Input.VersionI
+        _ -> Left (showPatternHelp printVersion)
+    )
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2119,7 +2133,8 @@ validInputs =
       debugDumpNamespaceSimple,
       debugClearWatchCache,
       gist,
-      authLogin
+      authLogin,
+      printVersion
     ]
 
 visibleInputs :: [InputPattern]
