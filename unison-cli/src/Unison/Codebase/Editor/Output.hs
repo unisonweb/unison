@@ -254,6 +254,7 @@ data Output v
     InitiateAuthFlow URI
   | UnknownCodeServer Text
   | CredentialFailureMsg CredentialFailure
+  | PrintVersion Text
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
@@ -379,6 +380,7 @@ isFailure o = case o of
   InitiateAuthFlow {} -> False
   UnknownCodeServer {} -> True
   CredentialFailureMsg {} -> True
+  PrintVersion {} -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case
