@@ -490,10 +490,11 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
         <*> getNat
         <*> getStoredCache
 
--- | Whether the runtime is hosted within a UCM session or as a standalone process.
+-- | Whether the runtime is hosted within a persistent session or as a one-off process.
+-- This affects the amount of clean-up and book-keeping the runtime does.
 data RuntimeHost
-  = Standalone
-  | UCM
+  = OneOff
+  | Persistent
 
 startRuntime :: RuntimeHost -> Text -> IO (Runtime Symbol)
 startRuntime runtimeHost version = do
@@ -501,10 +502,10 @@ startRuntime runtimeHost version = do
   (activeThreads, cleanupThreads) <- case runtimeHost of
     -- Don't bother tracking open threads when running standalone, they'll all be cleaned up
     -- when the process itself exits.
-    Standalone -> pure (Nothing, pure ())
+    OneOff -> pure (Nothing, pure ())
     -- Track all forked threads so that they can be killed when the main process returns,
     -- otherwise they'll be orphaned and left running.
-    UCM -> do
+    Persistent -> do
       activeThreads <- newIORef Set.empty
       let cleanupThreads = do
             threads <- readIORef activeThreads
@@ -566,7 +567,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
   putEnumMap putNat putReference trs
   putNat ftm
   putNat fty
-  putMap putReference putGroup int
+  putMap putReference (putGroup mempty) int
   putMap putReference putNat rtm
   putMap putReference putNat rty
   putMap putReference (putFoldable putReference) sbs

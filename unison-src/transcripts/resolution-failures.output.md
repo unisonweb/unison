@@ -110,7 +110,7 @@ useAmbiguousTerm = ambiguousTerm
   
       1 | useAmbiguousTerm = ambiguousTerm
   
-  There are no constraints on its type.I found some terms in scope that have matching names and types. Maybe you meant one of these:
+  There are no constraints on its type. I found some terms in scope that have matching names and types. Maybe you meant one of these:
   
     - one.ambiguousTerm : ##Text
     - two.ambiguousTerm : ##Text

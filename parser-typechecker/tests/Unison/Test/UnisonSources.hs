@@ -59,7 +59,7 @@ bad r = EasyTest.expectLeft r >> done
 
 test :: Test ()
 test = do
-  rt <- io (RTI.startRuntime RTI.Standalone "")
+  rt <- io (RTI.startRuntime RTI.OneOff "")
   scope "unison-src"
     . tests
     $ [ go rt shouldPassNow good,

@@ -1,0 +1,77 @@
+name: unison-share-api
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+
+library:
+  source-dirs: src
+
+dependencies:
+  - base
+  - mtl
+  - text
+  - transformers
+  - unliftio
+  - servant
+  - containers
+  - nonempty-containers
+  - bytestring
+  - aeson
+  - memory
+  - unison-util-relation
+  - unison-codebase
+  - unison-core1
+  - unison-prelude
+  - unison-parser-typechecker
+  - unison-pretty-printer
+  - lucid
+  - openapi3
+  - extra
+  - lens
+  - fuzzyfind
+  - filepath
+  - directory
+  - yaml
+  - errors
+  - servant-server
+  - servant-docs
+  - servant-openapi3
+  - mwc-random
+  - warp
+  - wai
+  - uri-encode
+  - http-types
+  - http-media
+  - NanoID
+  - utf8-string
+  - async
+  - regex-tdfa
+  - unison-util
+
+ghc-options:
+  -Wall
+
+default-extensions:
+  - BlockArguments
+  - ConstraintKinds
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - GADTs
+  - GeneralizedNewtypeDeriving
+  - KindSignatures
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - NumericUnderscores
+  - OverloadedStrings
+  - PatternSynonyms
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - TypeOperators
+  - ViewPatterns

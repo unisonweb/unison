@@ -27,6 +27,9 @@ import Servant.API
     JSON,
     addHeader,
   )
+import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Causal as V2Causal
+import qualified U.Codebase.HashTags as V2
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.DisplayObject
@@ -259,9 +262,13 @@ discard = const $ pure ()
 mayDefaultWidth :: Maybe Width -> Width
 mayDefaultWidth = fromMaybe defaultWidth
 
-addHeaders :: v -> APIHeaders v
-addHeaders = addHeader "public"
+setCacheControl :: v -> APIHeaders v
+setCacheControl = addHeader @"Cache-Control" "public"
 
 branchToUnisonHash :: Branch.Branch m -> UnisonHash
 branchToUnisonHash b =
   ("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash b
+
+v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
+v2CausalBranchToUnisonHash b =
+  ("#" <>) . Hash.base32Hex . V2.unCausalHash $ V2Causal.causalHash b

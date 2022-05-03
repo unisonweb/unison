@@ -8,7 +8,6 @@
 module Unison.Codebase.Editor.HandleCommand where
 
 import qualified Control.Concurrent.STM as STM
-import Control.Monad.Except (runExceptT)
 import Control.Monad.Reader (ReaderT (runReaderT), ask)
 import qualified Crypto.Random as Random
 import qualified Data.Configurator as Config
@@ -144,7 +143,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       TypecheckFile file ambient -> lift $ typecheck' ambient codebase file
       Evaluate ppe unisonFile -> lift $ evalUnisonFile ppe unisonFile []
       Evaluate1 ppe useCache term -> lift $ eval1 ppe useCache term
-      LoadLocalRootBranch -> lift $ either (const Branch.empty) id <$> Codebase.getRootBranch codebase
+      LoadLocalRootBranch -> lift $ Codebase.getRootBranch codebase
       LoadLocalBranch h -> lift $ fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
       Merge mode b1 b2 ->
         lift $ Branch.merge'' (Codebase.lca codebase) mode b1 b2
@@ -216,7 +215,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       GetDefinitionsBySuffixes mayPath branch includeCycles query -> do
         let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
         lift (Backend.definitionsBySuffixes namingScope branch codebase includeCycles query)
-      FindShallow path -> lift . runExceptT $ Backend.findShallow codebase path
+      FindShallow path -> liftIO $ Backend.findShallow codebase path
       MakeStandalone ppe ref out -> lift $ do
         let cl = Codebase.toCodeLookup codebase
         Runtime.compileTo rt (() <$ cl) ppe ref (out <> ".uc")

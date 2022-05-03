@@ -9,14 +9,12 @@
 
 module Unison.Server.Endpoints.NamespaceListing where
 
-import Control.Error (runExceptT)
-import Control.Error.Util ((??))
+import Control.Monad.Except
 import Data.Aeson
 import Data.OpenApi (ToSchema)
 import qualified Data.Text as Text
 import Servant
   ( QueryParam,
-    throwError,
     (:>),
   )
 import Servant.Docs
@@ -26,36 +24,32 @@ import Servant.Docs
     ToSample (..),
   )
 import Servant.OpenApi ()
-import Servant.Server (Handler)
+import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Causal as V2Causal
+import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch as V1Branch
+import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Server.Backend (Backend)
 import qualified Unison.Server.Backend as Backend
-import Unison.Server.Errors
-  ( backendError,
-    badNamespace,
-    rootBranchError,
-  )
 import Unison.Server.Types
   ( APIGet,
-    APIHeaders,
     HashQualifiedName,
     NamedTerm (..),
     NamedType (..),
     NamespaceFQN,
-    Size,
     UnisonHash,
     UnisonName,
-    addHeaders,
-    branchToUnisonHash,
+    v2CausalBranchToUnisonHash,
   )
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
@@ -82,7 +76,7 @@ instance ToSample NamespaceListing where
         NamespaceListing
           "."
           "#gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
-          [Subnamespace $ NamedNamespace "base" "#19d1o9hi5n642t8jttg" 1244]
+          [Subnamespace $ NamedNamespace "base" "#19d1o9hi5n642t8jttg"]
       )
     ]
 
@@ -112,8 +106,7 @@ deriving instance ToSchema NamespaceObject
 
 data NamedNamespace = NamedNamespace
   { namespaceName :: UnisonName,
-    namespaceHash :: UnisonHash,
-    namespaceSize :: Size
+    namespaceHash :: UnisonHash
   }
   deriving (Generic, Show)
 
@@ -146,35 +139,41 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowTermEntry te ->
     TermObject $ Backend.termEntryToNamedTerm ppe typeWidth te
   Backend.ShallowTypeEntry te -> TypeObject $ Backend.typeEntryToNamedType te
-  Backend.ShallowBranchEntry name hash size ->
+  Backend.ShallowBranchEntry name hash _size ->
     Subnamespace $
       NamedNamespace
         { namespaceName = NameSegment.toText name,
-          namespaceHash = "#" <> SBH.toText hash,
-          namespaceSize = size
+          namespaceHash = "#" <> Hash.toBase32HexText (Causal.unRawHash hash)
         }
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name
 
 serve ::
-  Handler () ->
   Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
   Maybe NamespaceFQN ->
   Maybe NamespaceFQN ->
-  Handler (APIHeaders NamespaceListing)
-serve tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
+  Backend.Backend IO NamespaceListing
+serve codebase mayRootHash mayRelativeTo mayNamespaceName =
   let -- Various helpers
       errFromEither f = either (throwError . f) pure
 
-      parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
+      parsePath :: String -> Backend IO Path.Path'
+      parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
 
-      doBackend a = do
-        ea <- liftIO $ runExceptT a
-        errFromEither backendError ea
+      findShallow ::
+        ( V2Branch.Branch IO ->
+          IO [Backend.ShallowListEntry Symbol Ann]
+        )
+      findShallow branch = Backend.lsShallowBranch codebase branch
 
-      findShallow branch = doBackend $ Backend.findShallowInBranch codebase branch
-
+      makeNamespaceListing ::
+        ( PPE.PrettyPrintEnv ->
+          UnisonName ->
+          UnisonHash ->
+          [Backend.ShallowListEntry Symbol a] ->
+          ExceptT Backend.BackendError IO NamespaceListing
+        )
       makeNamespaceListing ppe fqn hash entries =
         pure . NamespaceListing fqn hash $
           fmap
@@ -182,17 +181,13 @@ serve tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
             entries
 
       -- Lookup paths, root and listing and construct response
+      namespaceListing :: Backend IO NamespaceListing
       namespaceListing = do
-        root <- case mayRoot of
-          Nothing -> do
-            gotRoot <- liftIO $ Codebase.getRootBranch codebase
-            errFromEither rootBranchError gotRoot
+        shallowRoot <- case mayRootHash of
+          Nothing -> liftIO (Codebase.getShallowRootBranch codebase)
           Just sbh -> do
-            ea <- liftIO . runExceptT $ do
-              h <- Backend.expandShortBranchHash codebase sbh
-              mayBranch <- lift $ Codebase.getBranchForHash codebase h
-              mayBranch ?? Backend.CouldntLoadBranch h
-            errFromEither backendError ea
+            h <- Backend.expandShortBranchHash codebase sbh
+            liftIO $ Codebase.getShallowBranchForHash codebase (Cv.branchHash1to2 h)
 
         -- Relative and Listing Path resolution
         --
@@ -213,15 +208,15 @@ serve tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
         let path = Path.fromPath' relativeToPath' <> Path.fromPath' namespacePath'
         let path' = Path.toPath' path
 
-        -- Actually construct the NamespaceListing
-
-        let listingBranch = Branch.getAt' path root
-        hashLength <- liftIO $ Codebase.hashLength codebase
-
-        let shallowPPE = Backend.basicSuffixifiedNames hashLength root $ (Backend.Within $ Path.fromPath' path')
+        listingCausal <-
+          (liftIO $ Codebase.shallowBranchAtPath path shallowRoot) >>= \case
+            Nothing -> pure $ Cv.causalbranch1to2 (V1Branch.empty)
+            Just lc -> pure lc
+        listingBranch <- liftIO $ V2Causal.value listingCausal
+        shallowPPE <- liftIO $ Backend.shallowPPE codebase listingBranch
         let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-        let listingHash = branchToUnisonHash listingBranch
-        listingEntries <- findShallow listingBranch
+        let listingHash = v2CausalBranchToUnisonHash listingCausal
+        listingEntries <- lift (findShallow listingBranch)
 
         makeNamespaceListing shallowPPE listingFQN listingHash listingEntries
-   in addHeaders <$> (tryAuth *> namespaceListing)
+   in namespaceListing

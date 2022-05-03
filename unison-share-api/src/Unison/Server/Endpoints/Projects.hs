@@ -8,8 +8,8 @@
 
 module Unison.Server.Endpoints.Projects where
 
-import Control.Error (ExceptT, runExceptT)
 import Control.Error.Util ((??))
+import Control.Monad.Except
 import Data.Aeson
 import Data.Char
 import Data.OpenApi
@@ -17,7 +17,7 @@ import Data.OpenApi
     ToSchema (..),
   )
 import qualified Data.Text as Text
-import Servant (QueryParam, ServerError, throwError, (:>))
+import Servant (QueryParam, (:>))
 import Servant.API (FromHttpApiData (..))
 import Servant.Docs
   ( DocQueryParam (..),
@@ -25,20 +25,20 @@ import Servant.Docs
     ToParam (..),
     ToSample (..),
   )
-import Servant.Server (Handler)
+import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Server.Backend
 import qualified Unison.Server.Backend as Backend
-import Unison.Server.Errors (backendError, badNamespace, rootBranchError)
-import Unison.Server.Types (APIGet, APIHeaders, UnisonHash, addHeaders)
+import Unison.Server.Types (APIGet, UnisonHash)
 import Unison.Symbol (Symbol)
 import Unison.Util.Monoid (foldMapM)
 
@@ -104,12 +104,12 @@ backendListEntryToProjectListing ::
   Backend.ShallowListEntry Symbol a ->
   Maybe ProjectListing
 backendListEntryToProjectListing owner = \case
-  Backend.ShallowBranchEntry name hash _ ->
+  Backend.ShallowBranchEntry name hash _size ->
     Just $
       ProjectListing
         { owner = owner,
           name = NameSegment.toText name,
-          hash = "#" <> SBH.toText hash
+          hash = "#" <> Hash.toBase32HexText (Causal.unRawHash hash)
         }
   _ -> Nothing
 
@@ -117,32 +117,31 @@ entryToOwner ::
   Backend.ShallowListEntry Symbol a ->
   Maybe ProjectOwner
 entryToOwner = \case
-  Backend.ShallowBranchEntry name _ _ ->
+  Backend.ShallowBranchEntry name _ _size ->
     Just $ ProjectOwner $ NameSegment.toText name
   _ -> Nothing
 
 serve ::
-  Handler () ->
-  Codebase IO Symbol Ann ->
+  forall m.
+  MonadIO m =>
+  Codebase m Symbol Ann ->
   Maybe ShortBranchHash ->
   Maybe ProjectOwner ->
-  Handler (APIHeaders [ProjectListing])
-serve tryAuth codebase mayRoot mayOwner = addHeaders <$> (tryAuth *> projects)
+  Backend m [ProjectListing]
+serve codebase mayRoot mayOwner = projects
   where
-    projects :: Handler [ProjectListing]
+    projects :: Backend m [ProjectListing]
     projects = do
       root <- case mayRoot of
-        Nothing -> do
-          gotRoot <- liftIO $ Codebase.getRootBranch codebase
-          errFromEither rootBranchError gotRoot
+        Nothing -> lift (Codebase.getRootBranch codebase)
         Just sbh -> do
-          ea <- liftIO . runExceptT $ do
+          ea <- lift . runExceptT $ do
             h <- Backend.expandShortBranchHash codebase sbh
             mayBranch <- lift $ Codebase.getBranchForHash codebase h
             mayBranch ?? Backend.CouldntLoadBranch h
-          errFromEither backendError ea
+          liftEither ea
 
-      ownerEntries <- findShallow root
+      ownerEntries <- lift $ findShallow root
       -- If an owner is provided, we only want projects belonging to them
       let owners =
             case mayOwner of
@@ -150,30 +149,25 @@ serve tryAuth codebase mayRoot mayOwner = addHeaders <$> (tryAuth *> projects)
               Nothing -> mapMaybe entryToOwner ownerEntries
       foldMapM (ownerToProjectListings root) owners
 
-    ownerToProjectListings :: Branch.Branch IO -> ProjectOwner -> Handler [ProjectListing]
+    ownerToProjectListings :: Branch.Branch m -> ProjectOwner -> Backend m [ProjectListing]
     ownerToProjectListings root owner = do
       let (ProjectOwner ownerName) = owner
       ownerPath' <- (parsePath . Text.unpack) ownerName
       let path = Path.fromPath' ownerPath'
       let ownerBranch = Branch.getAt' path root
-      entries <- findShallow ownerBranch
+      entries <- lift $ findShallow ownerBranch
       pure $ mapMaybe (backendListEntryToProjectListing owner) entries
 
     -- Minor helpers
 
-    findShallow :: Branch.Branch IO -> Handler [Backend.ShallowListEntry Symbol Ann]
+    findShallow :: Branch.Branch m -> m [Backend.ShallowListEntry Symbol Ann]
     findShallow branch =
-      doBackend $ Backend.findShallowInBranch codebase branch
+      Backend.lsBranch codebase branch
 
-    parsePath :: String -> Handler Path.Path'
+    parsePath :: String -> Backend m Path.Path'
     parsePath p =
-      errFromEither (`badNamespace` p) $ Path.parsePath' p
+      errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
 
-    errFromEither :: (a -> ServerError) -> Either a a1 -> Handler a1
+    errFromEither :: (e -> BackendError) -> Either e a -> Backend m a
     errFromEither f =
       either (throwError . f) pure
-
-    doBackend :: ExceptT Backend.BackendError IO b -> Handler b
-    doBackend a = do
-      ea <- liftIO $ runExceptT a
-      errFromEither backendError ea

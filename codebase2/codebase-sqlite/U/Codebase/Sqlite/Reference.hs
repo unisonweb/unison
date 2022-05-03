@@ -5,13 +5,11 @@
 module U.Codebase.Sqlite.Reference where
 
 import Control.Applicative (liftA3)
-import Database.SQLite.Simple (Only (..), SQLData (..), ToRow (toRow))
-import Database.SQLite.Simple.FromField (FromField)
-import Database.SQLite.Simple.FromRow (FromRow (fromRow), RowParser, field)
-import Database.SQLite.Simple.ToField (ToField)
+import Data.Tuple.Only (Only (..))
 import U.Codebase.Reference (Id' (Id), Reference' (ReferenceBuiltin, ReferenceDerived))
 import U.Codebase.Sqlite.DbId (HashId, ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
+import Unison.Sqlite (FromField, FromRow (fromRow), RowParser, SQLData (SQLNull), ToField, ToRow (toRow), field)
 
 type Reference = Reference' TextId ObjectId
 

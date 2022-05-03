@@ -19,7 +19,7 @@ library
   exposed-modules:
       Unison.Sqlite
       Unison.Sqlite.Connection
-      Unison.Sqlite.DB
+      Unison.Sqlite.Connection.Internal
       Unison.Sqlite.Transaction
   other-modules:
       Unison.Sqlite.DataVersion
@@ -48,6 +48,7 @@ library
       NumericUnderscores
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -58,6 +59,8 @@ library
     , direct-sqlite
     , exceptions
     , mtl
+    , pretty-simple
+    , random
     , recover-rtti
     , sqlite-simple
     , text

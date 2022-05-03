@@ -59,8 +59,10 @@ Cause a conflict:
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+.> cd .
+
 ```
-Ideally we could just define the canonical `x` that we want, and update 
+Ideally we could just define the canonical `x` that we want, and update
 to accept it, but we can't:
 
 ```unison
@@ -73,12 +75,9 @@ x = 1 + 2
   do an `add` or `update`, here's how your codebase would
   change:
   
-    x These definitions would fail on `add` or `update`:
+    ⍟ These new definitions are ok to `add`:
     
-      Reason
-      conflicted   x   : Nat
-    
-      Tip: Use `help filestatus` to learn more.
+      x : Nat
 
 ```
 Update fails on conflicted `x`:

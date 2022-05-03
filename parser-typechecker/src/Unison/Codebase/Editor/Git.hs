@@ -32,7 +32,6 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRepo (..))
 import Unison.Codebase.GitError (GitProtocolError)
 import qualified Unison.Codebase.GitError as GitError
 import Unison.Prelude
-import UnliftIO (MonadUnliftIO)
 import qualified UnliftIO
 import UnliftIO.Directory (XdgDirectory (XdgCache), doesDirectoryExist, findExecutable, getXdgDirectory)
 import UnliftIO.Environment (lookupEnv)
@@ -57,7 +56,7 @@ encodeFileName s =
       go ('$' : rem) = "$$" <> go rem
       go (c : rem)
         | elem @[] c "/\\:*?\"<>|" || not (Char.isPrint c && Char.isAscii c) =
-            "$x" <> encodeHex [c] <> "$" <> go rem
+          "$x" <> encodeHex [c] <> "$" <> go rem
         | otherwise = c : go rem
       go [] = []
       encodeHex :: String -> String

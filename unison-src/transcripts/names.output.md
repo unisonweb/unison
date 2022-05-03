@@ -22,11 +22,15 @@ intTriple = IntTriple(+1, +1, +1)
   Term
   Hash:   #cp7a2qo5du#0
   Names:  IntTriple.IntTriple
+  
+  Tip: Use `names.global` to see more results.
 
 .> names intTriple
 
   Term
   Hash:   #6nuu8h1ib1
   Names:  intTriple namespc.another.tripleInt
+  
+  Tip: Use `names.global` to see more results.
 
 ```

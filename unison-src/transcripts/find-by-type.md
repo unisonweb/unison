@@ -17,11 +17,11 @@ baz = cases
 ```
 
 ```ucm
-.example> add
-.example> find : Text -> A
-.example> find : A -> Text
-.example> find : A
+.> add
+.> find : Text -> A
+.> find : A -> Text
+.> find : A
 ```
 ```ucm:error
-.example> find : Text
+.> find : Text
 ```

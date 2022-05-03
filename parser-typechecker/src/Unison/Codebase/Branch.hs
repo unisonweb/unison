@@ -9,7 +9,7 @@ module Unison.Codebase.Branch
     Branch (..),
     UnwrappedBranch,
     Branch0 (..),
-    Raw (..),
+    Raw,
     Star,
     Hash,
     EditHash,
@@ -88,7 +88,7 @@ import qualified Data.Map as Map
 import qualified Data.Semialign as Align
 import qualified Data.Set as Set
 import Data.These (These (..))
-import Unison.Codebase.Branch.Raw (Raw (Raw))
+import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0 (..),
@@ -617,13 +617,13 @@ addTypeName r new md =
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b
   | Star3.memberD1 (r, n) (view terms b) =
-      over terms (Star3.deletePrimaryD1 (r, n)) b
+    over terms (Star3.deletePrimaryD1 (r, n)) b
 deleteTermName _ _ b = b
 
 deleteTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b
   | Star3.memberD1 (r, n) (view types b) =
-      over types (Star3.deletePrimaryD1 (r, n)) b
+    over types (Star3.deletePrimaryD1 (r, n)) b
 deleteTypeName _ _ b = b
 
 lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
