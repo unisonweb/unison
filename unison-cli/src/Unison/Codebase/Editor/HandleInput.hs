@@ -1800,7 +1800,7 @@ handlePushToUnisonShare remoteRepo remotePath = do
 
   let doPush :: Maybe Share.Hash -> IO ()
       doPush expectedHash =
-        Share.push authHTTPClient unisonShareUrl connection repoPath expectedHash localCausalHash >>= \case
+        Share.checkAndSetPush authHTTPClient unisonShareUrl connection repoPath expectedHash localCausalHash >>= \case
           Left pushError ->
             case pushError of
               -- Race condition: inbetween getting the remote causal hash and attempting to overwrite it, it changed.

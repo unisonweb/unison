@@ -1,20 +1,33 @@
 module Unison.Share.Sync
-  ( -- * Get causal hash by path
+  ( -- * High-level API
+
+    -- ** Push
+    checkAndSetPush,
+    PushError (..),
+    fastForwardPush,
+
+    -- ** Pull
+    pull,
+    PullError (..),
+
+    -- * Low-level API
+
+    -- ** Get causal hash by path
     getCausalHashByPath,
     GetCausalHashByPathError (..),
 
-    -- * Push
-    push,
-    PushError (..),
+    -- ** Upload entities
+    uploadEntities,
 
-    -- * Pull
-    pull,
-    PullError (..),
+    -- ** Download entities
+    downloadEntities,
   )
 where
 
 import qualified Control.Lens as Lens
 import Control.Monad.Extra ((||^))
+import Data.List.NonEmpty (pattern (:|))
+import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.NonEmpty as NEMap
@@ -42,6 +55,7 @@ import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.HTTP as Share
   ( downloadEntitiesHandler,
+    fastForwardPathHandler,
     getPathHandler,
     updatePathHandler,
     uploadEntitiesHandler,
@@ -52,37 +66,18 @@ import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
 
 ------------------------------------------------------------------------------------------------------------------------
--- Get causal hash by path
-
--- | An error occurred when getting causal hash by path.
-data GetCausalHashByPathError
-  = -- | The user does not have permission to read this path.
-    GetCausalHashByPathErrorNoReadPermission Share.RepoPath
-
--- | Get the causal hash of a path hosted on Unison Share.
-getCausalHashByPath ::
-  -- | The HTTP client to use for Unison Share requests.
-  AuthorizedHttpClient ->
-  -- | The Unison Share URL.
-  BaseUrl ->
-  Share.RepoPath ->
-  IO (Either GetCausalHashByPathError (Maybe Share.HashJWT))
-getCausalHashByPath httpClient unisonShareUrl repoPath =
-  Share.getPathHandler httpClient unisonShareUrl (Share.GetCausalHashByPathRequest repoPath) <&> \case
-    Share.GetCausalHashByPathSuccess maybeHashJwt -> Right maybeHashJwt
-    Share.GetCausalHashByPathNoReadPermission _ -> Left (GetCausalHashByPathErrorNoReadPermission repoPath)
-
-------------------------------------------------------------------------------------------------------------------------
 -- Push
 
 -- | An error occurred while pushing code to Unison Share.
+-- FIXME rename CheckAndSetPushError
 data PushError
   = PushErrorHashMismatch Share.HashMismatch
   | PushErrorNoWritePermission Share.RepoPath
   | PushErrorServerMissingDependencies (NESet Share.Hash)
 
 -- | Push a causal to Unison Share.
-push ::
+-- FIXME reword this
+checkAndSetPush ::
   -- | The HTTP client to use for Unison Share requests.
   AuthorizedHttpClient ->
   -- | The Unison Share URL.
@@ -97,7 +92,7 @@ push ::
   -- | The hash of our local causal to push.
   CausalHash ->
   IO (Either PushError ())
-push httpClient unisonShareUrl conn repoPath expectedHash causalHash = do
+checkAndSetPush httpClient unisonShareUrl conn repoPath expectedHash causalHash = do
   -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it needs
   -- this causal (UpdatePathMissingDependencies).
   updatePath >>= \case
@@ -105,7 +100,7 @@ push httpClient unisonShareUrl conn repoPath expectedHash causalHash = do
     Share.UpdatePathHashMismatch mismatch -> pure (Left (PushErrorHashMismatch mismatch))
     Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
       -- Upload the causal and all of its dependencies.
-      upload httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath) dependencies >>= \case
+      uploadEntities httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath) dependencies >>= \case
         False -> pure (Left (PushErrorNoWritePermission repoPath))
         True ->
           -- After uploading the causal and all of its dependencies, try setting the remote path again.
@@ -137,49 +132,80 @@ push httpClient unisonShareUrl conn repoPath expectedHash causalHash = do
                   },
             newHash =
               Share.TypedHash
-                { hash =
-                    causalHash
-                      & unCausalHash
-                      & Hash.toBase32Hex
-                      & Share.Hash,
+                { hash = causalHashToHash causalHash,
                   entityType = Share.CausalType
                 }
           }
 
--- Upload a set of entities to Unison Share. If the server responds that it cannot yet store any hash(es) due to missing
--- dependencies, send those dependencies too, and on and on, until the server stops responding that it's missing
--- anything.
-upload ::
+-- | An error occurred while fast-forward pushing code to Unison Share.
+data FastForwardPushError
+  = FastForwardPushErrorNoHistory Share.RepoPath
+  | FastForwardPushErrorNoReadPermission Share.RepoPath
+  | FastForwardPushErrorNotFastForward
+  | FastForwardPushErrorNoWritePermission Share.RepoPath
+  | FastForwardPushErrorServerMissingDependencies (NESet Share.Hash)
+
+-- | Push a causal to Unison Share.
+-- FIXME reword this
+fastForwardPush ::
+  -- | The HTTP client to use for Unison Share requests.
   AuthorizedHttpClient ->
+  -- | The Unison Share URL.
   BaseUrl ->
+  -- | SQLite connection, for reading entities to push.
   Sqlite.Connection ->
-  Share.RepoName ->
-  NESet Share.Hash ->
-  IO Bool
-upload httpClient unisonShareUrl conn repoName =
-  loop
+  -- | The repo+path to push to.
+  Share.RepoPath ->
+  -- | The hash of our local causal to push.
+  CausalHash ->
+  IO (Either FastForwardPushError ())
+fastForwardPush httpClient unisonShareUrl conn repoPath localHeadHash =
+  getCausalHashByPath httpClient unisonShareUrl repoPath >>= \case
+    Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission repoPath))
+    Right Nothing -> pure (Left (FastForwardPushErrorNoHistory repoPath))
+    Right (Just (Share.hashJWTHash -> remoteHeadHash)) ->
+      Sqlite.runTransaction conn (fancyBfs localHeadHash remoteHeadHash) >>= \case
+        -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
+        -- fast-forward push, so we don't bother trying - just report the error now.
+        Nothing -> pure (Left FastForwardPushErrorNotFastForward)
+        Just localTailHashes ->
+          doUpload (localHeadHash :| localTailHashes) >>= \case
+            False -> pure (Left (FastForwardPushErrorNoWritePermission repoPath))
+            True ->
+              doFastForwardPath (localHeadHash : localTailHashes) <&> \case
+                Share.FastForwardPathSuccess -> Right ()
+                Share.FastForwardPathMissingDependencies (Share.NeedDependencies dependencies) ->
+                  Left (FastForwardPushErrorServerMissingDependencies dependencies)
+                -- Weird: someone must have force-pushed no history here, or something. We observed a history at this 
+                -- path but moments ago!
+                Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory repoPath)
+                Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission repoPath)
+                Share.FastForwardPathNotFastForward _ -> Left FastForwardPushErrorNotFastForward
   where
-    loop :: NESet Share.Hash -> IO Bool
-    loop (NESet.toAscList -> hashes) = do
-      -- Get each entity that the server is missing out of the database.
-      entities <- Sqlite.runTransaction conn (traverse expectEntity hashes)
+    doUpload :: List.NonEmpty CausalHash -> IO Bool
+    -- Maybe we could save round trips here by including the tail (or the head *and* the tail) as "extra hashes", but we
+    -- don't have that API yet. So, we only upload the head causal entity (which we don't even know for sure the server
+    -- doesn't have yet), and will (eventually) end up uploading the casuals in the tail that the server needs.
+    doUpload (headHash :| _tailHashes) =
+      uploadEntities
+        httpClient
+        unisonShareUrl
+        conn
+        (Share.RepoPath.repoName repoPath)
+        (NESet.singleton (causalHashToHash headHash))
 
-      let uploadEntities :: IO Share.UploadEntitiesResponse
-          uploadEntities =
-            Share.uploadEntitiesHandler
-              httpClient
-              unisonShareUrl
-              Share.UploadEntitiesRequest
-                { entities = NEMap.fromAscList (List.NonEmpty.zip hashes entities),
-                  repoName
-                }
+    doFastForwardPath :: [CausalHash] -> IO Share.FastForwardPathResponse
+    doFastForwardPath causalSpine =
+      Share.fastForwardPathHandler
+        httpClient
+        unisonShareUrl
+        Share.FastForwardPathRequest
+          { hashes = map causalHashToHash causalSpine,
+            path = repoPath
+          }
 
-      -- Upload all of the entities we know the server needs, and if the server responds that it needs yet more, loop to
-      -- upload those too.
-      uploadEntities >>= \case
-        Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> loop moreHashes
-        Share.UploadEntitiesNoWritePermission _ -> pure False
-        Share.UploadEntitiesSuccess -> pure True
+    fancyBfs :: CausalHash -> Share.Hash -> Sqlite.Transaction (Maybe [CausalHash])
+    fancyBfs = undefined
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
@@ -214,17 +240,41 @@ pull httpClient unisonShareUrl conn repoPath = do
   where
     doDownload :: NESet Share.HashJWT -> IO ()
     doDownload =
-      download httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath)
+      downloadEntities httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath)
 
--- Download a set of entities from Unison Share.
-download ::
+------------------------------------------------------------------------------------------------------------------------
+-- Get causal hash by path
+
+-- | An error occurred when getting causal hash by path.
+data GetCausalHashByPathError
+  = -- | The user does not have permission to read this path.
+    GetCausalHashByPathErrorNoReadPermission Share.RepoPath
+
+-- | Get the causal hash of a path hosted on Unison Share.
+getCausalHashByPath ::
+  -- | The HTTP client to use for Unison Share requests.
+  AuthorizedHttpClient ->
+  -- | The Unison Share URL.
+  BaseUrl ->
+  Share.RepoPath ->
+  IO (Either GetCausalHashByPathError (Maybe Share.HashJWT))
+getCausalHashByPath httpClient unisonShareUrl repoPath =
+  Share.getPathHandler httpClient unisonShareUrl (Share.GetCausalHashByPathRequest repoPath) <&> \case
+    Share.GetCausalHashByPathSuccess maybeHashJwt -> Right maybeHashJwt
+    Share.GetCausalHashByPathNoReadPermission _ -> Left (GetCausalHashByPathErrorNoReadPermission repoPath)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Download entities
+
+-- | Download a set of entities from Unison Share.
+downloadEntities ::
   AuthorizedHttpClient ->
   BaseUrl ->
   Sqlite.Connection ->
   Share.RepoName ->
   NESet Share.HashJWT ->
   IO ()
-download httpClient unisonShareUrl conn repoName =
+downloadEntities httpClient unisonShareUrl conn repoName =
   loop . NESet.map Share.decodeHashJWT
   where
     loop :: NESet Share.DecodedHashJWT -> IO ()
@@ -247,6 +297,46 @@ download httpClient unisonShareUrl conn repoName =
           unisonShareUrl
           Share.DownloadEntitiesRequest {repoName, hashes}
       pure entities
+
+------------------------------------------------------------------------------------------------------------------------
+-- Upload entities
+
+-- | Upload a set of entities to Unison Share. If the server responds that it cannot yet store any hash(es) due to
+-- missing dependencies, send those dependencies too, and on and on, until the server stops responding that it's missing
+-- anything.
+--
+-- Returns true on success, false on failure (because the user does not have write permission).
+uploadEntities ::
+  AuthorizedHttpClient ->
+  BaseUrl ->
+  Sqlite.Connection ->
+  Share.RepoName ->
+  NESet Share.Hash ->
+  IO Bool
+uploadEntities httpClient unisonShareUrl conn repoName =
+  loop
+  where
+    loop :: NESet Share.Hash -> IO Bool
+    loop (NESet.toAscList -> hashes) = do
+      -- Get each entity that the server is missing out of the database.
+      entities <- Sqlite.runTransaction conn (traverse expectEntity hashes)
+
+      let uploadEntities :: IO Share.UploadEntitiesResponse
+          uploadEntities =
+            Share.uploadEntitiesHandler
+              httpClient
+              unisonShareUrl
+              Share.UploadEntitiesRequest
+                { entities = NEMap.fromAscList (List.NonEmpty.zip hashes entities),
+                  repoName
+                }
+
+      -- Upload all of the entities we know the server needs, and if the server responds that it needs yet more, loop to
+      -- upload those too.
+      uploadEntities >>= \case
+        Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> loop moreHashes
+        Share.UploadEntitiesNoWritePermission _ -> pure False
+        Share.UploadEntitiesSuccess -> pure True
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
@@ -363,7 +453,11 @@ insertTempEntity hash entity missingDependencies =
     )
 
 ------------------------------------------------------------------------------------------------------------------------
--- Entity conversions
+-- Conversions to/from Share API types
+
+causalHashToHash :: CausalHash -> Share.Hash
+causalHashToHash =
+  Share.Hash . Hash.toBase32Hex . unCausalHash
 
 -- | Convert an entity that came over the wire from Unison Share into an equivalent type that we can store in the
 -- `temp_entity` table.

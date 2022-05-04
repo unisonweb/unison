@@ -236,7 +236,8 @@ instance FromJSON DownloadEntitiesResponse where
 -- Note that if the client wants to begin a history at a new path on the server, it would use the "update path" endpoint
 -- instead.
 data FastForwardPathRequest = FastForwardPathRequest
-  { hashes :: [Hash],
+  { -- TODO non-empty
+    hashes :: [Hash],
     -- | The repo + path to fast-forward.
     path :: RepoPath
   }
