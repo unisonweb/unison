@@ -796,12 +796,9 @@ prettyDefinitionsBySuffixes ::
   Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase query = do
   hqLength <- lift $ Codebase.hashLength codebase
-  (parseNames, printNames) <- scopedNamesForBranchHash codebase root path
-  -- We use printNames for names in source and parseNames to lookup
-  -- definitions, thus printNames use the allNames scope, to ensure
-  -- external references aren't hashes.
+  (_parseNames, printNames) <- scopedNamesForBranchHash codebase root path
   let nameSearch :: NameSearch
-      nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+      nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames printNames)
   DefinitionResults terms types misses <-
     lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
   -- We might like to make sure that the user search terms get used as
@@ -816,7 +813,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
       termFqns :: Map Reference (Set Text)
       termFqns = Map.mapWithKey f terms
         where
-          rel = Names.terms parseNames
+          rel = Names.terms printNames
           f k _ =
             Set.fromList . fmap Name.toText . toList $
               R.lookupRan (Referent.Ref k) rel
@@ -824,7 +821,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
       typeFqns :: Map Reference (Set Text)
       typeFqns = Map.mapWithKey f types
         where
-          rel = Names.types parseNames
+          rel = Names.types printNames
           f k _ =
             Set.fromList . fmap Name.toText . toList $
               R.lookupRan k rel
@@ -848,7 +845,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
       -- you get both its source and its rendered form
       docResults :: [Reference] -> [Name] -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults rs0 docs = do
-        let refsFor n = NamesWithHistory.lookupHQTerm (HQ.NameOnly n) (NamesWithHistory.fromCurrentNames parseNames)
+        let refsFor n = NamesWithHistory.lookupHQTerm (HQ.NameOnly n) (NamesWithHistory.fromCurrentNames printNames)
         let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
