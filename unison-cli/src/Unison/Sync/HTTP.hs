@@ -8,6 +8,7 @@
 
 module Unison.Sync.HTTP
   ( getPathHandler,
+    fastForwardPathHandler,
     updatePathHandler,
     downloadEntitiesHandler,
     uploadEntitiesHandler,
@@ -28,20 +29,28 @@ data SyncError
   deriving anyclass (Exception)
 
 getPathHandler :: Auth.AuthorizedHttpClient -> BaseUrl -> GetCausalHashByPathRequest -> IO GetCausalHashByPathResponse
+fastForwardPathHandler :: Auth.AuthorizedHttpClient -> BaseUrl -> FastForwardPathRequest -> IO FastForwardPathResponse
 updatePathHandler :: Auth.AuthorizedHttpClient -> BaseUrl -> UpdatePathRequest -> IO UpdatePathResponse
 downloadEntitiesHandler :: Auth.AuthorizedHttpClient -> BaseUrl -> DownloadEntitiesRequest -> IO DownloadEntitiesResponse
 uploadEntitiesHandler :: Auth.AuthorizedHttpClient -> BaseUrl -> UploadEntitiesRequest -> IO UploadEntitiesResponse
 ( getPathHandler,
+  fastForwardPathHandler,
   updatePathHandler,
   downloadEntitiesHandler,
   uploadEntitiesHandler
   ) =
     let ( getPathHandler
+            :<|> fastForwardPathHandler
             :<|> updatePathHandler
             :<|> downloadEntitiesHandler
             :<|> uploadEntitiesHandler
           ) = hoistClient Sync.api hoist (client Sync.api)
-     in (uncurryReaderT getPathHandler, uncurryReaderT updatePathHandler, uncurryReaderT downloadEntitiesHandler, uncurryReaderT uploadEntitiesHandler)
+     in ( uncurryReaderT getPathHandler,
+          uncurryReaderT fastForwardPathHandler,
+          uncurryReaderT updatePathHandler,
+          uncurryReaderT downloadEntitiesHandler,
+          uncurryReaderT uploadEntitiesHandler
+        )
     where
       hoist :: forall a. ClientM a -> ReaderT (Auth.AuthorizedHttpClient, BaseUrl) IO a
       hoist m = do

@@ -209,6 +209,85 @@ instance FromJSON DownloadEntitiesResponse where
   parseJSON = Aeson.withObject "DownloadEntitiesResponse" $ \obj -> do
     DownloadEntitiesResponse <$> obj .: "entities"
 
+------------------------------------------------------------------------------------------------------------------------
+-- Fast-forward path
+
+-- | A non-empty list of causal hashes, latest first, that show the lineage from wherever the client wants to
+-- fast-forward to back to wherever the (client believes the) server is (not including the server head).
+--
+-- For example, if the client wants to update
+--
+-- @
+-- A -> B -> C
+-- @
+--
+-- to
+--
+-- @
+-- A -> B -> C -> D -> E -> F
+-- @
+--
+-- then it would send hashes
+--
+-- @
+-- [F, E, D]
+-- @
+--
+-- Note that if the client wants to begin a history at a new path on the server, it would use the "update path" endpoint
+-- instead.
+data FastForwardPathRequest = FastForwardPathRequest
+  { hashes :: [Hash],
+    -- | The repo + path to fast-forward.
+    path :: RepoPath
+  }
+  deriving stock (Show)
+
+instance ToJSON FastForwardPathRequest where
+  toJSON FastForwardPathRequest {hashes, path} =
+    object
+      [ "hashes" .= hashes,
+        "path" .= path
+      ]
+
+instance FromJSON FastForwardPathRequest where
+  parseJSON =
+    Aeson.withObject "FastForwardPathRequest" \o -> do
+      hashes <- o .: "hashes"
+      path <- o .: "path"
+      pure FastForwardPathRequest {hashes, path}
+
+data FastForwardPathResponse
+  = FastForwardPathSuccess
+  | FastForwardPathMissingDependencies (NeedDependencies Hash)
+  | FastForwardPathNoWritePermission RepoPath
+  | -- | This wasn't a fast-forward. Here's a JWT to download the causal head, if you want it.
+    FastForwardPathNotFastForward HashJWT
+  | -- | There was no history at this path; the client should use the "update path" endpoint instead.
+    FastForwardPathNoHistory
+  deriving stock (Show)
+
+instance ToJSON FastForwardPathResponse where
+  toJSON = \case
+    FastForwardPathSuccess -> jsonUnion "success" (Object mempty)
+    FastForwardPathMissingDependencies deps -> jsonUnion "missing_dependencies" deps
+    FastForwardPathNoWritePermission repoPath -> jsonUnion "no_write_permission" repoPath
+    FastForwardPathNotFastForward hashJwt -> jsonUnion "not_fast_forward" hashJwt
+    FastForwardPathNoHistory -> jsonUnion "no_history" (Object mempty)
+
+instance FromJSON FastForwardPathResponse where
+  parseJSON =
+    Aeson.withObject "FastForwardPathResponse" \o ->
+      o .: "type" >>= Aeson.withText "type" \case
+        "success" -> pure FastForwardPathSuccess
+        "missing_dependencies" -> FastForwardPathMissingDependencies <$> o .: "payload"
+        "no_write_permission" -> FastForwardPathNoWritePermission <$> o .: "payload"
+        "not_fast_forward" -> FastForwardPathNotFastForward <$> o .: "payload"
+        "no_history" -> pure FastForwardPathNoHistory
+        t -> failText $ "Unexpected FastForwardPathResponse type: " <> t
+
+------------------------------------------------------------------------------------------------------------------------
+-- Update path
+
 data UpdatePathRequest = UpdatePathRequest
   { path :: RepoPath,
     expectedHash :: Maybe TypedHash, -- Nothing requires empty history at destination
@@ -254,7 +333,7 @@ instance ToJSON UpdatePathResponse where
 
 instance FromJSON UpdatePathResponse where
   parseJSON v =
-    v & Aeson.withObject "UploadEntitiesResponse" \obj ->
+    v & Aeson.withObject "UpdatePathResponse" \obj ->
       obj .: "type" >>= Aeson.withText "type" \case
         "success" -> pure UpdatePathSuccess
         "hash_mismatch" -> UpdatePathHashMismatch <$> obj .: "payload"
