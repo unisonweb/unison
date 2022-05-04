@@ -492,7 +492,7 @@ sqliteCodebase debugName root localOrRemote action = do
               namesWithinPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
                 runTx (CodebaseOps.namesWithinPath path),
               updateNameLookup = Sqlite.runWriteTransaction conn $ \runTx -> do
-                root <- (getRootBranch rootBranchCache)
+                root <- (Branch.transform runTx <$> runTx (CodebaseOps.getRootBranch getDeclType rootBranchCache))
                 runTx $ CodebaseOps.saveRootNamesIndex (Branch.toNames . Branch.head $ root)
             }
     let finalizer :: MonadIO m => m ()
