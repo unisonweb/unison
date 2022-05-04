@@ -919,7 +919,7 @@ resetNameLookupTables = do
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS term_name_lookup (
-        reversed_name TEXT NOT NULL,
+        reversed_name TEXT NOT NULL, -- e.g. map.List.base
         referent_builtin INTEGER NULL,
         referent_object_id INTEGER NULL,
         referent_component_index INTEGER NULL,
@@ -936,7 +936,7 @@ resetNameLookupTables = do
   execute_
     [here|
       CREATE TABLE IF NOT EXISTS type_name_lookup (
-        reversed_name TEXT NOT NULL,
+        reversed_name TEXT NOT NULL, -- e.g. map.List.base
         reference_builtin INTEGER NULL,
         reference_object_id INTEGER NULL,
         reference_component_index INTEGER NULL,

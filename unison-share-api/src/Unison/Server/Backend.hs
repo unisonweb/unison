@@ -352,17 +352,23 @@ isDoc' typeOfTerm = do
   -- A term is a dococ if its type conforms to the `Doc` type.
   case typeOfTerm of
     Just t ->
-      Typechecker.isSubtype t (Type.ref mempty Decls.docRef)
-        || Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
+      Typechecker.isSubtype t doc1Type
+        || Typechecker.isSubtype t doc2Type
     Nothing -> False
+
+doc1Type :: (Ord v, Monoid a) => Type v a
+doc1Type = Type.ref mempty Decls.docRef
+
+doc2Type :: (Ord v, Monoid a) => Type v a
+doc2Type = Type.ref mempty DD.doc2Ref
 
 isTestResultList :: forall v a. (Var v, Monoid a) => Maybe (Type v a) -> Bool
 isTestResultList typ = case typ of
   Nothing -> False
   Just t -> Typechecker.isSubtype t resultListType
-  where
-    resultListType :: Type v a
-    resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testResultRef)
+
+resultListType :: (Ord v, Monoid a) => Type v a
+resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testResultRef)
 
 termListEntry ::
   Monad m =>
