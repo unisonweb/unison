@@ -18,6 +18,11 @@ import qualified U.Codebase.Reference as Reference
 import U.Util.Hash (Hash)
 import Unison.Prelude
 
+data ConstructorType
+  = DataConstructor
+  | EffectConstructor
+  deriving (Show, Eq, Ord)
+
 type Referent = Referent' Reference Reference
 
 type ReferentH = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)

@@ -99,7 +99,7 @@ import qualified Data.Map.Merge.Lazy as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Tuple.Extra (uncurry3)
+import Data.Tuple.Extra (uncurry3, (***))
 import qualified Data.Vector as Vector
 import qualified U.Codebase.Branch as C.Branch
 import qualified U.Codebase.Causal as C
@@ -166,8 +166,6 @@ import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
 import Unison.Prelude
-import qualified Unison.Reference as V1
-import qualified Unison.Referent as V1
 import Unison.Sqlite
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
@@ -226,8 +224,14 @@ loadRootCausalHash =
 c2sReference :: C.Reference -> Transaction S.Reference
 c2sReference = bitraverse Q.saveText Q.expectObjectIdForPrimaryHash
 
+c2sTextReference :: C.Reference -> S.TextReference
+c2sTextReference = fmap H.toBase32HexText
+
 s2cReference :: S.Reference -> Transaction C.Reference
 s2cReference = bitraverse Q.expectText Q.expectPrimaryHashByObjectId
+
+s2cTextReference :: S.TextReference -> C.Reference
+s2cTextReference = fmap H.unsafeFromBase32HexText
 
 c2sReferenceId :: C.Reference.Id -> Transaction S.Reference.Id
 c2sReferenceId = C.Reference.idH Q.expectObjectIdForPrimaryHash
@@ -247,11 +251,27 @@ c2hReference = bitraverse (MaybeT . Q.loadTextId) (MaybeT . Q.loadHashIdByHash)
 s2cReferent :: S.Referent -> Transaction C.Referent
 s2cReferent = bitraverse s2cReference s2cReference
 
+s2cTextReferent :: S.TextReferent -> C.Referent
+s2cTextReferent = bimap s2cTextReference s2cTextReference
+
+s2cConstructorType :: S.ConstructorType -> C.ConstructorType
+s2cConstructorType = \case
+  S.DataConstructor -> C.DataConstructor
+  S.EffectConstructor -> C.EffectConstructor
+
+c2sConstructorType :: C.ConstructorType -> S.ConstructorType
+c2sConstructorType = \case
+  C.DataConstructor -> S.DataConstructor
+  C.EffectConstructor -> S.EffectConstructor
+
 s2cReferentId :: S.Referent.Id -> Transaction C.Referent.Id
 s2cReferentId = bitraverse Q.expectPrimaryHashByObjectId Q.expectPrimaryHashByObjectId
 
 c2sReferent :: C.Referent -> Transaction S.Referent
 c2sReferent = bitraverse c2sReference c2sReference
+
+c2sTextReferent :: C.Referent -> S.TextReferent
+c2sTextReferent = bimap c2sTextReference c2sTextReference
 
 c2sReferentId :: C.Referent.Id -> Transaction S.Referent.Id
 c2sReferentId = bitraverse Q.expectObjectIdForPrimaryHash Q.expectObjectIdForPrimaryHash
@@ -1281,14 +1301,14 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
-rebuildNameIndex :: [S.NamedRef V1.Referent] -> [S.NamedRef V1.Reference] -> Transaction ()
+rebuildNameIndex :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)] -> [S.NamedRef C.Reference] -> Transaction ()
 rebuildNameIndex termNames typeNames = do
   Q.resetNameLookupTables
-  Q.insertTermNames termNames
-  Q.insertTypeNames typeNames
+  Q.insertTermNames ((fmap (c2sTextReferent *** fmap c2sConstructorType) <$> termNames))
+  Q.insertTypeNames ((fmap c2sTextReference <$> typeNames))
 
-rootBranchNames :: Transaction ([S.NamedRef V1.Referent], [S.NamedRef V1.Reference])
+rootBranchNames :: Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
 rootBranchNames = do
   termNames <- Q.rootTermNames
   typeNames <- Q.rootTypeNames
-  pure (termNames, typeNames)
+  pure (fmap (bimap s2cTextReferent (fmap s2cConstructorType)) <$> termNames, fmap s2cTextReference <$> typeNames)

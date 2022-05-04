@@ -159,7 +159,6 @@ import U.Codebase.Sqlite.DbId
   )
 import qualified U.Codebase.Sqlite.NamedRef as S
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
-import U.Codebase.Sqlite.Orphans
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.WatchKind (WatchKind)
@@ -169,8 +168,6 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
-import qualified Unison.Reference as V1
-import qualified Unison.Referent as V1
 import Unison.Sqlite
 
 -- * main squeeze
@@ -953,10 +950,11 @@ resetNameLookupTables = do
 --     CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index);
 --   |]
 
-insertTermNames :: [S.NamedRef V1.Referent] -> Transaction ()
+insertTermNames :: [S.NamedRef (Referent.TextReferent, Maybe S.ConstructorType)] -> Transaction ()
 insertTermNames names = do
-  executeMany sql (coerce @[S.NamedRef V1.Referent] @[S.NamedRef (AsSqlite V1.Referent)] names)
+  executeMany sql (fmap asRow <$> names)
   where
+    asRow (a, b) = a :. Only b
     sql =
       [here|
       INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type)
@@ -964,9 +962,9 @@ insertTermNames names = do
         ON CONFLICT DO NOTHING
         |]
 
-insertTypeNames :: [S.NamedRef V1.Reference] -> Transaction ()
+insertTypeNames :: [S.NamedRef (Reference.TextReference)] -> Transaction ()
 insertTypeNames names =
-  executeMany sql (coerce @[S.NamedRef V1.Reference] @[S.NamedRef (AsSqlite V1.Reference)] names)
+  executeMany sql names
   where
     sql =
       [here|
@@ -975,24 +973,21 @@ insertTypeNames names =
         ON CONFLICT DO NOTHING
         |]
 
-rootTermNames :: Transaction [S.NamedRef V1.Referent]
+rootTermNames :: Transaction [S.NamedRef (Referent.TextReferent, Maybe S.ConstructorType)]
 rootTermNames = do
-  unSQLiteNames <$> queryListRow_ sql
+  (fmap . fmap) unRow <$> queryListRow_ sql
   where
-    unSQLiteNames :: [S.NamedRef (AsSqlite r)] -> [S.NamedRef r]
-    unSQLiteNames = coerce
+    unRow (a :. Only b) = (a, b)
     sql =
       [here|
         SELECT reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
           ORDER BY reversed_name ASC
         |]
 
-rootTypeNames :: Transaction [S.NamedRef V1.Reference]
+rootTypeNames :: Transaction [S.NamedRef Reference.TextReference]
 rootTypeNames = do
-  unSQLiteNames <$> queryListRow_ sql
+  queryListRow_ sql
   where
-    unSQLiteNames :: [S.NamedRef (AsSqlite r)] -> [S.NamedRef r]
-    unSQLiteNames = coerce
     sql =
       [here|
         SELECT reversed_name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup

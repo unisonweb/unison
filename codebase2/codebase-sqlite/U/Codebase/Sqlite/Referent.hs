@@ -16,6 +16,8 @@ import Unison.Sqlite (FromRow (..), SQLData (..), ToField (toField), ToRow (..),
 
 type Referent = Referent' Sqlite.Reference Sqlite.Reference
 
+type TextReferent = Referent' Sqlite.TextReference Sqlite.TextReference
+
 type ReferentH = Referent' Sqlite.ReferenceH Sqlite.ReferenceH
 
 type Id = Id' ObjectId ObjectId
@@ -36,12 +38,13 @@ instance FromRow Id where
         Nothing -> Referent.RefId (Reference.Id h i)
         Just cid -> Referent.ConId (Reference.Id h i) cid
 
-instance ToRow Referent where
+-- instance ToRow Referent where
+instance (ToRow (Reference.Reference' t h)) => ToRow (Referent' (Reference.Reference' t h) (Reference.Reference' t h)) where
   toRow = \case
     Referent.Ref ref -> toRow ref <> [SQLNull]
     Referent.Con ref conId -> toRow ref <> [toField conId]
 
-instance FromRow Referent where
+instance (FromRow (Reference.Reference' t h)) => FromRow (Referent' (Reference.Reference' t h) (Reference.Reference' t h)) where
   fromRow = do
     ref <- fromRow
     mayCid <- field

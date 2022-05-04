@@ -25,7 +25,6 @@ dependencies:
   - unison-codebase
   - unison-codebase-sync
   - unison-core
-  - unison-core1
   - unison-prelude
   - unison-sqlite
   - unison-util

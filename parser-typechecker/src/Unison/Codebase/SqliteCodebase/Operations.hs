@@ -41,7 +41,7 @@ import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NameSegment (NameSegment)
+import Unison.NameSegment (NameSegment (..))
 import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
 import Unison.Names.Scoped (ScopedNames (..))
@@ -540,8 +540,15 @@ namesWithinPath ::
   Transaction ScopedNames
 namesWithinPath path = do
   (termNames, typeNames) <- Ops.rootBranchNames
-  let allTerms = coerce @[S.NamedRef Referent.Referent] @[(Name, Referent.Referent)] termNames
-  let allTypes = coerce @[S.NamedRef Reference.Reference] @[(Name, Reference.Reference)] typeNames
+  let allTerms :: [(Name, Referent.Referent)]
+      allTerms =
+        termNames <&> \(S.NamedRef {reversedSegments, ref = (ref, ct)}) ->
+          let v1ref = runIdentity $ Cv.referent2to1 (const . pure . Cv.constructorType2to1 . fromMaybe (error "Required constructor type for constructor but it was null") $ ct) ref
+           in (Name.fromReverseSegments (coerce reversedSegments), v1ref)
+  let allTypes :: [(Name, Reference.Reference)]
+      allTypes =
+        typeNames <&> \(S.NamedRef {reversedSegments, ref}) ->
+          (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
   let rootTerms = Rel.fromListDomainAsc allTerms
   let rootTypes = Rel.fromListDomainAsc allTypes
   let absoluteRootNames = Names {terms = rootTerms, types = rootTypes}
@@ -570,8 +577,19 @@ namesWithinPath path = do
 
 saveRootNamesIndex :: Names -> Transaction ()
 saveRootNamesIndex Names {Names.terms, Names.types} = do
-  let termNames :: [(S.NamedRef Referent.Referent)]
-      termNames = coerce @[(Name, Referent.Referent)] @[S.NamedRef Referent.Referent] $ Rel.toList terms
-  let typeNames :: [(S.NamedRef Reference.Reference)]
-      typeNames = coerce @[(Name, Reference.Reference)] @[S.NamedRef Reference.Reference] $ Rel.toList types
+  let termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))]
+      termNames = Rel.toList terms <&> \(name, ref) -> S.NamedRef {reversedSegments = nameSegments name, ref = splitReferent ref}
+  let typeNames :: [(S.NamedRef C.Reference.Reference)]
+      typeNames =
+        Rel.toList types
+          <&> ( \(name, ref) ->
+                  S.NamedRef {reversedSegments = nameSegments name, ref = Cv.reference1to2 ref}
+              )
   Ops.rebuildNameIndex termNames typeNames
+  where
+    nameSegments :: Name -> NonEmpty Text
+    nameSegments = coerce @(NonEmpty NameSegment) @(NonEmpty Text) . Name.reverseSegments
+    splitReferent :: Referent.Referent -> (C.Referent.Referent, Maybe C.Referent.ConstructorType)
+    splitReferent referent = case referent of
+      Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
+      Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))
