@@ -312,7 +312,7 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
     },
     "typeDefinitions": {}
 }
---  Should find definitions by hash, uses global names if no names in specified path.
+--  Should find definitions by hash, using global names if no names in specified path.
 GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
 {
     "missingDefinitions": [],
