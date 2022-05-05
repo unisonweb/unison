@@ -488,8 +488,8 @@ sqliteCodebase debugName root localOrRemote action = do
               branchHashesByPrefix = branchHashesByPrefix,
               lcaImpl = (Just sqlLca),
               beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r),
-              namesWithinPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
-                runTx (CodebaseOps.namesWithinPath path),
+              namesAtPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
+                runTx (CodebaseOps.namesAtPath path),
               updateNameLookup = Sqlite.runTransaction conn $ do
                 root <- (CodebaseOps.getRootBranch getDeclType rootBranchCache)
                 CodebaseOps.saveRootNamesIndex (Branch.toNames . Branch.head $ root)

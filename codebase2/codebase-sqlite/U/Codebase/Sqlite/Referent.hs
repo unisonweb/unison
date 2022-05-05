@@ -38,7 +38,6 @@ instance FromRow Id where
         Nothing -> Referent.RefId (Reference.Id h i)
         Just cid -> Referent.ConId (Reference.Id h i) cid
 
--- instance ToRow Referent where
 instance (ToRow (Reference.Reference' t h)) => ToRow (Referent' (Reference.Reference' t h) (Reference.Reference' t h)) where
   toRow = \case
     Referent.Ref ref -> toRow ref <> [SQLNull]

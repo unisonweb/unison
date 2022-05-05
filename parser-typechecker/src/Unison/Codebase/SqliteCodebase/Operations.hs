@@ -535,10 +535,12 @@ before :: Branch.Hash -> Branch.Hash -> Transaction (Maybe Bool)
 before h1 h2 =
   Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
 
-namesWithinPath ::
-  Maybe Path ->
+-- | Construct a 'ScopedNames' which can produce names which are relative to the provided
+-- Path.
+namesAtPath ::
+  Path ->
   Transaction ScopedNames
-namesWithinPath path = do
+namesAtPath path = do
   (termNames, typeNames) <- Ops.rootBranchNames
   let allTerms :: [(Name, Referent.Referent)]
       allTerms =
@@ -554,14 +556,14 @@ namesWithinPath path = do
   let absoluteRootNames = Names {terms = rootTerms, types = rootTypes}
   let (relativeScopedNames, absoluteExternalNames) =
         case path of
-          Just p@(_ Path.:> _) ->
+          Path.Empty -> (absoluteRootNames, mempty)
+          p ->
             let reversedPathSegments = reverse . Path.toList $ p
                 (relativeTerms, externalTerms) = foldMap (partitionByPathPrefix reversedPathSegments) allTerms
                 (relativeTypes, externalTypes) = foldMap (partitionByPathPrefix reversedPathSegments) allTypes
              in ( Names {terms = Rel.fromListDomainAsc relativeTerms, types = Rel.fromListDomainAsc relativeTypes},
                   Names {terms = Rel.fromListDomainAsc externalTerms, types = Rel.fromListDomainAsc externalTypes}
                 )
-          _ -> (absoluteRootNames, mempty)
   pure $
     ScopedNames
       { absoluteExternalNames,
