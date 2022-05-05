@@ -551,8 +551,8 @@ namesAtPath path = do
       allTypes =
         typeNames <&> \(S.NamedRef {reversedSegments, ref}) ->
           (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
-  let rootTerms = Rel.fromListDomainAsc allTerms
-  let rootTypes = Rel.fromListDomainAsc allTypes
+  let rootTerms = Rel.fromList allTerms
+  let rootTypes = Rel.fromList allTypes
   let absoluteRootNames = Names {terms = rootTerms, types = rootTypes}
   let (relativeScopedNames, absoluteExternalNames) =
         case path of
@@ -561,8 +561,8 @@ namesAtPath path = do
             let reversedPathSegments = reverse . Path.toList $ p
                 (relativeTerms, externalTerms) = foldMap (partitionByPathPrefix reversedPathSegments) allTerms
                 (relativeTypes, externalTypes) = foldMap (partitionByPathPrefix reversedPathSegments) allTypes
-             in ( Names {terms = Rel.fromListDomainAsc relativeTerms, types = Rel.fromListDomainAsc relativeTypes},
-                  Names {terms = Rel.fromListDomainAsc externalTerms, types = Rel.fromListDomainAsc externalTypes}
+             in ( Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes},
+                  Names {terms = Rel.fromList externalTerms, types = Rel.fromList externalTypes}
                 )
   pure $
     ScopedNames
