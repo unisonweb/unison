@@ -32,12 +32,15 @@ import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.NonEmpty as NEMap
+import Data.Sequence.NonEmpty (NESeq ((:<||)))
+import qualified Data.Sequence.NonEmpty as NESeq (fromList, nonEmptySeq, singleton, (><|))
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import Servant.Client (BaseUrl)
+import qualified Text.Regex.TDFA.CorePattern as List
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
@@ -230,8 +233,8 @@ dagbfs goal children =
       --   [ 4, 2, 1 ]
       --   [ 5, 2, 1 ]
       --   [ 6, 3, 1 ]
-      go :: List.NonEmpty (List.NonEmpty a) -> m (Maybe (List.NonEmpty a))
-      go (path :| paths) = do
+      go :: NESeq (List.NonEmpty a) -> m (Maybe (List.NonEmpty a))
+      go (path :<|| paths) = do
         -- Get the children of the first path (in the above example, [ 4, 2, 1 ]).
         ys0 <- children (List.NonEmpty.head path)
         case List.NonEmpty.nonEmpty ys0 of
@@ -239,7 +242,7 @@ dagbfs goal children =
           -- searching (as we would in the example, since we have two more paths to continue from), or we don't, because
           -- this was the only remaining path.
           Nothing ->
-            case List.NonEmpty.nonEmpty paths of
+            case NESeq.nonEmptySeq paths of
               Nothing -> pure Nothing
               Just paths' -> go paths'
           -- If node 4 did have children, then maybe the search tree now looks like this.
@@ -268,21 +271,14 @@ dagbfs goal children =
           --        [ 8, 4, 2, 1 ]   / to itself, making two new paths to search
           Just ys ->
             case Foldable.find goal ys of
-              Nothing -> go (append paths ((\y -> cons y path) <$> ys))
-              Just y -> pure (Just (cons y path))
-   in \source -> go ((source :| []) :| [])
+              Nothing -> go (append paths ((\y -> List.NonEmpty.cons y path) <$> NESeq.fromList ys))
+              Just y -> pure (Just (List.NonEmpty.cons y path))
+   in -- lts-18.28 doesn't have List.NonEmpty.singleton
+      \source -> go (NESeq.singleton (source :| []))
   where
-    -- Cons an element onto the head of a non-empty list.
-    cons :: x -> List.NonEmpty x -> List.NonEmpty x
-    cons x (y :| ys) =
-      x :| y : ys
-
-    -- Concatenate a list and a non-empty list.
-    append :: [x] -> List.NonEmpty x -> List.NonEmpty x
-    append xs0 ys =
-      case List.NonEmpty.nonEmpty xs0 of
-        Nothing -> ys
-        Just xs -> xs <> ys
+    -- Concatenate a seq and a non-empty seq.
+    append :: Seq x -> NESeq x -> NESeq x
+    append = (NESeq.><|)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
