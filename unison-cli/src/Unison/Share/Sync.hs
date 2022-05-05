@@ -26,6 +26,7 @@ where
 
 import qualified Control.Lens as Lens
 import Control.Monad.Extra ((||^))
+import qualified Data.Foldable as Foldable (find)
 import Data.List.NonEmpty (pattern (:|))
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
@@ -176,7 +177,7 @@ fastForwardPush httpClient unisonShareUrl conn repoPath localHeadHash =
                 Share.FastForwardPathSuccess -> Right ()
                 Share.FastForwardPathMissingDependencies (Share.NeedDependencies dependencies) ->
                   Left (FastForwardPushErrorServerMissingDependencies dependencies)
-                -- Weird: someone must have force-pushed no history here, or something. We observed a history at this 
+                -- Weird: someone must have force-pushed no history here, or something. We observed a history at this
                 -- path but moments ago!
                 Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory repoPath)
                 Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission repoPath)
@@ -206,6 +207,82 @@ fastForwardPush httpClient unisonShareUrl conn repoPath localHeadHash =
 
     fancyBfs :: CausalHash -> Share.Hash -> Sqlite.Transaction (Maybe [CausalHash])
     fancyBfs = undefined
+
+dagbfs :: forall a m. Monad m => (a -> Bool) -> (a -> m [a]) -> a -> m (Maybe (List.NonEmpty a))
+dagbfs goal children =
+  let -- The loop state: all distinct paths from the root to the frontier, in reverse order, with the invariant that we
+      -- haven't found a goal state yet. (Otherwise, we wouldn't still be in this loop, we'd return!).
+      --
+      -- For example, say we are exploring the tree
+      --
+      --                    1
+      --                   / \
+      --                  2   3
+      --                 / \   \
+      --                4   5   6
+      --
+      -- Graphically, the frontier here is the nodes 4, 5, and 3; we know that, because I haven't drawn any nodes below
+      -- them. (This is a BFS algorithm that discovers children on-the-fly, so maybe node 5 (for example) has children,
+      -- and maybe it doesn't).
+      --
+      -- The loop state, in this case, would be these three paths:
+      --
+      --   [ 4, 2, 1 ]
+      --   [ 5, 2, 1 ]
+      --   [ 6, 3, 1 ]
+      go :: List.NonEmpty (List.NonEmpty a) -> m (Maybe (List.NonEmpty a))
+      go (path :| paths) = do
+        -- Get the children of the first path (in the above example, [ 4, 2, 1 ]).
+        ys0 <- children (List.NonEmpty.head path)
+        case List.NonEmpty.nonEmpty ys0 of
+          -- If node 4 had no more children, we can toss that whole path: it didn't end in a goal. Now we either keep
+          -- searching (as we would in the example, since we have two more paths to continue from), or we don't, because
+          -- this was the only remaining path.
+          Nothing ->
+            case List.NonEmpty.nonEmpty paths of
+              Nothing -> pure Nothing
+              Just paths' -> go paths'
+          -- If node 4 did have children, then maybe the search tree now looks like this.
+          --
+          --                1
+          --               / \
+          --              2   3
+          --             / \   \
+          --            4   5   6
+          --           / \
+          --          7   8
+          --
+          -- There are two cases to handle:
+          --
+          --   1. One of the children we just discovered (say 7) is a goal node. So we're done, and we'd return the path
+          --
+          --        [ 7, 4, 2, 1 ]
+          --
+          --   2. No child we just discovered (7 nor 8) were a goal node. So we loop, putting our new path(s) at the end
+          --      of the list (so we search paths fairly). In this case, we'd re-enter the loop with the following four
+          --      paths:
+          --
+          --        [ 5, 2, 1 ]      \ these two are are variable 'paths', the tail of the loop state.
+          --        [ 6, 3, 1 ]      /
+          --        [ 7, 4, 2, 1 ]   \ these two are new, just constructed by prepending each of [ 4, 2, 1 ]'s children
+          --        [ 8, 4, 2, 1 ]   / to itself, making two new paths to search
+          Just ys ->
+            case Foldable.find goal ys of
+              Nothing -> go (append paths ((\y -> cons y path) <$> ys))
+              Just y -> pure (Just (cons y path))
+   in \source -> go ((source :| []) :| [])
+  where
+    -- Cons an element onto the head of a non-empty list.
+    cons :: x -> List.NonEmpty x -> List.NonEmpty x
+    cons x (y :| ys) =
+      x :| y : ys
+
+    -- Concatenate a list and a non-empty list.
+    append :: [x] -> List.NonEmpty x -> List.NonEmpty x
+    append xs0 ys =
+      case List.NonEmpty.nonEmpty xs0 of
+        Nothing -> ys
+        Just xs -> xs <> ys
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
