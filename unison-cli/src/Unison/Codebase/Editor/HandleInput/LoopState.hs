@@ -138,7 +138,16 @@ currentPath :: Getter (LoopState m v) Path.Absolute
 currentPath = currentPathStack . to Nel.head
 
 loopState0 :: MVar (Branch m) -> Path.Absolute -> LoopState m v
-loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
+loopState0 b p =
+  LoopState
+    { _root = b,
+      _lastSavedRoot = b,
+      _currentPathStack = (pure p),
+      _latestFile = Nothing,
+      _latestTypecheckedFile = Nothing,
+      _lastInput = Nothing,
+      _numberedArgs = []
+    }
 
 getRootNames :: MonadIO m => Action' m v Names
 getRootNames = do

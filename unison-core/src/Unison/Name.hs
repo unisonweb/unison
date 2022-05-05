@@ -8,6 +8,7 @@ module Unison.Name
     joinDot,
     fromSegment,
     fromSegments,
+    fromReverseSegments,
 
     -- ** Unsafe construction
     unsafeFromString,
@@ -20,6 +21,7 @@ module Unison.Name
     isPrefixOf,
     endsWithReverseSegments,
     endsWithSegments,
+    stripReversedPrefix,
     reverseSegments,
     segments,
     suffixes,
@@ -56,6 +58,7 @@ where
 import Control.Lens (mapped, over, _1, _2)
 import qualified Control.Lens as Lens
 import qualified Data.List as List
+import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
@@ -177,9 +180,22 @@ endsWithSegments name ss =
 -- | Like 'endsWithSegments', but accepts a list of name segments in reverse order.
 --
 -- Slightly more efficient than 'endsWithSegments'.
+--
+-- >>> endsWithReverseSegments "a.b.c" ["c", "b"]
+-- True
 endsWithReverseSegments :: Name -> [NameSegment] -> Bool
 endsWithReverseSegments (Name _ ss0) ss1 =
   List.NonEmpty.isPrefixOf ss1 ss0
+
+-- >>> stripReversedPrefix "a.b.c" ["b", "a"]
+-- Just c
+-- >>> stripReversedPrefix "a.b" ["b", "a"]
+-- Nothing
+stripReversedPrefix :: Name -> [NameSegment] -> Maybe Name
+stripReversedPrefix (Name p segs) suffix = do
+  stripped <- List.stripSuffix suffix (toList segs)
+  nonEmptyStripped <- List.NonEmpty.nonEmpty stripped
+  pure $ Name p nonEmptyStripped
 
 -- | Is this name absolute?
 --
@@ -267,6 +283,16 @@ fromSegment s =
 fromSegments :: NonEmpty NameSegment -> Name
 fromSegments ss =
   Name Relative (List.NonEmpty.reverse ss)
+
+-- | Construct a relative name from a list of name segments which are in reverse order
+--
+-- >>> fromReverseSegments ("c" :| ["b", "a"])
+-- a.b.c
+--
+-- /O(1)/
+fromReverseSegments :: NonEmpty NameSegment -> Name
+fromReverseSegments rs =
+  Name Relative rs
 
 -- | Return the name segments of a name, in reverse order.
 --

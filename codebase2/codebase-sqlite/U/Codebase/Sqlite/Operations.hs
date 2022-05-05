@@ -6,6 +6,7 @@ module U.Codebase.Sqlite.Operations
     expectRootCausal,
     saveBranch,
     loadCausalBranchByCausalHash,
+    expectCausalBranchByCausalHash,
 
     -- * terms
     saveTermComponent,
@@ -59,6 +60,10 @@ module U.Codebase.Sqlite.Operations
     addTypeMentionsToIndexForTerm,
     termsMentioningType,
 
+    -- ** name lookup index
+    rebuildNameIndex,
+    rootBranchNames,
+
     -- * low-level stuff
     expectDbBranch,
     expectDbPatch,
@@ -89,13 +94,12 @@ import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.Bytes.Get (runGetS)
 import qualified Data.Bytes.Get as Get
 import qualified Data.Foldable as Foldable
-import Data.Functor.Identity (Identity)
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Tuple.Extra (uncurry3)
+import Data.Tuple.Extra (uncurry3, (***))
 import qualified Data.Vector as Vector
 import qualified U.Codebase.Branch as C.Branch
 import qualified U.Codebase.Causal as C
@@ -128,6 +132,7 @@ import U.Codebase.Sqlite.LocalIds
   )
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.LocalizeObject as LocalizeObject
+import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Diff as S
 import qualified U.Codebase.Sqlite.Patch.Format as S
@@ -219,8 +224,14 @@ loadRootCausalHash =
 c2sReference :: C.Reference -> Transaction S.Reference
 c2sReference = bitraverse Q.saveText Q.expectObjectIdForPrimaryHash
 
+c2sTextReference :: C.Reference -> S.TextReference
+c2sTextReference = fmap H.toBase32Hex
+
 s2cReference :: S.Reference -> Transaction C.Reference
 s2cReference = bitraverse Q.expectText Q.expectPrimaryHashByObjectId
+
+s2cTextReference :: S.TextReference -> C.Reference
+s2cTextReference = fmap H.fromBase32Hex
 
 c2sReferenceId :: C.Reference.Id -> Transaction S.Reference.Id
 c2sReferenceId = C.Reference.idH Q.expectObjectIdForPrimaryHash
@@ -240,11 +251,27 @@ c2hReference = bitraverse (MaybeT . Q.loadTextId) (MaybeT . Q.loadHashIdByHash)
 s2cReferent :: S.Referent -> Transaction C.Referent
 s2cReferent = bitraverse s2cReference s2cReference
 
+s2cTextReferent :: S.TextReferent -> C.Referent
+s2cTextReferent = bimap s2cTextReference s2cTextReference
+
+s2cConstructorType :: S.ConstructorType -> C.ConstructorType
+s2cConstructorType = \case
+  S.DataConstructor -> C.DataConstructor
+  S.EffectConstructor -> C.EffectConstructor
+
+c2sConstructorType :: C.ConstructorType -> S.ConstructorType
+c2sConstructorType = \case
+  C.DataConstructor -> S.DataConstructor
+  C.EffectConstructor -> S.EffectConstructor
+
 s2cReferentId :: S.Referent.Id -> Transaction C.Referent.Id
 s2cReferentId = bitraverse Q.expectPrimaryHashByObjectId Q.expectPrimaryHashByObjectId
 
 c2sReferent :: C.Referent -> Transaction S.Referent
 c2sReferent = bitraverse c2sReference c2sReference
+
+c2sTextReferent :: C.Referent -> S.TextReferent
+c2sTextReferent = bimap c2sTextReference c2sTextReference
 
 c2sReferentId :: C.Referent.Id -> Transaction S.Referent.Id
 c2sReferentId = bitraverse Q.expectObjectIdForPrimaryHash Q.expectObjectIdForPrimaryHash
@@ -857,7 +884,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           boId <- Q.expectBranchObjectIdByCausalHashId chId
           expectBranch boId
 
-saveRootBranch :: C.Branch.Causal Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
+saveRootBranch :: C.Branch.CausalBranch Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
 saveRootBranch c = do
   when debug $ traceM $ "Operations.saveRootBranch " ++ show (C.causalHash c)
   (boId, chId) <- saveBranch c
@@ -903,7 +930,7 @@ saveRootBranch c = do
 -- References, but also values
 -- Shallow - Hash? representation of the database relationships
 
-saveBranch :: C.Branch.Causal Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
+saveBranch :: C.Branch.CausalBranch Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
 saveBranch (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
 
@@ -961,24 +988,29 @@ saveBranchObject id@(Db.unBranchHashId -> hashId) li lBranch = do
   oId <- Q.saveObject hashId OT.Namespace bytes
   pure $ Db.BranchObjectId oId
 
-expectRootCausal :: Transaction (C.Branch.Causal Transaction)
-expectRootCausal = Q.expectNamespaceRoot >>= expectCausalByCausalHashId
+expectRootCausal :: Transaction (C.Branch.CausalBranch Transaction)
+expectRootCausal = Q.expectNamespaceRoot >>= expectCausalBranchByCausalHashId
 
-loadCausalBranchByCausalHash :: CausalHash -> Transaction (Maybe (C.Branch.Causal Transaction))
+loadCausalBranchByCausalHash :: CausalHash -> Transaction (Maybe (C.Branch.CausalBranch Transaction))
 loadCausalBranchByCausalHash hc = do
   Q.loadCausalHashIdByCausalHash hc >>= \case
-    Just chId -> Just <$> expectCausalByCausalHashId chId
+    Just chId -> Just <$> expectCausalBranchByCausalHashId chId
     Nothing -> pure Nothing
 
-expectCausalByCausalHashId :: Db.CausalHashId -> Transaction (C.Branch.Causal Transaction)
-expectCausalByCausalHashId id = do
+expectCausalBranchByCausalHashId :: Db.CausalHashId -> Transaction (C.Branch.CausalBranch Transaction)
+expectCausalBranchByCausalHashId id = do
   hc <- Q.expectCausalHash id
   hb <- expectValueHashByCausalHashId id
   parentHashIds <- Q.loadCausalParents id
   loadParents <- for parentHashIds \hId -> do
     h <- Q.expectCausalHash hId
-    pure (h, expectCausalByCausalHashId hId)
+    pure (h, expectCausalBranchByCausalHashId hId)
   pure $ C.Causal hc hb (Map.fromList loadParents) (expectBranchByCausalHashId id)
+
+expectCausalBranchByCausalHash :: CausalHash -> Transaction (C.Branch.CausalBranch Transaction)
+expectCausalBranchByCausalHash hash = do
+  chId <- Q.expectCausalHashIdByCausalHash hash
+  expectCausalBranchByCausalHashId chId
 
 expectBranchByCausalHashId :: Db.CausalHashId -> Transaction (C.Branch.Branch Transaction)
 expectBranchByCausalHashId id = do
@@ -1268,3 +1300,15 @@ derivedDependencies cid = do
   sids <- Q.getDependencyIdsForDependent sid
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
+
+rebuildNameIndex :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)] -> [S.NamedRef C.Reference] -> Transaction ()
+rebuildNameIndex termNames typeNames = do
+  Q.resetNameLookupTables
+  Q.insertTermNames ((fmap (c2sTextReferent *** fmap c2sConstructorType) <$> termNames))
+  Q.insertTypeNames ((fmap c2sTextReference <$> typeNames))
+
+rootBranchNames :: Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
+rootBranchNames = do
+  termNames <- Q.rootTermNames
+  typeNames <- Q.rootTypeNames
+  pure (fmap (bimap s2cTextReferent (fmap s2cConstructorType)) <$> termNames, fmap s2cTextReference <$> typeNames)

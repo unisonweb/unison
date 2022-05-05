@@ -33,6 +33,8 @@ library
       ConstraintKinds
       DeriveAnyClass
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
