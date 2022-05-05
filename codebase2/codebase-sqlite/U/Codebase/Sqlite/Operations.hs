@@ -225,13 +225,13 @@ c2sReference :: C.Reference -> Transaction S.Reference
 c2sReference = bitraverse Q.saveText Q.expectObjectIdForPrimaryHash
 
 c2sTextReference :: C.Reference -> S.TextReference
-c2sTextReference = fmap H.toBase32HexText
+c2sTextReference = fmap H.toBase32Hex
 
 s2cReference :: S.Reference -> Transaction C.Reference
 s2cReference = bitraverse Q.expectText Q.expectPrimaryHashByObjectId
 
 s2cTextReference :: S.TextReference -> C.Reference
-s2cTextReference = fmap H.unsafeFromBase32HexText
+s2cTextReference = fmap H.fromBase32Hex
 
 c2sReferenceId :: C.Reference.Id -> Transaction S.Reference.Id
 c2sReferenceId = C.Reference.idH Q.expectObjectIdForPrimaryHash
