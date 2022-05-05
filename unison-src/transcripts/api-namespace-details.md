@@ -1,4 +1,4 @@
-# Namespace details api
+# Get Definitions Test
 
 ```ucm:hide
 .> builtins.mergeio
@@ -8,7 +8,9 @@
 {{ Documentation }}
 nested.names.x = 42
 
-nested.names.readme = {{ I'm a readme! }}
+nested.names.readme = {{
+Here's a *README*!
+}}
 ```
 
 ```ucm
@@ -16,5 +18,6 @@ nested.names.readme = {{ I'm a readme! }}
 ```
 
 ```api
+-- Should find names by suffix
 GET /api/namespaces/nested.names
 ```
