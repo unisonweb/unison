@@ -571,6 +571,13 @@ namesAtPath path = do
         absoluteRootNames
       }
   where
+    -- If the given prefix matches the given name, the prefix is stripped and it's collected
+    -- on the left, otherwise it's left as-is and collected on the right.
+    -- >>> partitionByPathPrefix ["b", "a"] ("a.b.c", ())
+    -- ([(c,())],[])
+    --
+    -- >>> partitionByPathPrefix ["y", "x"] ("a.b.c", ())
+    -- ([],[(a.b.c,())])
     partitionByPathPrefix :: [NameSegment] -> (Name, r) -> ([(Name, r)], [(Name, r)])
     partitionByPathPrefix reversedPathSegments (n, ref) =
       case Name.stripReversedPrefix n reversedPathSegments of

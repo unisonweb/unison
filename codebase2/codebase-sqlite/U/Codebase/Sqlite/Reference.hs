@@ -15,6 +15,8 @@ import Unison.Sqlite (FromField, FromRow (fromRow), RowParser, SQLData (SQLNull)
 
 type Reference = Reference' TextId ObjectId
 
+-- | The name lookup table uses this because normalizing/denormalizing hashes to ids is slower
+-- than we'd like when writing/reading the entire name lookup table.
 type TextReference = Reference' Text Base32Hex
 
 type Id = Id' ObjectId

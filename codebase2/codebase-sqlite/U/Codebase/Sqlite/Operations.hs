@@ -1301,12 +1301,15 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
+-- | Given the list of term and type names from the root branch, rebuild the name lookup
+-- table.
 rebuildNameIndex :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)] -> [S.NamedRef C.Reference] -> Transaction ()
 rebuildNameIndex termNames typeNames = do
   Q.resetNameLookupTables
   Q.insertTermNames ((fmap (c2sTextReferent *** fmap c2sConstructorType) <$> termNames))
   Q.insertTypeNames ((fmap c2sTextReference <$> typeNames))
 
+-- | Get all the term and type names for the root namespace from the lookup table.
 rootBranchNames :: Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
 rootBranchNames = do
   termNames <- Q.rootTermNames

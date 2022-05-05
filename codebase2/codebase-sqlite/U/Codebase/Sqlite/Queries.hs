@@ -910,6 +910,7 @@ removeHashObjectsByHashingVersion hashVersion =
       WHERE hash_version = ?
 |]
 
+-- | Drop and recreate the name lookup tables. Use this when resetting names to a new branch.
 resetNameLookupTables :: Transaction ()
 resetNameLookupTables = do
   execute_ "DROP TABLE IF EXISTS term_name_lookup"
@@ -948,6 +949,7 @@ resetNameLookupTables = do
 --     CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index);
 --   |]
 
+-- | Insert the given set of term names into the name lookup table
 insertTermNames :: [S.NamedRef (Referent.TextReferent, Maybe S.ConstructorType)] -> Transaction ()
 insertTermNames names = do
   executeMany sql (fmap asRow <$> names)
@@ -960,6 +962,7 @@ insertTermNames names = do
         ON CONFLICT DO NOTHING
         |]
 
+-- | Insert the given set of type names into the name lookup table
 insertTypeNames :: [S.NamedRef (Reference.TextReference)] -> Transaction ()
 insertTypeNames names =
   executeMany sql names
@@ -971,6 +974,7 @@ insertTypeNames names =
         ON CONFLICT DO NOTHING
         |]
 
+-- | Get the list of a term names in the root namespace according to the name lookup index
 rootTermNames :: Transaction [S.NamedRef (Referent.TextReferent, Maybe S.ConstructorType)]
 rootTermNames = do
   (fmap . fmap) unRow <$> queryListRow_ sql
@@ -982,6 +986,7 @@ rootTermNames = do
           ORDER BY reversed_name ASC
         |]
 
+-- | Get the list of a type names in the root namespace according to the name lookup index
 rootTypeNames :: Transaction [S.NamedRef Reference.TextReference]
 rootTypeNames = do
   queryListRow_ sql

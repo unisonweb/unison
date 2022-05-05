@@ -16,6 +16,8 @@ import Unison.Sqlite (FromRow (..), SQLData (..), ToField (toField), ToRow (..),
 
 type Referent = Referent' Sqlite.Reference Sqlite.Reference
 
+-- | The name lookup table uses this because normalizing/denormalizing hashes to ids is slower
+-- than we'd like when writing/reading the entire name lookup table.
 type TextReferent = Referent' Sqlite.TextReference Sqlite.TextReference
 
 type ReferentH = Referent' Sqlite.ReferenceH Sqlite.ReferenceH
