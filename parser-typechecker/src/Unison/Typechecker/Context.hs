@@ -1942,7 +1942,7 @@ defaultAbility _ = pure False
 -- Expects a fully substituted type, so that it is unnecessary to
 -- check if an existential in the type has been solved.
 discardCovariant :: Var v => Set v -> Type v loc -> Type v loc
-discardCovariant _ ty | debugShow ("discardCovariant", ty) = undefined
+discardCovariant _ ty | debugShow ("discardCovariant" :: Text, ty) = undefined
 discardCovariant gens ty =
   ABT.rewriteDown (strip $ keepVarsT True ty) ty
   where
@@ -2385,7 +2385,7 @@ refineEffectVar ::
   Type v loc ->
   M v loc ()
 refineEffectVar _ es _ v _
-  | debugShow ("refineEffectVar", es, v) = undefined
+  | debugShow ("refineEffectVar" :: Text, es, v) = undefined
 refineEffectVar _ [] _ _ _ = pure ()
 refineEffectVar l es blank v tv
   | ev <- TypeVar.Existential blank v,
@@ -2595,7 +2595,7 @@ pruneAbilities ::
   [Type v loc] ->
   M v loc (Wanted v loc)
 pruneAbilities want0 have0
-  | debugShow ("pruneAbilities", want0, have0) = undefined
+  | debugShow ("pruneAbilities" :: Text, want0, have0) = undefined
 pruneAbilities want0 have0 = do
   pwant <- pruneConcrete missing [] want0 have0
   if pwant /= want0
@@ -2645,7 +2645,7 @@ equateAbilities ::
   [Type v loc] ->
   M v loc ()
 equateAbilities abs1 abs2
-  | debugShow ("equateAbilities", abs1, abs2) = undefined
+  | debugShow ("equateAbilities" :: Text, abs1, abs2) = undefined
 equateAbilities ls rs =
   matchAbilities ls rs >>= \(com, ls, rs) ->
     let (vls, cls) = partition isExistential ls
@@ -2704,7 +2704,7 @@ subAbilities ::
   [Type v loc] ->
   M v loc ()
 subAbilities want have
-  | debugShow ("subAbilities", want, have) = undefined
+  | debugShow ("subAbilities" :: Text, want, have) = undefined
 subAbilities want have = do
   want <- expandWanted want
   have <- expandAbilities have

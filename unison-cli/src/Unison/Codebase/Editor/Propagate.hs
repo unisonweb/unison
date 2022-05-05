@@ -133,7 +133,7 @@ propagateCtorMapping oldComponent newComponent =
               let oldCon = Referent.Con (ConstructorReference oldR oldC) t
                   newCon = Referent.Con (ConstructorReference newR newC) t
           ]
-   in if debugMode then traceShow ("constructorMappings", r) r else r
+   in if debugMode then traceShow ("constructorMappings" :: Text, r) r else r
 
 -- TODO: Use of this function will go away soon, once constructor mappings can be
 -- added directly to the patch.
@@ -160,7 +160,7 @@ genInitialCtorMapping rootNames initialTypeReplacements = do
     -- True if the unqualified versions of the names in the two sets overlap
     -- ex: {foo.bar, foo.baz} matches the set {blah.bar}.
     unqualifiedNamesMatch :: Set Name.Name -> Set Name.Name -> Bool
-    unqualifiedNamesMatch n1 n2 | debugMode && traceShow ("namesMatch", n1, n2) False = undefined
+    unqualifiedNamesMatch n1 n2 | debugMode && traceShow ("namesMatch" :: Text, n1, n2) False = undefined
     unqualifiedNamesMatch n1 n2 =
       (not . Set.null)
         ( Set.intersection
@@ -200,7 +200,7 @@ genInitialCtorMapping rootNames initialTypeReplacements = do
                     || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl),
                   oldR /= newR
               ]
-       in if debugMode then traceShow ("constructorMappings", r) r else r
+       in if debugMode then traceShow ("constructorMappings" :: Text, r) r else r
 
 debugMode :: Bool
 debugMode = False
@@ -300,7 +300,7 @@ propagate rootNames patch b = case validatePatch patch of
                 [ referentName old <> " -> " <> referentName new
                   | (old, new) <- Map.toList constructorReplacements
                 ]
-            go r _ | debugMode && traceShow ("Rewriting: ", refName r) False = undefined
+            go r _ | debugMode && traceShow ("Rewriting: " :: Text, refName r) False = undefined
             go _ _ | debugMode && trace ("** Constructor replacements:\n\n" <> debugCtors) False = undefined
             go r todo =
               if Map.member r termEdits || Set.member r seen || Map.member r typeEdits
@@ -373,7 +373,7 @@ propagate rootNames patch b = case validatePatch patch of
                     traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
                   !newCtorMappings =
                     let r = propagateCtorMapping componentMap hashedComponents'
-                     in if debugMode then traceShow ("constructorMappings: ", r) r else r
+                     in if debugMode then traceShow ("constructorMappings: " :: Text, r) r else r
                   constructorReplacements' = constructorReplacements <> newCtorMappings
               writeTypes $ Map.toList newNewTypes
               pure

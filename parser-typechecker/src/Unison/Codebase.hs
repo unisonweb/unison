@@ -175,7 +175,8 @@ getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch
 getBranchForHash codebase h =
   -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
   -- If not found, attempt to find it in the Codebase (sqlite)
-  let nestedChildrenForDepth depth b =
+  let nestedChildrenForDepth :: Int -> Branch m -> [Branch m]
+      nestedChildrenForDepth depth b =
         if depth == 0
           then []
           else b : (Map.elems (Branch._children (Branch.head b)) >>= nestedChildrenForDepth (depth - 1))

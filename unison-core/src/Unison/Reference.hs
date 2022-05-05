@@ -149,7 +149,7 @@ type CycleSize = Word64
 
 -- enumerate the `a`s and associates them with corresponding `Reference.Id`s
 componentFor :: H.Hash -> [a] -> [(Id, a)]
-componentFor h as = [(Id h i, a) | (fromIntegral -> i, a) <- zip [0 ..] as]
+componentFor h as = [(Id h i, a) | (i, a) <- zip [0 ..] as]
 
 componentFromLength :: H.Hash -> CycleSize -> Set Id
 componentFromLength h size = Set.fromList [Id h i | i <- [0 .. size - 1]]

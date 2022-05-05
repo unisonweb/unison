@@ -350,6 +350,7 @@ notifyNumbered o = case o of
       toSBH :: Branch.Hash -> ShortBranchHash
       toSBH h = SBH.fromHash sbhLength h
       reversedHistory = reverse history
+      showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
       handleTail :: Int -> (Pretty, [Branch.Hash])
       handleTail n = case tail of

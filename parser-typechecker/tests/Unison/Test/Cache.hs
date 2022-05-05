@@ -59,7 +59,7 @@ test =
     -- fully populated, concurrent reads should generate no further misses
     concurrent mkCache = do
       cache <- io $ mkCache
-      misses <- io $ newTVarIO 0
+      misses :: TVar Int <- io $ newTVarIO 0
       let f x = do
             atomically $ modifyTVar misses (+ 1)
             pure x

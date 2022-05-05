@@ -1716,7 +1716,7 @@ prettyBranches ind bs = case bs of
             s
             (mapToList $ snd <$> m)
       )
-      (prettyCase ind (prettyReq 0 0) df id)
+      (prettyCase ind (prettyReq (0::Int) (0::Int)) df id)
       (Map.toList bs)
   MatchSum bs ->
     foldr
@@ -1725,6 +1725,7 @@ prettyBranches ind bs = case bs of
       (mapToList $ snd <$> bs)
       -- _ -> error "prettyBranches: todo"
   where
+    -- prettyReq :: Reference -> CTag -> ShowS
     prettyReq r c =
       showString "REQ("
         . shows r
