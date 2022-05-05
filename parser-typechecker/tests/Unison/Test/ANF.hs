@@ -1,6 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Unison.Test.ANF where
 
