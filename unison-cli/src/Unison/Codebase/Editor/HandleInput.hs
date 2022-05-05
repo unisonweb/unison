@@ -1787,8 +1787,8 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
         PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
-handlePushToUnisonShare :: MonadIO m => Text -> Path -> Action' m v ()
-handlePushToUnisonShare remoteRepo remotePath = do
+handlePushToUnisonShare :: MonadIO m => Text -> Path -> PushBehavior -> Action' m v ()
+handlePushToUnisonShare remoteRepo remotePath behavior = do
   let repoPath = Share.RepoPath (Share.RepoName remoteRepo) (coerce @[NameSegment] @[Text] (Path.toList remotePath))
 
   LoopState.Env {authHTTPClient, codebase = Codebase {connection}, unisonShareUrl} <- ask
@@ -1798,15 +1798,28 @@ handlePushToUnisonShare remoteRepo remotePath = do
     Sqlite.runTransaction connection do
       Ops.expectCausalHashAtPath (coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute localPath)))
 
-  liftIO (Share.fastForwardPush authHTTPClient unisonShareUrl connection repoPath localCausalHash) >>= \case
-    Left err ->
-      case err of
-        Share.FastForwardPushErrorNoHistory _repoPath -> undefined
-        Share.FastForwardPushErrorNoReadPermission _repoPath -> undefined
-        Share.FastForwardPushErrorNotFastForward -> undefined
-        Share.FastForwardPushErrorNoWritePermission _repoPath -> undefined
-        Share.FastForwardPushErrorServerMissingDependencies _dependencies -> undefined
-    Right () -> pure ()
+  case behavior of
+    PushBehavior.RequireEmpty ->
+      liftIO (Share.checkAndSetPush authHTTPClient unisonShareUrl connection repoPath Nothing localCausalHash) >>= \case
+        Left err ->
+          case err of
+            Share.PushErrorHashMismatch _mismatch -> error "remote not empty"
+            Share.PushErrorNoWritePermission _repoPath -> errNoWritePermission repoPath
+            Share.PushErrorServerMissingDependencies deps -> errServerMissingDependencies deps
+        Right () -> pure ()
+    PushBehavior.RequireNonEmpty ->
+      liftIO (Share.fastForwardPush authHTTPClient unisonShareUrl connection repoPath localCausalHash) >>= \case
+        Left err ->
+          case err of
+            Share.FastForwardPushErrorNoHistory _repoPath -> error "no history"
+            Share.FastForwardPushErrorNoReadPermission _repoPath -> error "no read permission"
+            Share.FastForwardPushErrorNotFastForward -> error "not fast-forward"
+            Share.FastForwardPushErrorNoWritePermission _repoPath -> errNoWritePermission repoPath
+            Share.FastForwardPushErrorServerMissingDependencies deps -> errServerMissingDependencies deps
+        Right () -> pure ()
+  where
+    errNoWritePermission _repoPath = error "no write permission"
+    errServerMissingDependencies _dependencies = error "server missing dependencies"
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition ::
