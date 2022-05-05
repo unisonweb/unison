@@ -5,6 +5,7 @@ module Unison.Share.Sync
     checkAndSetPush,
     PushError (..),
     fastForwardPush,
+    FastForwardPushError (..),
 
     -- ** Pull
     pull,

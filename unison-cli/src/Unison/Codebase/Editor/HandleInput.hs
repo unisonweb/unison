@@ -1789,34 +1789,20 @@ handlePushToUnisonShare remoteRepo remotePath = do
 
   LoopState.Env {authHTTPClient, codebase = Codebase {connection}, unisonShareUrl} <- ask
 
-  -- First, get the remote causal's hash at the requested path. This effectively gives `push.share` force-push
-  -- semantics, as the user doesn't provide the expected remote hash themselves, ala `git push --force-with-lease`.
-  -- Then, with our trusty remote causal hash, do the push.
-
   localCausalHash <- do
     localPath <- use LoopState.currentPath
     Sqlite.runTransaction connection do
       Ops.expectCausalHashAtPath (coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute localPath)))
 
-  let doPush :: Maybe Share.Hash -> IO ()
-      doPush expectedHash =
-        Share.checkAndSetPush authHTTPClient unisonShareUrl connection repoPath expectedHash localCausalHash >>= \case
-          Left pushError ->
-            case pushError of
-              -- Race condition: inbetween getting the remote causal hash and attempting to overwrite it, it changed.
-              -- So, because this push has force-push semantics anyway, just loop again with the latest known remote
-              -- causal hash and attempt the push again.
-              Share.PushErrorHashMismatch Share.HashMismatch {actualHash} ->
-                doPush (Share.TypedHash.hash <$> actualHash)
-              Share.PushErrorNoWritePermission _ -> undefined
-              -- Meh; bug in client or server? Even though we (thought we) pushed all of the entities we were supposed
-              -- to, the server still said it was missing some when we tried to set the remote causal hash.
-              Share.PushErrorServerMissingDependencies missingDependencies -> undefined
-          Right () -> pure ()
-
-  liftIO (Share.getCausalHashByPath authHTTPClient unisonShareUrl repoPath) >>= \case
-    Left (Share.GetCausalHashByPathErrorNoReadPermission _) -> undefined
-    Right causalHashJwt -> liftIO (doPush (Share.hashJWTHash <$> causalHashJwt))
+  liftIO (Share.fastForwardPush authHTTPClient unisonShareUrl connection repoPath localCausalHash) >>= \case
+    Left err ->
+      case err of
+        Share.FastForwardPushErrorNoHistory _repoPath -> undefined
+        Share.FastForwardPushErrorNoReadPermission _repoPath -> undefined
+        Share.FastForwardPushErrorNotFastForward -> undefined
+        Share.FastForwardPushErrorNoWritePermission _repoPath -> undefined
+        Share.FastForwardPushErrorServerMissingDependencies _dependencies -> undefined
+    Right () -> pure ()
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition ::
