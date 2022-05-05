@@ -1,7 +1,62 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Sync.Types where
+module Unison.Sync.Types
+  ( -- * Misc. types
+    Base64Bytes (..),
+    RepoName (..),
+    RepoPath (..),
+
+    -- ** Hash types
+    Hash (..),
+    TypedHash (..),
+    HashJWT (..),
+    hashJWTHash,
+    HashJWTClaims (..),
+    DecodedHashJWT (..),
+    decodeHashJWT,
+    decodeHashJWTClaims,
+    decodedHashJWTHash,
+
+    -- ** Entity types
+    Entity (..),
+    TermComponent (..),
+    DeclComponent (..),
+    Patch (..),
+    PatchDiff (..),
+    Namespace (..),
+    NamespaceDiff (..),
+    Causal (..),
+    LocalIds (..),
+    entityDependencies,
+    EntityType (..),
+
+    -- * Request/response types
+
+    -- ** Get causal hash by path
+    GetCausalHashByPathRequest (..),
+    GetCausalHashByPathResponse (..),
+
+    -- ** Download entities
+    DownloadEntitiesRequest (..),
+    DownloadEntitiesResponse (..),
+
+    -- ** Upload entities
+    UploadEntitiesRequest (..),
+    UploadEntitiesResponse (..),
+
+    -- ** Fast-forward path
+    FastForwardPathRequest (..),
+    FastForwardPathResponse (..),
+
+    -- ** Update path
+    UpdatePathRequest (..),
+    UpdatePathResponse (..),
+
+    -- * Error types
+    HashMismatch (..),
+    NeedDependencies (..),
+  )
+where
 
 import Data.Aeson
 import qualified Data.Aeson as Aeson
@@ -21,6 +76,9 @@ import U.Util.Base32Hex (Base32Hex (..))
 import Unison.Prelude
 import qualified Web.JWT as JWT
 
+------------------------------------------------------------------------------------------------------------------------
+-- Misc. types
+
 -- | A newtype for JSON encoding binary data.
 newtype Base64Bytes = Base64Bytes ByteString
 
@@ -28,11 +86,55 @@ instance ToJSON Base64Bytes where
   toJSON (Base64Bytes bytes) = String . Text.decodeUtf8 $ convertToBase Base64 bytes
 
 instance FromJSON Base64Bytes where
-  parseJSON = Aeson.withText "Base64" $ \txt -> do
+  parseJSON = Aeson.withText "Base64" \txt -> do
     either fail (pure . Base64Bytes) $ convertFromBase Base64 (Text.encodeUtf8 txt)
 
 newtype RepoName = RepoName Text
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
+
+data RepoPath = RepoPath
+  { repoName :: RepoName,
+    pathSegments :: [Text]
+  }
+  deriving stock (Show, Eq, Ord)
+
+instance ToJSON RepoPath where
+  toJSON (RepoPath name segments) =
+    object
+      [ "repo_name" .= name,
+        "path" .= segments
+      ]
+
+instance FromJSON RepoPath where
+  parseJSON = Aeson.withObject "RepoPath" \obj -> do
+    repoName <- obj .: "repo_name"
+    pathSegments <- obj .: "path"
+    pure RepoPath {..}
+
+------------------------------------------------------------------------------------------------------------------------
+-- Hash types
+
+newtype Hash = Hash {toBase32Hex :: Base32Hex}
+  deriving (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (Text)
+
+data TypedHash = TypedHash
+  { hash :: Hash,
+    entityType :: EntityType
+  }
+  deriving stock (Show, Eq, Ord)
+
+instance ToJSON TypedHash where
+  toJSON (TypedHash hash entityType) =
+    object
+      [ "hash" .= hash,
+        "type" .= entityType
+      ]
+
+instance FromJSON TypedHash where
+  parseJSON = Aeson.withObject "TypedHash" \obj -> do
+    hash <- obj .: "hash"
+    entityType <- obj .: "type"
+    pure TypedHash {..}
 
 newtype HashJWT = HashJWT {unHashJWT :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
@@ -43,6 +145,25 @@ newtype HashJWT = HashJWT {unHashJWT :: Text}
 hashJWTHash :: HashJWT -> Hash
 hashJWTHash =
   decodedHashJWTHash . decodeHashJWT
+
+data HashJWTClaims = HashJWTClaims
+  { hash :: Hash,
+    entityType :: EntityType
+  }
+  deriving stock (Show, Eq, Ord)
+
+instance ToJSON HashJWTClaims where
+  toJSON (HashJWTClaims hash entityType) =
+    object
+      [ "h" .= hash,
+        "t" .= entityType
+      ]
+
+instance FromJSON HashJWTClaims where
+  parseJSON = Aeson.withObject "HashJWTClaims" \obj -> do
+    hash <- obj .: "h"
+    entityType <- obj .: "t"
+    pure HashJWTClaims {..}
 
 -- | A decoded hash JWT that retains the original encoded JWT.
 data DecodedHashJWT = DecodedHashJWT
@@ -82,65 +203,355 @@ decodedHashJWTHash :: DecodedHashJWT -> Hash
 decodedHashJWTHash DecodedHashJWT {claims = HashJWTClaims {hash}} =
   hash
 
-data HashJWTClaims = HashJWTClaims
-  { hash :: Hash,
-    entityType :: EntityType
+------------------------------------------------------------------------------------------------------------------------
+-- Entity types
+
+data Entity text noSyncHash hash
+  = TC (TermComponent text hash)
+  | DC (DeclComponent text hash)
+  | P (Patch text noSyncHash hash)
+  | PD (PatchDiff text noSyncHash hash)
+  | N (Namespace text hash)
+  | ND (NamespaceDiff text hash)
+  | C (Causal hash)
+  deriving stock (Show, Eq, Ord)
+
+instance (ToJSON text, ToJSON noSyncHash, ToJSON hash) => ToJSON (Entity text noSyncHash hash) where
+  toJSON = \case
+    TC tc -> go TermComponentType tc
+    DC dc -> go DeclComponentType dc
+    P patch -> go PatchType patch
+    PD patch -> go PatchDiffType patch
+    N ns -> go NamespaceType ns
+    ND ns -> go NamespaceDiffType ns
+    C causal -> go CausalType causal
+    where
+      go :: ToJSON a => EntityType -> a -> Aeson.Value
+      go typ obj = object ["type" .= typ, "object" .= obj]
+
+instance (FromJSON text, FromJSON noSyncHash, FromJSON hash, Ord hash) => FromJSON (Entity text noSyncHash hash) where
+  parseJSON = Aeson.withObject "Entity" \obj ->
+    obj .: "type" >>= \case
+      TermComponentType -> TC <$> obj .: "object"
+      DeclComponentType -> DC <$> obj .: "object"
+      PatchType -> P <$> obj .: "object"
+      PatchDiffType -> PD <$> obj .: "object"
+      NamespaceType -> N <$> obj .: "object"
+      NamespaceDiffType -> ND <$> obj .: "object"
+      CausalType -> C <$> obj .: "object"
+
+-- | Get the direct dependencies of an entity (which are actually sync'd).
+--
+-- FIXME use generic-lens here? (typed @hash)
+entityDependencies :: Ord hash => Entity text noSyncHash hash -> Set hash
+entityDependencies = \case
+  TC (TermComponent terms) -> flip foldMap terms \(LocalIds {hashes}, _term) -> Set.fromList hashes
+  DC (DeclComponent decls) -> flip foldMap decls \(LocalIds {hashes}, _decl) -> Set.fromList hashes
+  P Patch {newHashLookup} -> Set.fromList newHashLookup
+  PD PatchDiff {parent, newHashLookup} -> Set.insert parent (Set.fromList newHashLookup)
+  N Namespace {defnLookup, patchLookup, childLookup} ->
+    Set.unions
+      [ Set.fromList defnLookup,
+        Set.fromList patchLookup,
+        foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
+      ]
+  ND NamespaceDiff {parent, defnLookup, patchLookup, childLookup} ->
+    Set.unions
+      [ Set.singleton parent,
+        Set.fromList defnLookup,
+        Set.fromList patchLookup,
+        foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
+      ]
+  C Causal {parents} -> parents
+
+data TermComponent text hash = TermComponent [(LocalIds text hash, ByteString)]
+  deriving stock (Show, Eq, Ord)
+
+instance Bifoldable TermComponent where
+  bifoldMap = bifoldMapDefault
+
+instance Bifunctor TermComponent where
+  bimap = bimapDefault
+
+instance Bitraversable TermComponent where
+  bitraverse f g (TermComponent xs) =
+    TermComponent <$> bitraverseComponents f g xs
+
+instance (ToJSON text, ToJSON hash) => ToJSON (TermComponent text hash) where
+  toJSON (TermComponent components) =
+    object
+      [ "terms" .= (encodeComponentPiece <$> components)
+      ]
+
+bitraverseComponents ::
+  Applicative f =>
+  (a -> f a') ->
+  (b -> f b') ->
+  [(LocalIds a b, ByteString)] ->
+  f [(LocalIds a' b', ByteString)]
+bitraverseComponents f g =
+  traverse . _1 $ bitraverse f g
+  where
+    _1 f (l, r) = (,r) <$> f l
+
+encodeComponentPiece :: (ToJSON text, ToJSON hash) => (LocalIds text hash, ByteString) -> Value
+encodeComponentPiece (localIDs, bytes) =
+  object
+    [ "local_ids" .= localIDs,
+      "bytes" .= Base64Bytes bytes
+    ]
+
+decodeComponentPiece :: (FromJSON text, FromJSON hash) => Value -> Aeson.Parser (LocalIds text hash, ByteString)
+decodeComponentPiece = Aeson.withObject "Component Piece" \obj -> do
+  localIDs <- obj .: "local_ids"
+  Base64Bytes bytes <- obj .: "local_ids"
+  pure (localIDs, bytes)
+
+instance (FromJSON text, FromJSON hash) => FromJSON (TermComponent text hash) where
+  parseJSON = Aeson.withObject "TermComponent" \obj -> do
+    pieces <- obj .: "terms"
+    terms <- traverse decodeComponentPiece pieces
+    pure (TermComponent terms)
+
+data DeclComponent text hash = DeclComponent [(LocalIds text hash, ByteString)]
+  deriving stock (Show, Eq, Ord)
+
+instance Bifoldable DeclComponent where
+  bifoldMap = bifoldMapDefault
+
+instance Bifunctor DeclComponent where
+  bimap = bimapDefault
+
+instance Bitraversable DeclComponent where
+  bitraverse f g (DeclComponent xs) =
+    DeclComponent <$> bitraverseComponents f g xs
+
+instance (ToJSON text, ToJSON hash) => ToJSON (DeclComponent text hash) where
+  toJSON (DeclComponent components) =
+    object
+      [ "decls" .= (encodeComponentPiece <$> components)
+      ]
+
+instance (FromJSON text, FromJSON hash) => FromJSON (DeclComponent text hash) where
+  parseJSON = Aeson.withObject "DeclComponent" \obj -> do
+    pieces <- obj .: "decls"
+    terms <- traverse decodeComponentPiece pieces
+    pure (DeclComponent terms)
+
+data LocalIds text hash = LocalIds
+  { texts :: [text],
+    hashes :: [hash]
   }
   deriving stock (Show, Eq, Ord)
 
-instance ToJSON HashJWTClaims where
-  toJSON (HashJWTClaims hash entityType) =
+instance Bifoldable LocalIds where
+  bifoldMap = bifoldMapDefault
+
+instance Bifunctor LocalIds where
+  bimap = bimapDefault
+
+instance Bitraversable LocalIds where
+  bitraverse f g (LocalIds texts hashes) =
+    LocalIds <$> traverse f texts <*> traverse g hashes
+
+instance (ToJSON text, ToJSON hash) => ToJSON (LocalIds text hash) where
+  toJSON (LocalIds texts hashes) =
     object
-      [ "h" .= hash,
-        "t" .= entityType
+      [ "texts" .= texts,
+        "hashes" .= hashes
       ]
 
-instance FromJSON HashJWTClaims where
-  parseJSON = Aeson.withObject "HashJWTClaims" $ \obj -> do
-    hash <- obj .: "h"
-    entityType <- obj .: "t"
-    pure HashJWTClaims {..}
+instance (FromJSON text, FromJSON hash) => FromJSON (LocalIds text hash) where
+  parseJSON = Aeson.withObject "LocalIds" \obj -> do
+    texts <- obj .: "texts"
+    hashes <- obj .: "hashes"
+    pure LocalIds {..}
 
-newtype Hash = Hash {toBase32Hex :: Base32Hex}
-  deriving (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (Text)
-
-data TypedHash = TypedHash
-  { hash :: Hash,
-    entityType :: EntityType
+data Patch text oldHash newHash = Patch
+  { textLookup :: [text],
+    oldHashLookup :: [oldHash],
+    newHashLookup :: [newHash],
+    bytes :: ByteString
   }
   deriving stock (Show, Eq, Ord)
 
-instance ToJSON TypedHash where
-  toJSON (TypedHash hash entityType) =
+instance (ToJSON text, ToJSON oldHash, ToJSON newHash) => ToJSON (Patch text oldHash newHash) where
+  toJSON (Patch textLookup oldHashLookup newHashLookup bytes) =
     object
-      [ "hash" .= hash,
-        "type" .= entityType
+      [ "text_lookup" .= textLookup,
+        "optional_hash_lookup" .= oldHashLookup,
+        "hash_lookup" .= newHashLookup,
+        "bytes" .= Base64Bytes bytes
       ]
 
-instance FromJSON TypedHash where
-  parseJSON = Aeson.withObject "TypedHash" $ \obj -> do
-    hash <- obj .: "hash"
-    entityType <- obj .: "type"
-    pure $ TypedHash {..}
+instance (FromJSON text, FromJSON oldHash, FromJSON newHash) => FromJSON (Patch text oldHash newHash) where
+  parseJSON = Aeson.withObject "Patch" \obj -> do
+    textLookup <- obj .: "text_lookup"
+    oldHashLookup <- obj .: "optional_hash_lookup"
+    newHashLookup <- obj .: "hash_lookup"
+    Base64Bytes bytes <- obj .: "bytes"
+    pure Patch {..}
 
-data RepoPath = RepoPath
-  { repoName :: RepoName,
-    pathSegments :: [Text]
+data PatchDiff text oldHash hash = PatchDiff
+  { parent :: hash,
+    textLookup :: [text],
+    oldHashLookup :: [oldHash],
+    newHashLookup :: [hash],
+    bytes :: ByteString
   }
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Eq, Ord, Show)
 
-instance ToJSON RepoPath where
-  toJSON (RepoPath name segments) =
+instance (ToJSON text, ToJSON oldHash, ToJSON hash) => ToJSON (PatchDiff text oldHash hash) where
+  toJSON (PatchDiff parent textLookup oldHashLookup newHashLookup bytes) =
     object
-      [ "repo_name" .= name,
-        "path" .= segments
+      [ "parent" .= parent,
+        "text_lookup" .= textLookup,
+        "optional_hash_lookup" .= oldHashLookup,
+        "hash_lookup" .= newHashLookup,
+        "bytes" .= Base64Bytes bytes
       ]
 
-instance FromJSON RepoPath where
-  parseJSON = Aeson.withObject "RepoPath" $ \obj -> do
-    repoName <- obj .: "repo_name"
-    pathSegments <- obj .: "path"
-    pure RepoPath {..}
+instance (FromJSON text, FromJSON oldHash, FromJSON hash) => FromJSON (PatchDiff text oldHash hash) where
+  parseJSON = Aeson.withObject "PatchDiff" \obj -> do
+    parent <- obj .: "parent"
+    textLookup <- obj .: "text_lookup"
+    oldHashLookup <- obj .: "optional_hash_lookup"
+    newHashLookup <- obj .: "hash_lookup"
+    Base64Bytes bytes <- obj .: "bytes"
+    pure PatchDiff {..}
+
+data Namespace text hash = Namespace
+  { textLookup :: [text],
+    defnLookup :: [hash],
+    patchLookup :: [hash],
+    childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
+    bytes :: ByteString
+  }
+  deriving stock (Eq, Ord, Show)
+
+instance Bifoldable Namespace where
+  bifoldMap = bifoldMapDefault
+
+instance Bifunctor Namespace where
+  bimap = bimapDefault
+
+instance Bitraversable Namespace where
+  bitraverse f g (Namespace tl dl pl cl b) =
+    Namespace
+      <$> traverse f tl
+      <*> traverse g dl
+      <*> traverse g pl
+      <*> traverse (bitraverse g g) cl
+      <*> pure b
+
+instance (ToJSON text, ToJSON hash) => ToJSON (Namespace text hash) where
+  toJSON (Namespace textLookup defnLookup patchLookup childLookup bytes) =
+    object
+      [ "text_lookup" .= textLookup,
+        "defn_lookup" .= defnLookup,
+        "patch_lookup" .= patchLookup,
+        "child_lookup" .= childLookup,
+        "bytes" .= Base64Bytes bytes
+      ]
+
+instance (FromJSON text, FromJSON hash) => FromJSON (Namespace text hash) where
+  parseJSON = Aeson.withObject "Namespace" \obj -> do
+    textLookup <- obj .: "text_lookup"
+    defnLookup <- obj .: "defn_lookup"
+    patchLookup <- obj .: "patch_lookup"
+    childLookup <- obj .: "child_lookup"
+    Base64Bytes bytes <- obj .: "bytes"
+    pure Namespace {..}
+
+data NamespaceDiff text hash = NamespaceDiff
+  { parent :: hash,
+    textLookup :: [text],
+    defnLookup :: [hash],
+    patchLookup :: [hash],
+    childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
+    bytes :: ByteString
+  }
+  deriving stock (Eq, Ord, Show)
+
+instance (ToJSON text, ToJSON hash) => ToJSON (NamespaceDiff text hash) where
+  toJSON (NamespaceDiff parent textLookup defnLookup patchLookup childLookup bytes) =
+    object
+      [ "parent" .= parent,
+        "text_lookup" .= textLookup,
+        "defn_lookup" .= defnLookup,
+        "patch_lookup" .= patchLookup,
+        "child_lookup" .= childLookup,
+        "bytes" .= Base64Bytes bytes
+      ]
+
+instance (FromJSON text, FromJSON hash) => FromJSON (NamespaceDiff text hash) where
+  parseJSON = Aeson.withObject "NamespaceDiff" \obj -> do
+    parent <- obj .: "parent"
+    textLookup <- obj .: "text_lookup"
+    defnLookup <- obj .: "defn_lookup"
+    patchLookup <- obj .: "patch_lookup"
+    childLookup <- obj .: "child_lookup"
+    Base64Bytes bytes <- obj .: "bytes"
+    pure NamespaceDiff {..}
+
+-- Client _may_ choose not to download the namespace entity in the future, but
+-- we still send them the hash/hashjwt.
+data Causal hash = Causal
+  { namespaceHash :: hash,
+    parents :: Set hash
+  }
+  deriving stock (Eq, Ord, Show)
+
+instance (ToJSON hash) => ToJSON (Causal hash) where
+  toJSON (Causal namespaceHash parents) =
+    object
+      [ "namespace_hash" .= namespaceHash,
+        "parents" .= parents
+      ]
+
+instance (FromJSON hash, Ord hash) => FromJSON (Causal hash) where
+  parseJSON = Aeson.withObject "Causal" \obj -> do
+    namespaceHash <- obj .: "namespace_hash"
+    parents <- obj .: "parents"
+    pure Causal {..}
+
+data EntityType
+  = TermComponentType
+  | DeclComponentType
+  | PatchType
+  | PatchDiffType
+  | NamespaceType
+  | NamespaceDiffType
+  | CausalType
+  deriving stock (Eq, Ord, Show)
+
+instance ToJSON EntityType where
+  toJSON =
+    String . \case
+      TermComponentType -> "term_component"
+      DeclComponentType -> "decl_component"
+      PatchType -> "patch"
+      PatchDiffType -> "patch_diff"
+      NamespaceType -> "namespace"
+      NamespaceDiffType -> "namespace_diff"
+      CausalType -> "causal"
+
+instance FromJSON EntityType where
+  parseJSON = Aeson.withText "EntityType" \case
+    "term_component" -> pure TermComponentType
+    "decl_component" -> pure DeclComponentType
+    "patch" -> pure PatchType
+    "patch_diff" -> pure PatchDiffType
+    "namespace" -> pure NamespaceType
+    "namespace_diff" -> pure NamespaceDiffType
+    "causal" -> pure CausalType
+    t -> failText $ "Unexpected entity type: " <> t
+
+------------------------------------------------------------------------------------------------------------------------
+-- Request/response types
+
+------------------------------------------------------------------------------------------------------------------------
+-- Get causal hash by path
 
 newtype GetCausalHashByPathRequest = GetCausalHashByPathRequest
   { repoPath :: RepoPath
@@ -154,7 +565,7 @@ instance ToJSON GetCausalHashByPathRequest where
       ]
 
 instance FromJSON GetCausalHashByPathRequest where
-  parseJSON = Aeson.withObject "GetCausalHashByPathRequest" $ \obj -> do
+  parseJSON = Aeson.withObject "GetCausalHashByPathRequest" \obj -> do
     repoPath <- obj .: "repo_path"
     pure GetCausalHashByPathRequest {..}
 
@@ -175,6 +586,9 @@ instance FromJSON GetCausalHashByPathResponse where
       "no_read_permission" -> GetCausalHashByPathNoReadPermission <$> obj .: "payload"
       t -> failText $ "Unexpected GetCausalHashByPathResponse type: " <> t
 
+------------------------------------------------------------------------------------------------------------------------
+-- Download entities
+
 data DownloadEntitiesRequest = DownloadEntitiesRequest
   { repoName :: RepoName,
     hashes :: NESet HashJWT
@@ -189,7 +603,7 @@ instance ToJSON DownloadEntitiesRequest where
       ]
 
 instance FromJSON DownloadEntitiesRequest where
-  parseJSON = Aeson.withObject "DownloadEntitiesRequest" $ \obj -> do
+  parseJSON = Aeson.withObject "DownloadEntitiesRequest" \obj -> do
     repoName <- obj .: "repo_name"
     hashes <- obj .: "hashes"
     pure DownloadEntitiesRequest {..}
@@ -206,8 +620,51 @@ instance ToJSON DownloadEntitiesResponse where
       ]
 
 instance FromJSON DownloadEntitiesResponse where
-  parseJSON = Aeson.withObject "DownloadEntitiesResponse" $ \obj -> do
+  parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj -> do
     DownloadEntitiesResponse <$> obj .: "entities"
+
+------------------------------------------------------------------------------------------------------------------------
+-- Upload entities
+
+data UploadEntitiesRequest = UploadEntitiesRequest
+  { repoName :: RepoName,
+    entities :: NEMap Hash (Entity Text Hash Hash)
+  }
+  deriving stock (Show, Eq, Ord)
+
+instance ToJSON UploadEntitiesRequest where
+  toJSON (UploadEntitiesRequest repoName entities) =
+    object
+      [ "repo_name" .= repoName,
+        "entities" .= entities
+      ]
+
+instance FromJSON UploadEntitiesRequest where
+  parseJSON = Aeson.withObject "UploadEntitiesRequest" \obj -> do
+    repoName <- obj .: "repo_name"
+    entities <- obj .: "entities"
+    pure UploadEntitiesRequest {..}
+
+data UploadEntitiesResponse
+  = UploadEntitiesSuccess
+  | UploadEntitiesNeedDependencies (NeedDependencies Hash)
+  | UploadEntitiesNoWritePermission RepoName
+  deriving stock (Show, Eq, Ord)
+
+instance ToJSON UploadEntitiesResponse where
+  toJSON = \case
+    UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
+    UploadEntitiesNeedDependencies nd -> jsonUnion "need_dependencies" nd
+    UploadEntitiesNoWritePermission repoName -> jsonUnion "no_write_permission" repoName
+
+instance FromJSON UploadEntitiesResponse where
+  parseJSON v =
+    v & Aeson.withObject "UploadEntitiesResponse" \obj ->
+      obj .: "type" >>= Aeson.withText "type" \case
+        "success" -> pure UploadEntitiesSuccess
+        "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
+        "no_write_permission" -> UploadEntitiesNoWritePermission <$> obj .: "payload"
+        t -> failText $ "Unexpected UploadEntitiesResponse type: " <> t
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Fast-forward path
@@ -305,7 +762,7 @@ instance ToJSON UpdatePathRequest where
       ]
 
 instance FromJSON UpdatePathRequest where
-  parseJSON = Aeson.withObject "UpdatePathRequest" $ \obj -> do
+  parseJSON = Aeson.withObject "UpdatePathRequest" \obj -> do
     path <- obj .: "path"
     expectedHash <- obj .: "expected_hash"
     newHash <- obj .: "new_hash"
@@ -317,13 +774,6 @@ data UpdatePathResponse
   | UpdatePathMissingDependencies (NeedDependencies Hash)
   | UpdatePathNoWritePermission RepoPath
   deriving stock (Show, Eq, Ord)
-
-jsonUnion :: ToJSON a => Text -> a -> Value
-jsonUnion typeName val =
-  Aeson.object
-    [ "type" .= String typeName,
-      "payload" .= val
-    ]
 
 instance ToJSON UpdatePathResponse where
   toJSON = \case
@@ -342,19 +792,8 @@ instance FromJSON UpdatePathResponse where
         "no_write_permission" -> UpdatePathNoWritePermission <$> obj .: "payload"
         t -> failText $ "Unexpected UpdatePathResponse type: " <> t
 
-data NeedDependencies hash = NeedDependencies
-  { missingDependencies :: NESet hash
-  }
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON hash => ToJSON (NeedDependencies hash) where
-  toJSON (NeedDependencies missingDependencies) =
-    object ["missing_dependencies" .= missingDependencies]
-
-instance (FromJSON hash, Ord hash) => FromJSON (NeedDependencies hash) where
-  parseJSON = Aeson.withObject "NeedDependencies" $ \obj -> do
-    missingDependencies <- obj .: "missing_dependencies"
-    pure NeedDependencies {..}
+------------------------------------------------------------------------------------------------------------------------
+-- Error types
 
 data HashMismatch = HashMismatch
   { repoPath :: RepoPath,
@@ -372,417 +811,35 @@ instance ToJSON HashMismatch where
       ]
 
 instance FromJSON HashMismatch where
-  parseJSON = Aeson.withObject "HashMismatch" $ \obj -> do
+  parseJSON = Aeson.withObject "HashMismatch" \obj -> do
     repoPath <- obj .: "repo_path"
     expectedHash <- obj .: "expected_hash"
     actualHash <- obj .: "actual_hash"
     pure HashMismatch {..}
 
-data UploadEntitiesRequest = UploadEntitiesRequest
-  { repoName :: RepoName,
-    entities :: NEMap Hash (Entity Text Hash Hash)
+data NeedDependencies hash = NeedDependencies
+  { missingDependencies :: NESet hash
   }
   deriving stock (Show, Eq, Ord)
 
-instance ToJSON UploadEntitiesRequest where
-  toJSON (UploadEntitiesRequest repoName entities) =
-    object
-      [ "repo_name" .= repoName,
-        "entities" .= entities
-      ]
+instance ToJSON hash => ToJSON (NeedDependencies hash) where
+  toJSON (NeedDependencies missingDependencies) =
+    object ["missing_dependencies" .= missingDependencies]
 
-instance FromJSON UploadEntitiesRequest where
-  parseJSON = Aeson.withObject "UploadEntitiesRequest" $ \obj -> do
-    repoName <- obj .: "repo_name"
-    entities <- obj .: "entities"
-    pure UploadEntitiesRequest {..}
+instance (FromJSON hash, Ord hash) => FromJSON (NeedDependencies hash) where
+  parseJSON = Aeson.withObject "NeedDependencies" \obj -> do
+    missingDependencies <- obj .: "missing_dependencies"
+    pure NeedDependencies {..}
 
-data UploadEntitiesResponse
-  = UploadEntitiesSuccess
-  | UploadEntitiesNeedDependencies (NeedDependencies Hash)
-  | UploadEntitiesNoWritePermission RepoName
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON UploadEntitiesResponse where
-  toJSON = \case
-    UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
-    UploadEntitiesNeedDependencies nd -> jsonUnion "need_dependencies" nd
-    UploadEntitiesNoWritePermission repoName -> jsonUnion "no_write_permission" repoName
-
-instance FromJSON UploadEntitiesResponse where
-  parseJSON v =
-    v & Aeson.withObject "UploadEntitiesResponse" \obj ->
-      obj .: "type" >>= Aeson.withText "type" \case
-        "success" -> pure UploadEntitiesSuccess
-        "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
-        "no_write_permission" -> UploadEntitiesNoWritePermission <$> obj .: "payload"
-        t -> failText $ "Unexpected UploadEntitiesResponse type: " <> t
-
-data Entity text noSyncHash hash
-  = TC (TermComponent text hash)
-  | DC (DeclComponent text hash)
-  | P (Patch text noSyncHash hash)
-  | PD (PatchDiff text noSyncHash hash)
-  | N (Namespace text hash)
-  | ND (NamespaceDiff text hash)
-  | C (Causal hash)
-  deriving stock (Show, Eq, Ord)
-
-instance (ToJSON text, ToJSON noSyncHash, ToJSON hash) => ToJSON (Entity text noSyncHash hash) where
-  toJSON = \case
-    TC tc ->
-      object
-        [ "type" .= TermComponentType,
-          "object" .= tc
-        ]
-    DC dc ->
-      object
-        [ "type" .= DeclComponentType,
-          "object" .= dc
-        ]
-    P patch ->
-      object
-        [ "type" .= PatchType,
-          "object" .= patch
-        ]
-    PD patch ->
-      object
-        [ "type" .= PatchDiffType,
-          "object" .= patch
-        ]
-    N ns ->
-      object
-        [ "type" .= NamespaceType,
-          "object" .= ns
-        ]
-    ND ns ->
-      object
-        [ "type" .= NamespaceDiffType,
-          "object" .= ns
-        ]
-    C causal ->
-      object
-        [ "type" .= CausalType,
-          "object" .= causal
-        ]
-
-instance (FromJSON text, FromJSON noSyncHash, FromJSON hash, Ord hash) => FromJSON (Entity text noSyncHash hash) where
-  parseJSON = Aeson.withObject "Entity" $ \obj -> do
-    entityType <- obj .: "type"
-    case entityType of
-      TermComponentType -> TC <$> obj .: "object"
-      DeclComponentType -> DC <$> obj .: "object"
-      PatchType -> P <$> obj .: "object"
-      PatchDiffType -> PD <$> obj .: "object"
-      NamespaceType -> N <$> obj .: "object"
-      NamespaceDiffType -> ND <$> obj .: "object"
-      CausalType -> C <$> obj .: "object"
-
--- | Get the direct dependencies of an entity (which are actually sync'd).
---
--- FIXME use generic-lens here? (typed @hash)
-entityDependencies :: Ord hash => Entity text noSyncHash hash -> Set hash
-entityDependencies = \case
-  TC (TermComponent terms) -> flip foldMap terms \(LocalIds {hashes}, _term) -> Set.fromList hashes
-  DC (DeclComponent decls) -> flip foldMap decls \(LocalIds {hashes}, _decl) -> Set.fromList hashes
-  P Patch {newHashLookup} -> Set.fromList newHashLookup
-  PD PatchDiff {parent, newHashLookup} -> Set.insert parent (Set.fromList newHashLookup)
-  N Namespace {defnLookup, patchLookup, childLookup} ->
-    Set.unions
-      [ Set.fromList defnLookup,
-        Set.fromList patchLookup,
-        foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
-      ]
-  ND NamespaceDiff {parent, defnLookup, patchLookup, childLookup} ->
-    Set.unions
-      [ Set.singleton parent,
-        Set.fromList defnLookup,
-        Set.fromList patchLookup,
-        foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
-      ]
-  C Causal {parents} -> parents
-
-data TermComponent text hash = TermComponent [(LocalIds text hash, ByteString)]
-  deriving stock (Show, Eq, Ord)
-
-instance Bifoldable TermComponent where
-  bifoldMap = bifoldMapDefault
-
-instance Bifunctor TermComponent where
-  bimap = bimapDefault
-
-instance Bitraversable TermComponent where
-  bitraverse f g (TermComponent xs) =
-    TermComponent <$> bitraverseComponents f g xs
-
-instance (ToJSON text, ToJSON hash) => ToJSON (TermComponent text hash) where
-  toJSON (TermComponent components) =
-    object
-      [ "terms" .= (encodeComponentPiece <$> components)
-      ]
-
-bitraverseComponents ::
-  Applicative f =>
-  (a -> f a') ->
-  (b -> f b') ->
-  [(LocalIds a b, ByteString)] ->
-  f [(LocalIds a' b', ByteString)]
-bitraverseComponents f g =
-  traverse . _1 $ bitraverse f g
-  where
-    _1 f (l, r) = (,r) <$> f l
-
-encodeComponentPiece :: (ToJSON text, ToJSON hash) => (LocalIds text hash, ByteString) -> Value
-encodeComponentPiece (localIDs, bytes) =
-  object
-    [ "local_ids" .= localIDs,
-      "bytes" .= Base64Bytes bytes
-    ]
-
-decodeComponentPiece :: (FromJSON text, FromJSON hash) => Value -> Aeson.Parser (LocalIds text hash, ByteString)
-decodeComponentPiece = Aeson.withObject "Component Piece" $ \obj -> do
-  localIDs <- obj .: "local_ids"
-  Base64Bytes bytes <- obj .: "local_ids"
-  pure (localIDs, bytes)
+------------------------------------------------------------------------------------------------------------------------
+-- Misc. helpers
 
 failText :: MonadFail m => Text -> m a
 failText = fail . Text.unpack
 
-instance (FromJSON text, FromJSON hash) => FromJSON (TermComponent text hash) where
-  parseJSON = Aeson.withObject "TermComponent" $ \obj -> do
-    pieces <- obj .: "terms"
-    terms <- traverse decodeComponentPiece pieces
-    pure (TermComponent terms)
-
-data DeclComponent text hash = DeclComponent [(LocalIds text hash, ByteString)]
-  deriving stock (Show, Eq, Ord)
-
-instance Bifoldable DeclComponent where
-  bifoldMap = bifoldMapDefault
-
-instance Bifunctor DeclComponent where
-  bimap = bimapDefault
-
-instance Bitraversable DeclComponent where
-  bitraverse f g (DeclComponent xs) =
-    DeclComponent <$> bitraverseComponents f g xs
-
-instance (ToJSON text, ToJSON hash) => ToJSON (DeclComponent text hash) where
-  toJSON (DeclComponent components) =
-    object
-      [ "decls" .= (encodeComponentPiece <$> components)
-      ]
-
-instance (FromJSON text, FromJSON hash) => FromJSON (DeclComponent text hash) where
-  parseJSON = Aeson.withObject "DeclComponent" $ \obj -> do
-    pieces <- obj .: "decls"
-    terms <- traverse decodeComponentPiece pieces
-    pure (DeclComponent terms)
-
-data LocalIds text hash = LocalIds
-  { texts :: [text],
-    hashes :: [hash]
-  }
-  deriving stock (Show, Eq, Ord)
-
-instance Bifoldable LocalIds where
-  bifoldMap = bifoldMapDefault
-
-instance Bifunctor LocalIds where
-  bimap = bimapDefault
-
-instance Bitraversable LocalIds where
-  bitraverse f g (LocalIds texts hashes) =
-    LocalIds <$> traverse f texts <*> traverse g hashes
-
-instance (ToJSON text, ToJSON hash) => ToJSON (LocalIds text hash) where
-  toJSON (LocalIds texts hashes) =
-    object
-      [ "texts" .= texts,
-        "hashes" .= hashes
-      ]
-
-instance (FromJSON text, FromJSON hash) => FromJSON (LocalIds text hash) where
-  parseJSON = Aeson.withObject "LocalIds" $ \obj -> do
-    texts <- obj .: "texts"
-    hashes <- obj .: "hashes"
-    pure LocalIds {..}
-
-data Patch text oldHash newHash = Patch
-  { textLookup :: [text],
-    oldHashLookup :: [oldHash],
-    newHashLookup :: [newHash],
-    bytes :: ByteString
-  }
-  deriving stock (Show, Eq, Ord)
-
-instance (ToJSON text, ToJSON oldHash, ToJSON newHash) => ToJSON (Patch text oldHash newHash) where
-  toJSON (Patch textLookup oldHashLookup newHashLookup bytes) =
-    object
-      [ "text_lookup" .= textLookup,
-        "optional_hash_lookup" .= oldHashLookup,
-        "hash_lookup" .= newHashLookup,
-        "bytes" .= Base64Bytes bytes
-      ]
-
-instance (FromJSON text, FromJSON oldHash, FromJSON newHash) => FromJSON (Patch text oldHash newHash) where
-  parseJSON = Aeson.withObject "Patch" $ \obj -> do
-    textLookup <- obj .: "text_lookup"
-    oldHashLookup <- obj .: "optional_hash_lookup"
-    newHashLookup <- obj .: "hash_lookup"
-    Base64Bytes bytes <- obj .: "bytes"
-    pure Patch {..}
-
-data PatchDiff text oldHash hash = PatchDiff
-  { parent :: hash,
-    textLookup :: [text],
-    oldHashLookup :: [oldHash],
-    newHashLookup :: [hash],
-    bytes :: ByteString
-  }
-  deriving stock (Eq, Ord, Show)
-
-instance (ToJSON text, ToJSON oldHash, ToJSON hash) => ToJSON (PatchDiff text oldHash hash) where
-  toJSON (PatchDiff parent textLookup oldHashLookup newHashLookup bytes) =
-    object
-      [ "parent" .= parent,
-        "text_lookup" .= textLookup,
-        "optional_hash_lookup" .= oldHashLookup,
-        "hash_lookup" .= newHashLookup,
-        "bytes" .= Base64Bytes bytes
-      ]
-
-instance (FromJSON text, FromJSON oldHash, FromJSON hash) => FromJSON (PatchDiff text oldHash hash) where
-  parseJSON = Aeson.withObject "PatchDiff" \obj -> do
-    parent <- obj .: "parent"
-    textLookup <- obj .: "text_lookup"
-    oldHashLookup <- obj .: "optional_hash_lookup"
-    newHashLookup <- obj .: "hash_lookup"
-    Base64Bytes bytes <- obj .: "bytes"
-    pure PatchDiff {..}
-
-data Namespace text hash = Namespace
-  { textLookup :: [text],
-    defnLookup :: [hash],
-    patchLookup :: [hash],
-    childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
-    bytes :: ByteString
-  }
-  deriving stock (Eq, Ord, Show)
-
-instance Bifoldable Namespace where
-  bifoldMap = bifoldMapDefault
-
-instance Bifunctor Namespace where
-  bimap = bimapDefault
-
-instance Bitraversable Namespace where
-  bitraverse f g (Namespace tl dl pl cl b) =
-    Namespace
-      <$> traverse f tl
-      <*> traverse g dl
-      <*> traverse g pl
-      <*> traverse (bitraverse g g) cl
-      <*> pure b
-
-instance (ToJSON text, ToJSON hash) => ToJSON (Namespace text hash) where
-  toJSON (Namespace textLookup defnLookup patchLookup childLookup bytes) =
-    object
-      [ "text_lookup" .= textLookup,
-        "defn_lookup" .= defnLookup,
-        "patch_lookup" .= patchLookup,
-        "child_lookup" .= childLookup,
-        "bytes" .= Base64Bytes bytes
-      ]
-
-instance (FromJSON text, FromJSON hash) => FromJSON (Namespace text hash) where
-  parseJSON = Aeson.withObject "Namespace" $ \obj -> do
-    textLookup <- obj .: "text_lookup"
-    defnLookup <- obj .: "defn_lookup"
-    patchLookup <- obj .: "patch_lookup"
-    childLookup <- obj .: "child_lookup"
-    Base64Bytes bytes <- obj .: "bytes"
-    pure Namespace {..}
-
-data NamespaceDiff text hash = NamespaceDiff
-  { parent :: hash,
-    textLookup :: [text],
-    defnLookup :: [hash],
-    patchLookup :: [hash],
-    childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
-    bytes :: ByteString
-  }
-  deriving stock (Eq, Ord, Show)
-
-instance (ToJSON text, ToJSON hash) => ToJSON (NamespaceDiff text hash) where
-  toJSON (NamespaceDiff parent textLookup defnLookup patchLookup childLookup bytes) =
-    object
-      [ "parent" .= parent,
-        "text_lookup" .= textLookup,
-        "defn_lookup" .= defnLookup,
-        "patch_lookup" .= patchLookup,
-        "child_lookup" .= childLookup,
-        "bytes" .= Base64Bytes bytes
-      ]
-
-instance (FromJSON text, FromJSON hash) => FromJSON (NamespaceDiff text hash) where
-  parseJSON = Aeson.withObject "NamespaceDiff" \obj -> do
-    parent <- obj .: "parent"
-    textLookup <- obj .: "text_lookup"
-    defnLookup <- obj .: "defn_lookup"
-    patchLookup <- obj .: "patch_lookup"
-    childLookup <- obj .: "child_lookup"
-    Base64Bytes bytes <- obj .: "bytes"
-    pure NamespaceDiff {..}
-
--- Client _may_ choose not to download the namespace entity in the future, but
--- we still send them the hash/hashjwt.
-data Causal hash = Causal
-  { namespaceHash :: hash,
-    parents :: Set hash
-  }
-  deriving stock (Eq, Ord, Show)
-
-instance (ToJSON hash) => ToJSON (Causal hash) where
-  toJSON (Causal namespaceHash parents) =
-    object
-      [ "namespace_hash" .= namespaceHash,
-        "parents" .= parents
-      ]
-
-instance (FromJSON hash, Ord hash) => FromJSON (Causal hash) where
-  parseJSON = Aeson.withObject "Causal" $ \obj -> do
-    namespaceHash <- obj .: "namespace_hash"
-    parents <- obj .: "parents"
-    pure Causal {..}
-
-data EntityType
-  = TermComponentType
-  | DeclComponentType
-  | PatchType
-  | PatchDiffType
-  | NamespaceType
-  | NamespaceDiffType
-  | CausalType
-  deriving stock (Eq, Ord, Show)
-
-instance ToJSON EntityType where
-  toJSON et = String $ case et of
-    TermComponentType -> "term_component"
-    DeclComponentType -> "decl_component"
-    PatchType -> "patch"
-    PatchDiffType -> "patch_diff"
-    NamespaceType -> "namespace"
-    NamespaceDiffType -> "namespace_diff"
-    CausalType -> "causal"
-
-instance FromJSON EntityType where
-  parseJSON = Aeson.withText "EntityType" \case
-    "term_component" -> pure TermComponentType
-    "decl_component" -> pure DeclComponentType
-    "patch" -> pure PatchType
-    "patch_diff" -> pure PatchDiffType
-    "namespace" -> pure NamespaceType
-    "namespace_diff" -> pure NamespaceDiffType
-    "causal" -> pure CausalType
-    t -> failText $ "Unexpected entity type: " <> t
+jsonUnion :: ToJSON a => Text -> a -> Value
+jsonUnion typeName val =
+  Aeson.object
+    [ "type" .= String typeName,
+      "payload" .= val
+    ]
