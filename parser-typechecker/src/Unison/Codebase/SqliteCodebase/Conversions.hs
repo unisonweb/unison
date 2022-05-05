@@ -344,6 +344,16 @@ referentid2to1 lookupCT = \case
   V2.ConId r i ->
     V1.ConId (V1.ConstructorReference (referenceid2to1 r) (fromIntegral i)) <$> lookupCT (V2.ReferenceDerived r)
 
+constructorType1to2 :: CT.ConstructorType -> V2.ConstructorType
+constructorType1to2 = \case
+  CT.Data -> V2.DataConstructor
+  CT.Effect -> V2.EffectConstructor
+
+constructorType2to1 :: V2.ConstructorType -> CT.ConstructorType
+constructorType2to1 = \case
+  V2.DataConstructor -> CT.Data
+  V2.EffectConstructor -> CT.Effect
+
 hash2to1 :: V2.Hash.Hash -> Hash
 hash2to1 (V2.Hash.Hash sbs) = V1.Hash sbs
 

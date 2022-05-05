@@ -41,6 +41,7 @@ import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
 import qualified Unison.Codebase.Editor.Git as Git
@@ -268,8 +269,8 @@ sqliteCodebase debugName root localOrRemote action = do
           Sqlite.runTransaction conn CodebaseOps.getRootBranchExists
 
         putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> Branch m -> m ()
-        putRootBranch rootBranchCache branch1 =
-          withRunInIO \runInIO ->
+        putRootBranch rootBranchCache branch1 = do
+          withRunInIO \runInIO -> do
             Sqlite.runTransaction conn do
               CodebaseOps.putRootBranch rootBranchCache (Branch.transform (Sqlite.unsafeIO . runInIO) branch1)
 
@@ -487,6 +488,11 @@ sqliteCodebase debugName root localOrRemote action = do
               branchHashesByPrefix = branchHashesByPrefix,
               lcaImpl = (Just sqlLca),
               beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r),
+              namesAtPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
+                runTx (CodebaseOps.namesAtPath path),
+              updateNameLookup = Sqlite.runTransaction conn $ do
+                root <- (CodebaseOps.getRootBranch getDeclType rootBranchCache)
+                CodebaseOps.saveRootNamesIndex (Branch.toNames . Branch.head $ root),
               connection = conn
             }
     let finalizer :: MonadIO m => m ()

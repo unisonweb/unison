@@ -42,6 +42,8 @@ default-extensions:
   - ConstraintKinds
   - DeriveAnyClass
   - DeriveFunctor
+  - DeriveFoldable
+  - DeriveTraversable
   - DeriveGeneric
   - DerivingStrategies
   - DerivingVia

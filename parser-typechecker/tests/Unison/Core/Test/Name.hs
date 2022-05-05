@@ -74,7 +74,8 @@ testSuffixes =
 testSuffixSearch :: [Test ()]
 testSuffixSearch =
   [ do
-      let rel =
+      let rel :: R.Relation Name Int
+          rel =
             R.fromList
               [ (n "base.List.map", 1),
                 (n "base.Set.map", 2),

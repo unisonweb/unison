@@ -142,7 +142,6 @@ module Unison.Util.Pretty
   )
 where
 
-import Control.Monad.Identity (Identity (..), runIdentity)
 import Data.Bifunctor (second)
 import Data.Char (isSpace)
 import Data.List (intersperse)

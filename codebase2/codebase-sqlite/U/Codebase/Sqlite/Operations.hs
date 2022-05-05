@@ -62,6 +62,10 @@ module U.Codebase.Sqlite.Operations
     addTypeMentionsToIndexForTerm,
     termsMentioningType,
 
+    -- ** name lookup index
+    rebuildNameIndex,
+    rootBranchNames,
+
     -- * low-level stuff
     expectDbBranch,
     expectDbPatch,
@@ -90,13 +94,12 @@ import qualified Control.Monad.Writer as Writer
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import qualified Data.Foldable as Foldable
-import Data.Functor.Identity (Identity)
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Tuple.Extra (uncurry3)
+import Data.Tuple.Extra (uncurry3, (***))
 import qualified Data.Vector as Vector
 import qualified U.Codebase.Branch as C.Branch
 import qualified U.Codebase.Causal as C
@@ -130,6 +133,7 @@ import U.Codebase.Sqlite.LocalIds
   )
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.LocalizeObject as LocalizeObject
+import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Diff as S
 import qualified U.Codebase.Sqlite.Patch.Format as S
@@ -242,8 +246,14 @@ expectCausalHashAtPath =
 c2sReference :: C.Reference -> Transaction S.Reference
 c2sReference = bitraverse Q.saveText Q.expectObjectIdForPrimaryHash
 
+c2sTextReference :: C.Reference -> S.TextReference
+c2sTextReference = bimap id H.toBase32Hex
+
 s2cReference :: S.Reference -> Transaction C.Reference
 s2cReference = bitraverse Q.expectText Q.expectPrimaryHashByObjectId
+
+s2cTextReference :: S.TextReference -> C.Reference
+s2cTextReference = bimap id H.fromBase32Hex
 
 c2sReferenceId :: C.Reference.Id -> Transaction S.Reference.Id
 c2sReferenceId = C.Reference.idH Q.expectObjectIdForPrimaryHash
@@ -263,11 +273,27 @@ c2hReference = bitraverse (MaybeT . Q.loadTextId) (MaybeT . Q.loadHashIdByHash)
 s2cReferent :: S.Referent -> Transaction C.Referent
 s2cReferent = bitraverse s2cReference s2cReference
 
+s2cTextReferent :: S.TextReferent -> C.Referent
+s2cTextReferent = bimap s2cTextReference s2cTextReference
+
+s2cConstructorType :: S.ConstructorType -> C.ConstructorType
+s2cConstructorType = \case
+  S.DataConstructor -> C.DataConstructor
+  S.EffectConstructor -> C.EffectConstructor
+
+c2sConstructorType :: C.ConstructorType -> S.ConstructorType
+c2sConstructorType = \case
+  C.DataConstructor -> S.DataConstructor
+  C.EffectConstructor -> S.EffectConstructor
+
 s2cReferentId :: S.Referent.Id -> Transaction C.Referent.Id
 s2cReferentId = bitraverse Q.expectPrimaryHashByObjectId Q.expectPrimaryHashByObjectId
 
 c2sReferent :: C.Referent -> Transaction S.Referent
 c2sReferent = bitraverse c2sReference c2sReference
+
+c2sTextReferent :: C.Referent -> S.TextReferent
+c2sTextReferent = bimap c2sTextReference c2sTextReference
 
 c2sReferentId :: C.Referent.Id -> Transaction S.Referent.Id
 c2sReferentId = bitraverse Q.expectObjectIdForPrimaryHash Q.expectObjectIdForPrimaryHash
@@ -1278,3 +1304,18 @@ derivedDependencies cid = do
   sids <- Q.getDependencyIdsForDependent sid
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
+
+-- | Given the list of term and type names from the root branch, rebuild the name lookup
+-- table.
+rebuildNameIndex :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)] -> [S.NamedRef C.Reference] -> Transaction ()
+rebuildNameIndex termNames typeNames = do
+  Q.resetNameLookupTables
+  Q.insertTermNames ((fmap (c2sTextReferent *** fmap c2sConstructorType) <$> termNames))
+  Q.insertTypeNames ((fmap c2sTextReference <$> typeNames))
+
+-- | Get all the term and type names for the root namespace from the lookup table.
+rootBranchNames :: Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
+rootBranchNames = do
+  termNames <- Q.rootTermNames
+  typeNames <- Q.rootTypeNames
+  pure (fmap (bimap s2cTextReferent (fmap s2cConstructorType)) <$> termNames, fmap s2cTextReference <$> typeNames)

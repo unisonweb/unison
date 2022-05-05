@@ -105,7 +105,6 @@ instance ToSample DefinitionDisplayResults where
   toSamples _ = noSamples
 
 serveDefinitions ::
-  MonadIO m =>
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
@@ -113,28 +112,21 @@ serveDefinitions ::
   [HashQualifiedName] ->
   Maybe Width ->
   Maybe Suffixify ->
-  Backend.Backend m DefinitionDisplayResults
+  Backend.Backend IO DefinitionDisplayResults
 serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
   do
     rel <-
       fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
-    ea <- liftIO . runExceptT $ do
-      root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-      let hqns = HQ.unsafeFromText <$> rawHqns
-          scope = case hqns of
-            -- TODO: Change this API to support being queried by just 1 name/hash
-            HQ.HashOnly _ : _ -> Backend.AllNames . fromMaybe Path.empty $ rel
-            _ -> Backend.Within . fromMaybe Path.empty $ rel
-
-      Backend.prettyDefinitionsBySuffixes
-        scope
-        root
-        width
-        (fromMaybe (Suffixify True) suff)
-        rt
-        codebase
-        hqns
-    liftEither ea
+    root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
+    let hqns = HQ.unsafeFromText <$> rawHqns
+    Backend.prettyDefinitionsBySuffixes
+      (fromMaybe Path.empty rel)
+      root
+      width
+      (fromMaybe (Suffixify True) suff)
+      rt
+      codebase
+      hqns
   where
     parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
     errFromEither f = either (throwError . f) pure

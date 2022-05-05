@@ -40,6 +40,7 @@ library
       Unison.Name
       Unison.Names
       Unison.Names.ResolutionResult
+      Unison.Names.Scoped
       Unison.NameSegment
       Unison.NamesWithHistory
       Unison.Pattern

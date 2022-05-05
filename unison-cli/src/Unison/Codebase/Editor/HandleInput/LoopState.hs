@@ -111,7 +111,16 @@ currentPath :: Getter (LoopState m v) Path.Absolute
 currentPath = currentPathStack . to Nel.head
 
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
-loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
+loopState0 b p =
+  LoopState
+    { _root = b,
+      _lastSavedRoot = b,
+      _currentPathStack = (pure p),
+      _latestFile = Nothing,
+      _latestTypecheckedFile = Nothing,
+      _lastInput = Nothing,
+      _numberedArgs = []
+    }
 
 respond :: MonadCommand n m i v => Output v -> n ()
 respond output = eval $ Notify output
