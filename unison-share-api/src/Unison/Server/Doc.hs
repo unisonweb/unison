@@ -12,11 +12,13 @@ module Unison.Server.Doc where
 import Control.Lens (view, (^.))
 import Control.Monad
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
+import Data.Aeson (ToJSON)
 import Data.Foldable
 import Data.Functor
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
+import Data.OpenApi (ToSchema)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -38,6 +40,7 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Runtime.IOSource as DD
+import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
 import qualified Unison.ShortHash as SH
@@ -86,12 +89,19 @@ data Doc
   | Column [Doc]
   | Group Doc
   deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
 
 type UnisonHash = Text
 
-data Ref a = Term a | Type a deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
+data Ref a = Term a | Type a
+  deriving stock (Eq, Show, Generic, Functor, Foldable, Traversable)
+  deriving anyclass (ToJSON)
 
-data MediaSource = MediaSource {mediaSourceUrl :: Text, mediaSourceMimeType :: Maybe Text} deriving (Eq, Show, Generic)
+instance ToSchema a => ToSchema (Ref a)
+
+data MediaSource = MediaSource {mediaSourceUrl :: Text, mediaSourceMimeType :: Maybe Text}
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
 
 data SpecialForm
   = Source [Ref (UnisonHash, DisplayObject SyntaxText Src)]
@@ -107,10 +117,13 @@ data SpecialForm
   | EmbedInline SyntaxText
   | Video [MediaSource] (Map Text Text)
   | FrontMatter (Map Text [Text])
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
 
 -- `Src folded unfolded`
-data Src = Src SyntaxText SyntaxText deriving (Eq, Show, Generic)
+data Src = Src SyntaxText SyntaxText
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
 
 renderDoc ::
   forall v m.
