@@ -3,7 +3,7 @@ module Unison.Share.Sync
 
     -- ** Push
     checkAndSetPush,
-    PushError (..),
+    CheckAndSetPushError (..),
     fastForwardPush,
     FastForwardPushError (..),
 
@@ -74,11 +74,10 @@ import qualified Unison.Util.Set as Set
 -- Push
 
 -- | An error occurred while pushing code to Unison Share.
--- FIXME rename CheckAndSetPushError
-data PushError
-  = PushErrorHashMismatch Share.HashMismatch
-  | PushErrorNoWritePermission Share.RepoPath
-  | PushErrorServerMissingDependencies (NESet Share.Hash)
+data CheckAndSetPushError
+  = CheckAndSetPushErrorHashMismatch Share.HashMismatch
+  | CheckAndSetPushErrorNoWritePermission Share.RepoPath
+  | CheckAndSetPushErrorServerMissingDependencies (NESet Share.Hash)
 
 -- | Push a causal to Unison Share.
 -- FIXME reword this
@@ -96,31 +95,31 @@ checkAndSetPush ::
   Maybe Share.Hash ->
   -- | The hash of our local causal to push.
   CausalHash ->
-  IO (Either PushError ())
+  IO (Either CheckAndSetPushError ())
 checkAndSetPush httpClient unisonShareUrl conn repoPath expectedHash causalHash = do
   -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it needs
   -- this causal (UpdatePathMissingDependencies).
   updatePath >>= \case
     Share.UpdatePathSuccess -> pure (Right ())
-    Share.UpdatePathHashMismatch mismatch -> pure (Left (PushErrorHashMismatch mismatch))
+    Share.UpdatePathHashMismatch mismatch -> pure (Left (CheckAndSetPushErrorHashMismatch mismatch))
     Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
       -- Upload the causal and all of its dependencies.
       uploadEntities httpClient unisonShareUrl conn (Share.RepoPath.repoName repoPath) dependencies >>= \case
-        False -> pure (Left (PushErrorNoWritePermission repoPath))
+        False -> pure (Left (CheckAndSetPushErrorNoWritePermission repoPath))
         True ->
           -- After uploading the causal and all of its dependencies, try setting the remote path again.
           updatePath <&> \case
             Share.UpdatePathSuccess -> Right ()
             -- Between the initial updatePath attempt and this one, someone else managed to update the path. That's ok;
             -- we still managed to upload our causal, but the push has indeed failed overall.
-            Share.UpdatePathHashMismatch mismatch -> Left (PushErrorHashMismatch mismatch)
+            Share.UpdatePathHashMismatch mismatch -> Left (CheckAndSetPushErrorHashMismatch mismatch)
             -- Unexpected, but possible: we thought we uploaded all we needed to, yet the server still won't accept our
             -- causal. Bug in the client because we didn't upload enough? Bug in the server because we weren't told to
             -- upload some dependency? Who knows.
             Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) ->
-              Left (PushErrorServerMissingDependencies dependencies)
-            Share.UpdatePathNoWritePermission _ -> Left (PushErrorNoWritePermission repoPath)
-    Share.UpdatePathNoWritePermission _ -> pure (Left (PushErrorNoWritePermission repoPath))
+              Left (CheckAndSetPushErrorServerMissingDependencies dependencies)
+            Share.UpdatePathNoWritePermission _ -> Left (CheckAndSetPushErrorNoWritePermission repoPath)
+    Share.UpdatePathNoWritePermission _ -> pure (Left (CheckAndSetPushErrorNoWritePermission repoPath))
   where
     updatePath :: IO Share.UpdatePathResponse
     updatePath =

@@ -1803,9 +1803,9 @@ handlePushToUnisonShare remoteRepo remotePath behavior = do
       liftIO (Share.checkAndSetPush authHTTPClient unisonShareUrl connection repoPath Nothing localCausalHash) >>= \case
         Left err ->
           case err of
-            Share.PushErrorHashMismatch _mismatch -> error "remote not empty"
-            Share.PushErrorNoWritePermission _repoPath -> errNoWritePermission repoPath
-            Share.PushErrorServerMissingDependencies deps -> errServerMissingDependencies deps
+            Share.CheckAndSetPushErrorHashMismatch _mismatch -> error "remote not empty"
+            Share.CheckAndSetPushErrorNoWritePermission _repoPath -> errNoWritePermission repoPath
+            Share.CheckAndSetPushErrorServerMissingDependencies deps -> errServerMissingDependencies deps
         Right () -> pure ()
     PushBehavior.RequireNonEmpty ->
       liftIO (Share.fastForwardPush authHTTPClient unisonShareUrl connection repoPath localCausalHash) >>= \case
