@@ -221,7 +221,7 @@ dagbfs goal children =
       --                 / \   \
       --                4   5   6
       --
-      -- Graphically, the frontier here is the nodes 4, 5, and 3; we know that, because I haven't drawn any nodes below
+      -- Graphically, the frontier here is the nodes 4, 5, and 6; we know that, because I haven't drawn any nodes below
       -- them. (This is a BFS algorithm that discovers children on-the-fly, so maybe node 5 (for example) has children,
       -- and maybe it doesn't).
       --
