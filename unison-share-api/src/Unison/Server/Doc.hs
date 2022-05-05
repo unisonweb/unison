@@ -85,7 +85,7 @@ data Doc
   | UntitledSection [Doc]
   | Column [Doc]
   | Group Doc
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 type UnisonHash = Text
 
@@ -289,29 +289,29 @@ renderDoc pped terms typeOf eval types tm =
                 acc' = case tm of
                   Term.Ref' r
                     | Set.notMember r seen ->
-                        (: acc) . Term . (Reference.toText r,) <$> case r of
-                          Reference.Builtin _ ->
-                            typeOf (Referent.Ref r) <&> \case
-                              Nothing -> DO.BuiltinObject "🆘 missing type signature"
-                              Just ty -> DO.BuiltinObject (formatPrettyType ppe ty)
-                          ref ->
-                            terms ref >>= \case
-                              Nothing -> pure $ DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
-                              Just tm -> do
-                                typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
-                                let name = PPE.termName ppe (Referent.Ref ref)
-                                let folded =
-                                      formatPretty . P.lines $
-                                        TypePrinter.prettySignaturesST ppe [(Referent.Ref ref, name, typ)]
-                                let full tm@(Term.Ann' _ _) _ =
-                                      formatPretty (TermPrinter.prettyBinding ppe name tm)
-                                    full tm typ =
-                                      formatPretty (TermPrinter.prettyBinding ppe name (Term.ann () tm typ))
-                                pure (DO.UserObject (Src folded (full tm typ)))
+                      (: acc) . Term . (Reference.toText r,) <$> case r of
+                        Reference.Builtin _ ->
+                          typeOf (Referent.Ref r) <&> \case
+                            Nothing -> DO.BuiltinObject "🆘 missing type signature"
+                            Just ty -> DO.BuiltinObject (formatPrettyType ppe ty)
+                        ref ->
+                          terms ref >>= \case
+                            Nothing -> pure $ DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+                            Just tm -> do
+                              typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
+                              let name = PPE.termName ppe (Referent.Ref ref)
+                              let folded =
+                                    formatPretty . P.lines $
+                                      TypePrinter.prettySignaturesST ppe [(Referent.Ref ref, name, typ)]
+                              let full tm@(Term.Ann' _ _) _ =
+                                    formatPretty (TermPrinter.prettyBinding ppe name tm)
+                                  full tm typ =
+                                    formatPretty (TermPrinter.prettyBinding ppe name (Term.ann () tm typ))
+                              pure (DO.UserObject (Src folded (full tm typ)))
                   Term.RequestOrCtor' (view ConstructorReference.reference_ -> r) | Set.notMember r seen -> (: acc) <$> goType r
                   _ -> pure acc
             DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns]
               | Set.notMember ref seen ->
-                  (Set.insert ref seen,) . (: acc) <$> goType ref
+                (Set.insert ref seen,) . (: acc) <$> goType ref
             _ -> pure s1
       reverse . snd <$> foldM go mempty es
