@@ -8,7 +8,6 @@
 
 module Unison.Server.Endpoints.Projects where
 
-import Control.Error.Util ((??))
 import Control.Monad.Except
 import Data.Aeson
 import Data.Char
@@ -135,11 +134,9 @@ serve codebase mayRoot mayOwner = projects
       root <- case mayRoot of
         Nothing -> lift (Codebase.getRootBranch codebase)
         Just sbh -> do
-          ea <- lift . runExceptT $ do
-            h <- Backend.expandShortBranchHash codebase sbh
-            mayBranch <- lift $ Codebase.getBranchForHash codebase h
-            mayBranch ?? Backend.CouldntLoadBranch h
-          liftEither ea
+          h <- Backend.expandShortBranchHash codebase sbh
+          mayBranch <- lift $ Codebase.getBranchForHash codebase h
+          whenNothing mayBranch (throwError $ Backend.CouldntLoadBranch h)
 
       ownerEntries <- lift $ findShallow root
       -- If an owner is provided, we only want projects belonging to them

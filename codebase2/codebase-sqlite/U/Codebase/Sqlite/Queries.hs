@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 -- | Some naming conventions used in this module:
 --
 -- * @32@: the base32 representation of a hash
@@ -118,6 +116,13 @@ module U.Codebase.Sqlite.Queries
     namespaceHashIdByBase32Prefix,
     causalHashIdByBase32Prefix,
 
+    -- * Name Lookup
+    resetNameLookupTables,
+    insertTermNames,
+    insertTypeNames,
+    rootTermNames,
+    rootTypeNames,
+
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
     garbageCollectWatchesWithoutObjects,
@@ -150,11 +155,12 @@ import U.Codebase.Sqlite.DbId
     SchemaVersion,
     TextId,
   )
+import qualified U.Codebase.Sqlite.NamedRef as S
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
+import U.Codebase.Sqlite.Orphans ()
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.WatchKind (WatchKind)
-import qualified U.Codebase.WatchKind as WatchKind
 import qualified U.Util.Alternative as Alternative
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
@@ -904,6 +910,93 @@ removeHashObjectsByHashingVersion hashVersion =
       WHERE hash_version = ?
 |]
 
+-- | Drop and recreate the name lookup tables. Use this when resetting names to a new branch.
+resetNameLookupTables :: Transaction ()
+resetNameLookupTables = do
+  execute_ "DROP TABLE IF EXISTS term_name_lookup"
+  execute_ "DROP TABLE IF EXISTS type_name_lookup"
+  execute_
+    [here|
+      CREATE TABLE term_name_lookup (
+        reversed_name TEXT NOT NULL, -- e.g. map.List.base
+        referent_builtin INTEGER NULL,
+        referent_object_id INTEGER NULL,
+        referent_component_index INTEGER NULL,
+        referent_constructor_index INTEGER NULL,
+        referent_constructor_type INTEGER NULL,
+        PRIMARY KEY (reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
+      )
+    |]
+  -- Don't need this index at the moment, but will likely be useful later.
+  -- execute_
+  --   [here|
+  --     CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
+  --   |]
+  execute_
+    [here|
+      CREATE TABLE type_name_lookup (
+        reversed_name TEXT NOT NULL, -- e.g. map.List.base
+        reference_builtin INTEGER NULL,
+        reference_object_id INTEGER NULL,
+        reference_component_index INTEGER NULL,
+        PRIMARY KEY (reversed_name, reference_builtin, reference_object_id, reference_component_index)
+      );
+    |]
+
+-- Don't need this index at the moment, but will likely be useful later.
+-- execute_
+--   [here|
+--     CREATE INDEX IF NOT EXISTS type_name_by_reference_lookup ON type_name_lookup(reference_builtin, reference_object_id, reference_component_index);
+--   |]
+
+-- | Insert the given set of term names into the name lookup table
+insertTermNames :: [S.NamedRef (Referent.TextReferent, Maybe S.ConstructorType)] -> Transaction ()
+insertTermNames names = do
+  executeMany sql (fmap asRow <$> names)
+  where
+    asRow (a, b) = a :. Only b
+    sql =
+      [here|
+      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+        |]
+
+-- | Insert the given set of type names into the name lookup table
+insertTypeNames :: [S.NamedRef (Reference.TextReference)] -> Transaction ()
+insertTypeNames names =
+  executeMany sql names
+  where
+    sql =
+      [here|
+      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_object_id, reference_component_index)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+        |]
+
+-- | Get the list of a term names in the root namespace according to the name lookup index
+rootTermNames :: Transaction [S.NamedRef (Referent.TextReferent, Maybe S.ConstructorType)]
+rootTermNames = do
+  (fmap . fmap) unRow <$> queryListRow_ sql
+  where
+    unRow (a :. Only b) = (a, b)
+    sql =
+      [here|
+        SELECT reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
+          ORDER BY reversed_name ASC
+        |]
+
+-- | Get the list of a type names in the root namespace according to the name lookup index
+rootTypeNames :: Transaction [S.NamedRef Reference.TextReference]
+rootTypeNames = do
+  queryListRow_ sql
+  where
+    sql =
+      [here|
+        SELECT reversed_name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
+        ORDER BY reversed_name ASC
+        |]
+
 before :: CausalHashId -> CausalHashId -> Transaction Bool
 before chId1 chId2 = queryOneCol sql (chId2, chId1)
   where
@@ -954,21 +1047,3 @@ ancestorSql =
       )
     SELECT * FROM ancestor
   |]
-
--- * orphan instances
-
-deriving via Text instance ToField Base32Hex
-
-deriving via Text instance FromField Base32Hex
-
-instance ToField WatchKind where
-  toField = \case
-    WatchKind.RegularWatch -> SQLInteger 0
-    WatchKind.TestWatch -> SQLInteger 1
-
-instance FromField WatchKind where
-  fromField =
-    fromField @Int8 <&> fmap \case
-      0 -> WatchKind.RegularWatch
-      1 -> WatchKind.TestWatch
-      tag -> error $ "Unknown WatchKind id " ++ show tag

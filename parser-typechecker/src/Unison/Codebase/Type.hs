@@ -21,6 +21,7 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRe
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Patch (Patch)
+import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
@@ -29,6 +30,7 @@ import Unison.CodebasePath (CodebasePath)
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
+import Unison.Names.Scoped (ScopedNames)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -164,7 +166,15 @@ data Codebase m v a = Codebase
     -- `beforeImpl b1 b2` is undefined if `b2` not in the codebase
     --
     --  Use `Codebase.before` which wraps this in a nice API.
-    beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool)
+    beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool),
+    -- Use the name lookup index to build a 'Names' for all names found within 'Path' of the current root namespace.
+    --
+    -- NOTE: this method requires an up-to-date name lookup index, which is
+    -- currently not kept up-to-date automatically (because it's slow to do so).
+    namesAtPath :: Path -> m ScopedNames,
+    -- Updates the root namespace names index.
+    -- This isn't run automatically because it can be a bit slow.
+    updateNameLookup :: m ()
   }
 
 -- | Whether a codebase is local or remote.

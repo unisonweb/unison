@@ -40,6 +40,7 @@ import Data.Either.Extra (eitherToMaybe, maybeToEither)
 import Data.Foldable as X (asum, fold, foldl', for_, toList, traverse_)
 import Data.Function as X ((&))
 import Data.Functor as X
+import Data.Functor.Identity as X
 import Data.Int as X
 import Data.List as X (foldl1', sortOn)
 import Data.Map as X (Map)

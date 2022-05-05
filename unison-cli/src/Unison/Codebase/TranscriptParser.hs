@@ -58,6 +58,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
 import qualified Unison.Runtime.Interface as RTI
+import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as Pretty
@@ -171,7 +172,7 @@ withTranscriptRunner ::
 withTranscriptRunner ucmVersion configFile action = do
   withRuntime $ \runtime -> withConfig $ \config -> do
     action $ \transcriptName transcriptSrc (codebaseDir, codebase) -> do
-      Server.startServer Server.defaultCodebaseServerOpts runtime codebase $ \baseUrl -> do
+      Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase $ \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
         result <- for parsed $ \stanzas -> do
           liftIO $ run codebaseDir stanzas codebase runtime config ucmVersion (tShow baseUrl)

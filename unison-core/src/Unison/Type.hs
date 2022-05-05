@@ -10,7 +10,6 @@ module Unison.Type where
 
 import Control.Lens (Prism')
 import qualified Control.Monad.Writer.Strict as Writer
-import Data.Functor.Identity (runIdentity)
 import Data.Generics.Sum (_Ctor)
 import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
@@ -596,7 +595,7 @@ removePureEffects :: ABT.Var v => Type v a -> Type v a
 removePureEffects t
   | not Settings.removePureEffects = t
   | otherwise =
-      generalize vs $ removeEffectVars fvs tu
+    generalize vs $ removeEffectVars fvs tu
   where
     (vs, tu) = unforall' t
     vss = Set.fromList vs
