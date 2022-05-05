@@ -1579,6 +1579,7 @@ notifyUser dir o = case o of
         [ "Failed to parse a URI from the hostname: " <> P.text host <> ".",
           "Host names should NOT include a schema or path."
         ]
+  PrintVersion ucmVersion -> pure (P.text ucmVersion)
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

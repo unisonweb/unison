@@ -186,6 +186,7 @@ data Input
   | DocsToHtmlI Path' FilePath
   | GistI GistInput
   | AuthLoginI (Maybe CodebaseServerName)
+  | VersionI
   deriving (Eq, Show)
 
 -- | @"gist repo"@ pushes the contents of the current namespace to @repo@.

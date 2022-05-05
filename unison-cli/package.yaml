@@ -12,6 +12,7 @@ ghc-options: -Wall
 dependencies:
   - ListLike
   - aeson
+  - aeson-pretty
   - async
   - base
   - bytes

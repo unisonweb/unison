@@ -477,6 +477,7 @@ loop = do
               "delete.term-replacement" <> HQ.toText src <> " " <> opatch p
             RemoveTypeReplacementI src p ->
               "delete.type-replacement" <> HQ.toText src <> " " <> opatch p
+            VersionI -> "version"
             where
               hp' = either (Text.pack . show) p'
               p' = Text.pack . show . resolveToAbsolute
@@ -1654,6 +1655,9 @@ loop = do
                   case mayHost of
                     Nothing -> respond (UnknownCodeServer codeServer)
                     Just host -> authLogin (Just $ Host host)
+            VersionI -> do
+              ucmVersion <- eval UCMVersion
+              respond $ PrintVersion ucmVersion
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success
