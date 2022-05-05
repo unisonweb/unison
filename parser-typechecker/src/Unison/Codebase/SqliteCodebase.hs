@@ -509,11 +509,11 @@ sqliteCodebase debugName root localOrRemote action = do
               branchHashesByPrefix = branchHashesByPrefix,
               lcaImpl = (Just sqlLca),
               beforeImpl = (Just \l r -> Sqlite.runTransaction pool $ fromJust <$> CodebaseOps.before l r),
-              namesWithinPath = \path -> Sqlite.runReadOnlyTransaction pool \runTx ->
-                runTx (CodebaseOps.namesWithinPath path),
-              updateNameLookup = Sqlite.runWriteTransaction pool $ \runTx -> do
-                root <- (Branch.transform runTx <$> runTx (CodebaseOps.getRootBranch getDeclType rootBranchCache))
-                runTx $ CodebaseOps.saveRootNamesIndex (Branch.toNames . Branch.head $ root)
+              namesAtPath = \path -> Sqlite.runReadOnlyTransaction pool \runTx ->
+                runTx (CodebaseOps.namesAtPath path),
+              updateNameLookup = Sqlite.runTransaction pool $ do
+                root <- (CodebaseOps.getRootBranch getDeclType rootBranchCache)
+                CodebaseOps.saveRootNamesIndex (Branch.toNames . Branch.head $ root)
             }
     let finalizer :: MonadIO m => m ()
         finalizer = do

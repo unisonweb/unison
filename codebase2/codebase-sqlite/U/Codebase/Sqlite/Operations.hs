@@ -225,13 +225,13 @@ c2sReference :: C.Reference -> Transaction S.Reference
 c2sReference = bitraverse Q.saveText Q.expectObjectIdForPrimaryHash
 
 c2sTextReference :: C.Reference -> S.TextReference
-c2sTextReference = fmap H.toBase32Hex
+c2sTextReference = bimap id H.toBase32Hex
 
 s2cReference :: S.Reference -> Transaction C.Reference
 s2cReference = bitraverse Q.expectText Q.expectPrimaryHashByObjectId
 
 s2cTextReference :: S.TextReference -> C.Reference
-s2cTextReference = fmap H.fromBase32Hex
+s2cTextReference = bimap id H.fromBase32Hex
 
 c2sReferenceId :: C.Reference.Id -> Transaction S.Reference.Id
 c2sReferenceId = C.Reference.idH Q.expectObjectIdForPrimaryHash
@@ -1301,12 +1301,15 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
+-- | Given the list of term and type names from the root branch, rebuild the name lookup
+-- table.
 rebuildNameIndex :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)] -> [S.NamedRef C.Reference] -> Transaction ()
 rebuildNameIndex termNames typeNames = do
   Q.resetNameLookupTables
   Q.insertTermNames ((fmap (c2sTextReferent *** fmap c2sConstructorType) <$> termNames))
   Q.insertTypeNames ((fmap c2sTextReference <$> typeNames))
 
+-- | Get all the term and type names for the root namespace from the lookup table.
 rootBranchNames :: Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
 rootBranchNames = do
   termNames <- Q.rootTermNames

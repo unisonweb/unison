@@ -168,11 +168,10 @@ data Codebase m v a = Codebase
     --  Use `Codebase.before` which wraps this in a nice API.
     beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool),
     -- Use the name lookup index to build a 'Names' for all names found within 'Path' of the current root namespace.
-    -- or within the whole root namespace if provided Nothing.
     --
     -- NOTE: this method requires an up-to-date name lookup index, which is
     -- currently not kept up-to-date automatically (because it's slow to do so).
-    namesWithinPath :: Maybe Path -> m ScopedNames,
+    namesAtPath :: Path -> m ScopedNames,
     -- Updates the root namespace names index.
     -- This isn't run automatically because it can be a bit slow.
     updateNameLookup :: m ()

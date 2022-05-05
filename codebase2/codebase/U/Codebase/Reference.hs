@@ -22,7 +22,7 @@ type Id = Id' Hash
 data Reference' t h
   = ReferenceBuiltin t
   | ReferenceDerived (Id' h)
-  deriving (Eq, Ord, Show, Functor)
+  deriving (Eq, Ord, Show)
 
 _ReferenceDerived :: Prism (Reference' t h) (Reference' t h') (Id' h) (Id' h')
 _ReferenceDerived = prism embed project

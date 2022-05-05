@@ -5,7 +5,6 @@ module Unison.Util.Relation
     empty,
     singleton,
     fromList,
-    fromListDomainAsc,
     fromManyDom,
     fromManyRan,
     fromMap,
@@ -197,18 +196,6 @@ fromList :: (Ord a, Ord b) => [(a, b)] -> Relation a b
 fromList xs =
   Relation
     { domain = M.fromListWith S.union $ snd2Set xs,
-      range = M.fromListWith S.union $ flipAndSet xs
-    }
-  where
-    snd2Set = List.map (\(x, y) -> (x, S.singleton y))
-    flipAndSet = List.map (\(x, y) -> (y, S.singleton x))
-
--- | Like 'fromList', but requires the 'a's to be sorted in asc order.
--- Allows a slight performance increase.
-fromListDomainAsc :: (Ord a, Ord b) => [(a, b)] -> Relation a b
-fromListDomainAsc xs =
-  Relation
-    { domain = M.fromAscListWith S.union $ snd2Set xs,
       range = M.fromListWith S.union $ flipAndSet xs
     }
   where

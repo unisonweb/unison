@@ -535,10 +535,12 @@ before :: Branch.Hash -> Branch.Hash -> Transaction (Maybe Bool)
 before h1 h2 =
   Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
 
-namesWithinPath ::
-  Maybe Path ->
+-- | Construct a 'ScopedNames' which can produce names which are relative to the provided
+-- Path.
+namesAtPath ::
+  Path ->
   Transaction ScopedNames
-namesWithinPath path = do
+namesAtPath path = do
   (termNames, typeNames) <- Ops.rootBranchNames
   let allTerms :: [(Name, Referent.Referent)]
       allTerms =
@@ -549,19 +551,19 @@ namesWithinPath path = do
       allTypes =
         typeNames <&> \(S.NamedRef {reversedSegments, ref}) ->
           (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
-  let rootTerms = Rel.fromListDomainAsc allTerms
-  let rootTypes = Rel.fromListDomainAsc allTypes
+  let rootTerms = Rel.fromList allTerms
+  let rootTypes = Rel.fromList allTypes
   let absoluteRootNames = Names {terms = rootTerms, types = rootTypes}
   let (relativeScopedNames, absoluteExternalNames) =
         case path of
-          Just p@(_ Path.:> _) ->
+          Path.Empty -> (absoluteRootNames, mempty)
+          p ->
             let reversedPathSegments = reverse . Path.toList $ p
                 (relativeTerms, externalTerms) = foldMap (partitionByPathPrefix reversedPathSegments) allTerms
                 (relativeTypes, externalTypes) = foldMap (partitionByPathPrefix reversedPathSegments) allTypes
-             in ( Names {terms = Rel.fromListDomainAsc relativeTerms, types = Rel.fromListDomainAsc relativeTypes},
-                  Names {terms = Rel.fromListDomainAsc externalTerms, types = Rel.fromListDomainAsc externalTypes}
+             in ( Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes},
+                  Names {terms = Rel.fromList externalTerms, types = Rel.fromList externalTypes}
                 )
-          _ -> (absoluteRootNames, mempty)
   pure $
     ScopedNames
       { absoluteExternalNames,
@@ -569,6 +571,13 @@ namesWithinPath path = do
         absoluteRootNames
       }
   where
+    -- If the given prefix matches the given name, the prefix is stripped and it's collected
+    -- on the left, otherwise it's left as-is and collected on the right.
+    -- >>> partitionByPathPrefix ["b", "a"] ("a.b.c", ())
+    -- ([(c,())],[])
+    --
+    -- >>> partitionByPathPrefix ["y", "x"] ("a.b.c", ())
+    -- ([],[(a.b.c,())])
     partitionByPathPrefix :: [NameSegment] -> (Name, r) -> ([(Name, r)], [(Name, r)])
     partitionByPathPrefix reversedPathSegments (n, ref) =
       case Name.stripReversedPrefix n reversedPathSegments of

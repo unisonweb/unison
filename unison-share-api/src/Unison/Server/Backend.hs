@@ -636,7 +636,7 @@ fixupNamesRelative root = Names.map fixName
 --
 -- Construct a 'Search' with 'makeTypeSearch' or 'makeTermSearch', and eliminate it with 'applySearch'.
 data Search r = Search
-  { lookupNames :: r -> (Set (HQ'.HashQualified Name)),
+  { lookupNames :: r -> Set (HQ'.HashQualified Name),
     lookupRelativeHQRefs' :: HQ'.HashQualified Name -> (Set r),
     makeResult :: HQ.HashQualified Name -> r -> Set (HQ'.HashQualified Name) -> SR.SearchResult,
     matchesNamedRef :: Name -> r -> HQ'.HashQualified Name -> Bool
@@ -1065,7 +1065,7 @@ scopedNamesForBranchHash codebase mbh path = do
   where
     indexPrettyAndParseNames :: Backend m (Names, Names)
     indexPrettyAndParseNames = do
-      names <- lift $ Codebase.namesWithinPath codebase (Just path)
+      names <- lift $ Codebase.namesAtPath codebase path
       pure (ScopedNames.parseNames names, ScopedNames.prettyNames names)
 
 resolveBranchHash ::

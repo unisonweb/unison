@@ -1,8 +1,13 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module U.Codebase.Sqlite.Orphans where
 
 import Control.Applicative
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
+import U.Codebase.WatchKind (WatchKind)
+import qualified U.Codebase.WatchKind as WatchKind
+import U.Util.Base32Hex
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
 import Unison.Sqlite
@@ -42,3 +47,19 @@ instance FromField (AsSqlite Hash.Hash) where
   fromField f =
     fromField @Text f <&> \txt ->
       AsSqlite $ (Hash.unsafeFromBase32HexText txt)
+
+deriving via Text instance ToField Base32Hex
+
+deriving via Text instance FromField Base32Hex
+
+instance ToField WatchKind where
+  toField = \case
+    WatchKind.RegularWatch -> SQLInteger 0
+    WatchKind.TestWatch -> SQLInteger 1
+
+instance FromField WatchKind where
+  fromField =
+    fromField @Int8 <&> fmap \case
+      0 -> WatchKind.RegularWatch
+      1 -> WatchKind.TestWatch
+      tag -> error $ "Unknown WatchKind id " ++ show tag

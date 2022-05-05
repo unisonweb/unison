@@ -189,6 +189,8 @@ endsWithReverseSegments (Name _ ss0) ss1 =
 
 -- >>> stripReversedPrefix "a.b.c" ["b", "a"]
 -- Just c
+-- >>> stripReversedPrefix "x.y" ["b", "a"]
+-- Nothing
 -- >>> stripReversedPrefix "a.b" ["b", "a"]
 -- Nothing
 stripReversedPrefix :: Name -> [NameSegment] -> Maybe Name
