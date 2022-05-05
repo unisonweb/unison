@@ -8,6 +8,7 @@ import Data.Tuple.Only (Only (..))
 import U.Codebase.Reference (Id' (Id), Reference' (ReferenceBuiltin, ReferenceDerived))
 import U.Codebase.Sqlite.DbId (HashId, ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
+import U.Codebase.Sqlite.Orphans ()
 import U.Util.Base32Hex
 import Unison.Prelude
 import Unison.Sqlite (FromField, FromRow (fromRow), RowParser, SQLData (SQLNull), ToField, ToRow (toRow), field)
@@ -28,14 +29,27 @@ type ReferenceH = Reference' TextId HashId
 
 type IdH = Id' HashId
 
--- * Orphan instances
+instance ToRow (Reference' Text Base32Hex) where
+  toRow = referenceToRow
 
-instance (ToField t, ToField h) => ToRow (Reference' t h) where
-  toRow = \case
-    ReferenceBuiltin t -> toRow (Only t) ++ [SQLNull, SQLNull]
-    ReferenceDerived (Id h i) -> SQLNull : toRow (Only h) ++ toRow (Only i)
+instance ToRow (Reference' TextId HashId) where
+  toRow = referenceToRow
 
-instance (FromField t, FromField h, Show t, Show h) => FromRow (Reference' t h) where
+instance ToRow Reference where
+  toRow = referenceToRow
+
+referenceToRow :: (ToField t, ToField h) => Reference' t h -> [SQLData]
+referenceToRow = \case
+  ReferenceBuiltin t -> toRow (Only t) ++ [SQLNull, SQLNull]
+  ReferenceDerived (Id h i) -> SQLNull : toRow (Only h) ++ toRow (Only i)
+
+instance FromRow (Reference' TextId HashId) where
+  fromRow = referenceFromRow'
+
+instance FromRow (Reference) where
+  fromRow = referenceFromRow'
+
+instance FromRow (Reference' Text Base32Hex) where
   fromRow = referenceFromRow'
 
 referenceFromRow' :: (FromField t, FromField h, Show t, Show h) => RowParser (Reference' t h)

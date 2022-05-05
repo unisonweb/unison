@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 -- | Some naming conventions used in this module:
 --
 -- * @32@: the base32 representation of a hash
@@ -159,10 +157,10 @@ import U.Codebase.Sqlite.DbId
   )
 import qualified U.Codebase.Sqlite.NamedRef as S
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
+import U.Codebase.Sqlite.Orphans ()
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.WatchKind (WatchKind)
-import qualified U.Codebase.WatchKind as WatchKind
 import qualified U.Util.Alternative as Alternative
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
@@ -918,7 +916,7 @@ resetNameLookupTables = do
   execute_ "DROP TABLE IF EXISTS type_name_lookup"
   execute_
     [here|
-      CREATE TABLE IF NOT EXISTS term_name_lookup (
+      CREATE TABLE term_name_lookup (
         reversed_name TEXT NOT NULL, -- e.g. map.List.base
         referent_builtin INTEGER NULL,
         referent_object_id INTEGER NULL,
@@ -935,7 +933,7 @@ resetNameLookupTables = do
   --   |]
   execute_
     [here|
-      CREATE TABLE IF NOT EXISTS type_name_lookup (
+      CREATE TABLE type_name_lookup (
         reversed_name TEXT NOT NULL, -- e.g. map.List.base
         reference_builtin INTEGER NULL,
         reference_object_id INTEGER NULL,
@@ -1044,21 +1042,3 @@ ancestorSql =
       )
     SELECT * FROM ancestor
   |]
-
--- * orphan instances
-
-deriving via Text instance ToField Base32Hex
-
-deriving via Text instance FromField Base32Hex
-
-instance ToField WatchKind where
-  toField = \case
-    WatchKind.RegularWatch -> SQLInteger 0
-    WatchKind.TestWatch -> SQLInteger 1
-
-instance FromField WatchKind where
-  fromField =
-    fromField @Int8 <&> fmap \case
-      0 -> WatchKind.RegularWatch
-      1 -> WatchKind.TestWatch
-      tag -> error $ "Unknown WatchKind id " ++ show tag
