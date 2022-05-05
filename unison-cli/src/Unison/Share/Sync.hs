@@ -41,7 +41,6 @@ import qualified Data.Set.NonEmpty as NESet
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import Servant.Client (BaseUrl)
-import qualified Text.Regex.TDFA.CorePattern as List
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
@@ -128,17 +127,8 @@ checkAndSetPush httpClient unisonShareUrl conn repoPath expectedHash causalHash 
         unisonShareUrl
         Share.UpdatePathRequest
           { path = repoPath,
-            expectedHash =
-              expectedHash <&> \hash ->
-                Share.TypedHash
-                  { hash,
-                    entityType = Share.CausalType
-                  },
-            newHash =
-              Share.TypedHash
-                { hash = causalHashToHash causalHash,
-                  entityType = Share.CausalType
-                }
+            expectedHash,
+            newHash = causalHashToHash causalHash
           }
 
 -- | An error occurred while fast-forward pushing code to Unison Share.

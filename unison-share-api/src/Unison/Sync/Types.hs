@@ -8,7 +8,6 @@ module Unison.Sync.Types
 
     -- ** Hash types
     Hash (..),
-    TypedHash (..),
     HashJWT (..),
     hashJWTHash,
     HashJWTClaims (..),
@@ -51,9 +50,9 @@ module Unison.Sync.Types
     -- ** Update path
     UpdatePathRequest (..),
     UpdatePathResponse (..),
-
-    -- * Error types
     HashMismatch (..),
+
+    -- * Common/shared error types
     NeedDependencies (..),
   )
 where
@@ -116,25 +115,6 @@ instance FromJSON RepoPath where
 
 newtype Hash = Hash {toBase32Hex :: Base32Hex}
   deriving (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (Text)
-
-data TypedHash = TypedHash
-  { hash :: Hash,
-    entityType :: EntityType
-  }
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON TypedHash where
-  toJSON (TypedHash hash entityType) =
-    object
-      [ "hash" .= hash,
-        "type" .= entityType
-      ]
-
-instance FromJSON TypedHash where
-  parseJSON = Aeson.withObject "TypedHash" \obj -> do
-    hash <- obj .: "hash"
-    entityType <- obj .: "type"
-    pure TypedHash {..}
 
 newtype HashJWT = HashJWT {unHashJWT :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
@@ -748,8 +728,8 @@ instance FromJSON FastForwardPathResponse where
 
 data UpdatePathRequest = UpdatePathRequest
   { path :: RepoPath,
-    expectedHash :: Maybe TypedHash, -- Nothing requires empty history at destination
-    newHash :: TypedHash
+    expectedHash :: Maybe Hash, -- Nothing requires empty history at destination
+    newHash :: Hash
   }
   deriving stock (Show, Eq, Ord)
 
@@ -792,13 +772,10 @@ instance FromJSON UpdatePathResponse where
         "no_write_permission" -> UpdatePathNoWritePermission <$> obj .: "payload"
         t -> failText $ "Unexpected UpdatePathResponse type: " <> t
 
-------------------------------------------------------------------------------------------------------------------------
--- Error types
-
 data HashMismatch = HashMismatch
   { repoPath :: RepoPath,
-    expectedHash :: Maybe TypedHash,
-    actualHash :: Maybe TypedHash
+    expectedHash :: Maybe Hash,
+    actualHash :: Maybe Hash
   }
   deriving stock (Show, Eq, Ord)
 
@@ -816,6 +793,9 @@ instance FromJSON HashMismatch where
     expectedHash <- obj .: "expected_hash"
     actualHash <- obj .: "actual_hash"
     pure HashMismatch {..}
+
+------------------------------------------------------------------------------------------------------------------------
+-- Common/shared error types
 
 data NeedDependencies hash = NeedDependencies
   { missingDependencies :: NESet hash

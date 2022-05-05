@@ -140,7 +140,6 @@ import qualified Unison.Sync.Types as Share
     RepoPath (..),
     hashJWTHash,
   )
-import qualified Unison.Sync.Types as Share.TypedHash (TypedHash (..))
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
