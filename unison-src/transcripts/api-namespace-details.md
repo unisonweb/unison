@@ -1,4 +1,4 @@
-# Get Definitions Test
+# Namespace Details Test
 
 ```ucm:hide
 .> builtins.mergeio
