@@ -338,7 +338,8 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
         (_, _, doc) <- renderDoc ppe width runtime codebase docReference
         pure doc
 
-      -- allow any of these capitalizations
+      -- choose the first term (among conflicted terms) matching any of these names, in this order.
+      -- we might later want to return all of them to let the front end decide
       toCheck = V2Branch.NameSegment <$> ["README", "Readme", "ReadMe", "readme"]
       readme :: Maybe V2.Referent
       readme = List.firstJust lookup toCheck
