@@ -18,7 +18,6 @@ import Data.Bifunctor (first)
 import Data.Containers.ListUtils (nubOrdOn)
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
-import qualified Data.List.Extra as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -329,26 +328,24 @@ findShallowReadmeInBranchAndRender ::
 findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBranch =
   let ppe hqLen = PPE.fromNamesDecl hqLen printNames
 
-      renderReadme :: PPE.PrettyPrintEnvDecl -> V2.Referent -> IO Doc.Doc
-      renderReadme ppe r = do
-        let docReference = case r of
-              -- This shouldn't ever happen unless someone puts a non-doc as their readme.
-              V2.Con ref _conId -> Cv.reference2to1 ref
-              V2.Ref ref -> Cv.reference2to1 ref
+      renderReadme :: PPE.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
+      renderReadme ppe docReference = do
         (_, _, doc) <- renderDoc ppe width runtime codebase docReference
         pure doc
 
       -- choose the first term (among conflicted terms) matching any of these names, in this order.
       -- we might later want to return all of them to let the front end decide
       toCheck = V2Branch.NameSegment <$> ["README", "Readme", "ReadMe", "readme"]
-      readme :: Maybe V2.Referent
-      readme = List.firstJust lookup toCheck
+      readme :: Maybe Reference
+      readme = listToMaybe $ do
+        name <- toCheck
+        term <- toList $ Map.lookup name termsMap
+        k <- Map.keys term
+        case k of
+          -- This shouldn't ever happen unless someone puts a non-doc as their readme.
+          V2.Con {} -> empty
+          V2.Ref ref -> pure $ Cv.reference2to1 ref
         where
-          lookup :: (V2Branch.NameSegment -> Maybe V2.Referent)
-          lookup seg = do
-            term <- Map.lookup seg termsMap
-            (k, _v) <- Map.lookupMin term
-            pure k
           termsMap = V2Branch.terms namespaceBranch
    in liftIO $ do
         hqLen <- Codebase.hashLength codebase
