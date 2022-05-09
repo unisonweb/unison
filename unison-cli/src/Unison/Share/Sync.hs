@@ -198,6 +198,8 @@ fastForwardPush httpClient unisonShareUrl conn repoPath localHeadHash =
             path = repoPath
           }
 
+    -- Return a list from newest to oldest of the ancestors between (excluding) the latest local and the current remote hash.
+    -- note: seems like we /should/ cut this short, with another command to go longer? :grimace:
     fancyBfs :: CausalHash -> Share.Hash -> Sqlite.Transaction (Maybe [CausalHash])
     fancyBfs = undefined
 
