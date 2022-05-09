@@ -11,21 +11,37 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Prelude
 
-data ReadRepo = ReadGitRepo {url :: Text, ref :: Maybe Text} deriving (Eq, Ord, Show)
+data ReadRepo
+  = ReadRepoGit ReadGitRepo
+  deriving (Show)
 
-data WriteRepo = WriteGitRepo {url' :: Text, branch :: Maybe Text} deriving (Eq, Ord, Show)
+data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}
+  deriving (Show)
+
+data WriteRepo = WriteRepoGit WriteGitRepo
+  deriving (Show)
+
+data WriteGitRepo = WriteGitRepo {url' :: Text, branch :: Maybe Text}
+  deriving (Show)
 
 writeToRead :: WriteRepo -> ReadRepo
-writeToRead (WriteGitRepo {url', branch}) = ReadGitRepo {url = url', ref = branch}
+writeToRead = \case
+  WriteRepoGit repo -> ReadRepoGit (writeToReadGit repo)
+
+writeToReadGit :: WriteGitRepo -> ReadGitRepo
+writeToReadGit = \case
+  WriteGitRepo {url', branch} -> ReadGitRepo {url = url', ref = branch}
 
 writePathToRead :: WriteRemotePath -> ReadRemoteNamespace
 writePathToRead (w, p) = (writeToRead w, Nothing, p)
 
 printReadRepo :: ReadRepo -> Text
-printReadRepo ReadGitRepo {url, ref} = url <> Monoid.fromMaybe (Text.cons ':' <$> ref)
+printReadRepo = \case
+  ReadRepoGit ReadGitRepo {url, ref} -> url <> Monoid.fromMaybe (Text.cons ':' <$> ref)
 
 printWriteRepo :: WriteRepo -> Text
-printWriteRepo WriteGitRepo {url', branch} = url' <> Monoid.fromMaybe (Text.cons ':' <$> branch)
+printWriteRepo = \case
+  WriteRepoGit WriteGitRepo {url', branch} -> url' <> Monoid.fromMaybe (Text.cons ':' <$> branch)
 
 printNamespace :: ReadRepo -> Maybe ShortBranchHash -> Path -> Text
 printNamespace repo sbh path =
@@ -45,6 +61,10 @@ printHead repo path =
   printWriteRepo repo
     <> if path == Path.empty then mempty else ":." <> Path.toText path
 
-type ReadRemoteNamespace = (ReadRepo, Maybe ShortBranchHash, Path)
+type GReadRemoteNamespace a = (a, Maybe ShortBranchHash, Path)
+
+type ReadRemoteNamespace = GReadRemoteNamespace ReadRepo
+
+type ReadGitRemoteNamespace = GReadRemoteNamespace ReadGitRepo
 
 type WriteRemotePath = (WriteRepo, Path)
