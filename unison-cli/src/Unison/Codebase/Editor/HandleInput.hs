@@ -58,7 +58,7 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
 import qualified Unison.Codebase.Editor.Propagate as Propagate
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadRepo (ReadRepoGit), WriteGitRepo, WriteRemotePath, WriteRepo (WriteRepoGit), printNamespace, writePathToRead)
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadRepo (ReadRepoGit), WriteGitRepo, WriteRemotePath, WriteRepo (WriteRepoGit, WriteRepoShare), printNamespace, writePathToRead)
 import qualified Unison.Codebase.Editor.Slurp as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
@@ -1757,10 +1757,10 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
     currentPath' <- use LoopState.currentPath
     getAt (Path.resolve currentPath' localPath)
 
-  unlessError do
-    case repo of
-      WriteRepoGit repo ->
-        withExceptT Output.GitError $ do
+  case repo of
+    WriteRepoGit repo ->
+      unlessError do
+        withExceptT Output.GitError do
           case remoteTarget of
             Nothing -> do
               let opts = PushGitBranchOpts {setRoot = False, syncMode}
@@ -1780,6 +1780,14 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
               syncGitRemoteBranch repo opts withRemoteRoot >>= \case
                 Left output -> respond output
                 Right _branch -> respond Success
+    WriteRepoShare repo -> do
+      case remoteTarget of
+        Nothing ->
+          -- do a gist
+          error "don't do a gist"
+        Just (remotePath, pushBehavior) ->
+          -- let (userSegment :| pathSegments) = undefined
+          handlePushToUnisonShare _userSegment _pathSegments _localPath pushBehavior
   where
     -- Per `pushBehavior`, we are either:
     --

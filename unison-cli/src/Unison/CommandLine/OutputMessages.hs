@@ -2821,10 +2821,14 @@ prettyTypeName ppe r =
     prettyHashQualified (PPE.typeName ppe r)
 
 prettyReadRepo :: ReadRepo -> Pretty
-prettyReadRepo (RemoteRepo.ReadRepoGit RemoteRepo.ReadGitRepo {url}) = P.blue (P.text url)
+prettyReadRepo = \case
+  RemoteRepo.ReadRepoGit RemoteRepo.ReadGitRepo {url} -> P.blue (P.text url)
+  RemoteRepo.ReadRepoShare RemoteRepo.ShareRepo {url} -> P.blue (P.text url)
 
 prettyWriteRepo :: WriteRepo -> Pretty
-prettyWriteRepo (RemoteRepo.WriteRepoGit RemoteRepo.WriteGitRepo {url'}) = P.blue (P.text url')
+prettyWriteRepo = \case
+  RemoteRepo.WriteRepoGit RemoteRepo.WriteGitRepo {url} -> P.blue (P.text url)
+  RemoteRepo.WriteRepoShare RemoteRepo.ShareRepo {url} -> P.blue (P.text url)
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

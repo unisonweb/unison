@@ -13,24 +13,31 @@ import Unison.Prelude
 
 data ReadRepo
   = ReadRepoGit ReadGitRepo
+  | ReadRepoShare ShareRepo
   deriving (Eq, Show)
 
 data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}
   deriving (Eq, Show)
 
-data WriteRepo = WriteRepoGit WriteGitRepo
+newtype ShareRepo = ShareRepo {url :: Text}
   deriving (Eq, Show)
 
-data WriteGitRepo = WriteGitRepo {url' :: Text, branch :: Maybe Text}
+data WriteRepo
+  = WriteRepoGit WriteGitRepo
+  | WriteRepoShare ShareRepo
+  deriving (Eq, Show)
+
+data WriteGitRepo = WriteGitRepo {url :: Text, branch :: Maybe Text}
   deriving (Eq, Show)
 
 writeToRead :: WriteRepo -> ReadRepo
 writeToRead = \case
   WriteRepoGit repo -> ReadRepoGit (writeToReadGit repo)
+  WriteRepoShare repo -> ReadRepoShare repo
 
 writeToReadGit :: WriteGitRepo -> ReadGitRepo
 writeToReadGit = \case
-  WriteGitRepo {url', branch} -> ReadGitRepo {url = url', ref = branch}
+  WriteGitRepo {url, branch} -> ReadGitRepo {url = url, ref = branch}
 
 writePathToRead :: WriteRemotePath -> ReadRemoteNamespace
 writePathToRead (w, p) = (writeToRead w, Nothing, p)
@@ -38,11 +45,14 @@ writePathToRead (w, p) = (writeToRead w, Nothing, p)
 printReadRepo :: ReadRepo -> Text
 printReadRepo = \case
   ReadRepoGit ReadGitRepo {url, ref} -> url <> Monoid.fromMaybe (Text.cons ':' <$> ref)
+  ReadRepoShare ShareRepo {url} -> url
 
 printWriteRepo :: WriteRepo -> Text
 printWriteRepo = \case
-  WriteRepoGit WriteGitRepo {url', branch} -> url' <> Monoid.fromMaybe (Text.cons ':' <$> branch)
+  WriteRepoGit WriteGitRepo {url, branch} -> url <> Monoid.fromMaybe (Text.cons ':' <$> branch)
+  WriteRepoShare ShareRepo {url} -> url
 
+-- | print remote namespace
 printNamespace :: ReadRepo -> Maybe ShortBranchHash -> Path -> Text
 printNamespace repo sbh path =
   printReadRepo repo <> case sbh of
@@ -56,6 +66,7 @@ printNamespace repo sbh path =
           then mempty
           else "." <> Path.toText path
 
+-- | print remote path
 printHead :: WriteRepo -> Path -> Text
 printHead repo path =
   printWriteRepo repo

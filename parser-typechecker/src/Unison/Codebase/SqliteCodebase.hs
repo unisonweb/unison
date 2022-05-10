@@ -863,7 +863,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
 
     -- Commit our changes
     push :: forall n. MonadIO n => Git.GitRepo -> WriteGitRepo -> Branch m -> n Bool -- withIOError needs IO
-    push remotePath repo@(WriteGitRepo {url' = url, branch = mayGitBranch}) newRootBranch = time "SqliteCodebase.pushGitRootBranch.push" $ do
+    push remotePath repo@(WriteGitRepo {url, branch = mayGitBranch}) newRootBranch = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       -- note: -uall recursively shows status for all files in untracked directories
       --   we want this so that we see

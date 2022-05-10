@@ -173,6 +173,7 @@ default-extensions:
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving

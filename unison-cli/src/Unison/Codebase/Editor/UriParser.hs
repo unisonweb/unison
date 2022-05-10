@@ -52,7 +52,7 @@ writeRepo :: P WriteRepo
 writeRepo = P.label "repo root for writing" $ do
   uri <- parseProtocol
   treeish <- P.optional treeishSuffix
-  pure (WriteRepoGit WriteGitRepo {url' = printProtocol uri, branch = treeish})
+  pure (WriteRepoGit WriteGitRepo {url = printProtocol uri, branch = treeish})
 
 writeRepoPath :: P WriteRemotePath
 writeRepoPath = P.label "generic git repo" $ do
