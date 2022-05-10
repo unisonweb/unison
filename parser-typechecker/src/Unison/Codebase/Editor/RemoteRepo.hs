@@ -13,16 +13,16 @@ import Unison.Prelude
 
 data ReadRepo
   = ReadRepoGit ReadGitRepo
-  deriving (Show)
+  deriving (Eq, Show)
 
 data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}
-  deriving (Show)
+  deriving (Eq, Show)
 
 data WriteRepo = WriteRepoGit WriteGitRepo
-  deriving (Show)
+  deriving (Eq, Show)
 
 data WriteGitRepo = WriteGitRepo {url' :: Text, branch :: Maybe Text}
-  deriving (Show)
+  deriving (Eq, Show)
 
 writeToRead :: WriteRepo -> ReadRepo
 writeToRead = \case

@@ -279,6 +279,7 @@ dagbfs goal children =
 data PullError
   = -- | An error occurred while resolving a repo+path to a causal hash.
     PullErrorGetCausalHashByPath GetCausalHashByPathError
+  | PullErrorNoHistoryAtPath Share.RepoPath.RepoPath
 
 pull ::
   -- | The HTTP client to use for Unison Share requests.
@@ -289,19 +290,19 @@ pull ::
   Sqlite.Connection ->
   -- | The repo+path to pull from.
   Share.RepoPath ->
-  IO (Either PullError (Maybe CausalHash))
+  IO (Either PullError CausalHash)
 pull httpClient unisonShareUrl conn repoPath = do
   getCausalHashByPath httpClient unisonShareUrl repoPath >>= \case
     Left err -> pure (Left (PullErrorGetCausalHashByPath err))
     -- There's nothing at the remote path, so there's no causal to pull.
-    Right Nothing -> pure (Right Nothing)
+    Right Nothing -> pure (Left (PullErrorNoHistoryAtPath repoPath))
     Right (Just hashJwt) -> do
       let hash = Share.hashJWTHash hashJwt
       Sqlite.runTransaction conn (entityLocation hash) >>= \case
         EntityInMainStorage -> pure ()
         EntityInTempStorage missingDependencies -> doDownload missingDependencies
         EntityNotStored -> doDownload (NESet.singleton hashJwt)
-      pure (Right (Just (CausalHash (Hash.fromBase32Hex (Share.toBase32Hex hash)))))
+      pure (Right (CausalHash (Hash.fromBase32Hex (Share.toBase32Hex hash))))
   where
     doDownload :: NESet Share.HashJWT -> IO ()
     doDownload =

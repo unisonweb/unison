@@ -2,7 +2,7 @@
 
 module Unison.Codebase.GitError where
 
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadGitRepo, WriteGitRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, WriteGitRepo)
 import Unison.Codebase.Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Prelude
@@ -32,6 +32,6 @@ data GitCodebaseError h
   | RemoteNamespaceHashAmbiguous ReadGitRepo ShortBranchHash (Set h)
   | CouldntLoadRootBranch ReadGitRepo h
   | CouldntParseRemoteBranch ReadGitRepo String
-  | CouldntLoadSyncedBranch ReadRemoteNamespace h
+  | CouldntLoadSyncedBranch ReadGitRemoteNamespace h
   | CouldntFindRemoteBranch ReadGitRepo Path
   deriving (Show)

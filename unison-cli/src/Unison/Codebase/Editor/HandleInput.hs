@@ -28,7 +28,6 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
 import qualified Text.Megaparsec as P
-import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Operations as Ops
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
@@ -59,7 +58,7 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
 import qualified Unison.Codebase.Editor.Propagate as Propagate
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemotePath, WriteRepo, printNamespace, writePathToRead)
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadRepo (ReadRepoGit), WriteGitRepo, WriteRemotePath, WriteRepo (WriteRepoGit), printNamespace, writePathToRead)
 import qualified Unison.Codebase.Editor.Slurp as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
@@ -134,11 +133,8 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share
-  ( Hash,
-    HashMismatch (..),
-    RepoName (..),
+  ( RepoName (..),
     RepoPath (..),
-    hashJWTHash,
   )
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -499,8 +495,8 @@ loop = do
             Action m i v1 Bool
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
           unlessGitError = unlessError' Output.GitError
-          importRemoteBranch ns mode preprocess =
-            ExceptT . eval $ ImportRemoteBranch ns mode preprocess
+          importRemoteGitBranch ns mode preprocess =
+            ExceptT . eval $ ImportRemoteGitBranch ns mode preprocess
           loadSearchResults = eval . LoadSearchResults
           saveAndApplyPatch patchPath'' patchName patch' = do
             stepAtM
@@ -657,9 +653,11 @@ loop = do
                       ppe
                       outputDiff
             CreatePullRequestI baseRepo headRepo -> do
+              let viewRemoteBranch repo callback = case repo of
+                    (ReadRepoGit r, sbh, path) -> viewRemoteGitBranch (r, sbh, path) Git.RequireExistingBranch callback
               result <-
-                join @(Either GitError) <$> viewRemoteBranch baseRepo Git.RequireExistingBranch \baseBranch -> do
-                  viewRemoteBranch headRepo Git.RequireExistingBranch \headBranch -> do
+                join @(Either GitError) <$> viewRemoteBranch baseRepo \baseBranch -> do
+                  viewRemoteBranch headRepo \headBranch -> do
                     merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
                     (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
                     pure $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
@@ -672,8 +670,12 @@ loop = do
               destb <- getAt desta
               if Branch.isEmpty0 (Branch.head destb)
                 then unlessGitError do
-                  baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit Unmodified
-                  headb <- importRemoteBranch headRepo SyncMode.ShortCircuit Unmodified
+                  baseb <- case baseRepo of
+                    (ReadRepoGit r, sbh, path) ->
+                      importRemoteGitBranch (r, sbh, path) SyncMode.ShortCircuit Unmodified
+                  headb <- case headRepo of
+                    (ReadRepoGit r, sbh, path) ->
+                      importRemoteGitBranch (r, sbh, path) SyncMode.ShortCircuit Unmodified
                   lift $ do
                     mergedb <- eval $ Merge Branch.RegularMerge baseb headb
                     squashedb <- eval $ Merge Branch.SquashMerge headb baseb
@@ -1507,9 +1509,11 @@ loop = do
               let preprocess = case pullMode of
                     Input.PullWithHistory -> Unmodified
                     Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-              ns <- maybe (writePathToRead <$> resolveConfiguredGitUrl Pull path) pure mayRepo
+              ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
               lift $ unlessGitError do
-                remoteBranch <- importRemoteBranch ns syncMode preprocess
+                remoteBranch <- case ns of
+                  (ReadRepoGit r, sbh, path) ->
+                    importRemoteGitBranch (r, sbh, path) syncMode preprocess
                 let unchangedMsg = PullAlreadyUpToDate ns path
                 let destAbs = resolveToAbsolute path
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
@@ -1714,8 +1718,8 @@ handlePullFromUnisonShare remoteRepo remotePath = do
 
   liftIO (Share.pull authHTTPClient unisonShareUrl connection repoPath) >>= \case
     Left (Share.PullErrorGetCausalHashByPath (Share.GetCausalHashByPathErrorNoReadPermission _)) -> undefined
-    Right Nothing -> undefined
-    Right (Just causalHash) -> do
+    Left (Share.PullErrorNoHistoryAtPath repoPath) -> undefined
+    Right causalHash -> do
       undefined
 
 -- | Handle a @push@ command.
@@ -1732,7 +1736,7 @@ handlePushRemoteBranch ::
   Action' m v ()
 handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
   unlessError do
-    (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
+    (repo, remotePath) <- maybe (resolveConfiguredUrl Push path) pure mayRepo
     lift (doPushRemoteBranch repo path syncMode (Just (remotePath, pushBehavior)))
 
 -- Internal helper that implements pushing to a remote repo, which generalizes @gist@ and @push@.
@@ -1754,26 +1758,28 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
     getAt (Path.resolve currentPath' localPath)
 
   unlessError do
-    withExceptT Output.GitError $ do
-      case remoteTarget of
-        Nothing -> do
-          let opts = PushGitBranchOpts {setRoot = False, syncMode}
-          syncRemoteBranch repo opts (\_remoteRoot -> pure (Right sourceBranch))
-          sbhLength <- (eval BranchHashLength)
-          respond (GistCreated sbhLength repo (Branch.headHash sourceBranch))
-        Just (remotePath, pushBehavior) -> do
-          let withRemoteRoot :: Branch m -> m (Either (Output v) (Branch m))
-              withRemoteRoot remoteRoot = do
-                let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
-                    -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
-                    f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
-                Branch.modifyAtM remotePath f remoteRoot & \case
-                  Nothing -> pure (Left $ RefusedToPush pushBehavior)
-                  Just newRemoteRoot -> pure (Right newRemoteRoot)
-          let opts = PushGitBranchOpts {setRoot = True, syncMode}
-          syncRemoteBranch repo opts withRemoteRoot >>= \case
-            Left output -> respond output
-            Right _branch -> respond Success
+    case repo of
+      WriteRepoGit repo ->
+        withExceptT Output.GitError $ do
+          case remoteTarget of
+            Nothing -> do
+              let opts = PushGitBranchOpts {setRoot = False, syncMode}
+              syncGitRemoteBranch repo opts (\_remoteRoot -> pure (Right sourceBranch))
+              sbhLength <- (eval BranchHashLength)
+              respond (GistCreated sbhLength (WriteRepoGit repo) (Branch.headHash sourceBranch))
+            Just (remotePath, pushBehavior) -> do
+              let withRemoteRoot :: Branch m -> m (Either (Output v) (Branch m))
+                  withRemoteRoot remoteRoot = do
+                    let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
+                        -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
+                        f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
+                    Branch.modifyAtM remotePath f remoteRoot & \case
+                      Nothing -> pure (Left $ RefusedToPush pushBehavior)
+                      Just newRemoteRoot -> pure (Right newRemoteRoot)
+              let opts = PushGitBranchOpts {setRoot = True, syncMode}
+              syncGitRemoteBranch repo opts withRemoteRoot >>= \case
+                Left output -> respond output
+                Right _branch -> respond Success
   where
     -- Per `pushBehavior`, we are either:
     --
@@ -2147,11 +2153,11 @@ manageLinks silent srcs mdValues op = do
 -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
 -- otherwise, tries to load a value from .unisonConfig, and complains
 -- if needed.
-resolveConfiguredGitUrl ::
+resolveConfiguredUrl ::
   PushPull ->
   Path' ->
   ExceptT (Output v) (Action m i v) WriteRemotePath
-resolveConfiguredGitUrl pushPull destPath' = ExceptT do
+resolveConfiguredUrl pushPull destPath' = ExceptT do
   currentPath' <- use LoopState.currentPath
   let destPath = Path.resolve currentPath' destPath'
   let configKey = gitUrlKey destPath
@@ -2177,26 +2183,26 @@ configKey k p =
         NameSegment.toText
         (Path.toSeq $ Path.unabsolute p)
 
-viewRemoteBranch ::
+viewRemoteGitBranch ::
   (MonadCommand n m i v, MonadUnliftIO m) =>
-  ReadRemoteNamespace ->
+  ReadGitRemoteNamespace ->
   Git.GitBranchBehavior ->
   (Branch m -> Free (Command m i v) r) ->
   n (Either GitError r)
-viewRemoteBranch ns gitBranchBehavior action = do
-  eval $ ViewRemoteBranch ns gitBranchBehavior action
+viewRemoteGitBranch ns gitBranchBehavior action = do
+  eval $ ViewRemoteGitBranch ns gitBranchBehavior action
 
 -- | Given the current root branch of a remote
 -- (or an empty branch if no root branch exists)
 -- compute a new branch, which will then be synced and pushed.
-syncRemoteBranch ::
+syncGitRemoteBranch ::
   MonadCommand n m i v =>
-  WriteRepo ->
+  WriteGitRepo ->
   PushGitBranchOpts ->
   (Branch m -> m (Either e (Branch m))) ->
   ExceptT GitError n (Either e (Branch m))
-syncRemoteBranch repo opts action =
-  ExceptT . eval $ SyncRemoteBranch repo opts action
+syncGitRemoteBranch repo opts action =
+  ExceptT . eval $ SyncRemoteGitBranch repo opts action
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)

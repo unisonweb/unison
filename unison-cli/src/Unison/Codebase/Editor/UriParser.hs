@@ -9,7 +9,7 @@ import Data.Void
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo (..), WriteRemotePath, WriteRepo (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo (..), ReadRemoteNamespace, ReadRepo (..), WriteGitRepo (..), WriteRemotePath, WriteRepo (..))
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
@@ -42,7 +42,7 @@ repoPath :: P ReadRemoteNamespace
 repoPath = P.label "generic git repo" $ do
   protocol <- parseProtocol
   treeish <- P.optional treeishSuffix
-  let repo = ReadGitRepo {url = printProtocol protocol, ref = treeish}
+  let repo = (ReadRepoGit ReadGitRepo {url = printProtocol protocol, ref = treeish})
   nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
   case nshashPath of
     Nothing -> pure (repo, Nothing, Path.empty)
@@ -52,7 +52,7 @@ writeRepo :: P WriteRepo
 writeRepo = P.label "repo root for writing" $ do
   uri <- parseProtocol
   treeish <- P.optional treeishSuffix
-  pure WriteGitRepo {url' = printProtocol uri, branch = treeish}
+  pure (WriteRepoGit WriteGitRepo {url' = printProtocol uri, branch = treeish})
 
 writeRepoPath :: P WriteRemotePath
 writeRepoPath = P.label "generic git repo" $ do
