@@ -76,6 +76,7 @@ module U.Codebase.Sqlite.Queries
     -- ** causal_parent table
     saveCausalParents,
     loadCausalParents,
+    loadCausalParentsByHash,
     before,
     lca,
 
@@ -898,6 +899,19 @@ loadCausalParents :: CausalHashId -> Transaction [CausalHashId]
 loadCausalParents h = queryListCol sql (Only h) where sql = [here|
   SELECT parent_id FROM causal_parent WHERE causal_id = ?
 |]
+
+-- | Like 'loadCausalParents', but the input and outputs are hashes, not hash ids.
+loadCausalParentsByHash :: Base32Hex -> Transaction [Base32Hex]
+loadCausalParentsByHash hash =
+  queryListCol
+    [here|
+      SELECT h2.base32
+      FROM causal_parent cp
+      JOIN hash h1 ON cp.causal_id = h1.id
+      JOIN hash h2 ON cp.parent_id = h2.id
+      WHERE h1.base32 = ?
+    |]
+    (Only hash)
 
 expectNamespaceRoot :: Transaction CausalHashId
 expectNamespaceRoot =

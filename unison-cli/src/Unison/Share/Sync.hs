@@ -201,12 +201,31 @@ fastForwardPush httpClient unisonShareUrl conn repoPath localHeadHash =
     -- Return a list from newest to oldest of the ancestors between (excluding) the latest local and the current remote hash.
     -- note: seems like we /should/ cut this short, with another command to go longer? :grimace:
     fancyBfs :: CausalHash -> Share.Hash -> Sqlite.Transaction (Maybe [CausalHash])
-    fancyBfs = undefined
+    fancyBfs h0 h1 =
+      tweak <$> dagbfs (== Share.toBase32Hex h1) Q.loadCausalParentsByHash (Hash.toBase32Hex (unCausalHash h0))
+      where
+        -- Drop 1 and reverse (under a Maybe, and twddling hash types):
+        --
+        --   tweak [] = []
+        --   tweak [C,B,A] = [A,B]
+        --
+        -- The drop 1 is because dagbfs returns the goal at the head of the returned list, but we know what the goal is
+        -- already (the remote head hash).
+        tweak :: Maybe [Base32Hex] -> Maybe [CausalHash]
+        tweak =
+          fmap (map (CausalHash . Hash.fromBase32Hex) . reverse . drop 1)
 
-dagbfs :: forall a m. Monad m => (a -> Bool) -> (a -> m [a]) -> a -> m (Maybe (List.NonEmpty a))
+data Step a
+  = DeadEnd
+  | KeepSearching (List.NonEmpty a)
+  | FoundGoal a
+
+-- FIXME: document
+dagbfs :: forall a m. Monad m => (a -> Bool) -> (a -> m [a]) -> a -> m (Maybe [a])
 dagbfs goal children =
-  let -- The loop state: all distinct paths from the root to the frontier, in reverse order, with the invariant that we
-      -- haven't found a goal state yet. (Otherwise, we wouldn't still be in this loop, we'd return!).
+  let -- The loop state: all distinct paths from the root to the frontier (not including the root, because it's implied,
+      -- as an input to this function), in reverse order, with the invariant that we haven't found a goal state yet.
+      -- (Otherwise, we wouldn't still be in this loop, we'd return!).
       --
       -- For example, say we are exploring the tree
       --
@@ -216,24 +235,25 @@ dagbfs goal children =
       --                 / \   \
       --                4   5   6
       --
-      -- Graphically, the frontier here is the nodes 4, 5, and 6; we know that, because I haven't drawn any nodes below
+      -- Graphically, the frontier here is the nodes 4, 5, and 6; we know that, because we haven't drawn any nodes below
       -- them. (This is a BFS algorithm that discovers children on-the-fly, so maybe node 5 (for example) has children,
       -- and maybe it doesn't).
       --
       -- The loop state, in this case, would be these three paths:
       --
-      --   [ 4, 2, 1 ]
-      --   [ 5, 2, 1 ]
-      --   [ 6, 3, 1 ]
+      --   [ 4, 2 ]
+      --   [ 5, 2 ]
+      --   [ 6, 3 ]
+      --
+      -- (Note, again, that we do not include the root).
       go :: NESeq (List.NonEmpty a) -> m (Maybe (List.NonEmpty a))
-      go (path :<|| paths) = do
-        -- Get the children of the first path (in the above example, [ 4, 2, 1 ]).
-        ys0 <- children (List.NonEmpty.head path)
-        case List.NonEmpty.nonEmpty ys0 of
+      go (path :<|| paths) =
+        -- Step forward from the first path in our loop state (in the example above, [4, 2]).
+        step (List.NonEmpty.head path) >>= \case
           -- If node 4 had no more children, we can toss that whole path: it didn't end in a goal. Now we either keep
           -- searching (as we would in the example, since we have two more paths to continue from), or we don't, because
           -- this was the only remaining path.
-          Nothing ->
+          DeadEnd ->
             case NESeq.nonEmptySeq paths of
               Nothing -> pure Nothing
               Just paths' -> go paths'
@@ -251,22 +271,42 @@ dagbfs goal children =
           --
           --   1. One of the children we just discovered (say 7) is a goal node. So we're done, and we'd return the path
           --
-          --        [ 7, 4, 2, 1 ]
+          --        [ 7, 4, 2 ]
           --
           --   2. No child we just discovered (7 nor 8) were a goal node. So we loop, putting our new path(s) at the end
           --      of the list (so we search paths fairly). In this case, we'd re-enter the loop with the following four
           --      paths:
           --
-          --        [ 5, 2, 1 ]      \ these two are are variable 'paths', the tail of the loop state.
-          --        [ 6, 3, 1 ]      /
-          --        [ 7, 4, 2, 1 ]   \ these two are new, just constructed by prepending each of [ 4, 2, 1 ]'s children
-          --        [ 8, 4, 2, 1 ]   / to itself, making two new paths to search
+          --        [ 5, 2 ]      \ these two are are variable 'paths', the tail of the loop state.
+          --        [ 6, 3 ]      /
+          --        [ 7, 4, 2 ]   \ these two are new, just constructed by prepending each of [ 4, 2, 1 ]'s children
+          --        [ 8, 4, 2 ]   / to itself, making two new paths to search
+          KeepSearching ys -> go (append paths ((\y -> List.NonEmpty.cons y path) <$> NESeq.fromList ys))
+          FoundGoal y -> pure (Just (List.NonEmpty.cons y path))
+
+      -- Step forward from a single node. There are 3 possible outcomes:
+      --
+      --   1. We discover it has no children. (return DeadEnd)
+      --   2. We discover is has children, none of which are a goal. (return KeepSearching)
+      --   3. We discover it has children, (at least) one of which is a goal. (return FoundGoal)
+      step :: a -> m (Step a)
+      step x = do
+        ys0 <- children x
+        pure case List.NonEmpty.nonEmpty ys0 of
+          Nothing -> DeadEnd
           Just ys ->
             case Foldable.find goal ys of
-              Nothing -> go (append paths ((\y -> List.NonEmpty.cons y path) <$> NESeq.fromList ys))
-              Just y -> pure (Just (List.NonEmpty.cons y path))
-   in -- lts-18.28 doesn't have List.NonEmpty.singleton
-      \source -> go (NESeq.singleton (source :| []))
+              Nothing -> KeepSearching ys
+              Just y -> FoundGoal y
+   in \root ->
+        if goal root
+          then pure (Just [])
+          else
+            step root >>= \case
+              DeadEnd -> pure Nothing
+              -- lts-18.28 doesn't have List.NonEmpty.singleton
+              KeepSearching xs -> fmap List.NonEmpty.toList <$> go (NESeq.fromList ((:| []) <$> xs))
+              FoundGoal x -> pure (Just [x])
   where
     -- Concatenate a seq and a non-empty seq.
     append :: Seq x -> NESeq x -> NESeq x
