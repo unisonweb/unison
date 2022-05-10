@@ -54,9 +54,10 @@ toName = \case
 sortByLength :: [HashQualified Name] -> [HashQualified Name]
 sortByLength hs = sortOn f hs
   where
-    f (NameOnly n) = (length (Name.reverseSegments n), 0, Left n)
-    f (HashQualified n _h) = (length (Name.reverseSegments n), 1, Left n)
-    f (HashOnly h) = (maxBound, 0, Right h)
+    f :: HashQualified Name -> (Int, Int)
+    f (NameOnly n) = (length (Name.reverseSegments n), 0)
+    f (HashQualified n _h) = (length (Name.reverseSegments n), 1)
+    f (HashOnly _h) = (maxBound, 0)
 
 hasName, hasHash :: HashQualified Name -> Bool
 hasName = isJust . toName

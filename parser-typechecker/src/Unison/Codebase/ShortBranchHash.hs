@@ -2,7 +2,6 @@ module Unison.Codebase.ShortBranchHash
   ( toString,
     toHash,
     fromHash,
-    fullFromHash,
     fromText,
     ShortBranchHash (..),
   )
@@ -26,16 +25,13 @@ fromHash :: Coercible h Hash.Hash => Int -> h -> ShortBranchHash
 fromHash len =
   ShortBranchHash . Text.take len . Hash.base32Hex . coerce
 
-fullFromHash :: Coercible h Hash.Hash => h -> ShortBranchHash
-fullFromHash = ShortBranchHash . Hash.base32Hex . coerce
-
 -- abc -> SBH abc
 -- #abc -> SBH abc
 fromText :: Text -> Maybe ShortBranchHash
 fromText (Text.dropWhile (== '#') -> t)
   | Text.all (`Set.member` Hash.validBase32HexChars) t =
-      Just $
-        ShortBranchHash t
+    Just $
+      ShortBranchHash t
 fromText _ = Nothing
 
 instance Show ShortBranchHash where

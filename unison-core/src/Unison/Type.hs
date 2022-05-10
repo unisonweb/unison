@@ -11,7 +11,6 @@ module Unison.Type where
 
 import Control.Lens (Prism')
 import qualified Control.Monad.Writer.Strict as Writer
-import Data.Functor.Identity (runIdentity)
 import Data.Generics.Sum (_Ctor)
 import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map

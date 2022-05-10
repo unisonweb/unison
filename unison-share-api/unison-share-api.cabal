@@ -27,6 +27,7 @@ library
       Unison.Server.Endpoints.NamespaceListing
       Unison.Server.Endpoints.Projects
       Unison.Server.Errors
+      Unison.Server.Orphans
       Unison.Server.QueryResult
       Unison.Server.SearchResult
       Unison.Server.SearchResult'
@@ -93,10 +94,12 @@ library
     , servant-server
     , text
     , transformers
+    , unison-codebase
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-util
     , unison-util-relation
     , unliftio
     , uri-encode

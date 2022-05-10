@@ -45,6 +45,7 @@ dependencies:
   - unliftio
   - network-uri
   - aeson
+  - aeson-pretty
   - http-client >= 0.7.6
   - http-client-tls
   - http-types

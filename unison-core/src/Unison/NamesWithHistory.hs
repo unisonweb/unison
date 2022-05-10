@@ -37,6 +37,9 @@ data NamesWithHistory = NamesWithHistory
   }
   deriving (Show)
 
+fromCurrentNames :: Names -> NamesWithHistory
+fromCurrentNames n = NamesWithHistory {currentNames = n, oldNames = mempty}
+
 filterTypes :: (Name -> Bool) -> Names -> Names
 filterTypes = Names.filterTypes
 

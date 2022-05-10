@@ -12,11 +12,13 @@ module Unison.Server.Doc where
 import Control.Lens (view, (^.))
 import Control.Monad
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
+import Data.Aeson (ToJSON)
 import Data.Foldable
 import Data.Functor
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
+import Data.OpenApi (ToSchema)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -38,6 +40,7 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Runtime.IOSource as DD
+import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
 import qualified Unison.ShortHash as SH
@@ -85,13 +88,20 @@ data Doc
   | UntitledSection [Doc]
   | Column [Doc]
   | Group Doc
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
 
 type UnisonHash = Text
 
-data Ref a = Term a | Type a deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
+data Ref a = Term a | Type a
+  deriving stock (Eq, Show, Generic, Functor, Foldable, Traversable)
+  deriving anyclass (ToJSON)
 
-data MediaSource = MediaSource {mediaSourceUrl :: Text, mediaSourceMimeType :: Maybe Text} deriving (Eq, Show, Generic)
+instance ToSchema a => ToSchema (Ref a)
+
+data MediaSource = MediaSource {mediaSourceUrl :: Text, mediaSourceMimeType :: Maybe Text}
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
 
 data SpecialForm
   = Source [Ref (UnisonHash, DisplayObject SyntaxText Src)]
@@ -107,10 +117,13 @@ data SpecialForm
   | EmbedInline SyntaxText
   | Video [MediaSource] (Map Text Text)
   | FrontMatter (Map Text [Text])
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
 
 -- `Src folded unfolded`
-data Src = Src SyntaxText SyntaxText deriving (Eq, Show, Generic)
+data Src = Src SyntaxText SyntaxText
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
 
 renderDoc ::
   forall v m.
@@ -289,29 +302,29 @@ renderDoc pped terms typeOf eval types tm =
                 acc' = case tm of
                   Term.Ref' r
                     | Set.notMember r seen ->
-                        (: acc) . Term . (Reference.toText r,) <$> case r of
-                          Reference.Builtin _ ->
-                            typeOf (Referent.Ref r) <&> \case
-                              Nothing -> DO.BuiltinObject "🆘 missing type signature"
-                              Just ty -> DO.BuiltinObject (formatPrettyType ppe ty)
-                          ref ->
-                            terms ref >>= \case
-                              Nothing -> pure $ DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
-                              Just tm -> do
-                                typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
-                                let name = PPE.termName ppe (Referent.Ref ref)
-                                let folded =
-                                      formatPretty . P.lines $
-                                        TypePrinter.prettySignaturesST ppe [(Referent.Ref ref, name, typ)]
-                                let full tm@(Term.Ann' _ _) _ =
-                                      formatPretty (TermPrinter.prettyBinding ppe name tm)
-                                    full tm typ =
-                                      formatPretty (TermPrinter.prettyBinding ppe name (Term.ann () tm typ))
-                                pure (DO.UserObject (Src folded (full tm typ)))
+                      (: acc) . Term . (Reference.toText r,) <$> case r of
+                        Reference.Builtin _ ->
+                          typeOf (Referent.Ref r) <&> \case
+                            Nothing -> DO.BuiltinObject "🆘 missing type signature"
+                            Just ty -> DO.BuiltinObject (formatPrettyType ppe ty)
+                        ref ->
+                          terms ref >>= \case
+                            Nothing -> pure $ DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+                            Just tm -> do
+                              typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
+                              let name = PPE.termName ppe (Referent.Ref ref)
+                              let folded =
+                                    formatPretty . P.lines $
+                                      TypePrinter.prettySignaturesST ppe [(Referent.Ref ref, name, typ)]
+                              let full tm@(Term.Ann' _ _) _ =
+                                    formatPretty (TermPrinter.prettyBinding ppe name tm)
+                                  full tm typ =
+                                    formatPretty (TermPrinter.prettyBinding ppe name (Term.ann () tm typ))
+                              pure (DO.UserObject (Src folded (full tm typ)))
                   Term.RequestOrCtor' (view ConstructorReference.reference_ -> r) | Set.notMember r seen -> (: acc) <$> goType r
                   _ -> pure acc
             DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns]
               | Set.notMember ref seen ->
-                  (Set.insert ref seen,) . (: acc) <$> goType ref
+                (Set.insert ref seen,) . (: acc) <$> goType ref
             _ -> pure s1
       reverse . snd <$> foldM go mempty es

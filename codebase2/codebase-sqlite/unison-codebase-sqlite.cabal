@@ -26,8 +26,10 @@ library
       U.Codebase.Sqlite.Decl.Format
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
+      U.Codebase.Sqlite.NamedRef
       U.Codebase.Sqlite.ObjectType
       U.Codebase.Sqlite.Operations
+      U.Codebase.Sqlite.Orphans
       U.Codebase.Sqlite.Patch.Diff
       U.Codebase.Sqlite.Patch.Format
       U.Codebase.Sqlite.Patch.Full
@@ -51,6 +53,8 @@ library
       ConstraintKinds
       DeriveAnyClass
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
       DeriveGeneric
       DerivingStrategies
       DerivingVia

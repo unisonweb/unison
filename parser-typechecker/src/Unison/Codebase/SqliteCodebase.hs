@@ -27,6 +27,7 @@ import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
+import qualified U.Codebase.Branch as V2Branch
 import U.Codebase.HashTags (CausalHash (CausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -40,6 +41,7 @@ import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
 import qualified Unison.Codebase.Editor.Git as Git
@@ -239,13 +241,23 @@ sqliteCodebase debugName root localOrRemote action = do
         -- option 3: switch from putTerm to putTermComponent -- needs to buffer dependencies non-locally (or require application to manage + die horribly)
 
         putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
-        putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
+        putTerm id tm tp | debug && trace ("SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
         putTerm id tm tp =
           Sqlite.runTransaction conn (CodebaseOps.putTerm termBuffer declBuffer id tm tp)
 
         putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> m ()
         putTypeDeclaration id decl =
           Sqlite.runTransaction conn (CodebaseOps.putTypeDeclaration termBuffer declBuffer id decl)
+
+        getRootBranchHash :: MonadIO m => m V2Branch.CausalHash
+        getRootBranchHash = do
+          Sqlite.runReadOnlyTransaction conn \run ->
+            run Ops.expectRootCausalHash
+
+        getShallowBranchForHash :: MonadIO m => V2Branch.CausalHash -> m (V2Branch.CausalBranch m)
+        getShallowBranchForHash bh =
+          Sqlite.runReadOnlyTransaction conn \run -> do
+            V2Branch.hoistCausalBranch run <$> run (Ops.expectCausalBranchByCausalHash bh)
 
         getRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> m (Branch m)
         getRootBranch rootBranchCache =
@@ -257,8 +269,8 @@ sqliteCodebase debugName root localOrRemote action = do
           Sqlite.runTransaction conn CodebaseOps.getRootBranchExists
 
         putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> Branch m -> m ()
-        putRootBranch rootBranchCache branch1 =
-          withRunInIO \runInIO ->
+        putRootBranch rootBranchCache branch1 = do
+          withRunInIO \runInIO -> do
             Sqlite.runTransaction conn do
               CodebaseOps.putRootBranch rootBranchCache (Branch.transform (Sqlite.unsafeIO . runInIO) branch1)
 
@@ -433,47 +445,55 @@ sqliteCodebase debugName root localOrRemote action = do
           Sqlite.runTransaction conn (CodebaseOps.sqlLca h1 h2)
     let codebase =
           C.Codebase
-            (Cache.applyDefined termCache getTerm)
-            (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
-            (Cache.applyDefined declCache getTypeDeclaration)
-            putTerm
-            putTypeDeclaration
-            -- _getTermComponent
-            getTermComponentWithTypes
-            getDeclComponent
-            getCycleLength
-            (getRootBranch rootBranchCache)
-            getRootBranchExists
-            (putRootBranch rootBranchCache)
-            (rootBranchUpdates rootBranchCache)
-            getBranchForHash
-            putBranch
-            isCausalHash
-            getPatch
-            putPatch
-            patchExists
-            dependentsImpl
-            dependentsOfComponentImpl
-            syncFromDirectory
-            syncToDirectory
-            viewRemoteBranch'
-            (\r opts action -> pushGitBranch conn r opts action)
-            watches
-            getWatch
-            putWatch
-            clearWatches
-            getReflog
-            appendReflog
-            termsOfTypeImpl
-            termsMentioningTypeImpl
-            hashLength
-            termReferencesByPrefix
-            declReferencesByPrefix
-            referentsByPrefix
-            branchHashLength
-            branchHashesByPrefix
-            (Just sqlLca)
-            (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r)
+            { getTerm = (Cache.applyDefined termCache getTerm),
+              getTypeOfTermImpl = (Cache.applyDefined typeOfTermCache getTypeOfTermImpl),
+              getTypeDeclaration = (Cache.applyDefined declCache getTypeDeclaration),
+              getDeclType = \r -> Sqlite.runReadOnlyTransaction conn \run -> run (getDeclType r),
+              putTerm = putTerm,
+              putTypeDeclaration = putTypeDeclaration,
+              getTermComponentWithTypes = getTermComponentWithTypes,
+              getDeclComponent = getDeclComponent,
+              getComponentLength = getCycleLength,
+              getRootBranch = (getRootBranch rootBranchCache),
+              getRootBranchHash = getRootBranchHash,
+              getRootBranchExists = getRootBranchExists,
+              putRootBranch = (putRootBranch rootBranchCache),
+              rootBranchUpdates = (rootBranchUpdates rootBranchCache),
+              getShallowBranchForHash = getShallowBranchForHash,
+              getBranchForHashImpl = getBranchForHash,
+              putBranch = putBranch,
+              branchExists = isCausalHash,
+              getPatch = getPatch,
+              putPatch = putPatch,
+              patchExists = patchExists,
+              dependentsImpl = dependentsImpl,
+              dependentsOfComponentImpl = dependentsOfComponentImpl,
+              syncFromDirectory = syncFromDirectory,
+              syncToDirectory = syncToDirectory,
+              viewRemoteBranch' = viewRemoteBranch',
+              pushGitBranch = (\r opts action -> pushGitBranch conn r opts action),
+              watches = watches,
+              getWatch = getWatch,
+              putWatch = putWatch,
+              clearWatches = clearWatches,
+              getReflog = getReflog,
+              appendReflog = appendReflog,
+              termsOfTypeImpl = termsOfTypeImpl,
+              termsMentioningTypeImpl = termsMentioningTypeImpl,
+              hashLength = hashLength,
+              termReferencesByPrefix = termReferencesByPrefix,
+              typeReferencesByPrefix = declReferencesByPrefix,
+              termReferentsByPrefix = referentsByPrefix,
+              branchHashLength = branchHashLength,
+              branchHashesByPrefix = branchHashesByPrefix,
+              lcaImpl = (Just sqlLca),
+              beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r),
+              namesAtPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
+                runTx (CodebaseOps.namesAtPath path),
+              updateNameLookup = Sqlite.runTransaction conn $ do
+                root <- (CodebaseOps.getRootBranch getDeclType rootBranchCache)
+                CodebaseOps.saveRootNamesIndex (Branch.toNames . Branch.head $ root)
+            }
     let finalizer :: MonadIO m => m ()
         finalizer = do
           decls <- readTVarIO declBuffer

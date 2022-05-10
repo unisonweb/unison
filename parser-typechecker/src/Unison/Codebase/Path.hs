@@ -1,7 +1,9 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Path
@@ -11,6 +13,8 @@ module Unison.Codebase.Path
     Relative (..),
     Resolve (..),
     pattern Empty,
+    pattern (Lens.:<),
+    pattern (Lens.:>),
     singleton,
     Unison.Codebase.Path.uncons,
     empty,
@@ -67,7 +71,7 @@ module Unison.Codebase.Path
   )
 where
 
-import Control.Lens hiding (Empty, cons, snoc, unsnoc)
+import Control.Lens hiding (cons, snoc, unsnoc, pattern Empty)
 import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
 import Data.List.Extra (dropPrefix)
@@ -269,6 +273,12 @@ toText' :: Path' -> Text
 toText' = \case
   Path' (Left (Absolute path)) -> Text.cons '.' (toText path)
   Path' (Right (Relative path)) -> toText path
+
+{-# COMPLETE Empty, (:<) #-}
+
+{-# COMPLETE Empty, (:>) #-}
+
+deriving anyclass instance AsEmpty Path
 
 instance Cons Path Path NameSegment NameSegment where
   _Cons = prism (uncurry cons) uncons

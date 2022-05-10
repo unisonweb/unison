@@ -18,6 +18,7 @@ dependencies:
   - aeson
   - memory
   - unison-util-relation
+  - unison-codebase
   - unison-core1
   - unison-prelude
   - unison-parser-typechecker
@@ -44,6 +45,7 @@ dependencies:
   - utf8-string
   - async
   - regex-tdfa
+  - unison-util
 
 ghc-options:
   -Wall

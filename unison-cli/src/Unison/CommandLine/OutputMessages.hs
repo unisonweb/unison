@@ -31,6 +31,7 @@ import System.Directory
     getHomeDirectory,
   )
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
+import qualified U.Util.Hash as Hash
 import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
@@ -349,6 +350,7 @@ notifyNumbered o = case o of
       toSBH :: Branch.Hash -> ShortBranchHash
       toSBH h = SBH.fromHash sbhLength h
       reversedHistory = reverse history
+      showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
       handleTail :: Int -> (Pretty, [Branch.Hash])
       handleTail n = case tail of
@@ -622,8 +624,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
+        pure $
+          P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -632,7 +634,6 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
-
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -892,8 +893,9 @@ notifyUser dir o = case o of
         ShallowBranchEntry ns _ count ->
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/",
             case count of
-              1 -> P.lit "(1 definition)"
-              _n -> P.lit "(" <> P.shown count <> P.lit " definitions)"
+              Nothing -> "(namespace)"
+              Just 1 -> P.lit "(1 definition)"
+              Just n -> P.lit "(" <> P.shown n <> P.lit " definitions)"
           )
         ShallowPatchEntry ns ->
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns,
@@ -1577,6 +1579,7 @@ notifyUser dir o = case o of
         [ "Failed to parse a URI from the hostname: " <> P.text host <> ".",
           "Host names should NOT include a schema or path."
         ]
+  PrintVersion ucmVersion -> pure (P.text ucmVersion)
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -1630,6 +1633,9 @@ prettyAbsolute = P.blue . P.shown
 
 prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
+
+prettyCausalHash :: IsString s => Causal.RawHash x -> P.Pretty s
+prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unRawHash $ hash)
 
 formatMissingStuff ::
   (Show tm, Show typ) =>
@@ -2161,7 +2167,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-      ("The namespaces are identical.", mempty)
+    ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where

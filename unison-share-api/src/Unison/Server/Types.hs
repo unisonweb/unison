@@ -4,7 +4,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Types where
 
@@ -16,7 +15,6 @@ import Data.OpenApi
   ( ToParamSchema (..),
     ToSchema (..),
   )
-import Data.Proxy (Proxy (..))
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant.API
@@ -27,25 +25,19 @@ import Servant.API
     JSON,
     addHeader,
   )
+import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Causal as V2Causal
+import qualified U.Codebase.HashTags as V2
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
   )
-import Unison.Codebase.ShortBranchHash
-  ( ShortBranchHash (..),
-  )
-import qualified Unison.Codebase.ShortBranchHash as SBH
-import Unison.ConstructorType (ConstructorType)
 import qualified Unison.Hash as Hash
-import qualified Unison.HashQualified as HQ
-import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.Prelude
 import Unison.Server.Doc (Doc)
-import qualified Unison.Server.Doc as Doc
+import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
-import Unison.ShortHash (ShortHash)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -66,53 +58,9 @@ type UnisonName = Text
 
 type UnisonHash = Text
 
--- [21/10/07] Hello, this is Mitchell. Name refactor in progress. Changing internal representation from a flat text to a
--- list of segments (in reverse order) plus an "is absolute?" bit.
---
--- To preserve backwards compatibility (for now, anyway -- is this even important long term?), the ToJSON and ToSchema
--- instances below treat Name as before.
-
-instance ToJSON Name where
-  toEncoding = toEncoding . Name.toText
-  toJSON = toJSON . Name.toText
-
-instance ToSchema Name where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
-
 deriving via Bool instance FromHttpApiData Suffixify
 
 deriving anyclass instance ToParamSchema Suffixify
-
-instance FromHttpApiData ShortBranchHash where
-  parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
-
-deriving anyclass instance ToParamSchema ShortBranchHash
-
-deriving via Int instance FromHttpApiData Width
-
-deriving anyclass instance ToParamSchema Width
-
-instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
-  toEncoding = genericToEncoding defaultOptions
-
-deriving instance (ToSchema b, ToSchema a) => ToSchema (DisplayObject b a)
-
-instance ToJSON ShortHash where
-  toEncoding = genericToEncoding defaultOptions
-
-instance ToJSONKey ShortHash
-
-deriving instance ToSchema ShortHash
-
-instance ToJSON n => ToJSON (HQ.HashQualified n) where
-  toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema n => ToSchema (HQ.HashQualified n)
-
-instance ToJSON ConstructorType where
-  toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema ConstructorType
 
 instance ToJSON TypeDefinition where
   toEncoding = genericToEncoding defaultOptions
@@ -219,26 +167,6 @@ instance ToJSON TypeTag where
 
 deriving instance ToSchema TypeTag
 
-instance ToJSON Doc
-
-instance ToJSON Doc.MediaSource
-
-instance ToJSON Doc.SpecialForm
-
-instance ToJSON Doc.Src
-
-instance ToJSON a => ToJSON (Doc.Ref a)
-
-instance ToSchema Doc
-
-instance ToSchema Doc.MediaSource
-
-instance ToSchema Doc.SpecialForm
-
-instance ToSchema Doc.Src
-
-instance ToSchema a => ToSchema (Doc.Ref a)
-
 -- Helpers
 
 munge :: Text -> LZ.ByteString
@@ -265,3 +193,7 @@ setCacheControl = addHeader @"Cache-Control" "public"
 branchToUnisonHash :: Branch.Branch m -> UnisonHash
 branchToUnisonHash b =
   ("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash b
+
+v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
+v2CausalBranchToUnisonHash b =
+  ("#" <>) . Hash.base32Hex . V2.unCausalHash $ V2Causal.causalHash b

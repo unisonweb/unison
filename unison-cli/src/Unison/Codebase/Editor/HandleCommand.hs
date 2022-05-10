@@ -30,6 +30,7 @@ import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
 import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.NamesWithHistory as NamesWithHistory
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
@@ -209,12 +210,18 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       LoadReflog -> lift $ Codebase.getReflog codebase
       CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
       HQNameQuery mayPath branch query -> do
+        hqLength <- lift $ Codebase.hashLength codebase
         let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
-        lift $ Backend.hqNameQuery namingScope branch codebase query
+        let parseNames = Backend.parseNamesForBranch branch namingScope
+        let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+        lift $ Backend.hqNameQuery codebase nameSearch query
       LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
       GetDefinitionsBySuffixes mayPath branch includeCycles query -> do
+        hqLength <- lift $ Codebase.hashLength codebase
         let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
-        lift (Backend.definitionsBySuffixes namingScope branch codebase includeCycles query)
+        let parseNames = Backend.parseNamesForBranch branch namingScope
+        let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+        lift (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
       FindShallow path -> liftIO $ Backend.findShallow codebase path
       MakeStandalone ppe ref out -> lift $ do
         let cl = Codebase.toCodeLookup codebase

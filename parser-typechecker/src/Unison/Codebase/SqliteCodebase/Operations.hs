@@ -19,6 +19,7 @@ import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
+import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -28,6 +29,8 @@ import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Patch (Patch)
+import Unison.Codebase.Path (Path)
+import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -36,6 +39,12 @@ import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (..))
+import Unison.Names (Names (Names))
+import qualified Unison.Names as Names
+import Unison.Names.Scoped (ScopedNames (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -51,6 +60,7 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
+import qualified Unison.Util.Relation as Rel
 import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
 import UnliftIO.STM
@@ -524,3 +534,71 @@ declExists = termExists
 before :: Branch.Hash -> Branch.Hash -> Transaction (Maybe Bool)
 before h1 h2 =
   Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
+
+-- | Construct a 'ScopedNames' which can produce names which are relative to the provided
+-- Path.
+namesAtPath ::
+  Path ->
+  Transaction ScopedNames
+namesAtPath path = do
+  (termNames, typeNames) <- Ops.rootBranchNames
+  let allTerms :: [(Name, Referent.Referent)]
+      allTerms =
+        termNames <&> \(S.NamedRef {reversedSegments, ref = (ref, ct)}) ->
+          let v1ref = runIdentity $ Cv.referent2to1 (const . pure . Cv.constructorType2to1 . fromMaybe (error "Required constructor type for constructor but it was null") $ ct) ref
+           in (Name.fromReverseSegments (coerce reversedSegments), v1ref)
+  let allTypes :: [(Name, Reference.Reference)]
+      allTypes =
+        typeNames <&> \(S.NamedRef {reversedSegments, ref}) ->
+          (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
+  let rootTerms = Rel.fromList allTerms
+  let rootTypes = Rel.fromList allTypes
+  let absoluteRootNames = Names {terms = rootTerms, types = rootTypes}
+  let (relativeScopedNames, absoluteExternalNames) =
+        case path of
+          Path.Empty -> (absoluteRootNames, mempty)
+          p ->
+            let reversedPathSegments = reverse . Path.toList $ p
+                (relativeTerms, externalTerms) = foldMap (partitionByPathPrefix reversedPathSegments) allTerms
+                (relativeTypes, externalTypes) = foldMap (partitionByPathPrefix reversedPathSegments) allTypes
+             in ( Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes},
+                  Names {terms = Rel.fromList externalTerms, types = Rel.fromList externalTypes}
+                )
+  pure $
+    ScopedNames
+      { absoluteExternalNames,
+        relativeScopedNames,
+        absoluteRootNames
+      }
+  where
+    -- If the given prefix matches the given name, the prefix is stripped and it's collected
+    -- on the left, otherwise it's left as-is and collected on the right.
+    -- >>> partitionByPathPrefix ["b", "a"] ("a.b.c", ())
+    -- ([(c,())],[])
+    --
+    -- >>> partitionByPathPrefix ["y", "x"] ("a.b.c", ())
+    -- ([],[(a.b.c,())])
+    partitionByPathPrefix :: [NameSegment] -> (Name, r) -> ([(Name, r)], [(Name, r)])
+    partitionByPathPrefix reversedPathSegments (n, ref) =
+      case Name.stripReversedPrefix n reversedPathSegments of
+        Nothing -> (mempty, [(n, ref)])
+        Just stripped -> ([(Name.makeRelative stripped, ref)], mempty)
+
+saveRootNamesIndex :: Names -> Transaction ()
+saveRootNamesIndex Names {Names.terms, Names.types} = do
+  let termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))]
+      termNames = Rel.toList terms <&> \(name, ref) -> S.NamedRef {reversedSegments = nameSegments name, ref = splitReferent ref}
+  let typeNames :: [(S.NamedRef C.Reference.Reference)]
+      typeNames =
+        Rel.toList types
+          <&> ( \(name, ref) ->
+                  S.NamedRef {reversedSegments = nameSegments name, ref = Cv.reference1to2 ref}
+              )
+  Ops.rebuildNameIndex termNames typeNames
+  where
+    nameSegments :: Name -> NonEmpty Text
+    nameSegments = coerce @(NonEmpty NameSegment) @(NonEmpty Text) . Name.reverseSegments
+    splitReferent :: Referent.Referent -> (C.Referent.Referent, Maybe C.Referent.ConstructorType)
+    splitReferent referent = case referent of
+      Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
+      Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))

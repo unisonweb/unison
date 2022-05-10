@@ -830,7 +830,7 @@ lexemes' eof =
       where
         intOrNat = P.try $ num <$> sign <*> LP.decimal
         float = do
-          _ <- P.try (P.lookAhead (sign >> LP.decimal >> (char '.' <|> char 'e' <|> char 'E'))) -- commit after this
+          _ <- P.try (P.lookAhead (sign >> (LP.decimal :: P Int) >> (char '.' <|> char 'e' <|> char 'E'))) -- commit after this
           start <- pos
           sign <- fromMaybe "" <$> sign
           base <- P.takeWhile1P (Just "base") isDigit

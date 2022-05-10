@@ -204,7 +204,7 @@ loop = do
 
       basicPrettyPrintNames :: Names
       basicPrettyPrintNames =
-        Backend.basicPrettyPrintNames root' (Backend.AllNames $ Path.unabsolute currentPath')
+        Backend.prettyNamesForBranch root' (Backend.AllNames $ Path.unabsolute currentPath')
 
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
       resolveHHQS'Types =
@@ -464,6 +464,7 @@ loop = do
               "delete.term-replacement" <> HQ.toText src <> " " <> opatch p
             RemoveTypeReplacementI src p ->
               "delete.type-replacement" <> HQ.toText src <> " " <> opatch p
+            VersionI -> "version"
             where
               hp' = either (Text.pack . show) p'
               p' = Text.pack . show . resolveToAbsolute
@@ -1641,6 +1642,9 @@ loop = do
                   case mayHost of
                     Nothing -> respond (UnknownCodeServer codeServer)
                     Just host -> authLogin (Just $ Host host)
+            VersionI -> do
+              ucmVersion <- eval UCMVersion
+              respond $ PrintVersion ucmVersion
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success
@@ -3136,7 +3140,7 @@ basicNames' :: (Functor m) => (Path -> Backend.NameScoping) -> Action m i v (Nam
 basicNames' nameScoping = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
-  pure $ Backend.basicNames' root' (nameScoping $ Path.unabsolute currentPath')
+  pure $ Backend.prettyAndParseNamesForBranch root' (nameScoping $ Path.unabsolute currentPath')
 
 data AddRunMainResult v
   = NoTermWithThatName
@@ -3256,7 +3260,7 @@ diffHelperCmd ::
 diffHelperCmd currentRoot currentPath before after = do
   hqLength <- eval CodebaseHashLength
   diff <- eval . Eval $ BranchDiff.diff0 before after
-  let (_parseNames, prettyNames0) = Backend.basicNames' currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
+  let (_parseNames, prettyNames0) = Backend.prettyAndParseNamesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
   ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
   (ppe,)
     <$> OBranchDiff.toOutput

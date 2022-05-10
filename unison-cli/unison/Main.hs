@@ -69,6 +69,7 @@ import Unison.Prelude
 import qualified Unison.PrettyTerminal as PT
 import Unison.Runtime.Exception (RuntimeExn (..))
 import qualified Unison.Runtime.Interface as RTI
+import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
@@ -209,7 +210,7 @@ main = withCP65001 do
       Launch isHeadless codebaseServerOpts downloadBase -> do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime RTI.Persistent Version.gitDescribeWithDate
-          Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
+          Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
             case isHeadless of
               Headless -> do
                 PT.putPrettyLn $

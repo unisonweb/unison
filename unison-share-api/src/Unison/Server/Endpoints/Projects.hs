@@ -8,7 +8,6 @@
 
 module Unison.Server.Endpoints.Projects where
 
-import Control.Error.Util ((??))
 import Control.Monad.Except
 import Data.Aeson
 import Data.Char
@@ -25,13 +24,14 @@ import Servant.Docs
     ToParam (..),
     ToSample (..),
   )
+import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -103,12 +103,12 @@ backendListEntryToProjectListing ::
   Backend.ShallowListEntry Symbol a ->
   Maybe ProjectListing
 backendListEntryToProjectListing owner = \case
-  Backend.ShallowBranchEntry name hash _ ->
+  Backend.ShallowBranchEntry name hash _size ->
     Just $
       ProjectListing
         { owner = owner,
           name = NameSegment.toText name,
-          hash = "#" <> SBH.toText hash
+          hash = "#" <> Hash.toBase32HexText (Causal.unRawHash hash)
         }
   _ -> Nothing
 
@@ -116,7 +116,7 @@ entryToOwner ::
   Backend.ShallowListEntry Symbol a ->
   Maybe ProjectOwner
 entryToOwner = \case
-  Backend.ShallowBranchEntry name _ _ ->
+  Backend.ShallowBranchEntry name _ _size ->
     Just $ ProjectOwner $ NameSegment.toText name
   _ -> Nothing
 
@@ -134,13 +134,11 @@ serve codebase mayRoot mayOwner = projects
       root <- case mayRoot of
         Nothing -> lift (Codebase.getRootBranch codebase)
         Just sbh -> do
-          ea <- lift . runExceptT $ do
-            h <- Backend.expandShortBranchHash codebase sbh
-            mayBranch <- lift $ Codebase.getBranchForHash codebase h
-            mayBranch ?? Backend.CouldntLoadBranch h
-          liftEither ea
+          h <- Backend.expandShortBranchHash codebase sbh
+          mayBranch <- lift $ Codebase.getBranchForHash codebase h
+          whenNothing mayBranch (throwError $ Backend.CouldntLoadBranch h)
 
-      ownerEntries <- findShallow root
+      ownerEntries <- lift $ findShallow root
       -- If an owner is provided, we only want projects belonging to them
       let owners =
             case mayOwner of
@@ -154,14 +152,14 @@ serve codebase mayRoot mayOwner = projects
       ownerPath' <- (parsePath . Text.unpack) ownerName
       let path = Path.fromPath' ownerPath'
       let ownerBranch = Branch.getAt' path root
-      entries <- findShallow ownerBranch
+      entries <- lift $ findShallow ownerBranch
       pure $ mapMaybe (backendListEntryToProjectListing owner) entries
 
     -- Minor helpers
 
-    findShallow :: Branch.Branch m -> Backend m [Backend.ShallowListEntry Symbol Ann]
+    findShallow :: Branch.Branch m -> m [Backend.ShallowListEntry Symbol Ann]
     findShallow branch =
-      lift (Backend.findShallowInBranch codebase branch)
+      Backend.lsBranch codebase branch
 
     parsePath :: String -> Backend m Path.Path'
     parsePath p =

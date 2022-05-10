@@ -1,6 +1,5 @@
 module Unison.Util.TransitiveClosure where
 
-import Data.Functor.Identity (runIdentity)
 import qualified Data.Set as Set
 import Unison.Prelude
 
