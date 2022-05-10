@@ -1323,12 +1323,6 @@ boxBoxTo0 instr =
   where
     (arg1, arg2) = fresh2
 
--- Nat -> ()
--- natToUnit :: ForeignOp
--- natToUnit = inNat arg nat result (TCon Ty.unitRef 0 [])
---   where
---     (arg, nat, result) = fresh3
-
 -- a -> Bool
 boxToBool :: ForeignOp
 boxToBool =
