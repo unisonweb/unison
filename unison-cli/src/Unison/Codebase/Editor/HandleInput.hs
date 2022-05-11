@@ -59,7 +59,7 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
 import qualified Unison.Codebase.Editor.Propagate as Propagate
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadRepo (ReadRepoGit), ShareRepo (ShareRepo), WriteGitRepo, WriteRemotePath, WriteRepo (WriteRepoGit, WriteRepoShare), printNamespace, writePathToRead)
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadRemoteNamespace, ReadRepo (ReadRepoGit), ShareRepo (ShareRepo), WriteGitRepo, WriteRemotePath, WriteRepo (WriteRepoGit, WriteRepoShare), printNamespace, writePathToRead)
 import qualified Unison.Codebase.Editor.Slurp as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
@@ -650,19 +650,7 @@ loop = do
                       (resolveToAbsolute <$> after)
                       ppe
                       outputDiff
-            CreatePullRequestI baseRepo headRepo -> do
-              let viewRemoteBranch repo callback = case repo of
-                    (ReadRepoGit r, sbh, path) ->
-                      viewRemoteGitBranch (r, sbh, path) Git.RequireExistingBranch callback
-              result <-
-                join @(Either GitError) <$> viewRemoteBranch baseRepo \baseBranch -> do
-                  viewRemoteBranch headRepo \headBranch -> do
-                    merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
-                    (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
-                    pure $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
-              case result of
-                Left gitErr -> respond (Output.GitError gitErr)
-                Right diff -> respondNumbered diff
+            CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
             LoadPullRequestI baseRepo headRepo dest0 -> do
               let desta = resolveToAbsolute dest0
               let dest = Path.unabsolute desta
@@ -714,8 +702,8 @@ loop = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                    -- Branch exists and isn't empty, print an error
-                    throwError (BranchAlreadyExists (Path.unsplit' dest))
+                      -- Branch exists and isn't empty, print an error
+                      throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -1408,11 +1396,11 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
-                    eval (MakeStandalone ppe ref output) >>= \case
-                      Just err -> respond $ EvaluationFailure err
-                      Nothing -> pure ()
+                      eval (MakeStandalone ppe ref output) >>= \case
+                        Just err -> respond $ EvaluationFailure err
+                        Nothing -> pure ()
                   | otherwise ->
-                    respond $ BadMainFunction smain ty ppe [mainType]
+                      respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -1667,6 +1655,23 @@ loop = do
   case e of
     Right input -> LoopState.lastInput .= Just input
     _ -> pure ()
+
+handleCreatePullRequest :: MonadUnliftIO m => ReadRemoteNamespace -> ReadRemoteNamespace -> Action' m v ()
+handleCreatePullRequest baseRepo headRepo = do
+  root' <- use LoopState.root
+  currentPath' <- use LoopState.currentPath
+  let viewRemoteBranch repo callback = case repo of
+        (ReadRepoGit r, sbh, path) ->
+          viewRemoteGitBranch (r, sbh, path) Git.RequireExistingBranch callback
+  result <-
+    join @(Either GitError) <$> viewRemoteBranch baseRepo \baseBranch -> do
+      viewRemoteBranch headRepo \headBranch -> do
+        merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
+        (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
+        pure $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
+  case result of
+    Left gitErr -> respond (Output.GitError gitErr)
+    Right diff -> respondNumbered diff
 
 handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
 handleDependents hq = do
@@ -2497,10 +2502,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2517,10 +2522,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -2913,7 +2918,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-            respond $ ListOfLinks mempty []
+              respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>
