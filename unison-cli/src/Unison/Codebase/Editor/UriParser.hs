@@ -9,7 +9,7 @@ import Data.Void
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo (..), ReadRemoteNamespace, ReadRepo (..), WriteGitRepo (..), WriteRemotePath, WriteRepo (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace (..), ReadGitRepo (..), ReadRemoteNamespace (..), WriteGitRemotePath (..), WriteGitRepo (..), WriteRemotePath (..), WriteRepo (..))
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
@@ -42,11 +42,13 @@ repoPath :: P ReadRemoteNamespace
 repoPath = P.label "generic git repo" $ do
   protocol <- parseProtocol
   treeish <- P.optional treeishSuffix
-  let repo = (ReadRepoGit ReadGitRepo {url = printProtocol protocol, ref = treeish})
+  let repo = ReadGitRepo {url = printProtocol protocol, ref = treeish}
   nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
-  case nshashPath of
-    Nothing -> pure (repo, Nothing, Path.empty)
-    Just (sbh, p) -> pure (repo, sbh, p)
+  pure do
+    ReadRemoteNamespaceGit do
+      case nshashPath of
+        Nothing -> ReadGitRemoteNamespace {repo, sbh = Nothing, path = Path.empty}
+        Just (sbh, path) -> ReadGitRemoteNamespace {repo, sbh, path}
 
 writeRepo :: P WriteRepo
 writeRepo = P.label "repo root for writing" $ do
@@ -55,10 +57,18 @@ writeRepo = P.label "repo root for writing" $ do
   pure (WriteRepoGit WriteGitRepo {url = printProtocol uri, branch = treeish})
 
 writeRepoPath :: P WriteRemotePath
-writeRepoPath = P.label "generic git repo" $ do
+writeRepoPath = P.label "generic write repo" $ do
   repo <- writeRepo
-  path <- P.optional (C.char ':' *> absolutePath)
-  pure (repo, fromMaybe Path.empty path)
+  case repo of
+    WriteRepoGit repo -> do
+      path <- P.optional (C.char ':' *> absolutePath)
+      pure (WriteRemotePathGit WriteGitRemotePath {repo, path = fromMaybe Path.empty path})
+    {-
+    WriteRepoShare server -> do
+      repo <- undefined
+      path <- undefined
+      pure (WriteRemotePathShare WriteShareRemotePath {server, repo, path})
+    -}
 
 -- does this not exist somewhere in megaparsec? yes in 7.0
 symbol :: Text -> P Text

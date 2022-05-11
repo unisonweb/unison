@@ -1086,12 +1086,12 @@ push =
         [] ->
           Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
     )
 
 pushCreate :: InputPattern
@@ -1127,12 +1127,12 @@ pushCreate =
         [] ->
           Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireEmpty SyncMode.ShortCircuit
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
     )
 
 pushExhaustive :: InputPattern
@@ -1155,12 +1155,12 @@ pushExhaustive =
         [] ->
           Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.Complete
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.Complete
+          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireNonEmpty SyncMode.Complete
     )
 
 createPullRequest :: InputPattern

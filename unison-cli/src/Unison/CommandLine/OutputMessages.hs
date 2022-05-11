@@ -23,7 +23,7 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import Data.Tuple (swap)
-import Data.Tuple.Extra (dupe, uncurry3)
+import Data.Tuple.Extra (dupe)
 import Network.URI (URI)
 import System.Directory
   ( canonicalizePath,
@@ -506,11 +506,9 @@ showListEdits patch ppe =
 prettyURI :: URI -> Pretty
 prettyURI = P.bold . P.blue . P.shown
 
-prettyRemoteNamespace ::
-  ReadRemoteNamespace ->
-  Pretty
+prettyRemoteNamespace :: ReadRemoteNamespace -> Pretty
 prettyRemoteNamespace =
-  P.group . P.blue . P.text . uncurry3 RemoteRepo.printNamespace
+  P.group . P.blue . P.text . RemoteRepo.printNamespace
 
 notifyUser :: forall v. Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
@@ -1134,7 +1132,7 @@ notifyUser dir o = case o of
         P.wrap $
           "I just finished importing the branch" <> P.red (P.shown h)
             <> "from"
-            <> P.red (prettyRemoteNamespace (over _1 ReadRepoGit ns))
+            <> P.red (prettyRemoteNamespace (RemoteRepo.ReadRemoteNamespaceGit ns))
             <> "but now I can't find it."
       CouldntFindRemoteBranch repo path ->
         P.wrap $
@@ -1525,16 +1523,13 @@ notifyUser dir o = case o of
           "",
           "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
         ]
-  GistCreated hqLength repo hash ->
+  GistCreated remoteNamespace ->
     pure $
       P.lines
         [ "Gist created. Pull via:",
           "",
           P.indentN 2 (IP.patternName IP.pull <> " " <> prettyRemoteNamespace remoteNamespace)
         ]
-    where
-      remoteNamespace =
-        (RemoteRepo.writeToRead repo, Just (SBH.fromHash hqLength hash), Path.empty)
   InitiateAuthFlow authURI -> do
     pure $
       P.wrap $

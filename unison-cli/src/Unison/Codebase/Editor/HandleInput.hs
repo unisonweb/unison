@@ -59,7 +59,20 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
 import qualified Unison.Codebase.Editor.Propagate as Propagate
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadRemoteNamespace, ReadRepo (ReadRepoGit), ShareRepo (ShareRepo), WriteGitRepo, WriteRemotePath, WriteRepo (WriteRepoGit, WriteRepoShare), printNamespace, writePathToRead)
+import Unison.Codebase.Editor.RemoteRepo
+  ( ReadGitRemoteNamespace,
+    ReadRemoteNamespace (..),
+    ReadRepo (ReadRepoGit),
+    ShareRepo (ShareRepo),
+    WriteGitRepo,
+    WriteRemotePath,
+    WriteRepo (WriteRepoGit, WriteRepoShare),
+    printNamespace,
+    writePathToRead,
+    pattern ReadGitRemoteNamespace,
+    pattern ReadShareRemoteNamespace,
+  )
+import qualified Unison.Codebase.Editor.RemoteRepo as ReadGitRemoteNamespace (ReadGitRemoteNamespace (..))
 import qualified Unison.Codebase.Editor.Slurp as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
@@ -416,7 +429,7 @@ loop = do
                 -- todo: show the actual config-loaded namespace
                 <> maybe
                   "(remote namespace from .unisonConfig)"
-                  (uncurry3 printNamespace)
+                  printNamespace
                   orepo
                 <> " "
                 <> p' dest
@@ -428,9 +441,9 @@ loop = do
             CreatePullRequestI {} -> wat
             LoadPullRequestI base head dest ->
               "pr.load "
-                <> uncurry3 printNamespace base
+                <> printNamespace base
                 <> " "
-                <> uncurry3 printNamespace head
+                <> printNamespace head
                 <> " "
                 <> p' dest
             PushRemoteBranchI {} -> wat
@@ -658,11 +671,9 @@ loop = do
               if Branch.isEmpty0 (Branch.head destb)
                 then unlessGitError do
                   baseb <- case baseRepo of
-                    (ReadRepoGit r, sbh, path) ->
-                      importRemoteGitBranch (r, sbh, path) SyncMode.ShortCircuit Unmodified
+                    ReadRemoteNamespaceGit repo -> importRemoteGitBranch repo SyncMode.ShortCircuit Unmodified
                   headb <- case headRepo of
-                    (ReadRepoGit r, sbh, path) ->
-                      importRemoteGitBranch (r, sbh, path) SyncMode.ShortCircuit Unmodified
+                    ReadRemoteNamespaceGit repo -> importRemoteGitBranch repo SyncMode.ShortCircuit Unmodified
                   lift $ do
                     mergedb <- eval $ Merge Branch.RegularMerge baseb headb
                     squashedb <- eval $ Merge Branch.SquashMerge headb baseb
@@ -1499,8 +1510,7 @@ loop = do
               ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
               lift $ unlessGitError do
                 remoteBranch <- case ns of
-                  (ReadRepoGit r, sbh, path) ->
-                    importRemoteGitBranch (r, sbh, path) syncMode preprocess
+                  ReadRemoteNamespaceGit repo -> importRemoteGitBranch repo syncMode preprocess
                 let unchangedMsg = PullAlreadyUpToDate ns path
                 let destAbs = resolveToAbsolute path
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
@@ -1657,21 +1667,32 @@ loop = do
     _ -> pure ()
 
 handleCreatePullRequest :: MonadUnliftIO m => ReadRemoteNamespace -> ReadRemoteNamespace -> Action' m v ()
-handleCreatePullRequest baseRepo headRepo = do
+handleCreatePullRequest baseRepo0 headRepo0 = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
-  let viewRemoteBranch repo callback = case repo of
-        (ReadRepoGit r, sbh, path) ->
-          viewRemoteGitBranch (r, sbh, path) Git.RequireExistingBranch callback
-  result <-
-    join @(Either GitError) <$> viewRemoteBranch baseRepo \baseBranch -> do
-      viewRemoteBranch headRepo \headBranch -> do
-        merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
-        (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
-        pure $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
-  case result of
-    Left gitErr -> respond (Output.GitError gitErr)
-    Right diff -> respondNumbered diff
+  case (baseRepo0, headRepo0) of
+    (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceGit headRepo) -> do
+      result <-
+        viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch -> do
+          viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch -> do
+            merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
+            (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
+            pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
+      case join result of
+        Left gitErr -> respond (Output.GitError gitErr)
+        Right diff -> respondNumbered diff
+    -- (ReadGitRemoteNamespace baseRepo, ReadShareRemoteNamespace headRepo@(headRepo', _, _)) -> do
+    --   importRemoteShareBranch headRepo' undefined undefined >>= \case
+    --     Left () -> respond (error "bad pull")
+    --     Right headBranch -> do
+    --       result <-
+    --         viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch -> do
+    --           merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
+    --           (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
+    --           pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
+    --       case result of
+    --         Left gitErr -> respond (Output.GitError gitErr)
+    --         Right diff -> respondNumbered diff
 
 handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
 handleDependents hq = do
@@ -1771,7 +1792,16 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
               let opts = PushGitBranchOpts {setRoot = False, syncMode}
               syncGitRemoteBranch repo opts (\_remoteRoot -> pure (Right sourceBranch))
               sbhLength <- (eval BranchHashLength)
-              respond (GistCreated sbhLength (WriteRepoGit repo) (Branch.headHash sourceBranch))
+              respond
+                ( GistCreated
+                    ( ReadRemoteNamespaceGit
+                        ReadGitRemoteNamespace
+                          { repo,
+                            ReadGitRemoteNamespace.sbh = Just (SBH.fromHash sbhLength (Branch.headHash sourceBranch)),
+                            ReadGitRemoteNamespace.path = Path.empty
+                          }
+                    )
+                )
             Just (remotePath, pushBehavior) -> do
               let withRemoteRoot :: Branch m -> m (Either (Output v) (Branch m))
                   withRemoteRoot remoteRoot = do
@@ -2210,8 +2240,8 @@ viewRemoteGitBranch ns gitBranchBehavior action = do
 
 -- todo: support the full ReadShareRemoteNamespace eventually, in place of (ShareRepo, Text, Path)
 importRemoteShareBranch ::
-  ShareRepo -> Text -> Path -> (Branch m -> Action' m v ()) -> Action' m v ()
-importRemoteShareBranch url repoName path action = undefined
+  ShareRepo -> Text -> Path -> Action' m v (Either () (Branch m))
+importRemoteShareBranch url repoName path = undefined
 
 -- | Given the current root branch of a remote
 -- (or an empty branch if no root branch exists)

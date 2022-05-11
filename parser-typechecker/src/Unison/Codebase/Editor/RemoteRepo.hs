@@ -19,6 +19,7 @@ data ReadRepo
 data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}
   deriving (Eq, Show)
 
+-- FIXME rename to ShareServer
 data ShareRepo = ShareRepo
   deriving (Eq, Show)
 
@@ -40,7 +41,11 @@ writeToReadGit = \case
   WriteGitRepo {url, branch} -> ReadGitRepo {url = url, ref = branch}
 
 writePathToRead :: WriteRemotePath -> ReadRemoteNamespace
-writePathToRead (w, p) = (writeToRead w, Nothing, p)
+writePathToRead = \case
+  WriteRemotePathGit WriteGitRemotePath {repo, path} ->
+    ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo = writeToReadGit repo, sbh = Nothing, path}
+  WriteRemotePathShare WriteShareRemotePath {server, repo, path} ->
+    ReadRemoteNamespaceShare ReadShareRemoteNamespace {server, repo, path}
 
 printReadRepo :: ReadRepo -> Text
 printReadRepo = \case
@@ -56,18 +61,19 @@ printWriteRepo = \case
   WriteRepoShare s -> printShareRepo s
 
 -- | print remote namespace
-printNamespace :: ReadRepo -> Maybe ShortBranchHash -> Path -> Text
-printNamespace repo sbh path =
-  printReadRepo repo <> case sbh of
-    Nothing ->
-      if path == Path.empty
-        then mempty
-        else ":." <> Path.toText path
-    Just sbh ->
-      ":#" <> SBH.toText sbh
-        <> if path == Path.empty
+printNamespace :: ReadRemoteNamespace -> Text
+printNamespace = \case
+  ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo, sbh, path} ->
+    printReadRepo (ReadRepoGit repo) <> case sbh of
+      Nothing ->
+        if path == Path.empty
           then mempty
-          else "." <> Path.toText path
+          else ":." <> Path.toText path
+      Just sbh ->
+        ":#" <> SBH.toText sbh
+          <> if path == Path.empty
+            then mempty
+            else "." <> Path.toText path
 
 -- | print remote path
 printHead :: WriteRepo -> Path -> Text
@@ -75,10 +81,40 @@ printHead repo path =
   printWriteRepo repo
     <> if path == Path.empty then mempty else ":." <> Path.toText path
 
-type GReadRemoteNamespace a = (a, Maybe ShortBranchHash, Path)
+data ReadRemoteNamespace
+  = ReadRemoteNamespaceGit ReadGitRemoteNamespace
+  | ReadRemoteNamespaceShare ReadShareRemoteNamespace
+  deriving stock (Eq, Show)
 
-type ReadRemoteNamespace = GReadRemoteNamespace ReadRepo
+data ReadGitRemoteNamespace = ReadGitRemoteNamespace
+  { repo :: ReadGitRepo,
+    sbh :: Maybe ShortBranchHash,
+    path :: Path
+  }
+  deriving stock (Eq, Show)
 
-type ReadGitRemoteNamespace = GReadRemoteNamespace ReadGitRepo
+data ReadShareRemoteNamespace = ReadShareRemoteNamespace
+  { server :: ShareRepo,
+    repo :: Text,
+    -- sbh :: Maybe ShortBranchHash, -- maybe later
+    path :: Path
+  }
+  deriving stock (Eq, Show)
 
-type WriteRemotePath = (WriteRepo, Path)
+data WriteRemotePath
+  = WriteRemotePathGit WriteGitRemotePath
+  | WriteRemotePathShare WriteShareRemotePath
+  deriving stock (Eq, Show)
+
+data WriteGitRemotePath = WriteGitRemotePath
+  { repo :: WriteGitRepo,
+    path :: Path
+  }
+  deriving stock (Eq, Show)
+
+data WriteShareRemotePath = WriteShareRemotePath
+  { server :: ShareRepo,
+    repo :: Text,
+    path :: Path
+  }
+  deriving stock (Eq, Show)

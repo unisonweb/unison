@@ -248,8 +248,8 @@ data Output v
   | NoOp
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
     RefusedToPush PushBehavior
-  | -- | @GistCreated repo hash@ means causal @hash@ was just published to @repo@.
-    GistCreated Int WriteRepo Branch.Hash
+  | -- | @GistCreated repo@ means a causal was just published to @repo@.
+    GistCreated ReadRemoteNamespace
   | -- | Directs the user to URI to begin an authorization flow.
     InitiateAuthFlow URI
   | UnknownCodeServer Text

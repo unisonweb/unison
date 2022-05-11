@@ -46,7 +46,7 @@ import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRemoteNamespace,
+  ( ReadGitRemoteNamespace (..),
     ReadGitRepo,
     WriteGitRepo (..),
     WriteRepo (..),
@@ -691,7 +691,7 @@ viewRemoteBranch' ::
   Git.GitBranchBehavior ->
   ((Branch m, CodebasePath) -> m r) ->
   m (Either C.GitError r)
-viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
+viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior action = UnliftIO.try $ do
   -- set up the cache dir
   time "Git fetch" $
     throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
