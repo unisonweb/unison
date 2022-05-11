@@ -1815,7 +1815,7 @@ declareForeigns = do
     mkForeign $ \() -> fmap (1e6 *) getPOSIXTime
 
   declareForeign Tracked "Clock.internals.monotonic.v1" unitToEFBox $
-    mkForeignIOF $ \() -> getTime MonotonicRaw <|> getTime Monotonic
+    mkForeignIOF $ \() -> getTime Monotonic
 
   declareForeign Tracked "Clock.internals.realtime.v1" unitToEFBox $
     mkForeignIOF $ \() -> getTime Realtime
