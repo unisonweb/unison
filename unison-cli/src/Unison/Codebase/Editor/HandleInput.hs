@@ -27,6 +27,7 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
+import qualified Servant.Client as Servant
 import qualified Text.Megaparsec as P
 import qualified U.Codebase.Sqlite.Operations as Ops
 import U.Util.Timing (unsafeTime)
@@ -58,7 +59,7 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
 import qualified Unison.Codebase.Editor.Propagate as Propagate
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadRepo (ReadRepoGit), WriteGitRepo, WriteRemotePath, WriteRepo (WriteRepoGit, WriteRepoShare), printNamespace, writePathToRead)
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadRepo (ReadRepoGit), ShareRepo (ShareRepo), WriteGitRepo, WriteRemotePath, WriteRepo (WriteRepoGit, WriteRepoShare), printNamespace, writePathToRead)
 import qualified Unison.Codebase.Editor.Slurp as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
@@ -1709,16 +1710,17 @@ handleGist (GistInput repo) =
   doPushRemoteBranch repo Path.relativeEmpty' SyncMode.ShortCircuit Nothing
 
 handlePullFromUnisonShare :: MonadIO m => Text -> Path -> Action' m v ()
-handlePullFromUnisonShare remoteRepo remotePath = do
-  let path = Share.Path (remoteRepo Nel.:| coerce @[NameSegment] @[Text] (Path.toList remotePath))
+handlePullFromUnisonShare remoteRepo remotePath = undefined
 
-  LoopState.Env {authHTTPClient, codebase = Codebase {connection}, unisonShareUrl} <- ask
+-- let path = Share.Path (remoteRepo Nel.:| coerce @[NameSegment] @[Text] (Path.toList remotePath))
 
-  liftIO (Share.pull authHTTPClient unisonShareUrl connection path) >>= \case
-    Left (Share.PullErrorGetCausalHashByPath (Share.GetCausalHashByPathErrorNoReadPermission _)) -> undefined
-    Left (Share.PullErrorNoHistoryAtPath repoPath) -> undefined
-    Right causalHash -> do
-      undefined
+-- LoopState.Env {authHTTPClient, codebase = Codebase {connection}} <- ask
+
+-- liftIO (Share.pull authHTTPClient unisonShareUrl connection path) >>= \case
+--   Left (Share.PullErrorGetCausalHashByPath (Share.GetCausalHashByPathErrorNoReadPermission _)) -> undefined
+--   Left (Share.PullErrorNoHistoryAtPath repoPath) -> undefined
+--   Right causalHash -> do
+--     undefined
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch ::
@@ -1797,11 +1799,14 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
         PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
-handlePushToUnisonShare :: MonadIO m => Text -> Path -> Path.Absolute -> PushBehavior -> Action' m v ()
-handlePushToUnisonShare remoteRepo remotePath localPath behavior = do
+shareRepoToBaseURL :: ShareRepo -> Servant.BaseUrl
+shareRepoToBaseURL ShareRepo = Servant.BaseUrl Servant.Https "share.unison.cloud" 443 ""
+
+handlePushToUnisonShare :: MonadIO m => ShareRepo -> Text -> Path -> Path.Absolute -> PushBehavior -> Action' m v ()
+handlePushToUnisonShare shareRepo remoteRepo remotePath localPath behavior = do
   let repoPath = Share.Path (remoteRepo Nel.:| coerce @[NameSegment] @[Text] (Path.toList remotePath))
 
-  LoopState.Env {authHTTPClient, codebase = Codebase {connection}, unisonShareUrl} <- ask
+  LoopState.Env {authHTTPClient, codebase = Codebase {connection}} <- ask
 
   -- doesn't handle the case where a non-existent path is supplied
   Sqlite.runTransaction
@@ -1812,7 +1817,7 @@ handlePushToUnisonShare remoteRepo remotePath localPath behavior = do
       Just localCausalHash ->
         case behavior of
           PushBehavior.RequireEmpty ->
-            liftIO (Share.checkAndSetPush authHTTPClient unisonShareUrl connection repoPath Nothing localCausalHash) >>= \case
+            liftIO (Share.checkAndSetPush authHTTPClient (shareRepoToBaseURL shareRepo) connection repoPath Nothing localCausalHash) >>= \case
               Left err ->
                 case err of
                   Share.CheckAndSetPushErrorHashMismatch _mismatch -> error "remote not empty"
@@ -1820,7 +1825,7 @@ handlePushToUnisonShare remoteRepo remotePath localPath behavior = do
                   Share.CheckAndSetPushErrorServerMissingDependencies deps -> errServerMissingDependencies deps
               Right () -> pure ()
           PushBehavior.RequireNonEmpty ->
-            liftIO (Share.fastForwardPush authHTTPClient unisonShareUrl connection repoPath localCausalHash) >>= \case
+            liftIO (Share.fastForwardPush authHTTPClient (shareRepoToBaseURL shareRepo) connection repoPath localCausalHash) >>= \case
               Left err ->
                 case err of
                   Share.FastForwardPushErrorNoHistory _repoPath -> error "no history"
@@ -2197,6 +2202,11 @@ viewRemoteGitBranch ::
   n (Either GitError r)
 viewRemoteGitBranch ns gitBranchBehavior action = do
   eval $ ViewRemoteGitBranch ns gitBranchBehavior action
+
+-- todo: support the full ReadShareRemoteNamespace eventually, in place of (ShareRepo, Text, Path)
+importRemoteShareBranch ::
+  ShareRepo -> Text -> Path -> (Branch m -> Action' m v ()) -> Action' m v ()
+importRemoteShareBranch url repoName path action = undefined
 
 -- | Given the current root branch of a remote
 -- (or an empty branch if no root branch exists)

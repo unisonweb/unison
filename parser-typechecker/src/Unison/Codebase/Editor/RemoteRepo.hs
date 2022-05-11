@@ -19,7 +19,7 @@ data ReadRepo
 data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}
   deriving (Eq, Show)
 
-newtype ShareRepo = ShareRepo {url :: Text}
+data ShareRepo = ShareRepo
   deriving (Eq, Show)
 
 data WriteRepo
@@ -45,12 +45,15 @@ writePathToRead (w, p) = (writeToRead w, Nothing, p)
 printReadRepo :: ReadRepo -> Text
 printReadRepo = \case
   ReadRepoGit ReadGitRepo {url, ref} -> url <> Monoid.fromMaybe (Text.cons ':' <$> ref)
-  ReadRepoShare ShareRepo {url} -> url
+  ReadRepoShare s -> printShareRepo s
+
+printShareRepo :: ShareRepo -> Text
+printShareRepo = const "PLACEHOLDER"
 
 printWriteRepo :: WriteRepo -> Text
 printWriteRepo = \case
   WriteRepoGit WriteGitRepo {url, branch} -> url <> Monoid.fromMaybe (Text.cons ':' <$> branch)
-  WriteRepoShare ShareRepo {url} -> url
+  WriteRepoShare s -> printShareRepo s
 
 -- | print remote namespace
 printNamespace :: ReadRepo -> Maybe ShortBranchHash -> Path -> Text

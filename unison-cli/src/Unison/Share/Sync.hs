@@ -65,7 +65,6 @@ import qualified Unison.Sync.HTTP as Share
     uploadEntitiesHandler,
   )
 import qualified Unison.Sync.Types as Share
-import qualified Unison.Sync.Types as Share.Path (Path (..))
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
 

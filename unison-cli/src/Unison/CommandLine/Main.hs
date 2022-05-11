@@ -197,8 +197,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                   LoopState.Env
                     { LoopState.authHTTPClient = authorizedHTTPClient,
                       LoopState.codebase = codebase,
-                      LoopState.credentialManager = credMan,
-                      LoopState.unisonShareUrl = error "TODO: wire in Unison Share URL"
+                      LoopState.credentialManager = credMan
                     }
             let free = LoopState.runAction env state HandleInput.loop
             let handleCommand =

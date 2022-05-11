@@ -2823,12 +2823,12 @@ prettyTypeName ppe r =
 prettyReadRepo :: ReadRepo -> Pretty
 prettyReadRepo = \case
   RemoteRepo.ReadRepoGit RemoteRepo.ReadGitRepo {url} -> P.blue (P.text url)
-  RemoteRepo.ReadRepoShare RemoteRepo.ShareRepo {url} -> P.blue (P.text url)
+  RemoteRepo.ReadRepoShare s -> P.blue (P.text (RemoteRepo.printShareRepo s))
 
 prettyWriteRepo :: WriteRepo -> Pretty
 prettyWriteRepo = \case
   RemoteRepo.WriteRepoGit RemoteRepo.WriteGitRepo {url} -> P.blue (P.text url)
-  RemoteRepo.WriteRepoShare RemoteRepo.ShareRepo {url} -> P.blue (P.text url)
+  RemoteRepo.WriteRepoShare s -> P.blue (P.text (RemoteRepo.printShareRepo s))
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

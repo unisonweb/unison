@@ -425,8 +425,7 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
                 LoopState.Env
                   { LoopState.authHTTPClient = error "Error: No access to authorized requests from transcripts.",
                     LoopState.codebase = codebase,
-                    LoopState.credentialManager = error "Error: No access to credentials from transcripts.",
-                    LoopState.unisonShareUrl = error "Error: No access to Unison Share from transcripts."
+                    LoopState.credentialManager = error "Error: No access to credentials from transcripts."
                   }
           let free = LoopState.runAction env state $ HandleInput.loop
               rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
