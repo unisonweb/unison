@@ -4,7 +4,8 @@ module Unison.Sync.Types
   ( -- * Misc. types
     Base64Bytes (..),
     RepoName (..),
-    RepoPath (..),
+    Path (..),
+    pathRepoName,
 
     -- ** Hash types
     Hash (..),
@@ -65,6 +66,7 @@ import Data.Bifunctor
 import Data.Bitraversable
 import Data.ByteArray.Encoding (Base (Base64), convertFromBase, convertToBase)
 import qualified Data.HashMap.Strict as HashMap
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -91,24 +93,29 @@ instance FromJSON Base64Bytes where
 newtype RepoName = RepoName Text
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
-data RepoPath = RepoPath
-  { repoName :: RepoName,
-    pathSegments :: [Text]
+data Path = Path
+  { -- This is a nonempty list, where we require the first segment to be the repo name / user name / whatever,
+    -- which we need on the server side as an implementation detail of how we're representing different users' codebases.
+
+    -- This could be relaxed in some other share implementation that allows access to the "root" of the shared codebase.
+    -- Our share implementation doesn't have a root, just a collection of sub-roots, one per user or (eventually) organization.
+    pathSegments :: NonEmpty Text
   }
   deriving stock (Show, Eq, Ord)
 
-instance ToJSON RepoPath where
-  toJSON (RepoPath name segments) =
+pathRepoName :: Path -> RepoName
+pathRepoName (Path (p :| _)) = RepoName p
+
+instance ToJSON Path where
+  toJSON (Path segments) =
     object
-      [ "repo_name" .= name,
-        "path" .= segments
+      [ "path" .= segments
       ]
 
-instance FromJSON RepoPath where
-  parseJSON = Aeson.withObject "RepoPath" \obj -> do
-    repoName <- obj .: "repo_name"
+instance FromJSON Path where
+  parseJSON = Aeson.withObject "Path" \obj -> do
     pathSegments <- obj .: "path"
-    pure RepoPath {..}
+    pure Path {..}
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Hash types
@@ -534,30 +541,30 @@ instance FromJSON EntityType where
 -- Get causal hash by path
 
 newtype GetCausalHashByPathRequest = GetCausalHashByPathRequest
-  { repoPath :: RepoPath
+  { path :: Path
   }
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON GetCausalHashByPathRequest where
-  toJSON (GetCausalHashByPathRequest repoPath) =
+  toJSON (GetCausalHashByPathRequest path) =
     object
-      [ "repo_path" .= repoPath
+      [ "path" .= path
       ]
 
 instance FromJSON GetCausalHashByPathRequest where
   parseJSON = Aeson.withObject "GetCausalHashByPathRequest" \obj -> do
-    repoPath <- obj .: "repo_path"
+    path <- obj .: "path"
     pure GetCausalHashByPathRequest {..}
 
 data GetCausalHashByPathResponse
   = GetCausalHashByPathSuccess (Maybe HashJWT)
-  | GetCausalHashByPathNoReadPermission RepoPath
+  | GetCausalHashByPathNoReadPermission Path
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON GetCausalHashByPathResponse where
   toJSON = \case
     GetCausalHashByPathSuccess hashJWT -> jsonUnion "success" hashJWT
-    GetCausalHashByPathNoReadPermission repoPath -> jsonUnion "no_read_permission" repoPath
+    GetCausalHashByPathNoReadPermission path -> jsonUnion "no_read_permission" path
 
 instance FromJSON GetCausalHashByPathResponse where
   parseJSON = Aeson.withObject "GetCausalHashByPathResponse" \obj -> do
@@ -675,8 +682,8 @@ instance FromJSON UploadEntitiesResponse where
 data FastForwardPathRequest = FastForwardPathRequest
   { -- TODO non-empty
     hashes :: [Hash],
-    -- | The repo + path to fast-forward.
-    path :: RepoPath
+    -- | The path to fast-forward.
+    path :: Path
   }
   deriving stock (Show)
 
@@ -697,7 +704,7 @@ instance FromJSON FastForwardPathRequest where
 data FastForwardPathResponse
   = FastForwardPathSuccess
   | FastForwardPathMissingDependencies (NeedDependencies Hash)
-  | FastForwardPathNoWritePermission RepoPath
+  | FastForwardPathNoWritePermission Path
   | -- | This wasn't a fast-forward. Here's a JWT to download the causal head, if you want it.
     FastForwardPathNotFastForward HashJWT
   | -- | There was no history at this path; the client should use the "update path" endpoint instead.
@@ -708,7 +715,7 @@ instance ToJSON FastForwardPathResponse where
   toJSON = \case
     FastForwardPathSuccess -> jsonUnion "success" (Object mempty)
     FastForwardPathMissingDependencies deps -> jsonUnion "missing_dependencies" deps
-    FastForwardPathNoWritePermission repoPath -> jsonUnion "no_write_permission" repoPath
+    FastForwardPathNoWritePermission path -> jsonUnion "no_write_permission" path
     FastForwardPathNotFastForward hashJwt -> jsonUnion "not_fast_forward" hashJwt
     FastForwardPathNoHistory -> jsonUnion "no_history" (Object mempty)
 
@@ -727,7 +734,7 @@ instance FromJSON FastForwardPathResponse where
 -- Update path
 
 data UpdatePathRequest = UpdatePathRequest
-  { path :: RepoPath,
+  { path :: Path,
     expectedHash :: Maybe Hash, -- Nothing requires empty history at destination
     newHash :: Hash
   }
@@ -752,7 +759,7 @@ data UpdatePathResponse
   = UpdatePathSuccess
   | UpdatePathHashMismatch HashMismatch
   | UpdatePathMissingDependencies (NeedDependencies Hash)
-  | UpdatePathNoWritePermission RepoPath
+  | UpdatePathNoWritePermission Path
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON UpdatePathResponse where
@@ -760,7 +767,7 @@ instance ToJSON UpdatePathResponse where
     UpdatePathSuccess -> jsonUnion "success" (Object mempty)
     UpdatePathHashMismatch hm -> jsonUnion "hash_mismatch" hm
     UpdatePathMissingDependencies md -> jsonUnion "missing_dependencies" md
-    UpdatePathNoWritePermission repoPath -> jsonUnion "no_write_permission" repoPath
+    UpdatePathNoWritePermission path -> jsonUnion "no_write_permission" path
 
 instance FromJSON UpdatePathResponse where
   parseJSON v =
@@ -773,23 +780,23 @@ instance FromJSON UpdatePathResponse where
         t -> failText $ "Unexpected UpdatePathResponse type: " <> t
 
 data HashMismatch = HashMismatch
-  { repoPath :: RepoPath,
+  { path :: Path,
     expectedHash :: Maybe Hash,
     actualHash :: Maybe Hash
   }
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON HashMismatch where
-  toJSON (HashMismatch repoPath expectedHash actualHash) =
+  toJSON (HashMismatch path expectedHash actualHash) =
     object
-      [ "repo_path" .= repoPath,
+      [ "path" .= path,
         "expected_hash" .= expectedHash,
         "actual_hash" .= actualHash
       ]
 
 instance FromJSON HashMismatch where
   parseJSON = Aeson.withObject "HashMismatch" \obj -> do
-    repoPath <- obj .: "repo_path"
+    path <- obj .: "path"
     expectedHash <- obj .: "expected_hash"
     actualHash <- obj .: "actual_hash"
     pure HashMismatch {..}

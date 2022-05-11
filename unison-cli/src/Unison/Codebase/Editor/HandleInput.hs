@@ -132,10 +132,7 @@ import qualified Unison.Share.Sync as Share
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Sync.Types as Share
-  ( RepoName (..),
-    RepoPath (..),
-  )
+import qualified Unison.Sync.Types as Share (Path (..))
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -654,7 +651,8 @@ loop = do
                       outputDiff
             CreatePullRequestI baseRepo headRepo -> do
               let viewRemoteBranch repo callback = case repo of
-                    (ReadRepoGit r, sbh, path) -> viewRemoteGitBranch (r, sbh, path) Git.RequireExistingBranch callback
+                    (ReadRepoGit r, sbh, path) ->
+                      viewRemoteGitBranch (r, sbh, path) Git.RequireExistingBranch callback
               result <-
                 join @(Either GitError) <$> viewRemoteBranch baseRepo \baseBranch -> do
                   viewRemoteBranch headRepo \headBranch -> do
@@ -1712,11 +1710,11 @@ handleGist (GistInput repo) =
 
 handlePullFromUnisonShare :: MonadIO m => Text -> Path -> Action' m v ()
 handlePullFromUnisonShare remoteRepo remotePath = do
-  let repoPath = Share.RepoPath (Share.RepoName remoteRepo) (coerce @[NameSegment] @[Text] (Path.toList remotePath))
+  let path = Share.Path (remoteRepo Nel.:| coerce @[NameSegment] @[Text] (Path.toList remotePath))
 
   LoopState.Env {authHTTPClient, codebase = Codebase {connection}, unisonShareUrl} <- ask
 
-  liftIO (Share.pull authHTTPClient unisonShareUrl connection repoPath) >>= \case
+  liftIO (Share.pull authHTTPClient unisonShareUrl connection path) >>= \case
     Left (Share.PullErrorGetCausalHashByPath (Share.GetCausalHashByPathErrorNoReadPermission _)) -> undefined
     Left (Share.PullErrorNoHistoryAtPath repoPath) -> undefined
     Right causalHash -> do
@@ -1787,7 +1785,7 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
           error "don't do a gist"
         Just (remotePath, pushBehavior) ->
           -- let (userSegment :| pathSegments) = undefined
-          handlePushToUnisonShare _userSegment _pathSegments _localPath pushBehavior
+          error "handlePushToUnisonShare _userSegment _pathSegments _localPath pushBehavior"
   where
     -- Per `pushBehavior`, we are either:
     --
@@ -1801,7 +1799,7 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
 
 handlePushToUnisonShare :: MonadIO m => Text -> Path -> Path.Absolute -> PushBehavior -> Action' m v ()
 handlePushToUnisonShare remoteRepo remotePath localPath behavior = do
-  let repoPath = Share.RepoPath (Share.RepoName remoteRepo) (coerce @[NameSegment] @[Text] (Path.toList remotePath))
+  let repoPath = Share.Path (remoteRepo Nel.:| coerce @[NameSegment] @[Text] (Path.toList remotePath))
 
   LoopState.Env {authHTTPClient, codebase = Codebase {connection}, unisonShareUrl} <- ask
 
