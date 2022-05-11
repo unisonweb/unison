@@ -60,7 +60,6 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
       Unison.Share.Sync
-      Unison.Sync.HTTP
       Unison.Util.HTTP
   other-modules:
       Paths_unison_cli

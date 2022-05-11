@@ -25,8 +25,11 @@ module Unison.Share.Sync
   )
 where
 
+import Control.Exception (throwIO)
 import qualified Control.Lens as Lens
 import Control.Monad.Extra ((||^))
+import Control.Monad.Trans.Reader (ReaderT, runReaderT)
+import qualified Control.Monad.Trans.Reader as Reader
 import qualified Data.Foldable as Foldable (find)
 import Data.List.NonEmpty (pattern (:|))
 import qualified Data.List.NonEmpty as List (NonEmpty)
@@ -40,7 +43,9 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
+import qualified Servant.API as Servant ((:<|>) (..))
 import Servant.Client (BaseUrl)
+import qualified Servant.Client as Servant (ClientEnv, ClientM, client, hoistClient, mkClientEnv, runClientM)
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
@@ -55,15 +60,10 @@ import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as Hash
 import Unison.Auth.HTTPClient (AuthorizedHttpClient)
+import qualified Unison.Auth.HTTPClient as Auth
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sync.HTTP as Share
-  ( downloadEntitiesHandler,
-    fastForwardPathHandler,
-    getPathHandler,
-    updatePathHandler,
-    uploadEntitiesHandler,
-  )
+import qualified Unison.Sync.API as Share (api)
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Sync.Types as Share.RepoPath (RepoPath (..))
 import Unison.Util.Monoid (foldMapM)
@@ -122,7 +122,7 @@ checkAndSetPush httpClient unisonShareUrl conn repoPath expectedHash causalHash 
   where
     updatePath :: IO Share.UpdatePathResponse
     updatePath =
-      Share.updatePathHandler
+      httpUpdatePath
         httpClient
         unisonShareUrl
         Share.UpdatePathRequest
@@ -190,7 +190,7 @@ fastForwardPush httpClient unisonShareUrl conn repoPath localHeadHash =
 
     doFastForwardPath :: [CausalHash] -> IO Share.FastForwardPathResponse
     doFastForwardPath causalSpine =
-      Share.fastForwardPathHandler
+      httpFastForwardPath
         httpClient
         unisonShareUrl
         Share.FastForwardPathRequest
@@ -364,7 +364,7 @@ getCausalHashByPath ::
   Share.RepoPath ->
   IO (Either GetCausalHashByPathError (Maybe Share.HashJWT))
 getCausalHashByPath httpClient unisonShareUrl repoPath =
-  Share.getPathHandler httpClient unisonShareUrl (Share.GetCausalHashByPathRequest repoPath) <&> \case
+  httpGetCausalHashByPath httpClient unisonShareUrl (Share.GetCausalHashByPathRequest repoPath) <&> \case
     Share.GetCausalHashByPathSuccess maybeHashJwt -> Right maybeHashJwt
     Share.GetCausalHashByPathNoReadPermission _ -> Left (GetCausalHashByPathErrorNoReadPermission repoPath)
 
@@ -397,7 +397,7 @@ downloadEntities httpClient unisonShareUrl conn repoName =
     doDownload :: NESet Share.HashJWT -> IO (NEMap Share.Hash (Share.Entity Text Share.Hash Share.HashJWT))
     doDownload hashes = do
       Share.DownloadEntitiesResponse entities <-
-        Share.downloadEntitiesHandler
+        httpDownloadEntities
           httpClient
           unisonShareUrl
           Share.DownloadEntitiesRequest {repoName, hashes}
@@ -428,7 +428,7 @@ uploadEntities httpClient unisonShareUrl conn repoName =
 
       let uploadEntities :: IO Share.UploadEntitiesResponse
           uploadEntities =
-            Share.uploadEntitiesHandler
+            httpUploadEntities
               httpClient
               unisonShareUrl
               Share.UploadEntitiesRequest
@@ -721,3 +721,44 @@ tempEntityToEntity = \case
         { texts = Vector.toList textLookup,
           hashes = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) defnLookup)
         }
+
+------------------------------------------------------------------------------------------------------------------------
+-- HTTP calls
+
+httpGetCausalHashByPath :: Auth.AuthorizedHttpClient -> BaseUrl -> Share.GetCausalHashByPathRequest -> IO Share.GetCausalHashByPathResponse
+httpFastForwardPath :: Auth.AuthorizedHttpClient -> BaseUrl -> Share.FastForwardPathRequest -> IO Share.FastForwardPathResponse
+httpUpdatePath :: Auth.AuthorizedHttpClient -> BaseUrl -> Share.UpdatePathRequest -> IO Share.UpdatePathResponse
+httpDownloadEntities :: Auth.AuthorizedHttpClient -> BaseUrl -> Share.DownloadEntitiesRequest -> IO Share.DownloadEntitiesResponse
+httpUploadEntities :: Auth.AuthorizedHttpClient -> BaseUrl -> Share.UploadEntitiesRequest -> IO Share.UploadEntitiesResponse
+( httpGetCausalHashByPath,
+  httpFastForwardPath,
+  httpUpdatePath,
+  httpDownloadEntities,
+  httpUploadEntities
+  ) =
+    let ( httpGetCausalHashByPath
+            Servant.:<|> httpFastForwardPath
+            Servant.:<|> httpUpdatePath
+            Servant.:<|> httpDownloadEntities
+            Servant.:<|> httpUploadEntities
+          ) = Servant.hoistClient Share.api hoist (Servant.client Share.api)
+     in ( go httpGetCausalHashByPath,
+          go httpFastForwardPath,
+          go httpUpdatePath,
+          go httpDownloadEntities,
+          go httpUploadEntities
+        )
+    where
+      hoist :: Servant.ClientM a -> ReaderT Servant.ClientEnv IO a
+      hoist m = do
+        clientEnv <- Reader.ask
+        liftIO (throwEitherM (Servant.runClientM m clientEnv))
+
+      go ::
+        (req -> ReaderT Servant.ClientEnv IO resp) ->
+        Auth.AuthorizedHttpClient ->
+        BaseUrl ->
+        req ->
+        IO resp
+      go f (Auth.AuthorizedHttpClient httpClient) unisonShareUrl req =
+        runReaderT (f req) (Servant.mkClientEnv httpClient unisonShareUrl)
