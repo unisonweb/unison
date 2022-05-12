@@ -29,6 +29,7 @@ import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
 import qualified Servant.Client as Servant
 import qualified Text.Megaparsec as P
+import U.Codebase.Causal (Causal (causalHash))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
@@ -37,6 +38,7 @@ import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
 import Unison.Codebase (Preprocessing (..), PushGitBranchOpts (..))
+import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
@@ -62,19 +64,16 @@ import qualified Unison.Codebase.Editor.Propagate as Propagate
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadRemoteNamespace (..),
-    ReadRepo (ReadRepoGit),
     ReadShareRemoteNamespace (..),
     ShareRepo (ShareRepo),
     WriteGitRemotePath (..),
     WriteGitRepo,
     WriteRemotePath (..),
-    WriteRepo (WriteRepoGit, WriteRepoShare),
     WriteShareRemotePath (..),
     printNamespace,
     writePathToRead,
     writeToReadGit,
   )
-import qualified Unison.Codebase.Editor.RemoteRepo as ReadGitRemoteNamespace (ReadGitRemoteNamespace (..))
 import qualified Unison.Codebase.Editor.Slurp as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
@@ -95,6 +94,7 @@ import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
@@ -1668,12 +1668,22 @@ loop = do
     Right input -> LoopState.lastInput .= Just input
     _ -> pure ()
 
-handleCreatePullRequest :: MonadUnliftIO m => ReadRemoteNamespace -> ReadRemoteNamespace -> Action' m v ()
+handleCreatePullRequest :: forall m v. MonadUnliftIO m => ReadRemoteNamespace -> ReadRemoteNamespace -> Action' m v ()
 handleCreatePullRequest baseRepo0 headRepo0 = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
 
-  let block baseBranch headBranch = do
+  -- One of these needs a callback and the other doesn't. you might think you can get around that problem with
+  -- a helper function to unify the two cases, but we tried that and they were in such different monads that it
+  -- was hard to do.
+  -- viewRemoteBranch' :: forall r. ReadGitRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
+  -- because there's no MonadUnliftIO instance on Action.
+  -- We need `Command` to go away (the FreeT layer goes away),
+  -- We have the StateT layer goes away (can put it into an IORef in the environment),
+  -- We have the MaybeT layer that signals end of input (can just been an IORef bool that we check before looping),
+  -- and once all those things become IO, we can add a MonadUnliftIO instance on Action, and unify these cases.
+  let mergeAndDiff :: MonadCommand n m i v => Branch m -> Branch m -> n (NumberedOutput v)
+      mergeAndDiff baseBranch headBranch = do
         merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
         (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
         pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
@@ -1681,22 +1691,41 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
   case (baseRepo0, headRepo0) of
     (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceGit headRepo) -> do
       result <-
-        viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch -> do
-          viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch -> do
-            block baseBranch headBranch
+        viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch ->
+          viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch ->
+            mergeAndDiff baseBranch headBranch
       case join result of
         Left gitErr -> respond (Output.GitError gitErr)
         Right diff -> respondNumbered diff
-    (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceShare headRepo) -> do
+    (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceShare headRepo) ->
       importRemoteShareBranch headRepo >>= \case
-        Left () -> respond (error "bad pull")
+        Left () -> respond (error "bad pull because" headRepo)
         Right headBranch -> do
           result <-
-            viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch -> do
-              block baseBranch headBranch
+            viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch ->
+              mergeAndDiff baseBranch headBranch
           case result of
             Left gitErr -> respond (Output.GitError gitErr)
             Right diff -> respondNumbered diff
+    (ReadRemoteNamespaceShare baseRepo, ReadRemoteNamespaceGit headRepo) ->
+      importRemoteShareBranch baseRepo >>= \case
+        Left () -> respond (error "bad pull because" baseRepo)
+        Right baseBranch -> do
+          result <-
+            viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch ->
+              mergeAndDiff baseBranch headBranch
+          case result of
+            Left gitErr -> respond (Output.GitError gitErr)
+            Right diff -> respondNumbered diff
+    (ReadRemoteNamespaceShare baseRepo, ReadRemoteNamespaceShare headRepo) ->
+      importRemoteShareBranch headRepo >>= \case
+        Left () -> respond (error "bad pull because" headRepo)
+        Right headBranch ->
+          importRemoteShareBranch baseRepo >>= \case
+            Left () -> respond (error "bad pull because" baseRepo)
+            Right baseBranch -> do
+              diff <- mergeAndDiff baseBranch headBranch
+              respondNumbered diff
 
 handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
 handleDependents hq = do
@@ -1738,19 +1767,6 @@ handleDependents hq = do
 handleGist :: MonadUnliftIO m => GistInput -> Action' m v ()
 handleGist (GistInput repo) =
   doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
-
-handlePullFromUnisonShare :: MonadIO m => Text -> Path -> Action' m v ()
-handlePullFromUnisonShare remoteRepo remotePath = undefined
-
--- let path = Share.Path (remoteRepo Nel.:| coerce @[NameSegment] @[Text] (Path.toList remotePath))
-
--- LoopState.Env {authHTTPClient, codebase = Codebase {connection}} <- ask
-
--- liftIO (Share.pull authHTTPClient unisonShareUrl connection path) >>= \case
---   Left (Share.PullErrorGetCausalHashByPath (Share.GetCausalHashByPathErrorNoReadPermission _)) -> undefined
---   Left (Share.PullErrorNoHistoryAtPath repoPath) -> undefined
---   Right causalHash -> do
---     undefined
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch ::
@@ -1825,8 +1841,8 @@ doPushRemoteBranch pushFlavor localPath syncMode = do
               ( ReadRemoteNamespaceGit
                   ReadGitRemoteNamespace
                     { repo = writeToReadGit repo,
-                      ReadGitRemoteNamespace.sbh = Just (SBH.fromHash sbhLength (Branch.headHash sourceBranch)),
-                      ReadGitRemoteNamespace.path = Path.empty
+                      sbh = Just (SBH.fromHash sbhLength (Branch.headHash sourceBranch)),
+                      path = Path.empty
                     }
               )
           )
@@ -2245,9 +2261,19 @@ viewRemoteGitBranch ::
 viewRemoteGitBranch ns gitBranchBehavior action = do
   eval $ ViewRemoteGitBranch ns gitBranchBehavior action
 
--- todo: support the full ReadShareRemoteNamespace eventually, in place of (ShareRepo, Text, Path)
-importRemoteShareBranch :: ReadShareRemoteNamespace -> Action' m v (Either () (Branch m))
-importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = undefined
+importRemoteShareBranch :: MonadIO m => ReadShareRemoteNamespace -> Action' m v (Either () (Branch m))
+importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
+  let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
+  LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
+  liftIO (Share.pull authHTTPClient (shareRepoToBaseURL server) connection shareFlavoredPath) >>= \case
+    Left (Share.PullErrorGetCausalHashByPath (Share.GetCausalHashByPathErrorNoReadPermission _)) ->
+      error "Share.GetCausalHashByPathErrorNoReadPermission"
+    Left (Share.PullErrorNoHistoryAtPath repoPath) ->
+      error "Share.PullErrorNoHistoryAtPath"
+    Right causalHash -> do
+      (eval . Eval) (Codebase.getBranchForHash codebase (Cv.branchHash2to1 causalHash)) >>= \case
+        Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
+        Just branch -> pure (Right branch)
 
 -- | Given the current root branch of a remote
 -- (or an empty branch if no root branch exists)
