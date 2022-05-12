@@ -10,6 +10,7 @@ module Unison.Codebase.Editor.Output
     UndoFailureReason (..),
     PushPull (..),
     ReflogEntry (..),
+    ShareError (..),
     pushPull,
     isFailure,
     isNumberedFailure,
@@ -56,6 +57,7 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResult' (SearchResult')
+import qualified Unison.Share.Sync as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -206,6 +208,7 @@ data Output v
     -- and a nicer render.
     BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
+  | ShareError ShareError
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
@@ -255,6 +258,12 @@ data Output v
   | UnknownCodeServer Text
   | CredentialFailureMsg CredentialFailure
   | PrintVersion Text
+
+data ShareError
+  = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
+  | ShareErrorFastForwardPush Sync.FastForwardPushError
+  | ShareErrorPull Sync.PullError
+  | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
@@ -381,6 +390,7 @@ isFailure o = case o of
   UnknownCodeServer {} -> True
   CredentialFailureMsg {} -> True
   PrintVersion {} -> False
+  ShareError {} -> True
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

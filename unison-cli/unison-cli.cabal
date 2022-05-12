@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.6.
 --
 -- see: https://github.com/sol/hpack
 
@@ -47,6 +47,7 @@ library
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
       Unison.Codebase.Editor.TodoOutput
+      Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
       Unison.Codebase.Editor.VersionParser
       Unison.Codebase.TranscriptParser

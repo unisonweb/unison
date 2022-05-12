@@ -29,7 +29,6 @@ import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
 import qualified Servant.Client as Servant
 import qualified Text.Megaparsec as P
-import U.Codebase.Causal (Causal (causalHash))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
@@ -507,7 +506,6 @@ loop = do
             (Branch m -> Action m i v1 (Branch m)) ->
             Action m i v1 Bool
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
-          unlessGitError = unlessError' Output.GitError
           importRemoteGitBranch ns mode preprocess =
             ExceptT . eval $ ImportRemoteGitBranch ns mode preprocess
           loadSearchResults = eval . LoadSearchResults
@@ -670,12 +668,15 @@ loop = do
               let desta = resolveToAbsolute dest0
               let dest = Path.unabsolute desta
               destb <- getAt desta
+              let tryImportBranch = \case
+                    ReadRemoteNamespaceGit repo ->
+                      withExceptT Output.GitError (importRemoteGitBranch repo SyncMode.ShortCircuit Unmodified)
+                    ReadRemoteNamespaceShare repo ->
+                      ExceptT (importRemoteShareBranch repo)
               if Branch.isEmpty0 (Branch.head destb)
-                then unlessGitError do
-                  baseb <- case baseRepo of
-                    ReadRemoteNamespaceGit repo -> importRemoteGitBranch repo SyncMode.ShortCircuit Unmodified
-                  headb <- case headRepo of
-                    ReadRemoteNamespaceGit repo -> importRemoteGitBranch repo SyncMode.ShortCircuit Unmodified
+                then unlessError do
+                  baseb <- tryImportBranch baseRepo
+                  headb <- tryImportBranch headRepo
                   lift $ do
                     mergedb <- eval $ Merge Branch.RegularMerge baseb headb
                     squashedb <- eval $ Merge Branch.SquashMerge headb baseb
@@ -1510,9 +1511,10 @@ loop = do
                     Input.PullWithHistory -> Unmodified
                     Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
               ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
-              lift $ unlessGitError do
+              lift $ unlessError do
                 remoteBranch <- case ns of
-                  ReadRemoteNamespaceGit repo -> importRemoteGitBranch repo syncMode preprocess
+                  ReadRemoteNamespaceGit repo -> withExceptT Output.GitError (importRemoteGitBranch repo syncMode preprocess)
+                  ReadRemoteNamespaceShare repo -> ExceptT (importRemoteShareBranch repo)
                 let unchangedMsg = PullAlreadyUpToDate ns path
                 let destAbs = resolveToAbsolute path
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
@@ -1699,7 +1701,7 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
         Right diff -> respondNumbered diff
     (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceShare headRepo) ->
       importRemoteShareBranch headRepo >>= \case
-        Left () -> respond (error "bad pull because" headRepo)
+        Left err -> respond err
         Right headBranch -> do
           result <-
             viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch ->
@@ -1709,7 +1711,7 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
             Right diff -> respondNumbered diff
     (ReadRemoteNamespaceShare baseRepo, ReadRemoteNamespaceGit headRepo) ->
       importRemoteShareBranch baseRepo >>= \case
-        Left () -> respond (error "bad pull because" baseRepo)
+        Left err -> respond err
         Right baseBranch -> do
           result <-
             viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch ->
@@ -1719,10 +1721,10 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
             Right diff -> respondNumbered diff
     (ReadRemoteNamespaceShare baseRepo, ReadRemoteNamespaceShare headRepo) ->
       importRemoteShareBranch headRepo >>= \case
-        Left () -> respond (error "bad pull because" headRepo)
+        Left err -> respond err
         Right headBranch ->
           importRemoteShareBranch baseRepo >>= \case
-            Left () -> respond (error "bad pull because" baseRepo)
+            Left err -> respond err
             Right baseBranch -> do
               diff <- mergeAndDiff baseBranch headBranch
               respondNumbered diff
@@ -1882,29 +1884,16 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                     Nothing
                     localCausalHash
             liftIO push >>= \case
-              Left err ->
-                case err of
-                  Share.CheckAndSetPushErrorHashMismatch _mismatch -> error "remote not empty"
-                  Share.CheckAndSetPushErrorNoWritePermission _repoPath -> errNoWritePermission sharePath
-                  Share.CheckAndSetPushErrorServerMissingDependencies deps -> errServerMissingDependencies deps
+              Left err -> respond (Output.ShareError (ShareErrorCheckAndSetPush err))
               Right () -> pure ()
           PushBehavior.RequireNonEmpty -> do
             let push :: IO (Either Share.FastForwardPushError ())
                 push =
                   Share.fastForwardPush authHTTPClient (shareRepoToBaseURL server) connection sharePath localCausalHash
             liftIO push >>= \case
-              Left err ->
-                case err of
-                  Share.FastForwardPushErrorNoHistory _repoPath -> error "no history"
-                  Share.FastForwardPushErrorNoReadPermission _repoPath -> error "no read permission"
-                  Share.FastForwardPushErrorNotFastForward -> error "not fast-forward"
-                  Share.FastForwardPushErrorNoWritePermission _repoPath -> errNoWritePermission sharePath
-                  Share.FastForwardPushErrorServerMissingDependencies deps -> errServerMissingDependencies deps
+              Left err -> respond (Output.ShareError (ShareErrorFastForwardPush err))
               Right () -> pure ()
   where
-    errNoWritePermission _repoPath = error "no write permission"
-    errServerMissingDependencies _dependencies = error "server missing dependencies"
-
     pathToSegments :: Path -> [Text]
     pathToSegments =
       coerce Path.toList
@@ -2274,19 +2263,17 @@ viewRemoteGitBranch ::
 viewRemoteGitBranch ns gitBranchBehavior action = do
   eval $ ViewRemoteGitBranch ns gitBranchBehavior action
 
-importRemoteShareBranch :: MonadIO m => ReadShareRemoteNamespace -> Action' m v (Either () (Branch m))
-importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
-  let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
-  LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
-  liftIO (Share.pull authHTTPClient (shareRepoToBaseURL server) connection shareFlavoredPath) >>= \case
-    Left (Share.PullErrorGetCausalHashByPath (Share.GetCausalHashByPathErrorNoReadPermission _)) ->
-      error "Share.GetCausalHashByPathErrorNoReadPermission"
-    Left (Share.PullErrorNoHistoryAtPath repoPath) ->
-      error "Share.PullErrorNoHistoryAtPath"
-    Right causalHash -> do
-      (eval . Eval) (Codebase.getBranchForHash codebase (Cv.branchHash2to1 causalHash)) >>= \case
-        Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
-        Just branch -> pure (Right branch)
+importRemoteShareBranch :: MonadIO m => ReadShareRemoteNamespace -> Action' m v (Either (Output v) (Branch m))
+importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} =
+  mapLeft Output.ShareError <$> do
+    let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
+    LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
+    liftIO (Share.pull authHTTPClient (shareRepoToBaseURL server) connection shareFlavoredPath) >>= \case
+      Left e -> pure (Left (Output.ShareErrorPull e))
+      Right causalHash -> do
+        (eval . Eval) (Codebase.getBranchForHash codebase (Cv.branchHash2to1 causalHash)) >>= \case
+          Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
+          Just branch -> pure (Right branch)
 
 -- | Given the current root branch of a remote
 -- (or an empty branch if no root branch exists)

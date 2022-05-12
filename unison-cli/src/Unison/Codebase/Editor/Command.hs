@@ -13,7 +13,6 @@ module Unison.Codebase.Editor.Command
     EvalResult,
     commandName,
     lookupEvalResult,
-    UCMVersion,
   )
 where
 
@@ -30,6 +29,7 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Reflog as Reflog
@@ -93,8 +93,6 @@ type TypecheckingResult v =
   Result
     (Seq (Note v Ann))
     (Either Names (UF.TypecheckedUnisonFile v Ann))
-
-type UCMVersion = Text
 
 data
   Command
