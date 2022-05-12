@@ -52,7 +52,7 @@ to' Dependencies {..} = Dependencies' (toList patches) (toList terms) (toList de
 fromBranch :: Applicative m => Branch m -> (Branches m, Dependencies)
 fromBranch (Branch c) = case c of
   Causal.One _hh _eh e -> fromBranch0 e
-  Causal.Cons _hh _eh e (h, m) -> fromBranch0 e <> fromTails (Map.singleton (Branch.toCausalHash h) m)
+  Causal.Cons _hh _eh e (h, m) -> fromBranch0 e <> fromTails (Map.singleton h m)
   Causal.Merge _hh _eh e tails -> fromBranch0 e <> fromTails tails
   where
     fromTails m = ([(h, Branch <$> mc) | (h, mc) <- Map.toList m], mempty)

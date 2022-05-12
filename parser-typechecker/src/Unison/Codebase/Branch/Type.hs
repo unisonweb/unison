@@ -12,12 +12,10 @@ module Unison.Codebase.Branch.Type
     Star,
     EditHash,
     UnwrappedBranch,
-    toCausalHash,
   )
 where
 
 import Control.Lens
-import Data.Coerce (coerce)
 import Data.Map (Map)
 import Data.Set (Set)
 import Unison.Codebase.Causal.Type (Causal, CausalHash)
@@ -51,10 +49,7 @@ head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
 
 headHash :: Branch m -> CausalHash
-headHash (Branch c) = toCausalHash $ Causal.currentHash c
-
-toCausalHash :: CausalHash -> CausalHash
-toCausalHash = coerce
+headHash (Branch c) = Causal.currentHash c
 
 -- | A node in the Unison namespace hierarchy.
 --
