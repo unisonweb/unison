@@ -25,7 +25,7 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
 
-type Branches m = [(Branch.Hash, m (Branch m))]
+type Branches m = [(Branch.CausalHash, m (Branch m))]
 
 data Dependencies = Dependencies
   { patches :: Set EditHash,

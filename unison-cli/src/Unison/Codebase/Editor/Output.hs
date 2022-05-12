@@ -105,7 +105,7 @@ data NumberedOutput v
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(Branch.Hash, Names.Diff)]
+      [(Branch.CausalHash, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
   | ListEdits Patch PPE.PrettyPrintEnv
 
@@ -238,18 +238,18 @@ data Output v
       Path.Absolute -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
-  | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
+  | DumpBitBooster Branch.CausalHash (Map Branch.CausalHash [Branch.CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
-  | CouldntLoadBranch Branch.Hash
+  | CouldntLoadBranch Branch.CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
     RefusedToPush PushBehavior
   | -- | @GistCreated repo hash@ means causal @hash@ was just published to @repo@.
-    GistCreated Int WriteRepo Branch.Hash
+    GistCreated Int WriteRepo Branch.CausalHash
   | -- | Directs the user to URI to begin an authorization flow.
     InitiateAuthFlow URI
   | UnknownCodeServer Text
@@ -260,9 +260,9 @@ data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
 
 data HistoryTail
-  = EndOfLog Branch.Hash
-  | MergeTail Branch.Hash [Branch.Hash]
-  | PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex
+  = EndOfLog Branch.CausalHash
+  | MergeTail Branch.CausalHash [Branch.CausalHash]
+  | PageEnd Branch.CausalHash Int -- PageEnd nextHash nextIndex
   deriving (Show)
 
 data TestReportStats

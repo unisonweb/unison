@@ -381,10 +381,10 @@ putRootBranch rootBranchCache branch1 = do
 getBranchForHash ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
-  Branch.Hash ->
+  Branch.CausalHash ->
   Transaction (Maybe (Branch Transaction))
 getBranchForHash doGetDeclType h = do
-  Ops.loadCausalBranchByCausalHash (Cv.branchHash1to2 h) >>= \case
+  Ops.loadCausalBranchByCausalHash (Cv.causalHash1to2 h) >>= \case
     Nothing -> pure Nothing
     Just causal2 -> do
       branch1 <- Cv.causalbranch2to1 doGetDeclType causal2
@@ -394,7 +394,7 @@ putBranch :: Branch Transaction -> Transaction ()
 putBranch =
   void . Ops.saveBranch . Cv.causalbranch1to2
 
-isCausalHash :: Branch.Hash -> Transaction Bool
+isCausalHash :: Branch.CausalHash -> Transaction Bool
 isCausalHash (Causal.RawHash h) =
   Q.loadHashIdByHash (Cv.hash1to2 h) >>= \case
     Nothing -> pure False
@@ -513,7 +513,7 @@ referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to
         ]
   pure . Set.fromList $ termReferents <> declReferents
 
-branchHashesByPrefix :: ShortBranchHash -> Transaction (Set Branch.Hash)
+branchHashesByPrefix :: ShortBranchHash -> Transaction (Set Branch.CausalHash)
 branchHashesByPrefix sh = do
   -- given that a Branch is shallow, it's really `CausalHash` that you'd
   -- refer to to specify a full namespace w/ history.
@@ -521,7 +521,7 @@ branchHashesByPrefix sh = do
   cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
   pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 
-sqlLca :: Branch.Hash -> Branch.Hash -> Transaction (Maybe Branch.Hash)
+sqlLca :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Branch.CausalHash)
 sqlLca h1 h2 = do
   h3 <- Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
   pure (Cv.causalHash2to1 <$> h3)
@@ -531,7 +531,7 @@ termExists, declExists :: Hash -> Transaction Bool
 termExists = fmap isJust . Q.loadObjectIdForPrimaryHash . Cv.hash1to2
 declExists = termExists
 
-before :: Branch.Hash -> Branch.Hash -> Transaction (Maybe Bool)
+before :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Bool)
 before h1 h2 =
   Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
 

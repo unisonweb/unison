@@ -25,7 +25,11 @@ newtype Branch m = Branch {_history :: UnwrappedBranch m}
 
 type UnwrappedBranch m = Causal m Raw (Branch0 m)
 
-type Hash = Causal.RawHash Raw
+-- | A Hash for a causal, a.k.a. a namespace AND its history.
+type CausalHash = Causal.RawHash Raw
+
+-- | A Hash for a namespace itself, it doesn't incorporate any history.
+newtype NamespaceHash = NamespaceHash {unNamespaceHash :: Hash.Hash}
 
 type EditHash = Hash.Hash
 
@@ -34,7 +38,7 @@ type Star r n = Metadata.Star r n
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
 
-headHash :: Branch m -> Hash
+headHash :: Branch m -> CausalHash
 headHash (Branch c) = Causal.currentHash c
 
 -- | A node in the Unison namespace hierarchy.

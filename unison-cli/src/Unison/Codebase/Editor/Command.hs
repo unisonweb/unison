@@ -146,7 +146,7 @@ data
   TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
   -- the hash length needed to disambiguate any branch in the codebase
   BranchHashLength :: Command m i v Int
-  BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.Hash)
+  BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.CausalHash)
   ParseType ::
     NamesWithHistory ->
     LexedSource ->
@@ -194,7 +194,7 @@ data
   -- codebase are copied there.
   LoadLocalRootBranch :: Command m i v (Branch m)
   -- Like `LoadLocalRootBranch`.
-  LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m)
+  LoadLocalBranch :: Branch.CausalHash -> Command m i v (Branch m)
   -- Merge two branches, using the codebase for the LCA calculation where possible.
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
   ViewRemoteBranch ::
@@ -220,7 +220,7 @@ data
   SyncRemoteBranch :: WriteRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> Command m i v (Either GitError (Either e (Branch m)))
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
   -- load the reflog in file (chronological) order
-  LoadReflog :: Command m i v [Reflog.Entry Branch.Hash]
+  LoadReflog :: Command m i v [Reflog.Entry Branch.CausalHash]
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
   -- LoadTermComponent :: H.Hash -> Command m i v (Maybe [Term v Ann])
   LoadTermComponentWithTypes :: H.Hash -> Command m i v (Maybe [(Term v Ann, Type v Ann)])

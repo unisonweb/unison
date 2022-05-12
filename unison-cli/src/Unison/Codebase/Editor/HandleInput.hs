@@ -552,9 +552,9 @@ loop = do
                 -- reverses & formats entries, adds synthetic entries when there is a
                 -- discontinuity in the reflog.
                 convertEntries ::
-                  Maybe Branch.Hash ->
+                  Maybe Branch.CausalHash ->
                   [Output.ReflogEntry] ->
-                  [Reflog.Entry Branch.Hash] ->
+                  [Reflog.Entry Branch.CausalHash] ->
                   [Output.ReflogEntry]
                 convertEntries _ acc [] = acc
                 convertEntries Nothing acc entries@(Reflog.Entry old _ _ : _) =
@@ -1577,7 +1577,7 @@ loop = do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
                   getCausal b = (Branch.headHash b, pure $ Branch._history b)
-                  goCausal :: forall m. Monad m => [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
+                  goCausal :: forall m. Monad m => [(Branch.CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.CausalHash) m ()
                   goCausal [] = pure ()
                   goCausal ((h, mc) : queue) = do
                     ifM (seen h) (goCausal queue) do
@@ -1585,7 +1585,7 @@ loop = do
                         Causal.One h b -> goBranch h b mempty queue
                         Causal.Cons h b tail -> goBranch h b [fst tail] (tail : queue)
                         Causal.Merge h b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
-                  goBranch :: forall m. Monad m => Branch.Hash -> Branch0 m -> [Branch.Hash] -> [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
+                  goBranch :: forall m. Monad m => Branch.CausalHash -> Branch0 m -> [Branch.CausalHash] -> [(Branch.CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.CausalHash) m ()
                   goBranch h b (Set.fromList -> causalParents) queue = case b of
                     Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ ->
                       let wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))

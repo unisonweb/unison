@@ -60,7 +60,7 @@ noSuchNamespace :: HashQualifiedName -> ServerError
 noSuchNamespace namespace =
   err404 {errBody = "The namespace " <> munge namespace <> " does not exist."}
 
-couldntLoadBranch :: Branch.Hash -> ServerError
+couldntLoadBranch :: Branch.CausalHash -> ServerError
 couldntLoadBranch h =
   err404
     { errBody =

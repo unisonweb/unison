@@ -11,7 +11,8 @@ module Unison.Codebase.Branch
     Branch0 (..),
     Raw,
     Star,
-    Hash,
+    NamespaceHash,
+    CausalHash,
     EditHash,
     pattern Hash,
 
@@ -92,8 +93,9 @@ import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0 (..),
+    CausalHash,
     EditHash,
-    Hash,
+    NamespaceHash,
     Star,
     UnwrappedBranch,
     edits,
