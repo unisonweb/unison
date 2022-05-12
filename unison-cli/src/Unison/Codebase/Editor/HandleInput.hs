@@ -1808,36 +1808,36 @@ doPushRemoteBranch ::
   Path' ->
   SyncMode.SyncMode ->
   Action' m v ()
-doPushRemoteBranch pushFlavor localPath syncMode = do
-  sourceBranch <- do
-    currentPath' <- use LoopState.currentPath
-    getAt (Path.resolve currentPath' localPath)
+doPushRemoteBranch pushFlavor localPath0 syncMode = do
+  currentPath' <- use LoopState.currentPath
+  let localPath = Path.resolve currentPath' localPath0
 
   case pushFlavor of
-    NormalPush (WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath}) pushBehavior ->
-      unlessError do
-        let withRemoteRoot :: Branch m -> m (Either (Output v) (Branch m))
-            withRemoteRoot remoteRoot = do
-              let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
-                  -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
-                  f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
-              Branch.modifyAtM remotePath f remoteRoot & \case
-                Nothing -> pure (Left $ RefusedToPush pushBehavior)
-                Just newRemoteRoot -> pure (Right newRemoteRoot)
-        let opts = PushGitBranchOpts {setRoot = True, syncMode}
-        withExceptT Output.GitError (syncGitRemoteBranch repo opts withRemoteRoot) >>= \case
-          Left output -> respond output
-          Right _branch -> respond Success
-    NormalPush (WriteRemotePathShare WriteShareRemotePath {server, repo, path = remotePath}) pushBehavior ->
-      -- let (userSegment :| pathSegments) = undefined
-      error "handlePushToUnisonShare _userSegment _pathSegments _localPath pushBehavior"
+    NormalPush (WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath}) pushBehavior -> do
+      sourceBranch <- getAt localPath
+      let withRemoteRoot :: Branch m -> m (Either (Output v) (Branch m))
+          withRemoteRoot remoteRoot = do
+            let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
+                -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
+                f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
+            Branch.modifyAtM remotePath f remoteRoot & \case
+              Nothing -> pure (Left $ RefusedToPush pushBehavior)
+              Just newRemoteRoot -> pure (Right newRemoteRoot)
+      let opts = PushGitBranchOpts {setRoot = True, syncMode}
+      runExceptT (syncGitRemoteBranch repo opts withRemoteRoot) >>= \case
+        Left gitErr -> respond (Output.GitError gitErr)
+        Right _branch -> respond Success
+    NormalPush (WriteRemotePathShare sharePath) pushBehavior ->
+      handlePushToUnisonShare sharePath localPath pushBehavior
     GistyPush repo -> do
-      unlessError do
-        let opts = PushGitBranchOpts {setRoot = False, syncMode}
-        withExceptT Output.GitError (syncGitRemoteBranch repo opts (\_remoteRoot -> pure (Right sourceBranch)))
-        sbhLength <- eval BranchHashLength
-        respond
-          ( GistCreated
+      sourceBranch <- getAt localPath
+      let opts = PushGitBranchOpts {setRoot = False, syncMode}
+      runExceptT (syncGitRemoteBranch repo opts (\_remoteRoot -> pure (Right sourceBranch))) >>= \case
+        Left gitErr -> respond (Output.GitError gitErr)
+        Right _result -> do
+          sbhLength <- eval BranchHashLength
+          respond $
+            GistCreated
               ( ReadRemoteNamespaceGit
                   ReadGitRemoteNamespace
                     { repo = writeToReadGit repo,
@@ -1845,7 +1845,6 @@ doPushRemoteBranch pushFlavor localPath syncMode = do
                       path = Path.empty
                     }
               )
-          )
   where
     -- Per `pushBehavior`, we are either:
     --
@@ -1860,41 +1859,55 @@ doPushRemoteBranch pushFlavor localPath syncMode = do
 shareRepoToBaseURL :: ShareRepo -> Servant.BaseUrl
 shareRepoToBaseURL ShareRepo = Servant.BaseUrl Servant.Https "share.unison.cloud" 443 ""
 
-handlePushToUnisonShare :: MonadIO m => ShareRepo -> Text -> Path -> Path.Absolute -> PushBehavior -> Action' m v ()
-handlePushToUnisonShare shareRepo remoteRepo remotePath localPath behavior = do
-  let repoPath = Share.Path (remoteRepo Nel.:| coerce @[NameSegment] @[Text] (Path.toList remotePath))
+handlePushToUnisonShare :: MonadIO m => WriteShareRemotePath -> Path.Absolute -> PushBehavior -> Action' m v ()
+handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
+  let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
 
   LoopState.Env {authHTTPClient, codebase = Codebase {connection}} <- ask
 
   -- doesn't handle the case where a non-existent path is supplied
-  Sqlite.runTransaction
-    connection
-    (Ops.loadCausalHashAtPath (coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute localPath))))
+  Sqlite.runTransaction connection (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath)))
     >>= \case
       Nothing -> respond (error "you are bad")
       Just localCausalHash ->
         case behavior of
-          PushBehavior.RequireEmpty ->
-            liftIO (Share.checkAndSetPush authHTTPClient (shareRepoToBaseURL shareRepo) connection repoPath Nothing localCausalHash) >>= \case
+          PushBehavior.RequireEmpty -> do
+            let push :: IO (Either Share.CheckAndSetPushError ())
+                push =
+                  Share.checkAndSetPush
+                    authHTTPClient
+                    (shareRepoToBaseURL server)
+                    connection
+                    sharePath
+                    Nothing
+                    localCausalHash
+            liftIO push >>= \case
               Left err ->
                 case err of
                   Share.CheckAndSetPushErrorHashMismatch _mismatch -> error "remote not empty"
-                  Share.CheckAndSetPushErrorNoWritePermission _repoPath -> errNoWritePermission repoPath
+                  Share.CheckAndSetPushErrorNoWritePermission _repoPath -> errNoWritePermission sharePath
                   Share.CheckAndSetPushErrorServerMissingDependencies deps -> errServerMissingDependencies deps
               Right () -> pure ()
-          PushBehavior.RequireNonEmpty ->
-            liftIO (Share.fastForwardPush authHTTPClient (shareRepoToBaseURL shareRepo) connection repoPath localCausalHash) >>= \case
+          PushBehavior.RequireNonEmpty -> do
+            let push :: IO (Either Share.FastForwardPushError ())
+                push =
+                  Share.fastForwardPush authHTTPClient (shareRepoToBaseURL server) connection sharePath localCausalHash
+            liftIO push >>= \case
               Left err ->
                 case err of
                   Share.FastForwardPushErrorNoHistory _repoPath -> error "no history"
                   Share.FastForwardPushErrorNoReadPermission _repoPath -> error "no read permission"
                   Share.FastForwardPushErrorNotFastForward -> error "not fast-forward"
-                  Share.FastForwardPushErrorNoWritePermission _repoPath -> errNoWritePermission repoPath
+                  Share.FastForwardPushErrorNoWritePermission _repoPath -> errNoWritePermission sharePath
                   Share.FastForwardPushErrorServerMissingDependencies deps -> errServerMissingDependencies deps
               Right () -> pure ()
   where
     errNoWritePermission _repoPath = error "no write permission"
     errServerMissingDependencies _dependencies = error "server missing dependencies"
+
+    pathToSegments :: Path -> [Text]
+    pathToSegments =
+      coerce Path.toList
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition ::
