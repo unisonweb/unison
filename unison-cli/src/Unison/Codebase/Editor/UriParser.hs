@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Codebase.Editor.UriParser (repoPath, writeRepo, writeRepoPath) where
+module Unison.Codebase.Editor.UriParser (repoPath, writeRepo, writeRepoPath, writeGitRepoPath) where
 
 import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Sequence as Seq
@@ -51,24 +51,26 @@ repoPath = P.label "generic git repo" $ do
         Just (sbh, path) -> ReadGitRemoteNamespace {repo, sbh, path}
 
 writeRepo :: P WriteRepo
-writeRepo = P.label "repo root for writing" $ do
+writeRepo =
+  -- FIXME parse share paths too
+  WriteRepoGit <$> writeGitRepo
+
+writeGitRepo :: P WriteGitRepo
+writeGitRepo = P.label "repo root for writing" $ do
   uri <- parseProtocol
   treeish <- P.optional treeishSuffix
-  pure (WriteRepoGit WriteGitRepo {url = printProtocol uri, branch = treeish})
+  pure WriteGitRepo {url = printProtocol uri, branch = treeish}
 
 writeRepoPath :: P WriteRemotePath
-writeRepoPath = P.label "generic write repo" $ do
-  repo <- writeRepo
-  case repo of
-    WriteRepoGit repo -> do
-      path <- P.optional (C.char ':' *> absolutePath)
-      pure (WriteRemotePathGit WriteGitRemotePath {repo, path = fromMaybe Path.empty path})
-    {-
-    WriteRepoShare server -> do
-      repo <- undefined
-      path <- undefined
-      pure (WriteRemotePathShare WriteShareRemotePath {server, repo, path})
-    -}
+writeRepoPath =
+  -- FIXME parse share paths too
+  WriteRemotePathGit <$> writeGitRepoPath
+
+writeGitRepoPath :: P WriteGitRemotePath
+writeGitRepoPath = P.label "generic write repo" $ do
+  repo <- writeGitRepo
+  path <- P.optional (C.char ':' *> absolutePath)
+  pure WriteGitRemotePath {repo, path = fromMaybe Path.empty path}
 
 -- does this not exist somewhere in megaparsec? yes in 7.0
 symbol :: Text -> P Text
