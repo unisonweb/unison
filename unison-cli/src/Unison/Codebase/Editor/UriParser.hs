@@ -1,6 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Codebase.Editor.UriParser (repoPath, writeRepo, writeRepoPath, writeGitRepoPath) where
+module Unison.Codebase.Editor.UriParser
+  ( repoPath,
+    writeGitRepo,
+    writeRepo,
+    writeRepoPath,
+  )
+where
 
 import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Sequence as Seq
@@ -9,7 +15,15 @@ import Data.Void
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace (..), ReadGitRepo (..), ReadRemoteNamespace (..), WriteGitRemotePath (..), WriteGitRepo (..), WriteRemotePath (..), WriteRepo (..))
+import Unison.Codebase.Editor.RemoteRepo
+  ( ReadGitRemoteNamespace (..),
+    ReadGitRepo (..),
+    ReadRemoteNamespace (..),
+    WriteGitRemotePath (..),
+    WriteGitRepo (..),
+    WriteRemotePath (..),
+    WriteRepo (..),
+  )
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
@@ -50,9 +64,9 @@ repoPath = P.label "generic git repo" $ do
         Nothing -> ReadGitRemoteNamespace {repo, sbh = Nothing, path = Path.empty}
         Just (sbh, path) -> ReadGitRemoteNamespace {repo, sbh, path}
 
+-- FIXME parse share paths too
 writeRepo :: P WriteRepo
 writeRepo =
-  -- FIXME parse share paths too
   WriteRepoGit <$> writeGitRepo
 
 writeGitRepo :: P WriteGitRepo

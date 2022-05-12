@@ -1737,7 +1737,7 @@ handleDependents hq = do
 -- | Handle a @gist@ command.
 handleGist :: MonadUnliftIO m => GistInput -> Action' m v ()
 handleGist (GistInput repo) =
-  doPushRemoteBranch repo Path.relativeEmpty' SyncMode.ShortCircuit Nothing
+  doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
 
 handlePullFromUnisonShare :: MonadIO m => Text -> Path -> Action' m v ()
 handlePullFromUnisonShare remoteRepo remotePath = undefined
@@ -1752,47 +1752,42 @@ handlePullFromUnisonShare remoteRepo remotePath = undefined
 --   Right causalHash -> do
 --     undefined
 
--- | Either perform a "normal" push (updating a remote path), which takes a 'PushBehavior' (to control whether creating
--- a new namespace is allowed), or perform a "gisty" push, which doesn't update any paths (and also is currently only
--- uploaded for remote git repos, not remote Share repos).
-data PushFlavor f
-  = NormalPush (f WriteRemotePath) PushBehavior
-  | GistyPush (f WriteGitRepo)
-
 -- | Handle a @push@ command.
 handlePushRemoteBranch ::
   forall m v.
   MonadUnliftIO m =>
   -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
-  PushFlavor Maybe ->
+  Maybe WriteRemotePath ->
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
   Path' ->
+  -- | The push behavior (whether the remote branch is required to be empty or non-empty).
+  PushBehavior ->
   SyncMode.SyncMode ->
   Action' m v ()
-handlePushRemoteBranch pushFlavor0 path syncMode = do
-  resolvePushFlavor path pushFlavor0 >>= \case
-    Left output -> respond output
-    Right pushFlavor -> doPushRemoteBranch pushFlavor path syncMode
+handlePushRemoteBranch mayRepo path pushBehavior syncMode =
+  case mayRepo of
+    Nothing ->
+      runExceptT (resolveConfiguredUrl Push path) >>= \case
+        Left output -> respond output
+        Right repo -> push repo
+    Just repo -> push repo
+  where
+    push repo =
+      doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
 
-resolvePushFlavor :: Path' -> PushFlavor Maybe -> Action' m v (Either (Output v) (PushFlavor Identity))
-resolvePushFlavor localPath = \case
-  NormalPush Nothing pushBehavior ->
-    runExceptT do
-      remotePath <- resolveConfiguredUrl Push localPath
-      pure (NormalPush (Identity (WriteRemotePathGit remotePath)) pushBehavior)
-  NormalPush (Just repo) pushBehavior -> pure (Right (NormalPush (Identity repo) pushBehavior))
-  GistyPush Nothing ->
-    runExceptT do
-      WriteGitRemotePath {repo} <- resolveConfiguredUrl Push localPath
-      pure (GistyPush (Identity repo))
-  GistyPush (Just repo) -> pure (Right (GistyPush (Identity repo)))
+-- | Either perform a "normal" push (updating a remote path), which takes a 'PushBehavior' (to control whether creating
+-- a new namespace is allowed), or perform a "gisty" push, which doesn't update any paths (and also is currently only
+-- uploaded for remote git repos, not remote Share repos).
+data PushFlavor
+  = NormalPush WriteRemotePath PushBehavior
+  | GistyPush WriteGitRepo
 
 -- Internal helper that implements pushing to a remote repo, which generalizes @gist@ and @push@.
 doPushRemoteBranch ::
   forall m v.
   MonadUnliftIO m =>
   -- | The repo to push to.
-  PushFlavor Identity ->
+  PushFlavor ->
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
   Path' ->
   SyncMode.SyncMode ->
@@ -1803,7 +1798,7 @@ doPushRemoteBranch pushFlavor localPath syncMode = do
     getAt (Path.resolve currentPath' localPath)
 
   case pushFlavor of
-    NormalPush (Identity (WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath})) pushBehavior ->
+    NormalPush (WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath}) pushBehavior ->
       unlessError do
         let withRemoteRoot :: Branch m -> m (Either (Output v) (Branch m))
             withRemoteRoot remoteRoot = do
@@ -1817,10 +1812,10 @@ doPushRemoteBranch pushFlavor localPath syncMode = do
         withExceptT Output.GitError (syncGitRemoteBranch repo opts withRemoteRoot) >>= \case
           Left output -> respond output
           Right _branch -> respond Success
-    NormalPush (Identity (WriteRemotePathShare WriteShareRemotePath {server, repo, path = remotePath})) pushBehavior ->
+    NormalPush (WriteRemotePathShare WriteShareRemotePath {server, repo, path = remotePath}) pushBehavior ->
       -- let (userSegment :| pathSegments) = undefined
       error "handlePushToUnisonShare _userSegment _pathSegments _localPath pushBehavior"
-    GistyPush (Identity repo) -> do
+    GistyPush repo -> do
       unlessError do
         let opts = PushGitBranchOpts {setRoot = False, syncMode}
         withExceptT Output.GitError (syncGitRemoteBranch repo opts (\_remoteRoot -> pure (Right sourceBranch)))
@@ -2214,14 +2209,14 @@ manageLinks silent srcs mdValues op = do
 resolveConfiguredUrl ::
   PushPull ->
   Path' ->
-  ExceptT (Output v) (Action m i v) WriteGitRemotePath
+  ExceptT (Output v) (Action m i v) WriteRemotePath
 resolveConfiguredUrl pushPull destPath' = ExceptT do
   currentPath' <- use LoopState.currentPath
   let destPath = Path.resolve currentPath' destPath'
   let configKey = gitUrlKey destPath
   (eval . ConfigLookup) configKey >>= \case
     Just url ->
-      case P.parse UriParser.writeGitRepoPath (Text.unpack configKey) url of
+      case P.parse UriParser.writeRepoPath (Text.unpack configKey) url of
         Left e ->
           pure . Left $
             ConfiguredGitUrlParseError pushPull destPath' url (show e)
