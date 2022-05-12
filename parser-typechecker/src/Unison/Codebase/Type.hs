@@ -84,16 +84,16 @@ data Codebase m v a = Codebase
     getRootBranchExists :: m Bool,
     -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
     putRootBranch :: Branch m -> m (),
-    rootBranchUpdates :: m (IO (), IO (Set Branch.CausalHash)),
+    rootBranchUpdates :: m (IO (), IO (Set (Branch.CausalHash m))),
     getShallowBranchForHash :: V2.CausalHash -> m (V2.CausalBranch m),
-    getBranchForHashImpl :: Branch.CausalHash -> m (Maybe (Branch m)),
+    getBranchForHashImpl :: Branch.CausalHash m -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
     --
     -- The terms and type declarations that a branch references must already exist in the codebase.
     putBranch :: Branch m -> m (),
     -- | Check whether the given branch exists in the codebase.
-    branchExists :: Branch.CausalHash -> m Bool,
+    branchExists :: Branch.CausalHash m -> m Bool,
     -- | Get a patch from the codebase.
     getPatch :: Branch.EditHash -> m (Maybe Patch),
     -- | Put a patch into the codebase.
@@ -132,7 +132,7 @@ data Codebase m v a = Codebase
     -- | Delete all watches that were put by 'putWatch'.
     clearWatches :: m (),
     -- | Get the entire reflog.
-    getReflog :: m [Reflog.Entry Branch.CausalHash],
+    getReflog :: m [Reflog.Entry (Branch.CausalHash m)],
     -- | @appendReflog reason before after@ appends a reflog entry.
     --
     -- FIXME: this could have type
@@ -156,17 +156,17 @@ data Codebase m v a = Codebase
     -- | The number of base32 characters needed to distinguish any two branch in the codebase.
     branchHashLength :: m Int,
     -- | Get the set of branches whose hash matches the given prefix.
-    branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.CausalHash),
+    branchHashesByPrefix :: ShortBranchHash -> m (Set (Branch.CausalHash m)),
     -- returns `Nothing` to not implemented, fallback to in-memory
     --    also `Nothing` if no LCA
     -- The result is undefined if the two hashes are not in the codebase.
     -- Use `Codebase.lca` which wraps this in a nice API.
-    lcaImpl :: Maybe (Branch.CausalHash -> Branch.CausalHash -> m (Maybe Branch.CausalHash)),
+    lcaImpl :: Maybe (Branch.CausalHash m -> Branch.CausalHash m -> m (Maybe (Branch.CausalHash m))),
     -- `beforeImpl` returns `Nothing` if not implemented by the codebase
     -- `beforeImpl b1 b2` is undefined if `b2` not in the codebase
     --
     --  Use `Codebase.before` which wraps this in a nice API.
-    beforeImpl :: Maybe (Branch.CausalHash -> Branch.CausalHash -> m Bool),
+    beforeImpl :: Maybe (Branch.CausalHash m -> Branch.CausalHash m -> m Bool),
     -- Use the name lookup index to build a 'Names' for all names found within 'Path' of the current root namespace.
     --
     -- NOTE: this method requires an up-to-date name lookup index, which is
@@ -191,7 +191,7 @@ data PushGitBranchOpts = PushGitBranchOpts
 
 data GitError
   = GitProtocolError GitProtocolError
-  | GitCodebaseError (GitCodebaseError Branch.CausalHash)
+  | GitCodebaseError (GitCodebaseError Hash)
   | GitSqliteCodebaseError GitSqliteCodebaseError
   deriving (Show)
 

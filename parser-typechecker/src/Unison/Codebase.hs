@@ -114,6 +114,7 @@ import qualified Unison.Builtin.Terms as Builtin
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
+import Unison.Codebase.Causal (unCausalHashFor)
 import qualified Unison.Codebase.CodeLookup as CL
 import Unison.Codebase.Editor.Git (withStatus)
 import qualified Unison.Codebase.Editor.Git as Git
@@ -171,7 +172,7 @@ shallowBranchAtPath path causal = do
         Just childCausal -> shallowBranchAtPath p childCausal
 
 -- | Get a branch from the codebase.
-getBranchForHash :: Monad m => Codebase m v a -> Branch.CausalHash -> m (Maybe (Branch m))
+getBranchForHash :: Monad m => Codebase m v a -> Branch.CausalHash m -> m (Maybe (Branch m))
 getBranchForHash codebase h =
   -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
   -- If not found, attempt to find it in the Codebase (sqlite)
@@ -398,7 +399,7 @@ importRemoteBranch codebase ns mode preprocess = runExceptT $ do
         pure $ Branch.headHash processedBranch
   time "load fresh local branch after sync" $ do
     lift (getBranchForHash codebase branchHash) >>= \case
-      Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns branchHash
+      Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns (unCausalHashFor branchHash)
       Just result -> pure $ result
   where
     preprocessOp :: Branch m -> m (Branch m)

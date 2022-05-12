@@ -6,7 +6,7 @@ module Unison.Codebase.Causal.FoldHistory (FoldHistoryResult (..), foldHistoryUn
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
-import Unison.Codebase.Causal (Causal (..), RawHash, pattern Cons, pattern Merge, pattern One)
+import Unison.Codebase.Causal (Causal (..), CausalHashFor, pattern Cons, pattern Merge, pattern One)
 import Unison.Prelude
 import Prelude hiding (head, tail)
 
@@ -21,19 +21,19 @@ data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq, Ord, Show)
 -- NOTE by RÓB: this short-circuits immediately and only looks at the first
 -- entry in the history, since this operation is far too slow to be practical.
 foldHistoryUntil ::
-  forall m h e a.
+  forall m e a.
   (Monad m) =>
   (a -> e -> (a, Bool)) ->
   a ->
-  Causal m h e ->
+  Causal m e ->
   m (FoldHistoryResult a)
 foldHistoryUntil f a c = step a mempty (pure c)
   where
-    step :: a -> Set (RawHash h) -> Seq (Causal m h e) -> m (FoldHistoryResult a)
+    step :: a -> Set (CausalHashFor e) -> Seq (Causal m e) -> m (FoldHistoryResult a)
     step a _seen Seq.Empty = pure (Unsatisfied a)
     step a seen (c Seq.:<| rest)
       | currentHash c `Set.member` seen =
-          step a seen rest
+        step a seen rest
     step a seen (c Seq.:<| rest) = case f a (head c) of
       (a, True) -> pure (Satisfied a)
       (a, False) -> do

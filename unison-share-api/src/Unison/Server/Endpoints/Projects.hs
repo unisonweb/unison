@@ -108,7 +108,7 @@ backendListEntryToProjectListing owner = \case
       ProjectListing
         { owner = owner,
           name = NameSegment.toText name,
-          hash = "#" <> Hash.toBase32HexText (Causal.unRawHash hash)
+          hash = "#" <> Hash.toBase32HexText hash
         }
   _ -> Nothing
 
@@ -136,7 +136,7 @@ serve codebase mayRoot mayOwner = projects
         Just sbh -> do
           h <- Backend.expandShortBranchHash codebase sbh
           mayBranch <- lift $ Codebase.getBranchForHash codebase h
-          whenNothing mayBranch (throwError $ Backend.CouldntLoadBranch h)
+          whenNothing mayBranch (throwError $ Backend.CouldntLoadBranch $ Causal.unCausalHashFor h)
 
       ownerEntries <- lift $ findShallow root
       -- If an owner is provided, we only want projects belonging to them

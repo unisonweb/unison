@@ -33,6 +33,7 @@ import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.HashTags as V2.Hash
 import qualified U.Codebase.Referent as V2
+import U.Util.Hash (Hash)
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -119,7 +120,7 @@ data ShallowListEntry v a
   | ShallowTypeEntry TypeEntry
   | -- The integer here represents the number of children.
     -- it may be omitted depending on the context the query is run in.
-    ShallowBranchEntry NameSegment Branch.CausalHash (Maybe Int)
+    ShallowBranchEntry NameSegment Hash (Maybe Int)
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
@@ -140,8 +141,8 @@ data BackendError
       -- ^ namespace
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
-  | NoBranchForHash Branch.CausalHash
-  | CouldntLoadBranch Branch.CausalHash
+  | NoBranchForHash Hash
+  | CouldntLoadBranch Hash
   | MissingSignatureForTerm Reference
 
 data BackendEnv = BackendEnv
@@ -493,7 +494,7 @@ lsBranch codebase b = do
   let branchEntries =
         [ ShallowBranchEntry
             ns
-            (Branch.headHash b)
+            (Causal.unCausalHashFor $ Branch.headHash b)
             (Just $ defnCount b)
           | (ns, b) <- Map.toList $ Branch.nonEmptyChildren b0
         ]
@@ -553,7 +554,7 @@ lsShallowBranch codebase b0 = do
     let v1Ref = Cv.reference2to1 r
     ShallowTypeEntry <$> typeListEntry codebase v1Ref (hqType b0 ns v1Ref)
   let branchEntries =
-        [ ShallowBranchEntry (Cv.namesegment2to1 ns) (Cv.causalHash2to1 . V2Causal.causalHash $ h) Nothing
+        [ ShallowBranchEntry (Cv.namesegment2to1 ns) (Causal.unCausalHashFor . Cv.causalHash2to1 . V2Causal.causalHash $ h) Nothing
           | (ns, h) <- Map.toList $ V2Branch.children b0
         ]
       patchEntries =
@@ -765,7 +766,7 @@ data DefinitionResults v = DefinitionResults
   }
 
 expandShortBranchHash ::
-  Monad m => Codebase m v a -> ShortBranchHash -> Backend m Branch.CausalHash
+  Monad m => Codebase m v a -> ShortBranchHash -> Backend m (Branch.CausalHash m)
 expandShortBranchHash codebase hash = do
   hashSet <- lift $ Codebase.branchHashesByPrefix codebase hash
   len <- lift $ Codebase.branchHashLength codebase
@@ -776,7 +777,7 @@ expandShortBranchHash codebase hash = do
       throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
-getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (V2Branch.CausalBranch m)
+getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe (Branch.CausalHash m) -> Path -> Backend m (V2Branch.CausalBranch m)
 getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
   shallowRoot <- case mayRootHash of
     Nothing -> lift (Codebase.getShallowRootBranch codebase)
@@ -809,7 +810,7 @@ mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes ::
   Path ->
-  Maybe Branch.CausalHash ->
+  Maybe (Branch.CausalHash IO) ->
   Maybe Width ->
   Suffixify ->
   Rt.Runtime Symbol ->
@@ -1070,7 +1071,7 @@ bestNameForType ppe width =
     . TypePrinter.pretty0 @v ppe mempty (-1)
     . Type.ref ()
 
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (Names, Names)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash m) -> Path -> Backend m (Names, Names)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   case mbh of
@@ -1081,7 +1082,7 @@ scopedNamesForBranchHash codebase mbh path = do
         pure $ prettyAndParseNamesForBranch rootBranch (AllNames path)
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
-      if (Causal.unRawHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
+      if (Causal.unCausalHashFor bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
         then indexPrettyAndParseNames
         else flip prettyAndParseNamesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
   where
@@ -1091,12 +1092,12 @@ scopedNamesForBranchHash codebase mbh path = do
       pure (ScopedNames.parseNames names, ScopedNames.prettyNames names)
 
 resolveCausalHash ::
-  Monad m => Maybe Branch.CausalHash -> Codebase m v a -> Backend m (Branch m)
+  Monad m => Maybe (Branch.CausalHash m) -> Codebase m v a -> Backend m (Branch m)
 resolveCausalHash h codebase = case h of
   Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
-    whenNothing mayBranch (throwError $ NoBranchForHash bhash)
+    whenNothing mayBranch (throwError $ NoBranchForHash (Causal.unCausalHashFor bhash))
 
 resolveRootBranchHash ::
   Monad m => Maybe ShortBranchHash -> Codebase m v a -> Backend m (Branch m)

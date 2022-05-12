@@ -3,10 +3,10 @@
 module Unison.Codebase.Branch.Type where
 
 import Control.Lens
+import Data.Coerce (coerce)
 import Data.Map (Map)
 import Data.Set (Set)
-import Unison.Codebase.Branch.Raw (Raw)
-import Unison.Codebase.Causal.Type (Causal)
+import Unison.Codebase.Causal.Type (Causal, CausalHashFor (CausalHashFor))
 import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch)
@@ -23,13 +23,14 @@ import Unison.Util.Relation (Relation)
 newtype Branch m = Branch {_history :: UnwrappedBranch m}
   deriving (Eq, Ord)
 
-type UnwrappedBranch m = Causal m Raw (Branch0 m)
+type UnwrappedBranch m = Causal m (Branch0 m)
 
 -- | A Hash for a causal, a.k.a. a namespace AND its history.
-type CausalHash = Causal.RawHash Raw
+-- It's weird that this needs an `m`, but it's more annoying to find any better way to do it.
+type CausalHash m = Causal.CausalHashFor (Branch0 m)
 
 -- | A Hash for a namespace itself, it doesn't incorporate any history.
-newtype NamespaceHash = NamespaceHash {unNamespaceHash :: Hash.Hash}
+type NamespaceHash m = Hash.HashFor (Branch0 m)
 
 type EditHash = Hash.Hash
 
@@ -38,8 +39,11 @@ type Star r n = Metadata.Star r n
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
 
-headHash :: Branch m -> CausalHash
-headHash (Branch c) = Causal.currentHash c
+headHash :: Branch m -> CausalHash m
+headHash (Branch c) = toCausalHash $ Causal.currentHash c
+
+toCausalHash :: CausalHashFor (Branch0 m) -> CausalHash m
+toCausalHash = coerce
 
 -- | A node in the Unison namespace hierarchy.
 --

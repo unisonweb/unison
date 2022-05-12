@@ -1,11 +1,13 @@
 module Unison.Hashing.V2.Hashable
   ( Hashable (..),
+    hashFor,
+    HashFor (..),
   )
 where
 
 import Data.Int (Int64)
 import Data.Set (Set)
-import Unison.Hash (Hash (..))
+import Unison.Hash (Hash (..), HashFor (..))
 import qualified Unison.Hashing.V2.Tokenizable as Tokenizable
 
 -- | This typeclass provides a mechanism for obtaining a content-based hash for Unison types &
@@ -23,3 +25,6 @@ instance Tokenizable.Tokenizable a => Hashable (Set a) where
 
 instance Hashable Int64 where
   hash = Tokenizable.hashTokenizable
+
+hashFor :: Hashable t => t -> HashFor t
+hashFor = HashFor . hash

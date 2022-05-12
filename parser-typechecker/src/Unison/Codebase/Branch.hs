@@ -14,7 +14,6 @@ module Unison.Codebase.Branch
     NamespaceHash,
     CausalHash,
     EditHash,
-    pattern Hash,
 
     -- * Branch construction
     branch0,
@@ -309,8 +308,6 @@ discardHistory b =
 before :: Monad m => Branch m -> Branch m -> m Bool
 before (Branch b1) (Branch b2) = Causal.before b1 b2
 
-pattern Hash h = Causal.RawHash h
-
 -- | what does this do? —AI
 toList0 :: Branch0 m -> [(Path, Branch0 m)]
 toList0 = go Path.empty
@@ -375,7 +372,7 @@ step f = runIdentity . stepM (Identity . f)
 -- | Perform an update over the current branch and create a new causal step.
 stepM :: (Monad n, Applicative m) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepM f = \case
-  Branch (Causal.One _h e) | e == empty0 -> Branch . Causal.one <$> f empty0
+  Branch (Causal.One _h _ e) | e == empty0 -> Branch . Causal.one <$> f empty0
   b -> mapMOf history (Causal.stepDistinctM f) b
 
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
@@ -645,8 +642,8 @@ transform f b = case _history b of
     transformB0s ::
       Functor m =>
       (forall a. m a -> n a) ->
-      Causal m Raw (Branch0 m) ->
-      Causal m Raw (Branch0 n)
+      Causal m (Branch0 m) ->
+      Causal m (Branch0 n)
     transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
 
 -- | Traverse the head branch of all direct children.
