@@ -117,8 +117,10 @@ import qualified Unison.Referent' as Referent
 import qualified Unison.Result as Result
 import Unison.Server.Backend (ShallowListEntry (..), TermEntry (..), TypeEntry (..))
 import qualified Unison.Server.SearchResult' as SR'
+import qualified Unison.Share.Sync as Sync
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
+import qualified Unison.Sync.Types as Sync
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TermPrinter
@@ -1576,7 +1578,24 @@ notifyUser dir o = case o of
           "Host names should NOT include a schema or path."
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
-  ShareError {} -> wundefined
+  ShareError x -> case x of
+    ShareErrorCheckAndSetPush e -> case e of
+      (Sync.CheckAndSetPushErrorHashMismatch Sync.HashMismatch {path, expectedHash, actualHash}) -> wundefined
+      (Sync.CheckAndSetPushErrorNoWritePermission sharePath) -> wundefined
+      (Sync.CheckAndSetPushErrorServerMissingDependencies hashes) -> wundefined
+    ShareErrorFastForwardPush e -> case e of
+      (Sync.FastForwardPushErrorNoHistory sharePath) -> wundefined
+      (Sync.FastForwardPushErrorNoReadPermission sharePath) -> wundefined
+      Sync.FastForwardPushErrorNotFastForward -> wundefined
+      (Sync.FastForwardPushErrorNoWritePermission sharePath) -> wundefined
+      (Sync.FastForwardPushErrorServerMissingDependencies hashes) -> wundefined
+    ShareErrorPull e -> case e of
+      (Sync.PullErrorGetCausalHashByPath (Sync.GetCausalHashByPathErrorNoReadPermission sharePath)) -> wundefined
+      (Sync.PullErrorNoHistoryAtPath sharePath) -> wundefined
+    ShareErrorGetCausalHashByPath gchbpe -> case gchbpe of
+      (Sync.GetCausalHashByPathErrorNoReadPermission sharePath) -> wundefined
+    where
+      y = ()
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
