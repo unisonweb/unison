@@ -60,9 +60,10 @@ import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
 import qualified Unison.Codebase.Editor.Propagate as Propagate
 import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRemoteNamespace,
+  ( ReadGitRemoteNamespace (..),
     ReadRemoteNamespace (..),
     ReadRepo (ReadRepoGit),
+    ReadShareRemoteNamespace (..),
     ShareRepo (ShareRepo),
     WriteGitRemotePath (..),
     WriteGitRepo,
@@ -72,8 +73,6 @@ import Unison.Codebase.Editor.RemoteRepo
     printNamespace,
     writePathToRead,
     writeToReadGit,
-    pattern ReadGitRemoteNamespace,
-    pattern ReadShareRemoteNamespace,
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as ReadGitRemoteNamespace (ReadGitRemoteNamespace (..))
 import qualified Unison.Codebase.Editor.Slurp as Slurp
@@ -1673,30 +1672,31 @@ handleCreatePullRequest :: MonadUnliftIO m => ReadRemoteNamespace -> ReadRemoteN
 handleCreatePullRequest baseRepo0 headRepo0 = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
+
+  let block baseBranch headBranch = do
+        merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
+        (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
+        pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
+
   case (baseRepo0, headRepo0) of
     (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceGit headRepo) -> do
       result <-
         viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch -> do
           viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch -> do
-            merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
-            (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
-            pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
+            block baseBranch headBranch
       case join result of
         Left gitErr -> respond (Output.GitError gitErr)
         Right diff -> respondNumbered diff
-
--- (ReadGitRemoteNamespace baseRepo, ReadShareRemoteNamespace headRepo@(headRepo', _, _)) -> do
---   importRemoteShareBranch headRepo' undefined undefined >>= \case
---     Left () -> respond (error "bad pull")
---     Right headBranch -> do
---       result <-
---         viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch -> do
---           merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
---           (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
---           pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
---       case result of
---         Left gitErr -> respond (Output.GitError gitErr)
---         Right diff -> respondNumbered diff
+    (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceShare headRepo) -> do
+      importRemoteShareBranch headRepo >>= \case
+        Left () -> respond (error "bad pull")
+        Right headBranch -> do
+          result <-
+            viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch -> do
+              block baseBranch headBranch
+          case result of
+            Left gitErr -> respond (Output.GitError gitErr)
+            Right diff -> respondNumbered diff
 
 handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
 handleDependents hq = do
@@ -2246,9 +2246,8 @@ viewRemoteGitBranch ns gitBranchBehavior action = do
   eval $ ViewRemoteGitBranch ns gitBranchBehavior action
 
 -- todo: support the full ReadShareRemoteNamespace eventually, in place of (ShareRepo, Text, Path)
-importRemoteShareBranch ::
-  ShareRepo -> Text -> Path -> Action' m v (Either () (Branch m))
-importRemoteShareBranch url repoName path = undefined
+importRemoteShareBranch :: ReadShareRemoteNamespace -> Action' m v (Either () (Branch m))
+importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = undefined
 
 -- | Given the current root branch of a remote
 -- (or an empty branch if no root branch exists)
