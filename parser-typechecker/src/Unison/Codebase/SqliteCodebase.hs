@@ -42,7 +42,6 @@ import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
-import Unison.Codebase.Causal (unCausalHashFor)
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
 import qualified Unison.Codebase.Editor.Git as Git
@@ -275,7 +274,7 @@ sqliteCodebase debugName root localOrRemote action = do
             Sqlite.runTransaction conn do
               CodebaseOps.putRootBranch rootBranchCache (Branch.transform (Sqlite.unsafeIO . runInIO) branch1)
 
-        rootBranchUpdates :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, a)) -> m (IO (), IO (Set (Branch.CausalHash m)))
+        rootBranchUpdates :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, a)) -> m (IO (), IO (Set Branch.CausalHash))
         rootBranchUpdates _rootBranchCache = do
           -- branchHeadChanges      <- TQueue.newIO
           -- (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
@@ -316,7 +315,7 @@ sqliteCodebase debugName root localOrRemote action = do
 
         -- if this blows up on cromulent hashes, then switch from `hashToHashId`
         -- to one that returns Maybe.
-        getBranchForHash :: Branch.CausalHash m -> m (Maybe (Branch m))
+        getBranchForHash :: Branch.CausalHash -> m (Maybe (Branch m))
         getBranchForHash h =
           Sqlite.runReadOnlyTransaction conn \run ->
             fmap (Branch.transform run) <$> run (CodebaseOps.getBranchForHash getDeclType h)
@@ -326,7 +325,7 @@ sqliteCodebase debugName root localOrRemote action = do
           withRunInIO \runInIO ->
             Sqlite.runTransaction conn (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch))
 
-        isCausalHash :: Branch.CausalHash m -> m Bool
+        isCausalHash :: Branch.CausalHash -> m Bool
         isCausalHash h =
           Sqlite.runTransaction conn (CodebaseOps.isCausalHash h)
 
@@ -383,7 +382,7 @@ sqliteCodebase debugName root localOrRemote action = do
         clearWatches =
           Sqlite.runTransaction conn CodebaseOps.clearWatches
 
-        getReflog :: m [Reflog.Entry (Branch.CausalHash m)]
+        getReflog :: m [Reflog.Entry Branch.CausalHash]
         getReflog =
           liftIO $
             ( do
@@ -437,11 +436,11 @@ sqliteCodebase debugName root localOrRemote action = do
         referentsByPrefix sh =
           Sqlite.runTransaction conn (CodebaseOps.referentsByPrefix getDeclType sh)
 
-        branchHashesByPrefix :: ShortBranchHash -> m (Set (Branch.CausalHash m))
+        branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.CausalHash)
         branchHashesByPrefix sh =
           Sqlite.runTransaction conn (CodebaseOps.branchHashesByPrefix sh)
 
-        sqlLca :: Branch.CausalHash m -> Branch.CausalHash m -> m (Maybe (Branch.CausalHash m))
+        sqlLca :: Branch.CausalHash -> Branch.CausalHash -> m (Maybe (Branch.CausalHash))
         sqlLca h1 h2 =
           Sqlite.runTransaction conn (CodebaseOps.sqlLca h1 h2)
     let codebase =
@@ -550,7 +549,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
               processBranches rest
             do
               when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in dest db"
-              let h2 = CausalHash . Cv.hash1to2 $ Causal.unCausalHashFor h
+              let h2 = CausalHash . Cv.hash1to2 $ Causal.unCausalHash h
               runSrc (Q.loadCausalHashIdByCausalHash h2) >>= \case
                 Just chId -> do
                   when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
@@ -588,7 +587,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
   time "SyncInternal.processBranches" $ processBranches [B bHash (pure b)]
 
 data Entity m
-  = B (Branch.CausalHash m) (m (Branch m))
+  = B Branch.CausalHash (m (Branch m))
   | O Hash
 
 instance Show (Entity m) where
@@ -714,7 +713,7 @@ viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
                 (Codebase1.getBranchForHash codebase h) >>= \case
                   Just b -> pure b
                   Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh (Set.map unCausalHashFor branchCompletions)
+              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
         case Branch.getAt path branch of
           Just b -> action (b, remotePath)
           Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
@@ -803,7 +802,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
         CreatedCodebase -> pure ()
       run (setRepoRoot newBranchHash)
     repoString = Text.unpack $ printWriteRepo repo
-    setRepoRoot :: Branch.CausalHash m -> Sqlite.Transaction ()
+    setRepoRoot :: Branch.CausalHash -> Sqlite.Transaction ()
     setRepoRoot h = do
       let h2 = Cv.causalHash1to2 h
           err = error $ "Called SqliteCodebase.setNamespaceRoot on unknown causal hash " ++ show h2

@@ -359,12 +359,12 @@ hashPatch = Hashing.Patch.hashPatch . m2hPatch
 hashBranch0 :: Memory.Branch.Branch0 m -> Hash
 hashBranch0 = Hashing.Branch.hashBranch . m2hBranch0
 
-hashCausal :: Hashable e => e -> Set (Memory.Causal.CausalHashFor e) -> (Memory.Causal.CausalHashFor e, HashFor e)
+hashCausal :: Hashable e => e -> Set Memory.Causal.CausalHash -> (Memory.Causal.CausalHash, HashFor e)
 hashCausal e tails =
   let valueHash@(HashFor vh) = (Hashable.hashFor e)
       causalHash =
-        Memory.Causal.CausalHashFor . Hashing.Causal.hashCausal $
-          Hashing.Causal.Causal vh (Set.map Memory.Causal.unCausalHashFor tails)
+        Memory.Causal.CausalHash . Hashing.Causal.hashCausal $
+          Hashing.Causal.Causal vh (Set.map Memory.Causal.unCausalHash tails)
    in (causalHash, valueHash)
 
 m2hBranch0 :: Memory.Branch.Branch0 m -> Hashing.Branch.Raw
@@ -417,7 +417,7 @@ m2hBranch0 b =
     doChildren ::
       Map Memory.NameSegment.NameSegment (Memory.Branch.Branch m) ->
       Map Hashing.Branch.NameSegment Hash
-    doChildren = Map.bimap m2hNameSegment (Memory.Causal.unCausalHashFor . Memory.Branch.headHash)
+    doChildren = Map.bimap m2hNameSegment (Memory.Causal.unCausalHash . Memory.Branch.headHash)
 
 m2hNameSegment :: Memory.NameSegment.NameSegment -> Hashing.Branch.NameSegment
 m2hNameSegment (Memory.NameSegment.NameSegment s) = Hashing.Branch.NameSegment s

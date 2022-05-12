@@ -92,7 +92,7 @@ import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0 (..),
-    CausalHash,
+    CausalHash (..),
     EditHash,
     NamespaceHash,
     Star,

@@ -6,7 +6,7 @@
 
 module Unison.Codebase.Causal.Type
   ( Causal (..),
-    CausalHashFor (..),
+    CausalHash (..),
     pattern One,
     pattern Cons,
     pattern Merge,
@@ -44,11 +44,9 @@ import Prelude hiding (head, read, tail)
 -}
 
 -- | Represents a hash of a causal containing values of the provided type.
-newtype CausalHashFor (t :: k) = CausalHashFor {unCausalHashFor :: Hash}
-  deriving (Eq, Ord, Generic)
-
-instance Show (CausalHashFor a) where
-  show = show . unCausalHashFor
+newtype CausalHash = CausalHash {unCausalHash :: Hash}
+  deriving newtype (Show)
+  deriving stock (Eq, Ord, Generic)
 
 instance (Show e) => Show (Causal m e) where
   show = \case
@@ -60,31 +58,31 @@ instance (Show e) => Show (Causal m e) where
 -- an index; e.g. h = Branch00, e = Branch0 m
 data Causal m e
   = UnsafeOne
-      { currentHash :: CausalHashFor e,
+      { currentHash :: CausalHash,
         valueHash :: HashFor e,
         head :: e
       }
   | UnsafeCons
-      { currentHash :: CausalHashFor e,
+      { currentHash :: CausalHash,
         valueHash :: HashFor e,
         head :: e,
-        tail :: (CausalHashFor e, m (Causal m e))
+        tail :: (CausalHash, m (Causal m e))
       }
   | -- The merge operation `<>` flattens and normalizes for order
     UnsafeMerge
-      { currentHash :: CausalHashFor e,
+      { currentHash :: CausalHash,
         valueHash :: HashFor e,
         head :: e,
-        tails :: Map (CausalHashFor e) (m (Causal m e))
+        tails :: Map (CausalHash) (m (Causal m e))
       }
 
-pattern One :: CausalHashFor e -> HashFor e -> e -> Causal m e
+pattern One :: CausalHash -> HashFor e -> e -> Causal m e
 pattern One h eh e <- UnsafeOne h eh e
 
-pattern Cons :: CausalHashFor e -> HashFor e -> e -> (CausalHashFor e, m (Causal m e)) -> Causal m e
+pattern Cons :: CausalHash -> HashFor e -> e -> (CausalHash, m (Causal m e)) -> Causal m e
 pattern Cons h eh e tail <- UnsafeCons h eh e tail
 
-pattern Merge :: CausalHashFor e -> HashFor e -> e -> Map (CausalHashFor e) (m (Causal m e)) -> Causal m e
+pattern Merge :: CausalHash -> HashFor e -> e -> Map (CausalHash) (m (Causal m e)) -> Causal m e
 pattern Merge h eh e tails <- UnsafeMerge h eh e tails
 
 {-# COMPLETE One, Cons, Merge #-}

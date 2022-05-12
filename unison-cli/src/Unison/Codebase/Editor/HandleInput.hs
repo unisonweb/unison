@@ -828,9 +828,9 @@ loop = do
                     else case Branch._history b of
                       Causal.One {} ->
                         respondNumbered $ History diffCap sbhLength acc (EndOfLog $ Branch.headHash b)
-                      Causal.Merge _ _ tails ->
+                      Causal.Merge _ _ _ tails ->
                         respondNumbered $ History diffCap sbhLength acc (MergeTail (Branch.headHash b) $ Map.keys tails)
-                      Causal.Cons _ _ tail -> do
+                      Causal.Cons _ _ _ tail -> do
                         b' <- fmap Branch.Branch . eval . Eval $ snd tail
                         let elem = (Branch.headHash b, Branch.namesDiff b' b)
                         doHistory (n + 1) b' (elem : acc)
@@ -1582,9 +1582,9 @@ loop = do
                   goCausal ((h, mc) : queue) = do
                     ifM (seen h) (goCausal queue) do
                       lift mc >>= \case
-                        Causal.One h b -> goBranch h b mempty queue
-                        Causal.Cons h b tail -> goBranch h b [fst tail] (tail : queue)
-                        Causal.Merge h b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
+                        Causal.One h _bh b -> goBranch h b mempty queue
+                        Causal.Cons h _bh b tail -> goBranch h b [fst tail] (tail : queue)
+                        Causal.Merge h _bh b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
                   goBranch :: forall m. Monad m => Branch.CausalHash -> Branch0 m -> [Branch.CausalHash] -> [(Branch.CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.CausalHash) m ()
                   goBranch h b (Set.fromList -> causalParents) queue = case b of
                     Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ ->

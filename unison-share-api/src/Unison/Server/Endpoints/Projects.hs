@@ -136,7 +136,7 @@ serve codebase mayRoot mayOwner = projects
         Just sbh -> do
           h <- Backend.expandShortBranchHash codebase sbh
           mayBranch <- lift $ Codebase.getBranchForHash codebase h
-          whenNothing mayBranch (throwError $ Backend.CouldntLoadBranch $ Causal.unCausalHashFor h)
+          whenNothing mayBranch (throwError $ Backend.CouldntLoadBranch $ Causal.unCausalHash h)
 
       ownerEntries <- lift $ findShallow root
       -- If an owner is provided, we only want projects belonging to them

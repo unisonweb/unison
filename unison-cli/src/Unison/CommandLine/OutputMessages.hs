@@ -1127,7 +1127,7 @@ notifyUser dir o = case o of
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"
-            <> P.group ("(" <> P.text (Hash.base32Hex $ Causal.unRawHash hash) <> ")")
+            <> P.group ("(" <> P.text (Hash.base32Hex $ Causal.unCausalHash hash) <> ")")
             <> "from the repository at"
             <> prettyReadRepo repo
       CouldntLoadSyncedBranch ns h ->
@@ -1410,10 +1410,10 @@ notifyUser dir o = case o of
           Nothing -> go (renderLine head [] : output) queue
           Just tails -> go (renderLine head tails : output) (queue ++ tails)
           where
-            renderHash = take 10 . Text.unpack . Hash.base32Hex . Causal.unRawHash
+            renderHash = take 10 . Text.unpack . Hash.base32Hex . Causal.unCausalHash
             renderLine head tail =
               (renderHash head) ++ "|" ++ intercalateMap " " renderHash tail
-                ++ case Map.lookup (Hash.base32Hex . Causal.unRawHash $ head) tags of
+                ++ case Map.lookup (Hash.base32Hex . Causal.unCausalHash $ head) tags of
                   Just t -> "|tag: " ++ t
                   Nothing -> ""
             -- some specific hashes that we want to label in the output
@@ -1634,8 +1634,8 @@ prettyAbsolute = P.blue . P.shown
 prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
-prettyCausalHash :: IsString s => Causal.RawHash x -> P.Pretty s
-prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unRawHash $ hash)
+prettyCausalHash :: IsString s => Causal.CausalHash -> P.Pretty s
+prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unCausalHash $ hash)
 
 formatMissingStuff ::
   (Show tm, Show typ) =>
@@ -2888,4 +2888,4 @@ endangeredDependentsTable ppeDecl m =
 
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
 displayBranchHash :: Branch.CausalHash -> String
-displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . Causal.unRawHash
+displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . Causal.unCausalHash

@@ -359,11 +359,11 @@ constructorType2to1 = \case
 hash2to1 :: V2.Hash.Hash -> Hash
 hash2to1 (V2.Hash.Hash sbs) = V1.Hash sbs
 
-causalHash2to1 :: V2.CausalHash -> V1.Branch.CausalHash m
-causalHash2to1 = V1.Causal.CausalHashFor . hash2to1 . V2.unCausalHash
+causalHash2to1 :: V2.CausalHash -> V1.Branch.CausalHash
+causalHash2to1 = V1.Causal.CausalHash . hash2to1 . V2.unCausalHash
 
-causalHash1to2 :: V1.Branch.CausalHash m -> V2.CausalHash
-causalHash1to2 = V2.CausalHash . hash1to2 . V1.Causal.unCausalHashFor
+causalHash1to2 :: V1.Branch.CausalHash -> V2.CausalHash
+causalHash1to2 = V2.CausalHash . hash1to2 . V1.Causal.unCausalHash
 
 ttype2to1 :: V2.Term.Type V2.Symbol -> V1.Type.Type V1.Symbol Ann
 ttype2to1 = type2to1' reference2to1
@@ -445,7 +445,7 @@ causalbranch1to2 :: forall m. Monad m => V1.Branch.Branch m -> V2.Branch.CausalB
 causalbranch1to2 (V1.Branch.Branch c) =
   causal1to2 causalHash1to2 branchHash1to2 branch1to2 c
   where
-    causal1to2 :: forall m h2c h2e e e2. (Monad m, Ord h2c) => (V1.Causal.CausalHashFor e -> h2c) -> (V1.HashFor e -> h2e) -> (e -> m e2) -> V1.Causal.Causal m e -> V2.Causal m h2c h2e e2
+    causal1to2 :: forall m h2c h2e e e2. (Monad m, Ord h2c) => (V1.Causal.CausalHash -> h2c) -> (V1.HashFor e -> h2e) -> (e -> m e2) -> V1.Causal.Causal m e -> V2.Causal m h2c h2e e2
     causal1to2 h1to2 eh1to2 e1to2 = \case
       V1.Causal.One hc eh e -> V2.Causal (h1to2 hc) (eh1to2 eh) Map.empty (e1to2 e)
       V1.Causal.Cons hc eh e (ht, mt) -> V2.Causal (h1to2 hc) (eh1to2 eh) (Map.singleton (h1to2 ht) (causal1to2 h1to2 eh1to2 e1to2 <$> mt)) (e1to2 e)
