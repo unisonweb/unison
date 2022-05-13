@@ -1,9 +1,6 @@
 {-# LANGUAGE MagicHash #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module Unison.CommandLine.OutputMessages where
@@ -273,9 +270,9 @@ notifyNumbered o = case o of
       then
         ( P.wrap $
             "Looks like there's no difference between "
-              <> prettyRemoteNamespace baseRepo
+              <> prettyReadRemoteNamespace baseRepo
               <> "and"
-              <> prettyRemoteNamespace headRepo
+              <> prettyReadRemoteNamespace headRepo
               <> ".",
           mempty
         )
@@ -290,8 +287,8 @@ notifyNumbered o = case o of
                     P.indentN 2 $
                       IP.makeExampleNoBackticks
                         IP.loadPullRequest
-                        [ (prettyRemoteNamespace baseRepo),
-                          (prettyRemoteNamespace headRepo)
+                        [ (prettyReadRemoteNamespace baseRepo),
+                          (prettyReadRemoteNamespace headRepo)
                         ],
                     "",
                     p
@@ -590,8 +587,8 @@ notifyUser dir o = case o of
   LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath ->
     pure $
       P.lines
-        [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> "."),
-          P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> "."),
+        [ P.wrap $ "I checked out" <> prettyReadRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> "."),
+          P.wrap $ "I checked out" <> prettyReadRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> "."),
           "",
           P.wrap $ "The merged result is in" <> P.group (prettyPath' mergedPath <> "."),
           P.wrap $ "The (squashed) merged result is in" <> P.group (prettyPath' squashedPath <> "."),
@@ -617,11 +614,11 @@ notifyUser dir o = case o of
             "Use"
               <> IP.makeExample
                 IP.push
-                [prettyRemoteNamespace baseNS, prettyPath' mergedPath]
+                [prettyReadRemoteNamespace baseNS, prettyPath' mergedPath]
               <> "or"
               <> IP.makeExample
                 IP.push
-                [prettyRemoteNamespace baseNS, prettyPath' squashedPath]
+                [prettyReadRemoteNamespace baseNS, prettyPath' squashedPath]
               <> "to push the changes."
         ]
   DisplayDefinitions outputLoc ppe types terms ->
@@ -1143,7 +1140,7 @@ notifyUser dir o = case o of
         P.wrap $
           "I just finished importing the branch" <> P.red (P.shown h)
             <> "from"
-            <> P.red (prettyRemoteNamespace (RemoteRepo.ReadRemoteNamespaceGit ns))
+            <> P.red (prettyReadRemoteNamespace (RemoteRepo.ReadRemoteNamespaceGit ns))
             <> "but now I can't find it."
       CouldntFindRemoteBranch repo path ->
         P.wrap $
@@ -1387,12 +1384,12 @@ notifyUser dir o = case o of
     pure . P.callout "😶" $
       P.wrap $
         prettyPath' dest <> "was already up-to-date with"
-          <> P.group (prettyRemoteNamespace ns <> ".")
+          <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated" <> prettyPath' dest <> "from"
-          <> P.group (prettyRemoteNamespace ns <> ".")
+          <> P.group (prettyReadRemoteNamespace ns <> ".")
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
@@ -1536,7 +1533,7 @@ notifyUser dir o = case o of
       P.lines
         [ "Gist created. Pull via:",
           "",
-          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyRemoteNamespace remoteNamespace)
+          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyReadRemoteNamespace remoteNamespace)
         ]
   InitiateAuthFlow authURI -> do
     pure $
@@ -1617,7 +1614,7 @@ notifyUser dir o = case o of
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedNonEmptyPushDest writeRemotePath =
       P.lines
-        [ "The remote namespace" <> prettyRemoteNamespace <> "is empty.",
+        [ "The remote namespace" <> prettyReadRemoteNamespace <> "is empty.",
           "",
           "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
         ]
