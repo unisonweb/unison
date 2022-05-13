@@ -1,3 +1,4 @@
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
@@ -31,6 +32,8 @@ import System.Directory
     getHomeDirectory,
   )
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
+import U.Util.Base32Hex (Base32Hex)
+import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
 import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
@@ -44,7 +47,7 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo (ReadRepoGit), WriteRepo (WriteRepoGit))
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo (ReadRepoGit), WriteRemotePath, WriteRepo (WriteRepoGit))
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import qualified Unison.Codebase.Editor.TodoOutput as TO
@@ -117,10 +120,11 @@ import qualified Unison.Referent' as Referent
 import qualified Unison.Result as Result
 import Unison.Server.Backend (ShallowListEntry (..), TermEntry (..), TypeEntry (..))
 import qualified Unison.Server.SearchResult' as SR'
-import qualified Unison.Share.Sync as Sync
+import qualified Unison.Share.Sync as Share
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
-import qualified Unison.Sync.Types as Sync
+import qualified Unison.Sync.Types as Share
+import qualified Unison.Sync.Types as Share.Hash (toBase32Hex)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TermPrinter
@@ -508,9 +512,13 @@ showListEdits patch ppe =
 prettyURI :: URI -> Pretty
 prettyURI = P.bold . P.blue . P.shown
 
-prettyRemoteNamespace :: ReadRemoteNamespace -> Pretty
-prettyRemoteNamespace =
+prettyReadRemoteNamespace :: ReadRemoteNamespace -> Pretty
+prettyReadRemoteNamespace =
   P.group . P.blue . P.text . RemoteRepo.printNamespace
+
+-- prettyWriteRemotePath :: WriteRemotePath -> Pretty
+-- prettyWriteRemotePath =
+--   P.group . P.blue . P.text . RemoteRepo.printWriteRemotePath
 
 notifyUser :: forall v. Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
@@ -1514,18 +1522,15 @@ notifyUser dir o = case o of
         <> ( terms <&> \(n, r) ->
                prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)
            )
-  RefusedToPush pushBehavior ->
-    (pure . P.warnCallout . P.lines) case pushBehavior of
+  RefusedToPush pushBehavior path ->
+    (pure . P.warnCallout) case pushBehavior of
       PushBehavior.RequireEmpty ->
-        [ "The remote namespace is not empty.",
-          "",
-          "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
-        ]
-      PushBehavior.RequireNonEmpty ->
-        [ "The remote namespace is empty.",
-          "",
-          "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
-        ]
+        P.lines
+          [ "The remote namespace is not empty.",
+            "",
+            "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
+          ]
+      PushBehavior.RequireNonEmpty -> expectedNonEmptyPushDest path
   GistCreated remoteNamespace ->
     pure $
       P.lines
@@ -1578,26 +1583,44 @@ notifyUser dir o = case o of
           "Host names should NOT include a schema or path."
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
-  ShareError x -> case x of
+  ShareError x -> (pure . P.warnCallout) case x of
     ShareErrorCheckAndSetPush e -> case e of
-      (Sync.CheckAndSetPushErrorHashMismatch Sync.HashMismatch {path, expectedHash, actualHash}) -> wundefined
-      (Sync.CheckAndSetPushErrorNoWritePermission sharePath) -> wundefined
-      (Sync.CheckAndSetPushErrorServerMissingDependencies hashes) -> wundefined
+      (Share.CheckAndSetPushErrorHashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash}) ->
+        P.wrap $ P.text "It looks like someone modified" <> prettySharePath sharePath <> P.text "an instant before you. Pull and try again? 🤞"
+      (Share.CheckAndSetPushErrorNoWritePermission sharePath) ->
+        P.wrap $ P.text "The server said you don't have permission to write" <> prettySharePath sharePath
+      (Share.CheckAndSetPushErrorServerMissingDependencies hashes) ->
+        -- maybe todo: stuff in all the args to CheckAndSetPush
+        P.lines
+          [ P.wrap
+              ( P.text "The server was expecting to have received some stuff from UCM during that last command, but claims to have not received it."
+                  <> P.text "(This is probably a bug in UCM.)"
+              ),
+            P.text "",
+            P.text "The hashes it expected are:\n"
+              <> P.indentN 2 (P.lines (map prettyShareHash (toList hashes)))
+          ]
     ShareErrorFastForwardPush e -> case e of
-      (Sync.FastForwardPushErrorNoHistory sharePath) -> wundefined
-      (Sync.FastForwardPushErrorNoReadPermission sharePath) -> wundefined
-      Sync.FastForwardPushErrorNotFastForward -> wundefined
-      (Sync.FastForwardPushErrorNoWritePermission sharePath) -> wundefined
-      (Sync.FastForwardPushErrorServerMissingDependencies hashes) -> wundefined
+      (Share.FastForwardPushErrorNoHistory _sharePath) -> expectedNonEmptyPushDest
+      (Share.FastForwardPushErrorNoReadPermission sharePath) -> wundefined
+      Share.FastForwardPushErrorNotFastForward -> wundefined
+      (Share.FastForwardPushErrorNoWritePermission sharePath) -> wundefined
+      (Share.FastForwardPushErrorServerMissingDependencies hashes) -> wundefined
     ShareErrorPull e -> case e of
-      (Sync.PullErrorGetCausalHashByPath (Sync.GetCausalHashByPathErrorNoReadPermission sharePath)) -> wundefined
-      (Sync.PullErrorNoHistoryAtPath sharePath) -> wundefined
+      (Share.PullErrorGetCausalHashByPath (Share.GetCausalHashByPathErrorNoReadPermission sharePath)) -> wundefined
+      (Share.PullErrorNoHistoryAtPath sharePath) -> wundefined
     ShareErrorGetCausalHashByPath gchbpe -> case gchbpe of
-      (Sync.GetCausalHashByPathErrorNoReadPermission sharePath) -> wundefined
+      (Share.GetCausalHashByPathErrorNoReadPermission sharePath) -> wundefined
     where
       y = ()
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
+    expectedNonEmptyPushDest writeRemotePath =
+      P.lines
+        [ "The remote namespace" <> prettyRemoteNamespace <> "is empty.",
+          "",
+          "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
+        ]
 
 -- do
 --   when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
@@ -1652,6 +1675,18 @@ prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
 prettyCausalHash :: IsString s => Causal.RawHash x -> P.Pretty s
 prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unRawHash $ hash)
+
+prettyBase32Hex :: IsString s => Base32Hex -> P.Pretty s
+prettyBase32Hex = P.text . Base32Hex.toText
+
+prettyBase32Hex# :: IsString s => Base32Hex -> P.Pretty s
+prettyBase32Hex# b = P.group $ "#" <> prettyBase32Hex b
+
+prettyHash :: IsString s => Hash.Hash -> P.Pretty s
+prettyHash = prettyBase32Hex# . Hash.toBase32Hex
+
+prettyShareHash :: IsString s => Share.Hash -> P.Pretty s
+prettyShareHash = prettyBase32Hex# . Share.Hash.toBase32Hex
 
 formatMissingStuff ::
   (Show tm, Show typ) =>

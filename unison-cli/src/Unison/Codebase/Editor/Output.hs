@@ -250,7 +250,7 @@ data Output v
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-    RefusedToPush PushBehavior
+    RefusedToPush PushBehavior WriteRemotePath
   | -- | @GistCreated repo@ means a causal was just published to @repo@.
     GistCreated ReadRemoteNamespace
   | -- | Directs the user to URI to begin an authorization flow.

@@ -75,6 +75,11 @@ printNamespace = \case
             then mempty
             else "." <> Path.toText path
 
+printWriteRemotePath :: WriteRemotePath -> Text
+printWriteRemotePath = \case
+  WriteRemotePathGit WriteGitRemotePath {repo, path} -> wundefined
+  WriteRemotePathShare WriteShareRemotePath {server, repo, path} -> wundefined
+
 -- | print remote path
 printHead :: WriteRepo -> Path -> Text
 printHead repo path =
