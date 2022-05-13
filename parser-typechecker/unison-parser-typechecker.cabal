@@ -260,6 +260,7 @@ library
     , safe-exceptions
     , semialign
     , servant
+    , servant-client
     , servant-docs
     , servant-openapi3
     , servant-server

@@ -4,6 +4,7 @@
 module Unison.Codebase.Editor.RemoteRepo where
 
 import qualified Data.Text as Text
+import qualified Servant.Client as Servant
 import qualified U.Util.Monoid as Monoid
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
@@ -22,6 +23,9 @@ data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}
 -- FIXME rename to ShareServer
 data ShareRepo = ShareRepo
   deriving (Eq, Show)
+
+shareRepoToBaseUrl :: ShareRepo -> Servant.BaseUrl
+shareRepoToBaseUrl ShareRepo = Servant.BaseUrl Servant.Https "share.unison.cloud" 443 ""
 
 data WriteRepo
   = WriteRepoGit WriteGitRepo
@@ -75,6 +79,7 @@ printNamespace = \case
             then mempty
             else "." <> Path.toText path
 
+-- | Render a 'WriteRemotePath' as text.
 printWriteRemotePath :: WriteRemotePath -> Text
 printWriteRemotePath = \case
   WriteRemotePathGit WriteGitRemotePath {repo, path} -> wundefined

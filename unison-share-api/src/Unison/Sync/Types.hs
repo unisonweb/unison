@@ -6,6 +6,7 @@ module Unison.Sync.Types
     RepoName (..),
     Path (..),
     pathRepoName,
+    pathCodebasePath,
 
     -- ** Hash types
     Hash (..),
@@ -90,7 +91,7 @@ instance FromJSON Base64Bytes where
   parseJSON = Aeson.withText "Base64" \txt -> do
     either fail (pure . Base64Bytes) $ convertFromBase Base64 (Text.encodeUtf8 txt)
 
-newtype RepoName = RepoName Text
+newtype RepoName = RepoName {unRepoName :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
 data Path = Path
@@ -105,6 +106,9 @@ data Path = Path
 
 pathRepoName :: Path -> RepoName
 pathRepoName (Path (p :| _)) = RepoName p
+
+pathCodebasePath :: Path -> [Text]
+pathCodebasePath (Path (_ :| ps)) = ps
 
 instance ToJSON Path where
   toJSON (Path segments) =

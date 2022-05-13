@@ -44,7 +44,13 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo (ReadRepoGit), WriteRemotePath, WriteRepo (WriteRepoGit))
+import Unison.Codebase.Editor.RemoteRepo
+  ( ReadRemoteNamespace,
+    ReadRepo (..),
+    WriteRemotePath (..),
+    WriteRepo (..),
+    WriteShareRemotePath (..),
+  )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import qualified Unison.Codebase.Editor.TodoOutput as TO
@@ -91,6 +97,7 @@ import Unison.NamePrinter
     styleHashQualified,
     styleHashQualified',
   )
+import Unison.NameSegment (NameSegment (..))
 import Unison.Names (Names (..))
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as Names
@@ -513,9 +520,9 @@ prettyReadRemoteNamespace :: ReadRemoteNamespace -> Pretty
 prettyReadRemoteNamespace =
   P.group . P.blue . P.text . RemoteRepo.printNamespace
 
--- prettyWriteRemotePath :: WriteRemotePath -> Pretty
--- prettyWriteRemotePath =
---   P.group . P.blue . P.text . RemoteRepo.printWriteRemotePath
+prettyWriteRemotePath :: WriteRemotePath -> Pretty
+prettyWriteRemotePath =
+  P.group . P.blue . P.text . RemoteRepo.printWriteRemotePath
 
 notifyUser :: forall v. Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
@@ -1598,7 +1605,17 @@ notifyUser dir o = case o of
               <> P.indentN 2 (P.lines (map prettyShareHash (toList hashes)))
           ]
     ShareErrorFastForwardPush e -> case e of
-      (Share.FastForwardPushErrorNoHistory _sharePath) -> expectedNonEmptyPushDest
+      (Share.FastForwardPushErrorNoHistory sharePath) ->
+        expectedNonEmptyPushDest
+          -- Recover the original WriteRemotePath from the information in the error, which is thrown from generic share
+          -- client code that doesn't know about WriteRemotePath
+          ( WriteRemotePathShare
+              WriteShareRemotePath
+                { server = RemoteRepo.ShareRepo,
+                  repo = Share.unRepoName (Share.pathRepoName sharePath),
+                  path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
+                }
+          )
       (Share.FastForwardPushErrorNoReadPermission sharePath) -> wundefined
       Share.FastForwardPushErrorNotFastForward -> wundefined
       (Share.FastForwardPushErrorNoWritePermission sharePath) -> wundefined
@@ -1609,12 +1626,12 @@ notifyUser dir o = case o of
     ShareErrorGetCausalHashByPath gchbpe -> case gchbpe of
       (Share.GetCausalHashByPathErrorNoReadPermission sharePath) -> wundefined
     where
-      y = ()
+      prettySharePath = undefined
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedNonEmptyPushDest writeRemotePath =
       P.lines
-        [ "The remote namespace" <> prettyReadRemoteNamespace <> "is empty.",
+        [ "The remote namespace" <> prettyWriteRemotePath writeRemotePath <> "is empty.",
           "",
           "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
         ]

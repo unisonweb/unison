@@ -27,7 +27,6 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
-import qualified Servant.Client as Servant
 import qualified Text.Megaparsec as P
 import qualified U.Codebase.Sqlite.Operations as Ops
 import U.Util.Timing (unsafeTime)
@@ -70,6 +69,7 @@ import Unison.Codebase.Editor.RemoteRepo
     WriteRemotePath (..),
     WriteShareRemotePath (..),
     printNamespace,
+    shareRepoToBaseUrl,
     writePathToRead,
     writeToReadGit,
   )
@@ -1815,7 +1815,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
   let localPath = Path.resolve currentPath' localPath0
 
   case pushFlavor of
-    NormalPush (WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath}) pushBehavior -> do
+    NormalPush (writeRemotePath@(WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath})) pushBehavior -> do
       sourceBranch <- getAt localPath
       let withRemoteRoot :: Branch m -> m (Either (Output v) (Branch m))
           withRemoteRoot remoteRoot = do
@@ -1823,7 +1823,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
                 -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
                 f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
             Branch.modifyAtM remotePath f remoteRoot & \case
-              Nothing -> pure (Left $ RefusedToPush pushBehavior)
+              Nothing -> pure (Left $ RefusedToPush pushBehavior writeRemotePath)
               Just newRemoteRoot -> pure (Right newRemoteRoot)
       let opts = PushGitBranchOpts {setRoot = True, syncMode}
       runExceptT (syncGitRemoteBranch repo opts withRemoteRoot) >>= \case
@@ -1858,9 +1858,6 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
         PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
-shareRepoToBaseURL :: ShareRepo -> Servant.BaseUrl
-shareRepoToBaseURL ShareRepo = Servant.BaseUrl Servant.Https "share.unison.cloud" 443 ""
-
 handlePushToUnisonShare :: MonadIO m => WriteShareRemotePath -> Path.Absolute -> PushBehavior -> Action' m v ()
 handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
@@ -1878,7 +1875,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                 push =
                   Share.checkAndSetPush
                     authHTTPClient
-                    (shareRepoToBaseURL server)
+                    (shareRepoToBaseUrl server)
                     connection
                     sharePath
                     Nothing
@@ -1889,7 +1886,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
           PushBehavior.RequireNonEmpty -> do
             let push :: IO (Either Share.FastForwardPushError ())
                 push =
-                  Share.fastForwardPush authHTTPClient (shareRepoToBaseURL server) connection sharePath localCausalHash
+                  Share.fastForwardPush authHTTPClient (shareRepoToBaseUrl server) connection sharePath localCausalHash
             liftIO push >>= \case
               Left err -> respond (Output.ShareError (ShareErrorFastForwardPush err))
               Right () -> pure ()
@@ -2268,7 +2265,7 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} =
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
     LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
-    liftIO (Share.pull authHTTPClient (shareRepoToBaseURL server) connection shareFlavoredPath) >>= \case
+    liftIO (Share.pull authHTTPClient (shareRepoToBaseUrl server) connection shareFlavoredPath) >>= \case
       Left e -> pure (Left (Output.ShareErrorPull e))
       Right causalHash -> do
         (eval . Eval) (Codebase.getBranchForHash codebase (Cv.branchHash2to1 causalHash)) >>= \case
