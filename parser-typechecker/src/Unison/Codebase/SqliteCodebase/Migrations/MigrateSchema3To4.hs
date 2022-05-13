@@ -71,7 +71,3 @@ fixBadNamespaceHashes = do
                 SET value_hash_id = ?
                 WHERE value_hash_id = ?
               |]
-
-log :: String -> Sqlite.Transaction ()
-log =
-  Sqlite.unsafeIO . putStrLn
