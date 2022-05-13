@@ -28,6 +28,7 @@ import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -139,7 +140,7 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
     Subnamespace $
       NamedNamespace
         { namespaceName = NameSegment.toText name,
-          namespaceHash = "#" <> Hash.toBase32HexText hash
+          namespaceHash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash)
         }
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name

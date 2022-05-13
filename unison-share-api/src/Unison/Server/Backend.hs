@@ -33,7 +33,6 @@ import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.HashTags as V2.Hash
 import qualified U.Codebase.Referent as V2
-import U.Util.Hash (Hash)
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -120,7 +119,7 @@ data ShallowListEntry v a
   | ShallowTypeEntry TypeEntry
   | -- The integer here represents the number of children.
     -- it may be omitted depending on the context the query is run in.
-    ShallowBranchEntry NameSegment Hash (Maybe Int)
+    ShallowBranchEntry NameSegment Branch.CausalHash (Maybe Int)
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
@@ -141,8 +140,8 @@ data BackendError
       -- ^ namespace
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
-  | NoBranchForHash Hash
-  | CouldntLoadBranch Hash
+  | NoBranchForHash Branch.CausalHash
+  | CouldntLoadBranch Branch.CausalHash
   | MissingSignatureForTerm Reference
 
 data BackendEnv = BackendEnv
@@ -494,7 +493,7 @@ lsBranch codebase b = do
   let branchEntries =
         [ ShallowBranchEntry
             ns
-            (Causal.unCausalHash $ Branch.headHash b)
+            (Branch.headHash b)
             (Just $ defnCount b)
           | (ns, b) <- Map.toList $ Branch.nonEmptyChildren b0
         ]
@@ -554,7 +553,7 @@ lsShallowBranch codebase b0 = do
     let v1Ref = Cv.reference2to1 r
     ShallowTypeEntry <$> typeListEntry codebase v1Ref (hqType b0 ns v1Ref)
   let branchEntries =
-        [ ShallowBranchEntry (Cv.namesegment2to1 ns) (Causal.unCausalHash . Cv.causalHash2to1 . V2Causal.causalHash $ h) Nothing
+        [ ShallowBranchEntry (Cv.namesegment2to1 ns) (Cv.causalHash2to1 . V2Causal.causalHash $ h) Nothing
           | (ns, h) <- Map.toList $ V2Branch.children b0
         ]
       patchEntries =
@@ -1097,7 +1096,7 @@ resolveCausalHash h codebase = case h of
   Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
-    whenNothing mayBranch (throwError $ NoBranchForHash (Causal.unCausalHash bhash))
+    whenNothing mayBranch (throwError $ NoBranchForHash bhash)
 
 resolveRootBranchHash ::
   Monad m => Maybe ShortBranchHash -> Codebase m v a -> Backend m (Branch m)
