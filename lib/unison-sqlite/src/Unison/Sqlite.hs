@@ -105,6 +105,7 @@ module Unison.Sqlite
     Sqlite.Simple.SQLData (..),
     Sqlite.Simple.ToField (toField),
     Sqlite.Simple.ToRow (toRow),
+    Sqlite.Simple.Only (..),
   )
 where
 
