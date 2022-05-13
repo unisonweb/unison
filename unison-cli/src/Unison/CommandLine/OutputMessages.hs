@@ -1591,8 +1591,7 @@ notifyUser dir o = case o of
     ShareErrorCheckAndSetPush e -> case e of
       (Share.CheckAndSetPushErrorHashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash}) ->
         P.wrap $ P.text "It looks like someone modified" <> prettySharePath sharePath <> P.text "an instant before you. Pull and try again? 🤞"
-      (Share.CheckAndSetPushErrorNoWritePermission sharePath) ->
-        P.wrap $ P.text "The server said you don't have permission to write" <> prettySharePath sharePath
+      (Share.CheckAndSetPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
       (Share.CheckAndSetPushErrorServerMissingDependencies hashes) ->
         -- maybe todo: stuff in all the args to CheckAndSetPush
         P.lines
@@ -1616,17 +1615,22 @@ notifyUser dir o = case o of
                   path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
                 }
           )
-      (Share.FastForwardPushErrorNoReadPermission sharePath) -> wundefined
+      (Share.FastForwardPushErrorNoReadPermission sharePath) -> noReadPermission sharePath
       Share.FastForwardPushErrorNotFastForward -> wundefined
-      (Share.FastForwardPushErrorNoWritePermission sharePath) -> wundefined
+      (Share.FastForwardPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
       (Share.FastForwardPushErrorServerMissingDependencies hashes) -> wundefined
     ShareErrorPull e -> case e of
-      (Share.PullErrorGetCausalHashByPath (Share.GetCausalHashByPathErrorNoReadPermission sharePath)) -> wundefined
+      (Share.PullErrorGetCausalHashByPath err) -> handleGetCausalHashByPathError err
       (Share.PullErrorNoHistoryAtPath sharePath) -> wundefined
-    ShareErrorGetCausalHashByPath gchbpe -> case gchbpe of
-      (Share.GetCausalHashByPathErrorNoReadPermission sharePath) -> wundefined
+    ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
     where
-      prettySharePath = undefined
+      prettySharePath sharePath = undefined
+      handleGetCausalHashByPathError = \case
+        Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermission sharePath
+      noReadPermission sharePath =
+        P.wrap $ P.text "The server said you don't have permission to read" <> prettySharePath sharePath
+      noWritePermission sharePath =
+        P.wrap $ P.text "The server said you don't have permission to write" <> prettySharePath sharePath
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedNonEmptyPushDest writeRemotePath =
