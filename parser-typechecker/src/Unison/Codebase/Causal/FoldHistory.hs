@@ -29,7 +29,7 @@ foldHistoryUntil ::
   m (FoldHistoryResult a)
 foldHistoryUntil f a c = step a mempty (pure c)
   where
-    step :: a -> Set (CausalHash) -> Seq (Causal m e) -> m (FoldHistoryResult a)
+    step :: a -> Set CausalHash -> Seq (Causal m e) -> m (FoldHistoryResult a)
     step a _seen Seq.Empty = pure (Unsatisfied a)
     step a seen (c Seq.:<| rest)
       | currentHash c `Set.member` seen =

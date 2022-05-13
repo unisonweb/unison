@@ -513,7 +513,7 @@ referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to
         ]
   pure . Set.fromList $ termReferents <> declReferents
 
-branchHashesByPrefix :: ShortBranchHash -> Transaction (Set (Branch.CausalHash))
+branchHashesByPrefix :: ShortBranchHash -> Transaction (Set Branch.CausalHash)
 branchHashesByPrefix sh = do
   -- given that a Branch is shallow, it's really `CausalHash` that you'd
   -- refer to to specify a full namespace w/ history.
@@ -521,7 +521,7 @@ branchHashesByPrefix sh = do
   cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
   pure $ Set.map (Causal.CausalHash . Cv.hash2to1 . unCausalHash) cs
 
-sqlLca :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe (Branch.CausalHash))
+sqlLca :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Branch.CausalHash)
 sqlLca h1 h2 = do
   h3 <- Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
   pure (Cv.causalHash2to1 <$> h3)

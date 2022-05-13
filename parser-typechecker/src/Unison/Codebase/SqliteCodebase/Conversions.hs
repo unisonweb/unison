@@ -292,9 +292,7 @@ hash1to2 :: Hash -> V2.Hash
 hash1to2 (V1.Hash bs) = V2.Hash.Hash bs
 
 branchHash1to2 :: V1.Branch.NamespaceHash m -> V2.BranchHash
-branchHash1to2 = undefined
-
--- V2.CausalHash . hash1to2 . V1.Causal.unRawHash
+branchHash1to2 = V2.BranchHash . hash1to2 . V1.genericHash
 
 branchHash2to1 :: forall m. V2.BranchHash -> V1.Branch.NamespaceHash m
 branchHash2to1 = V1.HashFor . hash2to1 . V2.unBranchHash

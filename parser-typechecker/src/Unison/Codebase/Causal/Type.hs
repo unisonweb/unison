@@ -1,6 +1,4 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -73,7 +71,7 @@ data Causal m e
       { currentHash :: CausalHash,
         valueHash :: HashFor e,
         head :: e,
-        tails :: Map (CausalHash) (m (Causal m e))
+        tails :: Map CausalHash (m (Causal m e))
       }
 
 pattern One :: CausalHash -> HashFor e -> e -> Causal m e
@@ -82,7 +80,7 @@ pattern One h eh e <- UnsafeOne h eh e
 pattern Cons :: CausalHash -> HashFor e -> e -> (CausalHash, m (Causal m e)) -> Causal m e
 pattern Cons h eh e tail <- UnsafeCons h eh e tail
 
-pattern Merge :: CausalHash -> HashFor e -> e -> Map (CausalHash) (m (Causal m e)) -> Causal m e
+pattern Merge :: CausalHash -> HashFor e -> e -> Map CausalHash (m (Causal m e)) -> Causal m e
 pattern Merge h eh e tails <- UnsafeMerge h eh e tails
 
 {-# COMPLETE One, Cons, Merge #-}
