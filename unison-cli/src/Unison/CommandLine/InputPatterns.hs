@@ -1273,7 +1273,7 @@ parsePushPath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePa
 parsePushPath label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeRepoPath label (Text.pack input))
+    (P.parse UriParser.writeRemotePath label (Text.pack input))
 
 squashMerge :: InputPattern
 squashMerge =

@@ -63,7 +63,6 @@ import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadRemoteNamespace (..),
     ReadShareRemoteNamespace (..),
-    ShareRepo (ShareRepo),
     WriteGitRemotePath (..),
     WriteGitRepo,
     WriteRemotePath (..),
@@ -2231,7 +2230,7 @@ resolveConfiguredUrl pushPull destPath' = ExceptT do
   let configKey = gitUrlKey destPath
   (eval . ConfigLookup) configKey >>= \case
     Just url ->
-      case P.parse UriParser.writeRepoPath (Text.unpack configKey) url of
+      case P.parse UriParser.writeRemotePath (Text.unpack configKey) url of
         Left e ->
           pure . Left $
             ConfiguredGitUrlParseError pushPull destPath' url (show e)

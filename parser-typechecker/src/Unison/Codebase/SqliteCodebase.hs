@@ -50,7 +50,7 @@ import Unison.Codebase.Editor.RemoteRepo
     ReadGitRepo,
     WriteGitRepo (..),
     WriteRepo (..),
-    printWriteRepo,
+    printWriteGitRepo,
     writeToReadGit,
   )
 import qualified Unison.Codebase.GitError as GitError
@@ -810,7 +810,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
                 Just True -> pure ()
         CreatedCodebase -> pure ()
       run (setRepoRoot newBranchHash)
-    repoString = Text.unpack $ printWriteRepo (WriteRepoGit repo)
+    repoString = Text.unpack $ printWriteGitRepo repo
     setRepoRoot :: Branch.Hash -> Sqlite.Transaction ()
     setRepoRoot h = do
       let h2 = Cv.causalHash1to2 h

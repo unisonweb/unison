@@ -51,45 +51,38 @@ writePathToRead = \case
   WriteRemotePathShare WriteShareRemotePath {server, repo, path} ->
     ReadRemoteNamespaceShare ReadShareRemoteNamespace {server, repo, path}
 
-printReadRepo :: ReadRepo -> Text
-printReadRepo = \case
-  ReadRepoGit ReadGitRepo {url, ref} -> url <> Monoid.fromMaybe (Text.cons ':' <$> ref)
-  ReadRepoShare s -> printShareRepo s
+printReadGitRepo :: ReadGitRepo -> Text
+printReadGitRepo ReadGitRepo {url, ref} =
+  "git(" <> url <> Monoid.fromMaybe (Text.cons ':' <$> ref) <> ")"
 
-printShareRepo :: ShareRepo -> Text
-printShareRepo = const "PLACEHOLDER"
-
-printWriteRepo :: WriteRepo -> Text
-printWriteRepo = \case
-  WriteRepoGit WriteGitRepo {url, branch} -> url <> Monoid.fromMaybe (Text.cons ':' <$> branch)
-  WriteRepoShare s -> printShareRepo s
+printWriteGitRepo :: WriteGitRepo -> Text
+printWriteGitRepo WriteGitRepo {url, branch} = "git(" <> url <> Monoid.fromMaybe (Text.cons ':' <$> branch) <> ")"
 
 -- | print remote namespace
 printNamespace :: ReadRemoteNamespace -> Text
 printNamespace = \case
   ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo, sbh, path} ->
-    printReadRepo (ReadRepoGit repo) <> case sbh of
-      Nothing ->
-        if path == Path.empty
-          then mempty
-          else ":." <> Path.toText path
-      Just sbh ->
-        ":#" <> SBH.toText sbh
-          <> if path == Path.empty
-            then mempty
-            else "." <> Path.toText path
+    printReadGitRepo repo <> maybePrintSBH sbh <> maybePrintPath path
+    where
+      maybePrintSBH = \case
+        Nothing -> mempty
+        Just sbh -> "#" <> SBH.toText sbh
+  ReadRemoteNamespaceShare ReadShareRemoteNamespace {server = ShareRepo, repo, path} ->
+    repo <> maybePrintPath path
 
 -- | Render a 'WriteRemotePath' as text.
 printWriteRemotePath :: WriteRemotePath -> Text
 printWriteRemotePath = \case
-  WriteRemotePathGit WriteGitRemotePath {repo, path} -> wundefined
-  WriteRemotePathShare WriteShareRemotePath {server, repo, path} -> wundefined
+  WriteRemotePathGit WriteGitRemotePath {repo, path} ->
+    printWriteGitRepo repo <> maybePrintPath path
+  WriteRemotePathShare WriteShareRemotePath {server = ShareRepo, repo, path} ->
+    repo <> maybePrintPath path
 
--- | print remote path
-printHead :: WriteRepo -> Path -> Text
-printHead repo path =
-  printWriteRepo repo
-    <> if path == Path.empty then mempty else ":." <> Path.toText path
+maybePrintPath :: Path -> Text
+maybePrintPath path =
+  if path == Path.empty
+    then mempty
+    else "." <> Path.toText path
 
 data ReadRemoteNamespace
   = ReadRemoteNamespaceGit ReadGitRemoteNamespace

@@ -134,7 +134,7 @@ checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash = do
 data FastForwardPushError
   = FastForwardPushErrorNoHistory Share.Path
   | FastForwardPushErrorNoReadPermission Share.Path
-  | FastForwardPushErrorNotFastForward
+  | FastForwardPushErrorNotFastForward Share.Path
   | FastForwardPushErrorNoWritePermission Share.Path
   | FastForwardPushErrorServerMissingDependencies (NESet Share.Hash)
 
@@ -160,7 +160,7 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash =
       Sqlite.runTransaction conn (fancyBfs localHeadHash remoteHeadHash) >>= \case
         -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
         -- fast-forward push, so we don't bother trying - just report the error now.
-        Nothing -> pure (Left FastForwardPushErrorNotFastForward)
+        Nothing -> pure (Left (FastForwardPushErrorNotFastForward path))
         Just localTailHashes ->
           doUpload (localHeadHash :| localTailHashes) >>= \case
             False -> pure (Left (FastForwardPushErrorNoWritePermission path))
@@ -173,7 +173,7 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash =
                 -- path but moments ago!
                 Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory path)
                 Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission path)
-                Share.FastForwardPathNotFastForward _ -> Left FastForwardPushErrorNotFastForward
+                Share.FastForwardPathNotFastForward _ -> Left (FastForwardPushErrorNotFastForward path)
   where
     doUpload :: List.NonEmpty CausalHash -> IO Bool
     -- Maybe we could save round trips here by including the tail (or the head *and* the tail) as "extra hashes", but we

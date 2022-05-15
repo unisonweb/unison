@@ -1589,10 +1589,45 @@ notifyUser dir o = case o of
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
   ShareError x -> (pure . P.warnCallout) case x of
     ShareErrorCheckAndSetPush e -> case e of
-      (Share.CheckAndSetPushErrorHashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash}) ->
+      (Share.CheckAndSetPushErrorHashMismatch Share.HashMismatch {path = sharePath, expectedHash = _expectedHash, actualHash = _actualHash}) ->
         P.wrap $ P.text "It looks like someone modified" <> prettySharePath sharePath <> P.text "an instant before you. Pull and try again? 🤞"
       (Share.CheckAndSetPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
-      (Share.CheckAndSetPushErrorServerMissingDependencies hashes) ->
+      (Share.CheckAndSetPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
+    ShareErrorFastForwardPush e -> case e of
+      (Share.FastForwardPushErrorNoHistory sharePath) ->
+        expectedNonEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
+      (Share.FastForwardPushErrorNoReadPermission sharePath) -> noReadPermission sharePath
+      Share.FastForwardPushErrorNotFastForward sharePath ->
+        P.lines $
+          [ P.wrap $
+              "There are some changes at" <> prettySharePath sharePath <> "that aren't in the history you pushed.",
+            "",
+            P.wrap $
+              "If you're sure you got the right paths, try"
+                <> pull
+                <> "to merge these changes locally, then"
+                <> push
+                <> "again."
+          ]
+        where
+          push = P.group . P.backticked . IP.patternName $ IP.push
+          pull = P.group . P.backticked . IP.patternName $ IP.pull
+      (Share.FastForwardPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
+      (Share.FastForwardPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
+    ShareErrorPull e -> case e of
+      (Share.PullErrorGetCausalHashByPath err) -> handleGetCausalHashByPathError err
+      (Share.PullErrorNoHistoryAtPath sharePath) ->
+        P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
+    ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
+    where
+      prettySharePath =
+        prettyRelative
+          . Path.Relative
+          . Path.fromList
+          . coerce @[Text] @[NameSegment]
+          . toList
+          . Share.pathSegments
+      missingDependencies hashes =
         -- maybe todo: stuff in all the args to CheckAndSetPush
         P.lines
           [ P.wrap
@@ -1603,28 +1638,6 @@ notifyUser dir o = case o of
             P.text "The hashes it expected are:\n"
               <> P.indentN 2 (P.lines (map prettyShareHash (toList hashes)))
           ]
-    ShareErrorFastForwardPush e -> case e of
-      (Share.FastForwardPushErrorNoHistory sharePath) ->
-        expectedNonEmptyPushDest
-          -- Recover the original WriteRemotePath from the information in the error, which is thrown from generic share
-          -- client code that doesn't know about WriteRemotePath
-          ( WriteRemotePathShare
-              WriteShareRemotePath
-                { server = RemoteRepo.ShareRepo,
-                  repo = Share.unRepoName (Share.pathRepoName sharePath),
-                  path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
-                }
-          )
-      (Share.FastForwardPushErrorNoReadPermission sharePath) -> noReadPermission sharePath
-      Share.FastForwardPushErrorNotFastForward -> wundefined
-      (Share.FastForwardPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
-      (Share.FastForwardPushErrorServerMissingDependencies hashes) -> wundefined
-    ShareErrorPull e -> case e of
-      (Share.PullErrorGetCausalHashByPath err) -> handleGetCausalHashByPathError err
-      (Share.PullErrorNoHistoryAtPath sharePath) -> wundefined
-    ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
-    where
-      prettySharePath sharePath = undefined
       handleGetCausalHashByPathError = \case
         Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermission sharePath
       noReadPermission sharePath =
@@ -1639,6 +1652,16 @@ notifyUser dir o = case o of
           "",
           "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
         ]
+    sharePathToWriteRemotePathShare sharePath =
+      -- Recover the original WriteRemotePath from the information in the error, which is thrown from generic share
+      -- client code that doesn't know about WriteRemotePath
+      ( WriteRemotePathShare
+          WriteShareRemotePath
+            { server = RemoteRepo.ShareRepo,
+              repo = Share.unRepoName (Share.pathRepoName sharePath),
+              path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
+            }
+      )
 
 -- do
 --   when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
