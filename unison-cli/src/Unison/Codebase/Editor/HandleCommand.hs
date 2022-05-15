@@ -22,8 +22,9 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
-import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UCMVersion, UseCache)
+import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UseCache)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
@@ -151,14 +152,14 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       SyncLocalRootBranch branch -> lift $ do
         setBranchRef branch
         Codebase.putRootBranch codebase branch
-      ViewRemoteBranch ns gitBranchBehavior action -> do
+      ViewRemoteGitBranch ns gitBranchBehavior action -> do
         -- TODO: We probably won'd need to unlift anything once we remove the Command
         -- abstraction.
         toIO <- UnliftIO.askRunInIO
         lift $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (toIO . Free.fold go . action)
-      ImportRemoteBranch ns syncMode preprocess ->
+      ImportRemoteGitBranch ns syncMode preprocess ->
         lift $ Codebase.importRemoteBranch codebase ns syncMode preprocess
-      SyncRemoteBranch repo opts action ->
+      SyncRemoteGitBranch repo opts action ->
         lift $ Codebase.pushGitBranch codebase repo opts action
       LoadTerm r -> lift $ Codebase.getTerm codebase r
       LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r

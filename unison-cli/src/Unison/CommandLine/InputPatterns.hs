@@ -21,7 +21,7 @@ import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Input (Input)
 import qualified Unison.Codebase.Editor.Input as Input
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemotePath, WriteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemotePath)
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.Path as Path
@@ -1086,12 +1086,12 @@ push =
         [] ->
           Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
     )
 
 pushCreate :: InputPattern
@@ -1127,12 +1127,12 @@ pushCreate =
         [] ->
           Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireEmpty SyncMode.ShortCircuit
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
     )
 
 pushExhaustive :: InputPattern
@@ -1155,12 +1155,12 @@ pushExhaustive =
         [] ->
           Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.Complete
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.Complete
+          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireNonEmpty SyncMode.Complete
     )
 
 createPullRequest :: InputPattern
@@ -1263,17 +1263,17 @@ prettyPrintParseError input = \case
           message = [expected] <> catMaybes [found]
        in P.oxfordCommasWith "." message
 
-parseWriteRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteRepo
-parseWriteRepo label input = do
+parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
+parseWriteGitRepo label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeRepo label (Text.pack input))
+    (P.parse UriParser.writeGitRepo label (Text.pack input))
 
 parsePushPath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
 parsePushPath label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeRepoPath label (Text.pack input))
+    (P.parse UriParser.writeRemotePath label (Text.pack input))
 
 squashMerge :: InputPattern
 squashMerge =
@@ -2002,7 +2002,7 @@ gist =
     )
     ( \case
         [repoString] -> do
-          repo <- parseWriteRepo "repo" repoString
+          repo <- parseWriteGitRepo "repo" repoString
           pure (Input.GistI (Input.GistInput repo))
         _ -> Left (showPatternHelp gist)
     )

@@ -1,4 +1,4 @@
-module Unison.Auth.HTTPClient (newAuthorizedHTTPClient, AuthorizedHttpClient(..)) where
+module Unison.Auth.HTTPClient (newAuthorizedHTTPClient, AuthorizedHttpClient (..)) where
 
 import qualified Data.Text.Encoding as Text
 import Network.HTTP.Client (Request)
@@ -7,7 +7,7 @@ import qualified Network.HTTP.Client.TLS as HTTP
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.Tokens (TokenProvider, newTokenProvider)
 import Unison.Auth.Types
-import Unison.Codebase.Editor.Command (UCMVersion)
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Prelude
 import qualified Unison.Util.HTTP as HTTP
 

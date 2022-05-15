@@ -40,12 +40,13 @@ import qualified Text.Megaparsec as P
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Command (LoadSourceResult (..), UCMVersion)
+import Unison.Codebase.Editor.Command (LoadSourceResult (..))
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -425,8 +426,7 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
                 LoopState.Env
                   { LoopState.authHTTPClient = error "Error: No access to authorized requests from transcripts.",
                     LoopState.codebase = codebase,
-                    LoopState.credentialManager = error "Error: No access to credentials from transcripts.",
-                    LoopState.unisonShareUrl = error "Error: No access to Unison Share from transcripts."
+                    LoopState.credentialManager = error "Error: No access to credentials from transcripts."
                   }
           let free = LoopState.runAction env state $ HandleInput.loop
               rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
