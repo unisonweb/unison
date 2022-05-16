@@ -24,6 +24,7 @@ data DebugFlag
   | Sqlite
   | Codebase
   | Auth
+  | Migration
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -39,6 +40,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "SQLITE" -> pure Sqlite
       "CODEBASE" -> pure Codebase
       "AUTH" -> pure Auth
+      "MIGRATION" -> pure Migration
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -57,6 +59,10 @@ debugCodebase = Codebase `Set.member` debugFlags
 debugAuth :: Bool
 debugAuth = Auth `Set.member` debugFlags
 {-# NOINLINE debugAuth #-}
+
+debugMigration :: Bool
+debugMigration = Migration `Set.member` debugFlags
+{-# NOINLINE debugMigration #-}
 
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
@@ -102,3 +108,4 @@ shouldDebug = \case
   Sqlite -> debugSqlite
   Codebase -> debugCodebase
   Auth -> debugAuth
+  Migration -> debugMigration

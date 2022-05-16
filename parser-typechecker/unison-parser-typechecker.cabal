@@ -286,6 +286,7 @@ library
     , unison-sqlite
     , unison-util
     , unison-util-relation
+    , unison-util-serialization
     , unliftio
     , uri-encode
     , utf8-string
