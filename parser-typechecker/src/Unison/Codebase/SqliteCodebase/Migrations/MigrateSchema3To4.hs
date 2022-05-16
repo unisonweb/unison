@@ -7,6 +7,7 @@ import Control.Lens
 import Control.Monad.State
 import Data.Generics.Product
 import qualified Data.Map as Map
+import Data.Semigroup
 import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here)
 import Data.Void
@@ -55,68 +56,40 @@ migrateSchema3To4 :: Sqlite.Transaction ()
 migrateSchema3To4 = do
   Q.expectSchemaVersion 3
   fixBadNamespaceHashes
+  -- Debug.whenDebug Debug.Migration do
+  do
+    log $ "Checking migration success..."
+    assertMigrationSuccess
+    log $ "Checking namespace and causal integrity..."
+    integrityCheckAllBranches
   Q.setSchemaVersion 4
 
 fixBadNamespaceHashes :: Sqlite.Transaction ()
 fixBadNamespaceHashes = do
-  badNamespaces <- Sqlite.queryListRow_ findNamespacesWithCausalHashes
+  badNamespaces <- Sqlite.queryListRow_ findNamespacesWithCausalHashesSql
   let numToMigrate = (length badNamespaces)
   -- Rehash all bad namespaces and return a re-mapping of object IDs to the canonical object for their hash.
   BadNamespaceInfo objectIdRemapping remainingObjects <- flip execStateT (BadNamespaceInfo mempty mempty) $ do
     ifor_ badNamespaces \i (objectId, causalHashId) -> do
       rehashNamespace objectId causalHashId
       lift $ Sqlite.unsafeIO . putStr $ "\r  🏗  " <> show (i + 1) <> " / " <> show numToMigrate <> " entities migrated. 🚧"
+  debugLog $ "object ID remappings: " <> show objectIdRemapping
   for_ remainingObjects $ \objectId -> do
     remapObjectIds objectId objectIdRemapping
-
-  Debug.whenDebug Debug.Migration $ do
-    badNamespaces <- Sqlite.queryListRow_ @(DB.BranchObjectId, DB.CausalHashId) findNamespacesWithCausalHashes
-    when (not . null $ badNamespaces) $ error "Uh-oh, still found bad namespaces after migration."
   where
     remapObjectIds :: DB.BranchObjectId -> Map DB.BranchObjectId DB.BranchObjectId -> Sqlite.Transaction ()
     remapObjectIds objId mapping = do
       dbBranch <- Ops.expectDbBranch objId
-      let maybeRemappedBranch =
+      let (Any changes, remappedBranch) =
             dbBranch & DBBranch.childrenHashes_ %%~ \(childObjId, causalHash) -> do
-              canonicalObjId <- Map.lookup childObjId mapping
-              -- Sanity check that the object ID we're re-mapping to matches the causal.
-              pure (canonicalObjId, causalHash)
+              case Map.lookup childObjId mapping of
+                Just canonicalObjId ->
+                  (Any True, (canonicalObjId, causalHash))
+                Nothing ->
+                  (Any False, (childObjId, causalHash))
 
-      case maybeRemappedBranch of
-        -- Nothing changed, no need to save.
-        Nothing -> pure ()
-        Just remappedBranch -> do
-          replaceBranch objId remappedBranch
-
-      Debug.whenDebug Debug.Migration $ do
-        -- Check the remapped branch if we have one, otherwise sanity check the untouched
-        -- branch.
-        let branch = fromMaybe dbBranch maybeRemappedBranch
-        forOf_ DBBranch.childrenHashes_ branch $ \(childObjId, childCausalHashId) -> do
-          -- Assert the objects all exist
-          Q.loadNamespaceObject @Void (DB.unBranchObjectId childObjId) (const $ Right ()) >>= \case
-            Nothing -> error $ "Expected namespace for object ID: " <> show childObjId
-            Just _ -> pure ()
-          -- Assert the object for the causal hash ID matches the given object Id.
-          Q.loadBranchObjectIdByCausalHashId childCausalHashId >>= \case
-            Nothing -> error $ "Expected branch object for causal hash ID: " <> show childCausalHashId
-            Just foundBranchId
-              | foundBranchId /= childObjId -> do
-                error $ "Expected child branch object to match canonical object ID for causal hash's namespace: " <> show (childCausalHashId, foundBranchId, childObjId)
-              | otherwise -> pure ()
-          pure ()
-
-    findNamespacesWithCausalHashes :: Sqlite.Sql
-    findNamespacesWithCausalHashes =
-      [here|
-        -- Find all namespace object IDs which actually have causal hashes instead of
-        -- namespace hashes as their primary hash.
-        SELECT DISTINCT o.id, o.primary_hash_id
-          FROM causal c
-          LEFT JOIN object o ON o.primary_hash_id = c.self_hash_id
-          WHERE self_hash_id = self_hash_id
-                AND type_id = 2 -- filter for namespaces just to be safe
-        |]
+      when changes $ do
+        replaceBranch objId remappedBranch
 
     replaceBranch :: DB.BranchObjectId -> DBBranch.DbBranch -> Sqlite.Transaction ()
     replaceBranch objId branch = do
@@ -132,19 +105,26 @@ fixBadNamespaceHashes = do
       |]
 
     rehashNamespace :: DB.BranchObjectId -> DB.CausalHashId -> StateT BadNamespaceInfo Sqlite.Transaction ()
-    rehashNamespace objectId incorrectHashIdFromCausal = do
+    rehashNamespace objectId possiblyIncorrectCausalHashId = do
+      lift . debugLog $ "Processing Branch Object ID:" <> show objectId
       dbBranch <- lift $ Ops.expectDbBranch objectId
       newBranchHash <- lift $ Helpers.dbBranchHash dbBranch
+      lift . debugLog $ "New branch hash: " <> show newBranchHash
       correctNamespaceHashId <- lift $ Q.saveBranchHash (H.BranchHash newBranchHash)
+      lift . debugLog $ "New branch hash Id: " <> show newBranchHash
       -- Update the value hash of the bad causal to the correct hash of its namespace.
-      lift $ Sqlite.execute updateCausalValueHash (correctNamespaceHashId, incorrectHashIdFromCausal)
+      lift . debugLog $ "Updating causal value hash (from, to)" <> show (possiblyIncorrectCausalHashId, correctNamespaceHashId)
+      lift $ Sqlite.execute updateCausalValueHash (correctNamespaceHashId, possiblyIncorrectCausalHashId)
       mayCanonical <- lift $ Sqlite.queryMaybeCol getCanonicalObjectForHash (Sqlite.Only $ DB.unBranchHashId correctNamespaceHashId)
+      lift . debugLog $ "(objId, Canonical object ID):" <> show (objectId, mayCanonical)
       case mayCanonical of
         -- If there's an existing canonical object, record the mapping from this object id to
         -- that one.
         Just canonicalObjectId
           | canonicalObjectId /= objectId -> do
+            lift . debugLog $ "Mapping objID: " <> show objectId <> " to canonical: " <> show canonicalObjectId
             canonicalObjectRemapping . at objectId ?= canonicalObjectId
+            lift . debugLog $ "Unilaterally deleting: " <> show objectId
             -- Remove possible foreign-key references before deleting the objects themselves
             lift $ Sqlite.execute deleteHashObjectsByObjectId (Sqlite.Only objectId)
             lift $ Sqlite.execute deleteObjectById (Sqlite.Only objectId)
@@ -154,6 +134,7 @@ fixBadNamespaceHashes = do
         -- If there's no existing canonical object, this object becomes the canonical one by
         -- reassigning its primary hash.
         Nothing -> do
+          lift . debugLog $ "Updating in place: " <> show objectId
           lift $ Sqlite.execute deleteHashObjectsByObjectId (Sqlite.Only objectId)
           lift $ Sqlite.execute updateHashIdForObject (correctNamespaceHashId, objectId)
           lift $ updateHashObjects objectId correctNamespaceHashId
@@ -203,12 +184,55 @@ fixBadNamespaceHashes = do
             WHERE id = ?
           |]
 
--- * Identify all bad causals/namespace objects
+log :: String -> Sqlite.Transaction ()
+log = Sqlite.unsafeIO . putStrLn
 
--- * Rehash all bad namespaces
+debugLog :: String -> Sqlite.Transaction ()
+debugLog = Debug.whenDebug Debug.Migration . Sqlite.unsafeIO . putStrLn
 
--- * Insert each namespace, keeping track of which objects have conflicts and which don't; add objectID to 'canonical' objectID mapping if there's a conflict on primary hash.
+assertMigrationSuccess :: Sqlite.Transaction ()
+assertMigrationSuccess = do
+  Debug.whenDebug Debug.Migration $ do
+    badNamespaces <- Sqlite.queryListRow_ @(DB.BranchObjectId, DB.CausalHashId) findNamespacesWithCausalHashesSql
+    when (not . null $ badNamespaces) $ error "Uh-oh, still found bad namespaces after migration."
 
--- * Delete all 'duplicate' namespaces
+integrityCheckAllBranches :: Sqlite.Transaction ()
+integrityCheckAllBranches = do
+  branchObjIds <- Sqlite.queryListCol_ allBranchObjectIdsSql
+  for_ branchObjIds integrityCheckBranch
+  where
+    allBranchObjectIdsSql :: Sqlite.Sql
+    allBranchObjectIdsSql =
+      [here|
+          SELECT id FROM object WHERE type_id = 2;
+          |]
 
--- * Go through every namespace from the 'bad-namespaces' that didn't map to a canonical namespace, re-map their object IDs to the canonical ones.
+    integrityCheckBranch :: DB.BranchObjectId -> Sqlite.Transaction ()
+    integrityCheckBranch objId = do
+      debugLog $ "Checking integrity of " <> show objId
+      dbBranch <- Ops.expectDbBranch objId
+      forOf_ DBBranch.childrenHashes_ dbBranch $ \(childObjId, childCausalHashId) -> do
+        -- Assert the child branch object exists
+        Q.loadNamespaceObject @Void (DB.unBranchObjectId childObjId) (const $ Right ()) >>= \case
+          Nothing -> error $ "Expected namespace for object ID: " <> show childObjId
+          Just _ -> pure ()
+        -- Assert the object for the causal hash ID matches the given object Id.
+        Q.loadBranchObjectIdByCausalHashId childCausalHashId >>= \case
+          Nothing -> error $ "Expected branch object for causal hash ID: " <> show childCausalHashId
+          Just foundBranchId
+            | foundBranchId /= childObjId -> do
+              error $ "Expected child branch object to match canonical object ID for causal hash's namespace: " <> show (childCausalHashId, foundBranchId, childObjId)
+            | otherwise -> pure ()
+        pure ()
+
+findNamespacesWithCausalHashesSql :: Sqlite.Sql
+findNamespacesWithCausalHashesSql =
+  [here|
+        -- Find all namespace object IDs which actually have causal hashes instead of
+        -- namespace hashes as their primary hash.
+        SELECT DISTINCT o.id, o.primary_hash_id
+          FROM causal c
+          LEFT JOIN object o ON o.primary_hash_id = c.self_hash_id
+          WHERE self_hash_id = self_hash_id
+                AND type_id = 2 -- filter for namespaces just to be safe
+        |]
