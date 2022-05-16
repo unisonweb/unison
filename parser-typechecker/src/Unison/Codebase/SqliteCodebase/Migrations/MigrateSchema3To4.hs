@@ -86,7 +86,6 @@ fixBadNamespaceHashes = do
         -- Nothing changed, no need to save.
         Nothing -> pure ()
         Just remappedBranch -> do
-          -- Sanity check
           replaceBranch objId remappedBranch
 
       Debug.whenDebug Debug.Migration $ do
@@ -146,6 +145,8 @@ fixBadNamespaceHashes = do
         Just canonicalObjectId
           | canonicalObjectId /= objectId -> do
             canonicalObjectRemapping . at objectId ?= canonicalObjectId
+            -- Remove possible foreign-key references before deleting the objects themselves
+            lift $ Sqlite.execute deleteHashObjectsByObjectId (Sqlite.Only objectId)
             lift $ Sqlite.execute deleteObjectById (Sqlite.Only objectId)
           | otherwise -> do
             error $ "Corrected hash for bad namespace is somehow still mapped to the same causal hash. This shouldn't happen.: " <> show (objectId, canonicalObjectId)
@@ -153,7 +154,9 @@ fixBadNamespaceHashes = do
         -- If there's no existing canonical object, this object becomes the canonical one by
         -- reassigning its primary hash.
         Nothing -> do
+          lift $ Sqlite.execute deleteHashObjectsByObjectId (Sqlite.Only objectId)
           lift $ Sqlite.execute updateHashIdForObject (correctNamespaceHashId, objectId)
+          lift $ updateHashObjects objectId correctNamespaceHashId
           remainingBadObjects %= Set.insert objectId
       pure ()
     updateHashIdForObject :: Sqlite.Sql
@@ -162,6 +165,16 @@ fixBadNamespaceHashes = do
           UPDATE object
             SET primary_hash_id = ?
             WHERE id = ?
+          |]
+    -- updateHashObjects ::
+    updateHashObjects (DB.BranchObjectId objId) (DB.BranchHashId newHashId) = do
+      Sqlite.execute deleteOldHashObjsSql (Sqlite.Only objId)
+      Q.saveHashObject newHashId objId 2
+      where
+        deleteOldHashObjsSql =
+          [here|
+          DELETE FROM hash_object
+            WHERE object_id = ?
           |]
     getCanonicalObjectForHash :: Sqlite.Sql
     getCanonicalObjectForHash =
@@ -177,6 +190,12 @@ fixBadNamespaceHashes = do
             SET value_hash_id = ?
             WHERE value_hash_id = ?
           |]
+    deleteHashObjectsByObjectId :: Sqlite.Sql
+    deleteHashObjectsByObjectId =
+      [here|
+          DELETE FROM hash_object
+            WHERE object_id = ?
+    |]
     deleteObjectById :: Sqlite.Sql
     deleteObjectById =
       [here|
