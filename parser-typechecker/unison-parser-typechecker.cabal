@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.6.
 --
 -- see: https://github.com/sol/hpack
 
@@ -367,37 +367,116 @@ test-suite parser-typechecker-tests
       ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
-      async
+      ListLike
+    , NanoID
+    , aeson
+    , ansi-terminal
+    , async
     , base
+    , base16 >=0.2.1.0
+    , base64-bytestring
+    , basement
+    , binary
+    , bytes
     , bytestring
+    , bytestring-to-vector
+    , cereal
     , code-page
-    , containers
+    , configurator
+    , containers >=0.6.3
+    , cryptonite
+    , data-default
+    , data-memocombinators
+    , deepseq
     , directory
     , easytest
+    , either
     , errors
     , exceptions
     , extra
     , filemanip
     , filepath
+    , fingertree
+    , fsnotify
+    , fuzzyfind
+    , generic-lens
+    , generic-monoid
+    , hashable
+    , hashtables
     , haskeline
     , here
+    , http-client
+    , http-media
+    , http-types
     , lens
-    , megaparsec
+    , lucid
+    , megaparsec >=5.0.0 && <7.0.0
+    , memory
+    , mmorph
+    , monad-validate
     , mtl
+    , mutable-containers
+    , mwc-random
+    , natural-transformation
+    , network
+    , network-simple
+    , nonempty-containers
+    , open-browser
+    , openapi3
+    , optparse-applicative >=0.16.1.0
+    , pem
+    , prelude-extras
+    , primitive
+    , process
+    , random >=1.2.0
     , raw-strings-qq
+    , regex-base
+    , regex-tdfa
+    , safe
+    , safe-exceptions
+    , semialign
+    , servant
+    , servant-client
+    , servant-docs
+    , servant-openapi3
+    , servant-server
     , shellmet
     , split
     , stm
+    , strings
+    , tagged
     , temporary
+    , terminal-size
     , text
+    , text-short
+    , these
+    , time
+    , tls
     , transformers
+    , unicode-show
+    , unison-codebase
+    , unison-codebase-sqlite
+    , unison-codebase-sync
+    , unison-core
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
+    , utf8-string
+    , vector
+    , wai
+    , warp
+    , x509
+    , x509-store
+    , x509-system
+    , yaml
+    , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010

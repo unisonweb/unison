@@ -1,6 +1,6 @@
 cradle:
   stack:
-    - path: "codebase2/codebase"
+    - path: "codebase2/codebase/"
       component: "unison-codebase:lib"
 
     - path: "codebase2/codebase-sqlite"
@@ -12,11 +12,11 @@ cradle:
     - path: "codebase2/core"
       component: "unison-core:lib"
 
-    - path: "codebase2/util/bench"
-      component: "unison-util:bench:bench"
-
     - path: "codebase2/util/src"
       component: "unison-util:lib"
+
+    - path: "codebase2/util/bench"
+      component: "unison-util:bench:bench"
 
     - path: "codebase2/util-serialization"
       component: "unison-util-serialization:lib"
@@ -27,11 +27,17 @@ cradle:
     - path: "lib/unison-prelude/src"
       component: "unison-prelude:lib"
 
+    - path: "lib/unison-pretty-printer/src"
+      component: "unison-pretty-printer:lib"
+
+    - path: "lib/unison-pretty-printer/prettyprintdemo"
+      component: "unison-pretty-printer:exe:prettyprintdemo"
+
+    - path: "lib/unison-pretty-printer/tests"
+      component: "unison-pretty-printer:test:pretty-printer-tests"
+
     - path: "lib/unison-sqlite/src"
       component: "unison-sqlite:lib"
-
-    - path: "unison-share-api/src"
-      component: "unison-share-api:lib"
 
     - path: "lib/unison-util-base32hex/src"
       component: "unison-util-base32hex:lib"
@@ -40,7 +46,7 @@ cradle:
       component: "unison-util-relation:lib"
 
     - path: "lib/unison-util-relation/test"
-      component: "unison-util-relation:test:tests"
+      component: "unison-util-relation:test:util-relation-tests"
 
     - path: "lib/unison-util-relation/benchmarks/relation"
       component: "unison-util-relation:bench:relation"
@@ -48,20 +54,14 @@ cradle:
     - path: "parser-typechecker/src"
       component: "unison-parser-typechecker:lib"
 
-    - path: "parser-typechecker/prettyprintdemo"
-      component: "unison-parser-typechecker:exe:prettyprintdemo"
-
     - path: "parser-typechecker/tests"
-      component: "unison-parser-typechecker:exe:tests"
+      component: "unison-parser-typechecker:test:parser-typechecker-tests"
 
     - path: "unison-cli/src"
       component: "unison-cli:lib"
 
     - path: "unison-cli/integration-tests"
-      component: "unison-cli:exe:integration-tests"
-
-    - path: "unison-cli/tests"
-      component: "unison-cli:test:tests"
+      component: "unison-cli:exe:cli-integration-tests"
 
     - path: "unison-cli/transcripts"
       component: "unison-cli:exe:transcripts"
@@ -69,14 +69,17 @@ cradle:
     - path: "unison-cli/unison"
       component: "unison-cli:exe:unison"
 
+    - path: "unison-cli/tests"
+      component: "unison-cli:test:cli-tests"
+
     - path: "unison-core/src"
       component: "unison-core1:lib"
+
+    - path: "unison-share-api/src"
+      component: "unison-share-api:lib"
 
     - path: "yaks/easytest/src"
       component: "easytest:lib"
 
-    - path: "yaks/easytest/tests/Suite.hs"
-      component: "easytest:exe:runtests"
-
     - path: "yaks/easytest/tests"
-      component: "easytest:test:tests"
+      component: "easytest:exe:runtests"

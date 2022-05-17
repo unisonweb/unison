@@ -45,10 +45,10 @@ import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import Unison.Codebase.Editor.RemoteRepo
-  ( ReadRemoteNamespace,
-    ReadRepo (..),
+  ( ReadGitRepo,
+    ReadRemoteNamespace,
+    WriteGitRepo,
     WriteRemotePath (..),
-    WriteRepo (..),
     WriteShareRemotePath (..),
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
@@ -1058,14 +1058,14 @@ notifyUser dir o = case o of
       NoDatabaseFile repo localPath ->
         P.wrap $
           "I didn't find a codebase in the repository at"
-            <> prettyReadRepo (ReadRepoGit repo)
+            <> prettyReadGitRepo repo
             <> "in the cache directory at"
             <> P.backticked' (P.string localPath) "."
       UnrecognizedSchemaVersion repo localPath (SchemaVersion v) ->
         P.wrap $
           "I don't know how to interpret schema version " <> P.shown v
             <> "in the repository at"
-            <> prettyReadRepo (ReadRepoGit repo)
+            <> prettyReadGitRepo repo
             <> "in the cache directory at"
             <> P.backticked' (P.string localPath) "."
       GitCouldntParseRootBranchHash repo s ->
@@ -1073,7 +1073,7 @@ notifyUser dir o = case o of
           "I couldn't parse the string"
             <> P.red (P.string s)
             <> "into a namespace hash, when opening the repository at"
-            <> P.group (prettyReadRepo (ReadRepoGit repo) <> ".")
+            <> P.group (prettyReadGitRepo repo <> ".")
     GitProtocolError e -> case e of
       NoGit ->
         P.wrap $
@@ -1084,7 +1084,7 @@ notifyUser dir o = case o of
             <> P.group (P.shown e)
       CloneException repo msg ->
         P.wrap $
-          "I couldn't clone the repository at" <> prettyReadRepo (ReadRepoGit repo) <> ";"
+          "I couldn't clone the repository at" <> prettyReadGitRepo repo <> ";"
             <> "the error was:"
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
       CopyException srcRepoPath destPath msg ->
@@ -1094,10 +1094,10 @@ notifyUser dir o = case o of
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
       PushNoOp repo ->
         P.wrap $
-          "The repository at" <> prettyWriteRepo (WriteRepoGit repo) <> "is already up-to-date."
+          "The repository at" <> prettyWriteGitRepo repo <> "is already up-to-date."
       PushException repo msg ->
         P.wrap $
-          "I couldn't push to the repository at" <> prettyWriteRepo (WriteRepoGit repo) <> ";"
+          "I couldn't push to the repository at" <> prettyWriteGitRepo repo <> ";"
             <> "the error was:"
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
       RemoteRefNotFound repo ref ->
@@ -1106,7 +1106,7 @@ notifyUser dir o = case o of
       UnrecognizableCacheDir uri localPath ->
         P.wrap $
           "A cache directory for"
-            <> P.backticked (P.text $ RemoteRepo.printReadRepo (ReadRepoGit uri))
+            <> P.backticked (P.text $ RemoteRepo.printReadGitRepo uri)
             <> "already exists at"
             <> P.backticked' (P.string localPath) ","
             <> "but it doesn't seem to"
@@ -1114,7 +1114,7 @@ notifyUser dir o = case o of
       UnrecognizableCheckoutDir uri localPath ->
         P.wrap $
           "I tried to clone"
-            <> P.backticked (P.text $ RemoteRepo.printReadRepo (ReadRepoGit uri))
+            <> P.backticked (P.text $ RemoteRepo.printReadGitRepo uri)
             <> "into a cache directory at"
             <> P.backticked' (P.string localPath) ","
             <> "but I can't recognize the"
@@ -1122,7 +1122,7 @@ notifyUser dir o = case o of
       PushDestinationHasNewStuff repo ->
         P.callout "⏸" . P.lines $
           [ P.wrap $
-              "The repository at" <> prettyWriteRepo (WriteRepoGit repo)
+              "The repository at" <> prettyWriteGitRepo repo
                 <> "has some changes I don't know about.",
             "",
             P.wrap $ "Try" <> pull <> "to merge these changes locally, then" <> push <> "again."
@@ -1136,13 +1136,13 @@ notifyUser dir o = case o of
           "I couldn't decode the root branch "
             <> P.string s
             <> "from the repository at"
-            <> prettyReadRepo (ReadRepoGit repo)
+            <> prettyReadGitRepo repo
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"
             <> P.group ("(" <> P.text (Hash.base32Hex $ Causal.unRawHash hash) <> ")")
             <> "from the repository at"
-            <> prettyReadRepo (ReadRepoGit repo)
+            <> prettyReadGitRepo repo
       CouldntLoadSyncedBranch ns h ->
         P.wrap $
           "I just finished importing the branch" <> P.red (P.shown h)
@@ -1154,10 +1154,10 @@ notifyUser dir o = case o of
           "I couldn't find the remote branch at"
             <> P.shown path
             <> "in the repository at"
-            <> prettyReadRepo (ReadRepoGit repo)
+            <> prettyReadGitRepo repo
       NoRemoteNamespaceWithHash repo sbh ->
         P.wrap $
-          "The repository at" <> prettyReadRepo (ReadRepoGit repo)
+          "The repository at" <> prettyReadGitRepo repo
             <> "doesn't contain a namespace with the hash prefix"
             <> (P.blue . P.text . SBH.toText) sbh
       RemoteNamespaceHashAmbiguous repo sbh hashes ->
@@ -1165,7 +1165,7 @@ notifyUser dir o = case o of
           [ P.wrap $
               "The namespace hash" <> prettySBH sbh
                 <> "at"
-                <> prettyReadRepo (ReadRepoGit repo)
+                <> prettyReadGitRepo repo
                 <> "is ambiguous."
                 <> "Did you mean one of these hashes?",
             "",
@@ -2912,15 +2912,17 @@ prettyTypeName ppe r =
   P.syntaxToColor $
     prettyHashQualified (PPE.typeName ppe r)
 
-prettyReadRepo :: ReadRepo -> Pretty
-prettyReadRepo = \case
-  RemoteRepo.ReadRepoGit RemoteRepo.ReadGitRepo {url} -> P.blue (P.text url)
-  RemoteRepo.ReadRepoShare s -> P.blue (P.text (RemoteRepo.printShareRepo s))
+prettyReadGitRepo :: ReadGitRepo -> Pretty
+prettyReadGitRepo = \case
+  RemoteRepo.ReadGitRepo {url} -> P.blue (P.text url)
 
-prettyWriteRepo :: WriteRepo -> Pretty
-prettyWriteRepo = \case
-  RemoteRepo.WriteRepoGit RemoteRepo.WriteGitRepo {url} -> P.blue (P.text url)
-  RemoteRepo.WriteRepoShare s -> P.blue (P.text (RemoteRepo.printShareRepo s))
+prettyWriteGitRepo :: WriteGitRepo -> Pretty
+prettyWriteGitRepo RemoteRepo.WriteGitRepo {url} = P.blue (P.text url)
+
+-- prettyWriteRepo :: WriteRepo -> Pretty
+-- prettyWriteRepo = \case
+--   RemoteRepo.WriteRepoGit RemoteRepo.WriteGitRepo {url} -> P.blue (P.text url)
+--   RemoteRepo.WriteRepoShare s -> P.blue (P.text (RemoteRepo.printShareRepo s))
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

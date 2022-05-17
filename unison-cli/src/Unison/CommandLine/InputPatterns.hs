@@ -2319,12 +2319,12 @@ gitUrlArg =
       suggestions =
         let complete s = pure [Completion s s False]
          in \input _ _ _ -> case input of
-              "gh" -> complete "https://github.com/"
-              "gl" -> complete "https://gitlab.com/"
-              "bb" -> complete "https://bitbucket.com/"
-              "ghs" -> complete "git@github.com:"
-              "gls" -> complete "git@gitlab.com:"
-              "bbs" -> complete "git@bitbucket.com:"
+              "gh" -> complete "git(https://github.com/"
+              "gl" -> complete "git(https://gitlab.com/"
+              "bb" -> complete "git(https://bitbucket.com/"
+              "ghs" -> complete "git(git@github.com:"
+              "gls" -> complete "git(git@gitlab.com:"
+              "bbs" -> complete "git(git@bitbucket.com:"
               _ -> pure [],
       globTargets = mempty
     }

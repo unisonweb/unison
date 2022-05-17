@@ -49,7 +49,6 @@ import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadGitRepo,
     WriteGitRepo (..),
-    WriteRepo (..),
     printWriteGitRepo,
     writeToReadGit,
   )

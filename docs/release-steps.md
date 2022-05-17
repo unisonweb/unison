@@ -40,7 +40,7 @@ Cut a release of base. @runarorama does this usually.
 
 
 ```
-.> pull git@github.com:unisonweb/base basedev.release
+.> pull git(git@github.com:unisonweb/base) basedev.release
 .> cd .basedev.release
 .basedev.release> delete.namespace releases._latest
 .basedev.release> squash trunk releases._<ReleaseName>
@@ -50,7 +50,7 @@ Edit `releases._<ReleaseName>.README` to include `Release: <ReleaseName>`.
 
 ```
 .basedev.release> fork releases._<ReleaseName> releases._latest
-.basedev.release> push git@github.com:unisonweb/base
+.basedev.release> push git(git@github.com:unisonweb/base)
 ```
 
 __6__
@@ -64,7 +64,7 @@ Build a new version of Unison Share by following these instructions: https://git
 
 __8__
 
-Update homebrew. 
+Update homebrew.
 
 ```
 git clone git@github.com/unisonweb/homebrew-unison.git
@@ -96,7 +96,7 @@ Release announcement template (be sure to update the release urls) -
 
 We've just released a new version of Unison, $RELEASE_NAME, release notes here (link to the issue). Install/upgrade instructions in the thread.
 
-Mac upgrade is just `brew upgrade unison-language`. 
+Mac upgrade is just `brew upgrade unison-language`.
 
 A fresh install via:
 

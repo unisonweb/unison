@@ -7,7 +7,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import EasyTest
 import qualified Text.Megaparsec as P
-import Unison.Codebase.Editor.RemoteRepo (ReadRepo (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo (..))
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
@@ -87,7 +87,7 @@ testAugmented =
         ]
     ]
 
-parseAugmented :: (Text, (ReadRepo, Maybe ShortBranchHash, Path)) -> Test ()
+parseAugmented :: (Text, (ReadGitRepo, Maybe ShortBranchHash, Path)) -> Test ()
 parseAugmented (s, r) = scope (Text.unpack s) $
   case P.parse UriParser.repoPath "test case" s of
     Left x -> crash $ show x

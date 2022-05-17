@@ -25,7 +25,6 @@ module Unison.Share.Sync
   )
 where
 
-import Control.Exception (throwIO)
 import qualified Control.Lens as Lens
 import Control.Monad.Extra ((||^))
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
@@ -37,7 +36,7 @@ import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.NonEmpty as NEMap
 import Data.Sequence.NonEmpty (NESeq ((:<||)))
-import qualified Data.Sequence.NonEmpty as NESeq (fromList, nonEmptySeq, singleton, (><|))
+import qualified Data.Sequence.NonEmpty as NESeq (fromList, nonEmptySeq, (><|))
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
