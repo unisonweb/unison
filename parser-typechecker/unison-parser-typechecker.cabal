@@ -178,6 +178,7 @@ library
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
@@ -259,6 +260,7 @@ library
     , safe-exceptions
     , semialign
     , servant
+    , servant-client
     , servant-docs
     , servant-openapi3
     , servant-server
@@ -349,6 +351,7 @@ test-suite parser-typechecker-tests
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving

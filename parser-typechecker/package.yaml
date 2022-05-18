@@ -77,6 +77,7 @@ library:
     - safe
     - safe-exceptions
     - semialign
+    - servant-client
     - mwc-random
     - NanoID
     - lucid
@@ -173,6 +174,7 @@ default-extensions:
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving

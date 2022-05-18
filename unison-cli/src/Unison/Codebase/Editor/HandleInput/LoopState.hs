@@ -11,7 +11,6 @@ import Control.Monad.State
 import Data.Configurator ()
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
-import Servant.Client (BaseUrl)
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthorizedHttpClient)
 import Unison.Codebase (Codebase)
@@ -33,9 +32,7 @@ type F m i v = Free (Command m i v)
 data Env m v = Env
   { authHTTPClient :: AuthorizedHttpClient,
     codebase :: Codebase m v Ann,
-    credentialManager :: CredentialManager,
-    -- | The URL to Unison Share
-    unisonShareUrl :: BaseUrl
+    credentialManager :: CredentialManager
   }
 
 newtype Action m i v a = Action {unAction :: MaybeT (ReaderT (Env m v) (StateT (LoopState m v) (F m i v))) a}

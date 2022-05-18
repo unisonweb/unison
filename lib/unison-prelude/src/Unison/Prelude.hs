@@ -7,6 +7,7 @@ module Unison.Prelude
     uncurry4,
     reportBug,
     tShow,
+    wundefined,
 
     -- * @Maybe@ control flow
     onNothing,
@@ -165,3 +166,7 @@ reportBug bugId msg =
       "on the issue to let the team know you encountered it, and you can add",
       "any additional details you know of to the issue."
     ]
+
+{-# WARNING wundefined "You left this wundefined." #-}
+wundefined :: a
+wundefined = undefined

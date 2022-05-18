@@ -28,12 +28,13 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Command (LoadSourceResult (..), UCMVersion)
+import Unison.Codebase.Editor.Command (LoadSourceResult (..))
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.CommandLine
@@ -197,8 +198,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                   LoopState.Env
                     { LoopState.authHTTPClient = authorizedHTTPClient,
                       LoopState.codebase = codebase,
-                      LoopState.credentialManager = credMan,
-                      LoopState.unisonShareUrl = error "TODO: wire in Unison Share URL"
+                      LoopState.credentialManager = credMan
                     }
             let free = LoopState.runAction env state HandleInput.loop
             let handleCommand =

@@ -45,7 +45,14 @@ import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo (..), printWriteRepo, writeToRead)
+import Unison.Codebase.Editor.RemoteRepo
+  ( ReadGitRemoteNamespace (..),
+    ReadGitRepo,
+    WriteGitRepo (..),
+    WriteRepo (..),
+    printWriteGitRepo,
+    writeToReadGit,
+  )
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
@@ -471,7 +478,7 @@ sqliteCodebase debugName root localOrRemote action = do
               syncFromDirectory = syncFromDirectory,
               syncToDirectory = syncToDirectory,
               viewRemoteBranch' = viewRemoteBranch',
-              pushGitBranch = (\r opts action -> pushGitBranch conn r opts action),
+              pushGitBranch = pushGitBranch conn,
               watches = watches,
               getWatch = getWatch,
               putWatch = putWatch,
@@ -676,14 +683,15 @@ syncProgress progressStateRef = Sync.Progress (liftIO . need) (liftIO . done) (l
       where
         v = const ()
 
+-- FIXME(mitchell) seems like this should have "git" in its name
 viewRemoteBranch' ::
   forall m r.
   (MonadUnliftIO m) =>
-  ReadRemoteNamespace ->
+  ReadGitRemoteNamespace ->
   Git.GitBranchBehavior ->
   ((Branch m, CodebasePath) -> m r) ->
   m (Either C.GitError r)
-viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
+viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior action = UnliftIO.try $ do
   -- set up the cache dir
   time "Git fetch" $
     throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
@@ -728,7 +736,7 @@ pushGitBranch ::
   forall m e.
   (MonadUnliftIO m) =>
   Sqlite.Connection ->
-  WriteRepo ->
+  WriteGitRepo ->
   PushGitBranchOpts ->
   -- An action which accepts the current root branch on the remote and computes a new branch.
   (Branch m -> m (Either e (Branch m))) ->
@@ -764,8 +772,8 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
     for newBranchOrErr $ push pushStaging repo
     pure newBranchOrErr
   where
-    readRepo :: ReadRepo
-    readRepo = writeToRead repo
+    readRepo :: ReadGitRepo
+    readRepo = writeToReadGit repo
     doSync :: CodebaseStatus -> FilePath -> Sqlite.Connection -> Branch m -> m ()
     doSync codebaseStatus remotePath destConn newBranch = do
       progressStateRef <- liftIO (newIORef emptySyncProgressState)
@@ -802,7 +810,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
                 Just True -> pure ()
         CreatedCodebase -> pure ()
       run (setRepoRoot newBranchHash)
-    repoString = Text.unpack $ printWriteRepo repo
+    repoString = Text.unpack $ printWriteGitRepo repo
     setRepoRoot :: Branch.Hash -> Sqlite.Transaction ()
     setRepoRoot h = do
       let h2 = Cv.causalHash1to2 h
@@ -854,8 +862,8 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
         hasDeleteShm = any isShmDelete statusLines
 
     -- Commit our changes
-    push :: forall n. MonadIO n => Git.GitRepo -> WriteRepo -> Branch m -> n Bool -- withIOError needs IO
-    push remotePath repo@(WriteGitRepo {url' = url, branch = mayGitBranch}) newRootBranch = time "SqliteCodebase.pushGitRootBranch.push" $ do
+    push :: forall n. MonadIO n => Git.GitRepo -> WriteGitRepo -> Branch m -> n Bool -- withIOError needs IO
+    push remotePath repo@(WriteGitRepo {url, branch = mayGitBranch}) newRootBranch = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       -- note: -uall recursively shows status for all files in untracked directories
       --   we want this so that we see

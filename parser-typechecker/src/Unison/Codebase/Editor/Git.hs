@@ -28,7 +28,7 @@ import Shellmet (($?), ($^), ($|))
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
-import Unison.Codebase.Editor.RemoteRepo (ReadRepo (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo(..))
 import Unison.Codebase.GitError (GitProtocolError)
 import qualified Unison.Codebase.GitError as GitError
 import Unison.Prelude
@@ -136,7 +136,7 @@ data GitBranchBehavior
 withRepo ::
   forall m a.
   (MonadUnliftIO m) =>
-  ReadRepo ->
+  ReadGitRepo ->
   GitBranchBehavior ->
   (GitRepo -> m a) ->
   m (Either GitProtocolError a)
@@ -209,7 +209,7 @@ withRepo repo@(ReadGitRepo {url = uri, ref = mayGitRef}) branchBehavior action =
       pure succeeded
 
 -- | Do a `git clone` (for a not-previously-cached repo).
-cloneIfMissing :: (MonadIO m, MonadError GitProtocolError m) => ReadRepo -> FilePath -> m GitRepo
+cloneIfMissing :: (MonadIO m, MonadError GitProtocolError m) => ReadGitRepo -> FilePath -> m GitRepo
 cloneIfMissing repo@(ReadGitRepo {url = uri}) localPath = do
   doesDirectoryExist localPath >>= \case
     True ->
