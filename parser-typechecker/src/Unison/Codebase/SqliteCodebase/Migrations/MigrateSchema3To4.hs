@@ -55,8 +55,9 @@ remainingBadObjects = field @"_remainingBadObjects"
 migrateSchema3To4 :: Sqlite.Transaction ()
 migrateSchema3To4 = do
   Q.expectSchemaVersion 3
-  fixBadNamespaceHashes
   -- Debug.whenDebug Debug.Migration do
+  --   integrityCheckAllBranches
+  fixBadNamespaceHashes
   do
     log $ "Checking migration success..."
     assertMigrationSuccess
@@ -108,6 +109,7 @@ fixBadNamespaceHashes = do
     rehashNamespace objectId possiblyIncorrectCausalHashId = do
       lift . debugLog $ "Processing Branch Object ID:" <> show objectId
       dbBranch <- lift $ Ops.expectDbBranch objectId
+      lift . debugLog $ "Successfully loaded dbBranch."
       newBranchHash <- lift $ Helpers.dbBranchHash dbBranch
       lift . debugLog $ "New branch hash: " <> show newBranchHash
       correctNamespaceHashId <- lift $ Q.saveBranchHash (H.BranchHash newBranchHash)
@@ -147,7 +149,6 @@ fixBadNamespaceHashes = do
             SET primary_hash_id = ?
             WHERE id = ?
           |]
-    -- updateHashObjects ::
     updateHashObjects (DB.BranchObjectId objId) (DB.BranchHashId newHashId) = do
       Sqlite.execute deleteOldHashObjsSql (Sqlite.Only objId)
       Q.saveHashObject newHashId objId 2
@@ -198,6 +199,7 @@ assertMigrationSuccess = do
 
 integrityCheckAllBranches :: Sqlite.Transaction ()
 integrityCheckAllBranches = do
+  Sqlite.queryOneCol_ anyBadCausalsCheck
   branchObjIds <- Sqlite.queryListCol_ allBranchObjectIdsSql
   for_ branchObjIds integrityCheckBranch
   where
@@ -207,23 +209,44 @@ integrityCheckAllBranches = do
           SELECT id FROM object WHERE type_id = 2;
           |]
 
+    anyBadCausalsCheck :: Sqlite.Sql
+    anyBadCausalsCheck =
+      [here|
+          SELECT count(*)
+            FROM causal c
+            WHERE NOT EXISTS (SELECT 1 from object o WHERE o.primary_hash_id = c.value_hash_id);
+          |]
+
     integrityCheckBranch :: DB.BranchObjectId -> Sqlite.Transaction ()
     integrityCheckBranch objId = do
       debugLog $ "Checking integrity of " <> show objId
       dbBranch <- Ops.expectDbBranch objId
+      expectedBranchHash <- Helpers.dbBranchHash dbBranch
+      actualBranchHash <- Q.expectPrimaryHashByObjectId (DB.unBranchObjectId objId)
+      when (expectedBranchHash /= actualBranchHash) $ do
+        failure $ "Expected hash for namespace doesn't match actual hash for namespace: " <> show (expectedBranchHash, actualBranchHash)
       forOf_ DBBranch.childrenHashes_ dbBranch $ \(childObjId, childCausalHashId) -> do
+        debugLog $ "checking child: " <> show (childObjId, childCausalHashId)
         -- Assert the child branch object exists
         Q.loadNamespaceObject @Void (DB.unBranchObjectId childObjId) (const $ Right ()) >>= \case
-          Nothing -> error $ "Expected namespace for object ID: " <> show childObjId
+          Nothing -> failure $ "Expected namespace object for object ID: " <> show childObjId
           Just _ -> pure ()
+        Sqlite.queryOneCol doesCausalExistForCausalHashId (Sqlite.Only childCausalHashId) >>= \case
+          True -> pure ()
+          False -> failure $ "Expected causal for causal hash ID, but none was found: " <> show childCausalHashId
         -- Assert the object for the causal hash ID matches the given object Id.
         Q.loadBranchObjectIdByCausalHashId childCausalHashId >>= \case
-          Nothing -> error $ "Expected branch object for causal hash ID: " <> show childCausalHashId
+          Nothing -> failure $ "Expected branch object for causal hash ID: " <> show childCausalHashId
           Just foundBranchId
             | foundBranchId /= childObjId -> do
-              error $ "Expected child branch object to match canonical object ID for causal hash's namespace: " <> show (childCausalHashId, foundBranchId, childObjId)
+              failure $ "Expected child branch object to match canonical object ID for causal hash's namespace: " <> show (childCausalHashId, foundBranchId, childObjId)
             | otherwise -> pure ()
         pure ()
+      where
+        failure :: String -> Sqlite.Transaction ()
+        failure msg = do
+          -- error msg
+          debugLog msg
 
 findNamespacesWithCausalHashesSql :: Sqlite.Sql
 findNamespacesWithCausalHashesSql =
