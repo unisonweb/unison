@@ -43,6 +43,7 @@ module U.Codebase.Sqlite.Queries
     saveObject,
     expectObject,
     expectPrimaryHashByObjectId,
+    expectPrimaryHashIdForObject,
     expectObjectWithHashIdAndType,
     expectDeclObject,
     loadDeclObject,
@@ -385,6 +386,12 @@ loadTermObject oid =
 expectTermObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectTermObject oid =
   expectObjectOfType oid TermComponent
+
+expectPrimaryHashIdForObject :: ObjectId -> Transaction HashId
+expectPrimaryHashIdForObject oId = do
+  queryOneCol sql (Only oId)
+  where
+    sql = "SELECT primary_hash_id FROM object WHERE id = ?"
 
 expectObjectWithHashIdAndType :: ObjectId -> Transaction (HashId, ObjectType, ByteString)
 expectObjectWithHashIdAndType oId = queryOneRow sql (Only oId)

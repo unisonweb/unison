@@ -51,6 +51,7 @@ library
       Unison.Codebase.Init.CreateCodebaseError
       Unison.Codebase.Init.OpenCodebaseError
       Unison.Codebase.Init.Type
+      Unison.Codebase.IntegrityCheck
       Unison.Codebase.MainTerm
       Unison.Codebase.Metadata
       Unison.Codebase.Patch
@@ -250,6 +251,7 @@ library
     , optparse-applicative >=0.16.1.0
     , pem
     , prelude-extras
+    , pretty-simple
     , primitive
     , process
     , random >=1.2.0

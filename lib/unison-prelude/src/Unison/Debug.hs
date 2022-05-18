@@ -25,6 +25,7 @@ data DebugFlag
   | Codebase
   | Auth
   | Migration
+  | Integrity
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -41,6 +42,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "CODEBASE" -> pure Codebase
       "AUTH" -> pure Auth
       "MIGRATION" -> pure Migration
+      "INTEGRITY" -> pure Integrity
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -63,6 +65,10 @@ debugAuth = Auth `Set.member` debugFlags
 debugMigration :: Bool
 debugMigration = Migration `Set.member` debugFlags
 {-# NOINLINE debugMigration #-}
+
+debugIntegrity :: Bool
+debugIntegrity = Integrity `Set.member` debugFlags
+{-# NOINLINE debugIntegrity #-}
 
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
@@ -109,3 +115,4 @@ shouldDebug = \case
   Codebase -> debugCodebase
   Auth -> debugAuth
   Migration -> debugMigration
+  Integrity -> debugIntegrity

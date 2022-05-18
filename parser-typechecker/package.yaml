@@ -69,6 +69,7 @@ library:
     - openapi3
     - pem
     - prelude-extras
+    - pretty-simple
     - process
     - primitive
     - random >= 1.2.0
