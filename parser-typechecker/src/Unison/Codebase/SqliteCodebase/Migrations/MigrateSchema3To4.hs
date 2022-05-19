@@ -9,6 +9,8 @@ import Control.Monad.State
 import Data.Generics.Product
 import qualified Data.Map as Map
 import Data.Semigroup
+import qualified Data.Set as Set
+import Data.Set.Lens (setOf)
 import Data.String.Here.Uninterpolated (here)
 import qualified U.Codebase.HashTags as H
 import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
@@ -28,13 +30,18 @@ import qualified Unison.Sqlite as Sqlite
 import Prelude hiding (log)
 
 data MigrationState = MigrationState
-  { _canonicalBranchForCausalHashId :: Map DB.CausalHashId (DB.BranchHashId, DB.BranchObjectId)
+  { _canonicalBranchForCausalHashId :: Map DB.CausalHashId (DB.BranchHashId, DB.BranchObjectId),
+    _validBranchHashIds :: Map DB.BranchHashId DB.BranchObjectId
   }
   deriving (Generic)
 
 canonicalBranchForCausalHashId :: Lens' MigrationState (Map DB.CausalHashId (DB.BranchHashId, DB.BranchObjectId))
 canonicalBranchForCausalHashId =
   field @"_canonicalBranchForCausalHashId"
+
+validBranchHashIds :: Lens' MigrationState (Map DB.BranchHashId DB.BranchObjectId)
+validBranchHashIds =
+  field @"_validBranchHashIds"
 
 -- | There was a bug in previous versions of UCM which incorrectly 'converted' branch hashes.
 -- In previous versions, every namespace hash was assigned its causal hash instead.
@@ -52,41 +59,31 @@ canonicalBranchForCausalHashId =
 migrateSchema3To4 :: Sqlite.Transaction ()
 migrateSchema3To4 = do
   Q.expectSchemaVersion 3
-  createReachabilityTables
   Debug.whenDebug Debug.Integrity do
     log $ "Pre-migration integrity check..."
     integrityCheckAllBranches
     integrityCheckAllCausals
   rootCausalHashId <- Q.expectNamespaceRoot
-  flip execStateT (MigrationState mempty) $ Sync.sync migrationSync migrationProgress [rootCausalHashId]
+  MigrationState mapping _ <- flip execStateT (MigrationState mempty mempty) $ Sync.sync migrationSync migrationProgress [rootCausalHashId]
+  log $ "Done migrating."
+  let reachableCausalHashes = Map.keysSet mapping
+  let reachableBranchObjIds = setOf (traversed . _2) mapping
+  log $ "Dropping unreachable branches and causals..."
+  dropUnreachableCausalsAndBranches reachableCausalHashes reachableBranchObjIds
   do
     log $ "Checking namespace and causal integrity..."
     assertMigrationSuccess
     integrityCheckAllBranches
     integrityCheckAllCausals
   Q.setSchemaVersion 4
-  where
-    createReachabilityTables = do
-      Sqlite.execute_
-        [here|
-           CREATE TEMP TABLE IF NOT EXISTS reachable_branch_objects (
-            id INTEGER PRIMARY KEY NOT NULL REFERENCES object(id)
-           )
-          |]
-      Sqlite.execute_
-        [here|
-           CREATE TEMP TABLE IF NOT EXISTS reachable_causals (
-            self_hash_id INTEGER PRIMARY KEY NOT NULL REFERENCES hash(id)
-           )
-          |]
 
 migrationProgress :: Sync.Progress (StateT MigrationState Sqlite.Transaction) DB.CausalHashId
 migrationProgress =
   Sync.Progress {Sync.need, Sync.done, Sync.error, Sync.allDone}
   where
-    need _ = pure ()
-    done _ = pure ()
-    error _ = pure ()
+    need e = lift $ debugLog $ "Need " <> show e
+    done e = lift $ debugLog $ "Done " <> show e
+    error e = lift . log $ "Error " <> show e
     allDone = lift . Sqlite.unsafeIO . putStrLn $ "All done"
 
 migrationSync :: Sync.Sync (StateT MigrationState Sqlite.Transaction) DB.CausalHashId
@@ -99,6 +96,64 @@ migrationSync =
 liftT :: Sqlite.Transaction a -> ExceptT (Sync.TrySyncResult DB.CausalHashId) (StateT MigrationState Sqlite.Transaction) a
 liftT = lift . lift
 
+dropUnreachableCausalsAndBranches :: Set DB.CausalHashId -> Set DB.BranchObjectId -> Sqlite.Transaction ()
+dropUnreachableCausalsAndBranches reachableCausals reachableBranchObjs = do
+  createReachabilityTables
+  Sqlite.executeMany insertReachableCausalSql (Sqlite.Only <$> Set.toList reachableCausals)
+  Sqlite.executeMany insertReachableBranchObjectSql (Sqlite.Only <$> Set.toList reachableBranchObjs)
+  Sqlite.execute_ deleteUnreachableHashObjects
+  Sqlite.execute_ deleteUnreachableBranchObjects
+  Sqlite.execute_ deleteUnreachableCausalParents
+  Sqlite.execute_ deleteUnreachableCausals
+  where
+    deleteUnreachableHashObjects =
+      [here|
+      DELETE FROM hash_object AS ho
+        WHERE NOT EXISTS (SELECT 1 FROM reachable_branch_objects AS ro WHERE ho.object_id = ro.object_id)
+      |]
+    deleteUnreachableBranchObjects =
+      [here|
+      DELETE FROM object AS o
+        WHERE
+          o.type_id = 2 -- Filter for only branches
+          AND NOT EXISTS (SELECT 1 FROM reachable_branch_objects AS ro WHERE o.id = ro.object_id)
+      |]
+    deleteUnreachableCausals =
+      [here|
+      DELETE FROM causal AS c
+        WHERE NOT EXISTS (SELECT 1 FROM reachable_causals AS rc WHERE c.self_hash_id = rc.self_hash_id)
+      |]
+    deleteUnreachableCausalParents =
+      [here|
+      DELETE FROM causal_parent AS cp
+        WHERE
+          NOT EXISTS (SELECT 1 FROM reachable_causals AS rc WHERE cp.causal_id = rc.self_hash_id)
+          OR NOT EXISTS (SELECT 1 FROM reachable_causals AS rc WHERE cp.parent_id = rc.self_hash_id)
+      |]
+    insertReachableCausalSql =
+      [here|
+      INSERT INTO reachable_causals (self_hash_id) VALUES (?)
+        ON CONFLICT DO NOTHING
+      |]
+    insertReachableBranchObjectSql =
+      [here|
+      INSERT INTO reachable_branch_objects (object_id) VALUES (?)
+        ON CONFLICT DO NOTHING
+      |]
+    createReachabilityTables = do
+      Sqlite.execute_
+        [here|
+           CREATE TEMP TABLE IF NOT EXISTS reachable_branch_objects (
+            object_id INTEGER PRIMARY KEY NOT NULL
+           )
+          |]
+      Sqlite.execute_
+        [here|
+           CREATE TEMP TABLE IF NOT EXISTS reachable_causals (
+            self_hash_id INTEGER PRIMARY KEY NOT NULL
+           )
+          |]
+
 migrateCausal :: DB.CausalHashId -> ExceptT (Sync.TrySyncResult DB.CausalHashId) (StateT MigrationState Sqlite.Transaction) ()
 migrateCausal causalHashId = do
   preuse (canonicalBranchForCausalHashId . ix causalHashId) >>= \case
@@ -107,17 +162,20 @@ migrateCausal causalHashId = do
       causalParents <- liftT $ Q.loadCausalParents causalHashId
       unmigratedParents <- flip filterM causalParents $ \parentHashId -> (uses canonicalBranchForCausalHashId (Map.notMember parentHashId))
       when (not . null $ unmigratedParents) $ throwError (Sync.Missing unmigratedParents)
+      valueHashId <- liftT $ Q.expectCausalValueHashId causalHashId
+      preuse (validBranchHashIds . ix valueHashId) >>= \case
+        Nothing -> pure ()
+        Just objId -> do
+          canonicalBranchForCausalHashId . at causalHashId ?= (valueHashId, objId)
+          throwError Sync.Done
       liftT (Q.loadBranchObjectIdByCausalHashId causalHashId) >>= \case
         Nothing -> do
           liftT . abortMigration $ "Missing object for branch of causal: " <> show causalHashId
         Just branchObjId -> do
-          rehashAndCanonicalizeNamespace causalHashId branchObjId
+          rehashAndCanonicalizeNamespace causalHashId valueHashId branchObjId
 
-rehashAndCanonicalizeNamespace :: DB.CausalHashId -> DB.BranchObjectId -> ExceptT (Sync.TrySyncResult DB.CausalHashId) (StateT MigrationState Sqlite.Transaction) ()
-rehashAndCanonicalizeNamespace causalHashId objId = do
-  -- The bug which existed means that this 'namespace hash' might actually be a causal hash
-  -- instead.
-  possiblyIncorrectNamespaceHashId <- DB.BranchHashId <$> (liftT $ Q.expectPrimaryHashIdForObject (DB.unBranchObjectId objId))
+rehashAndCanonicalizeNamespace :: DB.CausalHashId -> DB.BranchHashId -> DB.BranchObjectId -> ExceptT (Sync.TrySyncResult DB.CausalHashId) (StateT MigrationState Sqlite.Transaction) ()
+rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId objId = do
   dbBranch <- liftT $ Ops.expectDbBranch objId
   canonicalBranchForCausalMap <- use canonicalBranchForCausalHashId
   -- remap all of the object ID's of the child branches to the correct and canonical objects,
@@ -128,14 +186,18 @@ rehashAndCanonicalizeNamespace causalHashId objId = do
           case Map.lookup childCausalHashId canonicalBranchForCausalMap of
             Nothing -> (([childCausalHashId], Any False), ids)
             Just (_, canonicalObjId) -> (([], Any True), (canonicalObjId, childCausalHashId))
-  when (not . null $ unmigratedChildren) $ throwError (Sync.Missing (unmigratedChildren))
+  when (not . null $ unmigratedChildren) $ throwError (Sync.Missing unmigratedChildren)
   when changes $ do
     liftT $ replaceBranch objId remappedBranch
   newBranchHash <- liftT $ Helpers.dbBranchHash remappedBranch
   liftT . debugLog $ "New branch hash: " <> show newBranchHash
   correctNamespaceHashId <- liftT $ Q.saveBranchHash (H.BranchHash newBranchHash)
   -- Only do the extra work if the namespace hash was previously incorrect.
-  when (correctNamespaceHashId == possiblyIncorrectNamespaceHashId) $ throwError Sync.Done
+  when (correctNamespaceHashId == possiblyIncorrectNamespaceHashId) $ do
+    -- This mapping hasn't changed, but this marks the causal as migrated.
+    canonicalBranchForCausalHashId . at causalHashId ?= (correctNamespaceHashId, objId)
+    validBranchHashIds . at possiblyIncorrectNamespaceHashId ?= objId
+    throwError Sync.Done
   -- Update the value_hash_id on the causal to the correct hash for the branch
   liftT $ Sqlite.execute updateCausalValueHash (correctNamespaceHashId, possiblyIncorrectNamespaceHashId)
   -- It's possible that an object already exists for this new hash
