@@ -32,6 +32,7 @@ import qualified Text.FuzzyFind as FZF
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.HashTags as V2.Hash
+import qualified U.Codebase.Referent as V2
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -322,25 +323,33 @@ findShallowReadmeInBranchAndRender ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   NamesWithHistory ->
-  Branch IO ->
+  V2Branch.Branch m ->
   Backend IO (Maybe Doc.Doc)
 findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBranch =
   let ppe hqLen = PPE.fromNamesDecl hqLen printNames
 
-      renderReadme ppe r = do
-        (_, _, doc) <- renderDoc ppe width runtime codebase (Referent.toReference r)
+      renderReadme :: PPE.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
+      renderReadme ppe docReference = do
+        (_, _, doc) <- renderDoc ppe width runtime codebase docReference
         pure doc
 
-      -- allow any of these capitalizations
-      toCheck = NameSegment <$> ["README", "Readme", "ReadMe", "readme"]
-      readmes :: Set Referent
-      readmes = foldMap lookup toCheck
+      -- choose the first term (among conflicted terms) matching any of these names, in this order.
+      -- we might later want to return all of them to let the front end decide
+      toCheck = V2Branch.NameSegment <$> ["README", "Readme", "ReadMe", "readme"]
+      readme :: Maybe Reference
+      readme = listToMaybe $ do
+        name <- toCheck
+        term <- toList $ Map.lookup name termsMap
+        k <- Map.keys term
+        case k of
+          -- This shouldn't ever happen unless someone puts a non-doc as their readme.
+          V2.Con {} -> empty
+          V2.Ref ref -> pure $ Cv.reference2to1 ref
         where
-          lookup seg = R.lookupRan seg rel
-          rel = Star3.d1 (Branch._terms (Branch.head namespaceBranch))
+          termsMap = V2Branch.terms namespaceBranch
    in liftIO $ do
         hqLen <- Codebase.hashLength codebase
-        traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
+        traverse (renderReadme (ppe hqLen)) readme
 
 isDoc :: Monad m => Codebase m Symbol Ann -> Referent -> m Bool
 isDoc codebase ref = do
@@ -765,6 +774,19 @@ expandShortBranchHash codebase hash = do
     [h] -> pure h
     _ ->
       throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
+
+-- | Efficiently resolve a root hash and path to a shallow branch's causal.
+getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe Branch.Hash -> Path -> Backend m (V2Branch.CausalBranch m)
+getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
+  shallowRoot <- case mayRootHash of
+    Nothing -> lift (Codebase.getShallowRootBranch codebase)
+    Just h -> do
+      lift $ Codebase.getShallowBranchForHash codebase (Cv.branchHash1to2 h)
+  causal <-
+    (lift $ Codebase.shallowBranchAtPath path shallowRoot) >>= \case
+      Nothing -> pure $ Cv.causalbranch1to2 (Branch.empty)
+      Just lc -> pure lc
+  pure causal
 
 formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
 formatType' ppe w =

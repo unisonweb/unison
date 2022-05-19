@@ -16,13 +16,13 @@ import qualified Data.Text as Text
 import Servant (Capture, QueryParam, (:>))
 import Servant.Docs (DocCapture (..), ToCapture (..), ToSample (..))
 import Servant.OpenApi ()
+import qualified U.Codebase.Causal as V2Causal
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Path.Parse (parsePath')
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Unison.NamesWithHistory (NamesWithHistory (..))
+import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
@@ -33,8 +33,8 @@ import Unison.Server.Types
     NamespaceFQN,
     UnisonHash,
     UnisonName,
-    branchToUnisonHash,
     mayDefaultWidth,
+    v2CausalBranchToUnisonHash,
   )
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
@@ -74,14 +74,14 @@ instance ToJSON NamespaceDetails where
 
 deriving instance ToSchema NamespaceDetails
 
-serve ::
+namespaceDetails ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   NamespaceFQN ->
   Maybe ShortBranchHash ->
   Maybe Width ->
   Backend IO NamespaceDetails
-serve runtime codebase namespaceName mayRoot mayWidth =
+namespaceDetails runtime codebase namespaceName maySBH mayWidth =
   let errFromEither f = either (throwError . f) pure
 
       fqnToPath fqn = do
@@ -92,24 +92,19 @@ serve runtime codebase namespaceName mayRoot mayWidth =
       width = mayDefaultWidth mayWidth
    in do
         namespacePath <- fqnToPath namespaceName
-
+        mayRootHash <- traverse (expandShortBranchHash codebase) maySBH
+        namespaceCausal <- Backend.getShallowCausalAtPathFromRootHash codebase mayRootHash namespacePath
+        shallowBranch <- lift $ V2Causal.value namespaceCausal
         namespaceDetails <- do
-          root <- Backend.resolveRootBranchHash mayRoot codebase
-
-          let namespaceBranch = Branch.getAt' namespacePath root
-          -- Names used in the README should not be confined to the namespace
-          -- of the README (since it could be referencing definitions from all
-          -- over the codebase)
-          let printNames = Backend.prettyNamesForBranch root (Backend.AllNames namespacePath)
-
+          (_parseNames, printNames) <- Backend.scopedNamesForBranchHash codebase mayRootHash namespacePath
           readme <-
             Backend.findShallowReadmeInBranchAndRender
               width
               runtime
               codebase
-              (NamesWithHistory {currentNames = printNames, oldNames = mempty})
-              namespaceBranch
-
-          pure $ NamespaceDetails namespaceName (branchToUnisonHash namespaceBranch) readme
+              (NamesWithHistory.fromCurrentNames printNames)
+              shallowBranch
+          let causalHash = v2CausalBranchToUnisonHash namespaceCausal
+          pure $ NamespaceDetails namespaceName causalHash readme
 
         pure $ namespaceDetails

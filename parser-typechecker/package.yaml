@@ -26,6 +26,7 @@ dependencies:
   - bytestring
   - bytestring-to-vector
   - cereal
+  - clock
   - configurator
   - containers >= 0.6.3
   - cryptonite

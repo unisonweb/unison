@@ -28,13 +28,10 @@ import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as V1Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -154,7 +151,7 @@ serve ::
   Maybe NamespaceFQN ->
   Maybe NamespaceFQN ->
   Backend.Backend IO NamespaceListing
-serve codebase mayRootHash mayRelativeTo mayNamespaceName =
+serve codebase maySBH mayRelativeTo mayNamespaceName =
   let -- Various helpers
       errFromEither f = either (throwError . f) pure
 
@@ -183,12 +180,6 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
       -- Lookup paths, root and listing and construct response
       namespaceListing :: Backend IO NamespaceListing
       namespaceListing = do
-        shallowRoot <- case mayRootHash of
-          Nothing -> liftIO (Codebase.getShallowRootBranch codebase)
-          Just sbh -> do
-            h <- Backend.expandShortBranchHash codebase sbh
-            liftIO $ Codebase.getShallowBranchForHash codebase (Cv.branchHash1to2 h)
-
         -- Relative and Listing Path resolution
         --
         -- The full listing path is a combination of the relativeToPath (prefix) and the namespace path
@@ -208,10 +199,8 @@ serve codebase mayRootHash mayRelativeTo mayNamespaceName =
         let path = Path.fromPath' relativeToPath' <> Path.fromPath' namespacePath'
         let path' = Path.toPath' path
 
-        listingCausal <-
-          (liftIO $ Codebase.shallowBranchAtPath path shallowRoot) >>= \case
-            Nothing -> pure $ Cv.causalbranch1to2 (V1Branch.empty)
-            Just lc -> pure lc
+        mayRootHash <- traverse (Backend.expandShortBranchHash codebase) maySBH
+        listingCausal <- Backend.getShallowCausalAtPathFromRootHash codebase mayRootHash path
         listingBranch <- liftIO $ V2Causal.value listingCausal
         shallowPPE <- liftIO $ Backend.shallowPPE codebase listingBranch
         let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
