@@ -22,7 +22,7 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Serialization as S
 import qualified U.Codebase.Sync as Sync
 import qualified U.Util.Serialization as S
-import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals)
+import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
 import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Helpers
 import qualified Unison.Debug as Debug
 import Unison.Prelude
@@ -74,14 +74,10 @@ migrateSchema3To4 = do
   let MigrationState {_canonicalBranchForCausalHashId = mapping} = migrationState
   let reachableCausalHashes = Map.keysSet mapping
   let reachableBranchObjIds = setOf (traversed . _2) mapping
-  log $ "🛠 Cleaning up unreachable branches and causals..."
+  log $ "🛠  Cleaning up unreachable branches and causals..."
   dropUnreachableCausalsAndBranches reachableCausalHashes reachableBranchObjIds
   do
-    log $ "🕵️ Checking namespace and causal integrity..."
     assertMigrationSuccess
-    liftA2 (<>) integrityCheckAllBranches integrityCheckAllCausals >>= \case
-      NoIntegrityErrors -> pure ()
-      IntegrityErrorDetected -> abortMigration "Codebase integrity error detected."
   Q.setSchemaVersion 4
   where
     causalCount :: Sqlite.Transaction Int
@@ -104,9 +100,9 @@ migrationProgress totalCausals =
     done _ =
       do
         numDone <- numMigrated <+= 1
-        lift $ Sqlite.unsafeIO $ putStr $ "\r 🏗  " <> show numDone <> " / ~" <> show totalCausals <> " entities migrated. 🚧"
+        lift $ Sqlite.unsafeIO $ putStr $ "\r🏗  " <> show numDone <> " / ~" <> show totalCausals <> " entities migrated. 🚧"
     error e = lift . log $ "Error " <> show e
-    allDone = lift . Sqlite.unsafeIO . putStrLn $ "Finished."
+    allDone = lift . Sqlite.unsafeIO . putStrLn $ "\nFinished."
 
 migrationSync :: Sync.Sync (StateT MigrationState Sqlite.Transaction) DB.CausalHashId
 migrationSync =
@@ -312,17 +308,6 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
           DELETE FROM object
             WHERE id = ?
           |]
-
-abortMigration :: String -> Sqlite.Transaction a
-abortMigration msg = do
-  error $
-    unlines
-      [ "⚠️ " <> msg,
-        "",
-        "An unrecoverable error occurred, the migration has been aborted.",
-        "Please report this bug to https://github.com/unisonweb/unison/issues and include your migration output.",
-        "Downgrading to the previous UCM version will allow you to continue using your codebase while we investigate your issue."
-      ]
 
 log :: String -> Sqlite.Transaction ()
 log = Sqlite.unsafeIO . putStrLn

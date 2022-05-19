@@ -12,6 +12,8 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import Unison.Codebase (CodebasePath)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUnknownSchemaVersion))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase
+import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckFullCodebase)
+import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchema3To4)
@@ -70,12 +72,19 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
           for_ (Map.toAscList migrationsToRun) $ \(SchemaVersion v, migration) -> do
             putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
             run migration
-          pure (not (null migrationsToRun))
+          let ranMigrations = not (null migrationsToRun)
+          when ranMigrations $ do
+            putStrLn $ "🕵️  Checkingcodebase integrity..."
+            run do
+              integrityCheckFullCodebase >>= \case
+                NoIntegrityErrors -> pure ()
+                IntegrityErrorDetected -> abortMigration "Codebase integrity error detected."
+          pure ranMigrations
       when ranMigrations do
         -- Vacuum once now that any migrations have taken place.
         putStrLn $ "Cleaning up..."
         Sqlite.Connection.vacuum conn
-        putStrLn $ "🏁 Migration complete. 🏁"
+        putStrLn $ "🏁 Migration complete 🏁"
 
 -- | Copy the sqlite database to a new file with a unique name based on current time.
 backupCodebase :: CodebasePath -> IO ()

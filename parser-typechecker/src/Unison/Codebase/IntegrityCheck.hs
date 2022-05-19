@@ -1,8 +1,11 @@
 {-# LANGUAGE QuasiQuotes #-}
 
+-- | There are many invariants we expect to hold in our sqlite database and on codebase
+-- objects which we can't maintain using database checks. This module performs checks for some
+-- of these invariants, which can be useful to run after performing potentially dangerous
+-- operations like migrations.
 module Unison.Codebase.IntegrityCheck
-  ( integrityCheckAllBranches,
-    integrityCheckAllCausals,
+  ( integrityCheckFullCodebase,
     IntegrityResult (..),
   )
 where
@@ -44,9 +47,10 @@ instance Semigroup IntegrityResult where
 instance Monoid IntegrityResult where
   mempty = NoIntegrityErrors
 
+-- | Performs a bevy of checks on causals.
 integrityCheckAllCausals :: Sqlite.Transaction IntegrityResult
 integrityCheckAllCausals = do
-  logInfo "Checking Causal IntegrityResult..."
+  logInfo "Checking Causal Integrity..."
   Sqlite.queryListRow_ @(DB.CausalHashId, DB.BranchHashId) causalsWithMissingBranchObjects >>= \case
     [] -> pure NoIntegrityErrors
     badCausals -> do
@@ -62,9 +66,10 @@ integrityCheckAllCausals = do
             WHERE NOT EXISTS (SELECT 1 from object o WHERE o.primary_hash_id = c.value_hash_id);
           |]
 
+-- | Performs a bevy of checks on branch objects and their relation to causals.
 integrityCheckAllBranches :: Sqlite.Transaction IntegrityResult
 integrityCheckAllBranches = do
-  logInfo "Checking Namespace IntegrityResult..."
+  logInfo "Checking Namespace Integrity..."
   branchObjIds <- Sqlite.queryListCol_ allBranchObjectIdsSql
   flip foldMapM branchObjIds integrityCheckBranch
   where
@@ -122,3 +127,11 @@ integrityCheckAllBranches = do
         failure msg = do
           -- error msg
           logError msg
+
+-- | Performs all available integrity checks.
+integrityCheckFullCodebase :: Sqlite.Transaction IntegrityResult
+integrityCheckFullCodebase = do
+  fmap fold . sequenceA $
+    [ integrityCheckAllBranches,
+      integrityCheckAllCausals
+    ]
