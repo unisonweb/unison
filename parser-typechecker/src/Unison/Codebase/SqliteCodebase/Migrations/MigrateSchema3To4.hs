@@ -22,7 +22,7 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Serialization as S
 import qualified U.Codebase.Sync as Sync
 import qualified U.Util.Serialization as S
-import Unison.Codebase.IntegrityCheck (integrityCheckAllBranches, integrityCheckAllCausals)
+import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals)
 import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Helpers
 import qualified Unison.Debug as Debug
 import Unison.Prelude
@@ -30,8 +30,13 @@ import qualified Unison.Sqlite as Sqlite
 import Prelude hiding (log)
 
 data MigrationState = MigrationState
-  { _canonicalBranchForCausalHashId :: Map DB.CausalHashId (DB.BranchHashId, DB.BranchObjectId),
-    _validBranchHashIds :: Map DB.BranchHashId DB.BranchObjectId
+  { -- A mapping from a causal hash to the _corrected_ and _canonicalized_ branch hash and
+    -- object.
+    _canonicalBranchForCausalHashId :: Map DB.CausalHashId (DB.BranchHashId, DB.BranchObjectId),
+    -- A mapping of branch hashes which were found to be correct and don't need to be
+    -- re-hashed/re-canonicalized, it allows us to skip some redundant work.
+    _validBranchHashIds :: Map DB.BranchHashId DB.BranchObjectId,
+    _numMigrated :: Int
   }
   deriving (Generic)
 
@@ -42,6 +47,10 @@ canonicalBranchForCausalHashId =
 validBranchHashIds :: Lens' MigrationState (Map DB.BranchHashId DB.BranchObjectId)
 validBranchHashIds =
   field @"_validBranchHashIds"
+
+numMigrated :: Lens' MigrationState Int
+numMigrated =
+  field @"_numMigrated"
 
 -- | There was a bug in previous versions of UCM which incorrectly 'converted' branch hashes.
 -- In previous versions, every namespace hash was assigned its causal hash instead.
@@ -59,32 +68,45 @@ validBranchHashIds =
 migrateSchema3To4 :: Sqlite.Transaction ()
 migrateSchema3To4 = do
   Q.expectSchemaVersion 3
-  Debug.whenDebug Debug.Integrity do
-    log $ "Pre-migration integrity check..."
-    integrityCheckAllBranches
-    integrityCheckAllCausals
   rootCausalHashId <- Q.expectNamespaceRoot
-  MigrationState mapping _ <- flip execStateT (MigrationState mempty mempty) $ Sync.sync migrationSync migrationProgress [rootCausalHashId]
-  log $ "Done migrating."
+  totalCausals <- causalCount
+  migrationState <- flip execStateT (MigrationState mempty mempty 0) $ Sync.sync migrationSync (migrationProgress totalCausals) [rootCausalHashId]
+  let MigrationState {_canonicalBranchForCausalHashId = mapping} = migrationState
   let reachableCausalHashes = Map.keysSet mapping
   let reachableBranchObjIds = setOf (traversed . _2) mapping
-  log $ "Dropping unreachable branches and causals..."
+  log $ "🛠 Cleaning up unreachable branches and causals..."
   dropUnreachableCausalsAndBranches reachableCausalHashes reachableBranchObjIds
   do
-    log $ "Checking namespace and causal integrity..."
+    log $ "🕵️ Checking namespace and causal integrity..."
     assertMigrationSuccess
-    integrityCheckAllBranches
-    integrityCheckAllCausals
+    liftA2 (<>) integrityCheckAllBranches integrityCheckAllCausals >>= \case
+      NoIntegrityErrors -> pure ()
+      IntegrityErrorDetected -> abortMigration "Codebase integrity error detected."
   Q.setSchemaVersion 4
+  where
+    causalCount :: Sqlite.Transaction Int
+    causalCount = do
+      Sqlite.queryOneCol_
+        [here|
+          SELECT count(*) FROM causal;
+          |]
 
-migrationProgress :: Sync.Progress (StateT MigrationState Sqlite.Transaction) DB.CausalHashId
-migrationProgress =
+    assertMigrationSuccess :: Sqlite.Transaction ()
+    assertMigrationSuccess = do
+      badNamespaces <- Sqlite.queryListRow_ @(DB.BranchObjectId, DB.CausalHashId) findNamespacesWithCausalHashesSql
+      when (not . null $ badNamespaces) $ abortMigration "Uh-oh, still found some causals with incorrect namespace hashes after migratiing."
+
+migrationProgress :: Int -> Sync.Progress (StateT MigrationState Sqlite.Transaction) DB.CausalHashId
+migrationProgress totalCausals =
   Sync.Progress {Sync.need, Sync.done, Sync.error, Sync.allDone}
   where
     need e = lift $ debugLog $ "Need " <> show e
-    done e = lift $ debugLog $ "Done " <> show e
+    done _ =
+      do
+        numDone <- numMigrated <+= 1
+        lift $ Sqlite.unsafeIO $ putStr $ "\r 🏗  " <> show numDone <> " / ~" <> show totalCausals <> " entities migrated. 🚧"
     error e = lift . log $ "Error " <> show e
-    allDone = lift . Sqlite.unsafeIO . putStrLn $ "All done"
+    allDone = lift . Sqlite.unsafeIO . putStrLn $ "Finished."
 
 migrationSync :: Sync.Sync (StateT MigrationState Sqlite.Transaction) DB.CausalHashId
 migrationSync =
@@ -170,7 +192,7 @@ migrateCausal causalHashId = do
           throwError Sync.Done
       liftT (Q.loadBranchObjectIdByCausalHashId causalHashId) >>= \case
         Nothing -> do
-          liftT . abortMigration $ "Missing object for branch of causal: " <> show causalHashId
+          liftT . abortMigration $ "Missing object for child branch of causal: " <> show causalHashId
         Just branchObjId -> do
           rehashAndCanonicalizeNamespace causalHashId valueHashId branchObjId
 
@@ -293,7 +315,32 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
 
 abortMigration :: String -> Sqlite.Transaction a
 abortMigration msg = do
-  error $ "⚠️ " <> msg
+  error $
+    unlines
+      [ "⚠️ " <> msg,
+        "",
+        "An unrecoverable error occurred, the migration has been aborted.",
+        "Please report this bug to https://github.com/unisonweb/unison/issues and include your migration output.",
+        "Downgrading to the previous UCM version will allow you to continue using your codebase while we investigate your issue."
+      ]
+
+log :: String -> Sqlite.Transaction ()
+log = Sqlite.unsafeIO . putStrLn
+
+debugLog :: String -> Sqlite.Transaction ()
+debugLog = Debug.whenDebug Debug.Migration . Sqlite.unsafeIO . putStrLn
+
+findNamespacesWithCausalHashesSql :: Sqlite.Sql
+findNamespacesWithCausalHashesSql =
+  [here|
+        -- Find all namespace object IDs which actually have causal hashes instead of
+        -- namespace hashes as their primary hash.
+        SELECT DISTINCT o.id, o.primary_hash_id
+          FROM causal c
+          LEFT JOIN object o ON o.primary_hash_id = c.self_hash_id
+          WHERE self_hash_id = self_hash_id
+                AND type_id = 2 -- filter for namespaces just to be safe
+        |]
 
 -- fixBadNamespaceHashes :: Sqlite.Transaction ()
 -- fixBadNamespaceHashes = do
@@ -414,26 +461,3 @@ abortMigration msg = do
 --           DELETE FROM object
 --             WHERE id = ?
 --           |]
-
-log :: String -> Sqlite.Transaction ()
-log = Sqlite.unsafeIO . putStrLn
-
-debugLog :: String -> Sqlite.Transaction ()
-debugLog = Debug.whenDebug Debug.Migration . Sqlite.unsafeIO . putStrLn
-
-assertMigrationSuccess :: Sqlite.Transaction ()
-assertMigrationSuccess = do
-  badNamespaces <- Sqlite.queryListRow_ @(DB.BranchObjectId, DB.CausalHashId) findNamespacesWithCausalHashesSql
-  when (not . null $ badNamespaces) $ error "Uh-oh, still found bad namespaces after migration."
-
-findNamespacesWithCausalHashesSql :: Sqlite.Sql
-findNamespacesWithCausalHashesSql =
-  [here|
-        -- Find all namespace object IDs which actually have causal hashes instead of
-        -- namespace hashes as their primary hash.
-        SELECT DISTINCT o.id, o.primary_hash_id
-          FROM causal c
-          LEFT JOIN object o ON o.primary_hash_id = c.self_hash_id
-          WHERE self_hash_id = self_hash_id
-                AND type_id = 2 -- filter for namespaces just to be safe
-        |]
