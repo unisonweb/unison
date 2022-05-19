@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.6.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 
@@ -382,6 +382,7 @@ test-suite parser-typechecker-tests
     , bytestring
     , bytestring-to-vector
     , cereal
+    , clock
     , code-page
     , configurator
     , containers >=0.6.3
