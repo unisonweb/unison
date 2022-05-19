@@ -1,9 +1,13 @@
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
   ( dbBranchHash,
     dbPatchHash,
+    syncCausalHash,
   )
 where
 
+import qualified Data.Set as Set
+import qualified Data.Vector as Vector
+import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import qualified U.Codebase.Reference as S hiding (Reference)
 import qualified U.Codebase.Reference as S.Reference
 import qualified U.Codebase.Referent as S.Referent
@@ -46,9 +50,7 @@ syncCausalHash S.SyncCausalFormat {valueHash = valueHashId, parents = parentChId
   fmap Hashing.Causal.hashCausal $
     Hashing.Causal.Causal
       <$> coerce @(Transaction BranchHash) @(Transaction Hash) (Q.expectBranchHash valueHashId)
-  valueHash <- _ valueHashId
-  parents <- traverse _ parentChIds
-  pure $ Hashing.Causal.hashCausal valueHash parents
+      <*> fmap (Set.fromList . coerce @[CausalHash] @[Hash] . Vector.toList) (traverse Q.expectCausalHash parentChIds)
 
 dbBranchHash :: S.DbBranch -> Transaction Hash
 dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
