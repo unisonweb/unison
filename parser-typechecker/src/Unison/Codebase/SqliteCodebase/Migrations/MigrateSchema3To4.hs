@@ -207,15 +207,15 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
   when (not . null $ unmigratedChildren) $ throwError (Sync.Missing unmigratedChildren)
   when changes $ do
     liftT $ replaceBranch objId remappedBranch
+  when (DB.unCausalHashId causalHashId /= DB.unBranchHashId possiblyIncorrectNamespaceHashId) $ do
+    -- If the causal hash and value hash are already different, then we don't need to re-hash
+    -- the branch.
+    canonicalBranchForCausalHashId . at causalHashId ?= (possiblyIncorrectNamespaceHashId, objId)
+    validBranchHashIds . at possiblyIncorrectNamespaceHashId ?= objId
+    throwError Sync.Done
   newBranchHash <- liftT $ Helpers.dbBranchHash remappedBranch
   liftT . debugLog $ "New branch hash: " <> show newBranchHash
   correctNamespaceHashId <- liftT $ Q.saveBranchHash (H.BranchHash newBranchHash)
-  -- Only do the extra work if the namespace hash was previously incorrect.
-  when (correctNamespaceHashId == possiblyIncorrectNamespaceHashId) $ do
-    -- This mapping hasn't changed, but this marks the causal as migrated.
-    canonicalBranchForCausalHashId . at causalHashId ?= (correctNamespaceHashId, objId)
-    validBranchHashIds . at possiblyIncorrectNamespaceHashId ?= objId
-    throwError Sync.Done
   -- Update the value_hash_id on the causal to the correct hash for the branch
   liftT $ Sqlite.execute updateCausalValueHash (correctNamespaceHashId, possiblyIncorrectNamespaceHashId)
   -- It's possible that an object already exists for this new hash

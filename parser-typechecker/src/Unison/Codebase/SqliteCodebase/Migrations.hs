@@ -74,7 +74,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
             run migration
           let ranMigrations = not (null migrationsToRun)
           when ranMigrations $ do
-            putStrLn $ "🕵️  Checkingcodebase integrity..."
+            putStrLn $ "🕵️  Checking codebase integrity..."
             run do
               integrityCheckFullCodebase >>= \case
                 NoIntegrityErrors -> pure ()
