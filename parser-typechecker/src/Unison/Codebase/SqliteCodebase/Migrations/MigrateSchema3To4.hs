@@ -57,7 +57,8 @@ migrateSchema3To4 = do
     log $ "Pre-migration integrity check..."
     integrityCheckAllBranches
     integrityCheckAllCausals
-  flip execStateT (MigrationState mempty) $ Sync.sync migrationSync _migrationProgress [_rootCausal]
+  rootCausalHashId <- Q.expectNamespaceRoot
+  flip execStateT (MigrationState mempty) $ Sync.sync migrationSync migrationProgress [rootCausalHashId]
   do
     log $ "Checking namespace and causal integrity..."
     assertMigrationSuccess
@@ -79,6 +80,15 @@ migrateSchema3To4 = do
            )
           |]
 
+migrationProgress :: Sync.Progress (StateT MigrationState Sqlite.Transaction) DB.CausalHashId
+migrationProgress =
+  Sync.Progress {Sync.need, Sync.done, Sync.error, Sync.allDone}
+  where
+    need _ = pure ()
+    done _ = pure ()
+    error _ = pure ()
+    allDone = lift . Sqlite.unsafeIO . putStrLn $ "All done"
+
 migrationSync :: Sync.Sync (StateT MigrationState Sqlite.Transaction) DB.CausalHashId
 migrationSync =
   Sync.Sync \e -> do
@@ -91,69 +101,54 @@ liftT = lift . lift
 
 migrateCausal :: DB.CausalHashId -> ExceptT (Sync.TrySyncResult DB.CausalHashId) (StateT MigrationState Sqlite.Transaction) ()
 migrateCausal causalHashId = do
-  (uses canonicalBranchForCausalHashId (Map.member causalHashId)) >>= \case
-    True -> throwError Sync.PreviouslyDone
-    False -> do
+  preuse (canonicalBranchForCausalHashId . ix causalHashId) >>= \case
+    Just _ -> throwError Sync.PreviouslyDone
+    Nothing -> do
       causalParents <- liftT $ Q.loadCausalParents causalHashId
-      unmigratedParents <- flip filterM causalParents $ \parentHashId -> (uses canonicalBranchForCausalHashId (Map.member parentHashId))
+      unmigratedParents <- flip filterM causalParents $ \parentHashId -> (uses canonicalBranchForCausalHashId (Map.notMember parentHashId))
       when (not . null $ unmigratedParents) $ throwError (Sync.Missing unmigratedParents)
-      branchObjId <- liftT $ Q.expectBranchObjectIdByCausalHashId causalHashId
-      rehashAndCanonicalizeNamespace causalHashId branchObjId
-
--- preuse (correctedBranchHashIds . ix branchHashId) >>= \case
---   Nothing -> do
---     unmigratedBranchObjId <- DB.BranchObjectId <$> (lift $ Q.expectObjectIdForPrimaryHashId (DB.unBranchHashId branchHashId))
---     pure (Sync.Missing [Left unmigratedBranchObjId])
---   Just _ -> do
---     pure Sync.PreviouslyDone
-
--- preuse (causalHashIdToNamespaceHash . ix causalHashId) >>= \case
---   Just _ -> pure Sync.PreviouslyDone
---   Nothing -> do
---     branchHashId <- lift $ Q.expectCausalValueHashId causalHashId
---     preuse (correctedBranchHashIds . ix branchHashId) >>= \case
---       Just correctBranchHashId
---         | correctBranchHashId == branchHashId -> do
---           causalHashIdToNamespaceHash . at causalHashId ?= correctBranchHashId
---           pure Sync.Done
---         | otherwise -> do
---           -- lift $ Sqlite.execute updateCausalValueHash (correctBranchHashId, branchHashId)
---           causalHashIdToNamespaceHash . at causalHashId ?= correctBranchHashId
---           pure Sync.Done
---       Nothing -> do
---         -- We haven't re-hashed the attached branch yet, so we need to do that first so we
---         -- know the value hash ID.
---         branchObjId <- lift $ Q.expectBranchObjectIdByCausalHashId causalHashId
---         pure (Sync.Missing [Left branchObjId])
+      liftT (Q.loadBranchObjectIdByCausalHashId causalHashId) >>= \case
+        Nothing -> do
+          liftT . abortMigration $ "Missing object for branch of causal: " <> show causalHashId
+        Just branchObjId -> do
+          rehashAndCanonicalizeNamespace causalHashId branchObjId
 
 rehashAndCanonicalizeNamespace :: DB.CausalHashId -> DB.BranchObjectId -> ExceptT (Sync.TrySyncResult DB.CausalHashId) (StateT MigrationState Sqlite.Transaction) ()
 rehashAndCanonicalizeNamespace causalHashId objId = do
+  -- The bug which existed means that this 'namespace hash' might actually be a causal hash
+  -- instead.
   possiblyIncorrectNamespaceHashId <- DB.BranchHashId <$> (liftT $ Q.expectPrimaryHashIdForObject (DB.unBranchObjectId objId))
   dbBranch <- liftT $ Ops.expectDbBranch objId
-  remapping <- use canonicalBranchForCausalHashId
+  canonicalBranchForCausalMap <- use canonicalBranchForCausalHashId
+  -- remap all of the object ID's of the child branches to the correct and canonical objects,
+  -- get a list of any unmigrated children, and also track whether any re-mappings actually
+  -- occurred, so we don't do extra work when nothing changed.
   let ((unmigratedChildren, Any changes), remappedBranch) =
         dbBranch & DBBranch.childrenHashes_ %%~ \(ids@(_childBranchObjId, childCausalHashId)) -> do
-          case Map.lookup childCausalHashId remapping of
+          case Map.lookup childCausalHashId canonicalBranchForCausalMap of
             Nothing -> (([childCausalHashId], Any False), ids)
-            Just (_, canonicalObjId) -> ((mempty, Any True), (canonicalObjId, childCausalHashId))
+            Just (_, canonicalObjId) -> (([], Any True), (canonicalObjId, childCausalHashId))
   when (not . null $ unmigratedChildren) $ throwError (Sync.Missing (unmigratedChildren))
   when changes $ do
     liftT $ replaceBranch objId remappedBranch
   newBranchHash <- liftT $ Helpers.dbBranchHash remappedBranch
+  liftT . debugLog $ "New branch hash: " <> show newBranchHash
   correctNamespaceHashId <- liftT $ Q.saveBranchHash (H.BranchHash newBranchHash)
-  -- Only do the extra work if the namespace hash was incorrect.
+  -- Only do the extra work if the namespace hash was previously incorrect.
   when (correctNamespaceHashId == possiblyIncorrectNamespaceHashId) $ throwError Sync.Done
-  liftT . debugLog $ "New branch hash Id: " <> show newBranchHash
-  -- Update the value hash of the bad causal to the correct hash of its namespace.
-  mayCanonical <- liftT $ Sqlite.queryMaybeCol getCanonicalObjectForHash (Sqlite.Only $ DB.unBranchHashId correctNamespaceHashId)
+  -- Update the value_hash_id on the causal to the correct hash for the branch
+  liftT $ Sqlite.execute updateCausalValueHash (correctNamespaceHashId, possiblyIncorrectNamespaceHashId)
+  -- It's possible that an object already exists for this new hash
+  mayCanonical <- getCanonicalObjectForHash correctNamespaceHashId
   liftT . debugLog $ "(objId, Canonical object ID):" <> show (objId, mayCanonical)
   liftT . debugLog $ "Updating causal value hash (from, to)" <> show (possiblyIncorrectNamespaceHashId, correctNamespaceHashId)
-  liftT $ Sqlite.execute updateCausalValueHash (correctNamespaceHashId, possiblyIncorrectNamespaceHashId)
   canonicalObjId <- case mayCanonical of
     -- If there's an existing canonical object, record the mapping from this object id to
     -- that one.
     Just canonicalObjectId
       | canonicalObjectId /= objId -> do
+        -- Found an existing object with this hash, so the current object is a duplicate and
+        -- needs to be deleted.
         liftT . debugLog $ "Mapping objID: " <> show objId <> " to canonical: " <> show canonicalObjectId
         liftT . debugLog $ "Unilaterally deleting: " <> show objId
         -- Remove possible foreign-key references before deleting the objects themselves
@@ -162,15 +157,15 @@ rehashAndCanonicalizeNamespace causalHashId objId = do
         pure canonicalObjectId
       | otherwise -> do
         error $ "Corrected hash for bad namespace is somehow still mapped to the same causal hash. This shouldn't happen.: " <> show (objId, canonicalObjectId)
-
-    -- If there's no existing canonical object, this object becomes the canonical one by
-    -- reassigning its primary hash.
     Nothing -> do
+      -- There's no existing canonical object, this object BECOMES the canonical one by
+      -- reassigning its primary hash.
       liftT . debugLog $ "Updating in place: " <> show objId
       liftT $ Sqlite.execute deleteHashObjectsByObjectId (Sqlite.Only objId)
       liftT $ Sqlite.execute updateHashIdForObject (correctNamespaceHashId, objId)
-      liftT $ updateHashObjects objId correctNamespaceHashId
+      liftT $ Q.saveHashObject (DB.unBranchHashId correctNamespaceHashId) (DB.unBranchObjectId objId) 2
       pure objId
+  -- Save the canonical branch info for the causal for use in remappings.
   canonicalBranchForCausalHashId . at causalHashId ?= (correctNamespaceHashId, canonicalObjId)
   where
     updateCausalValueHash :: Sqlite.Sql
@@ -180,9 +175,18 @@ rehashAndCanonicalizeNamespace causalHashId objId = do
               SET value_hash_id = ?
               WHERE value_hash_id = ?
             |]
-    getCanonicalObjectForHash :: Sqlite.Sql
-    getCanonicalObjectForHash =
-      [here|
+
+    getCanonicalObjectForHash ::
+      DB.BranchHashId ->
+      ExceptT
+        (Sync.TrySyncResult DB.CausalHashId)
+        (StateT MigrationState Sqlite.Transaction)
+        (Maybe DB.BranchObjectId)
+    getCanonicalObjectForHash namespaceHashId =
+      liftT $ Sqlite.queryMaybeCol sql (Sqlite.Only $ DB.unBranchHashId namespaceHashId)
+      where
+        sql =
+          [here|
             SELECT id
               FROM object
               WHERE primary_hash_id = ?
@@ -195,16 +199,9 @@ rehashAndCanonicalizeNamespace causalHashId objId = do
             SET primary_hash_id = ?
             WHERE id = ?
           |]
-    updateHashObjects (DB.BranchObjectId objId) (DB.BranchHashId newHashId) = do
-      Sqlite.execute deleteOldHashObjsSql (Sqlite.Only objId)
-      Q.saveHashObject newHashId objId 2
-      where
-        deleteOldHashObjsSql =
-          [here|
-          DELETE FROM hash_object
-            WHERE object_id = ?
-          |]
 
+    -- Replace the bytes payload of a given branch in-place.
+    -- This does NOT update the hash of the object.
     replaceBranch :: DB.BranchObjectId -> DBBranch.DbBranch -> Sqlite.Transaction ()
     replaceBranch objId branch = do
       let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch branch
@@ -224,6 +221,7 @@ rehashAndCanonicalizeNamespace causalHashId objId = do
           DELETE FROM hash_object
             WHERE object_id = ?
     |]
+
     deleteObjectById :: Sqlite.Sql
     deleteObjectById =
       [here|
@@ -231,9 +229,9 @@ rehashAndCanonicalizeNamespace causalHashId objId = do
             WHERE id = ?
           |]
 
--- abortMigration :: String -> Sqlite.Transaction a
--- abortMigration msg = do
---   error msg
+abortMigration :: String -> Sqlite.Transaction a
+abortMigration msg = do
+  error $ "⚠️ " <> msg
 
 -- fixBadNamespaceHashes :: Sqlite.Transaction ()
 -- fixBadNamespaceHashes = do
