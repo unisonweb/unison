@@ -333,10 +333,9 @@ migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
           & S.patches_ %~ remapPatchObjectId
           & S.childrenHashes_ %~ (remapBranchObjectId *** remapCausalHashId)
 
-  let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch newBranch
   newHash <- lift . lift $ Hashing.dbBranchHash newBranch
   newHashId <- lift . lift $ Q.saveBranchHash (BranchHash (Cv.hash1to2 newHash))
-  newObjectId <- lift . lift $ Ops.saveBranchObject newHashId localBranchIds localBranch
+  newObjectId <- lift . lift $ Ops.saveDbBranchUnderHashId newHashId newBranch
   field @"objLookup" %= Map.insert oldObjectId (unBranchObjectId newObjectId, unBranchHashId newHashId, newHash, oldHash)
   pure Sync.Done
 
@@ -849,8 +848,7 @@ foldSetter t s = execWriter (s & t %%~ \a -> tell [a] *> pure a)
 saveV2EmptyBranch :: Sqlite.Transaction (BranchHashId, Hash)
 saveV2EmptyBranch = do
   let branch = S.emptyBranch
-  let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch branch
   newHash <- Hashing.dbBranchHash branch
   newHashId <- Q.saveBranchHash (BranchHash (Cv.hash1to2 newHash))
-  _ <- Ops.saveBranchObject newHashId localBranchIds localBranch
+  _ <- Ops.saveDbBranchUnderHashId newHashId branch
   pure (newHashId, newHash)

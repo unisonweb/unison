@@ -68,8 +68,9 @@ module U.Codebase.Sqlite.Operations
 
     -- * low-level stuff
     expectDbBranch,
+    saveDbBranch,
+    saveDbBranchUnderHashId,
     expectDbPatch,
-    saveBranchObject,
     saveDbPatch,
     expectDbBranchByCausalHashId,
 
@@ -213,12 +214,12 @@ loadCausalHashAtPath =
         [] -> lift (Q.expectCausalHash hashId)
         t : ts -> do
           tid <- MaybeT (Q.loadTextId t)
-          S.Branch{children} <- MaybeT (loadDbBranchByCausalHashId hashId)
+          S.Branch {children} <- MaybeT (loadDbBranchByCausalHashId hashId)
           (_, hashId') <- MaybeT (pure (Map.lookup tid children))
           go hashId' ts
-  in \path -> do
-    hashId <- Q.expectNamespaceRoot
-    runMaybeT (go hashId path)
+   in \path -> do
+        hashId <- Q.expectNamespaceRoot
+        runMaybeT (go hashId path)
 
 -- | Expect the causal hash at the given path from the root.
 --
@@ -230,12 +231,12 @@ expectCausalHashAtPath =
         [] -> Q.expectCausalHash hashId
         t : ts -> do
           tid <- Q.expectTextId t
-          S.Branch{children} <- expectDbBranchByCausalHashId hashId
+          S.Branch {children} <- expectDbBranchByCausalHashId hashId
           let (_, hashId') = children Map.! tid
           go hashId' ts
-  in \path -> do
-    hashId <- Q.expectNamespaceRoot
-    go hashId path
+   in \path -> do
+        hashId <- Q.expectNamespaceRoot
+        go hashId path
 
 -- * Reference transformations
 
@@ -945,8 +946,7 @@ saveBranch (C.Causal hc he parents me) = do
     pure (chId, bhId)
   boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByCausalHashId chId) do
     branch <- c2sBranch =<< me
-    let (li, lBranch) = LocalizeObject.localizeBranch branch
-    saveBranchObject bhId li lBranch
+    saveDbBranchUnderHashId bhId branch
   pure (boId, chId)
   where
     c2sBranch :: C.Branch.Branch Transaction -> Transaction S.DbBranch
@@ -972,13 +972,6 @@ saveBranch (C.Causal hc he parents me) = do
         Nothing -> do
           patch <- mp
           savePatch h patch
-
-saveBranchObject :: Db.BranchHashId -> BranchLocalIds -> S.Branch.Full.LocalBranch -> Transaction Db.BranchObjectId
-saveBranchObject id@(Db.unBranchHashId -> hashId) li lBranch = do
-  when debug $ traceM $ "saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show li ++ "\n\tlBranch = " ++ show lBranch
-  let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full li lBranch
-  oId <- Q.saveObject hashId OT.Namespace bytes
-  pure $ Db.BranchObjectId oId
 
 expectRootCausal :: Transaction (C.Branch.CausalBranch Transaction)
 expectRootCausal = Q.expectNamespaceRoot >>= expectCausalBranchByCausalHashId
@@ -1127,6 +1120,28 @@ expectDbBranch id =
           S.Branch.Diff.AlterDefMetadata md' ->
             let (Set.fromList -> adds, Set.fromList -> removes) = S.BranchDiff.addsRemoves md'
              in Just . S.MetadataSet.Inline $ (Set.union adds $ Set.difference md removes)
+
+-- | Save a 'S.DbBranch', given its hash (which the caller is expected to produce from the branch).
+--
+-- Note: long-standing question: should this package depend on the hashing package? (If so, we would only need to take
+-- the DbBranch, and hash internally).
+saveDbBranch :: BranchHash -> S.DbBranch -> Transaction Db.BranchObjectId
+saveDbBranch hash branch = do
+  hashId <- Q.saveBranchHash hash
+  saveDbBranchUnderHashId hashId branch
+
+-- | Variant of 'saveDbBranch' that might be preferred by callers that already have a hash id, not a hash.
+saveDbBranchUnderHashId :: Db.BranchHashId -> S.DbBranch -> Transaction Db.BranchObjectId
+saveDbBranchUnderHashId id@(Db.unBranchHashId -> hashId) branch = do
+  let (localBranchIds, localBranch) = LocalizeObject.localizeBranch branch
+  when debug $
+    traceM $
+      "saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show localBranchIds
+        ++ "\n\tlBranch = "
+        ++ show localBranch
+  let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full localBranchIds localBranch
+  oId <- Q.saveObject hashId OT.Namespace bytes
+  pure $ Db.BranchObjectId oId
 
 expectBranch :: Db.BranchObjectId -> Transaction (C.Branch.Branch Transaction)
 expectBranch id =
