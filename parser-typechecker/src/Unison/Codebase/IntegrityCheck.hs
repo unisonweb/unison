@@ -51,12 +51,21 @@ instance Monoid IntegrityResult where
 integrityCheckAllCausals :: Sqlite.Transaction IntegrityResult
 integrityCheckAllCausals = do
   logInfo "Checking Causal Integrity..."
-  Sqlite.queryListRow_ @(DB.CausalHashId, DB.BranchHashId) causalsWithMissingBranchObjects >>= \case
-    [] -> pure NoIntegrityErrors
-    badCausals -> do
-      logError $ "Detected " <> pShow (length badCausals) <> " causals with missing branch objects."
-      debugLog . pShow $ badCausals
-      pure IntegrityErrorDetected
+
+  branchObjIntegrity <-
+    Sqlite.queryListRow_ @(DB.CausalHashId, DB.BranchHashId) causalsWithMissingBranchObjects >>= \case
+      [] -> pure NoIntegrityErrors
+      badCausals -> do
+        logError $ "Detected " <> pShow (length badCausals) <> " causals with missing branch objects."
+        debugLog . pShow $ badCausals
+        pure IntegrityErrorDetected
+
+  differingBranchHashIntegrity <-
+    Sqlite.queryOneCol_ @Bool anyCausalsWithMatchingValueHashAndSelfHash
+      <&> \case
+        False -> NoIntegrityErrors
+        True -> IntegrityErrorDetected
+  pure (branchObjIntegrity <> differingBranchHashIntegrity)
   where
     causalsWithMissingBranchObjects :: Sqlite.Sql
     causalsWithMissingBranchObjects =
@@ -65,6 +74,13 @@ integrityCheckAllCausals = do
             FROM causal c
             WHERE NOT EXISTS (SELECT 1 from object o WHERE o.primary_hash_id = c.value_hash_id);
           |]
+    anyCausalsWithMatchingValueHashAndSelfHash :: Sqlite.Sql
+    anyCausalsWithMatchingValueHashAndSelfHash =
+      [here|
+          SELECT EXISTS
+            (SELECT 1 FROM causal WHERE self_hash_id = value_hash_id
+            )
+        |]
 
 -- | Performs a bevy of checks on branch objects and their relation to causals.
 integrityCheckAllBranches :: Sqlite.Transaction IntegrityResult

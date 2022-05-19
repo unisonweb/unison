@@ -92,8 +92,6 @@ migrateSchema3To4 = do
   let reachableBranchObjIds = setOf (traversed . _2) mapping
   log $ "🛠  Cleaning up unreachable branches and causals..."
   dropUnreachableCausalsAndBranches reachableCausalHashes reachableBranchObjIds
-  do
-    assertMigrationSuccess
   Q.setSchemaVersion 4
   where
     causalCount :: Sqlite.Transaction Int
@@ -102,11 +100,6 @@ migrateSchema3To4 = do
         [here|
           SELECT count(*) FROM causal;
           |]
-
-    assertMigrationSuccess :: Sqlite.Transaction ()
-    assertMigrationSuccess = do
-      badNamespaces <- Sqlite.queryListRow_ @(DB.BranchObjectId, DB.CausalHashId) findNamespacesWithCausalHashesSql
-      when (not . null $ badNamespaces) $ abortMigration "Uh-oh, still found some causals with incorrect namespace hashes after migratiing."
 
 migrationProgress :: Int -> Sync.Progress (StateT MigrationState Sqlite.Transaction) DB.CausalHashId
 migrationProgress totalCausals =
@@ -330,18 +323,6 @@ log = Sqlite.unsafeIO . putStrLn
 
 debugLog :: String -> Sqlite.Transaction ()
 debugLog = Debug.whenDebug Debug.Migration . Sqlite.unsafeIO . putStrLn
-
-findNamespacesWithCausalHashesSql :: Sqlite.Sql
-findNamespacesWithCausalHashesSql =
-  [here|
-        -- Find all namespace object IDs which actually have causal hashes instead of
-        -- namespace hashes as their primary hash.
-        SELECT DISTINCT o.id, o.primary_hash_id
-          FROM causal c
-          LEFT JOIN object o ON o.primary_hash_id = c.self_hash_id
-          WHERE self_hash_id = self_hash_id
-                AND type_id = 2 -- filter for namespaces just to be safe
-        |]
 
 -- fixBadNamespaceHashes :: Sqlite.Transaction ()
 -- fixBadNamespaceHashes = do
