@@ -27,6 +27,7 @@ library
       Unison.Server.Endpoints.NamespaceListing
       Unison.Server.Endpoints.Projects
       Unison.Server.Errors
+      Unison.Server.Orphans
       Unison.Server.QueryResult
       Unison.Server.SearchResult
       Unison.Server.SearchResult'

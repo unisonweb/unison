@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Unison.Runtime.Foreign
   ( Foreign (..),
@@ -24,6 +25,7 @@ import Data.Tagged (Tagged (..))
 import qualified Data.X509 as X509
 import Network.Socket (Socket)
 import qualified Network.TLS as TLS (ClientParams, Context, ServerParams)
+import System.Clock (TimeSpec)
 import System.IO (Handle)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -138,6 +140,8 @@ instance BuiltinForeign (SuperGroup Symbol) where
   foreignRef = Tagged Ty.codeRef
 
 instance BuiltinForeign Value where foreignRef = Tagged Ty.valueRef
+
+instance BuiltinForeign TimeSpec where foreignRef = Tagged Ty.timeSpecRef
 
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm

@@ -7,7 +7,7 @@
 -- See the excellent documentation at https://hackage.haskell.org/package/optparse-applicative
 module ArgParse where
 
-import Control.Applicative (Alternative (many, (<|>)), Applicative (liftA2), optional, (<**>))
+import Control.Applicative (Alternative (many, (<|>)), Applicative (liftA2), optional)
 import Data.Foldable (Foldable (fold))
 import Data.Functor ((<&>))
 import qualified Data.List as List
@@ -34,6 +34,7 @@ import Options.Applicative
     helper,
     hsubparser,
     info,
+    infoOption,
     long,
     metavar,
     option,
@@ -112,7 +113,7 @@ data GlobalOptions = GlobalOptions
 rootParserInfo :: String -> String -> CodebaseServerOpts -> ParserInfo (GlobalOptions, Command)
 rootParserInfo progName version envOpts =
   info
-    ((,) <$> globalOptionsParser <*> commandParser envOpts <**> helper)
+    (helper <*> versionOptionParser progName version <*> ((,) <$> globalOptionsParser <*> commandParser envOpts))
     ( fullDesc
         <> headerDoc (Just $ unisonHelp progName version)
     )
@@ -264,6 +265,10 @@ codebaseCreateParser = do
         <> metavar "CODEBASE/PATH"
         <> help "The path to a new or existing codebase (one will be created if there isn't one)"
   pure (fmap CreateCodebaseWhenMissing path)
+
+versionOptionParser :: String -> String -> Parser (a -> a)
+versionOptionParser progName version =
+  infoOption (progName <> " version: " <> version) (short 'v' <> long "version" <> help "Show version")
 
 launchHeadlessCommand :: CodebaseServerOpts -> Mod CommandFields Command
 launchHeadlessCommand envOpts =
