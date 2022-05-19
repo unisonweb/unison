@@ -71,6 +71,7 @@ module U.Codebase.Sqlite.Operations
     expectDbPatch,
     saveBranchObject,
     saveDbPatch,
+    expectDbBranchByCausalHashId,
 
     -- * somewhat unexpectedly unused definitions
     c2sReferenceId,

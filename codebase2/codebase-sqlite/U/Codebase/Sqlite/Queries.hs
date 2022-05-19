@@ -19,6 +19,7 @@ module U.Codebase.Sqlite.Queries
     loadHashId,
     expectHash,
     expectHash32,
+    expectBranchHash,
     loadHashIdByHash,
     expectHashIdByHash,
     saveCausalHash,
@@ -317,6 +318,9 @@ expectHash h = Hash.fromBase32Hex <$> expectHash32 h
 expectHash32 :: HashId -> Transaction Base32Hex
 expectHash32 h = queryOneCol sql (Only h)
   where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
+
+expectBranchHash :: BranchHashId -> Transaction BranchHash
+expectBranchHash = coerce expectHash
 
 saveText :: Text -> Transaction TextId
 saveText t = execute sql (Only t) >> expectTextId t
@@ -859,7 +863,7 @@ expectCausalValueHashId (CausalHashId id) =
   queryOneCol loadCausalValueHashIdSql (Only id)
 
 expectCausalHash :: CausalHashId -> Transaction CausalHash
-expectCausalHash (CausalHashId id) = CausalHash <$> expectHash id
+expectCausalHash = coerce expectHash
 
 loadCausalValueHashId :: HashId -> Transaction (Maybe BranchHashId)
 loadCausalValueHashId id =

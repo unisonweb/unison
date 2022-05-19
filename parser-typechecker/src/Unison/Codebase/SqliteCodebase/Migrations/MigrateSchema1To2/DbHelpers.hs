@@ -11,6 +11,7 @@ import U.Codebase.Sqlite.Branch.Full (DbMetadataSet)
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
+import qualified U.Codebase.Sqlite.Causal as S
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Patch.Full as S
 import qualified U.Codebase.Sqlite.Patch.TermEdit as S (TermEdit)
@@ -24,6 +25,7 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Branch (NameSegment (..))
 import qualified Unison.Hashing.V2.Branch as Hashing.Branch
+import qualified Unison.Hashing.V2.Causal as Hashing.Causal
 import qualified Unison.Hashing.V2.Patch as Hashing (Patch (..))
 import qualified Unison.Hashing.V2.Patch as Hashing.Patch
 import qualified Unison.Hashing.V2.Reference as Hashing (Reference)
@@ -38,6 +40,15 @@ import Unison.Prelude
 import Unison.Sqlite (Transaction)
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
+
+syncCausalHash :: S.SyncCausalFormat -> Transaction Hash
+syncCausalHash S.SyncCausalFormat {valueHash = valueHashId, parents = parentChIds} = do
+  fmap Hashing.Causal.hashCausal $
+    Hashing.Causal.Causal
+      <$> coerce @(Transaction BranchHash) @(Transaction Hash) (Q.expectBranchHash valueHashId)
+  valueHash <- _ valueHashId
+  parents <- traverse _ parentChIds
+  pure $ Hashing.Causal.hashCausal valueHash parents
 
 dbBranchHash :: S.DbBranch -> Transaction Hash
 dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
