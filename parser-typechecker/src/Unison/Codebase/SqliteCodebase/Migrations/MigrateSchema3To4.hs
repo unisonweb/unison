@@ -52,19 +52,35 @@ numMigrated :: Lens' MigrationState Int
 numMigrated =
   field @"_numMigrated"
 
--- | There was a bug in previous versions of UCM which incorrectly 'converted' branch hashes.
--- In previous versions, every namespace hash was assigned its causal hash instead.
+-- | There was a bug in previous versions of UCM which incorrectly used causal hashes as branch hashes.
 -- This remained undetected because there was never a need for this hash to be verifiable,
 -- and the hashes were still unique because the namespace hash was PART of the causal hash.
+-- It did however result in many identical branches being stored multiple times under
+-- different `primary_hash_id`s.
 --
--- However, with the advent of Share and Sync, we now want to correctly verify these namespace
--- hashes. Also, correcting this may reduce codebase size slightly since it's possible some
--- identical namespace objects were given differing hashes if the same namespace was used in
--- different causals.
+-- However, with the advent of Share and Sync, we now need to correctly verify these namespace
+-- hashes.
 --
--- This migration fixes the issue by re-hashing all namespace objects, luckily this doesn't
--- affect any causal hashes, and there are actually no references to namespace objects in
--- other blobs, so we don't have any 'cleanup' to do after fixing a namespace hash.
+-- This migration fixes the issue by re-hashing namespace objects where the value_hash_id of a
+-- causal matches the self_hash_id.
+-- Luckily this doesn't change any causal hashes.
+--
+-- However, due to the possibility of multiple identical objects stored under different
+-- `primary_hash_id`s, we may now have multiple objects with the same `primary_hash_id`, which
+-- our DB schema doesn't allow.
+--
+-- To address this, we keep exactly one 'canonical' object for each hash, then remap all
+-- references to old objects into this canonical object instead. Unfortunately this requires
+-- mapping over every branch object and traversing the child references.
+--
+-- It was also discovered that some developers had many branches which referenced objects
+-- which weren't in their codebase. We're not yet sure how this happened, but it's unlikely
+-- to be the case for most end users, and it turned out that these references were in causals
+-- and branches which were unreachable from the root namespace. As a fix, this migration also
+-- tracks every causal and branch which is reachable from the root namespace and deletes all
+-- causals and namespaces which are unreachable. Note that this may orphan some definitions,
+-- patches, etc. which were previously referenced in an 'unreachable' branch, but they were
+-- already floating around in an unreachable state.
 migrateSchema3To4 :: Sqlite.Transaction ()
 migrateSchema3To4 = do
   Q.expectSchemaVersion 3
