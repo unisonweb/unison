@@ -372,7 +372,7 @@ step f = runIdentity . stepM (Identity . f)
 -- | Perform an update over the current branch and create a new causal step.
 stepM :: (Monad n, Applicative m) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepM f = \case
-  Branch (Causal.One _h _ e) | e == empty0 -> Branch . Causal.one <$> f empty0
+  Branch (Causal.One _h _eh e) | e == empty0 -> Branch . Causal.one <$> f empty0
   b -> mapMOf history (Causal.stepDistinctM f) b
 
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
