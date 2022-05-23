@@ -47,6 +47,24 @@ instance Semigroup IntegrityResult where
 instance Monoid IntegrityResult where
   mempty = NoIntegrityErrors
 
+integrityCheckAllHashObjects :: Sqlite.Transaction IntegrityResult
+integrityCheckAllHashObjects = do
+  logInfo "Checking Hash Object Integrity..."
+  Sqlite.queryOneCol_ anyObjectsWithoutHashObjectsSQL >>= \case
+    True -> do
+      failure $ "Detected Objects without any hash_object."
+      pure IntegrityErrorDetected
+    False -> do
+      pure NoIntegrityErrors
+  where
+    anyObjectsWithoutHashObjectsSQL =
+      [here|
+        -- Returns a boolean indicating whether any objects are missing a hash_object.
+        SELECT EXISTS (
+          SELECT 1 FROM object AS o WHERE NOT EXISTS (SELECT 1 FROM hash_object as ho WHERE ho.object_id = o.id)
+          )
+        |]
+
 -- | Performs a bevy of checks on causals.
 integrityCheckAllCausals :: Sqlite.Transaction IntegrityResult
 integrityCheckAllCausals = do
@@ -148,14 +166,16 @@ integrityCheckAllBranches = do
                 failure $ "Expected child branch object to match canonical object ID for causal hash's namespace: " <> pShow (causalHashId, foundBranchId, branchObjId)
                 pure IntegrityErrorDetected
               | otherwise -> pure NoIntegrityErrors
-        failure :: TL.Text -> Sqlite.Transaction ()
-        failure msg = do
-          logError msg
+
+failure :: TL.Text -> Sqlite.Transaction ()
+failure msg = do
+  logError msg
 
 -- | Performs all available integrity checks.
 integrityCheckFullCodebase :: Sqlite.Transaction IntegrityResult
 integrityCheckFullCodebase = do
   fmap fold . sequenceA $
-    [ integrityCheckAllBranches,
+    [ integrityCheckAllHashObjects,
+      integrityCheckAllBranches,
       integrityCheckAllCausals
     ]
