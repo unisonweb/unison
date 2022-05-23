@@ -136,7 +136,10 @@ dropUnreachableCausalsAndBranches reachableCausals reachableBranchObjs = do
     deleteUnreachableHashObjects =
       [here|
       DELETE FROM hash_object AS ho
-        WHERE NOT EXISTS (SELECT 1 FROM reachable_branch_objects AS ro WHERE ho.object_id = ro.object_id)
+        WHERE
+          NOT EXISTS (SELECT 1 FROM reachable_branch_objects AS ro WHERE ho.object_id = ro.object_id)
+          -- Ensure hash objects we're deleting are for branch objects.
+          AND EXISTS (SELECT 1 FROM object AS o WHERE o.id = ho.object_id AND type_id = 2)
       |]
     deleteUnreachableBranchObjects =
       [here|
@@ -154,8 +157,9 @@ dropUnreachableCausalsAndBranches reachableCausals reachableBranchObjs = do
       [here|
       DELETE FROM causal_parent AS cp
         WHERE
+          -- We only need to check the children, because if it's impossible for a parent to be
+          -- unreachable if the child is reachable. A.k.a. reachable(child) =implies> reachable(parent)
           NOT EXISTS (SELECT 1 FROM reachable_causals AS rc WHERE cp.causal_id = rc.self_hash_id)
-          OR NOT EXISTS (SELECT 1 FROM reachable_causals AS rc WHERE cp.parent_id = rc.self_hash_id)
       |]
     insertReachableCausalSql =
       [here|

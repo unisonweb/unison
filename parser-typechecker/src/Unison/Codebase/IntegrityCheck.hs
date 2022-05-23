@@ -110,12 +110,21 @@ integrityCheckAllBranches = do
         failure $ "Expected hash for namespace doesn't match actual hash for namespace: " <> pShow (expectedBranchHash, actualBranchHash)
       flip foldMapM (toListOf DBBranch.childrenHashes_ dbBranch) $ \(childObjId, childCausalHashId) -> do
         let checks =
-              [ assertBranchObjExists childObjId,
+              [ assertExpectedBranchHash expectedBranchHash actualBranchHash,
+                assertBranchObjExists childObjId,
                 assertCausalExists childCausalHashId,
                 assertCausalValueMatchesObject childCausalHashId childObjId
               ]
         fold <$> sequenceA checks
       where
+        assertExpectedBranchHash expectedBranchHash actualBranchHash = do
+          if (expectedBranchHash /= actualBranchHash)
+            then do
+              failure $ "Expected hash for namespace doesn't match actual hash for namespace: " <> pShow (expectedBranchHash, actualBranchHash)
+              pure IntegrityErrorDetected
+            else do
+              pure NoIntegrityErrors
+
         assertBranchObjExists branchObjId = do
           Q.loadNamespaceObject @Void (DB.unBranchObjectId branchObjId) (const $ Right ()) >>= \case
             Just _ -> pure NoIntegrityErrors
@@ -141,7 +150,6 @@ integrityCheckAllBranches = do
               | otherwise -> pure NoIntegrityErrors
         failure :: TL.Text -> Sqlite.Transaction ()
         failure msg = do
-          -- error msg
           logError msg
 
 -- | Performs all available integrity checks.
