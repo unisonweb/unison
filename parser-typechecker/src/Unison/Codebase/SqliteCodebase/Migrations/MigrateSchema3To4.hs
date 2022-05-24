@@ -228,15 +228,18 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
   when (not . null $ unmigratedChildren) $ throwError (Sync.Missing unmigratedChildren)
   when changes $ do
     liftT $ replaceBranch objId remappedBranch
-  when (DB.unCausalHashId causalHashId /= DB.unBranchHashId possiblyIncorrectNamespaceHashId) $ do
-    -- If the causal hash and value hash are already different, then we don't need to re-hash
-    -- the branch.
-    canonicalBranchForCausalHashId . at causalHashId ?= (possiblyIncorrectNamespaceHashId, objId)
+  correctNamespaceHash <- liftT $ Helpers.dbBranchHash remappedBranch
+  liftT . debugLog $ "Correct namespace hash: " <> show correctNamespaceHash
+  correctNamespaceHashId <- liftT $ Q.saveBranchHash (H.BranchHash correctNamespaceHash)
+
+  when (correctNamespaceHashId == possiblyIncorrectNamespaceHashId) $ do
+    -- If the existing hash for this namespace was already correct, we don't need to
+    -- canonicalize the branch or worry about deleting/updating bad objects.
+    -- We just record the mapping and move on.
+    canonicalBranchForCausalHashId . at causalHashId ?= (correctNamespaceHashId, objId)
     validBranchHashIds . at possiblyIncorrectNamespaceHashId ?= objId
     throwError Sync.Done
-  newBranchHash <- liftT $ Helpers.dbBranchHash remappedBranch
-  liftT . debugLog $ "New branch hash: " <> show newBranchHash
-  correctNamespaceHashId <- liftT $ Q.saveBranchHash (H.BranchHash newBranchHash)
+
   -- Update the value_hash_id on the causal to the correct hash for the branch
   liftT $ Sqlite.execute updateCausalValueHash (correctNamespaceHashId, possiblyIncorrectNamespaceHashId)
   -- It's possible that an object already exists for this new hash
@@ -248,7 +251,7 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
     -- that one.
     Just canonicalObjectId
       | canonicalObjectId /= objId -> do
-        -- Found an existing object with this hash, so the current object is a duplicate and
+        -- Found an existing but different object with this hash, so the current object is a duplicate and
         -- needs to be deleted.
         liftT . debugLog $ "Mapping objID: " <> show objId <> " to canonical: " <> show canonicalObjectId
         liftT . debugLog $ "Unilaterally deleting: " <> show objId
@@ -257,7 +260,8 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
         liftT $ Sqlite.execute deleteObjectById (Sqlite.Only objId)
         pure canonicalObjectId
       | otherwise -> do
-        error $ "Corrected hash for bad namespace is somehow still mapped to the same causal hash. This shouldn't happen.: " <> show (objId, canonicalObjectId)
+        -- This should be impossible.
+        error $ "We proved that the new hash is different from the existing one, but somehow found the same object for each hash. Please report this as a bug." <> show (objId, canonicalObjectId)
     Nothing -> do
       -- There's no existing canonical object, this object BECOMES the canonical one by
       -- reassigning its primary hash.
