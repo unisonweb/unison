@@ -240,6 +240,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
               UnliftIO.UnliftIO toIO -> toIO . Free.fold go
         pure runF
       UCMVersion -> pure ucmVersion
+      AnalyzeCodebaseIntegrity -> pure ucmVersion
 
     watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
     watchCache h = do

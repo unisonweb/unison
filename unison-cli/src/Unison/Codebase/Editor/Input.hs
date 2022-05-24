@@ -180,6 +180,7 @@ data Input
   | DebugDumpNamespacesI
   | DebugDumpNamespaceSimpleI
   | DebugClearWatchI
+  | DebugDoctorI
   | QuitI
   | ApiI
   | UiI

@@ -8,11 +8,16 @@ module Unison.Codebase.IntegrityCheck
   ( integrityCheckFullCodebase,
     integrityCheckAllBranches,
     integrityCheckAllCausals,
+    prettyPrintIntegrityErrors,
     IntegrityResult (..),
   )
 where
 
 import Control.Lens
+import qualified Data.List.NonEmpty as NEList
+import qualified Data.Set as Set
+import Data.Set.NonEmpty (NESet)
+import qualified Data.Set.NonEmpty as NESet
 import Data.String.Here.Uninterpolated (here)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TL
@@ -28,6 +33,7 @@ import Unison.Hash (Hash)
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import Unison.Util.Monoid (foldMapM)
+import qualified Unison.Util.Pretty as P
 import Prelude hiding (log)
 
 debugLog :: TL.Text -> Sqlite.Transaction ()
@@ -39,12 +45,30 @@ logInfo msg = Sqlite.unsafeIO $ TL.putStrLn msg
 logError :: TL.Text -> Sqlite.Transaction ()
 logError msg = logInfo $ "  ⚠️ " <> msg
 
-data IntegrityResult = IntegrityErrorDetected | NoIntegrityErrors
-  deriving (Show, Eq)
+data IntegrityError
+  = DetectedObjectsWithoutCorrespondingHashObjects (NESet DB.BranchObjectId)
+  | -- (causal hash, branch hash)
+    DetectedCausalsWithoutCorrespondingBranchObjects (NESet (Hash, Hash))
+  | DetectedCausalsWithCausalHashAsBranchHash (NESet Hash)
+  | DetectedBranchErrors Hash (NESet BranchError)
+  deriving stock (Show, Eq, Ord)
+
+data BranchError
+  = IncorrectHashForBranch Hash Hash
+  | MismatchedObjectForChild Hash DB.BranchObjectId DB.BranchObjectId
+  | MissingObjectForChildCausal Hash
+  | MissingObject DB.BranchObjectId
+  | MissingCausalForChild Hash
+  | ChildCausalHashObjectIdMismatch Hash DB.BranchObjectId
+  deriving stock (Show, Eq, Ord)
+
+data IntegrityResult = IntegrityErrorDetected (NESet IntegrityError) | NoIntegrityErrors
+  deriving stock (Show, Eq, Ord)
 
 instance Semigroup IntegrityResult where
-  IntegrityErrorDetected <> _ = IntegrityErrorDetected
-  _ <> IntegrityErrorDetected = IntegrityErrorDetected
+  IntegrityErrorDetected errA <> IntegrityErrorDetected errB = IntegrityErrorDetected (errA <> errB)
+  NoIntegrityErrors <> IntegrityErrorDetected err = IntegrityErrorDetected err
+  IntegrityErrorDetected err <> NoIntegrityErrors = IntegrityErrorDetected err
   NoIntegrityErrors <> NoIntegrityErrors = NoIntegrityErrors
 
 instance Monoid IntegrityResult where
@@ -53,19 +77,16 @@ instance Monoid IntegrityResult where
 integrityCheckAllHashObjects :: Sqlite.Transaction IntegrityResult
 integrityCheckAllHashObjects = do
   logInfo "Checking Hash Object Integrity..."
-  Sqlite.queryOneCol_ anyObjectsWithoutHashObjectsSQL >>= \case
-    True -> do
-      failure $ "Detected Objects without any hash_object."
-      pure IntegrityErrorDetected
-    False -> do
+  Sqlite.queryListCol_ @DB.BranchObjectId objectsWithoutHashObjectsSQL >>= \case
+    (o : os) -> do
+      let badObjects = NESet.fromList (o NEList.:| os)
+      pure $ IntegrityErrorDetected (NESet.singleton $ DetectedObjectsWithoutCorrespondingHashObjects badObjects)
+    [] -> do
       pure NoIntegrityErrors
   where
-    anyObjectsWithoutHashObjectsSQL =
+    objectsWithoutHashObjectsSQL =
       [here|
-        -- Returns a boolean indicating whether any objects are missing a hash_object.
-        SELECT EXISTS (
-          SELECT 1 FROM object AS o WHERE NOT EXISTS (SELECT 1 FROM hash_object as ho WHERE ho.object_id = o.id)
-          )
+          SELECT o.id FROM object AS o WHERE NOT EXISTS (SELECT 1 FROM hash_object as ho WHERE ho.object_id = o.id)
         |]
 
 -- | Performs a bevy of checks on causals.
@@ -76,16 +97,21 @@ integrityCheckAllCausals = do
   branchObjIntegrity <-
     Sqlite.queryListRow_ @(DB.CausalHashId, DB.BranchHashId) causalsWithMissingBranchObjects >>= \case
       [] -> pure NoIntegrityErrors
-      badCausals -> do
+      (c : cs) -> do
+        badCausals <- for (c NEList.:| cs) $ \(causalHashId, branchHashId) -> do
+          ch <- Q.expectHash (DB.unCausalHashId causalHashId)
+          bh <- Q.expectHash (DB.unBranchHashId branchHashId)
+          pure (ch, bh)
         logError $ "Detected " <> pShow (length badCausals) <> " causals with missing branch objects."
         debugLog . pShow $ badCausals
-        pure IntegrityErrorDetected
+        pure $ IntegrityErrorDetected (NESet.singleton $ DetectedCausalsWithoutCorrespondingBranchObjects $ NESet.fromList badCausals)
 
   differingBranchHashIntegrity <-
-    Sqlite.queryOneCol_ @Bool anyCausalsWithMatchingValueHashAndSelfHash
-      <&> \case
-        False -> NoIntegrityErrors
-        True -> IntegrityErrorDetected
+    Sqlite.queryListCol_ @DB.HashId causalsWithMatchingValueHashAndSelfHash >>= \case
+      [] -> pure NoIntegrityErrors
+      (c : cs) -> do
+        badCausalHashes <- for (c NEList.:| cs) Q.expectHash
+        pure (IntegrityErrorDetected (NESet.singleton $ DetectedCausalsWithCausalHashAsBranchHash $ NESet.fromList badCausalHashes))
   pure (branchObjIntegrity <> differingBranchHashIntegrity)
   where
     causalsWithMissingBranchObjects :: Sqlite.Sql
@@ -95,12 +121,10 @@ integrityCheckAllCausals = do
             FROM causal c
             WHERE NOT EXISTS (SELECT 1 from object o WHERE o.primary_hash_id = c.value_hash_id);
           |]
-    anyCausalsWithMatchingValueHashAndSelfHash :: Sqlite.Sql
-    anyCausalsWithMatchingValueHashAndSelfHash =
+    causalsWithMatchingValueHashAndSelfHash :: Sqlite.Sql
+    causalsWithMatchingValueHashAndSelfHash =
       [here|
-          SELECT EXISTS
-            (SELECT 1 FROM causal WHERE self_hash_id = value_hash_id
-            )
+        SELECT self_hash_id FROM causal WHERE self_hash_id = value_hash_id
         |]
 
 -- | Performs a bevy of checks on branch objects and their relation to causals.
@@ -134,45 +158,97 @@ integrityCheckAllBranches = do
                 assertCausalExists childCausalHashId,
                 assertCausalValueMatchesObject childCausalHashId childObjId
               ]
-        fold <$> sequenceA checks
-      pure $ branchHashCheck <> branchChildChecks
+        (fold <$> sequenceA checks)
+      case NESet.nonEmptySet (branchHashCheck <> branchChildChecks) of
+        Nothing -> pure NoIntegrityErrors
+        Just errs -> pure . IntegrityErrorDetected . NESet.singleton $ DetectedBranchErrors actualBranchHash errs
       where
-        assertExpectedBranchHash :: Hash -> Hash -> Sqlite.Transaction IntegrityResult
+        assertExpectedBranchHash :: Hash -> Hash -> Sqlite.Transaction (Set BranchError)
         assertExpectedBranchHash expectedBranchHash actualBranchHash = do
           if (expectedBranchHash /= actualBranchHash)
             then do
               failure $ "Expected hash for namespace doesn't match actual hash for namespace: " <> pShow (expectedBranchHash, actualBranchHash)
-              pure IntegrityErrorDetected
+              pure (Set.singleton $ IncorrectHashForBranch expectedBranchHash actualBranchHash)
             else do
-              pure NoIntegrityErrors
+              pure mempty
 
+        assertBranchObjExists :: DB.BranchObjectId -> Sqlite.Transaction (Set BranchError)
         assertBranchObjExists branchObjId = do
           Q.loadNamespaceObject @Void (DB.unBranchObjectId branchObjId) (const $ Right ()) >>= \case
-            Just _ -> pure NoIntegrityErrors
+            Just _ -> pure mempty
             Nothing -> do
               failure $ "Expected namespace object for object ID: " <> pShow branchObjId
-              pure IntegrityErrorDetected
+              pure (Set.singleton $ MissingObject branchObjId)
+        assertCausalExists :: DB.CausalHashId -> Sqlite.Transaction (Set BranchError)
         assertCausalExists causalHashId = do
           Sqlite.queryOneCol doesCausalExistForCausalHashId (Sqlite.Only causalHashId) >>= \case
-            True -> pure NoIntegrityErrors
+            True -> pure mempty
             False -> do
+              ch <- Q.expectHash (DB.unCausalHashId causalHashId)
               failure $ "Expected causal for causal hash ID, but none was found: " <> pShow causalHashId
-              pure IntegrityErrorDetected
+              pure (Set.singleton $ MissingCausalForChild ch)
+        assertCausalValueMatchesObject ::
+          DB.CausalHashId ->
+          DB.BranchObjectId ->
+          Sqlite.Transaction (Set BranchError)
         assertCausalValueMatchesObject causalHashId branchObjId = do
           -- Assert the object for the causal hash ID matches the given object Id.
           Q.loadBranchObjectIdByCausalHashId causalHashId >>= \case
             Nothing -> do
+              ch <- Q.expectHash (DB.unCausalHashId causalHashId)
               failure $ "Expected branch object for causal hash ID: " <> pShow causalHashId
-              pure IntegrityErrorDetected
+              pure (Set.singleton $ MissingObjectForChildCausal ch)
             Just foundBranchId
               | foundBranchId /= branchObjId -> do
                 failure $ "Expected child branch object to match canonical object ID for causal hash's namespace: " <> pShow (causalHashId, foundBranchId, branchObjId)
-                pure IntegrityErrorDetected
-              | otherwise -> pure NoIntegrityErrors
+                ch <- Q.expectHash (DB.unCausalHashId causalHashId)
+                pure (Set.singleton $ MismatchedObjectForChild ch branchObjId foundBranchId)
+              | otherwise -> pure mempty
 
 failure :: TL.Text -> Sqlite.Transaction ()
 failure msg = do
   logError msg
+
+prettyPrintIntegrityErrors :: Foldable f => f IntegrityError -> P.Pretty P.ColorText
+prettyPrintIntegrityErrors xs
+  | null xs = mempty
+  | otherwise =
+    xs
+      & toList
+      & fmap
+        ( \case
+            DetectedObjectsWithoutCorrespondingHashObjects objs ->
+              P.hang
+                "Detected objects without any corresponding hash_object:"
+                (P.commas (P.shown <$> NESet.toList objs))
+            DetectedCausalsWithoutCorrespondingBranchObjects ns ->
+              P.hang
+                "Detected causals without a corresponding branch object:"
+                (P.commas (NESet.toList ns <&> \(ch, bh) -> "Causal Hash: " <> P.shown ch <> ", Branch Hash: " <> P.shown bh))
+            DetectedCausalsWithCausalHashAsBranchHash ns ->
+              P.hang
+                "Detected causals same causal hash as branch hash:"
+                (P.commas (P.shown <$> NESet.toList ns))
+            DetectedBranchErrors bh errs ->
+              P.hang
+                ("Detected errors in branch: " <> P.shown bh)
+                (P.lines . fmap prettyBranchError . toList $ errs)
+        )
+      & P.lines
+      & P.warnCallout
+  where
+    prettyBranchError :: BranchError -> P.Pretty P.ColorText
+    prettyBranchError =
+      P.wrap . \case
+        IncorrectHashForBranch expected actual -> "The Branch hash for this branch is incorrect. Expected Hash: " <> P.shown expected <> ", Actual Hash: " <> P.shown actual
+        MismatchedObjectForChild ha obj1 obj2 ->
+          "The child with causal hash: " <> P.shown ha <> " is mapped to object ID " <> P.shown obj1 <> " but should map to " <> P.shown obj2 <> "."
+        MissingObjectForChildCausal ha ->
+          "There's no corresponding branch object for the causal hash: " <> P.shown ha
+        MissingObject objId -> "Expected an object for the child reference to object id: " <> P.shown objId
+        MissingCausalForChild ch -> "Expected a causal to exist for hash: " <> P.shown ch
+        ChildCausalHashObjectIdMismatch ch objId ->
+          "Expected the object ID reference " <> P.shown ch <> " to match the provided object ID: " <> P.shown objId
 
 -- | Performs all available integrity checks.
 integrityCheckFullCodebase :: Sqlite.Transaction IntegrityResult

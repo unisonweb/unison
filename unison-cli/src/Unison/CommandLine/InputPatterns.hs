@@ -1862,6 +1862,20 @@ debugClearWatchCache =
     "Clear the watch expression cache"
     (const $ Right Input.DebugClearWatchI)
 
+debugDoctor :: InputPattern
+debugDoctor =
+  InputPattern
+    "debug.doctor"
+    []
+    I.Visible
+    []
+    ( P.wrap "Analyze your codebase for errors and inconsistencies."
+    )
+    ( \case
+        [] -> Right $ Input.DebugDoctorI
+        _ -> Left (showPatternHelp debugDoctor)
+    )
+
 test :: InputPattern
 test =
   InputPattern
@@ -2132,6 +2146,7 @@ validInputs =
       debugDumpNamespace,
       debugDumpNamespaceSimple,
       debugClearWatchCache,
+      debugDoctor,
       gist,
       authLogin,
       printVersion

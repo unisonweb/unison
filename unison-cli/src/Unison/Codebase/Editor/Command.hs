@@ -252,6 +252,7 @@ data
   RuntimeMain :: Command m i v (Type v Ann)
   RuntimeTest :: Command m i v (Type v Ann)
   ClearWatchCache :: Command m i v ()
+  AnalyzeCodebaseIntegrity :: Command m i v ()
   MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
   -- | Trigger an interactive fuzzy search over the provided options and return all
   -- selected results.
@@ -348,3 +349,4 @@ commandName = \case
   FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"
   UCMVersion {} -> "UCMVersion"
+  AnalyzeCodebaseIntegrity -> "AnalyzeCodebaseIntegrity"
