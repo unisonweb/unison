@@ -30,6 +30,7 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
+import Unison.Codebase.IntegrityCheck (IntegrityResult)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Reflog as Reflog
@@ -252,7 +253,7 @@ data
   RuntimeMain :: Command m i v (Type v Ann)
   RuntimeTest :: Command m i v (Type v Ann)
   ClearWatchCache :: Command m i v ()
-  AnalyzeCodebaseIntegrity :: Command m i v ()
+  AnalyzeCodebaseIntegrity :: Command m i v IntegrityResult
   MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
   -- | Trigger an interactive fuzzy search over the provided options and return all
   -- selected results.
