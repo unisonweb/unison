@@ -6,6 +6,8 @@
 -- operations like migrations.
 module Unison.Codebase.IntegrityCheck
   ( integrityCheckFullCodebase,
+    integrityCheckAllBranches,
+    integrityCheckAllCausals,
     IntegrityResult (..),
   )
 where

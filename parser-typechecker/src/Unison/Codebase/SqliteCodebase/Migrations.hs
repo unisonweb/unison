@@ -12,7 +12,7 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import Unison.Codebase (CodebasePath)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUnknownSchemaVersion))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase
-import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckFullCodebase)
+import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals)
 import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3)
@@ -76,7 +76,15 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
           when ranMigrations $ do
             putStrLn $ "🕵️  Checking codebase integrity..."
             run do
-              integrityCheckFullCodebase >>= \case
+              result <-
+                fmap fold . sequenceA $
+                  [ -- Ideally we'd check everything here, but certain codebases are known to have objects
+                    -- with missing Hash Objects, we'll want to clean that up in a future migration.
+                    -- integrityCheckAllHashObjects,
+                    integrityCheckAllBranches,
+                    integrityCheckAllCausals
+                  ]
+              case result of
                 NoIntegrityErrors -> pure ()
                 IntegrityErrorDetected -> abortMigration "Codebase integrity error detected."
           pure ranMigrations
