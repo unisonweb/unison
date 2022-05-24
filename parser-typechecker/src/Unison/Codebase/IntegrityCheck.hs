@@ -24,6 +24,7 @@ import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Helpers
 import qualified Unison.Debug as Debug
+import Unison.Hash (Hash)
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import Unison.Util.Monoid (foldMapM)
@@ -126,17 +127,17 @@ integrityCheckAllBranches = do
       dbBranch <- Ops.expectDbBranch objId
       expectedBranchHash <- Helpers.dbBranchHash dbBranch
       actualBranchHash <- Q.expectPrimaryHashByObjectId (DB.unBranchObjectId objId)
-      when (expectedBranchHash /= actualBranchHash) $ do
-        failure $ "Expected hash for namespace doesn't match actual hash for namespace: " <> pShow (expectedBranchHash, actualBranchHash)
-      flip foldMapM (toListOf DBBranch.childrenHashes_ dbBranch) $ \(childObjId, childCausalHashId) -> do
+      branchHashCheck <- assertExpectedBranchHash expectedBranchHash actualBranchHash
+      branchChildChecks <- flip foldMapM (toListOf DBBranch.childrenHashes_ dbBranch) $ \(childObjId, childCausalHashId) -> do
         let checks =
-              [ assertExpectedBranchHash expectedBranchHash actualBranchHash,
-                assertBranchObjExists childObjId,
+              [ assertBranchObjExists childObjId,
                 assertCausalExists childCausalHashId,
                 assertCausalValueMatchesObject childCausalHashId childObjId
               ]
         fold <$> sequenceA checks
+      pure $ branchHashCheck <> branchChildChecks
       where
+        assertExpectedBranchHash :: Hash -> Hash -> Sqlite.Transaction IntegrityResult
         assertExpectedBranchHash expectedBranchHash actualBranchHash = do
           if (expectedBranchHash /= actualBranchHash)
             then do
