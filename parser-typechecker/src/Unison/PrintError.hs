@@ -1413,8 +1413,6 @@ prettyParseError s = \case
             <> style Code "ability Foo where ...",
           "\n  - A `type` declaration, like "
             <> style Code "structural type Optional a = None | Some a",
-          "\n  - A `namespace` declaration, like "
-            <> style Code "namespace Seq where ...",
           "\n"
         ]
       where

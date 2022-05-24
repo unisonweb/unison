@@ -244,7 +244,6 @@ a ! b = 1
     - A watch expression, like > a + 1
     - An `ability` declaration, like ability Foo where ...
     - A `type` declaration, like structural type Optional a = None | Some a
-    - A `namespace` declaration, like namespace Seq where ...
   
 
 ```
