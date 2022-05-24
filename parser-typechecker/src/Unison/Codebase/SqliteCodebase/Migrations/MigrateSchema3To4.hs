@@ -111,7 +111,13 @@ migrationProgress totalCausals =
         numDone <- numMigrated <+= 1
         lift $ Sqlite.unsafeIO $ putStr $ "\r🏗  " <> show numDone <> " / ~" <> show totalCausals <> " entities migrated. 🚧"
     error e = lift . log $ "Error " <> show e
-    allDone = lift . Sqlite.unsafeIO . putStrLn $ "\nFinished."
+    allDone = do
+      -- In some corrupted codebases we don't necessarily process every causal, or there may
+      -- be unreachable causals. We'll show the final number here just so everything looks
+      -- good to users. It's okay since we'll process the other branches and clean them up in
+      -- a batch step.
+      lift $ Sqlite.unsafeIO $ putStrLn $ "\r🏗  " <> show totalCausals <> " / ~" <> show totalCausals <> " entities migrated. 🚧"
+      lift . Sqlite.unsafeIO . putStrLn $ "Finished."
 
 migrationSync :: Sync.Sync (StateT MigrationState Sqlite.Transaction) DB.CausalHashId
 migrationSync =
