@@ -27,6 +27,7 @@ import qualified U.Codebase.Sqlite.Branch.Full as DBBranch
 import qualified U.Codebase.Sqlite.DbId as DB
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
+import qualified U.Util.Hash as Hash
 import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Helpers
 import qualified Unison.Debug as Debug
 import Unison.Hash (Hash)
@@ -43,10 +44,10 @@ logInfo :: TL.Text -> Sqlite.Transaction ()
 logInfo msg = Sqlite.unsafeIO $ TL.putStrLn msg
 
 logError :: TL.Text -> Sqlite.Transaction ()
-logError msg = logInfo $ "  ⚠️ " <> msg
+logError msg = logInfo $ "  ⚠️   " <> msg
 
 data IntegrityError
-  = DetectedObjectsWithoutCorrespondingHashObjects (NESet DB.BranchObjectId)
+  = DetectedObjectsWithoutCorrespondingHashObjects (NESet DB.ObjectId)
   | -- (causal hash, branch hash)
     DetectedCausalsWithoutCorrespondingBranchObjects (NESet (Hash, Hash))
   | DetectedCausalsWithCausalHashAsBranchHash (NESet Hash)
@@ -77,7 +78,7 @@ instance Monoid IntegrityResult where
 integrityCheckAllHashObjects :: Sqlite.Transaction IntegrityResult
 integrityCheckAllHashObjects = do
   logInfo "Checking Hash Object Integrity..."
-  Sqlite.queryListCol_ @DB.BranchObjectId objectsWithoutHashObjectsSQL >>= \case
+  Sqlite.queryListCol_ @DB.ObjectId objectsWithoutHashObjectsSQL >>= \case
     (o : os) -> do
       let badObjects = NESet.fromList (o NEList.:| os)
       pure $ IntegrityErrorDetected (NESet.singleton $ DetectedObjectsWithoutCorrespondingHashObjects badObjects)
@@ -219,36 +220,47 @@ prettyPrintIntegrityErrors xs
         ( \case
             DetectedObjectsWithoutCorrespondingHashObjects objs ->
               P.hang
-                "Detected objects without any corresponding hash_object:"
-                (P.commas (P.shown <$> NESet.toList objs))
-            DetectedCausalsWithoutCorrespondingBranchObjects ns ->
+                "Detected objects without any corresponding hash_object. Object IDs:"
+                (P.commas (prettyObjectId <$> NESet.toList objs))
+            DetectedCausalsWithoutCorrespondingBranchObjects hashes ->
               P.hang
-                "Detected causals without a corresponding branch object:"
-                (P.commas (NESet.toList ns <&> \(ch, bh) -> "Causal Hash: " <> P.shown ch <> ", Branch Hash: " <> P.shown bh))
+                "Detected causals without a corresponding branch object:\n"
+                ( P.column2Header
+                    "Causal Hash"
+                    "Branch Hash"
+                    (toList hashes <&> bimap prettyHash prettyHash)
+                )
             DetectedCausalsWithCausalHashAsBranchHash ns ->
               P.hang
-                "Detected causals same causal hash as branch hash:"
-                (P.commas (P.shown <$> NESet.toList ns))
+                "Detected causals with the same causal hash as branch hash:"
+                (P.commas (prettyHash <$> toList ns))
             DetectedBranchErrors bh errs ->
               P.hang
-                ("Detected errors in branch: " <> P.shown bh)
-                (P.lines . fmap prettyBranchError . toList $ errs)
+                ("Detected errors in branch: " <> prettyHash bh)
+                (P.lines . fmap (<> "\n") . fmap prettyBranchError . toList $ errs)
         )
+      & fmap (<> "\n")
       & P.lines
       & P.warnCallout
   where
+    prettyHash :: Hash -> P.Pretty P.ColorText
+    prettyHash h = P.blue . P.text $ ("#" <> Hash.toBase32HexText h)
+    prettyBranchObjectId :: DB.BranchObjectId -> P.Pretty P.ColorText
+    prettyBranchObjectId = prettyObjectId . DB.unBranchObjectId
+    prettyObjectId :: DB.ObjectId -> P.Pretty P.ColorText
+    prettyObjectId (DB.ObjectId n) = P.green (P.shown n)
     prettyBranchError :: BranchError -> P.Pretty P.ColorText
     prettyBranchError =
       P.wrap . \case
-        IncorrectHashForBranch expected actual -> "The Branch hash for this branch is incorrect. Expected Hash: " <> P.shown expected <> ", Actual Hash: " <> P.shown actual
+        IncorrectHashForBranch expected actual -> "The Branch hash for this branch is incorrect. Expected Hash: " <> prettyHash expected <> ", Actual Hash: " <> prettyHash actual
         MismatchedObjectForChild ha obj1 obj2 ->
-          "The child with causal hash: " <> P.shown ha <> " is mapped to object ID " <> P.shown obj1 <> " but should map to " <> P.shown obj2 <> "."
+          "The child with causal hash: " <> prettyHash ha <> " is mapped to object ID " <> prettyBranchObjectId obj1 <> " but should map to " <> prettyBranchObjectId obj2 <> "."
         MissingObjectForChildCausal ha ->
-          "There's no corresponding branch object for the causal hash: " <> P.shown ha
-        MissingObject objId -> "Expected an object for the child reference to object id: " <> P.shown objId
-        MissingCausalForChild ch -> "Expected a causal to exist for hash: " <> P.shown ch
+          "There's no corresponding branch object for the causal hash: " <> prettyHash ha
+        MissingObject objId -> "Expected an object for the child reference to object id: " <> prettyBranchObjectId objId
+        MissingCausalForChild ch -> "Expected a causal to exist for hash: " <> prettyHash ch
         ChildCausalHashObjectIdMismatch ch objId ->
-          "Expected the object ID reference " <> P.shown ch <> " to match the provided object ID: " <> P.shown objId
+          "Expected the object ID reference " <> prettyHash ch <> " to match the provided object ID: " <> prettyBranchObjectId objId
 
 -- | Performs all available integrity checks.
 integrityCheckFullCodebase :: Sqlite.Transaction IntegrityResult
