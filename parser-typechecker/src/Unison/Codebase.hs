@@ -90,6 +90,9 @@ module Unison.Codebase
     CodebasePath,
     SyncToDir,
 
+    -- * Sqlite Escape Hatch
+    connection,
+
     -- * Misc (organize these better)
     addDefsToCodebase,
     componentReferencesForReference,
