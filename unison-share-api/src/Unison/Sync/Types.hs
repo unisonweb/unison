@@ -640,6 +640,10 @@ data UploadEntitiesResponse
   = UploadEntitiesSuccess
   | UploadEntitiesNeedDependencies (NeedDependencies Hash)
   | UploadEntitiesNoWritePermission RepoName
+  | UploadEntitiesHashMismatchForEntity HashMismatchForEntity
+  deriving stock (Show, Eq, Ord)
+
+data HashMismatchForEntity = HashMismatchForEntity {supplied :: Hash, computed :: Hash}
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON UploadEntitiesResponse where
@@ -647,15 +651,22 @@ instance ToJSON UploadEntitiesResponse where
     UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
     UploadEntitiesNeedDependencies nd -> jsonUnion "need_dependencies" nd
     UploadEntitiesNoWritePermission repoName -> jsonUnion "no_write_permission" repoName
+    UploadEntitiesHashMismatchForEntity mismatch -> jsonUnion "hash_mismatch_for_entity" mismatch
 
 instance FromJSON UploadEntitiesResponse where
-  parseJSON v =
-    v & Aeson.withObject "UploadEntitiesResponse" \obj ->
-      obj .: "type" >>= Aeson.withText "type" \case
-        "success" -> pure UploadEntitiesSuccess
-        "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
-        "no_write_permission" -> UploadEntitiesNoWritePermission <$> obj .: "payload"
-        t -> failText $ "Unexpected UploadEntitiesResponse type: " <> t
+  parseJSON = Aeson.withObject "UploadEntitiesResponse" \obj ->
+    obj .: "type" >>= Aeson.withText "type" \case
+      "success" -> pure UploadEntitiesSuccess
+      "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
+      "no_write_permission" -> UploadEntitiesNoWritePermission <$> obj .: "payload"
+      "hash_mismatch_for_entity" -> UploadEntitiesHashMismatchForEntity <$> obj .: "payload"
+      t -> failText $ "Unexpected UploadEntitiesResponse type: " <> t
+
+instance ToJSON HashMismatchForEntity where
+  toJSON (HashMismatchForEntity supplied computed) = object ["supplied" .= supplied, "computed" .= computed]
+
+instance FromJSON HashMismatchForEntity where
+  parseJSON = Aeson.withObject "HashMismatchForEntity" \obj -> HashMismatchForEntity <$> obj .: "supplied" <*> obj .: "computed"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Fast-forward path
@@ -684,8 +695,10 @@ instance FromJSON UploadEntitiesResponse where
 -- Note that if the client wants to begin a history at a new path on the server, it would use the "update path" endpoint
 -- instead.
 data FastForwardPathRequest = FastForwardPathRequest
-  { -- TODO non-empty
-    hashes :: [Hash],
+  { -- expected_hash :: Hash,
+
+    -- | The sequence of causals to fast-forward, starting from the oldest new causal to the newest new causal
+    hashes :: NonEmpty Hash,
     -- | The path to fast-forward.
     path :: Path
   }
@@ -713,6 +726,11 @@ data FastForwardPathResponse
     FastForwardPathNotFastForward HashJWT
   | -- | There was no history at this path; the client should use the "update path" endpoint instead.
     FastForwardPathNoHistory
+  | -- | This wasn't a fast-forward. You said the first hash was a parent of the second hash, but I disagree.
+    FastForwardPathInvalidParentage InvalidParentage
+  deriving stock (Show)
+
+data InvalidParentage = InvalidParentage {parent :: Hash, child :: Hash}
   deriving stock (Show)
 
 instance ToJSON FastForwardPathResponse where
@@ -722,6 +740,7 @@ instance ToJSON FastForwardPathResponse where
     FastForwardPathNoWritePermission path -> jsonUnion "no_write_permission" path
     FastForwardPathNotFastForward hashJwt -> jsonUnion "not_fast_forward" hashJwt
     FastForwardPathNoHistory -> jsonUnion "no_history" (Object mempty)
+    FastForwardPathInvalidParentage invalidParentage -> jsonUnion "invalid_parentage" invalidParentage
 
 instance FromJSON FastForwardPathResponse where
   parseJSON =
@@ -732,7 +751,15 @@ instance FromJSON FastForwardPathResponse where
         "no_write_permission" -> FastForwardPathNoWritePermission <$> o .: "payload"
         "not_fast_forward" -> FastForwardPathNotFastForward <$> o .: "payload"
         "no_history" -> pure FastForwardPathNoHistory
+        "invalid_parentage" -> FastForwardPathInvalidParentage <$> o .: "payload"
         t -> failText $ "Unexpected FastForwardPathResponse type: " <> t
+
+instance ToJSON InvalidParentage where
+  toJSON (InvalidParentage parent child) = object ["parent" .= parent, "child" .= child]
+
+instance FromJSON InvalidParentage where
+  parseJSON =
+    Aeson.withObject "InvalidParentage" \o -> InvalidParentage <$> o .: "parent" <*> o .: "child"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Update path

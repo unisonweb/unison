@@ -26,7 +26,6 @@ module Unison.Share.Sync
 where
 
 import qualified Control.Lens as Lens
-import Control.Monad.Extra ((||^))
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import qualified Control.Monad.Trans.Reader as Reader
 import qualified Data.Foldable as Foldable (find)
@@ -454,22 +453,13 @@ data EntityLocation
   | -- | Nowhere
     EntityNotStored
 
--- | Does this entity already exist in the database, i.e. in the `object` or `causal` table?
-entityExists :: Share.Hash -> Sqlite.Transaction Bool
-entityExists (Share.Hash b32) = do
-  -- first get hashId if exists
-  Q.loadHashId b32 >>= \case
-    Nothing -> pure False
-    -- then check if is causal hash or if object exists for hash id
-    Just hashId -> Q.isCausalHash hashId ||^ Q.isObjectHash hashId
-
 -- | Where is an entity stored?
 entityLocation :: Share.Hash -> Sqlite.Transaction EntityLocation
-entityLocation hash =
-  entityExists hash >>= \case
+entityLocation (Share.Hash b32) =
+  Q.entityExists b32 >>= \case
     True -> pure EntityInMainStorage
     False ->
-      Q.getMissingDependencyJwtsForTempEntity (Share.toBase32Hex hash) <&> \case
+      Q.getMissingDependencyJwtsForTempEntity b32 <&> \case
         Nothing -> EntityNotStored
         Just missingDependencies -> EntityInTempStorage (NESet.map Share.HashJWT missingDependencies)
 
@@ -525,7 +515,7 @@ upsertEntitySomewhere hash entity =
       -- otherwise add it to main storage.
       missingDependencies0 <-
         Set.filterM
-          (entityExists . Share.decodedHashJWTHash)
+          (Q.entityExists . Share.toBase32Hex . Share.decodedHashJWTHash)
           (Set.map Share.decodeHashJWT (Share.entityDependencies entity))
       case NESet.nonEmptySet missingDependencies0 of
         Nothing -> insertEntity hash entity

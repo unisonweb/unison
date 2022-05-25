@@ -132,6 +132,7 @@ module U.Codebase.Sqlite.Queries
     garbageCollectWatchesWithoutObjects,
 
     -- * sync temp entities
+    entityExists,
     expectEntity,
     getMissingDependentsForTempEntity,
     getMissingDependencyJwtsForTempEntity,
@@ -151,6 +152,7 @@ module U.Codebase.Sqlite.Queries
 where
 
 import qualified Control.Lens as Lens
+import Control.Monad.Extra ((||^))
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
@@ -161,7 +163,6 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import Data.String.Here.Uninterpolated (here, hereFile)
-import Data.Tuple.Only (Only (..))
 import qualified Data.Vector as Vector
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
@@ -1411,6 +1412,15 @@ ancestorSql =
   |]
 
 -- * share sync / temp entities
+
+-- | Does this entity already exist in the database, i.e. in the `object` or `causal` table?
+entityExists :: Base32Hex -> Transaction Bool
+entityExists b32 = do
+  -- first get hashId if exists
+  loadHashId b32 >>= \case
+    Nothing -> pure False
+    -- then check if is causal hash or if object exists for hash id
+    Just hashId -> isCausalHash hashId ||^ isObjectHash hashId
 
 getMissingDependencyJwtsForTempEntity :: Base32Hex -> Transaction (Maybe (NESet Text))
 getMissingDependencyJwtsForTempEntity h = do
