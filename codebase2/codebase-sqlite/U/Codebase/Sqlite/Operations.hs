@@ -117,7 +117,6 @@ import U.Codebase.ShortHash (ShortBranchHash (ShortBranchHash))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
 import qualified U.Codebase.Sqlite.Branch.Diff as S.BranchDiff
-import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)
 import qualified U.Codebase.Sqlite.Branch.Format as S
 import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as S
