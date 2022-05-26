@@ -27,11 +27,11 @@ defaultBaseLib = fmap makeNS $ latest <|> release
     makeNS t =
       ( ReadGitRepo
           { url = "https://github.com/unisonweb/base",
-            -- Use the 'v3' branch of base for now.
+            -- Use the 'v4' branch of base for now.
             -- We can revert back to the main branch once enough people have upgraded ucm and
-            -- we're okay with pushing the v3 base codebase to main (perhaps by the next ucm
+            -- we're okay with pushing the v4 base codebase to main (perhaps by the next ucm
             -- release).
-            ref = Just "v3"
+            ref = Just "v4"
           },
         Nothing,
         Path.fromText t
