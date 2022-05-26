@@ -34,6 +34,7 @@ library
       Unison.Server.Syntax
       Unison.Server.Types
       Unison.Sync.API
+      Unison.Sync.Common
       Unison.Sync.Types
       Unison.Util.Find
   other-modules:
@@ -97,10 +98,12 @@ library
     , text
     , transformers
     , unison-codebase
+    , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-sqlite
     , unison-util
     , unison-util-base32hex
     , unison-util-relation
@@ -108,6 +111,7 @@ library
     , unordered-containers
     , uri-encode
     , utf8-string
+    , vector
     , wai
     , warp
     , yaml

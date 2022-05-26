@@ -36,6 +36,7 @@ dependencies:
   - text
   - transformers
   - unison-codebase
+  - unison-codebase-sqlite
   - unison-core1
   - unison-parser-typechecker
   - unison-prelude
@@ -43,10 +44,12 @@ dependencies:
   - unison-util
   - unison-util-base32hex
   - unison-util-relation
+  - unison-sqlite
   - unliftio
   - unordered-containers
   - uri-encode
   - utf8-string
+  - vector
   - wai
   - warp
   - yaml

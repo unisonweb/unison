@@ -22,9 +22,6 @@ module Unison.Share.Sync
 
     -- ** Download entities
     downloadEntities,
-
-    -- ** Exported for shared usage in the Sync Server
-    expectEntity,
   )
 where
 
@@ -42,7 +39,6 @@ import qualified Data.Sequence.NonEmpty as NESeq (fromList, nonEmptySeq, (><|))
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
-import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import qualified Servant.API as Servant ((:<|>) (..))
 import Servant.Client (BaseUrl)
@@ -65,6 +61,7 @@ import qualified Unison.Auth.HTTPClient as Auth
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.API as Share (api)
+import Unison.Sync.Common
 import qualified Unison.Sync.Types as Share
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
@@ -138,8 +135,8 @@ data FastForwardPushError
   | FastForwardPushErrorNotFastForward Share.Path
   | FastForwardPushErrorNoWritePermission Share.Path
   | FastForwardPushErrorServerMissingDependencies (NESet Share.Hash)
-    --                              Parent     Child
-  | FastForwardPushInvalidParentage Share.Hash Share.Hash
+  | --                              Parent     Child
+    FastForwardPushInvalidParentage Share.Hash Share.Hash
 
 -- | Push a causal to Unison Share.
 -- FIXME reword this
@@ -186,7 +183,7 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash =
                 Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory path)
                 Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission path)
                 Share.FastForwardPathNotFastForward _ -> Left (FastForwardPushErrorNotFastForward path)
-                Share.FastForwardPathInvalidParentage (Share.InvalidParentage parent child)  -> Left (FastForwardPushInvalidParentage parent child)
+                Share.FastForwardPathInvalidParentage (Share.InvalidParentage parent child) -> Left (FastForwardPushInvalidParentage parent child)
   where
     doUpload :: List.NonEmpty CausalHash -> IO Bool
     -- Maybe we could save round trips here by including the tail (or the head *and* the tail) as "extra hashes", but we
@@ -494,13 +491,6 @@ elaborateHashes =
               EntityInMainStorage -> loop hashes' outputs
    in \hashes -> loop (NESet.toSet hashes) Set.empty
 
--- | Read an entity out of the database that we know is in main storage.
-expectEntity :: Share.Hash -> Sqlite.Transaction (Share.Entity Text Share.Hash Share.Hash)
-expectEntity hash = do
-  syncEntity <- Q.expectEntity (Share.toBase32Hex hash)
-  tempEntity <- Q.syncToTempEntity syncEntity
-  pure (tempEntityToEntity tempEntity)
-
 -- | Upsert a downloaded entity "somewhere" -
 --
 --   1. Nowhere if we already had the entity (in main or temp storage).
@@ -631,93 +621,6 @@ entityToTempEntity = \case
     jwt32 :: Share.HashJWT -> Base32Hex
     jwt32 =
       Share.toBase32Hex . Share.hashJWTHash
-
-tempEntityToEntity :: TempEntity -> Share.Entity Text Share.Hash Share.Hash
-tempEntityToEntity = \case
-  Entity.TC (TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms)) ->
-    terms
-      & Vector.map (Lens.over Lens._1 mungeLocalIds)
-      & Vector.toList
-      & Share.TermComponent
-      & Share.TC
-  Entity.DC (DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent decls)) ->
-    decls
-      & Vector.map (Lens.over Lens._1 mungeLocalIds)
-      & Vector.toList
-      & Share.DeclComponent
-      & Share.DC
-  Entity.P format ->
-    case format of
-      PatchFormat.SyncFull PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup} bytes ->
-        Share.P
-          Share.Patch
-            { textLookup = Vector.toList patchTextLookup,
-              oldHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchHashLookup),
-              newHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchDefnLookup),
-              bytes
-            }
-      PatchFormat.SyncDiff parent PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup} bytes ->
-        Share.PD
-          Share.PatchDiff
-            { parent = Share.Hash parent,
-              textLookup = Vector.toList patchTextLookup,
-              oldHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchHashLookup),
-              newHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchDefnLookup),
-              bytes
-            }
-  Entity.N format ->
-    case format of
-      NamespaceFormat.SyncFull
-        NamespaceFormat.LocalIds
-          { branchTextLookup,
-            branchDefnLookup,
-            branchPatchLookup,
-            branchChildLookup
-          }
-        bytes ->
-          Share.N
-            Share.Namespace
-              { textLookup = Vector.toList branchTextLookup,
-                defnLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchDefnLookup),
-                patchLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchPatchLookup),
-                childLookup =
-                  Vector.toList
-                    (coerce @(Vector (Base32Hex, Base32Hex)) @(Vector (Share.Hash, Share.Hash)) branchChildLookup),
-                bytes
-              }
-      NamespaceFormat.SyncDiff
-        parent
-        NamespaceFormat.LocalIds
-          { branchTextLookup,
-            branchDefnLookup,
-            branchPatchLookup,
-            branchChildLookup
-          }
-        bytes ->
-          Share.ND
-            Share.NamespaceDiff
-              { parent = Share.Hash parent,
-                textLookup = Vector.toList branchTextLookup,
-                defnLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchDefnLookup),
-                patchLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchPatchLookup),
-                childLookup =
-                  Vector.toList
-                    (coerce @(Vector (Base32Hex, Base32Hex)) @(Vector (Share.Hash, Share.Hash)) branchChildLookup),
-                bytes
-              }
-  Entity.C Causal.SyncCausalFormat {valueHash, parents} ->
-    Share.C
-      Share.Causal
-        { namespaceHash = Share.Hash valueHash,
-          parents = Set.fromList (coerce @[Base32Hex] @[Share.Hash] (Vector.toList parents))
-        }
-  where
-    mungeLocalIds :: LocalIds' Text Base32Hex -> Share.LocalIds Text Share.Hash
-    mungeLocalIds LocalIds {textLookup, defnLookup} =
-      Share.LocalIds
-        { texts = Vector.toList textLookup,
-          hashes = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) defnLookup)
-        }
 
 ------------------------------------------------------------------------------------------------------------------------
 -- HTTP calls
