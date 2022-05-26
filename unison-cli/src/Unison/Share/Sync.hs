@@ -460,11 +460,11 @@ data EntityLocation
 
 -- | Where is an entity stored?
 entityLocation :: Share.Hash -> Sqlite.Transaction EntityLocation
-entityLocation (Share.Hash b32) =
-  Q.entityExists b32 >>= \case
+entityLocation (Share.Hash hash) =
+  Q.entityExists hash >>= \case
     True -> pure EntityInMainStorage
     False ->
-      Q.getMissingDependencyJwtsForTempEntity b32 <&> \case
+      Q.getMissingDependencyJwtsForTempEntity hash <&> \case
         Nothing -> EntityNotStored
         Just missingDependencies -> EntityInTempStorage (NESet.map Share.HashJWT missingDependencies)
 

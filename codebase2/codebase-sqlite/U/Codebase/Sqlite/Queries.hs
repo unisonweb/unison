@@ -1415,9 +1415,9 @@ ancestorSql =
 
 -- | Does this entity already exist in the database, i.e. in the `object` or `causal` table?
 entityExists :: Base32Hex -> Transaction Bool
-entityExists b32 = do
+entityExists hash = do
   -- first get hashId if exists
-  loadHashId b32 >>= \case
+  loadHashId hash >>= \case
     Nothing -> pure False
     -- then check if is causal hash or if object exists for hash id
     Just hashId -> isCausalHash hashId ||^ isObjectHash hashId
