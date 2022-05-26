@@ -171,7 +171,7 @@ data MigrationState = MigrationState
     -- Remember the hashes of term/decls that we have already migrated to avoid migrating them twice.
     migratedDefnHashes :: Set (Old Hash),
     numMigrated :: Int,
-    v2EmptyBranchHashInfo :: (BranchHashId, Hash)
+    v2EmptyBranchHashInfo :: (BranchHashId, BranchHash)
   }
   deriving (Generic)
 
@@ -230,7 +230,7 @@ migrateCausal oldCausalHashId = fmap (either id id) . runExceptT $ do
     Nothing -> use (field @"v2EmptyBranchHashInfo")
     Just branchObjId -> do
       let (_, newBranchHashId, newBranchHash, _) = migratedObjIds ^?! ix branchObjId
-      pure (BranchHashId newBranchHashId, newBranchHash)
+      pure (BranchHashId newBranchHashId, BranchHash newBranchHash)
 
   let (newParentHashes, newParentHashIds) =
         oldCausalParentHashIds
@@ -244,7 +244,7 @@ migrateCausal oldCausalHashId = fmap (either id id) . runExceptT $ do
         CausalHash . Cv.hash1to2 $
           Hashing.hashCausal
             ( Hashing.Causal
-                { branchHash = newBranchHash,
+                { branchHash = unBranchHash newBranchHash,
                   parents = Set.mapMonotonic Cv.hash2to1 newParentHashes
                 }
             )
@@ -334,9 +334,16 @@ migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
           & S.childrenHashes_ %~ (remapBranchObjectId *** remapCausalHashId)
 
   newHash <- lift . lift $ Hashing.dbBranchHash newBranch
-  newHashId <- lift . lift $ Q.saveBranchHash (BranchHash (Cv.hash1to2 newHash))
+  newHashId <- lift . lift $ Q.saveBranchHash (coerce Cv.hash1to2 newHash)
   newObjectId <- lift . lift $ Ops.saveDbBranchUnderHashId newHashId newBranch
-  field @"objLookup" %= Map.insert oldObjectId (unBranchObjectId newObjectId, unBranchHashId newHashId, newHash, oldHash)
+  field @"objLookup"
+    %= Map.insert
+      oldObjectId
+      ( unBranchObjectId newObjectId,
+        unBranchHashId newHashId,
+        unBranchHash newHash,
+        oldHash
+      )
   pure Sync.Done
 
 migratePatch :: Old PatchObjectId -> StateT MigrationState Sqlite.Transaction (Sync.TrySyncResult Entity)
@@ -388,9 +395,20 @@ migratePatch oldObjectId = fmap (either id id) . runExceptT $ do
 
   let (localPatchIds, localPatch) = S.LocalizeObject.localizePatch newPatchWithIds
   newHash <- lift . lift $ Hashing.dbPatchHash newPatchWithIds
-  newObjectId <- lift . lift $ Ops.saveDbPatch (PatchHash (Cv.hash1to2 newHash)) (S.Patch.Format.Full localPatchIds localPatch)
-  newHashId <- lift . lift $ Q.expectHashIdByHash (Cv.hash1to2 newHash)
-  field @"objLookup" %= Map.insert (unPatchObjectId oldObjectId) (unPatchObjectId newObjectId, newHashId, newHash, oldHash)
+  newObjectId <-
+    lift . lift $
+      Ops.saveDbPatch
+        (coerce Cv.hash1to2 newHash)
+        (S.Patch.Format.Full localPatchIds localPatch)
+  newHashId <- lift . lift $ Q.expectHashIdByHash (coerce Cv.hash1to2 newHash)
+  field @"objLookup"
+    %= Map.insert
+      (unPatchObjectId oldObjectId)
+      ( unPatchObjectId newObjectId,
+        newHashId,
+        unPatchHash newHash,
+        oldHash
+      )
   pure Sync.Done
 
 -- | PLAN
@@ -845,10 +863,10 @@ foldSetter t s = execWriter (s & t %%~ \a -> tell [a] *> pure a)
 
 -- | Save an empty branch and get its new hash to use when replacing
 -- branches which are missing due to database corruption.
-saveV2EmptyBranch :: Sqlite.Transaction (BranchHashId, Hash)
+saveV2EmptyBranch :: Sqlite.Transaction (BranchHashId, BranchHash)
 saveV2EmptyBranch = do
   let branch = S.emptyBranch
   newHash <- Hashing.dbBranchHash branch
-  newHashId <- Q.saveBranchHash (BranchHash (Cv.hash1to2 newHash))
+  newHashId <- Q.saveBranchHash (coerce Cv.hash1to2 newHash)
   _ <- Ops.saveDbBranchUnderHashId newHashId branch
   pure (newHashId, newHash)
