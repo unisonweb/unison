@@ -22,6 +22,9 @@ module Unison.Share.Sync
 
     -- ** Download entities
     downloadEntities,
+
+    -- ** Exported for shared usage in the Sync Server
+    expectEntity,
   )
 where
 
@@ -135,6 +138,8 @@ data FastForwardPushError
   | FastForwardPushErrorNotFastForward Share.Path
   | FastForwardPushErrorNoWritePermission Share.Path
   | FastForwardPushErrorServerMissingDependencies (NESet Share.Hash)
+    --                              Parent     Child
+  | FastForwardPushInvalidParentage Share.Hash Share.Hash
 
 -- | Push a causal to Unison Share.
 -- FIXME reword this
@@ -181,6 +186,7 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash =
                 Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory path)
                 Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission path)
                 Share.FastForwardPathNotFastForward _ -> Left (FastForwardPushErrorNotFastForward path)
+                Share.FastForwardPathInvalidParentage (Share.InvalidParentage parent child)  -> Left (FastForwardPushInvalidParentage parent child)
   where
     doUpload :: List.NonEmpty CausalHash -> IO Bool
     -- Maybe we could save round trips here by including the tail (or the head *and* the tail) as "extra hashes", but we
@@ -440,6 +446,7 @@ uploadEntities httpClient unisonShareUrl conn repoName =
       uploadEntities >>= \case
         Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> loop moreHashes
         Share.UploadEntitiesNoWritePermission _ -> pure False
+        Share.UploadEntitiesHashMismatchForEntity {} -> pure False
         Share.UploadEntitiesSuccess -> pure True
 
 ------------------------------------------------------------------------------------------------------------------------

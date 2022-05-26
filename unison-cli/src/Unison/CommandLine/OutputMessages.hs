@@ -636,8 +636,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
+        pure $
+          P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -646,7 +646,6 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
-
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1597,6 +1596,12 @@ notifyUser dir o = case o of
       (Share.FastForwardPushErrorNoHistory sharePath) ->
         expectedNonEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
       (Share.FastForwardPushErrorNoReadPermission sharePath) -> noReadPermission sharePath
+      (Share.FastForwardPushInvalidParentage parent child) ->
+        P.fatalCallout
+          ( P.lines ["The server detected an error in the history being pushed, please report this as a bug in ucm."
+                    , "The history in question is the hash: " <> prettyShareHash child <>  " with the ancestor: " <> prettyShareHash parent
+                    ]
+          )
       Share.FastForwardPushErrorNotFastForward sharePath ->
         P.lines $
           [ P.wrap $
@@ -2259,7 +2264,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-      ("The namespaces are identical.", mempty)
+    ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
