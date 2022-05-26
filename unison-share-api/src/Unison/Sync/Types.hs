@@ -141,23 +141,22 @@ hashJWTHash =
   decodedHashJWTHash . decodeHashJWT
 
 data HashJWTClaims = HashJWTClaims
-  { hash :: Hash,
-    entityType :: EntityType
+  { hash :: Hash
+  -- Currently unused
+  -- entityType :: EntityType
   }
   deriving stock (Show, Eq, Ord)
   deriving anyclass (ToJWT, FromJWT) -- uses JSON instances
 
 instance ToJSON HashJWTClaims where
-  toJSON (HashJWTClaims hash entityType) =
+  toJSON (HashJWTClaims hash) =
     object
-      [ "h" .= hash,
-        "t" .= entityType
+      [ "h" .= hash
       ]
 
 instance FromJSON HashJWTClaims where
   parseJSON = Aeson.withObject "HashJWTClaims" \obj -> do
     hash <- obj .: "h"
-    entityType <- obj .: "t"
     pure HashJWTClaims {..}
 
 -- | A decoded hash JWT that retains the original encoded JWT.
