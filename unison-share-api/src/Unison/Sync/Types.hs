@@ -707,18 +707,20 @@ data FastForwardPathRequest = FastForwardPathRequest
   deriving stock (Show)
 
 instance ToJSON FastForwardPathRequest where
-  toJSON FastForwardPathRequest {hashes, path} =
+  toJSON FastForwardPathRequest {expectedHash, hashes, path} =
     object
-      [ "hashes" .= hashes,
+      [ "expected_hash" .= expectedHash,
+        "hashes" .= hashes,
         "path" .= path
       ]
 
 instance FromJSON FastForwardPathRequest where
   parseJSON =
     Aeson.withObject "FastForwardPathRequest" \o -> do
+      expectedHash <- o .: "expected_hash"
       hashes <- o .: "hashes"
       path <- o .: "path"
-      pure FastForwardPathRequest {hashes, path}
+      pure FastForwardPathRequest {expectedHash, hashes, path}
 
 data FastForwardPathResponse
   = FastForwardPathSuccess
