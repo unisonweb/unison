@@ -55,6 +55,8 @@ module Unison.Sync.Types
     HashMismatch (..),
 
     -- * Common/shared error types
+    HashMismatchForEntity (..),
+    InvalidParentage (..),
     NeedDependencies (..),
   )
 where
