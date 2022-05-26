@@ -49,6 +49,7 @@ library:
     - hashable
     - hashtables
     - haskeline
+    - here
     - http-types
     - http-media
     - http-client
@@ -68,6 +69,7 @@ library:
     - openapi3
     - pem
     - prelude-extras
+    - pretty-simple
     - process
     - primitive
     - random >= 1.2.0
@@ -119,6 +121,7 @@ library:
     - unison-sqlite
     - unison-util
     - unison-util-relation
+    - unison-util-serialization
     - open-browser
     - uri-encode
     - generic-lens

@@ -42,7 +42,7 @@ import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Branch as Hashing.Branch
 import qualified Unison.Hashing.V2.Causal as Hashing.Causal
 import qualified Unison.Hashing.V2.DataDeclaration as Hashing.DD
-import Unison.Hashing.V2.Hashable (Hashable)
+import Unison.Hashing.V2.Hashable (HashFor (HashFor), Hashable)
 import qualified Unison.Hashing.V2.Hashable as Hashable
 import qualified Unison.Hashing.V2.Kind as Hashing.Kind
 import qualified Unison.Hashing.V2.Patch as Hashing.Patch
@@ -359,10 +359,13 @@ hashPatch = Hashing.Patch.hashPatch . m2hPatch
 hashBranch0 :: Memory.Branch.Branch0 m -> Hash
 hashBranch0 = Hashing.Branch.hashBranch . m2hBranch0
 
-hashCausal :: Hashable e => e -> Set (Memory.Causal.RawHash h) -> Hash
+hashCausal :: Hashable e => e -> Set Memory.Causal.CausalHash -> (Memory.Causal.CausalHash, HashFor e)
 hashCausal e tails =
-  Hashing.Causal.hashCausal $
-    Hashing.Causal.Causal (Hashable.hash e) (Set.map Memory.Causal.unRawHash tails)
+  let valueHash@(HashFor vh) = (Hashable.hashFor e)
+      causalHash =
+        Memory.Causal.CausalHash . Hashing.Causal.hashCausal $
+          Hashing.Causal.Causal vh (Set.map Memory.Causal.unCausalHash tails)
+   in (causalHash, valueHash)
 
 m2hBranch0 :: Memory.Branch.Branch0 m -> Hashing.Branch.Raw
 m2hBranch0 b =
@@ -414,7 +417,7 @@ m2hBranch0 b =
     doChildren ::
       Map Memory.NameSegment.NameSegment (Memory.Branch.Branch m) ->
       Map Hashing.Branch.NameSegment Hash
-    doChildren = Map.bimap m2hNameSegment (Memory.Causal.unRawHash . Memory.Branch.headHash)
+    doChildren = Map.bimap m2hNameSegment (Memory.Causal.unCausalHash . Memory.Branch.headHash)
 
 m2hNameSegment :: Memory.NameSegment.NameSegment -> Hashing.Branch.NameSegment
 m2hNameSegment (Memory.NameSegment.NameSegment s) = Hashing.Branch.NameSegment s

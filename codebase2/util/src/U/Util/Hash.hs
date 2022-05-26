@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module U.Util.Hash
@@ -9,6 +10,7 @@ module U.Util.Hash
     toBase32Hex,
     toBase32HexText,
     toByteString,
+    HashFor (..),
   )
 where
 
@@ -46,3 +48,8 @@ fromByteString = Hash . B.Short.toShort
 
 instance Show Hash where
   show h = (show . toBase32HexText) h
+
+-- | A hash tagged with the type it's a hash of, useful for maintaining type safety
+-- guarantees.
+newtype HashFor t = HashFor {genericHash :: Hash}
+  deriving newtype (Show, Eq, Ord, Generic)

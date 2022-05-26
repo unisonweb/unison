@@ -43,6 +43,7 @@ module U.Codebase.Sqlite.Queries
     saveObject,
     expectObject,
     expectPrimaryHashByObjectId,
+    expectPrimaryHashIdForObject,
     expectObjectWithHashIdAndType,
     expectDeclObject,
     loadDeclObject,
@@ -140,7 +141,6 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
-import Data.Tuple.Only (Only (..))
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
@@ -386,6 +386,12 @@ loadTermObject oid =
 expectTermObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectTermObject oid =
   expectObjectOfType oid TermComponent
+
+expectPrimaryHashIdForObject :: ObjectId -> Transaction HashId
+expectPrimaryHashIdForObject oId = do
+  queryOneCol sql (Only oId)
+  where
+    sql = "SELECT primary_hash_id FROM object WHERE id = ?"
 
 expectObjectWithHashIdAndType :: ObjectId -> Transaction (HashId, ObjectType, ByteString)
 expectObjectWithHashIdAndType oId = queryOneRow sql (Only oId)

@@ -14,10 +14,10 @@ import Debug.Trace (traceM)
 debug :: Bool
 debug = False
 
-data TrySyncResult h = Missing [h] | Done | PreviouslyDone | NonFatalError
+data TrySyncResult entity = Missing [entity] | Done | PreviouslyDone | NonFatalError
   deriving (Show)
 
-data Sync m h = Sync {trySync :: h -> m (TrySyncResult h)}
+data Sync m entity = Sync {trySync :: entity -> m (TrySyncResult entity)}
 
 transformSync :: (forall a. m a -> n a) -> Sync m h -> Sync n h
 transformSync f (Sync t) = Sync (f . t)

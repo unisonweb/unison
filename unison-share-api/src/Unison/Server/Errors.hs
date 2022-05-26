@@ -10,7 +10,7 @@ import qualified Data.Set as Set
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant (ServerError (..), err400, err404, err409, err500)
-import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Reference as Reference
@@ -60,7 +60,7 @@ noSuchNamespace :: HashQualifiedName -> ServerError
 noSuchNamespace namespace =
   err404 {errBody = "The namespace " <> munge namespace <> " does not exist."}
 
-couldntLoadBranch :: Branch.Hash -> ServerError
+couldntLoadBranch :: Causal.CausalHash -> ServerError
 couldntLoadBranch h =
   err404
     { errBody =

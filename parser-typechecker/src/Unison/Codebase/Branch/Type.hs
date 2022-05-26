@@ -1,12 +1,24 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.Codebase.Branch.Type where
+module Unison.Codebase.Branch.Type
+  ( NamespaceHash,
+    CausalHash (..),
+    head,
+    headHash,
+    Branch (..),
+    Branch0 (..),
+    history,
+    edits,
+    Star,
+    EditHash,
+    UnwrappedBranch,
+  )
+where
 
 import Control.Lens
 import Data.Map (Map)
 import Data.Set (Set)
-import Unison.Codebase.Branch.Raw (Raw)
-import Unison.Codebase.Causal.Type (Causal)
+import Unison.Codebase.Causal.Type (Causal, CausalHash)
 import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch)
@@ -17,15 +29,17 @@ import Unison.NameSegment (NameSegment)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Util.Relation (Relation)
+import Prelude hiding (head)
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
 newtype Branch m = Branch {_history :: UnwrappedBranch m}
   deriving (Eq, Ord)
 
-type UnwrappedBranch m = Causal m Raw (Branch0 m)
+type UnwrappedBranch m = Causal m (Branch0 m)
 
-type Hash = Causal.RawHash Raw
+-- | A Hash for a namespace itself, it doesn't incorporate any history.
+type NamespaceHash m = Hash.HashFor (Branch0 m)
 
 type EditHash = Hash.Hash
 
@@ -34,7 +48,7 @@ type Star r n = Metadata.Star r n
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
 
-headHash :: Branch m -> Hash
+headHash :: Branch m -> CausalHash
 headHash (Branch c) = Causal.currentHash c
 
 -- | A node in the Unison namespace hierarchy.
