@@ -697,8 +697,8 @@ instance FromJSON HashMismatchForEntity where
 -- Note that if the client wants to begin a history at a new path on the server, it would use the "update path" endpoint
 -- instead.
 data FastForwardPathRequest = FastForwardPathRequest
-  { -- expected_hash :: Hash,
-
+  { -- | The causal that the client believes exists at `path`
+    expectedHash :: Hash,
     -- | The sequence of causals to fast-forward, starting from the oldest new causal to the newest new causal
     hashes :: NonEmpty Hash,
     -- | The path to fast-forward.
