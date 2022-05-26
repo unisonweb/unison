@@ -14,7 +14,8 @@ import UnliftIO.Environment (lookupEnv)
 defaultShareHost :: Host
 defaultShareHost = unsafePerformIO $ do
   lookupEnv "UNISON_SHARE_HOST" <&> \case
-    Nothing -> Host "share.unison-lang.org"
+    -- TODO: swap to production share before release.
+    Nothing -> Host "share-next.us-west-2.unison-lang.org"
     Just shareHost -> Host (Text.pack shareHost)
 {-# NOINLINE defaultShareHost #-}
 
