@@ -1,4 +1,8 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE RecordWildCards #-}
+-- Name shadowing is really helpful for writing some custom traversals
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+
 
 module Unison.Sync.Types
   ( -- * Misc. types
@@ -31,6 +35,13 @@ module Unison.Sync.Types
     entityDependencies,
     EntityType (..),
 
+    -- *** Entity Traversals
+    entityHashes_,
+    patchHashes_,
+    patchDiffHashes_,
+    namespaceDiffHashes_,
+    causalHashes_,
+
     -- * Request/response types
 
     -- ** Get causal hash by path
@@ -62,6 +73,7 @@ module Unison.Sync.Types
   )
 where
 
+import Control.Lens (both, traverseOf)
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -80,6 +92,7 @@ import qualified Data.Text.Encoding as Text
 import Servant.Auth.JWT
 import U.Util.Base32Hex (Base32Hex (..))
 import Unison.Prelude
+import qualified Unison.Util.Set as Set
 import qualified Web.JWT as JWT
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -235,6 +248,16 @@ instance (FromJSON text, FromJSON noSyncHash, FromJSON hash, Ord hash) => FromJS
       NamespaceDiffType -> ND <$> obj .: "object"
       CausalType -> C <$> obj .: "object"
 
+entityHashes_ :: (Applicative m, Ord hash') => (hash -> m hash') -> Entity text noSyncHash hash -> m (Entity text noSyncHash hash')
+entityHashes_ f = \case
+  TC tc -> TC <$> bitraverse pure f tc
+  DC dc -> DC <$> bitraverse pure f dc
+  P patch -> P <$> patchHashes_ f patch
+  PD patch -> PD <$> patchDiffHashes_ f patch
+  N ns -> N <$> bitraverse pure f ns
+  ND ns -> ND <$> namespaceDiffHashes_ f ns
+  C causal -> C <$> causalHashes_ f causal
+
 -- | Get the direct dependencies of an entity (which are actually sync'd).
 --
 -- FIXME use generic-lens here? (typed @hash)
@@ -387,6 +410,11 @@ instance (FromJSON text, FromJSON oldHash, FromJSON newHash) => FromJSON (Patch 
     Base64Bytes bytes <- obj .: "bytes"
     pure Patch {..}
 
+patchHashes_ :: Applicative m => (hash -> m hash') -> Patch text noSyncHash hash -> m (Patch text noSyncHash hash')
+patchHashes_ f (Patch {..}) = do
+  newHashLookup <- traverse f newHashLookup
+  pure (Patch {..})
+
 data PatchDiff text oldHash hash = PatchDiff
   { parent :: hash,
     textLookup :: [text],
@@ -414,6 +442,12 @@ instance (FromJSON text, FromJSON oldHash, FromJSON hash) => FromJSON (PatchDiff
     newHashLookup <- obj .: "hash_lookup"
     Base64Bytes bytes <- obj .: "bytes"
     pure PatchDiff {..}
+
+patchDiffHashes_ :: Applicative m => (hash -> m hash') -> PatchDiff text noSyncHash hash -> m (PatchDiff text noSyncHash hash')
+patchDiffHashes_ f (PatchDiff {..}) = do
+  parent <- f parent
+  newHashLookup <- traverse f newHashLookup
+  pure (PatchDiff {..})
 
 data Namespace text hash = Namespace
   { textLookup :: [text],
@@ -489,6 +523,14 @@ instance (FromJSON text, FromJSON hash) => FromJSON (NamespaceDiff text hash) wh
     Base64Bytes bytes <- obj .: "bytes"
     pure NamespaceDiff {..}
 
+namespaceDiffHashes_ :: Applicative m => (hash -> m hash') -> NamespaceDiff text hash -> m (NamespaceDiff text hash')
+namespaceDiffHashes_ f (NamespaceDiff {..}) = do
+  parent <- f parent
+  defnLookup <- traverse f defnLookup
+  patchLookup <- traverse f patchLookup
+  childLookup <- traverseOf (traverse . both) f childLookup
+  pure (NamespaceDiff {..})
+
 -- Client _may_ choose not to download the namespace entity in the future, but
 -- we still send them the hash/hashjwt.
 data Causal hash = Causal
@@ -496,6 +538,12 @@ data Causal hash = Causal
     parents :: Set hash
   }
   deriving stock (Eq, Ord, Show)
+
+causalHashes_ :: (Applicative m, Ord hash') => (hash -> m hash') -> Causal hash -> m (Causal hash')
+causalHashes_ f (Causal {..}) = do
+  namespaceHash <- f namespaceHash
+  parents <- Set.traverse f parents
+  pure (Causal {..})
 
 instance (ToJSON hash) => ToJSON (Causal hash) where
   toJSON (Causal namespaceHash parents) =
