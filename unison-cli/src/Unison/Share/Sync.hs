@@ -159,11 +159,20 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash =
         -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
         -- fast-forward push, so we don't bother trying - just report the error now.
         Nothing -> pure (Left (FastForwardPushErrorNotFastForward path))
-        Just localTailHashes ->
-          doUpload (localHeadHash :| localTailHashes) >>= \case
+        Just localInnerHashes -> do
+          doUpload (localHeadHash :| localInnerHashes) >>= \case
             False -> pure (Left (FastForwardPushErrorNoWritePermission path))
-            True ->
-              doFastForwardPath (localHeadHash : localTailHashes) <&> \case
+            True -> do
+              let doFastForwardPath =
+                    httpFastForwardPath
+                      httpClient
+                      unisonShareUrl
+                      Share.FastForwardPathRequest
+                        { expectedHash = remoteHeadHash,
+                          hashes = causalHashToHash <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
+                          path
+                        }
+              doFastForwardPath <&> \case
                 Share.FastForwardPathSuccess -> Right ()
                 Share.FastForwardPathMissingDependencies (Share.NeedDependencies dependencies) ->
                   Left (FastForwardPushErrorServerMissingDependencies dependencies)
@@ -185,32 +194,24 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash =
         (Share.pathRepoName path)
         (NESet.singleton (causalHashToHash headHash))
 
-    doFastForwardPath :: [CausalHash] -> IO Share.FastForwardPathResponse
-    doFastForwardPath causalSpine =
-      httpFastForwardPath
-        httpClient
-        unisonShareUrl
-        Share.FastForwardPathRequest
-          { hashes = map causalHashToHash causalSpine,
-            path = path
-          }
-
-    -- Return a list from newest to oldest of the ancestors between (excluding) the latest local and the current remote hash.
+    -- Return a list from oldest to newst of the ancestors between (excluding) the latest local and the current remote
+    -- hash.
     -- note: seems like we /should/ cut this short, with another command to go longer? :grimace:
     fancyBfs :: CausalHash -> Share.Hash -> Sqlite.Transaction (Maybe [CausalHash])
     fancyBfs h0 h1 =
       tweak <$> dagbfs (== Share.toBase32Hex h1) Q.loadCausalParentsByHash (Hash.toBase32Hex (unCausalHash h0))
       where
-        -- Drop 1 and reverse (under a Maybe, and twddling hash types):
+        -- Drop 1 (under a Maybe, and twddling hash types):
         --
-        --   tweak [] = []
-        --   tweak [C,B,A] = [A,B]
+        --   tweak Nothing = Nothing
+        --   tweak (Just []) = Just []
+        --   tweak (Just [C,B,A]) = Just [B,A]
         --
         -- The drop 1 is because dagbfs returns the goal at the head of the returned list, but we know what the goal is
         -- already (the remote head hash).
         tweak :: Maybe [Base32Hex] -> Maybe [CausalHash]
         tweak =
-          fmap (map (CausalHash . Hash.fromBase32Hex) . reverse . drop 1)
+          fmap (map (CausalHash . Hash.fromBase32Hex) . drop 1)
 
 data Step a
   = DeadEnd
