@@ -55,6 +55,7 @@ module Unison.Sync.Types
     HashMismatch (..),
 
     -- * Common/shared error types
+    DownloadEntities (..),
     HashMismatchForEntity (..),
     InvalidParentage (..),
     NeedDependencies (..),
@@ -602,20 +603,24 @@ instance FromJSON DownloadEntitiesRequest where
     hashes <- obj .: "hashes"
     pure DownloadEntitiesRequest {..}
 
-data DownloadEntitiesResponse = DownloadEntitiesResponse
+data DownloadEntitiesResponse
+  = DownloadEntitiesSuccess DownloadEntities
+  | DownloadEntitiesNoReadPermission
+
+data DownloadEntities = DownloadEntities
   { entities :: NEMap Hash (Entity Text Hash HashJWT)
   }
   deriving stock (Show, Eq, Ord)
 
-instance ToJSON DownloadEntitiesResponse where
-  toJSON (DownloadEntitiesResponse entities) =
+instance ToJSON DownloadEntities where
+  toJSON (DownloadEntities entities) =
     object
       [ "entities" .= entities
       ]
 
-instance FromJSON DownloadEntitiesResponse where
-  parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj -> do
-    DownloadEntitiesResponse <$> obj .: "entities"
+instance FromJSON DownloadEntities where
+  parseJSON = Aeson.withObject "DownloadEntities" \obj -> do
+    DownloadEntities <$> obj .: "entities"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
