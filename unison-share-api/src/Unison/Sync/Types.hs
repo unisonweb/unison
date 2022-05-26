@@ -674,7 +674,8 @@ instance FromJSON HashMismatchForEntity where
 -- Fast-forward path
 
 -- | A non-empty list of causal hashes, latest first, that show the lineage from wherever the client wants to
--- fast-forward to back to wherever the (client believes the) server is (not including the server head).
+-- fast-forward to back to wherever the (client believes the) server is (including the server head, in a separate
+-- field).
 --
 -- For example, if the client wants to update
 --
@@ -691,7 +692,8 @@ instance FromJSON HashMismatchForEntity where
 -- then it would send hashes
 --
 -- @
--- [F, E, D]
+-- expectedHash = C
+-- hashes = [D, E, F]
 -- @
 --
 -- Note that if the client wants to begin a history at a new path on the server, it would use the "update path" endpoint
@@ -699,9 +701,9 @@ instance FromJSON HashMismatchForEntity where
 data FastForwardPathRequest = FastForwardPathRequest
   { -- | The causal that the client believes exists at `path`
     expectedHash :: Hash,
-    -- | The sequence of causals to fast-forward, starting from the oldest new causal to the newest new causal
+    -- | The sequence of causals to fast-forward with, starting from the oldest new causal to the newest new causal
     hashes :: NonEmpty Hash,
-    -- | The path to fast-forward.
+    -- | The path to fast-forward
     path :: Path
   }
   deriving stock (Show)
