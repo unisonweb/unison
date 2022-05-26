@@ -340,9 +340,9 @@ pull httpClient unisonShareUrl conn repoPath = do
     Right (Just hashJwt) -> do
       let hash = Share.hashJWTHash hashJwt
       Sqlite.runTransaction conn (entityLocation hash) >>= \case
-        EntityInMainStorage -> pure ()
-        EntityInTempStorage missingDependencies -> doDownload missingDependencies
-        EntityNotStored -> doDownload (NESet.singleton hashJwt)
+        Just EntityInMainStorage -> pure ()
+        Just (EntityInTempStorage missingDependencies) -> doDownload missingDependencies
+        Nothing -> doDownload (NESet.singleton hashJwt)
       pure (Right (CausalHash (Hash.fromBase32Hex (Share.toBase32Hex hash))))
   where
     doDownload :: NESet Share.HashJWT -> IO ()
@@ -392,7 +392,9 @@ downloadEntities httpClient unisonShareUrl conn repoName =
         missingDependencies0 <-
           Sqlite.runTransaction conn do
             NEMap.toList entities & foldMapM \(hash, entity) ->
-              upsertEntitySomewhere hash entity
+              upsertEntitySomewhere hash entity <&> \case
+                EntityInMainStorage -> Set.empty
+                EntityInTempStorage missingDependencies -> Set.map Share.decodeHashJWT (NESet.toSet missingDependencies)
 
         whenJust (NESet.nonEmptySet missingDependencies0) loop
 
@@ -455,18 +457,16 @@ data EntityLocation
     EntityInMainStorage
   | -- | `temp_entity`, evidenced by these missing dependencies.
     EntityInTempStorage (NESet Share.HashJWT)
-  | -- | Nowhere
-    EntityNotStored
 
 -- | Where is an entity stored?
-entityLocation :: Share.Hash -> Sqlite.Transaction EntityLocation
+entityLocation :: Share.Hash -> Sqlite.Transaction (Maybe EntityLocation)
 entityLocation (Share.Hash hash) =
   Q.entityExists hash >>= \case
-    True -> pure EntityInMainStorage
+    True -> pure (Just EntityInMainStorage)
     False ->
       Q.getMissingDependencyJwtsForTempEntity hash <&> \case
-        Nothing -> EntityNotStored
-        Just missingDependencies -> EntityInTempStorage (NESet.map Share.HashJWT missingDependencies)
+        Nothing -> Nothing
+        Just missingDependencies -> Just (EntityInTempStorage (NESet.map Share.HashJWT missingDependencies))
 
 -- | "Elaborate" a set of hashes that we are considering downloading from Unison Share.
 --
@@ -485,10 +485,10 @@ elaborateHashes =
           Nothing -> pure (NESet.nonEmptySet outputs)
           Just (Share.DecodedHashJWT (Share.HashJWTClaims {hash}) jwt, hashes') ->
             entityLocation hash >>= \case
-              EntityNotStored -> loop hashes' (Set.insert jwt outputs)
-              EntityInTempStorage missingDependencies ->
+              Nothing -> loop hashes' (Set.insert jwt outputs)
+              Just (EntityInTempStorage missingDependencies) ->
                 loop (Set.union (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies)) hashes') outputs
-              EntityInMainStorage -> loop hashes' outputs
+              Just EntityInMainStorage -> loop hashes' outputs
    in \hashes -> loop (NESet.toSet hashes) Set.empty
 
 -- | Upsert a downloaded entity "somewhere" -
@@ -496,29 +496,28 @@ elaborateHashes =
 --   1. Nowhere if we already had the entity (in main or temp storage).
 --   2. In main storage if we already have all of its dependencies in main storage.
 --   3. In temp storage otherwise.
---
--- Returns the set of dependencies we still need to store the entity in main storage (which will be empty if either it
--- was already in main storage, or we just put it in main storage).
 upsertEntitySomewhere ::
   Share.Hash ->
   Share.Entity Text Share.Hash Share.HashJWT ->
-  Sqlite.Transaction (Set Share.DecodedHashJWT)
+  Sqlite.Transaction EntityLocation
 upsertEntitySomewhere hash entity =
   entityLocation hash >>= \case
-    EntityInMainStorage -> pure Set.empty
-    EntityInTempStorage missingDependencies ->
-      pure (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies))
-    EntityNotStored -> do
+    Just location -> pure location
+    Nothing -> do
       -- if it has missing dependencies, add it to temp storage;
       -- otherwise add it to main storage.
       missingDependencies0 <-
         Set.filterM
-          (Q.entityExists . Share.toBase32Hex . Share.decodedHashJWTHash)
-          (Set.map Share.decodeHashJWT (Share.entityDependencies entity))
+          (Q.entityExists . Share.toBase32Hex . Share.hashJWTHash)
+          -- (Set.map Share.decodeHashJWT (Share.entityDependencies entity))
+          (Share.entityDependencies entity)
       case NESet.nonEmptySet missingDependencies0 of
-        Nothing -> insertEntity hash entity
-        Just missingDependencies -> insertTempEntity hash entity missingDependencies
-      pure missingDependencies0
+        Nothing -> do
+          insertEntity hash entity
+          pure EntityInMainStorage
+        Just missingDependencies -> do
+          insertTempEntity hash entity missingDependencies
+          pure (EntityInTempStorage missingDependencies)
 
 -- | Insert an entity that doesn't have any missing dependencies.
 insertEntity :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> Sqlite.Transaction ()
@@ -531,15 +530,16 @@ insertEntity hash entity = do
 insertTempEntity ::
   Share.Hash ->
   Share.Entity Text Share.Hash Share.HashJWT ->
-  NESet Share.DecodedHashJWT ->
+  NESet Share.HashJWT ->
   Sqlite.Transaction ()
 insertTempEntity hash entity missingDependencies =
   Q.insertTempEntity
     (Share.toBase32Hex hash)
     (entityToTempEntity entity)
     ( NESet.map
-        ( \Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}, hashJWT} ->
-            (Share.toBase32Hex hash, Share.unHashJWT hashJWT)
+        ( \hashJwt ->
+            let Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}} = Share.decodeHashJWT hashJwt
+             in (Share.toBase32Hex hash, Share.unHashJWT hashJwt)
         )
         missingDependencies
     )
