@@ -605,12 +605,24 @@ instance FromJSON DownloadEntitiesRequest where
 
 data DownloadEntitiesResponse
   = DownloadEntitiesSuccess DownloadEntities
-  | DownloadEntitiesNoReadPermission
+  | DownloadEntitiesNoReadPermission RepoName
 
 data DownloadEntities = DownloadEntities
   { entities :: NEMap Hash (Entity Text Hash HashJWT)
   }
   deriving stock (Show, Eq, Ord)
+
+instance ToJSON DownloadEntitiesResponse where
+  toJSON = \case
+    DownloadEntitiesSuccess entities -> jsonUnion "success" entities
+    DownloadEntitiesNoReadPermission repoName -> jsonUnion "no_read_permission" repoName
+
+instance FromJSON DownloadEntitiesResponse where
+  parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj ->
+    obj .: "type" >>= Aeson.withText "type" \case
+      "success" -> DownloadEntitiesSuccess <$> obj .: "payload"
+      "no_read_permission" -> DownloadEntitiesNoReadPermission <$> obj .: "payload"
+      t -> failText $ "Unexpected DownloadEntitiesResponse type: " <> t
 
 instance ToJSON DownloadEntities where
   toJSON (DownloadEntities entities) =
