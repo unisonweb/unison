@@ -32,6 +32,7 @@ dependencies:
   - servant-docs
   - servant-openapi3
   - servant-server
+  - servant-auth
   - text
   - transformers
   - unison-codebase

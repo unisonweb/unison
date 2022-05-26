@@ -76,6 +76,7 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Servant.Auth.JWT
 import U.Util.Base32Hex (Base32Hex (..))
 import Unison.Prelude
 import qualified Web.JWT as JWT
@@ -144,6 +145,7 @@ data HashJWTClaims = HashJWTClaims
     entityType :: EntityType
   }
   deriving stock (Show, Eq, Ord)
+  deriving anyclass (ToJWT, FromJWT) -- uses JSON instances
 
 instance ToJSON HashJWTClaims where
   toJSON (HashJWTClaims hash entityType) =

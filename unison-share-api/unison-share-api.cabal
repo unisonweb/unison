@@ -90,6 +90,7 @@ library
     , openapi3
     , regex-tdfa
     , servant
+    , servant-auth
     , servant-docs
     , servant-openapi3
     , servant-server
