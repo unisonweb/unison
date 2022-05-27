@@ -1233,7 +1233,7 @@ notifyUser dir o = case o of
     pure . P.fatalCallout . P.wrap $
       "I don't know where to "
         <> pushPull "push to!" "pull from!" pp
-        <> ( if Path.isRoot' p
+        <> ( if Path.isRoot p
                then ""
                else
                  "Add a line like `RemoteMapping." <> P.shown p
@@ -1247,7 +1247,7 @@ notifyUser dir o = case o of
     pure . P.fatalCallout . P.lines $
       [ P.wrap $
           "I couldn't understand the RemoteMapping that's set for"
-            <> prettyPath' p
+            <> prettyAbsolute p
             <> "in .unisonConfig",
         P.wrap $
           "The value I found was" <> (P.backticked . P.blue . P.text) url

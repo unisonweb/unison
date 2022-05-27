@@ -14,7 +14,7 @@ module Unison.Auth.Types
     PKCEChallenge,
     ProfileName,
     CredentialFailure (..),
-    Host (..),
+    CodeserverHost (..),
     getActiveTokens,
     setActiveTokens,
     emptyCredentials,
@@ -30,18 +30,19 @@ import Data.Time (NominalDiffTime)
 import Network.URI
 import qualified Network.URI as URI
 import Unison.Prelude
+import Unison.Share.Types
 
 defaultProfileName :: ProfileName
 defaultProfileName = "default"
 
 data CredentialFailure
-  = ReauthRequired Host
+  = ReauthRequired CodeserverHost
   | CredentialParseFailure FilePath Text
   | InvalidDiscoveryDocument URI Text
   | InvalidJWT Text
   | RefreshFailure Text
   | InvalidTokenResponse URI Text
-  | InvalidHost Host
+  | InvalidHost CodeserverHost
   deriving stock (Show, Eq)
   deriving anyclass (Exception)
 
@@ -127,14 +128,8 @@ instance Aeson.FromJSON DiscoveryDoc where
 
 type ProfileName = Text
 
--- | The hostname of a server we may authenticate with,
--- e.g. @Host "enlil.unison-lang.org"@
-newtype Host = Host Text
-  deriving stock (Eq, Ord, Show)
-  deriving newtype (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
-
 data Credentials = Credentials
-  { credentials :: Map ProfileName (Map Host Tokens),
+  { credentials :: Map ProfileName (Map CodeserverHost Tokens),
     activeProfile :: ProfileName
   }
   deriving (Eq)
@@ -142,12 +137,12 @@ data Credentials = Credentials
 emptyCredentials :: Credentials
 emptyCredentials = Credentials mempty defaultProfileName
 
-getActiveTokens :: Host -> Credentials -> Either CredentialFailure Tokens
+getActiveTokens :: CodeserverHost -> Credentials -> Either CredentialFailure Tokens
 getActiveTokens host (Credentials {credentials, activeProfile}) =
   maybeToEither (ReauthRequired host) $
     credentials ^? ix activeProfile . ix host
 
-setActiveTokens :: Host -> Tokens -> Credentials -> Credentials
+setActiveTokens :: CodeserverHost -> Tokens -> Credentials -> Credentials
 setActiveTokens host tokens creds@(Credentials {credentials, activeProfile}) =
   let newCredMap =
         credentials

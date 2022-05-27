@@ -6,6 +6,7 @@ module Unison.Codebase.Editor.RemoteRepo where
 import qualified Data.Text as Text
 import qualified Servant.Client as Servant
 import qualified U.Util.Monoid as Monoid
+import Unison.Share.Types (CodeserverHost)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -21,7 +22,7 @@ data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}
   deriving (Eq, Show)
 
 -- FIXME rename to ShareServer
-data ShareRepo = ShareRepo
+data ShareRepo = ShareRepo CodeserverHost
   deriving (Eq, Show)
 
 shareRepoToBaseUrl :: ShareRepo -> Servant.BaseUrl

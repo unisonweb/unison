@@ -210,8 +210,8 @@ data Output v
   | GitError GitError
   | ShareError ShareError
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
-  | NoConfiguredRemoteMapping PushPull Path'
-  | ConfiguredRemoteMappingParseError PushPull Path' Text String
+  | NoConfiguredRemoteMapping PushPull Path.Absolute
+  | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]

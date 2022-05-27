@@ -2228,25 +2228,28 @@ resolveConfiguredUrl pushPull destPath' = ExceptT do
   currentPath' <- use LoopState.currentPath
   let destPath = Path.resolve currentPath' destPath'
   let remoteMappingConfigKey = remoteMappingKey destPath
+  traceShowM ("remote mapping config key:" :: String, remoteMappingConfigKey)
+  traceShowM ("destPath" :: String, destPath)
   (eval . ConfigLookup) remoteMappingConfigKey >>= \case
     Nothing -> do
       let gitUrlConfigKey = gitUrlKey destPath
+      traceShowM ("gitUrlConfigKey" :: String, gitUrlConfigKey)
       -- Fall back to deprecated GitUrl key
       (eval . ConfigLookup) gitUrlConfigKey >>= \case
         Just url ->
-          case WriteRemotePathGit <$> P.parse UriParser.deprecatedWriteGitRepo (Text.unpack gitUrlConfigKey) url of
+          case WriteRemotePathGit <$> P.parse UriParser.deprecatedWriteGitRemotePath (Text.unpack gitUrlConfigKey) url of
             Left e ->
               pure . Left $
-                ConfiguredRemoteMappingParseError pushPull destPath' url (show e)
+                ConfiguredRemoteMappingParseError pushPull destPath url (show e)
             Right ns ->
               pure . Right $ ns
         Nothing ->
-          pure . Left $ NoConfiguredRemoteMapping pushPull destPath'
+          pure . Left $ NoConfiguredRemoteMapping pushPull destPath
     Just url -> do
       case P.parse UriParser.writeRemotePath (Text.unpack remoteMappingConfigKey) url of
         Left e ->
           pure . Left $
-            ConfiguredRemoteMappingParseError pushPull destPath' url (show e)
+            ConfiguredRemoteMappingParseError pushPull destPath url (show e)
         Right ns ->
           pure . Right $ ns
   where

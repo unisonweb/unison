@@ -132,6 +132,7 @@ library
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector
+      Unison.Share.Types
       Unison.TermParser
       Unison.TermPrinter
       Unison.Typechecker
