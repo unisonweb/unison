@@ -1229,24 +1229,24 @@ notifyUser dir o = case o of
         "",
         err
       ]
-  NoConfiguredGitUrl pp p ->
+  NoConfiguredRemoteMapping pp p ->
     pure . P.fatalCallout . P.wrap $
       "I don't know where to "
         <> pushPull "push to!" "pull from!" pp
         <> ( if Path.isRoot' p
                then ""
                else
-                 "Add a line like `GitUrl." <> P.shown p
-                   <> " = <some-git-url>' to .unisonConfig. "
+                 "Add a line like `RemoteMapping." <> P.shown p
+                   <> " = namespace.path' to .unisonConfig. "
            )
         <> "Type `help "
         <> pushPull "push" "pull" pp
         <> "` for more information."
   --  | ConfiguredGitUrlParseError PushPull Path' Text String
-  ConfiguredGitUrlParseError pp p url err ->
+  ConfiguredRemoteMappingParseError pp p url err ->
     pure . P.fatalCallout . P.lines $
       [ P.wrap $
-          "I couldn't understand the GitUrl that's set for"
+          "I couldn't understand the RemoteMapping that's set for"
             <> prettyPath' p
             <> "in .unisonConfig",
         P.wrap $

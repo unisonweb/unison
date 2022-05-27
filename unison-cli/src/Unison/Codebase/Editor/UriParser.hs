@@ -3,6 +3,7 @@
 module Unison.Codebase.Editor.UriParser
   ( repoPath,
     writeGitRepo,
+    deprecatedWriteGitRemotePath,
     writeRemotePath,
   )
 where
@@ -152,6 +153,56 @@ writeGitRepo = P.label "repo root for writing" $ do
   treeish <- P.optional gitTreeishSuffix
   P.string ")"
   pure WriteGitRepo {url = printProtocol uri, branch = treeish}
+
+-- | A parser for the deprecated format of git URLs, which may still exist in old GitURL
+-- unisonConfigs.
+--
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "/srv/git/project.git:.namespace"
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "/srv/git/project.git:branch:.namespace"
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "/srv/git/project.git", branch = Nothing}, path = namespace})
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "/srv/git/project.git", branch = Just "branch"}, path = namespace})
+--
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "file:///srv/git/project.git"
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "file:///srv/git/project.git:branch"
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "file:///srv/git/project.git", branch = Nothing}, path = })
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "file:///srv/git/project.git", branch = Just "branch"}, path = })
+--
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "https://example.com/gitproject.git"
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "https://example.com/gitproject.git:base"
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "https://example.com/gitproject.git", branch = Nothing}, path = })
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "https://example.com/gitproject.git", branch = Just "base"}, path = })
+--
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "ssh://user@server/project.git"
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "ssh://user@server/project.git:branch"
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "ssh://server/project.git"
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "ssh://server/project.git:branch"
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "ssh://user@server/project.git", branch = Nothing}, path = })
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "ssh://user@server/project.git", branch = Just "branch"}, path = })
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "ssh://server/project.git", branch = Nothing}, path = })
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "ssh://server/project.git", branch = Just "branch"}, path = })
+--
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "server:project"
+-- >>> P.parseMaybe deprecatedWriteGitRemotePath "user@server:project.git:branch"
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "server:project", branch = Nothing}, path = })
+-- Just (WriteGitRemotePath {repo = WriteGitRepo {url = "user@server:project.git", branch = Just "branch"}, path = })
+deprecatedWriteGitRemotePath :: P WriteGitRemotePath
+deprecatedWriteGitRemotePath = P.label "generic write repo" $ do
+  repo <- deprecatedWriteGitRepo
+  path <- P.optional (C.char ':' *> absolutePath)
+  pure WriteGitRemotePath {repo, path = fromMaybe Path.empty path}
+  where
+    deprecatedWriteGitRepo :: P WriteGitRepo
+    deprecatedWriteGitRepo = do
+      P.label "repo root for writing" $ do
+        uri <- parseGitProtocol
+        treeish <- P.optional deprecatedTreeishSuffix
+        pure WriteGitRepo {url = printProtocol uri, branch = treeish}
+    deprecatedTreeishSuffix :: P Text
+    deprecatedTreeishSuffix = P.label "git treeish" . P.try $ do
+      void $ C.char ':'
+      notdothash <- C.noneOf @[] ".#:"
+      rest <- P.takeWhileP (Just "not colon") (/= ':')
+      pure $ Text.cons notdothash rest
 
 -- git(myrepo@git.com).foo.bar
 writeGitRemotePath :: P WriteGitRemotePath

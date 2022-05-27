@@ -210,8 +210,8 @@ data Output v
   | GitError GitError
   | ShareError ShareError
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
-  | NoConfiguredGitUrl PushPull Path'
-  | ConfiguredGitUrlParseError PushPull Path' Text String
+  | NoConfiguredRemoteMapping PushPull Path'
+  | ConfiguredRemoteMappingParseError PushPull Path' Text String
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
@@ -352,8 +352,8 @@ isFailure o = case o of
   GitError {} -> True
   BustedBuiltins {} -> True
   ConfiguredMetadataParseError {} -> True
-  NoConfiguredGitUrl {} -> True
-  ConfiguredGitUrlParseError {} -> True
+  NoConfiguredRemoteMapping {} -> True
+  ConfiguredRemoteMappingParseError {} -> True
   MetadataMissingType {} -> True
   MetadataAmbiguous {} -> True
   PatchNeedsToBeConflictFree {} -> True
