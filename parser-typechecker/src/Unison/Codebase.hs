@@ -90,7 +90,7 @@ module Unison.Codebase
     CodebasePath,
     SyncToDir,
 
-    -- * Sqlite Escape Hatch
+    -- * Sqlite escape hatch
     connection,
 
     -- * Misc (organize these better)
@@ -174,7 +174,7 @@ shallowBranchAtPath path causal = do
         Just childCausal -> shallowBranchAtPath p childCausal
 
 -- | Get a branch from the codebase.
-getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
+getBranchForHash :: Monad m => Codebase m v a -> Branch.CausalHash -> m (Maybe (Branch m))
 getBranchForHash codebase h =
   -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
   -- If not found, attempt to find it in the Codebase (sqlite)

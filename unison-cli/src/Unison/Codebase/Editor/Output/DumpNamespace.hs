@@ -11,7 +11,7 @@ data DumpNamespace = DumpNamespace
   { terms :: Map Referent (Set NameSegment, Set Reference),
     types :: Map Reference (Set NameSegment, Set Reference),
     patches :: Map NameSegment Branch.EditHash,
-    children :: Map NameSegment Branch.Hash,
-    causalParents :: Set Branch.Hash
+    children :: Map NameSegment Branch.CausalHash,
+    causalParents :: Set Branch.CausalHash
   }
   deriving (Show)

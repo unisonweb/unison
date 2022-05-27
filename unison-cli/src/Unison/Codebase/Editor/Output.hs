@@ -30,6 +30,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.TodoOutput as TO
+import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path')
 import qualified Unison.Codebase.Path as Path
@@ -107,7 +108,7 @@ data NumberedOutput v
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(Branch.Hash, Names.Diff)]
+      [(Branch.CausalHash, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
   | ListEdits Patch PPE.PrettyPrintEnv
 
@@ -241,11 +242,11 @@ data Output v
       Path.Absolute -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
-  | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
+  | DumpBitBooster Branch.CausalHash (Map Branch.CausalHash [Branch.CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
-  | CouldntLoadBranch Branch.Hash
+  | CouldntLoadBranch Branch.CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
@@ -258,6 +259,7 @@ data Output v
   | UnknownCodeServer Text
   | CredentialFailureMsg CredentialFailure
   | PrintVersion Text
+  | IntegrityCheck IntegrityResult
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -269,9 +271,9 @@ data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
 
 data HistoryTail
-  = EndOfLog Branch.Hash
-  | MergeTail Branch.Hash [Branch.Hash]
-  | PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex
+  = EndOfLog Branch.CausalHash
+  | MergeTail Branch.CausalHash [Branch.CausalHash]
+  | PageEnd Branch.CausalHash Int -- PageEnd nextHash nextIndex
   deriving (Show)
 
 data TestReportStats
@@ -390,6 +392,10 @@ isFailure o = case o of
   UnknownCodeServer {} -> True
   CredentialFailureMsg {} -> True
   PrintVersion {} -> False
+  IntegrityCheck r ->
+    case r of
+      NoIntegrityErrors -> False
+      IntegrityErrorDetected {} -> True
   ShareError {} -> True
 
 isNumberedFailure :: NumberedOutput v -> Bool

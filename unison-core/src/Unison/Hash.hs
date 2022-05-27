@@ -3,6 +3,7 @@
 
 module Unison.Hash
   ( Hash (Hash),
+    HashFor (..),
     base32Hex,
     fromBase32Hex,
     Hash.toByteString,
@@ -11,7 +12,7 @@ module Unison.Hash
 where
 
 import qualified U.Util.Base32Hex as Base32Hex
-import U.Util.Hash (Hash (Hash))
+import U.Util.Hash (Hash (Hash), HashFor (..))
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
 

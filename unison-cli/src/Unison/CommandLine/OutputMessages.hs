@@ -55,6 +55,7 @@ import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Codebase.GitError
+import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrityErrors)
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
 import qualified Unison.Codebase.Path as Path
@@ -353,16 +354,16 @@ notifyNumbered o = case o of
               "",
               tailMsg
             ]
-        branchHashes :: [Branch.Hash]
+        branchHashes :: [Branch.CausalHash]
         branchHashes = (fst <$> reversedHistory) <> tailHashes
      in (msg, displayBranchHash <$> branchHashes)
     where
-      toSBH :: Branch.Hash -> ShortBranchHash
+      toSBH :: Branch.CausalHash -> ShortBranchHash
       toSBH h = SBH.fromHash sbhLength h
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
-      handleTail :: Int -> (Pretty, [Branch.Hash])
+      handleTail :: Int -> (Pretty, [Branch.CausalHash])
       handleTail n = case tail of
         E.EndOfLog h ->
           ( P.lines
@@ -1139,7 +1140,7 @@ notifyUser dir o = case o of
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"
-            <> P.group ("(" <> P.text (Hash.base32Hex $ Causal.unRawHash hash) <> ")")
+            <> P.group ("(" <> P.text (Hash.base32Hex $ Causal.unCausalHash hash) <> ")")
             <> "from the repository at"
             <> prettyReadGitRepo repo
       CouldntLoadSyncedBranch ns h ->
@@ -1422,10 +1423,10 @@ notifyUser dir o = case o of
           Nothing -> go (renderLine head [] : output) queue
           Just tails -> go (renderLine head tails : output) (queue ++ tails)
           where
-            renderHash = take 10 . Text.unpack . Hash.base32Hex . Causal.unRawHash
+            renderHash = take 10 . Text.unpack . Hash.base32Hex . Causal.unCausalHash
             renderLine head tail =
               (renderHash head) ++ "|" ++ intercalateMap " " renderHash tail
-                ++ case Map.lookup (Hash.base32Hex . Causal.unRawHash $ head) tags of
+                ++ case Map.lookup (Hash.base32Hex . Causal.unCausalHash $ head) tags of
                   Just t -> "|tag: " ++ t
                   Nothing -> ""
             -- some specific hashes that we want to label in the output
@@ -1649,6 +1650,9 @@ notifyUser dir o = case o of
         P.wrap $ P.text "The server said you don't have permission to read" <> prettySharePath sharePath
       noWritePermission sharePath =
         P.wrap $ P.text "The server said you don't have permission to write" <> prettySharePath sharePath
+  IntegrityCheck result -> pure $ case result of
+    NoIntegrityErrors -> "🎉 No issues detected 🎉"
+    IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedNonEmptyPushDest writeRemotePath =
@@ -1719,8 +1723,8 @@ prettyAbsolute = P.blue . P.shown
 prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
-prettyCausalHash :: IsString s => Causal.RawHash x -> P.Pretty s
-prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unRawHash $ hash)
+prettyCausalHash :: IsString s => Causal.CausalHash -> P.Pretty s
+prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unCausalHash $ hash)
 
 prettyBase32Hex :: IsString s => Base32Hex -> P.Pretty s
 prettyBase32Hex = P.text . Base32Hex.toText
@@ -2989,6 +2993,6 @@ endangeredDependentsTable ppeDecl m =
         & fmap (\(n, dep) -> numArg n <> prettyLabeled fqnEnv dep)
         & P.lines
 
--- | Displays a full, non-truncated Branch Hash to a string, e.g. #abcdef
-displayBranchHash :: Branch.Hash -> String
-displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . Causal.unRawHash
+-- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
+displayBranchHash :: Branch.CausalHash -> String
+displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . Causal.unCausalHash

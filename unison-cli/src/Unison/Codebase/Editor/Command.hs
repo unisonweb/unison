@@ -30,6 +30,7 @@ import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
+import Unison.Codebase.IntegrityCheck (IntegrityResult)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Reflog as Reflog
@@ -144,7 +145,7 @@ data
   TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
   -- the hash length needed to disambiguate any branch in the codebase
   BranchHashLength :: Command m i v Int
-  BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.Hash)
+  BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.CausalHash)
   ParseType ::
     NamesWithHistory ->
     LexedSource ->
@@ -192,7 +193,7 @@ data
   -- codebase are copied there.
   LoadLocalRootBranch :: Command m i v (Branch m)
   -- Like `LoadLocalRootBranch`.
-  LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m)
+  LoadLocalBranch :: Branch.CausalHash -> Command m i v (Branch m)
   -- Merge two branches, using the codebase for the LCA calculation where possible.
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
   ViewRemoteGitBranch ::
@@ -218,7 +219,7 @@ data
   SyncRemoteGitBranch :: WriteGitRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> Command m i v (Either GitError (Either e (Branch m)))
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
   -- load the reflog in file (chronological) order
-  LoadReflog :: Command m i v [Reflog.Entry Branch.Hash]
+  LoadReflog :: Command m i v [Reflog.Entry Branch.CausalHash]
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
   -- LoadTermComponent :: H.Hash -> Command m i v (Maybe [Term v Ann])
   LoadTermComponentWithTypes :: H.Hash -> Command m i v (Maybe [(Term v Ann, Type v Ann)])
@@ -250,6 +251,7 @@ data
   RuntimeMain :: Command m i v (Type v Ann)
   RuntimeTest :: Command m i v (Type v Ann)
   ClearWatchCache :: Command m i v ()
+  AnalyzeCodebaseIntegrity :: Command m i v IntegrityResult
   MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
   -- | Trigger an interactive fuzzy search over the provided options and return all
   -- selected results.
@@ -346,3 +348,4 @@ commandName = \case
   FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"
   UCMVersion {} -> "UCMVersion"
+  AnalyzeCodebaseIntegrity -> "AnalyzeCodebaseIntegrity"
