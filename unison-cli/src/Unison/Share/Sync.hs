@@ -504,12 +504,9 @@ upsertEntitySomewhere hash entity =
   entityLocation hash >>= \case
     Just location -> pure location
     Nothing -> do
-      -- if it has missing dependencies, add it to temp storage;
-      -- otherwise add it to main storage.
       missingDependencies0 <-
         Set.filterM
-          (Q.entityExists . Share.toBase32Hex . Share.hashJWTHash)
-          -- (Set.map Share.decodeHashJWT (Share.entityDependencies entity))
+          (fmap not . Q.entityExists . Share.toBase32Hex . Share.hashJWTHash)
           (Share.entityDependencies entity)
       case NESet.nonEmptySet missingDependencies0 of
         Nothing -> do
