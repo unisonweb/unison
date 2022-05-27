@@ -25,7 +25,6 @@ module Unison.Share.Sync
   )
 where
 
-import qualified Control.Lens as Lens
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import qualified Control.Monad.Trans.Reader as Reader
 import qualified Data.Foldable as Foldable (find)
@@ -39,21 +38,11 @@ import qualified Data.Sequence.NonEmpty as NESeq (fromList, nonEmptySeq, (><|))
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
-import qualified Data.Vector as Vector
 import qualified Servant.API as Servant ((:<|>) (..))
 import Servant.Client (BaseUrl)
 import qualified Servant.Client as Servant (ClientEnv, ClientM, client, hoistClient, mkClientEnv, runClientM)
 import U.Codebase.HashTags (CausalHash (..))
-import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
-import qualified U.Codebase.Sqlite.Causal as Causal
-import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
-import qualified U.Codebase.Sqlite.Entity as Entity
-import U.Codebase.Sqlite.LocalIds (LocalIds' (..))
-import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Queries as Q
-import U.Codebase.Sqlite.TempEntity (TempEntity)
-import qualified U.Codebase.Sqlite.TempEntity as TempEntity
-import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as Hash
 import Unison.Auth.HTTPClient (AuthorizedHttpClient)
@@ -519,7 +508,7 @@ upsertEntitySomewhere hash entity =
 -- | Insert an entity that doesn't have any missing dependencies.
 insertEntity :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> Sqlite.Transaction ()
 insertEntity hash entity = do
-  syncEntity <- Q.tempToSyncEntity (entityToTempEntity entity)
+  syncEntity <- Q.tempToSyncEntity (entityToTempEntity (Share.toBase32Hex . Share.hashJWTHash) entity)
   _id <- Q.saveSyncEntity (Share.toBase32Hex hash) syncEntity
   pure ()
 
@@ -532,7 +521,7 @@ insertTempEntity ::
 insertTempEntity hash entity missingDependencies =
   Q.insertTempEntity
     (Share.toBase32Hex hash)
-    (entityToTempEntity entity)
+    (entityToTempEntity (Share.toBase32Hex . Share.hashJWTHash) entity)
     ( NESet.map
         ( \hashJwt ->
             let Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}} = Share.decodeHashJWT hashJwt
@@ -547,77 +536,6 @@ insertTempEntity hash entity missingDependencies =
 causalHashToHash :: CausalHash -> Share.Hash
 causalHashToHash =
   Share.Hash . Hash.toBase32Hex . unCausalHash
-
--- | Convert an entity that came over the wire from Unison Share into an equivalent type that we can store in the
--- `temp_entity` table.
-entityToTempEntity :: Share.Entity Text Share.Hash Share.HashJWT -> TempEntity
-entityToTempEntity = \case
-  Share.TC (Share.TermComponent terms) ->
-    terms
-      & Vector.fromList
-      & Vector.map (Lens.over Lens._1 mungeLocalIds)
-      & TermFormat.SyncLocallyIndexedComponent
-      & TermFormat.SyncTerm
-      & Entity.TC
-  Share.DC (Share.DeclComponent decls) ->
-    decls
-      & Vector.fromList
-      & Vector.map (Lens.over Lens._1 mungeLocalIds)
-      & DeclFormat.SyncLocallyIndexedComponent
-      & DeclFormat.SyncDecl
-      & Entity.DC
-  Share.P Share.Patch {textLookup, oldHashLookup, newHashLookup, bytes} ->
-    Entity.P (PatchFormat.SyncFull (mungePatchLocalIds textLookup oldHashLookup newHashLookup) bytes)
-  Share.PD Share.PatchDiff {parent, textLookup, oldHashLookup, newHashLookup, bytes} ->
-    Entity.P (PatchFormat.SyncDiff (jwt32 parent) (mungePatchLocalIds textLookup oldHashLookup newHashLookup) bytes)
-  Share.N Share.Namespace {textLookup, defnLookup, patchLookup, childLookup, bytes} ->
-    Entity.N (NamespaceFormat.SyncFull (mungeNamespaceLocalIds textLookup defnLookup patchLookup childLookup) bytes)
-  Share.ND Share.NamespaceDiff {parent, textLookup, defnLookup, patchLookup, childLookup, bytes} ->
-    Entity.N
-      ( NamespaceFormat.SyncDiff
-          (jwt32 parent)
-          (mungeNamespaceLocalIds textLookup defnLookup patchLookup childLookup)
-          bytes
-      )
-  Share.C Share.Causal {namespaceHash, parents} ->
-    Entity.C
-      Causal.SyncCausalFormat
-        { valueHash = jwt32 namespaceHash,
-          parents = Vector.fromList (map jwt32 (Set.toList parents))
-        }
-  where
-    mungeLocalIds :: Share.LocalIds Text Share.HashJWT -> TempEntity.TempLocalIds
-    mungeLocalIds Share.LocalIds {texts, hashes} =
-      LocalIds
-        { textLookup = Vector.fromList texts,
-          defnLookup = Vector.map jwt32 (Vector.fromList hashes)
-        }
-
-    mungeNamespaceLocalIds ::
-      [Text] ->
-      [Share.HashJWT] ->
-      [Share.HashJWT] ->
-      [(Share.HashJWT, Share.HashJWT)] ->
-      TempEntity.TempNamespaceLocalIds
-    mungeNamespaceLocalIds textLookup defnLookup patchLookup childLookup =
-      NamespaceFormat.LocalIds
-        { branchTextLookup = Vector.fromList textLookup,
-          branchDefnLookup = Vector.fromList (map jwt32 defnLookup),
-          branchPatchLookup = Vector.fromList (map jwt32 patchLookup),
-          branchChildLookup = Vector.fromList (map (\(x, y) -> (jwt32 x, jwt32 y)) childLookup)
-        }
-
-    mungePatchLocalIds :: [Text] -> [Share.Hash] -> [Share.HashJWT] -> TempEntity.TempPatchLocalIds
-    mungePatchLocalIds textLookup oldHashLookup newHashLookup =
-      PatchFormat.LocalIds
-        { patchTextLookup = Vector.fromList textLookup,
-          patchHashLookup = Vector.fromList (coerce @[Share.Hash] @[Base32Hex] oldHashLookup),
-          patchDefnLookup = Vector.fromList (map jwt32 newHashLookup)
-        }
-
-    jwt32 :: Share.HashJWT -> Base32Hex
-    jwt32 =
-      Share.toBase32Hex . Share.hashJWTHash
 
 ------------------------------------------------------------------------------------------------------------------------
 -- HTTP calls
