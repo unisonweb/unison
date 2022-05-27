@@ -6,7 +6,7 @@ module Unison.Codebase.Editor.RemoteRepo where
 import qualified Data.Text as Text
 import qualified Servant.Client as Servant
 import qualified U.Util.Monoid as Monoid
-import Unison.Share.Types (CodeserverHost)
+import Unison.Share.Types (CodeserverHost(..))
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -15,22 +15,18 @@ import Unison.Prelude
 
 data ReadRepo
   = ReadRepoGit ReadGitRepo
-  | ReadRepoShare ShareRepo
+  | ReadRepoShare CodeserverHost
   deriving (Eq, Show)
 
 data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}
   deriving (Eq, Show)
 
--- FIXME rename to ShareServer
-data ShareRepo = ShareRepo CodeserverHost
-  deriving (Eq, Show)
-
-shareRepoToBaseUrl :: ShareRepo -> Servant.BaseUrl
-shareRepoToBaseUrl ShareRepo = Servant.BaseUrl Servant.Https "share.unison.cloud" 443 ""
+shareRepoToBaseUrl :: CodeserverHost -> Servant.BaseUrl
+shareRepoToBaseUrl (CodeserverHost host) = Servant.BaseUrl Servant.Https (Text.unpack host) 443 ""
 
 data WriteRepo
   = WriteRepoGit WriteGitRepo
-  | WriteRepoShare ShareRepo
+  | WriteRepoShare CodeserverHost
   deriving (Eq, Show)
 
 data WriteGitRepo = WriteGitRepo {url :: Text, branch :: Maybe Text}
@@ -68,15 +64,15 @@ printNamespace = \case
       maybePrintSBH = \case
         Nothing -> mempty
         Just sbh -> "#" <> SBH.toText sbh
-  ReadRemoteNamespaceShare ReadShareRemoteNamespace {server = ShareRepo, repo, path} ->
+  ReadRemoteNamespaceShare ReadShareRemoteNamespace {server = CodeserverHost _host, repo, path} ->
     repo <> maybePrintPath path
 
 -- | Render a 'WriteRemotePath' as text.
 printWriteRemotePath :: WriteRemotePath -> Text
 printWriteRemotePath = \case
-  WriteRemotePathGit WriteGitRemotePath {repo, path} ->
+  WriteRemotePathGit (WriteGitRemotePath {repo, path}) ->
     printWriteGitRepo repo <> maybePrintPath path
-  WriteRemotePathShare WriteShareRemotePath {server = ShareRepo, repo, path} ->
+  WriteRemotePathShare (WriteShareRemotePath {server = CodeserverHost _host, repo, path}) ->
     repo <> maybePrintPath path
 
 maybePrintPath :: Path -> Text
@@ -98,7 +94,7 @@ data ReadGitRemoteNamespace = ReadGitRemoteNamespace
   deriving stock (Eq, Show)
 
 data ReadShareRemoteNamespace = ReadShareRemoteNamespace
-  { server :: ShareRepo,
+  { server :: CodeserverHost,
     repo :: Text,
     -- sbh :: Maybe ShortBranchHash, -- maybe later
     path :: Path
@@ -117,7 +113,7 @@ data WriteGitRemotePath = WriteGitRemotePath
   deriving stock (Eq, Show)
 
 data WriteShareRemotePath = WriteShareRemotePath
-  { server :: ShareRepo,
+  { server :: CodeserverHost,
     repo :: Text,
     path :: Path
   }
