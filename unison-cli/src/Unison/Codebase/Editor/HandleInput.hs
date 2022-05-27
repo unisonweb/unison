@@ -2271,7 +2271,7 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} =
     liftIO (Share.pull authHTTPClient (shareRepoToBaseUrl server) connection shareFlavoredPath) >>= \case
       Left e -> pure (Left (Output.ShareErrorPull e))
       Right causalHash -> do
-        (eval . Eval) (Codebase.getBranchForHash codebase (Cv.branchHash2to1 causalHash)) >>= \case
+        (eval . Eval) (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
           Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
           Just branch -> pure (Right branch)
 
