@@ -400,7 +400,7 @@ downloadEntities httpClient unisonShareUrl conn repoName =
 
     doDownload :: NESet Share.HashJWT -> IO (NEMap Share.Hash (Share.Entity Text Share.Hash Share.HashJWT))
     doDownload hashes = do
-      Share.DownloadEntitiesResponse entities <-
+      Share.DownloadEntitiesSuccess entities <-
         httpDownloadEntities
           httpClient
           unisonShareUrl

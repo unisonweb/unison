@@ -3,7 +3,6 @@
 -- Name shadowing is really helpful for writing some custom traversals
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
-
 module Unison.Sync.Types
   ( -- * Misc. types
     Base64Bytes (..),
@@ -66,7 +65,6 @@ module Unison.Sync.Types
     HashMismatch (..),
 
     -- * Common/shared error types
-    DownloadEntities (..),
     HashMismatchForEntity (..),
     InvalidParentage (..),
     NeedDependencies (..),
@@ -652,13 +650,13 @@ instance FromJSON DownloadEntitiesRequest where
     pure DownloadEntitiesRequest {..}
 
 data DownloadEntitiesResponse
-  = DownloadEntitiesSuccess DownloadEntities
+  = DownloadEntitiesSuccess (NEMap Hash (Entity Text Hash HashJWT))
   | DownloadEntitiesNoReadPermission RepoName
 
-data DownloadEntities = DownloadEntities
-  { entities :: NEMap Hash (Entity Text Hash HashJWT)
-  }
-  deriving stock (Show, Eq, Ord)
+-- data DownloadEntities = DownloadEntities
+--   { entities :: NEMap Hash (Entity Text Hash HashJWT)
+--   }
+--   deriving stock (Show, Eq, Ord)
 
 instance ToJSON DownloadEntitiesResponse where
   toJSON = \case
@@ -672,15 +670,15 @@ instance FromJSON DownloadEntitiesResponse where
       "no_read_permission" -> DownloadEntitiesNoReadPermission <$> obj .: "payload"
       t -> failText $ "Unexpected DownloadEntitiesResponse type: " <> t
 
-instance ToJSON DownloadEntities where
-  toJSON (DownloadEntities entities) =
-    object
-      [ "entities" .= entities
-      ]
+-- instance ToJSON DownloadEntities where
+--   toJSON (DownloadEntities entities) =
+--     object
+--       [ "entities" .= entities
+--       ]
 
-instance FromJSON DownloadEntities where
-  parseJSON = Aeson.withObject "DownloadEntities" \obj -> do
-    DownloadEntities <$> obj .: "entities"
+-- instance FromJSON DownloadEntities where
+--   parseJSON = Aeson.withObject "DownloadEntities" \obj -> do
+--     DownloadEntities <$> obj .: "entities"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
