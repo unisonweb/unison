@@ -92,21 +92,24 @@ readShareRemoteNamespace = do
       <*> (NameSegment.toText <$> nameSegment)
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
 
--- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)#asdf.foo.bar"
+-- |
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)#asdf"
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)#asdf."
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)"
 -- >>> P.parseMaybe readGitRemoteNamespace "git(git@github.com:unisonweb/base:v3)._releases.M3"
--- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sbh = Just #asdf, path = foo.bar})
+-- >>> P.parseMaybe readGitRemoteNamespace "git( user@server:project.git:branch )#asdf.foo.bar"
 -- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sbh = Just #asdf, path = })
 -- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sbh = Just #asdf, path = })
 -- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sbh = Nothing, path = })
 -- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "git@github.com:unisonweb/base", ref = Just "v3"}, sbh = Nothing, path = _releases.M3})
+-- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sbh = Just #asdf, path = foo.bar})
 readGitRemoteNamespace :: P ReadGitRemoteNamespace
 readGitRemoteNamespace = P.label "generic git repo" $ do
   P.string "git("
+  P.space
   protocol <- parseGitProtocol
   treeish <- P.optional gitTreeishSuffix
+  P.space
   let repo = ReadGitRepo {url = printProtocol protocol, ref = treeish}
   P.string ")"
   nshashPath <- P.optional namespaceHashPath
@@ -297,7 +300,7 @@ nameSegment =
 gitTreeishSuffix :: P Text
 gitTreeishSuffix = P.label "git treeish" . P.try $ do
   void $ C.char ':'
-  P.takeWhile1P (Just "not close paren") (/= ')')
+  P.takeWhile1P (Just "not close paren") (\c -> c /= ')' && not (isSpace c))
 
 shortBranchHash :: P ShortBranchHash
 shortBranchHash = P.label "short branch hash" $ do
