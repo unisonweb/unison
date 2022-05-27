@@ -1,6 +1,9 @@
 -- | Combinators or utilities shared by sync server AND client
 module Unison.Sync.Common
   ( expectEntity,
+
+    -- * Type conversions
+    causalHashToShareHash,
     entityToTempEntity,
     tempEntityToEntity,
   )
@@ -10,6 +13,7 @@ import qualified Control.Lens as Lens
 import qualified Data.Set as Set
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
+import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
@@ -22,6 +26,7 @@ import qualified U.Codebase.Sqlite.TempEntity as Sqlite
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Util.Base32Hex (Base32Hex)
+import qualified U.Util.Hash as Hash
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.Types as Share
@@ -32,6 +37,10 @@ expectEntity hash = do
   syncEntity <- Q.expectEntity (Share.toBase32Hex hash)
   tempEntity <- Q.syncToTempEntity syncEntity
   pure (tempEntityToEntity tempEntity)
+
+causalHashToShareHash :: CausalHash -> Share.Hash
+causalHashToShareHash =
+  Share.Hash . Hash.toBase32Hex . unCausalHash
 
 -- | Convert an entity that came over the wire from Unison Share into an equivalent type that we can store in the
 -- `temp_entity` table.

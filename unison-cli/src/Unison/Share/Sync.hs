@@ -114,7 +114,7 @@ checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash = do
         Share.UpdatePathRequest
           { path,
             expectedHash,
-            newHash = causalHashToHash causalHash
+            newHash = causalHashToShareHash causalHash
           }
 
 -- | An error occurred while fast-forward pushing code to Unison Share.
@@ -160,7 +160,8 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash =
                       unisonShareUrl
                       Share.FastForwardPathRequest
                         { expectedHash = remoteHeadHash,
-                          hashes = causalHashToHash <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
+                          hashes =
+                            causalHashToShareHash <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
                           path
                         }
               doFastForwardPath <&> \case
@@ -184,7 +185,7 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash =
         unisonShareUrl
         conn
         (Share.pathRepoName path)
-        (NESet.singleton (causalHashToHash headHash))
+        (NESet.singleton (causalHashToShareHash headHash))
 
     -- Return a list from oldest to newst of the ancestors between (excluding) the latest local and the current remote
     -- hash.
@@ -529,13 +530,6 @@ insertTempEntity hash entity missingDependencies =
         )
         missingDependencies
     )
-
-------------------------------------------------------------------------------------------------------------------------
--- Conversions to/from Share API types
-
-causalHashToHash :: CausalHash -> Share.Hash
-causalHashToHash =
-  Share.Hash . Hash.toBase32Hex . unCausalHash
 
 ------------------------------------------------------------------------------------------------------------------------
 -- HTTP calls
