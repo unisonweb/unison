@@ -108,7 +108,7 @@ backendListEntryToProjectListing owner = \case
       ProjectListing
         { owner = owner,
           name = NameSegment.toText name,
-          hash = "#" <> Hash.toBase32HexText (Causal.unRawHash hash)
+          hash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash)
         }
   _ -> Nothing
 

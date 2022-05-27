@@ -474,6 +474,7 @@ loop = do
             DebugDumpNamespacesI {} -> wat
             DebugDumpNamespaceSimpleI {} -> wat
             DebugClearWatchI {} -> wat
+            DebugDoctorI {} -> wat
             QuitI {} -> wat
             DeprecateTermI {} -> undefined
             DeprecateTypeI {} -> undefined
@@ -570,9 +571,9 @@ loop = do
                 -- reverses & formats entries, adds synthetic entries when there is a
                 -- discontinuity in the reflog.
                 convertEntries ::
-                  Maybe Branch.Hash ->
+                  Maybe Branch.CausalHash ->
                   [Output.ReflogEntry] ->
-                  [Reflog.Entry Branch.Hash] ->
+                  [Reflog.Entry Branch.CausalHash] ->
                   [Output.ReflogEntry]
                 convertEntries _ acc [] = acc
                 convertEntries Nothing acc entries@(Reflog.Entry old _ _ : _) =
@@ -842,9 +843,9 @@ loop = do
                     else case Branch._history b of
                       Causal.One {} ->
                         respondNumbered $ History diffCap sbhLength acc (EndOfLog $ Branch.headHash b)
-                      Causal.Merge _ _ tails ->
+                      Causal.Merge _ _ _ tails ->
                         respondNumbered $ History diffCap sbhLength acc (MergeTail (Branch.headHash b) $ Map.keys tails)
-                      Causal.Cons _ _ tail -> do
+                      Causal.Cons _ _ _ tail -> do
                         b' <- fmap Branch.Branch . eval . Eval $ snd tail
                         let elem = (Branch.headHash b, Branch.namesDiff b' b)
                         doHistory (n + 1) b' (elem : acc)
@@ -1593,15 +1594,15 @@ loop = do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
                   getCausal b = (Branch.headHash b, pure $ Branch._history b)
-                  goCausal :: forall m. Monad m => [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
+                  goCausal :: forall m. Monad m => [(Branch.CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.CausalHash) m ()
                   goCausal [] = pure ()
                   goCausal ((h, mc) : queue) = do
                     ifM (seen h) (goCausal queue) do
                       lift mc >>= \case
-                        Causal.One h b -> goBranch h b mempty queue
-                        Causal.Cons h b tail -> goBranch h b [fst tail] (tail : queue)
-                        Causal.Merge h b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
-                  goBranch :: forall m. Monad m => Branch.Hash -> Branch0 m -> [Branch.Hash] -> [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
+                        Causal.One h _bh b -> goBranch h b mempty queue
+                        Causal.Cons h _bh b tail -> goBranch h b [fst tail] (tail : queue)
+                        Causal.Merge h _bh b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
+                  goBranch :: forall m. Monad m => Branch.CausalHash -> Branch0 m -> [Branch.CausalHash] -> [(Branch.CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.CausalHash) m ()
                   goBranch h b (Set.fromList -> causalParents) queue = case b of
                     Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ ->
                       let wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
@@ -1640,6 +1641,9 @@ loop = do
               for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
             DebugClearWatchI {} -> eval ClearWatchCache
+            DebugDoctorI {} -> do
+              r <- eval AnalyzeCodebaseIntegrity
+              respond (IntegrityCheck r)
             DeprecateTermI {} -> notImplemented
             DeprecateTypeI {} -> notImplemented
             RemoveTermReplacementI from patchPath ->
@@ -2283,7 +2287,7 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} =
     liftIO (Share.pull authHTTPClient (shareRepoToBaseUrl server) connection shareFlavoredPath) >>= \case
       Left e -> pure (Left (Output.ShareErrorPull e))
       Right causalHash -> do
-        (eval . Eval) (Codebase.getBranchForHash codebase (Cv.branchHash2to1 causalHash)) >>= \case
+        (eval . Eval) (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
           Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
           Just branch -> pure (Right branch)
 

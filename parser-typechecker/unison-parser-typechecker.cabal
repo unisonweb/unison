@@ -51,6 +51,7 @@ library
       Unison.Codebase.Init.CreateCodebaseError
       Unison.Codebase.Init.OpenCodebaseError
       Unison.Codebase.Init.Type
+      Unison.Codebase.IntegrityCheck
       Unison.Codebase.MainTerm
       Unison.Codebase.Metadata
       Unison.Codebase.Patch
@@ -66,10 +67,12 @@ library
       Unison.Codebase.SqliteCodebase.Conversions
       Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.Migrations
+      Unison.Codebase.SqliteCodebase.Migrations.Helpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
@@ -252,6 +255,7 @@ library
     , optparse-applicative >=0.16.1.0
     , pem
     , prelude-extras
+    , pretty-simple
     , primitive
     , process
     , random >=1.2.0
@@ -290,6 +294,7 @@ library
     , unison-util
     , unison-util-base32hex
     , unison-util-relation
+    , unison-util-serialization
     , unliftio
     , uri-encode
     , utf8-string
@@ -429,6 +434,7 @@ test-suite parser-typechecker-tests
     , optparse-applicative >=0.16.1.0
     , pem
     , prelude-extras
+    , pretty-simple
     , primitive
     , process
     , random >=1.2.0
@@ -469,6 +475,7 @@ test-suite parser-typechecker-tests
     , unison-util
     , unison-util-base32hex
     , unison-util-relation
+    , unison-util-serialization
     , unliftio
     , uri-encode
     , utf8-string

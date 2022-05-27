@@ -168,5 +168,5 @@ reportBug bugId msg =
     ]
 
 {-# WARNING wundefined "You left this wundefined." #-}
-wundefined :: a
+wundefined :: HasCallStack => a
 wundefined = undefined

@@ -12,8 +12,7 @@ import Data.Monoid.Generic (GenericMonoid (..), GenericSemigroup (..))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import GHC.Generics (Generic)
-import Unison.Codebase.Branch (Branch (Branch), Branch0, EditHash)
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch.Type as Branch
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -25,7 +24,7 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
 
-type Branches m = [(Branch.Hash, m (Branch m))]
+type Branches m = [(Branch.CausalHash, m (Branch m))]
 
 data Dependencies = Dependencies
   { patches :: Set EditHash,
@@ -52,9 +51,9 @@ to' Dependencies {..} = Dependencies' (toList patches) (toList terms) (toList de
 
 fromBranch :: Applicative m => Branch m -> (Branches m, Dependencies)
 fromBranch (Branch c) = case c of
-  Causal.One _hh e -> fromBranch0 e
-  Causal.Cons _hh e (h, m) -> fromBranch0 e <> fromTails (Map.singleton h m)
-  Causal.Merge _hh e tails -> fromBranch0 e <> fromTails tails
+  Causal.One _hh _eh e -> fromBranch0 e
+  Causal.Cons _hh _eh e (h, m) -> fromBranch0 e <> fromTails (Map.singleton h m)
+  Causal.Merge _hh _eh e tails -> fromBranch0 e <> fromTails tails
   where
     fromTails m = ([(h, Branch <$> mc) | (h, mc) <- Map.toList m], mempty)
 

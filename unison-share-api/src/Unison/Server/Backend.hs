@@ -119,7 +119,7 @@ data ShallowListEntry v a
   | ShallowTypeEntry TypeEntry
   | -- The integer here represents the number of children.
     -- it may be omitted depending on the context the query is run in.
-    ShallowBranchEntry NameSegment Branch.Hash (Maybe Int)
+    ShallowBranchEntry NameSegment Branch.CausalHash (Maybe Int)
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
@@ -140,8 +140,8 @@ data BackendError
       -- ^ namespace
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
-  | NoBranchForHash Branch.Hash
-  | CouldntLoadBranch Branch.Hash
+  | NoBranchForHash Branch.CausalHash
+  | CouldntLoadBranch Branch.CausalHash
   | MissingSignatureForTerm Reference
 
 data BackendEnv = BackendEnv
@@ -765,7 +765,7 @@ data DefinitionResults v = DefinitionResults
   }
 
 expandShortBranchHash ::
-  Monad m => Codebase m v a -> ShortBranchHash -> Backend m Branch.Hash
+  Monad m => Codebase m v a -> ShortBranchHash -> Backend m (Branch.CausalHash)
 expandShortBranchHash codebase hash = do
   hashSet <- lift $ Codebase.branchHashesByPrefix codebase hash
   len <- lift $ Codebase.branchHashLength codebase
@@ -776,12 +776,12 @@ expandShortBranchHash codebase hash = do
       throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
-getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe Branch.Hash -> Path -> Backend m (V2Branch.CausalBranch m)
+getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (V2Branch.CausalBranch m)
 getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
   shallowRoot <- case mayRootHash of
     Nothing -> lift (Codebase.getShallowRootBranch codebase)
     Just h -> do
-      lift $ Codebase.getShallowBranchForHash codebase (Cv.branchHash1to2 h)
+      lift $ Codebase.getShallowBranchForHash codebase (Cv.causalHash1to2 h)
   causal <-
     (lift $ Codebase.shallowBranchAtPath path shallowRoot) >>= \case
       Nothing -> pure $ Cv.causalbranch1to2 (Branch.empty)
@@ -809,7 +809,7 @@ mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes ::
   Path ->
-  Maybe Branch.Hash ->
+  Maybe (Branch.CausalHash) ->
   Maybe Width ->
   Suffixify ->
   Rt.Runtime Symbol ->
@@ -1070,7 +1070,7 @@ bestNameForType ppe width =
     . TypePrinter.pretty0 @v ppe mempty (-1)
     . Type.ref ()
 
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe Branch.Hash -> Path -> Backend m (Names, Names)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, Names)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   case mbh of
@@ -1081,18 +1081,18 @@ scopedNamesForBranchHash codebase mbh path = do
         pure $ prettyAndParseNamesForBranch rootBranch (AllNames path)
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
-      if (Causal.unRawHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
+      if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
         then indexPrettyAndParseNames
-        else flip prettyAndParseNamesForBranch (AllNames path) <$> resolveBranchHash (Just bh) codebase
+        else flip prettyAndParseNamesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
   where
     indexPrettyAndParseNames :: Backend m (Names, Names)
     indexPrettyAndParseNames = do
       names <- lift $ Codebase.namesAtPath codebase path
       pure (ScopedNames.parseNames names, ScopedNames.prettyNames names)
 
-resolveBranchHash ::
-  Monad m => Maybe Branch.Hash -> Codebase m v a -> Backend m (Branch m)
-resolveBranchHash h codebase = case h of
+resolveCausalHash ::
+  Monad m => Maybe (Branch.CausalHash) -> Codebase m v a -> Backend m (Branch m)
+resolveCausalHash h codebase = case h of
   Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
@@ -1105,7 +1105,7 @@ resolveRootBranchHash mayRoot codebase = case mayRoot of
     lift (Codebase.getRootBranch codebase)
   Just sbh -> do
     h <- expandShortBranchHash codebase sbh
-    resolveBranchHash (Just h) codebase
+    resolveCausalHash (Just h) codebase
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
 data IncludeCycles

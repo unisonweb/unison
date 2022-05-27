@@ -45,6 +45,7 @@ module U.Codebase.Sqlite.Queries
     isObjectHash,
     expectObject,
     expectPrimaryHashByObjectId,
+    expectPrimaryHashIdForObject,
     expectObjectWithHashIdAndType,
     expectDeclObject,
     loadDeclObject,
@@ -132,6 +133,7 @@ module U.Codebase.Sqlite.Queries
     garbageCollectWatchesWithoutObjects,
 
     -- * sync temp entities
+    entityExists,
     expectEntity,
     getMissingDependentsForTempEntity,
     getMissingDependencyJwtsForTempEntity,
@@ -151,6 +153,7 @@ module U.Codebase.Sqlite.Queries
 where
 
 import qualified Control.Lens as Lens
+import Control.Monad.Extra ((||^))
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
@@ -161,7 +164,6 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import Data.String.Here.Uninterpolated (here, hereFile)
-import Data.Tuple.Only (Only (..))
 import qualified Data.Vector as Vector
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
@@ -440,6 +442,12 @@ loadTermObject oid =
 expectTermObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectTermObject oid =
   expectObjectOfType oid TermComponent
+
+expectPrimaryHashIdForObject :: ObjectId -> Transaction HashId
+expectPrimaryHashIdForObject oId = do
+  queryOneCol sql (Only oId)
+  where
+    sql = "SELECT primary_hash_id FROM object WHERE id = ?"
 
 expectObjectWithType :: SqliteExceptionReason e => ObjectId -> (ObjectType -> ByteString -> Either e a) -> Transaction a
 expectObjectWithType oId check = queryOneRowCheck sql (Only oId) (\(typ, bytes) -> check typ bytes)
@@ -1411,6 +1419,15 @@ ancestorSql =
   |]
 
 -- * share sync / temp entities
+
+-- | Does this entity already exist in the database, i.e. in the `object` or `causal` table?
+entityExists :: Base32Hex -> Transaction Bool
+entityExists hash = do
+  -- first get hashId if exists
+  loadHashId hash >>= \case
+    Nothing -> pure False
+    -- then check if is causal hash or if object exists for hash id
+    Just hashId -> isCausalHash hashId ||^ isObjectHash hashId
 
 getMissingDependencyJwtsForTempEntity :: Base32Hex -> Transaction (Maybe (NESet Text))
 getMissingDependencyJwtsForTempEntity h = do

@@ -7,7 +7,7 @@ where
 
 import qualified Data.Set as Set
 import qualified Data.Vector as Vector
-import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
+import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import qualified U.Codebase.Reference as S hiding (Reference)
 import qualified U.Codebase.Reference as S.Reference
 import qualified U.Codebase.Referent as S.Referent
@@ -45,16 +45,16 @@ import Unison.Sqlite (Transaction)
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
 
-syncCausalHash :: S.SyncCausalFormat -> Transaction Hash
+syncCausalHash :: S.SyncCausalFormat -> Transaction CausalHash
 syncCausalHash S.SyncCausalFormat {valueHash = valueHashId, parents = parentChIds} = do
-  fmap Hashing.Causal.hashCausal $
+  fmap (CausalHash . Hashing.Causal.hashCausal) $
     Hashing.Causal.Causal
       <$> coerce @(Transaction BranchHash) @(Transaction Hash) (Q.expectBranchHash valueHashId)
       <*> fmap (Set.fromList . coerce @[CausalHash] @[Hash] . Vector.toList) (traverse Q.expectCausalHash parentChIds)
 
-dbBranchHash :: S.DbBranch -> Transaction Hash
+dbBranchHash :: S.DbBranch -> Transaction BranchHash
 dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
-  fmap Hashing.Branch.hashBranch $
+  fmap (BranchHash . Hashing.Branch.hashBranch) $
     Hashing.Branch.Raw
       <$> doTerms tms
       <*> doTypes tps
@@ -85,9 +85,9 @@ dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
     doChildren =
       Map.bitraverse s2hNameSegment \(_boId, chId) -> causalHashIdToHash chId
 
-dbPatchHash :: S.Patch -> Transaction Hash
+dbPatchHash :: S.Patch -> Transaction PatchHash
 dbPatchHash S.Patch {S.termEdits, S.typeEdits} =
-  fmap Hashing.Patch.hashPatch $
+  fmap (PatchHash . Hashing.Patch.hashPatch) $
     Hashing.Patch
       <$> doTermEdits termEdits
       <*> doTypeEdits typeEdits

@@ -26,9 +26,10 @@ makeTest (version, path) =
     expectEqual
       (rightMay $ runParser defaultBaseLib "versionparser" version)
       ( Just
-          -- We've hard-coded the v3 branch for base for now. See 'defaultBaseLib'
-          ( ReadGitRepo "https://github.com/unisonweb/base" (Just "v3"),
-            Nothing,
-            Path.fromText path
+          -- We've hard-coded the v4 branch for base for now. See 'defaultBaseLib'
+          ( ReadGitRemoteNamespace
+              (ReadGitRepo "https://github.com/unisonweb/base" (Just "v4"))
+              Nothing
+              (Path.fromText path)
           )
       )

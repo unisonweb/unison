@@ -52,6 +52,7 @@ dependencies:
   - transformers
   - unison-codebase
   - unison-codebase-sqlite
+  - unison-sqlite
   - unison-core1
   - unison-parser-typechecker
   - unison-prelude

@@ -104,6 +104,7 @@ module Unison.Sqlite
     (Sqlite.Simple.:.) (..),
     Sqlite.Simple.FromField (fromField),
     Sqlite.Simple.FromRow (fromRow),
+    Sqlite.Simple.Only (..),
     Sqlite.Simple.RowParser,
     Sqlite.Simple.SQLData (..),
     Sqlite.Simple.ToField (toField),

@@ -140,7 +140,7 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
     Subnamespace $
       NamedNamespace
         { namespaceName = NameSegment.toText name,
-          namespaceHash = "#" <> Hash.toBase32HexText (Causal.unRawHash hash)
+          namespaceHash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash)
         }
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name

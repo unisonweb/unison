@@ -1,4 +1,7 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE RecordWildCards #-}
+-- Name shadowing is really helpful for writing some custom traversals
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 module Unison.Sync.Types
   ( -- * Misc. types
@@ -31,6 +34,13 @@ module Unison.Sync.Types
     entityDependencies,
     EntityType (..),
 
+    -- *** Entity Traversals
+    entityHashes_,
+    patchHashes_,
+    patchDiffHashes_,
+    namespaceDiffHashes_,
+    causalHashes_,
+
     -- * Request/response types
 
     -- ** Get causal hash by path
@@ -55,10 +65,13 @@ module Unison.Sync.Types
     HashMismatch (..),
 
     -- * Common/shared error types
+    HashMismatchForEntity (..),
+    InvalidParentage (..),
     NeedDependencies (..),
   )
 where
 
+import Control.Lens (both, traverseOf)
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -74,8 +87,10 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Servant.Auth.JWT
 import U.Util.Base32Hex (Base32Hex (..))
 import Unison.Prelude
+import qualified Unison.Util.Set as Set
 import qualified Web.JWT as JWT
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -138,22 +153,22 @@ hashJWTHash =
   decodedHashJWTHash . decodeHashJWT
 
 data HashJWTClaims = HashJWTClaims
-  { hash :: Hash,
-    entityType :: EntityType
+  { hash :: Hash
+  -- Currently unused
+  -- entityType :: EntityType
   }
   deriving stock (Show, Eq, Ord)
+  deriving anyclass (ToJWT, FromJWT) -- uses JSON instances
 
 instance ToJSON HashJWTClaims where
-  toJSON (HashJWTClaims hash entityType) =
+  toJSON (HashJWTClaims hash) =
     object
-      [ "h" .= hash,
-        "t" .= entityType
+      [ "h" .= hash
       ]
 
 instance FromJSON HashJWTClaims where
   parseJSON = Aeson.withObject "HashJWTClaims" \obj -> do
     hash <- obj .: "h"
-    entityType <- obj .: "t"
     pure HashJWTClaims {..}
 
 -- | A decoded hash JWT that retains the original encoded JWT.
@@ -230,6 +245,16 @@ instance (FromJSON text, FromJSON noSyncHash, FromJSON hash, Ord hash) => FromJS
       NamespaceType -> N <$> obj .: "object"
       NamespaceDiffType -> ND <$> obj .: "object"
       CausalType -> C <$> obj .: "object"
+
+entityHashes_ :: (Applicative m, Ord hash') => (hash -> m hash') -> Entity text noSyncHash hash -> m (Entity text noSyncHash hash')
+entityHashes_ f = \case
+  TC tc -> TC <$> bitraverse pure f tc
+  DC dc -> DC <$> bitraverse pure f dc
+  P patch -> P <$> patchHashes_ f patch
+  PD patch -> PD <$> patchDiffHashes_ f patch
+  N ns -> N <$> bitraverse pure f ns
+  ND ns -> ND <$> namespaceDiffHashes_ f ns
+  C causal -> C <$> causalHashes_ f causal
 
 -- | Get the direct dependencies of an entity (which are actually sync'd).
 --
@@ -383,6 +408,11 @@ instance (FromJSON text, FromJSON oldHash, FromJSON newHash) => FromJSON (Patch 
     Base64Bytes bytes <- obj .: "bytes"
     pure Patch {..}
 
+patchHashes_ :: Applicative m => (hash -> m hash') -> Patch text noSyncHash hash -> m (Patch text noSyncHash hash')
+patchHashes_ f (Patch {..}) = do
+  newHashLookup <- traverse f newHashLookup
+  pure (Patch {..})
+
 data PatchDiff text oldHash hash = PatchDiff
   { parent :: hash,
     textLookup :: [text],
@@ -410,6 +440,12 @@ instance (FromJSON text, FromJSON oldHash, FromJSON hash) => FromJSON (PatchDiff
     newHashLookup <- obj .: "hash_lookup"
     Base64Bytes bytes <- obj .: "bytes"
     pure PatchDiff {..}
+
+patchDiffHashes_ :: Applicative m => (hash -> m hash') -> PatchDiff text noSyncHash hash -> m (PatchDiff text noSyncHash hash')
+patchDiffHashes_ f (PatchDiff {..}) = do
+  parent <- f parent
+  newHashLookup <- traverse f newHashLookup
+  pure (PatchDiff {..})
 
 data Namespace text hash = Namespace
   { textLookup :: [text],
@@ -485,6 +521,14 @@ instance (FromJSON text, FromJSON hash) => FromJSON (NamespaceDiff text hash) wh
     Base64Bytes bytes <- obj .: "bytes"
     pure NamespaceDiff {..}
 
+namespaceDiffHashes_ :: Applicative m => (hash -> m hash') -> NamespaceDiff text hash -> m (NamespaceDiff text hash')
+namespaceDiffHashes_ f (NamespaceDiff {..}) = do
+  parent <- f parent
+  defnLookup <- traverse f defnLookup
+  patchLookup <- traverse f patchLookup
+  childLookup <- traverseOf (traverse . both) f childLookup
+  pure (NamespaceDiff {..})
+
 -- Client _may_ choose not to download the namespace entity in the future, but
 -- we still send them the hash/hashjwt.
 data Causal hash = Causal
@@ -492,6 +536,12 @@ data Causal hash = Causal
     parents :: Set hash
   }
   deriving stock (Eq, Ord, Show)
+
+causalHashes_ :: (Applicative m, Ord hash') => (hash -> m hash') -> Causal hash -> m (Causal hash')
+causalHashes_ f (Causal {..}) = do
+  namespaceHash <- f namespaceHash
+  parents <- Set.traverse f parents
+  pure (Causal {..})
 
 instance (ToJSON hash) => ToJSON (Causal hash) where
   toJSON (Causal namespaceHash parents) =
@@ -599,20 +649,36 @@ instance FromJSON DownloadEntitiesRequest where
     hashes <- obj .: "hashes"
     pure DownloadEntitiesRequest {..}
 
-data DownloadEntitiesResponse = DownloadEntitiesResponse
-  { entities :: NEMap Hash (Entity Text Hash HashJWT)
-  }
-  deriving stock (Show, Eq, Ord)
+data DownloadEntitiesResponse
+  = DownloadEntitiesSuccess (NEMap Hash (Entity Text Hash HashJWT))
+  | DownloadEntitiesNoReadPermission RepoName
+
+-- data DownloadEntities = DownloadEntities
+--   { entities :: NEMap Hash (Entity Text Hash HashJWT)
+--   }
+--   deriving stock (Show, Eq, Ord)
 
 instance ToJSON DownloadEntitiesResponse where
-  toJSON (DownloadEntitiesResponse entities) =
-    object
-      [ "entities" .= entities
-      ]
+  toJSON = \case
+    DownloadEntitiesSuccess entities -> jsonUnion "success" entities
+    DownloadEntitiesNoReadPermission repoName -> jsonUnion "no_read_permission" repoName
 
 instance FromJSON DownloadEntitiesResponse where
-  parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj -> do
-    DownloadEntitiesResponse <$> obj .: "entities"
+  parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj ->
+    obj .: "type" >>= Aeson.withText "type" \case
+      "success" -> DownloadEntitiesSuccess <$> obj .: "payload"
+      "no_read_permission" -> DownloadEntitiesNoReadPermission <$> obj .: "payload"
+      t -> failText $ "Unexpected DownloadEntitiesResponse type: " <> t
+
+-- instance ToJSON DownloadEntities where
+--   toJSON (DownloadEntities entities) =
+--     object
+--       [ "entities" .= entities
+--       ]
+
+-- instance FromJSON DownloadEntities where
+--   parseJSON = Aeson.withObject "DownloadEntities" \obj -> do
+--     DownloadEntities <$> obj .: "entities"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
@@ -640,6 +706,10 @@ data UploadEntitiesResponse
   = UploadEntitiesSuccess
   | UploadEntitiesNeedDependencies (NeedDependencies Hash)
   | UploadEntitiesNoWritePermission RepoName
+  | UploadEntitiesHashMismatchForEntity HashMismatchForEntity
+  deriving stock (Show, Eq, Ord)
+
+data HashMismatchForEntity = HashMismatchForEntity {supplied :: Hash, computed :: Hash}
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON UploadEntitiesResponse where
@@ -647,21 +717,29 @@ instance ToJSON UploadEntitiesResponse where
     UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
     UploadEntitiesNeedDependencies nd -> jsonUnion "need_dependencies" nd
     UploadEntitiesNoWritePermission repoName -> jsonUnion "no_write_permission" repoName
+    UploadEntitiesHashMismatchForEntity mismatch -> jsonUnion "hash_mismatch_for_entity" mismatch
 
 instance FromJSON UploadEntitiesResponse where
-  parseJSON v =
-    v & Aeson.withObject "UploadEntitiesResponse" \obj ->
-      obj .: "type" >>= Aeson.withText "type" \case
-        "success" -> pure UploadEntitiesSuccess
-        "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
-        "no_write_permission" -> UploadEntitiesNoWritePermission <$> obj .: "payload"
-        t -> failText $ "Unexpected UploadEntitiesResponse type: " <> t
+  parseJSON = Aeson.withObject "UploadEntitiesResponse" \obj ->
+    obj .: "type" >>= Aeson.withText "type" \case
+      "success" -> pure UploadEntitiesSuccess
+      "need_dependencies" -> UploadEntitiesNeedDependencies <$> obj .: "payload"
+      "no_write_permission" -> UploadEntitiesNoWritePermission <$> obj .: "payload"
+      "hash_mismatch_for_entity" -> UploadEntitiesHashMismatchForEntity <$> obj .: "payload"
+      t -> failText $ "Unexpected UploadEntitiesResponse type: " <> t
+
+instance ToJSON HashMismatchForEntity where
+  toJSON (HashMismatchForEntity supplied computed) = object ["supplied" .= supplied, "computed" .= computed]
+
+instance FromJSON HashMismatchForEntity where
+  parseJSON = Aeson.withObject "HashMismatchForEntity" \obj -> HashMismatchForEntity <$> obj .: "supplied" <*> obj .: "computed"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Fast-forward path
 
 -- | A non-empty list of causal hashes, latest first, that show the lineage from wherever the client wants to
--- fast-forward to back to wherever the (client believes the) server is (not including the server head).
+-- fast-forward to back to wherever the (client believes the) server is (including the server head, in a separate
+-- field).
 --
 -- For example, if the client wants to update
 --
@@ -678,32 +756,37 @@ instance FromJSON UploadEntitiesResponse where
 -- then it would send hashes
 --
 -- @
--- [F, E, D]
+-- expectedHash = C
+-- hashes = [D, E, F]
 -- @
 --
 -- Note that if the client wants to begin a history at a new path on the server, it would use the "update path" endpoint
 -- instead.
 data FastForwardPathRequest = FastForwardPathRequest
-  { -- TODO non-empty
-    hashes :: [Hash],
-    -- | The path to fast-forward.
+  { -- | The causal that the client believes exists at `path`
+    expectedHash :: Hash,
+    -- | The sequence of causals to fast-forward with, starting from the oldest new causal to the newest new causal
+    hashes :: NonEmpty Hash,
+    -- | The path to fast-forward
     path :: Path
   }
   deriving stock (Show)
 
 instance ToJSON FastForwardPathRequest where
-  toJSON FastForwardPathRequest {hashes, path} =
+  toJSON FastForwardPathRequest {expectedHash, hashes, path} =
     object
-      [ "hashes" .= hashes,
+      [ "expected_hash" .= expectedHash,
+        "hashes" .= hashes,
         "path" .= path
       ]
 
 instance FromJSON FastForwardPathRequest where
   parseJSON =
     Aeson.withObject "FastForwardPathRequest" \o -> do
+      expectedHash <- o .: "expected_hash"
       hashes <- o .: "hashes"
       path <- o .: "path"
-      pure FastForwardPathRequest {hashes, path}
+      pure FastForwardPathRequest {expectedHash, hashes, path}
 
 data FastForwardPathResponse
   = FastForwardPathSuccess
@@ -713,6 +796,11 @@ data FastForwardPathResponse
     FastForwardPathNotFastForward HashJWT
   | -- | There was no history at this path; the client should use the "update path" endpoint instead.
     FastForwardPathNoHistory
+  | -- | This wasn't a fast-forward. You said the first hash was a parent of the second hash, but I disagree.
+    FastForwardPathInvalidParentage InvalidParentage
+  deriving stock (Show)
+
+data InvalidParentage = InvalidParentage {parent :: Hash, child :: Hash}
   deriving stock (Show)
 
 instance ToJSON FastForwardPathResponse where
@@ -722,6 +810,7 @@ instance ToJSON FastForwardPathResponse where
     FastForwardPathNoWritePermission path -> jsonUnion "no_write_permission" path
     FastForwardPathNotFastForward hashJwt -> jsonUnion "not_fast_forward" hashJwt
     FastForwardPathNoHistory -> jsonUnion "no_history" (Object mempty)
+    FastForwardPathInvalidParentage invalidParentage -> jsonUnion "invalid_parentage" invalidParentage
 
 instance FromJSON FastForwardPathResponse where
   parseJSON =
@@ -732,7 +821,15 @@ instance FromJSON FastForwardPathResponse where
         "no_write_permission" -> FastForwardPathNoWritePermission <$> o .: "payload"
         "not_fast_forward" -> FastForwardPathNotFastForward <$> o .: "payload"
         "no_history" -> pure FastForwardPathNoHistory
+        "invalid_parentage" -> FastForwardPathInvalidParentage <$> o .: "payload"
         t -> failText $ "Unexpected FastForwardPathResponse type: " <> t
+
+instance ToJSON InvalidParentage where
+  toJSON (InvalidParentage parent child) = object ["parent" .= parent, "child" .= child]
+
+instance FromJSON InvalidParentage where
+  parseJSON =
+    Aeson.withObject "InvalidParentage" \o -> InvalidParentage <$> o .: "parent" <*> o .: "child"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Update path
