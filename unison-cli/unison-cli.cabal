@@ -134,6 +134,7 @@ library
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio
@@ -228,6 +229,7 @@ executable cli-integration-tests
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio
@@ -317,6 +319,7 @@ executable transcripts
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio
@@ -410,6 +413,7 @@ executable unison
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio
@@ -507,6 +511,7 @@ test-suite cli-tests
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio

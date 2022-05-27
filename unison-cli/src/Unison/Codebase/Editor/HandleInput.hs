@@ -455,6 +455,7 @@ loop = do
             DebugDumpNamespacesI {} -> wat
             DebugDumpNamespaceSimpleI {} -> wat
             DebugClearWatchI {} -> wat
+            DebugDoctorI {} -> wat
             QuitI {} -> wat
             DeprecateTermI {} -> undefined
             DeprecateTypeI {} -> undefined
@@ -1624,6 +1625,9 @@ loop = do
               for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
             DebugClearWatchI {} -> eval ClearWatchCache
+            DebugDoctorI {} -> do
+              r <- eval AnalyzeCodebaseIntegrity
+              respond (IntegrityCheck r)
             DeprecateTermI {} -> notImplemented
             DeprecateTypeI {} -> notImplemented
             RemoveTermReplacementI from patchPath ->

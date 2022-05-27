@@ -49,6 +49,7 @@ import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Codebase.GitError
+import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrityErrors)
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
 import qualified Unison.Codebase.Path as Path
@@ -1580,6 +1581,9 @@ notifyUser dir o = case o of
           "Host names should NOT include a schema or path."
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
+  IntegrityCheck result -> pure $ case result of
+    NoIntegrityErrors -> "🎉 No issues detected 🎉"
+    IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
