@@ -25,9 +25,9 @@ defaultShareURI = unsafePerformIO $ do
         Just uri -> CodeserverURI uri
 {-# NOINLINE defaultShareURI #-}
 
-authLogin :: UnliftIO.MonadUnliftIO m => Maybe CodeserverURI -> Action m i v ()
-authLogin mayURI = do
-  let host = fromMaybe defaultShareURI mayURI
+authLogin :: UnliftIO.MonadUnliftIO m => Action m i v ()
+authLogin = do
+  let host = defaultShareURI
   credsMan <- asks credentialManager
   (Action . lift . lift . lift $ authenticateCodeserver credsMan host) >>= \case
     Left err -> respond (CredentialFailureMsg err)

@@ -1637,14 +1637,7 @@ loop = do
             UpdateBuiltinsI -> notImplemented
             QuitI -> empty
             GistI input -> handleGist input
-            AuthLoginI mayCodebaseServer -> do
-              case mayCodebaseServer of
-                Nothing -> authLogin Nothing
-                Just codeServer -> do
-                  mayHost <- eval $ ConfigLookup ("CodeServers." <> codeServer)
-                  case mayHost of
-                    Nothing -> respond (UnknownCodeServer codeServer)
-                    Just codeserverURI -> authLogin (Just codeserverURI)
+            AuthLoginI -> authLogin
             VersionI -> do
               ucmVersion <- eval UCMVersion
               respond $ PrintVersion ucmVersion
