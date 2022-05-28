@@ -1,4 +1,4 @@
-module Unison.Auth.HTTPClient (newAuthorizedHTTPClient, AuthorizedHttpClient(..)) where
+module Unison.Auth.HTTPClient (newAuthorizedHTTPClient, AuthorizedHttpClient (..)) where
 
 import qualified Data.Text.Encoding as Text
 import Network.HTTP.Client (Request)
@@ -6,9 +6,9 @@ import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.Tokens (TokenProvider, newTokenProvider)
-import Unison.Auth.Types
 import Unison.Codebase.Editor.Command (UCMVersion)
 import Unison.Prelude
+import Unison.Share.Types (CodeserverURI (..), codeserverHostFromURI)
 import qualified Unison.Util.HTTP as HTTP
 
 -- | Newtype to delineate HTTP Managers with access-token logic.
@@ -32,7 +32,10 @@ newAuthorizedHTTPClient credsMan ucmVersion = liftIO $ do
 -- If a host isn't associated with any credentials auth is omitted.
 authMiddleware :: TokenProvider -> (Request -> IO Request)
 authMiddleware tokenProvider req = do
-  result <- tokenProvider (Host . Text.decodeUtf8 $ HTTP.host req)
-  case result of
-    Right token -> pure $ HTTP.applyBearerAuth (Text.encodeUtf8 token) req
+  case (codeserverHostFromURI $ CodeserverURI (HTTP.getUri req)) of
     Left _ -> pure req
+    Right codeserverHost -> do
+      result <- tokenProvider codeserverHost
+      case result of
+        Right token -> pure $ HTTP.applyBearerAuth (Text.encodeUtf8 token) req
+        Left _ -> pure req

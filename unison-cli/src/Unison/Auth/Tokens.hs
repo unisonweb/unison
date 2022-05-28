@@ -7,6 +7,7 @@ import Unison.Auth.Types
 import Unison.CommandLine.InputPattern (patternName)
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.Prelude
+import Unison.Share.Types (CodeserverHost)
 import qualified UnliftIO
 import UnliftIO.Exception
 import Web.JWT
@@ -23,7 +24,7 @@ isExpired accessToken = liftIO do
 
 -- | Given a 'Host', provide a valid 'AccessToken' for the associated host.
 -- The TokenProvider may automatically refresh access tokens if we have a refresh token.
-type TokenProvider = Host -> IO (Either CredentialFailure AccessToken)
+type TokenProvider = CodeserverHost -> IO (Either CredentialFailure AccessToken)
 
 -- | Creates a 'TokenProvider' using the given 'CredentialManager'
 newTokenProvider :: CredentialManager -> TokenProvider
@@ -38,7 +39,7 @@ newTokenProvider manager host = UnliftIO.try @_ @CredentialFailure $ do
     else pure accessToken
 
 -- | Don't yet support automatically refreshing tokens.
-refreshTokens :: MonadIO m => CredentialManager -> Host -> Tokens -> m (Either CredentialFailure Tokens)
+refreshTokens :: MonadIO m => CredentialManager -> CodeserverHost -> Tokens -> m (Either CredentialFailure Tokens)
 refreshTokens _manager _host _tokens =
   -- Refreshing tokens is currently unsupported.
   pure (Left (RefreshFailure . Text.pack $ "Unable to refresh authentication, please run " <> patternName IP.authLogin <> " and try again."))

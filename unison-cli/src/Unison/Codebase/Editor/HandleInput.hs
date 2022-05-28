@@ -29,7 +29,6 @@ import Data.Tuple.Extra (uncurry3)
 import qualified Text.Megaparsec as P
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
-import Unison.Auth.Types (Host (Host))
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
@@ -1645,7 +1644,7 @@ loop = do
                   mayHost <- eval $ ConfigLookup ("CodeServers." <> codeServer)
                   case mayHost of
                     Nothing -> respond (UnknownCodeServer codeServer)
-                    Just host -> authLogin (Just $ Host host)
+                    Just codeserverURI -> authLogin (Just codeserverURI)
             VersionI -> do
               ucmVersion <- eval UCMVersion
               respond $ PrintVersion ucmVersion

@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Auth.OAuth (authenticateHost) where
+module Unison.Auth.OAuth (authenticateCodeserver) where
 
 import qualified Crypto.Hash as Crypto
 import Crypto.Random (getRandomBytes)
@@ -18,12 +18,13 @@ import Network.Wai
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import Unison.Auth.CredentialManager (CredentialManager, saveTokens)
-import Unison.Auth.Discovery (discoveryForHost)
+import Unison.Auth.Discovery (discoveryForCodeserver)
 import Unison.Auth.Types
 import Unison.Codebase.Editor.HandleInput.LoopState (MonadCommand, respond)
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Debug
 import Unison.Prelude
+import Unison.Share.Types (CodeserverURI, codeserverHostFromURI)
 import qualified UnliftIO
 import qualified Web.Browser as Web
 
@@ -46,10 +47,10 @@ authTransferServer callback req respond =
 
 -- | Direct the user through an authentication flow with the given server and store the
 -- credentials in the provided credential manager.
-authenticateHost :: forall m n i v. (UnliftIO.MonadUnliftIO m, MonadCommand m n i v) => CredentialManager -> Host -> m (Either CredentialFailure ())
-authenticateHost credsManager host = UnliftIO.try @_ @CredentialFailure $ do
+authenticateCodeserver :: forall m n i v. (UnliftIO.MonadUnliftIO m, MonadCommand m n i v) => CredentialManager -> CodeserverURI -> m (Either CredentialFailure ())
+authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- liftIO HTTP.getGlobalManager
-  doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ discoveryForHost httpClient host
+  doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ discoveryForCodeserver httpClient codeserverURI
   debugM Auth "Discovery Doc" doc
   authResultVar <- UnliftIO.newEmptyMVar @_ @(Either CredentialFailure Tokens)
   -- The redirect_uri depends on the port, so we need to spin up the server first, but
@@ -76,7 +77,8 @@ authenticateHost credsManager host = UnliftIO.try @_ @CredentialFailure $ do
     void . liftIO $ Web.openBrowser (show authorizationKickoff)
     respond . Output.InitiateAuthFlow $ authorizationKickoff
     tokens <- throwCredFailure $ UnliftIO.readMVar authResultVar
-    saveTokens credsManager host tokens
+    codeserverHost <- throwCredFailure . pure . mapLeft (const $ InvalidHost codeserverURI) $ codeserverHostFromURI codeserverURI
+    saveTokens credsManager codeserverHost tokens
   where
     throwCredFailure :: m (Either CredentialFailure a) -> m a
     throwCredFailure = throwEitherM
