@@ -8,7 +8,7 @@ import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.Tokens (TokenProvider, newTokenProvider)
 import Unison.Codebase.Editor.Command (UCMVersion)
 import Unison.Prelude
-import Unison.Share.Types (CodeserverURI (..), codeserverHostFromURI)
+import Unison.Share.Types (CodeserverURI (..), codeserverIdFromURI)
 import qualified Unison.Util.HTTP as HTTP
 
 -- | Newtype to delineate HTTP Managers with access-token logic.
@@ -32,7 +32,7 @@ newAuthorizedHTTPClient credsMan ucmVersion = liftIO $ do
 -- If a host isn't associated with any credentials auth is omitted.
 authMiddleware :: TokenProvider -> (Request -> IO Request)
 authMiddleware tokenProvider req = do
-  case (codeserverHostFromURI $ CodeserverURI (HTTP.getUri req)) of
+  case (codeserverIdFromURI $ CodeserverURI (HTTP.getUri req)) of
     Left _ -> pure req
     Right codeserverHost -> do
       result <- tokenProvider codeserverHost

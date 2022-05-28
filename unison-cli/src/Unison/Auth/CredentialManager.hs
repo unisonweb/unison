@@ -11,7 +11,7 @@ where
 import Unison.Auth.CredentialFile
 import Unison.Auth.Types
 import Unison.Prelude
-import Unison.Share.Types (CodeserverHost)
+import Unison.Share.Types (CodeserverId)
 import qualified UnliftIO
 
 -- | A 'CredentialManager' knows how to load, save, and cache credentials.
@@ -22,7 +22,7 @@ import qualified UnliftIO
 newtype CredentialManager = CredentialManager (UnliftIO.MVar Credentials)
 
 -- | Saves credentials to the active profile.
-saveTokens :: UnliftIO.MonadUnliftIO m => CredentialManager -> CodeserverHost -> Tokens -> m ()
+saveTokens :: UnliftIO.MonadUnliftIO m => CredentialManager -> CodeserverId -> Tokens -> m ()
 saveTokens credManager aud tokens = do
   void . modifyCredentials credManager $ setActiveTokens aud tokens
 
@@ -33,7 +33,7 @@ modifyCredentials (CredentialManager credsVar) f = do
     newCreds <- atomicallyModifyCredentialsFile f
     pure (newCreds, newCreds)
 
-getTokens :: MonadIO m => CredentialManager -> CodeserverHost -> m (Either CredentialFailure Tokens)
+getTokens :: MonadIO m => CredentialManager -> CodeserverId -> m (Either CredentialFailure Tokens)
 getTokens (CredentialManager credsVar) aud = do
   creds <- UnliftIO.readMVar credsVar
   pure $ getActiveTokens aud creds

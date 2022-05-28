@@ -29,13 +29,13 @@ import Data.Time (NominalDiffTime)
 import Network.URI
 import qualified Network.URI as URI
 import Unison.Prelude
-import Unison.Share.Types (CodeserverHost, CodeserverURI)
+import Unison.Share.Types (CodeserverId, CodeserverURI)
 
 defaultProfileName :: ProfileName
 defaultProfileName = "default"
 
 data CredentialFailure
-  = ReauthRequired CodeserverHost
+  = ReauthRequired CodeserverId
   | CredentialParseFailure FilePath Text
   | InvalidDiscoveryDocument URI Text
   | InvalidJWT Text
@@ -128,7 +128,7 @@ instance Aeson.FromJSON DiscoveryDoc where
 type ProfileName = Text
 
 data Credentials = Credentials
-  { credentials :: Map ProfileName (Map CodeserverHost Tokens),
+  { credentials :: Map ProfileName (Map CodeserverId Tokens),
     activeProfile :: ProfileName
   }
   deriving (Eq)
@@ -136,12 +136,12 @@ data Credentials = Credentials
 emptyCredentials :: Credentials
 emptyCredentials = Credentials mempty defaultProfileName
 
-getActiveTokens :: CodeserverHost -> Credentials -> Either CredentialFailure Tokens
+getActiveTokens :: CodeserverId -> Credentials -> Either CredentialFailure Tokens
 getActiveTokens host (Credentials {credentials, activeProfile}) =
   maybeToEither (ReauthRequired host) $
     credentials ^? ix activeProfile . ix host
 
-setActiveTokens :: CodeserverHost -> Tokens -> Credentials -> Credentials
+setActiveTokens :: CodeserverId -> Tokens -> Credentials -> Credentials
 setActiveTokens host tokens creds@(Credentials {credentials, activeProfile}) =
   let newCredMap =
         credentials
