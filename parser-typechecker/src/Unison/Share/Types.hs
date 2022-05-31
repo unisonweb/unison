@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE RecordWildCards #-}
 
+-- | Types related to Share and Codeservers.
 module Unison.Share.Types
   ( CodeserverURI (..),
     CodeserverId (..),
@@ -108,14 +109,17 @@ codeserverIdFromURI uri =
     Nothing -> Left $ "No URI Authority for URI " <> tShow uri
     Just ua -> pure $ codeserverIdFromURIAuth ua
 
+-- | Builds a CodeserverId from a URIAuth
 codeserverIdFromURIAuth :: URIAuth -> CodeserverId
 codeserverIdFromURIAuth ua =
   (CodeserverId (Text.pack $ uriUserInfo ua <> uriRegName ua <> uriPort ua))
 
+-- | Gets the CodeserverId for a given CodeserverURI
 codeserverIdFromCodeserverURI :: CodeserverURI -> CodeserverId
 codeserverIdFromCodeserverURI =
   codeserverIdFromURIAuth . codeserverAuthority
 
+-- | Builds a servant-compatible BaseUrl for a given CodeserverURI.
 codeserverBaseURL :: CodeserverURI -> Servant.BaseUrl
 codeserverBaseURL (CodeserverURI {..}) =
   let scheme = case codeserverScheme of

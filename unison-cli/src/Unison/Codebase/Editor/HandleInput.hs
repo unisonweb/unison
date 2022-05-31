@@ -2228,12 +2228,9 @@ resolveConfiguredUrl pushPull destPath' = ExceptT do
   currentPath' <- use LoopState.currentPath
   let destPath = Path.resolve currentPath' destPath'
   let remoteMappingConfigKey = remoteMappingKey destPath
-  traceShowM ("remote mapping config key:" :: String, remoteMappingConfigKey)
-  traceShowM ("destPath" :: String, destPath)
   (eval . ConfigLookup) remoteMappingConfigKey >>= \case
     Nothing -> do
       let gitUrlConfigKey = gitUrlKey destPath
-      traceShowM ("gitUrlConfigKey" :: String, gitUrlConfigKey)
       -- Fall back to deprecated GitUrl key
       (eval . ConfigLookup) gitUrlConfigKey >>= \case
         Just url ->
