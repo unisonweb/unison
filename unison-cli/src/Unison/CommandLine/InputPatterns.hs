@@ -294,23 +294,23 @@ patch =
     I.Visible
     [(Required, patchArg), (Optional, namespaceArg)]
     ( P.lines
-      [ P.wrap $
-        makeExample' patch
-        <> "rewrites any definitions that depend on "
-        <> "definitions with type-preserving edits to use the updated versions of"
-        <> "these dependencies.",
-        "",
-        P.wrapColumn2
-        [ ( makeExample patch  ["<patch>", "[path]"],
-            "applies the given patch"
-            <> "to the given namespace"
-          ),
-          ( makeExample patch ["<patch>"],
-            "applies the given patch"
-            <> "to the current namespace"
-          )
+        [ P.wrap $
+            makeExample' patch
+              <> "rewrites any definitions that depend on "
+              <> "definitions with type-preserving edits to use the updated versions of"
+              <> "these dependencies.",
+          "",
+          P.wrapColumn2
+            [ ( makeExample patch ["<patch>", "[path]"],
+                "applies the given patch"
+                  <> "to the given namespace"
+              ),
+              ( makeExample patch ["<patch>"],
+                "applies the given patch"
+                  <> "to the current namespace"
+              )
+            ]
         ]
-      ]
     )
     ( \case
         patchStr : ws -> first fromString $ do
@@ -2040,20 +2040,15 @@ authLogin =
     "auth.login"
     []
     I.Hidden
-    [(Optional, noCompletions)]
+    []
     ( P.lines
-        [ P.wrap "Obtain an authentication session with Unison Share or a specified codeserver host.",
+        [ P.wrap "Obtain an authentication session with Unison Share.",
           makeExample authLogin []
-            <> "authenticates ucm with Unison Share.",
-          makeExample authLogin ["mycodeserver"]
-            <> "authenticates ucm with the host configured at"
-            <> P.backticked "CodeServers.mycodeserver"
-            <> "in your .unisonConfig"
+            <> "authenticates ucm with Unison Share."
         ]
     )
     ( \case
-        [] -> Right $ Input.AuthLoginI Nothing
-        [codebaseServerName] -> Right . Input.AuthLoginI $ Just (Text.pack codebaseServerName)
+        [] -> Right $ Input.AuthLoginI
         _ -> Left (showPatternHelp authLogin)
     )
 
