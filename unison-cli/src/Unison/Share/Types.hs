@@ -1,7 +1,15 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Share.Types where
+module Unison.Share.Types
+  ( CodeserverURI (..),
+    CodeserverId (..),
+    codeserverFromURI,
+    codeserverIdFromURI,
+    codeserverToURI,
+    codeserverIdFromCodeserverURI,
+  )
+where
 
 import Data.Aeson
 import Data.Text
@@ -39,7 +47,7 @@ codeserverFromURI URI {..} = do
 -- | This is distinct from the codeserver URI in that we store credentials by a normalized ID, since it's
 -- much easier to look up that way than from an arbitrary path.
 -- We may wish to use explicitly named configurations in the future.
--- This currently uses the 'uriRegName' from a parsed URI as the identifier.
+-- This currently uses a stringified uriAuthority.
 newtype CodeserverId = CodeserverId {codeserverId :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
@@ -56,7 +64,12 @@ codeserverIdFromURI :: URI -> Either Text CodeserverId
 codeserverIdFromURI uri =
   case uriAuthority uri of
     Nothing -> Left $ "No URI Authority for URI " <> tShow uri
-    Just ua -> pure (CodeserverId (Text.pack $ uriRegName ua))
+    Just ua -> pure $ codeserverIdFromURIAuth ua
+
+codeserverIdFromURIAuth :: URIAuth -> CodeserverId
+codeserverIdFromURIAuth ua =
+  (CodeserverId (Text.pack $ uriUserInfo ua <> uriRegName ua <> uriPort ua))
 
 codeserverIdFromCodeserverURI :: CodeserverURI -> CodeserverId
-codeserverIdFromCodeserverURI = CodeserverId . Text.pack . uriRegName . codeserverAuthority
+codeserverIdFromCodeserverURI =
+  codeserverIdFromURIAuth . codeserverAuthority
