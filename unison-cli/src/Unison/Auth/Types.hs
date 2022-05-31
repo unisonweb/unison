@@ -14,7 +14,6 @@ module Unison.Auth.Types
     PKCEChallenge,
     ProfileName,
     CredentialFailure (..),
-    Host (..),
     getActiveTokens,
     setActiveTokens,
     emptyCredentials,
@@ -22,7 +21,7 @@ module Unison.Auth.Types
 where
 
 import Control.Lens hiding ((.=))
-import Data.Aeson (FromJSON (..), FromJSONKey, KeyValue ((.=)), ToJSON (..), ToJSONKey, (.:), (.:?))
+import Data.Aeson (FromJSON (..), KeyValue ((.=)), ToJSON (..), (.:), (.:?))
 import qualified Data.Aeson as Aeson
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -30,18 +29,19 @@ import Data.Time (NominalDiffTime)
 import Network.URI
 import qualified Network.URI as URI
 import Unison.Prelude
+import Unison.Share.Types (CodeserverId, CodeserverURI)
 
 defaultProfileName :: ProfileName
 defaultProfileName = "default"
 
 data CredentialFailure
-  = ReauthRequired Host
+  = ReauthRequired CodeserverId
   | CredentialParseFailure FilePath Text
   | InvalidDiscoveryDocument URI Text
   | InvalidJWT Text
   | RefreshFailure Text
   | InvalidTokenResponse URI Text
-  | InvalidHost Host
+  | InvalidHost CodeserverURI
   deriving stock (Show, Eq)
   deriving anyclass (Exception)
 
@@ -127,14 +127,8 @@ instance Aeson.FromJSON DiscoveryDoc where
 
 type ProfileName = Text
 
--- | The hostname of a server we may authenticate with,
--- e.g. @Host "enlil.unison-lang.org"@
-newtype Host = Host Text
-  deriving stock (Eq, Ord, Show)
-  deriving newtype (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
-
 data Credentials = Credentials
-  { credentials :: Map ProfileName (Map Host Tokens),
+  { credentials :: Map ProfileName (Map CodeserverId Tokens),
     activeProfile :: ProfileName
   }
   deriving (Eq)
@@ -142,12 +136,12 @@ data Credentials = Credentials
 emptyCredentials :: Credentials
 emptyCredentials = Credentials mempty defaultProfileName
 
-getActiveTokens :: Host -> Credentials -> Either CredentialFailure Tokens
+getActiveTokens :: CodeserverId -> Credentials -> Either CredentialFailure Tokens
 getActiveTokens host (Credentials {credentials, activeProfile}) =
   maybeToEither (ReauthRequired host) $
     credentials ^? ix activeProfile . ix host
 
-setActiveTokens :: Host -> Tokens -> Credentials -> Credentials
+setActiveTokens :: CodeserverId -> Tokens -> Credentials -> Credentials
 setActiveTokens host tokens creds@(Credentials {credentials, activeProfile}) =
   let newCredMap =
         credentials

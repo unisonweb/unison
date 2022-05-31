@@ -59,6 +59,7 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.Share.Types
       Unison.Sync.HTTP
       Unison.Util.HTTP
   other-modules:

@@ -1547,9 +1547,9 @@ notifyUser dir o = case o of
           "You can configure code server hosts in your .unisonConfig file."
         ]
   CredentialFailureMsg err -> pure $ case err of
-    Auth.ReauthRequired (Auth.Host host) ->
+    Auth.ReauthRequired host ->
       P.lines
-        [ "Authentication for host " <> P.red (P.text host) <> " is required.",
+        [ "Authentication for host " <> P.red (P.shown host) <> " is required.",
           "Run " <> IP.makeExample IP.help [IP.patternName IP.authLogin]
             <> " to learn how."
         ]
@@ -1575,9 +1575,9 @@ notifyUser dir o = case o of
         [ "Failed to parse token response from authentication server: " <> prettyURI uri,
           "The error was: " <> P.text txt
         ]
-    Auth.InvalidHost (Auth.Host host) ->
+    Auth.InvalidHost host ->
       P.lines
-        [ "Failed to parse a URI from the hostname: " <> P.text host <> ".",
+        [ "Failed to parse a URI from the hostname: " <> P.shown host <> ".",
           "Host names should NOT include a schema or path."
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
