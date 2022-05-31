@@ -25,7 +25,9 @@ data ShareRepo = ShareRepo
   deriving (Eq, Show)
 
 shareRepoToBaseUrl :: ShareRepo -> Servant.BaseUrl
-shareRepoToBaseUrl ShareRepo = Servant.BaseUrl Servant.Https "share.unison.cloud" 443 ""
+shareRepoToBaseUrl ShareRepo =
+  Servant.BaseUrl Servant.Http "localhost" 5424 "sync"
+
 
 data WriteRepo
   = WriteRepoGit WriteGitRepo

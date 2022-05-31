@@ -619,36 +619,39 @@ flushCausalDependents chId = do
   hash <- expectHash32 (unCausalHashId chId)
   tryMoveTempEntityDependents hash
 
---  Note: beef up insert_entity procedure to flush temp_entity table
-
 -- | tryMoveTempEntityDependents does this:
 --    0. Precondition: We just inserted object #foo.
 --    1. Delete #foo as dependency from temp_entity_missing_dependency. e.g. (#bar, #foo), (#baz, #foo)
---    3. Delete #foo from temp_entity (if it's there)
---    4. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
+--    2. Delete #foo from temp_entity (if it's there)
+--    3. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
 --        insert_entity them.
 tryMoveTempEntityDependents :: Base32Hex -> Transaction ()
 tryMoveTempEntityDependents dependencyBase32 = do
-
+  dependents <- getMissingDependentsForTempEntity dependencyBase32
   execute deleteMissingDependency (Only dependencyBase32)
   deleteTempEntity dependencyBase32
-  traverse_ moveTempEntityToMain =<< tempEntitiesWithNoMissingDependencies
+  traverse_ moveIfNoDependencies dependents
   where
     deleteMissingDependency :: Sql
     deleteMissingDependency = [here|
       DELETE FROM temp_entity_missing_dependency
       WHERE dependency = ?
     |]
-    tempEntitiesWithNoMissingDependencies :: Transaction [Base32Hex]
-    tempEntitiesWithNoMissingDependencies = queryListCol_ [here|
-      SELECT hash
-      FROM temp_entity
-      WHERE NOT EXISTS(
+
+    moveIfNoDependencies :: Base32Hex -> Transaction ()
+    moveIfNoDependencies dependent = do
+      hasMissingDependencies dependent >>= \case
+        True -> pure ()
+        False -> moveTempEntityToMain dependent
+
+    hasMissingDependencies :: Base32Hex -> Transaction Bool
+    hasMissingDependencies = queryOneCol [here|
+      SELECT EXISTS (
         SELECT 1
-        FROM temp_entity_missing_dependency dep
-        WHERE dep.dependent = temp_entity.hash
+        FROM temp_entity_missing_dependency
+        WHERE dependent = ?
       )
-    |]
+    |] . Only
 
 expectCausal :: CausalHashId -> Transaction Causal.SyncCausalFormat
 expectCausal hashId = do
