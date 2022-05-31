@@ -621,30 +621,24 @@ flushCausalDependents chId = do
 
 --  Note: beef up insert_entity procedure to flush temp_entity table
 
--- | flushTempEntity does this:
---    1. When inserting object #foo,
---        look up all dependents of #foo in
---        temp_entity_missing_dependency table (say #bar, #baz).
---    2. Delete (#bar, #foo) and (#baz, #foo) from temp_entity_missing_dependency.
+-- | tryMoveTempEntityDependents does this:
+--    0. Precondition: We just inserted object #foo.
+--    1. Delete #foo as dependency from temp_entity_missing_dependency. e.g. (#bar, #foo), (#baz, #foo)
 --    3. Delete #foo from temp_entity (if it's there)
 --    4. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
 --        insert_entity them.
---
--- Precondition: Must have inserted the entity with hash b32 already.
 tryMoveTempEntityDependents :: Base32Hex -> Transaction ()
 tryMoveTempEntityDependents dependencyBase32 = do
-  dependents <- getMissingDependentsForTempEntity dependencyBase32
-  executeMany deleteTempDependents (dependents <&> (,dependencyBase32))
+
+  execute deleteMissingDependency (Only dependencyBase32)
   deleteTempEntity dependencyBase32
   traverse_ moveTempEntityToMain =<< tempEntitiesWithNoMissingDependencies
   where
-    deleteTempDependents :: Sql
-    deleteTempDependents = [here|
+    deleteMissingDependency :: Sql
+    deleteMissingDependency = [here|
       DELETE FROM temp_entity_missing_dependency
-      WHERE dependent = ?
-        AND dependency = ?
+      WHERE dependency = ?
     |]
-
     tempEntitiesWithNoMissingDependencies :: Transaction [Base32Hex]
     tempEntitiesWithNoMissingDependencies = queryListCol_ [here|
       SELECT hash
@@ -698,7 +692,7 @@ moveTempEntityToMain b32 = do
   t <- expectTempEntity b32
   r <- tempToSyncEntity t
   _ <- saveSyncEntity b32 r
-  pure ()
+  deleteTempEntity b32
 
 -- | Read an entity out of temp storage.
 expectTempEntity :: Base32Hex -> Transaction TempEntity
