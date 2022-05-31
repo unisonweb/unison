@@ -6,12 +6,13 @@ import qualified Network.HTTP.Client as HTTP
 import Network.URI
 import Unison.Auth.Types
 import Unison.Prelude
-import Unison.Share.Types (CodeserverURI (..))
+import Unison.Share.Types (CodeserverURI (..), codeserverToURI)
 import qualified UnliftIO
 
 discoveryURI :: CodeserverURI -> URI
-discoveryURI (CodeserverURI uri) =
-  uri {uriPath = uriPath uri <> "/.well-known/openid-configuration"}
+discoveryURI cs =
+  let uri = codeserverToURI cs
+   in uri {uriPath = uriPath uri <> "/.well-known/openid-configuration"}
 
 discoveryForCodeserver :: MonadIO m => HTTP.Manager -> CodeserverURI -> m (Either CredentialFailure DiscoveryDoc)
 discoveryForCodeserver httpClient host = liftIO . UnliftIO.try @_ @CredentialFailure $ do

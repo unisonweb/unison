@@ -22,7 +22,7 @@ isExpired accessToken = liftIO do
   let expiry = JWT.secondsSinceEpoch expDate
   pure (now >= expiry)
 
--- | Given a 'Host', provide a valid 'AccessToken' for the associated host.
+-- | Given a 'CodeserverId', provide a valid 'AccessToken' for the associated host.
 -- The TokenProvider may automatically refresh access tokens if we have a refresh token.
 type TokenProvider = CodeserverId -> IO (Either CredentialFailure AccessToken)
 

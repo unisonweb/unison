@@ -24,7 +24,7 @@ import Unison.Codebase.Editor.HandleInput.LoopState (MonadCommand, respond)
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Debug
 import Unison.Prelude
-import Unison.Share.Types (CodeserverURI, codeserverIdFromURI)
+import Unison.Share.Types (CodeserverURI, codeserverIdFromCodeserverURI)
 import qualified UnliftIO
 import qualified Web.Browser as Web
 
@@ -77,8 +77,8 @@ authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialF
     void . liftIO $ Web.openBrowser (show authorizationKickoff)
     respond . Output.InitiateAuthFlow $ authorizationKickoff
     tokens <- throwCredFailure $ UnliftIO.readMVar authResultVar
-    codeserverHost <- throwCredFailure . pure . mapLeft (const $ InvalidHost codeserverURI) $ codeserverIdFromURI codeserverURI
-    saveTokens credsManager codeserverHost tokens
+    let codeserverId = codeserverIdFromCodeserverURI codeserverURI
+    saveTokens credsManager codeserverId tokens
   where
     throwCredFailure :: m (Either CredentialFailure a) -> m a
     throwCredFailure = throwEitherM
