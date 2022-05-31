@@ -630,7 +630,7 @@ tryMoveTempEntityDependents dependencyBase32 = do
   dependents <- getMissingDependentsForTempEntity dependencyBase32
   execute deleteMissingDependency (Only dependencyBase32)
   deleteTempEntity dependencyBase32
-  traverse_ moveIfNoDependencies dependents
+  traverse_ flushIfReadyToFlush dependents
   where
     deleteMissingDependency :: Sql
     deleteMissingDependency = [here|
@@ -638,20 +638,24 @@ tryMoveTempEntityDependents dependencyBase32 = do
       WHERE dependency = ?
     |]
 
-    moveIfNoDependencies :: Base32Hex -> Transaction ()
-    moveIfNoDependencies dependent = do
-      hasMissingDependencies dependent >>= \case
-        True -> pure ()
-        False -> moveTempEntityToMain dependent
+    flushIfReadyToFlush :: Base32Hex -> Transaction ()
+    flushIfReadyToFlush dependent = do
+      readyToFlush dependent >>= \case
+        True -> moveTempEntityToMain dependent
+        False -> pure ()
 
-    hasMissingDependencies :: Base32Hex -> Transaction Bool
-    hasMissingDependencies = queryOneCol [here|
+    readyToFlush :: Base32Hex -> Transaction Bool
+    readyToFlush b32 = queryOneCol [here|
       SELECT EXISTS (
+        SELECT 1
+        FROM temp_entity
+        WHERE hash = ?
+      ) AND NOT EXISTS (
         SELECT 1
         FROM temp_entity_missing_dependency
         WHERE dependent = ?
       )
-    |] . Only
+    |] (b32, b32)
 
 expectCausal :: CausalHashId -> Transaction Causal.SyncCausalFormat
 expectCausal hashId = do
