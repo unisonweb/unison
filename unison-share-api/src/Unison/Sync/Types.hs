@@ -278,7 +278,7 @@ entityDependencies = \case
         Set.fromList patchLookup,
         foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
       ]
-  C Causal {parents} -> parents
+  C Causal {namespaceHash, parents} -> Set.insert namespaceHash parents
 
 data TermComponent text hash = TermComponent [(LocalIds text hash, ByteString)]
   deriving stock (Show, Eq, Ord)
@@ -298,6 +298,12 @@ instance (ToJSON text, ToJSON hash) => ToJSON (TermComponent text hash) where
     object
       [ "terms" .= (encodeComponentPiece <$> components)
       ]
+
+instance (FromJSON text, FromJSON hash) => FromJSON (TermComponent text hash) where
+  parseJSON = Aeson.withObject "TermComponent" \obj -> do
+    pieces <- obj .: "terms"
+    terms <- traverse decodeComponentPiece pieces
+    pure (TermComponent terms)
 
 bitraverseComponents ::
   Applicative f =>
@@ -320,14 +326,8 @@ encodeComponentPiece (localIDs, bytes) =
 decodeComponentPiece :: (FromJSON text, FromJSON hash) => Value -> Aeson.Parser (LocalIds text hash, ByteString)
 decodeComponentPiece = Aeson.withObject "Component Piece" \obj -> do
   localIDs <- obj .: "local_ids"
-  Base64Bytes bytes <- obj .: "local_ids"
+  Base64Bytes bytes <- obj .: "bytes"
   pure (localIDs, bytes)
-
-instance (FromJSON text, FromJSON hash) => FromJSON (TermComponent text hash) where
-  parseJSON = Aeson.withObject "TermComponent" \obj -> do
-    pieces <- obj .: "terms"
-    terms <- traverse decodeComponentPiece pieces
-    pure (TermComponent terms)
 
 data DeclComponent text hash = DeclComponent [(LocalIds text hash, ByteString)]
   deriving stock (Show, Eq, Ord)

@@ -502,10 +502,26 @@ expectPatchObjectIdForHash32 =
   fmap PatchObjectId . expectObjectIdForHash32
 
 expectBranchHashIdForHash32 :: Base32Hex -> Transaction BranchHashId
-expectBranchHashIdForHash32 = undefined
+expectBranchHashIdForHash32 = queryOneCol sql . Only
+  where
+    sql =
+      [here|
+        SELECT hash.id FROM object
+        INNER JOIN hash_object ON hash_object.object_id = object.id
+        INNER JOIN hash ON hash_object.hash_id = hash.id
+        WHERE object.type_id = 2
+          AND hash.base32 = ?
+      |]
 
 expectCausalHashIdForHash32 :: Base32Hex -> Transaction CausalHashId
-expectCausalHashIdForHash32 = undefined
+expectCausalHashIdForHash32 = queryOneCol sql . Only
+  where
+    sql =
+      [here|
+        SELECT self_hash_id
+        FROM causal INNER JOIN hash ON hash.id = self_hash_id
+        WHERE base32 = ?
+      |]
 
 loadPatchObjectIdForPrimaryHash :: PatchHash -> Transaction (Maybe PatchObjectId)
 loadPatchObjectIdForPrimaryHash =
@@ -695,7 +711,7 @@ expectTempEntity b32 = do
       TempEntityType.PatchType -> Entity.P <$> decodeTempPatchFormat blob
       TempEntityType.CausalType -> Entity.C <$> decodeTempCausalFormat blob
   where sql = [here|
-    SELECT (blob, type_id)
+    SELECT blob, type_id
     FROM temp_entity
     WHERE hash = ?
   |]
@@ -1459,14 +1475,14 @@ insertTempEntity :: Base32Hex -> TempEntity -> NESet (Base32Hex, Text) -> Transa
 insertTempEntity entityHash entity missingDependencies = do
   execute
     [here|
-      INSERT INTO temp_entity (hash, blob, typeId)
+      INSERT INTO temp_entity (hash, blob, type_id)
       VALUES (?, ?, ?)
     |]
     (entityHash, entityBlob, entityType)
 
   executeMany
     [here|
-      INSERT INTO temp_entity_missing_dependencies (dependent, dependency, dependencyJwt)
+      INSERT INTO temp_entity_missing_dependency (dependent, dependency, dependencyJwt)
       VALUES (?, ?, ?)
     |]
     (map (\(depHash, depHashJwt) -> (entityHash, depHash, depHashJwt)) (Foldable.toList missingDependencies))
