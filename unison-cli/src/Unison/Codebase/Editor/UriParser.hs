@@ -20,7 +20,7 @@ import Unison.Codebase.Editor.RemoteRepo
     ReadGitRepo (..),
     ReadRemoteNamespace (..),
     ReadShareRemoteNamespace (..),
-    ShareRepo (..),
+    ShareCodeserver (DefaultCodeserver),
     WriteGitRemotePath (..),
     WriteGitRepo (..),
     WriteRemotePath (..),
@@ -76,7 +76,7 @@ writeShareRemotePath :: P WriteShareRemotePath
 writeShareRemotePath =
   P.label "write share remote path" $
     WriteShareRemotePath
-      <$> pure ShareRepo
+      <$> pure DefaultCodeserver
       <*> (NameSegment.toText <$> nameSegment)
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
 
@@ -88,7 +88,7 @@ readShareRemoteNamespace :: P ReadShareRemoteNamespace
 readShareRemoteNamespace = do
   P.label "read share remote namespace" $
     ReadShareRemoteNamespace
-      <$> pure ShareRepo
+      <$> pure DefaultCodeserver
       -- <*> sbh <- P.optional shortBranchHash
       <*> (NameSegment.toText <$> nameSegment)
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))

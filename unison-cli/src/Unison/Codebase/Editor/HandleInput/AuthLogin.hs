@@ -1,28 +1,15 @@
 module Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin) where
 
 import Control.Monad.Reader
-import qualified Data.Text as Text
-import System.IO.Unsafe (unsafePerformIO)
-import Unison.Auth.OAuth
-import Unison.Auth.Types (Host (..))
+import Unison.Auth.OAuth (authenticateCodeserver)
 import Unison.Codebase.Editor.HandleInput.LoopState
 import Unison.Codebase.Editor.Output (Output (CredentialFailureMsg, Success))
-import Unison.Prelude
+import Unison.Share.Types
 import qualified UnliftIO
-import UnliftIO.Environment (lookupEnv)
 
-defaultShareHost :: Host
-defaultShareHost = unsafePerformIO $ do
-  lookupEnv "UNISON_SHARE_HOST" <&> \case
-    -- TODO: swap to production share before release.
-    Nothing -> Host "share-next.us-west-2.unison-lang.org"
-    Just shareHost -> Host (Text.pack shareHost)
-{-# NOINLINE defaultShareHost #-}
-
-authLogin :: UnliftIO.MonadUnliftIO m => Maybe Host -> Action m i v ()
-authLogin mayHost = do
-  let host = fromMaybe defaultShareHost mayHost
+authLogin :: UnliftIO.MonadUnliftIO m => CodeserverURI -> Action m i v ()
+authLogin host = do
   credsMan <- asks credentialManager
-  (Action . lift . lift . lift $ authenticateHost credsMan host) >>= \case
+  (Action . lift . lift . lift $ authenticateCodeserver credsMan host) >>= \case
     Left err -> respond (CredentialFailureMsg err)
     Right () -> respond Success

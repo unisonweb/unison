@@ -31,7 +31,6 @@ import qualified Text.Megaparsec as P
 import qualified U.Codebase.Sqlite.Operations as Ops
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
-import Unison.Auth.Types (Host (Host))
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
@@ -68,10 +67,10 @@ import Unison.Codebase.Editor.RemoteRepo
     WriteRemotePath (..),
     WriteShareRemotePath (..),
     printNamespace,
-    shareRepoToBaseUrl,
     writePathToRead,
     writeToReadGit,
   )
+import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.Slurp as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
@@ -143,6 +142,7 @@ import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Share.Sync as Share
+import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
@@ -170,6 +170,7 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import qualified Unison.Share.Codeserver as Codeserver
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -716,8 +717,8 @@ loop = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                      -- Branch exists and isn't empty, print an error
-                      throwError (BranchAlreadyExists (Path.unsplit' dest))
+                    -- Branch exists and isn't empty, print an error
+                    throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -1410,11 +1411,11 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
-                      eval (MakeStandalone ppe ref output) >>= \case
-                        Just err -> respond $ EvaluationFailure err
-                        Nothing -> pure ()
+                    eval (MakeStandalone ppe ref output) >>= \case
+                      Just err -> respond $ EvaluationFailure err
+                      Nothing -> pure ()
                   | otherwise ->
-                      respond $ BadMainFunction smain ty ppe [mainType]
+                    respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -1654,14 +1655,7 @@ loop = do
             UpdateBuiltinsI -> notImplemented
             QuitI -> empty
             GistI input -> handleGist input
-            AuthLoginI mayCodebaseServer -> do
-              case mayCodebaseServer of
-                Nothing -> authLogin Nothing
-                Just codeServer -> do
-                  mayHost <- eval $ ConfigLookup ("CodeServers." <> codeServer)
-                  case mayHost of
-                    Nothing -> respond (UnknownCodeServer codeServer)
-                    Just host -> authLogin (Just $ Host host)
+            AuthLoginI -> authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
             VersionI -> do
               ucmVersion <- eval UCMVersion
               respond $ PrintVersion ucmVersion
@@ -1863,6 +1857,8 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
 
 handlePushToUnisonShare :: MonadIO m => WriteShareRemotePath -> Path.Absolute -> PushBehavior -> Action' m v ()
 handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
+  let codeserver = Codeserver.resolveCodeserver server
+  let baseURL = codeserverBaseURL codeserver
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
 
   LoopState.Env {authHTTPClient, codebase = Codebase {connection}} <- ask
@@ -1878,7 +1874,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                 push =
                   Share.checkAndSetPush
                     authHTTPClient
-                    (shareRepoToBaseUrl server)
+                    baseURL
                     connection
                     sharePath
                     Nothing
@@ -1889,7 +1885,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
           PushBehavior.RequireNonEmpty -> do
             let push :: IO (Either Share.FastForwardPushError ())
                 push =
-                  Share.fastForwardPush authHTTPClient (shareRepoToBaseUrl server) connection sharePath localCausalHash
+                  Share.fastForwardPush authHTTPClient baseURL connection sharePath localCausalHash
             liftIO push >>= \case
               Left err -> respond (Output.ShareError (ShareErrorFastForwardPush err))
               Right () -> pure ()
@@ -2280,11 +2276,13 @@ viewRemoteGitBranch ns gitBranchBehavior action = do
   eval $ ViewRemoteGitBranch ns gitBranchBehavior action
 
 importRemoteShareBranch :: MonadIO m => ReadShareRemoteNamespace -> Action' m v (Either (Output v) (Branch m))
-importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} =
+importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
+  let codeserver = Codeserver.resolveCodeserver server
+  let baseURL = codeserverBaseURL codeserver
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
     LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
-    liftIO (Share.pull authHTTPClient (shareRepoToBaseUrl server) connection shareFlavoredPath) >>= \case
+    liftIO (Share.pull authHTTPClient baseURL connection shareFlavoredPath) >>= \case
       Left e -> pure (Left (Output.ShareErrorPull e))
       Right causalHash -> do
         (eval . Eval) (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
@@ -2580,10 +2578,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2600,10 +2598,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -2996,7 +2994,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-              respond $ ListOfLinks mempty []
+            respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>

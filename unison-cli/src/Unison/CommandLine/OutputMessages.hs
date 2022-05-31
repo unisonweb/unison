@@ -1553,9 +1553,9 @@ notifyUser dir o = case o of
           "You can configure code server hosts in your .unisonConfig file."
         ]
   CredentialFailureMsg err -> pure $ case err of
-    Auth.ReauthRequired (Auth.Host host) ->
+    Auth.ReauthRequired host ->
       P.lines
-        [ "Authentication for host " <> P.red (P.text host) <> " is required.",
+        [ "Authentication for host " <> P.red (P.shown host) <> " is required.",
           "Run " <> IP.makeExample IP.help [IP.patternName IP.authLogin]
             <> " to learn how."
         ]
@@ -1581,9 +1581,9 @@ notifyUser dir o = case o of
         [ "Failed to parse token response from authentication server: " <> prettyURI uri,
           "The error was: " <> P.text txt
         ]
-    Auth.InvalidHost (Auth.Host host) ->
+    Auth.InvalidHost host ->
       P.lines
-        [ "Failed to parse a URI from the hostname: " <> P.text host <> ".",
+        [ "Failed to parse a URI from the hostname: " <> P.shown host <> ".",
           "Host names should NOT include a schema or path."
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
@@ -1599,9 +1599,10 @@ notifyUser dir o = case o of
       (Share.FastForwardPushErrorNoReadPermission sharePath) -> noReadPermission sharePath
       (Share.FastForwardPushInvalidParentage parent child) ->
         P.fatalCallout
-          ( P.lines ["The server detected an error in the history being pushed, please report this as a bug in ucm."
-                    , "The history in question is the hash: " <> prettyShareHash child <>  " with the ancestor: " <> prettyShareHash parent
-                    ]
+          ( P.lines
+              [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
+                "The history in question is the hash: " <> prettyShareHash child <> " with the ancestor: " <> prettyShareHash parent
+              ]
           )
       Share.FastForwardPushErrorNotFastForward sharePath ->
         P.lines $
@@ -1666,7 +1667,7 @@ notifyUser dir o = case o of
       -- client code that doesn't know about WriteRemotePath
       ( WriteRemotePathShare
           WriteShareRemotePath
-            { server = RemoteRepo.ShareRepo,
+            { server = RemoteRepo.DefaultCodeserver,
               repo = Share.unRepoName (Share.pathRepoName sharePath),
               path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
             }

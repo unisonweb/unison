@@ -14,7 +14,6 @@ module Unison.Auth.Types
     PKCEChallenge,
     ProfileName,
     CredentialFailure (..),
-    CodeserverHost (..),
     getActiveTokens,
     setActiveTokens,
     emptyCredentials,
@@ -22,7 +21,7 @@ module Unison.Auth.Types
 where
 
 import Control.Lens hiding ((.=))
-import Data.Aeson (FromJSON (..), FromJSONKey, KeyValue ((.=)), ToJSON (..), ToJSONKey, (.:), (.:?))
+import Data.Aeson (FromJSON (..), KeyValue ((.=)), ToJSON (..), (.:), (.:?))
 import qualified Data.Aeson as Aeson
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -36,13 +35,13 @@ defaultProfileName :: ProfileName
 defaultProfileName = "default"
 
 data CredentialFailure
-  = ReauthRequired CodeserverHost
+  = ReauthRequired CodeserverId
   | CredentialParseFailure FilePath Text
   | InvalidDiscoveryDocument URI Text
   | InvalidJWT Text
   | RefreshFailure Text
   | InvalidTokenResponse URI Text
-  | InvalidHost CodeserverHost
+  | InvalidHost CodeserverURI
   deriving stock (Show, Eq)
   deriving anyclass (Exception)
 
@@ -129,7 +128,7 @@ instance Aeson.FromJSON DiscoveryDoc where
 type ProfileName = Text
 
 data Credentials = Credentials
-  { credentials :: Map ProfileName (Map CodeserverHost Tokens),
+  { credentials :: Map ProfileName (Map CodeserverId Tokens),
     activeProfile :: ProfileName
   }
   deriving (Eq)
@@ -137,12 +136,12 @@ data Credentials = Credentials
 emptyCredentials :: Credentials
 emptyCredentials = Credentials mempty defaultProfileName
 
-getActiveTokens :: CodeserverHost -> Credentials -> Either CredentialFailure Tokens
+getActiveTokens :: CodeserverId -> Credentials -> Either CredentialFailure Tokens
 getActiveTokens host (Credentials {credentials, activeProfile}) =
   maybeToEither (ReauthRequired host) $
     credentials ^? ix activeProfile . ix host
 
-setActiveTokens :: CodeserverHost -> Tokens -> Credentials -> Credentials
+setActiveTokens :: CodeserverId -> Tokens -> Credentials -> Credentials
 setActiveTokens host tokens creds@(Credentials {credentials, activeProfile}) =
   let newCredMap =
         credentials
