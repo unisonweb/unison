@@ -1658,7 +1658,7 @@ notifyUser dir o = case o of
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedNonEmptyPushDest writeRemotePath =
       P.lines
-        [ "The remote namespace" <> prettyWriteRemotePath writeRemotePath <> "is empty.",
+        [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty.",
           "",
           "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
         ]

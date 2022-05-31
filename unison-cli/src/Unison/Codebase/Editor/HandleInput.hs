@@ -1825,7 +1825,8 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
       let opts = PushGitBranchOpts {setRoot = True, syncMode}
       runExceptT (syncGitRemoteBranch repo opts withRemoteRoot) >>= \case
         Left gitErr -> respond (Output.GitError gitErr)
-        Right _branch -> respond Success
+        Right (Left errOutput) -> respond errOutput
+        Right (Right _branch) -> respond Success
     NormalPush (WriteRemotePathShare sharePath) pushBehavior ->
       handlePushToUnisonShare sharePath localPath pushBehavior
     GistyPush repo -> do
@@ -1833,6 +1834,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
       let opts = PushGitBranchOpts {setRoot = False, syncMode}
       runExceptT (syncGitRemoteBranch repo opts (\_remoteRoot -> pure (Right sourceBranch))) >>= \case
         Left gitErr -> respond (Output.GitError gitErr)
+        Right (Left errOutput) -> respond errOutput
         Right _result -> do
           sbhLength <- eval BranchHashLength
           respond $

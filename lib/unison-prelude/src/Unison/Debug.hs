@@ -6,6 +6,7 @@ module Unison.Debug
     whenDebug,
     debugLog,
     debugLogM,
+    shouldDebug,
     DebugFlag (..),
   )
 where

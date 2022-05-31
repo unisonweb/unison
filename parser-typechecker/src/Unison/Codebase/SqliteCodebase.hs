@@ -894,6 +894,6 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
             -- Push our changes to the repo, silencing all output.
             -- Even with quiet, the remote (Github) can still send output through,
             -- so we capture stdout and stderr.
-            (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", "--quiet", url] ++ maybe [] (pure @[]) mayGitBranch
+            (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", url] ++ Git.gitVerbosity ++ maybe [] (pure @[]) mayGitBranch
             when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
             pure True
