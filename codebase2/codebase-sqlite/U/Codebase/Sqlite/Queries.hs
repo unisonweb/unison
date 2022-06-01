@@ -697,9 +697,10 @@ expectEntity hash = do
 moveTempEntityToMain :: Base32Hex -> Transaction ()
 moveTempEntityToMain b32 = do
   t <- expectTempEntity b32
+  deleteTempEntity b32
   r <- tempToSyncEntity t
   _ <- saveSyncEntity b32 r
-  deleteTempEntity b32
+  pure ()
 
 -- | Read an entity out of temp storage.
 expectTempEntity :: Base32Hex -> Transaction TempEntity

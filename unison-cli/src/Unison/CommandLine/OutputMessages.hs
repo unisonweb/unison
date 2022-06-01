@@ -1647,9 +1647,9 @@ notifyUser dir o = case o of
       handleGetCausalHashByPathError = \case
         Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermission sharePath
       noReadPermission sharePath =
-        P.wrap $ P.text "The server said you don't have permission to read" <> prettySharePath sharePath
+        P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettySharePath sharePath <> ".")
       noWritePermission sharePath =
-        P.wrap $ P.text "The server said you don't have permission to write" <> prettySharePath sharePath
+        P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
