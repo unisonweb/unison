@@ -65,6 +65,14 @@ codeserverAuthority (CodeserverURI {..}) =
       uriRegName = codeserverRegName
     }
 
+-- |
+-- >>> import Data.Maybe (fromJust)
+-- >>> codeserverFromURI . fromJust $ parseURI "http://localhost:8080"
+-- Just http://localhost:8080
+-- >>> codeserverFromURI . fromJust $ parseURI "https://share.unison-lang.org/api"
+-- Just https://share.unison-lang.org:443/api
+-- >>> codeserverFromURI . fromJust $ parseURI "http://share.unison-lang.org/api"
+-- Just http://share.unison-lang.org:80/api
 codeserverFromURI :: URI -> Maybe CodeserverURI
 codeserverFromURI URI {..} = do
   URIAuth {uriUserInfo, uriRegName, uriPort} <- uriAuthority
@@ -84,7 +92,14 @@ codeserverFromURI URI {..} = do
         codeserverUserInfo = uriUserInfo,
         codeserverRegName = uriRegName,
         codeserverPort = port,
-        codeserverPath = List.splitOn "/" . Prelude.dropWhile (== '/') $ uriPath
+        codeserverPath =
+          let unprefixed =
+                case uriPath of
+                  ('/' : path) -> path
+                  path -> path
+           in case List.splitOn "/" unprefixed of
+                [""] -> []
+                p -> p
       }
 
 -- | This is distinct from the codeserver URI in that we store credentials by a normalized ID, since it's
