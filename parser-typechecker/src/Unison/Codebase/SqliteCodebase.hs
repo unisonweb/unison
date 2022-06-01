@@ -29,7 +29,6 @@ import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
 import qualified U.Codebase.Branch as V2Branch
 import U.Codebase.HashTags (CausalHash (CausalHash))
-import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
@@ -41,7 +40,6 @@ import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
 import qualified Unison.Codebase.Editor.Git as Git
@@ -69,7 +67,6 @@ import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type (LocalOrRemote (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase.Type as C
-import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Parser.Ann (Ann)
@@ -204,19 +201,15 @@ sqliteCodebase debugName root localOrRemote action = do
     typeOfTermCache <- Cache.semispaceCache 8192
     declCache <- Cache.semispaceCache 1024
     rootBranchCache <- newTVarIO Nothing
+    getDeclType <- CodebaseOps.mkGetDeclType
     -- The v1 codebase interface has operations to read and write individual definitions
     -- whereas the v2 codebase writes them as complete components.  These two fields buffer
     -- the individual definitions until a complete component has been written.
     termBuffer :: TVar (Map Hash CodebaseOps.TermBufferEntry) <- newTVarIO Map.empty
     declBuffer :: TVar (Map Hash CodebaseOps.DeclBufferEntry) <- newTVarIO Map.empty
-    declTypeCache <- Cache.semispaceCache 2048
     let getTerm :: Reference.Id -> m (Maybe (Term Symbol Ann))
         getTerm id =
           Sqlite.runTransaction conn (CodebaseOps.getTerm getDeclType id)
-
-        getDeclType :: C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType
-        getDeclType =
-          Sqlite.unsafeIO . Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (CodebaseOps.getDeclType ref) conn)
 
         getTypeOfTermImpl :: Reference.Id -> m (Maybe (Type Symbol Ann))
         getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
@@ -496,9 +489,7 @@ sqliteCodebase debugName root localOrRemote action = do
               beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r),
               namesAtPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
                 runTx (CodebaseOps.namesAtPath path),
-              updateNameLookup = Sqlite.runTransaction conn $ do
-                root <- (CodebaseOps.getRootBranch getDeclType rootBranchCache)
-                CodebaseOps.saveRootNamesIndex (Branch.toNames . Branch.head $ root),
+              updateNameLookup = Sqlite.runTransaction conn $ CodebaseOps.updateNameLookupIndex getDeclType,
               connection = conn
             }
     let finalizer :: MonadIO m => m ()

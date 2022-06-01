@@ -7,6 +7,7 @@ module Unison.Sqlite.Transaction
     unsafeUnTransaction,
     savepoint,
     unsafeIO,
+    unsafeGetConnection,
 
     -- * Executing queries
 
@@ -79,6 +80,9 @@ newtype Transaction a
   -- Omit MonadIO instance because transactions may be retried
   -- Omit MonadThrow instance so we always throw SqliteException (via *Check) with lots of context
   deriving (Applicative, Functor, Monad) via (ReaderT Connection IO)
+
+unsafeGetConnection :: Transaction Connection
+unsafeGetConnection = Transaction pure
 
 -- | Run a transaction on the given connection.
 runTransaction :: MonadIO m => Connection -> Transaction a -> m a

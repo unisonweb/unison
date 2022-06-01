@@ -23,10 +23,12 @@ import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
+import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
@@ -55,6 +57,7 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import Unison.Sqlite (Transaction)
 import qualified Unison.Sqlite as Sqlite
+import qualified Unison.Sqlite.Transaction as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -359,11 +362,17 @@ getRootBranch doGetDeclType rootBranchCache =
   where
     forceReload :: Transaction (Branch Transaction)
     forceReload = do
-      causal2 <- Ops.expectRootCausal
-      branch1 <- Cv.causalbranch2to1 doGetDeclType causal2
+      branch1 <- uncachedLoadRootBranch doGetDeclType
       ver <- Sqlite.getDataVersion
       Sqlite.unsafeIO (atomically (writeTVar rootBranchCache (Just (ver, branch1))))
       pure branch1
+
+uncachedLoadRootBranch ::
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  Transaction (Branch Transaction)
+uncachedLoadRootBranch getDeclType = do
+  causal2 <- Ops.expectRootCausal
+  Cv.causalbranch2to1 getDeclType causal2
 
 getRootBranchExists :: Transaction Bool
 getRootBranchExists =
@@ -602,3 +611,17 @@ saveRootNamesIndex Names {Names.terms, Names.types} = do
     splitReferent referent = case referent of
       Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
       Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))
+
+mkGetDeclType :: MonadIO m => m (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType)
+mkGetDeclType = do
+  declTypeCache <- Cache.semispaceCache 2048
+  pure $ \ref -> do
+    conn <- Sqlite.unsafeGetConnection
+    Sqlite.unsafeIO $ Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (getDeclType ref) conn) ref
+
+-- | Update the root namespace names index which is used by the share server for serving api
+-- requests.
+updateNameLookupIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
+updateNameLookupIndex getDeclType = do
+  root <- uncachedLoadRootBranch getDeclType
+  saveRootNamesIndex (Branch.toNames . Branch.head $ root)
