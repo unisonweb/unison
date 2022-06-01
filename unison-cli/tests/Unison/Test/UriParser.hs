@@ -12,7 +12,7 @@ import qualified Text.Megaparsec as P
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRepo (..),
     ReadRemoteNamespace (..),
-    ShareRepo (..),
+    ShareCodeserver(..),
     pattern ReadGitRemoteNamespace,
     pattern ReadShareRemoteNamespace,
   )
@@ -33,7 +33,7 @@ testShare =
   scope "share" . tests $
     [ parseAugmented
         ( "unisonweb.base._releases.M4",
-          ReadRemoteNamespaceShare (ReadShareRemoteNamespace ShareRepo "unisonweb" (path ["base", "_releases", "M4"]))
+          ReadRemoteNamespaceShare (ReadShareRemoteNamespace DefaultCodeserver "unisonweb" (path ["base", "_releases", "M4"]))
         ),
       expectParseFailure ".unisonweb.base"
     ]
