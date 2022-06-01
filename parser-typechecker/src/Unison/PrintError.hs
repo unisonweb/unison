@@ -11,12 +11,12 @@ import Data.List (find, intersperse)
 import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
+import Data.Proxy
 import Data.Sequence (Seq (..))
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NES
 import qualified Data.Text as Text
-import Data.Void (Void)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import Unison.Builtin.Decls (pattern TupleType')
@@ -1230,9 +1230,9 @@ prettyParseError s = \case
               excerpt
             ]
         L.Opaque msg -> style ErrorSite msg
-  P.TrivialError sp unexpected expected ->
+  te@(P.TrivialError _errOffset unexpected _expected) ->
     fromString
-      (P.parseErrorPretty @_ @Void (P.TrivialError sp unexpected expected))
+      (P.parseErrorPretty te)
       <> ( case unexpected of
              Just (P.Tokens (toList -> ts)) -> case ts of
                [] -> mempty
@@ -1418,7 +1418,7 @@ prettyParseError s = \case
           "\n"
         ]
       where
-        t = style Code (fromString (P.showTokens (pure tok)))
+        t = style Code (fromString (P.showTokens (Proxy @[L.Token L.Lexeme]) (pure tok)))
     go (Parser.ExpectedBlockOpen blockName tok@(L.payload -> L.Close)) =
       mconcat
         [ "I was expecting an indented block following the "

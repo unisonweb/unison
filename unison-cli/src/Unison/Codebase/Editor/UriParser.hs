@@ -176,15 +176,15 @@ absolutePath = do
   void $ C.char '.'
   Path . Seq.fromList . fmap (NameSegment . Text.pack)
     <$> P.sepBy1
-      ( (:) <$> C.satisfy Unison.Lexer.wordyIdStartChar
-          <*> P.many (C.satisfy Unison.Lexer.wordyIdChar)
+      ( (:) <$> P.satisfy Unison.Lexer.wordyIdStartChar
+          <*> P.many (P.satisfy Unison.Lexer.wordyIdChar)
       )
       (C.char '.')
 
 treeishSuffix :: P Text
 treeishSuffix = P.label "git treeish" . P.try $ do
   void $ C.char ':'
-  notdothash <- C.noneOf @[] ".#:"
+  notdothash <- P.noneOf @[] ".#:"
   rest <- P.takeWhileP (Just "not colon") (/= ':')
   pure $ Text.cons notdothash rest
 

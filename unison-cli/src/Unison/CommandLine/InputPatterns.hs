@@ -9,6 +9,7 @@ import Data.List (intercalate, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
+import Data.Proxy (Proxy (..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Void (Void)
@@ -1243,25 +1244,27 @@ parseUri label input =
   let printError err = P.lines [P.string "I couldn't parse the repository address given above.", prettyPrintParseError input err]
    in first printError (P.parse UriParser.repoPath label (Text.pack input))
 
-prettyPrintParseError :: String -> P.ParseError Char Void -> P.Pretty P.ColorText
-prettyPrintParseError input = \case
-  P.TrivialError sp ue ee ->
-    P.lines
-      [ printLocation sp,
-        P.newline,
-        printTrivial ue ee
-      ]
-  P.FancyError sp ee ->
-    let errors = foldMap (P.string . mappend "\n" . P.showErrorComponent) ee
-     in P.lines
-          [ printLocation sp,
-            errors
-          ]
+prettyPrintParseError :: String -> P.ParseErrorBundle Text Void -> P.Pretty P.ColorText
+prettyPrintParseError input errBundle =
+  let (firstError, sp) = NE.head . fst $ P.attachSourcePos P.errorOffset (P.bundleErrors errBundle) (P.bundlePosState errBundle)
+   in case firstError of
+        P.TrivialError _errorOffset ue ee ->
+          P.lines
+            [ printLocation sp,
+              P.newline,
+              printTrivial ue ee
+            ]
+        P.FancyError _errorOffset ee ->
+          let errors = foldMap (P.string . mappend "\n" . showErrorFancy) ee
+           in P.lines
+                [ printLocation sp,
+                  errors
+                ]
   where
-    printLocation :: NE.NonEmpty P.SourcePos -> P.Pretty P.ColorText
+    printLocation :: P.SourcePos -> P.Pretty P.ColorText
     printLocation sp =
-      let col = (P.unPos $ P.sourceColumn $ NE.head sp) - 1
-          row = (P.unPos $ P.sourceLine $ NE.head sp) - 1
+      let col = (P.unPos $ P.sourceColumn sp) - 1
+          row = (P.unPos $ P.sourceLine sp) - 1
           errorLine = lines input !! row
        in P.lines
             [ P.newline,
@@ -1271,8 +1274,8 @@ prettyPrintParseError input = \case
 
     printTrivial :: (Maybe (P.ErrorItem Char)) -> (Set (P.ErrorItem Char)) -> P.Pretty P.ColorText
     printTrivial ue ee =
-      let expected = "I expected " <> foldMap (P.singleQuoted . P.string . P.showErrorComponent) ee
-          found = P.string . mappend "I found " . P.showErrorComponent <$> ue
+      let expected = "I expected " <> foldMap (P.singleQuoted . P.string . showErrorItem) ee
+          found = P.string . mappend "I found " . showErrorItem <$> ue
           message = [expected] <> catMaybes [found]
        in P.oxfordCommasWith "." message
 
@@ -2367,3 +2370,23 @@ explainRemote =
           P.backticked "https://github.com/org/repo:some-branch"
         ]
     ]
+
+showErrorFancy :: P.ShowErrorComponent e => P.ErrorFancy e -> String
+showErrorFancy (P.ErrorFail msg) = msg
+showErrorFancy (P.ErrorIndentation ord ref actual) =
+  "incorrect indentation (got " <> show (P.unPos actual)
+    <> ", should be "
+    <> p
+    <> show (P.unPos ref)
+    <> ")"
+  where
+    p = case ord of
+      LT -> "less than "
+      EQ -> "equal to "
+      GT -> "greater than "
+showErrorFancy (P.ErrorCustom a) = P.showErrorComponent a
+
+showErrorItem :: P.ErrorItem (P.Token Text) -> String
+showErrorItem (P.Tokens ts) = P.showTokens (Proxy @Text) ts
+showErrorItem (P.Label label) = NE.toList label
+showErrorItem P.EndOfInput = "end of input"
