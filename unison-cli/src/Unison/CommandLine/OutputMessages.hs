@@ -1658,9 +1658,9 @@ notifyUser dir o = case o of
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedNonEmptyPushDest writeRemotePath =
       P.lines
-        [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty.",
+        [ P.wrap ("The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty."),
           "",
-          "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
+          P.wrap ("Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?")
         ]
     sharePathToWriteRemotePathShare sharePath =
       -- Recover the original WriteRemotePath from the information in the error, which is thrown from generic share

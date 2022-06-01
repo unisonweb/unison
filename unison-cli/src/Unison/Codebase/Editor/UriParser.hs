@@ -93,7 +93,6 @@ readShareRemoteNamespace = do
       <*> (NameSegment.toText <$> nameSegment)
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
 
--- |
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)#asdf"
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)#asdf."
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)"
