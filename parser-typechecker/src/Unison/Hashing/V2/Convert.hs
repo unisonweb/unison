@@ -72,13 +72,11 @@ typeToReference = h2mReference . Hashing.Type.toReference . m2hType . Memory.Typ
 typeToReferenceMentions :: Var v => Memory.Type.Type v a -> Set Memory.Reference.Reference
 typeToReferenceMentions = Set.map h2mReference . Hashing.Type.toReferenceMentions . m2hType . Memory.Type.removeAllEffectVars
 
--- TODO: remove non-prime version
--- include type in hash
 hashTermComponents ::
   forall v a.
   Var v =>
   Map v (Memory.Term.Term v a, Memory.Type.Type v a) ->
-  Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
+  (TermComponentHash, Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a))
 hashTermComponents mTerms =
   case Writer.runWriter (traverse (bitraverse m2hTerm (pure . m2hType)) mTerms) of
     (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.Term.hashComponents hTerms

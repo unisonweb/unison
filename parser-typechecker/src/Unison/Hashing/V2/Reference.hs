@@ -54,11 +54,13 @@ toShortHash (Derived h i) = SH.ShortHash (H.base32Hex h) (Just $ showSuffix i) N
 showSuffix :: Pos -> Text
 showSuffix = Text.pack . show
 
+-- | Builds 'Id's for the definitions in a component.
 component :: H.Hash -> [k] -> [(k, Id)]
 component h ks =
   let
    in [(k, (Id h i)) | (k, i) <- ks `zip` [0 ..]]
 
+-- | Build 'Id's for each piece of each component.
 components :: [(H.Hash, [k])] -> [(k, Id)]
 components sccs = uncurry component =<< sccs
 

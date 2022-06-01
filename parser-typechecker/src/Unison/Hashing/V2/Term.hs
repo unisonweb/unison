@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -38,6 +39,8 @@ import Unison.Hashing.V2.Type (Type)
 import Unison.Prelude
 import Unison.Var (Var)
 import Prelude hiding (and, or)
+
+type TermComponentHash = Hash.HashFor "TermComponent"
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show, Eq, Foldable, Functor, Generic, Generic1, Traversable)
@@ -106,7 +109,7 @@ hashComponents ::
   forall v a.
   Var v =>
   Map v (Term v a, Type v a) ->
-  Map v (Reference.Id, Term v a, Type v a)
+  (Map v (Reference.Id, Term v a, Type v a))
 hashComponents terms =
   Zip.zipWith keepType terms (ReferenceUtil.hashComponents (refId ()) terms')
   where

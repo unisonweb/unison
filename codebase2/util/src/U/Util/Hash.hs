@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds #-}
 
 module U.Util.Hash
   ( Hash (Hash, toShort),
@@ -51,5 +52,5 @@ instance Show Hash where
 
 -- | A hash tagged with the type it's a hash of, useful for maintaining type safety
 -- guarantees.
-newtype HashFor t = HashFor {genericHash :: Hash}
+newtype HashFor (t :: k) = HashFor {genericHash :: Hash}
   deriving newtype (Show, Eq, Ord, Generic)

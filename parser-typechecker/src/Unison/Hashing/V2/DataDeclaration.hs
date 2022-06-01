@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -11,6 +12,7 @@ module Unison.Hashing.V2.DataDeclaration
     EffectDeclaration (..),
     Decl,
     Modifier (..),
+    DeclComponentHash,
     hashDecls,
   )
 where
@@ -19,7 +21,7 @@ import Control.Lens (over, _3)
 import Data.Bifunctor (first, second)
 import qualified Data.Map as Map
 import qualified Unison.ABT as ABT
-import Unison.Hash (Hash)
+import Unison.Hash (Hash, HashFor)
 import qualified Unison.Hashing.V2.ABT as ABT
 import Unison.Hashing.V2.Reference (Reference)
 import qualified Unison.Hashing.V2.Reference as Reference
@@ -33,6 +35,8 @@ import qualified Unison.Names.ResolutionResult as Names
 import Unison.Prelude
 import Unison.Var (Var)
 import Prelude hiding (cycle)
+
+type DeclComponentHash = HashFor "DeclComponent"
 
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
