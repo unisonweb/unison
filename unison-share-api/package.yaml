@@ -19,6 +19,7 @@ dependencies:
   - fuzzyfind
   - http-media
   - http-types
+  - jose
   - jwt
   - lens
   - lucid

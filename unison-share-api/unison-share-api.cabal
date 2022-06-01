@@ -81,6 +81,7 @@ library
     , fuzzyfind
     , http-media
     , http-types
+    , jose
     , jwt
     , lens
     , lucid

@@ -71,7 +71,8 @@ module Unison.Sync.Types
   )
 where
 
-import Control.Lens (both, traverseOf)
+import Control.Lens (both, ix, traverseOf, (^?))
+import qualified Crypto.JWT as Jose
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -158,7 +159,17 @@ data HashJWTClaims = HashJWTClaims
   -- entityType :: EntityType
   }
   deriving stock (Show, Eq, Ord)
-  deriving anyclass (ToJWT, FromJWT) -- uses JSON instances
+
+instance ToJWT HashJWTClaims where
+  encodeJWT (HashJWTClaims h) =
+    Jose.addClaim "h" (toJSON h) Jose.emptyClaimsSet
+
+instance FromJWT HashJWTClaims where
+  decodeJWT claims = case claims ^? Jose.unregisteredClaims . ix "h" of
+    Nothing -> Left "Missing 'h' claim on HashJWT"
+    Just v
+      | Success hash <- fromJSON v -> Right $ HashJWTClaims hash
+      | otherwise -> Left "Invalid hash at 'h' claim in HashJWT"
 
 instance ToJSON HashJWTClaims where
   toJSON (HashJWTClaims hash) =
