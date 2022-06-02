@@ -60,8 +60,6 @@ library
       Unison.Var
       Unison.Var.RefNamed
       Unison.WatchKind
-  other-modules:
-      Paths_unison_core1
   hs-source-dirs:
       src
   default-extensions:

@@ -36,6 +36,10 @@ when:
     ghc-options: -funbox-strict-fields -O2
 
 library:
+  when:
+    - condition: false
+      other-modules: Paths_unison_pretty_printer
+
   source-dirs: src
   dependencies:
     - base
@@ -53,6 +57,9 @@ library:
 
 executables:
   prettyprintdemo:
+    when:
+      - condition: false
+        other-modules: Paths_unison_pretty_printer
     source-dirs: prettyprintdemo
     main: Main.hs
     dependencies:
@@ -64,6 +71,9 @@ executables:
 
 tests:
   pretty-printer-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_pretty_printer
     source-dirs: tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0

@@ -4,9 +4,15 @@ copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 library:
   source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_util_relation
 
 tests:
   util-relation-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util_relation
     dependencies:
       - code-page
       - easytest
@@ -17,6 +23,9 @@ tests:
 
 benchmarks:
   relation:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util_relation
     source-dirs: benchmarks/relation
     main: Main.hs
     dependencies:

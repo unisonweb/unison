@@ -22,8 +22,6 @@ library
       Unison.Util.Map
       Unison.Util.Monoid
       Unison.Util.Set
-  other-modules:
-      Paths_unison_prelude
   hs-source-dirs:
       src
   default-extensions:

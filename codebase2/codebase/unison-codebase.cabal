@@ -30,8 +30,6 @@ library
       U.Codebase.Type
       U.Codebase.TypeEdit
       U.Codebase.WatchKind
-  other-modules:
-      Paths_unison_codebase
   hs-source-dirs:
       ./
   default-extensions:

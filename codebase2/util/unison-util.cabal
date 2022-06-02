@@ -24,8 +24,6 @@ library
       U.Util.String
       U.Util.Text
       U.Util.Timing
-  other-modules:
-      Paths_unison_util
   hs-source-dirs:
       src
   default-extensions:
@@ -64,8 +62,6 @@ library
 benchmark bench
   type: exitcode-stdio-1.0
   main-is: Main.hs
-  other-modules:
-      Paths_unison_util
   hs-source-dirs:
       bench
   default-extensions:
@@ -99,6 +95,7 @@ benchmark bench
     , text
     , time
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
     , vector

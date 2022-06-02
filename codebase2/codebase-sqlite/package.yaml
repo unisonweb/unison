@@ -2,6 +2,9 @@ name: unison-codebase-sqlite
 github: unisonweb/unison
 
 library:
+  when:
+    - condition: false
+      other-modules: Paths_unison_codebase_sqlite
   source-dirs: .
 
 extra-source-files:

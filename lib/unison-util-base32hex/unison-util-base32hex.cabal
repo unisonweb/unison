@@ -19,8 +19,6 @@ library
   exposed-modules:
       U.Util.Base32Hex
       U.Util.Hash
-  other-modules:
-      Paths_unison_util_base32hex
   hs-source-dirs:
       src
   default-extensions:

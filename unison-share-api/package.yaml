@@ -4,6 +4,9 @@ copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 library:
   source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_share_api
 
 dependencies:
   - NanoID
