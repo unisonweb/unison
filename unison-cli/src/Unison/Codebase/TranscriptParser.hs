@@ -33,10 +33,14 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (doesFileExist)
+import System.Environment (lookupEnv)
 import System.Exit (die)
 import qualified System.IO as IO
 import System.IO.Error (catchIOError)
 import qualified Text.Megaparsec as P
+import qualified Unison.Auth.HTTPClient as AuthN
+import qualified Unison.Auth.Tokens as AuthN
+import qualified Unison.Auth.Types as AuthN
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -69,6 +73,9 @@ import Prelude hiding (readFile, writeFile)
 -- | Render transcript errors at a width of 65 chars.
 terminalWidth :: Pretty.Width
 terminalWidth = 65
+
+accessTokenEnvVarKey :: String
+accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
 
 type ExpectingError = Bool
 
@@ -218,6 +225,13 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
       ]
   root <- Codebase.getRootBranch codebase
   do
+    mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
+    let tokenProvider :: AuthN.TokenProvider
+        tokenProvider =
+          case mayShareAccessToken of
+            Nothing -> \_codeserverID -> pure (Left . AuthN.InvalidJWT $ "Unable to access codebase servers in transcripts unless an access token is provided with via the " <> Text.pack accessTokenEnvVarKey <> " environment variable.")
+            Just accessToken -> \_codeserverID -> pure $ Right accessToken
+    authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
     pathRef <- newIORef initialPath
     rootBranchRef <- newIORef root
     numberedArgsRef <- newIORef []
@@ -423,7 +437,7 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
           writeIORef pathRef (view LoopState.currentPath state)
           let env =
                 LoopState.Env
-                  { LoopState.authHTTPClient = error "Error: No access to authorized requests from transcripts.",
+                  { LoopState.authHTTPClient = authenticatedHTTPClient,
                     LoopState.credentialManager = error "Error: No access to credentials from transcripts."
                   }
           let free = LoopState.runAction env state $ HandleInput.loop

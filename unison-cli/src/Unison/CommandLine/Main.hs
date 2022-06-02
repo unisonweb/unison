@@ -23,7 +23,8 @@ import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
 import Text.Pretty.Simple (pShow)
 import Unison.Auth.CredentialManager (newCredentialManager)
-import qualified Unison.Auth.HTTPClient as HTTP
+import qualified Unison.Auth.HTTPClient as AuthN
+import qualified Unison.Auth.Tokens as AuthN
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
@@ -192,7 +193,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
           loop state = do
             writeIORef pathRef (view LoopState.currentPath state)
             credMan <- newCredentialManager
-            authorizedHTTPClient <- HTTP.newAuthorizedHTTPClient credMan ucmVersion
+            let tokenProvider = AuthN.newTokenProvider credMan
+            authorizedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
             let env =
                   LoopState.Env
                     { LoopState.authHTTPClient = authorizedHTTPClient,

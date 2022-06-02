@@ -27,10 +27,10 @@ data SyncError
   deriving stock (Show)
   deriving anyclass (Exception)
 
-getPathHandler :: Auth.AuthorizedHttpClient -> BaseUrl -> GetCausalHashByPathRequest -> IO GetCausalHashByPathResponse
-updatePathHandler :: Auth.AuthorizedHttpClient -> BaseUrl -> UpdatePathRequest -> IO UpdatePathResponse
-downloadEntitiesHandler :: Auth.AuthorizedHttpClient -> BaseUrl -> DownloadEntitiesRequest -> IO DownloadEntitiesResponse
-uploadEntitiesHandler :: Auth.AuthorizedHttpClient -> BaseUrl -> UploadEntitiesRequest -> IO UploadEntitiesResponse
+getPathHandler :: Auth.AuthenticatedHttpClient -> BaseUrl -> GetCausalHashByPathRequest -> IO GetCausalHashByPathResponse
+updatePathHandler :: Auth.AuthenticatedHttpClient -> BaseUrl -> UpdatePathRequest -> IO UpdatePathResponse
+downloadEntitiesHandler :: Auth.AuthenticatedHttpClient -> BaseUrl -> DownloadEntitiesRequest -> IO DownloadEntitiesResponse
+uploadEntitiesHandler :: Auth.AuthenticatedHttpClient -> BaseUrl -> UploadEntitiesRequest -> IO UploadEntitiesResponse
 ( getPathHandler,
   updatePathHandler,
   downloadEntitiesHandler,
@@ -43,13 +43,13 @@ uploadEntitiesHandler :: Auth.AuthorizedHttpClient -> BaseUrl -> UploadEntitiesR
           ) = hoistClient Sync.api hoist (client Sync.api)
      in (uncurryReaderT getPathHandler, uncurryReaderT updatePathHandler, uncurryReaderT downloadEntitiesHandler, uncurryReaderT uploadEntitiesHandler)
     where
-      hoist :: forall a. ClientM a -> ReaderT (Auth.AuthorizedHttpClient, BaseUrl) IO a
+      hoist :: forall a. ClientM a -> ReaderT (Auth.AuthenticatedHttpClient, BaseUrl) IO a
       hoist m = do
-        (Auth.AuthorizedHttpClient manager, baseUrl) <- ask
+        (Auth.AuthenticatedHttpClient manager, baseUrl) <- ask
         let clientEnv = mkClientEnv manager baseUrl
         resp <- liftIO . throwEitherMWith ClientErr $ (runClientM m clientEnv)
         pure resp
 
-      uncurryReaderT :: forall req resp. (req -> ReaderT (Auth.AuthorizedHttpClient, BaseUrl) IO resp) -> Auth.AuthorizedHttpClient -> BaseUrl -> req -> IO resp
+      uncurryReaderT :: forall req resp. (req -> ReaderT (Auth.AuthenticatedHttpClient, BaseUrl) IO resp) -> Auth.AuthenticatedHttpClient -> BaseUrl -> req -> IO resp
       uncurryReaderT f httpClient baseURL req =
         runReaderT (f req) (httpClient, baseURL)
