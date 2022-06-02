@@ -46,7 +46,7 @@ journalModeToText = \case
   JournalMode'OFF -> "off"
 
 trySetJournalMode :: MonadIO m => Connection -> JournalMode -> m ()
-trySetJournalMode conn mode0 = liftIO $ do
+trySetJournalMode conn mode0 = liftIO do
   queryOneRowCheck_
     conn
     (Sql ("PRAGMA journal_mode = " <> journalModeToText mode0))
