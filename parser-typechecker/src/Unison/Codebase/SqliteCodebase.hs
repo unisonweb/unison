@@ -131,7 +131,8 @@ createCodebaseOrError debugName path action = do
     (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
     do
       createDirectoryIfMissing True (makeCodebaseDirPath path)
-      withConnection (debugName ++ ".createSchema") path \conn ->
+      withConnection (debugName ++ ".createSchema") path \conn -> do
+        liftIO $ Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL
         Sqlite.runTransaction conn do
           Q.createSchema
           void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty
@@ -178,9 +179,7 @@ withConnection ::
   (Sqlite.Connection -> m a) ->
   m a
 withConnection name root action =
-  Sqlite.withConnection name (makeCodebasePath root) \conn -> do
-    liftIO (Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL)
-    action conn
+  Sqlite.withConnection name (makeCodebasePath root) action
 
 sqliteCodebase ::
   forall m r.
