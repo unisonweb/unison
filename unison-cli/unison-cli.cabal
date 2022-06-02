@@ -62,7 +62,6 @@ library
       Unison.CommandLine.Welcome
       Unison.Share.Sync
       Unison.Share.Types
-      Unison.Sync.HTTP
       Unison.Util.HTTP
   hs-source-dirs:
       src
