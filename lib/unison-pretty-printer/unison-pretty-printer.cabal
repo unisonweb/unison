@@ -31,8 +31,6 @@ library
       Unison.Util.Pretty
       Unison.Util.Range
       Unison.Util.SyntaxText
-  other-modules:
-      Paths_unison_pretty_printer
   hs-source-dirs:
       src
   default-extensions:
@@ -76,8 +74,6 @@ library
 
 executable prettyprintdemo
   main-is: Main.hs
-  other-modules:
-      Paths_unison_pretty_printer
   hs-source-dirs:
       prettyprintdemo
   default-extensions:
@@ -118,7 +114,6 @@ test-suite pretty-printer-tests
       Unison.Test.ColorText
       Unison.Test.Range
       Unison.Test.Util.Pretty
-      Paths_unison_pretty_printer
   hs-source-dirs:
       tests
   default-extensions:

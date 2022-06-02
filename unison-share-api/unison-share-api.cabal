@@ -36,8 +36,6 @@ library
       Unison.Sync.API
       Unison.Sync.Types
       Unison.Util.Find
-  other-modules:
-      Paths_unison_share_api
   hs-source-dirs:
       src
   default-extensions:

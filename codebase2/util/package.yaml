@@ -3,13 +3,20 @@ github: unisonweb/unison
 
 library:
   source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_util
 
 benchmarks:
   bench:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util
     dependencies:
       - criterion
       - sandi
       - unison-util
+      - unison-util-base32hex
     main: Main.hs
     source-dirs: bench
 

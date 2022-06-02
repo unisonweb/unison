@@ -62,8 +62,6 @@ library
       Unison.Share.Types
       Unison.Sync.HTTP
       Unison.Util.HTTP
-  other-modules:
-      Paths_unison_cli
   hs-source-dirs:
       src
   default-extensions:
@@ -152,7 +150,6 @@ executable cli-integration-tests
   main-is: Suite.hs
   other-modules:
       IntegrationTests.ArgumentParsing
-      Paths_unison_cli
   hs-source-dirs:
       integration-tests
   default-extensions:
@@ -242,8 +239,6 @@ executable cli-integration-tests
 
 executable transcripts
   main-is: Transcripts.hs
-  other-modules:
-      Paths_unison_cli
   hs-source-dirs:
       transcripts
   default-extensions:
@@ -336,7 +331,6 @@ executable unison
       ArgParse
       System.Path
       Version
-      Paths_unison_cli
   hs-source-dirs:
       unison
   default-extensions:
@@ -434,7 +428,6 @@ test-suite cli-tests
       Unison.Test.Ucm
       Unison.Test.UriParser
       Unison.Test.VersionParser
-      Paths_unison_cli
   hs-source-dirs:
       tests
   default-extensions:

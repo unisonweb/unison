@@ -165,8 +165,6 @@ library
       Unison.Util.Text
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
-  other-modules:
-      Paths_unison_parser_typechecker
   hs-source-dirs:
       src
   default-extensions:
@@ -339,7 +337,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Util.Relation
       Unison.Test.Util.Text
       Unison.Test.Var
-      Paths_unison_parser_typechecker
   hs-source-dirs:
       tests
   default-extensions:
