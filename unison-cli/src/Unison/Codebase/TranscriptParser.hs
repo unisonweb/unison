@@ -75,6 +75,10 @@ import Prelude hiding (readFile, writeFile)
 terminalWidth :: Pretty.Width
 terminalWidth = 65
 
+-- | If provided, this access token will be used on all
+-- requests which use the Authenticated HTTP Client; i.e. all codeserver interactions.
+--
+-- It's useful in scripted contexts or when running transcripts against a codeserver.
 accessTokenEnvVarKey :: String
 accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
 
