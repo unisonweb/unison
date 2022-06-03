@@ -29,7 +29,7 @@ import Data.Time (NominalDiffTime)
 import Network.URI
 import qualified Network.URI as URI
 import Unison.Prelude
-import Unison.Share.Types (CodeserverId, CodeserverURI)
+import Unison.Share.Types
 
 defaultProfileName :: ProfileName
 defaultProfileName = "default"
