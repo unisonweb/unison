@@ -30,13 +30,13 @@ data ShareCodeserver
 -- "share.base.List"
 -- >>> displayShareCodeserver DefaultCodeserver "share" []
 -- "share"
--- >>> displayShareCodeserver (CustomCodeserver . fromJust $ parseURI "https://share-next.unison-lang.org/api" >>= codeserverFromURI ) "share" []
--- "https://share-next.unison-lang.org:443/api:.share"
+-- >>> displayShareCodeserver (CustomCodeserver . fromJust $ parseURI "https://share-next.unison-lang.org/api" >>= codeserverFromURI ) "unison" ["base", "List"]
+-- "share(https://share-next.unison-lang.org:443/api).unison.base.List"
 displayShareCodeserver :: ShareCodeserver -> Text -> Path -> Text
 displayShareCodeserver cs repo path =
   let shareServer = case cs of
         DefaultCodeserver -> ""
-        CustomCodeserver cu -> tShow cu <> ":."
+        CustomCodeserver cu -> "share(" <> tShow cu <> ")."
    in shareServer <> repo <> maybePrintPath path
 
 data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}

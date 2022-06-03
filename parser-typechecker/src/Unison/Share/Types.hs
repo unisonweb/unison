@@ -33,7 +33,8 @@ data CodeserverURI = CodeserverURI
   { codeserverScheme :: Scheme,
     codeserverUserInfo :: String,
     codeserverRegName :: String,
-    codeserverPort :: Int,
+    -- A custom port, if one was specified.
+    codeserverPort :: Maybe Int,
     codeserverPath :: [String]
   }
   deriving stock (Eq, Ord)
@@ -61,7 +62,9 @@ codeserverAuthority :: CodeserverURI -> URIAuth
 codeserverAuthority (CodeserverURI {..}) =
   URIAuth
     { uriUserInfo = codeserverUserInfo,
-      uriPort = ":" <> show codeserverPort,
+      uriPort = case codeserverPort of
+        Nothing -> ""
+        Just p -> ":" <> show p,
       uriRegName = codeserverRegName
     }
 
@@ -69,10 +72,12 @@ codeserverAuthority (CodeserverURI {..}) =
 -- >>> import Data.Maybe (fromJust)
 -- >>> codeserverFromURI . fromJust $ parseURI "http://localhost:8080"
 -- Just http://localhost:8080
+-- >>> codeserverFromURI . fromJust $ parseURI "http://localhost:80"
+-- Just http://localhost:80
 -- >>> codeserverFromURI . fromJust $ parseURI "https://share.unison-lang.org/api"
--- Just https://share.unison-lang.org:443/api
+-- Just https://share.unison-lang.org/api
 -- >>> codeserverFromURI . fromJust $ parseURI "http://share.unison-lang.org/api"
--- Just http://share.unison-lang.org:80/api
+-- Just http://share.unison-lang.org/api
 codeserverFromURI :: URI -> Maybe CodeserverURI
 codeserverFromURI URI {..} = do
   URIAuth {uriUserInfo, uriRegName, uriPort} <- uriAuthority
@@ -80,12 +85,9 @@ codeserverFromURI URI {..} = do
     "http:" -> Just Http
     "https:" -> Just Https
     _ -> Nothing
-  port <- case uriPort of
-    "" -> case scheme of
-      Http -> Just 80
-      Https -> Just 443
-    (':' : p) -> readMaybe p
-    _ -> Nothing
+  let port = case uriPort of
+        (':' : p) -> readMaybe p
+        _ -> Nothing
   pure $
     CodeserverURI
       { codeserverScheme = scheme,
@@ -137,8 +139,8 @@ codeserverIdFromCodeserverURI =
 -- | Builds a servant-compatible BaseUrl for a given CodeserverURI.
 codeserverBaseURL :: CodeserverURI -> Servant.BaseUrl
 codeserverBaseURL (CodeserverURI {..}) =
-  let scheme = case codeserverScheme of
-        Https -> Servant.Https
-        Http -> Servant.Http
-      host = codeserverUserInfo <> codeserverRegName <> ":" <> show codeserverPort
-   in Servant.BaseUrl scheme host codeserverPort (List.intercalate "/" codeserverPath)
+  let (scheme, defaultPort) = case codeserverScheme of
+        Https -> (Servant.Https, 443)
+        Http -> (Servant.Http, 80)
+      host = codeserverUserInfo <> codeserverRegName
+   in Servant.BaseUrl scheme host (fromMaybe defaultPort codeserverPort) (List.intercalate "/" codeserverPath)

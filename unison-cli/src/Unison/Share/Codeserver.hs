@@ -18,7 +18,7 @@ defaultCodeserver = unsafePerformIO $ do
         { codeserverScheme = Share.Https,
           codeserverUserInfo = "",
           codeserverRegName = "share-next.us-west-2.unison-lang.org",
-          codeserverPort = 443,
+          codeserverPort = Just 443,
           codeserverPath = ["api"]
         }
     Just shareHost ->
