@@ -771,7 +771,7 @@ putTempEntity = \case
       putFramedByteString bytes
     putSyncFullNamespace lids bytes = do
       putNamespaceLocalIds lids
-      putByteString bytes
+      putFramedByteString bytes
     putSyncDiffNamespace parent lids bytes = do
       putBase32Hex parent
       putNamespaceLocalIds lids
