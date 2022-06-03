@@ -16,7 +16,6 @@ benchmarks:
       - criterion
       - sandi
       - unison-util
-      - unison-util-base32hex
     main: Main.hs
     source-dirs: bench
 
