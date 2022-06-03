@@ -1015,9 +1015,8 @@ pullImpl name verbosity pullMode addendum = do
                       <> "into the current namespace"
                   ),
                   ( makeExample' self,
-                    "looks up the remote namespace configured in `.unisonConfig`"
+                    "merges the remote namespace configured in `.unisonConfig`"
                       <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
-                      <> "then pulls and merges it into the current namespace."
                   )
                 ],
               "",
@@ -1086,9 +1085,8 @@ push =
                 "publishes the current namespace into the remote namespace `remote`"
               ),
               ( "`push`",
-                "looks up the remote namespace configured in `.unisonConfig`"
-                  <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
-                  <> "then publishes the current namespace to that location."
+                "publishes the current namespace into the remote namespace configured in your `.unisonConfig`"
+                  <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace."
               )
             ],
           "",
@@ -1127,7 +1125,7 @@ pushCreate =
                 "publishes the current namespace into the empty remote namespace `remote`"
               ),
               ( "`push`",
-                "looks up the remote namespace configured in `.unisonConfig`"
+                "publishes the current namespace into the remote namespace configured in your `.unisonConfig`"
                   <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
                   <> "then publishes the current namespace to that location."
               )
