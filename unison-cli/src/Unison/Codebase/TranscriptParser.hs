@@ -38,9 +38,9 @@ import System.Exit (die)
 import qualified System.IO as IO
 import System.IO.Error (catchIOError)
 import qualified Text.Megaparsec as P
+import qualified Unison.Auth.CredentialManager as AuthN
 import qualified Unison.Auth.HTTPClient as AuthN
 import qualified Unison.Auth.Tokens as AuthN
-import qualified Unison.Auth.Types as AuthN
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -227,11 +227,14 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
   root <- Codebase.getRootBranch codebase
   do
     mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
+    credMan <- AuthN.newCredentialManager
     let tokenProvider :: AuthN.TokenProvider
         tokenProvider =
           case mayShareAccessToken of
-            Nothing -> \_codeserverID -> pure (Left . AuthN.InvalidJWT $ "Unable to access codebase servers in transcripts unless an access token is provided with via the " <> Text.pack accessTokenEnvVarKey <> " environment variable.")
-            Just accessToken -> \_codeserverID -> pure $ Right accessToken
+            Nothing -> do
+              AuthN.newTokenProvider credMan
+            Just accessToken ->
+              \_codeserverID -> pure $ Right accessToken
     authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
     pathRef <- newIORef initialPath
     rootBranchRef <- newIORef root
@@ -440,7 +443,7 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
                 LoopState.Env
                   { LoopState.authHTTPClient = authenticatedHTTPClient,
                     LoopState.codebase = codebase,
-                    LoopState.credentialManager = error "Error: No access to credentials from transcripts."
+                    LoopState.credentialManager = credMan
                   }
           let free = LoopState.runAction env state $ HandleInput.loop
               rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
