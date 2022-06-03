@@ -106,10 +106,8 @@ readShareRemoteNamespace = do
 readGitRemoteNamespace :: P ReadGitRemoteNamespace
 readGitRemoteNamespace = P.label "generic git repo" $ do
   P.string "git("
-  P.space
   protocol <- parseGitProtocol
   treeish <- P.optional gitTreeishSuffix
-  P.space
   let repo = ReadGitRepo {url = printProtocol protocol, ref = treeish}
   P.string ")"
   nshashPath <- P.optional namespaceHashPath
@@ -350,7 +348,7 @@ nameSegment =
 gitTreeishSuffix :: P Text
 gitTreeishSuffix = P.label "git treeish" . P.try $ do
   void $ C.char ':'
-  P.takeWhile1P (Just "not close paren") (\c -> c /= ')' && not (isSpace c))
+  P.takeWhile1P (Just "not close paren") (/= ')')
 
 shortBranchHash :: P ShortBranchHash
 shortBranchHash = P.label "short branch hash" $ do
