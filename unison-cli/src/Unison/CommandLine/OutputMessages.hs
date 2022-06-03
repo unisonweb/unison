@@ -1229,25 +1229,25 @@ notifyUser dir o = case o of
         "",
         err
       ]
-  NoConfiguredGitUrl pp p ->
+  NoConfiguredRemoteMapping pp p ->
     pure . P.fatalCallout . P.wrap $
       "I don't know where to "
         <> pushPull "push to!" "pull from!" pp
-        <> ( if Path.isRoot' p
+        <> ( if Path.isRoot p
                then ""
                else
-                 "Add a line like `GitUrl." <> P.shown p
-                   <> " = <some-git-url>' to .unisonConfig. "
+                 "Add a line like `RemoteMapping." <> P.shown p
+                   <> " = namespace.path' to .unisonConfig. "
            )
         <> "Type `help "
         <> pushPull "push" "pull" pp
         <> "` for more information."
   --  | ConfiguredGitUrlParseError PushPull Path' Text String
-  ConfiguredGitUrlParseError pp p url err ->
+  ConfiguredRemoteMappingParseError pp p url err ->
     pure . P.fatalCallout . P.lines $
       [ P.wrap $
-          "I couldn't understand the GitUrl that's set for"
-            <> prettyPath' p
+          "I couldn't understand the RemoteMapping that's set for"
+            <> prettyAbsolute p
             <> "in .unisonConfig",
         P.wrap $
           "The value I found was" <> (P.backticked . P.blue . P.text) url
@@ -1599,9 +1599,10 @@ notifyUser dir o = case o of
       (Share.FastForwardPushErrorNoReadPermission sharePath) -> noReadPermission sharePath
       (Share.FastForwardPushInvalidParentage parent child) ->
         P.fatalCallout
-          ( P.lines ["The server detected an error in the history being pushed, please report this as a bug in ucm."
-                    , "The history in question is the hash: " <> prettyShareHash child <>  " with the ancestor: " <> prettyShareHash parent
-                    ]
+          ( P.lines
+              [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
+                "The history in question is the hash: " <> prettyShareHash child <> " with the ancestor: " <> prettyShareHash parent
+              ]
           )
       Share.FastForwardPushErrorNotFastForward sharePath ->
         P.lines $
@@ -1657,7 +1658,7 @@ notifyUser dir o = case o of
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedNonEmptyPushDest writeRemotePath =
       P.lines
-        [ P.wrap ("The remote namespace" <> prettyWriteRemotePath writeRemotePath <> "is empty."),
+        [ P.wrap ("The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty."),
           "",
           P.wrap ("Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?")
         ]
@@ -1666,7 +1667,7 @@ notifyUser dir o = case o of
       -- client code that doesn't know about WriteRemotePath
       ( WriteRemotePathShare
           WriteShareRemotePath
-            { server = RemoteRepo.ShareRepo,
+            { server = RemoteRepo.DefaultCodeserver,
               repo = Share.unRepoName (Share.pathRepoName sharePath),
               path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
             }
