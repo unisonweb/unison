@@ -20,8 +20,6 @@ library
       Unison.Util.Relation
       Unison.Util.Relation3
       Unison.Util.Relation4
-  other-modules:
-      Paths_unison_util_relation
   hs-source-dirs:
       src
   default-extensions:
