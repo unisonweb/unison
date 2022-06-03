@@ -791,16 +791,6 @@ putTempEntity = \case
 getBase32Hex :: MonadGet m => m Base32Hex
 getBase32Hex = Base32Hex.UnsafeFromText <$> getText
 
-putFramedBytes :: MonadPut m => BS.ByteString -> m ()
-putFramedBytes bs = do
-  putVarInt (BS.length bs)
-  putByteString bs
-
-getFramedBytes :: MonadGet m => m BS.ByteString
-getFramedBytes = do
-  length <- getVarInt
-  getByteString length
-
 getTempTermFormat :: MonadGet m => m TempEntity.TempTermFormat
 getTempTermFormat =
   getWord8 >>= \case
