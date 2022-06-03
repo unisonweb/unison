@@ -141,7 +141,6 @@ module U.Codebase.Sqlite.Queries
     syncToTempEntity,
     insertTempEntity,
     saveSyncEntity,
-    deleteTempDependencies,
 
     -- * db misc
     createSchema,
@@ -619,8 +618,9 @@ flushCausalDependents chId = do
   hash <- expectHash32 (unCausalHashId chId)
   tryMoveTempEntityDependents hash
 
--- | tryMoveTempEntityDependents does this:
+-- | `tryMoveTempEntityDependents #foo` does this:
 --    0. Precondition: We just inserted object #foo.
+--  0.5. look up the dependents of #foo
 --    1. Delete #foo as dependency from temp_entity_missing_dependency. e.g. (#bar, #foo), (#baz, #foo)
 --    2. Delete #foo from temp_entity (if it's there)
 --    3. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
@@ -718,6 +718,7 @@ expectTempEntity b32 = do
     WHERE hash = ?
   |]
 
+-- | look up all of the input entity's dependencies in the main table, to convert it to a sync entity
 tempToSyncEntity :: TempEntity -> Transaction SyncEntity
 tempToSyncEntity = \case
   Entity.TC term -> Entity.TC <$> tempToSyncTermComponent term
@@ -1507,15 +1508,3 @@ deleteTempEntity hash =
       WHERE hash = ?
     |]
     (Only hash)
-
--- | takes a dependent's hash and multiple dependency hashes
-deleteTempDependencies :: Foldable f => Base32Hex -> f Base32Hex -> Transaction ()
-deleteTempDependencies dependent (Foldable.toList -> dependencies) =
-  executeMany sql (map (dependent,) dependencies)
-  where
-    sql =
-      [here|
-        DELETE FROM temp_entity_missing_dependencies
-        WHERE dependent = ?
-          AND dependency = ?
-      |]
