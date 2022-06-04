@@ -24,6 +24,7 @@ import qualified Data.Map as Map
 import Data.Sequence (Seq (..))
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
+import Control.Concurrent.STM (atomically, newTVarIO, readTVar, readTVarIO, writeTVar)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
@@ -1891,7 +1892,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
               Right () -> pure ()
           PushBehavior.RequireNonEmpty -> do
             let push :: IO (Either Share.FastForwardPushError ())
-                push =
+                push = do
                   withEntitiesUploadedProgressCallback \entitiesUploadedProgressCallback ->
                     Share.fastForwardPush
                       authHTTPClient
@@ -1909,12 +1910,18 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
       coerce Path.toList
 
     withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
-    withEntitiesUploadedProgressCallback action =
+    withEntitiesUploadedProgressCallback action = do
+      entitiesUploadedVar <- newTVarIO 0
       Console.Regions.displayConsoleRegions do
-        Console.Regions.withConsoleRegion Console.Regions.Linear \region ->
-          action \entitiesUploaded ->
-            Console.Regions.setConsoleRegion region $
-              "\n  Uploaded " <> Text.fromInt entitiesUploaded <> " entities...\n\n"
+        Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
+          Console.Regions.setConsoleRegion region do
+            entitiesUploaded <- readTVar entitiesUploadedVar
+            pure ("\n  Uploaded " <> Text.fromInt entitiesUploaded <> " entities...\n\n")
+          result <- action \entitiesUploaded -> atomically (writeTVar entitiesUploadedVar entitiesUploaded)
+          entitiesUploaded <- readTVarIO entitiesUploadedVar
+          Console.Regions.finishConsoleRegion region $
+            "\n  Uploaded " <> Text.fromInt entitiesUploaded <> " entities.\n"
+          pure result
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition ::
@@ -2302,18 +2309,24 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
     LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
     let pull :: IO (Either Share.PullError CausalHash)
-        pull =
+        pull = do
+          entitiesDownloadedVar <- newTVarIO 0
           Console.Regions.displayConsoleRegions do
-            Console.Regions.withConsoleRegion Console.Regions.Linear \region ->
-              Share.pull
-                authHTTPClient
-                baseURL
-                connection
-                shareFlavoredPath
-                ( \entitiesDownloaded ->
-                    Console.Regions.setConsoleRegion region $
-                      "\n  Downloaded " <> Text.fromInt entitiesDownloaded <> " entities...\n\n"
-                )
+            Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
+              Console.Regions.setConsoleRegion region do
+                entitiesDownloaded <- readTVar entitiesDownloadedVar
+                pure ("\n  Downloaded " <> Text.fromInt entitiesDownloaded <> " entities...\n\n")
+              result <-
+                Share.pull
+                  authHTTPClient
+                  baseURL
+                  connection
+                  shareFlavoredPath
+                  (\entitiesDownloaded -> atomically (writeTVar entitiesDownloadedVar entitiesDownloaded))
+              entitiesDownloaded <- readTVarIO entitiesDownloadedVar
+              Console.Regions.finishConsoleRegion region $
+                "\n  Downloaded " <> Text.fromInt entitiesDownloaded <> " entities.\n"
+              pure result
     liftIO pull >>= \case
       Left err -> pure (Left (Output.ShareErrorPull err))
       Right causalHash -> do
