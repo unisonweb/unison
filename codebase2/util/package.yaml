@@ -3,9 +3,15 @@ github: unisonweb/unison
 
 library:
   source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_util
 
 benchmarks:
   bench:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util
     dependencies:
       - criterion
       - sandi

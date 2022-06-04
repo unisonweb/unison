@@ -66,9 +66,14 @@ library:
   when:
     - condition: '!os(windows)'
       dependencies: unix
+    - condition: false
+      other-modules: Paths_unison_cli
 
 tests:
   cli-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     dependencies:
       - code-page
       - easytest
@@ -81,6 +86,9 @@ tests:
 
 executables:
   unison:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     source-dirs: unison
     main: Main.hs
     ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
@@ -93,6 +101,9 @@ executables:
       - unison-cli
 
   transcripts:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     source-dirs: transcripts
     main: Transcripts.hs
     ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
@@ -104,6 +115,9 @@ executables:
       - unison-cli
 
   cli-integration-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     source-dirs: integration-tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0

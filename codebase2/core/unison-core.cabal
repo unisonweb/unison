@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f696d0f997ab3afba6494f5932ac232d27e77073a331ab64d3c8b7929d1deb3a
+-- hash: 7b810bbd4d380ccd76c363eac447c7233c7b0e9d968960547c00d20ac3edeb08
 
 name:           unison-core
 version:        0.0.0
@@ -20,8 +20,6 @@ library
   exposed-modules:
       U.Core.ABT
       U.Core.ABT.Var
-  other-modules:
-      Paths_unison_core
   hs-source-dirs:
       ./
   build-depends:

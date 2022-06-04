@@ -3,6 +3,9 @@ github: unisonweb/unison
 copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
 
 library:
+  when:
+    - condition: false
+      other-modules: Paths_unison_core1
   source-dirs: src
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -funbox-strict-fields
   dependencies:

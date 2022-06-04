@@ -20,6 +20,9 @@ default-extensions:
 
 library:
   source-dirs: .
+  when:
+    - condition: false
+      other-modules: Paths_unison_codebase
 
 dependencies:
   - base
