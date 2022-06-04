@@ -19,6 +19,7 @@ library
   exposed-modules:
       U.Util.Base32Hex
       U.Util.Hash
+      U.Util.Hash32
   hs-source-dirs:
       src
   default-extensions:
