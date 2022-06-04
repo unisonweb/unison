@@ -17,6 +17,7 @@ dependencies:
   - base
   - bytes
   - bytestring
+  - concurrent-output
   - configurator
   - containers >= 0.6.3
   - cryptonite

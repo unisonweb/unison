@@ -99,6 +99,7 @@ library
     , base
     , bytes
     , bytestring
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -197,6 +198,7 @@ executable cli-integration-tests
     , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -291,6 +293,7 @@ executable transcripts
     , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -390,6 +393,7 @@ executable unison
     , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -494,6 +498,7 @@ test-suite cli-tests
     , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite

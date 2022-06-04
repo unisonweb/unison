@@ -27,7 +27,9 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
+import qualified System.Console.Regions as Console.Regions
 import qualified Text.Megaparsec as P
+import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Operations as Ops
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
@@ -122,6 +124,7 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
 import Unison.Position (Position (..))
 import Unison.Prelude
+import qualified Unison.Prelude.Text as Text
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
@@ -141,6 +144,7 @@ import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
+import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Sync as Share
 import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
@@ -170,7 +174,6 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import qualified Unison.Share.Codeserver as Codeserver
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -717,8 +720,8 @@ loop = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                    -- Branch exists and isn't empty, print an error
-                    throwError (BranchAlreadyExists (Path.unsplit' dest))
+                      -- Branch exists and isn't empty, print an error
+                      throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -1411,11 +1414,11 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
-                    eval (MakeStandalone ppe ref output) >>= \case
-                      Just err -> respond $ EvaluationFailure err
-                      Nothing -> pure ()
+                      eval (MakeStandalone ppe ref output) >>= \case
+                        Just err -> respond $ EvaluationFailure err
+                        Nothing -> pure ()
                   | otherwise ->
-                    respond $ BadMainFunction smain ty ppe [mainType]
+                      respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -1874,20 +1877,29 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
           PushBehavior.RequireEmpty -> do
             let push :: IO (Either Share.CheckAndSetPushError ())
                 push =
-                  Share.checkAndSetPush
-                    authHTTPClient
-                    baseURL
-                    connection
-                    sharePath
-                    Nothing
-                    localCausalHash
+                  withEntitiesUploadedProgressCallback \entitiesUploadedProgressCallback ->
+                    Share.checkAndSetPush
+                      authHTTPClient
+                      baseURL
+                      connection
+                      sharePath
+                      Nothing
+                      localCausalHash
+                      entitiesUploadedProgressCallback
             liftIO push >>= \case
               Left err -> respond (Output.ShareError (ShareErrorCheckAndSetPush err))
               Right () -> pure ()
           PushBehavior.RequireNonEmpty -> do
             let push :: IO (Either Share.FastForwardPushError ())
                 push =
-                  Share.fastForwardPush authHTTPClient baseURL connection sharePath localCausalHash
+                  withEntitiesUploadedProgressCallback \entitiesUploadedProgressCallback ->
+                    Share.fastForwardPush
+                      authHTTPClient
+                      baseURL
+                      connection
+                      sharePath
+                      localCausalHash
+                      entitiesUploadedProgressCallback
             liftIO push >>= \case
               Left err -> respond (Output.ShareError (ShareErrorFastForwardPush err))
               Right () -> pure ()
@@ -1895,6 +1907,14 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
     pathToSegments :: Path -> [Text]
     pathToSegments =
       coerce Path.toList
+
+    withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
+    withEntitiesUploadedProgressCallback action =
+      Console.Regions.displayConsoleRegions do
+        Console.Regions.withConsoleRegion Console.Regions.Linear \region ->
+          action \entitiesUploaded ->
+            Console.Regions.setConsoleRegion region $
+              "\n  Uploaded " <> Text.fromInt entitiesUploaded <> " entities...\n\n"
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition ::
@@ -2281,8 +2301,21 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
     LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
-    liftIO (Share.pull authHTTPClient baseURL connection shareFlavoredPath) >>= \case
-      Left e -> pure (Left (Output.ShareErrorPull e))
+    let pull :: IO (Either Share.PullError CausalHash)
+        pull =
+          Console.Regions.displayConsoleRegions do
+            Console.Regions.withConsoleRegion Console.Regions.Linear \region ->
+              Share.pull
+                authHTTPClient
+                baseURL
+                connection
+                shareFlavoredPath
+                ( \entitiesDownloaded ->
+                    Console.Regions.setConsoleRegion region $
+                      "\n  Downloaded " <> Text.fromInt entitiesDownloaded <> " entities...\n\n"
+                )
+    liftIO pull >>= \case
+      Left err -> pure (Left (Output.ShareErrorPull err))
       Right causalHash -> do
         (eval . Eval) (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
           Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
@@ -2577,10 +2610,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2597,10 +2630,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -2993,7 +3026,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-            respond $ ListOfLinks mempty []
+              respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>
