@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module U.Util.Hash32.Orphans.Aeson () where
 
 import Data.Aeson (FromJSON, FromJSONKey, ToJSON, ToJSONKey)

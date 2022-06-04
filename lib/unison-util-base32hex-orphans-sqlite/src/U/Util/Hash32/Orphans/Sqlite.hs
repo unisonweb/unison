@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module U.Util.Hash32.Orphans.Sqlite () where
 
 import Data.Text (Text)
