@@ -64,6 +64,7 @@ dependencies:
   - NanoID
   - natural-transformation
   - network
+  - network-uri
   - network-simple
   - nonempty-containers
   - open-browser

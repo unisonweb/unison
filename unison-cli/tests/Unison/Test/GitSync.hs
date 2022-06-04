@@ -109,7 +109,7 @@ test =
       Note that this only tests that the pull succeeds, since (at time of writing) we don't
       track/test transcript output for these tests in the unison repo.
       ```ucm
-      .> pull.without-history ${repo}:.child .child
+      .> pull.without-history git(${repo}):.child .child
       .> history .child
       ```
     |]
@@ -335,7 +335,7 @@ test =
                 ( \repo ->
                     [i|
                       ```ucm
-                      .> pull ${repo}
+                      .> pull git(${repo})
                       .> history
                       .> reset-root #l43v9nr16v
                       .> history

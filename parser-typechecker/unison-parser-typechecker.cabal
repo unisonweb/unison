@@ -135,6 +135,7 @@ library
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector
+      Unison.Share.Types
       Unison.TermParser
       Unison.TermPrinter
       Unison.Typechecker
@@ -246,6 +247,7 @@ library
     , natural-transformation
     , network
     , network-simple
+    , network-uri
     , nonempty-containers
     , open-browser
     , openapi3
@@ -424,6 +426,7 @@ test-suite parser-typechecker-tests
     , natural-transformation
     , network
     , network-simple
+    , network-uri
     , nonempty-containers
     , open-browser
     , openapi3
