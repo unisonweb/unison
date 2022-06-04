@@ -125,7 +125,6 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
 import Unison.Position (Position (..))
 import Unison.Prelude
-import qualified Unison.Prelude.Text as Text
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
@@ -1916,11 +1915,11 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
         Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
           Console.Regions.setConsoleRegion region do
             entitiesUploaded <- readTVar entitiesUploadedVar
-            pure ("\n  Uploaded " <> Text.fromInt entitiesUploaded <> " entities...\n\n")
+            pure ("\n  Uploaded " <> tShow entitiesUploaded <> " entities...\n\n")
           result <- action \entitiesUploaded -> atomically (writeTVar entitiesUploadedVar entitiesUploaded)
           entitiesUploaded <- readTVarIO entitiesUploadedVar
           Console.Regions.finishConsoleRegion region $
-            "\n  Uploaded " <> Text.fromInt entitiesUploaded <> " entities.\n"
+            "\n  Uploaded " <> tShow entitiesUploaded <> " entities.\n"
           pure result
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
@@ -2315,7 +2314,7 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
             Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
               Console.Regions.setConsoleRegion region do
                 entitiesDownloaded <- readTVar entitiesDownloadedVar
-                pure ("\n  Downloaded " <> Text.fromInt entitiesDownloaded <> " entities...\n\n")
+                pure ("\n  Downloaded " <> tShow entitiesDownloaded <> " entities...\n\n")
               result <-
                 Share.pull
                   authHTTPClient
@@ -2325,7 +2324,7 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
                   (\entitiesDownloaded -> atomically (writeTVar entitiesDownloadedVar entitiesDownloaded))
               entitiesDownloaded <- readTVarIO entitiesDownloadedVar
               Console.Regions.finishConsoleRegion region $
-                "\n  Downloaded " <> Text.fromInt entitiesDownloaded <> " entities.\n"
+                "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
               pure result
     liftIO pull >>= \case
       Left err -> pure (Left (Output.ShareErrorPull err))
