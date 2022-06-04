@@ -8,9 +8,9 @@ where
 import qualified Data.Text as Text
 import qualified Database.SQLite.Simple as Sqlite
 import Unison.Prelude
+import Unison.Sqlite.Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason)
 import Unison.Sqlite.Sql
-import Unison.Sqlite.Connection
 
 -- | https://www.sqlite.org/pragma.html#pragma_journal_mode
 data JournalMode
@@ -45,8 +45,8 @@ journalModeToText = \case
   JournalMode'WAL -> "wal"
   JournalMode'OFF -> "off"
 
-trySetJournalMode :: Connection -> JournalMode -> IO ()
-trySetJournalMode conn mode0 = do
+trySetJournalMode :: MonadIO m => Connection -> JournalMode -> m ()
+trySetJournalMode conn mode0 = liftIO do
   queryOneRowCheck_
     conn
     (Sql ("PRAGMA journal_mode = " <> journalModeToText mode0))
