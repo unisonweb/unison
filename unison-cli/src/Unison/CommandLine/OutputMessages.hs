@@ -32,6 +32,8 @@ import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
+import U.Util.Hash32 (Hash32)
+import qualified U.Util.Hash32 as Hash32
 import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
@@ -129,7 +131,6 @@ import qualified Unison.Share.Sync as Share
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Sync.Types as Share
-import qualified Unison.Sync.Types as Share.Hash (toBase32Hex)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TermPrinter
@@ -637,8 +638,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -647,6 +648,7 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
+
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1601,7 +1603,7 @@ notifyUser dir o = case o of
         P.fatalCallout
           ( P.lines
               [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
-                "The history in question is the hash: " <> prettyShareHash child <> " with the ancestor: " <> prettyShareHash parent
+                "The history in question is the hash: " <> prettyHash32 child <> " with the ancestor: " <> prettyHash32 parent
               ]
           )
       Share.FastForwardPushErrorNotFastForward sharePath ->
@@ -1643,7 +1645,7 @@ notifyUser dir o = case o of
               ),
             P.text "",
             P.text "The hashes it expected are:\n"
-              <> P.indentN 2 (P.lines (map prettyShareHash (toList hashes)))
+              <> P.indentN 2 (P.lines (map prettyHash32 (toList hashes)))
           ]
       handleGetCausalHashByPathError = \case
         Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermission sharePath
@@ -1736,8 +1738,8 @@ prettyBase32Hex# b = P.group $ "#" <> prettyBase32Hex b
 prettyHash :: IsString s => Hash.Hash -> P.Pretty s
 prettyHash = prettyBase32Hex# . Hash.toBase32Hex
 
-prettyShareHash :: IsString s => Share.Hash -> P.Pretty s
-prettyShareHash = prettyBase32Hex# . Share.Hash.toBase32Hex
+prettyHash32 :: IsString s => Hash32 -> P.Pretty s
+prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
 
 formatMissingStuff ::
   (Show tm, Show typ) =>
@@ -2269,7 +2271,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where

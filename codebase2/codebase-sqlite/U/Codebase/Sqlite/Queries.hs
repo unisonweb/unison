@@ -200,9 +200,11 @@ import qualified U.Codebase.Sqlite.TempEntityType as TempEntityType
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Util.Alternative as Alternative
-import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
+import U.Util.Hash32 (Hash32)
+import qualified U.Util.Hash32 as Hash32
+import U.Util.Hash32.Orphans.Sqlite ()
 import Unison.Prelude
 import Unison.Sqlite
 
@@ -259,28 +261,28 @@ countCausals = queryOneCol_ [here| SELECT COUNT(*) FROM causal |]
 countWatches :: Transaction Int
 countWatches = queryOneCol_ [here| SELECT COUNT(*) FROM watch |]
 
-saveHash :: Base32Hex -> Transaction HashId
-saveHash base32 = execute sql (Only base32) >> expectHashId base32
+saveHash :: Hash32 -> Transaction HashId
+saveHash hash = execute sql (Only hash) >> expectHashId hash
   where sql = [here|
     INSERT INTO hash (base32) VALUES (?)
     ON CONFLICT DO NOTHING
   |]
 
 saveHashHash :: Hash -> Transaction HashId
-saveHashHash = saveHash . Hash.toBase32Hex
+saveHashHash = saveHash . Hash32.fromHash
 
-loadHashId :: Base32Hex -> Transaction (Maybe HashId)
-loadHashId base32 = queryMaybeCol loadHashIdSql (Only base32)
+loadHashId :: Hash32 -> Transaction (Maybe HashId)
+loadHashId hash = queryMaybeCol loadHashIdSql (Only hash)
 
-expectHashId :: Base32Hex -> Transaction HashId
-expectHashId base32 = queryOneCol loadHashIdSql (Only base32)
+expectHashId :: Hash32 -> Transaction HashId
+expectHashId hash = queryOneCol loadHashIdSql (Only hash)
 
 loadHashIdSql :: Sql
 loadHashIdSql =
   [here| SELECT id FROM hash WHERE base32 = ? |]
 
 loadHashIdByHash :: Hash -> Transaction (Maybe HashId)
-loadHashIdByHash = loadHashId . Hash.toBase32Hex
+loadHashIdByHash = loadHashId . Hash32.fromHash
 
 saveCausalHash :: CausalHash -> Transaction CausalHashId
 saveCausalHash = fmap CausalHashId . saveHashHash . unCausalHash
@@ -311,12 +313,12 @@ expectCausalByCausalHash ch = do
   pure (hId, bhId)
 
 expectHashIdByHash :: Hash -> Transaction HashId
-expectHashIdByHash = expectHashId . Hash.toBase32Hex
+expectHashIdByHash = expectHashId . Hash32.fromHash
 
 expectHash :: HashId -> Transaction Hash
-expectHash h = Hash.fromBase32Hex <$> expectHash32 h
+expectHash h = Hash32.toHash <$> expectHash32 h
 
-expectHash32 :: HashId -> Transaction Base32Hex
+expectHash32 :: HashId -> Transaction Hash32
 expectHash32 h = queryOneCol sql (Only h)
   where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
 
@@ -485,22 +487,22 @@ loadObjectIdForPrimaryHash h =
 
 expectObjectIdForPrimaryHash :: Hash -> Transaction ObjectId
 expectObjectIdForPrimaryHash =
-  expectObjectIdForHash32 . Hash.toBase32Hex
+  expectObjectIdForHash32 . Hash32.fromHash
 
-expectObjectIdForHash32 :: Base32Hex -> Transaction ObjectId
+expectObjectIdForHash32 :: Hash32 -> Transaction ObjectId
 expectObjectIdForHash32 hash = do
   hashId <- expectHashId hash
   expectObjectIdForPrimaryHashId hashId
 
-expectBranchObjectIdForHash32 :: Base32Hex -> Transaction BranchObjectId
+expectBranchObjectIdForHash32 :: Hash32 -> Transaction BranchObjectId
 expectBranchObjectIdForHash32 =
   fmap BranchObjectId . expectObjectIdForHash32
 
-expectPatchObjectIdForHash32 :: Base32Hex -> Transaction PatchObjectId
+expectPatchObjectIdForHash32 :: Hash32 -> Transaction PatchObjectId
 expectPatchObjectIdForHash32 =
   fmap PatchObjectId . expectObjectIdForHash32
 
-expectBranchHashIdForHash32 :: Base32Hex -> Transaction BranchHashId
+expectBranchHashIdForHash32 :: Hash32 -> Transaction BranchHashId
 expectBranchHashIdForHash32 = queryOneCol sql . Only
   where
     sql =
@@ -512,7 +514,7 @@ expectBranchHashIdForHash32 = queryOneCol sql . Only
           AND hash.base32 = ?
       |]
 
-expectCausalHashIdForHash32 :: Base32Hex -> Transaction CausalHashId
+expectCausalHashIdForHash32 :: Hash32 -> Transaction CausalHashId
 expectCausalHashIdForHash32 = queryOneCol sql . Only
   where
     sql =
@@ -556,9 +558,9 @@ isObjectHash h =
 -- | All objects have corresponding hashes.
 expectPrimaryHashByObjectId :: ObjectId -> Transaction Hash
 expectPrimaryHashByObjectId =
-  fmap Hash.fromBase32Hex . expectPrimaryHash32ByObjectId
+  fmap Hash32.toHash . expectPrimaryHash32ByObjectId
 
-expectPrimaryHash32ByObjectId :: ObjectId -> Transaction Base32Hex
+expectPrimaryHash32ByObjectId :: ObjectId -> Transaction Hash32
 expectPrimaryHash32ByObjectId oId = queryOneCol sql (Only oId)
  where sql = [here|
   SELECT hash.base32
@@ -625,11 +627,11 @@ flushCausalDependents chId = do
 --    2. Delete #foo from temp_entity (if it's there)
 --    3. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
 --        insert_entity them.
-tryMoveTempEntityDependents :: Base32Hex -> Transaction ()
-tryMoveTempEntityDependents dependencyBase32 = do
-  dependents <- getMissingDependentsForTempEntity dependencyBase32
-  execute deleteMissingDependency (Only dependencyBase32)
-  deleteTempEntity dependencyBase32
+tryMoveTempEntityDependents :: Hash32 -> Transaction ()
+tryMoveTempEntityDependents dependency = do
+  dependents <- getMissingDependentsForTempEntity dependency
+  execute deleteMissingDependency (Only dependency)
+  deleteTempEntity dependency
   traverse_ flushIfReadyToFlush dependents
   where
     deleteMissingDependency :: Sql
@@ -638,14 +640,14 @@ tryMoveTempEntityDependents dependencyBase32 = do
       WHERE dependency = ?
     |]
 
-    flushIfReadyToFlush :: Base32Hex -> Transaction ()
+    flushIfReadyToFlush :: Hash32 -> Transaction ()
     flushIfReadyToFlush dependent = do
       readyToFlush dependent >>= \case
         True -> moveTempEntityToMain dependent
         False -> pure ()
 
-    readyToFlush :: Base32Hex -> Transaction Bool
-    readyToFlush b32 = queryOneCol [here|
+    readyToFlush :: Hash32 -> Transaction Bool
+    readyToFlush hash = queryOneCol [here|
       SELECT EXISTS (
         SELECT 1
         FROM temp_entity
@@ -655,7 +657,7 @@ tryMoveTempEntityDependents dependencyBase32 = do
         FROM temp_entity_missing_dependency
         WHERE dependent = ?
       )
-    |] (b32, b32)
+    |] (hash, hash)
 
 expectCausal :: CausalHashId -> Transaction Causal.SyncCausalFormat
 expectCausal hashId = do
@@ -680,7 +682,7 @@ expectCausal hashId = do
   pure Causal.SyncCausalFormat {parents, valueHash}
 
 -- | Read an entity out of main storage.
-expectEntity :: Base32Hex -> Transaction SyncEntity
+expectEntity :: Hash32 -> Transaction SyncEntity
 expectEntity hash = do
   hashId <- expectHashId hash
   -- We don't know if this is an object or a causal, so just try one, then the other.
@@ -694,18 +696,18 @@ expectEntity hash = do
           Namespace -> Entity.N <$> decodeSyncNamespaceFormat bytes
           Patch -> Entity.P <$> decodeSyncPatchFormat bytes
 
-moveTempEntityToMain :: Base32Hex -> Transaction ()
-moveTempEntityToMain b32 = do
-  t <- expectTempEntity b32
-  deleteTempEntity b32
-  r <- tempToSyncEntity t
-  _ <- saveSyncEntity b32 r
+moveTempEntityToMain :: Hash32 -> Transaction ()
+moveTempEntityToMain hash = do
+  entity <- expectTempEntity hash
+  deleteTempEntity hash
+  entity' <- tempToSyncEntity entity
+  _ <- saveSyncEntity hash entity'
   pure ()
 
 -- | Read an entity out of temp storage.
-expectTempEntity :: Base32Hex -> Transaction TempEntity
-expectTempEntity b32 = do
-  queryOneRowCheck sql (Only b32) \(blob, typeId) ->
+expectTempEntity :: Hash32 -> Transaction TempEntity
+expectTempEntity hash = do
+  queryOneRowCheck sql (Only hash) \(blob, typeId) ->
     case typeId of
       TempEntityType.TermComponentType -> Entity.TC <$> decodeTempTermFormat blob
       TempEntityType.DeclComponentType -> Entity.DC <$> decodeTempDeclFormat blob
@@ -851,9 +853,9 @@ syncToTempEntity = \case
         TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
           <$> Lens.traverseOf (traverse . Lens._1) (bitraverse expectText expectPrimaryHash32ByObjectId) terms
 
-saveSyncEntity :: Base32Hex -> SyncEntity -> Transaction (Either CausalHashId ObjectId)
-saveSyncEntity b32Hex entity = do
-  hashId <- saveHash b32Hex
+saveSyncEntity :: Hash32 -> SyncEntity -> Transaction (Either CausalHashId ObjectId)
+saveSyncEntity hash entity = do
+  hashId <- saveHash hash
   case entity of
     Entity.TC stf -> do
       let bytes = runPutS (Serialization.recomposeTermFormat stf)
@@ -932,7 +934,7 @@ loadCausalParents h = queryListCol sql (Only h) where sql = [here|
 |]
 
 -- | Like 'loadCausalParents', but the input and outputs are hashes, not hash ids.
-loadCausalParentsByHash :: Base32Hex -> Transaction [Base32Hex]
+loadCausalParentsByHash :: Hash32 -> Transaction [Hash32]
 loadCausalParentsByHash hash =
   queryListCol
     [here|
@@ -1440,7 +1442,7 @@ ancestorSql =
 -- * share sync / temp entities
 
 -- | Does this entity already exist in the database, i.e. in the `object` or `causal` table?
-entityExists :: Base32Hex -> Transaction Bool
+entityExists :: Hash32 -> Transaction Bool
 entityExists hash = do
   -- first get hashId if exists
   loadHashId hash >>= \case
@@ -1448,7 +1450,7 @@ entityExists hash = do
     -- then check if is causal hash or if object exists for hash id
     Just hashId -> isCausalHash hashId ||^ isObjectHash hashId
 
-getMissingDependencyJwtsForTempEntity :: Base32Hex -> Transaction (Maybe (NESet Text))
+getMissingDependencyJwtsForTempEntity :: Hash32 -> Transaction (Maybe (NESet Text))
 getMissingDependencyJwtsForTempEntity h = do
   jwts <-
     queryListCol
@@ -1459,7 +1461,7 @@ getMissingDependencyJwtsForTempEntity h = do
       (Only h)
   pure (NESet.nonEmptySet (Set.fromList jwts))
 
-getMissingDependentsForTempEntity :: Base32Hex -> Transaction [Base32Hex]
+getMissingDependentsForTempEntity :: Hash32 -> Transaction [Hash32]
 getMissingDependentsForTempEntity h =
   queryListCol
     [here|
@@ -1474,7 +1476,7 @@ getMissingDependentsForTempEntity h =
 -- Preconditions:
 --   1. The entity does not already exist in "main" storage (`object` / `causal`)
 --   2. The entity does not already exist in `temp_entity`.
-insertTempEntity :: Base32Hex -> TempEntity -> NESet (Base32Hex, Text) -> Transaction ()
+insertTempEntity :: Hash32 -> TempEntity -> NESet (Hash32, Text) -> Transaction ()
 insertTempEntity entityHash entity missingDependencies = do
   execute
     [here|
@@ -1499,7 +1501,7 @@ insertTempEntity entityHash entity missingDependencies = do
       Entity.entityType entity
 
 -- | Delete a row from the `temp_entity` table, if it exists.
-deleteTempEntity :: Base32Hex -> Transaction ()
+deleteTempEntity :: Hash32 -> Transaction ()
 deleteTempEntity hash =
   execute
     [here|

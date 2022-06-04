@@ -14,12 +14,9 @@ import Data.Bytes.Get (MonadGet, getByteString, getWord8, runGetS)
 import Data.Bytes.Put (MonadPut, putByteString, putWord8)
 import Data.Bytes.Serial (SerialEndian (serializeBE), deserialize, deserializeBE, serialize)
 import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
-import Data.Int (Int64)
 import Data.List (elemIndex)
 import qualified Data.Set as Set
 import Data.Vector (Vector)
-import Data.Word (Word64)
-import Debug.Trace (trace)
 import qualified U.Codebase.Decl as Decl
 import U.Codebase.Kind (Kind)
 import qualified U.Codebase.Kind as Kind
@@ -46,10 +43,12 @@ import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
-import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
+import U.Util.Hash32 (Hash32)
+import qualified U.Util.Hash32 as Hash32
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization hiding (debug)
+import Unison.Prelude
 import Prelude hiding (getChar, putChar)
 
 debug :: Bool
@@ -749,31 +748,31 @@ putTempEntity = \case
   Entity.C gdc ->
     putSyncCausal gdc
   where
-    putBase32Hex = putText . Base32Hex.toText
+    putHash32 = putText . Hash32.toText
     putPatchLocalIds PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup} = do
       putFoldable putText patchTextLookup
-      putFoldable putBase32Hex patchHashLookup
-      putFoldable putBase32Hex patchDefnLookup
+      putFoldable putHash32 patchHashLookup
+      putFoldable putHash32 patchDefnLookup
     putNamespaceLocalIds BranchFormat.LocalIds {branchTextLookup, branchDefnLookup, branchPatchLookup, branchChildLookup} = do
       putFoldable putText branchTextLookup
-      putFoldable putBase32Hex branchDefnLookup
-      putFoldable putBase32Hex branchPatchLookup
-      putFoldable (putPair putBase32Hex putBase32Hex) branchChildLookup
+      putFoldable putHash32 branchDefnLookup
+      putFoldable putHash32 branchPatchLookup
+      putFoldable (putPair putHash32 putHash32) branchChildLookup
     putSyncCausal Causal.SyncCausalFormat {valueHash, parents} = do
-      putBase32Hex valueHash
-      putFoldable putBase32Hex parents
+      putHash32 valueHash
+      putFoldable putHash32 parents
     putSyncFullPatch lids bytes = do
       putPatchLocalIds lids
       putFramedByteString bytes
     putSyncDiffPatch parent lids bytes = do
-      putBase32Hex parent
+      putHash32 parent
       putPatchLocalIds lids
       putFramedByteString bytes
     putSyncFullNamespace lids bytes = do
       putNamespaceLocalIds lids
       putFramedByteString bytes
     putSyncDiffNamespace parent lids bytes = do
-      putBase32Hex parent
+      putHash32 parent
       putNamespaceLocalIds lids
       putFramedByteString bytes
     putSyncTerm (TermFormat.SyncLocallyIndexedComponent vec) =
@@ -781,15 +780,15 @@ putTempEntity = \case
       -- when deserializing, because we don't think we need to (and it adds a
       -- little overhead.)
       flip putFoldable vec \(localIds, bytes) -> do
-        putLocalIdsWith putText putBase32Hex localIds
+        putLocalIdsWith putText putHash32 localIds
         putFramedByteString bytes
     putSyncDecl (DeclFormat.SyncLocallyIndexedComponent vec) =
       flip putFoldable vec \(localIds, bytes) -> do
-        putLocalIdsWith putText putBase32Hex localIds
+        putLocalIdsWith putText putHash32 localIds
         putFramedByteString bytes
 
-getBase32Hex :: MonadGet m => m Base32Hex
-getBase32Hex = Base32Hex.UnsafeFromText <$> getText
+getHash32 :: MonadGet m => m Hash32
+getHash32 = Hash32.UnsafeFromBase32Hex . Base32Hex.UnsafeFromText <$> getText
 
 getTempTermFormat :: MonadGet m => m TempEntity.TempTermFormat
 getTempTermFormat =
@@ -798,7 +797,7 @@ getTempTermFormat =
       TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
         <$> getVector
           ( getPair
-              (getLocalIdsWith getText getBase32Hex)
+              (getLocalIdsWith getText getHash32)
               getFramedByteString
           )
     tag -> unknownTag "getTempTermFormat" tag
@@ -810,7 +809,7 @@ getTempDeclFormat =
       DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
         <$> getVector
           ( getPair
-              (getLocalIdsWith getText getBase32Hex)
+              (getLocalIdsWith getText getHash32)
               getFramedByteString
           )
     tag -> unknownTag "getTempDeclFormat" tag
@@ -819,34 +818,34 @@ getTempPatchFormat :: MonadGet m => m TempEntity.TempPatchFormat
 getTempPatchFormat =
   getWord8 >>= \case
     0 -> PatchFormat.SyncFull <$> getPatchLocalIds <*> getFramedByteString
-    1 -> PatchFormat.SyncDiff <$> getBase32Hex <*> getPatchLocalIds <*> getFramedByteString
+    1 -> PatchFormat.SyncDiff <$> getHash32 <*> getPatchLocalIds <*> getFramedByteString
     tag -> unknownTag "getTempPatchFormat" tag
   where
     getPatchLocalIds =
       PatchFormat.LocalIds
         <$> getVector getText
-        <*> getVector getBase32Hex
-        <*> getVector getBase32Hex
+        <*> getVector getHash32
+        <*> getVector getHash32
 
 getTempNamespaceFormat :: MonadGet m => m TempEntity.TempNamespaceFormat
 getTempNamespaceFormat =
   getWord8 >>= \case
     0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getFramedByteString
-    1 -> BranchFormat.SyncDiff <$> getBase32Hex <*> getBranchLocalIds <*> getFramedByteString
+    1 -> BranchFormat.SyncDiff <$> getHash32 <*> getBranchLocalIds <*> getFramedByteString
     tag -> unknownTag "getTempNamespaceFormat" tag
   where
     getBranchLocalIds =
       BranchFormat.LocalIds
         <$> getVector getText
-        <*> getVector getBase32Hex
-        <*> getVector getBase32Hex
-        <*> getVector (getPair getBase32Hex getBase32Hex)
+        <*> getVector getHash32
+        <*> getVector getHash32
+        <*> getVector (getPair getHash32 getHash32)
 
 getTempCausalFormat :: MonadGet m => m TempEntity.TempCausalFormat
 getTempCausalFormat =
   Causal.SyncCausalFormat
-    <$> getBase32Hex
-    <*> getVector getBase32Hex
+    <$> getHash32
+    <*> getVector getHash32
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText

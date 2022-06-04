@@ -25,6 +25,8 @@ packages:
 - lib/unison-prelude
 - lib/unison-sqlite
 - lib/unison-util-base32hex
+- lib/unison-util-base32hex-orphans-aeson
+- lib/unison-util-base32hex-orphans-sqlite
 - lib/unison-util-relation
 - lib/unison-pretty-printer
 
