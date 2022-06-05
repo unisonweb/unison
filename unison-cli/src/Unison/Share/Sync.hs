@@ -484,7 +484,7 @@ elaborateHashes =
                     entityLocation hash >>= \case
                       Nothing -> loop hashes' seen' (Set.insert jwt outputs)
                       Just (EntityInTempStorage missingDependencies) -> do
-                        loop (Set.union (Set.map Share.decodeHashJWT missingDependencies) hashes') seen' outputs
+                        loop (Set.union (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies)) hashes') seen' outputs
                       Just EntityInMainStorage -> loop hashes' seen' outputs
    in \hashes -> loop (NESet.toSet hashes) Set.empty Set.empty
 
