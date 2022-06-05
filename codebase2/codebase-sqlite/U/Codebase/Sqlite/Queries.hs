@@ -212,12 +212,12 @@ import Unison.Sqlite
 
 createSchema :: Transaction ()
 createSchema = do
-  executeFile [hereFile|sql/create.sql|]
+  executeFile [hereFile|unison/sql/create.sql|]
   addTempEntityTables
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
-  executeFile [hereFile|sql/001-temp-entity-tables.sql|]
+  executeFile [hereFile|unison/sql/001-temp-entity-tables.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =
