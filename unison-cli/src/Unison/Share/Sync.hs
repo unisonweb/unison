@@ -51,6 +51,7 @@ import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.API as Share (api)
 import Unison.Sync.Common (causalHashToHash32, entityToTempEntity, expectEntity, hash32ToCausalHash)
+import Unison.Sync.Types (DecodedHashJWT, HashJWT)
 import qualified Unison.Sync.Types as Share
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
@@ -470,16 +471,22 @@ entityLocation hash =
 -- In the end, we return a set of hashes that correspond to entities we actually need to download.
 elaborateHashes :: NESet Share.DecodedHashJWT -> Sqlite.Transaction (Maybe (NESet Share.HashJWT))
 elaborateHashes =
-  let loop hashes outputs =
+  let loop :: Set DecodedHashJWT -> Set HashJWT -> Set HashJWT -> Sqlite.Transaction (Maybe (NESet HashJWT))
+      loop hashes seen outputs = do
         case Set.minView hashes of
           Nothing -> pure (NESet.nonEmptySet outputs)
           Just (Share.DecodedHashJWT (Share.HashJWTClaims {hash}) jwt, hashes') ->
-            entityLocation hash >>= \case
-              Nothing -> loop hashes' (Set.insert jwt outputs)
-              Just (EntityInTempStorage missingDependencies) ->
-                loop (Set.union (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies)) hashes') outputs
-              Just EntityInMainStorage -> loop hashes' outputs
-   in \hashes -> loop (NESet.toSet hashes) Set.empty
+            let seen' = Set.insert jwt seen
+             in if Set.member jwt outputs || Set.member jwt seen
+                  then -- skip — if it's in outputs, it's already fully elaborated
+                    loop hashes' seen' outputs
+                  else
+                    entityLocation hash >>= \case
+                      Nothing -> loop hashes' seen' (Set.insert jwt outputs)
+                      Just (EntityInTempStorage missingDependencies) -> do
+                        loop (Set.union (Set.map Share.decodeHashJWT missingDependencies) hashes') seen' outputs
+                      Just EntityInMainStorage -> loop hashes' seen' outputs
+   in \hashes -> loop (NESet.toSet hashes) Set.empty Set.empty
 
 -- | Upsert a downloaded entity "somewhere" -
 --
