@@ -24,6 +24,7 @@ import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UCMVersion, UseCache)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
+import Unison.Codebase.IntegrityCheck (integrityCheckFullCodebase)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
@@ -41,6 +42,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Result as Result
 import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -240,6 +242,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
               UnliftIO.UnliftIO toIO -> toIO . Free.fold go
         pure runF
       UCMVersion -> pure ucmVersion
+      AnalyzeCodebaseIntegrity -> do
+        Sqlite.runTransaction (Codebase.connection codebase) integrityCheckFullCodebase
 
     watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
     watchCache h = do

@@ -36,6 +36,7 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
+import qualified Unison.Sqlite as Sqlite
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
@@ -174,7 +175,13 @@ data Codebase m v a = Codebase
     namesAtPath :: Path -> m ScopedNames,
     -- Updates the root namespace names index.
     -- This isn't run automatically because it can be a bit slow.
-    updateNameLookup :: m ()
+    updateNameLookup :: m (),
+    -- | The SQLite connection this codebase closes over.
+    --
+    -- At one time the codebase was meant to abstract over the storage layer, but it has been cumbersome. Now we prefer
+    -- to interact with SQLite directly, and so provide this temporary escape hatch, until we can eliminate this
+    -- interface entirely.
+    connection :: Sqlite.Connection
   }
 
 -- | Whether a codebase is local or remote.

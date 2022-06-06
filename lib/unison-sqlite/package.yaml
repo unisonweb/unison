@@ -3,6 +3,10 @@ github: unisonweb/unison
 copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 library:
+  when:
+    - condition: false
+      other-modules: Paths_unison_sqlite
+
   source-dirs: src
   other-modules:
     - Unison.Sqlite.DataVersion

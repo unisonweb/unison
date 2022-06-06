@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a62b0e8dbabe51c01ebc0871290e2427a734c0fbf9e78aee138b2bdad34d2704
+-- hash: e3307c66c00f5bf45548b61cb0aa78f2006c2df8b9ad9172c645f944688d6263
 
 name:           unison-codebase-sync
 version:        0.0.0
@@ -19,8 +19,6 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.Sync
-  other-modules:
-      Paths_unison_codebase_sync
   hs-source-dirs:
       ./
   build-depends:

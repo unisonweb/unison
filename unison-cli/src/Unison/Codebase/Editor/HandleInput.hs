@@ -29,7 +29,6 @@ import Data.Tuple.Extra (uncurry3)
 import qualified Text.Megaparsec as P
 import U.Util.Timing (unsafeTime)
 import qualified Unison.ABT as ABT
-import Unison.Auth.Types (Host (Host))
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
@@ -455,6 +454,7 @@ loop = do
             DebugDumpNamespacesI {} -> wat
             DebugDumpNamespaceSimpleI {} -> wat
             DebugClearWatchI {} -> wat
+            DebugDoctorI {} -> wat
             QuitI {} -> wat
             DeprecateTermI {} -> undefined
             DeprecateTypeI {} -> undefined
@@ -1619,6 +1619,9 @@ loop = do
               for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
             DebugClearWatchI {} -> eval ClearWatchCache
+            DebugDoctorI {} -> do
+              r <- eval AnalyzeCodebaseIntegrity
+              respond (IntegrityCheck r)
             DeprecateTermI {} -> notImplemented
             DeprecateTypeI {} -> notImplemented
             RemoveTermReplacementI from patchPath ->
@@ -1629,14 +1632,7 @@ loop = do
             UpdateBuiltinsI -> notImplemented
             QuitI -> empty
             GistI input -> handleGist input
-            AuthLoginI mayCodebaseServer -> do
-              case mayCodebaseServer of
-                Nothing -> authLogin Nothing
-                Just codeServer -> do
-                  mayHost <- eval $ ConfigLookup ("CodeServers." <> codeServer)
-                  case mayHost of
-                    Nothing -> respond (UnknownCodeServer codeServer)
-                    Just host -> authLogin (Just $ Host host)
+            AuthLoginI -> authLogin
             VersionI -> do
               ucmVersion <- eval UCMVersion
               respond $ PrintVersion ucmVersion

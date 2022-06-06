@@ -12,7 +12,7 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import Unison.Codebase (CodebasePath)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUnknownSchemaVersion))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase
-import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals)
+import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals, prettyPrintIntegrityErrors)
 import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3)
@@ -25,6 +25,7 @@ import Unison.Hash (Hash)
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sqlite.Connection as Sqlite.Connection
+import qualified Unison.Util.Pretty as Pretty
 import qualified UnliftIO
 
 -- | Mapping from schema version to the migration required to get there.
@@ -86,7 +87,11 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
                   ]
               case result of
                 NoIntegrityErrors -> pure ()
-                IntegrityErrorDetected -> abortMigration "Codebase integrity error detected."
+                IntegrityErrorDetected errs -> do
+                  let msg = prettyPrintIntegrityErrors errs
+                  let rendered = Pretty.toPlain 80 (Pretty.border 2 msg)
+                  Sqlite.unsafeIO $ putStrLn rendered
+                  abortMigration "Codebase integrity error detected."
           pure ranMigrations
       when ranMigrations do
         -- Vacuum once now that any migrations have taken place.

@@ -44,8 +44,6 @@ type SourceName = Text -- "foo.u" or "buffer 7"
 
 type PatchPath = Path.Split'
 
-type CodebaseServerName = Text
-
 data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
   deriving (Eq, Ord, Show)
 
@@ -180,12 +178,13 @@ data Input
   | DebugDumpNamespacesI
   | DebugDumpNamespaceSimpleI
   | DebugClearWatchI
+  | DebugDoctorI
   | QuitI
   | ApiI
   | UiI
   | DocsToHtmlI Path' FilePath
   | GistI GistInput
-  | AuthLoginI (Maybe CodebaseServerName)
+  | AuthLoginI
   | VersionI
   deriving (Eq, Show)
 

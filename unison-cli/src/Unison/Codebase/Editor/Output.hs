@@ -29,6 +29,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.TodoOutput as TO
+import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path')
 import qualified Unison.Codebase.Path as Path
@@ -255,6 +256,7 @@ data Output v
   | UnknownCodeServer Text
   | CredentialFailureMsg CredentialFailure
   | PrintVersion Text
+  | IntegrityCheck IntegrityResult
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
@@ -381,6 +383,10 @@ isFailure o = case o of
   UnknownCodeServer {} -> True
   CredentialFailureMsg {} -> True
   PrintVersion {} -> False
+  IntegrityCheck r ->
+    case r of
+      NoIntegrityErrors -> False
+      IntegrityErrorDetected {} -> True
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

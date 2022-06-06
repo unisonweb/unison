@@ -59,10 +59,9 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.Share.Types
       Unison.Sync.HTTP
       Unison.Util.HTTP
-  other-modules:
-      Paths_unison_cli
   hs-source-dirs:
       src
   default-extensions:
@@ -134,6 +133,7 @@ library
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio
@@ -150,7 +150,6 @@ executable cli-integration-tests
   main-is: Suite.hs
   other-modules:
       IntegrationTests.ArgumentParsing
-      Paths_unison_cli
   hs-source-dirs:
       integration-tests
   default-extensions:
@@ -228,6 +227,7 @@ executable cli-integration-tests
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio
@@ -239,8 +239,6 @@ executable cli-integration-tests
 
 executable transcripts
   main-is: Transcripts.hs
-  other-modules:
-      Paths_unison_cli
   hs-source-dirs:
       transcripts
   default-extensions:
@@ -317,6 +315,7 @@ executable transcripts
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio
@@ -332,7 +331,6 @@ executable unison
       ArgParse
       System.Path
       Version
-      Paths_unison_cli
   hs-source-dirs:
       unison
   default-extensions:
@@ -410,6 +408,7 @@ executable unison
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio
@@ -429,7 +428,6 @@ test-suite cli-tests
       Unison.Test.Ucm
       Unison.Test.UriParser
       Unison.Test.VersionParser
-      Paths_unison_cli
   hs-source-dirs:
       tests
   default-extensions:
@@ -507,6 +505,7 @@ test-suite cli-tests
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio
