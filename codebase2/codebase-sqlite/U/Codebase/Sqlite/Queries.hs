@@ -143,6 +143,7 @@ module U.Codebase.Sqlite.Queries
     saveSyncEntity,
 
     -- * elaborate hashes
+    elaborateHashesClient,
     elaborateHashesServer,
 
     -- * db misc
@@ -1514,10 +1515,10 @@ deleteTempEntity hash =
     |]
     (Only hash)
 
-elaborateHashesServer :: Foldable f => f Hash32 -> Transaction [Hash32]
+elaborateHashesServer :: [Hash32] -> Transaction [Hash32]
 elaborateHashesServer hashes = do
   execute_ [here|CREATE TABLE unelaborated_dependency (hash text)|]
-  executeMany [here|INSERT INTO unelaborated_dependency (hash) VALUES (?)|] (Only <$> toList hashes)
+  executeMany [here|INSERT INTO unelaborated_dependency (hash) VALUES (?)|] (Only <$> hashes)
   result <-
     queryListCol_
       [here|
@@ -1531,6 +1532,43 @@ elaborateHashesServer hashes = do
         )
         SELECT hash FROM elaborated_dependency
         EXCEPT SELECT hash FROM temp_entity;
+      |]
+  execute_ [here|DROP TABLE unelaborated_dependency|]
+  pure result
+
+-- | where Text = HashJWT
+elaborateHashesClient :: [(Hash32, Text)] -> Transaction [Text]
+elaborateHashesClient hashes = do
+  execute_
+    [here|
+      CREATE TABLE unelaborated_dependency (
+        hash text,
+        hashJwt text
+      )
+    |]
+  executeMany
+    [here|
+      INSERT INTO unelaborated_dependency
+        (hash, hashJwt)
+      VALUES (?,?)
+    |]
+    hashes
+  result <-
+    queryListCol_
+      [here|
+        WITH RECURSIVE elaborated_dependency (hash, hashJwt) AS (
+          SELECT (hash, hashJwt) FROM unelaborated_dependency
+          UNION
+          SELECT (dependency, dependencyJwt)
+          FROM temp_entity_missing_dependency
+            JOIN elaborated_dependency
+              ON temp_entity_missing_dependency.dependent = elaborated_dependency.hash
+        )
+        SELECT hashJwt FROM elaborated_dependency
+        WHERE NOT EXISTS (
+          SELECT FROM temp_entity
+          WHERE temp_entity.hash = elaborated_depdenency.hash
+        )
       |]
   execute_ [here|DROP TABLE unelaborated_dependency|]
   pure result

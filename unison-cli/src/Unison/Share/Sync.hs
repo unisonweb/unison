@@ -51,7 +51,6 @@ import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.API as Share (api)
 import Unison.Sync.Common (causalHashToHash32, entityToTempEntity, expectEntity, hash32ToCausalHash)
-import Unison.Sync.Types (DecodedHashJWT, HashJWT)
 import qualified Unison.Sync.Types as Share
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
@@ -470,8 +469,18 @@ entityLocation hash =
 --
 -- In the end, we return a set of hashes that correspond to entities we actually need to download.
 elaborateHashes :: NESet Share.DecodedHashJWT -> Sqlite.Transaction (Maybe (NESet Share.HashJWT))
-elaborateHashes =
-  let loop :: Set DecodedHashJWT -> Set HashJWT -> Set HashJWT -> Sqlite.Transaction (Maybe (NESet HashJWT))
+elaborateHashes hashes = do
+  let input :: [(Hash32, Share.HashJWT)]
+      input =
+        toList hashes
+          <&> \(Share.DecodedHashJWT (Share.HashJWTClaims {hash}) jwt) ->
+            (hash, jwt)
+  result <- Q.elaborateHashesClient (coerce @[(Hash32, Share.HashJWT)] @[(Hash32, Text)] input)
+  pure $ (NESet.nonEmptySet . Set.fromList) (coerce @[Text] @[Share.HashJWT] result)
+
+_elaborateHashes1 :: NESet Share.DecodedHashJWT -> Sqlite.Transaction (Maybe (NESet Share.HashJWT))
+_elaborateHashes1 =
+  let loop :: Set Share.DecodedHashJWT -> Set Share.HashJWT -> Set Share.HashJWT -> Sqlite.Transaction (Maybe (NESet Share.HashJWT))
       loop hashes seen outputs = do
         case Set.minView hashes of
           Nothing -> pure (NESet.nonEmptySet outputs)
