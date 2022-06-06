@@ -432,8 +432,6 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadCountCallba
       let hashes = NESet.toAscList hashesSet
       -- Get each entity that the server is missing out of the database.
       entities <- Sqlite.runTransaction conn (traverse expectEntity hashes)
-      let newUploadCount = uploadCount + NESet.size hashesSet
-      uploadCountCallback newUploadCount
 
       let uploadEntities :: IO Share.UploadEntitiesResponse
           uploadEntities = Timing.time ("uploadEntities with " <> show (length hashes) <> " hashes.") do
@@ -448,10 +446,15 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadCountCallba
       -- Upload all of the entities we know the server needs, and if the server responds that it needs yet more, loop to
       -- upload those too.
       uploadEntities >>= \case
-        Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> loop newUploadCount moreHashes
+        Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> do
+          let newUploadCount = uploadCount + NESet.size hashesSet
+          uploadCountCallback newUploadCount
+          loop newUploadCount moreHashes
         Share.UploadEntitiesNoWritePermission _ -> pure False
         Share.UploadEntitiesHashMismatchForEntity {} -> pure False
-        Share.UploadEntitiesSuccess -> pure True
+        Share.UploadEntitiesSuccess -> do
+          uploadCountCallback (uploadCount + NESet.size hashesSet)
+          pure True
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
