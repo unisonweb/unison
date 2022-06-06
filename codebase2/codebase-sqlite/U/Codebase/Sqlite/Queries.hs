@@ -142,6 +142,9 @@ module U.Codebase.Sqlite.Queries
     insertTempEntity,
     saveSyncEntity,
 
+    -- * elaborate hashes
+    elaborateHashesServer,
+
     -- * db misc
     createSchema,
     addTempEntityTables,
@@ -1510,3 +1513,24 @@ deleteTempEntity hash =
       WHERE hash = ?
     |]
     (Only hash)
+
+elaborateHashesServer :: Foldable f => f Hash32 -> Transaction [Hash32]
+elaborateHashesServer hashes = do
+  execute_ [here|CREATE TABLE unelaborated_dependency (hash text)|]
+  executeMany [here|INSERT INTO unelaborated_dependency (hash) VALUES (?)|] (Only <$> toList hashes)
+  result <-
+    queryListCol_
+      [here|
+        WITH RECURSIVE elaborated_dependency (hash) AS (
+          SELECT hash FROM unelaborated_dependency
+          UNION
+          SELECT dependency
+          FROM temp_entity_missing_dependency
+            JOIN elaborated_dependency
+              ON temp_entity_missing_dependency.dependent = elaborated_dependency.hash
+        )
+        SELECT hash FROM elaborated_dependency
+        EXCEPT SELECT hash FROM temp_entity;
+      |]
+  execute_ [here|DROP TABLE unelaborated_dependency|]
+  pure result
