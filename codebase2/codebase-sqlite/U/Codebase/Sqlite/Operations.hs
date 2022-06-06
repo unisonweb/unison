@@ -163,6 +163,7 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as H
+import qualified U.Util.Hash32 as Hash32
 import qualified U.Util.Lens as Lens
 import qualified U.Util.Serialization as S
 import qualified U.Util.Term as TermUtil
@@ -186,7 +187,7 @@ newtype NeedTypeForBuiltinMetadata
 objectExistsForHash :: H.Hash -> Transaction Bool
 objectExistsForHash h =
   isJust <$> runMaybeT do
-    id <- MaybeT . Q.loadHashId . H.toBase32Hex $ h
+    id <- MaybeT . Q.loadHashId . Hash32.fromHash $ h
     MaybeT $ Q.loadObjectIdForAnyHashId id
 
 expectValueHashByCausalHashId :: Db.CausalHashId -> Transaction BranchHash

@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.Git
     withIsolatedRepo,
     debugGit,
     gitDirToPath,
+    gitVerbosity,
     GitBranchBehavior (..),
     GitRepo (..),
 
@@ -27,21 +28,18 @@ import qualified Data.Text as Text
 import Shellmet (($?), ($^), ($|))
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath ((</>))
-import System.IO.Unsafe (unsafePerformIO)
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo(..))
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo (..))
 import Unison.Codebase.GitError (GitProtocolError)
 import qualified Unison.Codebase.GitError as GitError
+import qualified Unison.Debug as Debug
 import Unison.Prelude
 import qualified UnliftIO
 import UnliftIO.Directory (XdgDirectory (XdgCache), doesDirectoryExist, findExecutable, getXdgDirectory)
-import UnliftIO.Environment (lookupEnv)
 import UnliftIO.IO (hFlush, stdout)
 import qualified UnliftIO.Process as UnliftIO
 
 debugGit :: Bool
-debugGit =
-  isJust (unsafePerformIO (lookupEnv "UNISON_DEBUG_GIT"))
-{-# NOINLINE debugGit #-}
+debugGit = Debug.shouldDebug Debug.Git
 
 gitVerbosity :: [Text]
 gitVerbosity =

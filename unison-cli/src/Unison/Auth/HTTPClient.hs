@@ -30,10 +30,10 @@ newAuthenticatedHTTPClient tokenProvider ucmVersion = liftIO $ do
 -- If a host isn't associated with any credentials auth is omitted.
 authMiddleware :: TokenProvider -> (Request -> IO Request)
 authMiddleware tokenProvider req = do
-  case (codeserverIdFromURI $ (HTTP.getUri req)) of
+  case codeserverIdFromURI $ (HTTP.getUri req) of
+    -- If we can't identify an appropriate codeserver we pass it through without any auth.
     Left _ -> pure req
     Right codeserverHost -> do
-      result <- tokenProvider codeserverHost
-      case result of
-        Right token -> pure $ HTTP.applyBearerAuth (Text.encodeUtf8 token) req
-        Left _ -> pure req
+      tokenProvider codeserverHost <&> \case
+        Right token -> HTTP.applyBearerAuth (Text.encodeUtf8 token) req
+        Left _ -> req

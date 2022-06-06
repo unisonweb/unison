@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           unison-util-base32hex
+name:           unison-util-base32hex-orphans-aeson
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
@@ -17,9 +17,7 @@ source-repository head
 
 library
   exposed-modules:
-      U.Util.Base32Hex
-      U.Util.Hash
-      U.Util.Hash32
+      U.Util.Hash32.Orphans.Aeson
   hs-source-dirs:
       src
   default-extensions:
@@ -42,15 +40,14 @@ library
       PatternSynonyms
       RankNTypes
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall
+  ghc-options: -Wall -fno-warn-orphans
   build-depends:
-      base
-    , base32
-    , bytestring
-    , containers
+      aeson
+    , base
     , text
-    , unison-prelude
+    , unison-util-base32hex
   default-language: Haskell2010

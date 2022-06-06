@@ -12,7 +12,6 @@ module Unison.Sync.Types
     pathCodebasePath,
 
     -- ** Hash types
-    Hash (..),
     HashJWT (..),
     hashJWTHash,
     HashJWTClaims (..),
@@ -89,7 +88,8 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Servant.Auth.JWT
-import U.Util.Base32Hex (Base32Hex (..))
+import U.Util.Hash32 (Hash32)
+import U.Util.Hash32.Orphans.Aeson ()
 import Unison.Prelude
 import qualified Unison.Util.Set as Set
 import qualified Web.JWT as JWT
@@ -140,21 +140,18 @@ instance FromJSON Path where
 ------------------------------------------------------------------------------------------------------------------------
 -- Hash types
 
-newtype Hash = Hash {toBase32Hex :: Base32Hex}
-  deriving (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (Text)
-
 newtype HashJWT = HashJWT {unHashJWT :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
 
 -- | Grab the hash out of a hash JWT.
 --
 -- This decodes the whole JWT, then throws away the claims; use it if you really only need the hash!
-hashJWTHash :: HashJWT -> Hash
+hashJWTHash :: HashJWT -> Hash32
 hashJWTHash =
   decodedHashJWTHash . decodeHashJWT
 
 data HashJWTClaims = HashJWTClaims
-  { hash :: Hash
+  { hash :: Hash32
   -- Currently unused
   -- entityType :: EntityType
   }
@@ -216,7 +213,7 @@ decodeHashJWTClaims (HashJWT text) =
             Aeson.Success claims -> claims
 
 -- | Grab the hash out of a decoded hash JWT.
-decodedHashJWTHash :: DecodedHashJWT -> Hash
+decodedHashJWTHash :: DecodedHashJWT -> Hash32
 decodedHashJWTHash DecodedHashJWT {claims = HashJWTClaims {hash}} =
   hash
 
@@ -661,7 +658,7 @@ instance FromJSON DownloadEntitiesRequest where
     pure DownloadEntitiesRequest {..}
 
 data DownloadEntitiesResponse
-  = DownloadEntitiesSuccess (NEMap Hash (Entity Text Hash HashJWT))
+  = DownloadEntitiesSuccess (NEMap Hash32 (Entity Text Hash32 HashJWT))
   | DownloadEntitiesNoReadPermission RepoName
 
 -- data DownloadEntities = DownloadEntities
@@ -696,7 +693,7 @@ instance FromJSON DownloadEntitiesResponse where
 
 data UploadEntitiesRequest = UploadEntitiesRequest
   { repoName :: RepoName,
-    entities :: NEMap Hash (Entity Text Hash Hash)
+    entities :: NEMap Hash32 (Entity Text Hash32 Hash32)
   }
   deriving stock (Show, Eq, Ord)
 
@@ -715,12 +712,12 @@ instance FromJSON UploadEntitiesRequest where
 
 data UploadEntitiesResponse
   = UploadEntitiesSuccess
-  | UploadEntitiesNeedDependencies (NeedDependencies Hash)
+  | UploadEntitiesNeedDependencies (NeedDependencies Hash32)
   | UploadEntitiesNoWritePermission RepoName
   | UploadEntitiesHashMismatchForEntity HashMismatchForEntity
   deriving stock (Show, Eq, Ord)
 
-data HashMismatchForEntity = HashMismatchForEntity {supplied :: Hash, computed :: Hash}
+data HashMismatchForEntity = HashMismatchForEntity {supplied :: Hash32, computed :: Hash32}
   deriving stock (Show, Eq, Ord)
 
 instance ToJSON UploadEntitiesResponse where
@@ -775,9 +772,9 @@ instance FromJSON HashMismatchForEntity where
 -- instead.
 data FastForwardPathRequest = FastForwardPathRequest
   { -- | The causal that the client believes exists at `path`
-    expectedHash :: Hash,
+    expectedHash :: Hash32,
     -- | The sequence of causals to fast-forward with, starting from the oldest new causal to the newest new causal
-    hashes :: NonEmpty Hash,
+    hashes :: NonEmpty Hash32,
     -- | The path to fast-forward
     path :: Path
   }
@@ -801,7 +798,7 @@ instance FromJSON FastForwardPathRequest where
 
 data FastForwardPathResponse
   = FastForwardPathSuccess
-  | FastForwardPathMissingDependencies (NeedDependencies Hash)
+  | FastForwardPathMissingDependencies (NeedDependencies Hash32)
   | FastForwardPathNoWritePermission Path
   | -- | This wasn't a fast-forward. Here's a JWT to download the causal head, if you want it.
     FastForwardPathNotFastForward HashJWT
@@ -811,7 +808,7 @@ data FastForwardPathResponse
     FastForwardPathInvalidParentage InvalidParentage
   deriving stock (Show)
 
-data InvalidParentage = InvalidParentage {parent :: Hash, child :: Hash}
+data InvalidParentage = InvalidParentage {parent :: Hash32, child :: Hash32}
   deriving stock (Show)
 
 instance ToJSON FastForwardPathResponse where
@@ -847,8 +844,8 @@ instance FromJSON InvalidParentage where
 
 data UpdatePathRequest = UpdatePathRequest
   { path :: Path,
-    expectedHash :: Maybe Hash, -- Nothing requires empty history at destination
-    newHash :: Hash
+    expectedHash :: Maybe Hash32, -- Nothing requires empty history at destination
+    newHash :: Hash32
   }
   deriving stock (Show, Eq, Ord)
 
@@ -870,7 +867,7 @@ instance FromJSON UpdatePathRequest where
 data UpdatePathResponse
   = UpdatePathSuccess
   | UpdatePathHashMismatch HashMismatch
-  | UpdatePathMissingDependencies (NeedDependencies Hash)
+  | UpdatePathMissingDependencies (NeedDependencies Hash32)
   | UpdatePathNoWritePermission Path
   deriving stock (Show, Eq, Ord)
 
@@ -893,8 +890,8 @@ instance FromJSON UpdatePathResponse where
 
 data HashMismatch = HashMismatch
   { path :: Path,
-    expectedHash :: Maybe Hash,
-    actualHash :: Maybe Hash
+    expectedHash :: Maybe Hash32,
+    actualHash :: Maybe Hash32
   }
   deriving stock (Show, Eq, Ord)
 

@@ -7,7 +7,7 @@ import qualified U.Codebase.Sqlite.Entity as Entity
 import U.Codebase.Sqlite.LocalIds (LocalIds')
 import qualified U.Codebase.Sqlite.Patch.Format as Patch
 import qualified U.Codebase.Sqlite.Term.Format as Term
-import U.Util.Base32Hex (Base32Hex)
+import U.Util.Hash32 (Hash32)
 import Unison.Prelude
 
 -- |
@@ -18,20 +18,20 @@ import Unison.Prelude
 --   | P TempPatchFormat
 --   | C TempCausalFormat
 type TempEntity =
-  Entity.SyncEntity' Text Base32Hex Base32Hex Base32Hex Base32Hex Base32Hex Base32Hex
+  Entity.SyncEntity' Text Hash32 Hash32 Hash32 Hash32 Hash32 Hash32
 
-type TempLocalIds = LocalIds' Text Base32Hex
+type TempLocalIds = LocalIds' Text Hash32
 
-type TempTermFormat = Term.SyncTermFormat' Text Base32Hex
+type TempTermFormat = Term.SyncTermFormat' Text Hash32
 
-type TempDeclFormat = Decl.SyncDeclFormat' Text Base32Hex
+type TempDeclFormat = Decl.SyncDeclFormat' Text Hash32
 
-type TempPatchFormat = Patch.SyncPatchFormat' Base32Hex Text Base32Hex Base32Hex
+type TempPatchFormat = Patch.SyncPatchFormat' Hash32 Text Hash32 Hash32
 
-type TempPatchLocalIds = Patch.PatchLocalIds' Text Base32Hex Base32Hex
+type TempPatchLocalIds = Patch.PatchLocalIds' Text Hash32 Hash32
 
-type TempNamespaceFormat = Namespace.SyncBranchFormat' Base32Hex Text Base32Hex Base32Hex (Base32Hex, Base32Hex)
+type TempNamespaceFormat = Namespace.SyncBranchFormat' Hash32 Text Hash32 Hash32 (Hash32, Hash32)
 
-type TempNamespaceLocalIds = Namespace.BranchLocalIds' Text Base32Hex Base32Hex (Base32Hex, Base32Hex)
+type TempNamespaceLocalIds = Namespace.BranchLocalIds' Text Hash32 Hash32 (Hash32, Hash32)
 
-type TempCausalFormat = Causal.SyncCausalFormat' Base32Hex Base32Hex
+type TempCausalFormat = Causal.SyncCausalFormat' Hash32 Hash32
