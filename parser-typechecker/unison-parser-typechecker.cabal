@@ -236,7 +236,7 @@ library
     , http-types
     , lens
     , lucid
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mmorph
     , monad-validate
