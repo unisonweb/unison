@@ -1908,6 +1908,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
     pathToSegments =
       coerce Path.toList
 
+    -- Provide the given action a callback that prints out the number of entities uploaded.
     withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
     withEntitiesUploadedProgressCallback action = do
       entitiesUploadedVar <- newTVarIO 0
@@ -2308,30 +2309,35 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
     LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
     let pull :: IO (Either Share.PullError CausalHash)
-        pull = do
-          entitiesDownloadedVar <- newTVarIO 0
-          Console.Regions.displayConsoleRegions do
-            Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
-              Console.Regions.setConsoleRegion region do
-                entitiesDownloaded <- readTVar entitiesDownloadedVar
-                pure ("\n  Downloaded " <> tShow entitiesDownloaded <> " entities...\n\n")
-              result <-
-                Share.pull
-                  authHTTPClient
-                  baseURL
-                  connection
-                  shareFlavoredPath
-                  (\entitiesDownloaded -> atomically (writeTVar entitiesDownloadedVar entitiesDownloaded))
-              entitiesDownloaded <- readTVarIO entitiesDownloadedVar
-              Console.Regions.finishConsoleRegion region $
-                "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
-              pure result
+        pull =
+          withEntitiesDownloadedProgressCallback \entitiesDownloadedProgressCallback ->
+            Share.pull
+              authHTTPClient
+              baseURL
+              connection
+              shareFlavoredPath
+              entitiesDownloadedProgressCallback
     liftIO pull >>= \case
       Left err -> pure (Left (Output.ShareErrorPull err))
       Right causalHash -> do
         (eval . Eval) (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
           Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
           Just branch -> pure (Right branch)
+  where
+    -- Provide the given action a callback that prints out the number of entities downloaded.
+    withEntitiesDownloadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
+    withEntitiesDownloadedProgressCallback action = do
+      entitiesDownloadedVar <- newTVarIO 0
+      Console.Regions.displayConsoleRegions do
+        Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
+          Console.Regions.setConsoleRegion region do
+            entitiesDownloaded <- readTVar entitiesDownloadedVar
+            pure ("\n  Downloaded " <> tShow entitiesDownloaded <> " entities...\n\n")
+          result <- action \entitiesDownloaded -> atomically (writeTVar entitiesDownloadedVar entitiesDownloaded)
+          entitiesDownloaded <- readTVarIO entitiesDownloadedVar
+          Console.Regions.finishConsoleRegion region $
+            "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
+          pure result
 
 -- | Given the current root branch of a remote
 -- (or an empty branch if no root branch exists)
