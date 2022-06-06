@@ -133,11 +133,7 @@ The history should be that of the moved namespace.
 ```ucm
 .> delete.namespace moveoverme
 
-  Removed definitions:
-  
-    1. x : ##Nat
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .> history moveme
 

@@ -26,10 +26,6 @@ foo = "bar"
 
 .> delete.namespace ()
 
-  Removed definitions:
-  
-    1. foo : ##Text
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 ```

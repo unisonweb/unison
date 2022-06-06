@@ -189,18 +189,7 @@ Cleaning up a bit...
 ```ucm
 .> delete.namespace subpath
 
-  Removed definitions:
-  
-    1. unique type Foo
-    2. Foo.Bar            : #isd1untaal
-    3. Foo.Foo            : #isd1untaal
-    4. fooToInt           : #isd1untaal -> Int
-    5. preserve.otherTerm : Optional baz -> Optional baz
-    6. preserve.someTerm  : Optional x -> Optional x
-    7. patch patch
-    8. patch preserve.patch
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 ```
 Now, we make two terms, where one depends on the other.
