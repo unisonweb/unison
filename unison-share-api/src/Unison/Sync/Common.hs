@@ -3,7 +3,8 @@ module Unison.Sync.Common
   ( expectEntity,
 
     -- * Type conversions
-    causalHashToShareHash,
+    causalHashToHash32,
+    hash32ToCausalHash,
     entityToTempEntity,
     tempEntityToEntity,
   )
@@ -11,7 +12,6 @@ where
 
 import qualified Control.Lens as Lens
 import qualified Data.Set as Set
-import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
@@ -25,27 +25,33 @@ import U.Codebase.Sqlite.TempEntity (TempEntity)
 import qualified U.Codebase.Sqlite.TempEntity as Sqlite
 import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
-import U.Util.Base32Hex (Base32Hex)
-import qualified U.Util.Hash as Hash
+import U.Util.Hash32 (Hash32)
+import qualified U.Util.Hash32 as Hash32
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.Types as Share
 
 -- | Read an entity out of the database that we know is in main storage.
-expectEntity :: Share.Hash -> Sqlite.Transaction (Share.Entity Text Share.Hash Share.Hash)
+expectEntity :: Hash32 -> Sqlite.Transaction (Share.Entity Text Hash32 Hash32)
 expectEntity hash = do
-  syncEntity <- Q.expectEntity (Share.toBase32Hex hash)
+  syncEntity <- Q.expectEntity hash
   tempEntity <- Q.syncToTempEntity syncEntity
   pure (tempEntityToEntity tempEntity)
 
-causalHashToShareHash :: CausalHash -> Share.Hash
-causalHashToShareHash =
-  Share.Hash . Hash.toBase32Hex . unCausalHash
+-- FIXME this isn't the right module  for this conversion
+causalHashToHash32 :: CausalHash -> Hash32
+causalHashToHash32 =
+  Hash32.fromHash . unCausalHash
+
+-- FIXME this isn't the right module  for this conversion
+hash32ToCausalHash :: Hash32 -> CausalHash
+hash32ToCausalHash =
+  CausalHash . Hash32.toHash
 
 -- | Convert an entity that came over the wire from Unison Share into an equivalent type that we can store in the
 -- `temp_entity` table.
-entityToTempEntity :: forall hash. (hash -> Base32Hex) -> Share.Entity Text Share.Hash hash -> TempEntity
-entityToTempEntity toBase32Hex = \case
+entityToTempEntity :: forall hash. (hash -> Hash32) -> Share.Entity Text Hash32 hash -> TempEntity
+entityToTempEntity toHash32 = \case
   Share.TC (Share.TermComponent terms) ->
     terms
       & Vector.fromList
@@ -65,7 +71,7 @@ entityToTempEntity toBase32Hex = \case
   Share.PD Share.PatchDiff {parent, textLookup, oldHashLookup, newHashLookup, bytes} ->
     Entity.P
       ( PatchFormat.SyncDiff
-          (toBase32Hex parent)
+          (toHash32 parent)
           (mungePatchLocalIds textLookup oldHashLookup newHashLookup)
           bytes
       )
@@ -74,22 +80,22 @@ entityToTempEntity toBase32Hex = \case
   Share.ND Share.NamespaceDiff {parent, textLookup, defnLookup, patchLookup, childLookup, bytes} ->
     Entity.N
       ( NamespaceFormat.SyncDiff
-          (toBase32Hex parent)
+          (toHash32 parent)
           (mungeNamespaceLocalIds textLookup defnLookup patchLookup childLookup)
           bytes
       )
   Share.C Share.Causal {namespaceHash, parents} ->
     Entity.C
       Causal.SyncCausalFormat
-        { valueHash = toBase32Hex namespaceHash,
-          parents = Vector.fromList (map toBase32Hex (Set.toList parents))
+        { valueHash = toHash32 namespaceHash,
+          parents = Vector.fromList (map toHash32 (Set.toList parents))
         }
   where
     mungeLocalIds :: Share.LocalIds Text hash -> TempEntity.TempLocalIds
     mungeLocalIds Share.LocalIds {texts, hashes} =
       LocalIds
         { textLookup = Vector.fromList texts,
-          defnLookup = Vector.map toBase32Hex (Vector.fromList hashes)
+          defnLookup = Vector.map toHash32 (Vector.fromList hashes)
         }
 
     mungeNamespaceLocalIds ::
@@ -101,20 +107,20 @@ entityToTempEntity toBase32Hex = \case
     mungeNamespaceLocalIds textLookup defnLookup patchLookup childLookup =
       NamespaceFormat.LocalIds
         { branchTextLookup = Vector.fromList textLookup,
-          branchDefnLookup = Vector.fromList (map toBase32Hex defnLookup),
-          branchPatchLookup = Vector.fromList (map toBase32Hex patchLookup),
-          branchChildLookup = Vector.fromList (map (\(x, y) -> (toBase32Hex x, toBase32Hex y)) childLookup)
+          branchDefnLookup = Vector.fromList (map toHash32 defnLookup),
+          branchPatchLookup = Vector.fromList (map toHash32 patchLookup),
+          branchChildLookup = Vector.fromList (map (\(x, y) -> (toHash32 x, toHash32 y)) childLookup)
         }
 
-    mungePatchLocalIds :: [Text] -> [Share.Hash] -> [hash] -> TempEntity.TempPatchLocalIds
+    mungePatchLocalIds :: [Text] -> [Hash32] -> [hash] -> TempEntity.TempPatchLocalIds
     mungePatchLocalIds textLookup oldHashLookup newHashLookup =
       PatchFormat.LocalIds
         { patchTextLookup = Vector.fromList textLookup,
-          patchHashLookup = Vector.fromList (coerce @[Share.Hash] @[Base32Hex] oldHashLookup),
-          patchDefnLookup = Vector.fromList (map toBase32Hex newHashLookup)
+          patchHashLookup = Vector.fromList oldHashLookup,
+          patchDefnLookup = Vector.fromList (map toHash32 newHashLookup)
         }
 
-tempEntityToEntity :: Sqlite.TempEntity -> Share.Entity Text Share.Hash Share.Hash
+tempEntityToEntity :: Sqlite.TempEntity -> Share.Entity Text Hash32 Hash32
 tempEntityToEntity = \case
   Entity.TC (TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms)) ->
     terms
@@ -134,17 +140,17 @@ tempEntityToEntity = \case
         Share.P
           Share.Patch
             { textLookup = Vector.toList patchTextLookup,
-              oldHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchHashLookup),
-              newHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchDefnLookup),
+              oldHashLookup = Vector.toList patchHashLookup,
+              newHashLookup = Vector.toList patchDefnLookup,
               bytes
             }
       PatchFormat.SyncDiff parent PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup} bytes ->
         Share.PD
           Share.PatchDiff
-            { parent = Share.Hash parent,
+            { parent,
               textLookup = Vector.toList patchTextLookup,
-              oldHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchHashLookup),
-              newHashLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) patchDefnLookup),
+              oldHashLookup = Vector.toList patchHashLookup,
+              newHashLookup = Vector.toList patchDefnLookup,
               bytes
             }
   Entity.N format ->
@@ -160,11 +166,9 @@ tempEntityToEntity = \case
           Share.N
             Share.Namespace
               { textLookup = Vector.toList branchTextLookup,
-                defnLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchDefnLookup),
-                patchLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchPatchLookup),
-                childLookup =
-                  Vector.toList
-                    (coerce @(Vector (Base32Hex, Base32Hex)) @(Vector (Share.Hash, Share.Hash)) branchChildLookup),
+                defnLookup = Vector.toList branchDefnLookup,
+                patchLookup = Vector.toList branchPatchLookup,
+                childLookup = Vector.toList branchChildLookup,
                 bytes
               }
       NamespaceFormat.SyncDiff
@@ -178,25 +182,23 @@ tempEntityToEntity = \case
         bytes ->
           Share.ND
             Share.NamespaceDiff
-              { parent = Share.Hash parent,
+              { parent,
                 textLookup = Vector.toList branchTextLookup,
-                defnLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchDefnLookup),
-                patchLookup = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) branchPatchLookup),
-                childLookup =
-                  Vector.toList
-                    (coerce @(Vector (Base32Hex, Base32Hex)) @(Vector (Share.Hash, Share.Hash)) branchChildLookup),
+                defnLookup = Vector.toList branchDefnLookup,
+                patchLookup = Vector.toList branchPatchLookup,
+                childLookup = Vector.toList branchChildLookup,
                 bytes
               }
   Entity.C Causal.SyncCausalFormat {valueHash, parents} ->
     Share.C
       Share.Causal
-        { namespaceHash = Share.Hash valueHash,
-          parents = Set.fromList (coerce @[Base32Hex] @[Share.Hash] (Vector.toList parents))
+        { namespaceHash = valueHash,
+          parents = Set.fromList (Vector.toList parents)
         }
   where
-    mungeLocalIds :: LocalIds' Text Base32Hex -> Share.LocalIds Text Share.Hash
+    mungeLocalIds :: LocalIds' Text Hash32 -> Share.LocalIds Text Hash32
     mungeLocalIds LocalIds {textLookup, defnLookup} =
       Share.LocalIds
         { texts = Vector.toList textLookup,
-          hashes = Vector.toList (coerce @(Vector Base32Hex) @(Vector Share.Hash) defnLookup)
+          hashes = Vector.toList defnLookup
         }

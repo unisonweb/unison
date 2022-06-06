@@ -134,7 +134,8 @@ createCodebaseOrError debugName path action = do
     (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
     do
       createDirectoryIfMissing True (makeCodebaseDirPath path)
-      withConnection (debugName ++ ".createSchema") path \conn ->
+      withConnection (debugName ++ ".createSchema") path \conn -> do
+        Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL
         Sqlite.runTransaction conn do
           Q.createSchema
           void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty
@@ -181,9 +182,7 @@ withConnection ::
   (Sqlite.Connection -> m a) ->
   m a
 withConnection name root action =
-  Sqlite.withConnection name (makeCodebasePath root) \conn -> do
-    liftIO (Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL)
-    action conn
+  Sqlite.withConnection name (makeCodebasePath root) action
 
 sqliteCodebase ::
   forall m r.
@@ -686,6 +685,10 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior act
   time "Git fetch" $
     throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
       let remotePath = Git.gitDirToPath remoteRepo
+          -- In modern UCM all new codebases are created in WAL mode, but it's possible old
+          -- codebases were pushed to git in DELETE mode, so when pulling remote branches we
+          -- ensure we're in WAL mode just to be safe.
+          ensureWALMode conn = Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL
       -- Tickle the database before calling into `sqliteCodebase`; this covers the case that the database file either
       -- doesn't exist at all or isn't a SQLite database file, but does not cover the case that the database file itself
       -- is somehow corrupt, or not even a Unison database.
@@ -693,7 +696,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior act
       -- FIXME it would probably make more sense to define some proper preconditions on `sqliteCodebase`, and perhaps
       -- update its output type, which currently indicates the only way it can fail is with an `UnknownSchemaVersion`
       -- error.
-      (withConnection "codebase exists check" remotePath \_ -> pure ()) `catch` \exception ->
+      (withConnection "codebase exists check" remotePath ensureWALMode) `catch` \exception ->
         if Sqlite.isCantOpenException exception
           then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
           else throwIO exception

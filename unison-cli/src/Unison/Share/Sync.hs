@@ -41,16 +41,17 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Servant.API as Servant ((:<|>) (..))
 import Servant.Client (BaseUrl)
 import qualified Servant.Client as Servant (ClientEnv, ClientM, client, hoistClient, mkClientEnv, runClientM)
-import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Queries as Q
-import U.Util.Base32Hex (Base32Hex)
-import qualified U.Util.Hash as Hash
+import U.Util.Hash32 (Hash32)
+import qualified U.Util.Timing as Timing
 import Unison.Auth.HTTPClient (AuthorizedHttpClient)
 import qualified Unison.Auth.HTTPClient as Auth
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.API as Share (api)
-import Unison.Sync.Common
+import Unison.Sync.Common (causalHashToHash32, entityToTempEntity, expectEntity, hash32ToCausalHash)
+import Unison.Sync.Types (DecodedHashJWT, HashJWT)
 import qualified Unison.Sync.Types as Share
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Set as Set
@@ -62,7 +63,7 @@ import qualified Unison.Util.Set as Set
 data CheckAndSetPushError
   = CheckAndSetPushErrorHashMismatch Share.HashMismatch
   | CheckAndSetPushErrorNoWritePermission Share.Path
-  | CheckAndSetPushErrorServerMissingDependencies (NESet Share.Hash)
+  | CheckAndSetPushErrorServerMissingDependencies (NESet Hash32)
 
 -- | Push a causal to Unison Share.
 -- FIXME reword this
@@ -77,7 +78,7 @@ checkAndSetPush ::
   Share.Path ->
   -- | The hash that we expect this repo+path to be at on Unison Share. If not, we'll get back a hash mismatch error.
   -- This prevents accidentally pushing over data that we didn't know was there.
-  Maybe Share.Hash ->
+  Maybe Hash32 ->
   -- | The hash of our local causal to push.
   CausalHash ->
   -- | Callback that is given the total number of entities uploaded.
@@ -116,7 +117,7 @@ checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash uplo
         Share.UpdatePathRequest
           { path,
             expectedHash,
-            newHash = causalHashToShareHash causalHash
+            newHash = causalHashToHash32 causalHash
           }
 
 -- | An error occurred while fast-forward pushing code to Unison Share.
@@ -125,9 +126,9 @@ data FastForwardPushError
   | FastForwardPushErrorNoReadPermission Share.Path
   | FastForwardPushErrorNotFastForward Share.Path
   | FastForwardPushErrorNoWritePermission Share.Path
-  | FastForwardPushErrorServerMissingDependencies (NESet Share.Hash)
-  | --                              Parent     Child
-    FastForwardPushInvalidParentage Share.Hash Share.Hash
+  | FastForwardPushErrorServerMissingDependencies (NESet Hash32)
+  | --                              Parent Child
+    FastForwardPushInvalidParentage Hash32 Hash32
 
 -- | Push a causal to Unison Share.
 -- FIXME reword this
@@ -165,7 +166,7 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadCountCal
                       Share.FastForwardPathRequest
                         { expectedHash = remoteHeadHash,
                           hashes =
-                            causalHashToShareHash <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
+                            causalHashToHash32 <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
                           path
                         }
               doFastForwardPath <&> \case
@@ -189,15 +190,15 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadCountCal
         unisonShareUrl
         conn
         (Share.pathRepoName path)
-        (NESet.singleton (causalHashToShareHash headHash))
+        (NESet.singleton (causalHashToHash32 headHash))
         uploadCountCallback
 
     -- Return a list from oldest to newst of the ancestors between (excluding) the latest local and the current remote
     -- hash.
     -- note: seems like we /should/ cut this short, with another command to go longer? :grimace:
-    fancyBfs :: CausalHash -> Share.Hash -> Sqlite.Transaction (Maybe [CausalHash])
+    fancyBfs :: CausalHash -> Hash32 -> Sqlite.Transaction (Maybe [CausalHash])
     fancyBfs h0 h1 =
-      tweak <$> dagbfs (== Share.toBase32Hex h1) Q.loadCausalParentsByHash (Hash.toBase32Hex (unCausalHash h0))
+      tweak <$> dagbfs (== h1) Q.loadCausalParentsByHash (causalHashToHash32 h0)
       where
         -- Drop 1 (under a Maybe, and twddling hash types):
         --
@@ -207,9 +208,9 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadCountCal
         --
         -- The drop 1 is because dagbfs returns the goal at the head of the returned list, but we know what the goal is
         -- already (the remote head hash).
-        tweak :: Maybe [Base32Hex] -> Maybe [CausalHash]
+        tweak :: Maybe [Hash32] -> Maybe [CausalHash]
         tweak =
-          fmap (map (CausalHash . Hash.fromBase32Hex) . drop 1)
+          fmap (map hash32ToCausalHash . drop 1)
 
 data Step a
   = DeadEnd
@@ -340,7 +341,7 @@ pull httpClient unisonShareUrl conn repoPath downloadCountCallback = do
         Just EntityInMainStorage -> pure ()
         Just (EntityInTempStorage missingDependencies) -> doDownload missingDependencies
         Nothing -> doDownload (NESet.singleton hashJwt)
-      pure (Right (CausalHash (Hash.fromBase32Hex (Share.toBase32Hex hash))))
+      pure (Right (hash32ToCausalHash hash))
   where
     doDownload :: NESet Share.HashJWT -> IO ()
     doDownload hashes =
@@ -398,7 +399,7 @@ downloadEntities httpClient unisonShareUrl conn repoName hashes_ downloadCountCa
 
         whenJust (NESet.nonEmptySet missingDependencies0) (loop newDownloadCount)
 
-    doDownload :: NESet Share.HashJWT -> IO (NEMap Share.Hash (Share.Entity Text Share.Hash Share.HashJWT))
+    doDownload :: NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))
     doDownload hashes = do
       Share.DownloadEntitiesSuccess entities <-
         httpDownloadEntities
@@ -420,13 +421,13 @@ uploadEntities ::
   BaseUrl ->
   Sqlite.Connection ->
   Share.RepoName ->
-  NESet Share.Hash ->
+  NESet Hash32 ->
   (Int -> IO ()) ->
   IO Bool
 uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadCountCallback =
   loop 0 hashes0
   where
-    loop :: Int -> NESet Share.Hash -> IO Bool
+    loop :: Int -> NESet Hash32 -> IO Bool
     loop uploadCount hashesSet = do
       let hashes = NESet.toAscList hashesSet
       -- Get each entity that the server is missing out of the database.
@@ -435,7 +436,7 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadCountCallba
       uploadCountCallback newUploadCount
 
       let uploadEntities :: IO Share.UploadEntitiesResponse
-          uploadEntities =
+          uploadEntities = Timing.time ("uploadEntities with " <> show (length hashes) <> " hashes.") do
             httpUploadEntities
               httpClient
               unisonShareUrl
@@ -463,8 +464,8 @@ data EntityLocation
     EntityInTempStorage (NESet Share.HashJWT)
 
 -- | Where is an entity stored?
-entityLocation :: Share.Hash -> Sqlite.Transaction (Maybe EntityLocation)
-entityLocation (Share.Hash hash) =
+entityLocation :: Hash32 -> Sqlite.Transaction (Maybe EntityLocation)
+entityLocation hash =
   Q.entityExists hash >>= \case
     True -> pure (Just EntityInMainStorage)
     False ->
@@ -484,16 +485,22 @@ entityLocation (Share.Hash hash) =
 -- In the end, we return a set of hashes that correspond to entities we actually need to download.
 elaborateHashes :: NESet Share.DecodedHashJWT -> Sqlite.Transaction (Maybe (NESet Share.HashJWT))
 elaborateHashes =
-  let loop hashes outputs =
+  let loop :: Set DecodedHashJWT -> Set HashJWT -> Set HashJWT -> Sqlite.Transaction (Maybe (NESet HashJWT))
+      loop hashes seen outputs = do
         case Set.minView hashes of
           Nothing -> pure (NESet.nonEmptySet outputs)
           Just (Share.DecodedHashJWT (Share.HashJWTClaims {hash}) jwt, hashes') ->
-            entityLocation hash >>= \case
-              Nothing -> loop hashes' (Set.insert jwt outputs)
-              Just (EntityInTempStorage missingDependencies) ->
-                loop (Set.union (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies)) hashes') outputs
-              Just EntityInMainStorage -> loop hashes' outputs
-   in \hashes -> loop (NESet.toSet hashes) Set.empty
+            let seen' = Set.insert jwt seen
+             in if Set.member jwt outputs || Set.member jwt seen
+                  then -- skip — if it's in outputs, it's already fully elaborated
+                    loop hashes' seen' outputs
+                  else
+                    entityLocation hash >>= \case
+                      Nothing -> loop hashes' seen' (Set.insert jwt outputs)
+                      Just (EntityInTempStorage missingDependencies) -> do
+                        loop (Set.union (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies)) hashes') seen' outputs
+                      Just EntityInMainStorage -> loop hashes' seen' outputs
+   in \hashes -> loop (NESet.toSet hashes) Set.empty Set.empty
 
 -- | Upsert a downloaded entity "somewhere" -
 --
@@ -501,8 +508,8 @@ elaborateHashes =
 --   2. In main storage if we already have all of its dependencies in main storage.
 --   3. In temp storage otherwise.
 upsertEntitySomewhere ::
-  Share.Hash ->
-  Share.Entity Text Share.Hash Share.HashJWT ->
+  Hash32 ->
+  Share.Entity Text Hash32 Share.HashJWT ->
   Sqlite.Transaction EntityLocation
 upsertEntitySomewhere hash entity =
   entityLocation hash >>= \case
@@ -510,7 +517,7 @@ upsertEntitySomewhere hash entity =
     Nothing -> do
       missingDependencies0 <-
         Set.filterM
-          (fmap not . Q.entityExists . Share.toBase32Hex . Share.hashJWTHash)
+          (fmap not . Q.entityExists . Share.hashJWTHash)
           (Share.entityDependencies entity)
       case NESet.nonEmptySet missingDependencies0 of
         Nothing -> do
@@ -521,26 +528,26 @@ upsertEntitySomewhere hash entity =
           pure (EntityInTempStorage missingDependencies)
 
 -- | Insert an entity that doesn't have any missing dependencies.
-insertEntity :: Share.Hash -> Share.Entity Text Share.Hash Share.HashJWT -> Sqlite.Transaction ()
+insertEntity :: Hash32 -> Share.Entity Text Hash32 Share.HashJWT -> Sqlite.Transaction ()
 insertEntity hash entity = do
-  syncEntity <- Q.tempToSyncEntity (entityToTempEntity (Share.toBase32Hex . Share.hashJWTHash) entity)
-  _id <- Q.saveSyncEntity (Share.toBase32Hex hash) syncEntity
+  syncEntity <- Q.tempToSyncEntity (entityToTempEntity Share.hashJWTHash entity)
+  _id <- Q.saveSyncEntity hash syncEntity
   pure ()
 
 -- | Insert an entity and its missing dependencies.
 insertTempEntity ::
-  Share.Hash ->
-  Share.Entity Text Share.Hash Share.HashJWT ->
+  Hash32 ->
+  Share.Entity Text Hash32 Share.HashJWT ->
   NESet Share.HashJWT ->
   Sqlite.Transaction ()
 insertTempEntity hash entity missingDependencies =
   Q.insertTempEntity
-    (Share.toBase32Hex hash)
-    (entityToTempEntity (Share.toBase32Hex . Share.hashJWTHash) entity)
+    hash
+    (entityToTempEntity Share.hashJWTHash entity)
     ( NESet.map
         ( \hashJwt ->
             let Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}} = Share.decodeHashJWT hashJwt
-             in (Share.toBase32Hex hash, Share.unHashJWT hashJwt)
+             in (hash, Share.unHashJWT hashJwt)
         )
         missingDependencies
     )

@@ -32,7 +32,7 @@ import qualified System.Console.Regions as Console.Regions
 import qualified Text.Megaparsec as P
 import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Operations as Ops
-import U.Util.Timing (unsafeTime)
+import U.Util.Timing (time, unsafeTime)
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
@@ -1783,6 +1783,7 @@ handlePushRemoteBranch ::
   SyncMode.SyncMode ->
   Action' m v ()
 handlePushRemoteBranch mayRepo path pushBehavior syncMode =
+ time "handlePushRemoteBranch"
   case mayRepo of
     Nothing ->
       runExceptT (resolveConfiguredUrl Push path) >>= \case
