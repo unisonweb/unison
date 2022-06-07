@@ -133,7 +133,9 @@ module U.Codebase.Sqlite.Queries
     garbageCollectWatchesWithoutObjects,
 
     -- * sync temp entities
+    EntityLocation,
     entityExists,
+    entityLocation,
     expectEntity,
     getMissingDependentsForTempEntity,
     getMissingDependencyJwtsForTempEntity,
@@ -1444,6 +1446,24 @@ ancestorSql =
   |]
 
 -- * share sync / temp entities
+
+-- | Where is an entity stored?
+data EntityLocation
+  = -- | `object` / `causal`
+    EntityInMainStorage
+  | -- | `temp_entity`
+    EntityInTempStorage
+
+-- | Where is an entity stored?
+entityLocation :: Hash32 -> Transaction (Maybe EntityLocation)
+entityLocation hash =
+  entityExists hash >>= \case
+    True -> pure (Just EntityInMainStorage)
+    False -> do
+      let sql = [here|SELECT EXISTS (SELECT FROM temp_entity WHERE hash = ?)|]
+      queryOneCol sql (Only hash) <&> \case
+        True -> Just EntityInTempStorage
+        False -> Nothing
 
 -- | Does this entity already exist in the database, i.e. in the `object` or `causal` table?
 entityExists :: Hash32 -> Transaction Bool
