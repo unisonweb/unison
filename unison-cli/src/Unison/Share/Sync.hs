@@ -27,12 +27,13 @@ where
 
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import qualified Control.Monad.Trans.Reader as Reader
-import qualified Data.Foldable as Foldable (find)
+import qualified Data.Foldable as Foldable (find, toList)
 import Data.List.NonEmpty (pattern (:|))
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.NonEmpty as NEMap
+import qualified Data.Map.Strict as Map
 import Data.Sequence.NonEmpty (NESeq ((:<||)))
 import qualified Data.Sequence.NonEmpty as NESeq (fromList, nonEmptySeq, (><|))
 import qualified Data.Set as Set
@@ -336,15 +337,15 @@ pull httpClient unisonShareUrl conn repoPath downloadCountCallback = do
     Right Nothing -> pure (Left (PullErrorNoHistoryAtPath repoPath))
     Right (Just hashJwt) -> do
       let hash = Share.hashJWTHash hashJwt
-      Sqlite.runTransaction conn (entityLocation hash) >>= \case
-        Just EntityInMainStorage -> pure ()
-        Just (EntityInTempStorage missingDependencies) -> doDownload missingDependencies
-        Nothing -> doDownload (NESet.singleton hashJwt)
+      Sqlite.runTransaction conn (Q.entityLocation hash) >>= \case
+        Just Q.EntityInMainStorage -> pure ()
+        Just Q.EntityInTempStorage -> doDownload hashJwt
+        Nothing -> doDownload hashJwt
       pure (Right (hash32ToCausalHash hash))
   where
-    doDownload :: NESet Share.HashJWT -> IO ()
-    doDownload hashes =
-      downloadEntities httpClient unisonShareUrl conn (Share.pathRepoName repoPath) hashes downloadCountCallback
+    doDownload :: Share.HashJWT -> IO ()
+    doDownload hashJwt =
+      downloadEntities httpClient unisonShareUrl conn (Share.pathRepoName repoPath) hashJwt downloadCountCallback
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
@@ -376,11 +377,11 @@ downloadEntities ::
   BaseUrl ->
   Sqlite.Connection ->
   Share.RepoName ->
-  NESet Share.HashJWT ->
+  Share.HashJWT ->
   (Int -> IO ()) ->
   IO ()
-downloadEntities httpClient unisonShareUrl conn repoName hashes_ downloadCountCallback =
-  loop 0 (NESet.map Share.decodeHashJWT hashes_)
+downloadEntities httpClient unisonShareUrl conn repoName hash0 downloadCountCallback =
+  loop 0 (NESet.singleton (Share.decodeHashJWT hash0))
   where
     loop :: Int -> NESet Share.DecodedHashJWT -> IO ()
     loop downloadCount hashes0 =
@@ -389,14 +390,29 @@ downloadEntities httpClient unisonShareUrl conn repoName hashes_ downloadCountCa
         let newDownloadCount = downloadCount + NEMap.size entities
         downloadCountCallback newDownloadCount
 
-        missingDependencies0 <-
+        -- For each HashJWT we just used to download an entity, set up a little mapping from the underlying hash back to
+        -- the JWT itself. This is necessary because when we upsert an entity, and it went into temp storage, we need to
+        -- know the JWT we used to download it (in order to elaborate it).
+        let hashToHashJwt :: Hash32 -> Share.HashJWT
+            hashToHashJwt =
+              \hash ->
+                case Map.lookup hash m of
+                  Nothing -> error ("bad map; missing expected " ++ show hash ++ " key")
+                  Just hashJwt -> hashJwt
+              where
+                m :: Map Hash32 Share.HashJWT
+                m =
+                  Map.fromList (map (\hashJwt -> (Share.hashJWTHash hashJwt, hashJwt)) (Foldable.toList hashes1))
+
+        hashesThatHaveMissingDependencies0 <-
           Sqlite.runTransaction conn do
             NEMap.toList entities & foldMapM \(hash, entity) ->
               upsertEntitySomewhere hash entity <&> \case
-                EntityInMainStorage -> Set.empty
-                EntityInTempStorage missingDependencies -> Set.map Share.decodeHashJWT (NESet.toSet missingDependencies)
+                Q.EntityInMainStorage -> Set.empty
+                Q.EntityInTempStorage -> Set.singleton (hashToHashJwt hash)
 
-        whenJust (NESet.nonEmptySet missingDependencies0) (loop newDownloadCount)
+        whenJust (NESet.nonEmptySet hashesThatHaveMissingDependencies0) \hashesThatHaveMissingDependencies ->
+          loop newDownloadCount (NESet.map Share.decodeHashJWT hashesThatHaveMissingDependencies)
 
     doDownload :: NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))
     doDownload hashes = do
@@ -458,23 +474,6 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadCountCallba
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
 
--- | Where is an entity stored?
-data EntityLocation
-  = -- | `object` / `causal`
-    EntityInMainStorage
-  | -- | `temp_entity`, evidenced by these missing dependencies.
-    EntityInTempStorage (NESet Share.HashJWT)
-
--- | Where is an entity stored?
-entityLocation :: Hash32 -> Sqlite.Transaction (Maybe EntityLocation)
-entityLocation hash =
-  Q.entityExists hash >>= \case
-    True -> pure (Just EntityInMainStorage)
-    False ->
-      Q.getMissingDependencyJwtsForTempEntity hash <&> \case
-        Nothing -> Nothing
-        Just missingDependencies -> Just (EntityInTempStorage (NESet.map Share.HashJWT missingDependencies))
-
 -- | "Elaborate" a set of hashes that we are considering downloading from Unison Share.
 --
 -- For each hash, we determine whether we already have that entity in main storage, temp storage, or nowhere:
@@ -495,25 +494,6 @@ elaborateHashes hashes = do
   result <- Q.elaborateHashesClient (coerce @[(Hash32, Share.HashJWT)] @[(Hash32, Text)] input)
   pure $ (NESet.nonEmptySet . Set.fromList) (coerce @[Text] @[Share.HashJWT] result)
 
-_elaborateHashes1 :: NESet Share.DecodedHashJWT -> Sqlite.Transaction (Maybe (NESet Share.HashJWT))
-_elaborateHashes1 =
-  let loop :: Set Share.DecodedHashJWT -> Set Share.HashJWT -> Set Share.HashJWT -> Sqlite.Transaction (Maybe (NESet Share.HashJWT))
-      loop hashes seen outputs = do
-        case Set.minView hashes of
-          Nothing -> pure (NESet.nonEmptySet outputs)
-          Just (Share.DecodedHashJWT (Share.HashJWTClaims {hash}) jwt, hashes') ->
-            let seen' = Set.insert jwt seen
-             in if Set.member jwt outputs || Set.member jwt seen
-                  then -- skip — if it's in outputs, it's already fully elaborated
-                    loop hashes' seen' outputs
-                  else
-                    entityLocation hash >>= \case
-                      Nothing -> loop hashes' seen' (Set.insert jwt outputs)
-                      Just (EntityInTempStorage missingDependencies) -> do
-                        loop (Set.union (Set.map Share.decodeHashJWT (NESet.toSet missingDependencies)) hashes') seen' outputs
-                      Just EntityInMainStorage -> loop hashes' seen' outputs
-   in \hashes -> loop (NESet.toSet hashes) Set.empty Set.empty
-
 -- | Upsert a downloaded entity "somewhere" -
 --
 --   1. Nowhere if we already had the entity (in main or temp storage).
@@ -522,9 +502,9 @@ _elaborateHashes1 =
 upsertEntitySomewhere ::
   Hash32 ->
   Share.Entity Text Hash32 Share.HashJWT ->
-  Sqlite.Transaction EntityLocation
+  Sqlite.Transaction Q.EntityLocation
 upsertEntitySomewhere hash entity =
-  entityLocation hash >>= \case
+  Q.entityLocation hash >>= \case
     Just location -> pure location
     Nothing -> do
       missingDependencies0 <-
@@ -534,10 +514,10 @@ upsertEntitySomewhere hash entity =
       case NESet.nonEmptySet missingDependencies0 of
         Nothing -> do
           insertEntity hash entity
-          pure EntityInMainStorage
+          pure Q.EntityInMainStorage
         Just missingDependencies -> do
           insertTempEntity hash entity missingDependencies
-          pure (EntityInTempStorage missingDependencies)
+          pure Q.EntityInTempStorage
 
 -- | Insert an entity that doesn't have any missing dependencies.
 insertEntity :: Hash32 -> Share.Entity Text Hash32 Share.HashJWT -> Sqlite.Transaction ()

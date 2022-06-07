@@ -133,7 +133,7 @@ module U.Codebase.Sqlite.Queries
     garbageCollectWatchesWithoutObjects,
 
     -- * sync temp entities
-    EntityLocation,
+    EntityLocation(..),
     entityExists,
     entityLocation,
     expectEntity,
@@ -1447,7 +1447,7 @@ ancestorSql =
 
 -- * share sync / temp entities
 
--- | Where is an entity stored?
+-- | Where an entity is stored.
 data EntityLocation
   = -- | `object` / `causal`
     EntityInMainStorage
@@ -1579,10 +1579,10 @@ elaborateHashesClient hashes = do
         WITH RECURSIVE elaborated_dependency (hash, hashJwt) AS (
           SELECT (hash, hashJwt) FROM unelaborated_dependency
           UNION
-          SELECT (dependency, dependencyJwt)
-          FROM temp_entity_missing_dependency
-            JOIN elaborated_dependency
-              ON temp_entity_missing_dependency.dependent = elaborated_dependency.hash
+          SELECT (temd.dependency, temd.dependencyJwt)
+          FROM temp_entity_missing_dependency temd
+            JOIN elaborated_dependency ed
+              ON temd.dependent = ed.hash
         )
         SELECT hashJwt FROM elaborated_dependency
         WHERE NOT EXISTS (
