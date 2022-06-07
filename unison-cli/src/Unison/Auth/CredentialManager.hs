@@ -1,10 +1,10 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
 module Unison.Auth.CredentialManager
-  ( saveTokens,
+  ( saveCredentials,
     CredentialManager,
     newCredentialManager,
-    getTokens,
+    getCredentials,
   )
 where
 
@@ -22,9 +22,9 @@ import qualified UnliftIO
 newtype CredentialManager = CredentialManager (UnliftIO.MVar Credentials)
 
 -- | Saves credentials to the active profile.
-saveTokens :: UnliftIO.MonadUnliftIO m => CredentialManager -> CodeserverId -> Tokens -> m ()
-saveTokens credManager aud tokens = do
-  void . modifyCredentials credManager $ setActiveTokens aud tokens
+saveCredentials :: UnliftIO.MonadUnliftIO m => CredentialManager -> CodeserverId -> CodeserverCredentials -> m ()
+saveCredentials credManager aud creds = do
+  void . modifyCredentials credManager $ setCodeserverCredentials aud creds
 
 -- | Atomically update the credential storage file, and update the in-memory cache.
 modifyCredentials :: UnliftIO.MonadUnliftIO m => CredentialManager -> (Credentials -> Credentials) -> m Credentials
@@ -33,10 +33,10 @@ modifyCredentials (CredentialManager credsVar) f = do
     newCreds <- atomicallyModifyCredentialsFile f
     pure (newCreds, newCreds)
 
-getTokens :: MonadIO m => CredentialManager -> CodeserverId -> m (Either CredentialFailure Tokens)
-getTokens (CredentialManager credsVar) aud = do
+getCredentials :: MonadIO m => CredentialManager -> CodeserverId -> m (Either CredentialFailure CodeserverCredentials)
+getCredentials (CredentialManager credsVar) aud = do
   creds <- UnliftIO.readMVar credsVar
-  pure $ getActiveTokens aud creds
+  pure $ getCodeserverCredentials aud creds
 
 newCredentialManager :: MonadIO m => m CredentialManager
 newCredentialManager = do

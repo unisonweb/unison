@@ -1,6 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Auth.OAuth (authenticateCodeserver) where
+module Unison.Auth.OAuth
+  ( authenticateCodeserver,
+  )
+where
 
 import qualified Crypto.Hash as Crypto
 import Crypto.Random (getRandomBytes)
@@ -17,8 +20,8 @@ import Network.URI
 import Network.Wai
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
-import Unison.Auth.CredentialManager (CredentialManager, saveTokens)
-import Unison.Auth.Discovery (discoveryForCodeserver)
+import Unison.Auth.CredentialManager (CredentialManager, saveCredentials)
+import Unison.Auth.Discovery (discoveryURIForCodeserver, fetchDiscoveryDoc)
 import Unison.Auth.Types
 import Unison.Codebase.Editor.HandleInput.LoopState (MonadCommand, respond)
 import qualified Unison.Codebase.Editor.Output as Output
@@ -50,7 +53,8 @@ authTransferServer callback req respond =
 authenticateCodeserver :: forall m n i v. (UnliftIO.MonadUnliftIO m, MonadCommand m n i v) => CredentialManager -> CodeserverURI -> m (Either CredentialFailure ())
 authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- liftIO HTTP.getGlobalManager
-  doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ discoveryForCodeserver httpClient codeserverURI
+  let discoveryURI = discoveryURIForCodeserver codeserverURI
+  doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ fetchDiscoveryDoc discoveryURI
   debugM Auth "Discovery Doc" doc
   authResultVar <- UnliftIO.newEmptyMVar @_ @(Either CredentialFailure Tokens)
   -- The redirect_uri depends on the port, so we need to spin up the server first, but
@@ -78,7 +82,8 @@ authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialF
     respond . Output.InitiateAuthFlow $ authorizationKickoff
     tokens <- throwCredFailure $ UnliftIO.readMVar authResultVar
     let codeserverId = codeserverIdFromCodeserverURI codeserverURI
-    saveTokens credsManager codeserverId tokens
+    let creds = codeserverCredentials discoveryURI tokens
+    saveCredentials credsManager codeserverId creds
   where
     throwCredFailure :: m (Either CredentialFailure a) -> m a
     throwCredFailure = throwEitherM

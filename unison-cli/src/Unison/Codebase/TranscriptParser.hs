@@ -33,10 +33,14 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (doesFileExist)
+import System.Environment (lookupEnv)
 import System.Exit (die)
 import qualified System.IO as IO
 import System.IO.Error (catchIOError)
 import qualified Text.Megaparsec as P
+import qualified Unison.Auth.CredentialManager as AuthN
+import qualified Unison.Auth.HTTPClient as AuthN
+import qualified Unison.Auth.Tokens as AuthN
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -70,6 +74,13 @@ import Prelude hiding (readFile, writeFile)
 -- | Render transcript errors at a width of 65 chars.
 terminalWidth :: Pretty.Width
 terminalWidth = 65
+
+-- | If provided, this access token will be used on all
+-- requests which use the Authenticated HTTP Client; i.e. all codeserver interactions.
+--
+-- It's useful in scripted contexts or when running transcripts against a codeserver.
+accessTokenEnvVarKey :: String
+accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
 
 type ExpectingError = Bool
 
@@ -219,6 +230,16 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
       ]
   root <- Codebase.getRootBranch codebase
   do
+    mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
+    credMan <- AuthN.newCredentialManager
+    let tokenProvider :: AuthN.TokenProvider
+        tokenProvider =
+          case mayShareAccessToken of
+            Nothing -> do
+              AuthN.newTokenProvider credMan
+            Just accessToken ->
+              \_codeserverID -> pure $ Right accessToken
+    authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
     pathRef <- newIORef initialPath
     rootBranchRef <- newIORef root
     numberedArgsRef <- newIORef []
@@ -424,9 +445,9 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
           writeIORef pathRef (view LoopState.currentPath state)
           let env =
                 LoopState.Env
-                  { LoopState.authHTTPClient = error "Error: No access to authorized requests from transcripts.",
+                  { LoopState.authHTTPClient = authenticatedHTTPClient,
                     LoopState.codebase = codebase,
-                    LoopState.credentialManager = error "Error: No access to credentials from transcripts."
+                    LoopState.credentialManager = credMan
                   }
           let free = LoopState.runAction env state $ HandleInput.loop
               rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))

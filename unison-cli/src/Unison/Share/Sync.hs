@@ -45,7 +45,7 @@ import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Util.Hash32 (Hash32)
 import qualified U.Util.Timing as Timing
-import Unison.Auth.HTTPClient (AuthorizedHttpClient)
+import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Auth.HTTPClient as Auth
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
@@ -68,7 +68,7 @@ data CheckAndSetPushError
 -- FIXME reword this
 checkAndSetPush ::
   -- | The HTTP client to use for Unison Share requests.
-  AuthorizedHttpClient ->
+  AuthenticatedHttpClient ->
   -- | The Unison Share URL.
   BaseUrl ->
   -- | SQLite connection, for reading entities to push.
@@ -133,7 +133,7 @@ data FastForwardPushError
 -- FIXME reword this
 fastForwardPush ::
   -- | The HTTP client to use for Unison Share requests.
-  AuthorizedHttpClient ->
+  AuthenticatedHttpClient ->
   -- | The Unison Share URL.
   BaseUrl ->
   -- | SQLite connection, for reading entities to push.
@@ -319,7 +319,7 @@ data PullError
 
 pull ::
   -- | The HTTP client to use for Unison Share requests.
-  AuthorizedHttpClient ->
+  AuthenticatedHttpClient ->
   -- | The Unison Share URL.
   BaseUrl ->
   -- | SQLite connection, for writing entities we pull.
@@ -357,7 +357,7 @@ data GetCausalHashByPathError
 -- | Get the causal hash of a path hosted on Unison Share.
 getCausalHashByPath ::
   -- | The HTTP client to use for Unison Share requests.
-  AuthorizedHttpClient ->
+  AuthenticatedHttpClient ->
   -- | The Unison Share URL.
   BaseUrl ->
   Share.Path ->
@@ -372,7 +372,7 @@ getCausalHashByPath httpClient unisonShareUrl repoPath =
 
 -- | Download a set of entities from Unison Share.
 downloadEntities ::
-  AuthorizedHttpClient ->
+  AuthenticatedHttpClient ->
   BaseUrl ->
   Sqlite.Connection ->
   Share.RepoName ->
@@ -416,7 +416,7 @@ downloadEntities httpClient unisonShareUrl conn repoName hashes_ downloadCountCa
 --
 -- Returns true on success, false on failure (because the user does not have write permission).
 uploadEntities ::
-  AuthorizedHttpClient ->
+  AuthenticatedHttpClient ->
   BaseUrl ->
   Sqlite.Connection ->
   Share.RepoName ->
@@ -567,11 +567,11 @@ insertTempEntity hash entity missingDependencies =
 ------------------------------------------------------------------------------------------------------------------------
 -- HTTP calls
 
-httpGetCausalHashByPath :: Auth.AuthorizedHttpClient -> BaseUrl -> Share.GetCausalHashByPathRequest -> IO Share.GetCausalHashByPathResponse
-httpFastForwardPath :: Auth.AuthorizedHttpClient -> BaseUrl -> Share.FastForwardPathRequest -> IO Share.FastForwardPathResponse
-httpUpdatePath :: Auth.AuthorizedHttpClient -> BaseUrl -> Share.UpdatePathRequest -> IO Share.UpdatePathResponse
-httpDownloadEntities :: Auth.AuthorizedHttpClient -> BaseUrl -> Share.DownloadEntitiesRequest -> IO Share.DownloadEntitiesResponse
-httpUploadEntities :: Auth.AuthorizedHttpClient -> BaseUrl -> Share.UploadEntitiesRequest -> IO Share.UploadEntitiesResponse
+httpGetCausalHashByPath :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.GetCausalHashByPathRequest -> IO Share.GetCausalHashByPathResponse
+httpFastForwardPath :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.FastForwardPathRequest -> IO Share.FastForwardPathResponse
+httpUpdatePath :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.UpdatePathRequest -> IO Share.UpdatePathResponse
+httpDownloadEntities :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.DownloadEntitiesRequest -> IO Share.DownloadEntitiesResponse
+httpUploadEntities :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.UploadEntitiesRequest -> IO Share.UploadEntitiesResponse
 ( httpGetCausalHashByPath,
   httpFastForwardPath,
   httpUpdatePath,
@@ -598,9 +598,9 @@ httpUploadEntities :: Auth.AuthorizedHttpClient -> BaseUrl -> Share.UploadEntiti
 
       go ::
         (req -> ReaderT Servant.ClientEnv IO resp) ->
-        Auth.AuthorizedHttpClient ->
+        Auth.AuthenticatedHttpClient ->
         BaseUrl ->
         req ->
         IO resp
-      go f (Auth.AuthorizedHttpClient httpClient) unisonShareUrl req =
+      go f (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req =
         runReaderT (f req) (Servant.mkClientEnv httpClient unisonShareUrl)
