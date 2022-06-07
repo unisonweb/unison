@@ -133,7 +133,7 @@ module U.Codebase.Sqlite.Queries
     garbageCollectWatchesWithoutObjects,
 
     -- * sync temp entities
-    EntityLocation(..),
+    EntityLocation (..),
     entityExists,
     entityLocation,
     expectEntity,
@@ -1460,7 +1460,7 @@ entityLocation hash =
   entityExists hash >>= \case
     True -> pure (Just EntityInMainStorage)
     False -> do
-      let sql = [here|SELECT EXISTS (SELECT FROM temp_entity WHERE hash = ?)|]
+      let sql = [here|SELECT EXISTS (SELECT 1 FROM temp_entity WHERE hash = ?)|]
       queryOneCol sql (Only hash) <&> \case
         True -> Just EntityInTempStorage
         False -> Nothing
@@ -1577,16 +1577,16 @@ elaborateHashesClient hashes = do
     queryListCol_
       [here|
         WITH RECURSIVE elaborated_dependency (hash, hashJwt) AS (
-          SELECT (hash, hashJwt) FROM unelaborated_dependency
+          SELECT hash, hashJwt FROM unelaborated_dependency
           UNION
-          SELECT (temd.dependency, temd.dependencyJwt)
+          SELECT temd.dependency, temd.dependencyJwt
           FROM temp_entity_missing_dependency temd
             JOIN elaborated_dependency ed
               ON temd.dependent = ed.hash
         )
         SELECT hashJwt FROM elaborated_dependency
         WHERE NOT EXISTS (
-          SELECT FROM temp_entity
+          SELECT 1 FROM temp_entity
           WHERE temp_entity.hash = elaborated_depdenency.hash
         )
       |]
