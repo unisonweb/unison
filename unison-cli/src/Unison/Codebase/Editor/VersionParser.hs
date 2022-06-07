@@ -19,7 +19,7 @@ defaultBaseLib :: Parsec Void Text ReadRemoteNamespace
 defaultBaseLib = fmap makeNS $ latest <|> release
   where
     latest, release, version :: Parsec Void Text Text
-    latest = "latest-" *> many anyChar *> eof $> "trunk"
+    latest = "latest-" *> many anySingle *> eof $> "trunk"
     release = fmap ("releases._" <>) $ "release/" *> version <* eof
     version = do
       Text.pack <$> some (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))
