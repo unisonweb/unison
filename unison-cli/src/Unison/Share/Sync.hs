@@ -21,6 +21,7 @@ module Unison.Share.Sync
     uploadEntities,
 
     -- ** Download entities
+    downloadAndUpsertSomewhere,
     downloadEntities,
   )
 where
@@ -347,6 +348,39 @@ pull httpClient unisonShareUrl conn repoPath downloadCountCallback = do
     doDownload hashJwt =
       downloadEntities httpClient unisonShareUrl conn (Share.pathRepoName repoPath) hashJwt downloadCountCallback
 
+pull' ::
+  -- | The HTTP client to use for Unison Share requests.
+  AuthenticatedHttpClient ->
+  -- | The Unison Share URL.
+  BaseUrl ->
+  -- | SQLite connection, for writing entities we pull.
+  Sqlite.Connection ->
+  -- | The repo+path to pull from.
+  Share.Path ->
+  -- | Callback that is given the total number of entities downloaded.
+  (Int -> IO ()) ->
+  IO (Either PullError CausalHash)
+pull' httpClient unisonShareUrl conn repoPath@(Share.pathRepoName -> repoName) downloadCountCallback = do
+  getCausalHashByPath httpClient unisonShareUrl repoPath >>= \case
+    Left err -> pure (Left (PullErrorGetCausalHashByPath err))
+    -- There's nothing at the remote path, so there's no causal to pull.
+    Right Nothing -> pure (Left (PullErrorNoHistoryAtPath repoPath))
+    Right (Just hashJwt) -> do
+      newTempEntities <- downloadAndUpsertSomewhere doDownload conn (NESet.singleton hashJwt)
+      whenJust (NESet.nonEmptySet newTempEntities) \newTempEntities ->
+        downloadMissingDependenciesOf httpClient unisonShareUrl conn (Share.pathRepoName repoPath) newTempEntities 1 downloadCountCallback
+      (pure . Right . hash32ToCausalHash . Share.hashJWTHash) hashJwt
+  where
+    doDownload :: NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))
+    doDownload hashes = do
+      -- we feel okay ignoring the "no read permission" case because it should have been triggered by getCausalHashByPath
+      Share.DownloadEntitiesSuccess entities <-
+        httpDownloadEntities
+          httpClient
+          unisonShareUrl
+          Share.DownloadEntitiesRequest {repoName, hashes}
+      pure entities
+
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
 
@@ -423,6 +457,50 @@ downloadEntities httpClient unisonShareUrl conn repoName hash0 downloadCountCall
           Share.DownloadEntitiesRequest {repoName, hashes}
       pure entities
 
+-- | download some entities and file them into the appropriate tables.
+-- returns the list of incomplete/temp entities
+downloadAndUpsertSomewhere :: (NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))) -> Sqlite.Connection -> NESet Share.HashJWT -> IO (Set Hash32)
+downloadAndUpsertSomewhere doDownload conn hashes = do
+  entities <- doDownload hashes
+  NEMap.toList entities & foldMapM \(hash, entity) ->
+    Sqlite.runTransaction conn (upsertEntitySomewhere hash entity) <&> \case
+      Q.EntityInMainStorage -> Set.empty
+      Q.EntityInTempStorage -> Set.singleton hash
+
+downloadMissingDependenciesOf ::
+  AuthenticatedHttpClient ->
+  BaseUrl ->
+  Sqlite.Connection ->
+  Share.RepoName ->
+  NESet Hash32 ->
+  Int ->
+  (Int -> IO ()) ->
+  IO ()
+downloadMissingDependenciesOf httpClient unisonShareUrl conn repoName hashes0 initialCount downloadCountCallback = do
+  elaborateAndLoop initialCount hashes0
+  where
+    loop :: Int -> NESet Share.HashJWT -> IO ()
+    loop downloadCount hashes = do
+      let newDownloadCount = downloadCount + NESet.size hashes
+      downloadCountCallback newDownloadCount
+      whenJustM (downloadAndUpsertSomewhere doDownload conn hashes <&> NESet.nonEmptySet) \newTempEntityHashes ->
+        elaborateAndLoop newDownloadCount newTempEntityHashes
+
+    elaborateAndLoop :: Int -> NESet Hash32 -> IO ()
+    elaborateAndLoop downloadCount hashes =
+      whenJustM (Sqlite.runTransaction conn (elaborateHashes' hashes)) \dependencyJwts ->
+        loop downloadCount dependencyJwts
+
+    doDownload :: NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))
+    doDownload hashes = do
+      -- we feel okay ignoring the "no read permission" case because it should have been triggered by getCausalHashByPath
+      Share.DownloadEntitiesSuccess entities <-
+        httpDownloadEntities
+          httpClient
+          unisonShareUrl
+          Share.DownloadEntitiesRequest {repoName, hashes}
+      pure entities
+
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
 
@@ -492,6 +570,12 @@ elaborateHashes hashes = do
           <&> \(Share.DecodedHashJWT (Share.HashJWTClaims {hash}) jwt) ->
             (hash, jwt)
   result <- Q.elaborateHashesClient (coerce @[(Hash32, Share.HashJWT)] @[(Hash32, Text)] input)
+  pure $ (NESet.nonEmptySet . Set.fromList) (coerce @[Text] @[Share.HashJWT] result)
+
+-- | elaborate hashes of temp entities
+elaborateHashes' :: NESet Hash32 -> Sqlite.Transaction (Maybe (NESet Share.HashJWT))
+elaborateHashes' hashes = do
+  result <- Q.elaborateHashesClient' (toList hashes)
   pure $ (NESet.nonEmptySet . Set.fromList) (coerce @[Text] @[Share.HashJWT] result)
 
 -- | Upsert a downloaded entity "somewhere" -

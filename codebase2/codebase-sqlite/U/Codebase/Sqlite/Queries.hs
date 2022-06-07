@@ -146,6 +146,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * elaborate hashes
     elaborateHashesClient,
+    elaborateHashesClient',
     elaborateHashesServer,
 
     -- * db misc
@@ -1591,4 +1592,42 @@ elaborateHashesClient hashes = do
         )
       |]
   execute_ [here|DROP TABLE unelaborated_dependency|]
+  pure result
+
+-- | looks up hashJwts for known transitive dependencies of temp_entities
+elaborateHashesClient' :: [Hash32] -> Transaction [Text]
+elaborateHashesClient' hashes = do
+  execute_
+    [here|
+      CREATE TABLE new_temp_entity_dependents (hash text)
+    |]
+  executeMany
+    [here|
+      INSERT INTO new_temp_entity_dependents
+        (hash)
+      VALUES (?)
+    |]
+    (map Only hashes)
+  result <-
+    queryListCol_
+      [here|
+        WITH RECURSIVE elaborated_dependency (hash, hashJwt) AS (
+          SELECT dependency, dependencyJwt
+          FROM new_temp_entity_dependents AS new
+            JOIN temp_entity_missing_dependency
+              ON new_temp_entity_dependents.dependent = new.hash
+
+          UNION
+          SELECT temd.dependency, temd.dependencyJwt
+          FROM temp_entity_missing_dependency temd
+            JOIN elaborated_dependency ed
+              ON temd.dependent = ed.hash
+        )
+        SELECT hashJwt FROM elaborated_dependency
+        WHERE NOT EXISTS (
+          SELECT FROM temp_entity
+          WHERE temp_entity.hash = elaborated_depdenency.hash
+        )
+      |]
+  execute_ [here|DROP TABLE new_temp_entity_dependents|]
   pure result
