@@ -51,6 +51,7 @@ library
       Unison.Codebase.Editor.UriParser
       Unison.Codebase.Editor.VersionParser
       Unison.Codebase.TranscriptParser
+      Unison.Codeserver.Discovery
       Unison.CommandLine
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect
