@@ -12,7 +12,7 @@ import Data.Configurator ()
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Unison.Auth.CredentialManager (CredentialManager)
-import Unison.Auth.HTTPClient (AuthorizedHttpClient)
+import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch
   ( Branch (..),
@@ -30,7 +30,7 @@ import qualified Unison.Util.Free as Free
 type F m i v = Free (Command m i v)
 
 data Env m v = Env
-  { authHTTPClient :: AuthorizedHttpClient,
+  { authHTTPClient :: AuthenticatedHttpClient,
     codebase :: Codebase m v Ann,
     credentialManager :: CredentialManager
   }
