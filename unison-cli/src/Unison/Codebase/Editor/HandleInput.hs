@@ -1872,7 +1872,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
   -- doesn't handle the case where a non-existent path is supplied
   Sqlite.runTransaction connection (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath)))
     >>= \case
-      Nothing -> respond (error "you are bad")
+      Nothing -> respond (BranchNotFound . Path.absoluteToPath' $ localPath)
       Just localCausalHash ->
         case behavior of
           PushBehavior.RequireEmpty -> do
