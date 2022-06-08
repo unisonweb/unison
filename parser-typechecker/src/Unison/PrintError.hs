@@ -1410,11 +1410,9 @@ prettyParseError s = \case
               Code
               " + 1",
           "\n  - An `ability` declaration, like "
-            <> style Code "ability Foo where ...",
+            <> style Code "unique ability Foo where ...",
           "\n  - A `type` declaration, like "
             <> style Code "structural type Optional a = None | Some a",
-          "\n  - A `namespace` declaration, like "
-            <> style Code "namespace Seq where ...",
           "\n"
         ]
       where
