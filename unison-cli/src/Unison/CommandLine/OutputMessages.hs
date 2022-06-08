@@ -77,6 +77,7 @@ import Unison.Codebase.SqliteCodebase.GitError
 import qualified Unison.Codebase.TermEdit as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
+import Unison.CodebaseServer.Discovery (CodeserverError (InvalidCodeserverDescription))
 import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.InputPatterns (makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
@@ -146,7 +147,6 @@ import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import Unison.CodebaseServer.Discovery (CodeserverError(InvalidCodeserverDescription))
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1661,11 +1661,11 @@ notifyUser dir o = case o of
   CodeserverError err ->
     case err of
       (InvalidCodeserverDescription codeserverURI msg) ->
-        pure . P.lines $ [
-          P.fatalCallout . P.wrap . P.text $ "I couldn't figure out how to interact with the codeserver at" <> tShow codeserverURI <> ", are you sure it's a valid codeserver location?",
-          "",
-          "The error was:" <> P.text msg
-                         ]
+        pure . P.lines $
+          [ P.fatalCallout . P.wrap $ "I couldn't figure out how to interact with the codeserver at" <> P.shown codeserverURI <> ", are you sure it's a valid codeserver location?",
+            "",
+            P.hang "The error was:" (P.text msg)
+          ]
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedNonEmptyPushDest writeRemotePath =
