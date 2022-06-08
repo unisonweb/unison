@@ -146,7 +146,6 @@ module U.Codebase.Sqlite.Queries
 
     -- * elaborate hashes
     elaborateHashesClient,
-    elaborateHashesClient',
     elaborateHashesServer,
 
     -- * db misc
@@ -1557,43 +1556,6 @@ elaborateHashesServer hashes = do
   execute_ [here|DROP TABLE unelaborated_dependency|]
   pure result
 
--- | where Text = HashJWT
-elaborateHashesClient :: [(Hash32, Text)] -> Transaction [Text]
-elaborateHashesClient hashes = do
-  execute_
-    [here|
-      CREATE TABLE unelaborated_dependency (
-        hash text,
-        hashJwt text
-      )
-    |]
-  executeMany
-    [here|
-      INSERT INTO unelaborated_dependency
-        (hash, hashJwt)
-      VALUES (?,?)
-    |]
-    hashes
-  result <-
-    queryListCol_
-      [here|
-        WITH RECURSIVE elaborated_dependency (hash, hashJwt) AS (
-          SELECT hash, hashJwt FROM unelaborated_dependency
-          UNION
-          SELECT temd.dependency, temd.dependencyJwt
-          FROM temp_entity_missing_dependency temd
-            JOIN elaborated_dependency ed
-              ON temd.dependent = ed.hash
-        )
-        SELECT hashJwt FROM elaborated_dependency
-        WHERE NOT EXISTS (
-          SELECT 1 FROM temp_entity
-          WHERE temp_entity.hash = elaborated_depdenency.hash
-        )
-      |]
-  execute_ [here|DROP TABLE unelaborated_dependency|]
-  pure result
-
 data EmptyTempEntityMissingDependencies
   = EmptyTempEntityMissingDependencies
   deriving stock (Show)
@@ -1615,8 +1577,8 @@ data EmptyTempEntityMissingDependencies
 --
 -- ... then `elaborateHashes {A}` would return the singleton set {C} (because we take the set of transitive
 -- dependencies {A,B,C} and subtract the set we already have, {A,B}).
-elaborateHashesClient' :: Nel.NonEmpty Hash32 -> Transaction (Nel.NonEmpty Text)
-elaborateHashesClient' hashes = do
+elaborateHashesClient :: Nel.NonEmpty Hash32 -> Transaction (Nel.NonEmpty Text)
+elaborateHashesClient hashes = do
   execute_
     [here|
       CREATE TABLE new_temp_entity_dependents (hash text)

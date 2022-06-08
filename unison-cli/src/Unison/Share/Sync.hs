@@ -369,6 +369,22 @@ makeDoDownload httpClient unisonShareUrl repoName downloadCountCallback = do
     downloadCountCallback newDownloadCount
     pure entities
 
+-- | Finish downloading entities from Unison Share
+--
+-- Precondition: the entities were *already* downloaded at some point in the past, and are now sitting in the
+-- `temp_entity` table, waiting for their dependencies to arrive so they can be flushed to main storage.
+completeTempEntities ::
+  (NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))) ->
+  Sqlite.Connection ->
+  NESet Hash32 ->
+  IO ()
+completeTempEntities doDownload conn =
+  let loop :: NESet Hash32 -> IO ()
+      loop tempEntityHashes = do
+        hashJwtsToDownload <- Sqlite.runTransaction conn (elaborateHashes tempEntityHashes)
+        whenJustM (downloadEntities doDownload conn hashJwtsToDownload) loop
+   in loop
+
 -- | Download a set of entities from Unison Share. Returns the subset of those entities that we stored in temp storage
 -- (`temp_entitiy`) instead of main storage (`object` / `causal`) due to missing dependencies.
 downloadEntities ::
@@ -383,22 +399,6 @@ downloadEntities doDownload conn hashes = do
       Sqlite.runTransaction conn (upsertEntitySomewhere hash entity) <&> \case
         Q.EntityInMainStorage -> Set.empty
         Q.EntityInTempStorage -> Set.singleton hash
-
--- | Finish downloading entities from Unison Share
---
--- Precondition: the entities were *already* downloaded at some point in the past, and are now sitting in the
--- `temp_entity` table, waiting for their dependencies to arrive so they can be flushed to main storage.
-completeTempEntities ::
-  (NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))) ->
-  Sqlite.Connection ->
-  NESet Hash32 ->
-  IO ()
-completeTempEntities doDownload conn =
-  let loop :: NESet Hash32 -> IO ()
-      loop tempEntityHashes = do
-        hashJwtsToDownload <- Sqlite.runTransaction conn (elaborateHashes' tempEntityHashes)
-        whenJustM (downloadEntities doDownload conn hashJwtsToDownload) loop
-   in loop
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
@@ -455,7 +455,7 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadCountCallba
       entities <- Sqlite.runTransaction conn (traverse expectEntity hashesList)
 
       let uploadEntities :: IO Share.UploadEntitiesResponse
-          uploadEntities = Timing.time ("uploadEntities with " <> show (NESet.size hashesSet) <> " hashes.") do
+          uploadEntities = do -- Timing.time ("uploadEntities with " <> show (NESet.size hashesSet) <> " hashes.") do
             httpUploadEntities
               httpClient
               unisonShareUrl
@@ -492,9 +492,9 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadCountCallba
 -- 3. If it's in main storage, we should ignore it.
 --
 -- In the end, we return a set of hashes that correspond to entities we actually need to download.
-elaborateHashes' :: NESet Hash32 -> Sqlite.Transaction (NESet Share.HashJWT)
-elaborateHashes' hashes =
-  Q.elaborateHashesClient' (NESet.toList hashes)
+elaborateHashes :: NESet Hash32 -> Sqlite.Transaction (NESet Share.HashJWT)
+elaborateHashes hashes =
+  Q.elaborateHashesClient (NESet.toList hashes)
     <&> NESet.fromList . coerce @(List.NonEmpty Text) @(List.NonEmpty Share.HashJWT)
 
 -- | Upsert a downloaded entity "somewhere" -
