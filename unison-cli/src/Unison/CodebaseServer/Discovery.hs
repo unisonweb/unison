@@ -4,10 +4,12 @@ module Unison.CodebaseServer.Discovery where
 
 import Control.Monad.Except
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
+import Network.HTTP.Types (parseQuery)
 import Network.URI
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
@@ -29,14 +31,22 @@ fetchCodeServerDescription cdu = liftIO $ do
       httpClient <- HTTP.getGlobalManager
       let uri =
             codeserverToURI cdu
-              & \uri -> uri {uriPath = uriPath uri <> "/.codeserver"}
-      req <- HTTP.requestFromURI uri
+              & \uri ->
+                uri {uriPath = uriPath uri <> "/.codeserver"}
+      req <-
+        HTTP.requestFromURI uri
+          <&> ( HTTP.setQueryString $
+                  parseQuery (BSC.pack $ uriQuery uri) <> [("client_version", Just (BSC.pack $ show requestedCodeserverVersion))]
+              )
       resp <- HTTP.httpLbs req httpClient
       case Aeson.eitherDecode (HTTP.responseBody $ resp) of
         Left err -> pure . Left $ InvalidCodeserverDescription cdu (Text.pack err)
         Right doc -> do
           atomically $ modifyTVar codeserverCache (Map.insert cdu doc)
           pure . Right $ doc
+  where
+    requestedCodeserverVersion :: ByteString
+    requestedCodeserverVersion = "1"
 
 -- | Ephemeral in memory cache for codeserver descriptions.
 codeserverCache :: TVar (Map CodeserverURI CodeserverDescription)
@@ -70,5 +80,3 @@ resolveCodeserver cs = runExceptT $ do
   codeserverDescription <- ExceptT (fetchCodeServerDescription codeserverRoot)
   let codeserverId = codeserverIdFromCodeserverURI codeserverRoot
   pure (Codeserver {codeserverDescription, codeserverProvenance, codeserverId, codeserverRoot})
-
--- (codeserverIdFromCodeserverURI uri,) <$>
