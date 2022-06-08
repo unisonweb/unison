@@ -150,7 +150,7 @@ newtype CodeserverVersion = CodeserverVersion Int
 data CodeserverDescription = CodeserverDescription
   { syncAPIRoot :: Servant.BaseUrl,
     openIDConnectDiscoveryLocation :: URI,
-    codeserverVersion :: Int
+    codeserverVersion :: CodeserverVersion
   }
   deriving stock (Show, Eq, Ord)
 
