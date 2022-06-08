@@ -1594,8 +1594,28 @@ elaborateHashesClient hashes = do
   execute_ [here|DROP TABLE unelaborated_dependency|]
   pure result
 
--- | looks up hashJwts for known transitive dependencies of temp_entities
-elaborateHashesClient' :: [Hash32] -> Transaction [Text]
+data EmptyTempEntityMissingDependencies
+  = EmptyTempEntityMissingDependencies
+  deriving stock (Show)
+  deriving anyclass (SqliteExceptionReason)
+
+-- | "Elaborate" a set of `temp_entity` hashes.
+--
+-- Given a set of `temp_entity` hashes, returns the (known) set of transitive dependencies that haven't already been
+-- downloaded (i.e. aren't in the `temp_entity` table)
+--
+-- For example, if we have temp entities A and B, where A depends on B and B depends on C...
+--
+--   | temp_entity |   | temp_entity_missing_dependency |
+--   |=============|   |================================|
+--   | hash        |   | dependent    | dependency      |
+--   |-------------|   |--------------|-----------------|
+--   | A           |   | A            | B               |
+--   | B           |   | B            | C               |
+--
+-- ... then `elaborateHashes {A}` would return the singleton set {C} (because we take the set of transitive
+-- dependencies {A,B,C} and subtract the set we already have, {A,B}).
+elaborateHashesClient' :: Nel.NonEmpty Hash32 -> Transaction (Nel.NonEmpty Text)
 elaborateHashesClient' hashes = do
   execute_
     [here|
@@ -1607,9 +1627,9 @@ elaborateHashesClient' hashes = do
         (hash)
       VALUES (?)
     |]
-    (map Only hashes)
+    (map Only (Nel.toList hashes))
   result <-
-    queryListCol_
+    queryListColCheck_
       [here|
         WITH RECURSIVE elaborated_dependency (hash, hashJwt) AS (
           SELECT dependency, dependencyJwt
@@ -1629,5 +1649,9 @@ elaborateHashesClient' hashes = do
           WHERE temp_entity.hash = elaborated_depdenency.hash
         )
       |]
+      ( \case
+          [] -> Left EmptyTempEntityMissingDependencies
+          x : xs -> Right (x Nel.:| xs)
+      )
   execute_ [here|DROP TABLE new_temp_entity_dependents|]
   pure result

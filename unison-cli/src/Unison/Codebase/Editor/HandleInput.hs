@@ -2313,7 +2313,7 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
     let pull :: IO (Either Share.PullError CausalHash)
         pull =
           withEntitiesDownloadedProgressCallback \entitiesDownloadedProgressCallback ->
-            Share.pull'
+            Share.pull
               authHTTPClient
               baseURL
               connection
