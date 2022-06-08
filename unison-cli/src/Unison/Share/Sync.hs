@@ -41,6 +41,7 @@ import qualified Data.Sequence.NonEmpty as NESeq (fromList, nonEmptySeq, (><|))
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
+import Data.These (These (..))
 import qualified Servant.API as Servant ((:<|>) (..))
 import Servant.Client (BaseUrl)
 import qualified Servant.Client as Servant (ClientEnv, ClientM, client, hoistClient, mkClientEnv, runClientM)
@@ -521,33 +522,46 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadCountCallba
   loop 0 hashes0
   where
     loop :: Int -> NESet Hash32 -> IO Bool
-    loop uploadCount hashesSet = do
-      let hashes = NESet.toAscList hashesSet
+    loop uploadCount allHashesSet = do
+      -- Each request only contains a certain maximum number of entities; split the set of hashes we need to upload into
+      -- those we will upload right now, and those we will begin uploading
+      let (hashesSet, nextHashes) =
+            case NESet.splitAt 500 allHashesSet of
+              This hs1 -> (hs1, Set.empty)
+              That hs2 -> (hs2, Set.empty) -- impossible, this only happens if we split at 0
+              These hs1 hs2 -> (hs1, NESet.toSet hs2)
+
+      let hashesList = NESet.toAscList hashesSet
       -- Get each entity that the server is missing out of the database.
-      entities <- Sqlite.runTransaction conn (traverse expectEntity hashes)
+      entities <- Sqlite.runTransaction conn (traverse expectEntity hashesList)
 
       let uploadEntities :: IO Share.UploadEntitiesResponse
-          uploadEntities = Timing.time ("uploadEntities with " <> show (length hashes) <> " hashes.") do
+          uploadEntities = Timing.time ("uploadEntities with " <> show (NESet.size hashesSet) <> " hashes.") do
             httpUploadEntities
               httpClient
               unisonShareUrl
               Share.UploadEntitiesRequest
-                { entities = NEMap.fromAscList (List.NonEmpty.zip hashes entities),
+                { entities = NEMap.fromAscList (List.NonEmpty.zip hashesList entities),
                   repoName
                 }
 
-      -- Upload all of the entities we know the server needs, and if the server responds that it needs yet more, loop to
-      -- upload those too.
+      -- The new upload count *if* we make a successful upload.
+      let newUploadCount = uploadCount + NESet.size hashesSet
+
       uploadEntities >>= \case
         Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> do
-          let newUploadCount = uploadCount + NESet.size hashesSet
           uploadCountCallback newUploadCount
-          loop newUploadCount moreHashes
+          loop newUploadCount $
+            case NESet.nonEmptySet nextHashes of
+              Nothing -> moreHashes
+              Just nextHashes1 -> NESet.union moreHashes nextHashes1
         Share.UploadEntitiesNoWritePermission _ -> pure False
         Share.UploadEntitiesHashMismatchForEntity {} -> pure False
         Share.UploadEntitiesSuccess -> do
-          uploadCountCallback (uploadCount + NESet.size hashesSet)
-          pure True
+          uploadCountCallback newUploadCount
+          case NESet.nonEmptySet nextHashes of
+            Nothing -> pure True
+            Just nextHashes1 -> loop newUploadCount nextHashes1
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
