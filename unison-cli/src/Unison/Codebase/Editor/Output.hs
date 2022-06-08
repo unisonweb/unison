@@ -59,6 +59,7 @@ import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResult' (SearchResult')
 import qualified Unison.Share.Sync as Sync
+import Unison.Share.Types (Codeserver)
 import Unison.ShortHash (ShortHash)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -93,7 +94,7 @@ data NumberedOutput v
   | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterCreatePR (ReadRemoteNamespace CodeserverLocation) (ReadRemoteNamespace CodeserverLocation) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
@@ -129,7 +130,7 @@ data Output v
     BadMainFunction String (Type v Ann) PPE.PrettyPrintEnv [Type v Ann]
   | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
-  | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
+  | LoadPullRequest (ReadRemoteNamespace CodeserverLocation) (ReadRemoteNamespace CodeserverLocation) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | PatchAlreadyExists Path.Split'
@@ -223,8 +224,8 @@ data Output v
   | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)
   | StartOfCurrentPathHistory
   | ShowReflog [ReflogEntry]
-  | PullAlreadyUpToDate ReadRemoteNamespace Path'
-  | PullSuccessful ReadRemoteNamespace Path'
+  | PullAlreadyUpToDate (ReadRemoteNamespace Codeserver) Path'
+  | PullSuccessful (ReadRemoteNamespace Codeserver) Path'
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
     MergeOverEmpty Path'
   | MergeAlreadyUpToDate Path' Path'
@@ -251,9 +252,9 @@ data Output v
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-    RefusedToPush PushBehavior WriteRemotePath
+    RefusedToPush PushBehavior (WriteRemotePath Codeserver)
   | -- | @GistCreated repo@ means a causal was just published to @repo@.
-    GistCreated ReadRemoteNamespace
+    GistCreated (ReadRemoteNamespace CodeserverLocation)
   | -- | Directs the user to URI to begin an authorization flow.
     InitiateAuthFlow URI
   | UnknownCodeServer Text

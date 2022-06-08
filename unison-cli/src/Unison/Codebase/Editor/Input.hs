@@ -80,10 +80,10 @@ data Input
     MergeLocalBranchI Path' Path' Branch.MergeMode
   | PreviewMergeLocalBranchI Path' Path'
   | DiffNamespaceI BranchId BranchId -- old new
-  | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode PullMode Verbosity
-  | PushRemoteBranchI (Maybe WriteRemotePath) Path' PushBehavior SyncMode
-  | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
-  | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
+  | PullRemoteBranchI (Maybe (ReadRemoteNamespace CodeserverLocation)) Path' SyncMode PullMode Verbosity
+  | PushRemoteBranchI (Maybe (WriteRemotePath CodeserverLocation)) Path' PushBehavior SyncMode
+  | CreatePullRequestI (ReadRemoteNamespace CodeserverLocation) (ReadRemoteNamespace CodeserverLocation)
+  | LoadPullRequestI (ReadRemoteNamespace CodeserverLocation) (ReadRemoteNamespace CodeserverLocation) Path'
   | ResetRootI (Either ShortBranchHash Path')
   | -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?

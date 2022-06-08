@@ -21,7 +21,7 @@ import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Input (Input)
 import qualified Unison.Codebase.Editor.Input as Input
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemotePath)
+import Unison.Codebase.Editor.RemoteRepo (CodeserverLocation, ReadRemoteNamespace, WriteGitRepo, WriteRemotePath)
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.Path as Path
@@ -1236,7 +1236,7 @@ loadPullRequest =
         _ -> Left (I.help loadPullRequest)
     )
 
-parseReadRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
+parseReadRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) (ReadRemoteNamespace CodeserverLocation)
 parseReadRemoteNamespace label input =
   let printError err = P.lines [P.string "I couldn't parse the repository address given above.", prettyPrintParseError input err]
    in first printError (P.parse UriParser.repoPath label (Text.pack input))
@@ -1280,7 +1280,7 @@ parseWriteGitRepo label input = do
     (fromString . show) -- turn any parsing errors into a Pretty.
     (P.parse UriParser.writeGitRepo label (Text.pack input))
 
-parseWriteRemotePath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
+parseWriteRemotePath :: String -> String -> Either (P.Pretty P.ColorText) (WriteRemotePath CodeserverLocation)
 parseWriteRemotePath label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.

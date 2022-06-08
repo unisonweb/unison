@@ -16,11 +16,11 @@ import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char as P
 import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRemoteNamespace (..),
+  ( CodeserverLocation (DefaultShare),
+    ReadGitRemoteNamespace (..),
     ReadGitRepo (..),
     ReadRemoteNamespace (..),
     ReadShareRemoteNamespace (..),
-    ShareCodeserver (DefaultCodeserver),
     WriteGitRemotePath (..),
     WriteGitRepo (..),
     WriteRemotePath (..),
@@ -55,7 +55,7 @@ type P = P.Parsec Void Text.Text
 
 -- $ git clone [user@]server:project.git[:treeish][:[#hash][.path]]
 
-repoPath :: P ReadRemoteNamespace
+repoPath :: P (ReadRemoteNamespace CodeserverLocation)
 repoPath =
   P.label "generic repo" $
     fmap ReadRemoteNamespaceGit readGitRemoteNamespace
@@ -65,18 +65,18 @@ repoPath =
 -- >>> P.parseMaybe writeRemotePath "git(git@github.com:unisonweb/base:v3)._releases.M3"
 -- Just (WriteRemotePathShare (WriteShareRemotePath {server = ShareRepo, repo = "unisonweb", path = base._releases.M4}))
 -- Just (WriteRemotePathGit (WriteGitRemotePath {repo = WriteGitRepo {url = "git@github.com:unisonweb/base", branch = Just "v3"}, path = _releases.M3}))
-writeRemotePath :: P WriteRemotePath
+writeRemotePath :: P (WriteRemotePath CodeserverLocation)
 writeRemotePath =
   (fmap WriteRemotePathGit writeGitRemotePath)
     <|> fmap WriteRemotePathShare writeShareRemotePath
 
 -- >>> P.parseMaybe writeShareRemotePath "unisonweb.base._releases.M4"
 -- Just (WriteShareRemotePath {server = ShareRepo, repo = "unisonweb", path = base._releases.M4})
-writeShareRemotePath :: P WriteShareRemotePath
+writeShareRemotePath :: P (WriteShareRemotePath CodeserverLocation)
 writeShareRemotePath =
   P.label "write share remote path" $
     WriteShareRemotePath
-      <$> pure DefaultCodeserver
+      <$> pure DefaultShare
       <*> (NameSegment.toText <$> nameSegment)
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
 
@@ -84,11 +84,11 @@ writeShareRemotePath =
 -- >>> P.parseMaybe readShareRemoteNamespace "unisonweb.base._releases.M4"
 -- Nothing
 -- Just (ReadShareRemoteNamespace {server = ShareRepo, repo = "unisonweb", path = base._releases.M4})
-readShareRemoteNamespace :: P ReadShareRemoteNamespace
+readShareRemoteNamespace :: P (ReadShareRemoteNamespace CodeserverLocation)
 readShareRemoteNamespace = do
   P.label "read share remote namespace" $
     ReadShareRemoteNamespace
-      <$> pure DefaultCodeserver
+      <$> pure DefaultShare
       -- <*> sbh <- P.optional shortBranchHash
       <*> (NameSegment.toText <$> nameSegment)
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))

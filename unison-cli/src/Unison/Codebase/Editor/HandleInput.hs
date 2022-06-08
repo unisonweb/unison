@@ -8,6 +8,7 @@ where
 
 -- TODO: Don't import backend
 
+import Control.Concurrent.STM (atomically, newTVarIO, readTVar, readTVarIO, writeTVar)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
 import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
@@ -24,7 +25,6 @@ import qualified Data.Map as Map
 import Data.Sequence (Seq (..))
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
-import Control.Concurrent.STM (atomically, newTVarIO, readTVar, readTVarIO, writeTVar)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
@@ -71,7 +71,7 @@ import Unison.Codebase.Editor.RemoteRepo
     WriteShareRemotePath (..),
     printNamespace,
     writePathToRead,
-    writeToReadGit,
+    writeToReadGit, CodeserverLocation
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.Slurp as Slurp
@@ -102,6 +102,8 @@ import qualified Unison.Codebase.TermEdit.Typing as TermEdit
 import Unison.Codebase.Type (Codebase (..), GitError)
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
+import Unison.CodebaseServer.Discovery (resolveCodeserver)
+import qualified Unison.CodebaseServer.Discovery as Codeserver
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import qualified Unison.CommandLine.InputPattern as InputPattern
@@ -144,9 +146,8 @@ import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
-import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Sync as Share
-import Unison.Share.Types (codeserverBaseURL)
+import Unison.Share.Types (Codeserver (..), CodeserverDescription (..))
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
@@ -174,6 +175,7 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import Unison.Codebase.Editor.RemoteRepo (codeserverLocation)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -667,8 +669,13 @@ loop = do
                       (resolveToAbsolute <$> after)
                       ppe
                       outputDiff
-            CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
+            CreatePullRequestI baseRepo headRepo -> do
+              resolvedBaseRepo <- resolveRepo baseRepo
+              resolvedHeadRepo <- resolveRepo headRepo
+              handleCreatePullRequest resolvedBaseRepo resolvedHeadRepo
             LoadPullRequestI baseRepo headRepo dest0 -> do
+              resolvedBaseRepo <- resolveRepo baseRepo
+              resolvedHeadRepo <- resolveRepo headRepo
               let desta = resolveToAbsolute dest0
               let dest = Path.unabsolute desta
               destb <- getAt desta
@@ -679,8 +686,8 @@ loop = do
                       ExceptT (importRemoteShareBranch repo)
               if Branch.isEmpty0 (Branch.head destb)
                 then unlessError do
-                  baseb <- tryImportBranch baseRepo
-                  headb <- tryImportBranch headRepo
+                  baseb <- tryImportBranch resolvedBaseRepo
+                  headb <- tryImportBranch resolvedHeadRepo
                   lift $ do
                     mergedb <- eval $ Merge Branch.RegularMerge baseb headb
                     squashedb <- eval $ Merge Branch.SquashMerge headb baseb
@@ -720,8 +727,8 @@ loop = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                      -- Branch exists and isn't empty, print an error
-                      throwError (BranchAlreadyExists (Path.unsplit' dest))
+                    -- Branch exists and isn't empty, print an error
+                    throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -1414,11 +1421,11 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
-                      eval (MakeStandalone ppe ref output) >>= \case
-                        Just err -> respond $ EvaluationFailure err
-                        Nothing -> pure ()
+                    eval (MakeStandalone ppe ref output) >>= \case
+                      Just err -> respond $ EvaluationFailure err
+                      Nothing -> pure ()
                   | otherwise ->
-                      respond $ BadMainFunction smain ty ppe [mainType]
+                    respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -1514,7 +1521,8 @@ loop = do
               let preprocess = case pullMode of
                     Input.PullWithHistory -> Unmodified
                     Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-              ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
+              mayResolvedRepo <- lift $ traverse resolveRepo mayRepo
+              ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayResolvedRepo
               lift $ unlessError do
                 remoteBranch <- case ns of
                   ReadRemoteNamespaceGit repo -> withExceptT Output.GitError (importRemoteGitBranch repo syncMode preprocess)
@@ -1545,7 +1553,9 @@ loop = do
                     if didUpdate
                       then respond $ PullSuccessful ns path
                       else respond unchangedMsg
-            PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch mayRepo path pushBehavior syncMode
+            PushRemoteBranchI mayRepo path pushBehavior syncMode -> do
+              mayResolvedRepo <- traverse resolveRepo mayRepo
+              handlePushRemoteBranch mayResolvedRepo path pushBehavior syncMode
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq ->
               -- todo: add flag to handle transitive efficiently
@@ -1658,7 +1668,11 @@ loop = do
             UpdateBuiltinsI -> notImplemented
             QuitI -> empty
             GistI input -> handleGist input
-            AuthLoginI -> authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
+            AuthLoginI -> do
+              Codeserver.resolveCodeserver RemoteRepo.DefaultShare >>= \case
+                Left _err -> wundefined
+                Right codeserver -> do
+                  authLogin codeserver
             VersionI -> do
               ucmVersion <- eval UCMVersion
               respond $ PrintVersion ucmVersion
@@ -1670,7 +1684,7 @@ loop = do
     Right input -> LoopState.lastInput .= Just input
     _ -> pure ()
 
-handleCreatePullRequest :: forall m v. MonadUnliftIO m => ReadRemoteNamespace -> ReadRemoteNamespace -> Action' m v ()
+handleCreatePullRequest :: forall m v. MonadUnliftIO m => ReadRemoteNamespace Codeserver -> ReadRemoteNamespace Codeserver -> Action' m v ()
 handleCreatePullRequest baseRepo0 headRepo0 = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
@@ -1688,7 +1702,7 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
       mergeAndDiff baseBranch headBranch = do
         merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
         (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
-        pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
+        pure $ ShowDiffAfterCreatePR (codeserverLocation <$> baseRepo0) (codeserverLocation <$> headRepo0) ppe diff
 
   case (baseRepo0, headRepo0) of
     (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceGit headRepo) -> do
@@ -1775,7 +1789,7 @@ handlePushRemoteBranch ::
   forall m v.
   MonadUnliftIO m =>
   -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
-  Maybe WriteRemotePath ->
+  Maybe (WriteRemotePath Codeserver) ->
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
   Path' ->
   -- | The push behavior (whether the remote branch is required to be empty or non-empty).
@@ -1783,13 +1797,14 @@ handlePushRemoteBranch ::
   SyncMode.SyncMode ->
   Action' m v ()
 handlePushRemoteBranch mayRepo path pushBehavior syncMode =
- time "handlePushRemoteBranch"
-  case mayRepo of
-    Nothing ->
-      runExceptT (resolveConfiguredUrl Push path) >>= \case
-        Left output -> respond output
-        Right repo -> push repo
-    Just repo -> push repo
+  time
+    "handlePushRemoteBranch"
+    case mayRepo of
+      Nothing ->
+        runExceptT (resolveConfiguredUrl Push path) >>= \case
+          Left output -> respond output
+          Right repo -> push repo
+      Just repo -> push repo
   where
     push repo =
       doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
@@ -1798,7 +1813,7 @@ handlePushRemoteBranch mayRepo path pushBehavior syncMode =
 -- a new namespace is allowed), or perform a "gisty" push, which doesn't update any paths (and also is currently only
 -- uploaded for remote git repos, not remote Share repos).
 data PushFlavor
-  = NormalPush WriteRemotePath PushBehavior
+  = NormalPush (WriteRemotePath Codeserver) PushBehavior
   | GistyPush WriteGitRepo
 
 -- Internal helper that implements pushing to a remote repo, which generalizes @gist@ and @push@.
@@ -1861,10 +1876,9 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
         PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
-handlePushToUnisonShare :: MonadIO m => WriteShareRemotePath -> Path.Absolute -> PushBehavior -> Action' m v ()
+handlePushToUnisonShare :: MonadIO m => WriteShareRemotePath Codeserver -> Path.Absolute -> PushBehavior -> Action' m v ()
 handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
-  let codeserver = Codeserver.resolveCodeserver server
-  let baseURL = codeserverBaseURL codeserver
+  let baseURL = syncAPIRoot . codeserverDescription $ server
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
 
   LoopState.Env {authHTTPClient, codebase = Codebase {connection}} <- ask
@@ -2251,9 +2265,10 @@ manageLinks silent srcs mdValues op = do
 -- otherwise, tries to load a value from .unisonConfig, and complains
 -- if needed.
 resolveConfiguredUrl ::
+  MonadIO m =>
   PushPull ->
   Path' ->
-  ExceptT (Output v) (Action m i v) WriteRemotePath
+  ExceptT (Output v) (Action m i v) (WriteRemotePath Codeserver)
 resolveConfiguredUrl pushPull destPath' = ExceptT do
   currentPath' <- use LoopState.currentPath
   let destPath = Path.resolve currentPath' destPath'
@@ -2277,8 +2292,7 @@ resolveConfiguredUrl pushPull destPath' = ExceptT do
         Left e ->
           pure . Left $
             ConfiguredRemoteMappingParseError pushPull destPath url (show e)
-        Right ns ->
-          pure . Right $ ns
+        Right ns -> Right <$> resolveRepo ns
   where
     gitUrlKey :: Path.Absolute -> Text
     gitUrlKey = configKey "GitUrl"
@@ -2302,10 +2316,9 @@ viewRemoteGitBranch ::
 viewRemoteGitBranch ns gitBranchBehavior action = do
   eval $ ViewRemoteGitBranch ns gitBranchBehavior action
 
-importRemoteShareBranch :: MonadIO m => ReadShareRemoteNamespace -> Action' m v (Either (Output v) (Branch m))
+importRemoteShareBranch :: MonadIO m => ReadShareRemoteNamespace Codeserver -> Action' m v (Either (Output v) (Branch m))
 importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
-  let codeserver = Codeserver.resolveCodeserver server
-  let baseURL = codeserverBaseURL codeserver
+  let baseURL = syncAPIRoot .  codeserverDescription $ server
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
     LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
@@ -2629,10 +2642,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2649,10 +2662,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -3045,7 +3058,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-              respond $ ListOfLinks mempty []
+            respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>
@@ -3546,3 +3559,10 @@ branchForBranchId = \case
     resolveShortBranchHash hash
   Right path -> do
     lift $ getAt path
+
+resolveRepo :: (MonadIO m, Traversable t) => t CodeserverLocation -> Action m i v (t Codeserver)
+resolveRepo repo =
+  runExceptT (traverse (ExceptT . resolveCodeserver) repo) >>= \case
+                                    Left _err -> wundefined
+                                    Right cs -> pure cs
+

@@ -47,11 +47,12 @@ import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRepo,
+  ( CodeserverLocation,
+    ReadGitRepo,
     ReadRemoteNamespace,
     WriteGitRepo,
     WriteRemotePath (..),
-    WriteShareRemotePath (..),
+    WriteShareRemotePath (..), codeserverLocation
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
@@ -518,11 +519,11 @@ showListEdits patch ppe =
 prettyURI :: URI -> Pretty
 prettyURI = P.bold . P.blue . P.shown
 
-prettyReadRemoteNamespace :: ReadRemoteNamespace -> Pretty
+prettyReadRemoteNamespace :: ReadRemoteNamespace CodeserverLocation -> Pretty
 prettyReadRemoteNamespace =
   P.group . P.blue . P.text . RemoteRepo.printNamespace
 
-prettyWriteRemotePath :: WriteRemotePath -> Pretty
+prettyWriteRemotePath :: WriteRemotePath CodeserverLocation -> Pretty
 prettyWriteRemotePath =
   P.group . P.blue . P.text . RemoteRepo.printWriteRemotePath
 
@@ -638,8 +639,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
+        pure $
+          P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -648,7 +649,6 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
-
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1393,12 +1393,12 @@ notifyUser dir o = case o of
     pure . P.callout "😶" $
       P.wrap $
         prettyPath' dest <> "was already up-to-date with"
-          <> P.group (prettyReadRemoteNamespace ns <> ".")
+          <> P.group (prettyReadRemoteNamespace (codeserverLocation <$> ns) <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated" <> prettyPath' dest <> "from"
-          <> P.group (prettyReadRemoteNamespace ns <> ".")
+          <> P.group (prettyReadRemoteNamespace (codeserverLocation <$> ns) <> ".")
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
@@ -1536,7 +1536,7 @@ notifyUser dir o = case o of
             "",
             "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
           ]
-      PushBehavior.RequireNonEmpty -> expectedNonEmptyPushDest path
+      PushBehavior.RequireNonEmpty -> expectedNonEmptyPushDest (codeserverLocation <$> path)
   GistCreated remoteNamespace ->
     pure $
       P.lines
@@ -1669,7 +1669,7 @@ notifyUser dir o = case o of
       -- client code that doesn't know about WriteRemotePath
       ( WriteRemotePathShare
           WriteShareRemotePath
-            { server = RemoteRepo.DefaultCodeserver,
+            { server = RemoteRepo.DefaultShare,
               repo = Share.unRepoName (Share.pathRepoName sharePath),
               path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
             }
@@ -2271,7 +2271,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-      ("The namespaces are identical.", mempty)
+    ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where

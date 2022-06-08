@@ -7,9 +7,9 @@ import Unison.Codebase.Editor.Output (Output (CredentialFailureMsg, Success))
 import Unison.Share.Types
 import qualified UnliftIO
 
-authLogin :: UnliftIO.MonadUnliftIO m => CodeserverURI -> Action m i v ()
-authLogin host = do
+authLogin :: UnliftIO.MonadUnliftIO m => Codeserver -> Action m i v ()
+authLogin Codeserver {codeserverId, codeserverDescription} = do
   credsMan <- asks credentialManager
-  (Action . lift . lift . lift $ authenticateCodeserver credsMan host) >>= \case
+  (Action . lift . lift . lift $ authenticateCodeserver credsMan codeserverId codeserverDescription) >>= \case
     Left err -> respond (CredentialFailureMsg err)
     Right () -> respond Success

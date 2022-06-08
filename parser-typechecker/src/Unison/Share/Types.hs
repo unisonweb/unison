@@ -5,6 +5,9 @@
 module Unison.Share.Types
   ( CodeserverURI (..),
     CodeserverId (..),
+    CodeserverDescription (..),
+    Codeserver (..),
+    CodeserverProvidence (..),
     Scheme (..),
     codeserverFromURI,
     codeserverIdFromURI,
@@ -20,6 +23,7 @@ import qualified Data.List.Extra as List
 import Data.Text
 import qualified Data.Text as Text
 import Network.URI
+import qualified Network.URI as URI
 import qualified Servant.Client as Servant
 import Unison.Prelude
 
@@ -123,7 +127,7 @@ newtype CodeserverId = CodeserverId {codeserverId :: Text}
 codeserverIdFromURI :: URI -> Either Text CodeserverId
 codeserverIdFromURI uri =
   case uriAuthority uri of
-    Nothing -> Left $ "No URI Authority for URI " <> tShow uri
+    Nothing -> Left $ "Expected a Host in URI " <> tShow uri
     Just ua -> pure $ codeserverIdFromURIAuth ua
 
 -- | Builds a CodeserverId from a URIAuth
@@ -144,3 +148,58 @@ codeserverBaseURL (CodeserverURI {..}) =
         Http -> (Servant.Http, 80)
       host = codeserverUserInfo <> codeserverRegName
    in Servant.BaseUrl scheme host (fromMaybe defaultPort codeserverPort) (List.intercalate "/" codeserverPath)
+
+-- | The latest API version a given codeserver supports.
+newtype CodeserverVersion = CodeserverVersion Int
+  deriving stock (Show, Eq, Ord)
+  deriving newtype (ToJSON, FromJSON)
+
+-- | Document describing the location of various APIs.
+data CodeserverDescription = CodeserverDescription
+  { syncAPIRoot :: Servant.BaseUrl,
+    openIDConnectDiscoveryLocation :: URI,
+    codeserverVersion :: Int
+  }
+  deriving stock (Show, Eq, Ord)
+
+instance FromJSON CodeserverDescription where
+  parseJSON = withObject "CodeserverDescription" \obj -> do
+    syncAPIRoot <-
+      (obj .: "sync_api_root") >>= \uri ->
+        case Servant.parseBaseUrl uri of
+          Left _err -> fail $ "Invalid sync_api_root: " <> uri
+          Right baseUrl -> pure baseUrl
+    openIDConnectDiscoveryLocation <- (obj .: "open_id_connect_discovery_location") >>= jsonURI
+    codeserverVersion <- obj .: "codeserver_version"
+    pure $ CodeserverDescription {..}
+    where
+      jsonURI :: MonadFail m => String -> m URI
+      jsonURI txt =
+        case URI.parseURI txt of
+          Nothing -> fail $ "Invalid URI: " <> txt
+          Just uri -> pure uri
+
+instance ToJSON CodeserverDescription where
+  toJSON (CodeserverDescription {..}) =
+    object
+      [ "sync_api_root" .= syncAPIRoot,
+        "open_id_connect_discovery_location" .= uriJSON openIDConnectDiscoveryLocation,
+        "codeserver_version" .= codeserverVersion
+      ]
+    where
+      uriJSON :: URI -> Value
+      uriJSON = toJSON . show
+
+-- | Whether this is a codeserver specified by the user or the default Share codeserver.
+-- This information is used in formatting codeserver paths.
+data CodeserverProvidence = DefaultCodeserver | CustomCodeserver
+  deriving stock (Show, Eq, Ord)
+
+-- | Collection of all other Codeserver values in one place.
+data Codeserver = Codeserver
+  { codeserverDescription :: CodeserverDescription,
+    codeserverRoot :: CodeserverURI,
+    codeserverId :: CodeserverId,
+    codeserverProvenance :: CodeserverProvidence
+  }
+  deriving stock (Show, Eq, Ord)

@@ -7,13 +7,12 @@ import qualified Network.HTTP.Client.TLS as HTTP
 import Network.URI
 import Unison.Auth.Types
 import Unison.Prelude
-import Unison.Share.Types (CodeserverURI (..), codeserverToURI)
 import qualified UnliftIO
 
-discoveryURIForCodeserver :: CodeserverURI -> URI
-discoveryURIForCodeserver cs =
-  let uri = codeserverToURI cs
-   in uri {uriPath = uriPath uri <> "/.well-known/openid-configuration"}
+-- discoveryURIForCodeserver :: CodeserverURI -> URI
+-- discoveryURIForCodeserver cs =
+--   let uri = codeserverToURI cs
+--    in uri {uriPath = uriPath uri <> "/.well-known/openid-configuration"}
 
 fetchDiscoveryDoc :: MonadIO m => URI -> m (Either CredentialFailure DiscoveryDoc)
 fetchDiscoveryDoc discoveryURI = liftIO . UnliftIO.try @_ @CredentialFailure $ do

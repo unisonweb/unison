@@ -21,13 +21,13 @@ import Network.Wai
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import Unison.Auth.CredentialManager (CredentialManager, saveCredentials)
-import Unison.Auth.Discovery (discoveryURIForCodeserver, fetchDiscoveryDoc)
+import Unison.Auth.Discovery (fetchDiscoveryDoc)
 import Unison.Auth.Types
 import Unison.Codebase.Editor.HandleInput.LoopState (MonadCommand, respond)
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Debug
 import Unison.Prelude
-import Unison.Share.Types (CodeserverURI, codeserverIdFromCodeserverURI)
+import Unison.Share.Types
 import qualified UnliftIO
 import qualified Web.Browser as Web
 
@@ -50,10 +50,10 @@ authTransferServer callback req respond =
 
 -- | Direct the user through an authentication flow with the given server and store the
 -- credentials in the provided credential manager.
-authenticateCodeserver :: forall m n i v. (UnliftIO.MonadUnliftIO m, MonadCommand m n i v) => CredentialManager -> CodeserverURI -> m (Either CredentialFailure ())
-authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialFailure $ do
+authenticateCodeserver :: forall m n i v. (UnliftIO.MonadUnliftIO m, MonadCommand m n i v) => CredentialManager -> CodeserverId -> CodeserverDescription -> m (Either CredentialFailure ())
+authenticateCodeserver credsManager codeserverId codeserverDescription = UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- liftIO HTTP.getGlobalManager
-  let discoveryURI = discoveryURIForCodeserver codeserverURI
+  let discoveryURI = openIDConnectDiscoveryLocation codeserverDescription
   doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ fetchDiscoveryDoc discoveryURI
   debugM Auth "Discovery Doc" doc
   authResultVar <- UnliftIO.newEmptyMVar @_ @(Either CredentialFailure Tokens)
@@ -81,7 +81,6 @@ authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialF
     void . liftIO $ Web.openBrowser (show authorizationKickoff)
     respond . Output.InitiateAuthFlow $ authorizationKickoff
     tokens <- throwCredFailure $ UnliftIO.readMVar authResultVar
-    let codeserverId = codeserverIdFromCodeserverURI codeserverURI
     let creds = codeserverCredentials discoveryURI tokens
     saveCredentials credsManager codeserverId creds
   where
