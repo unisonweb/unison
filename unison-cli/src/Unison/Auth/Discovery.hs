@@ -9,11 +9,6 @@ import Unison.Auth.Types
 import Unison.Prelude
 import qualified UnliftIO
 
--- discoveryURIForCodeserver :: CodeserverURI -> URI
--- discoveryURIForCodeserver cs =
---   let uri = codeserverToURI cs
---    in uri {uriPath = uriPath uri <> "/.well-known/openid-configuration"}
-
 fetchDiscoveryDoc :: MonadIO m => URI -> m (Either CredentialFailure DiscoveryDoc)
 fetchDiscoveryDoc discoveryURI = liftIO . UnliftIO.try @_ @CredentialFailure $ do
   unauthenticatedHttpClient <- HTTP.getGlobalManager
