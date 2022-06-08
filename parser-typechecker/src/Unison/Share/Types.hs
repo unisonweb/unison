@@ -8,6 +8,7 @@ module Unison.Share.Types
     CodeserverDescription (..),
     Codeserver (..),
     CodeserverProvidence (..),
+    CodeserverVersion (..),
     Scheme (..),
     codeserverFromURI,
     codeserverIdFromURI,
