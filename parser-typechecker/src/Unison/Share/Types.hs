@@ -13,7 +13,6 @@ module Unison.Share.Types
     codeserverIdFromURI,
     codeserverToURI,
     codeserverIdFromCodeserverURI,
-    codeserverBaseURL,
   )
 where
 
@@ -111,7 +110,7 @@ codeserverFromURI URI {..} = do
 -- | This is distinct from the codeserver URI in that we store credentials by a normalized ID, since it's
 -- much easier to look up that way than from an arbitrary path.
 -- We may wish to use explicitly named configurations in the future.
--- This currently uses a stringified uriAuthority.
+-- This currently uses the origin and port.
 newtype CodeserverId = CodeserverId {codeserverId :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
@@ -133,21 +132,12 @@ codeserverIdFromURI uri =
 -- | Builds a CodeserverId from a URIAuth
 codeserverIdFromURIAuth :: URIAuth -> CodeserverId
 codeserverIdFromURIAuth ua =
-  (CodeserverId (Text.pack $ uriUserInfo ua <> uriRegName ua <> uriPort ua))
+  (CodeserverId (Text.pack $ uriRegName ua <> uriPort ua))
 
 -- | Gets the CodeserverId for a given CodeserverURI
 codeserverIdFromCodeserverURI :: CodeserverURI -> CodeserverId
 codeserverIdFromCodeserverURI =
   codeserverIdFromURIAuth . codeserverAuthority
-
--- | Builds a servant-compatible BaseUrl for a given CodeserverURI.
-codeserverBaseURL :: CodeserverURI -> Servant.BaseUrl
-codeserverBaseURL (CodeserverURI {..}) =
-  let (scheme, defaultPort) = case codeserverScheme of
-        Https -> (Servant.Https, 443)
-        Http -> (Servant.Http, 80)
-      host = codeserverUserInfo <> codeserverRegName
-   in Servant.BaseUrl scheme host (fromMaybe defaultPort codeserverPort) (List.intercalate "/" codeserverPath)
 
 -- | The latest API version a given codeserver supports.
 newtype CodeserverVersion = CodeserverVersion Int
@@ -155,6 +145,8 @@ newtype CodeserverVersion = CodeserverVersion Int
   deriving newtype (ToJSON, FromJSON)
 
 -- | Document describing the location of various APIs.
+--
+-- This is the document we expect to be returned from the codeserver discovery endpoint.
 data CodeserverDescription = CodeserverDescription
   { syncAPIRoot :: Servant.BaseUrl,
     openIDConnectDiscoveryLocation :: URI,

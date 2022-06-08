@@ -669,23 +669,23 @@ loop = do
                       (resolveToAbsolute <$> after)
                       ppe
                       outputDiff
-            CreatePullRequestI baseRepo headRepo -> do
+            CreatePullRequestI baseRepo headRepo -> unlessError do
               resolvedBaseRepo <- resolveRepo baseRepo
               resolvedHeadRepo <- resolveRepo headRepo
-              handleCreatePullRequest resolvedBaseRepo resolvedHeadRepo
-            LoadPullRequestI baseRepo headRepo dest0 -> do
+              lift $ handleCreatePullRequest resolvedBaseRepo resolvedHeadRepo
+            LoadPullRequestI baseRepo headRepo dest0 -> unlessError do
               resolvedBaseRepo <- resolveRepo baseRepo
               resolvedHeadRepo <- resolveRepo headRepo
               let desta = resolveToAbsolute dest0
               let dest = Path.unabsolute desta
-              destb <- getAt desta
+              destb <- lift $ getAt desta
               let tryImportBranch = \case
                     ReadRemoteNamespaceGit repo ->
                       withExceptT Output.GitError (importRemoteGitBranch repo SyncMode.ShortCircuit Unmodified)
                     ReadRemoteNamespaceShare repo ->
                       ExceptT (importRemoteShareBranch repo)
               if Branch.isEmpty0 (Branch.head destb)
-                then unlessError do
+                then do
                   baseb <- tryImportBranch resolvedBaseRepo
                   headb <- tryImportBranch resolvedHeadRepo
                   lift $ do
@@ -1521,7 +1521,7 @@ loop = do
               let preprocess = case pullMode of
                     Input.PullWithHistory -> Unmodified
                     Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-              mayResolvedRepo <- lift $ traverse resolveRepo mayRepo
+              mayResolvedRepo <- traverse resolveRepo mayRepo
               ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayResolvedRepo
               lift $ unlessError do
                 remoteBranch <- case ns of
@@ -1553,9 +1553,9 @@ loop = do
                     if didUpdate
                       then respond $ PullSuccessful ns path
                       else respond unchangedMsg
-            PushRemoteBranchI mayRepo path pushBehavior syncMode -> do
+            PushRemoteBranchI mayRepo path pushBehavior syncMode -> unlessError do
               mayResolvedRepo <- traverse resolveRepo mayRepo
-              handlePushRemoteBranch mayResolvedRepo path pushBehavior syncMode
+              lift $ handlePushRemoteBranch mayResolvedRepo path pushBehavior syncMode
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq ->
               -- todo: add flag to handle transitive efficiently
@@ -1670,7 +1670,7 @@ loop = do
             GistI input -> handleGist input
             AuthLoginI -> do
               Codeserver.resolveCodeserver RemoteRepo.DefaultShare >>= \case
-                Left _err -> wundefined
+                Left err -> respond $ CodeserverError err
                 Right codeserver -> do
                   authLogin codeserver
             VersionI -> do
@@ -2292,7 +2292,7 @@ resolveConfiguredUrl pushPull destPath' = ExceptT do
         Left e ->
           pure . Left $
             ConfiguredRemoteMappingParseError pushPull destPath url (show e)
-        Right ns -> Right <$> resolveRepo ns
+        Right ns -> runExceptT $ resolveRepo ns
   where
     gitUrlKey :: Path.Absolute -> Text
     gitUrlKey = configKey "GitUrl"
@@ -3560,9 +3560,6 @@ branchForBranchId = \case
   Right path -> do
     lift $ getAt path
 
-resolveRepo :: (MonadIO m, Traversable t) => t CodeserverLocation -> Action m i v (t Codeserver)
+resolveRepo :: (MonadIO m, Traversable t) => t CodeserverLocation -> ExceptT (Output v) (Action m i v) (t Codeserver)
 resolveRepo repo =
-  runExceptT (traverse (ExceptT . resolveCodeserver) repo) >>= \case
-                                    Left _err -> wundefined
-                                    Right cs -> pure cs
-
+  withExceptT CodeserverError (traverse (ExceptT . resolveCodeserver) repo)

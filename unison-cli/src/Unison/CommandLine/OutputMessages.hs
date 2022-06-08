@@ -52,7 +52,8 @@ import Unison.Codebase.Editor.RemoteRepo
     ReadRemoteNamespace,
     WriteGitRepo,
     WriteRemotePath (..),
-    WriteShareRemotePath (..), codeserverLocation
+    WriteShareRemotePath (..),
+    codeserverLocation,
   )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
@@ -145,6 +146,7 @@ import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import Unison.CodebaseServer.Discovery (CodeserverError(InvalidCodeserverDescription))
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1656,6 +1658,14 @@ notifyUser dir o = case o of
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
+  CodeserverError err ->
+    case err of
+      (InvalidCodeserverDescription codeserverURI msg) ->
+        pure . P.lines $ [
+          P.fatalCallout . P.wrap . P.text $ "I couldn't figure out how to interact with the codeserver at" <> tShow codeserverURI <> ", are you sure it's a valid codeserver location?",
+          "",
+          "The error was:" <> P.text msg
+                         ]
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedNonEmptyPushDest writeRemotePath =

@@ -38,6 +38,7 @@ import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Type (GitError)
+import Unison.CodebaseServer.Discovery (CodeserverError)
 import qualified Unison.CommandLine.InputPattern as Input
 import Unison.DataDeclaration (Decl)
 import qualified Unison.HashQualified as HQ
@@ -261,6 +262,7 @@ data Output v
   | CredentialFailureMsg CredentialFailure
   | PrintVersion Text
   | IntegrityCheck IntegrityResult
+  | CodeserverError CodeserverError
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -398,6 +400,7 @@ isFailure o = case o of
       NoIntegrityErrors -> False
       IntegrityErrorDetected {} -> True
   ShareError {} -> True
+  CodeserverError {} -> True
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case
