@@ -20,10 +20,10 @@ import UnliftIO
 import UnliftIO.Environment (lookupEnv)
 
 data CodeserverError
-  = InvalidCodeserverDescription CodeserverURI Text
+  = InvalidCodeserverDescription CodeserverRoot Text
 
--- | Fetches codeserver description doc from (<codeserverURI>/.codeserver)
-fetchCodeServerDescription :: MonadIO m => CodeserverURI -> m (Either CodeserverError CodeserverDescription)
+-- | Fetches codeserver description doc from (<codeserverRoot>/.codeserver)
+fetchCodeServerDescription :: MonadIO m => CodeserverRoot -> m (Either CodeserverError CodeserverDescription)
 fetchCodeServerDescription cdu = liftIO $ do
   (Map.lookup cdu <$> readTVarIO codeserverCache) >>= \case
     Just description -> pure $ Right description
@@ -49,17 +49,17 @@ fetchCodeServerDescription cdu = liftIO $ do
     requestedCodeserverVersion = "1"
 
 -- | Ephemeral in memory cache for codeserver descriptions.
-codeserverCache :: TVar (Map CodeserverURI CodeserverDescription)
+codeserverCache :: TVar (Map CodeserverRoot CodeserverDescription)
 codeserverCache = unsafePerformIO $ newTVarIO mempty
 {-# NOINLINE codeserverCache #-}
 
 -- | This is the URI where the share API is based.
-defaultCodeserverURI :: CodeserverURI
-defaultCodeserverURI = unsafePerformIO $ do
+defaultCodeserverRoot :: CodeserverRoot
+defaultCodeserverRoot = unsafePerformIO $ do
   lookupEnv "UNISON_SHARE_HOST" <&> \case
     -- TODO: swap to production share before release.
     Nothing ->
-      CodeserverURI
+      CodeserverRoot
         { codeserverScheme = Share.Https,
           codeserverUserInfo = "",
           codeserverRegName = "share-next.us-west-2.unison-lang.org",
@@ -70,13 +70,13 @@ defaultCodeserverURI = unsafePerformIO $ do
       fromMaybe (error $ "Share Host is not a valid URI: " <> shareHost) $ do
         uri <- parseURI shareHost
         codeserverFromURI uri
-{-# NOINLINE defaultCodeserverURI #-}
+{-# NOINLINE defaultCodeserverRoot #-}
 
 resolveCodeserver :: MonadIO m => RemoteRepo.CodeserverLocation -> m (Either CodeserverError Codeserver)
 resolveCodeserver cs = runExceptT $ do
   let (codeserverProvenance, codeserverRoot) = case cs of
-        RemoteRepo.DefaultShare -> (DefaultCodeserver, defaultCodeserverURI)
+        RemoteRepo.DefaultShare -> (DefaultCodeserver, defaultCodeserverRoot)
         RemoteRepo.CustomShare cs -> (CustomCodeserver, cs)
   codeserverDescription <- ExceptT (fetchCodeServerDescription codeserverRoot)
-  let codeserverId = codeserverIdFromCodeserverURI codeserverRoot
+  let codeserverId = codeserverIdFromCodeserverRoot codeserverRoot
   pure (Codeserver {codeserverDescription, codeserverProvenance, codeserverId, codeserverRoot})

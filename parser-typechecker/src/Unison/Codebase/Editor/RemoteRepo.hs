@@ -21,7 +21,7 @@ data ReadRepo
 -- It's tagged with whether it was manually specified or not.
 data CodeserverLocation
   = DefaultShare
-  | CustomShare CodeserverURI
+  | CustomShare CodeserverRoot
   deriving stock (Eq, Ord, Show)
 
 codeserverLocation :: Codeserver -> CodeserverLocation

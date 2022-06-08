@@ -43,7 +43,7 @@ data CredentialFailure
   | InvalidJWT Text
   | RefreshFailure Text
   | InvalidTokenResponse URI Text
-  | InvalidHost CodeserverURI
+  | InvalidHost CodeserverRoot
   deriving stock (Show, Eq)
   deriving anyclass (Exception)
 

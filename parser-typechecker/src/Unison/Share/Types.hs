@@ -3,7 +3,7 @@
 
 -- | Types related to Share and Codeservers.
 module Unison.Share.Types
-  ( CodeserverURI (..),
+  ( CodeserverRoot (..),
     CodeserverId (..),
     CodeserverDescription (..),
     Codeserver (..),
@@ -13,7 +13,7 @@ module Unison.Share.Types
     codeserverFromURI,
     codeserverIdFromURI,
     codeserverToURI,
-    codeserverIdFromCodeserverURI,
+    codeserverIdFromCodeserverRoot,
   )
 where
 
@@ -33,7 +33,7 @@ data Scheme = Http | Https
 -- | This type is expanded out into all of its fields because we require certain pieces
 -- which are optional in a URI, and also to make it more typesafe to eventually convert into a
 -- BaseURL for servant clients.
-data CodeserverURI = CodeserverURI
+data CodeserverRoot = CodeserverRoot
   { codeserverScheme :: Scheme,
     codeserverUserInfo :: String,
     codeserverRegName :: String,
@@ -43,11 +43,11 @@ data CodeserverURI = CodeserverURI
   }
   deriving stock (Eq, Ord)
 
-instance Show CodeserverURI where
+instance Show CodeserverRoot where
   show = show . codeserverToURI
 
-codeserverToURI :: CodeserverURI -> URI
-codeserverToURI cs@(CodeserverURI {..}) =
+codeserverToURI :: CodeserverRoot -> URI
+codeserverToURI cs@(CodeserverRoot {..}) =
   let scheme = case codeserverScheme of
         Http -> "http:"
         Https -> "https:"
@@ -62,8 +62,8 @@ codeserverToURI cs@(CodeserverURI {..}) =
           uriFragment = ""
         }
 
-codeserverAuthority :: CodeserverURI -> URIAuth
-codeserverAuthority (CodeserverURI {..}) =
+codeserverAuthority :: CodeserverRoot -> URIAuth
+codeserverAuthority (CodeserverRoot {..}) =
   URIAuth
     { uriUserInfo = codeserverUserInfo,
       uriPort = case codeserverPort of
@@ -82,7 +82,7 @@ codeserverAuthority (CodeserverURI {..}) =
 -- Just https://share.unison-lang.org/api
 -- >>> codeserverFromURI . fromJust $ parseURI "http://share.unison-lang.org/api"
 -- Just http://share.unison-lang.org/api
-codeserverFromURI :: URI -> Maybe CodeserverURI
+codeserverFromURI :: URI -> Maybe CodeserverRoot
 codeserverFromURI URI {..} = do
   URIAuth {uriUserInfo, uriRegName, uriPort} <- uriAuthority
   scheme <- case uriScheme of
@@ -93,7 +93,7 @@ codeserverFromURI URI {..} = do
         (':' : p) -> readMaybe p
         _ -> Nothing
   pure $
-    CodeserverURI
+    CodeserverRoot
       { codeserverScheme = scheme,
         codeserverUserInfo = uriUserInfo,
         codeserverRegName = uriRegName,
@@ -115,13 +115,13 @@ codeserverFromURI URI {..} = do
 newtype CodeserverId = CodeserverId {codeserverId :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
--- | Gets the part of the CodeserverURI that we use for identifying that codeserver in
+-- | Gets the part of the CodeserverRoot that we use for identifying that codeserver in
 -- credentials files.
 --
 -- >>> import Data.Maybe (fromJust)
 -- >>> import Network.URI (parseURI)
--- >>> codeserverIdFromURI (CodeserverURI . fromJust $ parseURI "http://localhost:5424/api")
--- >>> codeserverIdFromURI (CodeserverURI . fromJust $ parseURI "https://share.unison-lang.org/api")
+-- >>> codeserverIdFromURI (CodeserverRoot . fromJust $ parseURI "http://localhost:5424/api")
+-- >>> codeserverIdFromURI (CodeserverRoot . fromJust $ parseURI "https://share.unison-lang.org/api")
 -- Right "localhost"
 -- Right "share.unison-lang.org"
 codeserverIdFromURI :: URI -> Either Text CodeserverId
@@ -135,9 +135,9 @@ codeserverIdFromURIAuth :: URIAuth -> CodeserverId
 codeserverIdFromURIAuth ua =
   (CodeserverId (Text.pack $ uriRegName ua <> uriPort ua))
 
--- | Gets the CodeserverId for a given CodeserverURI
-codeserverIdFromCodeserverURI :: CodeserverURI -> CodeserverId
-codeserverIdFromCodeserverURI =
+-- | Gets the CodeserverId for a given CodeserverRoot
+codeserverIdFromCodeserverRoot :: CodeserverRoot -> CodeserverId
+codeserverIdFromCodeserverRoot =
   codeserverIdFromURIAuth . codeserverAuthority
 
 -- | The latest API version a given codeserver supports.
@@ -191,7 +191,7 @@ data CodeserverProvidence = DefaultCodeserver | CustomCodeserver
 -- | Collection of all other Codeserver values in one place.
 data Codeserver = Codeserver
   { codeserverDescription :: CodeserverDescription,
-    codeserverRoot :: CodeserverURI,
+    codeserverRoot :: CodeserverRoot,
     codeserverId :: CodeserverId,
     codeserverProvenance :: CodeserverProvidence
   }

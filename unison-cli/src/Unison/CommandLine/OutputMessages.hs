@@ -1660,9 +1660,9 @@ notifyUser dir o = case o of
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
   CodeserverError err ->
     case err of
-      (InvalidCodeserverDescription codeserverURI msg) ->
+      (InvalidCodeserverDescription codeserverRoot msg) ->
         pure . P.lines $
-          [ P.fatalCallout . P.wrap $ "I couldn't figure out how to interact with the codeserver at" <> P.shown codeserverURI <> ", are you sure it's a valid codeserver location?",
+          [ P.fatalCallout . P.wrap $ "I couldn't figure out how to interact with the codeserver at" <> P.shown codeserverRoot <> ", are you sure it's a valid codeserver location?",
             "",
             P.hang "The error was:" (P.text msg)
           ]
