@@ -8,6 +8,7 @@ where
 
 -- TODO: Don't import backend
 
+import Control.Concurrent.STM (atomically, newTVarIO, readTVar, readTVarIO, writeTVar)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
 import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
@@ -24,7 +25,6 @@ import qualified Data.Map as Map
 import Data.Sequence (Seq (..))
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
-import Control.Concurrent.STM (atomically, newTVarIO, readTVar, readTVarIO, writeTVar)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
@@ -1783,13 +1783,14 @@ handlePushRemoteBranch ::
   SyncMode.SyncMode ->
   Action' m v ()
 handlePushRemoteBranch mayRepo path pushBehavior syncMode =
- time "handlePushRemoteBranch"
-  case mayRepo of
-    Nothing ->
-      runExceptT (resolveConfiguredUrl Push path) >>= \case
-        Left output -> respond output
-        Right repo -> push repo
-    Just repo -> push repo
+  time
+    "handlePushRemoteBranch"
+    case mayRepo of
+      Nothing ->
+        runExceptT (resolveConfiguredUrl Push path) >>= \case
+          Left output -> respond output
+          Right repo -> push repo
+      Just repo -> push repo
   where
     push repo =
       doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
@@ -2312,7 +2313,7 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
     let pull :: IO (Either Share.PullError CausalHash)
         pull =
           withEntitiesDownloadedProgressCallback \entitiesDownloadedProgressCallback ->
-            Share.pull
+            Share.pull'
               authHTTPClient
               baseURL
               connection

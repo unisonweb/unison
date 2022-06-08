@@ -9,6 +9,7 @@ module Unison.Share.Sync
 
     -- ** Pull
     pull,
+    pull',
     PullError (..),
 
     -- * Low-level API
@@ -366,9 +367,14 @@ pull' httpClient unisonShareUrl conn repoPath@(Share.pathRepoName -> repoName) d
     -- There's nothing at the remote path, so there's no causal to pull.
     Right Nothing -> pure (Left (PullErrorNoHistoryAtPath repoPath))
     Right (Just hashJwt) -> do
-      newTempEntities <- downloadAndUpsertSomewhere doDownload conn (NESet.singleton hashJwt)
+      let hash = Share.hashJWTHash hashJwt
+      newTempEntities <-
+        Sqlite.runTransaction conn (Q.entityLocation hash) >>= \case
+          Just Q.EntityInMainStorage -> pure Set.empty
+          Just Q.EntityInTempStorage -> pure (Set.singleton hash)
+          Nothing -> downloadAndUpsertSomewhere doDownload conn (NESet.singleton hashJwt)
       whenJust (NESet.nonEmptySet newTempEntities) \newTempEntities ->
-        downloadMissingDependenciesOf httpClient unisonShareUrl conn (Share.pathRepoName repoPath) newTempEntities 1 downloadCountCallback
+        downloadMissingDependenciesOf doDownload conn newTempEntities 1 downloadCountCallback
       (pure . Right . hash32ToCausalHash . Share.hashJWTHash) hashJwt
   where
     doDownload :: NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))
@@ -450,16 +456,22 @@ downloadEntities httpClient unisonShareUrl conn repoName hash0 downloadCountCall
 
     doDownload :: NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))
     doDownload hashes = do
+      -- we feel okay ignoring the "no read permission" case because it should have been triggered by getCausalHashByPath
       Share.DownloadEntitiesSuccess entities <-
         httpDownloadEntities
           httpClient
           unisonShareUrl
           Share.DownloadEntitiesRequest {repoName, hashes}
+      -- call the callback
       pure entities
 
 -- | download some entities and file them into the appropriate tables.
 -- returns the list of incomplete/temp entities
-downloadAndUpsertSomewhere :: (NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))) -> Sqlite.Connection -> NESet Share.HashJWT -> IO (Set Hash32)
+downloadAndUpsertSomewhere ::
+  (NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))) ->
+  Sqlite.Connection ->
+  NESet Share.HashJWT ->
+  IO (Set Hash32)
 downloadAndUpsertSomewhere doDownload conn hashes = do
   entities <- doDownload hashes
   NEMap.toList entities & foldMapM \(hash, entity) ->
@@ -468,15 +480,13 @@ downloadAndUpsertSomewhere doDownload conn hashes = do
       Q.EntityInTempStorage -> Set.singleton hash
 
 downloadMissingDependenciesOf ::
-  AuthenticatedHttpClient ->
-  BaseUrl ->
+  (NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))) ->
   Sqlite.Connection ->
-  Share.RepoName ->
   NESet Hash32 ->
   Int ->
   (Int -> IO ()) ->
   IO ()
-downloadMissingDependenciesOf httpClient unisonShareUrl conn repoName hashes0 initialCount downloadCountCallback = do
+downloadMissingDependenciesOf doDownload conn hashes0 initialCount downloadCountCallback = do
   elaborateAndLoop initialCount hashes0
   where
     loop :: Int -> NESet Share.HashJWT -> IO ()
@@ -490,16 +500,6 @@ downloadMissingDependenciesOf httpClient unisonShareUrl conn repoName hashes0 in
     elaborateAndLoop downloadCount hashes =
       whenJustM (Sqlite.runTransaction conn (elaborateHashes' hashes)) \dependencyJwts ->
         loop downloadCount dependencyJwts
-
-    doDownload :: NESet Share.HashJWT -> IO (NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT))
-    doDownload hashes = do
-      -- we feel okay ignoring the "no read permission" case because it should have been triggered by getCausalHashByPath
-      Share.DownloadEntitiesSuccess entities <-
-        httpDownloadEntities
-          httpClient
-          unisonShareUrl
-          Share.DownloadEntitiesRequest {repoName, hashes}
-      pure entities
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
