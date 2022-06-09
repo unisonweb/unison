@@ -234,7 +234,11 @@ builtinTypesSrc =
     B' "Ref" CT.Data,
     B' "Scope" CT.Effect,
     B' "TimeSpec" CT.Data,
-    Rename' "TimeSpec" "io2.Clock.internals.TimeSpec"
+    Rename' "TimeSpec" "io2.Clock.internals.TimeSpec",
+    B' "ImmutableArray" CT.Data,
+    B' "MutableArray" CT.Data,
+    B' "ImmutableByteArray" CT.Data,
+    B' "MutableByteArray" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
