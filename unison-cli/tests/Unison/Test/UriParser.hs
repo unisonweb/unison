@@ -12,7 +12,7 @@ import qualified Text.Megaparsec as P
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRepo (..),
     ReadRemoteNamespace (..),
-    ShareCodeserver(..),
+    CodeserverLocation(..),
     pattern ReadGitRemoteNamespace,
     pattern ReadShareRemoteNamespace,
   )
@@ -25,7 +25,7 @@ import Unison.NameSegment (NameSegment (..))
 test :: Test ()
 test = scope "uriparser" . tests $ [testShare, testGit]
 
-gitHelper :: (ReadGitRepo, Maybe ShortBranchHash, Path) -> ReadRemoteNamespace
+gitHelper :: (ReadGitRepo, Maybe ShortBranchHash, Path) -> ReadRemoteNamespace CodeserverLocation
 gitHelper (repo, sbh, path) = ReadRemoteNamespaceGit (ReadGitRemoteNamespace repo sbh path)
 
 testShare :: Test ()
@@ -33,7 +33,7 @@ testShare =
   scope "share" . tests $
     [ parseAugmented
         ( "unisonweb.base._releases.M4",
-          ReadRemoteNamespaceShare (ReadShareRemoteNamespace DefaultCodeserver "unisonweb" (path ["base", "_releases", "M4"]))
+          ReadRemoteNamespaceShare (ReadShareRemoteNamespace DefaultShare "unisonweb" (path ["base", "_releases", "M4"]))
         ),
       expectParseFailure ".unisonweb.base"
     ]
@@ -108,7 +108,7 @@ testGit =
         ]
     ]
 
-parseAugmented :: (Text, ReadRemoteNamespace) -> Test ()
+parseAugmented :: (Text, ReadRemoteNamespace CodeserverLocation) -> Test ()
 parseAugmented (s, r) = scope (Text.unpack s) $
   case P.parse UriParser.repoPath "test case" s of
     Left x -> crash $ show x
