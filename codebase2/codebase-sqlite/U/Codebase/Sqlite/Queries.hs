@@ -497,8 +497,14 @@ expectObjectIdForPrimaryHash =
 
 expectObjectIdForHash32 :: Hash32 -> Transaction ObjectId
 expectObjectIdForHash32 hash = do
-  hashId <- expectHashId hash
-  expectObjectIdForPrimaryHashId hashId
+  queryOneCol
+    [here|
+      SELECT object.id
+      FROM object
+      JOIN hash ON object.primary_hash_id = hash.id
+      WHERE hash.base32 = ?
+    |]
+    (Only hash)
 
 expectBranchObjectIdForHash32 :: Hash32 -> Transaction BranchObjectId
 expectBranchObjectIdForHash32 =
