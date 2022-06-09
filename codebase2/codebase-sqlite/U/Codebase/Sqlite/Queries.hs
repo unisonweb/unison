@@ -8,6 +8,7 @@
 module U.Codebase.Sqlite.Queries
   ( -- * text table
     saveText,
+    saveTexts,
     loadTextId,
     expectTextId,
     expectText,
@@ -133,7 +134,7 @@ module U.Codebase.Sqlite.Queries
     garbageCollectWatchesWithoutObjects,
 
     -- * sync temp entities
-    EntityLocation(..),
+    EntityLocation (..),
     entityExists,
     entityLocation,
     expectEntity,
@@ -332,8 +333,20 @@ expectBranchHash :: BranchHashId -> Transaction BranchHash
 expectBranchHash = coerce expectHash
 
 saveText :: Text -> Transaction TextId
-saveText t = execute sql (Only t) >> expectTextId t
-  where sql = [here| INSERT INTO text (text) VALUES (?) ON CONFLICT DO NOTHING|]
+saveText t = execute saveTextSql (Only t) >> expectTextId t
+
+saveTexts :: [Text] -> Transaction [TextId]
+saveTexts texts = do
+  executeMany saveTextSql (coerce @[Text] @[Only Text] texts)
+  traverse expectTextId texts
+
+saveTextSql :: Sql
+saveTextSql =
+  [here|
+    INSERT INTO text (text)
+    VALUES (?)
+    ON CONFLICT DO NOTHING
+  |]
 
 loadTextId :: Text -> Transaction (Maybe TextId)
 loadTextId t = queryMaybeCol loadTextIdSql (Only t)
@@ -497,8 +510,14 @@ expectObjectIdForPrimaryHash =
 
 expectObjectIdForHash32 :: Hash32 -> Transaction ObjectId
 expectObjectIdForHash32 hash = do
-  hashId <- expectHashId hash
-  expectObjectIdForPrimaryHashId hashId
+  queryOneCol
+    [here|
+      SELECT object.id
+      FROM object
+      JOIN hash ON object.primary_hash_id = hash.id
+      WHERE hash.base32 = ?
+    |]
+    (Only hash)
 
 expectBranchObjectIdForHash32 :: Hash32 -> Transaction BranchObjectId
 expectBranchObjectIdForHash32 =
@@ -760,7 +779,7 @@ tempToSyncEntity = \case
     tempToSyncNamespaceLocalIds :: TempEntity.TempNamespaceLocalIds -> Transaction NamespaceFormat.BranchLocalIds
     tempToSyncNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children) =
       NamespaceFormat.LocalIds
-        <$> traverse saveText texts
+        <$> (Vector.fromList <$> saveTexts (Vector.toList texts))
         <*> traverse expectObjectIdForHash32 defns
         <*> traverse expectPatchObjectIdForHash32 patches
         <*> traverse
@@ -783,7 +802,7 @@ tempToSyncEntity = \case
     tempToSyncPatchLocalIds :: TempEntity.TempPatchLocalIds -> Transaction PatchFormat.PatchLocalIds
     tempToSyncPatchLocalIds (PatchFormat.LocalIds texts hashes defns) =
       PatchFormat.LocalIds
-        <$> traverse saveText texts
+        <$> (Vector.fromList <$> saveTexts (Vector.toList texts))
         <*> traverse saveHash hashes
         <*> traverse expectObjectIdForHash32 defns
 
@@ -1460,7 +1479,7 @@ entityLocation hash =
   entityExists hash >>= \case
     True -> pure (Just EntityInMainStorage)
     False -> do
-      let sql = [here|SELECT EXISTS (SELECT FROM temp_entity WHERE hash = ?)|]
+      let sql = [here|SELECT EXISTS (SELECT 1 FROM temp_entity WHERE hash = ?)|]
       queryOneCol sql (Only hash) <&> \case
         True -> Just EntityInTempStorage
         False -> Nothing
@@ -1556,30 +1575,51 @@ elaborateHashesServer hashes = do
   execute_ [here|DROP TABLE unelaborated_dependency|]
   pure result
 
--- | where Text = HashJWT
-elaborateHashesClient :: [(Hash32, Text)] -> Transaction [Text]
+data EmptyTempEntityMissingDependencies
+  = EmptyTempEntityMissingDependencies
+  deriving stock (Show)
+  deriving anyclass (SqliteExceptionReason)
+
+-- | "Elaborate" a set of `temp_entity` hashes.
+--
+-- Given a set of `temp_entity` hashes, returns the (known) set of transitive dependencies that haven't already been
+-- downloaded (i.e. aren't in the `temp_entity` table)
+--
+-- For example, if we have temp entities A and B, where A depends on B and B depends on C...
+--
+--   | temp_entity |   | temp_entity_missing_dependency |
+--   |=============|   |================================|
+--   | hash        |   | dependent    | dependency      |
+--   |-------------|   |--------------|-----------------|
+--   | A           |   | A            | B               |
+--   | B           |   | B            | C               |
+--
+-- ... then `elaborateHashes {A}` would return the singleton set {C} (because we take the set of transitive
+-- dependencies {A,B,C} and subtract the set we already have, {A,B}).
+elaborateHashesClient :: Nel.NonEmpty Hash32 -> Transaction (Nel.NonEmpty Text)
 elaborateHashesClient hashes = do
   execute_
     [here|
-      CREATE TABLE unelaborated_dependency (
-        hash text,
-        hashJwt text
-      )
+      CREATE TABLE new_temp_entity_dependents (hash text)
     |]
   executeMany
     [here|
-      INSERT INTO unelaborated_dependency
-        (hash, hashJwt)
-      VALUES (?,?)
+      INSERT INTO new_temp_entity_dependents
+        (hash)
+      VALUES (?)
     |]
-    hashes
+    (map Only (Nel.toList hashes))
   result <-
-    queryListCol_
+    queryListColCheck_
       [here|
         WITH RECURSIVE elaborated_dependency (hash, hashJwt) AS (
-          SELECT (hash, hashJwt) FROM unelaborated_dependency
+          SELECT dependency, dependencyJwt
+          FROM new_temp_entity_dependents AS new
+            JOIN temp_entity_missing_dependency
+              ON new_temp_entity_dependents.dependent = new.hash
+
           UNION
-          SELECT (temd.dependency, temd.dependencyJwt)
+          SELECT temd.dependency, temd.dependencyJwt
           FROM temp_entity_missing_dependency temd
             JOIN elaborated_dependency ed
               ON temd.dependent = ed.hash
@@ -1590,5 +1630,9 @@ elaborateHashesClient hashes = do
           WHERE temp_entity.hash = elaborated_depdenency.hash
         )
       |]
-  execute_ [here|DROP TABLE unelaborated_dependency|]
+      ( \case
+          [] -> Left EmptyTempEntityMissingDependencies
+          x : xs -> Right (x Nel.:| xs)
+      )
+  execute_ [here|DROP TABLE new_temp_entity_dependents|]
   pure result

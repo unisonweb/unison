@@ -1923,16 +1923,28 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
     pathToSegments =
       coerce Path.toList
 
-    -- Provide the given action a callback that prints out the number of entities uploaded.
-    withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
+    -- Provide the given action a callback that prints out the number of entities uploaded, and the number of entities
+    -- enqueued to be uploaded.
+    withEntitiesUploadedProgressCallback :: ((Int -> Int -> IO ()) -> IO a) -> IO a
     withEntitiesUploadedProgressCallback action = do
       entitiesUploadedVar <- newTVarIO 0
+      entitiesToUploadVar <- newTVarIO 0
       Console.Regions.displayConsoleRegions do
         Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
           Console.Regions.setConsoleRegion region do
             entitiesUploaded <- readTVar entitiesUploadedVar
-            pure ("\n  Uploaded " <> tShow entitiesUploaded <> " entities...\n\n")
-          result <- action \entitiesUploaded -> atomically (writeTVar entitiesUploadedVar entitiesUploaded)
+            entitiesToUpload <- readTVar entitiesToUploadVar
+            pure $
+              "\n  Uploaded "
+                <> tShow entitiesUploaded
+                <> "/"
+                <> tShow (entitiesUploaded + entitiesToUpload)
+                <> " entities...\n\n"
+          result <-
+            action \entitiesUploaded entitiesToUpload ->
+              atomically do
+                writeTVar entitiesUploadedVar entitiesUploaded
+                writeTVar entitiesToUploadVar entitiesToUpload
           entitiesUploaded <- readTVarIO entitiesUploadedVar
           Console.Regions.finishConsoleRegion region $
             "\n  Uploaded " <> tShow entitiesUploaded <> " entities.\n"
