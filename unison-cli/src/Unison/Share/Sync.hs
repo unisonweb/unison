@@ -42,7 +42,6 @@ import qualified Servant.Client as Servant (ClientEnv, ClientM, client, hoistCli
 import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Util.Hash32 (Hash32)
-import qualified U.Util.Timing as Timing
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Auth.HTTPClient as Auth
 import Unison.Prelude
@@ -455,7 +454,8 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCal
       entities <- Sqlite.runTransaction conn (traverse expectEntity hashesList)
 
       let uploadEntities :: IO Share.UploadEntitiesResponse
-          uploadEntities = do -- Timing.time ("uploadEntities with " <> show (NESet.size hashesSet) <> " hashes.") do
+          uploadEntities = do
+            -- Timing.time ("uploadEntities with " <> show (NESet.size hashesSet) <> " hashes.") do
             httpUploadEntities
               httpClient
               unisonShareUrl
