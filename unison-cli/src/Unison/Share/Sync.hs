@@ -445,7 +445,7 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCal
       -- Each request only contains a certain maximum number of entities; split the set of hashes we need to upload into
       -- those we will upload right now, and those we will begin uploading
       let (hashesSet, nextHashes) =
-            case NESet.splitAt 500 allHashesSet of
+            case NESet.splitAt 50 allHashesSet of
               This hs1 -> (hs1, Set.empty)
               That hs2 -> (hs2, Set.empty) -- impossible, this only happens if we split at 0
               These hs1 hs2 -> (hs1, NESet.toSet hs2)
