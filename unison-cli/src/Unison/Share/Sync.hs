@@ -148,34 +148,38 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadProgress
     Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission path))
     Right Nothing -> pure (Left (FastForwardPushErrorNoHistory path))
     Right (Just (Share.hashJWTHash -> remoteHeadHash)) ->
-      Sqlite.runTransaction conn (fancyBfs localHeadHash remoteHeadHash) >>= \case
-        -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
-        -- fast-forward push, so we don't bother trying - just report the error now.
-        Nothing -> pure (Left (FastForwardPushErrorNotFastForward path))
-        Just localInnerHashes -> do
-          doUpload (localHeadHash :| localInnerHashes) >>= \case
-            False -> pure (Left (FastForwardPushErrorNoWritePermission path))
-            True -> do
-              let doFastForwardPath =
-                    httpFastForwardPath
-                      httpClient
-                      unisonShareUrl
-                      Share.FastForwardPathRequest
-                        { expectedHash = remoteHeadHash,
-                          hashes =
-                            causalHashToHash32 <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
-                          path
-                        }
-              doFastForwardPath <&> \case
-                Share.FastForwardPathSuccess -> Right ()
-                Share.FastForwardPathMissingDependencies (Share.NeedDependencies dependencies) ->
-                  Left (FastForwardPushErrorServerMissingDependencies dependencies)
-                -- Weird: someone must have force-pushed no history here, or something. We observed a history at this
-                -- path but moments ago!
-                Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory path)
-                Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission path)
-                Share.FastForwardPathNotFastForward _ -> Left (FastForwardPushErrorNotFastForward path)
-                Share.FastForwardPathInvalidParentage (Share.InvalidParentage parent child) -> Left (FastForwardPushInvalidParentage parent child)
+      if localHeadHash == hash32ToCausalHash remoteHeadHash
+        then pure (Right ())
+        else do
+          Sqlite.runTransaction conn (fancyBfs localHeadHash remoteHeadHash) >>= \case
+            -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
+            -- fast-forward push, so we don't bother trying - just report the error now.
+            Nothing -> pure (Left (FastForwardPushErrorNotFastForward path))
+            Just localInnerHashes -> do
+              doUpload (localHeadHash :| localInnerHashes) >>= \case
+                False -> pure (Left (FastForwardPushErrorNoWritePermission path))
+                True -> do
+                  let doFastForwardPath =
+                        httpFastForwardPath
+                          httpClient
+                          unisonShareUrl
+                          Share.FastForwardPathRequest
+                            { expectedHash = remoteHeadHash,
+                              hashes =
+                                causalHashToHash32 <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
+                              path
+                            }
+                  doFastForwardPath <&> \case
+                    Share.FastForwardPathSuccess -> Right ()
+                    Share.FastForwardPathMissingDependencies (Share.NeedDependencies dependencies) ->
+                      Left (FastForwardPushErrorServerMissingDependencies dependencies)
+                    -- Weird: someone must have force-pushed no history here, or something. We observed a history at
+                    -- this path but moments ago!
+                    Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory path)
+                    Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission path)
+                    Share.FastForwardPathNotFastForward _ -> Left (FastForwardPushErrorNotFastForward path)
+                    Share.FastForwardPathInvalidParentage (Share.InvalidParentage parent child) ->
+                      Left (FastForwardPushInvalidParentage parent child)
   where
     doUpload :: List.NonEmpty CausalHash -> IO Bool
     -- Maybe we could save round trips here by including the tail (or the head *and* the tail) as "extra hashes", but we
