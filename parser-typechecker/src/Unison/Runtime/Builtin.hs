@@ -30,6 +30,7 @@ import qualified Control.Concurrent.STM as STM
 import Control.DeepSeq (NFData)
 import qualified Control.Exception.Safe as Exception
 import Control.Monad.Catch (MonadCatch)
+import qualified Control.Monad.Primitive as PA
 import Control.Monad.State.Strict (State, execState, modify)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
@@ -45,6 +46,7 @@ import Data.IORef as SYS
   )
 import qualified Data.Map as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
+import qualified Data.Primitive as PA
 import Data.Set (insert)
 import qualified Data.Set as Set
 import qualified Data.Text
@@ -181,6 +183,11 @@ fresh8 :: Var v => (v, v, v, v, v, v, v, v)
 fresh8 = (v1, v2, v3, v4, v5, v6, v7, v8)
   where
     [v1, v2, v3, v4, v5, v6, v7, v8] = freshes 8
+
+fresh9 :: Var v => (v, v, v, v, v, v, v, v, v)
+fresh9 = (v1, v2, v3, v4, v5, v6, v7, v8, v9)
+  where
+    [v1, v2, v3, v4, v5, v6, v7, v8, v9] = freshes 9
 
 fresh11 :: Var v => (v, v, v, v, v, v, v, v, v, v, v)
 fresh11 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11)
@@ -1086,6 +1093,22 @@ inBxNat arg1 arg2 nat result cont instr =
     . unbox arg2 Ty.natRef nat
     $ TLetD result UN (TFOp instr [arg1, nat]) cont
 
+inBxNatNat ::
+  Var v => v -> v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxNatNat arg1 arg2 arg3 nat1 nat2 result cont instr =
+  ([BX, BX, BX],)
+    . TAbss [arg1, arg2, arg3]
+    . unbox arg2 Ty.natRef nat1
+    . unbox arg3 Ty.natRef nat2
+    $ TLetD result UN (TFOp instr [arg1, nat1, nat2]) cont
+
+inBxNatBx :: Var v => v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxNatBx arg1 arg2 arg3 nat result cont instr =
+  ([BX, BX, BX],)
+    . TAbss [arg1, arg2, arg3]
+    . unbox arg2 Ty.natRef nat
+    $ TLetD result UN (TFOp instr [arg1, nat, arg3]) cont
+
 -- a -> IOMode -> ...
 inBxIomr :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxIomr arg1 arg2 fm result cont instr =
@@ -1159,6 +1182,33 @@ outIoFailNat stack1 stack2 stack3 fail nat result =
             . TLetD nat BX (TCon Ty.natRef 0 [stack3])
             $ right nat
         )
+      ]
+
+exnCase :: Var v => v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
+exnCase stack1 stack2 stack3 fail =
+  (0,) . ([BX, BX, BX],)
+    . TAbss [stack1, stack2, stack3]
+    . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, stack3])
+    $ TReq Ty.exceptionRef 1 [fail]
+
+outIoExnNat :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
+outIoExnNat stack1 stack2 stack3 fail result =
+  TMatch result . MatchSum $
+    mapFromList
+      [ exnCase stack1 stack2 stack3 fail,
+        ( 1,
+          ([UN],)
+            . TAbs stack1
+            $ TCon Ty.natRef 0 [stack1]
+        )
+      ]
+
+outIoExnBox :: Var v => v -> v -> v -> v -> v -> ANormal v
+outIoExnBox stack1 stack2 stack3 fail result =
+  TMatch result . MatchSum $
+    mapFromList
+      [ exnCase stack1 stack2 stack3 fail,
+        (1, ([BX], TAbs stack1 $ TVar stack1))
       ]
 
 outIoFailBox :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
@@ -1344,6 +1394,17 @@ wordDirect wordType instr =
   where
     (b1, ub1) = fresh2
 
+-- Nat -> Nat -> c
+wordWordDirect :: Reference -> Reference -> ForeignOp
+wordWordDirect word1 word2 instr =
+  ([BX, BX],)
+    . TAbss [b1, b2]
+    . unbox b1 word1 ub1
+    . unbox b2 word2 ub2
+    $ TFOp instr [ub1, ub2]
+  where
+    (b1, b2, ub1, ub2) = fresh4
+
 -- Nat -> a -> c
 -- Works for an type that's packed into a word, just
 -- pass `wordBoxDirect Ty.natRef`, `wordBoxDirect Ty.floatRef`
@@ -1469,6 +1530,16 @@ boxBoxToEFBox =
   where
     (arg1, arg2, result, stack1, stack2, fail) = fresh6
 
+-- Nat -> a
+-- Nat only
+natToBox :: ForeignOp
+natToBox = wordDirect Ty.natRef
+
+-- Nat -> Nat -> a
+-- Nat only
+natNatToBox :: ForeignOp
+natNatToBox = wordWordDirect Ty.natRef Ty.natRef
+
 -- a -> Nat -> Either Failure b
 boxNatToEFBox :: ForeignOp
 boxNatToEFBox =
@@ -1476,6 +1547,58 @@ boxNatToEFBox =
     outIoFail stack1 stack2 fail result
   where
     (arg1, arg2, nat, stack1, stack2, fail, result) = fresh7
+
+-- a -> Nat ->{Exception} b
+boxNatToExnBox :: ForeignOp
+boxNatToExnBox =
+  inBxNat arg1 arg2 nat result $
+    outIoExnBox stack1 stack2 stack3 fail result
+  where
+    (arg1, arg2, nat, stack1, stack2, stack3, fail, result) = fresh8
+
+-- a -> Nat -> b ->{Exception} ()
+boxNatBoxToExnUnit :: ForeignOp
+boxNatBoxToExnUnit =
+  inBxNatBx arg1 arg2 arg3 nat result
+    . TMatch result
+    . MatchSum
+    $ mapFromList
+      [ ( 0,
+          ([BX, BX],)
+            . TAbss [stack1, stack2, stack3]
+            . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, stack3])
+            $ TReq Ty.exceptionRef 1 [fail]
+        ),
+        (1, ([], TCon Ty.unitRef 0 []))
+      ]
+  where
+    (arg1, arg2, arg3, nat, stack1, stack2, stack3, fail, result) = fresh9
+
+-- a -> Nat ->{Exception} Nat
+boxNatToExnNat :: ForeignOp
+boxNatToExnNat =
+  inBxNat arg1 arg2 nat result $
+    outIoExnNat stack1 stack2 stack3 fail result
+  where
+    (arg1, arg2, nat, stack1, stack2, stack3, fail, result) = fresh8
+
+-- a -> Nat -> Nat ->{Exception} ()
+boxNatNatToExnUnit :: ForeignOp
+boxNatNatToExnUnit =
+  inBxNatNat arg1 arg2 arg3 nat1 nat2 result
+    . TMatch result
+    . MatchSum
+    $ mapFromList
+      [ ( 0,
+          ([BX, BX],)
+            . TAbss [stack1, stack2]
+            . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+            $ TReq Ty.exceptionRef 1 [fail]
+        ),
+        (1, ([], TCon Ty.unitRef 0 []))
+      ]
+  where
+    (arg1, arg2, arg3, nat1, nat2, result, stack1, stack2, fail) = fresh9
 
 -- Nat -> Either Failure b
 -- natToEFBox :: ForeignOp
@@ -1729,6 +1852,9 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
 
 unitValue :: Closure
 unitValue = Closure.Enum Ty.unitRef 0
+
+natValue :: Word64 -> Closure
+natValue w = Closure.DataU1 Ty.natRef 0 (fromIntegral w)
 
 mkForeignTls ::
   forall a r.
@@ -2227,6 +2353,155 @@ declareForeigns = do
   declareForeign Untracked "Bytes.encodeNat32le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32le
   declareForeign Untracked "Bytes.encodeNat16be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16be
   declareForeign Untracked "Bytes.encodeNat16le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16le
+
+  declareForeign Tracked "MutableArray.read" boxNatToExnBox
+    . mkForeign
+    $ checkedRead
+  declareForeign Tracked "MutableByteArray.read8" boxNatToExnNat
+    . mkForeign
+    $ checkedReadPrim @Word8
+  declareForeign Tracked "MutableByteArray.read16" boxNatToExnNat
+    . mkForeign
+    $ checkedReadPrim @Word16
+  declareForeign Tracked "MutableByteArray.read32" boxNatToExnNat
+    . mkForeign
+    $ checkedReadPrim @Word32
+  declareForeign Tracked "MutableByteArray.read64" boxNatToExnNat
+    . mkForeign
+    $ checkedReadPrim @Word64
+
+  declareForeign Tracked "MutableArray.write" boxNatBoxToExnUnit
+    . mkForeign
+    $ checkedWrite
+  declareForeign Tracked "MutableByteArray.write8" boxNatNatToExnUnit
+    . mkForeign
+    $ checkedWritePrim @Word8
+  declareForeign Tracked "MutableByteArray.write16" boxNatNatToExnUnit
+    . mkForeign
+    $ checkedWritePrim @Word16
+  declareForeign Tracked "MutableByteArray.write32" boxNatNatToExnUnit
+    . mkForeign
+    $ checkedWritePrim @Word32
+  declareForeign Tracked "MutableByteArray.write64" boxNatNatToExnUnit
+    . mkForeign
+    $ checkedWritePrim @Word64
+
+  declareForeign Untracked "ImmutableArray.read" boxNatToExnBox
+    . mkForeign
+    $ checkedIndex
+  declareForeign Untracked "ImmutableByteArray.read8" boxNatToExnNat
+    . mkForeign
+    $ checkedIndexPrim @Word8
+  declareForeign Untracked "ImmutableByteArray.read16" boxNatToExnNat
+    . mkForeign
+    $ checkedIndexPrim @Word16
+  declareForeign Untracked "ImmutableByteArray.read32" boxNatToExnNat
+    . mkForeign
+    $ checkedIndexPrim @Word32
+  declareForeign Untracked "ImmutableByteArray.read64" boxNatToExnNat
+    . mkForeign
+    $ checkedIndexPrim @Word64
+
+  declareForeign Tracked "MutableByteArray.freeze!" boxDirect . mkForeign $
+    PA.unsafeFreezeByteArray
+
+  declareForeign Untracked "MutableByteArray.length" boxToNat . mkForeign $
+    pure . PA.sizeofMutableByteArray
+
+  declareForeign Untracked "ImmutableByteArray.length" boxToNat . mkForeign $
+    pure . PA.sizeofByteArray
+
+  declareForeign Tracked "IO.bytearray" natToBox . mkForeign $ PA.newByteArray
+  declareForeign Tracked "IO.bytearrayOf" natNatToBox
+    . mkForeign
+    $ \(init, sz) -> do
+      arr <- PA.newByteArray sz
+      PA.fillByteArray arr 0 sz init
+      pure arr
+
+  declareForeign Tracked "Scope.bytearray" natToBox . mkForeign $ PA.newByteArray
+  declareForeign Tracked "Scope.bytearrayOf" natNatToBox
+    . mkForeign
+    $ \(sz, init) -> do
+      arr <- PA.newByteArray sz
+      PA.fillByteArray arr 0 sz init
+      pure arr
+
+type RW = PA.PrimState IO
+
+checkedRead :: (PA.MutableArray RW Closure, Word64) -> IO (Either Failure Closure)
+checkedRead (arr, w) =
+  checkBounds (PA.sizeofMutableArray arr) w (PA.readArray arr (fromIntegral w))
+
+checkedWrite ::
+  (PA.MutableArray RW Closure, Word64, Closure) -> IO (Either Failure ())
+checkedWrite (arr, w, v) =
+  checkBounds (PA.sizeofMutableArray arr) w (PA.writeArray arr (fromIntegral w) v)
+
+checkedIndex ::
+  (PA.Array Closure, Word64) -> IO (Either Failure Closure)
+checkedIndex (arr, w) =
+  checkBounds (PA.sizeofArray arr) w (PA.indexArrayM arr (fromIntegral w))
+
+checkedReadPrim ::
+  forall a.
+  PA.Prim a =>
+  (PA.MutableByteArray RW, Word64) ->
+  IO (Either Failure a)
+checkedReadPrim (arr, i) =
+  checkBoundsPrim
+    (PA.sizeofMutableByteArray arr)
+    i
+    (undefined :: a)
+    (PA.readByteArray arr (fromIntegral i))
+
+checkedWritePrim ::
+  forall a.
+  PA.Prim a =>
+  (PA.MutableByteArray RW, Word64, a) ->
+  IO (Either Failure ())
+checkedWritePrim (arr, i, v) =
+  checkBoundsPrim
+    (PA.sizeofMutableByteArray arr)
+    i
+    v
+    (PA.writeByteArray arr (fromIntegral i) v)
+
+checkedIndexPrim ::
+  forall a. PA.Prim a => (PA.ByteArray, Word64) -> IO (Either Failure a)
+checkedIndexPrim (arr, i) =
+  checkBoundsPrim
+    (PA.sizeofByteArray arr)
+    i
+    (undefined :: a)
+    (pure $ PA.indexByteArray arr (fromIntegral i))
+
+checkBounds :: Int -> Word64 -> IO b -> IO (Either Failure b)
+checkBounds l w act
+  | w < fromIntegral l = Right <$> act
+  | otherwise = pure $ Left err
+  where
+    err = Failure Ty.arrayFailureRef "array index out of bounds" (natValue w)
+
+-- Performs a bounds check on a byte array. Strategy is as follows:
+--
+--   1. Turn the signed size-in-bytes of the array unsigned
+--   2. Get the size of an element to be read
+--   3. Divide 1 by 2 to get the size-in-elements
+--   4. Check if the unsigned index is too large
+--
+-- This should avoid having to worry about overflows.
+checkBoundsPrim ::
+  PA.Prim a => Int -> Word64 -> a -> IO b -> IO (Either Failure b)
+checkBoundsPrim isz w a act
+  | w >= asz = pure $ Left err
+  | otherwise = Right <$> act
+  where
+    err = Failure Ty.arrayFailureRef "array index out of bounds" (natValue w)
+
+    bsz = fromIntegral isz
+    sz = fromIntegral $ PA.sizeOf a
+    asz = bsz `div` sz
 
 hostPreference :: Maybe Util.Text.Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

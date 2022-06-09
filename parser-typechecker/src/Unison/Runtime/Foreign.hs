@@ -143,6 +143,7 @@ instance BuiltinForeign Value where foreignRef = Tagged Ty.valueRef
 
 instance BuiltinForeign TimeSpec where foreignRef = Tagged Ty.timeSpecRef
 
+
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm
   HashAlgorithm :: Hash.HashAlgorithm a => Reference -> a -> HashAlgorithm
