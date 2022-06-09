@@ -36,9 +36,10 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import Data.These (These (..))
+import qualified Network.HTTP.Client as Http.Client
 import qualified Servant.API as Servant ((:<|>) (..), (:>))
 import Servant.Client (BaseUrl)
-import qualified Servant.Client as Servant (ClientEnv, ClientM, client, hoistClient, mkClientEnv, runClientM)
+import qualified Servant.Client as Servant (ClientEnv (..), ClientM, client, defaultMakeClientRequest, hoistClient, mkClientEnv, runClientM)
 import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Util.Hash32 (Hash32)
@@ -594,4 +595,13 @@ httpUploadEntities :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.UploadEnt
         req ->
         IO resp
       go f (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req =
-        runReaderT (f req) (Servant.mkClientEnv httpClient unisonShareUrl)
+        runReaderT
+          (f req)
+          ( (Servant.mkClientEnv httpClient unisonShareUrl)
+              { Servant.makeClientRequest = \url request ->
+                  -- Disable client-side timeouts
+                  (Servant.defaultMakeClientRequest url request)
+                    { Http.Client.responseTimeout = Http.Client.responseTimeoutNone
+                    }
+              }
+          )
