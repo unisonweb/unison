@@ -8,6 +8,7 @@
 module U.Codebase.Sqlite.Queries
   ( -- * text table
     saveText,
+    saveTexts,
     loadTextId,
     expectTextId,
     expectText,
@@ -332,8 +333,20 @@ expectBranchHash :: BranchHashId -> Transaction BranchHash
 expectBranchHash = coerce expectHash
 
 saveText :: Text -> Transaction TextId
-saveText t = execute sql (Only t) >> expectTextId t
-  where sql = [here| INSERT INTO text (text) VALUES (?) ON CONFLICT DO NOTHING|]
+saveText t = execute saveTextSql (Only t) >> expectTextId t
+
+saveTexts :: [Text] -> Transaction [TextId]
+saveTexts texts = do
+  executeMany saveTextSql (coerce @[Text] @[Only Text] texts)
+  traverse expectTextId texts
+
+saveTextSql :: Sql
+saveTextSql =
+  [here|
+    INSERT INTO text (text)
+    VALUES (?)
+    ON CONFLICT DO NOTHING
+  |]
 
 loadTextId :: Text -> Transaction (Maybe TextId)
 loadTextId t = queryMaybeCol loadTextIdSql (Only t)
@@ -766,7 +779,7 @@ tempToSyncEntity = \case
     tempToSyncNamespaceLocalIds :: TempEntity.TempNamespaceLocalIds -> Transaction NamespaceFormat.BranchLocalIds
     tempToSyncNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children) =
       NamespaceFormat.LocalIds
-        <$> traverse saveText texts
+        <$> (Vector.fromList <$> saveTexts (Vector.toList texts))
         <*> traverse expectObjectIdForHash32 defns
         <*> traverse expectPatchObjectIdForHash32 patches
         <*> traverse
@@ -789,7 +802,7 @@ tempToSyncEntity = \case
     tempToSyncPatchLocalIds :: TempEntity.TempPatchLocalIds -> Transaction PatchFormat.PatchLocalIds
     tempToSyncPatchLocalIds (PatchFormat.LocalIds texts hashes defns) =
       PatchFormat.LocalIds
-        <$> traverse saveText texts
+        <$> (Vector.fromList <$> saveTexts (Vector.toList texts))
         <*> traverse saveHash hashes
         <*> traverse expectObjectIdForHash32 defns
 
