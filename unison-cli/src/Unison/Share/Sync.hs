@@ -78,10 +78,10 @@ checkAndSetPush ::
   Maybe Hash32 ->
   -- | The hash of our local causal to push.
   CausalHash ->
-  -- | Callback that is given the total number of entities uploaded.
-  (Int -> IO ()) ->
+  -- | Callback that is given the total number of entities uploaded, and the number of outstanding entities to upload.
+  (Int -> Int -> IO ()) ->
   IO (Either CheckAndSetPushError ())
-checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash uploadCountCallback = do
+checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash uploadProgressCallback = do
   -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it needs
   -- this causal (UpdatePathMissingDependencies).
   updatePath >>= \case
@@ -89,7 +89,7 @@ checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash uplo
     Share.UpdatePathHashMismatch mismatch -> pure (Left (CheckAndSetPushErrorHashMismatch mismatch))
     Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
       -- Upload the causal and all of its dependencies.
-      uploadEntities httpClient unisonShareUrl conn (Share.pathRepoName path) dependencies uploadCountCallback >>= \case
+      uploadEntities httpClient unisonShareUrl conn (Share.pathRepoName path) dependencies uploadProgressCallback >>= \case
         False -> pure (Left (CheckAndSetPushErrorNoWritePermission path))
         True ->
           -- After uploading the causal and all of its dependencies, try setting the remote path again.
@@ -140,10 +140,10 @@ fastForwardPush ::
   Share.Path ->
   -- | The hash of our local causal to push.
   CausalHash ->
-  -- | Callback that is given the total number of entities uploaded.
-  (Int -> IO ()) ->
+  -- | Callback that is given the total number of entities uploaded, and the number of outstanding entities to upload.
+  (Int -> Int -> IO ()) ->
   IO (Either FastForwardPushError ())
-fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadCountCallback =
+fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadProgressCallback =
   getCausalHashByPath httpClient unisonShareUrl path >>= \case
     Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission path))
     Right Nothing -> pure (Left (FastForwardPushErrorNoHistory path))
@@ -188,7 +188,7 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadCountCal
         conn
         (Share.pathRepoName path)
         (NESet.singleton (causalHashToHash32 headHash))
-        uploadCountCallback
+        uploadProgressCallback
 
     -- Return a list from oldest to newst of the ancestors between (excluding) the latest local and the current remote
     -- hash.
@@ -435,9 +435,9 @@ uploadEntities ::
   Sqlite.Connection ->
   Share.RepoName ->
   NESet Hash32 ->
-  (Int -> IO ()) ->
+  (Int -> Int -> IO ()) ->
   IO Bool
-uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadCountCallback =
+uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCallback =
   loop 0 hashes0
   where
     loop :: Int -> NESet Hash32 -> IO Bool
@@ -469,18 +469,22 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadCountCallba
 
       uploadEntities >>= \case
         Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> do
-          uploadCountCallback newUploadCount
-          loop newUploadCount $
-            case NESet.nonEmptySet nextHashes of
-              Nothing -> moreHashes
-              Just nextHashes1 -> NESet.union moreHashes nextHashes1
+          let newAllHashesSet =
+                case NESet.nonEmptySet nextHashes of
+                  Nothing -> moreHashes
+                  Just nextHashes1 -> NESet.union moreHashes nextHashes1
+          uploadProgressCallback newUploadCount (NESet.size newAllHashesSet)
+          loop newUploadCount newAllHashesSet
         Share.UploadEntitiesNoWritePermission _ -> pure False
         Share.UploadEntitiesHashMismatchForEntity {} -> pure False
         Share.UploadEntitiesSuccess -> do
-          uploadCountCallback newUploadCount
           case NESet.nonEmptySet nextHashes of
-            Nothing -> pure True
-            Just nextHashes1 -> loop newUploadCount nextHashes1
+            Nothing -> do
+              uploadProgressCallback newUploadCount 0
+              pure True
+            Just nextHashes1 -> do
+              uploadProgressCallback newUploadCount (NESet.size nextHashes1)
+              loop newUploadCount nextHashes1
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
