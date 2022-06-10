@@ -138,8 +138,6 @@ module U.Codebase.Sqlite.Queries
     entityExists,
     entityLocation,
     expectEntity,
-    getMissingDependentsForTempEntity,
-    getMissingDependencyJwtsForTempEntity,
     tempToSyncEntity,
     syncToTempEntity,
     insertTempEntity,
@@ -653,16 +651,16 @@ flushCausalDependents chId = do
 --        insert_entity them.
 tryMoveTempEntityDependents :: Hash32 -> Transaction ()
 tryMoveTempEntityDependents dependency = do
-  dependents <- getMissingDependentsForTempEntity dependency
-  execute deleteMissingDependency (Only dependency)
+  dependents <-
+    queryListCol
+      [here|
+        DELETE FROM temp_entity_missing_dependency
+        WHERE dependency = ?
+        RETURNING dependent
+      |]
+      (Only dependency)
   traverse_ flushIfReadyToFlush dependents
   where
-    deleteMissingDependency :: Sql
-    deleteMissingDependency = [here|
-      DELETE FROM temp_entity_missing_dependency
-      WHERE dependency = ?
-    |]
-
     flushIfReadyToFlush :: Hash32 -> Transaction ()
     flushIfReadyToFlush dependent = do
       readyToFlush dependent >>= \case
@@ -1490,27 +1488,6 @@ entityExists hash = do
     Nothing -> pure False
     -- then check if is causal hash or if object exists for hash id
     Just hashId -> isCausalHash hashId ||^ isObjectHash hashId
-
-getMissingDependencyJwtsForTempEntity :: Hash32 -> Transaction (Maybe (NESet Text))
-getMissingDependencyJwtsForTempEntity h = do
-  jwts <-
-    queryListCol
-      [here|
-        SELECT dependencyJwt FROM temp_entity_missing_dependency
-        WHERE dependent = ?
-      |]
-      (Only h)
-  pure (NESet.nonEmptySet (Set.fromList jwts))
-
-getMissingDependentsForTempEntity :: Hash32 -> Transaction [Hash32]
-getMissingDependentsForTempEntity h =
-  queryListCol
-    [here|
-      SELECT dependent
-      FROM temp_entity_missing_dependency
-      WHERE dependency = ?
-    |]
-    (Only h)
 
 -- | Insert a new `temp_entity` row, and its associated 1+ `temp_entity_missing_dependency` rows.
 --
