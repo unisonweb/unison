@@ -14,6 +14,7 @@ packages:
 - parser-typechecker
 - unison-core
 - unison-cli
+- unison-hashing-v2
 - unison-share-api
 - codebase2/codebase
 - codebase2/codebase-sqlite
