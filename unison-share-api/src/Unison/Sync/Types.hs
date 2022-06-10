@@ -151,33 +151,22 @@ hashJWTHash =
   decodedHashJWTHash . decodeHashJWT
 
 data HashJWTClaims = HashJWTClaims
-  { hash :: Hash32
-  -- Currently unused
-  -- entityType :: EntityType
+  { hash :: Hash32,
+    userId :: Text
   }
   deriving stock (Show, Eq, Ord)
 
 instance ToJWT HashJWTClaims where
-  encodeJWT (HashJWTClaims h) =
-    Jose.addClaim "h" (toJSON h) Jose.emptyClaimsSet
+  encodeJWT (HashJWTClaims h u) =
+    JWT.emptyClaimsSet
+      & JWT.addClaim "h" (toJSON h)
+      & JWT.addClaim "u" (toJSON u)
 
 instance FromJWT HashJWTClaims where
-  decodeJWT claims = case claims ^? Jose.unregisteredClaims . ix "h" of
-    Nothing -> Left "Missing 'h' claim on HashJWT"
-    Just v
-      | Success hash <- fromJSON v -> Right $ HashJWTClaims hash
-      | otherwise -> Left "Invalid hash at 'h' claim in HashJWT"
-
-instance ToJSON HashJWTClaims where
-  toJSON (HashJWTClaims hash) =
-    object
-      [ "h" .= hash
-      ]
-
-instance FromJSON HashJWTClaims where
-  parseJSON = Aeson.withObject "HashJWTClaims" \obj -> do
-    hash <- obj .: "h"
-    pure HashJWTClaims {..}
+  decodeJWT claims = maybe (Left "Invalid HashJWTClaims") pure $ do
+    hash <- claims ^? JWT.unregisteredClaims . ix "h" . folding fromJSON
+    userId <- claims ^? JWT.unregisteredClaims . ix "u" . folding fromJSON
+    pure $ HashJWTClaims {..}
 
 -- | A decoded hash JWT that retains the original encoded JWT.
 data DecodedHashJWT = DecodedHashJWT
