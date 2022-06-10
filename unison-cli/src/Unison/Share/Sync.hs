@@ -46,6 +46,7 @@ import U.Util.Hash32 (Hash32)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Auth.HTTPClient as Auth
 import Unison.Prelude
+import Unison.Share.Sync.Types
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sync.API as Share (API)
 import Unison.Sync.Common (causalHashToHash32, entityToTempEntity, expectEntity, hash32ToCausalHash)
@@ -55,12 +56,6 @@ import qualified Unison.Util.Set as Set
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
-
--- | An error occurred while pushing code to Unison Share.
-data CheckAndSetPushError
-  = CheckAndSetPushErrorHashMismatch Share.HashMismatch
-  | CheckAndSetPushErrorNoWritePermission Share.Path
-  | CheckAndSetPushErrorServerMissingDependencies (NESet Hash32)
 
 -- | Push a causal to Unison Share.
 -- FIXME reword this
@@ -116,16 +111,6 @@ checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash uplo
             expectedHash,
             newHash = causalHashToHash32 causalHash
           }
-
--- | An error occurred while fast-forward pushing code to Unison Share.
-data FastForwardPushError
-  = FastForwardPushErrorNoHistory Share.Path
-  | FastForwardPushErrorNoReadPermission Share.Path
-  | FastForwardPushErrorNotFastForward Share.Path
-  | FastForwardPushErrorNoWritePermission Share.Path
-  | FastForwardPushErrorServerMissingDependencies (NESet Hash32)
-  | --                              Parent Child
-    FastForwardPushInvalidParentage Hash32 Hash32
 
 -- | Push a causal to Unison Share.
 -- FIXME reword this
@@ -313,12 +298,6 @@ dagbfs goal children =
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
 
--- | An error occurred while pulling code from Unison Share.
-data PullError
-  = -- | An error occurred while resolving a repo+path to a causal hash.
-    PullErrorGetCausalHashByPath GetCausalHashByPathError
-  | PullErrorNoHistoryAtPath Share.Path
-
 pull ::
   -- | The HTTP client to use for Unison Share requests.
   AuthenticatedHttpClient ->
@@ -406,11 +385,6 @@ downloadEntities doDownload conn hashes = do
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
-
--- | An error occurred when getting causal hash by path.
-data GetCausalHashByPathError
-  = -- | The user does not have permission to read this path.
-    GetCausalHashByPathErrorNoReadPermission Share.Path
 
 -- | Get the causal hash of a path hosted on Unison Share.
 getCausalHashByPath ::
