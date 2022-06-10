@@ -1,24 +1,23 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Parser where
 
 import Control.Monad.Reader.Class (asks)
 import qualified Crypto.Random as Random
-import Data.Bifunctor (bimap)
 import Data.Bytes.Put (runPutS)
 import Data.Bytes.Serial (serialize)
 import Data.Bytes.VarInt (VarInt (..))
 import qualified Data.Char as Char
-import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Typeable (Proxy (..))
 import Text.Megaparsec (runParserT)
 import qualified Text.Megaparsec as P
-import qualified Text.Megaparsec.Char as P
 import Text.Megaparsec.Error (ShowErrorComponent)
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified Unison.ABT as ABT
@@ -41,9 +40,6 @@ import Unison.Prelude
     foldl',
     fromMaybe,
     isJust,
-    join,
-    lastMay,
-    listToMaybe,
     optional,
     trace,
     void,
@@ -64,7 +60,7 @@ type P v = P.ParsecT (Error v) Input ((->) ParsingEnv)
 
 type Token s = P.Token s
 
-type Err v = P.ParseError (Token Input) (Error v)
+type Err v = P.ParseError Input (Error v)
 
 data ParsingEnv = ParsingEnv
   { uniqueNames :: UniqueName,
@@ -137,43 +133,8 @@ tokenToPair :: L.Token a -> (Ann, a)
 tokenToPair t = (ann t, L.payload t)
 
 newtype Input = Input {inputStream :: [L.Token L.Lexeme]}
-  deriving (Eq, Ord, Show)
-
-instance P.Stream Input where
-  type Token Input = L.Token L.Lexeme
-  type Tokens Input = Input
-
-  tokenToChunk pxy = P.tokensToChunk pxy . pure
-
-  tokensToChunk _ = Input
-
-  chunkToTokens _ = inputStream
-
-  chunkLength pxy = length . P.chunkToTokens pxy
-
-  chunkEmpty pxy = null . P.chunkToTokens pxy
-
-  positionAt1 _ sp t = setPos sp (L.start t)
-
-  positionAtN pxy sp =
-    maybe sp (setPos sp . L.start) . listToMaybe . P.chunkToTokens pxy
-
-  advance1 _ _ cp = setPos cp . L.end
-
-  advanceN _ _ cp = maybe cp (setPos cp . L.end) . lastMay . inputStream
-
-  take1_ (P.chunkToTokens proxy -> []) = Nothing
-  take1_ (P.chunkToTokens proxy -> t : ts) = Just (t, P.tokensToChunk proxy ts)
-  take1_ _ = error "Unpossible"
-
-  takeN_ n (P.chunkToTokens proxy -> []) | n > 0 = Nothing
-  takeN_ n ts =
-    Just
-      . join bimap (P.tokensToChunk proxy)
-      . splitAt n
-      $ P.chunkToTokens proxy ts
-
-  takeWhile_ p = join bimap (P.tokensToChunk proxy) . span p . inputStream
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (P.Stream, P.VisualStream)
 
 setPos :: P.SourcePos -> L.Pos -> P.SourcePos
 setPos sp lp =
@@ -220,13 +181,13 @@ tok :: (Ann -> a -> b) -> L.Token a -> b
 tok f (L.Token a start end) = f (Ann start end) a
 
 peekAny :: Ord v => P v (L.Token L.Lexeme)
-peekAny = P.lookAhead P.anyChar
+peekAny = P.lookAhead P.anySingle
 
 lookAhead :: Ord v => P v a -> P v a
 lookAhead = P.lookAhead
 
 anyToken :: Ord v => P v (L.Token L.Lexeme)
-anyToken = P.anyChar
+anyToken = P.anySingle
 
 failCommitted :: Ord v => Error v -> P v x
 failCommitted e = do
@@ -249,17 +210,16 @@ run' p s name env =
           then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
           else L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-   in runParserT pTraced name (Input lex) env
+   in case runParserT pTraced name (Input lex) env of
+        Left err -> Left (Nel.head (P.bundleErrors err))
+        Right x -> Right x
 
 run :: Ord v => P v a -> String -> ParsingEnv -> Either (Err v) a
 run p s = run' p s ""
 
 -- Virtual pattern match on a lexeme.
 queryToken :: Ord v => (L.Lexeme -> Maybe a) -> P v (L.Token a)
-queryToken f = P.token go Nothing
-  where
-    go t@(f . L.payload -> Just s) = Right $ fmap (const s) t
-    go x = Left (pure (P.Tokens (x :| [])), Set.empty)
+queryToken f = P.token (traverse f) Set.empty
 
 -- Consume a block opening and return the string that opens the block.
 openBlock :: Ord v => P v (L.Token String)
