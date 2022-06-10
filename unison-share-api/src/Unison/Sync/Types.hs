@@ -156,16 +156,25 @@ data HashJWTClaims = HashJWTClaims
   }
   deriving stock (Show, Eq, Ord)
 
+-- | Adding a type tag to the jwt prevents users from using jwts we issue for other things
+-- in this spot. All of our jwts should have a type parameter of some kind.
+hashJWTType :: String
+hashJWTType = "hj"
+
 instance ToJWT HashJWTClaims where
   encodeJWT (HashJWTClaims h u) =
     Jose.emptyClaimsSet
       & Jose.addClaim "h" (toJSON h)
       & Jose.addClaim "u" (toJSON u)
+      & Jose.addClaim "t" (toJSON hashJWTType)
 
 instance FromJWT HashJWTClaims where
   decodeJWT claims = maybe (Left "Invalid HashJWTClaims") pure $ do
     hash <- claims ^? Jose.unregisteredClaims . ix "h" . folding fromJSON
     userId <- claims ^? Jose.unregisteredClaims . ix "u" . folding fromJSON
+    case claims ^? Jose.unregisteredClaims . ix "t" . folding fromJSON of
+      Just t | t == hashJWTType -> pure ()
+      _ -> empty
     pure $ HashJWTClaims {..}
 
 instance ToJSON HashJWTClaims where
