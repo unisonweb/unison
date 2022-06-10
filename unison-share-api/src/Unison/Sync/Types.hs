@@ -70,7 +70,7 @@ module Unison.Sync.Types
   )
 where
 
-import Control.Lens (both, ix, traverseOf, (^?))
+import Control.Lens (both, folding, ix, traverseOf, (^?))
 import qualified Crypto.JWT as Jose
 import Data.Aeson
 import qualified Data.Aeson as Aeson
@@ -158,15 +158,28 @@ data HashJWTClaims = HashJWTClaims
 
 instance ToJWT HashJWTClaims where
   encodeJWT (HashJWTClaims h u) =
-    JWT.emptyClaimsSet
-      & JWT.addClaim "h" (toJSON h)
-      & JWT.addClaim "u" (toJSON u)
+    Jose.emptyClaimsSet
+      & Jose.addClaim "h" (toJSON h)
+      & Jose.addClaim "u" (toJSON u)
 
 instance FromJWT HashJWTClaims where
   decodeJWT claims = maybe (Left "Invalid HashJWTClaims") pure $ do
-    hash <- claims ^? JWT.unregisteredClaims . ix "h" . folding fromJSON
-    userId <- claims ^? JWT.unregisteredClaims . ix "u" . folding fromJSON
+    hash <- claims ^? Jose.unregisteredClaims . ix "h" . folding fromJSON
+    userId <- claims ^? Jose.unregisteredClaims . ix "u" . folding fromJSON
     pure $ HashJWTClaims {..}
+
+instance ToJSON HashJWTClaims where
+  toJSON (HashJWTClaims hash userId) =
+    object
+      [ "h" .= hash,
+        "u" .= userId
+      ]
+
+instance FromJSON HashJWTClaims where
+  parseJSON = Aeson.withObject "HashJWTClaims" \obj -> do
+    hash <- obj .: "h"
+    userId <- obj .: "u"
+    pure HashJWTClaims {..}
 
 -- | A decoded hash JWT that retains the original encoded JWT.
 data DecodedHashJWT = DecodedHashJWT
