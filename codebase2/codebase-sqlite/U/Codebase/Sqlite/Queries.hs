@@ -647,16 +647,14 @@ flushCausalDependents chId = do
 
 -- | `tryMoveTempEntityDependents #foo` does this:
 --    0. Precondition: We just inserted object #foo.
---  0.5. look up the dependents of #foo
---    1. Delete #foo as dependency from temp_entity_missing_dependency. e.g. (#bar, #foo), (#baz, #foo)
---    2. Delete #foo from temp_entity (if it's there)
+--    1. Look up the dependents of #foo
+--    2. Delete #foo as dependency from temp_entity_missing_dependency. e.g. (#bar, #foo), (#baz, #foo)
 --    3. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
 --        insert_entity them.
 tryMoveTempEntityDependents :: Hash32 -> Transaction ()
 tryMoveTempEntityDependents dependency = do
   dependents <- getMissingDependentsForTempEntity dependency
   execute deleteMissingDependency (Only dependency)
-  deleteTempEntity dependency
   traverse_ flushIfReadyToFlush dependents
   where
     deleteMissingDependency :: Sql
