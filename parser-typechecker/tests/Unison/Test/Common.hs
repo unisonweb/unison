@@ -15,7 +15,6 @@ import qualified Text.Megaparsec.Error as MPE
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
-import qualified Unison.Lexer as L
 import Unison.Names (Names)
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
@@ -58,7 +57,7 @@ tm s =
 showParseError ::
   Var v =>
   String ->
-  MPE.ParseError (L.Token L.Lexeme) (Parser.Error v) ->
+  MPE.ParseError Parser.Input (Parser.Error v) ->
   String
 showParseError s = Pr.toANSI 60 . prettyParseError s
 

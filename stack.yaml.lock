@@ -27,17 +27,6 @@ packages:
   original:
     url: https://github.com/unisonweb/haskeline/archive/2944b11d19ee034c48276edc991736105c9d6143.tar.gz
 - completed:
-    size: 92490
-    url: https://github.com/unisonweb/megaparsec/archive/c4463124c578e8d1074c04518779b5ce5957af6b.tar.gz
-    name: megaparsec
-    version: 6.5.0
-    sha256: 94f9573735fefda868371ff735a6b1f52bea22b9e52289abeb8114c99bbf8832
-    pantry-tree:
-      size: 2635
-      sha256: 7d3f8b23c862d878b4adce628caaf7bc337f0ac10b2556e1cdf0913c28a45929
-  original:
-    url: https://github.com/unisonweb/megaparsec/archive/c4463124c578e8d1074c04518779b5ce5957af6b.tar.gz
-- completed:
     size: 10460
     url: https://github.com/unisonweb/shellmet/archive/2fd348592c8f51bb4c0ca6ba4bc8e38668913746.tar.gz
     name: shellmet

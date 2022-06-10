@@ -34,7 +34,7 @@ dependencies:
   - jwt
   - lens
   - lock-file
-  - megaparsec >= 5.0.0 && < 7.0.0
+  - megaparsec
   - memory
   - mtl
   - network-uri

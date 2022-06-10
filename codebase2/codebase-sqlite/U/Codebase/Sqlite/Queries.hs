@@ -16,6 +16,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * hash table
     saveHash,
+    saveHashes,
     saveHashHash,
     loadHashId,
     expectHash,
@@ -189,6 +190,7 @@ import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.Entity (SyncEntity)
 import qualified U.Codebase.Sqlite.Entity as Entity
+import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.NamedRef as S
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
@@ -272,6 +274,15 @@ saveHash hash = execute sql (Only hash) >> expectHashId hash
     ON CONFLICT DO NOTHING
   |]
 
+saveHashes :: Traversable f => f Hash32 -> Transaction (f HashId)
+saveHashes hashes = do
+  executeMany sql (coerce @[Hash32] @[Only Hash32] (Foldable.toList hashes))
+  traverse expectHashId hashes
+  where sql = [here|
+    INSERT INTO hash (base32) VALUES (?)
+    ON CONFLICT DO NOTHING
+  |]
+
 saveHashHash :: Hash -> Transaction HashId
 saveHashHash = saveHash . Hash32.fromHash
 
@@ -283,7 +294,7 @@ expectHashId hash = queryOneCol loadHashIdSql (Only hash)
 
 loadHashIdSql :: Sql
 loadHashIdSql =
-  [here| SELECT id FROM hash WHERE base32 = ? |]
+  [here| SELECT id FROM hash WHERE base32 = ? COLLATE NOCASE |]
 
 loadHashIdByHash :: Hash -> Transaction (Maybe HashId)
 loadHashIdByHash = loadHashId . Hash32.fromHash
@@ -332,9 +343,9 @@ expectBranchHash = coerce expectHash
 saveText :: Text -> Transaction TextId
 saveText t = execute saveTextSql (Only t) >> expectTextId t
 
-saveTexts :: [Text] -> Transaction [TextId]
+saveTexts :: Traversable f => f Text -> Transaction (f TextId)
 saveTexts texts = do
-  executeMany saveTextSql (coerce @[Text] @[Only Text] texts)
+  executeMany saveTextSql (coerce @[Text] @[Only Text] (Foldable.toList texts))
   traverse expectTextId texts
 
 saveTextSql :: Sql
@@ -512,7 +523,7 @@ expectObjectIdForHash32 hash = do
       SELECT object.id
       FROM object
       JOIN hash ON object.primary_hash_id = hash.id
-      WHERE hash.base32 = ?
+      WHERE hash.base32 = ? COLLATE NOCASE
     |]
     (Only hash)
 
@@ -533,7 +544,7 @@ expectBranchHashIdForHash32 = queryOneCol sql . Only
         INNER JOIN hash_object ON hash_object.object_id = object.id
         INNER JOIN hash ON hash_object.hash_id = hash.id
         WHERE object.type_id = 2
-          AND hash.base32 = ?
+          AND hash.base32 = ? COLLATE NOCASE
       |]
 
 expectCausalHashIdForHash32 :: Hash32 -> Transaction CausalHashId
@@ -543,7 +554,7 @@ expectCausalHashIdForHash32 = queryOneCol sql . Only
       [here|
         SELECT self_hash_id
         FROM causal INNER JOIN hash ON hash.id = self_hash_id
-        WHERE base32 = ?
+        WHERE base32 = ? COLLATE NOCASE
       |]
 
 loadPatchObjectIdForPrimaryHash :: PatchHash -> Transaction (Maybe PatchObjectId)
@@ -740,6 +751,7 @@ expectTempEntity hash = do
     WHERE hash = ?
   |]
 
+{- ORMOLU_ENABLE -}
 -- | look up all of the input entity's dependencies in the main table, to convert it to a sync entity
 tempToSyncEntity :: TempEntity -> Transaction SyncEntity
 tempToSyncEntity = \case
@@ -759,7 +771,14 @@ tempToSyncEntity = \case
     tempToSyncDeclComponent = \case
       DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent decls) ->
         DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
-          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse saveText expectObjectIdForHash32) decls
+          <$> Lens.traverseOf
+            (traverse . Lens._1)
+            ( \LocalIds.LocalIds {textLookup, defnLookup} ->
+                LocalIds.LocalIds
+                  <$> saveTexts textLookup
+                  <*> traverse expectObjectIdForHash32 defnLookup
+            )
+            decls
 
     tempToSyncNamespace :: TempEntity.TempNamespaceFormat -> Transaction NamespaceFormat.SyncBranchFormat
     tempToSyncNamespace = \case
@@ -774,7 +793,7 @@ tempToSyncEntity = \case
     tempToSyncNamespaceLocalIds :: TempEntity.TempNamespaceLocalIds -> Transaction NamespaceFormat.BranchLocalIds
     tempToSyncNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children) =
       NamespaceFormat.LocalIds
-        <$> (Vector.fromList <$> saveTexts (Vector.toList texts))
+        <$> saveTexts texts
         <*> traverse expectObjectIdForHash32 defns
         <*> traverse expectPatchObjectIdForHash32 patches
         <*> traverse
@@ -797,15 +816,24 @@ tempToSyncEntity = \case
     tempToSyncPatchLocalIds :: TempEntity.TempPatchLocalIds -> Transaction PatchFormat.PatchLocalIds
     tempToSyncPatchLocalIds (PatchFormat.LocalIds texts hashes defns) =
       PatchFormat.LocalIds
-        <$> (Vector.fromList <$> saveTexts (Vector.toList texts))
-        <*> traverse saveHash hashes
+        <$> saveTexts texts
+        <*> saveHashes hashes
         <*> traverse expectObjectIdForHash32 defns
 
     tempToSyncTermComponent :: TempEntity.TempTermFormat -> Transaction TermFormat.SyncTermFormat
     tempToSyncTermComponent = \case
       TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms) ->
         TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
-          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse saveText expectObjectIdForHash32) terms
+          <$> Lens.traverseOf
+            (traverse . Lens._1)
+            ( \LocalIds.LocalIds {textLookup, defnLookup} ->
+                LocalIds.LocalIds
+                  <$> saveTexts textLookup
+                  <*> traverse expectObjectIdForHash32 defnLookup
+            )
+            terms
+
+{- ORMOLU_DISABLE -}
 
 syncToTempEntity :: SyncEntity -> Transaction TempEntity
 syncToTempEntity = \case
@@ -962,7 +990,7 @@ loadCausalParentsByHash hash =
       FROM causal_parent cp
       JOIN hash h1 ON cp.causal_id = h1.id
       JOIN hash h2 ON cp.parent_id = h2.id
-      WHERE h1.base32 = ?
+      WHERE h1.base32 = ? COLLATE NOCASE
     |]
     (Only hash)
 

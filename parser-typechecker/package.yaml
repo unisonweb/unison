@@ -14,6 +14,8 @@ when:
     ghc-options: -funbox-strict-fields -O2
 
 dependencies:
+  - ListLike
+  - NanoID
   - aeson
   - ansi-terminal
   - async
@@ -52,20 +54,18 @@ dependencies:
   - http-media
   - http-types
   - lens
-  - ListLike
   - lucid
-  - megaparsec >= 5.0.0 && < 7.0.0
+  - megaparsec
   - memory
   - mmorph
   - monad-validate
   - mtl
   - mutable-containers
   - mwc-random
-  - NanoID
   - natural-transformation
   - network
-  - network-uri
   - network-simple
+  - network-uri
   - nonempty-containers
   - open-browser
   - openapi3

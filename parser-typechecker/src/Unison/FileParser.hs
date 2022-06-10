@@ -184,11 +184,6 @@ checkForDuplicateTermsAndConstructors uf = do
 -- Or it is a binding like:
 --   foo : Nat -> Nat
 --   foo x = x + 42
--- Or it is a namespace like:
---   namespace Woot where
---     x = 42
---     y = 17
--- which parses as [(Woot.x, 42), (Woot.y, 17)]
 
 data Stanza v term
   = WatchBinding UF.WatchKind Ann ((Ann, v), term)
