@@ -167,7 +167,6 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NESet
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Vector as Vector
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
