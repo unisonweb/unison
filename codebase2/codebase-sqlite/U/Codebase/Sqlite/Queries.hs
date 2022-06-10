@@ -295,7 +295,7 @@ expectHashId hash = queryOneCol loadHashIdSql (Only hash)
 
 loadHashIdSql :: Sql
 loadHashIdSql =
-  [here| SELECT id FROM hash WHERE base32 = ? |]
+  [here| SELECT id FROM hash WHERE base32 = ? COLLATE NOCASE |]
 
 loadHashIdByHash :: Hash -> Transaction (Maybe HashId)
 loadHashIdByHash = loadHashId . Hash32.fromHash
@@ -524,7 +524,7 @@ expectObjectIdForHash32 hash = do
       SELECT object.id
       FROM object
       JOIN hash ON object.primary_hash_id = hash.id
-      WHERE hash.base32 = ?
+      WHERE hash.base32 = ? COLLATE NOCASE
     |]
     (Only hash)
 
@@ -545,7 +545,7 @@ expectBranchHashIdForHash32 = queryOneCol sql . Only
         INNER JOIN hash_object ON hash_object.object_id = object.id
         INNER JOIN hash ON hash_object.hash_id = hash.id
         WHERE object.type_id = 2
-          AND hash.base32 = ?
+          AND hash.base32 = ? COLLATE NOCASE
       |]
 
 expectCausalHashIdForHash32 :: Hash32 -> Transaction CausalHashId
@@ -555,7 +555,7 @@ expectCausalHashIdForHash32 = queryOneCol sql . Only
       [here|
         SELECT self_hash_id
         FROM causal INNER JOIN hash ON hash.id = self_hash_id
-        WHERE base32 = ?
+        WHERE base32 = ? COLLATE NOCASE
       |]
 
 loadPatchObjectIdForPrimaryHash :: PatchHash -> Transaction (Maybe PatchObjectId)
@@ -991,7 +991,7 @@ loadCausalParentsByHash hash =
       FROM causal_parent cp
       JOIN hash h1 ON cp.causal_id = h1.id
       JOIN hash h2 ON cp.parent_id = h2.id
-      WHERE h1.base32 = ?
+      WHERE h1.base32 = ? COLLATE NOCASE
     |]
     (Only hash)
 
