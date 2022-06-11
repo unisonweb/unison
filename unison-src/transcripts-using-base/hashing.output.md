@@ -124,13 +124,14 @@ And here's the full API:
   3.  HashAlgorithm.Blake2b_256 : HashAlgorithm
   4.  HashAlgorithm.Blake2b_512 : HashAlgorithm
   5.  HashAlgorithm.Blake2s_256 : HashAlgorithm
-  6.  HashAlgorithm.Sha2_256 : HashAlgorithm
-  7.  HashAlgorithm.Sha2_512 : HashAlgorithm
-  8.  HashAlgorithm.Sha3_256 : HashAlgorithm
-  9.  HashAlgorithm.Sha3_512 : HashAlgorithm
-  10. hashBytes : HashAlgorithm -> Bytes -> Bytes
-  11. hmac : HashAlgorithm -> Bytes -> a -> Bytes
-  12. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
+  6.  HashAlgorithm.Sha1 : HashAlgorithm
+  7.  HashAlgorithm.Sha2_256 : HashAlgorithm
+  8.  HashAlgorithm.Sha2_512 : HashAlgorithm
+  9.  HashAlgorithm.Sha3_256 : HashAlgorithm
+  10. HashAlgorithm.Sha3_512 : HashAlgorithm
+  11. hashBytes : HashAlgorithm -> Bytes -> Bytes
+  12. hmac : HashAlgorithm -> Bytes -> a -> Bytes
+  13. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
   
 
 .> cd .
@@ -243,6 +244,26 @@ test> sha2_256.tests.ex4 =
     "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
     "cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1"
 
+test> sha1.tests.ex1 =
+  ex Sha1
+    "abc"
+    "a9993e364706816aba3e25717850c26c9cd0d89d"
+
+test> sha1.tests.ex2 =
+  ex Sha1
+    ""
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+
+test> sha1.tests.ex3 =
+  ex Sha1
+    "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+    "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
+
+test> sha1.tests.ex4 =
+  ex Sha1
+    "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
+    "a49b2446a02c645bf419f995b67091253a04a259"
+
 test> blake2s_256.tests.ex1 =
   ex Blake2s_256
     ""
@@ -273,6 +294,10 @@ test> blake2b_512.tests.ex3 =
   ◉ blake2b_512.tests.ex2   Passed
   ◉ blake2b_512.tests.ex3   Passed
   ◉ blake2s_256.tests.ex1   Passed
+  ◉ sha1.tests.ex1          Passed
+  ◉ sha1.tests.ex2          Passed
+  ◉ sha1.tests.ex3          Passed
+  ◉ sha1.tests.ex4          Passed
   ◉ sha2_256.tests.ex1      Passed
   ◉ sha2_256.tests.ex2      Passed
   ◉ sha2_256.tests.ex3      Passed
@@ -290,7 +315,7 @@ test> blake2b_512.tests.ex3 =
   ◉ sha3_512.tests.ex3      Passed
   ◉ sha3_512.tests.ex4      Passed
   
-  ✅ 20 test(s) passing
+  ✅ 24 test(s) passing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.
@@ -378,6 +403,10 @@ test> hmac_sha2_512.tests.ex2 =
   ◉ hmac_sha2_256.tests.ex2   Passed
   ◉ hmac_sha2_512.tests.ex1   Passed
   ◉ hmac_sha2_512.tests.ex2   Passed
+  ◉ sha1.tests.ex1            Passed
+  ◉ sha1.tests.ex2            Passed
+  ◉ sha1.tests.ex3            Passed
+  ◉ sha1.tests.ex4            Passed
   ◉ sha2_256.tests.ex1        Passed
   ◉ sha2_256.tests.ex2        Passed
   ◉ sha2_256.tests.ex3        Passed
@@ -395,7 +424,7 @@ test> hmac_sha2_512.tests.ex2 =
   ◉ sha3_512.tests.ex3        Passed
   ◉ sha3_512.tests.ex4        Passed
   
-  ✅ 24 test(s) passing
+  ✅ 28 test(s) passing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.

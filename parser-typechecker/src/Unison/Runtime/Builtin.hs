@@ -2148,6 +2148,7 @@ declareForeigns = do
   declareHashAlgorithm "Sha3_256" Hash.SHA3_256
   declareHashAlgorithm "Sha2_512" Hash.SHA512
   declareHashAlgorithm "Sha2_256" Hash.SHA256
+  declareHashAlgorithm "Sha1" Hash.SHA1
   declareHashAlgorithm "Blake2b_512" Hash.Blake2b_512
   declareHashAlgorithm "Blake2b_256" Hash.Blake2b_256
   declareHashAlgorithm "Blake2s_256" Hash.Blake2s_256
