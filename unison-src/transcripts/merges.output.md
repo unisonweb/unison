@@ -101,11 +101,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
 ```ucm
 .> delete.namespace .feature1
 
-  Removed definitions:
-  
-    1. y : Text
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .> history .feature1
 

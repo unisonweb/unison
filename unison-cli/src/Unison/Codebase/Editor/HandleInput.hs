@@ -779,25 +779,20 @@ loop = do
                 Just (Branch.head -> b0) -> do
                   endangerments <- computeEndangerments b0
                   if null endangerments
-                    then doDelete b0
+                    then doDelete
                     else case insistence of
                       Force -> do
                         ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
-                        doDelete b0
+                        doDelete
                         respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                       Try -> do
                         ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                         respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
-                doDelete b0 = do
+                doDelete = do
                   stepAt Branch.CompressHistory $ BranchUtil.makeDeleteBranch (resolveSplit' p)
+                  respond Success
                   -- Looks similar to the 'toDelete' above... investigate me! ;)
-                  diffHelper b0 Branch.empty0
-                    >>= respondNumbered
-                      . uncurry
-                        ( ShowDiffAfterDeleteBranch $
-                            resolveToAbsolute (Path.unsplit' p)
-                        )
                 computeEndangerments :: Branch0 m1 -> Action' m v (Map LabeledDependency (NESet LabeledDependency))
                 computeEndangerments b0 = do
                   let rootNames = Branch.toNames root0

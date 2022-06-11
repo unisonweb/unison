@@ -5,6 +5,8 @@ import Network.HTTP.Client (Request)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
 import Unison.Auth.Tokens (TokenProvider)
+import Unison.Codebase.Editor.Output (Output)
+import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Prelude
 import Unison.Share.Types (codeserverIdFromURI)
@@ -15,11 +17,11 @@ newtype AuthenticatedHttpClient = AuthenticatedHttpClient HTTP.Manager
 
 -- | Returns a new http manager which applies the appropriate Authorization header to
 -- any hosts our UCM is authenticated with.
-newAuthenticatedHTTPClient :: MonadIO m => TokenProvider -> UCMVersion -> m AuthenticatedHttpClient
-newAuthenticatedHTTPClient tokenProvider ucmVersion = liftIO $ do
+newAuthenticatedHTTPClient :: MonadIO m => (Output v -> IO ()) -> TokenProvider -> UCMVersion -> m AuthenticatedHttpClient
+newAuthenticatedHTTPClient responder tokenProvider ucmVersion = liftIO $ do
   let managerSettings =
         HTTP.tlsManagerSettings
-          & HTTP.addRequestMiddleware (authMiddleware tokenProvider)
+          & HTTP.addRequestMiddleware (authMiddleware responder tokenProvider)
           & HTTP.setUserAgent (HTTP.ucmUserAgent ucmVersion)
   AuthenticatedHttpClient <$> HTTP.newTlsManagerWith managerSettings
 
@@ -28,12 +30,14 @@ newAuthenticatedHTTPClient tokenProvider ucmVersion = liftIO $ do
 -- and the request is likely to trigger a 401 response which the caller can detect and initiate a re-auth.
 --
 -- If a host isn't associated with any credentials auth is omitted.
-authMiddleware :: TokenProvider -> (Request -> IO Request)
-authMiddleware tokenProvider req = do
+authMiddleware :: (Output v -> IO ()) -> TokenProvider -> (Request -> IO Request)
+authMiddleware responder tokenProvider req = do
   case codeserverIdFromURI $ (HTTP.getUri req) of
     -- If we can't identify an appropriate codeserver we pass it through without any auth.
     Left _ -> pure req
     Right codeserverHost -> do
-      tokenProvider codeserverHost <&> \case
-        Right token -> HTTP.applyBearerAuth (Text.encodeUtf8 token) req
-        Left _ -> req
+      tokenProvider codeserverHost >>= \case
+        Right token -> pure $ HTTP.applyBearerAuth (Text.encodeUtf8 token) req
+        Left err -> do
+          responder (Output.CredentialFailureMsg err)
+          pure req

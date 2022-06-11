@@ -62,6 +62,7 @@ library
       Unison.CommandLine.Welcome
       Unison.Share.Codeserver
       Unison.Share.Sync
+      Unison.Share.Sync.Types
       Unison.Util.HTTP
   hs-source-dirs:
       src
@@ -116,7 +117,7 @@ library
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -216,7 +217,7 @@ executable cli-integration-tests
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -311,7 +312,7 @@ executable transcripts
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -410,7 +411,7 @@ executable unison
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -517,7 +518,7 @@ test-suite cli-tests
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri

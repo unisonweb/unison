@@ -239,7 +239,6 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
               AuthN.newTokenProvider credMan
             Just accessToken ->
               \_codeserverID -> pure $ Right accessToken
-    authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
     pathRef <- newIORef initialPath
     rootBranchRef <- newIORef root
     numberedArgsRef <- newIORef []
@@ -382,6 +381,7 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
               let f = LoadSuccess <$> readUtf8 (Text.unpack name)
                in f <|> pure InvalidSourceNameError
 
+        print :: Output.Output Symbol -> IO ()
         print o = do
           msg <- notifyUser dir o
           errOk <- readIORef allowErrors
@@ -392,6 +392,7 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
               then writeIORef hasErrors True
               else dieWithMsg rendered
 
+        printNumbered :: Output.NumberedOutput Symbol -> IO Output.NumberedArgs
         printNumbered o = do
           let (msg, numberedArgs) = notifyNumbered o
           errOk <- readIORef allowErrors
@@ -441,7 +442,8 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
                   "The transcript was expecting an error in the stanza above, but did not encounter one."
                 ]
 
-        loop state = do
+    authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient print tokenProvider ucmVersion
+    let loop state = do
           writeIORef pathRef (view LoopState.currentPath state)
           let env =
                 LoopState.Env
