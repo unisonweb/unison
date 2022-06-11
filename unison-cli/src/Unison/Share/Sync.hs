@@ -53,7 +53,6 @@ import qualified Unison.Sync.API as Share (API)
 import Unison.Sync.Common (causalHashToHash32, entityToTempEntity, expectEntity, hash32ToCausalHash)
 import qualified Unison.Sync.Types as Share
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Util.Set as Set
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
