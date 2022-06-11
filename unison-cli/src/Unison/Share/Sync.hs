@@ -27,6 +27,7 @@ import Data.IORef (atomicModifyIORef', newIORef)
 import Data.List.NonEmpty (pattern (:|))
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
+import qualified Data.Map as Map
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.NonEmpty as NEMap
 import Data.Proxy
@@ -519,11 +520,16 @@ upsertEntitySomewhere hash entity =
   Q.entityLocation hash >>= \case
     Just location -> pure location
     Nothing -> do
-      missingDependencies0 <-
-        Set.filterM
-          (fmap not . Q.entityExists . Share.hashJWTHash)
-          (Share.entityDependencies entity)
-      case NESet.nonEmptySet missingDependencies0 of
+      missingDependencies1 :: Map Hash32 Share.HashJWT <-
+        Share.entityDependencies entity
+          & foldMapM
+            ( \hashJwt -> do
+                let hash = Share.hashJWTHash hashJwt
+                Q.entityExists hash <&> \case
+                  True -> Map.empty
+                  False -> Map.singleton hash hashJwt
+            )
+      case NEMap.nonEmptyMap missingDependencies1 of
         Nothing -> do
           insertEntity hash entity
           pure Q.EntityInMainStorage
@@ -542,17 +548,15 @@ insertEntity hash entity = do
 insertTempEntity ::
   Hash32 ->
   Share.Entity Text Hash32 Share.HashJWT ->
-  NESet Share.HashJWT ->
+  NEMap Hash32 Share.HashJWT ->
   Sqlite.Transaction ()
 insertTempEntity hash entity missingDependencies =
   Q.insertTempEntity
     hash
     (entityToTempEntity Share.hashJWTHash entity)
-    ( NESet.map
-        ( \hashJwt ->
-            let Share.DecodedHashJWT {claims = Share.HashJWTClaims {hash}} = Share.decodeHashJWT hashJwt
-             in (hash, Share.unHashJWT hashJwt)
-        )
+    ( coerce
+        @(NEMap Hash32 Share.HashJWT)
+        @(NEMap Hash32 Text)
         missingDependencies
     )
 

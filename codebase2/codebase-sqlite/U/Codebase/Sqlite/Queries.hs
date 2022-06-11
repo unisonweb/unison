@@ -165,9 +165,9 @@ import qualified Data.Foldable as Foldable
 import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
+import Data.Map.NonEmpty (NEMap)
+import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
-import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NESet
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Vector as Vector
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
@@ -1522,12 +1522,13 @@ entityExists hash = do
 -- Preconditions:
 --   1. The entity does not already exist in "main" storage (`object` / `causal`)
 --   2. The entity does not already exist in `temp_entity`.
-insertTempEntity :: Hash32 -> TempEntity -> NESet (Hash32, Text) -> Transaction ()
+insertTempEntity :: Hash32 -> TempEntity -> NEMap Hash32 Text -> Transaction ()
 insertTempEntity entityHash entity missingDependencies = do
   execute
     [here|
       INSERT INTO temp_entity (hash, blob, type_id)
       VALUES (?, ?, ?)
+      ON CONFLICT DO NOTHING
     |]
     (entityHash, entityBlob, entityType)
 
@@ -1536,7 +1537,7 @@ insertTempEntity entityHash entity missingDependencies = do
       INSERT INTO temp_entity_missing_dependency (dependent, dependency, dependencyJwt)
       VALUES (?, ?, ?)
     |]
-    (map (\(depHash, depHashJwt) -> (entityHash, depHash, depHashJwt)) (Foldable.toList missingDependencies))
+    (map (\(depHash, depHashJwt) -> (entityHash, depHash, depHashJwt)) ((Foldable.toList . NEMap.toList) missingDependencies))
   where
     entityBlob :: ByteString
     entityBlob =
@@ -1616,21 +1617,21 @@ elaborateHashesClient hashes = do
     queryListColCheck_
       [here|
         WITH RECURSIVE elaborated_dependency (hash, hashJwt) AS (
-          SELECT dependency, dependencyJwt
+          SELECT temd.dependency, temd.dependencyJwt
           FROM new_temp_entity_dependents AS new
-            JOIN temp_entity_missing_dependency
-              ON new_temp_entity_dependents.dependent = new.hash
+            JOIN temp_entity_missing_dependency AS temd
+              ON temd.dependent = new.hash
 
           UNION
           SELECT temd.dependency, temd.dependencyJwt
-          FROM temp_entity_missing_dependency temd
-            JOIN elaborated_dependency ed
+          FROM temp_entity_missing_dependency AS temd
+            JOIN elaborated_dependency AS ed
               ON temd.dependent = ed.hash
         )
         SELECT hashJwt FROM elaborated_dependency
         WHERE NOT EXISTS (
-          SELECT FROM temp_entity
-          WHERE temp_entity.hash = elaborated_depdenency.hash
+          SELECT 1 FROM temp_entity
+          WHERE temp_entity.hash = elaborated_dependency.hash
         )
       |]
       ( \case
