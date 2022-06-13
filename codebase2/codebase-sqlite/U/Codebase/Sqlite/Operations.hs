@@ -81,6 +81,7 @@ module U.Codebase.Sqlite.Operations
     decodeTermElementWithType,
     loadTermWithTypeByReference,
     s2cTermWithType,
+    s2cDecl,
     declReferencesByPrefix,
     branchHashesByPrefix,
     derivedDependencies,
@@ -404,13 +405,26 @@ loadTermComponent h = do
   S.Term.Term (S.Term.LocallyIndexedComponent elements) <- MaybeT (Q.loadTermObject oid decodeTermFormat)
   lift . traverse (uncurry3 s2cTermWithType) $ Foldable.toList elements
 
-saveTermComponent :: H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> Transaction Db.ObjectId
-saveTermComponent h terms = do
+saveTermComponent ::
+  -- | Hash this type
+  (C.Term.Type Symbol -> C.Reference) ->
+  -- | Hash this type's mentions
+  (C.Term.Type Symbol -> Set C.Reference) ->
+  -- | The serialized term component if we already have it e.g. via sync
+  Maybe ByteString ->
+  -- | term component hash
+  H.Hash ->
+  -- | term component
+  [(C.Term Symbol, C.Term.Type Symbol)] ->
+  Transaction Db.ObjectId
+saveTermComponent toReference toReferenceMentions maybeEncodedTerms h terms = do
   when debug . traceM $ "Operations.saveTermComponent " ++ show h
   sTermElements <- traverse (uncurry c2sTerm) terms
   hashId <- Q.saveHashHash h
-  let li = S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements
-      bytes = S.putBytes S.putTermFormat $ S.Term.Term li
+  let bytes = fromMaybe mkByteString maybeEncodedTerms
+      mkByteString =
+        let li = S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements
+         in S.putBytes S.putTermFormat $ S.Term.Term li
   oId <- Q.saveObject hashId OT.TermComponent bytes
   -- populate dependents index
   let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sTermElements `zip` [0 ..])
@@ -441,6 +455,12 @@ saveTermComponent h terms = do
                       ++ map getSTypeLink tpLinks
          in Set.map (,self) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
+  for_ ((snd <$> terms) `zip` [0 ..]) \(tp, i) -> do
+    let self = C.Referent.RefId (C.Reference.Id oId i)
+        typeForIndexing = toReference tp
+        typeMentionsForIndexing = toReferenceMentions tp
+    addTypeToIndexForTerm self typeForIndexing
+    addTypeMentionsToIndexForTerm self typeMentionsForIndexing
 
   pure oId
 
@@ -704,13 +724,24 @@ loadDeclComponent h = do
   S.Decl.Decl (S.Decl.LocallyIndexedComponent elements) <- MaybeT (Q.loadDeclObject oid decodeDeclFormat)
   lift . traverse (uncurry s2cDecl) $ Foldable.toList elements
 
-saveDeclComponent :: H.Hash -> [C.Decl Symbol] -> Transaction Db.ObjectId
-saveDeclComponent h decls = do
+saveDeclComponent ::
+  -- | Hash this type
+  (C.Type.TypeD Symbol -> C.Reference) ->
+  -- | Hash this type's mentions
+  (C.Type.TypeD Symbol -> Set C.Reference) ->
+  -- | The serialized decl component if we already have it e.g. via sync
+  Maybe ByteString ->
+  H.Hash ->
+  [C.Decl Symbol] ->
+  Transaction Db.ObjectId
+saveDeclComponent toReference toReferenceMentions maybeEncodedDecls h decls = do
   when debug . traceM $ "Operations.saveDeclComponent " ++ show h
   sDeclElements <- traverse (c2sDecl Q.saveText Q.expectObjectIdForPrimaryHash) decls
   hashId <- Q.saveHashHash h
-  let li = S.Decl.LocallyIndexedComponent $ Vector.fromList sDeclElements
-      bytes = S.putBytes S.putDeclFormat $ S.Decl.Decl li
+  let bytes = fromMaybe mkByteString maybeEncodedDecls
+      mkByteString =
+        let li = S.Decl.LocallyIndexedComponent $ Vector.fromList sDeclElements
+         in S.putBytes S.putDeclFormat $ S.Decl.Decl li
   oId <- Q.saveObject hashId OT.DeclComponent bytes
   -- populate dependents index
   let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sDeclElements `zip` [0 ..])
@@ -725,6 +756,13 @@ saveDeclComponent h decls = do
               C.Reference.Derived (Just h) i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
          in Set.map ((,self) . getSRef) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
+  for_ ((fmap C.Decl.constructorTypes decls) `zip` [0 ..]) \(ctors, i) ->
+    for_ (ctors `zip` [0 ..]) \(tp, j) -> do
+      let self = C.Referent.ConId (C.Reference.Id oId i) j
+          typeForIndexing = toReference tp
+          typeMentionsForIndexing = toReferenceMentions tp
+      addTypeToIndexForTerm self typeForIndexing
+      addTypeMentionsToIndexForTerm self typeMentionsForIndexing
 
   pure oId
 

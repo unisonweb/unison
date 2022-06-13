@@ -1,6 +1,9 @@
 -- | Description: Converts V2 types to the V2 hashing types
 module Unison.Hashing.V2.Convert2
-  ( convertTerm,
+  ( v2ToH2Term,
+    v2ToH2Type,
+    v2ToH2TypeD,
+    h2ToV2Reference,
   )
 where
 
@@ -10,9 +13,10 @@ import qualified U.Codebase.Referent as V2.Referent
 import qualified U.Codebase.Term as V2 (F, F' (..), MatchCase (..), Pattern (..), SeqOp (..), TermRef, TypeRef)
 import qualified U.Codebase.Type as V2.Type
 import qualified U.Core.ABT as V2
+import qualified U.Core.ABT as V2.ABT
 import qualified U.Util.Hash as V2 (Hash)
 import qualified Unison.ABT as H2 (transform)
-import Unison.Codebase.SqliteCodebase.Conversions (abt2to1)
+import qualified Unison.ABT as V1.ABT
 import qualified Unison.Hashing.V2.Kind as H2
 import qualified Unison.Hashing.V2.Pattern as H2.Pattern
 import qualified Unison.Hashing.V2.Reference as H2
@@ -21,8 +25,18 @@ import qualified Unison.Hashing.V2.Term as H2
 import qualified Unison.Hashing.V2.Type as H2.Type
 import Unison.Prelude
 
-convertTerm :: forall v. Ord v => V2.Hash -> V2.Term (V2.F v) v () -> H2.Term v ()
-convertTerm thisTermComponentHash = H2.transform convertF . abt2to1
+-- | Delete me ASAP. I am defined elsewhere.
+abt2to1 :: Functor f => V2.ABT.Term f v a -> V1.ABT.Term f v a
+abt2to1 (V2.ABT.Term fv a out) = V1.ABT.Term fv a (go out)
+  where
+    go = \case
+      V2.ABT.Cycle body -> V1.ABT.Cycle (abt2to1 body)
+      V2.ABT.Abs v body -> V1.ABT.Abs v (abt2to1 body)
+      V2.ABT.Var v -> V1.ABT.Var v
+      V2.ABT.Tm tm -> V1.ABT.Tm (abt2to1 <$> tm)
+
+v2ToH2Term :: forall v. Ord v => V2.Hash -> V2.Term (V2.F v) v () -> H2.Term v ()
+v2ToH2Term thisTermComponentHash = H2.transform convertF . abt2to1
   where
     convertF :: forall x. V2.F v x -> H2.F v () () x
     convertF = \case
@@ -37,7 +51,7 @@ convertTerm thisTermComponentHash = H2.transform convertF . abt2to1
       V2.Request a b -> H2.Request (convertReference a) b
       V2.Handle a b -> H2.Handle a b
       V2.App a b -> H2.App a b
-      V2.Ann a b -> H2.Ann a (convertType b)
+      V2.Ann a b -> H2.Ann a (v2ToH2Type b)
       V2.List a -> H2.List a
       V2.If a b c -> H2.If a b c
       V2.And a b -> H2.And a b
@@ -97,12 +111,18 @@ convertReference' idConv = \case
   V2.ReferenceBuiltin x -> H2.Builtin x
   V2.ReferenceDerived x -> H2.DerivedId (idConv x)
 
-convertType :: forall v. Ord v => V2.Type.TypeR V2.TypeRef v -> H2.Type.Type v ()
-convertType = H2.transform convertF . abt2to1
+v2ToH2Type :: forall v. Ord v => V2.Type.TypeR V2.TypeRef v -> H2.Type.Type v ()
+v2ToH2Type = v2ToH2Type' convertReference
+
+v2ToH2TypeD :: forall v. Ord v => V2.Hash -> V2.Type.TypeD v -> H2.Type.Type v ()
+v2ToH2TypeD defaultHash = v2ToH2Type' (convertReference' (convertId defaultHash))
+
+v2ToH2Type' :: forall r v. Ord v => (r -> H2.Reference) -> V2.Type.TypeR r v -> H2.Type.Type v ()
+v2ToH2Type' mkReference = H2.transform convertF . abt2to1
   where
-    convertF :: forall a. V2.Type.F' V2.TypeRef a -> H2.Type.F a
+    convertF :: forall a. V2.Type.F' r a -> H2.Type.F a
     convertF = \case
-      V2.Type.Ref x -> H2.Type.Ref (convertReference x)
+      V2.Type.Ref x -> H2.Type.Ref (mkReference x)
       V2.Type.Arrow a b -> H2.Type.Arrow a b
       V2.Type.Ann a k -> H2.Type.Ann a (convertKind k)
       V2.Type.App a b -> H2.Type.App a b
@@ -115,3 +135,8 @@ convertKind :: V2.Kind -> H2.Kind
 convertKind = \case
   V2.Star -> H2.Star
   V2.Arrow a b -> H2.Arrow (convertKind a) (convertKind b)
+
+h2ToV2Reference :: H2.Reference -> V2.Reference
+h2ToV2Reference = \case
+  H2.Builtin txt -> V2.ReferenceBuiltin txt
+  H2.DerivedId (H2.Id x y) -> V2.ReferenceDerived (V2.Id x y)

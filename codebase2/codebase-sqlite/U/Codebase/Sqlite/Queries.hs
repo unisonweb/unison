@@ -142,7 +142,6 @@ module U.Codebase.Sqlite.Queries
     tempToSyncEntity,
     syncToTempEntity,
     insertTempEntity,
-    saveSyncEntity,
 
     -- * elaborate hashes
     elaborateHashes,

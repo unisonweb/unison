@@ -23,6 +23,8 @@ import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.V2.Decl (saveDeclComponent)
+import U.Codebase.Sqlite.V2.Term (saveTermComponent)
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
 import qualified Unison.Builtin as Builtins
@@ -267,23 +269,16 @@ tryFlushTermBuffer termBuffer =
   let loop h =
         tryFlushBuffer
           termBuffer
-          ( \h2 component -> do
-              oId <-
-                Ops.saveTermComponent h2 $
-                  fmap (bimap (Cv.term1to2 h) Cv.ttype1to2) component
-              addTermComponentTypeIndex oId (fmap snd component)
+          ( \h2 component ->
+              void $
+                saveTermComponent
+                  Nothing
+                  h2
+                  (fmap (bimap (Cv.term1to2 h) Cv.ttype1to2) component)
           )
           loop
           h
    in loop
-
-addTermComponentTypeIndex :: ObjectId -> [Type Symbol Ann] -> Transaction ()
-addTermComponentTypeIndex oId types = for_ (types `zip` [0 ..]) \(tp, i) -> do
-  let self = C.Referent.RefId (C.Reference.Id oId i)
-      typeForIndexing = Hashing.typeToReference tp
-      typeMentionsForIndexing = Hashing.typeToReferenceMentions tp
-  Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
-  Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
 
 addDeclComponentTypeIndex :: ObjectId -> [[Type Symbol Ann]] -> Transaction ()
 addDeclComponentTypeIndex oId ctorss =
@@ -329,10 +324,12 @@ tryFlushDeclBuffer termBuffer declBuffer =
   let loop h =
         tryFlushBuffer
           declBuffer
-          ( \h2 component -> do
-              oId <- Ops.saveDeclComponent h2 $ fmap (Cv.decl1to2 h) component
-              addDeclComponentTypeIndex oId $
-                fmap (map snd . Decl.constructors . Decl.asDataDecl) component
+          ( \h2 component ->
+              void $
+                saveDeclComponent
+                  Nothing
+                  h2
+                  (fmap (Cv.decl1to2 h) component)
           )
           (\h -> tryFlushTermBuffer termBuffer h >> loop h)
           h
