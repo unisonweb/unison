@@ -105,6 +105,7 @@ dependencies:
   - unison-codebase-sync
   - unison-core
   - unison-core1
+  - unison-hashing-v2
   - unison-prelude
   - unison-pretty-printer
   - unison-sqlite

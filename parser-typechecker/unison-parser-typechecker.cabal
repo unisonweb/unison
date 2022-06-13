@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.7.
 --
 -- see: https://github.com/sol/hpack
 
@@ -87,23 +87,7 @@ library
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
-      Unison.Hashing.V2.ABT
-      Unison.Hashing.V2.Branch
-      Unison.Hashing.V2.Causal
       Unison.Hashing.V2.Convert
-      Unison.Hashing.V2.DataDeclaration
-      Unison.Hashing.V2.Hashable
-      Unison.Hashing.V2.Kind
-      Unison.Hashing.V2.Patch
-      Unison.Hashing.V2.Pattern
-      Unison.Hashing.V2.Reference
-      Unison.Hashing.V2.Reference.Util
-      Unison.Hashing.V2.Referent
-      Unison.Hashing.V2.Term
-      Unison.Hashing.V2.TermEdit
-      Unison.Hashing.V2.Tokenizable
-      Unison.Hashing.V2.Type
-      Unison.Hashing.V2.TypeEdit
       Unison.Lexer
       Unison.NamePrinter
       Unison.Parser
@@ -287,6 +271,7 @@ library
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-hashing-v2
     , unison-prelude
     , unison-pretty-printer
     , unison-sqlite
@@ -467,6 +452,7 @@ test-suite parser-typechecker-tests
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
