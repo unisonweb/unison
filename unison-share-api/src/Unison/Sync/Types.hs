@@ -70,7 +70,7 @@ module Unison.Sync.Types
   )
 where
 
-import Control.Lens (both, ix, traverseOf, (^?))
+import Control.Lens (both, folding, ix, traverseOf, (^?))
 import qualified Crypto.JWT as Jose
 import Data.Aeson
 import qualified Data.Aeson as Aeson
@@ -151,32 +151,43 @@ hashJWTHash =
   decodedHashJWTHash . decodeHashJWT
 
 data HashJWTClaims = HashJWTClaims
-  { hash :: Hash32
-  -- Currently unused
-  -- entityType :: EntityType
+  { hash :: Hash32,
+    userId :: Text
   }
   deriving stock (Show, Eq, Ord)
 
+-- | Adding a type tag to the jwt prevents users from using jwts we issue for other things
+-- in this spot. All of our jwts should have a type parameter of some kind.
+hashJWTType :: String
+hashJWTType = "hj"
+
 instance ToJWT HashJWTClaims where
-  encodeJWT (HashJWTClaims h) =
-    Jose.addClaim "h" (toJSON h) Jose.emptyClaimsSet
+  encodeJWT (HashJWTClaims h u) =
+    Jose.emptyClaimsSet
+      & Jose.addClaim "h" (toJSON h)
+      & Jose.addClaim "u" (toJSON u)
+      & Jose.addClaim "t" (toJSON hashJWTType)
 
 instance FromJWT HashJWTClaims where
-  decodeJWT claims = case claims ^? Jose.unregisteredClaims . ix "h" of
-    Nothing -> Left "Missing 'h' claim on HashJWT"
-    Just v
-      | Success hash <- fromJSON v -> Right $ HashJWTClaims hash
-      | otherwise -> Left "Invalid hash at 'h' claim in HashJWT"
+  decodeJWT claims = maybe (Left "Invalid HashJWTClaims") pure $ do
+    hash <- claims ^? Jose.unregisteredClaims . ix "h" . folding fromJSON
+    userId <- claims ^? Jose.unregisteredClaims . ix "u" . folding fromJSON
+    case claims ^? Jose.unregisteredClaims . ix "t" . folding fromJSON of
+      Just t | t == hashJWTType -> pure ()
+      _ -> empty
+    pure $ HashJWTClaims {..}
 
 instance ToJSON HashJWTClaims where
-  toJSON (HashJWTClaims hash) =
+  toJSON (HashJWTClaims hash userId) =
     object
-      [ "h" .= hash
+      [ "h" .= hash,
+        "u" .= userId
       ]
 
 instance FromJSON HashJWTClaims where
   parseJSON = Aeson.withObject "HashJWTClaims" \obj -> do
     hash <- obj .: "h"
+    userId <- obj .: "u"
     pure HashJWTClaims {..}
 
 -- | A decoded hash JWT that retains the original encoded JWT.

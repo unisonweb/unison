@@ -90,6 +90,9 @@ cradle:
     - path: "unison-core/src"
       component: "unison-core1:lib"
 
+    - path: "unison-hashing-v2/src"
+      component: "unison-hashing-v2:lib"
+
     - path: "unison-share-api/src"
       component: "unison-share-api:lib"
 
