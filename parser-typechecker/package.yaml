@@ -102,6 +102,7 @@ dependencies:
   - unicode-show
   - unison-codebase
   - unison-codebase-sqlite
+  - unison-codebase-sqlite-hashing-v2
   - unison-codebase-sync
   - unison-core
   - unison-core1

@@ -43,6 +43,7 @@ import Servant.Client (BaseUrl)
 import qualified Servant.Client as Servant (ClientEnv (..), ClientM, client, defaultMakeClientRequest, hoistClient, mkClientEnv, runClientM)
 import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.V2.SyncEntity (saveSyncEntity)
 import U.Util.Hash32 (Hash32)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Auth.HTTPClient as Auth

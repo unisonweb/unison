@@ -265,6 +265,9 @@ getTermComponent =
   TermFormat.LocallyIndexedComponent
     <$> getFramedArray (getTuple3 getLocalIds (getFramed getTerm) getTType)
 
+getTermAndType :: MonadGet m => m (TermFormat.Term, TermFormat.Type)
+getTermAndType = (,) <$> getFramed getTerm <*> getTType
+
 getTerm :: MonadGet m => m TermFormat.Term
 getTerm = getABT getSymbol getUnit getF
   where
