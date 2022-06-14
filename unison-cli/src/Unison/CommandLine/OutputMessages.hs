@@ -128,6 +128,7 @@ import qualified Unison.Result as Result
 import Unison.Server.Backend (ShallowListEntry (..), TermEntry (..), TypeEntry (..))
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Share.Sync as Share
+import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Sync.Types as Share
@@ -638,8 +639,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
+        pure $
+          P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -648,7 +649,6 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
-
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1628,6 +1628,21 @@ notifyUser dir o = case o of
       (Share.PullErrorNoHistoryAtPath sharePath) ->
         P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
     ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
+    ShareErrorTransport te -> case te of
+      Unauthenticated ->
+        P.fatalCallout $
+          P.wrap $
+            "Authentication with this code server is missing or expired. Please run " <> makeExample' IP.authLogin <> "."
+      PermissionDenied msg -> P.fatalCallout $ P.hang "Permission denied:" (P.text msg)
+      UnreachableCodeserver ->
+        P.wrap . P.lines $
+          [ "Unable to reach the code server.",
+            "Please check your network, ensure you've provided the correct location, or try again later"
+          ]
+      InvalidResponse resp -> P.fatalCallout $ P.hang "Invalid response received from codeserver:" (P.shown resp)
+      RateLimitExceeded -> P.warnCallout "Rate limit exceeded, please try again later."
+      InternalServerError -> P.fatalCallout "The code server encountered an error. Please try again later or report an issue if the problem persists."
+      Timeout -> P.fatalCallout "The code server timed-out when responding to your request. Please try again later or report an issue if the problem persists."
     where
       prettySharePath =
         prettyRelative
@@ -2271,7 +2286,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-      ("The namespaces are identical.", mempty)
+    ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where

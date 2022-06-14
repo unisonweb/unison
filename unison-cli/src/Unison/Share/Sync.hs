@@ -20,6 +20,7 @@ module Unison.Share.Sync
   )
 where
 
+import Control.Monad.Except
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import qualified Control.Monad.Trans.Reader as Reader
 import qualified Data.Foldable as Foldable (find)
@@ -36,16 +37,20 @@ import qualified Data.Sequence.NonEmpty as NESeq (fromList, nonEmptySeq, (><|))
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
+import qualified Data.Text.Lazy as Text.Lazy
+import qualified Data.Text.Lazy.Encoding as Text.Lazy
 import Data.These (These (..))
 import qualified Network.HTTP.Client as Http.Client
+import qualified Network.HTTP.Types as HTTP
 import qualified Servant.API as Servant ((:<|>) (..), (:>))
 import Servant.Client (BaseUrl)
-import qualified Servant.Client as Servant (ClientEnv (..), ClientM, client, defaultMakeClientRequest, hoistClient, mkClientEnv, runClientM)
+import qualified Servant.Client as Servant
 import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Util.Hash32 (Hash32)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Auth.HTTPClient as Auth
+import qualified Unison.Debug as Debug
 import Unison.Prelude
 import Unison.Share.Sync.Types
 import qualified Unison.Sqlite as Sqlite
@@ -53,6 +58,7 @@ import qualified Unison.Sync.API as Share (API)
 import Unison.Sync.Common (causalHashToHash32, entityToTempEntity, expectEntity, hash32ToCausalHash)
 import qualified Unison.Sync.Types as Share
 import Unison.Util.Monoid (foldMapM)
+import qualified UnliftIO
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
@@ -75,8 +81,8 @@ checkAndSetPush ::
   CausalHash ->
   -- | Callback that is given the total number of entities uploaded, and the number of outstanding entities to upload.
   (Int -> Int -> IO ()) ->
-  IO (Either CheckAndSetPushError ())
-checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash uploadProgressCallback = do
+  IO (Either (SyncError CheckAndSetPushError) ())
+checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash uploadProgressCallback = catchSyncErrors do
   -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it needs
   -- this causal (UpdatePathMissingDependencies).
   updatePath >>= \case
@@ -127,8 +133,8 @@ fastForwardPush ::
   CausalHash ->
   -- | Callback that is given the total number of entities uploaded, and the number of outstanding entities to upload.
   (Int -> Int -> IO ()) ->
-  IO (Either FastForwardPushError ())
-fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadProgressCallback =
+  IO (Either (SyncError FastForwardPushError) ())
+fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadProgressCallback = catchSyncErrors do
   getCausalHashByPath httpClient unisonShareUrl path >>= \case
     Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission path))
     Right Nothing -> pure (Left (FastForwardPushErrorNoHistory path))
@@ -309,8 +315,8 @@ pull ::
   Share.Path ->
   -- | Callback that is given the total number of entities downloaded.
   (Int -> IO ()) ->
-  IO (Either PullError CausalHash)
-pull httpClient unisonShareUrl conn repoPath@(Share.pathRepoName -> repoName) downloadCountCallback = do
+  IO (Either (SyncError PullError) CausalHash)
+pull httpClient unisonShareUrl conn repoPath@(Share.pathRepoName -> repoName) downloadCountCallback = catchSyncErrors do
   getCausalHashByPath httpClient unisonShareUrl repoPath >>= \case
     Left err -> pure (Left (PullErrorGetCausalHashByPath err))
     -- There's nothing at the remote path, so there's no causal to pull.
@@ -567,7 +573,28 @@ httpUploadEntities :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.UploadEnt
       hoist :: Servant.ClientM a -> ReaderT Servant.ClientEnv IO a
       hoist m = do
         clientEnv <- Reader.ask
-        liftIO (throwEitherM (Servant.runClientM m clientEnv))
+        throwEitherM $
+          liftIO (Servant.runClientM m clientEnv) >>= \case
+            Right a -> pure $ Right a
+            Left err -> do
+              Debug.debugLogM Debug.Sync (show err)
+              pure . Left $ case err of
+                Servant.FailureResponse _req resp -> case HTTP.statusCode $ Servant.responseStatusCode resp of
+                  401 -> Unauthenticated
+                  -- The server should provide semantically relevant permission-denied messages
+                  -- when possible, but this should catch any we miss.
+                  403 -> PermissionDenied (Text.Lazy.toStrict . Text.Lazy.decodeUtf8 $ Servant.responseBody resp)
+                  408 -> Timeout
+                  429 -> RateLimitExceeded
+                  500 -> InternalServerError
+                  504 -> Timeout
+                  code
+                    | code >= 500 -> InternalServerError
+                    | otherwise -> InvalidResponse resp
+                Servant.DecodeFailure _msg resp -> InvalidResponse resp
+                Servant.UnsupportedContentType _ct resp -> InvalidResponse resp
+                Servant.InvalidContentTypeHeader resp -> InvalidResponse resp
+                Servant.ConnectionError {} -> UnreachableCodeserver
 
       go ::
         (req -> ReaderT Servant.ClientEnv IO resp) ->
@@ -586,3 +613,10 @@ httpUploadEntities :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.UploadEnt
                     }
               }
           )
+
+catchSyncErrors :: IO (Either e a) -> IO (Either (SyncError e) a)
+catchSyncErrors action =
+  UnliftIO.try @_ @CodeserverTransportError action >>= \case
+    Left te -> pure (Left . TransportError $ te)
+    Right (Left e) -> pure . Left . SyncError $ e
+    Right (Right a) -> pure $ Right a
