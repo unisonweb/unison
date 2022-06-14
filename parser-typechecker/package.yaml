@@ -74,6 +74,7 @@ library:
     - primitive
     - random >= 1.2.0
     - raw-strings-qq
+    - recover-rtti
     - regex-base
     - regex-tdfa
     - safe

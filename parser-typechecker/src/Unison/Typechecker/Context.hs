@@ -63,6 +63,7 @@ import Data.Sequence.NonEmpty (NESeq)
 import qualified Data.Sequence.NonEmpty as NESeq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Debug.RecoverRTTI (anythingToString)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
@@ -623,7 +624,7 @@ wellformedType c t = case t of
   Type.Forall' t' ->
     let (v, ctx2) = extendUniversal c
      in wellformedType ctx2 (ABT.bind t' (universal' (ABT.annotation t) v))
-  _ -> error $ "Match failure in wellformedType: " ++ show t
+  _ -> error $ "Match failure in wellformedType: " ++ anythingToString t
   where
     -- Extend this `Context` with a single variable, guaranteed fresh
     extendUniversal ctx =
@@ -659,14 +660,14 @@ extend' e c@(Context ctx) = Context . (: ctx) . (e,) <$> i'
       -- SolvedEvarCtx - ensure `v` is fresh, and the solution is well-formed wrt the context
       Solved _ v sa@(Type.getPolytype -> t)
         | Set.member v vs -> crash $ "variable " <> show v <> " already defined in the context"
-        | not (wellformedType c t) -> crash $ "type " <> show t <> " is not well-formed wrt the context"
+        | not (wellformedType c t) -> crash $ "type " <> anythingToString t <> " is not well-formed wrt the context"
         | otherwise ->
             pure $
               Info (Set.insert v es) (Map.insert v sa ses) us uas (Set.insert v vs) pvs
       -- VarCtx - ensure `v` is fresh, and annotation is well-formed wrt the context
       Ann v t
         | Set.member v vs -> crash $ "variable " <> show v <> " already defined in the context"
-        | not (wellformedType c t) -> crash $ "type " <> show t <> " is not well-formed wrt the context"
+        | not (wellformedType c t) -> crash $ "type " <> anythingToString t <> " is not well-formed wrt the context"
         | otherwise ->
             pure $
               Info
@@ -818,7 +819,7 @@ apply' solvedExistentials t = go t
       Type.Effects' es -> Type.effects a (map go es)
       Type.ForallNamed' v t' -> Type.forall a v (go t')
       Type.IntroOuterNamed' v t' -> Type.introOuter a v (go t')
-      _ -> error $ "Match error in Context.apply': " ++ show t
+      _ -> error $ "Match error in Context.apply': " ++ anythingToString t
       where
         a = ABT.annotation t
 
@@ -863,7 +864,7 @@ synthesizeApp ::
   (Term v loc, Int) ->
   M v loc (Type v loc, Wanted v loc)
 synthesizeApp _ ft arg
-  | debugEnabled && traceShow ("synthesizeApp" :: String, ft, arg) False =
+  | debugEnabled && traceShow ("synthesizeApp" :: String, anythingToString ft, anythingToString arg) False =
       undefined
 synthesizeApp fun (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) =
   scope (InSynthesizeApp ft arg argNum) $ do
@@ -978,7 +979,7 @@ synthesize ::
   Ord loc =>
   Term v loc ->
   M v loc (Type v loc, Wanted v loc)
-synthesize e | debugShow ("synthesize" :: String, e) = undefined
+synthesize e | debugShow ("synthesize" :: String, anythingToString e) = undefined
 synthesize e = scope (InSynthesize e) $
   case minimize' e of
     Left es -> failWith (DuplicateDefinitions es)
@@ -1291,7 +1292,7 @@ checkPattern ::
   Type v loc ->
   Pattern loc ->
   StateT [v] (M v loc) [(v, v)]
-checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("checkPattern" :: String, tx, ty) False = undefined
+checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("checkPattern" :: String, anythingToString tx, anythingToString ty) False = undefined
 checkPattern scrutineeType p =
   case p of
     Pattern.Unbound _ -> pure []
@@ -1942,7 +1943,7 @@ defaultAbility _ = pure False
 -- Expects a fully substituted type, so that it is unnecessary to
 -- check if an existential in the type has been solved.
 discardCovariant :: Var v => Set v -> Type v loc -> Type v loc
-discardCovariant _ ty | debugShow ("discardCovariant" :: Text, ty) = undefined
+discardCovariant _ ty | debugShow ("discardCovariant" :: Text, anythingToString ty) = undefined
 discardCovariant gens ty =
   ABT.rewriteDown (strip $ keepVarsT True ty) ty
   where
@@ -2117,7 +2118,7 @@ check ::
   Term v loc ->
   Type v loc ->
   M v loc (Wanted v loc)
-check m t | debugShow ("check" :: String, m, t) = undefined
+check m t | debugShow ("check" :: String, anythingToString m, anythingToString t) = undefined
 check m0 t0 = scope (InCheck m0 t0) $ do
   ctx <- getContext
   case minimize' m0 of
@@ -2133,7 +2134,7 @@ check m0 t0 = scope (InCheck m0 t0) $ do
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
 subtype :: forall v loc. (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc ()
-subtype tx ty | debugEnabled && traceShow ("subtype" :: String, tx, ty) False = undefined
+subtype tx ty | debugEnabled && traceShow ("subtype" :: String, anythingToString tx, anythingToString ty) False = undefined
 subtype tx ty = scope (InSubtype tx ty) $ do
   ctx <- getContext
   go (ctx :: Context v loc) (Type.stripIntroOuters tx) (Type.stripIntroOuters ty)
@@ -2286,7 +2287,7 @@ equate0 y1 y2 = do
 -- a subtype of the given type, updating the context
 -- in the process.
 instantiateL :: (Var v, Ord loc) => B.Blank loc -> v -> Type v loc -> M v loc ()
-instantiateL _ v t | debugEnabled && traceShow ("instantiateL" :: String, v, t) False = undefined
+instantiateL _ v t | debugEnabled && traceShow ("instantiateL" :: String, v, anythingToString t) False = undefined
 instantiateL blank v (Type.stripIntroOuters -> t) =
   scope (InInstantiateL v t) $
     getContext >>= \ctx -> case Type.monotype t of
@@ -2385,7 +2386,7 @@ refineEffectVar ::
   Type v loc ->
   M v loc ()
 refineEffectVar _ es _ v _
-  | debugShow ("refineEffectVar" :: Text, es, v) = undefined
+  | debugShow ("refineEffectVar" :: Text, anythingToString es, v) = undefined
 refineEffectVar _ [] _ _ _ = pure ()
 refineEffectVar l es blank v tv
   | ev <- TypeVar.Existential blank v,
@@ -2407,7 +2408,7 @@ refineEffectVar l es blank v tv
 -- a supertype of the given type, updating the context
 -- in the process.
 instantiateR :: (Var v, Ord loc) => Type v loc -> B.Blank loc -> v -> M v loc ()
-instantiateR t _ v | debugEnabled && traceShow ("instantiateR" :: String, t, v) False = undefined
+instantiateR t _ v | debugEnabled && traceShow ("instantiateR" :: String, anythingToString t, v) False = undefined
 instantiateR (Type.stripIntroOuters -> t) blank v =
   scope (InInstantiateR t v) $
     getContext >>= \ctx -> case Type.monotype t of
@@ -2595,7 +2596,7 @@ pruneAbilities ::
   [Type v loc] ->
   M v loc (Wanted v loc)
 pruneAbilities want0 have0
-  | debugShow ("pruneAbilities" :: Text, want0, have0) = undefined
+  | debugShow ("pruneAbilities" :: Text, anythingToString want0, anythingToString have0) = undefined
 pruneAbilities want0 have0 = do
   pwant <- pruneConcrete missing [] want0 have0
   if pwant /= want0
@@ -2645,7 +2646,7 @@ equateAbilities ::
   [Type v loc] ->
   M v loc ()
 equateAbilities abs1 abs2
-  | debugShow ("equateAbilities" :: Text, abs1, abs2) = undefined
+  | debugShow ("equateAbilities" :: Text, anythingToString abs1, anythingToString abs2) = undefined
 equateAbilities ls rs =
   matchAbilities ls rs >>= \(com, ls, rs) ->
     let (vls, cls) = partition isExistential ls
@@ -2704,7 +2705,7 @@ subAbilities ::
   [Type v loc] ->
   M v loc ()
 subAbilities want have
-  | debugShow ("subAbilities" :: Text, want, have) = undefined
+  | debugShow ("subAbilities" :: Text, anythingToString want, anythingToString have) = undefined
 subAbilities want have = do
   want <- expandWanted want
   have <- expandAbilities have

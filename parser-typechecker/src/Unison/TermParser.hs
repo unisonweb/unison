@@ -19,6 +19,7 @@ import qualified Data.Sequence as Sequence
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Tuple.Extra as TupleE
+import Debug.RecoverRTTI (anythingToString)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
@@ -656,7 +657,7 @@ docNormalize tm = case tm of
       (normalize seqs)
     where
 
-  _ -> error $ "unexpected doc structure: " ++ show tm
+  _ -> error $ "unexpected doc structure: " ++ anythingToString tm
   where
     normalize =
       Sequence.fromList . (map TupleE.fst3)
@@ -804,7 +805,7 @@ docNormalize tm = case tm of
     -- See test2 in transcript doc-formatting.md for an example of how
     -- this looks when there is whitespace immediately following @[source]
     -- or @[evaluate].
-    lastLines :: Show v => Sequence.Seq (Term v a) -> [Maybe UnbreakCase]
+    lastLines :: Sequence.Seq (Term v a) -> [Maybe UnbreakCase]
     lastLines tms = (flip fmap) (toList tms) $ \case
       DD.DocBlob txt -> unbreakCase txt
       DD.DocLink _ -> Nothing
@@ -812,7 +813,7 @@ docNormalize tm = case tm of
       DD.DocSignature _ -> Nothing
       DD.DocEvaluate _ -> Nothing
       Term.Var' _ -> Nothing -- @[include]
-      e@_ -> error ("unexpected doc element: " ++ show e)
+      e@_ -> error ("unexpected doc element: " ++ anythingToString e)
     -- Work out whether the last line of this blob is indented (or maybe
     -- terminated by a newline.)
     unbreakCase :: Text -> Maybe UnbreakCase
@@ -873,7 +874,7 @@ docNormalize tm = case tm of
       DD.DocSignature _ -> False
       DD.DocEvaluate _ -> False
       Term.Var' _ -> False -- @[include]
-      _ -> error ("unexpected doc element" ++ show tm)
+      _ -> error ("unexpected doc element" ++ anythingToString tm)
     -- A list whose entries match those of tms.  Can the subsequent entry by a
     -- line continuation of this one?
     followingLines tms = drop 1 ((continuesLine tms) ++ [False])
@@ -882,9 +883,9 @@ docNormalize tm = case tm of
       [] -> []
       x : rest -> (fFirst x) : (map fRest rest)
     mapExceptLast fRest fLast = reverse . (mapExceptFirst fRest fLast) . reverse
-    tracing :: Show a => [Char] -> a -> a
+    tracing :: [Char] -> a -> a
     tracing when x =
-      (const id $ trace ("at " ++ when ++ ": " ++ (show x) ++ "\n")) x
+      (const id $ trace ("at " ++ when ++ ": " ++ anythingToString x ++ "\n")) x
     blob aa ac at txt =
       Term.app aa (Term.constructor ac (ConstructorReference DD.docRef DD.docBlobId)) (Term.text at txt)
     join aa ac as segs =

@@ -101,6 +101,7 @@ library
     , safe
     , text
     , transformers
+    , unison-core
     , unison-prelude
     , unison-util
     , unison-util-relation

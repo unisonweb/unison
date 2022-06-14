@@ -13,6 +13,7 @@ import qualified Data.Set as Set
 import Data.Text (unpack)
 import qualified Data.Text as Text
 import Data.Vector ()
+import Debug.RecoverRTTI (anythingToString)
 import qualified Text.Show.Unicode as U
 import Unison.ABT (annotation, reannotateUp, pattern AbsN')
 import qualified Unison.ABT as ABT
@@ -785,7 +786,7 @@ prettyBinding0 env a@AmbientContext {imports = im, docContext = doc} v term =
          in PP.group $
               PP.group (defnLhs v vs <> fmt S.BindingEquals " =")
                 `hang` uses [pretty0 env (ac (-1) Block im' doc) body']
-      t -> l "error: " <> l (show t)
+      t -> l "error: " <> l (anythingToString t)
       where
         defnLhs v vs
           | infix' = case vs of
@@ -848,7 +849,7 @@ prettyDoc n im term =
     go (DD.DocEvaluate (TermLink' r)) =
       atKeyword "evaluate" <> fmtTerm r
     go (Ref' r) = atKeyword "include" <> fmtTerm (Referent.Ref r)
-    go _ = l $ "(invalid doc literal: " ++ show term ++ ")"
+    go _ = l $ "(invalid doc literal: " ++ anythingToString term ++ ")"
     fmtName s = styleHashQualified'' (fmt $ S.HashQualifier s) $ elideFQN im s
     fmtTerm r = fmtName $ PrettyPrintEnv.termName n r
     fmtType r = fmtName $ PrettyPrintEnv.typeName n r
@@ -1353,7 +1354,7 @@ immediateChildBlockTerms = \case
     handleDelay _ = []
     doLet (v, Ann' tm _) = doLet (v, tm)
     doLet (v, LamsNamedOpt' _ body) = [body | not (isBlank $ Var.nameStr v)]
-    doLet t = error (show t) []
+    doLet t = error (anythingToString t) []
 
 -- Matches with a single case, no variable shadowing, and where the pattern
 -- has no literals are treated as destructuring bind, for instance:

@@ -1,15 +1,4 @@
-{-# LANGUAGE BlockArguments #-}
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module U.Core.ABT where
 
@@ -19,6 +8,7 @@ import Data.Functor.Identity (Identity (runIdentity))
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
+import GHC.Generics (Generic)
 import Prelude hiding (abs, cycle)
 
 data ABT f v r
@@ -31,16 +21,12 @@ data ABT f v r
 -- | At each level in the tree, we store the set of free variables and
 -- a value of type `a`. Variables are of type `v`.
 data Term f v a = Term {freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a)}
-  deriving (Functor, Foldable, Traversable)
+  deriving (Functor, Foldable, Generic, Traversable)
 
 deriving instance (forall q. Show q => Show (f q), Show v, Show a) => Show (Term f v a)
 
 amap :: (Functor f, Foldable f) => (a -> a') -> Term f v a -> Term f v a'
-amap f (Term fv a out) = Term fv (f a) $ case out of
-  Var v -> Var v
-  Tm fa -> Tm (amap f <$> fa)
-  Cycle r -> Cycle (amap f r)
-  Abs v body -> Abs v (amap f body)
+amap = fmap
 
 vmap :: (Functor f, Foldable f, Ord v') => (v -> v') -> Term f v a -> Term f v' a
 vmap f (Term _ a out) = case out of
@@ -104,7 +90,7 @@ visit f t = flip fromMaybe (f t) $ case out t of
 
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
 visit' ::
-  (Traversable f, Applicative g, Monad g, Ord v) =>
+  (Traversable f, Monad g, Ord v) =>
   (f (Term f v a) -> g (f (Term f v a))) ->
   Term f v a ->
   g (Term f v a)
@@ -116,7 +102,7 @@ visit' f t = case out t of
 
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
 visit_ ::
-  (Traversable f, Applicative g, Monad g, Ord v) =>
+  (Traversable f, Monad g, Ord v) =>
   (f (Term f v a) -> g ()) ->
   Term f v a ->
   g (Term f v a)
@@ -135,7 +121,7 @@ visitPure ::
 visitPure f = runIdentity . visit (fmap pure . f)
 
 foreachSubterm ::
-  (Traversable f, Applicative g, Ord v) =>
+  (Traversable f, Applicative g) =>
   (Term f v a -> g b) ->
   Term f v a ->
   g [b]
@@ -161,6 +147,8 @@ pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
 
 pattern AbsN' :: [v] -> Term f v a -> Term f v a
 pattern AbsN' vs body <- (unabs -> (vs, body))
+
+{-# COMPLETE AbsN' #-}
 
 pattern Tm' :: f (Term f v a) -> Term f v a
 pattern Tm' f <- Term _ _ (Tm f)

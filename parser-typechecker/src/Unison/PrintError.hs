@@ -17,6 +17,7 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NES
 import qualified Data.Text as Text
+import Debug.RecoverRTTI (anythingToString)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import Unison.Builtin.Decls (pattern TupleType')
@@ -934,7 +935,7 @@ renderType env f t = renderType0 env f (0 :: Int) (Type.removePureEffects t)
             then go 0 body
             else "forall " <> spaces renderVar vs <> " . " <> go 1 body
       Type.Var' v -> renderVar v
-      _ -> error $ "pattern match failure in PrintError.renderType " ++ show t
+      _ -> error $ "pattern match failure in PrintError.renderType " ++ anythingToString t
       where
         go = renderType0 env f
 
