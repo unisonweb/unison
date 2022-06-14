@@ -1638,9 +1638,9 @@ notifyUser dir o = case o of
             ]
       PermissionDenied msg -> P.fatalCallout $ P.hang "Permission denied:" (P.text msg)
       UnreachableCodeserver codeServerURL ->
-        P.wrap . P.lines $
-          [ "Unable to reach the code server hosted at:" <> P.string (Servant.showBaseUrl codeServerURL),
-            "Please check your network, ensure you've provided the correct location, or try again later."
+        P.lines $
+          [ P.wrap $ "Unable to reach the code server hosted at:" <> P.string (Servant.showBaseUrl codeServerURL),
+            P.wrap "Please check your network, ensure you've provided the correct location, or try again later."
           ]
       InvalidResponse resp -> P.fatalCallout $ P.hang "Invalid response received from codeserver:" (P.shown resp)
       RateLimitExceeded -> P.warnCallout "Rate limit exceeded, please try again later."
