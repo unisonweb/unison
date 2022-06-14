@@ -23,6 +23,7 @@ import qualified Data.Text as Text
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import Network.URI (URI)
+import qualified Servant.Client as Servant
 import System.Directory
   ( canonicalizePath,
     doesFileExist,
@@ -1629,15 +1630,17 @@ notifyUser dir o = case o of
         P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
     ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
     ShareErrorTransport te -> case te of
-      Unauthenticated ->
+      Unauthenticated codeServerURL ->
         P.fatalCallout $
-          P.wrap $
-            "Authentication with this code server is missing or expired. Please run " <> makeExample' IP.authLogin <> "."
+          P.wrap . P.lines $
+            [ "Authentication with this code server (" <> P.string (Servant.showBaseUrl codeServerURL) <> ") is missing or expired.",
+              "Please run " <> makeExample' IP.authLogin <> "."
+            ]
       PermissionDenied msg -> P.fatalCallout $ P.hang "Permission denied:" (P.text msg)
-      UnreachableCodeserver ->
+      UnreachableCodeserver codeServerURL ->
         P.wrap . P.lines $
-          [ "Unable to reach the code server.",
-            "Please check your network, ensure you've provided the correct location, or try again later"
+          [ "Unable to reach the code server hosted at:" <> P.string (Servant.showBaseUrl codeServerURL),
+            "Please check your network, ensure you've provided the correct location, or try again later."
           ]
       InvalidResponse resp -> P.fatalCallout $ P.hang "Invalid response received from codeserver:" (P.shown resp)
       RateLimitExceeded -> P.warnCallout "Rate limit exceeded, please try again later."

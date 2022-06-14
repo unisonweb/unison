@@ -570,9 +570,9 @@ httpUploadEntities :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.UploadEnt
           go httpUploadEntities
         )
     where
-      hoist :: Servant.ClientM a -> ReaderT Servant.ClientEnv IO a
+      hoist :: Servant.ClientM a -> ReaderT (BaseUrl, Servant.ClientEnv) IO a
       hoist m = do
-        clientEnv <- Reader.ask
+        (shareURL, clientEnv) <- Reader.ask
         throwEitherM $
           liftIO (Servant.runClientM m clientEnv) >>= \case
             Right a -> pure $ Right a
@@ -580,7 +580,7 @@ httpUploadEntities :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.UploadEnt
               Debug.debugLogM Debug.Sync (show err)
               pure . Left $ case err of
                 Servant.FailureResponse _req resp -> case HTTP.statusCode $ Servant.responseStatusCode resp of
-                  401 -> Unauthenticated
+                  401 -> Unauthenticated shareURL
                   -- The server should provide semantically relevant permission-denied messages
                   -- when possible, but this should catch any we miss.
                   403 -> PermissionDenied (Text.Lazy.toStrict . Text.Lazy.decodeUtf8 $ Servant.responseBody resp)
@@ -594,10 +594,10 @@ httpUploadEntities :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.UploadEnt
                 Servant.DecodeFailure _msg resp -> InvalidResponse resp
                 Servant.UnsupportedContentType _ct resp -> InvalidResponse resp
                 Servant.InvalidContentTypeHeader resp -> InvalidResponse resp
-                Servant.ConnectionError {} -> UnreachableCodeserver
+                Servant.ConnectionError {} -> UnreachableCodeserver shareURL
 
       go ::
-        (req -> ReaderT Servant.ClientEnv IO resp) ->
+        (req -> ReaderT (BaseUrl, Servant.ClientEnv) IO resp) ->
         Auth.AuthenticatedHttpClient ->
         BaseUrl ->
         req ->
@@ -605,7 +605,8 @@ httpUploadEntities :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.UploadEnt
       go f (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req =
         runReaderT
           (f req)
-          ( (Servant.mkClientEnv httpClient unisonShareUrl)
+          ( unisonShareUrl,
+            (Servant.mkClientEnv httpClient unisonShareUrl)
               { Servant.makeClientRequest = \url request ->
                   -- Disable client-side timeouts
                   (Servant.defaultMakeClientRequest url request)

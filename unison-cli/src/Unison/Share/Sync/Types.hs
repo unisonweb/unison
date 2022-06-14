@@ -42,11 +42,11 @@ data GetCausalHashByPathError
 
 -- | Generic Codeserver transport errors
 data CodeserverTransportError
-  = Unauthenticated
+  = Unauthenticated Servant.BaseUrl
   | -- We try to catch permission failures in the endpoint's response type, but if any slip
     -- through they'll be translated as a PermissionDenied.
     PermissionDenied Text
-  | UnreachableCodeserver
+  | UnreachableCodeserver Servant.BaseUrl
   | InvalidResponse Servant.Response
   | RateLimitExceeded
   | InternalServerError
