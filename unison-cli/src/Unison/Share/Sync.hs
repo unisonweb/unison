@@ -43,6 +43,8 @@ import Servant.Client (BaseUrl)
 import qualified Servant.Client as Servant (ClientEnv (..), ClientM, client, defaultMakeClientRequest, hoistClient, mkClientEnv, runClientM)
 import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Queries as Q
+import qualified U.Codebase.Sqlite.Operations as Ops
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import U.Util.Hash32 (Hash32)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Auth.HTTPClient as Auth
@@ -515,7 +517,7 @@ upsertEntitySomewhere hash entity =
 insertEntity :: Hash32 -> Share.Entity Text Hash32 Share.HashJWT -> Sqlite.Transaction ()
 insertEntity hash entity = do
   syncEntity <- Q.tempToSyncEntity (entityToTempEntity Share.hashJWTHash entity)
-  _id <- Q.saveSyncEntity hash syncEntity
+  _id <- Ops.saveSyncEntity v2HashHandle hash syncEntity
   pure ()
 
 -- | Insert an entity and its missing dependencies.

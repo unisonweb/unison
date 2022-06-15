@@ -50,6 +50,7 @@ import qualified U.Codebase.Sqlite.Patch.Full as S
 import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
 import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
 import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
 import U.Codebase.WatchKind (WatchKind)
@@ -256,7 +257,8 @@ migrateCausal oldCausalHashId = fmap (either id id) . runExceptT $ do
             parents = newParentHashIds
           }
   (lift . lift) do
-    Q.saveCausal
+    Ops.saveCausal
+      v2HashHandle
       (SC.DbCausal.selfHash newCausal)
       (SC.DbCausal.valueHash newCausal)
       (Set.toList $ SC.DbCausal.parents newCausal)
@@ -335,7 +337,7 @@ migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
 
   newHash <- lift . lift $ Hashing.dbBranchHash newBranch
   newHashId <- lift . lift $ Q.saveBranchHash (coerce Cv.hash1to2 newHash)
-  newObjectId <- lift . lift $ Ops.saveDbBranchUnderHashId newHashId newBranch
+  newObjectId <- lift . lift $ Ops.saveDbBranchUnderHashId v2HashHandle newHashId newBranch
   field @"objLookup"
     %= Map.insert
       oldObjectId
@@ -398,6 +400,7 @@ migratePatch oldObjectId = fmap (either id id) . runExceptT $ do
   newObjectId <-
     lift . lift $
       Ops.saveDbPatch
+        v2HashHandle
         (coerce Cv.hash1to2 newHash)
         (S.Patch.Format.Full localPatchIds localPatch)
   newHashId <- lift . lift $ Q.expectHashIdByHash (coerce Cv.hash1to2 newHash)
@@ -868,5 +871,5 @@ saveV2EmptyBranch = do
   let branch = S.emptyBranch
   newHash <- Hashing.dbBranchHash branch
   newHashId <- Q.saveBranchHash (coerce Cv.hash1to2 newHash)
-  _ <- Ops.saveDbBranchUnderHashId newHashId branch
+  _ <- Ops.saveDbBranchUnderHashId v2HashHandle newHashId branch
   pure (newHashId, newHash)

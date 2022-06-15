@@ -18,6 +18,7 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.Sqlite.V2.Decl
+      U.Codebase.Sqlite.V2.HashHandle
       U.Codebase.Sqlite.V2.SyncEntity
       U.Codebase.Sqlite.V2.Term
       Unison.Hashing.V2.Convert2

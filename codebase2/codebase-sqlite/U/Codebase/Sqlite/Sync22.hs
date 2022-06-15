@@ -24,8 +24,10 @@ import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
 import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import U.Codebase.Sqlite.HashHandle (HashHandle)
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
+import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Patch.Format as PL
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as Sqlite
@@ -89,18 +91,20 @@ sync22 ::
   ( MonadIO m,
     MonadError Error m
   ) =>
+  HashHandle ->
   Env m ->
   IO (Sync m Entity)
-sync22 Env {runSrc, runDest, idCacheSize = size} = do
+sync22 hh Env {runSrc, runDest, idCacheSize = size} = do
   tCache <- Cache.semispaceCache size
   hCache <- Cache.semispaceCache size
   oCache <- Cache.semispaceCache size
   cCache <- Cache.semispaceCache size
-  pure $ Sync (trySync runSrc runDest tCache hCache oCache cCache)
+  pure $ Sync (trySync hh runSrc runDest tCache hCache oCache cCache)
 
 trySync ::
   forall m.
   (MonadIO m, MonadError Error m) =>
+  HashHandle ->
   (forall a. Transaction a -> m a) ->
   (forall a. Transaction a -> m a) ->
   Cache TextId TextId ->
@@ -109,7 +113,7 @@ trySync ::
   Cache CausalHashId CausalHashId ->
   Entity ->
   m (TrySyncResult Entity)
-trySync runSrc runDest tCache hCache oCache cCache = \case
+trySync hh runSrc runDest tCache hCache oCache cCache = \case
   -- for causals, we need to get the value_hash_id of the thingo
   -- - maybe enqueue their parents
   -- - enqueue the self_ and value_ hashes
@@ -126,7 +130,7 @@ trySync runSrc runDest tCache hCache oCache cCache = \case
           parents' :: [CausalHashId] <- findParents' chId
           bhId' <- lift $ syncBranchHashId bhId
           chId' <- lift $ syncCausalHashId chId
-          lift (runDest (Q.saveCausal chId' bhId' parents'))
+          lift (runDest (Ops.saveCausal hh chId' bhId' parents'))
 
         case result of
           Left deps -> pure . Sync.Missing $ toList deps
@@ -164,7 +168,7 @@ trySync runSrc runDest tCache hCache oCache cCache = \case
                           . TermFormat.SyncLocallyIndexedComponent
                           $ Vector.zip localIds' bytes
                   lift do
-                    oId' <- runDest $ Q.saveObject hId' objType bytes'
+                    oId' <- runDest $ Ops.saveObject hh hId' objType bytes'
                     -- copy reference-specific stuff
                     for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
                       let ref = Reference.Id oId idx
@@ -197,7 +201,7 @@ trySync runSrc runDest tCache hCache oCache cCache = \case
                           . DeclFormat.SyncLocallyIndexedComponent
                           $ Vector.zip localIds' declBytes
                   lift do
-                    oId' <- runDest $ Q.saveObject hId' objType bytes'
+                    oId' <- runDest $ Ops.saveObject hh hId' objType bytes'
                     -- copy per-element-of-the-component stuff
                     for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
                       let ref = Reference.Id oId idx
@@ -210,26 +214,26 @@ trySync runSrc runDest tCache hCache oCache cCache = \case
             Right (BL.SyncFull ids body) -> do
               ids' <- syncBranchLocalIds ids
               let bytes' = runPutS $ S.recomposeBranchFormat (BL.SyncFull ids' body)
-              oId' <- lift . runDest $ Q.saveObject hId' objType bytes'
+              oId' <- lift . runDest $ Ops.saveObject hh hId' objType bytes'
               pure oId'
             Right (BL.SyncDiff boId ids body) -> do
               boId' <- syncBranchObjectId boId
               ids' <- syncBranchLocalIds ids
               let bytes' = runPutS $ S.recomposeBranchFormat (BL.SyncDiff boId' ids' body)
-              oId' <- lift . runDest $ Q.saveObject hId' objType bytes'
+              oId' <- lift . runDest $ Ops.saveObject hh hId' objType bytes'
               pure oId'
             Left s -> throwError $ DecodeError ErrBranchFormat bytes s
           OT.Patch -> case flip runGetS bytes S.decomposePatchFormat of
             Right (PL.SyncFull ids body) -> do
               ids' <- syncPatchLocalIds ids
               let bytes' = runPutS $ S.recomposePatchFormat (PL.SyncFull ids' body)
-              oId' <- lift . runDest $ Q.saveObject hId' objType bytes'
+              oId' <- lift . runDest $ Ops.saveObject hh hId' objType bytes'
               pure oId'
             Right (PL.SyncDiff poId ids body) -> do
               poId' <- syncPatchObjectId poId
               ids' <- syncPatchLocalIds ids
               let bytes' = runPutS $ S.recomposePatchFormat (PL.SyncDiff poId' ids' body)
-              oId' <- lift . runDest $ Q.saveObject hId' objType bytes'
+              oId' <- lift . runDest $ Ops.saveObject hh hId' objType bytes'
               pure oId'
             Left s -> throwError $ DecodeError ErrPatchFormat bytes s
         case result of

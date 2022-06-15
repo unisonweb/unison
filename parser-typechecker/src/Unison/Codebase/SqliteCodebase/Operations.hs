@@ -24,6 +24,7 @@ import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sqlite.V2.Decl (saveDeclComponent)
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import U.Codebase.Sqlite.V2.Term (saveTermComponent)
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
@@ -379,7 +380,7 @@ putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Transaction)) -> Branch
 putRootBranch rootBranchCache branch1 = do
   -- todo: check to see if root namespace hash has been externally modified
   -- and do something (merge?) it if necessary. But for now, we just overwrite it.
-  void (Ops.saveRootBranch (Cv.causalbranch1to2 branch1))
+  void (Ops.saveRootBranch v2HashHandle (Cv.causalbranch1to2 branch1))
   Sqlite.unsafeIO (atomically $ modifyTVar' rootBranchCache (fmap . second $ const branch1))
 
 -- if this blows up on cromulent hashes, then switch from `hashToHashId`
@@ -398,7 +399,7 @@ getBranchForHash doGetDeclType h = do
 
 putBranch :: Branch Transaction -> Transaction ()
 putBranch =
-  void . Ops.saveBranch . Cv.causalbranch1to2
+  void . Ops.saveBranch v2HashHandle . Cv.causalbranch1to2
 
 isCausalHash :: Branch.CausalHash -> Transaction Bool
 isCausalHash (Causal.CausalHash h) =
@@ -415,7 +416,7 @@ getPatch h =
 
 putPatch :: Branch.EditHash -> Patch -> Transaction ()
 putPatch h p =
-  void $ Ops.savePatch (Cv.patchHash1to2 h) (Cv.patch1to2 p)
+  void $ Ops.savePatch v2HashHandle (Cv.patchHash1to2 h) (Cv.patch1to2 p)
 
 patchExists :: Branch.EditHash -> Transaction Bool
 patchExists h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h)

@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module U.Codebase.Sqlite.Operations
   ( -- * branches
     saveRootBranch,
@@ -85,6 +87,9 @@ module U.Codebase.Sqlite.Operations
     declReferencesByPrefix,
     branchHashesByPrefix,
     derivedDependencies,
+    saveCausal,
+    saveObject,
+    saveSyncEntity,
   )
 where
 
@@ -96,6 +101,7 @@ import Control.Monad.Writer (MonadWriter, runWriterT)
 import qualified Control.Monad.Writer as Writer
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
+import Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
@@ -123,9 +129,13 @@ import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
+import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.Decode
+import U.Codebase.Sqlite.Entity (SyncEntity)
+import qualified U.Codebase.Sqlite.Entity as Entity
+import U.Codebase.Sqlite.HashHandle (HashHandle (..))
 import U.Codebase.Sqlite.LocalIds
   ( LocalDefnId (..),
     LocalIds,
@@ -137,6 +147,7 @@ import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.LocalizeObject as LocalizeObject
 import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
+import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import qualified U.Codebase.Sqlite.Patch.Diff as S
 import qualified U.Codebase.Sqlite.Patch.Format as S
 import qualified U.Codebase.Sqlite.Patch.Format as S.Patch.Format
@@ -151,8 +162,10 @@ import qualified U.Codebase.Sqlite.Reference as S.Reference
 import qualified U.Codebase.Sqlite.Referent as S
 import qualified U.Codebase.Sqlite.Referent as S.Referent
 import qualified U.Codebase.Sqlite.Serialization as S
+import qualified U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.Symbol (Symbol)
 import qualified U.Codebase.Sqlite.Term.Format as S.Term
+import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import qualified U.Codebase.Term as C
 import qualified U.Codebase.Term as C.Term
 import qualified U.Codebase.TermEdit as C
@@ -164,6 +177,7 @@ import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as H
+import U.Util.Hash32 (Hash32)
 import qualified U.Util.Hash32 as Hash32
 import qualified U.Util.Lens as Lens
 import qualified U.Util.Serialization as S
@@ -406,10 +420,7 @@ loadTermComponent h = do
   lift . traverse (uncurry3 s2cTermWithType) $ Foldable.toList elements
 
 saveTermComponent ::
-  -- | Hash this type
-  (C.Term.Type Symbol -> C.Reference) ->
-  -- | Hash this type's mentions
-  (C.Term.Type Symbol -> Set C.Reference) ->
+  HashHandle ->
   -- | The serialized term component if we already have it e.g. via sync
   Maybe ByteString ->
   -- | term component hash
@@ -417,7 +428,7 @@ saveTermComponent ::
   -- | term component
   [(C.Term Symbol, C.Term.Type Symbol)] ->
   Transaction Db.ObjectId
-saveTermComponent toReference toReferenceMentions maybeEncodedTerms h terms = do
+saveTermComponent hh@HashHandle {..} maybeEncodedTerms h terms = do
   when debug . traceM $ "Operations.saveTermComponent " ++ show h
   sTermElements <- traverse (uncurry c2sTerm) terms
   hashId <- Q.saveHashHash h
@@ -425,7 +436,7 @@ saveTermComponent toReference toReferenceMentions maybeEncodedTerms h terms = do
       mkByteString =
         let li = S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements
          in S.putBytes S.putTermFormat $ S.Term.Term li
-  oId <- Q.saveObject hashId OT.TermComponent bytes
+  oId <- saveObject hh hashId OT.TermComponent bytes
   -- populate dependents index
   let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sTermElements `zip` [0 ..])
       unlocalizeRefs :: ((LocalIds, S.Term.Term, S.Term.Type), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
@@ -725,16 +736,12 @@ loadDeclComponent h = do
   lift . traverse (uncurry s2cDecl) $ Foldable.toList elements
 
 saveDeclComponent ::
-  -- | Hash this type
-  (C.Type.TypeD Symbol -> C.Reference) ->
-  -- | Hash this type's mentions
-  (C.Type.TypeD Symbol -> Set C.Reference) ->
-  -- | The serialized decl component if we already have it e.g. via sync
+  HashHandle ->
   Maybe ByteString ->
   H.Hash ->
   [C.Decl Symbol] ->
   Transaction Db.ObjectId
-saveDeclComponent toReference toReferenceMentions maybeEncodedDecls h decls = do
+saveDeclComponent hh@HashHandle {..} maybeEncodedDecls h decls = do
   when debug . traceM $ "Operations.saveDeclComponent " ++ show h
   sDeclElements <- traverse (c2sDecl Q.saveText Q.expectObjectIdForPrimaryHash) decls
   hashId <- Q.saveHashHash h
@@ -742,7 +749,7 @@ saveDeclComponent toReference toReferenceMentions maybeEncodedDecls h decls = do
       mkByteString =
         let li = S.Decl.LocallyIndexedComponent $ Vector.fromList sDeclElements
          in S.putBytes S.putDeclFormat $ S.Decl.Decl li
-  oId <- Q.saveObject hashId OT.DeclComponent bytes
+  oId <- saveObject hh hashId OT.DeclComponent bytes
   -- populate dependents index
   let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sDeclElements `zip` [0 ..])
       unlocalizeRefs :: ((LocalIds, S.Decl.Decl Symbol), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
@@ -759,8 +766,8 @@ saveDeclComponent toReference toReferenceMentions maybeEncodedDecls h decls = do
   for_ ((fmap C.Decl.constructorTypes decls) `zip` [0 ..]) \(ctors, i) ->
     for_ (ctors `zip` [0 ..]) \(tp, j) -> do
       let self = C.Referent.ConId (C.Reference.Id oId i) j
-          typeForIndexing = toReference tp
-          typeMentionsForIndexing = toReferenceMentions tp
+          typeForIndexing = toReferenceDecl h tp
+          typeMentionsForIndexing = toReferenceDeclMentions h tp
       addTypeToIndexForTerm self typeForIndexing
       addTypeMentionsToIndexForTerm self typeMentionsForIndexing
 
@@ -915,10 +922,13 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           boId <- Q.expectBranchObjectIdByCausalHashId chId
           expectBranch boId
 
-saveRootBranch :: C.Branch.CausalBranch Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
-saveRootBranch c = do
+saveRootBranch ::
+  HashHandle ->
+  C.Branch.CausalBranch Transaction ->
+  Transaction (Db.BranchObjectId, Db.CausalHashId)
+saveRootBranch hh c = do
   when debug $ traceM $ "Operations.saveRootBranch " ++ show (C.causalHash c)
-  (boId, chId) <- saveBranch c
+  (boId, chId) <- saveBranch hh c
   Q.setNamespaceRoot chId
   pure (boId, chId)
 
@@ -961,8 +971,11 @@ saveRootBranch c = do
 -- References, but also values
 -- Shallow - Hash? representation of the database relationships
 
-saveBranch :: C.Branch.CausalBranch Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
-saveBranch (C.Causal hc he parents me) = do
+saveBranch ::
+  HashHandle ->
+  C.Branch.CausalBranch Transaction ->
+  Transaction (Db.BranchObjectId, Db.CausalHashId)
+saveBranch hh (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
 
   (chId, bhId) <- flip Monad.fromMaybeM (Q.loadCausalByCausalHash hc) do
@@ -977,14 +990,14 @@ saveBranch (C.Causal hc he parents me) = do
         -- by checking if there are causal parents associated with hc
         (flip Monad.fromMaybeM)
           (Q.loadCausalHashIdByCausalHash parentHash)
-          (mcausal >>= fmap snd . saveBranch)
+          (mcausal >>= fmap snd . saveBranch hh)
 
     -- Save these CausalHashIds to the causal_parents table,
-    Q.saveCausal chId bhId parentCausalHashIds
+    saveCausal hh chId bhId parentCausalHashIds
     pure (chId, bhId)
   boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByCausalHashId chId) do
     branch <- c2sBranch =<< me
-    saveDbBranchUnderHashId bhId branch
+    saveDbBranchUnderHashId hh bhId branch
   pure (boId, chId)
   where
     c2sBranch :: C.Branch.Branch Transaction -> Transaction S.DbBranch
@@ -993,7 +1006,7 @@ saveBranch (C.Causal hc he parents me) = do
         <$> Map.bitraverse saveNameSegment (Map.bitraverse c2sReferent c2sMetadata) terms
         <*> Map.bitraverse saveNameSegment (Map.bitraverse c2sReference c2sMetadata) types
         <*> Map.bitraverse saveNameSegment savePatchObjectId patches
-        <*> Map.bitraverse saveNameSegment saveBranch children
+        <*> Map.bitraverse saveNameSegment (saveBranch hh) children
 
     saveNameSegment :: C.Branch.NameSegment -> Transaction Db.TextId
     saveNameSegment = Q.saveText . C.Branch.unNameSegment
@@ -1009,7 +1022,7 @@ saveBranch (C.Causal hc he parents me) = do
         Just patchOID -> pure patchOID
         Nothing -> do
           patch <- mp
-          savePatch h patch
+          savePatch hh h patch
 
 expectRootCausal :: Transaction (C.Branch.CausalBranch Transaction)
 expectRootCausal = Q.expectNamespaceRoot >>= expectCausalBranchByCausalHashId
@@ -1163,14 +1176,22 @@ expectDbBranch id =
 --
 -- Note: long-standing question: should this package depend on the hashing package? (If so, we would only need to take
 -- the DbBranch, and hash internally).
-saveDbBranch :: BranchHash -> S.DbBranch -> Transaction Db.BranchObjectId
-saveDbBranch hash branch = do
+saveDbBranch ::
+  HashHandle ->
+  BranchHash ->
+  S.DbBranch ->
+  Transaction Db.BranchObjectId
+saveDbBranch hh hash branch = do
   hashId <- Q.saveBranchHash hash
-  saveDbBranchUnderHashId hashId branch
+  saveDbBranchUnderHashId hh hashId branch
 
 -- | Variant of 'saveDbBranch' that might be preferred by callers that already have a hash id, not a hash.
-saveDbBranchUnderHashId :: Db.BranchHashId -> S.DbBranch -> Transaction Db.BranchObjectId
-saveDbBranchUnderHashId id@(Db.unBranchHashId -> hashId) branch = do
+saveDbBranchUnderHashId ::
+  HashHandle ->
+  Db.BranchHashId ->
+  S.DbBranch ->
+  Transaction Db.BranchObjectId
+saveDbBranchUnderHashId hh id@(Db.unBranchHashId -> hashId) branch = do
   let (localBranchIds, localBranch) = LocalizeObject.localizeBranch branch
   when debug $
     traceM $
@@ -1178,7 +1199,7 @@ saveDbBranchUnderHashId id@(Db.unBranchHashId -> hashId) branch = do
         ++ "\n\tlBranch = "
         ++ show localBranch
   let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full localBranchIds localBranch
-  oId <- Q.saveObject hashId OT.Namespace bytes
+  oId <- saveObject hh hashId OT.Namespace bytes
   pure $ Db.BranchObjectId oId
 
 expectBranch :: Db.BranchObjectId -> Transaction (C.Branch.Branch Transaction)
@@ -1203,16 +1224,24 @@ expectDbPatch patchId =
         S.Patch.Format.Full li f -> pure (S.Patch.Format.applyPatchDiffs (S.Patch.Format.localPatchToPatch li f) ds)
         S.Patch.Format.Diff ref' li' d' -> doDiff ref' (S.Patch.Format.localPatchDiffToPatchDiff li' d' : ds)
 
-savePatch :: PatchHash -> C.Branch.Patch -> Transaction Db.PatchObjectId
-savePatch h c = do
+savePatch ::
+  HashHandle ->
+  PatchHash ->
+  C.Branch.Patch ->
+  Transaction Db.PatchObjectId
+savePatch hh h c = do
   (li, lPatch) <- LocalizeObject.localizePatch <$> c2sPatch c
-  saveDbPatch h (S.Patch.Format.Full li lPatch)
+  saveDbPatch hh h (S.Patch.Format.Full li lPatch)
 
-saveDbPatch :: PatchHash -> S.PatchFormat -> Transaction Db.PatchObjectId
-saveDbPatch hash patch = do
+saveDbPatch ::
+  HashHandle ->
+  PatchHash ->
+  S.PatchFormat ->
+  Transaction Db.PatchObjectId
+saveDbPatch hh hash patch = do
   hashId <- Q.saveHashHash (unPatchHash hash)
   let bytes = S.putBytes S.putPatchFormat patch
-  Db.PatchObjectId <$> Q.saveObject hashId OT.Patch bytes
+  Db.PatchObjectId <$> saveObject hh hashId OT.Patch bytes
 
 s2cPatch :: S.Patch -> Transaction C.Branch.Patch
 s2cPatch (S.Patch termEdits typeEdits) =
@@ -1373,3 +1402,80 @@ rootBranchNames = do
   termNames <- Q.rootTermNames
   typeNames <- Q.rootTypeNames
   pure (fmap (bimap s2cTextReferent (fmap s2cConstructorType)) <$> termNames, fmap s2cTextReference <$> typeNames)
+
+moveTempEntityToMain ::
+  HashHandle ->
+  Hash32 ->
+  Transaction ()
+moveTempEntityToMain hh hash = do
+  entity <- Q.expectTempEntity hash
+  Q.deleteTempEntity hash
+  entity' <- Q.tempToSyncEntity entity
+  _ <- saveSyncEntity hh hash entity'
+  pure ()
+
+saveSyncEntity ::
+  HashHandle ->
+  Hash32 ->
+  SyncEntity ->
+  Transaction (Either Db.CausalHashId Db.ObjectId)
+saveSyncEntity hh hash entity = do
+  case entity of
+    Entity.TC stf -> do
+      lic :: TermFormat.LocallyIndexedComponent <- do
+        let TermFormat.SyncTerm x = stf
+        unsafeIO (unsyncTermComponent x)
+
+      tc :: [(C.Term Symbol, C.Term.Type Symbol)] <-
+        traverse
+          (\(a, b, c) -> s2cTermWithType a b c)
+          (toList $ TermFormat.unLocallyIndexedComponent lic)
+      let bytes = runPutS (Serialization.recomposeTermFormat stf)
+      objId <- saveTermComponent hh (Just bytes) (Hash32.toHash hash) tc
+      pure (Right objId)
+    Entity.DC sdf -> do
+      lic :: S.Decl.LocallyIndexedComponent <- do
+        let S.Decl.SyncDecl xs = sdf
+        unsafeIO (unsyncDeclComponent xs)
+
+      dc :: [C.Decl.Decl Symbol] <-
+        traverse
+          (\(localIds, decl) -> s2cDecl localIds decl)
+          (toList $ S.Decl.unLocallyIndexedComponent lic)
+
+      let bytes = runPutS (Serialization.recomposeDeclFormat sdf)
+      objId <- saveDeclComponent hh (Just bytes) (Hash32.toHash hash) dc
+
+      pure (Right objId)
+    Entity.N sbf -> do
+      hashId <- Q.saveHash hash
+      let bytes = runPutS (Serialization.recomposeBranchFormat sbf)
+      Right <$> saveObject hh hashId ObjectType.Namespace bytes
+    Entity.P spf -> do
+      hashId <- Q.saveHash hash
+      let bytes = runPutS (Serialization.recomposePatchFormat spf)
+      Right <$> saveObject hh hashId ObjectType.Patch bytes
+    Entity.C scf -> case scf of
+      Sqlite.Causal.SyncCausalFormat {valueHash, parents} -> do
+        hashId <- Q.saveHash hash
+        let causalHashId = Db.CausalHashId hashId
+        saveCausal hh causalHashId valueHash (toList parents)
+        pure $ Left causalHashId
+
+saveObject ::
+  HashHandle ->
+  Db.HashId ->
+  ObjectType.ObjectType ->
+  ByteString ->
+  Transaction Db.ObjectId
+saveObject hh =
+  Q.saveObject (moveTempEntityToMain hh)
+
+saveCausal ::
+  HashHandle ->
+  Db.CausalHashId ->
+  Db.BranchHashId ->
+  [Db.CausalHashId] ->
+  Transaction ()
+saveCausal hh =
+  Q.saveCausal (moveTempEntityToMain hh)

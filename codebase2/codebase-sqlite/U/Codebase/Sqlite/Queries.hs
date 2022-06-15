@@ -142,6 +142,8 @@ module U.Codebase.Sqlite.Queries
     tempToSyncEntity,
     syncToTempEntity,
     insertTempEntity,
+    expectTempEntity,
+    deleteTempEntity,
 
     -- * elaborate hashes
     elaborateHashes,
@@ -173,7 +175,6 @@ import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
-import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
@@ -192,7 +193,6 @@ import qualified U.Codebase.Sqlite.Entity as Entity
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.NamedRef as S
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
-import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import U.Codebase.Sqlite.Orphans ()
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Reference as Reference
@@ -383,15 +383,17 @@ saveHashObject hId oId version = execute sql (hId, oId, version) where
     ON CONFLICT DO NOTHING
   |]
 
-saveObject :: HashId -> ObjectType -> ByteString -> Transaction ObjectId
-saveObject h t blob = do
+saveObject ::
+  (Hash32 -> Transaction ()) ->
+  HashId -> ObjectType -> ByteString -> Transaction ObjectId
+saveObject moveTempEntityToMain h t blob = do
   oId <- execute sql (h, t, blob) >> expectObjectIdForPrimaryHashId h
   saveHashObject h oId 2 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
   rowsModified >>= \case
     0 -> pure ()
     _ -> do
       hash <- expectHash32 h
-      tryMoveTempEntityDependents hash
+      tryMoveTempEntityDependents moveTempEntityToMain hash
   pure oId
   where
   sql = [here|
@@ -629,14 +631,16 @@ recordObjectRehash old new =
 
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
-saveCausal :: CausalHashId -> BranchHashId -> [CausalHashId] -> Transaction ()
-saveCausal self value parents = do
+saveCausal ::
+  (Hash32 -> Transaction ()) ->
+  CausalHashId -> BranchHashId -> [CausalHashId] -> Transaction ()
+saveCausal moveTempEntityToMain self value parents = do
   execute insertCausalSql (self, value)
   rowsModified >>= \case
     0 -> pure ()
     _ -> do
       executeMany insertCausalParentsSql (fmap (self,) parents)
-      flushCausalDependents self
+      flushCausalDependents moveTempEntityToMain self
   where
     insertCausalSql = [here|
       INSERT INTO causal (self_hash_id, value_hash_id)
@@ -647,10 +651,13 @@ saveCausal self value parents = do
       INSERT INTO causal_parent (causal_id, parent_id) VALUES (?, ?)
     |]
 
-flushCausalDependents :: CausalHashId -> Transaction ()
-flushCausalDependents chId = do
+flushCausalDependents ::
+  (Hash32 -> Transaction ()) ->
+  CausalHashId ->
+  Transaction ()
+flushCausalDependents moveTempEntityToMain chId = do
   hash <- expectHash32 (unCausalHashId chId)
-  tryMoveTempEntityDependents hash
+  tryMoveTempEntityDependents moveTempEntityToMain hash
 
 -- | `tryMoveTempEntityDependents #foo` does this:
 --    0. Precondition: We just inserted object #foo.
@@ -658,8 +665,12 @@ flushCausalDependents chId = do
 --    2. Delete #foo as dependency from temp_entity_missing_dependency. e.g. (#bar, #foo), (#baz, #foo)
 --    3. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
 --        insert_entity them.
-tryMoveTempEntityDependents :: Hash32 -> Transaction ()
-tryMoveTempEntityDependents dependency = do
+tryMoveTempEntityDependents ::
+  -- | Move TempEntity to main
+  (Hash32 -> Transaction ()) ->
+  Hash32 ->
+  Transaction ()
+tryMoveTempEntityDependents moveTempEntityToMain dependency = do
   dependents <-
     queryListCol
       [here|
@@ -725,14 +736,6 @@ expectEntity hash = do
           DeclComponent -> Entity.DC <$> decodeSyncDeclFormat bytes
           Namespace -> Entity.N <$> decodeSyncNamespaceFormat bytes
           Patch -> Entity.P <$> decodeSyncPatchFormat bytes
-
-moveTempEntityToMain :: Hash32 -> Transaction ()
-moveTempEntityToMain hash = do
-  entity <- expectTempEntity hash
-  deleteTempEntity hash
-  entity' <- tempToSyncEntity entity
-  _ <- saveSyncEntity hash entity'
-  pure ()
 
 -- | Read an entity out of temp storage.
 expectTempEntity :: Hash32 -> Transaction TempEntity
@@ -899,28 +902,6 @@ syncToTempEntity = \case
       TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms) ->
         TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
           <$> Lens.traverseOf (traverse . Lens._1) (bitraverse expectText expectPrimaryHash32ByObjectId) terms
-
-saveSyncEntity :: Hash32 -> SyncEntity -> Transaction (Either CausalHashId ObjectId)
-saveSyncEntity hash entity = do
-  hashId <- saveHash hash
-  case entity of
-    Entity.TC stf -> do
-      let bytes = runPutS (Serialization.recomposeTermFormat stf)
-      Right <$> saveObject hashId ObjectType.TermComponent bytes
-    Entity.DC sdf -> do
-      let bytes = runPutS (Serialization.recomposeDeclFormat sdf)
-      Right <$> saveObject hashId ObjectType.DeclComponent bytes
-    Entity.N sbf -> do
-      let bytes = runPutS (Serialization.recomposeBranchFormat sbf)
-      Right <$> saveObject hashId ObjectType.Namespace bytes
-    Entity.P spf -> do
-      let bytes = runPutS (Serialization.recomposePatchFormat spf)
-      Right <$> saveObject hashId ObjectType.Patch bytes
-    Entity.C scf -> case scf of
-      Sqlite.Causal.SyncCausalFormat{valueHash, parents} -> do
-        let causalHashId = CausalHashId hashId
-        saveCausal causalHashId valueHash (Foldable.toList parents)
-        pure $ Left causalHashId
 
 -- -- maybe: look at whether parent causal is "committed"; if so, then increment;
 -- -- otherwise, don't.
