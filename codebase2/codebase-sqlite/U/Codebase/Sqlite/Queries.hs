@@ -145,7 +145,7 @@ module U.Codebase.Sqlite.Queries
     saveSyncEntity,
 
     -- * elaborate hashes
-    elaborateHashesClient,
+    elaborateHashes,
 
     -- * db misc
     createSchema,
@@ -1578,8 +1578,8 @@ data EmptyTempEntityMissingDependencies
 --
 -- ... then `elaborateHashes {A}` would return the singleton set {C} (because we take the set of transitive
 -- dependencies {A,B,C} and subtract the set we already have, {A,B}).
-elaborateHashesClient :: Nel.NonEmpty Hash32 -> Transaction (Nel.NonEmpty Text)
-elaborateHashesClient hashes = do
+elaborateHashes :: Nel.NonEmpty Hash32 -> Transaction (Nel.NonEmpty Text)
+elaborateHashes hashes = do
   execute_
     [here|
       CREATE TABLE new_temp_entity_dependents (hash text)

@@ -478,7 +478,7 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCal
 -- In the end, we return a set of hashes that correspond to entities we actually need to download.
 elaborateHashes :: NESet Hash32 -> Sqlite.Transaction (NESet Share.HashJWT)
 elaborateHashes hashes =
-  Q.elaborateHashesClient (NESet.toList hashes)
+  Q.elaborateHashes (NESet.toList hashes)
     <&> NESet.fromList . coerce @(List.NonEmpty Text) @(List.NonEmpty Share.HashJWT)
 
 -- | Upsert a downloaded entity "somewhere" -
