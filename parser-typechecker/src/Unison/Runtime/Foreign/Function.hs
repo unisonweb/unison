@@ -350,6 +350,30 @@ instance
     (ustk, bstk) <- writeForeign ustk bstk b
     writeForeign ustk bstk a
 
+instance
+  ( ForeignConvention a,
+    ForeignConvention b,
+    ForeignConvention c,
+    ForeignConvention d,
+    ForeignConvention e
+  ) =>
+  ForeignConvention (a, b, c, d, e)
+  where
+  readForeign us bs ustk bstk = do
+    (us, bs, a) <- readForeign us bs ustk bstk
+    (us, bs, b) <- readForeign us bs ustk bstk
+    (us, bs, c) <- readForeign us bs ustk bstk
+    (us, bs, d) <- readForeign us bs ustk bstk
+    (us, bs, e) <- readForeign us bs ustk bstk
+    pure (us, bs, (a, b, c, d, e))
+
+  writeForeign ustk bstk (a, b, c, d, e) = do
+    (ustk, bstk) <- writeForeign ustk bstk e
+    (ustk, bstk) <- writeForeign ustk bstk d
+    (ustk, bstk) <- writeForeign ustk bstk c
+    (ustk, bstk) <- writeForeign ustk bstk b
+    writeForeign ustk bstk a
+
 no'buf, line'buf, block'buf, sblock'buf :: Int
 no'buf = fromIntegral Ty.bufferModeNoBufferingId
 line'buf = fromIntegral Ty.bufferModeLineBufferingId
