@@ -362,11 +362,27 @@ completeTempEntities ::
   NESet Hash32 ->
   IO ()
 completeTempEntities doDownload conn =
-  let loop :: NESet Hash32 -> IO ()
-      loop tempEntityHashes = do
-        hashJwtsToDownload <- Sqlite.runTransaction conn (elaborateHashes tempEntityHashes)
-        whenJustM (downloadEntities doDownload conn hashJwtsToDownload) loop
-   in loop
+  let loop :: NESet Share.HashJWT -> IO ()
+      loop allHashes = do
+        -- Each request only contains a certain maximum number of entities; split the set of hashes we need to download
+        -- into those we will download right now, and those we will begin downloading on the next iteration of the loop.
+        let (hashes, nextHashes0) =
+              case NESet.splitAt 50 allHashes of
+                This hs1 -> (hs1, Set.empty)
+                That hs2 -> (hs2, Set.empty) -- impossible, this only happens if we split at 0
+                These hs1 hs2 -> (hs1, NESet.toSet hs2)
+        nextHashes <-
+          downloadEntities doDownload conn hashes >>= \case
+            Nothing -> pure (NESet.nonEmptySet nextHashes0)
+            Just newTempEntities -> do
+              newElaboratedHashes <- elaborate newTempEntities
+              pure (Just (union10 newElaboratedHashes nextHashes0))
+        whenJust nextHashes loop
+   in \hashes0 -> elaborate hashes0 >>= loop
+  where
+    elaborate :: NESet Hash32 -> IO (NESet Share.HashJWT)
+    elaborate hashes =
+      Sqlite.runTransaction conn (elaborateHashes hashes)
 
 -- | Download a set of entities from Unison Share. Returns the subset of those entities that we stored in temp storage
 -- (`temp_entitiy`) instead of main storage (`object` / `causal`) due to missing dependencies.
@@ -421,7 +437,7 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCal
     loop :: Int -> NESet Hash32 -> IO Bool
     loop uploadCount allHashesSet = do
       -- Each request only contains a certain maximum number of entities; split the set of hashes we need to upload into
-      -- those we will upload right now, and those we will begin uploading
+      -- those we will upload right now, and those we will begin uploading on the next iteration of the loop.
       let (hashesSet, nextHashes) =
             case NESet.splitAt 50 allHashesSet of
               This hs1 -> (hs1, Set.empty)
@@ -448,10 +464,7 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCal
 
       uploadEntities >>= \case
         Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> do
-          let newAllHashesSet =
-                case NESet.nonEmptySet nextHashes of
-                  Nothing -> moreHashes
-                  Just nextHashes1 -> NESet.union moreHashes nextHashes1
+          let newAllHashesSet = union10 moreHashes nextHashes
           uploadProgressCallback newUploadCount (NESet.size newAllHashesSet)
           loop newUploadCount newAllHashesSet
         Share.UploadEntitiesNoWritePermission _ -> pure False
@@ -464,6 +477,13 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCal
             Just nextHashes1 -> do
               uploadProgressCallback newUploadCount (NESet.size nextHashes1)
               loop newUploadCount nextHashes1
+
+-- Union a non-empty set and a set.
+union10 :: Ord a => NESet a -> Set a -> NESet a
+union10 xs ys =
+  case NESet.nonEmptySet ys of
+    Nothing -> xs
+    Just zs -> NESet.union xs zs
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
