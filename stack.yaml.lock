@@ -27,6 +27,17 @@ packages:
   original:
     url: https://github.com/unisonweb/shellmet/archive/2fd348592c8f51bb4c0ca6ba4bc8e38668913746.tar.gz
 - completed:
+    size: 18146
+    url: https://github.com/unisonweb/monad-validate/archive/5b181b7c57d6e2c975c533b0a0072e9aeb15fb99.tar.gz
+    name: monad-validate
+    version: 1.2.0.0
+    sha256: 3cf178595f6dee0cbf73d1263327b38f69df1e9ae406429e4252be634fa88f1e
+    pantry-tree:
+      size: 869
+      sha256: 2520040223ec05c14da5f1d2ac7a38e5ed2caf0ec307bce4566924da54c28166
+  original:
+    url: https://github.com/unisonweb/monad-validate/archive/5b181b7c57d6e2c975c533b0a0072e9aeb15fb99.tar.gz
+- completed:
     hackage: guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
     pantry-tree:
       size: 364
@@ -62,13 +73,6 @@ packages:
   original:
     hackage: fuzzyfind-3.0.0@sha256:d79a5d3ed194dd436c6b839bf187211d880cf773b2febaca456e5ccf93f5ac65,1814
 - completed:
-    hackage: monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
-    pantry-tree:
-      size: 713
-      sha256: 8e049bd12ce2bd470909578f2ee8eb80b89d5ff88860afa30e29dd4eafecfa3e
-  original:
-    hackage: monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
-- completed:
     hackage: NanoID-3.1.0@sha256:9118ab00e8650b5a56a10c90295d357eb77a8057a598b7e56dfedc9c6d53c77d,1524
     pantry-tree:
       size: 363
@@ -98,7 +102,7 @@ packages:
     hackage: http-client-0.7.11
 snapshots:
 - completed:
-    size: 590100
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/28.yaml
-    sha256: 428ec8d5ce932190d3cbe266b9eb3c175cd81e984babf876b64019e2cbe4ea68
-  original: lts-18.28
+    size: 611629
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2022/6/15.yaml
+    sha256: e6aa206ca389d8ad5b07d48cc54ca4787e27ed9dde90b0edf8875e6caec16bd2
+  original: nightly-2022-06-15

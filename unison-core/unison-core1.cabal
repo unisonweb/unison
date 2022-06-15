@@ -104,7 +104,6 @@ library
     , unison-prelude
     , unison-util
     , unison-util-relation
-    , util
     , vector
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields

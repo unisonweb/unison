@@ -29,7 +29,6 @@ library:
     - unison-prelude
     - unison-util
     - unison-util-relation
-    - util
     - vector
 
 default-extensions:
