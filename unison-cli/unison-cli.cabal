@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.7.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 
@@ -101,6 +101,7 @@ library
     , directory
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , haskeline
@@ -193,6 +194,7 @@ executable cli-integration-tests
     , easytest
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , haskeline
@@ -280,6 +282,7 @@ executable transcripts
     , easytest
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , haskeline
@@ -371,6 +374,7 @@ executable unison
     , directory
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , haskeline
@@ -469,6 +473,7 @@ test-suite cli-tests
     , easytest
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , haskeline
