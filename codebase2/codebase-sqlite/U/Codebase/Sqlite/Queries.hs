@@ -170,6 +170,7 @@ import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Vector as Vector
+import System.IO.Unsafe (unsafePerformIO)
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
@@ -183,7 +184,7 @@ import U.Codebase.Sqlite.DbId
     HashVersion,
     ObjectId (..),
     PatchObjectId (..),
-    SchemaVersion,
+    SchemaVersion (..),
     TextId,
   )
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
@@ -212,6 +213,10 @@ import qualified U.Util.Hash32 as Hash32
 import U.Util.Hash32.Orphans.Sqlite ()
 import Unison.Prelude
 import Unison.Sqlite
+import qualified Unison.Sqlite.Connection.Internal as Connection
+import qualified Unison.Sqlite.Transaction as Sqlite
+import qualified UnliftIO
+import UnliftIO.STM
 
 -- * main squeeze
 
@@ -228,8 +233,22 @@ executeFile :: String -> Transaction ()
 executeFile =
   traverse_ (execute_ . fromString) . filter (not . null) . List.splitOn ";"
 
+-- | This is a fragile and (hopefully) temporary cache to speed up getting schema version
+-- until we can find a better way to avoid trying to flush temp entities when saving
+-- objects in old migrations where those tables might not exist.
+schemaVersionCache :: TVar (Maybe (FilePath, SchemaVersion))
+schemaVersionCache = unsafePerformIO $ newTVarIO Nothing
+
 schemaVersion :: Transaction SchemaVersion
-schemaVersion = queryOneCol_ sql
+schemaVersion = do
+  fp <- Connection.file <$> Sqlite.unsafeGetConnection
+  unsafeIO (readTVarIO schemaVersionCache) >>= \case
+    Just (cachedFp, sv) | cachedFp == fp -> do
+      pure sv
+    _ -> do
+      sv <- queryOneCol_ sql
+      unsafeIO . atomically . writeTVar schemaVersionCache $ Just (fp, sv)
+      pure sv
   where
     sql = "SELECT version from schema_version;"
 
@@ -238,20 +257,19 @@ data UnexpectedSchemaVersion = UnexpectedSchemaVersion
     expected :: SchemaVersion
   }
   deriving stock (Show)
-  deriving anyclass (SqliteExceptionReason)
+  deriving anyclass (SqliteExceptionReason, Exception)
 
 -- | Expect the given schema version.
 expectSchemaVersion :: SchemaVersion -> Transaction ()
-expectSchemaVersion expected =
-  queryOneColCheck_
-    [here|
-      SELECT version
-      FROM schema_version
-    |]
-    (\actual -> if actual /= expected then Left UnexpectedSchemaVersion {actual, expected} else Right ())
+expectSchemaVersion expected = do
+  actual <- schemaVersion
+  when (actual /= expected) $ unsafeIO . UnliftIO.throwIO $ UnexpectedSchemaVersion {actual, expected}
 
 setSchemaVersion :: SchemaVersion -> Transaction ()
-setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
+setSchemaVersion schemaVersion = do
+  fp <- Connection.file <$> Sqlite.unsafeGetConnection
+  unsafeIO . atomically $ writeTVar schemaVersionCache (Just (fp, schemaVersion))
+  execute sql (Only schemaVersion)
   where
     sql = "UPDATE schema_version SET version = ?"
 
@@ -671,15 +689,19 @@ tryMoveTempEntityDependents ::
   Hash32 ->
   Transaction ()
 tryMoveTempEntityDependents moveTempEntityToMain dependency = do
-  dependents <-
-    queryListCol
-      [here|
-        DELETE FROM temp_entity_missing_dependency
-        WHERE dependency = ?
-        RETURNING dependent
-      |]
-      (Only dependency)
-  traverse_ flushIfReadyToFlush dependents
+  sv <- schemaVersion
+  -- The temp entity table doesn't exist before this SchemaVersion,
+  -- so we don't need to flush anything.
+  when (sv > SchemaVersion 5) do
+    dependents <-
+      queryListCol
+        [here|
+          DELETE FROM temp_entity_missing_dependency
+          WHERE dependency = ?
+          RETURNING dependent
+        |]
+        (Only dependency)
+    traverse_ flushIfReadyToFlush dependents
   where
     flushIfReadyToFlush :: Hash32 -> Transaction ()
     flushIfReadyToFlush dependent = do
@@ -754,6 +776,7 @@ expectTempEntity hash = do
   |]
 
 {- ORMOLU_ENABLE -}
+
 -- | look up all of the input entity's dependencies in the main table, to convert it to a sync entity
 tempToSyncEntity :: TempEntity -> Transaction SyncEntity
 tempToSyncEntity = \case
