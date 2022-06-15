@@ -378,10 +378,11 @@ downloadEntities ::
 downloadEntities doDownload conn hashes = do
   entities <- doDownload hashes
   fmap NESet.nonEmptySet do
-    NEMap.toList entities & foldMapM \(hash, entity) ->
-      Sqlite.runTransaction conn (upsertEntitySomewhere hash entity) <&> \case
-        Q.EntityInMainStorage -> Set.empty
-        Q.EntityInTempStorage -> Set.singleton hash
+    Sqlite.runTransaction conn do
+      NEMap.toList entities & foldMapM \(hash, entity) ->
+        upsertEntitySomewhere hash entity <&> \case
+          Q.EntityInMainStorage -> Set.empty
+          Q.EntityInTempStorage -> Set.singleton hash
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
