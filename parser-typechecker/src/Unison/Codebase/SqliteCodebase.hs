@@ -14,7 +14,7 @@ where
 import qualified Control.Concurrent
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad
-import Data.Bifunctor (Bifunctor (bimap), first)
+import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.Char as Char
 import Data.Either.Extra ()
 import Data.IORef
@@ -42,7 +42,6 @@ import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
 import qualified Unison.Codebase.Editor.Git as Git
@@ -81,6 +80,7 @@ import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Util.Relation as Rel
+import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
 import UnliftIO (UnliftIO (..), catchIO, finally, throwIO, try)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
@@ -494,9 +494,8 @@ sqliteCodebase debugName root localOrRemote action = do
               beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r),
               namesAtPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
                 runTx (CodebaseOps.namesAtPath path),
-              updateNameLookup = do
-                newNames <- Sqlite.runTransaction conn computeNewNamesFromShallowBranch
-                -- CodebaseOps.saveRootNamesIndex (Branch.toNames . Branch.head $ root),
+              updateNameLookup = Sqlite.runTransaction conn do
+                newNames <- (computeNewNamesFromShallowBranch getDeclType)
                 CodebaseOps.saveRootNamesIndex newNames,
               connection = conn
             }
@@ -900,12 +899,14 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
             when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
             pure True
 
-computeNewNamesFromShallowBranch :: Sqlite.Transaction V1Names.Names
-computeNewNamesFromShallowBranch = do
+computeNewNamesFromShallowBranch :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction V1Names.Names
+computeNewNamesFromShallowBranch getDeclType = do
   rootHash <- Ops.expectRootCausalHash
   causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
-  (termNameMap, typeNameMap) <- V2Branch.toNamesMaps causalBranch
-  pure $ V1Names.Names {terms = relationFromMap termNameMap, types = relationFromMap typeNameMap}
+  (v2TermNameMap, v2TypeNameMap) <- V2Branch.toNamesMaps causalBranch
+  v1TermNameMap <- for v2TermNameMap (Set.traverse (Cv.referent2to1 getDeclType))
+  let v1TypeNameMap = v2TypeNameMap <&> Set.map Cv.reference2to1
+  pure $ V1Names.Names {terms = relationFromMap v1TermNameMap, types = relationFromMap v1TypeNameMap}
   where
     relationFromMap :: Ord a => Map (NonEmpty V2Branch.NameSegment) (Set a) -> Rel.Relation Name a
     relationFromMap m =
