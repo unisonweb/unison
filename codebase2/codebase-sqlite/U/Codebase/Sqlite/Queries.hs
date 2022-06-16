@@ -139,7 +139,6 @@ module U.Codebase.Sqlite.Queries
     entityExists,
     entityLocation,
     expectEntity,
-    tempToSyncEntity,
     syncToTempEntity,
     insertTempEntity,
     saveTempEntityInMain,
