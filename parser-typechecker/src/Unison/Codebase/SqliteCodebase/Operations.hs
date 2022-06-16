@@ -29,7 +29,6 @@ import qualified U.Util.Hash as H2
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
@@ -45,10 +44,8 @@ import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as V1Names
 import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
-import qualified Unison.Names as V1Names
 import Unison.Names.Scoped (ScopedNames (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -596,25 +593,6 @@ namesAtPath path = do
         Nothing -> (mempty, [(n, ref)])
         Just stripped -> ([(Name.makeRelative stripped, ref)], mempty)
 
-saveRootNamesIndex :: Names -> Transaction ()
-saveRootNamesIndex Names {Names.terms, Names.types} = do
-  let termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))]
-      termNames = Rel.toList terms <&> \(name, ref) -> S.NamedRef {reversedSegments = nameSegments name, ref = splitReferent ref}
-  let typeNames :: [(S.NamedRef C.Reference.Reference)]
-      typeNames =
-        Rel.toList types
-          <&> ( \(name, ref) ->
-                  S.NamedRef {reversedSegments = nameSegments name, ref = Cv.reference1to2 ref}
-              )
-  Ops.rebuildNameIndex termNames typeNames
-  where
-    nameSegments :: Name -> NonEmpty Text
-    nameSegments = coerce @(NonEmpty NameSegment) @(NonEmpty Text) . Name.reverseSegments
-    splitReferent :: Referent.Referent -> (C.Referent.Referent, Maybe C.Referent.ConstructorType)
-    splitReferent referent = case referent of
-      Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
-      Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))
-
 mkGetDeclType :: MonadIO m => m (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType)
 mkGetDeclType = do
   declTypeCache <- Cache.semispaceCache 2048
@@ -626,20 +604,23 @@ mkGetDeclType = do
 -- requests.
 updateNameLookupIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
 updateNameLookupIndex getDeclType = do
-  root <- uncachedLoadRootBranch getDeclType
-  saveRootNamesIndex (Branch.toNames . Branch.head $ root)
-
-computeNewNamesFromShallowBranch :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction V1Names.Names
-computeNewNamesFromShallowBranch getDeclType = do
   rootHash <- Ops.expectRootCausalHash
   causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
-  (v2TermNameMap, v2TypeNameMap) <- V2Branch.toNamesMaps causalBranch
-  v1TermNameMap <- for v2TermNameMap (Set.traverse (Cv.referent2to1 getDeclType))
-  let v1TypeNameMap = v2TypeNameMap <&> Set.map Cv.reference2to1
-  pure $ V1Names.Names {terms = relationFromMap v1TermNameMap, types = relationFromMap v1TypeNameMap}
+  (termNameMap, typeNameMap) <- V2Branch.toNamesMaps causalBranch
+  let expandedTermNames = Map.toList termNameMap >>= (\(name, refs) -> (name,) <$> Set.toList refs)
+  termNameList <- do
+    for expandedTermNames \(name, ref) -> do
+      refWithCT <- addReferentCT ref
+      pure S.NamedRef {S.reversedSegments = coerce name, S.ref = refWithCT}
+  let typeNameList = do
+        (name, refs) <- Map.toList typeNameMap
+        ref <- Set.toList refs
+        pure $ S.NamedRef {S.reversedSegments = coerce name, S.ref = ref}
+  Ops.rebuildNameIndex termNameList typeNameList
   where
-    relationFromMap :: Ord a => Map (NonEmpty V2Branch.NameSegment) (Set a) -> Rel.Relation Name a
-    relationFromMap m =
-      m
-        & Map.mapKeys (Name.fromSegments . coerce @(NonEmpty V2Branch.NameSegment) @(NonEmpty V1Names.NameSegment))
-        & Rel.fromMultimap
+    addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
+    addReferentCT referent = case referent of
+      C.Referent.Ref {} -> pure (referent, Nothing)
+      C.Referent.Con ref _conId -> do
+        ct <- getDeclType ref
+        pure (referent, Just $ Cv.constructorType1to2 ct)
