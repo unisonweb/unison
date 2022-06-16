@@ -27,7 +27,7 @@ dependencies:
   - filepath
   - haskeline
   - lens
-  - megaparsec >= 5.0.0 && < 7.0.0
+  - megaparsec
   - mtl
   - transformers
   - open-browser
