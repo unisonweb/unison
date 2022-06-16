@@ -57,8 +57,11 @@ import Unison.Util.Monoid (foldMapM)
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
 
--- | Push a causal to Unison Share.
--- FIXME reword this
+-- | Perform a check-and-set push (initially of just a causal hash, but ultimately all of its dependencies that the
+-- server is missing, too) to Unison Share.
+--
+-- This flavor of push takes the expected state of the server, and the desired state we want to set; if our expectation
+-- is off, we won't proceed with the push.
 checkAndSetPush ::
   -- | The HTTP client to use for Unison Share requests.
   AuthenticatedHttpClient ->
@@ -112,8 +115,11 @@ checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash uplo
             newHash = causalHashToHash32 causalHash
           }
 
--- | Push a causal to Unison Share.
--- FIXME reword this
+-- | Perform a fast-forward push (initially of just a causal hash, but ultimately all of its dependencies that the
+-- server is missing, too) to Unison Share.
+--
+-- This flavor of push provides the server with a chain of causal hashes leading from its current state to our desired
+-- state.
 fastForwardPush ::
   -- | The HTTP client to use for Unison Share requests.
   AuthenticatedHttpClient ->
@@ -133,38 +139,39 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadProgress
     Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission path))
     Right Nothing -> pure (Left (FastForwardPushErrorNoHistory path))
     Right (Just (Share.hashJWTHash -> remoteHeadHash)) ->
-      if localHeadHash == hash32ToCausalHash remoteHeadHash
-        then pure (Right ())
-        else do
-          Sqlite.runTransaction conn (fancyBfs localHeadHash remoteHeadHash) >>= \case
-            -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
-            -- fast-forward push, so we don't bother trying - just report the error now.
-            Nothing -> pure (Left (FastForwardPushErrorNotFastForward path))
-            Just localInnerHashes -> do
-              doUpload (localHeadHash :| localInnerHashes) >>= \case
-                False -> pure (Left (FastForwardPushErrorNoWritePermission path))
-                True -> do
-                  let doFastForwardPath =
-                        httpFastForwardPath
-                          httpClient
-                          unisonShareUrl
-                          Share.FastForwardPathRequest
-                            { expectedHash = remoteHeadHash,
-                              hashes =
-                                causalHashToHash32 <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
-                              path
-                            }
-                  doFastForwardPath <&> \case
-                    Share.FastForwardPathSuccess -> Right ()
-                    Share.FastForwardPathMissingDependencies (Share.NeedDependencies dependencies) ->
-                      Left (FastForwardPushErrorServerMissingDependencies dependencies)
-                    -- Weird: someone must have force-pushed no history here, or something. We observed a history at
-                    -- this path but moments ago!
-                    Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory path)
-                    Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission path)
-                    Share.FastForwardPathNotFastForward _ -> Left (FastForwardPushErrorNotFastForward path)
-                    Share.FastForwardPathInvalidParentage (Share.InvalidParentage parent child) ->
-                      Left (FastForwardPushInvalidParentage parent child)
+      Sqlite.runTransaction conn (loadCausalSpineBetween remoteHeadHash (causalHashToHash32 localHeadHash)) >>= \case
+        -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
+        -- fast-forward push, so we don't bother trying - just report the error now.
+        Nothing -> pure (Left (FastForwardPushErrorNotFastForward path))
+        -- The path from remote-to-local, excluding local, was empty. So, remote == local; there's nothing to push.
+        Just [] -> pure (Right ())
+        Just (_ : localInnerHashes0) -> do
+          -- drop remote hash
+          let localInnerHashes = map hash32ToCausalHash localInnerHashes0
+          doUpload (localHeadHash :| localInnerHashes) >>= \case
+            False -> pure (Left (FastForwardPushErrorNoWritePermission path))
+            True -> do
+              let doFastForwardPath =
+                    httpFastForwardPath
+                      httpClient
+                      unisonShareUrl
+                      Share.FastForwardPathRequest
+                        { expectedHash = remoteHeadHash,
+                          hashes =
+                            causalHashToHash32 <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
+                          path
+                        }
+              doFastForwardPath <&> \case
+                Share.FastForwardPathSuccess -> Right ()
+                Share.FastForwardPathMissingDependencies (Share.NeedDependencies dependencies) ->
+                  Left (FastForwardPushErrorServerMissingDependencies dependencies)
+                -- Weird: someone must have force-pushed no history here, or something. We observed a history at
+                -- this path but moments ago!
+                Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory path)
+                Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission path)
+                Share.FastForwardPathNotFastForward _ -> Left (FastForwardPushErrorNotFastForward path)
+                Share.FastForwardPathInvalidParentage (Share.InvalidParentage parent child) ->
+                  Left (FastForwardPushInvalidParentage parent child)
   where
     doUpload :: List.NonEmpty CausalHash -> IO Bool
     -- Maybe we could save round trips here by including the tail (or the head *and* the tail) as "extra hashes", but we
@@ -179,31 +186,46 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadProgress
         (NESet.singleton (causalHashToHash32 headHash))
         uploadProgressCallback
 
-    -- Return a list from oldest to newst of the ancestors between (excluding) the latest local and the current remote
-    -- hash.
-    -- note: seems like we /should/ cut this short, with another command to go longer? :grimace:
-    fancyBfs :: CausalHash -> Hash32 -> Sqlite.Transaction (Maybe [CausalHash])
-    fancyBfs h0 h1 =
-      tweak <$> dagbfs (== h1) Q.loadCausalParentsByHash (causalHashToHash32 h0)
-      where
-        -- Drop 1 (under a Maybe, and twddling hash types):
-        --
-        --   tweak Nothing = Nothing
-        --   tweak (Just []) = Just []
-        --   tweak (Just [C,B,A]) = Just [B,A]
-        --
-        -- The drop 1 is because dagbfs returns the goal at the head of the returned list, but we know what the goal is
-        -- already (the remote head hash).
-        tweak :: Maybe [Hash32] -> Maybe [CausalHash]
-        tweak =
-          fmap (map hash32ToCausalHash . drop 1)
+-- Return a list (in oldest-to-newest order) of hashes along the causal spine that connects the given arguments,
+-- excluding the newest hash (second argument).
+loadCausalSpineBetween :: Hash32 -> Hash32 -> Sqlite.Transaction (Maybe [Hash32])
+loadCausalSpineBetween earlierHash laterHash =
+  dagbfs (== earlierHash) Q.loadCausalParentsByHash laterHash
 
 data Step a
   = DeadEnd
   | KeepSearching (List.NonEmpty a)
   | FoundGoal a
 
--- FIXME: document
+-- | @dagbfs goal children root@ searches breadth-first through the monadic tree formed by applying @chilred@ to each
+-- node (initially @root@), until it finds a goal node (i.e. when @goal@ returns True).
+--
+-- Returns the nodes along a path from root to goal in bottom-up or goal-to-root order, excluding the root node (because
+-- it was provided as an input ;))
+--
+-- For example, when searching a tree that looks like
+--
+--                    1
+--                   / \
+--                  2   3
+--                 / \   \
+--                4  [5]  6
+--
+-- (where the goal is marked [5]), we'd return
+--
+--                Just [5,2]
+--
+-- And (as another example), if the root node is the goal,
+--
+--                   [1]
+--                   / \
+--                  2   3
+--                 / \   \
+--                4   5   6
+--
+-- we'd return
+--
+--                Just []
 dagbfs :: forall a m. Monad m => (a -> Bool) -> (a -> m [a]) -> a -> m (Maybe [a])
 dagbfs goal children =
   let -- The loop state: all distinct paths from the root to the frontier (not including the root, because it's implied,
