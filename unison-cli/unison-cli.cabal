@@ -107,6 +107,7 @@ library
     , directory
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , generic-lens
@@ -207,6 +208,7 @@ executable cli-integration-tests
     , easytest
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , generic-lens
@@ -302,6 +304,7 @@ executable transcripts
     , easytest
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , generic-lens
@@ -401,6 +404,7 @@ executable unison
     , directory
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , generic-lens
@@ -507,6 +511,7 @@ test-suite cli-tests
     , easytest
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , generic-lens

@@ -45,6 +45,9 @@ cradle:
     - path: "lib/unison-util-base32hex-orphans-aeson/src"
       component: "unison-util-base32hex-orphans-aeson:lib"
 
+    - path: "unison-share-api/src"
+      component: "unison-share-api:lib"
+
     - path: "lib/unison-util-relation/src"
       component: "unison-util-relation:lib"
 

@@ -15,6 +15,7 @@ import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified U.Codebase.Branch as V2Branch
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
@@ -44,8 +45,10 @@ import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
+import qualified Unison.NameSegment as V1Names
 import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
+import qualified Unison.Names as V1Names
 import Unison.Names.Scoped (ScopedNames (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -625,3 +628,18 @@ updateNameLookupIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.Constru
 updateNameLookupIndex getDeclType = do
   root <- uncachedLoadRootBranch getDeclType
   saveRootNamesIndex (Branch.toNames . Branch.head $ root)
+
+computeNewNamesFromShallowBranch :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction V1Names.Names
+computeNewNamesFromShallowBranch getDeclType = do
+  rootHash <- Ops.expectRootCausalHash
+  causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
+  (v2TermNameMap, v2TypeNameMap) <- V2Branch.toNamesMaps causalBranch
+  v1TermNameMap <- for v2TermNameMap (Set.traverse (Cv.referent2to1 getDeclType))
+  let v1TypeNameMap = v2TypeNameMap <&> Set.map Cv.reference2to1
+  pure $ V1Names.Names {terms = relationFromMap v1TermNameMap, types = relationFromMap v1TypeNameMap}
+  where
+    relationFromMap :: Ord a => Map (NonEmpty V2Branch.NameSegment) (Set a) -> Rel.Relation Name a
+    relationFromMap m =
+      m
+        & Map.mapKeys (Name.fromSegments . coerce @(NonEmpty V2Branch.NameSegment) @(NonEmpty V1Names.NameSegment))
+        & Rel.fromMultimap

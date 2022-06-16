@@ -24,6 +24,7 @@ dependencies:
   - directory
   - either
   - errors
+  - exceptions
   - extra
   - filepath
   - generic-lens

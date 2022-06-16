@@ -488,7 +488,9 @@ sqliteCodebase debugName root localOrRemote action = do
               beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r),
               namesAtPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
                 runTx (CodebaseOps.namesAtPath path),
-              updateNameLookup = Sqlite.runTransaction conn $ CodebaseOps.updateNameLookupIndex getDeclType,
+              updateNameLookup = Sqlite.runTransaction conn do
+                newNames <- CodebaseOps.computeNewNamesFromShallowBranch getDeclType
+                CodebaseOps.saveRootNamesIndex newNames,
               connection = conn
             }
     let finalizer :: MonadIO m => m ()
