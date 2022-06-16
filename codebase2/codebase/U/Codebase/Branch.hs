@@ -13,13 +13,10 @@ module U.Codebase.Branch
     childAt,
     hoist,
     hoistCausalBranch,
-    toNamesMaps,
   )
 where
 
-import Control.Lens (AsEmpty (..), ifoldMap, nearly)
-import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NEList
+import Control.Lens (AsEmpty (..), nearly)
 import qualified Data.Map as Map
 import U.Codebase.Causal (Causal)
 import qualified U.Codebase.Causal as Causal
@@ -87,17 +84,3 @@ hoistCausalBranch f cb =
   cb
     & Causal.hoist f
     & fmap (hoist f)
-
--- | Collects two maps, one with all term names and one with all type names.
--- Note that unlike the `Name` type in `unison-core1`, this list of name segments is in
--- forward order, e.g. `["base", "List", "map"]`
-toNamesMaps :: Monad m => CausalBranch m -> m (Map (NonEmpty NameSegment) (Set Referent), Map (NonEmpty NameSegment) (Set Reference))
-toNamesMaps cb = do
-  b <- Causal.value cb
-  let (shallowTermNames, shallowTypeNames) = (Map.keysSet <$> terms b, Map.keysSet <$> types b)
-  allChildNames <- for (children b) toNamesMaps
-  let (prefixedChildTerms, prefixedChildTypes) =
-        flip ifoldMap allChildNames \nameSegment (childTermNames, childTypeNames) ->
-          let addSegment = Map.mapKeys (nameSegment NEList.<|)
-           in (addSegment childTermNames, addSegment childTypeNames)
-  pure (Map.mapKeys (NEList.:| []) shallowTermNames <> prefixedChildTerms, Map.mapKeys (NEList.:| []) shallowTypeNames <> prefixedChildTypes)
