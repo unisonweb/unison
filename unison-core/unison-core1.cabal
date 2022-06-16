@@ -104,7 +104,6 @@ library
     , unison-util
     , unison-util-base32hex
     , unison-util-relation
-    , util
     , vector
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields

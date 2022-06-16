@@ -792,7 +792,7 @@ loop = do
                 doDelete = do
                   stepAt Branch.CompressHistory $ BranchUtil.makeDeleteBranch (resolveSplit' p)
                   respond Success
-                  -- Looks similar to the 'toDelete' above... investigate me! ;)
+                -- Looks similar to the 'toDelete' above... investigate me! ;)
                 computeEndangerments :: Branch0 m1 -> Action' m v (Map LabeledDependency (NESet LabeledDependency))
                 computeEndangerments b0 = do
                   let rootNames = Branch.toNames root0
