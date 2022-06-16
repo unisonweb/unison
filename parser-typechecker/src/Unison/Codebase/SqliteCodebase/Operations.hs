@@ -597,13 +597,6 @@ namesAtPath path = do
         Nothing -> (mempty, [(n, ref)])
         Just stripped -> ([(Name.makeRelative stripped, ref)], mempty)
 
-mkGetDeclType :: MonadIO m => m (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType)
-mkGetDeclType = do
-  declTypeCache <- Cache.semispaceCache 2048
-  pure $ \ref -> do
-    conn <- Sqlite.unsafeGetConnection
-    Sqlite.unsafeIO $ Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (getDeclType ref) conn) ref
-
 -- | Update the root namespace names index which is used by the share server for serving api
 -- requests.
 --
@@ -673,3 +666,10 @@ updateNameLookupIndexFromV2Branch rootHash getDeclType = do
               let addSegment = Map.mapKeys (nameSegment NEList.<|)
                in (addSegment childTermNames, addSegment childTypeNames)
       pure (Map.mapKeys (NEList.:| []) shallowTermNames <> prefixedChildTerms, Map.mapKeys (NEList.:| []) shallowTypeNames <> prefixedChildTypes)
+
+mkGetDeclType :: MonadIO m => m (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType)
+mkGetDeclType = do
+  declTypeCache <- Cache.semispaceCache 2048
+  pure $ \ref -> do
+    conn <- Sqlite.unsafeGetConnection
+    Sqlite.unsafeIO $ Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (getDeclType ref) conn) ref
