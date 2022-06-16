@@ -14,10 +14,11 @@ where
 import qualified Control.Concurrent
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad
-import Data.Bifunctor (Bifunctor (bimap))
+import Data.Bifunctor (Bifunctor (bimap), first)
 import qualified Data.Char as Char
 import Data.Either.Extra ()
 import Data.IORef
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import qualified Data.Set as Set
@@ -66,6 +67,9 @@ import qualified Unison.Codebase.Type as C
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
+import Unison.Name
+import qualified Unison.NameSegment as V1Names
+import qualified Unison.Names as V1Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -76,6 +80,7 @@ import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
+import qualified Unison.Util.Relation as Rel
 import qualified Unison.WatchKind as UF
 import UnliftIO (UnliftIO (..), catchIO, finally, throwIO, try)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
@@ -489,9 +494,10 @@ sqliteCodebase debugName root localOrRemote action = do
               beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r),
               namesAtPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
                 runTx (CodebaseOps.namesAtPath path),
-              updateNameLookup = Sqlite.runTransaction conn $ do
-                root <- (CodebaseOps.getRootBranch getDeclType rootBranchCache)
-                CodebaseOps.saveRootNamesIndex (Branch.toNames . Branch.head $ root),
+              updateNameLookup = do
+                newNames <- Sqlite.runTransaction conn computeNewNamesFromShallowBranch
+                -- CodebaseOps.saveRootNamesIndex (Branch.toNames . Branch.head $ root),
+                CodebaseOps.saveRootNamesIndex newNames,
               connection = conn
             }
     let finalizer :: MonadIO m => m ()
@@ -893,3 +899,16 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
             (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", "--quiet", url] ++ maybe [] (pure @[]) mayGitBranch
             when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
             pure True
+
+computeNewNamesFromShallowBranch :: Sqlite.Transaction V1Names.Names
+computeNewNamesFromShallowBranch = do
+  rootHash <- Ops.expectRootCausalHash
+  causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
+  (termNameMap, typeNameMap) <- V2Branch.toNamesMaps causalBranch
+  pure $ V1Names.Names {terms = relationFromMap termNameMap, types = relationFromMap typeNameMap}
+  where
+    relationFromMap :: Ord a => Map (NonEmpty V2Branch.NameSegment) (Set a) -> Rel.Relation Name a
+    relationFromMap m =
+      m
+        & Map.mapKeys (fromSegments . coerce @(NonEmpty V2Branch.NameSegment) @(NonEmpty V1Names.NameSegment))
+        & Rel.fromMultimap
