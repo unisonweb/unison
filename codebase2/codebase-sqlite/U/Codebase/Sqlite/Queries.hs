@@ -139,14 +139,12 @@ module U.Codebase.Sqlite.Queries
     entityExists,
     entityLocation,
     expectEntity,
-    tempToSyncEntity,
     syncToTempEntity,
     insertTempEntity,
-    saveSyncEntity,
+    saveTempEntityInMain,
 
     -- * elaborate hashes
-    elaborateHashesClient,
-    elaborateHashesServer,
+    elaborateHashes,
 
     -- * db misc
     createSchema,
@@ -732,9 +730,16 @@ moveTempEntityToMain :: Hash32 -> Transaction ()
 moveTempEntityToMain hash = do
   entity <- expectTempEntity hash
   deleteTempEntity hash
-  entity' <- tempToSyncEntity entity
-  _ <- saveSyncEntity hash entity'
+  _ <- saveTempEntityInMain hash entity
   pure ()
+
+-- | Save a temp entity in main storage.
+--
+-- Precondition: all of its dependencies are already in main storage.
+saveTempEntityInMain :: Hash32 -> TempEntity -> Transaction (Either CausalHashId ObjectId)
+saveTempEntityInMain hash entity = do
+  entity' <- tempToSyncEntity entity
+  saveSyncEntity hash entity'
 
 -- | Read an entity out of temp storage.
 expectTempEntity :: Hash32 -> Transaction TempEntity
@@ -1558,27 +1563,6 @@ deleteTempEntity hash =
     |]
     (Only hash)
 
-elaborateHashesServer :: [Hash32] -> Transaction [Hash32]
-elaborateHashesServer hashes = do
-  execute_ [here|CREATE TABLE unelaborated_dependency (hash text)|]
-  executeMany [here|INSERT INTO unelaborated_dependency (hash) VALUES (?)|] (Only <$> hashes)
-  result <-
-    queryListCol_
-      [here|
-        WITH RECURSIVE elaborated_dependency (hash) AS (
-          SELECT hash FROM unelaborated_dependency
-          UNION
-          SELECT dependency
-          FROM temp_entity_missing_dependency
-            JOIN elaborated_dependency
-              ON temp_entity_missing_dependency.dependent = elaborated_dependency.hash
-        )
-        SELECT hash FROM elaborated_dependency
-        EXCEPT SELECT hash FROM temp_entity;
-      |]
-  execute_ [here|DROP TABLE unelaborated_dependency|]
-  pure result
-
 data EmptyTempEntityMissingDependencies
   = EmptyTempEntityMissingDependencies
   deriving stock (Show)
@@ -1600,8 +1584,8 @@ data EmptyTempEntityMissingDependencies
 --
 -- ... then `elaborateHashes {A}` would return the singleton set {C} (because we take the set of transitive
 -- dependencies {A,B,C} and subtract the set we already have, {A,B}).
-elaborateHashesClient :: Nel.NonEmpty Hash32 -> Transaction (Nel.NonEmpty Text)
-elaborateHashesClient hashes = do
+elaborateHashes :: Nel.NonEmpty Hash32 -> Transaction (Nel.NonEmpty Text)
+elaborateHashes hashes = do
   execute_
     [here|
       CREATE TABLE new_temp_entity_dependents (hash text)

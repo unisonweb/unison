@@ -57,8 +57,11 @@ import Unison.Util.Monoid (foldMapM)
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
 
--- | Push a causal to Unison Share.
--- FIXME reword this
+-- | Perform a check-and-set push (initially of just a causal hash, but ultimately all of its dependencies that the
+-- server is missing, too) to Unison Share.
+--
+-- This flavor of push takes the expected state of the server, and the desired state we want to set; if our expectation
+-- is off, we won't proceed with the push.
 checkAndSetPush ::
   -- | The HTTP client to use for Unison Share requests.
   AuthenticatedHttpClient ->
@@ -112,8 +115,11 @@ checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash uplo
             newHash = causalHashToHash32 causalHash
           }
 
--- | Push a causal to Unison Share.
--- FIXME reword this
+-- | Perform a fast-forward push (initially of just a causal hash, but ultimately all of its dependencies that the
+-- server is missing, too) to Unison Share.
+--
+-- This flavor of push provides the server with a chain of causal hashes leading from its current state to our desired
+-- state.
 fastForwardPush ::
   -- | The HTTP client to use for Unison Share requests.
   AuthenticatedHttpClient ->
@@ -133,38 +139,39 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadProgress
     Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission path))
     Right Nothing -> pure (Left (FastForwardPushErrorNoHistory path))
     Right (Just (Share.hashJWTHash -> remoteHeadHash)) ->
-      if localHeadHash == hash32ToCausalHash remoteHeadHash
-        then pure (Right ())
-        else do
-          Sqlite.runTransaction conn (fancyBfs localHeadHash remoteHeadHash) >>= \case
-            -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
-            -- fast-forward push, so we don't bother trying - just report the error now.
-            Nothing -> pure (Left (FastForwardPushErrorNotFastForward path))
-            Just localInnerHashes -> do
-              doUpload (localHeadHash :| localInnerHashes) >>= \case
-                False -> pure (Left (FastForwardPushErrorNoWritePermission path))
-                True -> do
-                  let doFastForwardPath =
-                        httpFastForwardPath
-                          httpClient
-                          unisonShareUrl
-                          Share.FastForwardPathRequest
-                            { expectedHash = remoteHeadHash,
-                              hashes =
-                                causalHashToHash32 <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
-                              path
-                            }
-                  doFastForwardPath <&> \case
-                    Share.FastForwardPathSuccess -> Right ()
-                    Share.FastForwardPathMissingDependencies (Share.NeedDependencies dependencies) ->
-                      Left (FastForwardPushErrorServerMissingDependencies dependencies)
-                    -- Weird: someone must have force-pushed no history here, or something. We observed a history at
-                    -- this path but moments ago!
-                    Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory path)
-                    Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission path)
-                    Share.FastForwardPathNotFastForward _ -> Left (FastForwardPushErrorNotFastForward path)
-                    Share.FastForwardPathInvalidParentage (Share.InvalidParentage parent child) ->
-                      Left (FastForwardPushInvalidParentage parent child)
+      Sqlite.runTransaction conn (loadCausalSpineBetween remoteHeadHash (causalHashToHash32 localHeadHash)) >>= \case
+        -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
+        -- fast-forward push, so we don't bother trying - just report the error now.
+        Nothing -> pure (Left (FastForwardPushErrorNotFastForward path))
+        -- The path from remote-to-local, excluding local, was empty. So, remote == local; there's nothing to push.
+        Just [] -> pure (Right ())
+        Just (_ : localInnerHashes0) -> do
+          -- drop remote hash
+          let localInnerHashes = map hash32ToCausalHash localInnerHashes0
+          doUpload (localHeadHash :| localInnerHashes) >>= \case
+            False -> pure (Left (FastForwardPushErrorNoWritePermission path))
+            True -> do
+              let doFastForwardPath =
+                    httpFastForwardPath
+                      httpClient
+                      unisonShareUrl
+                      Share.FastForwardPathRequest
+                        { expectedHash = remoteHeadHash,
+                          hashes =
+                            causalHashToHash32 <$> List.NonEmpty.fromList (localInnerHashes ++ [localHeadHash]),
+                          path
+                        }
+              doFastForwardPath <&> \case
+                Share.FastForwardPathSuccess -> Right ()
+                Share.FastForwardPathMissingDependencies (Share.NeedDependencies dependencies) ->
+                  Left (FastForwardPushErrorServerMissingDependencies dependencies)
+                -- Weird: someone must have force-pushed no history here, or something. We observed a history at
+                -- this path but moments ago!
+                Share.FastForwardPathNoHistory -> Left (FastForwardPushErrorNoHistory path)
+                Share.FastForwardPathNoWritePermission _ -> Left (FastForwardPushErrorNoWritePermission path)
+                Share.FastForwardPathNotFastForward _ -> Left (FastForwardPushErrorNotFastForward path)
+                Share.FastForwardPathInvalidParentage (Share.InvalidParentage parent child) ->
+                  Left (FastForwardPushInvalidParentage parent child)
   where
     doUpload :: List.NonEmpty CausalHash -> IO Bool
     -- Maybe we could save round trips here by including the tail (or the head *and* the tail) as "extra hashes", but we
@@ -179,31 +186,46 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadProgress
         (NESet.singleton (causalHashToHash32 headHash))
         uploadProgressCallback
 
-    -- Return a list from oldest to newst of the ancestors between (excluding) the latest local and the current remote
-    -- hash.
-    -- note: seems like we /should/ cut this short, with another command to go longer? :grimace:
-    fancyBfs :: CausalHash -> Hash32 -> Sqlite.Transaction (Maybe [CausalHash])
-    fancyBfs h0 h1 =
-      tweak <$> dagbfs (== h1) Q.loadCausalParentsByHash (causalHashToHash32 h0)
-      where
-        -- Drop 1 (under a Maybe, and twddling hash types):
-        --
-        --   tweak Nothing = Nothing
-        --   tweak (Just []) = Just []
-        --   tweak (Just [C,B,A]) = Just [B,A]
-        --
-        -- The drop 1 is because dagbfs returns the goal at the head of the returned list, but we know what the goal is
-        -- already (the remote head hash).
-        tweak :: Maybe [Hash32] -> Maybe [CausalHash]
-        tweak =
-          fmap (map hash32ToCausalHash . drop 1)
+-- Return a list (in oldest-to-newest order) of hashes along the causal spine that connects the given arguments,
+-- excluding the newest hash (second argument).
+loadCausalSpineBetween :: Hash32 -> Hash32 -> Sqlite.Transaction (Maybe [Hash32])
+loadCausalSpineBetween earlierHash laterHash =
+  dagbfs (== earlierHash) Q.loadCausalParentsByHash laterHash
 
 data Step a
   = DeadEnd
   | KeepSearching (List.NonEmpty a)
   | FoundGoal a
 
--- FIXME: document
+-- | @dagbfs goal children root@ searches breadth-first through the monadic tree formed by applying @chilred@ to each
+-- node (initially @root@), until it finds a goal node (i.e. when @goal@ returns True).
+--
+-- Returns the nodes along a path from root to goal in bottom-up or goal-to-root order, excluding the root node (because
+-- it was provided as an input ;))
+--
+-- For example, when searching a tree that looks like
+--
+--                    1
+--                   / \
+--                  2   3
+--                 / \   \
+--                4  [5]  6
+--
+-- (where the goal is marked [5]), we'd return
+--
+--                Just [5,2]
+--
+-- And (as another example), if the root node is the goal,
+--
+--                   [1]
+--                   / \
+--                  2   3
+--                 / \   \
+--                4   5   6
+--
+-- we'd return
+--
+--                Just []
 dagbfs :: forall a m. Monad m => (a -> Bool) -> (a -> m [a]) -> a -> m (Maybe [a])
 dagbfs goal children =
   let -- The loop state: all distinct paths from the root to the frontier (not including the root, because it's implied,
@@ -362,11 +384,27 @@ completeTempEntities ::
   NESet Hash32 ->
   IO ()
 completeTempEntities doDownload conn =
-  let loop :: NESet Hash32 -> IO ()
-      loop tempEntityHashes = do
-        hashJwtsToDownload <- Sqlite.runTransaction conn (elaborateHashes tempEntityHashes)
-        whenJustM (downloadEntities doDownload conn hashJwtsToDownload) loop
-   in loop
+  let loop :: NESet Share.HashJWT -> IO ()
+      loop allHashes = do
+        -- Each request only contains a certain maximum number of entities; split the set of hashes we need to download
+        -- into those we will download right now, and those we will begin downloading on the next iteration of the loop.
+        let (hashes, nextHashes0) =
+              case NESet.splitAt 50 allHashes of
+                This hs1 -> (hs1, Set.empty)
+                That hs2 -> (hs2, Set.empty) -- impossible, this only happens if we split at 0
+                These hs1 hs2 -> (hs1, NESet.toSet hs2)
+        nextHashes <-
+          downloadEntities doDownload conn hashes >>= \case
+            Nothing -> pure (NESet.nonEmptySet nextHashes0)
+            Just newTempEntities -> do
+              newElaboratedHashes <- elaborate newTempEntities
+              pure (Just (union10 newElaboratedHashes nextHashes0))
+        whenJust nextHashes loop
+   in \hashes0 -> elaborate hashes0 >>= loop
+  where
+    elaborate :: NESet Hash32 -> IO (NESet Share.HashJWT)
+    elaborate hashes =
+      Sqlite.runTransaction conn (elaborateHashes hashes)
 
 -- | Download a set of entities from Unison Share. Returns the subset of those entities that we stored in temp storage
 -- (`temp_entitiy`) instead of main storage (`object` / `causal`) due to missing dependencies.
@@ -378,10 +416,11 @@ downloadEntities ::
 downloadEntities doDownload conn hashes = do
   entities <- doDownload hashes
   fmap NESet.nonEmptySet do
-    NEMap.toList entities & foldMapM \(hash, entity) ->
-      Sqlite.runTransaction conn (upsertEntitySomewhere hash entity) <&> \case
-        Q.EntityInMainStorage -> Set.empty
-        Q.EntityInTempStorage -> Set.singleton hash
+    Sqlite.runTransaction conn do
+      NEMap.toList entities & foldMapM \(hash, entity) ->
+        upsertEntitySomewhere hash entity <&> \case
+          Q.EntityInMainStorage -> Set.empty
+          Q.EntityInTempStorage -> Set.singleton hash
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
@@ -421,7 +460,7 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCal
     loop :: Int -> NESet Hash32 -> IO Bool
     loop uploadCount allHashesSet = do
       -- Each request only contains a certain maximum number of entities; split the set of hashes we need to upload into
-      -- those we will upload right now, and those we will begin uploading
+      -- those we will upload right now, and those we will begin uploading on the next iteration of the loop.
       let (hashesSet, nextHashes) =
             case NESet.splitAt 50 allHashesSet of
               This hs1 -> (hs1, Set.empty)
@@ -448,10 +487,7 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCal
 
       uploadEntities >>= \case
         Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> do
-          let newAllHashesSet =
-                case NESet.nonEmptySet nextHashes of
-                  Nothing -> moreHashes
-                  Just nextHashes1 -> NESet.union moreHashes nextHashes1
+          let newAllHashesSet = union10 moreHashes nextHashes
           uploadProgressCallback newUploadCount (NESet.size newAllHashesSet)
           loop newUploadCount newAllHashesSet
         Share.UploadEntitiesNoWritePermission _ -> pure False
@@ -465,6 +501,13 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCal
               uploadProgressCallback newUploadCount (NESet.size nextHashes1)
               loop newUploadCount nextHashes1
 
+-- Union a non-empty set and a set.
+union10 :: Ord a => NESet a -> Set a -> NESet a
+union10 xs ys =
+  case NESet.nonEmptySet ys of
+    Nothing -> xs
+    Just zs -> NESet.union xs zs
+
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
 
@@ -477,7 +520,7 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCal
 -- In the end, we return a set of hashes that correspond to entities we actually need to download.
 elaborateHashes :: NESet Hash32 -> Sqlite.Transaction (NESet Share.HashJWT)
 elaborateHashes hashes =
-  Q.elaborateHashesClient (NESet.toList hashes)
+  Q.elaborateHashes (NESet.toList hashes)
     <&> NESet.fromList . coerce @(List.NonEmpty Text) @(List.NonEmpty Share.HashJWT)
 
 -- | Upsert a downloaded entity "somewhere" -
@@ -504,34 +547,18 @@ upsertEntitySomewhere hash entity =
             )
       case NEMap.nonEmptyMap missingDependencies1 of
         Nothing -> do
-          insertEntity hash entity
+          _id <- Q.saveTempEntityInMain hash (entityToTempEntity Share.hashJWTHash entity)
           pure Q.EntityInMainStorage
         Just missingDependencies -> do
-          insertTempEntity hash entity missingDependencies
+          Q.insertTempEntity
+            hash
+            (entityToTempEntity Share.hashJWTHash entity)
+            ( coerce
+                @(NEMap Hash32 Share.HashJWT)
+                @(NEMap Hash32 Text)
+                missingDependencies
+            )
           pure Q.EntityInTempStorage
-
--- | Insert an entity that doesn't have any missing dependencies.
-insertEntity :: Hash32 -> Share.Entity Text Hash32 Share.HashJWT -> Sqlite.Transaction ()
-insertEntity hash entity = do
-  syncEntity <- Q.tempToSyncEntity (entityToTempEntity Share.hashJWTHash entity)
-  _id <- Q.saveSyncEntity hash syncEntity
-  pure ()
-
--- | Insert an entity and its missing dependencies.
-insertTempEntity ::
-  Hash32 ->
-  Share.Entity Text Hash32 Share.HashJWT ->
-  NEMap Hash32 Share.HashJWT ->
-  Sqlite.Transaction ()
-insertTempEntity hash entity missingDependencies =
-  Q.insertTempEntity
-    hash
-    (entityToTempEntity Share.hashJWTHash entity)
-    ( coerce
-        @(NEMap Hash32 Share.HashJWT)
-        @(NEMap Hash32 Text)
-        missingDependencies
-    )
 
 ------------------------------------------------------------------------------------------------------------------------
 -- HTTP calls
