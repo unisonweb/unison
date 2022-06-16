@@ -630,8 +630,9 @@ updateNameLookupIndexFromV1Branch root = do
 --
 -- This version should be used if you don't already have the root Branch pre-loaded,
 -- If you do, use 'updateNameLookupIndexFromV2Branch' instead.
-updateNameLookupIndexFromV2Branch :: CausalHash -> (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
-updateNameLookupIndexFromV2Branch rootHash getDeclType = do
+updateNameLookupIndexFromV2Root :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
+updateNameLookupIndexFromV2Root getDeclType = do
+  rootHash <- Ops.expectRootCausalHash
   causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
   (termNameMap, typeNameMap) <- nameMapsFromV2Branch causalBranch
   let expandedTermNames = Map.toList termNameMap >>= (\(name, refs) -> (name,) <$> Set.toList refs)
