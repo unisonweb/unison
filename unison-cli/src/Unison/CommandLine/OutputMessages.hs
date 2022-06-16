@@ -1640,6 +1640,7 @@ notifyUser dir o = case o of
       UnreachableCodeserver codeServerURL ->
         P.lines $
           [ P.wrap $ "Unable to reach the code server hosted at:" <> P.string (Servant.showBaseUrl codeServerURL),
+          , ""
             P.wrap "Please check your network, ensure you've provided the correct location, or try again later."
           ]
       InvalidResponse resp -> P.fatalCallout $ P.hang "Invalid response received from codeserver:" (P.shown resp)
