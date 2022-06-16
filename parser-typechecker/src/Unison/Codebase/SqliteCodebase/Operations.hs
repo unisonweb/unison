@@ -20,16 +20,17 @@ import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
+import U.Codebase.Sqlite.NamedRef
 import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
+import U.Util.Monoid (foldMapM)
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
@@ -45,10 +46,8 @@ import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
-import qualified Unison.NameSegment as V1Names
 import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
-import qualified Unison.Names as V1Names
 import Unison.Names.Scoped (ScopedNames (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -622,24 +621,44 @@ mkGetDeclType = do
     conn <- Sqlite.unsafeGetConnection
     Sqlite.unsafeIO $ Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (getDeclType ref) conn) ref
 
+-- -- | Update the root namespace names index which is used by the share server for serving api
+-- -- requests.
+-- updateNameLookupIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
+-- updateNameLookupIndex getDeclType = do
+--   root <- uncachedLoadRootBranch getDeclType
+--   saveRootNamesIndex (Branch.toNames . Branch.head $ root)
+
 -- | Update the root namespace names index which is used by the share server for serving api
 -- requests.
 updateNameLookupIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
 updateNameLookupIndex getDeclType = do
-  root <- uncachedLoadRootBranch getDeclType
-  saveRootNamesIndex (Branch.toNames . Branch.head $ root)
-
-computeNewNamesFromShallowBranch :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction V1Names.Names
-computeNewNamesFromShallowBranch getDeclType = do
   rootHash <- Ops.expectRootCausalHash
   causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
-  (v2TermNameMap, v2TypeNameMap) <- V2Branch.toNamesMaps causalBranch
-  v1TermNameMap <- for v2TermNameMap (Set.traverse (Cv.referent2to1 getDeclType))
-  let v1TypeNameMap = v2TypeNameMap <&> Set.map Cv.reference2to1
-  pure $ V1Names.Names {terms = relationFromMap v1TermNameMap, types = relationFromMap v1TypeNameMap}
+  nameLists <- V2Branch.toNamesMaps causalBranch []
+  saveRootNamesIndexV2 getDeclType nameLists
+
+saveRootNamesIndexV2 :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> ([(NonEmpty V2Branch.NameSegment, [C.Referent.Referent])], [(NonEmpty V2Branch.NameSegment, [C.Reference.Reference])]) -> Transaction ()
+saveRootNamesIndexV2 getDeclType (termNameList, typeNameList) = do
+  termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))] <-
+    flip foldMapM termNameList $ \(name, refs) -> do
+      for refs $ \ref -> do
+        r <- splitReferent ref
+        pure $ S.NamedRef {reversedSegments = nameSegments name, ref = r}
+  let typeNames :: [(S.NamedRef C.Reference.Reference)]
+      typeNames =
+        flip
+          foldMap
+          typeNameList
+          ( \(name, refs) ->
+              refs <&> \ref -> S.NamedRef {reversedSegments = coerce name, ref = ref}
+          )
+  Ops.rebuildNameIndex termNames typeNames
   where
-    relationFromMap :: Ord a => Map (NonEmpty V2Branch.NameSegment) (Set a) -> Rel.Relation Name a
-    relationFromMap m =
-      m
-        & Map.mapKeys (Name.fromSegments . coerce @(NonEmpty V2Branch.NameSegment) @(NonEmpty V1Names.NameSegment))
-        & Rel.fromMultimap
+    nameSegments :: NonEmpty V2Branch.NameSegment -> ReversedSegments
+    nameSegments = coerce
+    splitReferent :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
+    splitReferent referent = case referent of
+      C.Referent.Ref {} -> pure (referent, Nothing)
+      C.Referent.Con reference _conId -> do
+        ct <- getDeclType reference
+        pure (referent, Just $ Cv.constructorType1to2 ct)

@@ -17,7 +17,8 @@ module U.Codebase.Branch
   )
 where
 
-import Control.Lens (AsEmpty (..), ifoldMap, nearly)
+import Control.Lens (AsEmpty (..), nearly)
+import Data.Bifunctor (first)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NEList
 import qualified Data.Map as Map
@@ -28,6 +29,7 @@ import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
 import U.Codebase.TermEdit (TermEdit)
 import U.Codebase.TypeEdit (TypeEdit)
+import U.Util.Monoid (foldMapM)
 import Unison.Prelude
 
 newtype NameSegment = NameSegment {unNameSegment :: Text} deriving (Eq, Ord, Show)
@@ -89,15 +91,10 @@ hoistCausalBranch f cb =
     & fmap (hoist f)
 
 -- | Collects two maps, one with all term names and one with all type names.
--- Note that unlike the `Name` type in `unison-core1`, this list of name segments is in
--- forward order, e.g. `["base", "List", "map"]`
-toNamesMaps :: Monad m => CausalBranch m -> m (Map (NonEmpty NameSegment) (Set Referent), Map (NonEmpty NameSegment) (Set Reference))
-toNamesMaps cb = do
+-- Note, the name segments are in reverse order, e.g. `["map", "List", "base"]`
+toNamesMaps :: Monad m => CausalBranch m -> [NameSegment] -> m ([(NonEmpty NameSegment, [Referent])], [(NonEmpty NameSegment, [Reference])])
+toNamesMaps cb namePrefix = do
   b <- Causal.value cb
-  let (shallowTermNames, shallowTypeNames) = (Map.keysSet <$> terms b, Map.keysSet <$> types b)
-  allChildNames <- for (children b) toNamesMaps
-  let (prefixedChildTerms, prefixedChildTypes) =
-        flip ifoldMap allChildNames \nameSegment (childTermNames, childTypeNames) ->
-          let addSegment = Map.mapKeys (nameSegment NEList.<|)
-           in (addSegment childTermNames, addSegment childTypeNames)
-  pure (Map.mapKeys (NEList.:| []) shallowTermNames <> prefixedChildTerms, Map.mapKeys (NEList.:| []) shallowTypeNames <> prefixedChildTypes)
+  let (shallowTermNames, shallowTypeNames) = (Map.toList (Map.keys <$> terms b), Map.toList (Map.keys <$> types b))
+  (prefixedChildTerms, prefixedChildTypes) <- flip foldMapM (Map.toList $ children b) $ \(name, child) -> toNamesMaps child (name : namePrefix)
+  pure (fmap (first (NEList.:| namePrefix)) shallowTermNames <> prefixedChildTerms, fmap (first (NEList.:| namePrefix)) shallowTypeNames <> prefixedChildTypes)
