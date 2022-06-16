@@ -595,25 +595,6 @@ namesAtPath path = do
         Nothing -> (mempty, [(n, ref)])
         Just stripped -> ([(Name.makeRelative stripped, ref)], mempty)
 
-saveRootNamesIndex :: Names -> Transaction ()
-saveRootNamesIndex Names {Names.terms, Names.types} = do
-  let termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))]
-      termNames = Rel.toList terms <&> \(name, ref) -> S.NamedRef {reversedSegments = nameSegments name, ref = splitReferent ref}
-  let typeNames :: [(S.NamedRef C.Reference.Reference)]
-      typeNames =
-        Rel.toList types
-          <&> ( \(name, ref) ->
-                  S.NamedRef {reversedSegments = nameSegments name, ref = Cv.reference1to2 ref}
-              )
-  Ops.rebuildNameIndex termNames typeNames
-  where
-    nameSegments :: Name -> NonEmpty Text
-    nameSegments = coerce @(NonEmpty NameSegment) @(NonEmpty Text) . Name.reverseSegments
-    splitReferent :: Referent.Referent -> (C.Referent.Referent, Maybe C.Referent.ConstructorType)
-    splitReferent referent = case referent of
-      Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
-      Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))
-
 mkGetDeclType :: MonadIO m => m (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType)
 mkGetDeclType = do
   declTypeCache <- Cache.semispaceCache 2048
@@ -635,10 +616,10 @@ updateNameLookupIndex getDeclType = do
   rootHash <- Ops.expectRootCausalHash
   causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
   nameLists <- V2Branch.toNamesMaps causalBranch []
-  saveRootNamesIndexV2 getDeclType nameLists
+  saveRootNamesIndex getDeclType nameLists
 
-saveRootNamesIndexV2 :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> ([(NonEmpty V2Branch.NameSegment, [C.Referent.Referent])], [(NonEmpty V2Branch.NameSegment, [C.Reference.Reference])]) -> Transaction ()
-saveRootNamesIndexV2 getDeclType (termNameList, typeNameList) = do
+saveRootNamesIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> ([(NonEmpty V2Branch.NameSegment, [C.Referent.Referent])], [(NonEmpty V2Branch.NameSegment, [C.Reference.Reference])]) -> Transaction ()
+saveRootNamesIndex getDeclType (termNameList, typeNameList) = do
   termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))] <-
     flip foldMapM termNameList $ \(name, refs) -> do
       for refs $ \ref -> do
