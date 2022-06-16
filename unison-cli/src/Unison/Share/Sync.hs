@@ -525,34 +525,18 @@ upsertEntitySomewhere hash entity =
             )
       case NEMap.nonEmptyMap missingDependencies1 of
         Nothing -> do
-          insertEntity hash entity
+          _id <- Q.saveTempEntityInMain hash (entityToTempEntity Share.hashJWTHash entity)
           pure Q.EntityInMainStorage
         Just missingDependencies -> do
-          insertTempEntity hash entity missingDependencies
+          Q.insertTempEntity
+            hash
+            (entityToTempEntity Share.hashJWTHash entity)
+            ( coerce
+                @(NEMap Hash32 Share.HashJWT)
+                @(NEMap Hash32 Text)
+                missingDependencies
+            )
           pure Q.EntityInTempStorage
-
--- | Insert an entity that doesn't have any missing dependencies.
-insertEntity :: Hash32 -> Share.Entity Text Hash32 Share.HashJWT -> Sqlite.Transaction ()
-insertEntity hash entity = do
-  syncEntity <- Q.tempToSyncEntity (entityToTempEntity Share.hashJWTHash entity)
-  _id <- Q.saveSyncEntity hash syncEntity
-  pure ()
-
--- | Insert an entity and its missing dependencies.
-insertTempEntity ::
-  Hash32 ->
-  Share.Entity Text Hash32 Share.HashJWT ->
-  NEMap Hash32 Share.HashJWT ->
-  Sqlite.Transaction ()
-insertTempEntity hash entity missingDependencies =
-  Q.insertTempEntity
-    hash
-    (entityToTempEntity Share.hashJWTHash entity)
-    ( coerce
-        @(NEMap Hash32 Share.HashJWT)
-        @(NEMap Hash32 Text)
-        missingDependencies
-    )
 
 ------------------------------------------------------------------------------------------------------------------------
 -- HTTP calls

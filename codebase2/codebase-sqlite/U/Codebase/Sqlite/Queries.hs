@@ -142,7 +142,7 @@ module U.Codebase.Sqlite.Queries
     tempToSyncEntity,
     syncToTempEntity,
     insertTempEntity,
-    saveSyncEntity,
+    saveTempEntityInMain,
 
     -- * elaborate hashes
     elaborateHashes,
@@ -731,9 +731,16 @@ moveTempEntityToMain :: Hash32 -> Transaction ()
 moveTempEntityToMain hash = do
   entity <- expectTempEntity hash
   deleteTempEntity hash
-  entity' <- tempToSyncEntity entity
-  _ <- saveSyncEntity hash entity'
+  _ <- saveTempEntityInMain hash entity
   pure ()
+
+-- | Save a temp entity in main storage.
+--
+-- Precondition: all of its dependencies are already in main storage.
+saveTempEntityInMain :: Hash32 -> TempEntity -> Transaction (Either CausalHashId ObjectId)
+saveTempEntityInMain hash entity = do
+  entity' <- tempToSyncEntity entity
+  saveSyncEntity hash entity'
 
 -- | Read an entity out of temp storage.
 expectTempEntity :: Hash32 -> Transaction TempEntity
