@@ -613,18 +613,24 @@ mkGetDeclType = do
 -- requests.
 updateNameLookupIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
 updateNameLookupIndex getDeclType = do
+  traceM "Loading root hash"
   rootHash <- Ops.expectRootCausalHash
+  traceM "Loading causal branch"
   causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
+  traceM "constructing names for branch"
   nameLists <- V2Branch.toNamesMaps causalBranch []
+  traceM "saving names for branch"
   saveRootNamesIndex getDeclType nameLists
 
 saveRootNamesIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> ([(NonEmpty V2Branch.NameSegment, [C.Referent.Referent])], [(NonEmpty V2Branch.NameSegment, [C.Reference.Reference])]) -> Transaction ()
 saveRootNamesIndex getDeclType (termNameList, typeNameList) = do
+  traceM "Converting term names"
   termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))] <-
     flip foldMapM termNameList $ \(name, refs) -> do
       for refs $ \ref -> do
         r <- splitReferent ref
         pure $ S.NamedRef {reversedSegments = nameSegments name, ref = r}
+  traceM "Converting type names"
   let typeNames :: [(S.NamedRef C.Reference.Reference)]
       typeNames =
         flip
@@ -633,6 +639,7 @@ saveRootNamesIndex getDeclType (termNameList, typeNameList) = do
           ( \(name, refs) ->
               refs <&> \ref -> S.NamedRef {reversedSegments = coerce name, ref = ref}
           )
+  traceM "rebuilding names index"
   Ops.rebuildNameIndex termNames typeNames
   where
     nameSegments :: NonEmpty V2Branch.NameSegment -> ReversedSegments
