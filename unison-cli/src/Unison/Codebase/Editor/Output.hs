@@ -266,6 +266,7 @@ data ShareError
   | ShareErrorFastForwardPush Sync.FastForwardPushError
   | ShareErrorPull Sync.PullError
   | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
+  | ShareErrorTransport Sync.CodeserverTransportError
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)

@@ -174,6 +174,7 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import qualified Unison.Share.Sync.Types as Sync
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -1872,7 +1873,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
       Just localCausalHash ->
         case behavior of
           PushBehavior.RequireEmpty -> do
-            let push :: IO (Either Share.CheckAndSetPushError ())
+            let push :: IO (Either (Sync.SyncError Share.CheckAndSetPushError) ())
                 push =
                   withEntitiesUploadedProgressCallback \entitiesUploadedProgressCallback ->
                     Share.checkAndSetPush
@@ -1884,10 +1885,11 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                       localCausalHash
                       entitiesUploadedProgressCallback
             liftIO push >>= \case
-              Left err -> respond (Output.ShareError (ShareErrorCheckAndSetPush err))
+              Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorCheckAndSetPush err))
+              Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
               Right () -> pure ()
           PushBehavior.RequireNonEmpty -> do
-            let push :: IO (Either Share.FastForwardPushError ())
+            let push :: IO (Either (Sync.SyncError Share.FastForwardPushError) ())
                 push = do
                   withEntitiesUploadedProgressCallback \entitiesUploadedProgressCallback ->
                     Share.fastForwardPush
@@ -1898,7 +1900,8 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                       localCausalHash
                       entitiesUploadedProgressCallback
             liftIO push >>= \case
-              Left err -> respond (Output.ShareError (ShareErrorFastForwardPush err))
+              Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorFastForwardPush err))
+              Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
               Right () -> pure ()
   where
     pathToSegments :: Path -> [Text]
@@ -2317,7 +2320,7 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
     LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
-    let pull :: IO (Either Share.PullError CausalHash)
+    let pull :: IO (Either (Sync.SyncError Share.PullError) CausalHash)
         pull =
           withEntitiesDownloadedProgressCallback \entitiesDownloadedProgressCallback ->
             Share.pull
@@ -2327,7 +2330,8 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
               shareFlavoredPath
               entitiesDownloadedProgressCallback
     liftIO pull >>= \case
-      Left err -> pure (Left (Output.ShareErrorPull err))
+      Left (Sync.SyncError err) -> pure (Left (Output.ShareErrorPull err))
+      Left (Sync.TransportError err) -> pure (Left (Output.ShareErrorTransport err))
       Right causalHash -> do
         (eval . Eval) (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
           Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
