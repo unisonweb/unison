@@ -888,6 +888,7 @@ tempToSyncEntity = \case
 
 {- ORMOLU_DISABLE -}
 
+-- | looking up all of the text and hashes is the first step of converting a SyncEntity to a Share.Entity
 syncToTempEntity :: SyncEntity -> Transaction TempEntity
 syncToTempEntity = \case
   Entity.TC term -> Entity.TC <$> syncToTempTermComponent term
