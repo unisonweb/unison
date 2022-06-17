@@ -719,7 +719,6 @@ flushCausalDependents hh chId = do
 --    3. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
 --        insert_entity them.
 tryMoveTempEntityDependents ::
-  -- | Move TempEntity to main
   HashHandle ->
   Hash32 ->
   Transaction ()
