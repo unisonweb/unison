@@ -13,6 +13,7 @@ import Control.Exception
 import Data.Bits
 import qualified Data.Map.Strict as M
 import Data.Ord (comparing)
+import qualified Data.Primitive.Array as PA
 import qualified Data.Primitive.PrimArray as PA
 import qualified Data.Sequence as Sq
 import qualified Data.Set as S
@@ -1918,8 +1919,20 @@ universalEq frn = eqc
       | Just sl <- maybeUnwrapForeign Rf.listRef fl,
         Just sr <- maybeUnwrapForeign Rf.listRef fr =
           length sl == length sr && and (Sq.zipWith eqc sl sr)
+      | Just al <- maybeUnwrapForeign Rf.iarrayRef fl,
+        Just ar <- maybeUnwrapForeign Rf.iarrayRef fr =
+          arrayEq eqc al ar
       | otherwise = frn fl fr
     eqc c d = closureNum c == closureNum d
+
+arrayEq :: (Closure -> Closure -> Bool) -> PA.Array Closure -> PA.Array Closure -> Bool
+arrayEq eqc l r
+  | PA.sizeofArray l /= PA.sizeofArray r = False
+  | otherwise = go (PA.sizeofArray l)
+  where
+    go i
+      | i < 0 = True
+      | otherwise = eqc (PA.indexArray l i) (PA.indexArray r i) && go (i - 1)
 
 -- IEEE floating point layout is such that comparison as integers
 -- somewhat works. Positive floating values map to positive integers
@@ -2018,5 +2031,19 @@ universalCompare frn = cmpc False
       | Just sl <- maybeUnwrapForeign Rf.listRef fl,
         Just sr <- maybeUnwrapForeign Rf.listRef fr =
           comparing Sq.length sl sr <> fold (Sq.zipWith (cmpc tyEq) sl sr)
+      | Just al <- maybeUnwrapForeign Rf.iarrayRef fl,
+        Just ar <- maybeUnwrapForeign Rf.iarrayRef fr =
+          arrayCmp (cmpc tyEq) al ar
       | otherwise = frn fl fr
     cmpc _ c d = comparing closureNum c d
+
+arrayCmp ::
+  (Closure -> Closure -> Ordering) ->
+  PA.Array Closure ->
+  PA.Array Closure ->
+  Ordering
+arrayCmp cmpc l r = comparing PA.sizeofArray l r <> go (PA.sizeofArray l)
+  where
+    go i
+      | i < 0 = EQ
+      | otherwise = cmpc (PA.indexArray l i) (PA.indexArray r i) <> go (i - 1)

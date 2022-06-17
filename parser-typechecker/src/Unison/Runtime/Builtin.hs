@@ -34,6 +34,7 @@ import qualified Control.Monad.Primitive as PA
 import Control.Monad.State.Strict (State, execState, modify)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
+import Data.Bits (shiftL, shiftR, (.|.))
 import qualified Data.ByteArray as BA
 import Data.ByteString (hGet, hGetSome, hPut)
 import qualified Data.ByteString.Lazy as L
@@ -2414,8 +2415,8 @@ declareForeigns = do
        in if l == 0
             then pure (Right ())
             else
-              checkBoundsPrim name (PA.sizeofMutableByteArray dst) (doff + l - 1) (0 :: Word8) $
-                checkBoundsPrim name (PA.sizeofMutableByteArray src) (soff + l - 1) (0 :: Word8) $
+              checkBoundsPrim name (PA.sizeofMutableByteArray dst) (doff + l) 0 $
+                checkBoundsPrim name (PA.sizeofMutableByteArray src) (soff + l) 0 $
                   Right
                     <$> PA.copyMutableByteArray @IO
                       dst
@@ -2448,8 +2449,8 @@ declareForeigns = do
        in if l == 0
             then pure (Right ())
             else
-              checkBoundsPrim name (PA.sizeofMutableByteArray dst) (doff + l - 1) (0 :: Word8) $
-                checkBoundsPrim name (PA.sizeofByteArray src) (soff + l - 1) (0 :: Word8) $
+              checkBoundsPrim name (PA.sizeofMutableByteArray dst) (doff + l) 0 $
+                checkBoundsPrim name (PA.sizeofByteArray src) (soff + l) 0 $
                   Right
                     <$> PA.copyByteArray @IO
                       dst
@@ -2463,48 +2464,48 @@ declareForeigns = do
     $ checkedRead "MutableArray.read"
   declareForeign Tracked "MutableByteArray.read8" boxNatToExnNat
     . mkForeign
-    $ checkedReadPrim @Word8 "MutableByteArray.read8"
-  declareForeign Tracked "MutableByteArray.read16" boxNatToExnNat
+    $ checkedRead8 "MutableByteArray.read8"
+  declareForeign Tracked "MutableByteArray.read16be" boxNatToExnNat
     . mkForeign
-    $ checkedReadPrim @Word16 "MutableByteArray.read16"
-  declareForeign Tracked "MutableByteArray.read32" boxNatToExnNat
+    $ checkedRead16 "MutableByteArray.read16be"
+  declareForeign Tracked "MutableByteArray.read32be" boxNatToExnNat
     . mkForeign
-    $ checkedReadPrim @Word32 "MutableByteArray.read32"
-  declareForeign Tracked "MutableByteArray.read64" boxNatToExnNat
+    $ checkedRead32 "MutableByteArray.read32be"
+  declareForeign Tracked "MutableByteArray.read64be" boxNatToExnNat
     . mkForeign
-    $ checkedReadPrim @Word64 "MutableByteArray.read64"
+    $ checkedRead64 "MutableByteArray.read64be"
 
   declareForeign Tracked "MutableArray.write" boxNatBoxToExnUnit
     . mkForeign
     $ checkedWrite "MutableArray.write"
   declareForeign Tracked "MutableByteArray.write8" boxNatNatToExnUnit
     . mkForeign
-    $ checkedWritePrim @Word8 "MutableByteArray.write8"
-  declareForeign Tracked "MutableByteArray.write16" boxNatNatToExnUnit
+    $ checkedWrite8 "MutableByteArray.write8"
+  declareForeign Tracked "MutableByteArray.write16be" boxNatNatToExnUnit
     . mkForeign
-    $ checkedWritePrim @Word16 "MutableByteArray.write16"
-  declareForeign Tracked "MutableByteArray.write32" boxNatNatToExnUnit
+    $ checkedWrite16 "MutableByteArray.write16be"
+  declareForeign Tracked "MutableByteArray.write32be" boxNatNatToExnUnit
     . mkForeign
-    $ checkedWritePrim @Word32 "MutableByteArray.write32"
-  declareForeign Tracked "MutableByteArray.write64" boxNatNatToExnUnit
+    $ checkedWrite32 "MutableByteArray.write32be"
+  declareForeign Tracked "MutableByteArray.write64be" boxNatNatToExnUnit
     . mkForeign
-    $ checkedWritePrim @Word64 "MutableByteArray.write64"
+    $ checkedWrite64 "MutableByteArray.write64be"
 
   declareForeign Untracked "ImmutableArray.read" boxNatToExnBox
     . mkForeign
     $ checkedIndex "ImmutableArray.read"
   declareForeign Untracked "ImmutableByteArray.read8" boxNatToExnNat
     . mkForeign
-    $ checkedIndexPrim @Word8 "ImmutableByteArray.read8"
-  declareForeign Untracked "ImmutableByteArray.read16" boxNatToExnNat
+    $ checkedIndex8 "ImmutableByteArray.read8"
+  declareForeign Untracked "ImmutableByteArray.read16be" boxNatToExnNat
     . mkForeign
-    $ checkedIndexPrim @Word16 "ImmutableByteArray.read16"
-  declareForeign Untracked "ImmutableByteArray.read32" boxNatToExnNat
+    $ checkedIndex16 "ImmutableByteArray.read16be"
+  declareForeign Untracked "ImmutableByteArray.read32be" boxNatToExnNat
     . mkForeign
-    $ checkedIndexPrim @Word32 "ImmutableByteArray.read32"
-  declareForeign Untracked "ImmutableByteArray.read64" boxNatToExnNat
+    $ checkedIndex32 "ImmutableByteArray.read32be"
+  declareForeign Untracked "ImmutableByteArray.read64be" boxNatToExnNat
     . mkForeign
-    $ checkedIndexPrim @Word64 "ImmutableByteArray.read64"
+    $ checkedIndex64 "ImmutableByteArray.read64be"
 
   declareForeign Tracked "MutableByteArray.freeze!" boxDirect . mkForeign $
     PA.unsafeFreezeByteArray
@@ -2519,8 +2520,8 @@ declareForeigns = do
           checkBoundsPrim
             "MutableByteArray.freeze"
             (PA.sizeofMutableByteArray src)
-            (off + len - 1)
-            (0 :: Word8)
+            (off + len)
+            0
             $ Right <$> PA.freezeByteArray src (fromIntegral off) (fromIntegral len)
 
   declareForeign Tracked "MutableArray.freeze" boxNatNatToExnBox . mkForeign $
@@ -2593,43 +2594,153 @@ checkedIndex name (arr, w) =
     w
     (Right <$> PA.indexArrayM arr (fromIntegral w))
 
-checkedReadPrim ::
-  forall a.
-  PA.Prim a =>
-  Text ->
-  (PA.MutableByteArray RW, Word64) ->
-  IO (Either Failure a)
-checkedReadPrim name (arr, i) =
-  checkBoundsPrim
-    name
-    (PA.sizeofMutableByteArray arr)
-    i
-    (undefined :: a)
-    (Right <$> PA.readByteArray arr (fromIntegral i))
+checkedRead8 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead8 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 1 $
+    (Right . fromIntegral) <$> PA.readByteArray @Word8 arr j
+  where
+    j = fromIntegral i
 
-checkedWritePrim ::
-  forall a.
-  PA.Prim a =>
-  Text ->
-  (PA.MutableByteArray RW, Word64, a) ->
-  IO (Either Failure ())
-checkedWritePrim name (arr, i, v) =
-  checkBoundsPrim
-    name
-    (PA.sizeofMutableByteArray arr)
-    i
-    v
-    (Right <$> PA.writeByteArray arr (fromIntegral i) v)
+checkedRead16 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead16 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 2 $
+    (mk16)
+      <$> PA.readByteArray @Word8 arr j
+      <*> PA.readByteArray @Word8 arr (j + 1)
+  where
+    j = fromIntegral i
 
-checkedIndexPrim ::
-  forall a. PA.Prim a => Text -> (PA.ByteArray, Word64) -> IO (Either Failure a)
-checkedIndexPrim name (arr, i) =
-  checkBoundsPrim
-    name
-    (PA.sizeofByteArray arr)
-    i
-    (undefined :: a)
-    (pure . Right $ PA.indexByteArray arr (fromIntegral i))
+checkedRead32 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead32 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 4 $
+    mk32
+      <$> PA.readByteArray @Word8 arr j
+      <*> PA.readByteArray @Word8 arr (j + 1)
+      <*> PA.readByteArray @Word8 arr (j + 2)
+      <*> PA.readByteArray @Word8 arr (j + 3)
+  where
+    j = fromIntegral i
+
+checkedRead64 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead64 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $
+    mk64
+      <$> PA.readByteArray @Word8 arr j
+      <*> PA.readByteArray @Word8 arr (j + 1)
+      <*> PA.readByteArray @Word8 arr (j + 2)
+      <*> PA.readByteArray @Word8 arr (j + 3)
+      <*> PA.readByteArray @Word8 arr (j + 4)
+      <*> PA.readByteArray @Word8 arr (j + 5)
+      <*> PA.readByteArray @Word8 arr (j + 6)
+      <*> PA.readByteArray @Word8 arr (j + 7)
+  where
+    j = fromIntegral i
+
+mk16 :: Word8 -> Word8 -> Either Failure Word64
+mk16 b0 b1 = Right $ (fromIntegral $ b0 `shiftL` 8) .|. (fromIntegral b1)
+
+mk32 :: Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
+mk32 b0 b1 b2 b3 =
+  Right $
+    (fromIntegral $ b0 `shiftL` 24)
+      .|. (fromIntegral $ b1 `shiftL` 16)
+      .|. (fromIntegral $ b2 `shiftL` 8)
+      .|. (fromIntegral b3)
+
+mk64 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
+mk64 b0 b1 b2 b3 b4 b5 b6 b7 =
+  Right $
+    (fromIntegral $ b0 `shiftL` 56)
+      .|. (fromIntegral $ b1 `shiftL` 48)
+      .|. (fromIntegral $ b2 `shiftL` 40)
+      .|. (fromIntegral $ b3 `shiftL` 32)
+      .|. (fromIntegral $ b4 `shiftL` 24)
+      .|. (fromIntegral $ b5 `shiftL` 16)
+      .|. (fromIntegral $ b6 `shiftL` 8)
+      .|. (fromIntegral b7)
+
+checkedWrite8 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite8 name (arr, i, v) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 1 $ do
+    PA.writeByteArray arr j (fromIntegral v :: Word8)
+    pure (Right ())
+  where
+    j = fromIntegral i
+
+checkedWrite16 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite16 name (arr, i, v) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 2 $ do
+    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 8 :: Word8)
+    PA.writeByteArray arr (j + 1) (fromIntegral v :: Word8)
+    pure (Right ())
+  where
+    j = fromIntegral i
+
+checkedWrite32 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite32 name (arr, i, v) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 4 $ do
+    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 24 :: Word8)
+    PA.writeByteArray arr (j + 1) (fromIntegral $ v `shiftR` 16 :: Word8)
+    PA.writeByteArray arr (j + 2) (fromIntegral $ v `shiftR` 8 :: Word8)
+    PA.writeByteArray arr (j + 3) (fromIntegral v :: Word8)
+    pure (Right ())
+  where
+    j = fromIntegral i
+
+checkedWrite64 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite64 name (arr, i, v) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $ do
+    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 56 :: Word8)
+    PA.writeByteArray arr (j + 1) (fromIntegral $ v `shiftR` 48 :: Word8)
+    PA.writeByteArray arr (j + 2) (fromIntegral $ v `shiftR` 40 :: Word8)
+    PA.writeByteArray arr (j + 3) (fromIntegral $ v `shiftR` 32 :: Word8)
+    PA.writeByteArray arr (j + 4) (fromIntegral $ v `shiftR` 24 :: Word8)
+    PA.writeByteArray arr (j + 5) (fromIntegral $ v `shiftR` 16 :: Word8)
+    PA.writeByteArray arr (j + 6) (fromIntegral $ v `shiftR` 8 :: Word8)
+    PA.writeByteArray arr (j + 7) (fromIntegral v :: Word8)
+    pure (Right ())
+  where
+    j = fromIntegral i
+
+-- index single byte
+checkedIndex8 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex8 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 1 . pure $
+    let j = fromIntegral i
+     in Right . fromIntegral $ PA.indexByteArray @Word8 arr j
+
+-- index 16 big-endian
+checkedIndex16 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex16 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 2 . pure $
+    let j = fromIntegral i
+     in mk16 (PA.indexByteArray arr j) (PA.indexByteArray arr (j + 1))
+
+-- index 32 big-endian
+checkedIndex32 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex32 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 4 . pure $
+    let j = fromIntegral i
+     in mk32
+          (PA.indexByteArray arr j)
+          (PA.indexByteArray arr (j + 1))
+          (PA.indexByteArray arr (j + 2))
+          (PA.indexByteArray arr (j + 3))
+
+-- index 64 big-endian
+checkedIndex64 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex64 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 8 . pure $
+    let j = fromIntegral i
+     in mk64
+          (PA.indexByteArray arr j)
+          (PA.indexByteArray arr (j + 1))
+          (PA.indexByteArray arr (j + 2))
+          (PA.indexByteArray arr (j + 3))
+          (PA.indexByteArray arr (j + 4))
+          (PA.indexByteArray arr (j + 5))
+          (PA.indexByteArray arr (j + 6))
+          (PA.indexByteArray arr (j + 7))
 
 checkBounds :: Text -> Int -> Word64 -> IO (Either Failure b) -> IO (Either Failure b)
 checkBounds name l w act
@@ -2641,24 +2752,30 @@ checkBounds name l w act
 
 -- Performs a bounds check on a byte array. Strategy is as follows:
 --
---   1. Turn the signed size-in-bytes of the array unsigned
---   2. Get the size of an element to be read
---   3. Divide 1 by 2 to get the size-in-elements
---   4. Check if the unsigned index is too large
+--   isz = signed array size-in-bytes
+--   off = unsigned byte offset into the array
+--   esz = unsigned number of bytes to be read
 --
--- This should avoid having to worry about overflows.
+--   1. Turn the signed size-in-bytes of the array unsigned
+--   2. Add the offset to the to-be-read number to get the maximum size needed
+--   3. Check that the actual array size is at least as big as the needed size
+--   4. Check that the offset is less than the size
+--
+-- Step 4 ensures that step 3 has not overflowed. Since an actual array size can
+-- only be 63 bits (since it is signed), the only way for 3 to overflow is if
+-- the offset is larger than a possible array size, since it would need to be
+-- 2^64-k, where k is the small (<=8) number of bytes to be read.
 checkBoundsPrim ::
-  PA.Prim a => Text -> Int -> Word64 -> a -> IO (Either Failure b) -> IO (Either Failure b)
-checkBoundsPrim name isz w a act
-  | w >= asz = pure $ Left err
+  Text -> Int -> Word64 -> Word64 -> IO (Either Failure b) -> IO (Either Failure b)
+checkBoundsPrim name isz off esz act
+  | w > bsz || off > bsz = pure $ Left err
   | otherwise = act
   where
     msg = name <> ": array index out of bounds"
-    err = Failure Ty.arrayFailureRef msg (natValue w)
+    err = Failure Ty.arrayFailureRef msg (natValue off)
 
     bsz = fromIntegral isz
-    sz = fromIntegral $ PA.sizeOf a
-    asz = bsz `div` sz
+    w = off + esz
 
 hostPreference :: Maybe Util.Text.Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

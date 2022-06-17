@@ -538,21 +538,21 @@ builtinsSrc =
       marrayt g a --> nat --> Type.effect () [g, DD.exceptionType ()] a,
     B "MutableByteArray.read8" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
-    B "MutableByteArray.read16" . forall1 "g" $ \g ->
+    B "MutableByteArray.read16be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
-    B "MutableByteArray.read32" . forall1 "g" $ \g ->
+    B "MutableByteArray.read32be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
-    B "MutableByteArray.read64" . forall1 "g" $ \g ->
+    B "MutableByteArray.read64be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
     B "MutableArray.write" . forall2 "g" "a" $ \g a ->
       marrayt g a --> nat --> a --> Type.effect () [g, DD.exceptionType ()] unit,
     B "MutableByteArray.write8" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
-    B "MutableByteArray.write16" . forall1 "g" $ \g ->
+    B "MutableByteArray.write16be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
-    B "MutableByteArray.write32" . forall1 "g" $ \g ->
+    B "MutableByteArray.write32be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
-    B "MutableByteArray.write64" . forall1 "g" $ \g ->
+    B "MutableByteArray.write64be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
     B "ImmutableArray.copyTo!" . forall2 "g" "a" $ \g a ->
       marrayt g a --> nat --> iarrayt a --> nat --> nat
@@ -564,11 +564,11 @@ builtinsSrc =
       iarrayt a --> nat --> Type.effect1 () (DD.exceptionType ()) a,
     B "ImmutableByteArray.read8" $
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
-    B "ImmutableByteArray.read16" $
+    B "ImmutableByteArray.read16be" $
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
-    B "ImmutableByteArray.read32" $
+    B "ImmutableByteArray.read32be" $
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
-    B "ImmutableByteArray.read64" $
+    B "ImmutableByteArray.read64be" $
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
     B "MutableArray.freeze!" . forall2 "g" "a" $ \g a ->
       marrayt g a --> Type.effect1 () g (iarrayt a),
