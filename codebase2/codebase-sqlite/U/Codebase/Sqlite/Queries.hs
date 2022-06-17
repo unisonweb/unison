@@ -758,6 +758,7 @@ expectTempEntity hash = do
   |]
 
 {- ORMOLU_ENABLE -}
+
 -- | look up all of the input entity's dependencies in the main table, to convert it to a sync entity
 tempToSyncEntity :: TempEntity -> Transaction SyncEntity
 tempToSyncEntity = \case
@@ -1364,27 +1365,27 @@ resetNameLookupTables = do
     [here|
       CREATE TABLE term_name_lookup (
         reversed_name TEXT NOT NULL, -- e.g. map.List.base
-        referent_builtin INTEGER NULL,
-        referent_object_id INTEGER NULL,
+        referent_builtin TEXT NULL,
+        referent_component_hash TEXT NULL,
         referent_component_index INTEGER NULL,
         referent_constructor_index INTEGER NULL,
         referent_constructor_type INTEGER NULL,
-        PRIMARY KEY (reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
+        PRIMARY KEY (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
       )
     |]
   -- Don't need this index at the moment, but will likely be useful later.
   -- execute_
   --   [here|
-  --     CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
+  --     CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
   --   |]
   execute_
     [here|
       CREATE TABLE type_name_lookup (
         reversed_name TEXT NOT NULL, -- e.g. map.List.base
-        reference_builtin INTEGER NULL,
-        reference_object_id INTEGER NULL,
+        reference_builtin TEXT NULL,
+        reference_component_hash INTEGER NULL,
         reference_component_index INTEGER NULL,
-        PRIMARY KEY (reversed_name, reference_builtin, reference_object_id, reference_component_index)
+        PRIMARY KEY (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
       );
     |]
 
@@ -1402,7 +1403,7 @@ insertTermNames names = do
     asRow (a, b) = a :. Only b
     sql =
       [here|
-      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type)
+      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
@@ -1414,7 +1415,7 @@ insertTypeNames names =
   where
     sql =
       [here|
-      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_object_id, reference_component_index)
+      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
         VALUES (?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
@@ -1427,7 +1428,7 @@ rootTermNames = do
     unRow (a :. Only b) = (a, b)
     sql =
       [here|
-        SELECT reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
           ORDER BY reversed_name ASC
         |]
 
@@ -1438,7 +1439,7 @@ rootTypeNames = do
   where
     sql =
       [here|
-        SELECT reversed_name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
         ORDER BY reversed_name ASC
         |]
 
