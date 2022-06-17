@@ -1916,19 +1916,22 @@ universalEq frn = eqc
         && eql (==) us1 us2
         && eql eqc bs1 bs2
     eqc (Foreign fl) (Foreign fr)
-      | Just sl <- maybeUnwrapForeign Rf.listRef fl,
-        Just sr <- maybeUnwrapForeign Rf.listRef fr =
-          length sl == length sr && and (Sq.zipWith eqc sl sr)
+      -- TODO: if these guards are swappepd, transcripts fail. This doesn't make
+      -- sense, and seems likely to be unsafeCoerce related, but I'm not sure
+      -- exactly what's going on at the moment.
       | Just al <- maybeUnwrapForeign Rf.iarrayRef fl,
         Just ar <- maybeUnwrapForeign Rf.iarrayRef fr =
           arrayEq eqc al ar
+      | Just sl <- maybeUnwrapForeign Rf.listRef fl,
+        Just sr <- maybeUnwrapForeign Rf.listRef fr =
+          length sl == length sr && and (Sq.zipWith eqc sl sr)
       | otherwise = frn fl fr
     eqc c d = closureNum c == closureNum d
 
 arrayEq :: (Closure -> Closure -> Bool) -> PA.Array Closure -> PA.Array Closure -> Bool
 arrayEq eqc l r
   | PA.sizeofArray l /= PA.sizeofArray r = False
-  | otherwise = go (PA.sizeofArray l)
+  | otherwise = go (PA.sizeofArray l - 1)
   where
     go i
       | i < 0 = True
