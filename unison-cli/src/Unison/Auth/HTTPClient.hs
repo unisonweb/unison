@@ -32,12 +32,21 @@ newAuthenticatedHTTPClient responder tokenProvider ucmVersion = liftIO $ do
 -- If a host isn't associated with any credentials auth is omitted.
 authMiddleware :: (Output v -> IO ()) -> TokenProvider -> (Request -> IO Request)
 authMiddleware responder tokenProvider req = do
-  case codeserverIdFromURI $ (HTTP.getUri req) of
-    -- If we can't identify an appropriate codeserver we pass it through without any auth.
-    Left _ -> pure req
-    Right codeserverHost -> do
-      tokenProvider codeserverHost >>= \case
-        Right token -> pure $ HTTP.applyBearerAuth (Text.encodeUtf8 token) req
-        Left err -> do
-          responder (Output.CredentialFailureMsg err)
-          pure req
+  -- The http manager "may run this function multiple times" when preparing a request.
+  -- We may wish to look into a better way to attach auth to our requests in middleware, but
+  -- this is a simple fix that works for now.
+  -- https://github.com/snoyberg/http-client/issues/350
+  case Prelude.lookup ("Authorization") (HTTP.requestHeaders req) of
+    Just _ -> pure req
+    Nothing -> do
+      case codeserverIdFromURI $ (HTTP.getUri req) of
+        -- If we can't identify an appropriate codeserver we pass it through without any auth.
+        Left _ -> pure req
+        Right codeserverHost -> do
+          tokenProvider codeserverHost >>= \case
+            Right token -> do
+              let newReq = HTTP.applyBearerAuth (Text.encodeUtf8 token) req
+              pure newReq
+            Left err -> do
+              responder (Output.CredentialFailureMsg err)
+              pure req
