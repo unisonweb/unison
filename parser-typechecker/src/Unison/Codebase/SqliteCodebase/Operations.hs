@@ -7,14 +7,18 @@
 -- are unified with non-sqlite operations in the Codebase interface, like 'appendReflog'.
 module Unison.Codebase.SqliteCodebase.Operations where
 
+import Control.Lens (ifoldMap)
 import Data.Bifunctor (Bifunctor (bimap), second)
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NEList
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
@@ -28,7 +32,7 @@ import qualified U.Util.Hash as H2
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
+import qualified Unison.Codebase.Branch.Names as V1Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
@@ -593,24 +597,76 @@ namesAtPath path = do
         Nothing -> (mempty, [(n, ref)])
         Just stripped -> ([(Name.makeRelative stripped, ref)], mempty)
 
-saveRootNamesIndex :: Names -> Transaction ()
-saveRootNamesIndex Names {Names.terms, Names.types} = do
-  let termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))]
-      termNames = Rel.toList terms <&> \(name, ref) -> S.NamedRef {reversedSegments = nameSegments name, ref = splitReferent ref}
-  let typeNames :: [(S.NamedRef C.Reference.Reference)]
-      typeNames =
-        Rel.toList types
-          <&> ( \(name, ref) ->
-                  S.NamedRef {reversedSegments = nameSegments name, ref = Cv.reference1to2 ref}
-              )
-  Ops.rebuildNameIndex termNames typeNames
+-- | Update the root namespace names index which is used by the share server for serving api
+-- requests.
+--
+-- This version should be used if you've already got the root Branch pre-loaded, otherwise
+-- it's faster to use 'updateNameLookupIndexFromV2Branch'
+updateNameLookupIndexFromV1Branch :: Branch Transaction -> Sqlite.Transaction ()
+updateNameLookupIndexFromV1Branch root = do
+  saveRootNamesIndexV1 (V1Branch.toNames . Branch.head $ root)
   where
-    nameSegments :: Name -> NonEmpty Text
-    nameSegments = coerce @(NonEmpty NameSegment) @(NonEmpty Text) . Name.reverseSegments
-    splitReferent :: Referent.Referent -> (C.Referent.Referent, Maybe C.Referent.ConstructorType)
-    splitReferent referent = case referent of
-      Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
-      Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))
+    saveRootNamesIndexV1 :: Names -> Transaction ()
+    saveRootNamesIndexV1 Names {Names.terms, Names.types} = do
+      let termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))]
+          termNames = Rel.toList terms <&> \(name, ref) -> S.NamedRef {reversedSegments = nameSegments name, ref = splitReferent ref}
+      let typeNames :: [(S.NamedRef C.Reference.Reference)]
+          typeNames =
+            Rel.toList types
+              <&> ( \(name, ref) ->
+                      S.NamedRef {reversedSegments = nameSegments name, ref = Cv.reference1to2 ref}
+                  )
+      Ops.rebuildNameIndex termNames typeNames
+      where
+        nameSegments :: Name -> NonEmpty Text
+        nameSegments = coerce @(NonEmpty NameSegment) @(NonEmpty Text) . Name.reverseSegments
+        splitReferent :: Referent.Referent -> (C.Referent.Referent, Maybe C.Referent.ConstructorType)
+        splitReferent referent = case referent of
+          Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
+          Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))
+
+-- | Update the root namespace names index which is used by the share server for serving api
+-- requests.
+--
+-- This version should be used if you don't already have the root Branch pre-loaded,
+-- If you do, use 'updateNameLookupIndexFromV2Branch' instead.
+updateNameLookupIndexFromV2Root :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
+updateNameLookupIndexFromV2Root getDeclType = do
+  rootHash <- Ops.expectRootCausalHash
+  causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
+  (termNameMap, typeNameMap) <- nameMapsFromV2Branch causalBranch
+  let expandedTermNames = Map.toList termNameMap >>= (\(name, refs) -> (name,) <$> Set.toList refs)
+  termNameList <- do
+    for expandedTermNames \(name, ref) -> do
+      refWithCT <- addReferentCT ref
+      pure S.NamedRef {S.reversedSegments = coerce name, S.ref = refWithCT}
+  let typeNameList = do
+        (name, refs) <- Map.toList typeNameMap
+        ref <- Set.toList refs
+        pure $ S.NamedRef {S.reversedSegments = coerce name, S.ref = ref}
+  Ops.rebuildNameIndex termNameList typeNameList
+  where
+    addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
+    addReferentCT referent = case referent of
+      C.Referent.Ref {} -> pure (referent, Nothing)
+      C.Referent.Con ref _conId -> do
+        ct <- getDeclType ref
+        pure (referent, Just $ Cv.constructorType1to2 ct)
+
+    -- Traverse a v2 branch
+    -- Collects two maps, one with all term names and one with all type names.
+    -- Note that unlike the `Name` type in `unison-core1`, this list of name segments is in
+    -- forward order, e.g. `["base", "List", "map"]`
+    nameMapsFromV2Branch :: Monad m => V2Branch.CausalBranch m -> m (Map (NonEmpty V2Branch.NameSegment) (Set C.Referent.Referent), Map (NonEmpty V2Branch.NameSegment) (Set C.Reference.Reference))
+    nameMapsFromV2Branch cb = do
+      b <- V2Causal.value cb
+      let (shallowTermNames, shallowTypeNames) = (Map.keysSet <$> V2Branch.terms b, Map.keysSet <$> V2Branch.types b)
+      allChildNames <- for (V2Branch.children b) nameMapsFromV2Branch
+      let (prefixedChildTerms, prefixedChildTypes) =
+            flip ifoldMap allChildNames \nameSegment (childTermNames, childTypeNames) ->
+              let addSegment = Map.mapKeys (nameSegment NEList.<|)
+               in (addSegment childTermNames, addSegment childTypeNames)
+      pure (Map.mapKeys (NEList.:| []) shallowTermNames <> prefixedChildTerms, Map.mapKeys (NEList.:| []) shallowTypeNames <> prefixedChildTypes)
 
 mkGetDeclType :: MonadIO m => m (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType)
 mkGetDeclType = do
@@ -618,10 +674,3 @@ mkGetDeclType = do
   pure $ \ref -> do
     conn <- Sqlite.unsafeGetConnection
     Sqlite.unsafeIO $ Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (getDeclType ref) conn) ref
-
--- | Update the root namespace names index which is used by the share server for serving api
--- requests.
-updateNameLookupIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
-updateNameLookupIndex getDeclType = do
-  root <- uncachedLoadRootBranch getDeclType
-  saveRootNamesIndex (Branch.toNames . Branch.head $ root)
