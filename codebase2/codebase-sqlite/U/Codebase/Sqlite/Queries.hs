@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- | Some naming conventions used in this module:
 --
 -- * @32@: the base32 representation of a hash
@@ -1731,7 +1729,7 @@ saveTermComponent ::
   -- | term component
   [(C.Term Symbol, C.Term.Type Symbol)] ->
   Transaction ObjectId
-saveTermComponent hh@HashHandle {..} maybeEncodedTerms h terms = do
+saveTermComponent hh@HashHandle {toReference, toReferenceMentions} maybeEncodedTerms h terms = do
   when debug . traceM $ "Operations.saveTermComponent " ++ show h
   sTermElements <- traverse (uncurry c2sTerm) terms
   hashId <- saveHashHash h
@@ -1790,7 +1788,7 @@ saveDeclComponent ::
   Hash ->
   [C.Decl Symbol] ->
   Transaction ObjectId
-saveDeclComponent hh@HashHandle {..} maybeEncodedDecls h decls = do
+saveDeclComponent hh@HashHandle {toReferenceDecl, toReferenceDeclMentions} maybeEncodedDecls h decls = do
   when debug . traceM $ "Operations.saveDeclComponent " ++ show h
   sDeclElements <- traverse (c2sDecl saveText expectObjectIdForPrimaryHash) decls
   hashId <- saveHashHash h
