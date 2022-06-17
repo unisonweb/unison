@@ -990,26 +990,26 @@ d = c + 10
                                                        ->{g} a
     345. builtin.io2.TVar.read                         : TVar a
                                                        ->{STM} a
-    346. builtin.ImmutableByteArray.read16             : ImmutableByteArray
+    346. builtin.ImmutableByteArray.read16be           : ImmutableByteArray
                                                        -> Nat
                                                        ->{Exception} Nat
-    347. builtin.MutableByteArray.read16               : MutableByteArray
+    347. builtin.MutableByteArray.read16be             : MutableByteArray
                                                          g
                                                        -> Nat
                                                        ->{g,
                                                        Exception} Nat
-    348. builtin.ImmutableByteArray.read32             : ImmutableByteArray
+    348. builtin.ImmutableByteArray.read32be           : ImmutableByteArray
                                                        -> Nat
                                                        ->{Exception} Nat
-    349. builtin.MutableByteArray.read32               : MutableByteArray
+    349. builtin.MutableByteArray.read32be             : MutableByteArray
                                                          g
                                                        -> Nat
                                                        ->{g,
                                                        Exception} Nat
-    350. builtin.ImmutableByteArray.read64             : ImmutableByteArray
+    350. builtin.ImmutableByteArray.read64be           : ImmutableByteArray
                                                        -> Nat
                                                        ->{Exception} Nat
-    351. builtin.MutableByteArray.read64               : MutableByteArray
+    351. builtin.MutableByteArray.read64be             : MutableByteArray
                                                          g
                                                        -> Nat
                                                        ->{g,
@@ -1212,19 +1212,19 @@ d = c + 10
     429. builtin.io2.TVar.write                        : TVar a
                                                        -> a
                                                        ->{STM} ()
-    430. builtin.MutableByteArray.write16              : MutableByteArray
+    430. builtin.MutableByteArray.write16be            : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    431. builtin.MutableByteArray.write32              : MutableByteArray
+    431. builtin.MutableByteArray.write32be            : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    432. builtin.MutableByteArray.write64              : MutableByteArray
+    432. builtin.MutableByteArray.write64be            : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat

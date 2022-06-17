@@ -157,15 +157,15 @@ Let's try it!
                                     -> Nat
                                     -> Nat
                                     ->{g, Exception} ()
-  125. ImmutableByteArray.read16 : ImmutableByteArray
-                                   -> Nat
-                                   ->{Exception} Nat
-  126. ImmutableByteArray.read32 : ImmutableByteArray
-                                   -> Nat
-                                   ->{Exception} Nat
-  127. ImmutableByteArray.read64 : ImmutableByteArray
-                                   -> Nat
-                                   ->{Exception} Nat
+  125. ImmutableByteArray.read16be : ImmutableByteArray
+                                     -> Nat
+                                     ->{Exception} Nat
+  126. ImmutableByteArray.read32be : ImmutableByteArray
+                                     -> Nat
+                                     ->{Exception} Nat
+  127. ImmutableByteArray.read64be : ImmutableByteArray
+                                     -> Nat
+                                     ->{Exception} Nat
   128. ImmutableByteArray.read8 : ImmutableByteArray
                                   -> Nat
                                   ->{Exception} Nat
@@ -470,30 +470,30 @@ Let's try it!
                                  ->{g} ImmutableByteArray
   331. MutableByteArray.freeze! : MutableByteArray g
                                   ->{g} ImmutableByteArray
-  332. MutableByteArray.read16 : MutableByteArray g
-                                 -> Nat
-                                 ->{g, Exception} Nat
-  333. MutableByteArray.read32 : MutableByteArray g
-                                 -> Nat
-                                 ->{g, Exception} Nat
-  334. MutableByteArray.read64 : MutableByteArray g
-                                 -> Nat
-                                 ->{g, Exception} Nat
+  332. MutableByteArray.read16be : MutableByteArray g
+                                   -> Nat
+                                   ->{g, Exception} Nat
+  333. MutableByteArray.read32be : MutableByteArray g
+                                   -> Nat
+                                   ->{g, Exception} Nat
+  334. MutableByteArray.read64be : MutableByteArray g
+                                   -> Nat
+                                   ->{g, Exception} Nat
   335. MutableByteArray.read8 : MutableByteArray g
                                 -> Nat
                                 ->{g, Exception} Nat
-  336. MutableByteArray.write16 : MutableByteArray g
-                                  -> Nat
-                                  -> Nat
-                                  ->{g, Exception} ()
-  337. MutableByteArray.write32 : MutableByteArray g
-                                  -> Nat
-                                  -> Nat
-                                  ->{g, Exception} ()
-  338. MutableByteArray.write64 : MutableByteArray g
-                                  -> Nat
-                                  -> Nat
-                                  ->{g, Exception} ()
+  336. MutableByteArray.write16be : MutableByteArray g
+                                    -> Nat
+                                    -> Nat
+                                    ->{g, Exception} ()
+  337. MutableByteArray.write32be : MutableByteArray g
+                                    -> Nat
+                                    -> Nat
+                                    ->{g, Exception} ()
+  338. MutableByteArray.write64be : MutableByteArray g
+                                    -> Nat
+                                    -> Nat
+                                    ->{g, Exception} ()
   339. MutableByteArray.write8 : MutableByteArray g
                                  -> Nat
                                  -> Nat
