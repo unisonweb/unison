@@ -38,8 +38,8 @@ type TypeLink = TypeRef
 --   * The term's type, also with internal references to local id.
 type LocallyIndexedComponent = LocallyIndexedComponent' TextId ObjectId
 
-newtype LocallyIndexedComponent' t d
-  = LocallyIndexedComponent (Vector (LocalIds' t d, Term, Type))
+newtype LocallyIndexedComponent' t d = LocallyIndexedComponent
+  {unLocallyIndexedComponent :: Vector (LocalIds' t d, Term, Type)}
   deriving (Show)
 
 newtype SyncLocallyIndexedComponent' t d

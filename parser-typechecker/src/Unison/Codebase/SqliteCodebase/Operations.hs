@@ -27,6 +27,9 @@ import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.V2.Decl (saveDeclComponent)
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
+import U.Codebase.Sqlite.V2.Term (saveTermComponent)
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
 import qualified Unison.Builtin as Builtins
@@ -271,23 +274,16 @@ tryFlushTermBuffer termBuffer =
   let loop h =
         tryFlushBuffer
           termBuffer
-          ( \h2 component -> do
-              oId <-
-                Ops.saveTermComponent h2 $
-                  fmap (bimap (Cv.term1to2 h) Cv.ttype1to2) component
-              addTermComponentTypeIndex oId (fmap snd component)
+          ( \h2 component ->
+              void $
+                saveTermComponent
+                  Nothing
+                  h2
+                  (fmap (bimap (Cv.term1to2 h) Cv.ttype1to2) component)
           )
           loop
           h
    in loop
-
-addTermComponentTypeIndex :: ObjectId -> [Type Symbol Ann] -> Transaction ()
-addTermComponentTypeIndex oId types = for_ (types `zip` [0 ..]) \(tp, i) -> do
-  let self = C.Referent.RefId (C.Reference.Id oId i)
-      typeForIndexing = Hashing.typeToReference tp
-      typeMentionsForIndexing = Hashing.typeToReferenceMentions tp
-  Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
-  Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
 
 addDeclComponentTypeIndex :: ObjectId -> [[Type Symbol Ann]] -> Transaction ()
 addDeclComponentTypeIndex oId ctorss =
@@ -333,10 +329,12 @@ tryFlushDeclBuffer termBuffer declBuffer =
   let loop h =
         tryFlushBuffer
           declBuffer
-          ( \h2 component -> do
-              oId <- Ops.saveDeclComponent h2 $ fmap (Cv.decl1to2 h) component
-              addDeclComponentTypeIndex oId $
-                fmap (map snd . Decl.constructors . Decl.asDataDecl) component
+          ( \h2 component ->
+              void $
+                saveDeclComponent
+                  Nothing
+                  h2
+                  (fmap (Cv.decl1to2 h) component)
           )
           (\h -> tryFlushTermBuffer termBuffer h >> loop h)
           h
@@ -386,7 +384,7 @@ putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Transaction)) -> Branch
 putRootBranch rootBranchCache branch1 = do
   -- todo: check to see if root namespace hash has been externally modified
   -- and do something (merge?) it if necessary. But for now, we just overwrite it.
-  void (Ops.saveRootBranch (Cv.causalbranch1to2 branch1))
+  void (Ops.saveRootBranch v2HashHandle (Cv.causalbranch1to2 branch1))
   Sqlite.unsafeIO (atomically $ modifyTVar' rootBranchCache (fmap . second $ const branch1))
 
 -- if this blows up on cromulent hashes, then switch from `hashToHashId`
@@ -405,7 +403,7 @@ getBranchForHash doGetDeclType h = do
 
 putBranch :: Branch Transaction -> Transaction ()
 putBranch =
-  void . Ops.saveBranch . Cv.causalbranch1to2
+  void . Ops.saveBranch v2HashHandle . Cv.causalbranch1to2
 
 isCausalHash :: Branch.CausalHash -> Transaction Bool
 isCausalHash (Causal.CausalHash h) =
@@ -422,7 +420,7 @@ getPatch h =
 
 putPatch :: Branch.EditHash -> Patch -> Transaction ()
 putPatch h p =
-  void $ Ops.savePatch (Cv.patchHash1to2 h) (Cv.patch1to2 p)
+  void $ Ops.savePatch v2HashHandle (Cv.patchHash1to2 h) (Cv.patch1to2 p)
 
 patchExists :: Branch.EditHash -> Transaction Bool
 patchExists h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h)

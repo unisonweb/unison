@@ -47,6 +47,7 @@ import Servant.Client (BaseUrl)
 import qualified Servant.Client as Servant
 import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import U.Util.Hash32 (Hash32)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Auth.HTTPClient as Auth
@@ -553,7 +554,7 @@ upsertEntitySomewhere hash entity =
             )
       case NEMap.nonEmptyMap missingDependencies1 of
         Nothing -> do
-          _id <- Q.saveTempEntityInMain hash (entityToTempEntity Share.hashJWTHash entity)
+          _id <- Q.saveTempEntityInMain v2HashHandle hash (entityToTempEntity Share.hashJWTHash entity)
           pure Q.EntityInMainStorage
         Just missingDependencies -> do
           Q.insertTempEntity

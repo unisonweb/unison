@@ -12,6 +12,7 @@ module U.Codebase.Sqlite.Decode
     decodeSyncNamespaceFormat,
     decodeSyncPatchFormat,
     decodeSyncTermFormat,
+    decodeSyncTermAndType,
     decodeTermElementDiscardingTerm,
     decodeTermElementDiscardingType,
     decodeTermElementWithType,
@@ -26,9 +27,14 @@ module U.Codebase.Sqlite.Decode
 
     -- * @watch_result.result@
     decodeWatchResultFormat,
+
+    -- * unsyncs
+    unsyncTermComponent,
+    unsyncDeclComponent,
   )
 where
 
+import Control.Exception (throwIO)
 import Data.Bytes.Get (runGetS)
 import qualified Data.Bytes.Get as Get
 import qualified U.Codebase.Reference as C.Reference
@@ -53,7 +59,7 @@ data DecodeError = DecodeError
     err :: String -- the error message
   }
   deriving stock (Show)
-  deriving anyclass (SqliteExceptionReason)
+  deriving anyclass (SqliteExceptionReason, Exception)
 
 getFromBytesOr :: Text -> Get a -> ByteString -> Either DecodeError a
 getFromBytesOr decoder get bs = case runGetS get bs of
@@ -98,6 +104,18 @@ decodeSyncPatchFormat =
 decodeSyncTermFormat :: ByteString -> Either DecodeError TermFormat.SyncTermFormat
 decodeSyncTermFormat =
   getFromBytesOr "decomposeTermFormat" Serialization.decomposeTermFormat
+
+-- | N.B. The bytestring here is not the entire object.bytes column --
+-- it's just the serialized term and type from 'TermFormat.SyncTermFormat'.
+decodeSyncTermAndType :: ByteString -> Either DecodeError (TermFormat.Term, TermFormat.Type)
+decodeSyncTermAndType =
+  getFromBytesOr "getTermAndType" Serialization.getTermAndType
+
+-- | N.B. The bytestring here is not the entire object.bytes column --
+-- it's just the serialized decl from 'DeclFormat.SyncDeclFormat'.
+decodeDecl :: ByteString -> Either DecodeError (DeclFormat.Decl Symbol)
+decodeDecl =
+  getFromBytesOr "getDeclElement" Serialization.getDeclElement
 
 decodeTermFormat :: ByteString -> Either DecodeError TermFormat.TermFormat
 decodeTermFormat =
@@ -147,3 +165,24 @@ decodeTempTermFormat =
 decodeWatchResultFormat :: ByteString -> Either DecodeError TermFormat.WatchResultFormat
 decodeWatchResultFormat =
   getFromBytesOr "getWatchResultFormat" Serialization.getWatchResultFormat
+
+------------------------------------------------------------------------------------------------------------------------
+-- unsyncs
+
+unsyncTermComponent :: TermFormat.SyncLocallyIndexedComponent' t d -> IO (TermFormat.LocallyIndexedComponent' t d)
+unsyncTermComponent (TermFormat.SyncLocallyIndexedComponent terms) = do
+  let phi (localIds, bs) = do
+        (a, b) <- decodeSyncTermAndType bs
+        pure (localIds, a, b)
+  case traverse phi terms of
+    Left err -> throwIO err
+    Right x -> pure (TermFormat.LocallyIndexedComponent x)
+
+unsyncDeclComponent :: DeclFormat.SyncLocallyIndexedComponent' t d -> IO (DeclFormat.LocallyIndexedComponent' t d)
+unsyncDeclComponent (DeclFormat.SyncLocallyIndexedComponent decls) = do
+  let phi (localIds, bs) = do
+        decl <- decodeDecl bs
+        pure (localIds, decl)
+  case traverse phi decls of
+    Left err -> throwIO err
+    Right x -> pure (DeclFormat.LocallyIndexedComponent x)

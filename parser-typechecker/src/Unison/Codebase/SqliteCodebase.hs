@@ -32,6 +32,7 @@ import U.Codebase.HashTags (CausalHash (CausalHash))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import qualified U.Codebase.Sync as Sync
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
@@ -138,7 +139,7 @@ createCodebaseOrError debugName path action = do
         Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL
         Sqlite.runTransaction conn do
           Q.createSchema
-          void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty
+          void . Ops.saveRootBranch v2HashHandle $ Cv.causalbranch1to2 Branch.empty
 
       sqliteCodebase debugName path Local action >>= \case
         Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
@@ -526,7 +527,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
   -- or if it exists in the source codebase, then we can sync22 it
   -- if it doesn't exist in the dest or source branch,
   -- then just use putBranch to the dest
-  sync <- liftIO (Sync22.sync22 (Sync22.hoistEnv lift syncEnv))
+  sync <- liftIO (Sync22.sync22 v2HashHandle (Sync22.hoistEnv lift syncEnv))
   let doSync :: [Sync22.Entity] -> m ()
       doSync =
         throwExceptT

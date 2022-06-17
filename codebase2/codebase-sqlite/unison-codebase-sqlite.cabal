@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.7.
 --
 -- see: https://github.com/sol/hpack
 
@@ -27,6 +27,7 @@ library
       U.Codebase.Sqlite.Decl.Format
       U.Codebase.Sqlite.Decode
       U.Codebase.Sqlite.Entity
+      U.Codebase.Sqlite.HashHandle
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
       U.Codebase.Sqlite.NamedRef
