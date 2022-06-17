@@ -7,7 +7,7 @@
 -- are unified with non-sqlite operations in the Codebase interface, like 'appendReflog'.
 module Unison.Codebase.SqliteCodebase.Operations where
 
-import Control.Lens (ifoldMap)
+import Control.Lens (ifor)
 import Data.Bifunctor (Bifunctor (bimap), second)
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
@@ -634,7 +634,7 @@ updateNameLookupIndexFromV2Root :: (C.Reference.Reference -> Sqlite.Transaction 
 updateNameLookupIndexFromV2Root getDeclType = do
   rootHash <- Ops.expectRootCausalHash
   causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
-  (termNameMap, typeNameMap) <- nameMapsFromV2Branch causalBranch
+  (termNameMap, typeNameMap) <- nameMapsFromV2Branch [] causalBranch
   let expandedTermNames = Map.toList termNameMap >>= (\(name, refs) -> (name,) <$> Set.toList refs)
   termNameList <- do
     for expandedTermNames \(name, ref) -> do
@@ -655,18 +655,15 @@ updateNameLookupIndexFromV2Root getDeclType = do
 
     -- Traverse a v2 branch
     -- Collects two maps, one with all term names and one with all type names.
-    -- Note that unlike the `Name` type in `unison-core1`, this list of name segments is in
-    -- forward order, e.g. `["base", "List", "map"]`
-    nameMapsFromV2Branch :: Monad m => V2Branch.CausalBranch m -> m (Map (NonEmpty V2Branch.NameSegment) (Set C.Referent.Referent), Map (NonEmpty V2Branch.NameSegment) (Set C.Reference.Reference))
-    nameMapsFromV2Branch cb = do
+    -- Note that unlike the `Name` type in `unison-core1`, this list of name segments is
+    -- in reverse order, e.g. `["map", "List", "base"]`
+    nameMapsFromV2Branch :: Monad m => [V2Branch.NameSegment] -> V2Branch.CausalBranch m -> m (Map (NonEmpty V2Branch.NameSegment) (Set C.Referent.Referent), Map (NonEmpty V2Branch.NameSegment) (Set C.Reference.Reference))
+    nameMapsFromV2Branch reversedNamePrefix cb = do
       b <- V2Causal.value cb
       let (shallowTermNames, shallowTypeNames) = (Map.keysSet <$> V2Branch.terms b, Map.keysSet <$> V2Branch.types b)
-      allChildNames <- for (V2Branch.children b) nameMapsFromV2Branch
-      let (prefixedChildTerms, prefixedChildTypes) =
-            flip ifoldMap allChildNames \nameSegment (childTermNames, childTypeNames) ->
-              let addSegment = Map.mapKeys (nameSegment NEList.<|)
-               in (addSegment childTermNames, addSegment childTypeNames)
-      pure (Map.mapKeys (NEList.:| []) shallowTermNames <> prefixedChildTerms, Map.mapKeys (NEList.:| []) shallowTypeNames <> prefixedChildTypes)
+      (prefixedChildTerms, prefixedChildTypes) <-
+        fold <$> (ifor (V2Branch.children b) $ \nameSegment cb -> (nameMapsFromV2Branch (nameSegment : reversedNamePrefix) cb))
+      pure (Map.mapKeys (NEList.:| reversedNamePrefix) shallowTermNames <> prefixedChildTerms, Map.mapKeys (NEList.:| reversedNamePrefix) shallowTypeNames <> prefixedChildTypes)
 
 mkGetDeclType :: MonadIO m => m (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType)
 mkGetDeclType = do
