@@ -22,7 +22,7 @@ import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Input (Input)
 import qualified Unison.Codebase.Editor.Input as Input
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemotePath, WriteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemotePath)
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.Path as Path
@@ -998,7 +998,7 @@ pullImpl name verbosity pullMode addendum = do
         name
         []
         I.Visible
-        [(Optional, gitUrlArg), (Optional, namespaceArg)]
+        [(Optional, remoteNamespaceArg), (Optional, namespaceArg)]
         ( P.lines
             [ P.wrap
                 "The"
@@ -1017,8 +1017,7 @@ pullImpl name verbosity pullMode addendum = do
                   ),
                   ( makeExample' self,
                     "merges the remote namespace configured in `.unisonConfig`"
-                      <> "with the key `GitUrl.ns` where `ns` is the current namespace,"
-                      <> "into the current namespace"
+                      <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
                   )
                 ],
               "",
@@ -1029,10 +1028,10 @@ pullImpl name verbosity pullMode addendum = do
             [] ->
               Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url] -> do
-              ns <- parseUri "url" url
+              ns <- parseReadRemoteNamespace "remote-namespace" url
               Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url, path] -> do
-              ns <- parseUri "url" url
+              ns <- parseReadRemoteNamespace "remote-namespace" url
               p <- first fromString $ Path.parsePath' path
               Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit pullMode verbosity
             _ -> Left (I.help self)
@@ -1044,7 +1043,7 @@ pullExhaustive =
     "debug.pull-exhaustive"
     []
     I.Visible
-    [(Required, gitUrlArg), (Optional, namespaceArg)]
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
             "The " <> makeExample' pullExhaustive <> "command can be used in place of"
@@ -1058,10 +1057,10 @@ pullExhaustive =
         [] ->
           Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url] -> do
-          ns <- parseUri "url" url
+          ns <- parseReadRemoteNamespace "remote-namespace" url
           Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url, path] -> do
-          ns <- parseUri "url" url
+          ns <- parseReadRemoteNamespace "remote-namespace" url
           p <- first fromString $ Path.parsePath' path
           Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Default
         _ -> Left (I.help pull)
@@ -1073,7 +1072,7 @@ push =
     "push"
     []
     I.Visible
-    [(Required, gitUrlArg), (Optional, namespaceArg)]
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap
             "The `push` command merges a local namespace into a remote namespace.",
@@ -1087,9 +1086,8 @@ push =
                 "publishes the current namespace into the remote namespace `remote`"
               ),
               ( "`push`",
-                "publishes the current namespace"
-                  <> "into the remote namespace configured in `.unisonConfig`"
-                  <> "with the key `GitUrl.ns` where `ns` is the current namespace"
+                "publishes the current namespace into the remote namespace configured in your `.unisonConfig`"
+                  <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace."
               )
             ],
           "",
@@ -1100,12 +1098,12 @@ push =
         [] ->
           Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
     )
 
 pushCreate :: InputPattern
@@ -1114,7 +1112,7 @@ pushCreate =
     "push.create"
     []
     I.Visible
-    [(Required, gitUrlArg), (Optional, namespaceArg)]
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap
             "The `push.create` command pushes a local namespace to an empty remote namespace.",
@@ -1128,9 +1126,9 @@ pushCreate =
                 "publishes the current namespace into the empty remote namespace `remote`"
               ),
               ( "`push`",
-                "publishes the current namespace"
-                  <> "into the empty remote namespace configured in `.unisonConfig`"
-                  <> "with the key `GitUrl.ns` where `ns` is the current namespace"
+                "publishes the current namespace into the remote namespace configured in your `.unisonConfig`"
+                  <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
+                  <> "then publishes the current namespace to that location."
               )
             ],
           "",
@@ -1141,12 +1139,12 @@ pushCreate =
         [] ->
           Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireEmpty SyncMode.ShortCircuit
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
     )
 
 pushExhaustive :: InputPattern
@@ -1155,7 +1153,7 @@ pushExhaustive =
     "debug.push-exhaustive"
     []
     I.Visible
-    [(Required, gitUrlArg), (Optional, namespaceArg)]
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
             "The " <> makeExample' pushExhaustive <> "command can be used in place of"
@@ -1169,12 +1167,12 @@ pushExhaustive =
         [] ->
           Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.Complete
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.Complete
+          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireNonEmpty SyncMode.Complete
     )
 
 createPullRequest :: InputPattern
@@ -1183,7 +1181,7 @@ createPullRequest =
     "pull-request.create"
     ["pr.create"]
     I.Visible
-    [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, namespaceArg)]
+    [(Required, remoteNamespaceArg), (Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.group $
         P.lines
           [ P.wrap $
@@ -1201,8 +1199,8 @@ createPullRequest =
     )
     ( \case
         [baseUrl, headUrl] -> do
-          baseRepo <- parseUri "baseRepo" baseUrl
-          headRepo <- parseUri "headRepo" headUrl
+          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
+          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
           pure $ Input.CreatePullRequestI baseRepo headRepo
         _ -> Left (I.help createPullRequest)
     )
@@ -1213,7 +1211,7 @@ loadPullRequest =
     "pull-request.load"
     ["pr.load"]
     I.Visible
-    [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, namespaceArg)]
+    [(Required, remoteNamespaceArg), (Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
             makeExample loadPullRequest ["base", "head"]
@@ -1228,19 +1226,19 @@ loadPullRequest =
     )
     ( \case
         [baseUrl, headUrl] -> do
-          baseRepo <- parseUri "baseRepo" baseUrl
-          headRepo <- parseUri "topicRepo" headUrl
+          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
+          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
           pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
         [baseUrl, headUrl, dest] -> do
-          baseRepo <- parseUri "baseRepo" baseUrl
-          headRepo <- parseUri "topicRepo" headUrl
+          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
+          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
           destPath <- first fromString $ Path.parsePath' dest
           pure $ Input.LoadPullRequestI baseRepo headRepo destPath
         _ -> Left (I.help loadPullRequest)
     )
 
-parseUri :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
-parseUri label input =
+parseReadRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
+parseReadRemoteNamespace label input =
   let printError err = P.lines [P.string "I couldn't parse the repository address given above.", prettyPrintParseError input err]
    in first printError (P.parse UriParser.repoPath label (Text.pack input))
 
@@ -1279,17 +1277,17 @@ prettyPrintParseError input errBundle =
           message = [expected] <> catMaybes [found]
        in P.oxfordCommasWith "." message
 
-parseWriteRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteRepo
-parseWriteRepo label input = do
+parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
+parseWriteGitRepo label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeRepo label (Text.pack input))
+    (P.parse UriParser.writeGitRepo label (Text.pack input))
 
-parsePushPath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
-parsePushPath label input = do
+parseWriteRemotePath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
+parseWriteRemotePath label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeRepoPath label (Text.pack input))
+    (P.parse UriParser.writeRemotePath label (Text.pack input))
 
 squashMerge :: InputPattern
 squashMerge =
@@ -2032,7 +2030,7 @@ gist =
     )
     ( \case
         [repoString] -> do
-          repo <- parseWriteRepo "repo" repoString
+          repo <- parseWriteGitRepo "repo" repoString
           pure (Input.GistI (Input.GistInput repo))
         _ -> Left (showPatternHelp gist)
     )
@@ -2345,12 +2343,30 @@ gitUrlArg =
       suggestions =
         let complete s = pure [Completion s s False]
          in \input _ _ _ -> case input of
-              "gh" -> complete "https://github.com/"
-              "gl" -> complete "https://gitlab.com/"
-              "bb" -> complete "https://bitbucket.com/"
-              "ghs" -> complete "git@github.com:"
-              "gls" -> complete "git@gitlab.com:"
-              "bbs" -> complete "git@bitbucket.com:"
+              "gh" -> complete "git(https://github.com/"
+              "gl" -> complete "git(https://gitlab.com/"
+              "bb" -> complete "git(https://bitbucket.com/"
+              "ghs" -> complete "git(git@github.com:"
+              "gls" -> complete "git(git@gitlab.com:"
+              "bbs" -> complete "git(git@bitbucket.com:"
+              _ -> pure [],
+      globTargets = mempty
+    }
+
+-- | Refers to a namespace on some remote code host.
+remoteNamespaceArg :: ArgumentType
+remoteNamespaceArg =
+  ArgumentType
+    { typeName = "remote-namespace",
+      suggestions =
+        let complete s = pure [Completion s s False]
+         in \input _ _ _ -> case input of
+              "gh" -> complete "git(https://github.com/"
+              "gl" -> complete "git(https://gitlab.com/"
+              "bb" -> complete "git(https://bitbucket.com/"
+              "ghs" -> complete "git(git@github.com:"
+              "gls" -> complete "git(git@gitlab.com:"
+              "bbs" -> complete "git(git@bitbucket.com:"
               _ -> pure [],
       globTargets = mempty
     }

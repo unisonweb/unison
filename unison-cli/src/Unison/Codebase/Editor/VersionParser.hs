@@ -15,7 +15,7 @@ import qualified Unison.Codebase.Path as Path
 --   "release/M1j" -> "releases._M1j"
 --   "release/M1j.2" -> "releases._M1j_2"
 --   "latest-*" -> "trunk"
-defaultBaseLib :: Parsec Void Text ReadRemoteNamespace
+defaultBaseLib :: Parsec Void Text ReadGitRemoteNamespace
 defaultBaseLib = fmap makeNS $ latest <|> release
   where
     latest, release, version :: Parsec Void Text Text
@@ -23,16 +23,18 @@ defaultBaseLib = fmap makeNS $ latest <|> release
     release = fmap ("releases._" <>) $ "release/" *> version <* eof
     version = do
       Text.pack <$> some (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))
-    makeNS :: Text -> ReadRemoteNamespace
+    makeNS :: Text -> ReadGitRemoteNamespace
     makeNS t =
-      ( ReadGitRepo
-          { url = "https://github.com/unisonweb/base",
-            -- Use the 'v4' branch of base for now.
-            -- We can revert back to the main branch once enough people have upgraded ucm and
-            -- we're okay with pushing the v4 base codebase to main (perhaps by the next ucm
-            -- release).
-            ref = Just "v4"
-          },
-        Nothing,
-        Path.fromText t
-      )
+      ReadGitRemoteNamespace
+        { repo =
+            ReadGitRepo
+              { url = "https://github.com/unisonweb/base",
+                -- Use the 'v4' branch of base for now.
+                -- We can revert back to the main branch once enough people have upgraded ucm and
+                -- we're okay with pushing the v3 base codebase to main (perhaps by the next ucm
+                -- release).
+                ref = Just "v4"
+              },
+          sbh = Nothing,
+          path = Path.fromText t
+        }

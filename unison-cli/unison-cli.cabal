@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.7.
 --
 -- see: https://github.com/sol/hpack
 
@@ -47,6 +47,7 @@ library
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
       Unison.Codebase.Editor.TodoOutput
+      Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
       Unison.Codebase.Editor.VersionParser
       Unison.Codebase.TranscriptParser
@@ -59,8 +60,9 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
-      Unison.Share.Types
-      Unison.Sync.HTTP
+      Unison.Share.Codeserver
+      Unison.Share.Sync
+      Unison.Share.Sync.Types
       Unison.Util.HTTP
   hs-source-dirs:
       src
@@ -74,12 +76,14 @@ library
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -94,7 +98,9 @@ library
     , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -104,6 +110,7 @@ library
     , exceptions
     , extra
     , filepath
+    , generic-lens
     , haskeline
     , http-client >=0.7.6
     , http-client-tls
@@ -111,7 +118,7 @@ library
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -128,7 +135,9 @@ library
     , these
     , time
     , transformers
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -136,8 +145,10 @@ library
     , unison-share-api
     , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , vector
     , wai
     , warp
   if flag(optimized)
@@ -163,12 +174,14 @@ executable cli-integration-tests
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -185,8 +198,10 @@ executable cli-integration-tests
     , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -197,6 +212,7 @@ executable cli-integration-tests
     , exceptions
     , extra
     , filepath
+    , generic-lens
     , haskeline
     , http-client >=0.7.6
     , http-client-tls
@@ -204,7 +220,7 @@ executable cli-integration-tests
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -223,7 +239,9 @@ executable cli-integration-tests
     , these
     , time
     , transformers
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -231,8 +249,10 @@ executable cli-integration-tests
     , unison-share-api
     , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , vector
     , wai
     , warp
   if flag(optimized)
@@ -253,12 +273,14 @@ executable transcripts
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -273,8 +295,10 @@ executable transcripts
     , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -285,6 +309,7 @@ executable transcripts
     , exceptions
     , extra
     , filepath
+    , generic-lens
     , haskeline
     , http-client >=0.7.6
     , http-client-tls
@@ -292,7 +317,7 @@ executable transcripts
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -312,7 +337,9 @@ executable transcripts
     , time
     , transformers
     , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -320,8 +347,10 @@ executable transcripts
     , unison-share-api
     , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , vector
     , wai
     , warp
   if flag(optimized)
@@ -346,12 +375,14 @@ executable unison
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -366,8 +397,10 @@ executable unison
     , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -377,6 +410,7 @@ executable unison
     , exceptions
     , extra
     , filepath
+    , generic-lens
     , haskeline
     , http-client >=0.7.6
     , http-client-tls
@@ -384,7 +418,7 @@ executable unison
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -406,7 +440,9 @@ executable unison
     , time
     , transformers
     , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -414,8 +450,10 @@ executable unison
     , unison-share-api
     , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , vector
     , wai
     , warp
   if flag(optimized)
@@ -444,12 +482,14 @@ test-suite cli-tests
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -464,8 +504,10 @@ test-suite cli-tests
     , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -476,6 +518,7 @@ test-suite cli-tests
     , exceptions
     , extra
     , filepath
+    , generic-lens
     , haskeline
     , here
     , http-client >=0.7.6
@@ -484,7 +527,7 @@ test-suite cli-tests
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -504,7 +547,9 @@ test-suite cli-tests
     , time
     , transformers
     , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -512,8 +557,10 @@ test-suite cli-tests
     , unison-share-api
     , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , vector
     , wai
     , warp
   if flag(optimized)

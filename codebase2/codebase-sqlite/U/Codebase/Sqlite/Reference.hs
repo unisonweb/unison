@@ -4,14 +4,13 @@
 
 module U.Codebase.Sqlite.Reference where
 
-import Data.Tuple.Only (Only (..))
 import U.Codebase.Reference (Id' (Id), Reference' (ReferenceBuiltin, ReferenceDerived))
 import U.Codebase.Sqlite.DbId (HashId, ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
 import U.Codebase.Sqlite.Orphans ()
 import U.Util.Base32Hex
 import Unison.Prelude
-import Unison.Sqlite (FromField, FromRow (fromRow), RowParser, SQLData (SQLNull), ToField, ToRow (toRow), field)
+import Unison.Sqlite (FromField, FromRow (fromRow), Only (..), RowParser, SQLData (SQLNull), ToField, ToRow (toRow), field)
 
 type Reference = Reference' TextId ObjectId
 

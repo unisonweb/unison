@@ -8,6 +8,7 @@
 module U.Codebase.Sqlite.Queries
   ( -- * text table
     saveText,
+    saveTexts,
     loadTextId,
     expectTextId,
     expectText,
@@ -15,10 +16,12 @@ module U.Codebase.Sqlite.Queries
 
     -- * hash table
     saveHash,
+    saveHashes,
     saveHashHash,
     loadHashId,
     expectHash,
     expectHash32,
+    expectBranchHash,
     loadHashIdByHash,
     expectHashIdByHash,
     saveCausalHash,
@@ -41,6 +44,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * object table
     saveObject,
+    isObjectHash,
     expectObject,
     expectPrimaryHashByObjectId,
     expectPrimaryHashIdForObject,
@@ -64,6 +68,7 @@ module U.Codebase.Sqlite.Queries
     -- ** causal table
     saveCausal,
     isCausalHash,
+    expectCausal,
     loadCausalHashIdByCausalHash,
     expectCausalHashIdByCausalHash,
     expectCausalValueHashId,
@@ -75,6 +80,7 @@ module U.Codebase.Sqlite.Queries
     -- ** causal_parent table
     saveCausalParents,
     loadCausalParents,
+    loadCausalParentsByHash,
     before,
     lca,
 
@@ -128,22 +134,71 @@ module U.Codebase.Sqlite.Queries
     garbageCollectObjectsWithoutHashes,
     garbageCollectWatchesWithoutObjects,
 
+    -- * sync temp entities
+    EntityLocation (..),
+    entityExists,
+    entityLocation,
+    expectEntity,
+    syncToTempEntity,
+    insertTempEntity,
+    saveTempEntityInMain,
+    expectTempEntity,
+    deleteTempEntity,
+
+    -- * elaborate hashes
+    elaborateHashes,
+
     -- * db misc
+    addTempEntityTables,
+    addTypeMentionsToIndexForTerm,
+    addTypeToIndexForTerm,
+    c2xTerm,
     createSchema,
-    schemaVersion,
     expectSchemaVersion,
+    localIdsToLookups,
+    s2cDecl,
+    s2cTermWithType,
+    saveDeclComponent,
+    saveReferenceH,
+    saveSyncEntity,
+    saveTermComponent,
+    schemaVersion,
     setSchemaVersion,
+    x2cTType,
+    x2cTerm,
   )
 where
 
-import qualified Data.List.Extra as List (splitOn)
+import Control.Lens (Lens')
+import qualified Control.Lens as Lens
+import Control.Monad.Extra ((||^))
+import Control.Monad.State (MonadState, evalStateT)
+import Control.Monad.Writer (MonadWriter, runWriterT)
+import qualified Control.Monad.Writer as Writer
+import Data.Bifunctor (Bifunctor (bimap))
+import Data.Bitraversable (bitraverse)
+import Data.Bytes.Put (runPutS)
+import qualified Data.Foldable as Foldable
+import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
+import qualified Data.Map as Map
+import Data.Map.NonEmpty (NEMap)
+import qualified Data.Map.NonEmpty as NEMap
+import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
+import qualified Data.Vector as Vector
+import qualified U.Codebase.Decl as C
+import qualified U.Codebase.Decl as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
+import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
+import qualified U.Codebase.Referent as C.Referent
+import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
+import qualified U.Codebase.Sqlite.Causal as Causal
+import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
@@ -155,24 +210,68 @@ import U.Codebase.Sqlite.DbId
     SchemaVersion,
     TextId,
   )
+import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
+import U.Codebase.Sqlite.Decode
+import U.Codebase.Sqlite.Entity (SyncEntity)
+import qualified U.Codebase.Sqlite.Entity as Entity
+import U.Codebase.Sqlite.HashHandle (HashHandle (..))
+import U.Codebase.Sqlite.LocalIds
+  ( LocalDefnId (..),
+    LocalIds,
+    LocalIds' (..),
+    LocalTextId (..),
+  )
+import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.NamedRef as S
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
+import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import U.Codebase.Sqlite.Orphans ()
+import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Reference as Reference
+import qualified U.Codebase.Sqlite.Reference as S
+import qualified U.Codebase.Sqlite.Reference as S.Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
+import qualified U.Codebase.Sqlite.Referent as S.Referent
+import U.Codebase.Sqlite.Serialization as Serialization
+import U.Codebase.Sqlite.Symbol (Symbol)
+import U.Codebase.Sqlite.TempEntity (TempEntity)
+import qualified U.Codebase.Sqlite.TempEntity as TempEntity
+import U.Codebase.Sqlite.TempEntityType (TempEntityType)
+import qualified U.Codebase.Sqlite.TempEntityType as TempEntityType
+import qualified U.Codebase.Sqlite.Term.Format as S.Term
+import qualified U.Codebase.Sqlite.Term.Format as TermFormat
+import qualified U.Codebase.Term as C
+import qualified U.Codebase.Term as C.Term
+import qualified U.Codebase.Type as C.Type
 import U.Codebase.WatchKind (WatchKind)
+import qualified U.Core.ABT as ABT
 import qualified U.Util.Alternative as Alternative
-import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
+import U.Util.Hash32 (Hash32)
+import qualified U.Util.Hash32 as Hash32
+import U.Util.Hash32.Orphans.Sqlite ()
+import qualified U.Util.Lens as Lens
+import qualified U.Util.Serialization as S
+import qualified U.Util.Term as TermUtil
 import Unison.Prelude
 import Unison.Sqlite
 
 -- * main squeeze
 
 createSchema :: Transaction ()
-createSchema =
-  traverse_ (execute_ . fromString) $ List.splitOn ";" [hereFile|sql/create.sql|]
+createSchema = do
+  executeFile [hereFile|unison/sql/create.sql|]
+  addTempEntityTables
+
+addTempEntityTables :: Transaction ()
+addTempEntityTables =
+  executeFile [hereFile|unison/sql/001-temp-entity-tables.sql|]
+
+executeFile :: String -> Transaction ()
+executeFile =
+  traverse_ (execute_ . fromString) . filter (not . null) . List.splitOn ";"
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion = queryOneCol_ sql
@@ -212,28 +311,37 @@ countCausals = queryOneCol_ [here| SELECT COUNT(*) FROM causal |]
 countWatches :: Transaction Int
 countWatches = queryOneCol_ [here| SELECT COUNT(*) FROM watch |]
 
-saveHash :: Base32Hex -> Transaction HashId
-saveHash base32 = execute sql (Only base32) >> expectHashId base32
+saveHash :: Hash32 -> Transaction HashId
+saveHash hash = execute sql (Only hash) >> expectHashId hash
+  where sql = [here|
+    INSERT INTO hash (base32) VALUES (?)
+    ON CONFLICT DO NOTHING
+  |]
+
+saveHashes :: Traversable f => f Hash32 -> Transaction (f HashId)
+saveHashes hashes = do
+  executeMany sql (coerce @[Hash32] @[Only Hash32] (Foldable.toList hashes))
+  traverse expectHashId hashes
   where sql = [here|
     INSERT INTO hash (base32) VALUES (?)
     ON CONFLICT DO NOTHING
   |]
 
 saveHashHash :: Hash -> Transaction HashId
-saveHashHash = saveHash . Hash.toBase32Hex
+saveHashHash = saveHash . Hash32.fromHash
 
-loadHashId :: Base32Hex -> Transaction (Maybe HashId)
-loadHashId base32 = queryMaybeCol loadHashIdSql (Only base32)
+loadHashId :: Hash32 -> Transaction (Maybe HashId)
+loadHashId hash = queryMaybeCol loadHashIdSql (Only hash)
 
-expectHashId :: Base32Hex -> Transaction HashId
-expectHashId base32 = queryOneCol loadHashIdSql (Only base32)
+expectHashId :: Hash32 -> Transaction HashId
+expectHashId hash = queryOneCol loadHashIdSql (Only hash)
 
 loadHashIdSql :: Sql
 loadHashIdSql =
-  [here| SELECT id FROM hash WHERE base32 = ? |]
+  [here| SELECT id FROM hash WHERE base32 = ? COLLATE NOCASE |]
 
 loadHashIdByHash :: Hash -> Transaction (Maybe HashId)
-loadHashIdByHash = loadHashId . Hash.toBase32Hex
+loadHashIdByHash = loadHashId . Hash32.fromHash
 
 saveCausalHash :: CausalHash -> Transaction CausalHashId
 saveCausalHash = fmap CausalHashId . saveHashHash . unCausalHash
@@ -264,18 +372,33 @@ expectCausalByCausalHash ch = do
   pure (hId, bhId)
 
 expectHashIdByHash :: Hash -> Transaction HashId
-expectHashIdByHash = expectHashId . Hash.toBase32Hex
+expectHashIdByHash = expectHashId . Hash32.fromHash
 
 expectHash :: HashId -> Transaction Hash
-expectHash h = Hash.fromBase32Hex <$> expectHash32 h
+expectHash h = Hash32.toHash <$> expectHash32 h
 
-expectHash32 :: HashId -> Transaction Base32Hex
+expectHash32 :: HashId -> Transaction Hash32
 expectHash32 h = queryOneCol sql (Only h)
   where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
 
+expectBranchHash :: BranchHashId -> Transaction BranchHash
+expectBranchHash = coerce expectHash
+
 saveText :: Text -> Transaction TextId
-saveText t = execute sql (Only t) >> expectTextId t
-  where sql = [here| INSERT INTO text (text) VALUES (?) ON CONFLICT DO NOTHING|]
+saveText t = execute saveTextSql (Only t) >> expectTextId t
+
+saveTexts :: Traversable f => f Text -> Transaction (f TextId)
+saveTexts texts = do
+  executeMany saveTextSql (coerce @[Text] @[Only Text] (Foldable.toList texts))
+  traverse expectTextId texts
+
+saveTextSql :: Sql
+saveTextSql =
+  [here|
+    INSERT INTO text (text)
+    VALUES (?)
+    ON CONFLICT DO NOTHING
+  |]
 
 loadTextId :: Text -> Transaction (Maybe TextId)
 loadTextId t = queryMaybeCol loadTextIdSql (Only t)
@@ -305,10 +428,20 @@ saveHashObject hId oId version = execute sql (hId, oId, version) where
     ON CONFLICT DO NOTHING
   |]
 
-saveObject :: HashId -> ObjectType -> ByteString -> Transaction ObjectId
-saveObject h t blob = do
+saveObject ::
+  HashHandle ->
+  HashId ->
+  ObjectType ->
+  ByteString ->
+  Transaction ObjectId
+saveObject hh h t blob = do
   oId <- execute sql (h, t, blob) >> expectObjectIdForPrimaryHashId h
   saveHashObject h oId 2 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
+  rowsModified >>= \case
+    0 -> pure ()
+    _ -> do
+      hash <- expectHash32 h
+      tryMoveTempEntityDependents hh hash
   pure oId
   where
   sql = [here|
@@ -393,6 +526,12 @@ expectPrimaryHashIdForObject oId = do
   where
     sql = "SELECT primary_hash_id FROM object WHERE id = ?"
 
+expectObjectWithType :: SqliteExceptionReason e => ObjectId -> (ObjectType -> ByteString -> Either e a) -> Transaction a
+expectObjectWithType oId check = queryOneRowCheck sql (Only oId) (\(typ, bytes) -> check typ bytes)
+  where sql = [here|
+    SELECT type_id, bytes FROM object WHERE id = ?
+  |]
+
 expectObjectWithHashIdAndType :: ObjectId -> Transaction (HashId, ObjectType, ByteString)
 expectObjectWithHashIdAndType oId = queryOneRow sql (Only oId)
   where sql = [here|
@@ -423,9 +562,49 @@ loadObjectIdForPrimaryHash h =
     Just hashId -> loadObjectIdForPrimaryHashId hashId
 
 expectObjectIdForPrimaryHash :: Hash -> Transaction ObjectId
-expectObjectIdForPrimaryHash h = do
-  hashId <- expectHashIdByHash h
-  expectObjectIdForPrimaryHashId hashId
+expectObjectIdForPrimaryHash =
+  expectObjectIdForHash32 . Hash32.fromHash
+
+expectObjectIdForHash32 :: Hash32 -> Transaction ObjectId
+expectObjectIdForHash32 hash = do
+  queryOneCol
+    [here|
+      SELECT object.id
+      FROM object
+      JOIN hash ON object.primary_hash_id = hash.id
+      WHERE hash.base32 = ? COLLATE NOCASE
+    |]
+    (Only hash)
+
+expectBranchObjectIdForHash32 :: Hash32 -> Transaction BranchObjectId
+expectBranchObjectIdForHash32 =
+  fmap BranchObjectId . expectObjectIdForHash32
+
+expectPatchObjectIdForHash32 :: Hash32 -> Transaction PatchObjectId
+expectPatchObjectIdForHash32 =
+  fmap PatchObjectId . expectObjectIdForHash32
+
+expectBranchHashIdForHash32 :: Hash32 -> Transaction BranchHashId
+expectBranchHashIdForHash32 = queryOneCol sql . Only
+  where
+    sql =
+      [here|
+        SELECT hash.id FROM object
+        INNER JOIN hash_object ON hash_object.object_id = object.id
+        INNER JOIN hash ON hash_object.hash_id = hash.id
+        WHERE object.type_id = 2
+          AND hash.base32 = ? COLLATE NOCASE
+      |]
+
+expectCausalHashIdForHash32 :: Hash32 -> Transaction CausalHashId
+expectCausalHashIdForHash32 = queryOneCol sql . Only
+  where
+    sql =
+      [here|
+        SELECT self_hash_id
+        FROM causal INNER JOIN hash ON hash.id = self_hash_id
+        WHERE base32 = ? COLLATE NOCASE
+      |]
 
 loadPatchObjectIdForPrimaryHash :: PatchHash -> Transaction (Maybe PatchObjectId)
 loadPatchObjectIdForPrimaryHash =
@@ -449,12 +628,21 @@ loadObjectIdForAnyHashIdSql :: Sql
 loadObjectIdForAnyHashIdSql =
   [here| SELECT object_id FROM hash_object WHERE hash_id = ? |]
 
+-- | Does a hash correspond to an object?
+isObjectHash :: HashId -> Transaction Bool
+isObjectHash h =
+  queryOneCol sql (Only h)
+  where
+    sql = [here|
+      SELECT EXISTS (SELECT 1 FROM object WHERE primary_hash_id = ?)
+    |]
+
 -- | All objects have corresponding hashes.
 expectPrimaryHashByObjectId :: ObjectId -> Transaction Hash
 expectPrimaryHashByObjectId =
-  fmap Hash.fromBase32Hex . expectPrimaryHash32ByObjectId
+  fmap Hash32.toHash . expectPrimaryHash32ByObjectId
 
-expectPrimaryHash32ByObjectId :: ObjectId -> Transaction Base32Hex
+expectPrimaryHash32ByObjectId :: ObjectId -> Transaction Hash32
 expectPrimaryHash32ByObjectId oId = queryOneCol sql (Only oId)
  where sql = [here|
   SELECT hash.base32
@@ -491,17 +679,281 @@ recordObjectRehash old new =
 
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
-saveCausal :: CausalHashId -> BranchHashId -> Transaction ()
-saveCausal self value = execute sql (self, value) where sql = [here|
-  INSERT INTO causal (self_hash_id, value_hash_id)
-  VALUES (?, ?)
-  ON CONFLICT DO NOTHING
-|]
--- saveCausal self value = execute sql (self, value, Committed True, Generation 0) where sql = [here|
---   INSERT INTO causal (self_hash_id, value_hash_id, commit_flag, gc_generation)
---   VALUES (?, ?, ?, ?)
---   ON CONFLICT DO NOTHING
--- |]
+saveCausal ::
+  HashHandle ->
+  CausalHashId ->
+  BranchHashId ->
+  [CausalHashId] ->
+  Transaction ()
+saveCausal hh self value parents = do
+  execute insertCausalSql (self, value)
+  rowsModified >>= \case
+    0 -> pure ()
+    _ -> do
+      executeMany insertCausalParentsSql (fmap (self,) parents)
+      flushCausalDependents hh self
+  where
+    insertCausalSql = [here|
+      INSERT INTO causal (self_hash_id, value_hash_id)
+      VALUES (?, ?)
+      ON CONFLICT DO NOTHING
+    |]
+    insertCausalParentsSql = [here|
+      INSERT INTO causal_parent (causal_id, parent_id) VALUES (?, ?)
+    |]
+
+flushCausalDependents ::
+  HashHandle ->
+  CausalHashId ->
+  Transaction ()
+flushCausalDependents hh chId = do
+  hash <- expectHash32 (unCausalHashId chId)
+  tryMoveTempEntityDependents hh hash
+
+-- | `tryMoveTempEntityDependents #foo` does this:
+--    0. Precondition: We just inserted object #foo.
+--    1. Look up the dependents of #foo
+--    2. Delete #foo as dependency from temp_entity_missing_dependency. e.g. (#bar, #foo), (#baz, #foo)
+--    3. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
+--        insert_entity them.
+tryMoveTempEntityDependents ::
+  HashHandle ->
+  Hash32 ->
+  Transaction ()
+tryMoveTempEntityDependents hh dependency = do
+  dependents <-
+    queryListCol
+      [here|
+        DELETE FROM temp_entity_missing_dependency
+        WHERE dependency = ?
+        RETURNING dependent
+      |]
+      (Only dependency)
+  traverse_ flushIfReadyToFlush dependents
+  where
+    flushIfReadyToFlush :: Hash32 -> Transaction ()
+    flushIfReadyToFlush dependent = do
+      readyToFlush dependent >>= \case
+        True -> moveTempEntityToMain hh dependent
+        False -> pure ()
+
+    readyToFlush :: Hash32 -> Transaction Bool
+    readyToFlush hash = queryOneCol [here|
+      SELECT EXISTS (
+        SELECT 1
+        FROM temp_entity
+        WHERE hash = ?
+      ) AND NOT EXISTS (
+        SELECT 1
+        FROM temp_entity_missing_dependency
+        WHERE dependent = ?
+      )
+    |] (hash, hash)
+
+expectCausal :: CausalHashId -> Transaction Causal.SyncCausalFormat
+expectCausal hashId = do
+  valueHash <-
+    queryOneCol
+      [here|
+        SELECT value_hash_id
+        FROM causal
+        WHERE self_hash_id = ?
+      |]
+      (Only hashId)
+  parents <-
+    fmap Vector.fromList do
+      -- is the random ordering from the database ok? (seems so, for now)
+      queryListCol
+        [here|
+          SELECT parent_id
+          FROM causal_parent
+          WHERE causal_id = ?
+        |]
+        (Only hashId)
+  pure Causal.SyncCausalFormat {parents, valueHash}
+
+-- | Read an entity out of main storage.
+expectEntity :: Hash32 -> Transaction SyncEntity
+expectEntity hash = do
+  hashId <- expectHashId hash
+  -- We don't know if this is an object or a causal, so just try one, then the other.
+  loadObjectIdForPrimaryHashId hashId >>= \case
+    Nothing -> Entity.C <$> expectCausal (CausalHashId hashId)
+    Just objectId ->
+      expectObjectWithType objectId \typ bytes ->
+        case typ of
+          TermComponent -> Entity.TC <$> decodeSyncTermFormat bytes
+          DeclComponent -> Entity.DC <$> decodeSyncDeclFormat bytes
+          Namespace -> Entity.N <$> decodeSyncNamespaceFormat bytes
+          Patch -> Entity.P <$> decodeSyncPatchFormat bytes
+
+-- | Read an entity out of temp storage.
+expectTempEntity :: Hash32 -> Transaction TempEntity
+expectTempEntity hash = do
+  queryOneRowCheck sql (Only hash) \(blob, typeId) ->
+    case typeId of
+      TempEntityType.TermComponentType -> Entity.TC <$> decodeTempTermFormat blob
+      TempEntityType.DeclComponentType -> Entity.DC <$> decodeTempDeclFormat blob
+      TempEntityType.NamespaceType -> Entity.N <$> decodeTempNamespaceFormat blob
+      TempEntityType.PatchType -> Entity.P <$> decodeTempPatchFormat blob
+      TempEntityType.CausalType -> Entity.C <$> decodeTempCausalFormat blob
+  where sql = [here|
+    SELECT blob, type_id
+    FROM temp_entity
+    WHERE hash = ?
+  |]
+
+{- ORMOLU_ENABLE -}
+
+-- | look up all of the input entity's dependencies in the main table, to convert it to a sync entity
+tempToSyncEntity :: TempEntity -> Transaction SyncEntity
+tempToSyncEntity = \case
+  Entity.TC term -> Entity.TC <$> tempToSyncTermComponent term
+  Entity.DC decl -> Entity.DC <$> tempToSyncDeclComponent decl
+  Entity.N namespace -> Entity.N <$> tempToSyncNamespace namespace
+  Entity.P patch -> Entity.P <$> tempToSyncPatch patch
+  Entity.C causal -> Entity.C <$> tempToSyncCausal causal
+  where
+    tempToSyncCausal :: TempEntity.TempCausalFormat -> Transaction Causal.SyncCausalFormat
+    tempToSyncCausal Causal.SyncCausalFormat {valueHash, parents} =
+      Causal.SyncCausalFormat
+        <$> expectBranchHashIdForHash32 valueHash
+        <*> traverse expectCausalHashIdForHash32 parents
+
+    tempToSyncDeclComponent :: TempEntity.TempDeclFormat -> Transaction DeclFormat.SyncDeclFormat
+    tempToSyncDeclComponent = \case
+      DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent decls) ->
+        DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
+          <$> Lens.traverseOf
+            (traverse . Lens._1)
+            ( \LocalIds.LocalIds {textLookup, defnLookup} ->
+                LocalIds.LocalIds
+                  <$> saveTexts textLookup
+                  <*> traverse expectObjectIdForHash32 defnLookup
+            )
+            decls
+
+    tempToSyncNamespace :: TempEntity.TempNamespaceFormat -> Transaction NamespaceFormat.SyncBranchFormat
+    tempToSyncNamespace = \case
+      NamespaceFormat.SyncFull localIds bytes ->
+        NamespaceFormat.SyncFull <$> tempToSyncNamespaceLocalIds localIds <*> pure bytes
+      NamespaceFormat.SyncDiff parent localIds bytes ->
+        NamespaceFormat.SyncDiff
+          <$> expectBranchObjectIdForHash32 parent
+          <*> tempToSyncNamespaceLocalIds localIds
+          <*> pure bytes
+
+    tempToSyncNamespaceLocalIds :: TempEntity.TempNamespaceLocalIds -> Transaction NamespaceFormat.BranchLocalIds
+    tempToSyncNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children) =
+      NamespaceFormat.LocalIds
+        <$> saveTexts texts
+        <*> traverse expectObjectIdForHash32 defns
+        <*> traverse expectPatchObjectIdForHash32 patches
+        <*> traverse
+          ( \(branch, causal) ->
+              (,)
+                <$> expectBranchObjectIdForHash32 branch
+                <*> expectCausalHashIdForHash32 causal
+          )
+          children
+
+    tempToSyncPatch :: TempEntity.TempPatchFormat -> Transaction PatchFormat.SyncPatchFormat
+    tempToSyncPatch = \case
+      PatchFormat.SyncFull localIds bytes -> PatchFormat.SyncFull <$> tempToSyncPatchLocalIds localIds <*> pure bytes
+      PatchFormat.SyncDiff parent localIds bytes ->
+        PatchFormat.SyncDiff
+          <$> expectPatchObjectIdForHash32 parent
+          <*> tempToSyncPatchLocalIds localIds
+          <*> pure bytes
+
+    tempToSyncPatchLocalIds :: TempEntity.TempPatchLocalIds -> Transaction PatchFormat.PatchLocalIds
+    tempToSyncPatchLocalIds (PatchFormat.LocalIds texts hashes defns) =
+      PatchFormat.LocalIds
+        <$> saveTexts texts
+        <*> saveHashes hashes
+        <*> traverse expectObjectIdForHash32 defns
+
+    tempToSyncTermComponent :: TempEntity.TempTermFormat -> Transaction TermFormat.SyncTermFormat
+    tempToSyncTermComponent = \case
+      TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms) ->
+        TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
+          <$> Lens.traverseOf
+            (traverse . Lens._1)
+            ( \LocalIds.LocalIds {textLookup, defnLookup} ->
+                LocalIds.LocalIds
+                  <$> saveTexts textLookup
+                  <*> traverse expectObjectIdForHash32 defnLookup
+            )
+            terms
+
+{- ORMOLU_DISABLE -}
+
+-- | looking up all of the text and hashes is the first step of converting a SyncEntity to a Share.Entity
+syncToTempEntity :: SyncEntity -> Transaction TempEntity
+syncToTempEntity = \case
+  Entity.TC term -> Entity.TC <$> syncToTempTermComponent term
+  Entity.DC decl -> Entity.DC <$> syncToTempDeclComponent decl
+  Entity.N namespace -> Entity.N <$> syncToTempNamespace namespace
+  Entity.P patch -> Entity.P <$> syncToTempPatch patch
+  Entity.C causal -> Entity.C <$> syncToTempCausal causal
+  where
+    syncToTempCausal :: Causal.SyncCausalFormat -> Transaction TempEntity.TempCausalFormat
+    syncToTempCausal Causal.SyncCausalFormat {valueHash, parents} =
+      Causal.SyncCausalFormat
+        <$> expectHash32 (unBranchHashId valueHash)
+        <*> traverse (expectHash32 . unCausalHashId) parents
+
+    syncToTempDeclComponent :: DeclFormat.SyncDeclFormat -> Transaction TempEntity.TempDeclFormat
+    syncToTempDeclComponent = \case
+      DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent decls) ->
+        DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
+          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse expectText expectPrimaryHash32ByObjectId) decls
+
+    syncToTempNamespace :: NamespaceFormat.SyncBranchFormat -> Transaction TempEntity.TempNamespaceFormat
+    syncToTempNamespace = \case
+      NamespaceFormat.SyncFull localIds bytes ->
+        NamespaceFormat.SyncFull <$> syncToTempNamespaceLocalIds localIds <*> pure bytes
+      NamespaceFormat.SyncDiff parent localIds bytes ->
+        NamespaceFormat.SyncDiff
+          <$> expectPrimaryHash32ByObjectId (unBranchObjectId parent)
+          <*> syncToTempNamespaceLocalIds localIds
+          <*> pure bytes
+
+    syncToTempNamespaceLocalIds :: NamespaceFormat.BranchLocalIds -> Transaction TempEntity.TempNamespaceLocalIds
+    syncToTempNamespaceLocalIds (NamespaceFormat.LocalIds texts defns patches children) =
+      NamespaceFormat.LocalIds
+        <$> traverse expectText texts
+        <*> traverse expectPrimaryHash32ByObjectId defns
+        <*> traverse (expectPrimaryHash32ByObjectId . unPatchObjectId) patches
+        <*> traverse
+          ( \(branch, causal) ->
+              (,)
+                <$> expectPrimaryHash32ByObjectId (unBranchObjectId branch)
+                <*> expectHash32 (unCausalHashId causal)
+          )
+          children
+
+    syncToTempPatch :: PatchFormat.SyncPatchFormat -> Transaction TempEntity.TempPatchFormat
+    syncToTempPatch = \case
+      PatchFormat.SyncFull localIds bytes -> PatchFormat.SyncFull <$> syncToTempPatchLocalIds localIds <*> pure bytes
+      PatchFormat.SyncDiff parent localIds bytes ->
+        PatchFormat.SyncDiff
+          <$> expectPrimaryHash32ByObjectId (unPatchObjectId parent)
+          <*> syncToTempPatchLocalIds localIds
+          <*> pure bytes
+
+    syncToTempPatchLocalIds :: PatchFormat.PatchLocalIds -> Transaction TempEntity.TempPatchLocalIds
+    syncToTempPatchLocalIds (PatchFormat.LocalIds texts hashes defns) =
+      PatchFormat.LocalIds
+        <$> traverse expectText texts
+        <*> traverse expectHash32 hashes
+        <*> traverse expectPrimaryHash32ByObjectId defns
+
+    syncToTempTermComponent :: TermFormat.SyncTermFormat -> Transaction TempEntity.TempTermFormat
+    syncToTempTermComponent = \case
+      TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms) ->
+        TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
+          <$> Lens.traverseOf (traverse . Lens._1) (bitraverse expectText expectPrimaryHash32ByObjectId) terms
 
 -- -- maybe: look at whether parent causal is "committed"; if so, then increment;
 -- -- otherwise, don't.
@@ -520,7 +972,7 @@ expectCausalValueHashId (CausalHashId id) =
   queryOneCol loadCausalValueHashIdSql (Only id)
 
 expectCausalHash :: CausalHashId -> Transaction CausalHash
-expectCausalHash (CausalHashId id) = CausalHash <$> expectHash id
+expectCausalHash = coerce expectHash
 
 loadCausalValueHashId :: HashId -> Transaction (Maybe BranchHashId)
 loadCausalValueHashId id =
@@ -560,6 +1012,19 @@ loadCausalParents :: CausalHashId -> Transaction [CausalHashId]
 loadCausalParents h = queryListCol sql (Only h) where sql = [here|
   SELECT parent_id FROM causal_parent WHERE causal_id = ?
 |]
+
+-- | Like 'loadCausalParents', but the input and outputs are hashes, not hash ids.
+loadCausalParentsByHash :: Hash32 -> Transaction [Hash32]
+loadCausalParentsByHash hash =
+  queryListCol
+    [here|
+      SELECT h2.base32
+      FROM causal_parent cp
+      JOIN hash h1 ON cp.causal_id = h1.id
+      JOIN hash h2 ON cp.parent_id = h2.id
+      WHERE h1.base32 = ? COLLATE NOCASE
+    |]
+    (Only hash)
 
 expectNamespaceRoot :: Transaction CausalHashId
 expectNamespaceRoot =
@@ -925,27 +1390,27 @@ resetNameLookupTables = do
     [here|
       CREATE TABLE term_name_lookup (
         reversed_name TEXT NOT NULL, -- e.g. map.List.base
-        referent_builtin INTEGER NULL,
-        referent_object_id INTEGER NULL,
+        referent_builtin TEXT NULL,
+        referent_component_hash TEXT NULL,
         referent_component_index INTEGER NULL,
         referent_constructor_index INTEGER NULL,
         referent_constructor_type INTEGER NULL,
-        PRIMARY KEY (reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
+        PRIMARY KEY (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
       )
     |]
   -- Don't need this index at the moment, but will likely be useful later.
   -- execute_
   --   [here|
-  --     CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_object_id, referent_component_index, referent_constructor_index)
+  --     CREATE INDEX IF NOT EXISTS term_name_by_referent_lookup ON term_name_lookup(referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
   --   |]
   execute_
     [here|
       CREATE TABLE type_name_lookup (
         reversed_name TEXT NOT NULL, -- e.g. map.List.base
-        reference_builtin INTEGER NULL,
-        reference_object_id INTEGER NULL,
+        reference_builtin TEXT NULL,
+        reference_component_hash INTEGER NULL,
         reference_component_index INTEGER NULL,
-        PRIMARY KEY (reversed_name, reference_builtin, reference_object_id, reference_component_index)
+        PRIMARY KEY (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
       );
     |]
 
@@ -963,7 +1428,7 @@ insertTermNames names = do
     asRow (a, b) = a :. Only b
     sql =
       [here|
-      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type)
+      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
@@ -975,7 +1440,7 @@ insertTypeNames names =
   where
     sql =
       [here|
-      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_object_id, reference_component_index)
+      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
         VALUES (?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
@@ -988,7 +1453,7 @@ rootTermNames = do
     unRow (a :. Only b) = (a, b)
     sql =
       [here|
-        SELECT reversed_name, referent_builtin, referent_object_id, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
+        SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type FROM term_name_lookup
           ORDER BY reversed_name ASC
         |]
 
@@ -999,7 +1464,7 @@ rootTypeNames = do
   where
     sql =
       [here|
-        SELECT reversed_name, reference_builtin, reference_object_id, reference_component_index FROM type_name_lookup
+        SELECT reversed_name, reference_builtin, reference_component_hash, reference_component_index FROM type_name_lookup
         ORDER BY reversed_name ASC
         |]
 
@@ -1053,3 +1518,539 @@ ancestorSql =
       )
     SELECT * FROM ancestor
   |]
+
+-- * share sync / temp entities
+
+-- | Where an entity is stored.
+data EntityLocation
+  = -- | `object` / `causal`
+    EntityInMainStorage
+  | -- | `temp_entity`
+    EntityInTempStorage
+
+-- | Where is an entity stored?
+entityLocation :: Hash32 -> Transaction (Maybe EntityLocation)
+entityLocation hash =
+  entityExists hash >>= \case
+    True -> pure (Just EntityInMainStorage)
+    False -> do
+      let sql = [here|SELECT EXISTS (SELECT 1 FROM temp_entity WHERE hash = ?)|]
+      queryOneCol sql (Only hash) <&> \case
+        True -> Just EntityInTempStorage
+        False -> Nothing
+
+-- | Does this entity already exist in the database, i.e. in the `object` or `causal` table?
+entityExists :: Hash32 -> Transaction Bool
+entityExists hash = do
+  -- first get hashId if exists
+  loadHashId hash >>= \case
+    Nothing -> pure False
+    -- then check if is causal hash or if object exists for hash id
+    Just hashId -> isCausalHash hashId ||^ isObjectHash hashId
+
+-- | Insert a new `temp_entity` row, and its associated 1+ `temp_entity_missing_dependency` rows.
+--
+-- Preconditions:
+--   1. The entity does not already exist in "main" storage (`object` / `causal`)
+--   2. The entity does not already exist in `temp_entity`.
+insertTempEntity :: Hash32 -> TempEntity -> NEMap Hash32 Text -> Transaction ()
+insertTempEntity entityHash entity missingDependencies = do
+  execute
+    [here|
+      INSERT INTO temp_entity (hash, blob, type_id)
+      VALUES (?, ?, ?)
+      ON CONFLICT DO NOTHING
+    |]
+    (entityHash, entityBlob, entityType)
+
+  executeMany
+    [here|
+      INSERT INTO temp_entity_missing_dependency (dependent, dependency, dependencyJwt)
+      VALUES (?, ?, ?)
+    |]
+    (map (\(depHash, depHashJwt) -> (entityHash, depHash, depHashJwt)) ((Foldable.toList . NEMap.toList) missingDependencies))
+  where
+    entityBlob :: ByteString
+    entityBlob =
+      runPutS (Serialization.putTempEntity entity)
+
+    entityType :: TempEntityType
+    entityType =
+      Entity.entityType entity
+
+-- | Delete a row from the `temp_entity` table, if it exists.
+deleteTempEntity :: Hash32 -> Transaction ()
+deleteTempEntity hash =
+  execute
+    [here|
+      DELETE
+      FROM temp_entity
+      WHERE hash = ?
+    |]
+    (Only hash)
+
+data EmptyTempEntityMissingDependencies
+  = EmptyTempEntityMissingDependencies
+  deriving stock (Show)
+  deriving anyclass (SqliteExceptionReason)
+
+-- | "Elaborate" a set of `temp_entity` hashes.
+--
+-- Given a set of `temp_entity` hashes, returns the (known) set of transitive dependencies that haven't already been
+-- downloaded (i.e. aren't in the `temp_entity` table)
+--
+-- For example, if we have temp entities A and B, where A depends on B and B depends on C...
+--
+--   | temp_entity |   | temp_entity_missing_dependency |
+--   |=============|   |================================|
+--   | hash        |   | dependent    | dependency      |
+--   |-------------|   |--------------|-----------------|
+--   | A           |   | A            | B               |
+--   | B           |   | B            | C               |
+--
+-- ... then `elaborateHashes {A}` would return the singleton set {C} (because we take the set of transitive
+-- dependencies {A,B,C} and subtract the set we already have, {A,B}).
+elaborateHashes :: Nel.NonEmpty Hash32 -> Transaction (Nel.NonEmpty Text)
+elaborateHashes hashes = do
+  execute_
+    [here|
+      CREATE TABLE new_temp_entity_dependents (hash text)
+    |]
+  executeMany
+    [here|
+      INSERT INTO new_temp_entity_dependents
+        (hash)
+      VALUES (?)
+    |]
+    (map Only (Nel.toList hashes))
+  result <-
+    queryListColCheck_
+      [here|
+        WITH RECURSIVE elaborated_dependency (hash, hashJwt) AS (
+          SELECT temd.dependency, temd.dependencyJwt
+          FROM new_temp_entity_dependents AS new
+            JOIN temp_entity_missing_dependency AS temd
+              ON temd.dependent = new.hash
+
+          UNION
+          SELECT temd.dependency, temd.dependencyJwt
+          FROM temp_entity_missing_dependency AS temd
+            JOIN elaborated_dependency AS ed
+              ON temd.dependent = ed.hash
+        )
+        SELECT hashJwt FROM elaborated_dependency
+        WHERE NOT EXISTS (
+          SELECT 1 FROM temp_entity
+          WHERE temp_entity.hash = elaborated_dependency.hash
+        )
+      |]
+      ( \case
+          [] -> Left EmptyTempEntityMissingDependencies
+          x : xs -> Right (x Nel.:| xs)
+      )
+  execute_ [here|DROP TABLE new_temp_entity_dependents|]
+  pure result
+
+moveTempEntityToMain ::
+  HashHandle ->
+  Hash32 ->
+  Transaction ()
+moveTempEntityToMain hh hash = do
+  entity <- expectTempEntity hash
+  deleteTempEntity hash
+  _ <- saveTempEntityInMain hh hash entity
+  pure ()
+
+-- | Save a temp entity in main storage.
+--
+-- Precondition: all of its dependencies are already in main storage.
+saveTempEntityInMain :: HashHandle -> Hash32 -> TempEntity -> Transaction (Either CausalHashId ObjectId)
+saveTempEntityInMain hh hash entity = do
+  entity' <- tempToSyncEntity entity
+  saveSyncEntity hh hash entity'
+
+saveSyncEntity ::
+  HashHandle ->
+  Hash32 ->
+  SyncEntity ->
+  Transaction (Either CausalHashId ObjectId)
+saveSyncEntity hh hash entity = do
+  case entity of
+    Entity.TC stf -> do
+      lic :: TermFormat.LocallyIndexedComponent <- do
+        let TermFormat.SyncTerm x = stf
+        unsafeIO (unsyncTermComponent x)
+
+      tc :: [(C.Term Symbol, C.Term.Type Symbol)] <-
+        traverse
+          (\(a, b, c) -> s2cTermWithType a b c)
+          (toList $ TermFormat.unLocallyIndexedComponent lic)
+      let bytes = runPutS (Serialization.recomposeTermFormat stf)
+      objId <- saveTermComponent hh (Just bytes) (Hash32.toHash hash) tc
+      pure (Right objId)
+    Entity.DC sdf -> do
+      lic :: S.Decl.LocallyIndexedComponent <- do
+        let S.Decl.SyncDecl xs = sdf
+        unsafeIO (unsyncDeclComponent xs)
+
+      dc :: [C.Decl.Decl Symbol] <-
+        traverse
+          (\(localIds, decl) -> s2cDecl localIds decl)
+          (toList $ S.Decl.unLocallyIndexedComponent lic)
+
+      let bytes = runPutS (Serialization.recomposeDeclFormat sdf)
+      objId <- saveDeclComponent hh (Just bytes) (Hash32.toHash hash) dc
+
+      pure (Right objId)
+    Entity.N sbf -> do
+      hashId <- saveHash hash
+      let bytes = runPutS (Serialization.recomposeBranchFormat sbf)
+      Right <$> saveObject hh hashId ObjectType.Namespace bytes
+    Entity.P spf -> do
+      hashId <- saveHash hash
+      let bytes = runPutS (Serialization.recomposePatchFormat spf)
+      Right <$> saveObject hh hashId ObjectType.Patch bytes
+    Entity.C scf -> case scf of
+      Sqlite.Causal.SyncCausalFormat {valueHash, parents} -> do
+        hashId <- saveHash hash
+        let causalHashId = CausalHashId hashId
+        saveCausal hh causalHashId valueHash (toList parents)
+        pure $ Left causalHashId
+
+s2cTermWithType :: LocalIds.LocalIds -> S.Term.Term -> S.Term.Type -> Transaction (C.Term Symbol, C.Term.Type Symbol)
+s2cTermWithType ids tm tp = do
+  (substText, substHash) <- localIdsToLookups expectText expectPrimaryHashByObjectId ids
+  pure (x2cTerm substText substHash tm, x2cTType substText substHash tp)
+
+saveTermComponent ::
+  HashHandle ->
+  -- | The serialized term component if we already have it e.g. via sync
+  Maybe ByteString ->
+  -- | term component hash
+  Hash ->
+  -- | term component
+  [(C.Term Symbol, C.Term.Type Symbol)] ->
+  Transaction ObjectId
+saveTermComponent hh@HashHandle {toReference, toReferenceMentions} maybeEncodedTerms h terms = do
+  when debug . traceM $ "Operations.saveTermComponent " ++ show h
+  sTermElements <- traverse (uncurry c2sTerm) terms
+  hashId <- saveHashHash h
+  let bytes = fromMaybe mkByteString maybeEncodedTerms
+      mkByteString =
+        let li = S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements
+         in S.putBytes Serialization.putTermFormat $ S.Term.Term li
+  oId <- saveObject hh hashId ObjectType.TermComponent bytes
+  -- populate dependents index
+  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sTermElements `zip` [0 ..])
+      unlocalizeRefs :: ((LocalIds, S.Term.Term, S.Term.Type), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
+      unlocalizeRefs ((LocalIds tIds oIds, tm, tp), i) =
+        let self = C.Reference.Id oId i
+            dependencies :: Set S.Reference =
+              let (tmRefs, tpRefs, tmLinks, tpLinks) = TermUtil.dependencies tm
+                  tpRefs' = Foldable.toList $ C.Type.dependencies tp
+                  getTermSRef :: S.Term.TermRef -> S.Reference
+                  getTermSRef = \case
+                    C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
+                    C.Reference.Derived Nothing i -> C.Reference.Derived oId i -- index self-references
+                    C.Reference.Derived (Just h) i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
+                  getTypeSRef :: S.Term.TypeRef -> S.Reference
+                  getTypeSRef = \case
+                    C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
+                    C.Reference.Derived h i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
+                  getSTypeLink = getTypeSRef
+                  getSTermLink :: S.Term.TermLink -> S.Reference
+                  getSTermLink = \case
+                    C.Referent.Con ref _conId -> getTypeSRef ref
+                    C.Referent.Ref ref -> getTermSRef ref
+               in Set.fromList $
+                    map getTermSRef tmRefs
+                      ++ map getSTermLink tmLinks
+                      ++ map getTypeSRef (tpRefs ++ tpRefs')
+                      ++ map getSTypeLink tpLinks
+         in Set.map (,self) dependencies
+  traverse_ (uncurry addToDependentsIndex) dependencies
+  for_ ((snd <$> terms) `zip` [0 ..]) \(tp, i) -> do
+    let self = C.Referent.RefId (C.Reference.Id oId i)
+        typeForIndexing = toReference tp
+        typeMentionsForIndexing = toReferenceMentions tp
+    addTypeToIndexForTerm self typeForIndexing
+    addTypeMentionsToIndexForTerm self typeMentionsForIndexing
+
+  pure oId
+
+-- | Unlocalize a decl.
+s2cDecl :: LocalIds -> S.Decl.Decl Symbol -> Transaction (C.Decl Symbol)
+s2cDecl ids (C.Decl.DataDeclaration dt m b ct) = do
+  substTypeRef <- localIdsToTypeRefLookup ids
+  pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct))
+
+saveDeclComponent ::
+  HashHandle ->
+  Maybe ByteString ->
+  Hash ->
+  [C.Decl Symbol] ->
+  Transaction ObjectId
+saveDeclComponent hh@HashHandle {toReferenceDecl, toReferenceDeclMentions} maybeEncodedDecls h decls = do
+  when debug . traceM $ "Operations.saveDeclComponent " ++ show h
+  sDeclElements <- traverse (c2sDecl saveText expectObjectIdForPrimaryHash) decls
+  hashId <- saveHashHash h
+  let bytes = fromMaybe mkByteString maybeEncodedDecls
+      mkByteString =
+        let li = S.Decl.LocallyIndexedComponent $ Vector.fromList sDeclElements
+         in S.putBytes Serialization.putDeclFormat $ S.Decl.Decl li
+  oId <- saveObject hh hashId ObjectType.DeclComponent bytes
+  -- populate dependents index
+  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sDeclElements `zip` [0 ..])
+      unlocalizeRefs :: ((LocalIds, S.Decl.Decl Symbol), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
+      unlocalizeRefs ((LocalIds tIds oIds, decl), i) =
+        let self = C.Reference.Id oId i
+            dependencies :: Set S.Decl.TypeRef = C.Decl.dependencies decl
+            getSRef :: C.Reference.Reference' LocalTextId (Maybe LocalDefnId) -> S.Reference.Reference
+            getSRef = \case
+              C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
+              C.Reference.Derived Nothing i -> C.Reference.Derived oId i -- index self-references
+              C.Reference.Derived (Just h) i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
+         in Set.map ((,self) . getSRef) dependencies
+  traverse_ (uncurry addToDependentsIndex) dependencies
+  for_ ((fmap C.Decl.constructorTypes decls) `zip` [0 ..]) \(ctors, i) ->
+    for_ (ctors `zip` [0 ..]) \(tp, j) -> do
+      let self = C.Referent.ConId (C.Reference.Id oId i) j
+          typeForIndexing = toReferenceDecl h tp
+          typeMentionsForIndexing = toReferenceDeclMentions h tp
+      addTypeToIndexForTerm self typeForIndexing
+      addTypeMentionsToIndexForTerm self typeMentionsForIndexing
+
+  pure oId
+
+-- | implementation detail of {s,w}2c*Term* & s2cDecl
+localIdsToLookups :: Monad m => (t -> m Text) -> (d -> m Hash) -> LocalIds' t d -> m (LocalTextId -> Text, LocalDefnId -> Hash)
+localIdsToLookups loadText loadHash localIds = do
+  texts <- traverse loadText $ LocalIds.textLookup localIds
+  hashes <- traverse loadHash $ LocalIds.defnLookup localIds
+  let substText (LocalTextId w) = texts Vector.! fromIntegral w
+      substHash (LocalDefnId w) = hashes Vector.! fromIntegral w
+  pure (substText, substHash)
+
+-- | implementation detail of {s,w}2c*Term*
+x2cTerm :: (LocalTextId -> Text) -> (LocalDefnId -> Hash) -> S.Term.Term -> C.Term Symbol
+x2cTerm substText substHash =
+  -- substitute the text and hashes back into the term
+  C.Term.extraMap substText substTermRef substTypeRef substTermLink substTypeLink id
+  where
+    substTermRef = bimap substText (fmap substHash)
+    substTypeRef = bimap substText substHash
+    substTermLink = bimap substTermRef substTypeRef
+    substTypeLink = substTypeRef
+
+-- | implementation detail of {s,w}2c*Term*
+x2cTType :: (LocalTextId -> Text) -> (LocalDefnId -> Hash) -> S.Term.Type -> C.Term.Type Symbol
+x2cTType substText substHash = C.Type.rmap (bimap substText substHash)
+
+c2sTerm :: C.Term Symbol -> C.Term.Type Symbol -> Transaction (LocalIds, S.Term.Term, S.Term.Type)
+c2sTerm tm tp = c2xTerm saveText expectObjectIdForPrimaryHash tm (Just tp) <&> \(w, tm, Just tp) -> (w, tm, tp)
+
+addTypeToIndexForTerm :: S.Referent.Id -> C.Reference -> Transaction ()
+addTypeToIndexForTerm sTermId cTypeRef = do
+  sTypeRef <- saveReferenceH cTypeRef
+  addToTypeIndex sTypeRef sTermId
+
+addTypeMentionsToIndexForTerm :: S.Referent.Id -> Set C.Reference -> Transaction ()
+addTypeMentionsToIndexForTerm sTermId cTypeMentionRefs = do
+  traverse_ (flip addToTypeMentionsIndex sTermId <=< saveReferenceH) cTypeMentionRefs
+
+localIdsToTypeRefLookup :: LocalIds -> Transaction (S.Decl.TypeRef -> C.Decl.TypeRef)
+localIdsToTypeRefLookup localIds = do
+  (substText, substHash) <- localIdsToLookups expectText expectPrimaryHashByObjectId localIds
+  pure $ bimap substText (fmap substHash)
+
+c2sDecl ::
+  forall m t d.
+  Monad m =>
+  (Text -> m t) ->
+  (Hash -> m d) ->
+  C.Decl Symbol ->
+  m (LocalIds' t d, S.Decl.Decl Symbol)
+c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
+  done =<< (runWriterT . flip evalStateT mempty) do
+    cts' <- traverse (ABT.transformM goType) cts
+    pure (C.Decl.DataDeclaration dt m b cts')
+  where
+    goType ::
+      forall m a.
+      (MonadWriter (Seq Text, Seq Hash) m, MonadState (Map Text LocalTextId, Map Hash LocalDefnId) m) =>
+      C.Type.FD a ->
+      m (S.Decl.F a)
+    goType = \case
+      C.Type.Ref r -> C.Type.Ref <$> bitraverse lookupText (traverse lookupDefn) r
+      C.Type.Arrow i o -> pure $ C.Type.Arrow i o
+      C.Type.Ann a k -> pure $ C.Type.Ann a k
+      C.Type.App f a -> pure $ C.Type.App f a
+      C.Type.Effect e a -> pure $ C.Type.Effect e a
+      C.Type.Effects es -> pure $ C.Type.Effects es
+      C.Type.Forall a -> pure $ C.Type.Forall a
+      C.Type.IntroOuter a -> pure $ C.Type.IntroOuter a
+    done :: (S.Decl.Decl Symbol, (Seq Text, Seq Hash)) -> m (LocalIds' t d, S.Decl.Decl Symbol)
+    done (decl, (localTextValues, localDefnValues)) = do
+      textIds <- traverse saveText localTextValues
+      defnIds <- traverse saveDefn localDefnValues
+      let ids =
+            LocalIds
+              (Vector.fromList (Foldable.toList textIds))
+              (Vector.fromList (Foldable.toList defnIds))
+      pure (ids, decl)
+
+-- | implementation detail of c2{s,w}Term
+--  The Type is optional, because we don't store them for watch expression results.
+c2xTerm :: forall m t d. Monad m => (Text -> m t) -> (Hash -> m d) -> C.Term Symbol -> Maybe (C.Term.Type Symbol) -> m (LocalIds' t d, S.Term.Term, Maybe (S.Term.Type))
+c2xTerm saveText saveDefn tm tp =
+  done =<< (runWriterT . flip evalStateT mempty) do
+    sterm <- ABT.transformM go tm
+    stype <- traverse (ABT.transformM goType) tp
+    pure (sterm, stype)
+  where
+    go :: forall m a. (MonadWriter (Seq Text, Seq Hash) m, MonadState (Map Text LocalTextId, Map Hash LocalDefnId) m) => C.Term.F Symbol a -> m (S.Term.F a)
+    go = \case
+      C.Term.Int n -> pure $ C.Term.Int n
+      C.Term.Nat n -> pure $ C.Term.Nat n
+      C.Term.Float n -> pure $ C.Term.Float n
+      C.Term.Boolean b -> pure $ C.Term.Boolean b
+      C.Term.Text t -> C.Term.Text <$> lookupText t
+      C.Term.Char ch -> pure $ C.Term.Char ch
+      C.Term.Ref r ->
+        C.Term.Ref <$> bitraverse lookupText (traverse lookupDefn) r
+      C.Term.Constructor typeRef cid ->
+        C.Term.Constructor
+          <$> bitraverse lookupText lookupDefn typeRef
+          <*> pure cid
+      C.Term.Request typeRef cid ->
+        C.Term.Request <$> bitraverse lookupText lookupDefn typeRef <*> pure cid
+      C.Term.Handle a a2 -> pure $ C.Term.Handle a a2
+      C.Term.App a a2 -> pure $ C.Term.App a a2
+      C.Term.Ann a typ -> C.Term.Ann a <$> ABT.transformM goType typ
+      C.Term.List as -> pure $ C.Term.List as
+      C.Term.If c t f -> pure $ C.Term.If c t f
+      C.Term.And a a2 -> pure $ C.Term.And a a2
+      C.Term.Or a a2 -> pure $ C.Term.Or a a2
+      C.Term.Lam a -> pure $ C.Term.Lam a
+      C.Term.LetRec bs a -> pure $ C.Term.LetRec bs a
+      C.Term.Let a a2 -> pure $ C.Term.Let a a2
+      C.Term.Match a cs -> C.Term.Match a <$> traverse goCase cs
+      C.Term.TermLink r ->
+        C.Term.TermLink
+          <$> bitraverse
+            (bitraverse lookupText (traverse lookupDefn))
+            (bitraverse lookupText lookupDefn)
+            r
+      C.Term.TypeLink r ->
+        C.Term.TypeLink <$> bitraverse lookupText lookupDefn r
+    goType ::
+      forall m a.
+      (MonadWriter (Seq Text, Seq Hash) m, MonadState (Map Text LocalTextId, Map Hash LocalDefnId) m) =>
+      C.Type.FT a ->
+      m (S.Term.FT a)
+    goType = \case
+      C.Type.Ref r -> C.Type.Ref <$> bitraverse lookupText lookupDefn r
+      C.Type.Arrow i o -> pure $ C.Type.Arrow i o
+      C.Type.Ann a k -> pure $ C.Type.Ann a k
+      C.Type.App f a -> pure $ C.Type.App f a
+      C.Type.Effect e a -> pure $ C.Type.Effect e a
+      C.Type.Effects es -> pure $ C.Type.Effects es
+      C.Type.Forall a -> pure $ C.Type.Forall a
+      C.Type.IntroOuter a -> pure $ C.Type.IntroOuter a
+    goCase ::
+      forall m w s a.
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field1' s (Map Text LocalTextId),
+        Lens.Field1' w (Seq Text),
+        Lens.Field2' s (Map Hash LocalDefnId),
+        Lens.Field2' w (Seq Hash)
+      ) =>
+      C.Term.MatchCase Text C.Term.TypeRef a ->
+      m (C.Term.MatchCase LocalTextId S.Term.TypeRef a)
+    goCase = \case
+      C.Term.MatchCase pat guard body ->
+        C.Term.MatchCase <$> goPat pat <*> pure guard <*> pure body
+    goPat ::
+      forall m s w.
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field1' s (Map Text LocalTextId),
+        Lens.Field1' w (Seq Text),
+        Lens.Field2' s (Map Hash LocalDefnId),
+        Lens.Field2' w (Seq Hash)
+      ) =>
+      C.Term.Pattern Text C.Term.TypeRef ->
+      m (C.Term.Pattern LocalTextId S.Term.TypeRef)
+    goPat = \case
+      C.Term.PUnbound -> pure $ C.Term.PUnbound
+      C.Term.PVar -> pure $ C.Term.PVar
+      C.Term.PBoolean b -> pure $ C.Term.PBoolean b
+      C.Term.PInt i -> pure $ C.Term.PInt i
+      C.Term.PNat n -> pure $ C.Term.PNat n
+      C.Term.PFloat d -> pure $ C.Term.PFloat d
+      C.Term.PText t -> C.Term.PText <$> lookupText t
+      C.Term.PChar c -> pure $ C.Term.PChar c
+      C.Term.PConstructor r i ps -> C.Term.PConstructor <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat ps
+      C.Term.PAs p -> C.Term.PAs <$> goPat p
+      C.Term.PEffectPure p -> C.Term.PEffectPure <$> goPat p
+      C.Term.PEffectBind r i bindings k -> C.Term.PEffectBind <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat bindings <*> goPat k
+      C.Term.PSequenceLiteral ps -> C.Term.PSequenceLiteral <$> traverse goPat ps
+      C.Term.PSequenceOp l op r -> C.Term.PSequenceOp <$> goPat l <*> pure op <*> goPat r
+
+    done :: ((S.Term.Term, Maybe S.Term.Type), (Seq Text, Seq Hash)) -> m (LocalIds' t d, S.Term.Term, Maybe S.Term.Type)
+    done ((tm, tp), (localTextValues, localDefnValues)) = do
+      textIds <- traverse saveText localTextValues
+      defnIds <- traverse saveDefn localDefnValues
+      let ids =
+            LocalIds
+              (Vector.fromList (Foldable.toList textIds))
+              (Vector.fromList (Foldable.toList defnIds))
+      pure (ids, void tm, void <$> tp)
+
+-- | Save the text and hash parts of a Reference to the database and substitute their ids.
+saveReferenceH :: C.Reference -> Transaction S.ReferenceH
+saveReferenceH = bitraverse saveText saveHashHash
+
+lookupText ::
+  forall m s w t.
+  ( MonadState s m,
+    MonadWriter w m,
+    Lens.Field1' s (Map t LocalTextId),
+    Lens.Field1' w (Seq t),
+    Ord t
+  ) =>
+  t ->
+  m LocalTextId
+lookupText = lookup_ Lens._1 Lens._1 LocalTextId
+
+lookupDefn ::
+  forall m s w d.
+  ( MonadState s m,
+    MonadWriter w m,
+    Lens.Field2' s (Map d LocalDefnId),
+    Lens.Field2' w (Seq d),
+    Ord d
+  ) =>
+  d ->
+  m LocalDefnId
+lookupDefn = lookup_ Lens._2 Lens._2 LocalDefnId
+
+-- | shared implementation of lookupTextHelper and lookupDefnHelper
+--  Look up a value in the LUT, or append it.
+lookup_ ::
+  (MonadState s m, MonadWriter w m, Ord t) =>
+  Lens' s (Map t t') ->
+  Lens' w (Seq t) ->
+  (Word64 -> t') ->
+  t ->
+  m t'
+lookup_ stateLens writerLens mk t = do
+  map <- Lens.use stateLens
+  case Map.lookup t map of
+    Nothing -> do
+      let id = mk . fromIntegral $ Map.size map
+      stateLens Lens.%= Map.insert t id
+      Writer.tell $ Lens.set writerLens (Seq.singleton t) mempty
+      pure id
+    Just t' -> pure t'

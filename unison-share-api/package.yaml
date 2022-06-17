@@ -9,46 +9,55 @@ library:
       other-modules: Paths_unison_share_api
 
 dependencies:
-  - base
-  - mtl
-  - text
-  - transformers
-  - unliftio
-  - servant
-  - containers
-  - nonempty-containers
-  - bytestring
+  - NanoID
   - aeson
-  - memory
-  - unison-util-relation
-  - unison-codebase
-  - unison-core1
-  - unison-prelude
-  - unison-parser-typechecker
-  - unison-pretty-printer
-  - lucid
-  - openapi3
-  - extra
-  - lens
-  - fuzzyfind
-  - filepath
+  - async
+  - base
+  - bytestring
+  - containers
   - directory
-  - yaml
   - errors
-  - servant-server
+  - extra
+  - filepath
+  - fuzzyfind
+  - http-media
+  - http-types
+  - jose
+  - jwt
+  - lens
+  - lucid
+  - memory
+  - mtl
+  - mwc-random
+  - nonempty-containers
+  - openapi3
+  - regex-tdfa
+  - servant
   - servant-docs
   - servant-openapi3
-  - mwc-random
-  - warp
-  - wai
-  - uri-encode
-  - http-types
-  - http-media
-  - NanoID
-  - utf8-string
-  - async
-  - regex-tdfa
+  - servant-server
+  - servant-auth
+  - text
+  - transformers
+  - unison-codebase
+  - unison-codebase-sqlite
+  - unison-core1
+  - unison-parser-typechecker
+  - unison-prelude
+  - unison-pretty-printer
   - unison-util
+  - unison-util-base32hex
+  - unison-util-base32hex-orphans-aeson
+  - unison-util-relation
+  - unison-sqlite
+  - unliftio
+  - unordered-containers
+  - uri-encode
+  - utf8-string
+  - vector
+  - wai
+  - warp
+  - yaml
 
 ghc-options:
   -Wall

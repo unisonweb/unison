@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.7.
 --
 -- see: https://github.com/sol/hpack
 
@@ -57,7 +57,6 @@ library
       Unison.Util.Alphabetical
       Unison.Util.Components
       Unison.Util.List
-      Unison.Util.Monoid
       Unison.Var
       Unison.Var.RefNamed
       Unison.WatchKind
@@ -101,10 +100,11 @@ library
     , safe
     , text
     , transformers
+    , unison-core
     , unison-prelude
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
-    , util
     , vector
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields

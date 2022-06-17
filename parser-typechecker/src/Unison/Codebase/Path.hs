@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Path
@@ -79,6 +80,7 @@ import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Sequence (Seq ((:<|), (:|>)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
+import qualified GHC.Exts as GHC
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Convert (..), Name, Parse)
 import qualified Unison.Name as Name
@@ -91,6 +93,13 @@ import Unison.Util.Monoid (intercalateMap)
 newtype Path = Path {toSeq :: Seq NameSegment}
   deriving stock (Eq, Ord)
   deriving newtype (Semigroup, Monoid)
+
+-- | Meant for use mostly in doc-tests where it's
+-- sometimes convenient to specify paths as lists.
+instance GHC.IsList Path where
+  type Item Path = NameSegment
+  toList (Path segs) = Foldable.toList segs
+  fromList = Path . Seq.fromList
 
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
 

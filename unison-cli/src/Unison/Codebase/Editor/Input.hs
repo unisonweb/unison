@@ -188,9 +188,9 @@ data Input
   | VersionI
   deriving (Eq, Show)
 
--- | @"gist repo"@ pushes the contents of the current namespace to @repo@.
+-- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
 data GistInput = GistInput
-  { repo :: WriteRepo
+  { repo :: WriteGitRepo
   }
   deriving stock (Eq, Show)
 

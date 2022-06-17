@@ -73,6 +73,9 @@ module Unison.Sqlite
     queryOneRowCheck_,
     queryOneColCheck_,
 
+    -- * Rows modified
+    rowsModified,
+
     -- * Data version
     DataVersion (..),
     getDataVersion,
@@ -101,11 +104,11 @@ module Unison.Sqlite
     (Sqlite.Simple.:.) (..),
     Sqlite.Simple.FromField (fromField),
     Sqlite.Simple.FromRow (fromRow),
+    Sqlite.Simple.Only (..),
     Sqlite.Simple.RowParser,
     Sqlite.Simple.SQLData (..),
     Sqlite.Simple.ToField (toField),
     Sqlite.Simple.ToRow (toRow),
-    Sqlite.Simple.Only (..),
   )
 where
 

@@ -1,6 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Auth.OAuth (authenticateCodeserver) where
+module Unison.Auth.OAuth
+  ( authenticateCodeserver,
+  )
+where
 
 import qualified Crypto.Hash as Crypto
 import Crypto.Random (getRandomBytes)
@@ -17,8 +20,8 @@ import Network.URI
 import Network.Wai
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
-import Unison.Auth.CredentialManager (CredentialManager, saveTokens)
-import Unison.Auth.Discovery (discoveryForCodeserver)
+import Unison.Auth.CredentialManager (CredentialManager, saveCredentials)
+import Unison.Auth.Discovery (discoveryURIForCodeserver, fetchDiscoveryDoc)
 import Unison.Auth.Types
 import Unison.Codebase.Editor.HandleInput.LoopState (MonadCommand, respond)
 import qualified Unison.Codebase.Editor.Output as Output
@@ -34,23 +37,27 @@ ucmOAuthClientID = "ucm"
 -- | A server in the format expected for a Wai Application
 -- This is a temporary server which is spun up only until we get a code back from the
 -- auth server.
-authTransferServer :: (Code -> IO Response) -> Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
+authTransferServer :: (Code -> Maybe URI -> IO Response) -> Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
 authTransferServer callback req respond =
-  case (requestMethod req, pathInfo req, getCodeQuery req) of
-    ("GET", ["redirect"], Just code) -> do
-      callback code >>= respond
+  case (requestMethod req, pathInfo req, getQueryParams req) of
+    ("GET", ["redirect"], (Just code, maybeNextURI)) -> do
+      callback code maybeNextURI >>= respond
     _ -> respond (responseLBS status404 [] "Not Found")
   where
-    getCodeQuery req = do
-      code <- join $ Prelude.lookup "code" (queryString req)
-      pure $ Text.decodeUtf8 code
+    getQueryParams req = do
+      let code = join $ Prelude.lookup "code" (queryString req)
+          nextURI = do
+            nextBS <- join $ Prelude.lookup "next" (queryString req)
+            parseURI (BSC.unpack nextBS)
+       in (Text.decodeUtf8 <$> code, nextURI)
 
 -- | Direct the user through an authentication flow with the given server and store the
 -- credentials in the provided credential manager.
 authenticateCodeserver :: forall m n i v. (UnliftIO.MonadUnliftIO m, MonadCommand m n i v) => CredentialManager -> CodeserverURI -> m (Either CredentialFailure ())
 authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- liftIO HTTP.getGlobalManager
-  doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ discoveryForCodeserver httpClient codeserverURI
+  let discoveryURI = discoveryURIForCodeserver codeserverURI
+  doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <- throwCredFailure $ fetchDiscoveryDoc discoveryURI
   debugM Auth "Discovery Doc" doc
   authResultVar <- UnliftIO.newEmptyMVar @_ @(Either CredentialFailure Tokens)
   -- The redirect_uri depends on the port, so we need to spin up the server first, but
@@ -59,7 +66,7 @@ authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialF
   -- and it all works out fine.
   redirectURIVar <- UnliftIO.newEmptyMVar
   (verifier, challenge, state) <- generateParams
-  let codeHandler code = do
+  let codeHandler code mayNextURI = do
         redirectURI <- UnliftIO.readMVar redirectURIVar
         result <- exchangeCode httpClient tokenEndpoint code verifier redirectURI
         UnliftIO.putMVar authResultVar result
@@ -68,7 +75,10 @@ authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialF
             debugM Auth "Auth Error" err
             pure $ Wai.responseLBS internalServerError500 [] "Something went wrong, please try again."
           Right _ ->
-            pure $ Wai.responseLBS ok200 [] "Authorization successful. You may close this page and return to UCM."
+            case mayNextURI of
+              Nothing -> pure $ Wai.responseLBS found302 [] "Authorization successful. You may close this page and return to UCM."
+              Just nextURI ->
+                pure $ Wai.responseLBS found302 [("LOCATION", BSC.pack $ show @URI nextURI)] "Authorization successful. You may close this page and return to UCM."
   toIO <- UnliftIO.askRunInIO
   liftIO . Warp.withApplication (pure $ authTransferServer codeHandler) $ \port -> toIO $ do
     let redirectURI = "http://localhost:" <> show port <> "/redirect"
@@ -78,7 +88,8 @@ authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialF
     respond . Output.InitiateAuthFlow $ authorizationKickoff
     tokens <- throwCredFailure $ UnliftIO.readMVar authResultVar
     let codeserverId = codeserverIdFromCodeserverURI codeserverURI
-    saveTokens credsManager codeserverId tokens
+    let creds = codeserverCredentials discoveryURI tokens
+    saveCredentials credsManager codeserverId creds
   where
     throwCredFailure :: m (Either CredentialFailure a) -> m a
     throwCredFailure = throwEitherM

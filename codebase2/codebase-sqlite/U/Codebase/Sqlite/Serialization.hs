@@ -14,11 +14,9 @@ import Data.Bytes.Get (MonadGet, getByteString, getWord8, runGetS)
 import Data.Bytes.Put (MonadPut, putByteString, putWord8)
 import Data.Bytes.Serial (SerialEndian (serializeBE), deserialize, deserializeBE, serialize)
 import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
-import Data.Int (Int64)
 import Data.List (elemIndex)
 import qualified Data.Set as Set
-import Data.Word (Word64)
-import Debug.Trace (trace)
+import Data.Vector (Vector)
 import qualified U.Codebase.Decl as Decl
 import U.Codebase.Kind (Kind)
 import qualified U.Codebase.Kind as Kind
@@ -29,7 +27,9 @@ import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
+import qualified U.Codebase.Sqlite.Causal as Causal
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import qualified U.Codebase.Sqlite.Entity as Entity
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
 import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
@@ -37,12 +37,18 @@ import qualified U.Codebase.Sqlite.Patch.Full as PatchFull
 import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
 import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
 import U.Codebase.Sqlite.Symbol (Symbol (..))
+import U.Codebase.Sqlite.TempEntity (TempEntity)
+import qualified U.Codebase.Sqlite.TempEntity as TempEntity
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
+import qualified U.Util.Base32Hex as Base32Hex
+import U.Util.Hash32 (Hash32)
+import qualified U.Util.Hash32 as Hash32
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization hiding (debug)
+import Unison.Prelude
 import Prelude hiding (getChar, putChar)
 
 debug :: Bool
@@ -108,15 +114,22 @@ getABT getVar getA getF = getList getVar >>= go []
         _ -> unknownTag "getABT" tag
 
 putLocalIds :: (MonadPut m, Integral t, Bits t, Integral d, Bits d) => LocalIds' t d -> m ()
-putLocalIds LocalIds {..} = do
-  putFoldable putVarInt textLookup
-  putFoldable putVarInt defnLookup
+putLocalIds = putLocalIdsWith putVarInt putVarInt
+
+putLocalIdsWith :: (MonadPut m) => (t -> m ()) -> (d -> m ()) -> LocalIds' t d -> m ()
+putLocalIdsWith putText putDefn LocalIds {textLookup, defnLookup} = do
+  putFoldable putText textLookup
+  putFoldable putDefn defnLookup
 
 getLocalIds :: MonadGet m => m LocalIds
-getLocalIds = LocalIds <$> getVector getVarInt <*> getVector getVarInt
+getLocalIds = getLocalIdsWith getVarInt getVarInt
 
 getWatchLocalIds :: MonadGet m => m WatchLocalIds
-getWatchLocalIds = LocalIds <$> getVector getVarInt <*> getVector getVarInt
+getWatchLocalIds = getLocalIdsWith getVarInt getVarInt
+
+getLocalIdsWith :: MonadGet m => m t -> m d -> m (LocalIds' t d)
+getLocalIdsWith getText getDefn =
+  LocalIds <$> getVector getText <*> getVector getDefn
 
 putUnit :: Applicative m => () -> m ()
 putUnit _ = pure ()
@@ -251,6 +264,9 @@ getTermComponent :: MonadGet m => m TermFormat.LocallyIndexedComponent
 getTermComponent =
   TermFormat.LocallyIndexedComponent
     <$> getFramedArray (getTuple3 getLocalIds (getFramed getTerm) getTType)
+
+getTermAndType :: MonadGet m => m (TermFormat.Term, TermFormat.Type)
+getTermAndType = (,) <$> getFramed getTerm <*> getTType
 
 getTerm :: MonadGet m => m TermFormat.Term
 getTerm = getABT getSymbol getUnit getF
@@ -633,7 +649,25 @@ getBranchLocalIds =
     <*> getVector getVarInt
     <*> getVector (getPair getVarInt getVarInt)
 
-decomposeComponent :: MonadGet m => m [(LocalIds, BS.ByteString)]
+decomposeTermFormat :: MonadGet m => m TermFormat.SyncTermFormat
+decomposeTermFormat =
+  getWord8 >>= \case
+    0 ->
+      TermFormat.SyncTerm
+        . TermFormat.SyncLocallyIndexedComponent
+        <$> decomposeComponent
+    tag -> error $ "todo: unknown term format tag " ++ show tag
+
+decomposeDeclFormat :: MonadGet m => m DeclFormat.SyncDeclFormat
+decomposeDeclFormat =
+  getWord8 >>= \case
+    0 ->
+      DeclFormat.SyncDecl
+        . DeclFormat.SyncLocallyIndexedComponent
+        <$> decomposeComponent
+    tag -> error $ "todo: unknown term format tag " ++ show tag
+
+decomposeComponent :: MonadGet m => m (Vector (LocalIds, BS.ByteString))
 decomposeComponent = do
   offsets <- getList (getVarInt @_ @Int)
   componentBytes <- getByteString (last offsets)
@@ -643,7 +677,17 @@ decomposeComponent = do
       split = (,) <$> getLocalIds <*> getRemainingByteString
   Monoid.foldMapM get1 (zip offsets (tail offsets))
 
-recomposeComponent :: MonadPut m => [(LocalIds, BS.ByteString)] -> m ()
+recomposeTermFormat :: MonadPut m => TermFormat.SyncTermFormat -> m ()
+recomposeTermFormat = \case
+  TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent x) ->
+    putWord8 0 >> recomposeComponent x
+
+recomposeDeclFormat :: MonadPut m => DeclFormat.SyncDeclFormat -> m ()
+recomposeDeclFormat = \case
+  DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent x) ->
+    putWord8 0 >> recomposeComponent x
+
+recomposeComponent :: MonadPut m => Vector (LocalIds, BS.ByteString) -> m ()
 recomposeComponent = putFramedArray \(localIds, bytes) -> do
   putLocalIds localIds
   putByteString bytes
@@ -685,6 +729,126 @@ recomposeBranchFormat = \case
     putWord8 0 *> putBranchLocalIds li *> putByteString bs
   BranchFormat.SyncDiff id li bs ->
     putWord8 1 *> putVarInt id *> putBranchLocalIds li *> putByteString bs
+
+putTempEntity :: MonadPut m => TempEntity -> m ()
+putTempEntity = \case
+  Entity.TC tc -> case tc of
+    TermFormat.SyncTerm term ->
+      putWord8 0 *> putSyncTerm term
+  Entity.DC dc -> case dc of
+    DeclFormat.SyncDecl decl ->
+      putWord8 0 *> putSyncDecl decl
+  Entity.P p -> case p of
+    PatchFormat.SyncFull lids bytes ->
+      putWord8 0 *> putSyncFullPatch lids bytes
+    PatchFormat.SyncDiff parent lids bytes ->
+      putWord8 1 *> putSyncDiffPatch parent lids bytes
+  Entity.N n -> case n of
+    BranchFormat.SyncFull lids bytes ->
+      putWord8 0 *> putSyncFullNamespace lids bytes
+    BranchFormat.SyncDiff parent lids bytes ->
+      putWord8 1 *> putSyncDiffNamespace parent lids bytes
+  Entity.C gdc ->
+    putSyncCausal gdc
+  where
+    putHash32 = putText . Hash32.toText
+    putPatchLocalIds PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup} = do
+      putFoldable putText patchTextLookup
+      putFoldable putHash32 patchHashLookup
+      putFoldable putHash32 patchDefnLookup
+    putNamespaceLocalIds BranchFormat.LocalIds {branchTextLookup, branchDefnLookup, branchPatchLookup, branchChildLookup} = do
+      putFoldable putText branchTextLookup
+      putFoldable putHash32 branchDefnLookup
+      putFoldable putHash32 branchPatchLookup
+      putFoldable (putPair putHash32 putHash32) branchChildLookup
+    putSyncCausal Causal.SyncCausalFormat {valueHash, parents} = do
+      putHash32 valueHash
+      putFoldable putHash32 parents
+    putSyncFullPatch lids bytes = do
+      putPatchLocalIds lids
+      putFramedByteString bytes
+    putSyncDiffPatch parent lids bytes = do
+      putHash32 parent
+      putPatchLocalIds lids
+      putFramedByteString bytes
+    putSyncFullNamespace lids bytes = do
+      putNamespaceLocalIds lids
+      putFramedByteString bytes
+    putSyncDiffNamespace parent lids bytes = do
+      putHash32 parent
+      putNamespaceLocalIds lids
+      putFramedByteString bytes
+    putSyncTerm (TermFormat.SyncLocallyIndexedComponent vec) =
+      -- we're not leaving ourselves the ability to skip over the localIds
+      -- when deserializing, because we don't think we need to (and it adds a
+      -- little overhead.)
+      flip putFoldable vec \(localIds, bytes) -> do
+        putLocalIdsWith putText putHash32 localIds
+        putFramedByteString bytes
+    putSyncDecl (DeclFormat.SyncLocallyIndexedComponent vec) =
+      flip putFoldable vec \(localIds, bytes) -> do
+        putLocalIdsWith putText putHash32 localIds
+        putFramedByteString bytes
+
+getHash32 :: MonadGet m => m Hash32
+getHash32 = Hash32.UnsafeFromBase32Hex . Base32Hex.UnsafeFromText <$> getText
+
+getTempTermFormat :: MonadGet m => m TempEntity.TempTermFormat
+getTempTermFormat =
+  getWord8 >>= \case
+    0 ->
+      TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
+        <$> getVector
+          ( getPair
+              (getLocalIdsWith getText getHash32)
+              getFramedByteString
+          )
+    tag -> unknownTag "getTempTermFormat" tag
+
+getTempDeclFormat :: MonadGet m => m TempEntity.TempDeclFormat
+getTempDeclFormat =
+  getWord8 >>= \case
+    0 ->
+      DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
+        <$> getVector
+          ( getPair
+              (getLocalIdsWith getText getHash32)
+              getFramedByteString
+          )
+    tag -> unknownTag "getTempDeclFormat" tag
+
+getTempPatchFormat :: MonadGet m => m TempEntity.TempPatchFormat
+getTempPatchFormat =
+  getWord8 >>= \case
+    0 -> PatchFormat.SyncFull <$> getPatchLocalIds <*> getFramedByteString
+    1 -> PatchFormat.SyncDiff <$> getHash32 <*> getPatchLocalIds <*> getFramedByteString
+    tag -> unknownTag "getTempPatchFormat" tag
+  where
+    getPatchLocalIds =
+      PatchFormat.LocalIds
+        <$> getVector getText
+        <*> getVector getHash32
+        <*> getVector getHash32
+
+getTempNamespaceFormat :: MonadGet m => m TempEntity.TempNamespaceFormat
+getTempNamespaceFormat =
+  getWord8 >>= \case
+    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getFramedByteString
+    1 -> BranchFormat.SyncDiff <$> getHash32 <*> getBranchLocalIds <*> getFramedByteString
+    tag -> unknownTag "getTempNamespaceFormat" tag
+  where
+    getBranchLocalIds =
+      BranchFormat.LocalIds
+        <$> getVector getText
+        <*> getVector getHash32
+        <*> getVector getHash32
+        <*> getVector (getPair getHash32 getHash32)
+
+getTempCausalFormat :: MonadGet m => m TempEntity.TempCausalFormat
+getTempCausalFormat =
+  Causal.SyncCausalFormat
+    <$> getHash32
+    <*> getVector getHash32
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText

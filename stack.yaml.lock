@@ -76,6 +76,13 @@ packages:
   original:
     hackage: NanoID-3.1.0@sha256:9118ab00e8650b5a56a10c90295d357eb77a8057a598b7e56dfedc9c6d53c77d,1524
 - completed:
+    hackage: direct-sqlite-2.3.27@sha256:94207d3018da3bda84bc6ce00d2c0236ced7edb37afbd726ed2a0bfa236e149b,3771
+    pantry-tree:
+      size: 770
+      sha256: c7f5afe70db567e2cf9f3119b49f4b402705e6bd08ed8ba98747a64a8a0bef41
+  original:
+    hackage: direct-sqlite-2.3.27
+- completed:
     hackage: recover-rtti-0.4.0.0@sha256:2ce1e031ec0e34d736fa45f0149bbd55026f614939dc90ffd14a9c5d24093ff4,4423
     pantry-tree:
       size: 2410

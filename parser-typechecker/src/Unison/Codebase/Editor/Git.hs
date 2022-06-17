@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.Git
     withIsolatedRepo,
     debugGit,
     gitDirToPath,
+    gitVerbosity,
     GitBranchBehavior (..),
     GitRepo (..),
 
@@ -27,21 +28,18 @@ import qualified Data.Text as Text
 import Shellmet (($?), ($^), ($|))
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath ((</>))
-import System.IO.Unsafe (unsafePerformIO)
-import Unison.Codebase.Editor.RemoteRepo (ReadRepo (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo (..))
 import Unison.Codebase.GitError (GitProtocolError)
 import qualified Unison.Codebase.GitError as GitError
+import qualified Unison.Debug as Debug
 import Unison.Prelude
 import qualified UnliftIO
 import UnliftIO.Directory (XdgDirectory (XdgCache), doesDirectoryExist, findExecutable, getXdgDirectory)
-import UnliftIO.Environment (lookupEnv)
 import UnliftIO.IO (hFlush, stdout)
 import qualified UnliftIO.Process as UnliftIO
 
 debugGit :: Bool
-debugGit =
-  isJust (unsafePerformIO (lookupEnv "UNISON_DEBUG_GIT"))
-{-# NOINLINE debugGit #-}
+debugGit = Debug.shouldDebug Debug.Git
 
 gitVerbosity :: [Text]
 gitVerbosity =
@@ -136,7 +134,7 @@ data GitBranchBehavior
 withRepo ::
   forall m a.
   (MonadUnliftIO m) =>
-  ReadRepo ->
+  ReadGitRepo ->
   GitBranchBehavior ->
   (GitRepo -> m a) ->
   m (Either GitProtocolError a)
@@ -209,7 +207,7 @@ withRepo repo@(ReadGitRepo {url = uri, ref = mayGitRef}) branchBehavior action =
       pure succeeded
 
 -- | Do a `git clone` (for a not-previously-cached repo).
-cloneIfMissing :: (MonadIO m, MonadError GitProtocolError m) => ReadRepo -> FilePath -> m GitRepo
+cloneIfMissing :: (MonadIO m, MonadError GitProtocolError m) => ReadGitRepo -> FilePath -> m GitRepo
 cloneIfMissing repo@(ReadGitRepo {url = uri}) localPath = do
   doesDirectoryExist localPath >>= \case
     True ->
