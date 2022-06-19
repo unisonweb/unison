@@ -929,6 +929,7 @@ lexemes' eof =
             <|> openKw "cases"
             <|> openKw "where"
             <|> openKw "let"
+            <|> openKw "do"
           where
             ifElse =
               openKw "if" <|> closeKw' (Just "then") ["if"] (lit "then")
@@ -1270,6 +1271,7 @@ keywords =
     [ "if",
       "then",
       "else",
+      "do",
       "forall",
       "∀",
       "handle",
