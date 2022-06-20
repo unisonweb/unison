@@ -27,9 +27,10 @@ makeTest (version, path) =
       (rightMay $ runParser defaultBaseLib "versionparser" version)
       ( Just
           -- We've hard-coded the v4 branch for base for now. See 'defaultBaseLib'
-          ( ReadGitRemoteNamespace
-              (ReadGitRepo "https://github.com/unisonweb/base" (Just "v4"))
-              Nothing
-              (Path.fromText path)
+          ( ReadShareRemoteNamespace
+              { server = DefaultCodeserver,
+                repo = "unison",
+                path = Path.fromList ["public", "dev", "base"] <> Path.fromText path
+              }
           )
       )
