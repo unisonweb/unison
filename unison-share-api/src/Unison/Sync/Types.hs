@@ -152,7 +152,7 @@ hashJWTHash =
 
 data HashJWTClaims = HashJWTClaims
   { hash :: Hash32,
-    userId :: Text
+    userId :: Maybe Text
   }
   deriving stock (Show, Eq, Ord)
 
