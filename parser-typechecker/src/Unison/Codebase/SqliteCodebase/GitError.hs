@@ -1,11 +1,11 @@
 module Unison.Codebase.SqliteCodebase.GitError where
 
 import U.Codebase.Sqlite.DbId (SchemaVersion)
-import Unison.Codebase.Editor.RemoteRepo (ReadRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo)
 import Unison.CodebasePath (CodebasePath)
 
 data GitSqliteCodebaseError
-  = GitCouldntParseRootBranchHash ReadRepo String
-  | NoDatabaseFile ReadRepo CodebasePath
-  | UnrecognizedSchemaVersion ReadRepo CodebasePath SchemaVersion
+  = GitCouldntParseRootBranchHash ReadGitRepo String
+  | NoDatabaseFile ReadGitRepo CodebasePath
+  | UnrecognizedSchemaVersion ReadGitRepo CodebasePath SchemaVersion
   deriving (Show)

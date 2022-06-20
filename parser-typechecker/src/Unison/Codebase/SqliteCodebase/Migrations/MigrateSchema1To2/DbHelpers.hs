@@ -1,9 +1,13 @@
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
   ( dbBranchHash,
     dbPatchHash,
+    syncCausalHash,
   )
 where
 
+import qualified Data.Set as Set
+import qualified Data.Vector as Vector
+import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import qualified U.Codebase.Reference as S hiding (Reference)
 import qualified U.Codebase.Reference as S.Reference
 import qualified U.Codebase.Referent as S.Referent
@@ -11,6 +15,7 @@ import U.Codebase.Sqlite.Branch.Full (DbMetadataSet)
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
+import qualified U.Codebase.Sqlite.Causal as S
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Patch.Full as S
 import qualified U.Codebase.Sqlite.Patch.TermEdit as S (TermEdit)
@@ -24,6 +29,7 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Branch (NameSegment (..))
 import qualified Unison.Hashing.V2.Branch as Hashing.Branch
+import qualified Unison.Hashing.V2.Causal as Hashing.Causal
 import qualified Unison.Hashing.V2.Patch as Hashing (Patch (..))
 import qualified Unison.Hashing.V2.Patch as Hashing.Patch
 import qualified Unison.Hashing.V2.Reference as Hashing (Reference)
@@ -39,9 +45,16 @@ import Unison.Sqlite (Transaction)
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
 
-dbBranchHash :: S.DbBranch -> Transaction Hash
+syncCausalHash :: S.SyncCausalFormat -> Transaction CausalHash
+syncCausalHash S.SyncCausalFormat {valueHash = valueHashId, parents = parentChIds} = do
+  fmap (CausalHash . Hashing.Causal.hashCausal) $
+    Hashing.Causal.Causal
+      <$> coerce @(Transaction BranchHash) @(Transaction Hash) (Q.expectBranchHash valueHashId)
+      <*> fmap (Set.fromList . coerce @[CausalHash] @[Hash] . Vector.toList) (traverse Q.expectCausalHash parentChIds)
+
+dbBranchHash :: S.DbBranch -> Transaction BranchHash
 dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
-  fmap Hashing.Branch.hashBranch $
+  fmap (BranchHash . Hashing.Branch.hashBranch) $
     Hashing.Branch.Raw
       <$> doTerms tms
       <*> doTypes tps
@@ -72,9 +85,9 @@ dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
     doChildren =
       Map.bitraverse s2hNameSegment \(_boId, chId) -> causalHashIdToHash chId
 
-dbPatchHash :: S.Patch -> Transaction Hash
+dbPatchHash :: S.Patch -> Transaction PatchHash
 dbPatchHash S.Patch {S.termEdits, S.typeEdits} =
-  fmap Hashing.Patch.hashPatch $
+  fmap (PatchHash . Hashing.Patch.hashPatch) $
     Hashing.Patch
       <$> doTermEdits termEdits
       <*> doTypeEdits typeEdits

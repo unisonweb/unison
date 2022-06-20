@@ -7,6 +7,7 @@ module Unison.Sqlite.Transaction
     unsafeUnTransaction,
     savepoint,
     unsafeIO,
+    unsafeGetConnection,
 
     -- * Executing queries
 
@@ -54,6 +55,9 @@ module Unison.Sqlite.Transaction
     queryMaybeColCheck_,
     queryOneRowCheck_,
     queryOneColCheck_,
+
+    -- * Rows modified
+    rowsModified,
   )
 where
 
@@ -76,6 +80,9 @@ newtype Transaction a
   -- Omit MonadIO instance because transactions may be retried
   -- Omit MonadThrow instance so we always throw SqliteException (via *Check) with lots of context
   deriving (Applicative, Functor, Monad) via (ReaderT Connection IO)
+
+unsafeGetConnection :: Transaction Connection
+unsafeGetConnection = Transaction pure
 
 -- | Run a transaction on the given connection.
 runTransaction :: MonadIO m => Connection -> Transaction a -> m a
@@ -361,3 +368,9 @@ queryOneRowCheck_ s check =
 queryOneColCheck_ :: (Sqlite.FromField a, SqliteExceptionReason e) => Sql -> (a -> Either e r) -> Transaction r
 queryOneColCheck_ s check =
   Transaction \conn -> Connection.queryOneColCheck_ conn s check
+
+-- Rows modified
+
+rowsModified :: Transaction Int
+rowsModified =
+  Transaction Connection.rowsModified

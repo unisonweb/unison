@@ -1,41 +1,52 @@
-module Unison.Auth.HTTPClient (newAuthorizedHTTPClient, AuthorizedHttpClient (..)) where
+module Unison.Auth.HTTPClient (newAuthenticatedHTTPClient, AuthenticatedHttpClient (..)) where
 
 import qualified Data.Text.Encoding as Text
 import Network.HTTP.Client (Request)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
-import Unison.Auth.CredentialManager (CredentialManager)
-import Unison.Auth.Tokens (TokenProvider, newTokenProvider)
-import Unison.Codebase.Editor.Command (UCMVersion)
+import Unison.Auth.Tokens (TokenProvider)
+import Unison.Codebase.Editor.Output (Output)
+import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Prelude
 import Unison.Share.Types (codeserverIdFromURI)
 import qualified Unison.Util.HTTP as HTTP
 
 -- | Newtype to delineate HTTP Managers with access-token logic.
-newtype AuthorizedHttpClient = AuthorizedHttpClient HTTP.Manager
+newtype AuthenticatedHttpClient = AuthenticatedHttpClient HTTP.Manager
 
 -- | Returns a new http manager which applies the appropriate Authorization header to
 -- any hosts our UCM is authenticated with.
-newAuthorizedHTTPClient :: MonadIO m => CredentialManager -> UCMVersion -> m HTTP.Manager
-newAuthorizedHTTPClient credsMan ucmVersion = liftIO $ do
-  let tokenProvider = newTokenProvider credsMan
+newAuthenticatedHTTPClient :: MonadIO m => (Output v -> IO ()) -> TokenProvider -> UCMVersion -> m AuthenticatedHttpClient
+newAuthenticatedHTTPClient responder tokenProvider ucmVersion = liftIO $ do
   let managerSettings =
         HTTP.tlsManagerSettings
-          & HTTP.addRequestMiddleware (authMiddleware tokenProvider)
+          & HTTP.addRequestMiddleware (authMiddleware responder tokenProvider)
           & HTTP.setUserAgent (HTTP.ucmUserAgent ucmVersion)
-  HTTP.newTlsManagerWith managerSettings
+  AuthenticatedHttpClient <$> HTTP.newTlsManagerWith managerSettings
 
 -- | Adds Bearer tokens to requests according to their host.
 -- If a CredentialFailure occurs (failure to refresh a token), auth is simply omitted,
 -- and the request is likely to trigger a 401 response which the caller can detect and initiate a re-auth.
 --
 -- If a host isn't associated with any credentials auth is omitted.
-authMiddleware :: TokenProvider -> (Request -> IO Request)
-authMiddleware tokenProvider req = do
-  case (codeserverIdFromURI $ (HTTP.getUri req)) of
-    Left _ -> pure req
-    Right codeserverHost -> do
-      result <- tokenProvider codeserverHost
-      case result of
-        Right token -> pure $ HTTP.applyBearerAuth (Text.encodeUtf8 token) req
+authMiddleware :: (Output v -> IO ()) -> TokenProvider -> (Request -> IO Request)
+authMiddleware responder tokenProvider req = do
+  -- The http manager "may run this function multiple times" when preparing a request.
+  -- We may wish to look into a better way to attach auth to our requests in middleware, but
+  -- this is a simple fix that works for now.
+  -- https://github.com/snoyberg/http-client/issues/350
+  case Prelude.lookup ("Authorization") (HTTP.requestHeaders req) of
+    Just _ -> pure req
+    Nothing -> do
+      case codeserverIdFromURI $ (HTTP.getUri req) of
+        -- If we can't identify an appropriate codeserver we pass it through without any auth.
         Left _ -> pure req
+        Right codeserverHost -> do
+          tokenProvider codeserverHost >>= \case
+            Right token -> do
+              let newReq = HTTP.applyBearerAuth (Text.encodeUtf8 token) req
+              pure newReq
+            Left err -> do
+              responder (Output.CredentialFailureMsg err)
+              pure req

@@ -16,17 +16,6 @@ packages:
   original:
     url: https://github.com/unisonweb/configurator/archive/e47e9e9fe1f576f8c835183b9def52d73c01327a.tar.gz
 - completed:
-    size: 75098
-    url: https://github.com/unisonweb/haskeline/archive/2944b11d19ee034c48276edc991736105c9d6143.tar.gz
-    name: haskeline
-    version: 0.7.5.0
-    sha256: 6d44207a4e94a16bc99d13dccbbb79bf676190c0476436b03235eeeaf6c72f9d
-    pantry-tree:
-      size: 3717
-      sha256: 878c7fb5801ec7418761a49b529ca3fdab274f22707c7d2759f2b3a2df06c3ea
-  original:
-    url: https://github.com/unisonweb/haskeline/archive/2944b11d19ee034c48276edc991736105c9d6143.tar.gz
-- completed:
     size: 10460
     url: https://github.com/unisonweb/shellmet/archive/2fd348592c8f51bb4c0ca6ba4bc8e38668913746.tar.gz
     name: shellmet
@@ -86,6 +75,13 @@ packages:
       sha256: d33d603a2f0d1a220ff0d5e7edb6273def89120e6bb958c2d836cae89e788334
   original:
     hackage: NanoID-3.1.0@sha256:9118ab00e8650b5a56a10c90295d357eb77a8057a598b7e56dfedc9c6d53c77d,1524
+- completed:
+    hackage: direct-sqlite-2.3.27@sha256:94207d3018da3bda84bc6ce00d2c0236ced7edb37afbd726ed2a0bfa236e149b,3771
+    pantry-tree:
+      size: 770
+      sha256: c7f5afe70db567e2cf9f3119b49f4b402705e6bd08ed8ba98747a64a8a0bef41
+  original:
+    hackage: direct-sqlite-2.3.27
 - completed:
     hackage: recover-rtti-0.4.0.0@sha256:2ce1e031ec0e34d736fa45f0149bbd55026f614939dc90ffd14a9c5d24093ff4,4423
     pantry-tree:

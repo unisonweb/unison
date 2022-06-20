@@ -1,73 +1,106 @@
 cradle:
   stack:
-    - path: "codebase2/codebase"
+    - path: "codebase2/codebase/./"
       component: "unison-codebase:lib"
 
-    - path: "codebase2/codebase-sqlite"
+    - path: "codebase2/codebase-sqlite/./"
       component: "unison-codebase-sqlite:lib"
 
-    - path: "codebase2/codebase-sync"
+    - path: "codebase2/codebase-sync/./"
       component: "unison-codebase-sync:lib"
 
-    - path: "codebase2/core"
+    - path: "codebase2/core/./"
       component: "unison-core:lib"
-
-    - path: "codebase2/util/bench"
-      component: "unison-util:bench:bench"
 
     - path: "codebase2/util/src"
       component: "unison-util:lib"
 
-    - path: "codebase2/util-serialization"
+    - path: "codebase2/util/bench/Main.hs"
+      component: "unison-util:bench:bench"
+
+    - path: "codebase2/util-serialization/./"
       component: "unison-util-serialization:lib"
 
-    - path: "codebase2/util-term"
+    - path: "codebase2/util-term/./"
       component: "unison-util-term:lib"
 
     - path: "lib/unison-prelude/src"
       component: "unison-prelude:lib"
 
+    - path: "lib/unison-pretty-printer/src"
+      component: "unison-pretty-printer:lib"
+
+    - path: "lib/unison-pretty-printer/prettyprintdemo/Main.hs"
+      component: "unison-pretty-printer:exe:prettyprintdemo"
+
+    - path: "lib/unison-pretty-printer/tests"
+      component: "unison-pretty-printer:test:pretty-printer-tests"
+
     - path: "lib/unison-sqlite/src"
       component: "unison-sqlite:lib"
 
-    - path: "unison-share-api/src"
-      component: "unison-share-api:lib"
+    - path: "lib/unison-util-base32hex/src"
+      component: "unison-util-base32hex:lib"
+
+    - path: "lib/unison-util-base32hex-orphans-aeson/src"
+      component: "unison-util-base32hex-orphans-aeson:lib"
+
+    - path: "lib/unison-util-base32hex-orphans-sqlite/src"
+      component: "unison-util-base32hex-orphans-sqlite:lib"
 
     - path: "lib/unison-util-relation/src"
       component: "unison-util-relation:lib"
 
     - path: "lib/unison-util-relation/test"
-      component: "unison-util-relation:test:tests"
+      component: "unison-util-relation:test:util-relation-tests"
 
-    - path: "lib/unison-util-relation/benchmarks/relation"
+    - path: "lib/unison-util-relation/benchmarks/relation/Main.hs"
       component: "unison-util-relation:bench:relation"
 
     - path: "parser-typechecker/src"
       component: "unison-parser-typechecker:lib"
 
-    - path: "parser-typechecker/prettyprintdemo"
-      component: "unison-parser-typechecker:exe:prettyprintdemo"
-
     - path: "parser-typechecker/tests"
-      component: "unison-parser-typechecker:exe:tests"
+      component: "unison-parser-typechecker:test:parser-typechecker-tests"
 
     - path: "unison-cli/src"
       component: "unison-cli:lib"
 
-    - path: "unison-cli/integration-tests"
-      component: "unison-cli:exe:integration-tests"
+    - path: "unison-cli/integration-tests/Suite.hs"
+      component: "unison-cli:exe:cli-integration-tests"
 
-    - path: "unison-cli/tests"
-      component: "unison-cli:test:tests"
+    - path: "unison-cli/integration-tests/IntegrationTests/ArgumentParsing.hs"
+      component: "unison-cli:exe:cli-integration-tests"
 
-    - path: "unison-cli/transcripts"
+    - path: "unison-cli/transcripts/Transcripts.hs"
       component: "unison-cli:exe:transcripts"
 
-    - path: "unison-cli/unison"
+    - path: "unison-cli/unison/Main.hs"
       component: "unison-cli:exe:unison"
+
+    - path: "unison-cli/unison/ArgParse.hs"
+      component: "unison-cli:exe:unison"
+
+    - path: "unison-cli/unison/System/Path.hs"
+      component: "unison-cli:exe:unison"
+
+    - path: "unison-cli/unison/Version.hs"
+      component: "unison-cli:exe:unison"
+
+    - path: "unison-cli/tests"
+      component: "unison-cli:test:cli-tests"
 
     - path: "unison-core/src"
       component: "unison-core1:lib"
+
+    - path: "unison-hashing-v2/src"
+      component: "unison-hashing-v2:lib"
+
+    - path: "unison-hashing-v2/src"
+      component: "unison-hashing-v2:lib"
+
+    - path: "unison-share-api/src"
+      component: "unison-share-api:lib"
 
     - path: "yaks/easytest/src"
       component: "easytest:lib"

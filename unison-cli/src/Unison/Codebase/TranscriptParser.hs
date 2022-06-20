@@ -33,19 +33,24 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (doesFileExist)
+import System.Environment (lookupEnv)
 import System.Exit (die)
 import qualified System.IO as IO
 import System.IO.Error (catchIOError)
 import qualified Text.Megaparsec as P
+import qualified Unison.Auth.CredentialManager as AuthN
+import qualified Unison.Auth.HTTPClient as AuthN
+import qualified Unison.Auth.Tokens as AuthN
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Command (LoadSourceResult (..), UCMVersion)
+import Unison.Codebase.Editor.Command (LoadSourceResult (..))
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -69,6 +74,13 @@ import Prelude hiding (readFile, writeFile)
 -- | Render transcript errors at a width of 65 chars.
 terminalWidth :: Pretty.Width
 terminalWidth = 65
+
+-- | If provided, this access token will be used on all
+-- requests which use the Authenticated HTTP Client; i.e. all codeserver interactions.
+--
+-- It's useful in scripted contexts or when running transcripts against a codeserver.
+accessTokenEnvVarKey :: String
+accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
 
 type ExpectingError = Bool
 
@@ -218,6 +230,15 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
       ]
   root <- Codebase.getRootBranch codebase
   do
+    mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
+    credMan <- AuthN.newCredentialManager
+    let tokenProvider :: AuthN.TokenProvider
+        tokenProvider =
+          case mayShareAccessToken of
+            Nothing -> do
+              AuthN.newTokenProvider credMan
+            Just accessToken ->
+              \_codeserverID -> pure $ Right accessToken
     pathRef <- newIORef initialPath
     rootBranchRef <- newIORef root
     numberedArgsRef <- newIORef []
@@ -360,6 +381,7 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
               let f = LoadSuccess <$> readUtf8 (Text.unpack name)
                in f <|> pure InvalidSourceNameError
 
+        print :: Output.Output Symbol -> IO ()
         print o = do
           msg <- notifyUser dir o
           errOk <- readIORef allowErrors
@@ -370,6 +392,7 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
               then writeIORef hasErrors True
               else dieWithMsg rendered
 
+        printNumbered :: Output.NumberedOutput Symbol -> IO Output.NumberedArgs
         printNumbered o = do
           let (msg, numberedArgs) = notifyNumbered o
           errOk <- readIORef allowErrors
@@ -419,12 +442,14 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
                   "The transcript was expecting an error in the stanza above, but did not encounter one."
                 ]
 
-        loop state = do
+    authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient print tokenProvider ucmVersion
+    let loop state = do
           writeIORef pathRef (view LoopState.currentPath state)
           let env =
                 LoopState.Env
-                  { LoopState.authHTTPClient = error "Error: No access to authorized requests from transcripts.",
-                    LoopState.credentialManager = error "Error: No access to credentials from transcripts."
+                  { LoopState.authHTTPClient = authenticatedHTTPClient,
+                    LoopState.codebase = codebase,
+                    LoopState.credentialManager = credMan
                   }
           let free = LoopState.runAction env state $ HandleInput.loop
               rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))

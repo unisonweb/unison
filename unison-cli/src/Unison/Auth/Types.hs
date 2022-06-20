@@ -14,8 +14,10 @@ module Unison.Auth.Types
     PKCEChallenge,
     ProfileName,
     CredentialFailure (..),
-    getActiveTokens,
-    setActiveTokens,
+    CodeserverCredentials (..),
+    getCodeserverCredentials,
+    setCodeserverCredentials,
+    codeserverCredentials,
     emptyCredentials,
   )
 where
@@ -29,7 +31,7 @@ import Data.Time (NominalDiffTime)
 import Network.URI
 import qualified Network.URI as URI
 import Unison.Prelude
-import Unison.Share.Types (CodeserverId, CodeserverURI)
+import Unison.Share.Types
 
 defaultProfileName :: ProfileName
 defaultProfileName = "default"
@@ -128,25 +130,10 @@ instance Aeson.FromJSON DiscoveryDoc where
 type ProfileName = Text
 
 data Credentials = Credentials
-  { credentials :: Map ProfileName (Map CodeserverId Tokens),
+  { credentials :: Map ProfileName (Map CodeserverId CodeserverCredentials),
     activeProfile :: ProfileName
   }
   deriving (Eq)
-
-emptyCredentials :: Credentials
-emptyCredentials = Credentials mempty defaultProfileName
-
-getActiveTokens :: CodeserverId -> Credentials -> Either CredentialFailure Tokens
-getActiveTokens host (Credentials {credentials, activeProfile}) =
-  maybeToEither (ReauthRequired host) $
-    credentials ^? ix activeProfile . ix host
-
-setActiveTokens :: CodeserverId -> Tokens -> Credentials -> Credentials
-setActiveTokens host tokens creds@(Credentials {credentials, activeProfile}) =
-  let newCredMap =
-        credentials
-          & at activeProfile . non Map.empty . at host .~ Just tokens
-   in creds {credentials = newCredMap}
 
 instance Aeson.ToJSON Credentials where
   toJSON (Credentials credMap activeProfile) =
@@ -160,3 +147,45 @@ instance Aeson.FromJSON Credentials where
     credentials <- obj .: "credentials"
     activeProfile <- obj .: "active_profile"
     pure Credentials {..}
+
+-- | Credentials for a specific codeserver
+data CodeserverCredentials = CodeserverCredentials
+  { -- The most recent set of authentication tokens
+    tokens :: Tokens,
+    -- URI where the discovery document for this codeserver can be fetched.
+    discoveryURI :: URI
+  }
+  deriving (Eq)
+
+instance ToJSON CodeserverCredentials where
+  toJSON (CodeserverCredentials tokens discoveryURI) =
+    Aeson.object ["tokens" .= tokens, "discovery_uri" .= show discoveryURI]
+
+instance FromJSON CodeserverCredentials where
+  parseJSON =
+    Aeson.withObject "CodeserverCredentials" $ \v ->
+      do
+        tokens <- v .: "tokens"
+        discoveryURIString <- v .: "discovery_uri"
+        discoveryURI <- case parseURI discoveryURIString of
+          Nothing -> fail "discovery_uri is not a valid URI"
+          Just uri -> pure uri
+        pure $ CodeserverCredentials {..}
+
+emptyCredentials :: Credentials
+emptyCredentials = Credentials mempty defaultProfileName
+
+codeserverCredentials :: URI -> Tokens -> CodeserverCredentials
+codeserverCredentials discoveryURI tokens = CodeserverCredentials {discoveryURI, tokens}
+
+getCodeserverCredentials :: CodeserverId -> Credentials -> Either CredentialFailure CodeserverCredentials
+getCodeserverCredentials host (Credentials {credentials, activeProfile}) =
+  maybeToEither (ReauthRequired host) $
+    credentials ^? ix activeProfile . ix host
+
+setCodeserverCredentials :: CodeserverId -> CodeserverCredentials -> Credentials -> Credentials
+setCodeserverCredentials host codeserverCreds creds@(Credentials {credentials, activeProfile}) =
+  let newCredMap =
+        credentials
+          & at activeProfile . non Map.empty . at host .~ Just codeserverCreds
+   in creds {credentials = newCredMap}

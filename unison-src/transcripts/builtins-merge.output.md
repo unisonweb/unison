@@ -71,7 +71,7 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   60. Value               (builtin type)
   61. Value/              (5 definitions)
   62. bug                 (a -> b)
-  63. crypto/             (12 definitions)
+  63. crypto/             (13 definitions)
   64. io2/                (138 definitions)
   65. metadata/           (2 definitions)
   66. todo                (a -> b)

@@ -10,7 +10,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO (MonadIO, liftIO)
 
 enabled :: Bool
-enabled = False
+enabled = True
 
 time :: MonadIO m => String -> m a -> m a
 time _ ma | not enabled = ma

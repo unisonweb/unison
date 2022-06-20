@@ -68,3 +68,4 @@ The format for this list: name, GitHub handle
 * Harald Gliebe (@hagl)
 * Phil de Joux (@philderbeast)
 * Travis Staton (@tstat)
+* Dan Freeman (@dfreeman)

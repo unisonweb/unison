@@ -4,12 +4,15 @@ module Unison.Util.Set
     symmetricDifference,
     Unison.Util.Set.traverse,
     flatMap,
+    filterM,
   )
 where
 
+import Data.Functor ((<&>))
 import qualified Data.Maybe as Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Unison.Util.Monoid (foldMapM)
 
 -- | Set difference, but return @Nothing@ if the difference is empty.
 difference1 :: Ord a => Set a -> Set a -> Maybe (Set a)
@@ -29,3 +32,10 @@ traverse f = fmap Set.fromList . Prelude.traverse f . Set.toList
 
 flatMap :: Ord b => (a -> Set b) -> Set a -> Set b
 flatMap f = Set.unions . fmap f . Set.toList
+
+filterM :: (Ord a, Monad m) => (a -> m Bool) -> Set a -> m (Set a)
+filterM p =
+  foldMapM \x ->
+    p x <&> \case
+      False -> Set.empty
+      True -> Set.singleton x

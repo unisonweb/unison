@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.7.
 --
 -- see: https://github.com/sol/hpack
 
@@ -10,6 +10,7 @@ homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
 build-type:     Simple
 extra-source-files:
+    sql/001-temp-entity-tables.sql
     sql/create.sql
 
 source-repository head
@@ -24,6 +25,9 @@ library
       U.Codebase.Sqlite.Causal
       U.Codebase.Sqlite.DbId
       U.Codebase.Sqlite.Decl.Format
+      U.Codebase.Sqlite.Decode
+      U.Codebase.Sqlite.Entity
+      U.Codebase.Sqlite.HashHandle
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
       U.Codebase.Sqlite.NamedRef
@@ -41,6 +45,8 @@ library
       U.Codebase.Sqlite.Serialization
       U.Codebase.Sqlite.Symbol
       U.Codebase.Sqlite.Sync22
+      U.Codebase.Sqlite.TempEntity
+      U.Codebase.Sqlite.TempEntityType
       U.Codebase.Sqlite.Term.Format
   hs-source-dirs:
       ./
@@ -57,6 +63,7 @@ library
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       FunctionalDependencies
@@ -89,6 +96,7 @@ library
     , lens
     , monad-validate
     , mtl
+    , nonempty-containers
     , safe
     , text
     , transformers
@@ -98,6 +106,8 @@ library
     , unison-prelude
     , unison-sqlite
     , unison-util
+    , unison-util-base32hex
+    , unison-util-base32hex-orphans-sqlite
     , unison-util-serialization
     , unison-util-term
     , unliftio

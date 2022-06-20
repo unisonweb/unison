@@ -120,7 +120,7 @@ import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
 import qualified Unison.Codebase.CodeLookup as CL
 import Unison.Codebase.Editor.Git (withStatus)
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace)
 import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
@@ -381,14 +381,14 @@ data Preprocessing m
   = Unmodified
   | Preprocessed (Branch m -> m (Branch m))
 
--- | Sync elements as needed from a remote codebase into the local one.
+-- | Sync elements as needed from a remote git codebase into the local one.
 -- If `sbh` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
 importRemoteBranch ::
   forall m v a.
   MonadUnliftIO m =>
   Codebase m v a ->
-  ReadRemoteNamespace ->
+  ReadGitRemoteNamespace ->
   SyncMode ->
   Preprocessing m ->
   m (Either GitError (Branch m))
@@ -414,7 +414,7 @@ importRemoteBranch codebase ns mode preprocess = runExceptT $ do
 viewRemoteBranch ::
   MonadIO m =>
   Codebase m v a ->
-  ReadRemoteNamespace ->
+  ReadGitRemoteNamespace ->
   Git.GitBranchBehavior ->
   (Branch m -> m r) ->
   m (Either GitError r)

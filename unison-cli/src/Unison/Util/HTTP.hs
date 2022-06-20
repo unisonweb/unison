@@ -2,7 +2,7 @@ module Unison.Util.HTTP (addRequestMiddleware, setUserAgent, ucmUserAgent) where
 
 import qualified Data.Text.Encoding as Text
 import qualified Network.HTTP.Client as HTTP
-import Unison.Codebase.Editor.Command (UCMVersion)
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Prelude
 
 addRequestMiddleware :: (HTTP.Request -> IO HTTP.Request) -> HTTP.ManagerSettings -> HTTP.ManagerSettings
