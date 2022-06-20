@@ -1916,9 +1916,6 @@ universalEq frn = eqc
         && eql (==) us1 us2
         && eql eqc bs1 bs2
     eqc (Foreign fl) (Foreign fr)
-      -- TODO: if these guards are swappepd, transcripts fail. This doesn't make
-      -- sense, and seems likely to be unsafeCoerce related, but I'm not sure
-      -- exactly what's going on at the moment.
       | Just al <- maybeUnwrapForeign Rf.iarrayRef fl,
         Just ar <- maybeUnwrapForeign Rf.iarrayRef fr =
           arrayEq eqc al ar

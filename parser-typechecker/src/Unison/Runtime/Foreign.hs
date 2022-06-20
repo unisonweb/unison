@@ -115,6 +115,7 @@ maybeUnwrapForeign :: Reference -> Foreign -> Maybe a
 maybeUnwrapForeign rt (Wrap r e)
   | rt == r = Just (unsafeCoerce e)
   | otherwise = Nothing
+{-# NOINLINE maybeUnwrapForeign #-}
 
 class BuiltinForeign f where
   foreignRef :: Tagged f Reference
