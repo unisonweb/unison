@@ -346,23 +346,23 @@ pull httpClient unisonShareUrl conn repoPath downloadProgressCallback = catchSyn
     Right Nothing -> pure (Left (PullErrorNoHistoryAtPath repoPath))
     Right (Just hashJwt) -> do
       let hash = Share.hashJWTHash hashJwt
-      (maybeTempEntities, downloadedSoFar) <-
+      (maybeTempEntities, downloaded1) <-
         Sqlite.runTransaction conn (Q.entityLocation hash) >>= \case
           Just Q.EntityInMainStorage -> pure (Nothing, 0)
           Just Q.EntityInTempStorage -> pure (Just (NESet.singleton hash), 0)
           Nothing -> do
             tempEntities <- doDownload (NESet.singleton hashJwt)
             pure (tempEntities, 1)
-      downloadedTotal <-
+      downloaded2 <-
         case maybeTempEntities of
-          Nothing -> pure downloadedSoFar
+          Nothing -> pure 0
           Just tempEntities -> do
             completeTempEntities
               doDownload
               conn
-              (\downloaded enqueued -> downloadProgressCallback (downloaded + downloadedSoFar) enqueued)
+              (\downloaded enqueued -> downloadProgressCallback (downloaded + downloaded1) enqueued)
               tempEntities
-      downloadProgressCallback downloadedTotal 0
+      downloadProgressCallback (downloaded1 + downloaded2) 0
       pure (Right (hash32ToCausalHash hash))
   where
     repoName = Share.pathRepoName repoPath
