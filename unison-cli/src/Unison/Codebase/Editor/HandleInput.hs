@@ -146,6 +146,7 @@ import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Sync as Share
+import qualified Unison.Share.Sync.Types as Sync
 import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
@@ -174,7 +175,6 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import qualified Unison.Share.Sync.Types as Sync
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -2340,16 +2340,28 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
           Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
           Just branch -> pure (Right branch)
   where
-    -- Provide the given action a callback that prints out the number of entities downloaded.
-    withEntitiesDownloadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
+    -- Provide the given action a callback that prints out the number of entities downloaded, and the number of entities
+    -- enqueued to be downloaded.
+    withEntitiesDownloadedProgressCallback :: ((Int -> Int -> IO ()) -> IO a) -> IO a
     withEntitiesDownloadedProgressCallback action = do
       entitiesDownloadedVar <- newTVarIO 0
+      entitiesToDownloadVar <- newTVarIO 0
       Console.Regions.displayConsoleRegions do
         Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
           Console.Regions.setConsoleRegion region do
             entitiesDownloaded <- readTVar entitiesDownloadedVar
-            pure ("\n  Downloaded " <> tShow entitiesDownloaded <> " entities...\n\n")
-          result <- action \entitiesDownloaded -> atomically (writeTVar entitiesDownloadedVar entitiesDownloaded)
+            entitiesToDownload <- readTVar entitiesToDownloadVar
+            pure $
+              "\n  Downloaded "
+                <> tShow entitiesDownloaded
+                <> "/"
+                <> tShow (entitiesDownloaded + entitiesToDownload)
+                <> " entities...\n\n"
+          result <-
+            action \entitiesDownloaded entitiesToDownload ->
+              atomically do
+                writeTVar entitiesDownloadedVar entitiesDownloaded
+                writeTVar entitiesToDownloadVar entitiesToDownload
           entitiesDownloaded <- readTVarIO entitiesDownloadedVar
           Console.Regions.finishConsoleRegion region $
             "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
