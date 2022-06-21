@@ -116,9 +116,9 @@ newtype CodeserverId = CodeserverId {codeserverId :: Text}
 --
 -- >>> import Data.Maybe (fromJust)
 -- >>> import Network.URI (parseURI)
--- >>> codeserverIdFromURI (CodeserverURI . fromJust $ parseURI "http://localhost:5424/api")
--- >>> codeserverIdFromURI (CodeserverURI . fromJust $ parseURI "https://share.unison-lang.org/api")
--- Right "localhost"
+-- >>> codeserverIdFromURI (fromJust $ parseURI "http://localhost:5424/api")
+-- >>> codeserverIdFromURI (fromJust $ parseURI "https://share.unison-lang.org/api")
+-- Right "localhost:5424"
 -- Right "share.unison-lang.org"
 codeserverIdFromURI :: URI -> Either Text CodeserverId
 codeserverIdFromURI uri =
@@ -129,7 +129,7 @@ codeserverIdFromURI uri =
 -- | Builds a CodeserverId from a URIAuth
 codeserverIdFromURIAuth :: URIAuth -> CodeserverId
 codeserverIdFromURIAuth ua =
-  (CodeserverId (Text.pack $ uriUserInfo ua <> uriRegName ua <> uriPort ua))
+  (CodeserverId (Text.pack $ uriRegName ua <> uriPort ua))
 
 -- | Gets the CodeserverId for a given CodeserverURI
 codeserverIdFromCodeserverURI :: CodeserverURI -> CodeserverId
