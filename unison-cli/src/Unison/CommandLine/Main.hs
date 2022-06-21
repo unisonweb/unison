@@ -196,7 +196,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
             writeIORef pathRef (view LoopState.currentPath state)
             credMan <- newCredentialManager
             let tokenProvider = AuthN.newTokenProvider credMan
-            authorizedHTTPClient <- AuthN.newAuthenticatedHTTPClient notify tokenProvider ucmVersion
+            authorizedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
             let env =
                   LoopState.Env
                     { LoopState.authHTTPClient = authorizedHTTPClient,

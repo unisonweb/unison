@@ -119,6 +119,12 @@ data ReadShareRemoteNamespace = ReadShareRemoteNamespace
   }
   deriving stock (Eq, Show)
 
+isPublic :: ReadShareRemoteNamespace -> Bool
+isPublic ReadShareRemoteNamespace {path} =
+  case path of
+    ("public" Path.:< _) -> True
+    _ -> False
+
 data WriteRemotePath
   = WriteRemotePathGit WriteGitRemotePath
   | WriteRemotePathShare WriteShareRemotePath

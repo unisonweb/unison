@@ -442,7 +442,7 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
                   "The transcript was expecting an error in the stanza above, but did not encounter one."
                 ]
 
-    authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient print tokenProvider ucmVersion
+    authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
     let loop state = do
           writeIORef pathRef (view LoopState.currentPath state)
           let env =
