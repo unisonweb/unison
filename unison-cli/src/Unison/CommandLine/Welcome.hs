@@ -7,7 +7,7 @@ import System.Random (randomRIO)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.Input
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareRemoteNamespace (..))
+import Unison.Codebase.Editor.RemoteRepo (CodeserverLocation, ReadRemoteNamespace (..), ReadShareRemoteNamespace (..))
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
@@ -25,7 +25,7 @@ data Welcome = Welcome
   }
 
 data DownloadBase
-  = DownloadBase ReadShareRemoteNamespace
+  = DownloadBase (ReadShareRemoteNamespace CodeserverLocation)
   | DontDownloadBase
 
 -- Previously Created is different from Previously Onboarded because a user can
@@ -38,7 +38,7 @@ data CodebaseInitStatus
 
 data Onboarding
   = Init CodebaseInitStatus -- Can transition to [DownloadingBase, Author, Finished, PreviouslyOnboarded]
-  | DownloadingBase ReadShareRemoteNamespace -- Can transition to [Author, Finished]
+  | DownloadingBase (ReadShareRemoteNamespace CodeserverLocation) -- Can transition to [Author, Finished]
   | Author -- Can transition to [Finished]
   -- End States
   | Finished
@@ -48,7 +48,7 @@ welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> Text -> Welcome
 welcome initStatus downloadBase filePath unisonVersion =
   Welcome (Init initStatus) downloadBase filePath unisonVersion
 
-pullBase :: ReadShareRemoteNamespace -> Either Event Input
+pullBase :: ReadShareRemoteNamespace CodeserverLocation -> Either Event Input
 pullBase ns =
   let seg = NameSegment "base"
       rootPath = Path.Path {Path.toSeq = singleton seg}

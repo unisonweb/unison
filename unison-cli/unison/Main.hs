@@ -50,7 +50,7 @@ import Text.Pretty.Simple (pHPrint)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Editor.Input as Input
-import Unison.Codebase.Editor.RemoteRepo (ReadShareRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadShareRemoteNamespace, CodeserverLocation)
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import Unison.Codebase.Execute (execute)
 import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResult (..), SpecifiedCodebase (..))
@@ -418,7 +418,7 @@ isFlag f arg = arg == f || arg == "-" ++ f || arg == "--" ++ f
 getConfigFilePath :: Maybe FilePath -> IO FilePath
 getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseDir mcodepath
 
-defaultBaseLib :: Maybe ReadShareRemoteNamespace
+defaultBaseLib :: Maybe (ReadShareRemoteNamespace CodeserverLocation)
 defaultBaseLib =
   rightMay $
     runParser VP.defaultBaseLib "version" gitRef

@@ -149,7 +149,6 @@ import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Share.Sync as Share
 import Unison.Share.Types (Codeserver (..), CodeserverDescription (..))
 import qualified Unison.Share.Sync.Types as Sync
-import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
@@ -1877,7 +1876,7 @@ handlePushToUnisonShare :: (MonadUnliftIO m) => WriteShareRemotePath Codeserver 
 handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
   let baseURL = syncAPIRoot . codeserverDescription $ server
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
-  ensureAuthenticatedWithCodeserver codeserver
+  ensureAuthenticatedWithCodeserver server
 
   LoopState.Env {authHTTPClient, codebase = Codebase {connection}} <- ask
 
@@ -2332,7 +2331,7 @@ importRemoteShareBranch :: MonadUnliftIO m => ReadShareRemoteNamespace Codeserve
 importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let baseURL = syncAPIRoot .  codeserverDescription $ server
   -- Auto-login to share if pulling from a non-public path
-  when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
+  when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver server
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
     LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask

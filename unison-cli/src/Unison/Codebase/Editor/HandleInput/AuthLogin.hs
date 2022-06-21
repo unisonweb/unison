@@ -10,12 +10,12 @@ import qualified UnliftIO
 
 -- | Checks if the user has valid auth for the given codeserver,
 -- and runs through an authentication flow if not.
-ensureAuthenticatedWithCodeserver :: UnliftIO.MonadUnliftIO m => CodeserverURI -> Action m i v ()
-ensureAuthenticatedWithCodeserver codeserverURI = do
+ensureAuthenticatedWithCodeserver :: UnliftIO.MonadUnliftIO m => Codeserver -> Action m i v ()
+ensureAuthenticatedWithCodeserver codeserver@(Codeserver {codeserverId}) = do
   credsMan <- asks credentialManager
-  getCredentials credsMan (codeserverIdFromCodeserverURI codeserverURI) >>= \case
+  getCredentials credsMan codeserverId >>= \case
     Right _ -> pure ()
-    Left _ -> authLogin codeserverURI
+    Left _ -> authLogin codeserver
 
 authLogin :: UnliftIO.MonadUnliftIO m => Codeserver -> Action m i v ()
 authLogin Codeserver {codeserverId, codeserverDescription} = do

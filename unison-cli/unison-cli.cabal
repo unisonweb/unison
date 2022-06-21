@@ -61,7 +61,6 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
-      Unison.Share.Codeserver
       Unison.Share.Sync
       Unison.Share.Sync.Types
       Unison.Util.HTTP

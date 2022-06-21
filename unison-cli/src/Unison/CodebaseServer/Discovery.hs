@@ -57,14 +57,13 @@ codeserverCache = unsafePerformIO $ newTVarIO mempty
 defaultCodeserverRoot :: CodeserverRoot
 defaultCodeserverRoot = unsafePerformIO $ do
   lookupEnv "UNISON_SHARE_HOST" <&> \case
-    -- TODO: swap to production share before release.
     Nothing ->
       CodeserverRoot
         { codeserverScheme = Share.Https,
           codeserverUserInfo = "",
-          codeserverRegName = "share-next.us-west-2.unison-lang.org",
-          codeserverPort = Just 443,
-          codeserverPath = ["api"]
+          codeserverRegName = "api.unison-lang.org",
+          codeserverPort = Nothing,
+          codeserverPath = []
         }
     Just shareHost ->
       fromMaybe (error $ "Share Host is not a valid URI: " <> shareHost) $ do
