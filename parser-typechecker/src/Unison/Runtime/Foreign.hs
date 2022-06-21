@@ -21,6 +21,7 @@ where
 import Control.Concurrent (MVar, ThreadId)
 import qualified Crypto.Hash as Hash
 import Data.IORef (IORef)
+import Data.Primitive (ByteArray, MutableArray, MutableByteArray)
 import Data.Tagged (Tagged (..))
 import qualified Data.X509 as X509
 import Network.Socket (Socket)
@@ -70,6 +71,9 @@ ref2eq r
   -- Ditto
   | r == Ty.refRef = Just $ promote ((==) @(IORef ()))
   | r == Ty.threadIdRef = Just $ promote ((==) @ThreadId)
+  | r == Ty.marrayRef = Just $ promote ((==) @(MutableArray () ()))
+  | r == Ty.mbytearrayRef = Just $ promote ((==) @(MutableByteArray ()))
+  | r == Ty.ibytearrayRef = Just $ promote ((==) @ByteArray)
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
@@ -79,6 +83,7 @@ ref2cmp r
   | r == Ty.typeLinkRef = Just $ promote tylCmp
   | r == Ty.bytesRef = Just $ promote (compare @Bytes)
   | r == Ty.threadIdRef = Just $ promote (compare @ThreadId)
+  | r == Ty.ibytearrayRef = Just $ promote (compare @ByteArray)
   | otherwise = Nothing
 
 instance Eq Foreign where
@@ -110,6 +115,7 @@ maybeUnwrapForeign :: Reference -> Foreign -> Maybe a
 maybeUnwrapForeign rt (Wrap r e)
   | rt == r = Just (unsafeCoerce e)
   | otherwise = Nothing
+{-# NOINLINE maybeUnwrapForeign #-}
 
 class BuiltinForeign f where
   foreignRef :: Tagged f Reference

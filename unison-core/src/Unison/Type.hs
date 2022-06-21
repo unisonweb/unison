@@ -253,6 +253,14 @@ scopeRef, refRef :: Reference
 scopeRef = Reference.Builtin "Scope"
 refRef = Reference.Builtin "Ref"
 
+iarrayRef, marrayRef :: Reference
+iarrayRef = Reference.Builtin "ImmutableArray"
+marrayRef = Reference.Builtin "MutableArray"
+
+ibytearrayRef, mbytearrayRef :: Reference
+ibytearrayRef = Reference.Builtin "ImmutableByteArray"
+mbytearrayRef = Reference.Builtin "MutableByteArray"
+
 mvarRef, tvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
@@ -332,6 +340,12 @@ scopeType a = ref a scopeRef
 
 refType :: Ord v => a -> Type v a
 refType a = ref a refRef
+
+iarrayType, marrayType, ibytearrayType, mbytearrayType :: Ord v => a -> Type v a
+iarrayType a = ref a iarrayRef
+marrayType a = ref a marrayRef
+ibytearrayType a = ref a ibytearrayRef
+mbytearrayType a = ref a mbytearrayRef
 
 socket :: Ord v => a -> Type v a
 socket a = ref a socketRef
@@ -599,7 +613,7 @@ removePureEffects :: ABT.Var v => Type v a -> Type v a
 removePureEffects t
   | not Settings.removePureEffects = t
   | otherwise =
-    generalize vs $ removeEffectVars fvs tu
+      generalize vs $ removeEffectVars fvs tu
   where
     (vs, tu) = unforall' t
     vss = Set.fromList vs
