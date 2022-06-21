@@ -23,6 +23,7 @@ import qualified Data.Text as Text
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import Network.URI (URI)
+import qualified Servant.Client as Servant
 import System.Directory
   ( canonicalizePath,
     doesFileExist,
@@ -131,6 +132,7 @@ import qualified Unison.Result as Result
 import Unison.Server.Backend (ShallowListEntry (..), TermEntry (..), TypeEntry (..))
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Share.Sync as Share
+import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Sync.Types as Share
@@ -1630,6 +1632,24 @@ notifyUser dir o = case o of
       (Share.PullErrorNoHistoryAtPath sharePath) ->
         P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
     ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
+    ShareErrorTransport te -> case te of
+      Unauthenticated codeServerURL ->
+        P.fatalCallout $
+          P.wrap . P.lines $
+            [ "Authentication with this code server (" <> P.string (Servant.showBaseUrl codeServerURL) <> ") is missing or expired.",
+              "Please run " <> makeExample' IP.authLogin <> "."
+            ]
+      PermissionDenied msg -> P.fatalCallout $ P.hang "Permission denied:" (P.text msg)
+      UnreachableCodeserver codeServerURL ->
+        P.lines $
+          [ P.wrap $ "Unable to reach the code server hosted at:" <> P.string (Servant.showBaseUrl codeServerURL),
+            "",
+            P.wrap "Please check your network, ensure you've provided the correct location, or try again later."
+          ]
+      InvalidResponse resp -> P.fatalCallout $ P.hang "Invalid response received from codeserver:" (P.shown resp)
+      RateLimitExceeded -> P.warnCallout "Rate limit exceeded, please try again later."
+      InternalServerError -> P.fatalCallout "The code server encountered an error. Please try again later or report an issue if the problem persists."
+      Timeout -> P.fatalCallout "The code server timed-out when responding to your request. Please try again later or report an issue if the problem persists."
     where
       prettySharePath =
         prettyRelative

@@ -24,6 +24,7 @@ dependencies:
   - directory
   - either
   - errors
+  - exceptions
   - extra
   - filepath
   - generic-lens
@@ -34,7 +35,7 @@ dependencies:
   - jwt
   - lens
   - lock-file
-  - megaparsec >= 5.0.0 && < 7.0.0
+  - megaparsec
   - memory
   - mtl
   - network-uri
@@ -53,6 +54,7 @@ dependencies:
   - transformers
   - unison-codebase
   - unison-codebase-sqlite
+  - unison-codebase-sqlite-hashing-v2
   - unison-sqlite
   - unison-core1
   - unison-parser-typechecker

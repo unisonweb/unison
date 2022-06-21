@@ -67,3 +67,5 @@ The format for this list: name, GitHub handle
 * Nicole Prindle (@nprindle)
 * Harald Gliebe (@hagl)
 * Phil de Joux (@philderbeast)
+* Travis Staton (@tstat)
+* Dan Freeman (@dfreeman)

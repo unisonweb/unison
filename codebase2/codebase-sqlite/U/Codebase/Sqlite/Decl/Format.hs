@@ -21,8 +21,8 @@ data DeclFormat = Decl LocallyIndexedComponent
 type LocallyIndexedComponent =
   LocallyIndexedComponent' TextId ObjectId
 
-newtype LocallyIndexedComponent' t d
-  = LocallyIndexedComponent (Vector (LocalIds' t d, Decl Symbol))
+newtype LocallyIndexedComponent' t d = LocallyIndexedComponent
+  {unLocallyIndexedComponent :: Vector (LocalIds' t d, Decl Symbol)}
   deriving (Show)
 
 type SyncDeclFormat =

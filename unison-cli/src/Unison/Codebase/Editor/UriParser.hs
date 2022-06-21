@@ -14,7 +14,6 @@ import Data.Text as Text
 import Data.Void
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as C
-import qualified Text.Megaparsec.Char as P
 import Unison.Codebase.Editor.RemoteRepo
   ( CodeserverLocation (DefaultShare),
     ReadGitRemoteNamespace (..),
@@ -105,11 +104,11 @@ readShareRemoteNamespace = do
 -- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sbh = Just #asdf, path = foo.bar})
 readGitRemoteNamespace :: P ReadGitRemoteNamespace
 readGitRemoteNamespace = P.label "generic git repo" $ do
-  P.string "git("
+  C.string "git("
   protocol <- parseGitProtocol
   treeish <- P.optional gitTreeishSuffix
   let repo = ReadGitRepo {url = printProtocol protocol, ref = treeish}
-  P.string ")"
+  C.string ")"
   nshashPath <- P.optional namespaceHashPath
   pure case nshashPath of
     Nothing -> ReadGitRemoteNamespace {repo, sbh = Nothing, path = Path.empty}
@@ -145,10 +144,10 @@ readGitRemoteNamespace = P.label "generic git repo" $ do
 -- Just (WriteGitRepo {url = "user@server:project.git", branch = Just "branch"})
 writeGitRepo :: P WriteGitRepo
 writeGitRepo = P.label "repo root for writing" $ do
-  P.string "git("
+  C.string "git("
   uri <- parseGitProtocol
   treeish <- P.optional gitTreeishSuffix
-  P.string ")"
+  C.string ")"
   pure WriteGitRepo {url = printProtocol uri, branch = treeish}
 
 -- | A parser for the deprecated format of git URLs, which may still exist in old GitURL
@@ -197,7 +196,7 @@ deprecatedWriteGitRemotePath = P.label "generic write repo" $ do
     deprecatedTreeishSuffix :: P Text
     deprecatedTreeishSuffix = P.label "git treeish" . P.try $ do
       void $ C.char ':'
-      notdothash <- C.noneOf @[] ".#:"
+      notdothash <- P.noneOf @[] ".#:"
       rest <- P.takeWhileP (Just "not colon") (/= ':')
       pure $ Text.cons notdothash rest
 
@@ -266,17 +265,17 @@ parseGitProtocol =
         (\c -> not (isSpace c || c == ':' || c == ')'))
     localRepo = LocalProtocol <$> parsePath
     fileRepo = P.label "fileRepo" $ do
-      void $ P.string "file://"
+      void $ C.string "file://"
       FileProtocol <$> parsePath
     httpsRepo = P.label "httpsRepo" $ do
-      void $ P.string "https://"
+      void $ C.string "https://"
       HttpsProtocol <$> P.optional userInfo <*> parseHostInfo <*> parsePath
     sshRepo = P.label "sshRepo" $ do
-      void $ P.string "ssh://"
+      void $ C.string "ssh://"
       SshProtocol <$> P.optional userInfo <*> parseHostInfo <*> parsePath
     scpRepo =
       P.label "scpRepo" . P.try $
-        ScpProtocol <$> P.optional userInfo <*> parseHost <* P.string ":" <*> parsePath
+        ScpProtocol <$> P.optional userInfo <*> parseHost <* C.string ":" <*> parsePath
     userInfo :: P User
     userInfo = P.label "userInfo" . P.try $ do
       username <- P.takeWhile1P (Just "username character") (/= '@')
@@ -287,7 +286,7 @@ parseGitProtocol =
       P.label "parseHostInfo" $
         HostInfo <$> parseHost
           <*> ( P.optional $ do
-                  void $ P.string ":"
+                  void $ C.char ':'
                   P.takeWhile1P (Just "digits") isDigit
               )
 
@@ -341,8 +340,8 @@ absolutePath = do
 nameSegment :: P NameSegment
 nameSegment =
   NameSegment . Text.pack
-    <$> ( (:) <$> C.satisfy Unison.Lexer.wordyIdStartChar
-            <*> P.many (C.satisfy Unison.Lexer.wordyIdChar)
+    <$> ( (:) <$> P.satisfy Unison.Lexer.wordyIdStartChar
+            <*> P.many (P.satisfy Unison.Lexer.wordyIdChar)
         )
 
 gitTreeishSuffix :: P Text

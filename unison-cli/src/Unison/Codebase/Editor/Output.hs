@@ -61,6 +61,7 @@ import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResult' (SearchResult')
 import qualified Unison.Share.Sync as Sync
 import Unison.Share.Types (Codeserver)
+import qualified Unison.Share.Sync.Types as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -269,6 +270,7 @@ data ShareError
   | ShareErrorFastForwardPush Sync.FastForwardPushError
   | ShareErrorPull Sync.PullError
   | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
+  | ShareErrorTransport Sync.CodeserverTransportError
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)

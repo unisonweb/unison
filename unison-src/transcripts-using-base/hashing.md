@@ -145,6 +145,26 @@ test> sha2_256.tests.ex4 =
     "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
     "cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1"
 
+test> sha1.tests.ex1 =
+  ex Sha1
+    "abc"
+    "a9993e364706816aba3e25717850c26c9cd0d89d"
+
+test> sha1.tests.ex2 =
+  ex Sha1
+    ""
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+
+test> sha1.tests.ex3 =
+  ex Sha1
+    "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+    "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
+
+test> sha1.tests.ex4 =
+  ex Sha1
+    "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
+    "a49b2446a02c645bf419f995b67091253a04a259"
+
 test> blake2s_256.tests.ex1 =
   ex Blake2s_256
     ""

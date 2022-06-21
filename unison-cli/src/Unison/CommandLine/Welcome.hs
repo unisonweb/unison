@@ -7,7 +7,7 @@ import System.Random (randomRIO)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.Input
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace (..), ReadRemoteNamespace (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareRemoteNamespace (..))
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
@@ -25,7 +25,7 @@ data Welcome = Welcome
   }
 
 data DownloadBase
-  = DownloadBase ReadGitRemoteNamespace
+  = DownloadBase ReadShareRemoteNamespace
   | DontDownloadBase
 
 -- Previously Created is different from Previously Onboarded because a user can
@@ -38,7 +38,7 @@ data CodebaseInitStatus
 
 data Onboarding
   = Init CodebaseInitStatus -- Can transition to [DownloadingBase, Author, Finished, PreviouslyOnboarded]
-  | DownloadingBase ReadGitRemoteNamespace -- Can transition to [Author, Finished]
+  | DownloadingBase ReadShareRemoteNamespace -- Can transition to [Author, Finished]
   | Author -- Can transition to [Finished]
   -- End States
   | Finished
@@ -48,14 +48,14 @@ welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> Text -> Welcome
 welcome initStatus downloadBase filePath unisonVersion =
   Welcome (Init initStatus) downloadBase filePath unisonVersion
 
-pullBase :: ReadGitRemoteNamespace -> Either Event Input
+pullBase :: ReadShareRemoteNamespace -> Either Event Input
 pullBase ns =
   let seg = NameSegment "base"
       rootPath = Path.Path {Path.toSeq = singleton seg}
       abs = Path.Absolute {Path.unabsolute = rootPath}
       pullRemote =
         PullRemoteBranchI
-          (Just (ReadRemoteNamespaceGit ns))
+          (Just (ReadRemoteNamespaceShare ns))
           (Path.Path' {Path.unPath' = Left abs})
           SyncMode.Complete
           PullWithHistory
@@ -77,7 +77,7 @@ run codebase Welcome {onboarding = onboarding, downloadBase = downloadBase, watc
           go PreviouslyOnboarded (headerMsg : acc)
           where
             headerMsg = toInput (header version)
-        DownloadingBase ns@ReadGitRemoteNamespace {path} ->
+        DownloadingBase ns@(ReadShareRemoteNamespace {path}) ->
           go Author ([pullBaseInput, downloadMsg] ++ acc)
           where
             downloadMsg = Right $ CreateMessage (downloading path)
@@ -104,7 +104,7 @@ determineFirstStep downloadBase codebase = do
   case downloadBase of
     DownloadBase ns
       | isEmptyCodebase ->
-          pure $ DownloadingBase ns
+        pure $ DownloadingBase ns
     _ ->
       pure PreviouslyOnboarded
 

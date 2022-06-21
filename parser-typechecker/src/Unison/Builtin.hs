@@ -234,7 +234,11 @@ builtinTypesSrc =
     B' "Ref" CT.Data,
     B' "Scope" CT.Effect,
     B' "TimeSpec" CT.Data,
-    Rename' "TimeSpec" "io2.Clock.internals.TimeSpec"
+    Rename' "TimeSpec" "io2.Clock.internals.TimeSpec",
+    B' "ImmutableArray" CT.Data,
+    B' "MutableArray" CT.Data,
+    B' "ImmutableByteArray" CT.Data,
+    B' "MutableByteArray" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -523,7 +527,65 @@ builtinsSrc =
     B "Ref.read" . forall2 "a" "g" $ \a g ->
       reft g a --> Type.effect1 () g a,
     B "Ref.write" . forall2 "a" "g" $ \a g ->
-      reft g a --> a --> Type.effect1 () g unit
+      reft g a --> a --> Type.effect1 () g unit,
+    B "MutableArray.copyTo!" . forall2 "g" "a" $ \g a ->
+      marrayt g a --> nat --> marrayt g a --> nat --> nat
+        --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableByteArray.copyTo!" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> mbytearrayt g --> nat --> nat
+        --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableArray.read" . forall2 "g" "a" $ \g a ->
+      marrayt g a --> nat --> Type.effect () [g, DD.exceptionType ()] a,
+    B "MutableByteArray.read8" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read16be" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read32be" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read64be" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableArray.write" . forall2 "g" "a" $ \g a ->
+      marrayt g a --> nat --> a --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableByteArray.write8" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableByteArray.write16be" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableByteArray.write32be" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableByteArray.write64be" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "ImmutableArray.copyTo!" . forall2 "g" "a" $ \g a ->
+      marrayt g a --> nat --> iarrayt a --> nat --> nat
+        --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "ImmutableByteArray.copyTo!" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> ibytearrayt --> nat --> nat
+        --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "ImmutableArray.read" . forall1 "a" $ \a ->
+      iarrayt a --> nat --> Type.effect1 () (DD.exceptionType ()) a,
+    B "ImmutableByteArray.read8" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read16be" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read32be" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read64be" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "MutableArray.freeze!" . forall2 "g" "a" $ \g a ->
+      marrayt g a --> Type.effect1 () g (iarrayt a),
+    B "MutableByteArray.freeze!" . forall1 "g" $ \g ->
+      mbytearrayt g --> Type.effect1 () g ibytearrayt,
+    B "MutableArray.freeze" . forall2 "g" "a" $ \g a ->
+      marrayt g a --> nat --> nat --> Type.effect1 () g (iarrayt a),
+    B "MutableByteArray.freeze" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> nat --> Type.effect1 () g ibytearrayt,
+    B "Scope.array" . forall2 "s" "a" $ \s a ->
+      nat --> Type.effect1 () (scopet s) (marrayt (scopet s) a),
+    B "Scope.arrayOf" . forall2 "s" "a" $ \s a ->
+      a --> nat --> Type.effect1 () (scopet s) (marrayt (scopet s) a),
+    B "Scope.bytearray" . forall1 "s" $ \s ->
+      nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
+    B "Scope.bytearrayOf" . forall1 "s" $ \s ->
+      nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s))
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -593,7 +655,7 @@ hashBuiltins =
     B "crypto.hmac" $ forall1 "a" (\a -> hashAlgo --> bytes --> a --> bytes),
     B "crypto.hmacBytes" $ hashAlgo --> bytes --> bytes --> bytes
   ]
-    ++ map h ["Sha3_512", "Sha3_256", "Sha2_512", "Sha2_256", "Blake2b_512", "Blake2b_256", "Blake2s_256"]
+    ++ map h ["Sha3_512", "Sha3_256", "Sha2_512", "Sha2_256", "Sha1", "Blake2b_512", "Blake2b_256", "Blake2s_256"]
   where
     hashAlgo = Type.ref () Type.hashAlgorithmRef
     h name = B ("crypto.HashAlgorithm." <> name) hashAlgo
@@ -673,7 +735,21 @@ ioBuiltins =
     ("Clock.internals.threadCPUTime.v1", unit --> iof timeSpec),
     ("Clock.internals.realtime.v1", unit --> iof timeSpec),
     ("Clock.internals.sec.v1", timeSpec --> int),
-    ("Clock.internals.nsec.v1", timeSpec --> nat)
+    ("Clock.internals.nsec.v1", timeSpec --> nat),
+    ( "IO.array",
+      forall1 "a" $ \a ->
+        nat --> io (marrayt (Type.effects () [Type.builtinIO ()]) a)
+    ),
+    ( "IO.arrayOf",
+      forall1 "a" $ \a ->
+        a --> nat --> io (marrayt (Type.effects () [Type.builtinIO ()]) a)
+    ),
+    ( "IO.bytearray",
+      nat --> io (mbytearrayt (Type.effects () [Type.builtinIO ()]))
+    ),
+    ( "IO.bytearrayOf",
+      nat --> nat --> io (mbytearrayt (Type.effects () [Type.builtinIO ()]))
+    )
   ]
 
 mvarBuiltins :: [(Text, Type)]
@@ -793,6 +869,18 @@ scopet s = Type.scopeType () `app` s
 
 reft :: Type -> Type -> Type
 reft s a = Type.refType () `app` s `app` a
+
+ibytearrayt :: Type
+ibytearrayt = Type.ibytearrayType ()
+
+mbytearrayt :: Type -> Type
+mbytearrayt g = Type.mbytearrayType () `app` g
+
+iarrayt :: Type -> Type
+iarrayt a = Type.iarrayType () `app` a
+
+marrayt :: Type -> Type -> Type
+marrayt g a = Type.marrayType () `app` g `app` a
 
 socket, threadId, handle, unit :: Type
 socket = Type.socket ()

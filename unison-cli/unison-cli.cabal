@@ -61,7 +61,9 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.Share.Codeserver
       Unison.Share.Sync
+      Unison.Share.Sync.Types
       Unison.Util.HTTP
   hs-source-dirs:
       src
@@ -106,6 +108,7 @@ library
     , directory
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , generic-lens
@@ -116,7 +119,7 @@ library
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -135,6 +138,7 @@ library
     , transformers
     , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -206,6 +210,7 @@ executable cli-integration-tests
     , easytest
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , generic-lens
@@ -216,7 +221,7 @@ executable cli-integration-tests
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -237,6 +242,7 @@ executable cli-integration-tests
     , transformers
     , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -301,6 +307,7 @@ executable transcripts
     , easytest
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , generic-lens
@@ -311,7 +318,7 @@ executable transcripts
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -333,6 +340,7 @@ executable transcripts
     , unison-cli
     , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -400,6 +408,7 @@ executable unison
     , directory
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , generic-lens
@@ -410,7 +419,7 @@ executable unison
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -434,6 +443,7 @@ executable unison
     , unison-cli
     , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
@@ -506,6 +516,7 @@ test-suite cli-tests
     , easytest
     , either
     , errors
+    , exceptions
     , extra
     , filepath
     , generic-lens
@@ -517,7 +528,7 @@ test-suite cli-tests
     , jwt
     , lens
     , lock-file
-    , megaparsec >=5.0.0 && <7.0.0
+    , megaparsec
     , memory
     , mtl
     , network-uri
@@ -539,6 +550,7 @@ test-suite cli-tests
     , unison-cli
     , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude

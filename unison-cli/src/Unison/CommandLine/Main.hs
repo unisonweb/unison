@@ -12,6 +12,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Concurrent.STM (atomically)
 import Control.Exception (catch, finally)
 import Control.Lens (view)
+import Control.Monad.Catch (MonadMask)
 import qualified Crypto.Random as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
@@ -55,7 +56,7 @@ import qualified UnliftIO
 
 getUserInput ::
   forall m v a.
-  (MonadIO m, Line.MonadException m) =>
+  (MonadIO m, MonadMask m) =>
   Map String InputPattern ->
   Codebase m v a ->
   Branch m ->

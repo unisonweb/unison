@@ -120,9 +120,9 @@ newtype CodeserverId = CodeserverId {codeserverId :: Text}
 --
 -- >>> import Data.Maybe (fromJust)
 -- >>> import Network.URI (parseURI)
--- >>> codeserverIdFromURI (CodeserverRoot . fromJust $ parseURI "http://localhost:5424/api")
--- >>> codeserverIdFromURI (CodeserverRoot . fromJust $ parseURI "https://share.unison-lang.org/api")
--- Right "localhost"
+-- >>> codeserverIdFromURI (fromJust $ parseURI "http://localhost:5424/api")
+-- >>> codeserverIdFromURI (fromJust $ parseURI "https://share.unison-lang.org/api")
+-- Right "localhost:5424"
 -- Right "share.unison-lang.org"
 codeserverIdFromURI :: URI -> Either Text CodeserverId
 codeserverIdFromURI uri =

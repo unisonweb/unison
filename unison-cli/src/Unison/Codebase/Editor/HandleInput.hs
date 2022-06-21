@@ -50,7 +50,7 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
+import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
 import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval, liftF, respond, respondNumbered)
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
@@ -148,6 +148,8 @@ import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Share.Sync as Share
 import Unison.Share.Types (Codeserver (..), CodeserverDescription (..))
+import qualified Unison.Share.Sync.Types as Sync
+import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
@@ -786,25 +788,20 @@ loop = do
                 Just (Branch.head -> b0) -> do
                   endangerments <- computeEndangerments b0
                   if null endangerments
-                    then doDelete b0
+                    then doDelete
                     else case insistence of
                       Force -> do
                         ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
-                        doDelete b0
+                        doDelete
                         respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                       Try -> do
                         ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                         respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
-                doDelete b0 = do
+                doDelete = do
                   stepAt Branch.CompressHistory $ BranchUtil.makeDeleteBranch (resolveSplit' p)
-                  -- Looks similar to the 'toDelete' above... investigate me! ;)
-                  diffHelper b0 Branch.empty0
-                    >>= respondNumbered
-                      . uncurry
-                        ( ShowDiffAfterDeleteBranch $
-                            resolveToAbsolute (Path.unsplit' p)
-                        )
+                  respond Success
+                -- Looks similar to the 'toDelete' above... investigate me! ;)
                 computeEndangerments :: Branch0 m1 -> Action' m v (Map LabeledDependency (NESet LabeledDependency))
                 computeEndangerments b0 = do
                   let rootNames = Branch.toNames root0
@@ -1876,10 +1873,11 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
         PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
-handlePushToUnisonShare :: MonadIO m => WriteShareRemotePath Codeserver -> Path.Absolute -> PushBehavior -> Action' m v ()
+handlePushToUnisonShare :: (MonadUnliftIO m) => WriteShareRemotePath Codeserver -> Path.Absolute -> PushBehavior -> Action' m v ()
 handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
   let baseURL = syncAPIRoot . codeserverDescription $ server
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
+  ensureAuthenticatedWithCodeserver codeserver
 
   LoopState.Env {authHTTPClient, codebase = Codebase {connection}} <- ask
 
@@ -1890,7 +1888,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
       Just localCausalHash ->
         case behavior of
           PushBehavior.RequireEmpty -> do
-            let push :: IO (Either Share.CheckAndSetPushError ())
+            let push :: IO (Either (Sync.SyncError Share.CheckAndSetPushError) ())
                 push =
                   withEntitiesUploadedProgressCallback \entitiesUploadedProgressCallback ->
                     Share.checkAndSetPush
@@ -1902,10 +1900,11 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                       localCausalHash
                       entitiesUploadedProgressCallback
             liftIO push >>= \case
-              Left err -> respond (Output.ShareError (ShareErrorCheckAndSetPush err))
+              Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorCheckAndSetPush err))
+              Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
               Right () -> pure ()
           PushBehavior.RequireNonEmpty -> do
-            let push :: IO (Either Share.FastForwardPushError ())
+            let push :: IO (Either (Sync.SyncError Share.FastForwardPushError) ())
                 push = do
                   withEntitiesUploadedProgressCallback \entitiesUploadedProgressCallback ->
                     Share.fastForwardPush
@@ -1916,7 +1915,8 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                       localCausalHash
                       entitiesUploadedProgressCallback
             liftIO push >>= \case
-              Left err -> respond (Output.ShareError (ShareErrorFastForwardPush err))
+              Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorFastForwardPush err))
+              Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
               Right () -> pure ()
   where
     pathToSegments :: Path -> [Text]
@@ -2328,13 +2328,15 @@ viewRemoteGitBranch ::
 viewRemoteGitBranch ns gitBranchBehavior action = do
   eval $ ViewRemoteGitBranch ns gitBranchBehavior action
 
-importRemoteShareBranch :: MonadIO m => ReadShareRemoteNamespace Codeserver -> Action' m v (Either (Output v) (Branch m))
-importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
+importRemoteShareBranch :: MonadUnliftIO m => ReadShareRemoteNamespace Codeserver -> Action' m v (Either (Output v) (Branch m))
+importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let baseURL = syncAPIRoot .  codeserverDescription $ server
+  -- Auto-login to share if pulling from a non-public path
+  when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
     LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
-    let pull :: IO (Either Share.PullError CausalHash)
+    let pull :: IO (Either (Sync.SyncError Share.PullError) CausalHash)
         pull =
           withEntitiesDownloadedProgressCallback \entitiesDownloadedProgressCallback ->
             Share.pull
@@ -2344,22 +2346,35 @@ importRemoteShareBranch ReadShareRemoteNamespace {server, repo, path} = do
               shareFlavoredPath
               entitiesDownloadedProgressCallback
     liftIO pull >>= \case
-      Left err -> pure (Left (Output.ShareErrorPull err))
+      Left (Sync.SyncError err) -> pure (Left (Output.ShareErrorPull err))
+      Left (Sync.TransportError err) -> pure (Left (Output.ShareErrorTransport err))
       Right causalHash -> do
         (eval . Eval) (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
           Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
           Just branch -> pure (Right branch)
   where
-    -- Provide the given action a callback that prints out the number of entities downloaded.
-    withEntitiesDownloadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
+    -- Provide the given action a callback that prints out the number of entities downloaded, and the number of entities
+    -- enqueued to be downloaded.
+    withEntitiesDownloadedProgressCallback :: ((Int -> Int -> IO ()) -> IO a) -> IO a
     withEntitiesDownloadedProgressCallback action = do
       entitiesDownloadedVar <- newTVarIO 0
+      entitiesToDownloadVar <- newTVarIO 0
       Console.Regions.displayConsoleRegions do
         Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
           Console.Regions.setConsoleRegion region do
             entitiesDownloaded <- readTVar entitiesDownloadedVar
-            pure ("\n  Downloaded " <> tShow entitiesDownloaded <> " entities...\n\n")
-          result <- action \entitiesDownloaded -> atomically (writeTVar entitiesDownloadedVar entitiesDownloaded)
+            entitiesToDownload <- readTVar entitiesToDownloadVar
+            pure $
+              "\n  Downloaded "
+                <> tShow entitiesDownloaded
+                <> "/"
+                <> tShow (entitiesDownloaded + entitiesToDownload)
+                <> " entities...\n\n"
+          result <-
+            action \entitiesDownloaded entitiesToDownload ->
+              atomically do
+                writeTVar entitiesDownloadedVar entitiesDownloaded
+                writeTVar entitiesToDownloadVar entitiesToDownload
           entitiesDownloaded <- readTVarIO entitiesDownloadedVar
           Console.Regions.finishConsoleRegion region $
             "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
