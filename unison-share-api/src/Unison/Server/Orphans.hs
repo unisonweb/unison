@@ -30,6 +30,9 @@ deriving instance ToSchema ShortHash
 instance FromHttpApiData ShortBranchHash where
   parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
 
+
+deriving via Text instance ToHttpApiData ShortBranchHash
+
 instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
   toEncoding = genericToEncoding defaultOptions
 
@@ -51,6 +54,7 @@ instance ToSchema Name where
 deriving anyclass instance ToParamSchema ShortBranchHash
 
 deriving via Int instance FromHttpApiData Width
+deriving via Int instance ToHttpApiData Width
 
 deriving anyclass instance ToParamSchema Width
 
