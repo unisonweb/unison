@@ -528,6 +528,10 @@ builtinsSrc =
       reft g a --> Type.effect1 () g a,
     B "Ref.write" . forall2 "a" "g" $ \a g ->
       reft g a --> a --> Type.effect1 () g unit,
+    B "MutableArray.size" . forall2 "g" "a" $ \g a -> marrayt g a --> nat,
+    B "MutableByteArray.size" . forall1 "g" $ \g -> mbytearrayt g --> nat,
+    B "ImmutableArray.size" . forall1 "a" $ \a -> iarrayt a --> nat,
+    B "ImmutableByteArray.size" $ ibytearrayt --> nat,
     B "MutableArray.copyTo!" . forall2 "g" "a" $ \g a ->
       marrayt g a --> nat --> marrayt g a --> nat --> nat
         --> Type.effect () [g, DD.exceptionType ()] unit,
@@ -540,7 +544,11 @@ builtinsSrc =
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
     B "MutableByteArray.read16be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read24be" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
     B "MutableByteArray.read32be" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read40be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
     B "MutableByteArray.read64be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
@@ -566,7 +574,11 @@ builtinsSrc =
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
     B "ImmutableByteArray.read16be" $
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read24be" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
     B "ImmutableByteArray.read32be" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read40be" $
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
     B "ImmutableByteArray.read64be" $
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,

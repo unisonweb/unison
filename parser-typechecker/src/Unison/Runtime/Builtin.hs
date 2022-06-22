@@ -2443,6 +2443,15 @@ declareForeigns = do
                       (fromIntegral soff)
                       (fromIntegral l)
 
+  declareForeign Untracked "ImmutableArray.size" boxToNat . mkForeign $
+    pure . fromIntegral @Int @Word64 . PA.sizeofArray @Closure
+  declareForeign Untracked "MutableArray.size" boxToNat . mkForeign $
+    pure . fromIntegral @Int @Word64 . PA.sizeofMutableArray @PA.RealWorld @Closure
+  declareForeign Untracked "ImmutableByteArray.size" boxToNat . mkForeign $
+    pure . fromIntegral @Int @Word64 . PA.sizeofByteArray
+  declareForeign Untracked "MutableByteArray.size" boxToNat . mkForeign $
+    pure . fromIntegral @Int @Word64 . PA.sizeofMutableByteArray @PA.RealWorld
+
   declareForeign Tracked "ImmutableByteArray.copyTo!" boxNatBoxNatNatToExnUnit
     . mkForeign
     $ \(dst, doff, src, soff, l) ->
@@ -2469,9 +2478,15 @@ declareForeigns = do
   declareForeign Tracked "MutableByteArray.read16be" boxNatToExnNat
     . mkForeign
     $ checkedRead16 "MutableByteArray.read16be"
+  declareForeign Tracked "MutableByteArray.read24be" boxNatToExnNat
+    . mkForeign
+    $ checkedRead24 "MutableByteArray.read24be"
   declareForeign Tracked "MutableByteArray.read32be" boxNatToExnNat
     . mkForeign
     $ checkedRead32 "MutableByteArray.read32be"
+  declareForeign Tracked "MutableByteArray.read40be" boxNatToExnNat
+    . mkForeign
+    $ checkedRead40 "MutableByteArray.read40be"
   declareForeign Tracked "MutableByteArray.read64be" boxNatToExnNat
     . mkForeign
     $ checkedRead64 "MutableByteArray.read64be"
@@ -2501,9 +2516,15 @@ declareForeigns = do
   declareForeign Untracked "ImmutableByteArray.read16be" boxNatToExnNat
     . mkForeign
     $ checkedIndex16 "ImmutableByteArray.read16be"
+  declareForeign Untracked "ImmutableByteArray.read24be" boxNatToExnNat
+    . mkForeign
+    $ checkedIndex24 "ImmutableByteArray.read24be"
   declareForeign Untracked "ImmutableByteArray.read32be" boxNatToExnNat
     . mkForeign
     $ checkedIndex32 "ImmutableByteArray.read32be"
+  declareForeign Untracked "ImmutableByteArray.read40be" boxNatToExnNat
+    . mkForeign
+    $ checkedIndex40 "ImmutableByteArray.read40be"
   declareForeign Untracked "ImmutableByteArray.read64be" boxNatToExnNat
     . mkForeign
     $ checkedIndex64 "ImmutableByteArray.read64be"
@@ -2605,9 +2626,19 @@ checkedRead8 name (arr, i) =
 checkedRead16 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
 checkedRead16 name (arr, i) =
   checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 2 $
-    (mk16)
+    mk16
       <$> PA.readByteArray @Word8 arr j
       <*> PA.readByteArray @Word8 arr (j + 1)
+  where
+    j = fromIntegral i
+
+checkedRead24 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead24 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 3 $
+    mk24
+      <$> PA.readByteArray @Word8 arr j
+      <*> PA.readByteArray @Word8 arr (j + 1)
+      <*> PA.readByteArray @Word8 arr (j + 2)
   where
     j = fromIntegral i
 
@@ -2619,6 +2650,18 @@ checkedRead32 name (arr, i) =
       <*> PA.readByteArray @Word8 arr (j + 1)
       <*> PA.readByteArray @Word8 arr (j + 2)
       <*> PA.readByteArray @Word8 arr (j + 3)
+  where
+    j = fromIntegral i
+
+checkedRead40 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead40 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 6 $
+    mk40
+      <$> PA.readByteArray @Word8 arr j
+      <*> PA.readByteArray @Word8 arr (j + 1)
+      <*> PA.readByteArray @Word8 arr (j + 2)
+      <*> PA.readByteArray @Word8 arr (j + 3)
+      <*> PA.readByteArray @Word8 arr (j + 4)
   where
     j = fromIntegral i
 
@@ -2638,26 +2681,42 @@ checkedRead64 name (arr, i) =
     j = fromIntegral i
 
 mk16 :: Word8 -> Word8 -> Either Failure Word64
-mk16 b0 b1 = Right $ (fromIntegral $ b0 `shiftL` 8) .|. (fromIntegral b1)
+mk16 b0 b1 = Right $ (fromIntegral b0 `shiftL` 8) .|. (fromIntegral b1)
+
+mk24 :: Word8 -> Word8 -> Word8 -> Either Failure Word64
+mk24 b0 b1 b2 =
+  Right $
+    (fromIntegral b0 `shiftL` 16)
+      .|. (fromIntegral b1 `shiftL` 8)
+      .|. (fromIntegral b2)
 
 mk32 :: Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
 mk32 b0 b1 b2 b3 =
   Right $
-    (fromIntegral $ b0 `shiftL` 24)
-      .|. (fromIntegral $ b1 `shiftL` 16)
-      .|. (fromIntegral $ b2 `shiftL` 8)
+    (fromIntegral b0 `shiftL` 24)
+      .|. (fromIntegral b1 `shiftL` 16)
+      .|. (fromIntegral b2 `shiftL` 8)
       .|. (fromIntegral b3)
+
+mk40 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
+mk40 b0 b1 b2 b3 b4 =
+  Right $
+    (fromIntegral b0 `shiftL` 32)
+      .|. (fromIntegral b1 `shiftL` 24)
+      .|. (fromIntegral b2 `shiftL` 16)
+      .|. (fromIntegral b3 `shiftL` 8)
+      .|. (fromIntegral b4)
 
 mk64 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
 mk64 b0 b1 b2 b3 b4 b5 b6 b7 =
   Right $
-    (fromIntegral $ b0 `shiftL` 56)
-      .|. (fromIntegral $ b1 `shiftL` 48)
-      .|. (fromIntegral $ b2 `shiftL` 40)
-      .|. (fromIntegral $ b3 `shiftL` 32)
-      .|. (fromIntegral $ b4 `shiftL` 24)
-      .|. (fromIntegral $ b5 `shiftL` 16)
-      .|. (fromIntegral $ b6 `shiftL` 8)
+    (fromIntegral b0 `shiftL` 56)
+      .|. (fromIntegral b1 `shiftL` 48)
+      .|. (fromIntegral b2 `shiftL` 40)
+      .|. (fromIntegral b3 `shiftL` 32)
+      .|. (fromIntegral b4 `shiftL` 24)
+      .|. (fromIntegral b5 `shiftL` 16)
+      .|. (fromIntegral b6 `shiftL` 8)
       .|. (fromIntegral b7)
 
 checkedWrite8 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
@@ -2718,6 +2777,16 @@ checkedIndex16 name (arr, i) =
      in mk16 (PA.indexByteArray arr j) (PA.indexByteArray arr (j + 1))
 
 -- index 32 big-endian
+checkedIndex24 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex24 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 3 . pure $
+    let j = fromIntegral i
+     in mk24
+          (PA.indexByteArray arr j)
+          (PA.indexByteArray arr (j + 1))
+          (PA.indexByteArray arr (j + 2))
+
+-- index 32 big-endian
 checkedIndex32 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
 checkedIndex32 name (arr, i) =
   checkBoundsPrim name (PA.sizeofByteArray arr) i 4 . pure $
@@ -2727,6 +2796,18 @@ checkedIndex32 name (arr, i) =
           (PA.indexByteArray arr (j + 1))
           (PA.indexByteArray arr (j + 2))
           (PA.indexByteArray arr (j + 3))
+
+-- index 40 big-endian
+checkedIndex40 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex40 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 5 . pure $
+    let j = fromIntegral i
+     in mk40
+          (PA.indexByteArray arr j)
+          (PA.indexByteArray arr (j + 1))
+          (PA.indexByteArray arr (j + 2))
+          (PA.indexByteArray arr (j + 3))
+          (PA.indexByteArray arr (j + 4))
 
 -- index 64 big-endian
 checkedIndex64 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
