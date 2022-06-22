@@ -4,9 +4,12 @@
 module Unison.Server.Orphans where
 
 import Data.Aeson
+import Data.Binary
+import Data.ByteString.Short (ShortByteString)
 import Data.OpenApi
 import Data.Proxy
 import Servant
+import U.Util.Hash (Hash (..))
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash (..),
@@ -30,6 +33,7 @@ deriving instance ToSchema ShortHash
 instance FromHttpApiData ShortBranchHash where
   parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
 
+deriving via ShortByteString instance Binary Hash
 
 deriving via Text instance ToHttpApiData ShortBranchHash
 
@@ -54,6 +58,7 @@ instance ToSchema Name where
 deriving anyclass instance ToParamSchema ShortBranchHash
 
 deriving via Int instance FromHttpApiData Width
+
 deriving via Int instance ToHttpApiData Width
 
 deriving anyclass instance ToParamSchema Width
