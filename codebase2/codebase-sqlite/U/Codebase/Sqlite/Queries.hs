@@ -1589,11 +1589,6 @@ deleteTempEntity hash =
     |]
     (Only hash)
 
-data EmptyTempEntityMissingDependencies
-  = EmptyTempEntityMissingDependencies
-  deriving stock (Show)
-  deriving anyclass (SqliteExceptionReason)
-
 -- | "Elaborate" a set of `temp_entity` hashes.
 --
 -- Given a set of `temp_entity` hashes, returns the (known) set of transitive dependencies that haven't already been
@@ -1610,7 +1605,7 @@ data EmptyTempEntityMissingDependencies
 --
 -- ... then `elaborateHashes {A}` would return the singleton set {C} (because we take the set of transitive
 -- dependencies {A,B,C} and subtract the set we already have, {A,B}).
-elaborateHashes :: Nel.NonEmpty Hash32 -> Transaction (Nel.NonEmpty Text)
+elaborateHashes :: Nel.NonEmpty Hash32 -> Transaction [Text]
 elaborateHashes hashes = do
   execute_
     [here|
@@ -1618,13 +1613,12 @@ elaborateHashes hashes = do
     |]
   executeMany
     [here|
-      INSERT INTO new_temp_entity_dependents
-        (hash)
+      INSERT INTO new_temp_entity_dependents (hash)
       VALUES (?)
     |]
     (map Only (Nel.toList hashes))
   result <-
-    queryListColCheck_
+    queryListCol_
       [here|
         WITH RECURSIVE elaborated_dependency (hash, hashJwt) AS (
           SELECT temd.dependency, temd.dependencyJwt
@@ -1644,10 +1638,6 @@ elaborateHashes hashes = do
           WHERE temp_entity.hash = elaborated_dependency.hash
         )
       |]
-      ( \case
-          [] -> Left EmptyTempEntityMissingDependencies
-          x : xs -> Right (x Nel.:| xs)
-      )
   execute_ [here|DROP TABLE new_temp_entity_dependents|]
   pure result
 

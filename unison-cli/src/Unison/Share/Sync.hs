@@ -16,6 +16,7 @@ module Unison.Share.Sync
 
     -- ** Pull
     pull,
+    DownloadProgressCallbacks (..),
     PullError (..),
   )
 where
@@ -40,7 +41,6 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text.Lazy
 import Data.These (These (..))
-import Data.Void (Void)
 import qualified Ki
 import qualified Network.HTTP.Client as Http.Client
 import qualified Network.HTTP.Types as HTTP
@@ -329,138 +329,186 @@ dagbfs goal children =
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
 
+-- | Download progress callbacks.
+data DownloadProgressCallbacks = DownloadProgressCallbacks
+  { -- | Callback that's given a number of entities we just downloaded.
+    downloaded :: Int -> IO (),
+    -- | Callback that's given a number of entities we just realized we need to download later.
+    toDownload :: Int -> IO ()
+  }
+
 pull ::
   -- | The HTTP client to use for Unison Share requests.
   AuthenticatedHttpClient ->
   -- | The Unison Share URL.
   BaseUrl ->
-  -- | SQLite connection, for writing entities we pull.
-  Sqlite.Connection ->
+  -- | SQLite-connection-making function, for writing entities we pull.
+  (forall a. (Sqlite.Connection -> IO a) -> IO a) ->
   -- | The repo+path to pull from.
   Share.Path ->
-  -- | Callback that is given the total number of entities downloaded, and the number of outstanding entities to
-  -- download.
-  (Int -> Int -> IO ()) ->
+  DownloadProgressCallbacks ->
   IO (Either (SyncError PullError) CausalHash)
-pull httpClient unisonShareUrl conn repoPath downloadProgressCallback = catchSyncErrors do
+pull httpClient unisonShareUrl connect repoPath callbacks = catchSyncErrors do
   getCausalHashByPath httpClient unisonShareUrl repoPath >>= \case
     Left err -> pure (Left (PullErrorGetCausalHashByPath err))
     -- There's nothing at the remote path, so there's no causal to pull.
     Right Nothing -> pure (Left (PullErrorNoHistoryAtPath repoPath))
     Right (Just hashJwt) -> do
       let hash = Share.hashJWTHash hashJwt
-      (maybeTempEntities, downloaded1) <-
-        Sqlite.runTransaction conn (Q.entityLocation hash) >>= \case
-          Just Q.EntityInMainStorage -> pure (Nothing, 0)
-          Just Q.EntityInTempStorage -> pure (Just (NESet.singleton hash), 0)
-          Nothing -> do
-            tempEntities <- doDownload (NESet.singleton hashJwt)
-            pure (tempEntities, 1)
-      downloaded2 <-
-        case maybeTempEntities of
-          Nothing -> pure 0
-          Just tempEntities -> do
-            completeTempEntities
-              doDownload
-              conn
-              (\downloaded enqueued -> downloadProgressCallback (downloaded + downloaded1) enqueued)
-              tempEntities
-      downloadProgressCallback (downloaded1 + downloaded2) 0
+      maybeTempEntities <-
+        connect \conn ->
+          Sqlite.runTransaction conn (Q.entityLocation hash) >>= \case
+            Just Q.EntityInMainStorage -> pure Nothing
+            Just Q.EntityInTempStorage -> pure (Just (NESet.singleton hash))
+            Nothing -> do
+              toDownload callbacks 1
+              tempEntities <- downloadEntities httpClient unisonShareUrl conn repoName (NESet.singleton hashJwt)
+              downloaded callbacks 1
+              pure tempEntities
+      whenJust maybeTempEntities \tempEntities ->
+        completeTempEntities
+          httpClient
+          unisonShareUrl
+          connect
+          repoName
+          callbacks
+          tempEntities
       pure (Right (hash32ToCausalHash hash))
   where
     repoName = Share.pathRepoName repoPath
-    doDownload = downloadEntities httpClient unisonShareUrl conn repoName
 
 -- | Finish downloading entities from Unison Share. Returns the total number of entities downloaded.
 --
 -- Precondition: the entities were *already* downloaded at some point in the past, and are now sitting in the
 -- `temp_entity` table, waiting for their dependencies to arrive so they can be flushed to main storage.
 completeTempEntities ::
-  (NESet Share.HashJWT -> IO (Maybe (NESet Hash32))) ->
-  Sqlite.Connection ->
-  (Int -> Int -> IO ()) ->
+  AuthenticatedHttpClient ->
+  BaseUrl ->
+  (forall a. (Sqlite.Connection -> IO a) -> IO a) ->
+  Share.RepoName ->
+  DownloadProgressCallbacks ->
   NESet Hash32 ->
-  IO Int
-completeTempEntities doDownload conn downloadProgressCallback initialHashes0 = do
-  initialHashes <- elaborate initialHashes0
-  hashesVar <- newTVarIO (NESet.toSet initialHashes)
+  IO ()
+completeTempEntities httpClient unisonShareUrl connect repoName callbacks initialNewTempEntities = do
+  -- The set of hashes we still need to download from Unison Share
+  hashesVar <- newTVarIO Set.empty
 
+  -- The set of hashes that we haven't inserted yet, but will soon, because we've committed to downloading them.
+  uninsertedHashesVar <- newTVarIO Set.empty
+
+  -- The entities payloads that we've downloaded from UnisonShare
+  -- FIXME pick up here commenting things
   entitiesQueue <- newTQueueIO
+
   newTempEntitiesQueue <- newTQueueIO
+
   outstandingWorkersCountVar <- newTVarIO (0 :: Int)
+  let recordWorking = modifyTVar' outstandingWorkersCountVar (+ 1)
+  let recordNotWorking = modifyTVar' outstandingWorkersCountVar \n -> n - 1
 
   Ki.scoped \scope -> do
+    -- Inserter thread: dequeue from `entitiesQueue`, insert entities, enqueue to `newTempEntitiesQueue`
     Ki.fork_ scope do
-      forever do
-        entities <- atomically (readTQueue entitiesQueue)
-        newTempEntities0 <-
-          Sqlite.runTransaction conn do
-            NEMap.toList entities & foldMapM \(hash, entity) ->
-              upsertEntitySomewhere hash entity <&> \case
-                Q.EntityInMainStorage -> Set.empty
-                Q.EntityInTempStorage -> Set.singleton hash
-        whenJust (NESet.nonEmptySet newTempEntities0) \newTempEntities ->
-          atomically (writeTQueue newTempEntitiesQueue newTempEntities)
+      connect \conn ->
+        forever do
+          (hashJwts, entities) <-
+            atomically do
+              entities <- readTQueue entitiesQueue
+              recordWorking
+              pure entities
+          newTempEntities0 <-
+            Sqlite.runTransaction conn do
+              NEMap.toList entities & foldMapM \(hash, entity) ->
+                upsertEntitySomewhere hash entity <&> \case
+                  Q.EntityInMainStorage -> Set.empty
+                  Q.EntityInTempStorage -> Set.singleton hash
+          atomically do
+            -- Avoid unnecessary retaining of these hashes to keep memory usage more stable. This algorithm would still be
+            -- correct if we never delete from `uninsertedHashes`.
+            modifyTVar' uninsertedHashesVar \uninsertedHashes ->
+              Set.difference uninsertedHashes (NESet.toSet hashJwts)
+            whenJust (NESet.nonEmptySet newTempEntities0) \newTempEntities ->
+              writeTQueue newTempEntitiesQueue newTempEntities
+            recordNotWorking
 
+    -- Elaborator thread: dequeue from `newTempEntitiesQueue`, elaborate, "enqueue" to `hashesVar`
     Ki.fork_ scope do
-      forever do
-        newTempEntities <- atomically (readTQueue newTempEntitiesQueue)
-        newElaboratedHashes <- elaborate newTempEntities
-        atomically (modifyTVar' hashesVar (Set.union (NESet.toSet newElaboratedHashes)))
-
-    let loop :: IO ()
-        loop = do
-          hashes <-
+      connect \conn ->
+        forever do
+          newTempEntities <-
             atomically do
-              hashes <- readTVar hashesVar
-              if Set.null hashes
-                then retry
-                else do
-                  let (hashes1, hashes2) = Set.splitAt 50 hashes
-                  writeTVar hashesVar hashes2
-                  pure (NESet.unsafeFromSet hashes1)
-
-          _ <- Ki.fork @() scope do
-            atomically (modifyTVar' outstandingWorkersCountVar (+ 1))
-            Share.DownloadEntitiesSuccess entities <-
-              httpDownloadEntities
-                undefined -- httpClient
-                undefined -- unisonShareUrl
-                Share.DownloadEntitiesRequest {repoName = undefined, hashes}
+              newTempEntities <- readTQueue newTempEntitiesQueue
+              recordWorking
+              pure newTempEntities
+          newElaboratedHashes <- Sqlite.runTransaction conn (elaborateHashes newTempEntities)
+          n <-
             atomically do
-              writeTQueue entitiesQueue entities
-              modifyTVar' outstandingWorkersCountVar \n -> n - 1
+              uninsertedHashes <- readTVar uninsertedHashesVar
+              hashes0 <- readTVar hashesVar
+              let !hashes1 = Set.union (Set.difference newElaboratedHashes uninsertedHashes) hashes0
+              writeTVar hashesVar hashes1
+              pure (Set.size hashes1 - Set.size hashes0)
+          toDownload callbacks n
+          atomically recordNotWorking
 
-          undefined
+    -- Downloader thread: download entities, enqueue to `entitiesQueue`
+    let downloader :: NESet Share.HashJWT -> IO ()
+        downloader hashes = do
+          Share.DownloadEntitiesSuccess entities <-
+            httpDownloadEntities
+              httpClient
+              unisonShareUrl
+              Share.DownloadEntitiesRequest {repoName, hashes}
+          downloaded callbacks (NESet.size hashes)
+          atomically do
+            writeTQueue entitiesQueue (hashes, entities)
+            recordNotWorking
 
-    loop
+    -- Dispatcher thread: "dequeue" from `hashesVar`, fork one-shot downloaders.
+    --
+    -- We stop when all of the following are true:
+    --
+    --   - There are no outstanding workers (downloaders, inserter, elaboraror)
+    --   - The inserter thread doesn't have any outstanding work enqueued (in `entitiesQueue`)
+    --   - The elaborator thread doesn't have any outstanding work enqueued (in `newTempEntitiesQueue`)
+    let dispatcher :: IO ()
+        dispatcher =
+          (join . atomically . asum)
+            [ do
+                hashes <- readTVar hashesVar
+                when (Set.null hashes) retry
+                let (hashes1, hashes2) = Set.splitAt 50 hashes
+                modifyTVar' uninsertedHashesVar (Set.union hashes1)
+                writeTVar hashesVar hashes2
+                pure do
+                  -- Only allow 10 concurrent http workers
+                  atomically do
+                    workers <- readTVar outstandingWorkersCountVar
+                    -- 12 workers = inserter + elaborator + 10 http workers
+                    when (workers >= 12) retry
+                    -- we do need to record the downloader as working outside of the worker thread, not inside.
+                    -- otherwise, we might erroneously fall through the the teardown logic below and conclude there's
+                    -- nothing more for the dispatcher to do, when in fact a downloader thread just hasn't made it as
+                    -- far as recording its own existence
+                    recordWorking
+                  _ <- Ki.fork scope (downloader (NESet.unsafeFromSet hashes1))
+                  dispatcher,
+              do
+                workers <- readTVar outstandingWorkersCountVar
+                when (workers > 0) retry
+                isEmptyTQueue entitiesQueue >>= \case
+                  False -> retry
+                  True -> pure ()
+                isEmptyTQueue newTempEntitiesQueue >>= \case
+                  False -> retry
+                  True -> pure ()
+                -- No hashes left to download, no outstanding workers, no work in either queue - we're done!
+                pure (pure ())
+            ]
 
-  let loop :: Int -> NESet Share.HashJWT -> IO Int
-      loop !downloadCount allHashes = do
-        downloadProgressCallback downloadCount (NESet.size allHashes)
-
-        -- Each request only contains a certain maximum number of entities; split the set of hashes we need to download
-        -- into those we will download right now, and those we will begin downloading on the next iteration of the loop.
-        let (hashes, nextHashes0) =
-              case NESet.splitAt 50 allHashes of
-                This hs1 -> (hs1, Set.empty)
-                That hs2 -> (hs2, Set.empty) -- impossible, this only happens if we split at 0
-                These hs1 hs2 -> (hs1, NESet.toSet hs2)
-        maybeNextHashes <-
-          doDownload hashes >>= \case
-            Nothing -> pure (NESet.nonEmptySet nextHashes0)
-            Just newTempEntities -> do
-              newElaboratedHashes <- elaborate newTempEntities
-              pure (Just (union10 newElaboratedHashes nextHashes0))
-        let !newDownloadCount = downloadCount + NESet.size hashes
-        case maybeNextHashes of
-          Nothing -> pure newDownloadCount
-          Just nextHashes -> loop newDownloadCount nextHashes
-  loop 0 initialHashes
-  where
-    elaborate :: NESet Hash32 -> IO (NESet Share.HashJWT)
-    elaborate hashes =
-      Sqlite.runTransaction conn (elaborateHashes hashes)
+    -- Kick off the cycle of inserter->elaborator->dispatcher->worker by giving the elaborator something to do
+    atomically (writeTQueue newTempEntitiesQueue initialNewTempEntities)
+    dispatcher
 
 -- | Download a set of entities from Unison Share. Returns the subset of those entities that we stored in temp storage
 -- (`temp_entitiy`) instead of main storage (`object` / `causal`) due to missing dependencies.
@@ -580,10 +628,9 @@ union10 xs ys =
 -- 3. If it's in main storage, we should ignore it.
 --
 -- In the end, we return a set of hashes that correspond to entities we actually need to download.
-elaborateHashes :: NESet Hash32 -> Sqlite.Transaction (NESet Share.HashJWT)
+elaborateHashes :: NESet Hash32 -> Sqlite.Transaction (Set Share.HashJWT)
 elaborateHashes hashes =
-  Q.elaborateHashes (NESet.toList hashes)
-    <&> NESet.fromList . coerce @(List.NonEmpty Text) @(List.NonEmpty Share.HashJWT)
+  Q.elaborateHashes (NESet.toList hashes) <&> Set.fromList . coerce @[Text] @[Share.HashJWT]
 
 -- | Upsert a downloaded entity "somewhere" -
 --
