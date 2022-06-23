@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.7.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 
@@ -116,6 +116,7 @@ library
     , http-client-tls
     , http-types
     , jwt
+    , ki
     , lens
     , lock-file
     , megaparsec
@@ -218,6 +219,7 @@ executable cli-integration-tests
     , http-client-tls
     , http-types
     , jwt
+    , ki
     , lens
     , lock-file
     , megaparsec
@@ -315,6 +317,7 @@ executable transcripts
     , http-client-tls
     , http-types
     , jwt
+    , ki
     , lens
     , lock-file
     , megaparsec
@@ -416,6 +419,7 @@ executable unison
     , http-client-tls
     , http-types
     , jwt
+    , ki
     , lens
     , lock-file
     , megaparsec
@@ -525,6 +529,7 @@ test-suite cli-tests
     , http-client-tls
     , http-types
     , jwt
+    , ki
     , lens
     , lock-file
     , megaparsec

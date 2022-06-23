@@ -20,6 +20,7 @@ module Unison.Share.Sync
   )
 where
 
+import Control.Concurrent.STM
 import Control.Monad.Except
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import qualified Control.Monad.Trans.Reader as Reader
@@ -39,6 +40,8 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text.Lazy
 import Data.These (These (..))
+import Data.Void (Void)
+import qualified Ki
 import qualified Network.HTTP.Client as Http.Client
 import qualified Network.HTTP.Types as HTTP
 import qualified Servant.API as Servant ((:<|>) (..), (:>))
@@ -378,7 +381,60 @@ completeTempEntities ::
   (Int -> Int -> IO ()) ->
   NESet Hash32 ->
   IO Int
-completeTempEntities doDownload conn downloadProgressCallback =
+completeTempEntities doDownload conn downloadProgressCallback initialHashes0 = do
+  initialHashes <- elaborate initialHashes0
+  hashesVar <- newTVarIO (NESet.toSet initialHashes)
+
+  entitiesQueue <- newTQueueIO
+  newTempEntitiesQueue <- newTQueueIO
+  outstandingWorkersCountVar <- newTVarIO (0 :: Int)
+
+  Ki.scoped \scope -> do
+    Ki.fork_ scope do
+      forever do
+        entities <- atomically (readTQueue entitiesQueue)
+        newTempEntities0 <-
+          Sqlite.runTransaction conn do
+            NEMap.toList entities & foldMapM \(hash, entity) ->
+              upsertEntitySomewhere hash entity <&> \case
+                Q.EntityInMainStorage -> Set.empty
+                Q.EntityInTempStorage -> Set.singleton hash
+        whenJust (NESet.nonEmptySet newTempEntities0) \newTempEntities ->
+          atomically (writeTQueue newTempEntitiesQueue newTempEntities)
+
+    Ki.fork_ scope do
+      forever do
+        newTempEntities <- atomically (readTQueue newTempEntitiesQueue)
+        newElaboratedHashes <- elaborate newTempEntities
+        atomically (modifyTVar' hashesVar (Set.union (NESet.toSet newElaboratedHashes)))
+
+    let loop :: IO ()
+        loop = do
+          hashes <-
+            atomically do
+              hashes <- readTVar hashesVar
+              if Set.null hashes
+                then retry
+                else do
+                  let (hashes1, hashes2) = Set.splitAt 50 hashes
+                  writeTVar hashesVar hashes2
+                  pure (NESet.unsafeFromSet hashes1)
+
+          _ <- Ki.fork @() scope do
+            atomically (modifyTVar' outstandingWorkersCountVar (+ 1))
+            Share.DownloadEntitiesSuccess entities <-
+              httpDownloadEntities
+                undefined -- httpClient
+                undefined -- unisonShareUrl
+                Share.DownloadEntitiesRequest {repoName = undefined, hashes}
+            atomically do
+              writeTQueue entitiesQueue entities
+              modifyTVar' outstandingWorkersCountVar \n -> n - 1
+
+          undefined
+
+    loop
+
   let loop :: Int -> NESet Share.HashJWT -> IO Int
       loop !downloadCount allHashes = do
         downloadProgressCallback downloadCount (NESet.size allHashes)
@@ -400,7 +456,7 @@ completeTempEntities doDownload conn downloadProgressCallback =
         case maybeNextHashes of
           Nothing -> pure newDownloadCount
           Just nextHashes -> loop newDownloadCount nextHashes
-   in \hashes0 -> elaborate hashes0 >>= loop 0
+  loop 0 initialHashes
   where
     elaborate :: NESet Hash32 -> IO (NESet Share.HashJWT)
     elaborate hashes =
