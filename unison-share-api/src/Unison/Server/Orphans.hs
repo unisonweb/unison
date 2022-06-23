@@ -3,14 +3,16 @@
 
 module Unison.Server.Orphans where
 
-import U.Codebase.HashTags
 import Data.Aeson
+import qualified Data.Aeson as Aeson
 import Data.Binary
 import Data.ByteString.Short (ShortByteString)
 import Data.OpenApi
 import Data.Proxy
 import Servant
+import U.Codebase.HashTags
 import U.Util.Hash (Hash (..))
+import qualified U.Util.Hash as Hash
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash (..),
@@ -23,6 +25,16 @@ import qualified Unison.Name as Name
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.Util.Pretty (Width (..))
+
+instance ToJSON Hash where
+  toJSON h = String $ Hash.toBase32HexText h
+
+instance FromJSON Hash where
+  parseJSON = Aeson.withText "Hash" $ pure . Hash.unsafeFromBase32HexText
+
+deriving via Hash instance ToJSON CausalHash
+
+deriving via Hash instance FromJSON CausalHash
 
 instance ToJSON ShortHash where
   toEncoding = genericToEncoding defaultOptions

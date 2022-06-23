@@ -61,6 +61,7 @@ module Unison.Sync.Types
     -- ** Update path
     UpdatePathRequest (..),
     UpdatePathResponse (..),
+    UpdatedPath (..),
     HashMismatch (..),
 
     -- * Common/shared error types
@@ -88,6 +89,7 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Servant.Auth.JWT
+import U.Codebase.HashTags (CausalHash)
 import U.Util.Hash32 (Hash32)
 import U.Util.Hash32.Orphans.Aeson ()
 import Unison.Prelude
@@ -877,7 +879,7 @@ instance FromJSON UpdatePathRequest where
     pure UpdatePathRequest {..}
 
 data UpdatePathResponse
-  = UpdatePathSuccess
+  = UpdatePathSuccess UpdatedPath
   | UpdatePathHashMismatch HashMismatch
   | UpdatePathMissingDependencies (NeedDependencies Hash32)
   | UpdatePathNoWritePermission Path
@@ -885,7 +887,7 @@ data UpdatePathResponse
 
 instance ToJSON UpdatePathResponse where
   toJSON = \case
-    UpdatePathSuccess -> jsonUnion "success" (Object mempty)
+    UpdatePathSuccess updatedPath -> jsonUnion "success" updatedPath
     UpdatePathHashMismatch hm -> jsonUnion "hash_mismatch" hm
     UpdatePathMissingDependencies md -> jsonUnion "missing_dependencies" md
     UpdatePathNoWritePermission path -> jsonUnion "no_write_permission" path
@@ -894,11 +896,26 @@ instance FromJSON UpdatePathResponse where
   parseJSON v =
     v & Aeson.withObject "UpdatePathResponse" \obj ->
       obj .: "type" >>= Aeson.withText "type" \case
-        "success" -> pure UpdatePathSuccess
+        "success" -> UpdatePathSuccess <$> obj .: "payload"
         "hash_mismatch" -> UpdatePathHashMismatch <$> obj .: "payload"
         "missing_dependencies" -> UpdatePathMissingDependencies <$> obj .: "payload"
         "no_write_permission" -> UpdatePathNoWritePermission <$> obj .: "payload"
         t -> failText $ "Unexpected UpdatePathResponse type: " <> t
+
+data UpdatedPath = UpdatedPath
+  {newRootHash :: CausalHash}
+  deriving stock (Show, Eq, Ord)
+
+instance ToJSON UpdatedPath where
+  toJSON (UpdatedPath newRootHash) =
+    object
+      [ "new_root_hash" .= newRootHash
+      ]
+
+instance FromJSON UpdatedPath where
+  parseJSON = Aeson.withObject "UpdatedPath" \obj -> do
+    newRootHash <- obj .: "new_root_hash"
+    pure UpdatedPath {..}
 
 data HashMismatch = HashMismatch
   { path :: Path,
