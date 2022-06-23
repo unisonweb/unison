@@ -41,6 +41,7 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text.Lazy
 import Data.These (These (..))
+import Data.Void (Void)
 import qualified Ki
 import qualified Network.HTTP.Client as Http.Client
 import qualified Network.HTTP.Types as HTTP
@@ -377,6 +378,21 @@ pull httpClient unisonShareUrl connect repoPath callbacks = catchSyncErrors do
   where
     repoName = Share.pathRepoName repoPath
 
+type WorkerCount =
+  TVar Int
+
+newWorkerCount :: IO WorkerCount
+newWorkerCount =
+  newTVarIO 0
+
+recordWorking :: WorkerCount -> STM ()
+recordWorking sem =
+  modifyTVar' sem (+ 1)
+
+recordNotWorking :: WorkerCount -> STM ()
+recordNotWorking sem =
+  modifyTVar' sem \n -> n - 1
+
 -- | Finish downloading entities from Unison Share. Returns the total number of entities downloaded.
 --
 -- Precondition: the entities were *already* downloaded at some point in the past, and are now sitting in the
@@ -390,31 +406,120 @@ completeTempEntities ::
   NESet Hash32 ->
   IO ()
 completeTempEntities httpClient unisonShareUrl connect repoName callbacks initialNewTempEntities = do
-  -- The set of hashes we still need to download from Unison Share
+  -- The set of hashes we still need to download
   hashesVar <- newTVarIO Set.empty
 
   -- The set of hashes that we haven't inserted yet, but will soon, because we've committed to downloading them.
   uninsertedHashesVar <- newTVarIO Set.empty
 
-  -- The entities payloads that we've downloaded from UnisonShare
-  -- FIXME pick up here commenting things
+  -- The entities payloads (along with the jwts that we used to download them) that we've downloaded
   entitiesQueue <- newTQueueIO
 
+  -- The sets of new (at the time of inserting, anyway) temp entity rows, which we need to elaborate, then download.
   newTempEntitiesQueue <- newTQueueIO
 
-  outstandingWorkersCountVar <- newTVarIO (0 :: Int)
-  let recordWorking = modifyTVar' outstandingWorkersCountVar (+ 1)
-  let recordNotWorking = modifyTVar' outstandingWorkersCountVar \n -> n - 1
+  workerCount <- newWorkerCount
 
   Ki.scoped \scope -> do
+    Ki.fork_ scope (inserter uninsertedHashesVar entitiesQueue newTempEntitiesQueue workerCount)
+    Ki.fork_ scope (elaborator hashesVar uninsertedHashesVar newTempEntitiesQueue workerCount)
+    -- Kick off the cycle of inserter->elaborator->dispatcher->worker by giving the elaborator something to do
+    atomically (writeTQueue newTempEntitiesQueue initialNewTempEntities)
+    dispatcher
+      (\hashes -> void (Ki.fork scope (downloader entitiesQueue workerCount hashes)))
+      hashesVar
+      uninsertedHashesVar
+      entitiesQueue
+      newTempEntitiesQueue
+      workerCount
+  where
+    -- Dispatcher thread: "dequeue" from `hashesVar`, fork one-shot downloaders.
+    --
+    -- We stop when all of the following are true:
+    --
+    --   - There are no outstanding workers (downloaders, inserter, elaboraror)
+    --   - The inserter thread doesn't have any outstanding work enqueued (in `entitiesQueue`)
+    --   - The elaborator thread doesn't have any outstanding work enqueued (in `newTempEntitiesQueue`)
+    dispatcher ::
+      (NESet Share.HashJWT -> IO ()) ->
+      TVar (Set Share.HashJWT) ->
+      TVar (Set Share.HashJWT) ->
+      TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
+      TQueue (NESet Hash32) ->
+      WorkerCount ->
+      IO ()
+    dispatcher forkDownloader hashesVar uninsertedHashesVar entitiesQueue newTempEntitiesQueue workerCount =
+      loop
+      where
+        loop :: IO ()
+        loop =
+          join (atomically (dispatchWorkMode <|> checkIfDoneMode))
+
+        dispatchWorkMode :: STM (IO ())
+        dispatchWorkMode = do
+          hashes <- readTVar hashesVar
+          when (Set.null hashes) retry
+          let (hashes1, hashes2) = Set.splitAt 50 hashes
+          modifyTVar' uninsertedHashesVar (Set.union hashes1)
+          writeTVar hashesVar hashes2
+          pure do
+            -- Only allow 10 concurrent http workers
+            atomically do
+              workers <- readTVar workerCount
+              -- 12 workers = inserter + elaborator + 10 http workers
+              when (workers >= 12) retry
+              -- we do need to record the downloader as working outside of the worker thread, not inside.
+              -- otherwise, we might erroneously fall through the the teardown logic below and conclude there's
+              -- nothing more for the dispatcher to do, when in fact a downloader thread just hasn't made it as
+              -- far as recording its own existence
+              recordWorking workerCount
+            forkDownloader (NESet.unsafeFromSet hashes1)
+            loop
+
+        -- Check to see if there are no hashes left to download, no outstanding workers, and no work in either queue
+        checkIfDoneMode :: STM (IO ())
+        checkIfDoneMode = do
+          workers <- readTVar workerCount
+          when (workers > 0) retry
+          isEmptyTQueue entitiesQueue >>= \case
+            False -> retry
+            True -> pure ()
+          isEmptyTQueue newTempEntitiesQueue >>= \case
+            False -> retry
+            True -> pure ()
+          pure (pure ())
+
+    -- Downloader thread: download entities, enqueue to `entitiesQueue`
+    downloader ::
+      TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
+      WorkerCount ->
+      NESet Share.HashJWT ->
+      IO ()
+    downloader entitiesQueue workerCount hashes = do
+      Share.DownloadEntitiesSuccess entities <-
+        httpDownloadEntities
+          httpClient
+          unisonShareUrl
+          Share.DownloadEntitiesRequest {repoName, hashes}
+      downloaded callbacks (NESet.size hashes)
+      atomically do
+        writeTQueue entitiesQueue (hashes, entities)
+        recordNotWorking workerCount
+
     -- Inserter thread: dequeue from `entitiesQueue`, insert entities, enqueue to `newTempEntitiesQueue`
-    Ki.fork_ scope do
+    inserter ::
+      TVar (Set Share.HashJWT) ->
+      TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
+      TQueue (NESet Hash32) ->
+      WorkerCount ->
+      IO Void
+    inserter uninsertedHashesVar entitiesQueue newTempEntitiesQueue workerCount =
       connect \conn ->
         forever do
           (hashJwts, entities) <-
             atomically do
               entities <- readTQueue entitiesQueue
-              recordWorking
+              recordWorking workerCount
               pure entities
           newTempEntities0 <-
             Sqlite.runTransaction conn do
@@ -423,22 +528,28 @@ completeTempEntities httpClient unisonShareUrl connect repoName callbacks initia
                   Q.EntityInMainStorage -> Set.empty
                   Q.EntityInTempStorage -> Set.singleton hash
           atomically do
-            -- Avoid unnecessary retaining of these hashes to keep memory usage more stable. This algorithm would still be
-            -- correct if we never delete from `uninsertedHashes`.
+            -- Avoid unnecessary retaining of these hashes to keep memory usage more stable. This algorithm would still
+            -- be correct if we never delete from `uninsertedHashes`.
             modifyTVar' uninsertedHashesVar \uninsertedHashes ->
               Set.difference uninsertedHashes (NESet.toSet hashJwts)
             whenJust (NESet.nonEmptySet newTempEntities0) \newTempEntities ->
               writeTQueue newTempEntitiesQueue newTempEntities
-            recordNotWorking
+            recordNotWorking workerCount
 
     -- Elaborator thread: dequeue from `newTempEntitiesQueue`, elaborate, "enqueue" to `hashesVar`
-    Ki.fork_ scope do
+    elaborator ::
+      TVar (Set Share.HashJWT) ->
+      TVar (Set Share.HashJWT) ->
+      TQueue (NESet Hash32) ->
+      WorkerCount ->
+      IO Void
+    elaborator hashesVar uninsertedHashesVar newTempEntitiesQueue workerCount =
       connect \conn ->
         forever do
           newTempEntities <-
             atomically do
               newTempEntities <- readTQueue newTempEntitiesQueue
-              recordWorking
+              recordWorking workerCount
               pure newTempEntities
           newElaboratedHashes <- Sqlite.runTransaction conn (elaborateHashes newTempEntities)
           n <-
@@ -449,66 +560,7 @@ completeTempEntities httpClient unisonShareUrl connect repoName callbacks initia
               writeTVar hashesVar hashes1
               pure (Set.size hashes1 - Set.size hashes0)
           toDownload callbacks n
-          atomically recordNotWorking
-
-    -- Downloader thread: download entities, enqueue to `entitiesQueue`
-    let downloader :: NESet Share.HashJWT -> IO ()
-        downloader hashes = do
-          Share.DownloadEntitiesSuccess entities <-
-            httpDownloadEntities
-              httpClient
-              unisonShareUrl
-              Share.DownloadEntitiesRequest {repoName, hashes}
-          downloaded callbacks (NESet.size hashes)
-          atomically do
-            writeTQueue entitiesQueue (hashes, entities)
-            recordNotWorking
-
-    -- Dispatcher thread: "dequeue" from `hashesVar`, fork one-shot downloaders.
-    --
-    -- We stop when all of the following are true:
-    --
-    --   - There are no outstanding workers (downloaders, inserter, elaboraror)
-    --   - The inserter thread doesn't have any outstanding work enqueued (in `entitiesQueue`)
-    --   - The elaborator thread doesn't have any outstanding work enqueued (in `newTempEntitiesQueue`)
-    let dispatcher :: IO ()
-        dispatcher =
-          (join . atomically . asum)
-            [ do
-                hashes <- readTVar hashesVar
-                when (Set.null hashes) retry
-                let (hashes1, hashes2) = Set.splitAt 50 hashes
-                modifyTVar' uninsertedHashesVar (Set.union hashes1)
-                writeTVar hashesVar hashes2
-                pure do
-                  -- Only allow 10 concurrent http workers
-                  atomically do
-                    workers <- readTVar outstandingWorkersCountVar
-                    -- 12 workers = inserter + elaborator + 10 http workers
-                    when (workers >= 12) retry
-                    -- we do need to record the downloader as working outside of the worker thread, not inside.
-                    -- otherwise, we might erroneously fall through the the teardown logic below and conclude there's
-                    -- nothing more for the dispatcher to do, when in fact a downloader thread just hasn't made it as
-                    -- far as recording its own existence
-                    recordWorking
-                  _ <- Ki.fork scope (downloader (NESet.unsafeFromSet hashes1))
-                  dispatcher,
-              do
-                workers <- readTVar outstandingWorkersCountVar
-                when (workers > 0) retry
-                isEmptyTQueue entitiesQueue >>= \case
-                  False -> retry
-                  True -> pure ()
-                isEmptyTQueue newTempEntitiesQueue >>= \case
-                  False -> retry
-                  True -> pure ()
-                -- No hashes left to download, no outstanding workers, no work in either queue - we're done!
-                pure (pure ())
-            ]
-
-    -- Kick off the cycle of inserter->elaborator->dispatcher->worker by giving the elaborator something to do
-    atomically (writeTQueue newTempEntitiesQueue initialNewTempEntities)
-    dispatcher
+          atomically (recordNotWorking workerCount)
 
 -- | Download a set of entities from Unison Share. Returns the subset of those entities that we stored in temp storage
 -- (`temp_entitiy`) instead of main storage (`object` / `causal`) due to missing dependencies.
