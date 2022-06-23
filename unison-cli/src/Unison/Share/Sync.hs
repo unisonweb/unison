@@ -363,9 +363,14 @@ pull httpClient unisonShareUrl connect repoPath callbacks = catchSyncErrors do
             Just Q.EntityInTempStorage -> pure (Just (NESet.singleton hash))
             Nothing -> do
               toDownload callbacks 1
-              tempEntities <- downloadEntities httpClient unisonShareUrl conn repoName (NESet.singleton hashJwt)
+              Share.DownloadEntitiesSuccess entities <-
+                httpDownloadEntities
+                  httpClient
+                  unisonShareUrl
+                  Share.DownloadEntitiesRequest {repoName, hashes = NESet.singleton hashJwt}
+              tempEntities <- insertEntities conn entities
               downloaded callbacks 1
-              pure tempEntities
+              pure (NESet.nonEmptySet tempEntities)
       whenJust maybeTempEntities \tempEntities ->
         completeTempEntities
           httpClient
@@ -562,27 +567,15 @@ completeTempEntities httpClient unisonShareUrl connect repoName callbacks initia
           toDownload callbacks n
           atomically (recordNotWorking workerCount)
 
--- | Download a set of entities from Unison Share. Returns the subset of those entities that we stored in temp storage
--- (`temp_entitiy`) instead of main storage (`object` / `causal`) due to missing dependencies.
-downloadEntities ::
-  AuthenticatedHttpClient ->
-  BaseUrl ->
-  Sqlite.Connection ->
-  Share.RepoName ->
-  NESet Share.HashJWT ->
-  IO (Maybe (NESet Hash32))
-downloadEntities httpClient unisonShareUrl conn repoName hashes = do
-  Share.DownloadEntitiesSuccess entities <-
-    httpDownloadEntities
-      httpClient
-      unisonShareUrl
-      Share.DownloadEntitiesRequest {repoName, hashes}
-  fmap NESet.nonEmptySet do
-    Sqlite.runTransaction conn do
-      NEMap.toList entities & foldMapM \(hash, entity) ->
-        upsertEntitySomewhere hash entity <&> \case
-          Q.EntityInMainStorage -> Set.empty
-          Q.EntityInTempStorage -> Set.singleton hash
+-- | Insert entities into the database, and return the subset that went into temp storage (`temp_entitiy`) rather than
+-- of main storage (`object` / `causal`) due to missing dependencies.
+insertEntities :: Sqlite.Connection -> NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> IO (Set Hash32)
+insertEntities conn entities =
+  Sqlite.runTransaction conn do
+    NEMap.toList entities & foldMapM \(hash, entity) ->
+      upsertEntitySomewhere hash entity <&> \case
+        Q.EntityInMainStorage -> Set.empty
+        Q.EntityInTempStorage -> Set.singleton hash
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
