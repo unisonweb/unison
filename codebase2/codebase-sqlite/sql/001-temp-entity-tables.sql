@@ -1,4 +1,4 @@
-create table temp_entity_type_description (
+create table if not exists temp_entity_type_description (
   id integer primary key not null,
   description text unique not null
 );
@@ -7,7 +7,9 @@ insert into temp_entity_type_description values
   (1, 'Decl Component'),
   (2, 'Namespace'),
   (3, 'Patch'),
-  (4, 'Causal');
+  (4, 'Causal')
+  ON CONFLICT DO NOTHING
+;
 
 -- A "temp entity" is a term/decl/namespace/patch/causal that we cannot store in the database proper due to missing
 -- dependencies.
@@ -19,7 +21,7 @@ insert into temp_entity_type_description values
 -- Similarly, each `temp_entity` row implies we do not have the entity in the database proper. When and if we *do* store
 -- an entity proper (after storing all of its dependencies), we should always atomically delete the corresponding
 -- `temp_entity` row, if any.
-create table temp_entity (
+create table if not exists temp_entity (
   hash text primary key not null,
   blob bytes not null,
   type_id integer not null references temp_entity_type_description(id)
@@ -51,11 +53,11 @@ create table temp_entity (
 -- |========================================|
 -- | #foo      | #bar       | aT.Eb.cx      |
 -- +----------------------------------------+
-create table temp_entity_missing_dependency (
+create table if not exists temp_entity_missing_dependency (
   dependent text not null references temp_entity(hash),
   dependency text not null,
   dependencyJwt text not null,
   unique (dependent, dependency)
 );
-create index temp_entity_missing_dependency_ix_dependent on temp_entity_missing_dependency (dependent);
-create index temp_entity_missing_dependency_ix_dependency on temp_entity_missing_dependency (dependency)
+create index if not exists temp_entity_missing_dependency_ix_dependent on temp_entity_missing_dependency (dependent);
+create index if not exists temp_entity_missing_dependency_ix_dependency on temp_entity_missing_dependency (dependency)

@@ -72,6 +72,16 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
           let migrationsToRun =
                 Map.filterWithKey (\v _ -> v > schemaVersion) migs
           when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase root
+          -- This is a bit of a hack, hopefully we can remove this when we have a more
+          -- reliable way to freeze old migration code in time.
+          -- The problem is that 'saveObject' has been changed to flush temp entity tables,
+          -- but old schema versions still use 'saveObject', but don't have the tables!
+          -- We can create the tables no matter what, there won't be anything to flush, so
+          -- everything still works as expected.
+          --
+          -- Hopefully we can remove this once we've got better methods of freezing migration
+          -- code in time.
+          when (schemaVersion < 5) $ run Q.addTempEntityTables
           for_ (Map.toAscList migrationsToRun) $ \(SchemaVersion v, migration) -> do
             putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
             run migration
