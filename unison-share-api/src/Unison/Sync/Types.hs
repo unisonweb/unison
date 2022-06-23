@@ -91,6 +91,7 @@ import Servant.Auth.JWT
 import U.Util.Hash32 (Hash32)
 import U.Util.Hash32.Orphans.Aeson ()
 import Unison.Prelude
+import Unison.Server.Orphans ()
 import qualified Unison.Util.Set as Set
 import qualified Web.JWT as JWT
 

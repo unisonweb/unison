@@ -3,6 +3,7 @@
 
 module Unison.Server.Orphans where
 
+import U.Codebase.HashTags
 import Data.Aeson
 import Data.Binary
 import Data.ByteString.Short (ShortByteString)
@@ -34,6 +35,8 @@ instance FromHttpApiData ShortBranchHash where
   parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
 
 deriving via ShortByteString instance Binary Hash
+
+deriving via Hash instance Binary CausalHash
 
 deriving via Text instance ToHttpApiData ShortBranchHash
 
