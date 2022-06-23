@@ -7,7 +7,7 @@ module Unison.Share.Types
     CodeserverId (..),
     CodeserverDescription (..),
     Codeserver (..),
-    CodeserverProvidence (..),
+    CodeserverProvenance (..),
     CodeserverVersion (..),
     Scheme (..),
     codeserverFromURI,
@@ -185,7 +185,7 @@ instance ToJSON CodeserverDescription where
 
 -- | Whether this is a codeserver specified by the user or the default Share codeserver.
 -- This information is used in formatting codeserver paths.
-data CodeserverProvidence = DefaultCodeserver | CustomCodeserver
+data CodeserverProvenance = DefaultCodeserver | CustomCodeserver
   deriving stock (Show, Eq, Ord)
 
 -- | Collection of all other Codeserver values in one place.
@@ -193,6 +193,6 @@ data Codeserver = Codeserver
   { codeserverDescription :: CodeserverDescription,
     codeserverRoot :: CodeserverRoot,
     codeserverId :: CodeserverId,
-    codeserverProvenance :: CodeserverProvidence
+    codeserverProvenance :: CodeserverProvenance
   }
   deriving stock (Show, Eq, Ord)
