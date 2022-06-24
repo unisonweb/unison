@@ -391,18 +391,23 @@ completeTempEntities doDownload conn downloadProgressCallback =
                 That hs2 -> (hs2, Set.empty) -- impossible, this only happens if we split at 0
                 These hs1 hs2 -> (hs1, NESet.toSet hs2)
         maybeNextHashes <-
-          doDownload hashes >>= \case
-            Nothing -> pure (NESet.nonEmptySet nextHashes0)
-            Just newTempEntities -> do
-              newElaboratedHashes <- elaborate newTempEntities
-              pure (Just (union10 newElaboratedHashes nextHashes0))
+          fmap NESet.nonEmptySet do
+            doDownload hashes >>= \case
+              Nothing -> pure nextHashes0
+              Just newTempEntities -> do
+                newElaboratedHashes <- elaborate newTempEntities
+                pure (Set.union newElaboratedHashes nextHashes0)
         let !newDownloadCount = downloadCount + NESet.size hashes
         case maybeNextHashes of
           Nothing -> pure newDownloadCount
           Just nextHashes -> loop newDownloadCount nextHashes
-   in \hashes0 -> elaborate hashes0 >>= loop 0
+   in \hashes0 -> do
+        hashes <- elaborate hashes0
+        case NESet.nonEmptySet hashes of
+          Nothing -> pure 0
+          Just hashes -> loop 0 hashes
   where
-    elaborate :: NESet Hash32 -> IO (NESet Share.HashJWT)
+    elaborate :: NESet Hash32 -> IO (Set Share.HashJWT)
     elaborate hashes =
       Sqlite.runTransaction conn (elaborateHashes hashes)
 
@@ -524,10 +529,9 @@ union10 xs ys =
 -- 3. If it's in main storage, we should ignore it.
 --
 -- In the end, we return a set of hashes that correspond to entities we actually need to download.
-elaborateHashes :: NESet Hash32 -> Sqlite.Transaction (NESet Share.HashJWT)
+elaborateHashes :: NESet Hash32 -> Sqlite.Transaction (Set Share.HashJWT)
 elaborateHashes hashes =
-  Q.elaborateHashes (NESet.toList hashes)
-    <&> NESet.fromList . coerce @(List.NonEmpty Text) @(List.NonEmpty Share.HashJWT)
+  Q.elaborateHashes (NESet.toList hashes) <&> Set.fromList . coerce @[Text] @[Share.HashJWT]
 
 -- | Upsert a downloaded entity "somewhere" -
 --
