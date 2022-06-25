@@ -180,7 +180,7 @@ import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
 import qualified Data.List.Extra as List
-import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
 import Data.Map.NonEmpty (NEMap)
@@ -650,7 +650,7 @@ expectPrimaryHash32ByObjectId oId = queryOneCol sql (Only oId)
   WHERE object.id = ?
 |]
 
-expectHashIdsForObject :: ObjectId -> Transaction (NonEmpty HashId)
+expectHashIdsForObject :: ObjectId -> Transaction (List.NonEmpty HashId)
 expectHashIdsForObject oId = do
   primaryHashId <- queryOneCol sql1 (Only oId)
   hashIds <- queryListCol sql2 (Only oId)
@@ -1606,40 +1606,42 @@ deleteTempEntity hash =
 -- ... then `elaborateHashes {A}` would return the singleton set {C} (because we take the set of transitive
 -- dependencies {A,B,C} and subtract the set we already have, {A,B}).
 elaborateHashes :: Nel.NonEmpty Hash32 -> Transaction [Text]
-elaborateHashes hashes = do
-  execute_
-    [here|
-      CREATE TABLE new_temp_entity_dependents (hash text)
-    |]
-  executeMany
-    [here|
-      INSERT INTO new_temp_entity_dependents (hash)
-      VALUES (?)
-    |]
-    (map Only (Nel.toList hashes))
-  result <-
-    queryListCol_
-      [here|
-        WITH RECURSIVE elaborated_dependency (hash, hashJwt) AS (
-          SELECT temd.dependency, temd.dependencyJwt
-          FROM new_temp_entity_dependents AS new
-            JOIN temp_entity_missing_dependency AS temd
-              ON temd.dependent = new.hash
+elaborateHashes hashes =
+  queryListCol query hashesValues
+  where
+    query :: Sql
+    query =
+      fold
+        [ [sql|
+            WITH RECURSIVE
+            new_temp_entity_dependents (hash) AS (
+          |],
+          valuesSql hashesValues,
+          [sql|
+            ),
+            elaborated_dependency (hash, hashJwt) AS (
+              SELECT temd.dependency, temd.dependencyJwt
+              FROM new_temp_entity_dependents AS new
+                JOIN temp_entity_missing_dependency AS temd
+                  ON temd.dependent = new.hash
 
-          UNION
-          SELECT temd.dependency, temd.dependencyJwt
-          FROM temp_entity_missing_dependency AS temd
-            JOIN elaborated_dependency AS ed
-              ON temd.dependent = ed.hash
-        )
-        SELECT hashJwt FROM elaborated_dependency
-        WHERE NOT EXISTS (
-          SELECT 1 FROM temp_entity
-          WHERE temp_entity.hash = elaborated_dependency.hash
-        )
-      |]
-  execute_ [here|DROP TABLE new_temp_entity_dependents|]
-  pure result
+              UNION
+              SELECT temd.dependency, temd.dependencyJwt
+              FROM temp_entity_missing_dependency AS temd
+                JOIN elaborated_dependency AS ed
+                  ON temd.dependent = ed.hash
+            )
+            SELECT hashJwt FROM elaborated_dependency
+            WHERE NOT EXISTS (
+              SELECT 1 FROM temp_entity
+              WHERE temp_entity.hash = elaborated_dependency.hash
+            )
+          |]
+        ]
+
+    hashesValues :: Values (Only Hash32)
+    hashesValues =
+      Values (coerce @(List.NonEmpty Hash32) @(List.NonEmpty (Only Hash32)) hashes)
 
 moveTempEntityToMain ::
   HashHandle ->

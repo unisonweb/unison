@@ -26,6 +26,9 @@ module Unison.Sqlite
 
     -- * Executing queries
     Sql (..),
+    sql,
+    Values (..),
+    valuesSql,
 
     -- ** Without results
 
@@ -91,8 +94,8 @@ module Unison.Sqlite
     -- * Exceptions
     SomeSqliteException (..),
     isCantOpenException,
-    SqliteConnectException (..),
-    SqliteQueryException (..),
+    SqliteConnectException,
+    SqliteQueryException,
     SqliteExceptionReason,
     SomeSqliteExceptionReason (..),
     ExpectedAtMostOneRowException (..),
@@ -128,14 +131,15 @@ import Unison.Sqlite.DataVersion (DataVersion (..), getDataVersion)
 import Unison.Sqlite.Exception
   ( SomeSqliteException (..),
     SomeSqliteExceptionReason (..),
-    SqliteConnectException (..),
+    SqliteConnectException,
     SqliteExceptionReason,
-    SqliteQueryException (..),
+    SqliteQueryException,
     isCantOpenException,
   )
 import Unison.Sqlite.JournalMode (JournalMode (..), SetJournalModeException (..), trySetJournalMode)
-import Unison.Sqlite.Sql (Sql (..))
+import Unison.Sqlite.Sql (Sql (..), sql)
 import Unison.Sqlite.Transaction
+import Unison.Sqlite.Values (Values (..), valuesSql)
 
 -- $query-naming-convention
 --
