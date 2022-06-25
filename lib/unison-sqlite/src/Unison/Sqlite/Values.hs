@@ -28,8 +28,12 @@ instance Sqlite.Simple.ToRow a => Sqlite.Simple.ToRow (Values a) where
 -- @
 valuesSql :: Sqlite.Simple.ToRow a => Values a -> Sql
 valuesSql (Values values) =
-  Sql ("VALUES " <> Text.intercalate "," (map valueSql (List.NonEmpty.toList values)))
+  Sql ("VALUES " <> Text.intercalate "," (replicate (length values) (valueSql columns)))
+  where
+    columns :: Int
+    columns =
+      length (Sqlite.Simple.toRow (List.NonEmpty.head values))
 
-valueSql :: Sqlite.Simple.ToRow a => a -> Text
-valueSql value =
-  "(" <> Text.intercalate "," (map (\_ -> "?") (Sqlite.Simple.toRow value)) <> ")"
+valueSql :: Int -> Text
+valueSql columns =
+  "(" <> Text.intercalate "," (replicate columns "?") <> ")"
