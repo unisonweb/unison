@@ -477,11 +477,15 @@ test =
         tcBreaks 50 "if true then match x with 12 -> x else x",
         tcBreaks 50 "if true then x else match x with 12 -> x",
         pending $ tcBreaks 80 "x -> (if c then t else f)", -- TODO 'unexpected )', surplus parens
-        tcBreaks
-          80
+        tcDiffRtt
+          True
           "'let\n\
           \  foo = bar\n\
-          \  baz foo",
+          \  baz foo"
+          "do\n\
+          \  foo = bar\n\
+          \  baz foo"
+          80,
         tcBreaks
           80
           "!let\n\
