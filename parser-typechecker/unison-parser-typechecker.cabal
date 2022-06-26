@@ -84,15 +84,10 @@ library
       Unison.Codebase.Verbosity
       Unison.Codebase.Watch
       Unison.CodebasePath
-      Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
       Unison.Hashing.V2.Convert
-      Unison.Lexer
-      Unison.NamePrinter
-      Unison.Parser
       Unison.Parser.Ann
-      Unison.Parsers
       Unison.PrettyPrintEnv
       Unison.PrettyPrintEnv.FQN
       Unison.PrettyPrintEnv.Names
@@ -120,8 +115,15 @@ library
       Unison.Runtime.Stack
       Unison.Runtime.Vector
       Unison.Share.Types
-      Unison.TermParser
-      Unison.TermPrinter
+      Unison.Syntax.Lexer
+      Unison.Syntax.Parser
+      Unison.Syntax.Parser.Term
+      Unison.Syntax.Parser.Type
+      Unison.Syntax.Parsers
+      Unison.Syntax.Printer.Decl
+      Unison.Syntax.Printer.Name
+      Unison.Syntax.Printer.Term
+      Unison.Syntax.Printer.Type
       Unison.Typechecker
       Unison.Typechecker.Components
       Unison.Typechecker.Context
@@ -129,8 +131,6 @@ library
       Unison.Typechecker.TypeError
       Unison.Typechecker.TypeLookup
       Unison.Typechecker.TypeVar
-      Unison.TypeParser
-      Unison.TypePrinter
       Unison.UnisonFile
       Unison.UnisonFile.Env
       Unison.UnisonFile.Error

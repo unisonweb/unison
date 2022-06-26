@@ -48,7 +48,6 @@ import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as Names
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -60,6 +59,7 @@ import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResult' (SearchResult')
 import qualified Unison.Share.Sync.Types as Sync
 import Unison.ShortHash (ShortHash)
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Typechecker.Context as Context

@@ -17,7 +17,6 @@ import Unison.Codebase.Runtime (Runtime, evaluateWatches)
 import Unison.Names (Names)
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parsers as Parsers
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
@@ -26,6 +25,7 @@ import Unison.Result (Result, pattern Result)
 import qualified Unison.Result as Result
 import qualified Unison.Runtime.Interface as RTI
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Parsers as Parsers
 import qualified Unison.Term as Term
 import Unison.Test.Common (parseAndSynthesizeAsFile, parsingEnv)
 import qualified Unison.Test.Common as Common

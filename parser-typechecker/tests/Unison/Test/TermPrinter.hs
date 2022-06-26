@@ -11,9 +11,9 @@ import Unison.Parser.Ann (Ann (..))
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import Unison.Symbol (Symbol, symbol)
+import Unison.Syntax.Printer.Term
 import Unison.Term (Term)
 import qualified Unison.Term as Term
-import Unison.TermPrinter
 import Unison.Test.Common (t, tm)
 import qualified Unison.Test.Common as Common
 import qualified Unison.Type as Type

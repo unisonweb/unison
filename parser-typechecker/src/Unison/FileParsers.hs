@@ -21,14 +21,14 @@ import qualified Unison.Name as Name
 import Unison.Names (Names)
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parsers as Parsers
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Referent as Referent
 import Unison.Result (CompilerBug (..), Note (..), Result, ResultT, pattern Result)
 import qualified Unison.Result as Result
+import qualified Unison.Syntax.Parser as Parser
+import qualified Unison.Syntax.Parsers as Parsers
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker as Typechecker

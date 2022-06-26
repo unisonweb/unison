@@ -13,9 +13,9 @@ import Unison.DataDeclaration (DataDeclaration (..), Decl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
-import Unison.Parsers (unsafeParseFile)
 import qualified Unison.Reference as R
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Parsers (unsafeParseFile)
 import qualified Unison.Test.Common as Common
 import qualified Unison.Type as Type
 import Unison.UnisonFile (UnisonFile (..))

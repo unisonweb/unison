@@ -7,9 +7,9 @@ import System.FilePath (dropExtension, takeExtension)
 import System.IO (putStrLn)
 import qualified Unison.Builtin as B
 import Unison.Parser (Err)
-import qualified Unison.Parsers as P
 import Unison.PrintError (prettyParseError)
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Parsers as P
 import qualified Unison.Util.ColorText as Color
 import Unison.Var (Var)
 import Prelude

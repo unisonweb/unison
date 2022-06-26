@@ -3,7 +3,7 @@ module Unison.Test.Typechecker.Components where
 -- import Control.Monad
 import EasyTest
 
--- import Unison.Parsers (unsafeParseTerm)
+-- import Unison.Syntax.Parsers (unsafeParseTerm)
 -- import qualified Unison.Note as Note
 -- import qualified Unison.Test.Common as Common
 -- import qualified Unison.Typechecker.Components as Components

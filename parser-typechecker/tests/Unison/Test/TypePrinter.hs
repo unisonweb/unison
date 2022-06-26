@@ -4,8 +4,8 @@ import qualified Data.Map as Map
 import EasyTest
 import qualified Unison.Builtin
 import qualified Unison.PrettyPrintEnv.Names as PPE
+import Unison.Syntax.Printer.Type
 import qualified Unison.Test.Common as Common
-import Unison.TypePrinter
 import Unison.Util.ColorText (toPlain)
 import qualified Unison.Util.Pretty as PP
 

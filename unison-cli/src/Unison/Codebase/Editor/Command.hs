@@ -44,11 +44,9 @@ import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Unison.DataDeclaration (Decl)
 import qualified Unison.Hash as H
 import qualified Unison.HashQualified as HQ
-import qualified Unison.Lexer as L
 import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.NamesWithHistory (NamesWithHistory)
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -68,6 +66,8 @@ import Unison.Server.QueryResult (QueryResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
 import Unison.ShortHash (ShortHash)
+import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
