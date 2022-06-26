@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.FileParser where
+module Unison.Syntax.Parser.File where
 
 import Control.Lens
 import Control.Monad.Reader (asks, local)

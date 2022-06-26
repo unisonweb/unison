@@ -2,7 +2,6 @@ module Unison.Syntax.Parsers where
 
 import qualified Data.Text as Text
 import qualified Unison.Builtin as Builtin
-import qualified Unison.FileParser as FileParser
 import qualified Unison.NamesWithHistory as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -12,6 +11,7 @@ import Unison.PrintError
   )
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
+import qualified Unison.Syntax.Parser.File as FileParser
 import qualified Unison.Syntax.Parser.Term as TermParser
 import qualified Unison.Syntax.Parser.Type as TypeParser
 import Unison.Term (Term)

@@ -84,7 +84,6 @@ library
       Unison.Codebase.Verbosity
       Unison.Codebase.Watch
       Unison.CodebasePath
-      Unison.FileParser
       Unison.FileParsers
       Unison.Hashing.V2.Convert
       Unison.Parser.Ann
@@ -117,6 +116,7 @@ library
       Unison.Share.Types
       Unison.Syntax.Lexer
       Unison.Syntax.Parser
+      Unison.Syntax.Parser.File
       Unison.Syntax.Parser.Term
       Unison.Syntax.Parser.Type
       Unison.Syntax.Parsers

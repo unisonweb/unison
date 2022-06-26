@@ -7,10 +7,10 @@ import Data.List (uncons)
 import Data.Set (elems)
 import EasyTest
 import qualified Text.Megaparsec.Error as MPE
-import Unison.FileParser (file)
 import qualified Unison.Parser.Ann as P
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as P
+import Unison.Syntax.Parser.File (file)
 import Unison.Syntax.Parsers (unsafeGetRightFrom, unsafeParseFileBuiltinsOnly)
 import qualified Unison.Test.Common as Common
 import Unison.UnisonFile (UnisonFile)
