@@ -426,10 +426,10 @@ completeTempEntities httpClient unisonShareUrl connect repoName callbacks initia
   workerCount <- newWorkerCount
 
   Ki.scoped \scope -> do
-    Ki.fork_ scope (inserter uninsertedHashesVar entitiesQueue newTempEntitiesQueue workerCount)
+    Ki.fork_ scope (inserter entitiesQueue newTempEntitiesQueue workerCount)
     Ki.fork_ scope (elaborator hashesVar uninsertedHashesVar newTempEntitiesQueue workerCount)
     -- Kick off the cycle of inserter->elaborator->dispatcher->worker by giving the elaborator something to do
-    atomically (writeTQueue newTempEntitiesQueue initialNewTempEntities)
+    atomically (writeTQueue newTempEntitiesQueue (Set.empty, Just initialNewTempEntities))
     dispatcher
       (\hashes -> void (Ki.fork scope (downloader entitiesQueue workerCount hashes)))
       hashesVar
@@ -450,7 +450,7 @@ completeTempEntities httpClient unisonShareUrl connect repoName callbacks initia
       TVar (Set Share.HashJWT) ->
       TVar (Set Share.HashJWT) ->
       TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
-      TQueue (NESet Hash32) ->
+      TQueue (Set Share.HashJWT, Maybe (NESet Hash32)) ->
       WorkerCount ->
       IO ()
     dispatcher forkDownloader hashesVar uninsertedHashesVar entitiesQueue newTempEntitiesQueue workerCount =
@@ -513,12 +513,11 @@ completeTempEntities httpClient unisonShareUrl connect repoName callbacks initia
 
     -- Inserter thread: dequeue from `entitiesQueue`, insert entities, enqueue to `newTempEntitiesQueue`
     inserter ::
-      TVar (Set Share.HashJWT) ->
       TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
-      TQueue (NESet Hash32) ->
+      TQueue (Set Share.HashJWT, Maybe (NESet Hash32)) ->
       WorkerCount ->
       IO Void
-    inserter uninsertedHashesVar entitiesQueue newTempEntitiesQueue workerCount =
+    inserter entitiesQueue newTempEntitiesQueue workerCount =
       connect \conn ->
         forever do
           (hashJwts, entities) <-
@@ -533,39 +532,44 @@ completeTempEntities httpClient unisonShareUrl connect repoName callbacks initia
                   Q.EntityInMainStorage -> Set.empty
                   Q.EntityInTempStorage -> Set.singleton hash
           atomically do
-            -- Avoid unnecessary retaining of these hashes to keep memory usage more stable. This algorithm would still
-            -- be correct if we never delete from `uninsertedHashes`.
-            modifyTVar' uninsertedHashesVar \uninsertedHashes ->
-              Set.difference uninsertedHashes (NESet.toSet hashJwts)
-            whenJust (NESet.nonEmptySet newTempEntities0) \newTempEntities ->
-              writeTQueue newTempEntitiesQueue newTempEntities
+            writeTQueue newTempEntitiesQueue (NESet.toSet hashJwts, NESet.nonEmptySet newTempEntities0)
             recordNotWorking workerCount
 
     -- Elaborator thread: dequeue from `newTempEntitiesQueue`, elaborate, "enqueue" to `hashesVar`
     elaborator ::
       TVar (Set Share.HashJWT) ->
       TVar (Set Share.HashJWT) ->
-      TQueue (NESet Hash32) ->
+      TQueue (Set Share.HashJWT, Maybe (NESet Hash32)) ->
       WorkerCount ->
       IO Void
     elaborator hashesVar uninsertedHashesVar newTempEntitiesQueue workerCount =
       connect \conn ->
         forever do
-          newTempEntities <-
-            atomically do
-              newTempEntities <- readTQueue newTempEntitiesQueue
-              recordWorking workerCount
-              pure newTempEntities
-          newElaboratedHashes <- Sqlite.runTransaction conn (elaborateHashes newTempEntities)
-          n <-
-            atomically do
-              uninsertedHashes <- readTVar uninsertedHashesVar
-              hashes0 <- readTVar hashesVar
-              let !hashes1 = Set.union (Set.difference newElaboratedHashes uninsertedHashes) hashes0
-              writeTVar hashesVar hashes1
-              pure (Set.size hashes1 - Set.size hashes0)
-          toDownload callbacks n
-          atomically (recordNotWorking workerCount)
+            (join . atomically) do
+              (hashJwts, mayNewTempEntities) <- readTQueue newTempEntitiesQueue
+              -- Avoid unnecessary retaining of these hashes to keep memory usage more stable. This algorithm would still
+              -- be correct if we never delete from `uninsertedHashes`.
+              --
+              -- We remove the inserted hashes from uninsertedHashesVar at this point rather than right after insertion in order
+              -- to ensure that no running transaction of the elaborator is viewing a snapshot that precedes the snapshot
+              -- that inserted those hashes.
+              modifyTVar' uninsertedHashesVar \uninsertedHashes ->
+                Set.difference uninsertedHashes hashJwts
+              case mayNewTempEntities of
+                Nothing -> pure (pure ())
+                Just newTempEntities -> do
+                  recordWorking workerCount
+                  pure do
+                    newElaboratedHashes <- Sqlite.runTransaction conn (elaborateHashes newTempEntities)
+                    n <-
+                      atomically do
+                        uninsertedHashes <- readTVar uninsertedHashesVar
+                        hashes0 <- readTVar hashesVar
+                        let !hashes1 = Set.union (Set.difference newElaboratedHashes uninsertedHashes) hashes0
+                        writeTVar hashesVar hashes1
+                        pure (Set.size hashes1 - Set.size hashes0)
+                    toDownload callbacks n
+                    atomically (recordNotWorking workerCount)
 
 -- | Insert entities into the database, and return the subset that went into temp storage (`temp_entitiy`) rather than
 -- of main storage (`object` / `causal`) due to missing dependencies.
