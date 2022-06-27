@@ -87,6 +87,9 @@ data CodebasePathOption
   | DontCreateCodebaseWhenMissing FilePath
   deriving (Show, Eq)
 
+data ShouldExit = Exit | DoNotExit
+  deriving (Show, Eq)
+
 data IsHeadless = Headless | WithCLI
   deriving (Show, Eq)
 
@@ -105,7 +108,8 @@ data Command
 
 -- | Options shared by sufficiently many subcommands.
 data GlobalOptions = GlobalOptions
-  { codebasePathOption :: Maybe CodebasePathOption
+  { codebasePathOption :: Maybe CodebasePathOption,
+    exitOption :: ShouldExit
   }
   deriving (Show, Eq)
 
@@ -242,9 +246,12 @@ commandParser envOpts =
 globalOptionsParser :: Parser GlobalOptions
 globalOptionsParser = do
   -- ApplicativeDo
-  codebasePathOption <- codebasePathParser <|> codebaseCreateParser
+  codebasePathOption <- codebasePathParser <|> codebaseCreateParser 
+  exitOption <- exitParser
 
-  pure GlobalOptions {codebasePathOption = codebasePathOption}
+  pure GlobalOptions {codebasePathOption = codebasePathOption,
+    exitOption = exitOption
+  }
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
 codebasePathParser = do
@@ -265,6 +272,11 @@ codebaseCreateParser = do
         <> metavar "CODEBASE/PATH"
         <> help "The path to a new or existing codebase (one will be created if there isn't one)"
   pure (fmap CreateCodebaseWhenMissing path)
+
+exitParser :: Parser ShouldExit
+exitParser = flag DoNotExit Exit (long "exit" <> help exitHelp)
+  where
+    exitHelp = "Exit repl after the command."
 
 versionOptionParser :: String -> String -> Parser (a -> a)
 versionOptionParser progName version =
