@@ -470,6 +470,21 @@ builtinsSrc =
     B "Text.fromCharList" $ list char --> text,
     B "Text.toUtf8" $ text --> bytes,
     B "Text.fromUtf8.impl.v3" $ bytes --> eithert failure text,
+    B "Text.patterns.eof" $ pat text,
+    B "Text.patterns.literal" $ text --> pat text,
+    B "Text.patterns.digit" $ pat text,
+    B "Text.patterns.letter" $ pat text,
+    B "Text.patterns.space" $ pat text,
+    B "Text.patterns.punctuation" $ pat text,
+    B "Text.patterns.charRange" $ char --> char --> pat text,
+    B "Text.patterns.notCharRange" $ char --> char --> pat text,
+    B "Text.patterns.charIn" $ list char --> pat text,
+    B "Text.patterns.notCharIn" $ list char --> pat text,
+    B "Pattern.many" $ forall1 "a" (\a -> pat a --> pat a),
+    B "Pattern.capture" $ forall1 "a" (\a -> pat a --> pat a),
+    B "Pattern.join" $ forall1 "a" (\a -> list (pat a) --> pat a),
+    B "Pattern.run" $ forall1 "a" (\a -> pat a --> a --> optionalt (tuple [list a, a])),
+    B "Pattern.isMatch" $ forall1 "a" (\a -> pat a --> a --> boolean),
     B "Char.toNat" $ char --> nat,
     B "Char.toText" $ char --> text,
     B "Char.fromNat" $ nat --> char,
@@ -930,9 +945,10 @@ code = Type.code ()
 value = Type.value ()
 termLink = Type.termLink ()
 
-stm, tvar :: Type -> Type
+stm, tvar, pat :: Type -> Type
 stm = Type.effect1 () (Type.ref () Type.stmRef)
 tvar a = Type.ref () Type.tvarRef `app` a
+pat a = Type.ref () Type.patternRef `app` a
 
 timeSpec :: Type
 timeSpec = Type.ref () Type.timeSpecRef
