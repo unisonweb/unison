@@ -1412,18 +1412,19 @@ checkPattern scrutineeType p =
       -- TODO: this should actually _always_ be the case, because we do a pass
       -- across the entire case statement refining the scrutinee type. The
       -- 'otherwise' still needs to be covered for exhaustivity, however.
-      | Type.Apps' (Type.Ref' req) [_, r] <- scrutineeType
-      , req == Type.effectRef -> checkPattern r p
+      | Type.Apps' (Type.Ref' req) [_, r] <- scrutineeType,
+        req == Type.effectRef ->
+          checkPattern r p
       | otherwise -> do
-        vt <- lift $ do
-          v <- freshenVar Var.inferPatternPureV
-          e <- freshenVar Var.inferPatternPureE
-          let vt = existentialp loc v
-          let et = existentialp loc e
-          appendContext [existential v, existential e]
-          subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
-          applyM vt
-        checkPattern vt p
+          vt <- lift $ do
+            v <- freshenVar Var.inferPatternPureV
+            e <- freshenVar Var.inferPatternPureE
+            let vt = existentialp loc v
+            let et = existentialp loc e
+            appendContext [existential v, existential e]
+            subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
+            applyM vt
+          checkPattern vt p
     -- ex: { Stream.emit x -> k } -> ...
     Pattern.EffectBind loc ref args k -> do
       -- scrutineeType should be a supertype of `Effect e vt`
@@ -1446,16 +1447,15 @@ checkPattern scrutineeType p =
         Type.Effect'' [et] it
           -- expecting scrutineeType to be `Effect et vt`
           | Type.Apps' _ [eff, vt] <- st -> do
-
-            -- ensure that the variables in `et` unify with those from
-            -- the scrutinee.
-            lift $ abilityCheck' [eff] [et]
-            let kt =
-                  Type.arrow
-                    (Pattern.loc k)
-                    it
-                    (Type.effect (Pattern.loc k) [eff] vt)
-            (vs ++) <$> checkPattern kt k
+              -- ensure that the variables in `et` unify with those from
+              -- the scrutinee.
+              lift $ abilityCheck' [eff] [et]
+              let kt =
+                    Type.arrow
+                      (Pattern.loc k)
+                      it
+                      (Type.effect (Pattern.loc k) [eff] vt)
+              (vs ++) <$> checkPattern kt k
           | otherwise -> lift . compilerCrash $ PatternMatchFailure
         _ ->
           lift . compilerCrash $
