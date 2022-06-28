@@ -26,6 +26,8 @@ import Control.Monad.Except
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import qualified Control.Monad.Trans.Reader as Reader
 import qualified Data.Foldable as Foldable (find)
+import Data.IntSet (IntSet)
+import qualified Data.IntSet as IntSet
 import Data.List.NonEmpty (pattern (:|))
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
@@ -97,7 +99,7 @@ checkAndSetPush httpClient unisonShareUrl conn path expectedHash causalHash uplo
     Share.UpdatePathHashMismatch mismatch -> pure (Left (CheckAndSetPushErrorHashMismatch mismatch))
     Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
       -- Upload the causal and all of its dependencies.
-      uploadEntities httpClient unisonShareUrl conn (Share.pathRepoName path) dependencies uploadProgressCallback >>= \case
+      uploadEntities httpClient unisonShareUrl undefined (Share.pathRepoName path) dependencies uploadProgressCallback >>= \case
         False -> pure (Left (CheckAndSetPushErrorNoWritePermission path))
         True ->
           -- After uploading the causal and all of its dependencies, try setting the remote path again.
@@ -191,7 +193,7 @@ fastForwardPush httpClient unisonShareUrl conn path localHeadHash uploadProgress
       uploadEntities
         httpClient
         unisonShareUrl
-        conn
+        undefined
         (Share.pathRepoName path)
         (NESet.singleton (causalHashToHash32 headHash))
         uploadProgressCallback
@@ -545,31 +547,31 @@ completeTempEntities httpClient unisonShareUrl connect repoName callbacks initia
     elaborator hashesVar uninsertedHashesVar newTempEntitiesQueue workerCount =
       connect \conn ->
         forever do
-            (join . atomically) do
-              (hashJwts, mayNewTempEntities) <- readTQueue newTempEntitiesQueue
-              -- Avoid unnecessary retaining of these hashes to keep memory usage more stable. This algorithm would still
-              -- be correct if we never delete from `uninsertedHashes`.
-              --
-              -- We remove the inserted hashes from uninsertedHashesVar at this point rather than right after insertion in order
-              -- to ensure that no running transaction of the elaborator is viewing a snapshot that precedes the snapshot
-              -- that inserted those hashes.
-              modifyTVar' uninsertedHashesVar \uninsertedHashes ->
-                Set.difference uninsertedHashes hashJwts
-              case mayNewTempEntities of
-                Nothing -> pure (pure ())
-                Just newTempEntities -> do
-                  recordWorking workerCount
-                  pure do
-                    newElaboratedHashes <- Sqlite.runTransaction conn (elaborateHashes newTempEntities)
-                    n <-
-                      atomically do
-                        uninsertedHashes <- readTVar uninsertedHashesVar
-                        hashes0 <- readTVar hashesVar
-                        let !hashes1 = Set.union (Set.difference newElaboratedHashes uninsertedHashes) hashes0
-                        writeTVar hashesVar hashes1
-                        pure (Set.size hashes1 - Set.size hashes0)
-                    toDownload callbacks n
-                    atomically (recordNotWorking workerCount)
+          (join . atomically) do
+            (hashJwts, mayNewTempEntities) <- readTQueue newTempEntitiesQueue
+            -- Avoid unnecessary retaining of these hashes to keep memory usage more stable. This algorithm would still
+            -- be correct if we never delete from `uninsertedHashes`.
+            --
+            -- We remove the inserted hashes from uninsertedHashesVar at this point rather than right after insertion in order
+            -- to ensure that no running transaction of the elaborator is viewing a snapshot that precedes the snapshot
+            -- that inserted those hashes.
+            modifyTVar' uninsertedHashesVar \uninsertedHashes ->
+              Set.difference uninsertedHashes hashJwts
+            case mayNewTempEntities of
+              Nothing -> pure (pure ())
+              Just newTempEntities -> do
+                recordWorking workerCount
+                pure do
+                  newElaboratedHashes <- Sqlite.runTransaction conn (elaborateHashes newTempEntities)
+                  n <-
+                    atomically do
+                      uninsertedHashes <- readTVar uninsertedHashesVar
+                      hashes0 <- readTVar hashesVar
+                      let !hashes1 = Set.union (Set.difference newElaboratedHashes uninsertedHashes) hashes0
+                      writeTVar hashesVar hashes1
+                      pure (Set.size hashes1 - Set.size hashes0)
+                  toDownload callbacks n
+                  atomically (recordNotWorking workerCount)
 
 -- | Insert entities into the database, and return the subset that went into temp storage (`temp_entitiy`) rather than
 -- of main storage (`object` / `causal`) due to missing dependencies.
@@ -608,31 +610,77 @@ getCausalHashByPath httpClient unisonShareUrl repoPath =
 uploadEntities ::
   AuthenticatedHttpClient ->
   BaseUrl ->
-  Sqlite.Connection ->
+  (forall a. (Sqlite.Connection -> IO a) -> IO a) ->
   Share.RepoName ->
   NESet Hash32 ->
   (Int -> Int -> IO ()) ->
   IO Bool
-uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCallback =
-  loop 0 hashes0
+uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgressCallback =
+  Ki.scoped \scope ->
+    dispatcher
+      (\workerId hashes -> void (Ki.fork scope (worker workerId hashes)))
+      undefined
+      undefined
+      undefined
+      undefined
   where
-    loop :: Int -> NESet Hash32 -> IO Bool
-    loop uploadCount allHashesSet = do
-      -- Each request only contains a certain maximum number of entities; split the set of hashes we need to upload into
-      -- those we will upload right now, and those we will begin uploading on the next iteration of the loop.
-      let (hashesSet, nextHashes) =
-            case NESet.splitAt 50 allHashesSet of
-              This hs1 -> (hs1, Set.empty)
-              That hs2 -> (hs2, Set.empty) -- impossible, this only happens if we split at 0
-              These hs1 hs2 -> (hs1, NESet.toSet hs2)
+    dispatcher ::
+      (Int -> NESet Hash32 -> IO ()) ->
+      TVar (Set Hash32) ->
+      TVar (Set Hash32) ->
+      TVar Int ->
+      TVar IntSet ->
+      IO Bool
+    dispatcher forkWorker hashesVar dedupeVar nextWorkerIdVar workersVar =
+      loop
+      where
+        loop :: IO Bool
+        loop =
+          join (atomically (checkForFailureMode <|> dispatchWorkMode <|> checkIfDoneMode))
+
+        checkForFailureMode :: STM (IO Bool)
+        checkForFailureMode =
+          undefined
+
+        dispatchWorkMode :: STM (IO Bool)
+        dispatchWorkMode = do
+          hashes <- readTVar hashesVar
+          when (Set.null hashes) retry
+          let (hashes1, hashes2) = Set.splitAt 50 hashes
+          modifyTVar' dedupeVar (Set.union hashes1)
+          writeTVar hashesVar hashes2
+          pure do
+            workerId <-
+              atomically do
+                workerId <- readTVar nextWorkerIdVar
+                writeTVar nextWorkerIdVar $! workerId + 1
+                modifyTVar' workersVar (IntSet.insert workerId)
+                pure workerId
+            forkWorker workerId (NESet.unsafeFromSet hashes1)
+            loop
+
+        -- Check to see if there are no hashes left to upload and no outstanding workers.
+        checkIfDoneMode :: STM (IO Bool)
+        checkIfDoneMode = do
+          workers <- readTVar workersVar
+          when (not (IntSet.null workers)) retry
+          pure (pure True)
+
+    worker :: Int -> NESet Hash32 -> IO ()
+    worker workerId hashesSet = do
+      -- 2. upload those entities to server
+      -- 3.
+      --   1. delete itself from running workers
+      --   2. sample largest worker
+      --   3. add to work queue
+      -- 4. block until that largest worker is done
+      -- 5. delete its assigned hashes from dedupeVar
 
       let hashesList = NESet.toAscList hashesSet
-      -- Get each entity that the server is missing out of the database.
-      entities <- Sqlite.runTransaction conn (traverse expectEntity hashesList)
+      entities <- connect \conn -> Sqlite.runTransaction conn (traverse expectEntity hashesList)
 
-      let uploadEntities :: IO Share.UploadEntitiesResponse
-          uploadEntities = do
-            -- Timing.time ("uploadEntities with " <> show (NESet.size hashesSet) <> " hashes.") do
+      let upload :: IO Share.UploadEntitiesResponse
+          upload = do
             httpUploadEntities
               httpClient
               unisonShareUrl
@@ -641,31 +689,11 @@ uploadEntities httpClient unisonShareUrl conn repoName hashes0 uploadProgressCal
                   repoName
                 }
 
-      -- The new upload count *if* we make a successful upload.
-      let newUploadCount = uploadCount + NESet.size hashesSet
-
-      uploadEntities >>= \case
-        Share.UploadEntitiesNeedDependencies (Share.NeedDependencies moreHashes) -> do
-          let newAllHashesSet = union10 moreHashes nextHashes
-          uploadProgressCallback newUploadCount (NESet.size newAllHashesSet)
-          loop newUploadCount newAllHashesSet
-        Share.UploadEntitiesNoWritePermission _ -> pure False
-        Share.UploadEntitiesHashMismatchForEntity {} -> pure False
-        Share.UploadEntitiesSuccess -> do
-          case NESet.nonEmptySet nextHashes of
-            Nothing -> do
-              uploadProgressCallback newUploadCount 0
-              pure True
-            Just nextHashes1 -> do
-              uploadProgressCallback newUploadCount (NESet.size nextHashes1)
-              loop newUploadCount nextHashes1
-
--- Union a non-empty set and a set.
-union10 :: Ord a => NESet a -> Set a -> NESet a
-union10 xs ys =
-  case NESet.nonEmptySet ys of
-    Nothing -> xs
-    Just zs -> NESet.union xs zs
+      upload >>= \case
+        Share.UploadEntitiesNeedDependencies (Share.NeedDependencies _moreHashes) -> undefined
+        Share.UploadEntitiesNoWritePermission _ -> undefined
+        Share.UploadEntitiesHashMismatchForEntity _ -> undefined
+        Share.UploadEntitiesSuccess -> undefined
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
