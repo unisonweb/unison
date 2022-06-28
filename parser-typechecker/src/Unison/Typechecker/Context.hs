@@ -1632,7 +1632,7 @@ tweakEffects ::
   Type v loc ->
   M v loc ([v], Type v loc)
 tweakEffects v0 t0
-  | isEffectVar v0 t0 =
+  | isEffectVar v0 t0 && isVariant v0 t0 =
       rewrite (Just False) t0 >>= \case
         ([], ty) ->
           freshenTypeVar v0 >>= \out -> finish [out] ty
@@ -1687,6 +1687,18 @@ isEffectVar u (Type.Arrow'' i es o) =
     p (Type.Var' v) = v == u
     p _ = False
 isEffectVar _ _ = False
+
+isVariant :: Var v => TypeVar v loc -> Type v loc -> Bool
+isVariant u = walk True
+  where
+    walk var (Type.ForallNamed' v t)
+      | u == v = True
+      | otherwise = walk var t
+    walk var (Type.Arrow'' i es o) =
+      walk var i && walk var o && all (walk var) es
+    walk var (Type.App' f x) = walk var f && walk False x
+    walk var (Type.Var' v) = u /= v || var
+    walk _ _ = True
 
 skolemize ::
   Var v =>
