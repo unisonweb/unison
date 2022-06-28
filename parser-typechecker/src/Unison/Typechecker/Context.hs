@@ -1412,18 +1412,19 @@ checkPattern scrutineeType p =
       -- TODO: this should actually _always_ be the case, because we do a pass
       -- across the entire case statement refining the scrutinee type. The
       -- 'otherwise' still needs to be covered for exhaustivity, however.
-      | Type.Apps' (Type.Ref' req) [_, r] <- scrutineeType
-      , req == Type.effectRef -> checkPattern r p
+      | Type.Apps' (Type.Ref' req) [_, r] <- scrutineeType,
+        req == Type.effectRef ->
+          checkPattern r p
       | otherwise -> do
-        vt <- lift $ do
-          v <- freshenVar Var.inferPatternPureV
-          e <- freshenVar Var.inferPatternPureE
-          let vt = existentialp loc v
-          let et = existentialp loc e
-          appendContext [existential v, existential e]
-          subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
-          applyM vt
-        checkPattern vt p
+          vt <- lift $ do
+            v <- freshenVar Var.inferPatternPureV
+            e <- freshenVar Var.inferPatternPureE
+            let vt = existentialp loc v
+            let et = existentialp loc e
+            appendContext [existential v, existential e]
+            subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
+            applyM vt
+          checkPattern vt p
     -- ex: { Stream.emit x -> k } -> ...
     Pattern.EffectBind loc ref args k -> do
       -- scrutineeType should be a supertype of `Effect e vt`
@@ -1446,16 +1447,15 @@ checkPattern scrutineeType p =
         Type.Effect'' [et] it
           -- expecting scrutineeType to be `Effect et vt`
           | Type.Apps' _ [eff, vt] <- st -> do
-
-            -- ensure that the variables in `et` unify with those from
-            -- the scrutinee.
-            lift $ abilityCheck' [eff] [et]
-            let kt =
-                  Type.arrow
-                    (Pattern.loc k)
-                    it
-                    (Type.effect (Pattern.loc k) [eff] vt)
-            (vs ++) <$> checkPattern kt k
+              -- ensure that the variables in `et` unify with those from
+              -- the scrutinee.
+              lift $ abilityCheck' [eff] [et]
+              let kt =
+                    Type.arrow
+                      (Pattern.loc k)
+                      it
+                      (Type.effect (Pattern.loc k) [eff] vt)
+              (vs ++) <$> checkPattern kt k
           | otherwise -> lift . compilerCrash $ PatternMatchFailure
         _ ->
           lift . compilerCrash $
@@ -1632,7 +1632,7 @@ tweakEffects ::
   Type v loc ->
   M v loc ([v], Type v loc)
 tweakEffects v0 t0
-  | isEffectVar v0 t0 =
+  | isEffectVar v0 t0 && isVariant v0 t0 =
       rewrite (Just False) t0 >>= \case
         ([], ty) ->
           freshenTypeVar v0 >>= \out -> finish [out] ty
@@ -1687,6 +1687,21 @@ isEffectVar u (Type.Arrow'' i es o) =
     p (Type.Var' v) = v == u
     p _ = False
 isEffectVar _ _ = False
+
+-- Checks that a variable only occurs in variant positions. This may mean that
+-- it occurs in both covariant and contravariant positions, so long as it
+-- doesn't occur in a single position that is invariant, like the `x` in `F x`.
+isVariant :: Var v => TypeVar v loc -> Type v loc -> Bool
+isVariant u = walk True
+  where
+    walk var (Type.ForallNamed' v t)
+      | u == v = True
+      | otherwise = walk var t
+    walk var (Type.Arrow'' i es o) =
+      walk var i && walk var o && all (walk var) es
+    walk var (Type.App' f x) = walk var f && walk False x
+    walk var (Type.Var' v) = u /= v || var
+    walk _ _ = True
 
 skolemize ::
   Var v =>

@@ -400,6 +400,7 @@ termLeaf =
       keywordBlock,
       list term,
       delayQuote,
+      delayBlock,
       bang,
       docBlock,
       doc2Block
@@ -900,6 +901,11 @@ delayQuote = P.label "quote" $ do
   start <- reserved "'"
   e <- termLeaf
   pure $ DD.delayTerm (ann start <> ann e) e
+
+delayBlock :: Var v => TermP v
+delayBlock = P.label "do" $ do
+  b <- block "do"
+  pure $ DD.delayTerm (ann b) b
 
 bang :: Var v => TermP v
 bang = P.label "bang" $ do

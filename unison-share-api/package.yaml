@@ -13,6 +13,7 @@ dependencies:
   - aeson
   - async
   - base
+  - binary
   - bytestring
   - containers
   - directory
