@@ -4,9 +4,15 @@
 module Unison.Server.Orphans where
 
 import Data.Aeson
+import qualified Data.Aeson as Aeson
+import Data.Binary
+import Data.ByteString.Short (ShortByteString)
 import Data.OpenApi
 import Data.Proxy
 import Servant
+import U.Codebase.HashTags
+import U.Util.Hash (Hash (..))
+import qualified U.Util.Hash as Hash
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash (..),
@@ -20,6 +26,16 @@ import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.Util.Pretty (Width (..))
 
+instance ToJSON Hash where
+  toJSON h = String $ Hash.toBase32HexText h
+
+instance FromJSON Hash where
+  parseJSON = Aeson.withText "Hash" $ pure . Hash.unsafeFromBase32HexText
+
+deriving via Hash instance ToJSON CausalHash
+
+deriving via Hash instance FromJSON CausalHash
+
 instance ToJSON ShortHash where
   toEncoding = genericToEncoding defaultOptions
 
@@ -29,6 +45,12 @@ deriving instance ToSchema ShortHash
 
 instance FromHttpApiData ShortBranchHash where
   parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
+
+deriving via ShortByteString instance Binary Hash
+
+deriving via Hash instance Binary CausalHash
+
+deriving via Text instance ToHttpApiData ShortBranchHash
 
 instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
   toEncoding = genericToEncoding defaultOptions
@@ -51,6 +73,8 @@ instance ToSchema Name where
 deriving anyclass instance ToParamSchema ShortBranchHash
 
 deriving via Int instance FromHttpApiData Width
+
+deriving via Int instance ToHttpApiData Width
 
 deriving anyclass instance ToParamSchema Width
 
