@@ -1688,6 +1688,9 @@ isEffectVar u (Type.Arrow'' i es o) =
     p _ = False
 isEffectVar _ _ = False
 
+-- Checks that a variable only occurs in variant positions. This may mean that
+-- it occurs in both covariant and contravariant positions, so long as it
+-- doesn't occur in a single position that is invariant, like the `x` in `F x`.
 isVariant :: Var v => TypeVar v loc -> Type v loc -> Bool
 isVariant u = walk True
   where
