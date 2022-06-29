@@ -1865,7 +1865,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
   ensureAuthenticatedWithCodeserver codeserver
 
-  LoopState.Env {authHTTPClient, codebase = Codebase {connection}} <- ask
+  LoopState.Env {authHTTPClient, codebase = Codebase {connection, withConnection}} <- ask
 
   -- doesn't handle the case where a non-existent path is supplied
   Sqlite.runTransaction connection (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath)))
@@ -1880,7 +1880,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                     Share.checkAndSetPush
                       authHTTPClient
                       baseURL
-                      connection
+                      withConnection
                       sharePath
                       Nothing
                       localCausalHash
@@ -1896,7 +1896,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                     Share.fastForwardPush
                       authHTTPClient
                       baseURL
-                      connection
+                      withConnection
                       sharePath
                       localCausalHash
                       entitiesUploadedProgressCallback
