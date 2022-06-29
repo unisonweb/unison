@@ -15,7 +15,6 @@ import U.Codebase.HashTags
 import U.Util.Hash (Hash (..))
 import qualified U.Util.Hash as Hash
 import Unison.Codebase.Editor.DisplayObject
-import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash
