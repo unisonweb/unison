@@ -129,6 +129,7 @@ module U.Codebase.Sqlite.Queries
     insertTypeNames,
     rootTermNames,
     rootTypeNames,
+    getNamespaceDefinitionCount,
 
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
@@ -1401,6 +1402,10 @@ resetNameLookupTables = do
         PRIMARY KEY (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
       )
     |]
+  execute_
+    [here|
+      CREATE INDEX term_names_by_namespace ON term_name_lookup(namespace)
+    |]
   -- Don't need this index at the moment, but will likely be useful later.
   -- execute_
   --   [here|
@@ -1419,6 +1424,10 @@ resetNameLookupTables = do
         PRIMARY KEY (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
       );
     |]
+  execute_
+    [here|
+      CREATE INDEX type_names_by_namespace ON type_name_lookup(namespace)
+    |]
 
 -- Don't need this index at the moment, but will likely be useful later.
 -- execute_
@@ -1435,9 +1444,25 @@ insertTermNames names = do
     sql =
       [here|
       INSERT INTO term_name_lookup (reversed_name, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
+
+-- | Gets the count of all definitions within the given namespace.
+-- NOTE: This requires a working name lookup index.
+getNamespaceDefinitionCount :: Text -> Transaction Int
+getNamespaceDefinitionCount namespace = do
+  let subnamespace = namespace <> ".%"
+  queryOneCol sql (subnamespace, namespace, subnamespace, namespace)
+  where
+    sql =
+      [here|
+        SELECT COUNT(*) FROM (
+          SELECT 1 FROM term_name_lookup WHERE namespace LIKE ? OR namespace = ?
+          UNION ALL
+          SELECT 1 FROM type_name_lookup WHERE namespace LIKE ? OR namespace = ?
+        )
+      |]
 
 -- | Insert the given set of type names into the name lookup table
 insertTypeNames :: [S.NamedRef (Reference.TextReference)] -> Transaction ()
@@ -1447,7 +1472,7 @@ insertTypeNames names =
     sql =
       [here|
       INSERT INTO type_name_lookup (reversed_name, namespace, reference_builtin, reference_component_hash, reference_component_index)
-        VALUES (?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
 
