@@ -9,11 +9,15 @@ import Data.Binary
 import Data.ByteString.Short (ShortByteString)
 import Data.OpenApi
 import Data.Proxy
+import qualified Data.Text as Text
 import Servant
 import U.Codebase.HashTags
 import U.Util.Hash (Hash (..))
 import qualified U.Util.Hash as Hash
 import Unison.Codebase.Editor.DisplayObject
+import Unison.Codebase.Path (Path)
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash (..),
   )
@@ -87,3 +91,28 @@ instance ToJSON ConstructorType where
   toEncoding = genericToEncoding defaultOptions
 
 deriving instance ToSchema ConstructorType
+
+instance FromHttpApiData Path.Relative where
+  parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
+    Left s -> Left (Text.pack s)
+    Right (Path.RelativePath' p) -> Right p
+    Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
+
+instance ToHttpApiData Path.Relative where
+  toUrlPiece = tShow
+
+instance FromHttpApiData Path.Absolute where
+  parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
+    Left s -> Left (Text.pack s)
+    Right (Path.RelativePath' _) -> Left $ "Expected absolute path, but " <> txt <> " was relative."
+    Right (Path.AbsolutePath' p) -> Right p
+
+instance ToHttpApiData Path.Absolute where
+  toUrlPiece = tShow
+
+instance FromHttpApiData Path.Path' where
+  parseUrlPiece txt = mapLeft Text.pack $ Path.parsePath' (Text.unpack txt)
+
+instance ToHttpApiData Path.Path' where
+  toUrlPiece = tShow
+

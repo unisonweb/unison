@@ -11,7 +11,9 @@ module Unison.Codebase.Path
   ( Path (..),
     Path' (..),
     Absolute (..),
+    pattern AbsolutePath',
     Relative (..),
+    pattern RelativePath',
     Resolve (..),
     pattern Empty,
     pattern (Lens.:<),
@@ -262,6 +264,14 @@ toName' :: Path' -> Name
 toName' = Name.unsafeFromText . toText'
 
 pattern Empty = Path Seq.Empty
+
+pattern AbsolutePath' :: Absolute -> Path'
+pattern AbsolutePath' p = Path' (Left p)
+
+pattern RelativePath' :: Relative -> Path'
+pattern RelativePath' p = Path' (Right p)
+
+{-# COMPLETE AbsolutePath', RelativePath' #-}
 
 empty :: Path
 empty = Path mempty
