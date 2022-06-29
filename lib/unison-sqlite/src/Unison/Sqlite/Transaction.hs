@@ -31,6 +31,7 @@ module Unison.Sqlite.Transaction
     queryMaybeCol,
     queryOneRow,
     queryOneCol,
+    queryManyListRow,
 
     -- **** With checks
     queryListRowCheck,
@@ -210,6 +211,11 @@ executeMany s params =
 execute_ :: Sql -> Transaction ()
 execute_ s =
   Transaction \conn -> Connection.execute_ conn s
+
+-- | Run a query many times using a prepared statement.
+queryManyListRow :: (Sqlite.FromRow r, Sqlite.ToRow q) => Sql -> [q] -> Transaction [[r]]
+queryManyListRow s params =
+  Transaction \conn -> Connection.queryManyListRow conn s params
 
 -- With results, with parameters, without checks
 

@@ -73,7 +73,7 @@ instance ToSample NamespaceListing where
         NamespaceListing
           "."
           "#gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
-          [Subnamespace $ NamedNamespace "base" "#19d1o9hi5n642t8jttg"]
+          [Subnamespace $ NamedNamespace "base" "#19d1o9hi5n642t8jttg" (Just 237)]
       )
     ]
 
@@ -103,7 +103,9 @@ deriving instance ToSchema NamespaceObject
 
 data NamedNamespace = NamedNamespace
   { namespaceName :: UnisonName,
-    namespaceHash :: UnisonHash
+    namespaceHash :: UnisonHash,
+    -- May not be provided on all server implementations.
+    numContainedDefinitions :: Maybe Int
   }
   deriving (Generic, Show)
 
@@ -140,7 +142,8 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
     Subnamespace $
       NamedNamespace
         { namespaceName = NameSegment.toText name,
-          namespaceHash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash)
+          namespaceHash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash),
+          numContainedDefinitions = Nothing
         }
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name
