@@ -1389,7 +1389,10 @@ resetNameLookupTables = do
   execute_
     [here|
       CREATE TABLE term_name_lookup (
-        reversed_name TEXT NOT NULL, -- e.g. map.List.base
+        -- The name of the term: E.g. map.List.base
+        reversed_name TEXT NOT NULL,
+        -- The namespace containing this term, not reversed: E.g. base.List
+        namespace TEXT NOT NULL,
         referent_builtin TEXT NULL,
         referent_component_hash TEXT NULL,
         referent_component_index INTEGER NULL,
@@ -1406,7 +1409,10 @@ resetNameLookupTables = do
   execute_
     [here|
       CREATE TABLE type_name_lookup (
-        reversed_name TEXT NOT NULL, -- e.g. map.List.base
+        -- The name of the term: E.g. List.base
+        reversed_name TEXT NOT NULL,
+        -- The namespace containing this term, not reversed: E.g. base.List
+        namespace TEXT NOT NULL,
         reference_builtin TEXT NULL,
         reference_component_hash INTEGER NULL,
         reference_component_index INTEGER NULL,
@@ -1428,7 +1434,7 @@ insertTermNames names = do
     asRow (a, b) = a :. Only b
     sql =
       [here|
-      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
+      INSERT INTO term_name_lookup (reversed_name, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
@@ -1440,7 +1446,7 @@ insertTypeNames names =
   where
     sql =
       [here|
-      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
+      INSERT INTO type_name_lookup (reversed_name, namespace, reference_builtin, reference_component_hash, reference_component_index)
         VALUES (?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
