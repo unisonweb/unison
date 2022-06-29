@@ -24,8 +24,8 @@ data Pattern
   | Space -- consume 1 space character (according to Char.isSpace)
   | Punctuation -- consume 1 punctuation char (according to Char.isPunctuation)
 
-uncons :: Pattern -> Text -> Maybe ([Text], Text)
-uncons p =
+run :: Pattern -> Text -> Maybe ([Text], Text)
+run p =
   let cp = compile p (\_ _ -> Nothing) (\acc rem -> Just (reverse acc, rem))
    in \t -> cp [] t
 
@@ -94,7 +94,12 @@ compile (Many p) !_ !success = case p of
   Letter -> walker isLetter
   Punctuation -> walker isPunctuation
   Space -> walker isSpace
-  p -> let go = compile p success (\acc rem -> go acc rem) in go
+  p -> go
+    where
+      go = compile p success success'
+      success' acc rem
+        | Text.size rem == 0 = success acc rem
+        | otherwise = go acc rem
   where
     walker ok = go
       where

@@ -8,6 +8,7 @@ import qualified Data.Text as T
 import EasyTest
 import qualified Unison.Util.Rope as R
 import qualified Unison.Util.Text as Text
+import qualified Unison.Util.Text.Pattern as P
 
 test :: Test ()
 test =
@@ -98,6 +99,26 @@ test =
               depths = map depth ts
           note ("maximum depth for tree with " <> show (i * n) <> " chunks was " <> show maxDepth)
           expect' (maxDepth < log2 (i * n) * 2)
+        ok,
+      scope "patterns" $ do
+        expect' (P.run P.Eof "" == Just ([], ""))
+        expect' (P.run P.AnyChar "a" == Just ([], ""))
+        expect' (P.run (P.CharRange 'a' 'z') "a" == Just ([], ""))
+        expect' (P.run (P.NotCharRange 'a' 'z') "a" == Nothing)
+        expect' (P.run (P.Or (P.NotCharRange 'a' 'z') P.AnyChar) "abc" == Just ([], "bc"))
+        -- this shows that we ignore subcaptures
+        expect' (P.run (P.Join [P.Capture (P.Join [P.Capture P.AnyChar, P.Capture P.AnyChar]), P.AnyChar]) "abcdef" == Just (["ab"], "def"))
+        expect' (P.run (P.CharIn "0123") "3ab" == Just ([], "ab"))
+        expect' (P.run (P.NotCharIn "0123") "a3b" == Just ([], "3b"))
+        expect' (P.run (P.Capture (P.NotCharIn "0123")) "a3b" == Just (["a"], "3b"))
+        expect' (P.run (P.Many (P.CharIn "abcd")) "babbababac123" == Just ([], "123"))
+        expect' (P.run (P.Capture (P.Many (P.CharIn "abcd"))) "babbababac123" == Just (["babbababac"], "123"))
+        expect' (P.run (P.Capture (P.Many (P.Digit))) "012345abc" == Just (["012345"], "abc"))
+        expect' (P.run (P.Join [P.Capture (P.Many (P.Digit)), P.Literal ",", P.Capture (P.Many P.AnyChar)]) "012345,abc" == Just (["012345", "abc"], ""))
+        expect'
+          ( P.run (P.Many (P.Join [P.Capture (P.Many (P.Digit)), P.Many P.Space])) "01 10 20 1123 292 110 10"
+              == Just (["01", "10", "20", "1123", "292", "110", "10"], "")
+          )
         ok
     ]
   where
