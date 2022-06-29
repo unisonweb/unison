@@ -624,7 +624,13 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
   workerFailedVar <- newEmptyTMVarIO
 
   Ki.scoped \scope ->
-    let loop :: IO Bool
+    dispatcher scope hashesVar dedupeVar nextWorkerIdVar workersVar workerFailedVar
+  where
+    dispatcher :: Ki.Scope -> TVar (Set Hash32) -> TVar (Set Hash32) -> TVar Int -> TVar IntSet -> TMVar () -> IO Bool
+    dispatcher scope hashesVar dedupeVar nextWorkerIdVar workersVar workerFailedVar = do
+      loop
+      where
+        loop :: IO Bool
         loop =
           join (atomically (checkForFailureMode <|> dispatchWorkMode <|> checkIfDoneMode))
 
@@ -660,8 +666,7 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
           workers <- readTVar workersVar
           when (not (IntSet.null workers)) retry
           pure (pure True)
-     in loop
-  where
+
     worker :: TVar (Set Hash32) -> TVar (Set Hash32) -> TVar IntSet -> TMVar () -> Int -> NESet Hash32 -> IO ()
     worker hashesVar dedupeVar workersVar workerFailedVar workerId hashes = do
       entities <-
