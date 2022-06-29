@@ -26,8 +26,6 @@ import Control.Monad.Except
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import qualified Control.Monad.Trans.Reader as Reader
 import qualified Data.Foldable as Foldable (find)
-import Data.IntSet (IntSet)
-import qualified Data.IntSet as IntSet
 import Data.List.NonEmpty (pattern (:|))
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
@@ -620,13 +618,20 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
   -- FIXME document this
   dedupeVar <- newTVarIO Set.empty
   nextWorkerIdVar <- newTVarIO 0
-  workersVar <- newTVarIO IntSet.empty
+  workersVar <- newTVarIO Set.empty
   workerFailedVar <- newEmptyTMVarIO
 
   Ki.scoped \scope ->
     dispatcher scope hashesVar dedupeVar nextWorkerIdVar workersVar workerFailedVar
   where
-    dispatcher :: Ki.Scope -> TVar (Set Hash32) -> TVar (Set Hash32) -> TVar Int -> TVar IntSet -> TMVar () -> IO Bool
+    dispatcher ::
+      Ki.Scope ->
+      TVar (Set Hash32) ->
+      TVar (Set Hash32) ->
+      TVar Int ->
+      TVar (Set Int) ->
+      TMVar () ->
+      IO Bool
     dispatcher scope hashesVar dedupeVar nextWorkerIdVar workersVar workerFailedVar = do
       loop
       where
@@ -644,7 +649,7 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
           hashes <- readTVar hashesVar
           when (Set.null hashes) retry
           workers <- readTVar workersVar
-          when (IntSet.size workers >= 10) retry -- O(n), use Set Int instead?
+          when (Set.size workers >= 10) retry -- O(n), use Set Int instead?
           let (hashes1, hashes2) = Set.splitAt 50 hashes
           modifyTVar' dedupeVar (Set.union hashes1)
           writeTVar hashesVar hashes2
@@ -653,7 +658,7 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
               atomically do
                 workerId <- readTVar nextWorkerIdVar
                 writeTVar nextWorkerIdVar $! workerId + 1
-                modifyTVar' workersVar (IntSet.insert workerId)
+                modifyTVar' workersVar (Set.insert workerId)
                 pure workerId
             _ <-
               Ki.fork @() scope do
@@ -664,10 +669,10 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
         checkIfDoneMode :: STM (IO Bool)
         checkIfDoneMode = do
           workers <- readTVar workersVar
-          when (not (IntSet.null workers)) retry
+          when (not (Set.null workers)) retry
           pure (pure True)
 
-    worker :: TVar (Set Hash32) -> TVar (Set Hash32) -> TVar IntSet -> TMVar () -> Int -> NESet Hash32 -> IO ()
+    worker :: TVar (Set Hash32) -> TVar (Set Hash32) -> TVar (Set Int) -> TMVar () -> Int -> NESet Hash32 -> IO ()
     worker hashesVar dedupeVar workersVar workerFailedVar workerId hashes = do
       entities <-
         fmap NEMap.fromAscList do
@@ -687,7 +692,7 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
       case result of
         Left () -> void (atomically (tryPutTMVar workerFailedVar ()))
         Right moreHashes -> do
-          maybeYoungestWorkerAlive <-
+          maybeYoungestWorkerThatWasAlive <-
             atomically do
               -- Record ourselves as "dead". The only work we have left to do is remove the hashes we just uploaded from
               -- the `dedupe` set, but whether or not we are "alive" is relevant only to:
@@ -697,7 +702,7 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
               --
               --   - Other worker threads, each of which independently decides when it is safe to delete the set of
               --     hashes they just uploaded from the `dedupe` set (as we are doing now).
-              !workers <- IntSet.delete workerId <$> readTVar workersVar
+              !workers <- Set.delete workerId <$> readTVar workersVar
               writeTVar workersVar workers
               -- Add more work (i.e. hashes to upload) to the work queue (really a work set), per the response we just
               -- got from the server. Remember to only add hashes that aren't in the `dedupe` set (see the comment on
@@ -705,18 +710,17 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
               when (not (Set.null moreHashes)) do
                 dedupe <- readTVar dedupeVar
                 modifyTVar' hashesVar (Set.union (Set.difference moreHashes dedupe))
-              pure (fst <$> IntSet.minView workers)
+              pure (Set.lookupMin workers)
           -- Block until we are sure that the server does not have any uncommitted transactions that see a version of
           -- the database that does not include the entities we just uploaded. After that point, it's fine to remove the
           -- hashes of the entities we just uploaded from the `dedupe` set, because they will never be relevant for any
           -- subsequent deduping operations. If we didn't delete from the `dedupe` set, this algorithm would still be
           -- correct, it would just use an unbounded amount of memory to remember all the hashes we've uploaded so far.
-          whenJust maybeYoungestWorkerAlive \youngestWorkerAlive -> do
+          whenJust maybeYoungestWorkerThatWasAlive \youngestWorkerThatWasAlive -> do
             atomically do
               workers <- readTVar workersVar
-              case IntSet.minView workers of
-                Nothing -> pure ()
-                Just (worker, _) -> when (worker <= youngestWorkerAlive) retry
+              whenJust (Set.lookupMin workers) \youngestWorkerAlive ->
+                when (youngestWorkerAlive <= youngestWorkerThatWasAlive) retry
           atomically (modifyTVar' dedupeVar (`Set.difference` (NESet.toSet hashes)))
 
 ------------------------------------------------------------------------------------------------------------------------
