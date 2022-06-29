@@ -29,6 +29,7 @@ run p =
   let cp = compile p (\_ _ -> Nothing) (\acc rem -> Just (reverse acc, rem))
    in \t -> cp [] t
 
+-- Pattern a -> ([a] -> a -> r) -> ... -- might need a takeable and droppable interface if go this route
 compile :: Pattern -> ([Text] -> Text -> r) -> ([Text] -> Text -> r) -> [Text] -> Text -> r
 compile !Eof !err !success = go
   where
