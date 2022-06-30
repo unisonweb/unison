@@ -157,6 +157,7 @@ keepTryingToBeginImmediate restore conn =
         try @_ @SqliteQueryException (Connection.beginImmediate conn) >>= \case
           Left SqliteBusyException -> do
             restore (threadDelay transactionRetryDelay)
+            loop
           Left exception -> throwIO exception
           Right () -> pure ()
    in loop
