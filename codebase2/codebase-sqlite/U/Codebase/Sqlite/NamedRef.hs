@@ -1,6 +1,7 @@
 module U.Codebase.Sqlite.NamedRef where
 
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NEL
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import Unison.Prelude
@@ -32,7 +33,7 @@ instance ToRow ref => ToRow (NamedRef ref) where
     [toField reversedName, toField namespace] <> toRow ref
     where
       reversedName = Text.intercalate "." . toList $ segments
-      namespace = Text.intercalate "." . init . reverse . toList $ segments
+      namespace = Text.intercalate "." . reverse . NEL.tail $ segments
 
 instance FromRow ref => FromRow (NamedRef ref) where
   fromRow = do
