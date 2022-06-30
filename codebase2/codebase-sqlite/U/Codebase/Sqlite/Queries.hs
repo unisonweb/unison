@@ -189,6 +189,7 @@ import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
+import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
@@ -1448,19 +1449,34 @@ insertTermNames names = do
         ON CONFLICT DO NOTHING
         |]
 
+-- | We need to escape any special characters for globbing.
+--
+-- >>> globEscape "Nat.*.doc"
+-- "Nat.[*].doc"
+globEscape :: Text -> Text
+globEscape =
+  -- We can't use Text.replace, since we'd end up replacing either "[" or "]" multiple
+  -- times.
+  Text.concatMap \case
+    '*' -> "*"
+    '?' -> "[?]"
+    '[' -> "[[]"
+    ']' -> "[]]"
+    c -> Text.singleton c
+
 -- | Gets the count of all definitions within the given namespace.
 -- NOTE: This requires a working name lookup index.
 getNamespaceDefinitionCount :: Text -> Transaction Int
 getNamespaceDefinitionCount namespace = do
-  let subnamespace = namespace <> ".%"
+  let subnamespace = globEscape namespace <> ".*"
   queryOneCol sql (subnamespace, namespace, subnamespace, namespace)
   where
     sql =
       [here|
         SELECT COUNT(*) FROM (
-          SELECT 1 FROM term_name_lookup WHERE namespace LIKE ? OR namespace = ?
+          SELECT 1 FROM term_name_lookup WHERE namespace GLOB ? OR namespace = ?
           UNION ALL
-          SELECT 1 FROM type_name_lookup WHERE namespace LIKE ? OR namespace = ?
+          SELECT 1 FROM type_name_lookup WHERE namespace GLOB ? OR namespace = ?
         )
       |]
 
