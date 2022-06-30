@@ -65,6 +65,17 @@ import Unison.Util.Monoid (foldMapM)
 import qualified UnliftIO
 
 ------------------------------------------------------------------------------------------------------------------------
+-- Pile of constants
+
+-- | The maximum number of downloader threads, during a pull.
+maxSimultaneousPullDownloaders :: Int
+maxSimultaneousPullDownloaders = 5
+
+-- | The maximum number of push workers at a time. Each push worker reads from the database and uploads entities.
+maxSimultaneousPushWorkers :: Int
+maxSimultaneousPushWorkers = 5
+
+------------------------------------------------------------------------------------------------------------------------
 -- Push
 
 -- | Perform a check-and-set push (initially of just a causal hash, but ultimately all of its dependencies that the
@@ -460,9 +471,9 @@ completeTempEntities httpClient unisonShareUrl connect repoName callbacks initia
                 DispatcherDone -> pure ()
                 DispatcherForkWorker hashes -> do
                   atomically do
-                    -- Only allow 5 concurrent downloaders (7 workers = inserter + elaborator + 5 downloaders)
+                    -- Limit number of simultaneous downloaders (plus 2, for inserter and elaborator)
                     workers <- readTVar workerCount
-                    check (workers < 7)
+                    check (workers < maxSimultaneousPullDownloaders + 2)
                     -- we do need to record the downloader as working outside of the worker thread, not inside.
                     -- otherwise, we might erroneously fall through the the teardown logic below and conclude there's
                     -- nothing more for the dispatcher to do, when in fact a downloader thread just hasn't made it as
@@ -687,7 +698,7 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 callbacks = do
         forkWorkerMode :: NESet Hash32 -> STM UploadDispatcherJob
         forkWorkerMode hashes = do
           workers <- readTVar workersVar
-          when (Set.size workers >= 5) retry
+          when (Set.size workers >= maxSimultaneousPushWorkers) retry
           pure (UploadDispatcherForkWorker hashes)
 
         checkIfDoneMode :: STM UploadDispatcherJob
