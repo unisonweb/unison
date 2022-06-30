@@ -75,6 +75,7 @@ ref2eq r
   | r == Ty.marrayRef = Just $ promote ((==) @(MutableArray () ()))
   | r == Ty.mbytearrayRef = Just $ promote ((==) @(MutableByteArray ()))
   | r == Ty.ibytearrayRef = Just $ promote ((==) @ByteArray)
+  | r == Ty.patternRef = Just $ promote ((==) @CPattern)
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
@@ -85,6 +86,7 @@ ref2cmp r
   | r == Ty.bytesRef = Just $ promote (compare @Bytes)
   | r == Ty.threadIdRef = Just $ promote (compare @ThreadId)
   | r == Ty.ibytearrayRef = Just $ promote (compare @ByteArray)
+  | r == Ty.patternRef = Just $ promote (compare @CPattern)
   | otherwise = Nothing
 
 instance Eq Foreign where

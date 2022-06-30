@@ -24,6 +24,7 @@ data Pattern
   | Letter -- consume 1 letter (according to Char.isLetter)
   | Space -- consume 1 space character (according to Char.isSpace)
   | Punctuation -- consume 1 punctuation char (according to Char.isPunctuation)
+  deriving (Eq, Ord)
 
 -- Wrapper type. Holds a pattern together with its compilation. This is used as
 -- the semantic value of a unison `Pattern a`. Laziness avoids building the
@@ -34,6 +35,12 @@ data Pattern
 --
 -- In the future, this can existentially quantify over the type being matched.
 data CPattern = CP Pattern (Text -> Maybe ([Text], Text))
+
+instance Eq CPattern where
+  CP p _ == CP q _ = p == q
+
+instance Ord CPattern where
+  CP p _ `compare` CP q _ = compare p q
 
 cpattern :: Pattern -> CPattern
 cpattern p = CP p (run p)
