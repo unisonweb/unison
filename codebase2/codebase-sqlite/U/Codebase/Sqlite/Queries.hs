@@ -129,6 +129,7 @@ module U.Codebase.Sqlite.Queries
     insertTypeNames,
     rootTermNames,
     rootTypeNames,
+    getNamespaceDefinitionCount,
 
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
@@ -188,6 +189,7 @@ import qualified Data.Map.NonEmpty as NEMap
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
+import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
@@ -1389,7 +1391,10 @@ resetNameLookupTables = do
   execute_
     [here|
       CREATE TABLE term_name_lookup (
-        reversed_name TEXT NOT NULL, -- e.g. map.List.base
+        -- The name of the term: E.g. map.List.base
+        reversed_name TEXT NOT NULL,
+        -- The namespace containing this term, not reversed: E.g. base.List
+        namespace TEXT NOT NULL,
         referent_builtin TEXT NULL,
         referent_component_hash TEXT NULL,
         referent_component_index INTEGER NULL,
@@ -1397,6 +1402,10 @@ resetNameLookupTables = do
         referent_constructor_type INTEGER NULL,
         PRIMARY KEY (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index)
       )
+    |]
+  execute_
+    [here|
+      CREATE INDEX term_names_by_namespace ON term_name_lookup(namespace)
     |]
   -- Don't need this index at the moment, but will likely be useful later.
   -- execute_
@@ -1406,12 +1415,19 @@ resetNameLookupTables = do
   execute_
     [here|
       CREATE TABLE type_name_lookup (
-        reversed_name TEXT NOT NULL, -- e.g. map.List.base
+        -- The name of the term: E.g. List.base
+        reversed_name TEXT NOT NULL,
+        -- The namespace containing this term, not reversed: E.g. base.List
+        namespace TEXT NOT NULL,
         reference_builtin TEXT NULL,
         reference_component_hash INTEGER NULL,
         reference_component_index INTEGER NULL,
         PRIMARY KEY (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
       );
+    |]
+  execute_
+    [here|
+      CREATE INDEX type_names_by_namespace ON type_name_lookup(namespace)
     |]
 
 -- Don't need this index at the moment, but will likely be useful later.
@@ -1428,10 +1444,41 @@ insertTermNames names = do
     asRow (a, b) = a :. Only b
     sql =
       [here|
-      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
-        VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO term_name_lookup (reversed_name, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
+
+-- | We need to escape any special characters for globbing.
+--
+-- >>> globEscape "Nat.*.doc"
+-- "Nat.[*].doc"
+globEscape :: Text -> Text
+globEscape =
+  -- We can't use Text.replace, since we'd end up replacing either "[" or "]" multiple
+  -- times.
+  Text.concatMap \case
+    '*' -> "*"
+    '?' -> "[?]"
+    '[' -> "[[]"
+    ']' -> "[]]"
+    c -> Text.singleton c
+
+-- | Gets the count of all definitions within the given namespace.
+-- NOTE: This requires a working name lookup index.
+getNamespaceDefinitionCount :: Text -> Transaction Int
+getNamespaceDefinitionCount namespace = do
+  let subnamespace = globEscape namespace <> ".*"
+  queryOneCol sql (subnamespace, namespace, subnamespace, namespace)
+  where
+    sql =
+      [here|
+        SELECT COUNT(*) FROM (
+          SELECT 1 FROM term_name_lookup WHERE namespace GLOB ? OR namespace = ?
+          UNION ALL
+          SELECT 1 FROM type_name_lookup WHERE namespace GLOB ? OR namespace = ?
+        )
+      |]
 
 -- | Insert the given set of type names into the name lookup table
 insertTypeNames :: [S.NamedRef (Reference.TextReference)] -> Transaction ()
@@ -1440,8 +1487,8 @@ insertTypeNames names =
   where
     sql =
       [here|
-      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index)
-        VALUES (?, ?, ?, ?)
+      INSERT INTO type_name_lookup (reversed_name, namespace, reference_builtin, reference_component_hash, reference_component_index)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
 
