@@ -8,7 +8,7 @@ where
 
 -- TODO: Don't import backend
 
-import Control.Concurrent.STM (atomically, newTVarIO, readTVar, readTVarIO, writeTVar)
+import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO, writeTVar)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
 import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
@@ -2322,16 +2322,16 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
-    LoopState.Env {authHTTPClient, codebase = codebase@Codebase {connection}} <- ask
+    LoopState.Env {authHTTPClient, codebase = codebase@Codebase {withConnection}} <- ask
     let pull :: IO (Either (Sync.SyncError Share.PullError) CausalHash)
         pull =
-          withEntitiesDownloadedProgressCallback \entitiesDownloadedProgressCallback ->
+          withEntitiesDownloadedProgressCallbacks \callbacks ->
             Share.pull
               authHTTPClient
               baseURL
-              connection
+              withConnection
               shareFlavoredPath
-              entitiesDownloadedProgressCallback
+              callbacks
     liftIO pull >>= \case
       Left (Sync.SyncError err) -> pure (Left (Output.ShareErrorPull err))
       Left (Sync.TransportError err) -> pure (Left (Output.ShareErrorTransport err))
@@ -2340,10 +2340,9 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
           Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
           Just branch -> pure (Right branch)
   where
-    -- Provide the given action a callback that prints out the number of entities downloaded, and the number of entities
-    -- enqueued to be downloaded.
-    withEntitiesDownloadedProgressCallback :: ((Int -> Int -> IO ()) -> IO a) -> IO a
-    withEntitiesDownloadedProgressCallback action = do
+    -- Provide the given action callbacks that display to the terminal.
+    withEntitiesDownloadedProgressCallbacks :: (Share.DownloadProgressCallbacks -> IO a) -> IO a
+    withEntitiesDownloadedProgressCallbacks action = do
       entitiesDownloadedVar <- newTVarIO 0
       entitiesToDownloadVar <- newTVarIO 0
       Console.Regions.displayConsoleRegions do
@@ -2355,13 +2354,12 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
               "\n  Downloaded "
                 <> tShow entitiesDownloaded
                 <> "/"
-                <> tShow (entitiesDownloaded + entitiesToDownload)
+                <> tShow entitiesToDownload
                 <> " entities...\n\n"
-          result <-
-            action \entitiesDownloaded entitiesToDownload ->
-              atomically do
-                writeTVar entitiesDownloadedVar entitiesDownloaded
-                writeTVar entitiesToDownloadVar entitiesToDownload
+          result <- do
+            let downloaded n = atomically (modifyTVar' entitiesDownloadedVar (+ n))
+            let toDownload n = atomically (modifyTVar' entitiesToDownloadVar (+ n))
+            action Share.DownloadProgressCallbacks {downloaded, toDownload}
           entitiesDownloaded <- readTVarIO entitiesDownloadedVar
           Console.Regions.finishConsoleRegion region $
             "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"

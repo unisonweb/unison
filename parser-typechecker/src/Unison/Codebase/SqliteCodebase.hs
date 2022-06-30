@@ -196,7 +196,7 @@ sqliteCodebase ::
   m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote action = do
   Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
-  withConnection debugName root $ \conn -> do
+  withConnection debugName root \conn -> do
     termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
     typeOfTermCache <- Cache.semispaceCache 8192
     declCache <- Cache.semispaceCache 1024
@@ -490,7 +490,8 @@ sqliteCodebase debugName root localOrRemote action = do
               namesAtPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
                 runTx (CodebaseOps.namesAtPath path),
               updateNameLookup = Sqlite.runTransaction conn (CodebaseOps.updateNameLookupIndexFromV2Root getDeclType),
-              connection = conn
+              connection = conn,
+              withConnection = withConnection debugName root
             }
     let finalizer :: MonadIO m => m ()
         finalizer = do

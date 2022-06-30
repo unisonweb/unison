@@ -33,6 +33,7 @@ dependencies:
   - http-client-tls
   - http-types
   - jwt
+  - ki
   - lens
   - lock-file
   - megaparsec
