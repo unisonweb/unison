@@ -30,14 +30,17 @@ data NamedRef ref = NamedRef {reversedSegments :: ReversedSegments, ref :: ref}
 
 instance ToRow ref => ToRow (NamedRef ref) where
   toRow (NamedRef {reversedSegments = segments, ref}) =
-    [toField reversedName, toField namespace] <> toRow ref
+    [toField reversedName] <> toRow ref
     where
       reversedName = Text.intercalate "." . toList $ segments
-      namespace = Text.intercalate "." . reverse . NEL.tail $ segments
 
 instance FromRow ref => FromRow (NamedRef ref) where
   fromRow = do
     reversedSegments <- NonEmpty.fromList . Text.splitOn "." <$> field
-    _namespace <- void $ field @Text
     ref <- fromRow
     pure (NamedRef {reversedSegments, ref})
+
+toRowWithNamespace :: ToRow ref => NamedRef ref -> [SQLData]
+toRowWithNamespace nr = toRow nr <> [SQLText namespace]
+  where
+    namespace = Text.intercalate "." . reverse . NEL.tail . reversedSegments $ nr

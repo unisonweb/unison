@@ -225,7 +225,8 @@ import U.Codebase.Sqlite.LocalIds
     LocalTextId (..),
   )
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
-import qualified U.Codebase.Sqlite.NamedRef as S
+import U.Codebase.Sqlite.NamedRef (NamedRef)
+import qualified U.Codebase.Sqlite.NamedRef as NamedRef
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import U.Codebase.Sqlite.Orphans ()
@@ -1437,14 +1438,15 @@ resetNameLookupTables = do
 --   |]
 
 -- | Insert the given set of term names into the name lookup table
-insertTermNames :: [S.NamedRef (Referent.TextReferent, Maybe S.ConstructorType)] -> Transaction ()
+insertTermNames :: [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
 insertTermNames names = do
-  executeMany sql (fmap asRow <$> names)
+  executeMany sql (NamedRef.toRowWithNamespace . fmap refToRow <$> names)
   where
-    asRow (a, b) = a :. Only b
+    refToRow :: (Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))
+    refToRow (ref, ct) = ref :. Only ct
     sql =
       [here|
-      INSERT INTO term_name_lookup (reversed_name, namespace, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type)
+      INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, namespace)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
@@ -1481,19 +1483,19 @@ getNamespaceDefinitionCount namespace = do
       |]
 
 -- | Insert the given set of type names into the name lookup table
-insertTypeNames :: [S.NamedRef (Reference.TextReference)] -> Transaction ()
+insertTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
 insertTypeNames names =
-  executeMany sql names
+  executeMany sql (NamedRef.toRowWithNamespace <$> names)
   where
     sql =
       [here|
-      INSERT INTO type_name_lookup (reversed_name, namespace, reference_builtin, reference_component_hash, reference_component_index)
+      INSERT INTO type_name_lookup (reversed_name, reference_builtin, reference_component_hash, reference_component_index, namespace)
         VALUES (?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
         |]
 
 -- | Get the list of a term names in the root namespace according to the name lookup index
-rootTermNames :: Transaction [S.NamedRef (Referent.TextReferent, Maybe S.ConstructorType)]
+rootTermNames :: Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
 rootTermNames = do
   (fmap . fmap) unRow <$> queryListRow_ sql
   where
@@ -1505,7 +1507,7 @@ rootTermNames = do
         |]
 
 -- | Get the list of a type names in the root namespace according to the name lookup index
-rootTypeNames :: Transaction [S.NamedRef Reference.TextReference]
+rootTypeNames :: Transaction [NamedRef Reference.TextReference]
 rootTypeNames = do
   queryListRow_ sql
   where
