@@ -96,8 +96,8 @@ runTransaction conn (Transaction f) = liftIO do
         ignoringExceptions (Connection.rollback conn)
         case fromException exception of
           Just SqliteBusyException -> do
-            restore (threadDelay 100_000)
-            runWriteTransaction_ restore 200_000 conn (f conn)
+            restore (threadDelay transactionRetryDelay)
+            runWriteTransaction_ restore conn (f conn)
           _ -> throwIO exception
       Right result -> do
         Connection.commit conn
@@ -140,26 +140,25 @@ runWriteTransaction conn f =
     uninterruptibleMask \restore ->
       runWriteTransaction_
         restore
-        100_000
         conn
         (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
 {-# SPECIALIZE runWriteTransaction :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a #-}
 
-runWriteTransaction_ :: (forall x. IO x -> IO x) -> Int -> Connection -> IO a -> IO a
-runWriteTransaction_ restore microseconds conn transaction = do
-  keepTryingToBeginImmediate restore conn microseconds
+runWriteTransaction_ :: (forall x. IO x -> IO x) -> Connection -> IO a -> IO a
+runWriteTransaction_ restore conn transaction = do
+  keepTryingToBeginImmediate restore conn
   result <- restore transaction `onException` ignoringExceptions (Connection.rollback conn)
   Connection.commit conn
   pure result
 
 -- @BEGIN IMMEDIATE@ until success.
-keepTryingToBeginImmediate :: (forall x. IO x -> IO x) -> Connection -> Int -> IO ()
+keepTryingToBeginImmediate :: (forall x. IO x -> IO x) -> Connection -> IO ()
 keepTryingToBeginImmediate restore conn =
-  let loop microseconds =
+  let loop =
         try @_ @SqliteQueryException (Connection.beginImmediate conn) >>= \case
           Left SqliteBusyException -> do
-            restore (threadDelay microseconds)
-            loop (microseconds * 2)
+            restore (threadDelay transactionRetryDelay)
+            loop
           Left exception -> throwIO exception
           Right () -> pure ()
    in loop
@@ -380,3 +379,6 @@ queryOneColCheck_ s check =
 rowsModified :: Transaction Int
 rowsModified =
   Transaction Connection.rowsModified
+
+transactionRetryDelay :: Int
+transactionRetryDelay = 100_000
