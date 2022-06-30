@@ -28,6 +28,7 @@ import Control.Concurrent as SYS
 import Control.Concurrent.MVar as SYS
 import qualified Control.Concurrent.STM as STM
 import Control.DeepSeq (NFData)
+import Control.Exception (evaluate)
 import qualified Control.Exception.Safe as Exception
 import Control.Monad.Catch (MonadCatch)
 import qualified Control.Monad.Primitive as PA
@@ -123,6 +124,7 @@ import Unison.Reference
 import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Serialize as ANF
+import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
   ( Foreign (Wrap),
     HashAlgorithm (..),
@@ -138,6 +140,7 @@ import qualified Unison.Util.Bytes as Bytes
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import qualified Unison.Util.Text as Util.Text
+import qualified Unison.Util.Text.Pattern as TPat
 import Unison.Var
 
 type Failure = F.Failure Closure
@@ -170,6 +173,11 @@ fresh4 :: Var v => (v, v, v, v)
 fresh4 = (v1, v2, v3, v4)
   where
     [v1, v2, v3, v4] = freshes 4
+
+fresh5 :: Var v => (v, v, v, v, v)
+fresh5 = (v1, v2, v3, v4, v5)
+  where
+    [v1, v2, v3, v4, v5] = freshes 5
 
 fresh6 :: Var v => (v, v, v, v, v, v)
 fresh6 = (v1, v2, v3, v4, v5, v6)
@@ -1148,8 +1156,8 @@ outMaybe maybe result =
         (1, ([BX], TAbs maybe $ some maybe))
       ]
 
-outMaybeTup :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
-outMaybeTup a b n u bp p result =
+outMaybeNTup :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
+outMaybeNTup a b n u bp p result =
   TMatch result . MatchSum $
     mapFromList
       [ (0, ([], none)),
@@ -1161,6 +1169,22 @@ outMaybeTup a b n u bp p result =
               . TLetD n BX (TCon Ty.natRef 0 [a])
               . TLetD p BX (TCon Ty.pairRef 0 [n, bp])
               $ some p
+          )
+        )
+      ]
+
+outMaybeTup :: Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outMaybeTup a b u bp ap result =
+  TMatch result . MatchSum $
+    mapFromList
+      [ (0, ([], none)),
+        ( 1,
+          ( [BX, BX],
+            TAbss [a, b]
+              . TLetD u BX (TCon Ty.unitRef 0 [])
+              . TLetD bp BX (TCon Ty.pairRef 0 [b, u])
+              . TLetD ap BX (TCon Ty.pairRef 0 [a, bp])
+              $ some ap
           )
         )
       ]
@@ -1393,6 +1417,8 @@ boxBoxTo0 instr =
   where
     (arg1, arg2) = fresh2
 
+-- a -> b -> Option c
+
 -- a -> Bool
 boxToBool :: ForeignOp
 boxToBool =
@@ -1400,6 +1426,13 @@ boxToBool =
     boolift result
   where
     (arg, result) = fresh2
+
+-- a -> b -> Bool
+boxBoxToBool :: ForeignOp
+boxBoxToBool =
+  inBxBx arg1 arg2 result $ boolift result
+  where
+    (arg1, arg2, result) = fresh3
 
 -- Nat -> c
 -- Works for an type that's packed into a word, just
@@ -1498,12 +1531,19 @@ boxToMaybeBox =
   where
     (arg, maybe, result) = fresh3
 
--- a -> Maybe b
-boxToMaybeTup :: ForeignOp
-boxToMaybeTup =
-  inBx arg result $ outMaybeTup a b c u bp p result
+-- a -> Maybe (Nat, b)
+boxToMaybeNTup :: ForeignOp
+boxToMaybeNTup =
+  inBx arg result $ outMaybeNTup a b c u bp p result
   where
     (arg, a, b, c, u, bp, p, result) = fresh8
+
+-- a -> b -> Maybe (c, d)
+boxBoxToMaybeTup :: ForeignOp
+boxBoxToMaybeTup =
+  inBxBx arg1 arg2 result $ outMaybeTup a b u bp ap result
+  where
+    (arg1, arg2, a, b, u, bp, ap, result) = fresh8
 
 -- a -> Either Failure Bool
 boxToEFBool :: ForeignOp
@@ -1570,6 +1610,17 @@ natToBox = wordDirect Ty.natRef
 -- Nat only
 natNatToBox :: ForeignOp
 natNatToBox = wordWordDirect Ty.natRef Ty.natRef
+
+-- Nat -> Nat -> a -> b
+natNatBoxToBox :: ForeignOp
+natNatBoxToBox instr =
+  ([BX, BX, BX],)
+    . TAbss [a1, a2, a3]
+    . unbox a1 Ty.natRef ua1
+    . unbox a2 Ty.natRef ua2
+    $ TFOp instr [ua1, ua2, a3]
+  where
+    (a1, a2, a3, ua1, ua2) = fresh5
 
 -- a -> Nat -> c
 -- Nat only
@@ -2378,12 +2429,12 @@ declareForeigns = do
   declareForeign Untracked "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64UrlUnpadded
 
-  declareForeign Untracked "Bytes.decodeNat64be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64be
-  declareForeign Untracked "Bytes.decodeNat64le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64le
-  declareForeign Untracked "Bytes.decodeNat32be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32be
-  declareForeign Untracked "Bytes.decodeNat32le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32le
-  declareForeign Untracked "Bytes.decodeNat16be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16be
-  declareForeign Untracked "Bytes.decodeNat16le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16le
+  declareForeign Untracked "Bytes.decodeNat64be" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat64be
+  declareForeign Untracked "Bytes.decodeNat64le" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat64le
+  declareForeign Untracked "Bytes.decodeNat32be" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat32be
+  declareForeign Untracked "Bytes.decodeNat32le" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat32le
+  declareForeign Untracked "Bytes.decodeNat16be" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat16be
+  declareForeign Untracked "Bytes.decodeNat16le" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat16le
 
   declareForeign Untracked "Bytes.encodeNat64be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64be
   declareForeign Untracked "Bytes.encodeNat64le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64le
@@ -2586,6 +2637,54 @@ declareForeigns = do
       arr <- PA.newByteArray sz
       PA.fillByteArray arr 0 sz init
       pure arr
+
+  declareForeign Untracked "Text.patterns.literal" boxDirect . mkForeign $
+    \txt -> evaluate . TPat.cpattern $ TPat.Literal txt
+  declareForeign Untracked "Text.patterns.digit" direct . mkForeign $
+    let v = TPat.cpattern TPat.Digit in \() -> pure v
+  declareForeign Untracked "Text.patterns.letter" direct . mkForeign $
+    let v = TPat.cpattern TPat.Letter in \() -> pure v
+  declareForeign Untracked "Text.patterns.space" direct . mkForeign $
+    let v = TPat.cpattern TPat.Space in \() -> pure v
+  declareForeign Untracked "Text.patterns.punctuation" direct . mkForeign $
+    let v = TPat.cpattern TPat.Punctuation in \() -> pure v
+  declareForeign Untracked "Text.patterns.anyChar" direct . mkForeign $
+    let v = TPat.cpattern TPat.AnyChar in \() -> pure v
+  declareForeign Untracked "Text.patterns.eof" direct . mkForeign $
+    let v = TPat.cpattern TPat.Eof in \() -> pure v
+  let ccd = wordWordDirect Ty.charRef Ty.charRef
+  declareForeign Untracked "Text.patterns.charRange" ccd . mkForeign $
+    \(beg, end) -> evaluate . TPat.cpattern $ TPat.CharRange beg end
+  declareForeign Untracked "Text.patterns.notCharRange" ccd . mkForeign $
+    \(beg, end) -> evaluate . TPat.cpattern $ TPat.NotCharRange beg end
+  declareForeign Untracked "Text.patterns.charIn" boxDirect . mkForeign $ \ccs -> do
+    cs <- for ccs $ \case
+      Closure.DataU1 _ _ i -> pure (toEnum i)
+      _ -> die "Text.patterns.charIn: non-character closure"
+    evaluate . TPat.cpattern $ TPat.CharIn cs
+  declareForeign Untracked "Text.patterns.notCharIn" boxDirect . mkForeign $ \ccs -> do
+    cs <- for ccs $ \case
+      Closure.DataU1 _ _ i -> pure (toEnum i)
+      _ -> die "Text.patterns.notCharIn: non-character closure"
+    evaluate . TPat.cpattern $ TPat.NotCharIn cs
+  declareForeign Untracked "Pattern.many" boxDirect . mkForeign $
+    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many p
+  declareForeign Untracked "Pattern.capture" boxDirect . mkForeign $
+    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Capture p
+  declareForeign Untracked "Pattern.join" boxDirect . mkForeign $ \ps ->
+    evaluate . TPat.cpattern . TPat.Join $ map (\(TPat.CP p _) -> p) ps
+  declareForeign Untracked "Pattern.or" boxDirect . mkForeign $
+    \(TPat.CP l _, TPat.CP r _) -> evaluate . TPat.cpattern $ TPat.Or l r
+  declareForeign Untracked "Pattern.replicate" natNatBoxToBox . mkForeign $
+    \(m0 :: Word64, n0 :: Word64, TPat.CP p _) ->
+      let m = fromIntegral m0; n = fromIntegral n0
+       in evaluate . TPat.cpattern $ TPat.Replicate m n p
+
+  declareForeign Untracked "Pattern.run" boxBoxToMaybeTup . mkForeign $
+    \(TPat.CP _ matcher, input :: Text) -> pure $ matcher input
+
+  declareForeign Untracked "Pattern.isMatch" boxBoxToBool . mkForeign $
+    \(TPat.CP _ matcher, input :: Text) -> pure . isJust $ matcher input
 
 type RW = PA.PrimState IO
 

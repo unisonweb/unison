@@ -9,6 +9,8 @@ import Data.List (foldl', unfoldr)
 import Data.String (IsString (..))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Internal as T
+import qualified Data.Text.Unsafe as T (Iter (..), iter)
 import qualified Unison.Util.Bytes as B
 import qualified Unison.Util.Rope as R
 import Prelude hiding (drop, replicate, take)
@@ -100,6 +102,35 @@ unpack = toString
 toText :: Text -> T.Text
 toText (Text t) = T.concat (chunkToText <$> unfoldr R.uncons t)
 {-# INLINE toText #-}
+
+-- Drop with both a maximum size and a predicate. Yields actual number of
+-- dropped characters.
+--
+-- Unavailable from text package.
+dropTextWhileMax :: (Char -> Bool) -> Int -> T.Text -> (Int, T.Text)
+dropTextWhileMax p n t@(T.Text arr off len) = loop 0 0
+  where
+    loop !i !j
+      | j >= len = (i, T.empty)
+      | i < n, p c = loop (i + 1) (j + d)
+      | otherwise = (i, T.Text arr (off + j) (len - j))
+      where
+        T.Iter c d = T.iter t j
+{-# INLINE [1] dropTextWhileMax #-}
+
+dropWhileMax :: (Char -> Bool) -> Int -> Text -> (Int, Text)
+dropWhileMax p = go 0
+  where
+    go !total !d t
+      | d <= 0 = (total, t)
+      | Just (chunk, t) <- unconsChunk t =
+          case dropTextWhileMax p d (chunkToText chunk) of
+            (i, rest)
+              | T.null rest, i < d -> go (total + i) (d - i) t
+              | T.null rest -> (total + i, t)
+              | otherwise -> (total + i, fromText rest <> t)
+      | otherwise = (total, empty)
+{-# INLINE dropWhileMax #-}
 
 instance Eq Chunk where (Chunk n a) == (Chunk n2 a2) = n == n2 && a == a2
 

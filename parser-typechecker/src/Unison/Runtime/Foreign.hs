@@ -35,6 +35,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Type as Ty
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Text (Text)
+import Unison.Util.Text.Pattern (CPattern)
 import Unsafe.Coerce
 
 data Foreign where
@@ -158,6 +159,9 @@ newtype Tls = Tls TLS.Context
 data Failure a = Failure Reference Text a
 
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
+
+instance BuiltinForeign CPattern where
+  foreignRef = Tagged Ty.patternRef
 
 wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
 wrapBuiltin x = Wrap r x

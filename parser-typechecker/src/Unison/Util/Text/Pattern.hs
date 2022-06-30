@@ -12,6 +12,7 @@ data Pattern
   | Or Pattern Pattern -- left-biased choice: tries second pattern only if first fails
   | Capture Pattern -- capture all the text consumed by the inner pattern, discarding its subcaptures
   | Many Pattern -- zero or more repetitions (at least 1 can be written: Join [p, Many p])
+  | Replicate Int Int Pattern -- m to n occurrences of a pattern, optional = 0-1
   | AnyChar -- consume a single char
   | Eof -- succeed if given the empty text, fail otherwise
   | Literal Text -- succeed if input starts with the given text, advance by that text
@@ -23,6 +24,19 @@ data Pattern
   | Letter -- consume 1 letter (according to Char.isLetter)
   | Space -- consume 1 space character (according to Char.isSpace)
   | Punctuation -- consume 1 punctuation char (according to Char.isPunctuation)
+
+-- Wrapper type. Holds a pattern together with its compilation. This is used as
+-- the semantic value of a unison `Pattern a`. Laziness avoids building the
+-- matcher until it actually needs to be used, and also avoids recalculating the
+-- match function if a `CPattern` is 'run' multiple times, while allowing the
+-- builtin runner to just take two arguments, and not try to build a partial
+-- application by hand.
+--
+-- In the future, this can existentially quantify over the type being matched.
+data CPattern = CP Pattern (Text -> Maybe ([Text], Text))
+
+cpattern :: Pattern -> CPattern
+cpattern p = CP p (run p)
 
 run :: Pattern -> Text -> Maybe ([Text], Text)
 run p =
@@ -111,6 +125,27 @@ compile (Many p) !_ !success = case p of
               | DT.null rem -> go acc t
               | otherwise -> success acc (Text.fromText rem <> t)
     {-# INLINE walker #-}
+compile (Replicate m n p) !err !success = case p of
+  AnyChar -> \acc t ->
+    if Text.size t < m
+      then err acc t
+      else success acc (Text.drop n t)
+  CharIn cs -> dropper (charInPred cs)
+  NotCharIn cs -> dropper (charNotInPred cs)
+  Digit -> dropper isDigit
+  Letter -> dropper isLetter
+  Punctuation -> dropper isPunctuation
+  Space -> dropper isSpace
+  _ -> go1 m
+  where
+    go1 0 = go2 (n - m)
+    go1 n = compile p err (go1 (n - 1))
+    go2 0 = success
+    go2 n = compile p success (go2 (n - 1))
+
+    dropper ok acc t
+      | (i, rest) <- Text.dropWhileMax ok n t, i >= m = success acc rest
+      | otherwise = err acc t
 compile Digit !err !success = go
   where
     go acc t = case Text.uncons t of

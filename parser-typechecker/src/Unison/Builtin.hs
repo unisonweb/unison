@@ -491,6 +491,7 @@ builtinsSrc =
     B "Text.patterns.notCharIn" $ list char --> pat text,
     -- Pattern.many : Pattern a -> Pattern a
     B "Pattern.many" $ forall1 "a" (\a -> pat a --> pat a),
+    B "Pattern.replicate" $ forall1 "a" (\a -> nat --> nat --> pat a --> pat a),
     B "Pattern.capture" $ forall1 "a" (\a -> pat a --> pat a),
     B "Pattern.join" $ forall1 "a" (\a -> list (pat a) --> pat a),
     B "Pattern.or" $ forall1 "a" (\a -> pat a --> pat a --> pat a),
