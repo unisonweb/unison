@@ -687,7 +687,7 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 callbacks = do
         forkWorkerMode :: NESet Hash32 -> STM UploadDispatcherJob
         forkWorkerMode hashes = do
           workers <- readTVar workersVar
-          when (Set.size workers >= 10) retry
+          when (Set.size workers >= 5) retry
           pure (UploadDispatcherForkWorker hashes)
 
         checkIfDoneMode :: STM UploadDispatcherJob
