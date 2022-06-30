@@ -11,8 +11,9 @@ module Main where
 import ArgParse
   ( CodebasePathOption (..),
     Command (Init, Launch, PrintVersion, Run, Transcript),
-    GlobalOptions (GlobalOptions, codebasePathOption),
+    GlobalOptions (GlobalOptions, codebasePathOption, exitOption),
     IsHeadless (Headless, WithCLI),
+    ShouldExit(Exit, DoNotExit),
     RunSource (..),
     ShouldDownloadBase (..),
     ShouldForkCodebase (..),
@@ -87,7 +88,7 @@ main = withCP65001 do
     progName <- getProgName
     -- hSetBuffering stdout NoBuffering -- cool
     (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack Version.gitDescribeWithDate)
-    let GlobalOptions {codebasePathOption = mCodePathOption} = globalOptions
+    let GlobalOptions {codebasePathOption = mCodePathOption, exitOption = exitOption} = globalOptions
     let mcodepath = fmap codebasePathOptionToPath mCodePathOption
 
     currentDir <- getCurrentDirectory
@@ -211,27 +212,30 @@ main = withCP65001 do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime RTI.Persistent Version.gitDescribeWithDate
           Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
-            case isHeadless of
-              Headless -> do
-                PT.putPrettyLn $
-                  P.lines
-                    [ "I've started the Codebase API server at",
-                      P.string $ Server.urlFor Server.Api baseUrl,
-                      "and the Codebase UI at",
-                      P.string $ Server.urlFor Server.UI baseUrl
-                    ]
+            case exitOption of 
+              DoNotExit -> do
+                case isHeadless of
+                  Headless -> do
+                    PT.putPrettyLn $
+                      P.lines
+                        [ "I've started the Codebase API server at",
+                          P.string $ Server.urlFor Server.Api baseUrl,
+                          "and the Codebase UI at",
+                          P.string $ Server.urlFor Server.UI baseUrl
+                        ]
 
-                PT.putPrettyLn $
-                  P.string "Running the codebase manager headless with "
-                    <> P.shown GHC.Conc.numCapabilities
-                    <> " "
-                    <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
-                    <> "."
-                mvar <- newEmptyMVar
-                takeMVar mvar
-              WithCLI -> do
-                PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
+                    PT.putPrettyLn $
+                      P.string "Running the codebase manager headless with "
+                        <> P.shown GHC.Conc.numCapabilities
+                        <> " "
+                        <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
+                        <> "."
+                    mvar <- newEmptyMVar
+                    takeMVar mvar
+                  WithCLI -> do
+                    PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+                    launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
+              Exit -> do Exit.exitSuccess
 
 -- | Set user agent and configure TLS on global http client.
 -- Note that the authorized http client is distinct from the global http client.
