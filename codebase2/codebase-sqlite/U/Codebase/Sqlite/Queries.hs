@@ -1338,26 +1338,26 @@ getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
       oid0 /= oid1
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
-objectIdByBase32Prefix objType prefix = queryListCol sql (objType, prefix <> "%") where sql = [here|
+objectIdByBase32Prefix objType prefix = queryListCol sql (objType, likeEscape '\\' prefix <> "%") where sql = [here|
   SELECT object.id FROM object
   INNER JOIN hash_object ON hash_object.object_id = object.id
   INNER JOIN hash ON hash_object.hash_id = hash.id
   WHERE object.type_id = ?
-    AND hash.base32 LIKE ?
+    AND hash.base32 LIKE ? ESCAPE '\'
 |]
 
 causalHashIdByBase32Prefix :: Text -> Transaction [CausalHashId]
 causalHashIdByBase32Prefix prefix = queryListCol sql (Only $ prefix <> "%") where sql = [here|
   SELECT self_hash_id FROM causal
   INNER JOIN hash ON id = self_hash_id
-  WHERE base32 LIKE ?
+  WHERE base32 LIKE ? ESCAPE '\'
 |]
 
 namespaceHashIdByBase32Prefix :: Text -> Transaction [BranchHashId]
 namespaceHashIdByBase32Prefix prefix = queryListCol sql (Only $ prefix <> "%") where sql = [here|
   SELECT value_hash_id FROM causal
   INNER JOIN hash ON id = value_hash_id
-  WHERE base32 LIKE ?
+  WHERE base32 LIKE ? ESCAPE '\'
 |]
 
 -- | Finds all causals that refer to a branch for which we don't have an object stored.
@@ -1465,6 +1465,32 @@ globEscape =
     '[' -> "[[]"
     ']' -> "[]]"
     c -> Text.singleton c
+
+-- | Escape special characters for "LIKE" matches.
+--
+-- Prepared statements prevent sql injection, but it's still possible some user
+-- may be able to craft a query using a fake "hash" that would let them see more than they
+-- ought to.
+--
+-- You still need to provide the escape char in the sql query, E.g.
+--
+-- @@
+--   SELECT * FROM table
+--     WHERE txt LIKE ? ESCAPE '\'
+-- @@
+--
+-- >>> likeEscape '\\' "Nat.%"
+-- "Nat.\%"
+likeEscape :: Char -> Text -> Text
+likeEscape '%' _ = error "Can't use % or _ as escape characters"
+likeEscape '_' _ = error "Can't use % or _ as escape characters"
+likeEscape escapeChar =
+  Text.concatMap \case
+    '%' -> Text.pack [escapeChar, '%']
+    '_' -> Text.pack [escapeChar, '_']
+    c
+      | c == escapeChar -> [escapeChar, escapeChar]
+      | otherwise -> c
 
 -- | Gets the count of all definitions within the given namespace.
 -- NOTE: This requires a working name lookup index.
