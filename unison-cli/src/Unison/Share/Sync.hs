@@ -13,6 +13,7 @@ module Unison.Share.Sync
     CheckAndSetPushError (..),
     fastForwardPush,
     FastForwardPushError (..),
+    UploadProgressCallbacks (..),
 
     -- ** Pull
     pull,
@@ -85,11 +86,9 @@ checkAndSetPush ::
   Maybe Hash32 ->
   -- | The hash of our local causal to push.
   CausalHash ->
-  -- | Callback that is given the number of entities just uploaded, and the number of entities we just learned we need
-  -- to upload as well.
-  (Int -> Int -> IO ()) ->
+  UploadProgressCallbacks ->
   IO (Either (SyncError CheckAndSetPushError) ())
-checkAndSetPush httpClient unisonShareUrl connect path expectedHash causalHash uploadProgressCallback = catchSyncErrors do
+checkAndSetPush httpClient unisonShareUrl connect path expectedHash causalHash callbacks = catchSyncErrors do
   -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it needs
   -- this causal (UpdatePathMissingDependencies).
   updatePath >>= \case
@@ -97,7 +96,7 @@ checkAndSetPush httpClient unisonShareUrl connect path expectedHash causalHash u
     Share.UpdatePathHashMismatch mismatch -> pure (Left (CheckAndSetPushErrorHashMismatch mismatch))
     Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
       -- Upload the causal and all of its dependencies.
-      uploadEntities httpClient unisonShareUrl connect (Share.pathRepoName path) dependencies uploadProgressCallback >>= \case
+      uploadEntities httpClient unisonShareUrl connect (Share.pathRepoName path) dependencies callbacks >>= \case
         False -> pure (Left (CheckAndSetPushErrorNoWritePermission path))
         True ->
           -- After uploading the causal and all of its dependencies, try setting the remote path again.
@@ -141,11 +140,9 @@ fastForwardPush ::
   Share.Path ->
   -- | The hash of our local causal to push.
   CausalHash ->
-  -- | Callback that is given the number of entities just uploaded, and the number of entities we just learned we need
-  -- to upload as well.
-  (Int -> Int -> IO ()) ->
+  UploadProgressCallbacks ->
   IO (Either (SyncError FastForwardPushError) ())
-fastForwardPush httpClient unisonShareUrl connect path localHeadHash uploadProgressCallback = catchSyncErrors do
+fastForwardPush httpClient unisonShareUrl connect path localHeadHash callbacks = catchSyncErrors do
   getCausalHashByPath httpClient unisonShareUrl path >>= \case
     Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission path))
     Right Nothing -> pure (Left (FastForwardPushErrorNoHistory path))
@@ -196,7 +193,7 @@ fastForwardPush httpClient unisonShareUrl connect path localHeadHash uploadProgr
         connect
         (Share.pathRepoName path)
         (NESet.singleton (causalHashToHash32 headHash))
-        uploadProgressCallback
+        callbacks
 
 -- Return a list (in oldest-to-newest order) of hashes along the causal spine that connects the given arguments,
 -- excluding the newest hash (second argument).
@@ -600,6 +597,14 @@ getCausalHashByPath httpClient unisonShareUrl repoPath =
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
 
+-- | Upload progress callbacks.
+data UploadProgressCallbacks = UploadProgressCallbacks
+  { -- | Callback that's given a number of entities we just uploaded.
+    uploaded :: Int -> IO (),
+    -- | Callback that's given a number of entities we just realized we need to upload later.
+    toUpload :: Int -> IO ()
+  }
+
 data UploadDispatcherJob
   = UploadDispatcherReturnFailure
   | UploadDispatcherForkWorkerWhenAvailable (NESet Hash32)
@@ -617,9 +622,9 @@ uploadEntities ::
   (forall a. (Sqlite.Connection -> IO a) -> IO a) ->
   Share.RepoName ->
   NESet Hash32 ->
-  (Int -> Int -> IO ()) ->
+  UploadProgressCallbacks ->
   IO Bool
-uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgressCallback = do
+uploadEntities httpClient unisonShareUrl connect repoName hashes0 callbacks = do
   hashesVar <- newTVarIO (NESet.toSet hashes0)
   -- FIXME document this
   dedupeVar <- newTVarIO Set.empty
@@ -627,7 +632,7 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
   workersVar <- newTVarIO Set.empty
   workerFailedVar <- newEmptyTMVarIO
 
-  uploadProgressCallback 0 (NESet.size hashes0)
+  toUpload callbacks (NESet.size hashes0)
 
   Ki.scoped \scope ->
     dispatcher scope hashesVar dedupeVar nextWorkerIdVar workersVar workerFailedVar
@@ -711,7 +716,7 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
       case result of
         Left () -> void (atomically (tryPutTMVar workerFailedVar ()))
         Right moreHashes -> do
-          uploadProgressCallback (NESet.size hashes) 0
+          uploaded callbacks (NESet.size hashes)
           (maybeYoungestWorkerThatWasAlive, numNewHashes) <-
             atomically do
               -- Record ourselves as "dead". The only work we have left to do is remove the hashes we just uploaded from
@@ -737,7 +742,7 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
                     pure (Set.size hashes1 - Set.size hashes0)
                   else pure 0
               pure (Set.lookupMax workers, numNewHashes)
-          uploadProgressCallback 0 numNewHashes
+          toUpload callbacks numNewHashes
           -- Block until we are sure that the server does not have any uncommitted transactions that see a version of
           -- the database that does not include the entities we just uploaded. After that point, it's fine to remove the
           -- hashes of the entities we just uploaded from the `dedupe` set, because they will never be relevant for any

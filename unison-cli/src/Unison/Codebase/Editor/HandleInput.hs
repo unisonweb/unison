@@ -1876,7 +1876,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
           PushBehavior.RequireEmpty -> do
             let push :: IO (Either (Sync.SyncError Share.CheckAndSetPushError) ())
                 push =
-                  withEntitiesUploadedProgressCallback \entitiesUploadedProgressCallback ->
+                  withEntitiesUploadedProgressCallbacks \callbacks ->
                     Share.checkAndSetPush
                       authHTTPClient
                       baseURL
@@ -1884,7 +1884,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                       sharePath
                       Nothing
                       localCausalHash
-                      entitiesUploadedProgressCallback
+                      callbacks
             liftIO push >>= \case
               Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorCheckAndSetPush err))
               Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
@@ -1892,14 +1892,14 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
           PushBehavior.RequireNonEmpty -> do
             let push :: IO (Either (Sync.SyncError Share.FastForwardPushError) ())
                 push = do
-                  withEntitiesUploadedProgressCallback \entitiesUploadedProgressCallback ->
+                  withEntitiesUploadedProgressCallbacks \callbacks ->
                     Share.fastForwardPush
                       authHTTPClient
                       baseURL
                       withConnection
                       sharePath
                       localCausalHash
-                      entitiesUploadedProgressCallback
+                      callbacks
             liftIO push >>= \case
               Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorFastForwardPush err))
               Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
@@ -1910,8 +1910,8 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
       coerce Path.toList
 
     -- Provide the given action callbacks that display to the terminal.
-    withEntitiesUploadedProgressCallback :: ((Int -> Int -> IO ()) -> IO a) -> IO a
-    withEntitiesUploadedProgressCallback action = do
+    withEntitiesUploadedProgressCallbacks :: (Share.UploadProgressCallbacks -> IO a) -> IO a
+    withEntitiesUploadedProgressCallbacks action = do
       entitiesUploadedVar <- newTVarIO 0
       entitiesToUploadVar <- newTVarIO 0
       Console.Regions.displayConsoleRegions do
@@ -1925,11 +1925,12 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                 <> "/"
                 <> tShow entitiesToUpload
                 <> " entities...\n\n"
-          result <-
-            action \entitiesUploaded entitiesToUpload ->
-              atomically do
-                modifyTVar' entitiesUploadedVar (+ entitiesUploaded)
-                modifyTVar' entitiesToUploadVar (+ entitiesToUpload)
+          result <- do
+            action
+              Share.UploadProgressCallbacks
+                { uploaded = \n -> atomically (modifyTVar' entitiesUploadedVar (+ n)),
+                  toUpload = \n -> atomically (modifyTVar' entitiesToUploadVar (+ n))
+                }
           entitiesUploaded <- readTVarIO entitiesUploadedVar
           Console.Regions.finishConsoleRegion region $
             "\n  Uploaded " <> tShow entitiesUploaded <> " entities.\n"
