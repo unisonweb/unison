@@ -85,7 +85,8 @@ checkAndSetPush ::
   Maybe Hash32 ->
   -- | The hash of our local causal to push.
   CausalHash ->
-  -- | Callback that is given the total number of entities uploaded, and the number of outstanding entities to upload.
+  -- | Callback that is given the number of entities just uploaded, and the number of entities we just learned we need
+  -- to upload as well.
   (Int -> Int -> IO ()) ->
   IO (Either (SyncError CheckAndSetPushError) ())
 checkAndSetPush httpClient unisonShareUrl connect path expectedHash causalHash uploadProgressCallback = catchSyncErrors do
@@ -140,7 +141,8 @@ fastForwardPush ::
   Share.Path ->
   -- | The hash of our local causal to push.
   CausalHash ->
-  -- | Callback that is given the total number of entities uploaded, and the number of outstanding entities to upload.
+  -- | Callback that is given the number of entities just uploaded, and the number of entities we just learned we need
+  -- to upload as well.
   (Int -> Int -> IO ()) ->
   IO (Either (SyncError FastForwardPushError) ())
 fastForwardPush httpClient unisonShareUrl connect path localHeadHash uploadProgressCallback = catchSyncErrors do
@@ -621,6 +623,8 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
   workersVar <- newTVarIO Set.empty
   workerFailedVar <- newEmptyTMVarIO
 
+  uploadProgressCallback 0 (NESet.size hashes0)
+
   Ki.scoped \scope ->
     dispatcher scope hashesVar dedupeVar nextWorkerIdVar workersVar workerFailedVar
   where
@@ -648,11 +652,15 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
         dispatchWorkMode = do
           hashes <- readTVar hashesVar
           when (Set.null hashes) retry
-          workers <- readTVar workersVar
-          when (Set.size workers >= 10) retry -- O(n), use Set Int instead?
           let (hashes1, hashes2) = Set.splitAt 50 hashes
           modifyTVar' dedupeVar (Set.union hashes1)
           writeTVar hashesVar hashes2
+          pure (join (atomically (forkWorkerMode (NESet.unsafeFromSet hashes1) <|> checkForFailureMode)))
+
+        forkWorkerMode :: NESet Hash32 -> STM (IO Bool)
+        forkWorkerMode hashes = do
+          workers <- readTVar workersVar
+          when (Set.size workers >= 5) retry
           pure do
             workerId <-
               atomically do
@@ -662,10 +670,9 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
                 pure workerId
             _ <-
               Ki.fork @() scope do
-                worker hashesVar dedupeVar workersVar workerFailedVar workerId (NESet.unsafeFromSet hashes1)
+                worker hashesVar dedupeVar workersVar workerFailedVar workerId hashes
             loop
 
-        -- Check to see if there are no hashes left to upload and no outstanding workers.
         checkIfDoneMode :: STM (IO Bool)
         checkIfDoneMode = do
           workers <- readTVar workersVar
@@ -692,7 +699,8 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
       case result of
         Left () -> void (atomically (tryPutTMVar workerFailedVar ()))
         Right moreHashes -> do
-          maybeYoungestWorkerThatWasAlive <-
+          uploadProgressCallback (NESet.size hashes) 0
+          (maybeYoungestWorkerThatWasAlive, numNewHashes) <-
             atomically do
               -- Record ourselves as "dead". The only work we have left to do is remove the hashes we just uploaded from
               -- the `dedupe` set, but whether or not we are "alive" is relevant only to:
@@ -707,10 +715,17 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
               -- Add more work (i.e. hashes to upload) to the work queue (really a work set), per the response we just
               -- got from the server. Remember to only add hashes that aren't in the `dedupe` set (see the comment on
               -- the dedupe set above for more info).
-              when (not (Set.null moreHashes)) do
-                dedupe <- readTVar dedupeVar
-                modifyTVar' hashesVar (Set.union (Set.difference moreHashes dedupe))
-              pure (Set.lookupMin workers)
+              numNewHashes <-
+                if not (Set.null moreHashes)
+                  then do
+                    dedupe <- readTVar dedupeVar
+                    hashes0 <- readTVar hashesVar
+                    let !hashes1 = Set.union (Set.difference moreHashes dedupe) hashes0
+                    writeTVar hashesVar hashes1
+                    pure (Set.size hashes1 - Set.size hashes0)
+                  else pure 0
+              pure (Set.lookupMax workers, numNewHashes)
+          uploadProgressCallback 0 numNewHashes
           -- Block until we are sure that the server does not have any uncommitted transactions that see a version of
           -- the database that does not include the entities we just uploaded. After that point, it's fine to remove the
           -- hashes of the entities we just uploaded from the `dedupe` set, because they will never be relevant for any
@@ -719,8 +734,8 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
           whenJust maybeYoungestWorkerThatWasAlive \youngestWorkerThatWasAlive -> do
             atomically do
               workers <- readTVar workersVar
-              whenJust (Set.lookupMin workers) \youngestWorkerAlive ->
-                when (youngestWorkerAlive <= youngestWorkerThatWasAlive) retry
+              whenJust (Set.lookupMin workers) \oldestWorkerAlive ->
+                when (oldestWorkerAlive <= youngestWorkerThatWasAlive) retry
           atomically (modifyTVar' dedupeVar (`Set.difference` (NESet.toSet hashes)))
 
 ------------------------------------------------------------------------------------------------------------------------

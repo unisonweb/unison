@@ -8,7 +8,7 @@ where
 
 -- TODO: Don't import backend
 
-import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO, writeTVar)
+import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
 import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
@@ -1909,8 +1909,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
     pathToSegments =
       coerce Path.toList
 
-    -- Provide the given action a callback that prints out the number of entities uploaded, and the number of entities
-    -- enqueued to be uploaded.
+    -- Provide the given action callbacks that display to the terminal.
     withEntitiesUploadedProgressCallback :: ((Int -> Int -> IO ()) -> IO a) -> IO a
     withEntitiesUploadedProgressCallback action = do
       entitiesUploadedVar <- newTVarIO 0
@@ -1924,13 +1923,13 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
               "\n  Uploaded "
                 <> tShow entitiesUploaded
                 <> "/"
-                <> tShow (entitiesUploaded + entitiesToUpload)
+                <> tShow entitiesToUpload
                 <> " entities...\n\n"
           result <-
             action \entitiesUploaded entitiesToUpload ->
               atomically do
-                writeTVar entitiesUploadedVar entitiesUploaded
-                writeTVar entitiesToUploadVar entitiesToUpload
+                modifyTVar' entitiesUploadedVar (+ entitiesUploaded)
+                modifyTVar' entitiesToUploadVar (+ entitiesToUpload)
           entitiesUploaded <- readTVarIO entitiesUploadedVar
           Console.Regions.finishConsoleRegion region $
             "\n  Uploaded " <> tShow entitiesUploaded <> " entities.\n"
