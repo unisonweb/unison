@@ -158,8 +158,8 @@ fastForwardPush httpClient unisonShareUrl connect path localHeadHash callbacks =
     Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission path))
     Right Nothing -> pure (Left (FastForwardPushErrorNoHistory path))
     Right (Just (Share.hashJWTHash -> remoteHeadHash)) -> do
-      let doLoadCausalSpineBewteen = loadCausalSpineBetween remoteHeadHash (causalHashToHash32 localHeadHash)
-      (connect \conn -> Sqlite.runTransaction conn doLoadCausalSpineBewteen) >>= \case
+      let doLoadCausalSpineBetween = loadCausalSpineBetween remoteHeadHash (causalHashToHash32 localHeadHash)
+      (connect \conn -> Sqlite.runTransaction conn doLoadCausalSpineBetween) >>= \case
         -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
         -- fast-forward push, so we don't bother trying - just report the error now.
         Nothing -> pure (Left (FastForwardPushErrorNotFastForward path))
