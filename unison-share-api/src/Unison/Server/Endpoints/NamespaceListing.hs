@@ -105,7 +105,7 @@ data NamedNamespace = NamedNamespace
   { namespaceName :: UnisonName,
     namespaceHash :: UnisonHash,
     -- May not be provided on all server implementations.
-    numContainedDefinitions :: Maybe Int
+    namespaceSize :: Maybe Int
   }
   deriving (Generic, Show)
 
@@ -143,7 +143,7 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
       NamedNamespace
         { namespaceName = NameSegment.toText name,
           namespaceHash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash),
-          numContainedDefinitions = Nothing
+          namespaceSize = Nothing
         }
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name
