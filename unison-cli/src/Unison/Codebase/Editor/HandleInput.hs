@@ -8,7 +8,7 @@ where
 
 -- TODO: Don't import backend
 
-import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO, writeTVar)
+import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
 import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
@@ -1865,7 +1865,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
   ensureAuthenticatedWithCodeserver codeserver
 
-  LoopState.Env {authHTTPClient, codebase = Codebase {connection}} <- ask
+  LoopState.Env {authHTTPClient, codebase = Codebase {connection, withConnection}} <- ask
 
   -- doesn't handle the case where a non-existent path is supplied
   Sqlite.runTransaction connection (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath)))
@@ -1876,15 +1876,15 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
           PushBehavior.RequireEmpty -> do
             let push :: IO (Either (Sync.SyncError Share.CheckAndSetPushError) ())
                 push =
-                  withEntitiesUploadedProgressCallback \entitiesUploadedProgressCallback ->
+                  withEntitiesUploadedProgressCallbacks \callbacks ->
                     Share.checkAndSetPush
                       authHTTPClient
                       baseURL
-                      connection
+                      withConnection
                       sharePath
                       Nothing
                       localCausalHash
-                      entitiesUploadedProgressCallback
+                      callbacks
             liftIO push >>= \case
               Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorCheckAndSetPush err))
               Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
@@ -1892,14 +1892,14 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
           PushBehavior.RequireNonEmpty -> do
             let push :: IO (Either (Sync.SyncError Share.FastForwardPushError) ())
                 push = do
-                  withEntitiesUploadedProgressCallback \entitiesUploadedProgressCallback ->
+                  withEntitiesUploadedProgressCallbacks \callbacks ->
                     Share.fastForwardPush
                       authHTTPClient
                       baseURL
-                      connection
+                      withConnection
                       sharePath
                       localCausalHash
-                      entitiesUploadedProgressCallback
+                      callbacks
             liftIO push >>= \case
               Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorFastForwardPush err))
               Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
@@ -1909,10 +1909,9 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
     pathToSegments =
       coerce Path.toList
 
-    -- Provide the given action a callback that prints out the number of entities uploaded, and the number of entities
-    -- enqueued to be uploaded.
-    withEntitiesUploadedProgressCallback :: ((Int -> Int -> IO ()) -> IO a) -> IO a
-    withEntitiesUploadedProgressCallback action = do
+    -- Provide the given action callbacks that display to the terminal.
+    withEntitiesUploadedProgressCallbacks :: (Share.UploadProgressCallbacks -> IO a) -> IO a
+    withEntitiesUploadedProgressCallbacks action = do
       entitiesUploadedVar <- newTVarIO 0
       entitiesToUploadVar <- newTVarIO 0
       Console.Regions.displayConsoleRegions do
@@ -1924,13 +1923,14 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
               "\n  Uploaded "
                 <> tShow entitiesUploaded
                 <> "/"
-                <> tShow (entitiesUploaded + entitiesToUpload)
+                <> tShow entitiesToUpload
                 <> " entities...\n\n"
-          result <-
-            action \entitiesUploaded entitiesToUpload ->
-              atomically do
-                writeTVar entitiesUploadedVar entitiesUploaded
-                writeTVar entitiesToUploadVar entitiesToUpload
+          result <- do
+            action
+              Share.UploadProgressCallbacks
+                { uploaded = \n -> atomically (modifyTVar' entitiesUploadedVar (+ n)),
+                  toUpload = \n -> atomically (modifyTVar' entitiesToUploadVar (+ n))
+                }
           entitiesUploaded <- readTVarIO entitiesUploadedVar
           Console.Regions.finishConsoleRegion region $
             "\n  Uploaded " <> tShow entitiesUploaded <> " entities.\n"
