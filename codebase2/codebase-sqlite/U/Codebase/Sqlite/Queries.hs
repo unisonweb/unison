@@ -1484,13 +1484,13 @@ globEscape =
 likeEscape :: Char -> Text -> Text
 likeEscape '%' _ = error "Can't use % or _ as escape characters"
 likeEscape '_' _ = error "Can't use % or _ as escape characters"
-likeEscape escapeChar =
-  Text.concatMap \case
+likeEscape escapeChar pat =
+  flip Text.concatMap pat \case
     '%' -> Text.pack [escapeChar, '%']
     '_' -> Text.pack [escapeChar, '_']
     c
-      | c == escapeChar -> [escapeChar, escapeChar]
-      | otherwise -> c
+      | c == escapeChar -> Text.pack [escapeChar, escapeChar]
+      | otherwise -> Text.singleton c
 
 -- | Gets the count of all definitions within the given namespace.
 -- NOTE: This requires a working name lookup index.
