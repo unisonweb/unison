@@ -60,7 +60,7 @@ jobs:
         name: cache ~/.stack (Windows)
         if: runner.os == 'Windows'
         with:
-          path: "${{LOCALAPPDATA}}\\Programs\\stack"
+          path: "C:\\Users\\runneradmin\\AppData\\Local\\Programs\\stack"
           # Main cache key: commit hash. This should always result in a cache miss...
           # So when loading a cache we'll always fall back to the restore-keys,
           # which should load the most recent cache via a prefix search on the most
