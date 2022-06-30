@@ -637,7 +637,10 @@ uploadEntities ::
   IO Bool
 uploadEntities httpClient unisonShareUrl connect repoName hashes0 callbacks = do
   hashesVar <- newTVarIO (NESet.toSet hashes0)
-  -- FIXME document this
+  -- Semantically, this is the set of hashes we've uploaded so far, but we do delete from it when it's safe to, so it
+  -- doesn't grow unbounded. It's used to filter out hashes that would be duplicate uploads: the server, when responding
+  -- to any particular upload request, may declare that it still needs some hashes that we're in the process of
+  -- uploading from another thread.
   dedupeVar <- newTVarIO Set.empty
   nextWorkerIdVar <- newTVarIO 0
   workersVar <- newTVarIO Set.empty
