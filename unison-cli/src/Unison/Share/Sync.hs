@@ -600,6 +600,12 @@ getCausalHashByPath httpClient unisonShareUrl repoPath =
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
 
+data UploadDispatcherJob
+  = UploadDispatcherReturnFailure
+  | UploadDispatcherForkWorkerWhenAvailable (NESet Hash32)
+  | UploadDispatcherForkWorker (NESet Hash32)
+  | UploadDispatcherDone
+
 -- | Upload a set of entities to Unison Share. If the server responds that it cannot yet store any hash(es) due to
 -- missing dependencies, send those dependencies too, and on and on, until the server stops responding that it's missing
 -- anything.
@@ -639,43 +645,51 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadProgress
       where
         loop :: IO Bool
         loop =
-          join (atomically (checkForFailureMode <|> dispatchWorkMode <|> checkIfDoneMode))
+          doJob [checkForFailureMode, dispatchWorkMode, checkIfDoneMode]
 
-        checkForFailureMode :: STM (IO Bool)
+        doJob :: [STM UploadDispatcherJob] -> IO Bool
+        doJob jobs =
+          atomically (asum jobs) >>= \case
+            UploadDispatcherReturnFailure -> pure False
+            UploadDispatcherForkWorkerWhenAvailable hashes -> doJob [forkWorkerMode hashes, checkForFailureMode]
+            UploadDispatcherForkWorker hashes -> do
+              workerId <-
+                atomically do
+                  workerId <- readTVar nextWorkerIdVar
+                  writeTVar nextWorkerIdVar $! workerId + 1
+                  modifyTVar' workersVar (Set.insert workerId)
+                  pure workerId
+              _ <-
+                Ki.fork @() scope do
+                  worker hashesVar dedupeVar workersVar workerFailedVar workerId hashes
+              loop
+            UploadDispatcherDone -> pure True
+
+        checkForFailureMode :: STM UploadDispatcherJob
         checkForFailureMode = do
           () <- readTMVar workerFailedVar
-          pure (pure False)
+          pure UploadDispatcherReturnFailure
 
-        dispatchWorkMode :: STM (IO Bool)
+        dispatchWorkMode :: STM UploadDispatcherJob
         dispatchWorkMode = do
           hashes <- readTVar hashesVar
           when (Set.null hashes) retry
           let (hashes1, hashes2) = Set.splitAt 50 hashes
           modifyTVar' dedupeVar (Set.union hashes1)
           writeTVar hashesVar hashes2
-          pure (join (atomically (forkWorkerMode (NESet.unsafeFromSet hashes1) <|> checkForFailureMode)))
+          pure (UploadDispatcherForkWorkerWhenAvailable (NESet.unsafeFromSet hashes1))
 
-        forkWorkerMode :: NESet Hash32 -> STM (IO Bool)
+        forkWorkerMode :: NESet Hash32 -> STM UploadDispatcherJob
         forkWorkerMode hashes = do
           workers <- readTVar workersVar
-          when (Set.size workers >= 5) retry
-          pure do
-            workerId <-
-              atomically do
-                workerId <- readTVar nextWorkerIdVar
-                writeTVar nextWorkerIdVar $! workerId + 1
-                modifyTVar' workersVar (Set.insert workerId)
-                pure workerId
-            _ <-
-              Ki.fork @() scope do
-                worker hashesVar dedupeVar workersVar workerFailedVar workerId hashes
-            loop
+          when (Set.size workers >= 10) retry
+          pure (UploadDispatcherForkWorker hashes)
 
-        checkIfDoneMode :: STM (IO Bool)
+        checkIfDoneMode :: STM UploadDispatcherJob
         checkIfDoneMode = do
           workers <- readTVar workersVar
           when (not (Set.null workers)) retry
-          pure (pure True)
+          pure UploadDispatcherDone
 
     worker :: TVar (Set Hash32) -> TVar (Set Hash32) -> TVar (Set Int) -> TMVar () -> Int -> NESet Hash32 -> IO ()
     worker hashesVar dedupeVar workersVar workerFailedVar workerId hashes = do
