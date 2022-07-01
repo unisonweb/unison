@@ -2210,6 +2210,15 @@ declareForeigns = do
   declareForeign Untracked "Text.repeat" (wordBoxDirect Ty.natRef) . mkForeign $
     \(n :: Word64, txt :: Util.Text.Text) -> pure (Util.Text.replicate (fromIntegral n) txt)
 
+  declareForeign Untracked "Text.reverse" boxDirect . mkForeign $
+    pure . Util.Text.reverse
+
+  declareForeign Untracked "Text.toUppercase" boxDirect . mkForeign $
+    pure . Util.Text.toUppercase
+
+  declareForeign Untracked "Text.toLowercase" boxDirect . mkForeign $
+    pure . Util.Text.toLowercase
+
   declareForeign Untracked "Text.toUtf8" boxDirect . mkForeign $
     pure . Util.Text.toUtf8
 

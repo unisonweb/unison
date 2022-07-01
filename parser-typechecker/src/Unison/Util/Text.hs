@@ -74,6 +74,16 @@ size (Text t) = R.size t
 reverse :: Text -> Text
 reverse (Text t) = Text (R.reverse t)
 
+toUppercase :: Text -> Text
+toUppercase (Text t) = Text (R.map up t)
+  where
+    up (Chunk n t) = Chunk n (T.toUpper t)
+
+toLowercase :: Text -> Text
+toLowercase (Text t) = Text (R.map down t)
+  where
+    down (Chunk n t) = Chunk n (T.toLower t)
+
 fromUtf8 :: B.Bytes -> Either String Text
 fromUtf8 bs =
   case T.decodeUtf8' (B.toByteString bs) of
