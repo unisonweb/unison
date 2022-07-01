@@ -193,6 +193,7 @@ builtinTypesSrc =
     B' "Sequence" CT.Data,
     Rename' "Sequence" "List",
     B' "Text" CT.Data,
+    B' "Pattern" CT.Data,
     B' "Char" CT.Data,
     B' "Effect" CT.Data,
     Rename' "Effect" "Request",
