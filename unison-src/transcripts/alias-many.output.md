@@ -547,68 +547,94 @@ Let's try it!
   378. structural type Optional a
   379. Optional.None : Optional a
   380. Optional.Some : a -> Optional a
-  381. builtin type Ref
-  382. Ref.read : Ref g a ->{g} a
-  383. Ref.write : Ref g a -> a ->{g} ()
-  384. builtin type Request
-  385. builtin type Scope
-  386. Scope.array : Nat ->{Scope s} MutableArray (Scope s) a
-  387. Scope.arrayOf : a
+  381. Pattern.capture : ##Pattern a -> ##Pattern a
+  382. Pattern.isMatch : ##Pattern a -> a -> Boolean
+  383. Pattern.join : [##Pattern a] -> ##Pattern a
+  384. Pattern.many : ##Pattern a -> ##Pattern a
+  385. Pattern.or : ##Pattern a -> ##Pattern a -> ##Pattern a
+  386. Pattern.replicate : Nat
+                           -> Nat
+                           -> ##Pattern a
+                           -> ##Pattern a
+  387. Pattern.run : ##Pattern a -> a -> Optional ([a], a)
+  388. builtin type Ref
+  389. Ref.read : Ref g a ->{g} a
+  390. Ref.write : Ref g a -> a ->{g} ()
+  391. builtin type Request
+  392. builtin type Scope
+  393. Scope.array : Nat ->{Scope s} MutableArray (Scope s) a
+  394. Scope.arrayOf : a
                        -> Nat
                        ->{Scope s} MutableArray (Scope s) a
-  388. Scope.bytearray : Nat
+  395. Scope.bytearray : Nat
                          ->{Scope s} MutableByteArray (Scope s)
-  389. Scope.bytearrayOf : Nat
+  396. Scope.bytearrayOf : Nat
                            -> Nat
                            ->{Scope s} MutableByteArray
                              (Scope s)
-  390. Scope.ref : a ->{Scope s} Ref {Scope s} a
-  391. Scope.run : (∀ s. '{g, Scope s} r) ->{g} r
-  392. structural type SeqView a b
-  393. SeqView.VElem : a -> b -> SeqView a b
-  394. SeqView.VEmpty : SeqView a b
-  395. Socket.toText : Socket -> Text
-  396. unique type Test.Result
-  397. Test.Result.Fail : Text -> Result
-  398. Test.Result.Ok : Text -> Result
-  399. builtin type Text
-  400. Text.!= : Text -> Text -> Boolean
-  401. Text.++ : Text -> Text -> Text
-  402. Text.drop : Nat -> Text -> Text
-  403. Text.empty : Text
-  404. Text.eq : Text -> Text -> Boolean
-  405. Text.fromCharList : [Char] -> Text
-  406. Text.fromUtf8.impl : Bytes -> Either Failure Text
-  407. Text.gt : Text -> Text -> Boolean
-  408. Text.gteq : Text -> Text -> Boolean
-  409. Text.lt : Text -> Text -> Boolean
-  410. Text.lteq : Text -> Text -> Boolean
-  411. Text.repeat : Nat -> Text -> Text
-  412. Text.size : Text -> Nat
-  413. Text.take : Nat -> Text -> Text
-  414. Text.toCharList : Text -> [Char]
-  415. Text.toUtf8 : Text -> Bytes
-  416. Text.uncons : Text -> Optional (Char, Text)
-  417. Text.unsnoc : Text -> Optional (Text, Char)
-  418. ThreadId.toText : ThreadId -> Text
-  419. todo : a -> b
-  420. structural type Tuple a b
-  421. Tuple.Cons : a -> b -> Tuple a b
-  422. structural type Unit
-  423. Unit.Unit : ()
-  424. Universal.< : a -> a -> Boolean
-  425. Universal.<= : a -> a -> Boolean
-  426. Universal.== : a -> a -> Boolean
-  427. Universal.> : a -> a -> Boolean
-  428. Universal.>= : a -> a -> Boolean
-  429. Universal.compare : a -> a -> Int
-  430. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
-  431. builtin type Value
-  432. Value.dependencies : Value -> [Term]
-  433. Value.deserialize : Bytes -> Either Text Value
-  434. Value.load : Value ->{IO} Either [Term] a
-  435. Value.serialize : Value -> Bytes
-  436. Value.value : a -> Value
+  397. Scope.ref : a ->{Scope s} Ref {Scope s} a
+  398. Scope.run : (∀ s. '{g, Scope s} r) ->{g} r
+  399. structural type SeqView a b
+  400. SeqView.VElem : a -> b -> SeqView a b
+  401. SeqView.VEmpty : SeqView a b
+  402. Socket.toText : Socket -> Text
+  403. unique type Test.Result
+  404. Test.Result.Fail : Text -> Result
+  405. Test.Result.Ok : Text -> Result
+  406. builtin type Text
+  407. Text.!= : Text -> Text -> Boolean
+  408. Text.++ : Text -> Text -> Text
+  409. Text.drop : Nat -> Text -> Text
+  410. Text.empty : Text
+  411. Text.eq : Text -> Text -> Boolean
+  412. Text.fromCharList : [Char] -> Text
+  413. Text.fromUtf8.impl : Bytes -> Either Failure Text
+  414. Text.gt : Text -> Text -> Boolean
+  415. Text.gteq : Text -> Text -> Boolean
+  416. Text.lt : Text -> Text -> Boolean
+  417. Text.lteq : Text -> Text -> Boolean
+  418. Text.patterns.anyChar : ##Pattern Text
+  419. Text.patterns.charIn : [Char] -> ##Pattern Text
+  420. Text.patterns.charRange : Char -> Char -> ##Pattern Text
+  421. Text.patterns.digit : ##Pattern Text
+  422. Text.patterns.eof : ##Pattern Text
+  423. Text.patterns.letter : ##Pattern Text
+  424. Text.patterns.literal : Text -> ##Pattern Text
+  425. Text.patterns.notCharIn : [Char] -> ##Pattern Text
+  426. Text.patterns.notCharRange : Char
+                                    -> Char
+                                    -> ##Pattern Text
+  427. Text.patterns.punctuation : ##Pattern Text
+  428. Text.patterns.space : ##Pattern Text
+  429. Text.repeat : Nat -> Text -> Text
+  430. Text.reverse : Text -> Text
+  431. Text.size : Text -> Nat
+  432. Text.take : Nat -> Text -> Text
+  433. Text.toCharList : Text -> [Char]
+  434. Text.toLowercase : Text -> Text
+  435. Text.toUppercase : Text -> Text
+  436. Text.toUtf8 : Text -> Bytes
+  437. Text.uncons : Text -> Optional (Char, Text)
+  438. Text.unsnoc : Text -> Optional (Text, Char)
+  439. ThreadId.toText : ThreadId -> Text
+  440. todo : a -> b
+  441. structural type Tuple a b
+  442. Tuple.Cons : a -> b -> Tuple a b
+  443. structural type Unit
+  444. Unit.Unit : ()
+  445. Universal.< : a -> a -> Boolean
+  446. Universal.<= : a -> a -> Boolean
+  447. Universal.== : a -> a -> Boolean
+  448. Universal.> : a -> a -> Boolean
+  449. Universal.>= : a -> a -> Boolean
+  450. Universal.compare : a -> a -> Int
+  451. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
+  452. builtin type Value
+  453. Value.dependencies : Value -> [Term]
+  454. Value.deserialize : Bytes -> Either Text Value
+  455. Value.load : Value ->{IO} Either [Term] a
+  456. Value.serialize : Value -> Bytes
+  457. Value.value : a -> Value
   
 
 .builtin> alias.many 94-104 .mylib
