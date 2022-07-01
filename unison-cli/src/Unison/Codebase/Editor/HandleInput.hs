@@ -187,7 +187,8 @@ currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action' m v PPE.Pr
 currentPrettyPrintEnvDecl scoping = do
   root' <- use LoopState.root
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
-  prettyPrintEnvDecl (Backend.getCurrentPrettyNames (scoping currentPath') root')
+  hqLen <- eval CodebaseHashLength
+  pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
@@ -1962,8 +1963,7 @@ handleShowDefinition outputLoc inputQuery = do
     eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
-    let printNames = Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root'
-    let ppe = PPE.fromNamesDecl hqLength printNames
+    let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root'
     respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (respond (SearchTermsNotFound misses))
   -- We set latestFile to be programmatically generated, if we
