@@ -232,8 +232,10 @@ test> Text.tests.patterns =
     run (capture (many (charRange ?a ?z))) "hi123" == Some (["hi"], "123"),
     run (capture (many (notCharRange ?, ?,))) "abc123," == Some (["abc123"], ","),
     run (capture (many (notCharIn [?,,]))) "abracadabra,123" == Some (["abracadabra"], ",123"),
-    -- this crashes with mismatched foreign calling convention for `Closure`
     run (capture (many (or digit letter))) "11234abc,remainder" == Some (["11234abc"], ",remainder"),
+    run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa" == Some (["1a2ba"], " aaa"),
+    isMatch (join [many letter, eof]) "aaaaabbbb" == true,
+    isMatch (join [many letter, eof]) "aaaaabbbb1" == false,
     isMatch (join [l "abra", many (l "cadabra")]) "abracadabracadabra" == true,
 
   ]
