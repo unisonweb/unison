@@ -38,14 +38,6 @@ jobs:
       # purge one manually.
 
 
-      - name: Get path info
-        run: |
-          stack path --stack-root
-          stack path --project-root
-          stack path --local-pkg-db
-          stack path --snapshot-pkg-db
-          stack path --snapshot-install-root
-
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
       - uses: actions/cache@v3
         name: cache ~/.stack (unix)
@@ -113,6 +105,15 @@ jobs:
           mkdir stack && cd stack
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
+
+      - name: Get path info
+        run: |
+          stack path --stack-root
+          stack path --project-root
+          stack path --local-pkg-db
+          stack path --snapshot-pkg-db
+          stack path --snapshot-install-root
+
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
