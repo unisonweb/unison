@@ -119,6 +119,11 @@ test =
           ( P.run (P.Many (P.Join [P.Capture (P.Many (P.Digit)), P.Many P.Space])) "01 10 20 1123 292 110 10"
               == Just (["01", "10", "20", "1123", "292", "110", "10"], "")
           )
+        expect' $
+          let part = P.Capture (P.Replicate 1 3 (P.Digit))
+              dpart = P.Join [P.Literal ".", part]
+              ip = P.Join [part, P.Replicate 3 3 dpart, P.Eof]
+           in P.run ip "127.0.0.1" == Just (["127", "0", "0", "1"], "")
         ok
     ]
   where
