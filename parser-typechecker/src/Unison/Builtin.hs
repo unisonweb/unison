@@ -474,7 +474,6 @@ builtinsSrc =
     B "Text.toLowercase" $ text --> text,
     B "Text.toUtf8" $ text --> bytes,
     B "Text.fromUtf8.impl.v3" $ bytes --> eithert failure text,
-    -- TODO dolio these need implementation
     B "Text.patterns.eof" $ pat text,
     B "Text.patterns.anyChar" $ pat text,
     -- Bytes.patterns.literal : Bytes -> Pattern Bytes
@@ -498,7 +497,6 @@ builtinsSrc =
     -- Pattern.run : Pattern a -> a -> Optional ([a], a)
     B "Pattern.run" $ forall1 "a" (\a -> pat a --> a --> optionalt (tuple [list a, a])),
     B "Pattern.isMatch" $ forall1 "a" (\a -> pat a --> a --> boolean),
-    -- end todo
 
     B "Char.toNat" $ char --> nat,
     B "Char.toText" $ char --> text,
