@@ -2682,7 +2682,7 @@ declareForeigns = do
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Capture p
   declareForeign Untracked "Pattern.join" boxDirect . mkForeign $ \ps ->
     evaluate . TPat.cpattern . TPat.Join $ map (\(TPat.CP p _) -> p) ps
-  declareForeign Untracked "Pattern.or" boxDirect . mkForeign $
+  declareForeign Untracked "Pattern.or" boxBoxDirect . mkForeign $
     \(TPat.CP l _, TPat.CP r _) -> evaluate . TPat.cpattern $ TPat.Or l r
   declareForeign Untracked "Pattern.replicate" natNatBoxToBox . mkForeign $
     \(m0 :: Word64, n0 :: Word64, TPat.CP p _) ->

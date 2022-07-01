@@ -233,7 +233,7 @@ test> Text.tests.patterns =
     run (capture (many (notCharRange ?, ?,))) "abc123," == Some (["abc123"], ","),
     run (capture (many (notCharIn [?,,]))) "abracadabra,123" == Some (["abracadabra"], ",123"),
     -- this crashes with mismatched foreign calling convention for `Closure`
-    run (capture (many (or digit letter))) "11234abc,remainder" == Some (["11234abc"], ",remainder")
+    run (capture (many (or digit letter))) "11234abc,remainder" == Some (["11234abc"], ",remainder"),
     isMatch (join [l "abra", many (l "cadabra")]) "abracadabracadabra" == true,
 
   ]
