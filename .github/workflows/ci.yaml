@@ -61,7 +61,7 @@ jobs:
         name: cache ~/.stack (Windows)
         if: runner.os == 'Windows'
         with:
-          path: "C:\\Users\\runneradmin\\AppData\\Local\\Programs\\stack"
+          path: "C:\\Users\\runneradmin\\AppData\\Roaming\\stack"
           # Main cache key: commit hash. This should always result in a cache miss...
           # So when loading a cache we'll always fall back to the restore-keys,
           # which should load the most recent cache via a prefix search on the most
@@ -105,15 +105,6 @@ jobs:
           mkdir stack && cd stack
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
-
-      - name: Get path info
-        run: |
-          stack path --stack-root
-          stack path --project-root
-          stack path --local-pkg-db
-          stack path --snapshot-pkg-db
-          stack path --snapshot-install-root
-
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
