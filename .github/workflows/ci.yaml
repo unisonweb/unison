@@ -37,6 +37,15 @@ jobs:
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
       # purge one manually.
 
+
+      - name: Get path info
+        run: |
+          stack path --stack-root
+          stack path --project-root
+          stack path --local-pkg-db
+          stack path --snapshot-pkg-db
+          stack path --snapshot-install-root
+
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
       - uses: actions/cache@v3
         name: cache ~/.stack (unix)
