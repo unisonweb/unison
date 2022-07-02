@@ -24,9 +24,12 @@ data Env = Env
   }
 
 spawnLsp :: IO ()
-spawnLsp = TCP.serve (TCP.Host "localhost") "5050" $ \(sock, _sockaddr) -> do
-  sockHandle <- socketToHandle sock ReadWriteMode
-  void $ runServerWithHandles (LogAction print) (LogAction $ liftIO . print) sockHandle sockHandle serverDefinition
+spawnLsp = do
+  putStrLn "Booting up LSP"
+  TCP.serve (TCP.Host "127.0.0.1") "5050" $ \(sock, _sockaddr) -> do
+    sockHandle <- socketToHandle sock ReadWriteMode
+    putStrLn "LSP Client connected."
+    void $ runServerWithHandles (LogAction print) (LogAction $ liftIO . print) sockHandle sockHandle serverDefinition
 
 serverDefinition :: ServerDefinition Config
 serverDefinition =

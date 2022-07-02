@@ -76,6 +76,8 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import UnliftIO.Directory (getHomeDirectory)
 import qualified Version
+import qualified Unison.LSP as LSP
+import Control.Concurrent.Async (withAsync)
 
 main :: IO ()
 main = withCP65001 do
@@ -211,31 +213,32 @@ main = withCP65001 do
       Launch isHeadless codebaseServerOpts downloadBase -> do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime RTI.Persistent Version.gitDescribeWithDate
-          Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
-            case exitOption of 
-              DoNotExit -> do
-                case isHeadless of
-                  Headless -> do
-                    PT.putPrettyLn $
-                      P.lines
-                        [ "I've started the Codebase API server at",
-                          P.string $ Server.urlFor Server.Api baseUrl,
-                          "and the Codebase UI at",
-                          P.string $ Server.urlFor Server.UI baseUrl
-                        ]
+          withAsync LSP.spawnLsp $ \_ -> do
+            Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
+              case exitOption of
+                DoNotExit -> do
+                  case isHeadless of
+                    Headless -> do
+                      PT.putPrettyLn $
+                        P.lines
+                          [ "I've started the Codebase API server at",
+                            P.string $ Server.urlFor Server.Api baseUrl,
+                            "and the Codebase UI at",
+                            P.string $ Server.urlFor Server.UI baseUrl
+                          ]
 
-                    PT.putPrettyLn $
-                      P.string "Running the codebase manager headless with "
-                        <> P.shown GHC.Conc.numCapabilities
-                        <> " "
-                        <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
-                        <> "."
-                    mvar <- newEmptyMVar
-                    takeMVar mvar
-                  WithCLI -> do
-                    PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                    launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
-              Exit -> do Exit.exitSuccess
+                      PT.putPrettyLn $
+                        P.string "Running the codebase manager headless with "
+                          <> P.shown GHC.Conc.numCapabilities
+                          <> " "
+                          <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
+                          <> "."
+                      mvar <- newEmptyMVar
+                      takeMVar mvar
+                    WithCLI -> do
+                      PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+                      launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
+                Exit -> do Exit.exitSuccess
 
 -- | Set user agent and configure TLS on global http client.
 -- Note that the authorized http client is distinct from the global http client.
