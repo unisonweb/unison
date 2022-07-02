@@ -1,12 +1,16 @@
 module Unison.LSP.VFS where
 
 import Control.Lens
+import qualified Control.Lens as Lens
 import Control.Monad.Reader
 import Control.Monad.State
+import Data.Char (isSpace)
+import qualified Data.Text as Text
 import Data.Tuple (swap)
 import Language.LSP.Types
 import Language.LSP.Types.Lens
-import Language.LSP.VFS as VFS
+import qualified Language.LSP.Types.Lens as LSP
+import Language.LSP.VFS as VFS hiding (character)
 import Unison.LSP.Types
 import Unison.Prelude
 import UnliftIO
@@ -24,15 +28,28 @@ getVirtualFile (TextDocumentIdentifier uri) = do
   liftIO $ print ("vfsmap" :: String, vfs)
   pure $ vfs ^. vfsMap . at (toNormalizedUri uri)
 
-completionPrefix :: (HasPosition p Position, HasTextDocument p TextDocumentIdentifier) => p -> Lsp (Maybe (Text, Text))
+completionPrefix :: (HasPosition p Position, HasTextDocument p TextDocumentIdentifier) => p -> Lsp (Maybe (Range, Text))
 completionPrefix p = runMaybeT $ do
-  vf <- MaybeT (tap "VFS" $ getVirtualFile (p ^. textDocument))
-  PosPrefixInfo {prefixModule, prefixText} <- MaybeT (tap "PREFIX" $ VFS.getCompletionPrefix (p ^. position) vf)
-  -- The LSP lib assumes haskell modules, which luckily for us also use dot-separators.
-  pure $ (prefixModule, prefixText)
+  (before, _) <- MaybeT $ identifierPartsAtPosition p
+  let posLine = p ^. position . LSP.line
+  let posChar = (p ^. position . LSP.character)
+  let range = mkRange posLine (posChar - fromIntegral (Text.length before)) posLine posChar
+  pure (range, before)
+
+identifierPartsAtPosition :: (HasPosition p Position, HasTextDocument p TextDocumentIdentifier) => p -> Lsp (Maybe (Text, Text))
+identifierPartsAtPosition p = runMaybeT $ do
+  vf <- MaybeT (getVirtualFile (p ^. textDocument))
+  PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix (p ^. position) vf)
+  let (before, after) = Text.splitAt (cursorPos ^. character . Lens.to fromIntegral) fullLine
+  pure $ (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)
   where
-    tap :: forall m a. (MonadIO m, Show a) => String -> m a -> m a
-    tap msg m = do
-      a <- m
-      liftIO $ print (msg, a)
-      pure a
+    -- Should probably use something from the parser here
+    isIdentifierChar = \case
+      c
+        | isSpace c -> False
+        | elem c ("[]()`'\"" :: String) -> False
+        | otherwise -> True
+
+identifierAtPosition :: (HasPosition p Position, HasTextDocument p TextDocumentIdentifier) => p -> Lsp (Maybe Text)
+identifierAtPosition p = do
+  identifierPartsAtPosition p <&> fmap \(before, after) -> (before <> after)

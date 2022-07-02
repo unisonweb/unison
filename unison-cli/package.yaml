@@ -27,8 +27,10 @@ dependencies:
   - exceptions
   - extra
   - filepath
+  - fuzzyfind
   - generic-lens
   - haskeline
+  - here
   - http-client >= 0.7.6
   - http-client-tls
   - http-types

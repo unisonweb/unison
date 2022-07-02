@@ -13,9 +13,9 @@ import ArgParse
     Command (Init, Launch, PrintVersion, Run, Transcript),
     GlobalOptions (GlobalOptions, codebasePathOption, exitOption),
     IsHeadless (Headless, WithCLI),
-    ShouldExit(Exit, DoNotExit),
     RunSource (..),
     ShouldDownloadBase (..),
+    ShouldExit (DoNotExit, Exit),
     ShouldForkCodebase (..),
     ShouldSaveCodebase (..),
     UsageRenderer,
@@ -23,6 +23,7 @@ import ArgParse
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (forkIO, newEmptyMVar, takeMVar)
+import Control.Concurrent.Async (withAsync)
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
 import Data.Bifunctor
@@ -65,6 +66,7 @@ import Unison.CommandLine (plural', watchConfig)
 import qualified Unison.CommandLine.Main as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import qualified Unison.CommandLine.Welcome as Welcome
+import qualified Unison.LSP as LSP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyTerminal as PT
@@ -76,8 +78,6 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import UnliftIO.Directory (getHomeDirectory)
 import qualified Version
-import qualified Unison.LSP as LSP
-import Control.Concurrent.Async (withAsync)
 
 main :: IO ()
 main = withCP65001 do
@@ -213,7 +213,7 @@ main = withCP65001 do
       Launch isHeadless codebaseServerOpts downloadBase -> do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime RTI.Persistent Version.gitDescribeWithDate
-          withAsync LSP.spawnLsp $ \_ -> do
+          withAsync (LSP.spawnLsp theCodebase runtime) $ \_ -> do
             Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
               case exitOption of
                 DoNotExit -> do

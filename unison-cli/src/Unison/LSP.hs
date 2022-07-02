@@ -14,6 +14,8 @@
 --
 -- Stretch goals:
 -- * Jump to definition
+-- * Directives/commands, e.g. :edit <>
+-- * codelens for "add"
 module Unison.LSP where
 
 import Colog.Core (LogAction (LogAction))
@@ -26,28 +28,32 @@ import qualified Language.LSP.Types.SMethodMap as SMM
 import Language.LSP.VFS
 import qualified Network.Simple.TCP as TCP
 import Network.Socket
+import Unison.Codebase
+import Unison.Codebase.Runtime (Runtime)
 import Unison.LSP.RequestHandlers
 import Unison.LSP.Types
 import Unison.LSP.VFS
+import Unison.Parser.Ann
 import Unison.Prelude
+import Unison.Symbol
 import UnliftIO
 
-spawnLsp :: IO ()
-spawnLsp = do
+spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> IO ()
+spawnLsp codebase runtime = do
   putStrLn "Booting up LSP"
   TCP.serve (TCP.Host "127.0.0.1") "5050" $ \(sock, _sockaddr) -> do
     sockHandle <- socketToHandle sock ReadWriteMode
     putStrLn "LSP Client connected."
     initVFS $ \vfs -> do
       vfsVar <- newMVar vfs
-      void $ runServerWithHandles (LogAction print) (LogAction $ liftIO . print) sockHandle sockHandle (serverDefinition (liftIO . print) vfsVar)
+      void $ runServerWithHandles (LogAction print) (LogAction $ liftIO . print) sockHandle sockHandle (serverDefinition (liftIO . print) vfsVar codebase runtime)
 
-serverDefinition :: (forall a. Show a => a -> Lsp ()) -> MVar VFS -> ServerDefinition Config
-serverDefinition logger vfsVar =
+serverDefinition :: (forall a. Show a => a -> Lsp ()) -> MVar VFS -> Codebase IO Symbol Ann -> Runtime Symbol -> ServerDefinition Config
+serverDefinition logger vfsVar codebase runtime =
   ServerDefinition
     { defaultConfig = lspDefaultConfig,
       onConfigurationChange = lspOnConfigurationChange,
-      doInitialize = lspDoInitialize vfsVar,
+      doInitialize = lspDoInitialize vfsVar codebase runtime,
       staticHandlers = lspStaticHandlers logger,
       interpretHandler = lspInterpretHandler,
       options = lspOptions
@@ -59,8 +65,8 @@ lspOnConfigurationChange _ _ = pure Config
 lspDefaultConfig :: Config
 lspDefaultConfig = Config
 
-lspDoInitialize :: MVar VFS -> LanguageContextEnv Config -> Message 'Initialize -> IO (Either ResponseError Env)
-lspDoInitialize vfsVar ctx _ = pure $ Right $ Env ctx vfsVar
+lspDoInitialize :: MVar VFS -> Codebase IO Symbol Ann -> Runtime Symbol -> LanguageContextEnv Config -> Message 'Initialize -> IO (Either ResponseError Env)
+lspDoInitialize vfsVar codebase runtime context _ = pure $ Right $ Env {..}
 
 lspStaticHandlers :: (forall a. Show a => a -> Lsp ()) -> Handlers Lsp
 lspStaticHandlers logger =

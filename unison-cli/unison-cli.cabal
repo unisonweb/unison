@@ -115,8 +115,10 @@ library
     , exceptions
     , extra
     , filepath
+    , fuzzyfind
     , generic-lens
     , haskeline
+    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -223,8 +225,10 @@ executable cli-integration-tests
     , exceptions
     , extra
     , filepath
+    , fuzzyfind
     , generic-lens
     , haskeline
+    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -326,8 +330,10 @@ executable transcripts
     , exceptions
     , extra
     , filepath
+    , fuzzyfind
     , generic-lens
     , haskeline
+    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -433,8 +439,10 @@ executable unison
     , exceptions
     , extra
     , filepath
+    , fuzzyfind
     , generic-lens
     , haskeline
+    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -547,6 +555,7 @@ test-suite cli-tests
     , exceptions
     , extra
     , filepath
+    , fuzzyfind
     , generic-lens
     , haskeline
     , here
