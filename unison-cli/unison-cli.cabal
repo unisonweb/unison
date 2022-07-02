@@ -63,6 +63,7 @@ library
       Unison.LSP
       Unison.LSP.RequestHandlers
       Unison.LSP.Types
+      Unison.LSP.VFS
       Unison.Share.Codeserver
       Unison.Share.Sync
       Unison.Share.Sync.Types

@@ -10,7 +10,7 @@ newtype Lsp a = Lsp {runLspM :: ReaderT Env (LspM Config) a}
 
 data Env = Env
   { context :: LanguageContextEnv Config,
-    vfs :: MVar VFS
+    vfsVar :: MVar VFS
   }
 
 data Config = Config

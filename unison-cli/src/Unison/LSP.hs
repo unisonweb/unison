@@ -10,6 +10,7 @@
 -- * Format on save
 -- * Hover type-signature/definition
 -- * Autocomplete
+-- * Snippets for case-statements & handlers
 --
 -- Stretch goals:
 -- * Jump to definition
@@ -17,9 +18,7 @@ module Unison.LSP where
 
 import Colog.Core (LogAction (LogAction))
 import Control.Monad.Reader
-import Control.Monad.State
 import Data.Aeson hiding (Options, defaultOptions)
-import Data.Tuple (swap)
 import Language.LSP.Server
 import Language.LSP.Types
 import Language.LSP.Types.SMethodMap
@@ -29,6 +28,7 @@ import qualified Network.Simple.TCP as TCP
 import Network.Socket
 import Unison.LSP.RequestHandlers
 import Unison.LSP.Types
+import Unison.LSP.VFS
 import Unison.Prelude
 import UnliftIO
 
@@ -73,6 +73,7 @@ lspReqHandlers :: SMethodMap (ClientMessageHandler Lsp 'Request)
 lspReqHandlers =
   mempty
     & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
+    & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
 
 lspNotHandlers :: (forall a. Show a => a -> Lsp ()) -> SMethodMap (ClientMessageHandler Lsp 'Notification)
 lspNotHandlers logger =
@@ -80,12 +81,6 @@ lspNotHandlers logger =
     & SMM.insert STextDocumentDidOpen (ClientMessageHandler $ usingVFS . openVFS (LogAction $ lift . logger))
     & SMM.insert STextDocumentDidClose (ClientMessageHandler $ usingVFS . closeVFS (LogAction $ lift . logger))
     & SMM.insert STextDocumentDidChange (ClientMessageHandler $ usingVFS . changeFromClientVFS (LogAction $ lift . logger))
-  where
-    usingVFS :: forall a. StateT VFS Lsp a -> Lsp a
-    usingVFS m = do
-      vfsVar <- asks vfs
-      -- transactionally access the virtual filesystem
-      modifyMVar vfsVar $ \vfs -> swap <$> runStateT m vfs
 
 lspInterpretHandler :: Env -> Lsp <~> IO
 lspInterpretHandler env@(Env {context}) =
@@ -95,4 +90,13 @@ lspInterpretHandler env@(Env {context}) =
     fromIO m = liftIO m
 
 lspOptions :: Options
-lspOptions = defaultOptions
+lspOptions = defaultOptions {textDocumentSync = Just $ textDocSyncOptions}
+  where
+    textDocSyncOptions =
+      TextDocumentSyncOptions
+        { _openClose = Just True,
+          _change = Just TdSyncIncremental, -- TdSyncFull
+          _willSave = Just True,
+          _willSaveWaitUntil = Just True,
+          _save = Just (InL True)
+        }
