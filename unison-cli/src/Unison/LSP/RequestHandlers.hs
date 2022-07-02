@@ -101,7 +101,9 @@ completionHandler m respond =
 
 snippetCompletions :: Text -> Range -> [CompletionItem]
 snippetCompletions prefix range =
-  [ ("handle", handlerTemplate)
+  [ ("handler", handlerTemplate),
+    ("cases", casesTemplate),
+    ("match-with", matchWithTemplate)
   ]
     & filter (Text.isPrefixOf prefix . fst)
     & fmap toCompletion
@@ -115,10 +117,22 @@ snippetCompletions prefix range =
         }
     handlerTemplate =
       [here|
-${1:handlerName} : v -> Request (${2:ability}) a -> a
-${1:handlerName} storedValue = cases
+handle${1:Ability} : Request (${1:Ability} ${2}) a -> a
+handle${1:Ability} = cases
   {${3} -> continue} -> do
     ${4}
+    |]
+    casesTemplate =
+      [here|
+cases
+  ${1} -> do
+    ${2}
+    |]
+    matchWithTemplate =
+      [here|
+match ${1} with
+  ${2} -> do
+    ${3}
     |]
 
 mkCompletionItem :: Text -> CompletionItem
@@ -142,3 +156,15 @@ mkCompletionItem lbl =
       _command = Nothing,
       _xdata = Nothing
     }
+
+-- | computes code lenses for a document.
+--
+-- TODO: This should really use a TypecheckedUnisonFile
+codeLensHandler :: RequestMessage 'TextDocumentCodeLens -> (Either ResponseError (ResponseResult 'TextDocumentCodeLens) -> Lsp ()) -> Lsp ()
+codeLensHandler m respond =
+  respond . maybe (Right mempty) (Right . List) =<< runMaybeT do
+    pure []
+
+-- | Runs a selected code lens
+codeLensResolveHandler :: RequestMessage 'CodeLensResolve -> (Either ResponseError (ResponseResult 'CodeLensResolve) -> Lsp ()) -> Lsp ()
+codeLensResolveHandler m respond = respond (Left $ error "unsupported")

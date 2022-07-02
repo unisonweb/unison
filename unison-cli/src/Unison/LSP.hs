@@ -80,6 +80,7 @@ lspReqHandlers =
   mempty
     & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
     & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
+    & SMM.insert SCodeLensResolve (ClientMessageHandler codeLensResolveHandler)
 
 lspNotHandlers :: (forall a. Show a => a -> Lsp ()) -> SMethodMap (ClientMessageHandler Lsp 'Notification)
 lspNotHandlers logger =

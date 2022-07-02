@@ -6,6 +6,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Char (isSpace)
 import qualified Data.Text as Text
+import qualified Data.Text.Utf16.Rope as Rope
 import Data.Tuple (swap)
 import Language.LSP.Types
 import Language.LSP.Types.Lens
@@ -22,11 +23,17 @@ usingVFS m = do
   vfsVar' <- asks vfsVar
   modifyMVar vfsVar' $ \vfs -> swap <$> runStateT m vfs
 
-getVirtualFile :: TextDocumentIdentifier -> Lsp (Maybe VirtualFile)
-getVirtualFile (TextDocumentIdentifier uri) = do
+getVirtualFile :: (HasTextDocument p TextDocumentIdentifier) => p -> Lsp (Maybe VirtualFile)
+getVirtualFile p = do
   vfs <- asks vfsVar >>= readMVar
   liftIO $ print ("vfsmap" :: String, vfs)
+  let (TextDocumentIdentifier uri) = p ^. textDocument
   pure $ vfs ^. vfsMap . at (toNormalizedUri uri)
+
+getFileContents :: (HasTextDocument p TextDocumentIdentifier) => p -> Lsp (Maybe Text)
+getFileContents p = runMaybeT $ do
+  vf <- MaybeT $ getVirtualFile p
+  pure . Rope.toText . _file_text $ vf
 
 completionPrefix :: (HasPosition p Position, HasTextDocument p TextDocumentIdentifier) => p -> Lsp (Maybe (Range, Text))
 completionPrefix p = runMaybeT $ do
@@ -38,7 +45,7 @@ completionPrefix p = runMaybeT $ do
 
 identifierPartsAtPosition :: (HasPosition p Position, HasTextDocument p TextDocumentIdentifier) => p -> Lsp (Maybe (Text, Text))
 identifierPartsAtPosition p = runMaybeT $ do
-  vf <- MaybeT (getVirtualFile (p ^. textDocument))
+  vf <- MaybeT (getVirtualFile p)
   PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix (p ^. position) vf)
   let (before, after) = Text.splitAt (cursorPos ^. character . Lens.to fromIntegral) fullLine
   pure $ (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)

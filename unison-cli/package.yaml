@@ -57,6 +57,7 @@ dependencies:
   - servant-client
   - stm
   - text
+  - text-rope
   - these
   - time
   - transformers
