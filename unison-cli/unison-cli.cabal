@@ -61,6 +61,8 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
       Unison.LSP
+      Unison.LSP.RequestHandlers
+      Unison.LSP.Types
       Unison.Share.Codeserver
       Unison.Share.Sync
       Unison.Share.Sync.Types
