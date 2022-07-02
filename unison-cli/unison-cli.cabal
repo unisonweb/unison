@@ -60,6 +60,7 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.LSP
       Unison.Share.Codeserver
       Unison.Share.Sync
       Unison.Share.Sync.Types
@@ -100,6 +101,7 @@ library
     , base
     , bytes
     , bytestring
+    , co-log-core
     , concurrent-output
     , configurator
     , containers >=0.6.3
@@ -119,9 +121,13 @@ library
     , ki
     , lens
     , lock-file
+    , lsp
+    , lsp-types
     , megaparsec
     , memory
     , mtl
+    , network
+    , network-simple
     , network-uri
     , nonempty-containers
     , open-browser
@@ -201,6 +207,7 @@ executable cli-integration-tests
     , base
     , bytes
     , bytestring
+    , co-log-core
     , code-page
     , concurrent-output
     , configurator
@@ -222,9 +229,13 @@ executable cli-integration-tests
     , ki
     , lens
     , lock-file
+    , lsp
+    , lsp-types
     , megaparsec
     , memory
     , mtl
+    , network
+    , network-simple
     , network-uri
     , nonempty-containers
     , open-browser
@@ -299,6 +310,7 @@ executable transcripts
     , base
     , bytes
     , bytestring
+    , co-log-core
     , code-page
     , concurrent-output
     , configurator
@@ -320,9 +332,13 @@ executable transcripts
     , ki
     , lens
     , lock-file
+    , lsp
+    , lsp-types
     , megaparsec
     , memory
     , mtl
+    , network
+    , network-simple
     , network-uri
     , nonempty-containers
     , open-browser
@@ -402,6 +418,7 @@ executable unison
     , base
     , bytes
     , bytestring
+    , co-log-core
     , code-page
     , concurrent-output
     , configurator
@@ -422,9 +439,13 @@ executable unison
     , ki
     , lens
     , lock-file
+    , lsp
+    , lsp-types
     , megaparsec
     , memory
     , mtl
+    , network
+    , network-simple
     , network-uri
     , nonempty-containers
     , open-browser
@@ -510,6 +531,7 @@ test-suite cli-tests
     , base
     , bytes
     , bytestring
+    , co-log-core
     , code-page
     , concurrent-output
     , configurator
@@ -532,9 +554,13 @@ test-suite cli-tests
     , ki
     , lens
     , lock-file
+    , lsp
+    , lsp-types
     , megaparsec
     , memory
     , mtl
+    , network
+    , network-simple
     , network-uri
     , nonempty-containers
     , open-browser

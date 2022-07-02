@@ -116,6 +116,34 @@ packages:
       sha256: 8372e84e9c710097f4f80f2016ca15a5a0cd7884b8ac5ce70f26b3110f4401bd
   original:
     hackage: http-client-0.7.11
+- completed:
+    hackage: lsp-1.5.0.0@sha256:1ad138526f9177965d4b5b01f9074fe0475636b2c563dcc7036fb6908f8e6189,5382
+    pantry-tree:
+      size: 1551
+      sha256: 87526822a8ffb514d355975bca3a3f5ceb9a19eaf664cbdcde2f866c4d33878c
+  original:
+    hackage: lsp-1.5.0.0
+- completed:
+    hackage: lsp-types-1.5.0.0@sha256:7ed97bbc9290ad6ffb9b5a8e082226783c710fff9e4ca2df4c578b065997b1ea,4301
+    pantry-tree:
+      size: 4160
+      sha256: e45ef86a4301beb45ae7ec527e69880944a03c2d959cb0a051bf58dd0a5579f4
+  original:
+    hackage: lsp-types-1.5.0.0
+- completed:
+    hackage: text-rope-0.2@sha256:53b9b4cef0b278b9c591cd4ca76543acacf64c9d1bfbc06d0d9a88960446d9a7,2087
+    pantry-tree:
+      size: 1180
+      sha256: 51b22419f8d9bfd2a8aa3efa16b80a48e4b0c915a1d27fefe5f0b6d2d9e48312
+  original:
+    hackage: text-rope-0.2@sha256:53b9b4cef0b278b9c591cd4ca76543acacf64c9d1bfbc06d0d9a88960446d9a7,2087
+- completed:
+    hackage: co-log-core-0.3.1.0@sha256:9794bdedd1391decd0e22bdfe2b11abcb42e6cff7a4531e1f8882890828f4e63,3816
+    pantry-tree:
+      size: 584
+      sha256: d4cc089c40c5052ee02f91eafa567e0a239908aabc561dfa6080ba3bfc8c25bd
+  original:
+    hackage: co-log-core-0.3.1.0
 snapshots:
 - completed:
     size: 590100

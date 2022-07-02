@@ -36,10 +36,15 @@ dependencies:
   - ki
   - lens
   - lock-file
+  - lsp
+  - lsp-types
   - megaparsec
   - memory
   - mtl
   - network-uri
+  - network-simple
+  - network
+  - co-log-core
   - nonempty-containers
   - open-browser
   - pretty-simple
