@@ -130,7 +130,12 @@ compile (Many p) !_ !success = case p of
           Just (Text.chunkToText -> txt, t) -> case DT.dropWhile ok txt of
             rem
               | DT.null rem -> go acc t
-              | otherwise -> success acc (Text.fromText rem <> t)
+              | otherwise ->
+                  -- moving the remainder to the root of the tree is much more efficient
+                  -- since the next uncons will be O(1) rather than O(log n)
+                  -- this can't unbalance the tree too badly since these promoted chunks
+                  -- are being consumed and will get removed by a subsequent uncons
+                  success acc (Text.appendUnbalanced (Text.fromText rem) t)
     {-# INLINE walker #-}
 compile (Replicate m n p) !err !success = case p of
   AnyChar -> \acc t ->
