@@ -44,9 +44,6 @@ extra-deps:
   commit: 563e96238dfe392dccf68d93953c8f30fd53bec8
   subdirs:
     - ki
-# lts 18.28 provides 0.8.2 but we need un-released version that fixes apple m1 bug
-- github: judah/haskeline
-  commit: 7a83e7659211049f3bd167e7a13bc1cb4c42c91b
 - guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
 - prelude-extras-0.4.0.3@sha256:1c10b0123ea13a6423d74a8fcbaeb2d5249b472588abde418a36b47b7c4f48c8,1163
 - sandi-0.5@sha256:b278d072ca717706ea38f9bd646e023f7f2576a778fb43565b434f93638849aa,3010

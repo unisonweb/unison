@@ -40,17 +40,6 @@ packages:
     subdir: ki
     url: https://github.com/awkward-squad/ki/archive/563e96238dfe392dccf68d93953c8f30fd53bec8.tar.gz
 - completed:
-    sha256: da4411964018337065d6e4685e19e9d4ddb5a46eca125cab4127381dcb4aabab
-    name: haskeline
-    size: 75107
-    url: https://github.com/judah/haskeline/archive/7a83e7659211049f3bd167e7a13bc1cb4c42c91b.tar.gz
-    pantry-tree:
-      sha256: 914a0401902a9c2f3cb48b9ddc6a24db3a864cba38bbae17752b3e40c6c513a8
-      size: 3656
-    version: 0.8.1.2
-  original:
-    url: https://github.com/judah/haskeline/archive/7a83e7659211049f3bd167e7a13bc1cb4c42c91b.tar.gz
-- completed:
     pantry-tree:
       sha256: a33838b7b1c54f6ac3e1b436b25674948713a4189658e4d82e639b9a689bc90d
       size: 364
