@@ -96,7 +96,7 @@ namespaceDetails runtime codebase namespaceName maySBH mayWidth =
         namespaceCausal <- Backend.getShallowCausalAtPathFromRootHash codebase mayRootHash namespacePath
         shallowBranch <- lift $ V2Causal.value namespaceCausal
         namespaceDetails <- do
-          (_parseNames, printNames) <- Backend.scopedNamesForBranchHash codebase mayRootHash namespacePath
+          (_parseNames, printNames, _localNamesOnly) <- Backend.scopedNamesForBranchHash codebase mayRootHash namespacePath
           readme <-
             Backend.findShallowReadmeInBranchAndRender
               width

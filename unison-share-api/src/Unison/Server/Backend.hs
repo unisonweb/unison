@@ -160,9 +160,9 @@ suffixifyNames hashLength names =
   PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
 
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
-prettyAndParseNamesForBranch :: Branch m -> NameScoping -> (Names, Names)
+prettyAndParseNamesForBranch :: Branch m -> NameScoping -> (Names, Names, Names)
 prettyAndParseNamesForBranch root scope =
-  (parseNames0, prettyPrintNames0)
+  (parseNames0, prettyPrintNames0, currentPathNames)
   where
     path :: Path
     includeAllNames :: Bool
@@ -199,10 +199,10 @@ basicSuffixifiedNames hashLength root nameScope =
    in suffixifyNames hashLength names0
 
 parseNamesForBranch :: Branch m -> NameScoping -> Names
-parseNamesForBranch root = fst . prettyAndParseNamesForBranch root
+parseNamesForBranch root = prettyAndParseNamesForBranch root <&> \(n, _, _) -> n
 
 prettyNamesForBranch :: Branch m -> NameScoping -> Names
-prettyNamesForBranch root = snd . prettyAndParseNamesForBranch root
+prettyNamesForBranch root = prettyAndParseNamesForBranch root <&> \(_, n, _) -> n
 
 shallowPPE :: Monad m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
 shallowPPE codebase b = do
@@ -818,9 +818,9 @@ prettyDefinitionsBySuffixes ::
   Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase query = do
   hqLength <- lift $ Codebase.hashLength codebase
-  (_parseNames, printNames) <- scopedNamesForBranchHash codebase root path
+  (_parseNames, printNames, localNamesOnly) <- scopedNamesForBranchHash codebase root path
   let nameSearch :: NameSearch
-      nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames printNames)
+      nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   DefinitionResults terms types misses <-
     lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
   -- We might like to make sure that the user search terms get used as
@@ -1070,7 +1070,7 @@ bestNameForType ppe width =
     . TypePrinter.pretty0 @v ppe mempty (-1)
     . Type.ref ()
 
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, Names)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, Names, Names)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   case mbh of
@@ -1085,10 +1085,10 @@ scopedNamesForBranchHash codebase mbh path = do
         then indexPrettyAndParseNames
         else flip prettyAndParseNamesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
   where
-    indexPrettyAndParseNames :: Backend m (Names, Names)
+    indexPrettyAndParseNames :: Backend m (Names, Names, Names)
     indexPrettyAndParseNames = do
       names <- lift $ Codebase.namesAtPath codebase path
-      pure (ScopedNames.parseNames names, ScopedNames.prettyNames names)
+      pure (ScopedNames.parseNames names, Names.minimalUniqueSuffix $ ScopedNames.prettyNames names, ScopedNames.namesAtPath names)
 
 resolveCausalHash ::
   Monad m => Maybe (Branch.CausalHash) -> Codebase m v a -> Backend m (Branch m)

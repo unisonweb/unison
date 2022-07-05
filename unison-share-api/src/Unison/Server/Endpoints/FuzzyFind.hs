@@ -142,7 +142,7 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
         <$> traverse (parsePath . Text.unpack) relativePath
     hashLength <- lift $ Codebase.hashLength codebase
     rootHash <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    (_parseNames, prettyNames) <- Backend.scopedNamesForBranchHash codebase rootHash rel
+    (_parseNames, prettyNames, _localNamesOnly) <- Backend.scopedNamesForBranchHash codebase rootHash rel
     let alignments ::
           ( [ ( FZF.Alignment,
                 UnisonName,

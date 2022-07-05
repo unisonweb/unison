@@ -274,7 +274,7 @@ suffixedTermName :: Int -> Referent -> NamesWithHistory -> [HQ'.HashQualified Na
                   isHQ'd = R.manyDom fqn rel -- it is conflicted
                   hq n = HQ'.take length (hq' n r)
                   hqn = if isHQ'd then hq n' else HQ'.fromName n'
-               in (isHQ'd, Name.countSegments fqn, Name.isAbsolute n', hqn)
+               in (isHQ'd, Name.countSegments n', Name.isAbsolute n', hqn)
 
 -- Set HashQualified -> Branch m -> Action' m v Names
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names
