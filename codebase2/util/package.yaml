@@ -32,6 +32,7 @@ dependencies:
   - safe
   - text
   - time
+  - unison-prelude
   - unison-util-relation
   - unliftio
   - vector
