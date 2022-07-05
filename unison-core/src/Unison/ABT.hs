@@ -95,17 +95,21 @@ import qualified Data.Foldable as Foldable
 import Data.List hiding (cycle, find)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Prelude.Extras (Eq1 (..), Ord1 (..))
 import U.Core.ABT
   ( ABT (..),
     Term (..),
     foreachSubterm,
+    freshInBoth,
+    rename,
+    subst',
+    substInheritAnnotation,
+    substsInheritAnnotation,
     subterms,
     transform,
     transformM,
     unabs,
-    visit,
     visit',
+    visit,
     visitPure,
     vmap,
     pattern AbsN',
@@ -273,30 +277,6 @@ cycler' a vs t = cycle' a $ foldr (absr' a) t vs
 cycler :: (Functor f, Foldable f, Var v) => [v] -> Term f (V v) () -> Term f (V v) ()
 cycler = cycler' ()
 
--- | renames `old` to `new` in the given term, ignoring subtrees that bind `old`
-rename :: (Foldable f, Functor f, Var v) => v -> v -> Term f v a -> Term f v a
-rename old new t0@(Term fvs ann t) =
-  if Set.notMember old fvs
-    then t0
-    else case t of
-      Var v -> if v == old then annotatedVar ann new else t0
-      Cycle body -> cycle' ann (rename old new body)
-      Abs v body ->
-        -- v shadows old, so skip this subtree
-        if v == old
-          then abs' ann v body
-          else -- the rename would capture new, freshen this Abs
-          -- to make that no longer true, then proceed with
-          -- renaming `old` to `new`
-
-            if v == new
-              then
-                let v' = freshIn (Set.fromList [new, old] <> freeVars body) v
-                 in abs' ann v' (rename old new (rename v v' body))
-              else -- nothing special, just rename inside body of Abs
-                abs' ann v (rename old new body)
-      Tm v -> tm' ann (fmap (rename old new) v)
-
 renames ::
   (Foldable f, Functor f, Var v) =>
   Map v v ->
@@ -344,10 +324,6 @@ changeVars m t = case out t of
     Just v -> annotatedVar (annotation t) v
   Tm v -> tm' (annotation t) (changeVars m <$> v)
 
--- | Produce a variable which is free in both terms
-freshInBoth :: Var v => Term f v a -> Term f v a -> v -> v
-freshInBoth t1 t2 = freshIn $ Set.union (freeVars t1) (freeVars t2)
-
 fresh :: Var v => Term f v a -> v -> v
 fresh t = freshIn (freeVars t)
 
@@ -381,48 +357,6 @@ subst ::
   Term f v a ->
   Term f v a
 subst v r = subst' (const r) v (freeVars r)
-
--- Slightly generalized version of `subst`, the replacement action is handled
--- by the function `replace`, which is given the annotation `a` at the point
--- of replacement. `r` should be the set of free variables contained in the
--- term returned by `replace`. See `substInheritAnnotation` for an example usage.
-subst' :: (Foldable f, Functor f, Var v) => (a -> Term f v a) -> v -> Set v -> Term f v a -> Term f v a
-subst' replace v r t2@(Term fvs ann body)
-  | Set.notMember v fvs = t2 -- subtrees not containing the var can be skipped
-  | otherwise = case body of
-      Var v'
-        | v == v' -> replace ann -- var match; perform replacement
-        | otherwise -> t2 -- var did not match one being substituted; ignore
-      Cycle body -> cycle' ann (subst' replace v r body)
-      Abs x _ | x == v -> t2 -- x shadows v; ignore subtree
-      Abs x e -> abs' ann x' e'
-        where
-          x' = freshIn (fvs `Set.union` r) x
-          -- rename x to something that cannot be captured by `r`
-          e' =
-            if x /= x'
-              then subst' replace v r (rename x x' e)
-              else subst' replace v r e
-      Tm body -> tm' ann (fmap (subst' replace v r) body)
-
--- Like `subst`, but the annotation of the replacement is inherited from
--- the previous annotation at each replacement point.
-substInheritAnnotation ::
-  (Foldable f, Functor f, Var v) =>
-  v ->
-  Term f v b ->
-  Term f v a ->
-  Term f v a
-substInheritAnnotation v r =
-  subst' (\ann -> const ann <$> r) v (freeVars r)
-
-substsInheritAnnotation ::
-  (Foldable f, Functor f, Var v) =>
-  [(v, Term f v b)] ->
-  Term f v a ->
-  Term f v a
-substsInheritAnnotation replacements body =
-  foldr (uncurry substInheritAnnotation) body (reverse replacements)
 
 -- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
 -- substitutions, avoiding capture
@@ -569,40 +503,6 @@ find' ::
   Term f v a ->
   [Term f v a]
 find' p = Unison.ABT.find (\t -> if p t then Found t else Continue)
-
-instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
-  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
-  t1 == t2 = go (out t1) (out t2)
-    where
-      go (Var v) (Var v2) | v == v2 = True
-      go (Cycle t1) (Cycle t2) = t1 == t2
-      go (Abs v1 body1) (Abs v2 body2) =
-        if v1 == v2
-          then body1 == body2
-          else
-            let v3 = freshInBoth body1 body2 v1
-             in rename v1 v3 body1 == rename v2 v3 body2
-      go (Tm f1) (Tm f2) = f1 ==# f2
-      go _ _ = False
-
-instance (Foldable f, Functor f, Ord1 f, Var v) => Ord (Term f v a) where
-  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
-  t1 `compare` t2 = go (out t1) (out t2)
-    where
-      go (Var v) (Var v2) = v `compare` v2
-      go (Cycle t1) (Cycle t2) = t1 `compare` t2
-      go (Abs v1 body1) (Abs v2 body2) =
-        if v1 == v2
-          then body1 `compare` body2
-          else
-            let v3 = freshInBoth body1 body2 v1
-             in rename v1 v3 body1 `compare` rename v2 v3 body2
-      go (Tm f1) (Tm f2) = compare1 f1 f2
-      go t1 t2 = tag t1 `compare` tag t2
-      tag (Var _) = 0 :: Word
-      tag (Tm _) = 1
-      tag (Abs _ _) = 2
-      tag (Cycle _) = 3
 
 components :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
 components = Components.components freeVars
