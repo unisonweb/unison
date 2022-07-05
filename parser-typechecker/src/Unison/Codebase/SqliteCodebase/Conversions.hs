@@ -25,10 +25,9 @@ import qualified U.Codebase.Type as V2.Type
 import qualified U.Codebase.TypeEdit as V2.TypeEdit
 import qualified U.Codebase.WatchKind as V2
 import qualified U.Codebase.WatchKind as V2.WatchKind
-import qualified U.Core.ABT as V2.ABT
+import qualified U.Core.ABT as ABT
 import qualified U.Util.Hash as V2
 import qualified U.Util.Hash as V2.Hash
-import qualified Unison.ABT as V1.ABT
 import qualified Unison.Codebase.Branch as V1.Branch
 import qualified Unison.Codebase.Causal.Type as V1.Causal
 import qualified Unison.Codebase.Metadata as V1.Metadata
@@ -85,10 +84,9 @@ watchKind2to1 = \case
 
 term1to2 :: Hash -> V1.Term.Term V1.Symbol Ann -> V2.Term.Term V2.Symbol
 term1to2 h =
-  V2.ABT.transform termF1to2
-    . V2.ABT.vmap symbol1to2
-    . V2.ABT.amap (const ())
-    . abt1to2
+  ABT.transform termF1to2
+    . ABT.vmap symbol1to2
+    . ABT.amap (const ())
   where
     termF1to2 :: V1.Term.F V1.Symbol Ann Ann a -> V2.Term.F V2.Symbol a
     termF1to2 = go
@@ -147,11 +145,10 @@ term1to2 h =
       V1.Pattern.Concat -> V2.Term.PConcat
 
 term2to1 :: forall m. Monad m => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.Term V2.Symbol -> m (V1.Term.Term V1.Symbol Ann)
-term2to1 h lookupCT tm =
-  V1.ABT.transformM (termF2to1 h lookupCT)
-    . V1.ABT.vmap symbol2to1
-    . V1.ABT.amap (const Ann.External)
-    $ abt2to1 tm
+term2to1 h lookupCT =
+  ABT.transformM (termF2to1 h lookupCT)
+    . ABT.vmap symbol2to1
+    . ABT.amap (const Ann.External)
   where
     termF2to1 :: forall m a. Monad m => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
     termF2to1 h lookupCT = go
@@ -249,24 +246,6 @@ shortHashSuffix1to2 :: Text -> V1.Reference.Pos
 shortHashSuffix1to2 =
   -- todo: move suffix parsing to frontend
   either error id . V1.Reference.readSuffix
-
-abt2to1 :: Functor f => V2.ABT.Term f v a -> V1.ABT.Term f v a
-abt2to1 (V2.ABT.Term fv a out) = V1.ABT.Term fv a (go out)
-  where
-    go = \case
-      V2.ABT.Cycle body -> V1.ABT.Cycle (abt2to1 body)
-      V2.ABT.Abs v body -> V1.ABT.Abs v (abt2to1 body)
-      V2.ABT.Var v -> V1.ABT.Var v
-      V2.ABT.Tm tm -> V1.ABT.Tm (abt2to1 <$> tm)
-
-abt1to2 :: Functor f => V1.ABT.Term f v a -> V2.ABT.Term f v a
-abt1to2 (V1.ABT.Term fv a out) = V2.ABT.Term fv a (go out)
-  where
-    go = \case
-      V1.ABT.Cycle body -> V2.ABT.Cycle (abt1to2 body)
-      V1.ABT.Abs v body -> V2.ABT.Abs v (abt1to2 body)
-      V1.ABT.Var v -> V2.ABT.Var v
-      V1.ABT.Tm tm -> V2.ABT.Tm (abt1to2 <$> tm)
 
 rreference2to1 :: Hash -> V2.Reference' Text (Maybe V2.Hash) -> V1.Reference
 rreference2to1 h = \case
@@ -371,10 +350,9 @@ dtype2to1 h = type2to1' (rreference2to1 h)
 
 type2to1' :: (r -> V1.Reference) -> V2.Type.TypeR r V2.Symbol -> V1.Type.Type V1.Symbol Ann
 type2to1' convertRef =
-  V1.ABT.transform (typeF2to1 convertRef)
-    . V1.ABT.vmap symbol2to1
-    . V1.ABT.amap (const Ann.External)
-    . abt2to1
+  ABT.transform (typeF2to1 convertRef)
+    . ABT.vmap symbol2to1
+    . ABT.amap (const Ann.External)
   where
     typeF2to1 :: (r -> V1.Reference) -> V2.Type.F' r a -> (V1.Type.F a)
     typeF2to1 convertRef = \case
@@ -399,10 +377,9 @@ ttype1to2 = type1to2' reference1to2
 
 type1to2' :: (V1.Reference -> r) -> V1.Type.Type V1.Symbol a -> V2.Type.TypeR r V2.Symbol
 type1to2' convertRef =
-  V2.ABT.transform (typeF1to2' convertRef)
-    . V2.ABT.vmap symbol1to2
-    . V2.ABT.amap (const ())
-    . abt1to2
+  ABT.transform (typeF1to2' convertRef)
+    . ABT.vmap symbol1to2
+    . ABT.amap (const ())
   where
     typeF1to2' :: (V1.Reference -> r) -> V1.Type.F a -> V2.Type.F' r a
     typeF1to2' convertRef = \case
