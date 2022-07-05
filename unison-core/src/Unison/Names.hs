@@ -49,9 +49,12 @@ module Unison.Names
     isEmpty,
     hashQualifyTypesRelation,
     hashQualifyTermsRelation,
+    minimalUniqueSuffix,
   )
 where
 
+import Control.Lens.Cons (snoc, unsnoc)
+import Data.Bifunctor (first)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -64,6 +67,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -71,6 +75,7 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Util.List as List
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation as Relation
@@ -101,6 +106,43 @@ instance Show (Names) where
       ++ "Types:\n"
       ++ foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList types)
       ++ "\n"
+
+-- | Abbreviate all names to their minimal unique suffix.
+--
+-- E.g.
+-- ["base.List.map", "base.Bag.map"] -> ["List.map", "Bag.map"]
+-- ["base.List.filter", "base.List.map"] -> ["filter", "map"]
+minimalUniqueSuffix :: Names -> Names
+minimalUniqueSuffix (Names {terms, types}) =
+  Names {terms = abbreviateR terms, types = abbreviateR types}
+  where
+    abbreviateR :: Ord r => Relation Name r -> Relation Name r
+    abbreviateR = R.fromMultimap . Map.fromAscList . abbreviate . Map.toAscList . R.domain
+
+    --- >>> abbreviate [("base.List.map", Set.singleton 1)]
+    -- [(map,fromList [1])]
+    --- >>> abbreviate [("base.List.map", Set.singleton 1), ("base.Map.map", Set.singleton 2), ("base.List.filter", Set.singleton 2)]
+    -- [(List.map,fromList [1]),(Map.map,fromList [2]),(filter,fromList [2])]
+    abbreviate :: Ord r => [(Name, Set r)] -> [(Name, Set r)]
+    abbreviate ns =
+      ns
+        & List.groupMap getSuffixKey
+        & concatMap recurse
+
+    recurse :: Ord r => (Maybe NameSegment, [(Name, Set r)]) -> [(Name, Set r)]
+    recurse = \case
+      -- If the name was a single segment, we can't abbreviate it.
+      (Nothing, ns) -> ns
+      -- If the current suffix only has a single definition, we can discard the remaining prefix name prefix.
+      (Just suffix, [(_, rs)]) -> [(Name.fromSegment suffix, rs)]
+      -- If there are still multiple names with current suffix, recurse.
+      (Just suffix, ns) -> abbreviate ns <&> first (`snoc` suffix)
+
+    getSuffixKey :: ((Name, r) -> (Maybe NameSegment, (Name, r)))
+    getSuffixKey (name, ref) =
+      case unsnoc name of
+        Nothing -> (Nothing, (name, ref))
+        Just (remainder, suff) -> (Just suff, (remainder, ref))
 
 isEmpty :: Names -> Bool
 isEmpty n = R.null (terms n) && R.null (types n)
