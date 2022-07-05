@@ -13,7 +13,6 @@ module Unison.Codebase.Editor.Command
     EvalResult,
     commandName,
     lookupEvalResult,
-    UCMVersion,
   )
 where
 
@@ -30,6 +29,7 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.IntegrityCheck (IntegrityResult)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
@@ -94,8 +94,6 @@ type TypecheckingResult v =
   Result
     (Seq (Note v Ann))
     (Either Names (UF.TypecheckedUnisonFile v Ann))
-
-type UCMVersion = Text
 
 data
   Command
@@ -198,16 +196,16 @@ data
   LoadLocalBranch :: Branch.CausalHash -> Command m i v (Branch m)
   -- Merge two branches, using the codebase for the LCA calculation where possible.
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
-  ViewRemoteBranch ::
-    ReadRemoteNamespace ->
+  ViewRemoteGitBranch ::
+    ReadGitRemoteNamespace ->
     Git.GitBranchBehavior ->
     (Branch m -> (Free (Command m i v) r)) ->
     Command m i v (Either GitError r)
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
   -- imported and not retain any resources from the remote codebase
-  ImportRemoteBranch ::
-    ReadRemoteNamespace ->
+  ImportRemoteGitBranch ::
+    ReadGitRemoteNamespace ->
     SyncMode ->
     -- | A preprocessing step to perform on the branch before it's imported.
     -- This is sometimes useful for minimizing the number of definitions to sync.
@@ -218,7 +216,7 @@ data
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
-  SyncRemoteBranch :: WriteRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> Command m i v (Either GitError (Either e (Branch m)))
+  SyncRemoteGitBranch :: WriteGitRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> Command m i v (Either GitError (Either e (Branch m)))
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
   -- load the reflog in file (chronological) order
   LoadReflog :: Command m i v [Reflog.Entry Branch.CausalHash]
@@ -318,10 +316,10 @@ commandName = \case
   LoadLocalRootBranch -> "LoadLocalRootBranch"
   LoadLocalBranch {} -> "LoadLocalBranch"
   Merge {} -> "Merge"
-  ViewRemoteBranch {} -> "ViewRemoteBranch"
-  ImportRemoteBranch {} -> "ImportRemoteBranch"
+  ViewRemoteGitBranch {} -> "ViewRemoteGitBranch"
+  ImportRemoteGitBranch {} -> "ImportRemoteGitBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
-  SyncRemoteBranch {} -> "SyncRemoteBranch"
+  SyncRemoteGitBranch {} -> "SyncRemoteGitBranch"
   AppendToReflog {} -> "AppendToReflog"
   LoadReflog -> "LoadReflog"
   LoadTerm {} -> "LoadTerm"

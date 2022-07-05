@@ -1,6 +1,7 @@
 module U.Codebase.Sqlite.NamedRef where
 
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NEL
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import Unison.Prelude
@@ -29,10 +30,17 @@ data NamedRef ref = NamedRef {reversedSegments :: ReversedSegments, ref :: ref}
 
 instance ToRow ref => ToRow (NamedRef ref) where
   toRow (NamedRef {reversedSegments = segments, ref}) =
-    [toField (Text.intercalate "." . toList $ segments)] <> toRow ref
+    [toField reversedName] <> toRow ref
+    where
+      reversedName = Text.intercalate "." . toList $ segments
 
 instance FromRow ref => FromRow (NamedRef ref) where
   fromRow = do
     reversedSegments <- NonEmpty.fromList . Text.splitOn "." <$> field
     ref <- fromRow
     pure (NamedRef {reversedSegments, ref})
+
+toRowWithNamespace :: ToRow ref => NamedRef ref -> [SQLData]
+toRowWithNamespace nr = toRow nr <> [SQLText namespace]
+  where
+    namespace = Text.intercalate "." . reverse . NEL.tail . reversedSegments $ nr

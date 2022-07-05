@@ -52,7 +52,7 @@ optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
 testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
-failureRef, ioFailureRef, tlsFailureRef :: Reference
+failureRef, ioFailureRef, tlsFailureRef, arrayFailureRef :: Reference
 exceptionRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
 isPropagatedRef, isTestRef :: Reference
 isPropagatedRef = lookupDeclRef "IsPropagated"
@@ -76,6 +76,8 @@ exceptionRef = lookupEffectRef "Exception"
 ioFailureRef = lookupDeclRef "io2.IOFailure"
 
 tlsFailureRef = lookupDeclRef "io2.TlsFailure"
+
+arrayFailureRef = lookupDeclRef "io2.ArrayFailure"
 
 tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
 
@@ -176,7 +178,8 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.StdHandle", stdhnd),
           (v "io2.Failure", failure),
           (v "io2.TlsFailure", tlsFailure),
-          (v "io2.IOFailure", ioFailure)
+          (v "io2.IOFailure", ioFailure),
+          (v "io2.ArrayFailure", arrayFailure)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
@@ -314,6 +317,13 @@ builtinDataDecls = rs1 ++ rs
     ioFailure =
       DataDeclaration
         (Unique "009cb00e78cac9e47485cc3633c7a363939f63866ea07ab330346a2121d69a83")
+        ()
+        []
+        []
+
+    arrayFailure =
+      DataDeclaration
+        (Unique "8e877b3a45a3029904dbca9cbd8dda0ec0d147d67bd5b89027a90632c9e927fb")
         ()
         []
         []

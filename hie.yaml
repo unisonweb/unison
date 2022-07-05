@@ -39,6 +39,15 @@ cradle:
     - path: "lib/unison-sqlite/src"
       component: "unison-sqlite:lib"
 
+    - path: "lib/unison-util-base32hex/src"
+      component: "unison-util-base32hex:lib"
+
+    - path: "lib/unison-util-base32hex-orphans-aeson/src"
+      component: "unison-util-base32hex-orphans-aeson:lib"
+
+    - path: "lib/unison-util-base32hex-orphans-sqlite/src"
+      component: "unison-util-base32hex-orphans-sqlite:lib"
+
     - path: "lib/unison-util-relation/src"
       component: "unison-util-relation:lib"
 
@@ -83,6 +92,9 @@ cradle:
 
     - path: "unison-core/src"
       component: "unison-core1:lib"
+
+    - path: "unison-hashing-v2/src"
+      component: "unison-hashing-v2:lib"
 
     - path: "unison-hashing-v2/src"
       component: "unison-hashing-v2:lib"

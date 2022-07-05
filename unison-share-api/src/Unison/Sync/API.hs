@@ -11,6 +11,7 @@ api = Proxy
 
 type API =
   "path" :> "get" :> GetCausalHashByPathEndpoint
+    :<|> "path" :> "fast-forward" :> FastForwardPathEndpoint
     :<|> "path" :> "update" :> UpdatePathEndpoint
     :<|> "entities" :> "download" :> DownloadEntitiesEndpoint
     :<|> "entities" :> "upload" :> UploadEntitiesEndpoint
@@ -18,6 +19,10 @@ type API =
 type GetCausalHashByPathEndpoint =
   ReqBody '[JSON] GetCausalHashByPathRequest
     :> Post '[JSON] GetCausalHashByPathResponse
+
+type FastForwardPathEndpoint =
+  ReqBody '[JSON] FastForwardPathRequest
+    :> Post '[JSON] FastForwardPathResponse
 
 type UpdatePathEndpoint =
   ReqBody '[JSON] UpdatePathRequest

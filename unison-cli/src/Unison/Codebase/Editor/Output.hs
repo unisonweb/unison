@@ -10,6 +10,7 @@ module Unison.Codebase.Editor.Output
     UndoFailureReason (..),
     PushPull (..),
     ReflogEntry (..),
+    ShareError (..),
     pushPull,
     isFailure,
     isNumberedFailure,
@@ -57,6 +58,7 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResult' (SearchResult')
+import qualified Unison.Share.Sync.Types as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -207,9 +209,10 @@ data Output v
     -- and a nicer render.
     BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
+  | ShareError ShareError
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
-  | NoConfiguredGitUrl PushPull Path'
-  | ConfiguredGitUrlParseError PushPull Path' Text String
+  | NoConfiguredRemoteMapping PushPull Path.Absolute
+  | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
@@ -248,15 +251,22 @@ data Output v
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-    RefusedToPush PushBehavior
-  | -- | @GistCreated repo hash@ means causal @hash@ was just published to @repo@.
-    GistCreated Int WriteRepo Branch.CausalHash
+    RefusedToPush PushBehavior WriteRemotePath
+  | -- | @GistCreated repo@ means a causal was just published to @repo@.
+    GistCreated ReadRemoteNamespace
   | -- | Directs the user to URI to begin an authorization flow.
     InitiateAuthFlow URI
   | UnknownCodeServer Text
   | CredentialFailureMsg CredentialFailure
   | PrintVersion Text
   | IntegrityCheck IntegrityResult
+
+data ShareError
+  = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
+  | ShareErrorFastForwardPush Sync.FastForwardPushError
+  | ShareErrorPull Sync.PullError
+  | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
+  | ShareErrorTransport Sync.CodeserverTransportError
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
@@ -345,8 +355,8 @@ isFailure o = case o of
   GitError {} -> True
   BustedBuiltins {} -> True
   ConfiguredMetadataParseError {} -> True
-  NoConfiguredGitUrl {} -> True
-  ConfiguredGitUrlParseError {} -> True
+  NoConfiguredRemoteMapping {} -> True
+  ConfiguredRemoteMappingParseError {} -> True
   MetadataMissingType {} -> True
   MetadataAmbiguous {} -> True
   PatchNeedsToBeConflictFree {} -> True
@@ -387,6 +397,7 @@ isFailure o = case o of
     case r of
       NoIntegrityErrors -> False
       IntegrityErrorDetected {} -> True
+  ShareError {} -> True
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

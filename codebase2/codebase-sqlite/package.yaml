@@ -22,6 +22,7 @@ dependencies:
   - generic-lens
   - monad-validate
   - mtl
+  - nonempty-containers
   - safe
   - text
   - transformers
@@ -31,6 +32,8 @@ dependencies:
   - unison-prelude
   - unison-sqlite
   - unison-util
+  - unison-util-base32hex
+  - unison-util-base32hex-orphans-sqlite
   - unison-util-serialization
   - unison-util-term
   - unliftio
@@ -49,6 +52,7 @@ default-extensions:
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
   - FunctionalDependencies

@@ -17,6 +17,7 @@ import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchema3To4)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5 (migrateSchema4To5)
 import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
 import Unison.Codebase.SqliteCodebase.Paths
 import Unison.Codebase.Type (LocalOrRemote (..))
@@ -41,7 +42,8 @@ migrations getDeclType termBuffer declBuffer =
   Map.fromList
     [ (2, migrateSchema1To2 getDeclType termBuffer declBuffer),
       (3, migrateSchema2To3),
-      (4, migrateSchema3To4)
+      (4, migrateSchema3To4),
+      (5, migrateSchema4To5)
     ]
 
 -- | Migrates a codebase up to the most recent version known to ucm.
@@ -70,6 +72,16 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
           let migrationsToRun =
                 Map.filterWithKey (\v _ -> v > schemaVersion) migs
           when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase root
+          -- This is a bit of a hack, hopefully we can remove this when we have a more
+          -- reliable way to freeze old migration code in time.
+          -- The problem is that 'saveObject' has been changed to flush temp entity tables,
+          -- but old schema versions still use 'saveObject', but don't have the tables!
+          -- We can create the tables no matter what, there won't be anything to flush, so
+          -- everything still works as expected.
+          --
+          -- Hopefully we can remove this once we've got better methods of freezing migration
+          -- code in time.
+          when (schemaVersion < 5) $ run Q.addTempEntityTables
           for_ (Map.toAscList migrationsToRun) $ \(SchemaVersion v, migration) -> do
             putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
             run migration

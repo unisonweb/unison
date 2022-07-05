@@ -20,6 +20,7 @@ library
       Unison.Debug
       Unison.Prelude
       Unison.Util.Map
+      Unison.Util.Monoid
       Unison.Util.Set
   hs-source-dirs:
       src

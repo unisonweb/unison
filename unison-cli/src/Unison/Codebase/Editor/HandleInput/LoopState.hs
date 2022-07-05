@@ -11,8 +11,9 @@ import Control.Monad.State
 import Data.Configurator ()
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
-import qualified Network.HTTP.Client as HTTP
 import Unison.Auth.CredentialManager (CredentialManager)
+import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
+import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch
   ( Branch (..),
   )
@@ -28,18 +29,19 @@ import qualified Unison.Util.Free as Free
 
 type F m i v = Free (Command m i v)
 
-data Env = Env
-  { authHTTPClient :: HTTP.Manager,
+data Env m v = Env
+  { authHTTPClient :: AuthenticatedHttpClient,
+    codebase :: Codebase m v Ann,
     credentialManager :: CredentialManager
   }
 
-newtype Action m i v a = Action {unAction :: MaybeT (ReaderT Env (StateT (LoopState m v) (F m i v))) a}
-  deriving newtype (Functor, Applicative, Alternative, Monad, MonadIO, MonadState (LoopState m v), MonadReader Env)
+newtype Action m i v a = Action {unAction :: MaybeT (ReaderT (Env m v) (StateT (LoopState m v) (F m i v))) a}
+  deriving newtype (Functor, Applicative, Alternative, Monad, MonadIO, MonadState (LoopState m v), MonadReader (Env m v))
   -- We should likely remove this MonadFail instance since it's really hard to debug,
   -- but it's currently in use.
   deriving newtype (MonadFail)
 
-runAction :: Env -> LoopState m v -> Action m i v a -> (F m i v (Maybe a, LoopState m v))
+runAction :: Env m v -> LoopState m v -> Action m i v a -> (F m i v (Maybe a, LoopState m v))
 runAction env state (Action m) =
   m
     & runMaybeT
@@ -125,3 +127,8 @@ respondNumbered output = do
   args <- eval $ NotifyNumbered output
   unless (null args) $
     numberedArgs .= toList args
+
+-- | Get the codebase out of the environment.
+askCodebase :: Action m i v (Codebase m v Ann)
+askCodebase =
+  asks codebase

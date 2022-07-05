@@ -6,6 +6,7 @@ module Unison.Debug
     whenDebug,
     debugLog,
     debugLogM,
+    shouldDebug,
     DebugFlag (..),
   )
 where
@@ -26,6 +27,7 @@ data DebugFlag
   | Auth
   | Migration
   | Integrity
+  | Sync
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -43,6 +45,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "AUTH" -> pure Auth
       "MIGRATION" -> pure Migration
       "INTEGRITY" -> pure Integrity
+      "SYNC" -> pure Sync
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -69,6 +72,10 @@ debugMigration = Migration `Set.member` debugFlags
 debugIntegrity :: Bool
 debugIntegrity = Integrity `Set.member` debugFlags
 {-# NOINLINE debugIntegrity #-}
+
+debugSync :: Bool
+debugSync = Sync `Set.member` debugFlags
+{-# NOINLINE debugSync #-}
 
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
@@ -116,3 +123,4 @@ shouldDebug = \case
   Auth -> debugAuth
   Migration -> debugMigration
   Integrity -> debugIntegrity
+  Sync -> debugSync

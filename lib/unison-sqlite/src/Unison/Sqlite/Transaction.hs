@@ -7,6 +7,7 @@ module Unison.Sqlite.Transaction
     unsafeUnTransaction,
     savepoint,
     unsafeIO,
+    unsafeGetConnection,
 
     -- * Executing queries
 
@@ -30,6 +31,7 @@ module Unison.Sqlite.Transaction
     queryMaybeCol,
     queryOneRow,
     queryOneCol,
+    queryManyListRow,
 
     -- **** With checks
     queryListRowCheck,
@@ -54,6 +56,9 @@ module Unison.Sqlite.Transaction
     queryMaybeColCheck_,
     queryOneRowCheck_,
     queryOneColCheck_,
+
+    -- * Rows modified
+    rowsModified,
   )
 where
 
@@ -77,6 +82,9 @@ newtype Transaction a
   -- Omit MonadThrow instance so we always throw SqliteException (via *Check) with lots of context
   deriving (Applicative, Functor, Monad) via (ReaderT Connection IO)
 
+unsafeGetConnection :: Transaction Connection
+unsafeGetConnection = Transaction pure
+
 -- | Run a transaction on the given connection.
 runTransaction :: MonadIO m => Connection -> Transaction a -> m a
 runTransaction conn (Transaction f) = liftIO do
@@ -88,8 +96,8 @@ runTransaction conn (Transaction f) = liftIO do
         ignoringExceptions (Connection.rollback conn)
         case fromException exception of
           Just SqliteBusyException -> do
-            restore (threadDelay 100_000)
-            runWriteTransaction_ restore 200_000 conn (f conn)
+            restore (threadDelay transactionRetryDelay)
+            runWriteTransaction_ restore conn (f conn)
           _ -> throwIO exception
       Right result -> do
         Connection.commit conn
@@ -132,26 +140,25 @@ runWriteTransaction conn f =
     uninterruptibleMask \restore ->
       runWriteTransaction_
         restore
-        100_000
         conn
         (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
 {-# SPECIALIZE runWriteTransaction :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a #-}
 
-runWriteTransaction_ :: (forall x. IO x -> IO x) -> Int -> Connection -> IO a -> IO a
-runWriteTransaction_ restore microseconds conn transaction = do
-  keepTryingToBeginImmediate restore conn microseconds
+runWriteTransaction_ :: (forall x. IO x -> IO x) -> Connection -> IO a -> IO a
+runWriteTransaction_ restore conn transaction = do
+  keepTryingToBeginImmediate restore conn
   result <- restore transaction `onException` ignoringExceptions (Connection.rollback conn)
   Connection.commit conn
   pure result
 
 -- @BEGIN IMMEDIATE@ until success.
-keepTryingToBeginImmediate :: (forall x. IO x -> IO x) -> Connection -> Int -> IO ()
+keepTryingToBeginImmediate :: (forall x. IO x -> IO x) -> Connection -> IO ()
 keepTryingToBeginImmediate restore conn =
-  let loop microseconds =
+  let loop =
         try @_ @SqliteQueryException (Connection.beginImmediate conn) >>= \case
           Left SqliteBusyException -> do
-            restore (threadDelay microseconds)
-            loop (microseconds * 2)
+            restore (threadDelay transactionRetryDelay)
+            loop
           Left exception -> throwIO exception
           Right () -> pure ()
    in loop
@@ -203,6 +210,11 @@ executeMany s params =
 execute_ :: Sql -> Transaction ()
 execute_ s =
   Transaction \conn -> Connection.execute_ conn s
+
+-- | Run a query many times using a prepared statement.
+queryManyListRow :: (Sqlite.FromRow r, Sqlite.ToRow q) => Sql -> [q] -> Transaction [[r]]
+queryManyListRow s params =
+  Transaction \conn -> Connection.queryManyListRow conn s params
 
 -- With results, with parameters, without checks
 
@@ -361,3 +373,12 @@ queryOneRowCheck_ s check =
 queryOneColCheck_ :: (Sqlite.FromField a, SqliteExceptionReason e) => Sql -> (a -> Either e r) -> Transaction r
 queryOneColCheck_ s check =
   Transaction \conn -> Connection.queryOneColCheck_ conn s check
+
+-- Rows modified
+
+rowsModified :: Transaction Int
+rowsModified =
+  Transaction Connection.rowsModified
+
+transactionRetryDelay :: Int
+transactionRetryDelay = 100_000

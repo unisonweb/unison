@@ -1,8 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module Unison.CommandLine.OutputMessages where
@@ -23,15 +21,20 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import Data.Tuple (swap)
-import Data.Tuple.Extra (dupe, uncurry3)
+import Data.Tuple.Extra (dupe)
 import Network.URI (URI)
+import qualified Servant.Client as Servant
 import System.Directory
   ( canonicalizePath,
     doesFileExist,
     getHomeDirectory,
   )
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
+import U.Util.Base32Hex (Base32Hex)
+import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as Hash
+import U.Util.Hash32 (Hash32)
+import qualified U.Util.Hash32 as Hash32
 import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
 import qualified Unison.Auth.Types as Auth
@@ -44,7 +47,13 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo)
+import Unison.Codebase.Editor.RemoteRepo
+  ( ReadGitRepo,
+    ReadRemoteNamespace,
+    WriteGitRepo,
+    WriteRemotePath (..),
+    WriteShareRemotePath (..),
+  )
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import qualified Unison.Codebase.Editor.TodoOutput as TO
@@ -92,6 +101,7 @@ import Unison.NamePrinter
     styleHashQualified,
     styleHashQualified',
   )
+import Unison.NameSegment (NameSegment (..))
 import Unison.Names (Names (..))
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as Names
@@ -118,8 +128,11 @@ import qualified Unison.Referent' as Referent
 import qualified Unison.Result as Result
 import Unison.Server.Backend (ShallowListEntry (..), TermEntry (..), TypeEntry (..))
 import qualified Unison.Server.SearchResult' as SR'
+import qualified Unison.Share.Sync as Share
+import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
+import qualified Unison.Sync.Types as Share
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TermPrinter
@@ -268,9 +281,9 @@ notifyNumbered o = case o of
       then
         ( P.wrap $
             "Looks like there's no difference between "
-              <> prettyRemoteNamespace baseRepo
+              <> prettyReadRemoteNamespace baseRepo
               <> "and"
-              <> prettyRemoteNamespace headRepo
+              <> prettyReadRemoteNamespace headRepo
               <> ".",
           mempty
         )
@@ -285,8 +298,8 @@ notifyNumbered o = case o of
                     P.indentN 2 $
                       IP.makeExampleNoBackticks
                         IP.loadPullRequest
-                        [ (prettyRemoteNamespace baseRepo),
-                          (prettyRemoteNamespace headRepo)
+                        [ (prettyReadRemoteNamespace baseRepo),
+                          (prettyReadRemoteNamespace headRepo)
                         ],
                     "",
                     p
@@ -507,11 +520,13 @@ showListEdits patch ppe =
 prettyURI :: URI -> Pretty
 prettyURI = P.bold . P.blue . P.shown
 
-prettyRemoteNamespace ::
-  ReadRemoteNamespace ->
-  Pretty
-prettyRemoteNamespace =
-  P.group . P.blue . P.text . uncurry3 RemoteRepo.printNamespace
+prettyReadRemoteNamespace :: ReadRemoteNamespace -> Pretty
+prettyReadRemoteNamespace =
+  P.group . P.blue . P.text . RemoteRepo.printNamespace
+
+prettyWriteRemotePath :: WriteRemotePath -> Pretty
+prettyWriteRemotePath =
+  P.group . P.blue . P.text . RemoteRepo.printWriteRemotePath
 
 notifyUser :: forall v. Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
@@ -583,8 +598,8 @@ notifyUser dir o = case o of
   LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath ->
     pure $
       P.lines
-        [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> "."),
-          P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> "."),
+        [ P.wrap $ "I checked out" <> prettyReadRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> "."),
+          P.wrap $ "I checked out" <> prettyReadRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> "."),
           "",
           P.wrap $ "The merged result is in" <> P.group (prettyPath' mergedPath <> "."),
           P.wrap $ "The (squashed) merged result is in" <> P.group (prettyPath' squashedPath <> "."),
@@ -610,11 +625,11 @@ notifyUser dir o = case o of
             "Use"
               <> IP.makeExample
                 IP.push
-                [prettyRemoteNamespace baseNS, prettyPath' mergedPath]
+                [prettyReadRemoteNamespace baseNS, prettyPath' mergedPath]
               <> "or"
               <> IP.makeExample
                 IP.push
-                [prettyRemoteNamespace baseNS, prettyPath' squashedPath]
+                [prettyReadRemoteNamespace baseNS, prettyPath' squashedPath]
               <> "to push the changes."
         ]
   DisplayDefinitions outputLoc ppe types terms ->
@@ -1046,14 +1061,14 @@ notifyUser dir o = case o of
       NoDatabaseFile repo localPath ->
         P.wrap $
           "I didn't find a codebase in the repository at"
-            <> prettyReadRepo repo
+            <> prettyReadGitRepo repo
             <> "in the cache directory at"
             <> P.backticked' (P.string localPath) "."
       UnrecognizedSchemaVersion repo localPath (SchemaVersion v) ->
         P.wrap $
           "I don't know how to interpret schema version " <> P.shown v
             <> "in the repository at"
-            <> prettyReadRepo repo
+            <> prettyReadGitRepo repo
             <> "in the cache directory at"
             <> P.backticked' (P.string localPath) "."
       GitCouldntParseRootBranchHash repo s ->
@@ -1061,7 +1076,7 @@ notifyUser dir o = case o of
           "I couldn't parse the string"
             <> P.red (P.string s)
             <> "into a namespace hash, when opening the repository at"
-            <> P.group (prettyReadRepo repo <> ".")
+            <> P.group (prettyReadGitRepo repo <> ".")
     GitProtocolError e -> case e of
       NoGit ->
         P.wrap $
@@ -1072,7 +1087,7 @@ notifyUser dir o = case o of
             <> P.group (P.shown e)
       CloneException repo msg ->
         P.wrap $
-          "I couldn't clone the repository at" <> prettyReadRepo repo <> ";"
+          "I couldn't clone the repository at" <> prettyReadGitRepo repo <> ";"
             <> "the error was:"
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
       CopyException srcRepoPath destPath msg ->
@@ -1082,10 +1097,10 @@ notifyUser dir o = case o of
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
       PushNoOp repo ->
         P.wrap $
-          "The repository at" <> prettyWriteRepo repo <> "is already up-to-date."
+          "The repository at" <> prettyWriteGitRepo repo <> "is already up-to-date."
       PushException repo msg ->
         P.wrap $
-          "I couldn't push to the repository at" <> prettyWriteRepo repo <> ";"
+          "I couldn't push to the repository at" <> prettyWriteGitRepo repo <> ";"
             <> "the error was:"
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
       RemoteRefNotFound repo ref ->
@@ -1094,7 +1109,7 @@ notifyUser dir o = case o of
       UnrecognizableCacheDir uri localPath ->
         P.wrap $
           "A cache directory for"
-            <> P.backticked (P.text $ RemoteRepo.printReadRepo uri)
+            <> P.backticked (P.text $ RemoteRepo.printReadGitRepo uri)
             <> "already exists at"
             <> P.backticked' (P.string localPath) ","
             <> "but it doesn't seem to"
@@ -1102,7 +1117,7 @@ notifyUser dir o = case o of
       UnrecognizableCheckoutDir uri localPath ->
         P.wrap $
           "I tried to clone"
-            <> P.backticked (P.text $ RemoteRepo.printReadRepo uri)
+            <> P.backticked (P.text $ RemoteRepo.printReadGitRepo uri)
             <> "into a cache directory at"
             <> P.backticked' (P.string localPath) ","
             <> "but I can't recognize the"
@@ -1110,7 +1125,7 @@ notifyUser dir o = case o of
       PushDestinationHasNewStuff repo ->
         P.callout "⏸" . P.lines $
           [ P.wrap $
-              "The repository at" <> prettyWriteRepo repo
+              "The repository at" <> prettyWriteGitRepo repo
                 <> "has some changes I don't know about.",
             "",
             P.wrap $ "Try" <> pull <> "to merge these changes locally, then" <> push <> "again."
@@ -1124,28 +1139,28 @@ notifyUser dir o = case o of
           "I couldn't decode the root branch "
             <> P.string s
             <> "from the repository at"
-            <> prettyReadRepo repo
+            <> prettyReadGitRepo repo
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"
             <> P.group ("(" <> P.text (Hash.base32Hex $ Causal.unCausalHash hash) <> ")")
             <> "from the repository at"
-            <> prettyReadRepo repo
+            <> prettyReadGitRepo repo
       CouldntLoadSyncedBranch ns h ->
         P.wrap $
           "I just finished importing the branch" <> P.red (P.shown h)
             <> "from"
-            <> P.red (prettyRemoteNamespace ns)
+            <> P.red (prettyReadRemoteNamespace (RemoteRepo.ReadRemoteNamespaceGit ns))
             <> "but now I can't find it."
       CouldntFindRemoteBranch repo path ->
         P.wrap $
           "I couldn't find the remote branch at"
             <> P.shown path
             <> "in the repository at"
-            <> prettyReadRepo repo
+            <> prettyReadGitRepo repo
       NoRemoteNamespaceWithHash repo sbh ->
         P.wrap $
-          "The repository at" <> prettyReadRepo repo
+          "The repository at" <> prettyReadGitRepo repo
             <> "doesn't contain a namespace with the hash prefix"
             <> (P.blue . P.text . SBH.toText) sbh
       RemoteNamespaceHashAmbiguous repo sbh hashes ->
@@ -1153,7 +1168,7 @@ notifyUser dir o = case o of
           [ P.wrap $
               "The namespace hash" <> prettySBH sbh
                 <> "at"
-                <> prettyReadRepo repo
+                <> prettyReadGitRepo repo
                 <> "is ambiguous."
                 <> "Did you mean one of these hashes?",
             "",
@@ -1217,25 +1232,25 @@ notifyUser dir o = case o of
         "",
         err
       ]
-  NoConfiguredGitUrl pp p ->
+  NoConfiguredRemoteMapping pp p ->
     pure . P.fatalCallout . P.wrap $
       "I don't know where to "
         <> pushPull "push to!" "pull from!" pp
-        <> ( if Path.isRoot' p
+        <> ( if Path.isRoot p
                then ""
                else
-                 "Add a line like `GitUrl." <> P.shown p
-                   <> " = <some-git-url>' to .unisonConfig. "
+                 "Add a line like `RemoteMapping." <> P.shown p
+                   <> " = namespace.path' to .unisonConfig. "
            )
         <> "Type `help "
         <> pushPull "push" "pull" pp
         <> "` for more information."
   --  | ConfiguredGitUrlParseError PushPull Path' Text String
-  ConfiguredGitUrlParseError pp p url err ->
+  ConfiguredRemoteMappingParseError pp p url err ->
     pure . P.fatalCallout . P.lines $
       [ P.wrap $
-          "I couldn't understand the GitUrl that's set for"
-            <> prettyPath' p
+          "I couldn't understand the RemoteMapping that's set for"
+            <> prettyAbsolute p
             <> "in .unisonConfig",
         P.wrap $
           "The value I found was" <> (P.backticked . P.blue . P.text) url
@@ -1379,12 +1394,12 @@ notifyUser dir o = case o of
     pure . P.callout "😶" $
       P.wrap $
         prettyPath' dest <> "was already up-to-date with"
-          <> P.group (prettyRemoteNamespace ns <> ".")
+          <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated" <> prettyPath' dest <> "from"
-          <> P.group (prettyRemoteNamespace ns <> ".")
+          <> P.group (prettyReadRemoteNamespace ns <> ".")
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
@@ -1514,28 +1529,17 @@ notifyUser dir o = case o of
         <> ( terms <&> \(n, r) ->
                prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)
            )
-  RefusedToPush pushBehavior ->
-    (pure . P.warnCallout . P.lines) case pushBehavior of
-      PushBehavior.RequireEmpty ->
-        [ "The remote namespace is not empty.",
-          "",
-          "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
-        ]
-      PushBehavior.RequireNonEmpty ->
-        [ "The remote namespace is empty.",
-          "",
-          "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
-        ]
-  GistCreated hqLength repo hash ->
+  RefusedToPush pushBehavior path ->
+    (pure . P.warnCallout) case pushBehavior of
+      PushBehavior.RequireEmpty -> expectedEmptyPushDest path
+      PushBehavior.RequireNonEmpty -> expectedNonEmptyPushDest path
+  GistCreated remoteNamespace ->
     pure $
       P.lines
         [ "Gist created. Pull via:",
           "",
-          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyRemoteNamespace remoteNamespace)
+          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyReadRemoteNamespace remoteNamespace)
         ]
-    where
-      remoteNamespace =
-        (RemoteRepo.writeToRead repo, Just (SBH.fromHash hqLength hash), Path.empty)
   InitiateAuthFlow authURI -> do
     pure $
       P.wrap $
@@ -1581,11 +1585,117 @@ notifyUser dir o = case o of
           "Host names should NOT include a schema or path."
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
+  ShareError x -> (pure . P.warnCallout) case x of
+    ShareErrorCheckAndSetPush e -> case e of
+      (Share.CheckAndSetPushErrorHashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash}) ->
+        case (expectedHash, actualHash) of
+          (Nothing, Just _) -> expectedEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
+          _ -> P.wrap $ P.text "It looks like someone modified" <> prettySharePath sharePath <> P.text "an instant before you. Pull and try again? 🤞"
+      (Share.CheckAndSetPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
+      (Share.CheckAndSetPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
+    ShareErrorFastForwardPush e -> case e of
+      (Share.FastForwardPushErrorNoHistory sharePath) ->
+        expectedNonEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
+      (Share.FastForwardPushErrorNoReadPermission sharePath) -> noReadPermission sharePath
+      (Share.FastForwardPushInvalidParentage parent child) ->
+        P.fatalCallout
+          ( P.lines
+              [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
+                "The history in question is the hash: " <> prettyHash32 child <> " with the ancestor: " <> prettyHash32 parent
+              ]
+          )
+      Share.FastForwardPushErrorNotFastForward sharePath ->
+        P.lines $
+          [ P.wrap $
+              "There are some changes at" <> prettySharePath sharePath <> "that aren't in the history you pushed.",
+            "",
+            P.wrap $
+              "If you're sure you got the right paths, try"
+                <> pull
+                <> "to merge these changes locally, then"
+                <> push
+                <> "again."
+          ]
+        where
+          push = P.group . P.backticked . IP.patternName $ IP.push
+          pull = P.group . P.backticked . IP.patternName $ IP.pull
+      (Share.FastForwardPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
+      (Share.FastForwardPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
+    ShareErrorPull e -> case e of
+      (Share.PullErrorGetCausalHashByPath err) -> handleGetCausalHashByPathError err
+      (Share.PullErrorNoHistoryAtPath sharePath) ->
+        P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
+    ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
+    ShareErrorTransport te -> case te of
+      Unauthenticated codeServerURL ->
+        P.fatalCallout $
+          P.wrap . P.lines $
+            [ "Authentication with this code server (" <> P.string (Servant.showBaseUrl codeServerURL) <> ") is missing or expired.",
+              "Please run " <> makeExample' IP.authLogin <> "."
+            ]
+      PermissionDenied msg -> P.fatalCallout $ P.hang "Permission denied:" (P.text msg)
+      UnreachableCodeserver codeServerURL ->
+        P.lines $
+          [ P.wrap $ "Unable to reach the code server hosted at:" <> P.string (Servant.showBaseUrl codeServerURL),
+            "",
+            P.wrap "Please check your network, ensure you've provided the correct location, or try again later."
+          ]
+      InvalidResponse resp -> P.fatalCallout $ P.hang "Invalid response received from codeserver:" (P.shown resp)
+      RateLimitExceeded -> P.warnCallout "Rate limit exceeded, please try again later."
+      InternalServerError -> P.fatalCallout "The code server encountered an error. Please try again later or report an issue if the problem persists."
+      Timeout -> P.fatalCallout "The code server timed-out when responding to your request. Please try again later or report an issue if the problem persists."
+    where
+      prettySharePath =
+        prettyRelative
+          . Path.Relative
+          . Path.fromList
+          . coerce @[Text] @[NameSegment]
+          . toList
+          . Share.pathSegments
+      missingDependencies hashes =
+        -- maybe todo: stuff in all the args to CheckAndSetPush
+        P.lines
+          [ P.wrap
+              ( P.text "The server was expecting to have received some stuff from UCM during that last command, but claims to have not received it."
+                  <> P.text "(This is probably a bug in UCM.)"
+              ),
+            P.text "",
+            P.text "The hashes it expected are:\n"
+              <> P.indentN 2 (P.lines (map prettyHash32 (toList hashes)))
+          ]
+      handleGetCausalHashByPathError = \case
+        Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermission sharePath
+      noReadPermission sharePath =
+        P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettySharePath sharePath <> ".")
+      noWritePermission sharePath =
+        P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
+    expectedEmptyPushDest writeRemotePath =
+        P.lines
+          [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
+            "",
+            "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
+          ]
+    expectedNonEmptyPushDest writeRemotePath =
+      P.lines
+        [ P.wrap ("The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty."),
+          "",
+          P.wrap ("Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?")
+        ]
+    sharePathToWriteRemotePathShare sharePath =
+      -- Recover the original WriteRemotePath from the information in the error, which is thrown from generic share
+      -- client code that doesn't know about WriteRemotePath
+      ( WriteRemotePathShare
+          WriteShareRemotePath
+            { server = RemoteRepo.DefaultCodeserver,
+              repo = Share.unRepoName (Share.pathRepoName sharePath),
+              path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
+            }
+      )
 
 -- do
 --   when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
@@ -1640,6 +1750,18 @@ prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
 prettyCausalHash :: IsString s => Causal.CausalHash -> P.Pretty s
 prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unCausalHash $ hash)
+
+prettyBase32Hex :: IsString s => Base32Hex -> P.Pretty s
+prettyBase32Hex = P.text . Base32Hex.toText
+
+prettyBase32Hex# :: IsString s => Base32Hex -> P.Pretty s
+prettyBase32Hex# b = P.group $ "#" <> prettyBase32Hex b
+
+prettyHash :: IsString s => Hash.Hash -> P.Pretty s
+prettyHash = prettyBase32Hex# . Hash.toBase32Hex
+
+prettyHash32 :: IsString s => Hash32 -> P.Pretty s
+prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
 
 formatMissingStuff ::
   (Show tm, Show typ) =>
@@ -2824,11 +2946,17 @@ prettyTypeName ppe r =
   P.syntaxToColor $
     prettyHashQualified (PPE.typeName ppe r)
 
-prettyReadRepo :: ReadRepo -> Pretty
-prettyReadRepo (RemoteRepo.ReadGitRepo {url}) = P.blue (P.text url)
+prettyReadGitRepo :: ReadGitRepo -> Pretty
+prettyReadGitRepo = \case
+  RemoteRepo.ReadGitRepo {url} -> P.blue (P.text url)
 
-prettyWriteRepo :: WriteRepo -> Pretty
-prettyWriteRepo (RemoteRepo.WriteGitRepo {url'}) = P.blue (P.text url')
+prettyWriteGitRepo :: WriteGitRepo -> Pretty
+prettyWriteGitRepo RemoteRepo.WriteGitRepo {url} = P.blue (P.text url)
+
+-- prettyWriteRepo :: WriteRepo -> Pretty
+-- prettyWriteRepo = \case
+--   RemoteRepo.WriteRepoGit RemoteRepo.WriteGitRepo {url} -> P.blue (P.text url)
+--   RemoteRepo.WriteRepoShare s -> P.blue (P.text (RemoteRepo.printShareRepo s))
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

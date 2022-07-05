@@ -16,6 +16,7 @@ dependencies:
   - unison-core1
   - unison-prelude
   - unison-util
+  - unison-util-base32hex
   - unison-util-relation
 
 library:

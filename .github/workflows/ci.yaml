@@ -27,7 +27,6 @@ jobs:
           # temporarily disable non-windows builds to speed up iteration time
           - ubuntu-20.04
           - macOS-11.0
-          - macOS-10.15
           - windows-2019
     steps:
       - uses: actions/checkout@v2
@@ -39,8 +38,9 @@ jobs:
       # purge one manually.
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
-      - uses: actions/cache@v2
-        name: cache ~/.stack
+      - uses: actions/cache@v3
+        name: cache ~/.stack (unix)
+        if: runner.os != 'Windows'
         with:
           path: ~/.stack
           # Main cache key: commit hash. This should always result in a cache miss...
@@ -55,8 +55,26 @@ jobs:
             stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
             stack-0_${{matrix.os}}
 
+      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
+      - uses: actions/cache@v3
+        name: cache ~/.stack (Windows)
+        if: runner.os == 'Windows'
+        with:
+          path: "C:\\Users\\runneradmin\\AppData\\Local\\Programs\\stack"
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
+          restore-keys: |
+            stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
+            stack-0_${{matrix.os}}
+
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         name: cache .stack-work
         with:
           path: |

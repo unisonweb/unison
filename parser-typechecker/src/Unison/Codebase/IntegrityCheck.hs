@@ -23,6 +23,7 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TL
 import Data.Void
 import Text.Pretty.Simple
+import U.Codebase.HashTags (BranchHash (..))
 import qualified U.Codebase.Sqlite.Branch.Full as DBBranch
 import qualified U.Codebase.Sqlite.DbId as DB
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -51,11 +52,11 @@ data IntegrityError
   | -- (causal hash, branch hash)
     DetectedCausalsWithoutCorrespondingBranchObjects (NESet (Hash, Hash))
   | DetectedCausalsWithCausalHashAsBranchHash (NESet Hash)
-  | DetectedBranchErrors Hash (NESet BranchError)
+  | DetectedBranchErrors BranchHash (NESet BranchError)
   deriving stock (Show, Eq, Ord)
 
 data BranchError
-  = IncorrectHashForBranch Hash Hash
+  = IncorrectHashForBranch BranchHash BranchHash
   | MismatchedObjectForChild Hash DB.BranchObjectId DB.BranchObjectId
   | MissingObjectForChildCausal Hash
   | MissingObject DB.BranchObjectId
@@ -151,7 +152,7 @@ integrityCheckAllBranches = do
     integrityCheckBranch objId = do
       dbBranch <- Ops.expectDbBranch objId
       expectedBranchHash <- Helpers.dbBranchHash dbBranch
-      actualBranchHash <- Q.expectPrimaryHashByObjectId (DB.unBranchObjectId objId)
+      actualBranchHash <- BranchHash <$> Q.expectPrimaryHashByObjectId (DB.unBranchObjectId objId)
       branchHashCheck <- assertExpectedBranchHash expectedBranchHash actualBranchHash
       branchChildChecks <- flip foldMapM (toListOf DBBranch.childrenHashes_ dbBranch) $ \(childObjId, childCausalHashId) -> do
         let checks =
@@ -164,7 +165,7 @@ integrityCheckAllBranches = do
         Nothing -> pure NoIntegrityErrors
         Just errs -> pure . IntegrityErrorDetected . NESet.singleton $ DetectedBranchErrors actualBranchHash errs
       where
-        assertExpectedBranchHash :: Hash -> Hash -> Sqlite.Transaction (Set BranchError)
+        assertExpectedBranchHash :: BranchHash -> BranchHash -> Sqlite.Transaction (Set BranchError)
         assertExpectedBranchHash expectedBranchHash actualBranchHash = do
           if (expectedBranchHash /= actualBranchHash)
             then do
@@ -201,9 +202,9 @@ integrityCheckAllBranches = do
               pure (Set.singleton $ MissingObjectForChildCausal ch)
             Just foundBranchId
               | foundBranchId /= branchObjId -> do
-                failure $ "Expected child branch object to match canonical object ID for causal hash's namespace: " <> pShow (causalHashId, foundBranchId, branchObjId)
-                ch <- Q.expectHash (DB.unCausalHashId causalHashId)
-                pure (Set.singleton $ MismatchedObjectForChild ch branchObjId foundBranchId)
+                  failure $ "Expected child branch object to match canonical object ID for causal hash's namespace: " <> pShow (causalHashId, foundBranchId, branchObjId)
+                  ch <- Q.expectHash (DB.unCausalHashId causalHashId)
+                  pure (Set.singleton $ MismatchedObjectForChild ch branchObjId foundBranchId)
               | otherwise -> pure mempty
 
 failure :: TL.Text -> Sqlite.Transaction ()
@@ -214,34 +215,34 @@ prettyPrintIntegrityErrors :: Foldable f => f IntegrityError -> P.Pretty P.Color
 prettyPrintIntegrityErrors xs
   | null xs = mempty
   | otherwise =
-    xs
-      & toList
-      & fmap
-        ( \case
-            DetectedObjectsWithoutCorrespondingHashObjects objs ->
-              P.hang
-                "Detected objects without any corresponding hash_object. Object IDs:"
-                (P.commas (prettyObjectId <$> NESet.toList objs))
-            DetectedCausalsWithoutCorrespondingBranchObjects hashes ->
-              P.hang
-                "Detected causals without a corresponding branch object:\n"
-                ( P.column2Header
-                    "Causal Hash"
-                    "Branch Hash"
-                    (toList hashes <&> bimap prettyHash prettyHash)
-                )
-            DetectedCausalsWithCausalHashAsBranchHash ns ->
-              P.hang
-                "Detected causals with the same causal hash as branch hash:"
-                (P.commas (prettyHash <$> toList ns))
-            DetectedBranchErrors bh errs ->
-              P.hang
-                ("Detected errors in branch: " <> prettyHash bh)
-                (P.lines . fmap (<> "\n") . fmap prettyBranchError . toList $ errs)
-        )
-      & fmap (<> "\n")
-      & P.lines
-      & P.warnCallout
+      xs
+        & toList
+        & fmap
+          ( \case
+              DetectedObjectsWithoutCorrespondingHashObjects objs ->
+                P.hang
+                  "Detected objects without any corresponding hash_object. Object IDs:"
+                  (P.commas (prettyObjectId <$> NESet.toList objs))
+              DetectedCausalsWithoutCorrespondingBranchObjects hashes ->
+                P.hang
+                  "Detected causals without a corresponding branch object:\n"
+                  ( P.column2Header
+                      "Causal Hash"
+                      "Branch Hash"
+                      (toList hashes <&> bimap prettyHash prettyHash)
+                  )
+              DetectedCausalsWithCausalHashAsBranchHash ns ->
+                P.hang
+                  "Detected causals with the same causal hash as branch hash:"
+                  (P.commas (prettyHash <$> toList ns))
+              DetectedBranchErrors bh errs ->
+                P.hang
+                  ("Detected errors in branch: " <> prettyHash (unBranchHash bh))
+                  (P.lines . fmap (<> "\n") . fmap prettyBranchError . toList $ errs)
+          )
+        & fmap (<> "\n")
+        & P.lines
+        & P.warnCallout
   where
     prettyHash :: Hash -> P.Pretty P.ColorText
     prettyHash h = P.blue . P.text $ ("#" <> Hash.toBase32HexText h)
@@ -252,7 +253,7 @@ prettyPrintIntegrityErrors xs
     prettyBranchError :: BranchError -> P.Pretty P.ColorText
     prettyBranchError =
       P.wrap . \case
-        IncorrectHashForBranch expected actual -> "The Branch hash for this branch is incorrect. Expected Hash: " <> prettyHash expected <> ", Actual Hash: " <> prettyHash actual
+        IncorrectHashForBranch expected actual -> "The Branch hash for this branch is incorrect. Expected Hash: " <> prettyHash (unBranchHash expected) <> ", Actual Hash: " <> prettyHash (unBranchHash actual)
         MismatchedObjectForChild ha obj1 obj2 ->
           "The child with causal hash: " <> prettyHash ha <> " is mapped to object ID " <> prettyBranchObjectId obj1 <> " but should map to " <> prettyBranchObjectId obj2 <> "."
         MissingObjectForChildCausal ha ->

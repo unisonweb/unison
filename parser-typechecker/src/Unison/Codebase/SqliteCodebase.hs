@@ -29,10 +29,10 @@ import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
 import qualified U.Codebase.Branch as V2Branch
 import U.Codebase.HashTags (CausalHash (CausalHash))
-import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import qualified U.Codebase.Sync as Sync
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
@@ -41,11 +41,16 @@ import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo (..), printWriteRepo, writeToRead)
+import Unison.Codebase.Editor.RemoteRepo
+  ( ReadGitRemoteNamespace (..),
+    ReadGitRepo,
+    WriteGitRepo (..),
+    printWriteGitRepo,
+    writeToReadGit,
+  )
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
@@ -63,7 +68,6 @@ import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type (LocalOrRemote (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase.Type as C
-import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Parser.Ann (Ann)
@@ -135,7 +139,7 @@ createCodebaseOrError debugName path action = do
         Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL
         Sqlite.runTransaction conn do
           Q.createSchema
-          void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty
+          void . Ops.saveRootBranch v2HashHandle $ Cv.causalbranch1to2 Branch.empty
 
       sqliteCodebase debugName path Local action >>= \case
         Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
@@ -192,24 +196,20 @@ sqliteCodebase ::
   m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote action = do
   Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
-  withConnection debugName root $ \conn -> do
+  withConnection debugName root \conn -> do
     termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
     typeOfTermCache <- Cache.semispaceCache 8192
     declCache <- Cache.semispaceCache 1024
     rootBranchCache <- newTVarIO Nothing
+    getDeclType <- CodebaseOps.mkGetDeclType
     -- The v1 codebase interface has operations to read and write individual definitions
     -- whereas the v2 codebase writes them as complete components.  These two fields buffer
     -- the individual definitions until a complete component has been written.
     termBuffer :: TVar (Map Hash CodebaseOps.TermBufferEntry) <- newTVarIO Map.empty
     declBuffer :: TVar (Map Hash CodebaseOps.DeclBufferEntry) <- newTVarIO Map.empty
-    declTypeCache <- Cache.semispaceCache 2048
     let getTerm :: Reference.Id -> m (Maybe (Term Symbol Ann))
         getTerm id =
           Sqlite.runTransaction conn (CodebaseOps.getTerm getDeclType id)
-
-        getDeclType :: C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType
-        getDeclType =
-          Sqlite.unsafeIO . Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (CodebaseOps.getDeclType ref) conn)
 
         getTypeOfTermImpl :: Reference.Id -> m (Maybe (Type Symbol Ann))
         getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
@@ -470,7 +470,7 @@ sqliteCodebase debugName root localOrRemote action = do
               syncFromDirectory = syncFromDirectory,
               syncToDirectory = syncToDirectory,
               viewRemoteBranch' = viewRemoteBranch',
-              pushGitBranch = (\r opts action -> pushGitBranch conn r opts action),
+              pushGitBranch = pushGitBranch conn,
               watches = watches,
               getWatch = getWatch,
               putWatch = putWatch,
@@ -489,10 +489,9 @@ sqliteCodebase debugName root localOrRemote action = do
               beforeImpl = (Just \l r -> Sqlite.runTransaction conn $ fromJust <$> CodebaseOps.before l r),
               namesAtPath = \path -> Sqlite.runReadOnlyTransaction conn \runTx ->
                 runTx (CodebaseOps.namesAtPath path),
-              updateNameLookup = Sqlite.runTransaction conn $ do
-                root <- (CodebaseOps.getRootBranch getDeclType rootBranchCache)
-                CodebaseOps.saveRootNamesIndex (Branch.toNames . Branch.head $ root),
-              connection = conn
+              updateNameLookup = Sqlite.runTransaction conn (CodebaseOps.updateNameLookupIndexFromV2Root getDeclType),
+              connection = conn,
+              withConnection = withConnection debugName root
             }
     let finalizer :: MonadIO m => m ()
         finalizer = do
@@ -529,7 +528,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
   -- or if it exists in the source codebase, then we can sync22 it
   -- if it doesn't exist in the dest or source branch,
   -- then just use putBranch to the dest
-  sync <- liftIO (Sync22.sync22 (Sync22.hoistEnv lift syncEnv))
+  sync <- liftIO (Sync22.sync22 v2HashHandle (Sync22.hoistEnv lift syncEnv))
   let doSync :: [Sync22.Entity] -> m ()
       doSync =
         throwExceptT
@@ -675,14 +674,15 @@ syncProgress progressStateRef = Sync.Progress (liftIO . need) (liftIO . done) (l
       where
         v = const ()
 
+-- FIXME(mitchell) seems like this should have "git" in its name
 viewRemoteBranch' ::
   forall m r.
   (MonadUnliftIO m) =>
-  ReadRemoteNamespace ->
+  ReadGitRemoteNamespace ->
   Git.GitBranchBehavior ->
   ((Branch m, CodebasePath) -> m r) ->
   m (Either C.GitError r)
-viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
+viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior action = UnliftIO.try $ do
   -- set up the cache dir
   time "Git fetch" $
     throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
@@ -731,7 +731,7 @@ pushGitBranch ::
   forall m e.
   (MonadUnliftIO m) =>
   Sqlite.Connection ->
-  WriteRepo ->
+  WriteGitRepo ->
   PushGitBranchOpts ->
   -- An action which accepts the current root branch on the remote and computes a new branch.
   (Branch m -> m (Either e (Branch m))) ->
@@ -767,8 +767,8 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
     for newBranchOrErr $ push pushStaging repo
     pure newBranchOrErr
   where
-    readRepo :: ReadRepo
-    readRepo = writeToRead repo
+    readRepo :: ReadGitRepo
+    readRepo = writeToReadGit repo
     doSync :: CodebaseStatus -> FilePath -> Sqlite.Connection -> Branch m -> m ()
     doSync codebaseStatus remotePath destConn newBranch = do
       progressStateRef <- liftIO (newIORef emptySyncProgressState)
@@ -805,7 +805,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
                 Just True -> pure ()
         CreatedCodebase -> pure ()
       run (setRepoRoot newBranchHash)
-    repoString = Text.unpack $ printWriteRepo repo
+    repoString = Text.unpack $ printWriteGitRepo repo
     setRepoRoot :: Branch.CausalHash -> Sqlite.Transaction ()
     setRepoRoot h = do
       let h2 = Cv.causalHash1to2 h
@@ -857,8 +857,8 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
         hasDeleteShm = any isShmDelete statusLines
 
     -- Commit our changes
-    push :: forall n. MonadIO n => Git.GitRepo -> WriteRepo -> Branch m -> n Bool -- withIOError needs IO
-    push remotePath repo@(WriteGitRepo {url' = url, branch = mayGitBranch}) newRootBranch = time "SqliteCodebase.pushGitRootBranch.push" $ do
+    push :: forall n. MonadIO n => Git.GitRepo -> WriteGitRepo -> Branch m -> n Bool -- withIOError needs IO
+    push remotePath repo@(WriteGitRepo {url, branch = mayGitBranch}) newRootBranch = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       -- note: -uall recursively shows status for all files in untracked directories
       --   we want this so that we see
@@ -890,6 +890,6 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
             -- Push our changes to the repo, silencing all output.
             -- Even with quiet, the remote (Github) can still send output through,
             -- so we capture stdout and stderr.
-            (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", "--quiet", url] ++ maybe [] (pure @[]) mayGitBranch
+            (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", url] ++ Git.gitVerbosity ++ maybe [] (pure @[]) mayGitBranch
             when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
             pure True

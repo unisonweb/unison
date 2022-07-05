@@ -12,6 +12,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Concurrent.STM (atomically)
 import Control.Exception (catch, finally)
 import Control.Lens (view)
+import Control.Monad.Catch (MonadMask)
 import qualified Crypto.Random as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
@@ -23,17 +24,19 @@ import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
 import Text.Pretty.Simple (pShow)
 import Unison.Auth.CredentialManager (newCredentialManager)
-import qualified Unison.Auth.HTTPClient as HTTP
+import qualified Unison.Auth.HTTPClient as AuthN
+import qualified Unison.Auth.Tokens as AuthN
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Command (LoadSourceResult (..), UCMVersion)
+import Unison.Codebase.Editor.Command (LoadSourceResult (..))
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.CommandLine
@@ -53,7 +56,7 @@ import qualified UnliftIO
 
 getUserInput ::
   forall m v a.
-  (MonadIO m, Line.MonadException m) =>
+  (MonadIO m, MonadMask m) =>
   Map String InputPattern ->
   Codebase m v a ->
   Branch m ->
@@ -192,10 +195,12 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
           loop state = do
             writeIORef pathRef (view LoopState.currentPath state)
             credMan <- newCredentialManager
-            authorizedHTTPClient <- HTTP.newAuthorizedHTTPClient credMan ucmVersion
+            let tokenProvider = AuthN.newTokenProvider credMan
+            authorizedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
             let env =
                   LoopState.Env
                     { LoopState.authHTTPClient = authorizedHTTPClient,
+                      LoopState.codebase = codebase,
                       LoopState.credentialManager = credMan
                     }
             let free = LoopState.runAction env state HandleInput.loop

@@ -17,7 +17,7 @@ import qualified U.Codebase.Reference as V2
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, WriteGitRepo)
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Patch (Patch)
@@ -111,9 +111,9 @@ data Codebase m v a = Codebase
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
     syncToDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
-    viewRemoteBranch' :: forall r. ReadRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
+    viewRemoteBranch' :: forall r. ReadGitRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
     -- | Push the given branch to the given repo, and optionally set it as the root branch.
-    pushGitBranch :: forall e. WriteRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
+    pushGitBranch :: forall e. WriteGitRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
     -- | @watches k@ returns all of the references @r@ that were previously put by a @putWatch k r t@. @t@ can be
     -- retrieved by @getWatch k r@.
     watches :: WK.WatchKind -> m [Reference.Id],
@@ -181,7 +181,10 @@ data Codebase m v a = Codebase
     -- At one time the codebase was meant to abstract over the storage layer, but it has been cumbersome. Now we prefer
     -- to interact with SQLite directly, and so provide this temporary escape hatch, until we can eliminate this
     -- interface entirely.
-    connection :: Sqlite.Connection
+    connection :: Sqlite.Connection,
+    -- | Another escape hatch like the above connection, but this one makes a new connection to the same underlying
+    -- database file. This allows code (like pull-from-share) to use more than one connection concurrently.
+    withConnection :: forall x. (Sqlite.Connection -> IO x) -> IO x
   }
 
 -- | Whether a codebase is local or remote.
@@ -204,7 +207,7 @@ data GitError
 
 instance Exception GitError
 
-gitErrorFromOpenCodebaseError :: CodebasePath -> ReadRepo -> OpenCodebaseError -> GitSqliteCodebaseError
+gitErrorFromOpenCodebaseError :: CodebasePath -> ReadGitRepo -> OpenCodebaseError -> GitSqliteCodebaseError
 gitErrorFromOpenCodebaseError path repo = \case
   OpenCodebaseDoesntExist -> NoDatabaseFile repo path
   OpenCodebaseUnknownSchemaVersion v ->

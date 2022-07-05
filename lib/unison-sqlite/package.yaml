@@ -19,10 +19,12 @@ dependencies:
   - direct-sqlite
   - exceptions
   - mtl
+  - neat-interpolation
   - pretty-simple
   - random
   - recover-rtti
   - sqlite-simple
+  - template-haskell
   - text
   - transformers
   - unison-prelude

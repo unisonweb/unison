@@ -4,13 +4,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Path
   ( Path (..),
     Path' (..),
     Absolute (..),
+    pattern AbsolutePath',
     Relative (..),
+    pattern RelativePath',
     Resolve (..),
     pattern Empty,
     pattern (Lens.:<),
@@ -79,6 +82,7 @@ import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Sequence (Seq ((:<|), (:|>)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
+import qualified GHC.Exts as GHC
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Convert (..), Name, Parse)
 import qualified Unison.Name as Name
@@ -91,6 +95,13 @@ import Unison.Util.Monoid (intercalateMap)
 newtype Path = Path {toSeq :: Seq NameSegment}
   deriving stock (Eq, Ord)
   deriving newtype (Semigroup, Monoid)
+
+-- | Meant for use mostly in doc-tests where it's
+-- sometimes convenient to specify paths as lists.
+instance GHC.IsList Path where
+  type Item Path = NameSegment
+  toList (Path segs) = Foldable.toList segs
+  fromList = Path . Seq.fromList
 
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
 
@@ -253,6 +264,14 @@ toName' :: Path' -> Name
 toName' = Name.unsafeFromText . toText'
 
 pattern Empty = Path Seq.Empty
+
+pattern AbsolutePath' :: Absolute -> Path'
+pattern AbsolutePath' p = Path' (Left p)
+
+pattern RelativePath' :: Relative -> Path'
+pattern RelativePath' p = Path' (Right p)
+
+{-# COMPLETE AbsolutePath', RelativePath' #-}
 
 empty :: Path
 empty = Path mempty

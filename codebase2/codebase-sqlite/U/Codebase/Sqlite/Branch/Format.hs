@@ -1,7 +1,9 @@
 module U.Codebase.Sqlite.Branch.Format
   ( BranchFormat (..),
-    BranchLocalIds (..),
-    SyncBranchFormat (..),
+    BranchLocalIds,
+    BranchLocalIds' (..),
+    SyncBranchFormat,
+    SyncBranchFormat' (..),
     localToDbBranch,
     localToDbDiff,
     -- dbToLocalDiff,
@@ -35,17 +37,52 @@ data BranchFormat
 --
 -- For example, a @branchTextLookup@ vector of @[50, 74]@ means "local id 0 corresponds to database text id 50, and
 -- local id 1 corresponds to database text id 74".
-data BranchLocalIds = LocalIds
-  { branchTextLookup :: Vector TextId,
-    branchDefnLookup :: Vector ObjectId,
-    branchPatchLookup :: Vector PatchObjectId,
-    branchChildLookup :: Vector (BranchObjectId, CausalHashId)
+type BranchLocalIds = BranchLocalIds' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
+
+-- temp_entity
+--  branch #foo
+--
+-- temp_entity_missing_dependency
+--   #foo depends on causal #bar
+--   #foo depends on namespace #baz
+--
+-- 1. store causal #bar, go to flush dependencies like normal
+-- 2. ... oh this case is different than the others - we don't want to delete that row
+
+----
+-- can't simply treat causal's value hash as a mandatory dependency because we can't be sure
+-- that the causal doesn't already exist in the target codebase without the value.
+-- it probably does exist together with the value (though we found cases in the past where it didn't
+-- due to race conditions, but we fixed that and added transactions and it shouldn't happen again?),
+-- but it's not enforced at the schema level.
+-- to enforce it at the schema level, we'd have to do something like store namespace_object_id instead
+-- of value_hash in causal, which would require a db migration for a thing we don't necessarily even want
+-- long term.
+-- so, we can't simply "require" the value hash as a dependency of the causals and expect things to work smoothly
+-- without relying on prayer.
+--
+-- temp_entity
+--  branch #foo
+--  causal #bar
+
+-- temp_entity_missing_dependency
+--   #foo depends on causal #bar
+--   #bar depends on namespace #baz
+--
+
+data BranchLocalIds' t d p c = LocalIds
+  { branchTextLookup :: Vector t,
+    branchDefnLookup :: Vector d,
+    branchPatchLookup :: Vector p,
+    branchChildLookup :: Vector c
   }
   deriving (Show)
 
-data SyncBranchFormat
-  = SyncFull BranchLocalIds ByteString
-  | SyncDiff BranchObjectId BranchLocalIds ByteString
+data SyncBranchFormat' parent text defn patch child
+  = SyncFull (BranchLocalIds' text defn patch child) ByteString
+  | SyncDiff parent (BranchLocalIds' text defn patch child) ByteString
+
+type SyncBranchFormat = SyncBranchFormat' BranchObjectId TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
 
 localToDbBranch :: BranchLocalIds -> LocalBranch -> DbBranch
 localToDbBranch li =

@@ -3,7 +3,7 @@
 CREATE TABLE schema_version (
   version INTEGER NOT NULL
 );
-INSERT INTO schema_version (version) VALUES (4);
+INSERT INTO schema_version (version) VALUES (5);
 
 -- actually stores the 512-byte hashes
 CREATE TABLE hash (
@@ -140,7 +140,7 @@ CREATE TABLE watch (
 CREATE INDEX watch_kind ON watch(watch_kind_id);
 
 -- Note [Watch expression identifier]
--- The hash_id + component_index is an unevaluated term reference. We use hash_id instead of object_id because the 
+-- The hash_id + component_index is an unevaluated term reference. We use hash_id instead of object_id because the
 -- unevaluated term may not exist in the codebase: it is not added merely by watching it without a name, e.g `> 2 + 3`.
 
 
