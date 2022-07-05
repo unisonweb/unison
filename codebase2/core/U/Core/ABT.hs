@@ -4,7 +4,6 @@ module U.Core.ABT where
 
 import Control.Monad (join)
 import qualified Data.Foldable as Foldable
-import Data.Functor.Classes (Show1, showsPrec1)
 import Data.Functor.Identity (Identity (runIdentity))
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
