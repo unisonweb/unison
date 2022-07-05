@@ -113,6 +113,7 @@ import U.Core.ABT
     pattern Var',
   )
 import qualified U.Core.ABT
+import U.Core.ABT.Var (Var (freshIn))
 import Unison.Prelude
 import qualified Unison.Util.Components as Components
 import Prelude hiding (abs, cycle)
@@ -134,13 +135,6 @@ baseFunctor_ f t =
     x -> pure x
 
 -- deriving instance (Data a, Data v, Typeable f, Data (f (Term f v a)), Ord v) => Data (Term f v a)
-
--- | A class for variables.
---
---   * `Set.notMember (freshIn vs v) vs`:
---     `freshIn` returns a variable not used in the `Set`
-class Ord v => Var v where
-  freshIn :: Set v -> v -> v
 
 data V v = Free v | Bound v deriving (Eq, Ord, Show, Functor)
 
