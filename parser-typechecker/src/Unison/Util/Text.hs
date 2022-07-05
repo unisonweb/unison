@@ -29,6 +29,9 @@ one, singleton :: Char -> Text
 one ch = Text (R.one (chunk (T.singleton ch)))
 singleton = one
 
+appendUnbalanced :: Text -> Text -> Text
+appendUnbalanced (Text t1) (Text t2) = Text (R.two t1 t2)
+
 threshold :: Int
 threshold = 512
 
