@@ -80,7 +80,7 @@ bindReferences keepFree ns t =
 
 newtype Monotype v a = Monotype {getPolytype :: Type v a} deriving (Eq)
 
-instance (Show a, Show v) => Show (Monotype v a) where
+instance (Show v) => Show (Monotype v a) where
   show = show . getPolytype
 
 -- Smart constructor which checks if a `Type` has no `Forall` quantifiers.

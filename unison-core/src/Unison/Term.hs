@@ -1203,7 +1203,7 @@ fromReferent a = \case
 
 instance (Eq a, ABT.Var v) => Eq1 (F v a p) where (==#) = (==)
 
-instance (Show a, Show v) => Show1 (F v a p) where showsPrec1 = showsPrec
+instance (Show v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
 instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Int x == Int y = x == y
@@ -1232,7 +1232,7 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Match scrutinee cases == Match s2 cs2 = scrutinee == s2 && cases == cs2
   _ == _ = False
 
-instance (Show v, Show ta, Show a) => Show (F v ta p a) where
+instance (Show v, Show a) => Show (F v a0 p a) where
   showsPrec = go
     where
       go _ (Int n) = (if n >= 0 then s "+" else s "") <> shows n

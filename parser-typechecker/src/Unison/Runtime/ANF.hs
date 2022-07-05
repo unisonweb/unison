@@ -81,7 +81,6 @@ import Data.List hiding (and, or)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Data.Text
-import Debug.RecoverRTTI (anythingToString)
 import GHC.Stack (CallStack, callStack)
 import qualified Unison.ABT as ABT
 import qualified Unison.ABT.Normalized as ABTN
@@ -1084,7 +1083,7 @@ toSuperNormal :: Var v => Term v a -> ANFM v (SuperNormal v)
 toSuperNormal tm = do
   grp <- groupVars
   if not . Set.null . (Set.\\ grp) $ freeVars tm
-    then internalBug $ "free variables in supercombinator: " ++ anythingToString tm
+    then internalBug $ "free variables in supercombinator: " ++ show tm
     else
       Lambda (BX <$ vs) . ABTN.TAbss vs . snd
         <$> bindLocal vs (anfTerm body)
@@ -1355,7 +1354,7 @@ anfBlock (TypeLink' r) = pure (mempty, pure . TLit $ LY r)
 anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
   where
     tms = toList as
-anfBlock t = internalBug $ "anf: unhandled term: " ++ anythingToString t
+anfBlock t = internalBug $ "anf: unhandled term: " ++ show t
 
 -- Note: this assumes that patterns have already been translated
 -- to a state in which every case matches a single layer of data,
@@ -1717,7 +1716,7 @@ prettyBranches ind bs = case bs of
             s
             (mapToList $ snd <$> m)
       )
-      (prettyCase ind (prettyReq (0 :: Int) (0 :: Int)) df id)
+      (prettyCase ind (prettyReq (0::Int) (0::Int)) df id)
       (Map.toList bs)
   MatchSum bs ->
     foldr

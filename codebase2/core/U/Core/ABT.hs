@@ -4,6 +4,7 @@ module U.Core.ABT where
 
 import Control.Monad (join)
 import qualified Data.Foldable as Foldable
+import Data.Functor.Classes (Show1, showsPrec1)
 import Data.Functor.Identity (Identity (runIdentity))
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
@@ -23,7 +24,13 @@ data ABT f v r
 data Term f v a = Term {freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a)}
   deriving (Functor, Foldable, Generic, Traversable)
 
-deriving instance (forall q. Show q => Show (f q), Show v, Show a) => Show (Term f v a)
+instance (forall a. Show a => Show (f a), Show v) => Show (Term f v a) where
+  -- annotations not shown
+  showsPrec p (Term _ _ out) = case out of
+    Var v -> showParen (p >= 9) $ \x -> "Var " ++ show v ++ x
+    Cycle body -> ("Cycle " ++) . showsPrec p body
+    Abs v body -> showParen True $ (show v ++) . showString ". " . showsPrec p body
+    Tm f -> showsPrec p f
 
 amap :: (Functor f, Foldable f) => (a -> a') -> Term f v a -> Term f v a'
 amap = fmap
