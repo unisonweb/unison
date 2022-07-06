@@ -208,27 +208,27 @@ sqliteCodebase debugName root localOrRemote action = do
   termBuffer :: TVar (Map Hash CodebaseOps.TermBufferEntry) <- newTVarIO Map.empty
   declBuffer :: TVar (Map Hash CodebaseOps.DeclBufferEntry) <- newTVarIO Map.empty
 
-  let finalizer :: MonadIO m => m ()
-      finalizer = do
-        decls <- readTVarIO declBuffer
-        terms <- readTVarIO termBuffer
-        let printBuffer header b =
-              liftIO
-                if b /= mempty
-                  then putStrLn header >> putStrLn "" >> print b
-                  else pure ()
-        printBuffer "Decls:" decls
-        printBuffer "Terms:" terms
+  -- Migrate if necessary.
+  result <-
+    withConn \conn ->
+      ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer conn
 
-  flip finally finalizer do
-    -- Migrate if necessary.
-    result <-
-      withConn \conn ->
-        ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer conn
+  case result of
+    Left err -> pure $ Left err
+    Right () -> do
+      let finalizer :: MonadIO m => m ()
+          finalizer = do
+            decls <- readTVarIO declBuffer
+            terms <- readTVarIO termBuffer
+            let printBuffer header b =
+                  liftIO
+                    if b /= mempty
+                      then putStrLn header >> putStrLn "" >> print b
+                      else pure ()
+            printBuffer "Decls:" decls
+            printBuffer "Terms:" terms
 
-    case result of
-      Left err -> pure $ Left err
-      Right () -> do
+      flip finally finalizer do
         let getTerm :: Reference.Id -> m (Maybe (Term Symbol Ann))
             getTerm id =
               withConn \conn -> Sqlite.runTransaction conn (CodebaseOps.getTerm getDeclType id)
