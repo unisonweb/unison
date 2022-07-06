@@ -96,12 +96,9 @@ init :: HasCallStack => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
 init =
   Codebase.Init
     { withOpenCodebase = withCodebaseOrError,
-      withCreatedCodebase = withCreatedCodebase',
+      withCreatedCodebase = createCodebaseOrError,
       codebasePath = makeCodebaseDirPath
     }
-  where
-    withCreatedCodebase' debugName path action =
-      createCodebaseOrError debugName path (action . fst)
 
 data CodebaseStatus
   = ExistingCodebase
@@ -114,7 +111,7 @@ withOpenOrCreateCodebase ::
   Codebase.DebugName ->
   CodebasePath ->
   LocalOrRemote ->
-  ((CodebaseStatus, Codebase m Symbol Ann, Sqlite.Connection) -> m r) ->
+  ((CodebaseStatus, Codebase m Symbol Ann) -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
 withOpenOrCreateCodebase debugName codebasePath localOrRemote action = do
   createCodebaseOrError debugName codebasePath (action' CreatedCodebase) >>= \case
@@ -122,14 +119,14 @@ withOpenOrCreateCodebase debugName codebasePath localOrRemote action = do
       sqliteCodebase debugName codebasePath localOrRemote (action' ExistingCodebase)
     Right r -> pure (Right r)
   where
-    action' openOrCreate (codebase, conn) = action (openOrCreate, codebase, conn)
+    action' openOrCreate codebase = action (openOrCreate, codebase)
 
 -- | Create a codebase at the given location.
 createCodebaseOrError ::
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
-  ((Codebase m Symbol Ann, Sqlite.Connection) -> m r) ->
+  (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.CreateCodebaseError r)
 createCodebaseOrError debugName path action = do
   ifM
@@ -159,8 +156,7 @@ withCodebaseOrError ::
 withCodebaseOrError debugName dir action = do
   doesFileExist (makeCodebasePath dir) >>= \case
     False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
-    True ->
-      sqliteCodebase debugName dir Local (action . fst)
+    True -> sqliteCodebase debugName dir Local action
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
@@ -194,7 +190,7 @@ sqliteCodebase ::
   CodebasePath ->
   -- | When local, back up the existing codebase before migrating, in case there's a catastrophic bug in the migration.
   LocalOrRemote ->
-  ((Codebase m Symbol Ann, Sqlite.Connection) -> m r) ->
+  (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote action = do
   termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
@@ -563,7 +559,7 @@ sqliteCodebase debugName root localOrRemote action = do
                   withConnection = withConn,
                   withConnectionIO = withConnection debugName root
                 }
-        Right <$> action (codebase, undefined)
+        Right <$> action codebase
   where
     withConn :: (Sqlite.Connection -> m a) -> m a
     withConn =
@@ -761,7 +757,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior act
           then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
           else throwIO exception
 
-      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote \(codebase, _conn) -> do
+      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote \codebase -> do
         -- try to load the requested branch from it
         branch <- time "Git fetch (sbh)" $ case sbh of
           -- no sub-branch was specified, so use the root.
@@ -812,7 +808,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
   throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
     newBranchOrErr <- throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
       . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote
-      $ \(codebaseStatus, destCodebase, destConn) -> do
+      $ \(codebaseStatus, destCodebase) -> do
         currentRootBranch <-
           C.getRootBranchExists destCodebase >>= \case
             False -> pure Branch.empty
@@ -820,7 +816,8 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
         action currentRootBranch >>= \case
           Left e -> pure $ Left e
           Right newBranch -> do
-            doSync codebaseStatus (Git.gitDirToPath pushStaging) destConn newBranch
+            C.withConnection destCodebase \destConn ->
+              doSync codebaseStatus (Git.gitDirToPath pushStaging) destConn newBranch
             pure (Right newBranch)
     for newBranchOrErr $ push pushStaging repo
     pure newBranchOrErr
