@@ -28,7 +28,6 @@ import Servant.Docs
 import Servant.OpenApi ()
 import qualified Text.FuzzyFind as FZF
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
@@ -37,6 +36,7 @@ import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
@@ -140,9 +140,8 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
     rel <-
       maybe mempty Path.fromPath'
         <$> traverse (parsePath . Text.unpack) relativePath
-    hashLength <- lift $ Codebase.hashLength codebase
     rootHash <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    (_parseNames, prettyNames, _localNamesOnly) <- Backend.scopedNamesForBranchHash codebase rootHash rel
+    (_parseNames, _prettyNames, localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase rootHash rel
     let alignments ::
           ( [ ( FZF.Alignment,
                 UnisonName,
@@ -151,9 +150,8 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
             ]
           )
         alignments =
-          take (fromMaybe 10 limit) $ Backend.fuzzyFind prettyNames (fromMaybe "" query)
-        ppe = Backend.suffixifyNames hashLength prettyNames
-    lift (join <$> traverse (loadEntry ppe) alignments)
+          take (fromMaybe 10 limit) $ Backend.fuzzyFind localNamesOnly (fromMaybe "" query)
+    lift (join <$> traverse (loadEntry (PPE.suffixifiedPPE ppe)) alignments)
   where
     loadEntry ppe (a, HQ'.NameOnly . NameSegment -> n, refs) =
       for refs $
