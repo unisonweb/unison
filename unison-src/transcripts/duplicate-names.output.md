@@ -125,7 +125,7 @@ X = ()
 
 .> view X
 
-  structural type X = Unit
+  structural type X = Z
   
   X : ()
   X = ()

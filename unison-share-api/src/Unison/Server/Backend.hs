@@ -821,8 +821,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
   (_parseNames, _printNames, localNamesOnly, ppe) <- scopedNamesForBranchHash codebase root path
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
-  DefinitionResults terms types misses <-
-    lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
+  DefinitionResults terms types misses <- restrictDefinitionsToScope localNamesOnly <$> lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
   let width =
         mayDefaultWidth renderWidth
 
@@ -931,6 +930,12 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
+  where
+    restrictDefinitionsToScope :: Names -> DefinitionResults Symbol -> DefinitionResults Symbol
+    restrictDefinitionsToScope localNames (DefinitionResults terms types misses) =
+      let filteredTerms = Map.restrictKeys terms (Names.termReferences localNames)
+          filteredTypes = Map.restrictKeys types (Names.typeReferences localNames)
+       in DefinitionResults filteredTerms filteredTypes misses
 
 renderDoc ::
   PPE.PrettyPrintEnvDecl ->
@@ -1133,8 +1138,7 @@ definitionsBySuffixes ::
   [HQ.HashQualified Name] ->
   m (DefinitionResults Symbol)
 definitionsBySuffixes codebase nameSearch includeCycles query = do
-  QueryResult misses allResults <- hqNameQuery codebase nameSearch query
-  let results = resultsInScope allResults
+  QueryResult misses results <- hqNameQuery codebase nameSearch query
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- do
@@ -1189,19 +1193,6 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
       Reference.DerivedId rid -> do
         decl <- Codebase.unsafeGetTypeDeclaration codebase rid
         pure (UserObject decl)
-
-    -- We already only search for results in the current scope,
-    -- but queries by Hash-only will still find results outside of the current namespace
-    resultsInScope :: [SR.SearchResult] -> [SR.SearchResult]
-    resultsInScope = mapMaybe \sr -> case sr of
-      SR.Tp tr ->
-        case lookupNames (typeSearch nameSearch) (SR.reference tr) of
-          Empty -> Nothing
-          _matches -> Just sr
-      SR.Tm tr ->
-        case lookupNames (termSearch nameSearch) (SR.referent tr) of
-          Empty -> Nothing
-          _matches -> Just sr
 
 termsToSyntax ::
   Var v =>

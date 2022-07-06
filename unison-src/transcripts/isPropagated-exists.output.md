@@ -39,6 +39,9 @@ x = 4
 
 .> view 1
 
+  #cb9e3iosob : #c23jofurce
+  #cb9e3iosob = #c23jofurce#0
+
 ```
 Well, it's hard to tell from those hashes, but those are right.  We can confirm
 by running `builtins.merge` to have UCM add names for them.
