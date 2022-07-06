@@ -1068,6 +1068,13 @@ bestNameForType ppe width =
     . TypePrinter.pretty0 @v ppe mempty (-1)
     . Type.ref ()
 
+-- | Returns (parse, pretty, local, ppe) where:
+--
+-- - 'parse' includes ALL fully qualified names from the root, and ALSO all names from within the provided path, relative to that path.
+-- - 'pretty' includes names within the provided path, relative to that path, and also all globally scoped names _outside_ of the path
+-- - 'local' includes ONLY the names within the provided path
+-- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
+--     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
 scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, Names, Names, PPE.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
