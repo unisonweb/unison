@@ -1298,7 +1298,7 @@ At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2`
   a2.d : Nat
   a2.d =
     use Nat +
-    a2.c + 10
+    tooManySegments + 10
   
   a3.c#dcgdua2lj6 : Nat
   a3.c#dcgdua2lj6 = 2
