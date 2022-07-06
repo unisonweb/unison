@@ -819,10 +819,6 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
   (_parseNames, _printNames, localNamesOnly, ppe) <- scopedNamesForBranchHash codebase root path
-  traceShowM ("PATH" :: String, path)
-  traceShowM ("QUERY" :: String, query)
-  traceShowM ("LOCALNAMES" :: String, localNamesOnly)
-  traceShowM ("PRINTNAMES" :: String, _printNames)
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   DefinitionResults terms types misses <-
