@@ -33,16 +33,16 @@ hasMetadata = 3
 .dependencies> namespace.dependencies
 
   External dependency   Dependents in .dependencies
-  ##Int                 dependsOnInt
+  builtin.Int           dependsOnInt
                         
-  ##Nat                 dependsOnIntAndNat
+  builtin.Nat           dependsOnIntAndNat
                         dependsOnNat
                         hasMetadata
                         
-  ##Text                hasMetadata
+  builtin.Text          hasMetadata
                         
-  ##Nat.drop            dependsOnIntAndNat
+  builtin.Nat.drop      dependsOnIntAndNat
                         
-  #23g06bfjvi           hasMetadata
+  metadata.myMetadata   hasMetadata
 
 ```
