@@ -18,6 +18,8 @@ import Data.Bifunctor (first)
 import Data.Containers.ListUtils (nubOrdOn)
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -158,6 +160,35 @@ instance MonadTrans Backend where
 suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
   PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
+
+-- | Biases a PPE to prefer names near another name, using longest-common-prefix.
+-- This is helpful when printing a definition and you want to prefer names near that
+-- definition, even if your current scope may be far removed.
+preferNamesNear :: HQ.HashQualified Name -> PPE.PrettyPrintEnv -> PPE.PrettyPrintEnv
+preferNamesNear target ppe =
+  let targetName = case target of
+        HQ.HashOnly {} -> Nothing
+        HQ.NameOnly n -> Just (Name.toText n)
+        HQ.HashQualified n _ -> Just (Name.toText n)
+   in case targetName of
+        Nothing -> ppe
+        Just t ->
+          PPE.PrettyPrintEnv
+            (tap t . bias t . PPE.termNames ppe)
+            (tap t . bias t . PPE.typeNames ppe)
+  where
+    tap t names = traceShow (t, names) names
+    scoreByPrefix t n =
+      case Text.commonPrefixes t (Name.toText n) of
+        Just (prefix, _, _) -> Text.length prefix
+        Nothing -> 0
+    -- Continue to prefer unconflicted names, but secondarily sort by common prefix.
+    bias :: Text -> [HQ'.HashQualified Name] -> [HQ'.HashQualified Name]
+    bias t =
+      sortOn
+        \case
+          HQ'.NameOnly n -> (0 :: Int, scoreByPrefix t n)
+          HQ'.HashQualified n _sh -> (1, scoreByPrefix t n)
 
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
 prettyAndParseNamesForBranch :: Branch m -> NameScoping -> (Names, Names, Names)
@@ -811,17 +842,22 @@ prettyDefinitionsBySuffixes ::
   Suffixify ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  [HQ.HashQualified Name] ->
+  NonEmpty (HQ.HashQualified Name) ->
   Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase query = do
   hqLength <- lift $ Codebase.hashLength codebase
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
-  (_parseNames, _printNames, localNamesOnly, ppe) <- scopedNamesForBranchHash codebase root path
+  (_parseNames, _printNames, localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase root path
+  let ppe =
+        PPE.PrettyPrintEnvDecl
+          { unsuffixifiedPPE = preferNamesNear (NE.head query) (PPE.unsuffixifiedPPE unbiasedPPE),
+            suffixifiedPPE = preferNamesNear (NE.head query) (PPE.suffixifiedPPE unbiasedPPE)
+          }
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
-  DefinitionResults terms types misses <- restrictDefinitionsToScope localNamesOnly <$> lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
+  DefinitionResults terms types misses <- restrictDefinitionsToScope localNamesOnly <$> lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles (toList query))
   let width =
         mayDefaultWidth renderWidth
 

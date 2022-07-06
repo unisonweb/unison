@@ -7,6 +7,7 @@
 module Unison.Server.Endpoints.GetDefinitions where
 
 import Control.Monad.Except
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as Text
 import Servant
   ( QueryParam,
@@ -33,7 +34,7 @@ import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Types
   ( APIGet,
-    DefinitionDisplayResults,
+    DefinitionDisplayResults (DefinitionDisplayResults),
     HashQualifiedName,
     NamespaceFQN,
     Suffixify (..),
@@ -114,19 +115,21 @@ serveDefinitions ::
   Maybe Suffixify ->
   Backend.Backend IO DefinitionDisplayResults
 serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
-  do
-    rel <-
-      fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
-    root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    let hqns = HQ.unsafeFromText <$> rawHqns
-    Backend.prettyDefinitionsBySuffixes
-      (fromMaybe Path.empty rel)
-      root
-      width
-      (fromMaybe (Suffixify True) suff)
-      rt
-      codebase
-      hqns
+  case NE.nonEmpty rawHqns of
+    Nothing -> pure (DefinitionDisplayResults mempty mempty mempty)
+    Just neRawHqns -> do
+      rel <-
+        fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
+      root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
+      let hqns = HQ.unsafeFromText <$> neRawHqns
+      Backend.prettyDefinitionsBySuffixes
+        (fromMaybe Path.empty rel)
+        root
+        width
+        (fromMaybe (Suffixify True) suff)
+        rt
+        codebase
+        hqns
   where
     parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
     errFromEither f = either (throwError . f) pure
