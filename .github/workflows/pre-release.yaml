@@ -28,12 +28,12 @@ jobs:
       - name: build
         run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
-      - name: fetch latest codebase-ui and package with ucm
+      - name: fetch latest Unison Local UI and package with ucm
         run: |
           mkdir -p /tmp/ucm/ui
           UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
           cp $UCM /tmp/ucm/ucm
-          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip
+          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
           unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
           tar -c -z -f ucm-linux.tar.gz -C /tmp/ucm .
 
@@ -67,12 +67,12 @@ jobs:
       - name: build
         run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
-      - name: fetch latest codebase-ui and package with ucm
+      - name: fetch latest Unison Local UI and package with ucm
         run: |
           mkdir -p /tmp/ucm/ui
           UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
           cp $UCM /tmp/ucm/ucm
-          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip
+          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
           unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
           tar -c -z -f ucm-macos.tar.gz -C /tmp/ucm .
 
