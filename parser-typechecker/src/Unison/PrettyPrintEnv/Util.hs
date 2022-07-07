@@ -22,12 +22,12 @@ declarationPPE ppe ref = PrettyPrintEnv tm ty
     hash Reference.Builtin {} = Nothing
     hash (Reference.Derived h _) = Just h
     tm r0@(Referent.Ref r)
-      | hash r == rootH = termNames (unsuffixifiedPPE ppe) r0
-      | otherwise = termNames (suffixifiedPPE ppe) r0
-    tm r = termNames (suffixifiedPPE ppe) r
+      | hash r == rootH = terms (unsuffixifiedPPE ppe) r0
+      | otherwise = terms (suffixifiedPPE ppe) r0
+    tm r = terms (suffixifiedPPE ppe) r
     ty r
-      | hash r == rootH = typeNames (unsuffixifiedPPE ppe) r
-      | otherwise = typeNames (suffixifiedPPE ppe) r
+      | hash r == rootH = types (unsuffixifiedPPE ppe) r
+      | otherwise = types (suffixifiedPPE ppe) r
 
 -- The suffixed names uses the fully-qualified name for `r`
 declarationPPEDecl :: PrettyPrintEnvDecl -> Reference -> PrettyPrintEnvDecl

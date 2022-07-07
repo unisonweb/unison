@@ -2,8 +2,6 @@
 
 module Unison.PrettyPrintEnv
   ( PrettyPrintEnv (..),
-    terms,
-    types,
     patterns,
     patternName,
     termName,
@@ -14,7 +12,6 @@ module Unison.PrettyPrintEnv
   )
 where
 
-import Data.List.Extra (nubOrd)
 import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.ConstructorType as CT
 import Unison.HashQualified (HashQualified)
@@ -27,20 +24,13 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-import Unison.Util.List (safeHead)
 
 data PrettyPrintEnv = PrettyPrintEnv
-  { -- names for terms, constructors, and requests, in preferred order
-    termNames :: Referent -> [HQ'.HashQualified Name],
-    -- names for types, in order by preference
-    typeNames :: Reference -> [HQ'.HashQualified Name]
+  { -- names for terms, constructors, and requests
+    terms :: Referent -> Maybe (HQ'.HashQualified Name),
+    -- names for types
+    types :: Reference -> Maybe (HQ'.HashQualified Name)
   }
-
-terms :: PrettyPrintEnv -> Referent -> Maybe (HQ'.HashQualified Name)
-terms ppe = safeHead . termNames ppe
-
-types :: PrettyPrintEnv -> Reference -> Maybe (HQ'.HashQualified Name)
-types ppe = safeHead . typeNames ppe
 
 patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
 patterns ppe r =
@@ -54,8 +44,8 @@ instance Show PrettyPrintEnv where
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
 unionLeft e1 e2 =
   PrettyPrintEnv
-    (\r -> nubOrd (termNames e1 r <|> termNames e2 r))
-    (\r -> nubOrd (typeNames e1 r <|> typeNames e2 r))
+    (\r -> terms e1 r <|> terms e2 r)
+    (\r -> types e1 r <|> types e2 r)
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
@@ -86,7 +76,7 @@ patternName env r =
     Nothing -> HQ.take todoHashLength $ HQ.fromPattern r
 
 instance Monoid PrettyPrintEnv where
-  mempty = PrettyPrintEnv (const []) (const [])
+  mempty = PrettyPrintEnv (const Nothing) (const Nothing)
   mappend = unionLeft
 
 instance Semigroup PrettyPrintEnv where

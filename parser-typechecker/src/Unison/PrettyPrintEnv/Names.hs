@@ -9,21 +9,21 @@ import Unison.NamesWithHistory (NamesWithHistory)
 import qualified Unison.NamesWithHistory as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
+import Unison.Util.List (safeHead)
 
 fromNamesWithBias :: Int -> Maybe Name -> NamesWithHistory -> PrettyPrintEnv
 fromNamesWithBias len mayBias names = PrettyPrintEnv terms' types'
   where
-    terms' r = tap $ prioritize (toList $ Names.termName len r names)
-    types' r = tap $ prioritize (toList $ Names.typeName len r names)
+    terms' r = safeHead $ prioritize (toList $ Names.termName len r names)
+    types' r = safeHead $ prioritize (toList $ Names.typeName len r names)
     prioritize = sortOn \n ->
       (negate . length . Name.commonPrefix (HQ'.toName n) <$> mayBias, HQ'.toPriority n)
-    tap xs = traceShow (mayBias, xs) xs
 
 fromSuffixNamesWithBias :: Int -> Maybe Name -> NamesWithHistory -> PrettyPrintEnv
 fromSuffixNamesWithBias len mayBias names = PrettyPrintEnv terms' types'
   where
-    terms' r = Names.suffixedTermName len mayBias r names
-    types' r = Names.suffixedTypeName len mayBias r names
+    terms' r = safeHead $ Names.suffixedTermName len mayBias r names
+    types' r = safeHead $ Names.suffixedTypeName len mayBias r names
 
 fromNames :: Int -> NamesWithHistory -> PrettyPrintEnv
 fromNames hl = fromNamesWithBias hl Nothing
