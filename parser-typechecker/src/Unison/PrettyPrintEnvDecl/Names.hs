@@ -4,9 +4,12 @@ module Unison.PrettyPrintEnvDecl.Names where
 
 import Unison.Name (Name)
 import Unison.NamesWithHistory (NamesWithHistory)
-import Unison.PrettyPrintEnv.Names (fromNames, fromSuffixNames)
+import Unison.PrettyPrintEnv.Names (fromNamesWithBias, fromSuffixNamesWithBias)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (PrettyPrintEnvDecl))
 
-fromNamesDecl :: Int -> Maybe Name -> NamesWithHistory -> PrettyPrintEnvDecl
-fromNamesDecl hashLength mayBias names =
-  PrettyPrintEnvDecl (fromNames hashLength mayBias names) (fromSuffixNames hashLength mayBias names)
+biasedPPEDecl :: Int -> Maybe Name -> NamesWithHistory -> PrettyPrintEnvDecl
+biasedPPEDecl hashLength mayBias names =
+  PrettyPrintEnvDecl (fromNamesWithBias hashLength mayBias names) (fromSuffixNamesWithBias hashLength mayBias names)
+
+fromNamesDecl :: Int -> NamesWithHistory -> PrettyPrintEnvDecl
+fromNamesDecl hashLength names = biasedPPEDecl hashLength Nothing names

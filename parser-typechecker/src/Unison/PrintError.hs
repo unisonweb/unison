@@ -1672,7 +1672,7 @@ prettyResolutionFailures s allFailures =
 
     ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
     ppeFromNames names0 =
-      PPE.fromNames PPE.todoHashLength Nothing (NamesWithHistory.NamesWithHistory {currentNames = names0, oldNames = mempty})
+      PPE.fromNames PPE.todoHashLength (NamesWithHistory.NamesWithHistory {currentNames = names0, oldNames = mempty})
 
     prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
     prettyRow (v, mSet) = case mSet of

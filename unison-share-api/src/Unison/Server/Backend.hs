@@ -159,36 +159,7 @@ instance MonadTrans Backend where
 
 suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
-  PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength Nothing $ NamesWithHistory.fromCurrentNames names
-
--- | Biases a PPE to prefer names near another name, using longest-common-prefix.
--- This is helpful when printing a definition and you want to prefer names near that
--- definition, even if your current scope may be far removed.
-preferNamesNear :: HQ.HashQualified Name -> PPE.PrettyPrintEnv -> PPE.PrettyPrintEnv
-preferNamesNear target ppe =
-  let targetName = case target of
-        HQ.HashOnly {} -> Nothing
-        HQ.NameOnly n -> Just (Name.toText n)
-        HQ.HashQualified n _ -> Just (Name.toText n)
-   in case targetName of
-        Nothing -> ppe
-        Just t ->
-          PPE.PrettyPrintEnv
-            (tap t . bias t . PPE.termNames ppe)
-            (tap t . bias t . PPE.typeNames ppe)
-  where
-    tap t names = traceShow (t, names) names
-    scoreByPrefix t n =
-      case Text.commonPrefixes t (Name.toText n) of
-        Just (prefix, _, _) -> Text.length prefix
-        Nothing -> 0
-    -- Continue to prefer unconflicted names, but secondarily sort by common prefix.
-    bias :: Text -> [HQ'.HashQualified Name] -> [HQ'.HashQualified Name]
-    bias t =
-      sortOn
-        \case
-          HQ'.NameOnly n -> (0 :: Int, scoreByPrefix t n)
-          HQ'.HashQualified n _sh -> (1, scoreByPrefix t n)
+  PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
 
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
 prettyAndParseNamesForBranch :: Branch m -> NameScoping -> (Names, Names, Names)
@@ -239,7 +210,7 @@ shallowPPE :: Monad m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrin
 shallowPPE codebase b = do
   hashLength <- Codebase.hashLength codebase
   names <- shallowNames codebase b
-  pure $ PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength Nothing $ NamesWithHistory names mempty
+  pure $ PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names mempty
 
 -- | A 'Names' which only includes mappings for things _directly_ accessible from the branch.
 --
@@ -850,12 +821,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
-  (_parseNames, _printNames, localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase root path biasTarget
-  let ppe =
-        PPE.PrettyPrintEnvDecl
-          { unsuffixifiedPPE = preferNamesNear (NE.head query) (PPE.unsuffixifiedPPE unbiasedPPE),
-            suffixifiedPPE = preferNamesNear (NE.head query) (PPE.suffixifiedPPE unbiasedPPE)
-          }
+  (_parseNames, _printNames, localNamesOnly, ppe) <- scopedNamesForBranchHash codebase root path biasTarget
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   DefinitionResults terms types misses <- restrictDefinitionsToScope localNamesOnly <$> lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles (toList query))
@@ -1026,7 +992,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   hqLength <- Codebase.hashLength codebase
   let printNames = prettyNamesForBranch root (AllNames currentPath)
   let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
-  let ppe = PPE.fromNamesDecl hqLength Nothing printNamesWithHistory
+  let ppe = PPE.fromNamesDecl hqLength printNamesWithHistory
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
   liftIO $ traverse_ (renderDocToHtmlFile docNamesByRef directory) docs
   where
@@ -1130,8 +1096,8 @@ scopedNamesForBranchHash codebase mbh path mayBias = do
         else do
           flip prettyAndParseNamesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
 
-  let localPPE = PPE.fromNamesDecl hashLen mayBias (NamesWithHistory.fromCurrentNames localNames)
-  let globalPPE = PPE.fromNamesDecl hashLen mayBias (NamesWithHistory.fromCurrentNames parseNames)
+  let localPPE = PPE.biasedPPEDecl hashLen mayBias (NamesWithHistory.fromCurrentNames localNames)
+  let globalPPE = PPE.biasedPPEDecl hashLen mayBias (NamesWithHistory.fromCurrentNames parseNames)
   pure (parseNames, prettyNames, localNames, mkPPE localPPE globalPPE)
   where
     mkPPE :: PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl

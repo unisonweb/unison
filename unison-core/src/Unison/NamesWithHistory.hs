@@ -276,7 +276,7 @@ suffixedTermName :: Int -> Maybe Name -> Referent -> NamesWithHistory -> [HQ'.Ha
                   isHQ'd = R.manyDom fqn rel -- it is conflicted
                   hq n = HQ'.take hashLen (hq' n r)
                   hqn = if isHQ'd then hq n' else HQ'.fromName n'
-                  biasProximity n = length . Name.commonPrefix n <$> mayBias
+                  biasProximity n = negate . length . Name.commonPrefix n <$> mayBias
                in (isHQ'd, biasProximity fqn, Name.countSegments fqn, Name.countSegments n', Name.isAbsolute n', hqn)
 
 -- Set HashQualified -> Branch m -> Action' m v Names
