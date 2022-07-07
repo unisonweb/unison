@@ -1,12 +1,18 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE PolyKinds #-}
+
 module Unison.LSP.Types where
 
 import Colog.Core
+import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
-import Language.LSP.Types (TextDocumentIdentifier)
+import Language.LSP.Types
+import Language.LSP.Types.Lens
 import Language.LSP.VFS
 import Unison.Codebase
 import Unison.Codebase.Editor.Command (LexedSource)
@@ -40,7 +46,7 @@ logError msg = do
   log (WithSeverity msg Error)
 
 data Env = Env
-  { context :: LanguageContextEnv Config,
+  { lspContext :: LanguageContextEnv Config,
     codebase :: Codebase IO Symbol Ann,
     parseNamesCache :: TVar NamesWithHistory,
     ppeCache :: TVar PrettyPrintEnvDecl,
@@ -54,7 +60,9 @@ data Env = Env
   }
 
 data FileInfo = FileInfo
-  { lexedSource :: LexedSource,
+  { fileUri :: Uri,
+    docVersion :: Maybe UInt,
+    lexedSource :: LexedSource,
     parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     notes :: Seq (Note Symbol Ann)
@@ -66,3 +74,8 @@ data Config = Config
 -- | Lift a backend computation into the Lsp monad.
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
 lspBackend = liftIO . runExceptT . flip runReaderT (Backend.BackendEnv False) . Backend.runBackend
+
+sendNotification :: forall (m :: Method 'FromServer 'Notification). (Message m ~ NotificationMessage m) => NotificationMessage m -> Lsp ()
+sendNotification notif = do
+  sendServerMessage <- asks (resSendMessage . lspContext)
+  liftIO $ sendServerMessage $ FromServerMess (notif ^. method) (notif)
