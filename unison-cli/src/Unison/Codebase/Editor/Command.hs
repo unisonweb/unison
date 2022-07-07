@@ -46,7 +46,6 @@ import qualified Unison.Hash as H
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import Unison.Name (Name)
-import Unison.Names (Names)
 import Unison.NamesWithHistory (NamesWithHistory)
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)

@@ -20,9 +20,10 @@ import Network.Socket
 import System.Environment (lookupEnv)
 import Unison.Codebase
 import Unison.Codebase.Runtime (Runtime)
+import Unison.LSP.Orphans ()
 import Unison.LSP.RequestHandlers
 import Unison.LSP.Types
-import Unison.LSP.VFS
+import qualified Unison.LSP.VFS as VFS
 import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.Symbol
@@ -70,7 +71,10 @@ lspDefaultConfig = Config
 
 -- | Initialize any context needed by the LSP server
 lspDoInitialize :: MVar VFS -> Codebase IO Symbol Ann -> Runtime Symbol -> LanguageContextEnv Config -> Message 'Initialize -> IO (Either ResponseError Env)
-lspDoInitialize vfsVar codebase runtime context _ = pure $ Right $ Env {..}
+lspDoInitialize vfsVar codebase runtime context _ = do
+  checkedFilesVar <- newMVar (CheckedFiles mempty)
+  fileChanges <- newTQueueIO
+  pure $ Right $ Env {..}
 
 -- | LSP request handlers that don't register/unregister dynamically
 lspStaticHandlers :: Handlers Lsp
@@ -93,11 +97,9 @@ lspRequestHandlers =
 lspNotificationHandlers :: SMethodMap (ClientMessageHandler Lsp 'Notification)
 lspNotificationHandlers =
   mempty
-    & SMM.insert STextDocumentDidOpen (ClientMessageHandler $ usingVFS . openVFS vfsLogger)
-    & SMM.insert STextDocumentDidClose (ClientMessageHandler $ usingVFS . closeVFS vfsLogger)
-    & SMM.insert STextDocumentDidChange (ClientMessageHandler $ usingVFS . changeFromClientVFS vfsLogger)
-  where
-    vfsLogger = Colog.cmap (fmap tShow) (Colog.hoistLogAction lift LSP.defaultClientLogger)
+    & SMM.insert STextDocumentDidOpen (ClientMessageHandler VFS.lspOpenFile)
+    & SMM.insert STextDocumentDidClose (ClientMessageHandler VFS.lspCloseFile)
+    & SMM.insert STextDocumentDidChange (ClientMessageHandler VFS.lspChangeFile)
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO

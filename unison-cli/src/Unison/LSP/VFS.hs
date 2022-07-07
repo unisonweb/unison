@@ -1,8 +1,10 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.LSP.VFS where
 
+import qualified Colog.Core as Colog
 import Control.Lens
 import qualified Control.Lens as Lens
 import Control.Monad.Reader
@@ -12,20 +14,17 @@ import Data.Char (isSpace)
 import qualified Data.Text as Text
 import qualified Data.Text.Utf16.Rope as Rope
 import Data.Tuple (swap)
+import qualified Language.LSP.Logging as LSP
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import qualified Language.LSP.Types.Lens as LSP
 import Language.LSP.VFS as VFS hiding (character)
-import Unison.Codebase.Editor.Command (LexedSource)
-import Unison.Codebase.Editor.HandleCommand (typecheck, typecheckCommand)
-import qualified Unison.FileParsers as UF
+import Unison.Codebase.Editor.HandleCommand (typecheckCommand)
+import Unison.LSP.Orphans ()
 import Unison.LSP.Types
-import Unison.Parser.Ann (Ann)
+import qualified Unison.Lexer as L
 import Unison.Prelude
-import Unison.Result
 import qualified Unison.Result as Result
-import Unison.Symbol (Symbol)
-import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import UnliftIO
 
 -- | Some VFS combinators require Monad State, this provides it in a transactionally safe
@@ -73,17 +72,11 @@ identifierAtPosition :: (HasPosition p Position, HasTextDocument p TextDocumentI
 identifierAtPosition p = do
   identifierPartsAtPosition p <&> fmap \(before, after) -> (before <> after)
 
-data FileInfo = FileInfo
-  { lexedSource :: Maybe LexedSource,
-    parsedFile :: Maybe (UnisonFile Symbol Ann),
-    typecheckedFile :: Maybe (TypecheckedUnisonFile Symbol Ann),
-    notes :: Seq (Note Symbol Ann)
-  }
-
-checkFile :: TextDocumentIdentifier -> Lsp FileInfo
-checkFile docId = do
+checkFile :: TextDocumentIdentifier -> Lsp (Maybe FileInfo)
+checkFile docId = runMaybeT $ do
+  contents <- MaybeT (getFileContents docId)
   let sourceName = getUri $ docId ^. uri
-  let lexedSource = _
+  let lexedSource = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   let parseNames = _
   cb <- asks codebase
@@ -94,3 +87,15 @@ checkFile docId = do
     Nothing -> pure $ FileInfo {parsedFile = Nothing, typecheckedFile = Nothing, ..}
     Just (Left uf) -> pure $ FileInfo {parsedFile = Just uf, typecheckedFile = Nothing, ..}
     Just (Right tf) -> pure $ FileInfo {parsedFile = Nothing, typecheckedFile = Just tf, ..}
+
+lspOpenFile :: NotificationMessage 'TextDocumentDidOpen -> Lsp ()
+lspOpenFile = usingVFS . openVFS vfsLogger
+
+lspCloseFile :: NotificationMessage 'TextDocumentDidClose -> Lsp ()
+lspCloseFile = usingVFS . closeVFS vfsLogger
+
+lspChangeFile :: NotificationMessage 'TextDocumentDidChange -> Lsp ()
+lspChangeFile = usingVFS . changeFromClientVFS vfsLogger
+
+vfsLogger :: Colog.LogAction (StateT VFS Lsp) (Colog.WithSeverity VfsLog)
+vfsLogger = Colog.cmap (fmap tShow) (Colog.hoistLogAction lift LSP.defaultClientLogger)

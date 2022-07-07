@@ -5,20 +5,22 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
+import Language.LSP.Types (TextDocumentIdentifier, TextDocumentItem)
 import Language.LSP.VFS
 import Unison.Codebase
+import Unison.Codebase.Editor.Command (LexedSource)
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Parser.Ann
 import Unison.Prelude
+import Unison.Result (Note)
 import qualified Unison.Server.Backend as Backend
 import Unison.Symbol
+import qualified Unison.UnisonFile as UF
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
 newtype Lsp a = Lsp {runLspM :: ReaderT Env (LspM Config) a}
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadUnliftIO, MonadReader Env, MonadLsp Config)
-
-
 
 -- | Log an info message to the client's LSP log.
 logInfo :: Text -> Lsp ()
@@ -39,13 +41,20 @@ data Env = Env
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
     checkedFilesVar :: MVar CheckedFiles,
+    fileChanges :: TQueue TextDocumentItem
+  }
+
+data FileInfo = FileInfo
+  { lexedSource :: LexedSource,
+    parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
+    typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
+    notes :: Seq (Note Symbol Ann)
   }
 
 -- | The information we have for each file, which may or may not have a valid parse or
 -- typecheck.
 newtype CheckedFiles
   = CheckedFiles (Map TextDocumentIdentifier FileInfo)
-
 
 data Config = Config
 
