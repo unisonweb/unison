@@ -24,6 +24,7 @@ import ArgParse
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (forkIO, newEmptyMVar, takeMVar)
 import Control.Concurrent.Async (withAsync)
+import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
 import Data.Bifunctor
@@ -51,6 +52,7 @@ import Text.Megaparsec (runParser)
 import Text.Pretty.Simple (pHPrint)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
+import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (ReadShareRemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
@@ -129,7 +131,8 @@ main = withCP65001 do
               getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
                 rt <- RTI.startRuntime RTI.OneOff Version.gitDescribeWithDate
                 let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
+                let notifyOnUcmChanges _ = pure ()
+                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes notifyOnUcmChanges
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
@@ -138,6 +141,7 @@ main = withCP65001 do
             getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
               rt <- RTI.startRuntime RTI.OneOff Version.gitDescribeWithDate
               let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
+              let notifyOnUcmChanges _ = pure ()
               launch
                 currentDir
                 config
@@ -147,6 +151,7 @@ main = withCP65001 do
                 Nothing
                 ShouldNotDownloadBase
                 initRes
+                notifyOnUcmChanges
       Run (RunCompiled file) args ->
         BL.readFile file >>= \bs ->
           try (evaluate $ RTI.decodeStandalone bs) >>= \case
@@ -213,8 +218,9 @@ main = withCP65001 do
       Launch isHeadless codebaseServerOpts downloadBase -> do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime RTI.Persistent Version.gitDescribeWithDate
-          ucmStateChanges <- newTQueueIO
-          withAsync (LSP.spawnLsp theCodebase runtime ucmStateChanges) $ \_ -> do
+          ucmStateChangesQ <- newTQueueIO
+          let notifyOnUcmChanges = atomically . writeTQueue ucmStateChangesQ
+          withAsync (LSP.spawnLsp theCodebase runtime ucmStateChangesQ) $ \_ -> do
             Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
               case exitOption of
                 DoNotExit -> do
@@ -238,7 +244,7 @@ main = withCP65001 do
                       takeMVar mvar
                     WithCLI -> do
                       PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                      launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
+                      launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes notifyOnUcmChanges
                 Exit -> do Exit.exitSuccess
 
 -- | Set user agent and configure TLS on global http client.
@@ -385,8 +391,9 @@ launch ::
   Maybe Server.BaseUrl ->
   ShouldDownloadBase ->
   InitResult ->
+  ((Branch IO, Path.Absolute) -> IO ()) ->
   IO ()
-launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initResult =
+launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initResult notifyChange =
   let downloadBase = case defaultBaseLib of
         Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
         _ -> Welcome.DontDownloadBase
@@ -406,6 +413,7 @@ launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initR
         codebase
         serverBaseUrl
         ucmVersion
+        notifyChange
 
 newtype MarkdownFile = MarkdownFile FilePath
 
