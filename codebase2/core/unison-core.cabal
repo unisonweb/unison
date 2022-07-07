@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7b810bbd4d380ccd76c363eac447c7233c7b0e9d968960547c00d20ac3edeb08
+-- hash: c95852b01c310af9965bbec9dfa7637e97148815d674788512bd1748a1858314
 
 name:           unison-core
 version:        0.0.0
@@ -22,6 +22,32 @@ library
       U.Core.ABT.Var
   hs-source-dirs:
       ./
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      QuantifiedConstraints
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+      TypeApplications
+      ViewPatterns
   build-depends:
       base
     , containers
