@@ -104,6 +104,6 @@ lspOptions = defaultOptions {textDocumentSync = Just $ textDocSyncOptions}
         { _openClose = Just True,
           _change = Just TdSyncIncremental, -- TdSyncFull
           _willSave = Just True,
-          _willSaveWaitUntil = Just True,
-          _save = Just (InL True)
+          _willSaveWaitUntil = Just False,
+          _save = Just (InL False)
         }
