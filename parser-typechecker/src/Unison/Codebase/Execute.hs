@@ -21,6 +21,7 @@ import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Symbol (Symbol)
 
 execute ::
