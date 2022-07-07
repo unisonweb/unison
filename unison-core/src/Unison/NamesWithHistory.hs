@@ -37,6 +37,13 @@ data NamesWithHistory = NamesWithHistory
   }
   deriving (Show)
 
+instance Semigroup NamesWithHistory where
+  NamesWithHistory cur1 old1 <> NamesWithHistory cur2 old2 =
+    NamesWithHistory (cur1 <> old1) (cur2 <> old2)
+
+instance Monoid NamesWithHistory where
+  mempty = NamesWithHistory mempty mempty
+
 fromCurrentNames :: Names -> NamesWithHistory
 fromCurrentNames n = NamesWithHistory {currentNames = n, oldNames = mempty}
 
