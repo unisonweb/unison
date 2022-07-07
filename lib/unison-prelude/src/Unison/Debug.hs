@@ -28,6 +28,8 @@ data DebugFlag
   | Migration
   | Integrity
   | Sync
+  | -- Language server
+    LSP
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -46,6 +48,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "MIGRATION" -> pure Migration
       "INTEGRITY" -> pure Integrity
       "SYNC" -> pure Sync
+      "LSP" -> pure LSP
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -76,6 +79,10 @@ debugIntegrity = Integrity `Set.member` debugFlags
 debugSync :: Bool
 debugSync = Sync `Set.member` debugFlags
 {-# NOINLINE debugSync #-}
+
+debugLSP :: Bool
+debugLSP = LSP `Set.member` debugFlags
+{-# NOINLINE debugLSP #-}
 
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
@@ -124,3 +131,4 @@ shouldDebug = \case
   Migration -> debugMigration
   Integrity -> debugIntegrity
   Sync -> debugSync
+  LSP -> debugLSP

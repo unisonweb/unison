@@ -31,7 +31,6 @@ hoverHandler m respond =
     cb <- asks codebase
     rt <- asks runtime
     results <- MaybeT . fmap eitherToMaybe $ (lspBackend $ Backend.prettyDefinitionsBySuffixes Path.empty Nothing Nothing (Backend.Suffixify True) rt cb [HQ.unsafeFromText identifier])
-    liftIO . print $ ("HOVER" :: String, results)
     let termResults = formatTermDefinition <$> toList (Backend.termDefinitions results)
     let typeResults = formatTypeDefinition <$> toList (Backend.typeDefinitions results)
     let markup = Text.intercalate "\n\n---\n\n" $ termResults <> typeResults
@@ -161,10 +160,10 @@ mkCompletionItem lbl =
 --
 -- TODO: This should really use a TypecheckedUnisonFile
 codeLensHandler :: RequestMessage 'TextDocumentCodeLens -> (Either ResponseError (ResponseResult 'TextDocumentCodeLens) -> Lsp ()) -> Lsp ()
-codeLensHandler m respond =
+codeLensHandler _m respond =
   respond . maybe (Right mempty) (Right . List) =<< runMaybeT do
     pure []
 
 -- | Runs a selected code lens
 codeLensResolveHandler :: RequestMessage 'CodeLensResolve -> (Either ResponseError (ResponseResult 'CodeLensResolve) -> Lsp ()) -> Lsp ()
-codeLensResolveHandler m respond = respond (Left $ error "unsupported")
+codeLensResolveHandler _m respond = respond (Left $ error "unsupported")
