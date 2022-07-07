@@ -9,6 +9,7 @@ import Colog.Core (LogAction (LogAction))
 import qualified Colog.Core as Colog
 import Control.Monad.Reader
 import Data.Aeson hiding (Options, defaultOptions)
+import qualified Ki
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
 import Language.LSP.Types
@@ -19,10 +20,13 @@ import qualified Network.Simple.TCP as TCP
 import Network.Socket
 import System.Environment (lookupEnv)
 import Unison.Codebase
+import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.LSP.Orphans ()
 import Unison.LSP.RequestHandlers
 import Unison.LSP.Types
+import Unison.LSP.UCMWorker (ucmWorker)
 import qualified Unison.LSP.VFS as VFS
 import Unison.Parser.Ann
 import Unison.Prelude
@@ -33,30 +37,37 @@ getLspPort :: IO String
 getLspPort = fromMaybe "5050" <$> lookupEnv "UNISON_LSP_PORT"
 
 -- | Spawn an LSP server on the configured port.
-spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> IO ()
-spawnLsp codebase runtime = do
+spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> TQueue (Branch IO, Path.Absolute) -> IO ()
+spawnLsp codebase runtime ucmStateChanges = do
   lspPort <- getLspPort
   putStrLn $ "Language server listening at 127.0.0.1:" <> lspPort <> " https://github.com/unisonweb/unison/blob/trunk/docs/ability-typechecking.markdown"
   putStrLn $ "You can view LSP setup instructions at https://github.com/unisonweb/unison/blob/trunk/docs/ability-typechecking.markdown"
   TCP.serve (TCP.Host "127.0.0.1") "5050" $ \(sock, _sockaddr) -> do
     sockHandle <- socketToHandle sock ReadWriteMode
-    -- currently we have an independent VFS for each LSP client since each client might have
-    -- different un-saved state for the same file.
-    initVFS $ \vfs -> do
-      vfsVar <- newMVar vfs
-      void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime)
+    Ki.scoped \scope -> do
+      -- currently we have an independent VFS for each LSP client since each client might have
+      -- different un-saved state for the same file.
+      initVFS $ \vfs -> do
+        vfsVar <- newMVar vfs
+        void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope ucmStateChanges)
   where
     -- Where to send logs that occur before a client connects
     lspServerLogger = Colog.filterBySeverity Colog.Error Colog.getSeverity $ Colog.cmap (fmap tShow) (LogAction print)
     -- Where to send logs that occur after a client connects
     lspClientLogger = Colog.cmap (fmap tShow) LSP.defaultClientLogger
 
-serverDefinition :: MVar VFS -> Codebase IO Symbol Ann -> Runtime Symbol -> ServerDefinition Config
-serverDefinition vfsVar codebase runtime =
+serverDefinition ::
+  MVar VFS ->
+  Codebase IO Symbol Ann ->
+  Runtime Symbol ->
+  Ki.Scope ->
+  TQueue (Branch IO, Path.Absolute) ->
+  ServerDefinition Config
+serverDefinition vfsVar codebase runtime scope ucmStateChanges =
   ServerDefinition
     { defaultConfig = lspDefaultConfig,
       onConfigurationChange = lspOnConfigurationChange,
-      doInitialize = lspDoInitialize vfsVar codebase runtime,
+      doInitialize = lspDoInitialize vfsVar codebase runtime scope ucmStateChanges,
       staticHandlers = lspStaticHandlers,
       interpretHandler = lspInterpretHandler,
       options = lspOptions
@@ -70,11 +81,25 @@ lspDefaultConfig :: Config
 lspDefaultConfig = Config
 
 -- | Initialize any context needed by the LSP server
-lspDoInitialize :: MVar VFS -> Codebase IO Symbol Ann -> Runtime Symbol -> LanguageContextEnv Config -> Message 'Initialize -> IO (Either ResponseError Env)
-lspDoInitialize vfsVar codebase runtime context _ = do
-  checkedFilesVar <- newMVar (CheckedFiles mempty)
-  fileChanges <- newTQueueIO
-  pure $ Right $ Env {..}
+lspDoInitialize ::
+  MVar VFS ->
+  Codebase IO Symbol Ann ->
+  Runtime Symbol ->
+  Ki.Scope ->
+  TQueue (Branch IO, Path.Absolute) ->
+  LanguageContextEnv Config ->
+  Message 'Initialize ->
+  IO (Either ResponseError Env)
+lspDoInitialize vfsVar codebase runtime scope ucmStateChanges context _initMsg = do
+  checkedFilesVar <- newTVarIO mempty
+  dirtyFilesVar <- newTVarIO mempty
+  ppeCache <- newTVarIO mempty
+  parseNamesCache <- newTVarIO mempty
+  let env = Env {..}
+  let lspToIO = flip runReaderT context . unLspT . flip runReaderT env . runLspM
+  Ki.fork scope (lspToIO VFS.fileCheckingWorker)
+  Ki.fork scope (lspToIO $ ucmWorker ucmStateChanges)
+  pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
 lspStaticHandlers :: Handlers Lsp

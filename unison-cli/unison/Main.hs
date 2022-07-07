@@ -213,7 +213,8 @@ main = withCP65001 do
       Launch isHeadless codebaseServerOpts downloadBase -> do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime RTI.Persistent Version.gitDescribeWithDate
-          withAsync (LSP.spawnLsp theCodebase runtime) $ \_ -> do
+          ucmStateChanges <- newTQueueIO
+          withAsync (LSP.spawnLsp theCodebase runtime ucmStateChanges) $ \_ -> do
             Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
               case exitOption of
                 DoNotExit -> do

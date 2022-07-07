@@ -5,6 +5,7 @@ import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Data.Set as Set
+import qualified Ki
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
 import Language.LSP.Types (TextDocumentIdentifier)
@@ -14,8 +15,10 @@ import Unison.Codebase
 import Unison.Codebase.Editor.Command (LexedSource)
 import Unison.Codebase.Runtime (Runtime)
 import Unison.LSP.Orphans ()
+import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Result (Note)
 import qualified Unison.Server.Backend as Backend
 import Unison.Symbol
@@ -42,16 +45,21 @@ logError msg = do
 data Env = Env
   { context :: LanguageContextEnv Config,
     codebase :: Codebase IO Symbol Ann,
+    parseNamesCache :: TVar NamesWithHistory,
+    ppeCache :: TVar PrettyPrintEnvDecl,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
-    checkedFilesVar :: MVar CheckedFiles,
-    dirtyFiles :: TVar (Set TextDocumentIdentifier)
+    -- The information we have for each file, which may or may not have a valid parse or
+    -- typecheck.
+    checkedFilesVar :: TVar (Map TextDocumentIdentifier FileInfo),
+    dirtyFilesVar :: TVar (Set TextDocumentIdentifier),
+    scope :: Ki.Scope
   }
 
 markFileDirty :: HasTextDocument m TextDocumentIdentifier => m -> Lsp ()
 markFileDirty doc = do
-  dirtyFilesVar <- asks dirtyFiles
-  atomically $ modifyTVar' dirtyFilesVar (Set.insert $ doc ^. textDocument)
+  dirtyFilesV <- asks dirtyFilesVar
+  atomically $ modifyTVar' dirtyFilesV (Set.insert $ doc ^. textDocument)
 
 data FileInfo = FileInfo
   { lexedSource :: LexedSource,
@@ -59,11 +67,6 @@ data FileInfo = FileInfo
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     notes :: Seq (Note Symbol Ann)
   }
-
--- | The information we have for each file, which may or may not have a valid parse or
--- typecheck.
-newtype CheckedFiles
-  = CheckedFiles (Map TextDocumentIdentifier FileInfo)
 
 data Config = Config
 

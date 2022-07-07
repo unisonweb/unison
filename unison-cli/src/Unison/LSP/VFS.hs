@@ -1,16 +1,19 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.LSP.VFS where
 
 import qualified Colog.Core as Colog
+import Control.Concurrent (threadDelay)
 import Control.Lens
 import qualified Control.Lens as Lens
 import Control.Monad.Reader
 import Control.Monad.State
 import qualified Crypto.Random as Random
 import Data.Char (isSpace)
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Utf16.Rope as Rope
 import Data.Tuple (swap)
@@ -26,6 +29,7 @@ import qualified Unison.Lexer as L
 import Unison.Prelude
 import qualified Unison.Result as Result
 import UnliftIO
+import Witherable (forMaybe)
 
 -- | Some VFS combinators require Monad State, this provides it in a transactionally safe
 -- manner.
@@ -75,10 +79,10 @@ identifierAtPosition p = do
 checkFile :: TextDocumentIdentifier -> Lsp (Maybe FileInfo)
 checkFile docId = runMaybeT $ do
   contents <- MaybeT (getFileContents docId)
+  parseNames <- asks parseNamesCache >>= readTVarIO
   let sourceName = getUri $ docId ^. uri
   let lexedSource = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
-  let parseNames = _
   cb <- asks codebase
   drg <- liftIO Random.getSystemDRG
   r <- (liftIO $ typecheckCommand cb ambientAbilities parseNames sourceName lexedSource drg)
@@ -87,6 +91,24 @@ checkFile docId = runMaybeT $ do
     Nothing -> pure $ FileInfo {parsedFile = Nothing, typecheckedFile = Nothing, ..}
     Just (Left uf) -> pure $ FileInfo {parsedFile = Just uf, typecheckedFile = Nothing, ..}
     Just (Right tf) -> pure $ FileInfo {parsedFile = Nothing, typecheckedFile = Just tf, ..}
+
+fileCheckingWorker :: Lsp ()
+fileCheckingWorker = forever do
+  dirtyFilesV <- asks dirtyFilesVar
+  checkedFilesV <- asks checkedFilesVar
+  dirtyFileIDs <- atomically $ do
+    dirty <- readTVar dirtyFilesV
+    guard $ not $ null dirty
+    pure dirty
+  freshlyCheckedFiles <-
+    Map.fromList <$> forMaybe (toList dirtyFileIDs) \docId -> do
+      fmap (docId,) <$> checkFile docId
+  -- Overwrite any files we successfully checked
+  atomically $ modifyTVar' checkedFilesV (`Map.union` freshlyCheckedFiles)
+  liftIO $ threadDelay (typecheckerDebounceSeconds * 1_000_000)
+  where
+    -- The typechecker will only run at most once every debounce interval
+    typecheckerDebounceSeconds = 5
 
 lspOpenFile :: NotificationMessage 'TextDocumentDidOpen -> Lsp ()
 lspOpenFile m = do
