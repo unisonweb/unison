@@ -1898,7 +1898,31 @@ test =
     I.Visible
     []
     "`test` runs unit tests for the current branch."
-    (const $ pure $ Input.TestI True True)
+    ( const $
+        pure $
+          Input.TestI
+            Input.TestInput
+              { showFailures = True,
+                showSuccesses = True
+              }
+    )
+
+testAll :: InputPattern
+testAll =
+  InputPattern
+    "test.all"
+    []
+    I.Visible
+    []
+    "`test.all` runs unit tests for the current branch, including dependencies."
+    ( const $
+        pure $
+          Input.TestI
+            Input.TestInput
+              { showFailures = True,
+                showSuccesses = True
+              }
+    )
 
 docsToHtml :: InputPattern
 docsToHtml =
@@ -2138,6 +2162,7 @@ validInputs =
       deleteTermReplacement,
       deleteTypeReplacement,
       test,
+      testAll,
       ioTest,
       execute,
       viewReflog,
