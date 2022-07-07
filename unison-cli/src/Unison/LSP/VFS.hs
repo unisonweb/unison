@@ -14,15 +14,17 @@ import Control.Monad.State
 import qualified Crypto.Random as Random
 import Data.Char (isSpace)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Utf16.Rope as Rope
 import Data.Tuple (swap)
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Types
-import Language.LSP.Types.Lens
+import Language.LSP.Types.Lens (HasCharacter (character), HasParams (params), HasPosition (position), HasTextDocument (textDocument), HasUri (uri))
 import qualified Language.LSP.Types.Lens as LSP
 import Language.LSP.VFS as VFS hiding (character)
 import Unison.Codebase.Editor.HandleCommand (typecheckCommand)
+import qualified Unison.Debug as Debug
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import qualified Unison.Lexer as L
@@ -41,7 +43,6 @@ usingVFS m = do
 getVirtualFile :: (HasTextDocument p TextDocumentIdentifier) => p -> Lsp (Maybe VirtualFile)
 getVirtualFile p = do
   vfs <- asks vfsVar >>= readMVar
-  liftIO $ print ("vfsmap" :: String, vfs)
   let (TextDocumentIdentifier uri) = p ^. textDocument
   pure $ vfs ^. vfsMap . at (toNormalizedUri uri)
 
@@ -98,11 +99,13 @@ fileCheckingWorker = forever do
   checkedFilesV <- asks checkedFilesVar
   dirtyFileIDs <- atomically $ do
     dirty <- readTVar dirtyFilesV
+    writeTVar dirtyFilesV mempty
     guard $ not $ null dirty
     pure dirty
   freshlyCheckedFiles <-
     Map.fromList <$> forMaybe (toList dirtyFileIDs) \docId -> do
       fmap (docId,) <$> checkFile docId
+  Debug.debugM Debug.LSP "Typechecked:" freshlyCheckedFiles
   -- Overwrite any files we successfully checked
   atomically $ modifyTVar' checkedFilesV (`Map.union` freshlyCheckedFiles)
   liftIO $ threadDelay (typecheckerDebounceSeconds * 1_000_000)
@@ -111,16 +114,23 @@ fileCheckingWorker = forever do
     typecheckerDebounceSeconds = 5
 
 lspOpenFile :: NotificationMessage 'TextDocumentDidOpen -> Lsp ()
-lspOpenFile m = do
-  usingVFS . openVFS vfsLogger $ m
+lspOpenFile msg = do
+  usingVFS . openVFS vfsLogger $ msg
+  markFileDirty (msg ^. params)
 
 lspCloseFile :: NotificationMessage 'TextDocumentDidClose -> Lsp ()
-lspCloseFile m =
-  usingVFS . closeVFS vfsLogger $ m
+lspCloseFile msg =
+  usingVFS . closeVFS vfsLogger $ msg
 
 lspChangeFile :: NotificationMessage 'TextDocumentDidChange -> Lsp ()
-lspChangeFile m = do
-  usingVFS . changeFromClientVFS vfsLogger $ m
+lspChangeFile msg = do
+  usingVFS . changeFromClientVFS vfsLogger $ msg
+  markFileDirty (msg ^. params)
 
 vfsLogger :: Colog.LogAction (StateT VFS Lsp) (Colog.WithSeverity VfsLog)
 vfsLogger = Colog.cmap (fmap tShow) (Colog.hoistLogAction lift LSP.defaultClientLogger)
+
+markFileDirty :: (HasTextDocument m docId, HasUri docId Uri) => m -> Lsp ()
+markFileDirty doc = do
+  dirtyFilesV <- asks dirtyFilesVar
+  atomically $ modifyTVar' dirtyFilesV (Set.insert $ doc ^. textDocument . uri . to TextDocumentIdentifier)

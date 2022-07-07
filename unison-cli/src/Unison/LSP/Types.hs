@@ -1,15 +1,12 @@
 module Unison.LSP.Types where
 
 import Colog.Core
-import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
-import qualified Data.Set as Set
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
 import Language.LSP.Types (TextDocumentIdentifier)
-import Language.LSP.Types.Lens (HasTextDocument (textDocument))
 import Language.LSP.VFS
 import Unison.Codebase
 import Unison.Codebase.Editor.Command (LexedSource)
@@ -56,17 +53,13 @@ data Env = Env
     scope :: Ki.Scope
   }
 
-markFileDirty :: HasTextDocument m TextDocumentIdentifier => m -> Lsp ()
-markFileDirty doc = do
-  dirtyFilesV <- asks dirtyFilesVar
-  atomically $ modifyTVar' dirtyFilesV (Set.insert $ doc ^. textDocument)
-
 data FileInfo = FileInfo
   { lexedSource :: LexedSource,
     parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     notes :: Seq (Note Symbol Ann)
   }
+  deriving (Show)
 
 data Config = Config
 

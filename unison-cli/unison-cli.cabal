@@ -61,6 +61,7 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
       Unison.LSP
+      Unison.LSP.FileInfo
       Unison.LSP.Orphans
       Unison.LSP.RequestHandlers
       Unison.LSP.Types

@@ -40,8 +40,8 @@ getLspPort = fromMaybe "5050" <$> lookupEnv "UNISON_LSP_PORT"
 spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> TQueue (Branch IO, Path.Absolute) -> IO ()
 spawnLsp codebase runtime ucmStateChanges = do
   lspPort <- getLspPort
-  putStrLn $ "Language server listening at 127.0.0.1:" <> lspPort <> " https://github.com/unisonweb/unison/blob/trunk/docs/ability-typechecking.markdown"
-  putStrLn $ "You can view LSP setup instructions at https://github.com/unisonweb/unison/blob/trunk/docs/ability-typechecking.markdown"
+  putStrLn $ "  Language server listening at 127.0.0.1:" <> lspPort
+  putStrLn $ "  You can view LSP setup instructions at https://github.com/unisonweb/unison/blob/trunk/docs/ability-typechecking.markdown"
   TCP.serve (TCP.Host "127.0.0.1") "5050" $ \(sock, _sockaddr) -> do
     sockHandle <- socketToHandle sock ReadWriteMode
     Ki.scoped \scope -> do
@@ -144,7 +144,7 @@ lspOptions = defaultOptions {textDocumentSync = Just $ textDocSyncOptions}
           -- Clients should send file change messages so the VFS can handle them
           _change = Just TdSyncIncremental,
           -- Clients should tell us when files are saved
-          _willSave = Just True,
+          _willSave = Just False,
           -- If we implement a pre-save hook we can enable this.
           _willSaveWaitUntil = Just False,
           -- If we implement a save hook we can enable this.

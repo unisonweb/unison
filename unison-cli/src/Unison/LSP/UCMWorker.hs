@@ -8,6 +8,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Debug as Debug
 import Unison.LSP.Types
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import qualified Unison.Server.Backend as Backend
@@ -17,24 +18,26 @@ ucmWorker :: TQueue (Branch IO, Path.Absolute) -> Lsp ()
 ucmWorker ucmStateChanges = do
   Env {ppeCache, parseNamesCache, codebase} <- ask
   let loop (currentBranch, currentPath) = do
-        latestState@(latestRoot, latestPath) <- atomically $ do
+        (latestRoot, latestPath) <- atomically $ do
           updates <- flushTQueue ucmStateChanges
           case updates of
             [] -> retry
             (u : us) -> pure $ NE.last (u NE.:| us)
           guard . not . null $ updates
           pure $ last updates
-        if latestState /= (currentBranch, currentPath)
+        Debug.debugM Debug.LSP "Detected updated path:" latestPath
+        if (Just latestRoot, Just latestPath) /= (currentBranch, currentPath)
           then do
             let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute latestPath)) latestRoot
             atomically $ writeTVar parseNamesCache parseNames
             hl <- Codebase.hashLength codebase
             let ppe = PPE.fromNamesDecl hl parseNames
             atomically $ writeTVar ppeCache ppe
-          else loop latestState
+          else loop (Just latestRoot, Just latestPath)
 
   -- Bootstrap manually from codebase just in case we're in headless mode and don't get any
   -- updates from UCM
   liftIO $ do
     rootBranch <- Codebase.getRootBranch codebase
-    loop (rootBranch, Path.absoluteEmpty)
+    atomically $ writeTQueue ucmStateChanges (rootBranch, Path.absoluteEmpty)
+    loop (Nothing, Nothing)
