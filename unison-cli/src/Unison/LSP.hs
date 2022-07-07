@@ -31,6 +31,7 @@ import UnliftIO
 getLspPort :: IO String
 getLspPort = fromMaybe "5050" <$> lookupEnv "UNISON_LSP_PORT"
 
+-- | Spawn an LSP server on the configured port.
 spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> IO ()
 spawnLsp codebase runtime = do
   lspPort <- getLspPort
@@ -60,31 +61,36 @@ serverDefinition vfsVar codebase runtime =
       options = lspOptions
     }
 
+-- | Detect user LSP configuration changes.
 lspOnConfigurationChange :: Config -> Value -> Either Text Config
 lspOnConfigurationChange _ _ = pure Config
 
 lspDefaultConfig :: Config
 lspDefaultConfig = Config
 
+-- | Initialize any context needed by the LSP server
 lspDoInitialize :: MVar VFS -> Codebase IO Symbol Ann -> Runtime Symbol -> LanguageContextEnv Config -> Message 'Initialize -> IO (Either ResponseError Env)
 lspDoInitialize vfsVar codebase runtime context _ = pure $ Right $ Env {..}
 
+-- | LSP request handlers that don't register/unregister dynamically
 lspStaticHandlers :: Handlers Lsp
 lspStaticHandlers =
   Handlers
-    { reqHandlers = lspReqHandlers,
-      notHandlers = lspNotHandlers
+    { reqHandlers = lspRequestHandlers,
+      notHandlers = lspNotificationHandlers
     }
 
-lspReqHandlers :: SMethodMap (ClientMessageHandler Lsp 'Request)
-lspReqHandlers =
+-- | LSP request handlers
+lspRequestHandlers :: SMethodMap (ClientMessageHandler Lsp 'Request)
+lspRequestHandlers =
   mempty
     & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
     & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
     & SMM.insert SCodeLensResolve (ClientMessageHandler codeLensResolveHandler)
 
-lspNotHandlers :: SMethodMap (ClientMessageHandler Lsp 'Notification)
-lspNotHandlers =
+-- | LSP notification handlers
+lspNotificationHandlers :: SMethodMap (ClientMessageHandler Lsp 'Notification)
+lspNotificationHandlers =
   mempty
     & SMM.insert STextDocumentDidOpen (ClientMessageHandler $ usingVFS . openVFS vfsLogger)
     & SMM.insert STextDocumentDidClose (ClientMessageHandler $ usingVFS . closeVFS vfsLogger)
@@ -92,6 +98,7 @@ lspNotHandlers =
   where
     vfsLogger = Colog.cmap (fmap tShow) (Colog.hoistLogAction lift LSP.defaultClientLogger)
 
+-- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO
 lspInterpretHandler env@(Env {context}) =
   Iso toIO fromIO
@@ -104,9 +111,14 @@ lspOptions = defaultOptions {textDocumentSync = Just $ textDocSyncOptions}
   where
     textDocSyncOptions =
       TextDocumentSyncOptions
-        { _openClose = Just True,
-          _change = Just TdSyncIncremental, -- TdSyncFull
+        { -- Clients should send file open/close messages so the VFS can handle them
+          _openClose = Just True,
+          -- Clients should send file change messages so the VFS can handle them
+          _change = Just TdSyncIncremental,
+          -- Clients should tell us when files are saved
           _willSave = Just True,
+          -- If we implement a pre-save hook we can enable this.
           _willSaveWaitUntil = Just False,
+          -- If we implement a save hook we can enable this.
           _save = Just (InL False)
         }
