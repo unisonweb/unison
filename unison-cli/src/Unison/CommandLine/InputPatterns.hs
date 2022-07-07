@@ -432,13 +432,16 @@ viewByPrefix =
     )
 
 find :: InputPattern
-find = find' "find" False
+find = find' "find" Input.Local
+
+findAll :: InputPattern
+findAll = find' "find.all" Input.LocalAndDeps
 
 findGlobal :: InputPattern
-findGlobal = find' "find.global" True
+findGlobal = find' "find.global" Input.Global
 
-find' :: String -> Bool -> InputPattern
-find' cmd global =
+find' :: String -> Input.FindScope -> InputPattern
+find' cmd fscope =
   InputPattern
     cmd
     []
@@ -448,18 +451,22 @@ find' cmd global =
         [ ("`find`", "lists all definitions in the current namespace."),
           ( "`find foo`",
             "lists all definitions with a name similar to 'foo' in the current "
-              <> "namespace."
+              <> "namespace. Falls back to `find.all` if no matches are found."
           ),
           ( "`find foo bar`",
             "lists all definitions with a name similar to 'foo' or 'bar' in the "
               <> "current namespace."
+          ),
+          ( "find.all foo",
+            "lists all definitions with a name similar to 'foo' in the current "
+              <> "namespace or direct dependencies."
           ),
           ( "find.global foo",
             "lists all definitions with a name similar to 'foo' in any namespace"
           )
         ]
     )
-    (pure . Input.FindI False global)
+    (pure . Input.FindI False fscope)
 
 findShallow :: InputPattern
 findShallow =
@@ -492,7 +499,7 @@ findVerbose =
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True False)
+    (pure . Input.FindI True Input.Local)
 
 findPatch :: InputPattern
 findPatch =
@@ -2107,6 +2114,7 @@ validInputs =
       copyPatch,
       find,
       findGlobal,
+      findAll,
       findShallow,
       findVerbose,
       view,

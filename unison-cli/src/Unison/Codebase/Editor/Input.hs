@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.Input
     Insistence (..),
     PullMode (..),
     OptionalPatch (..),
+    FindScope (..),
     IsGlobal,
   )
 where
@@ -158,7 +159,7 @@ data Input
   | -- Display docs for provided terms. If list is empty, prompt a fuzzy search.
     DocsI [Path.HQSplit']
   | -- other
-    FindI Bool IsGlobal [String] -- FindI isVerbose global query
+    FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
   | FindPatchI
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.
@@ -201,3 +202,9 @@ data OutputLocation
   | FileLocation FilePath
   -- ClipboardLocation
   deriving (Eq, Show)
+
+data FindScope
+  = Local
+  | LocalAndDeps
+  | Global
+  deriving stock (Eq, Show)
