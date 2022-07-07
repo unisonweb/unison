@@ -126,7 +126,13 @@ sortByLength :: [HashQualified Name] -> [HashQualified Name]
 sortByLength =
   sortOn toPriority
 
-toPriority :: HashQualified Name -> ((Int, Maybe ShortHash, Bool))
+-- | Returns a discriminant to be used when sorting HashQualifieds,
+-- it prioritizes:
+--
+-- 1. Shorter names (by segment)
+-- 2. Names that aren't hash-qualified
+-- 3. Relative names over absolute names
+toPriority :: HashQualified Name -> (Int, Maybe ShortHash, Bool)
 toPriority = \case
   NameOnly name -> (length (Name.reverseSegments name), Nothing, Name.isAbsolute name)
   HashQualified name hash -> (length (Name.reverseSegments name), Just hash, Name.isAbsolute name)

@@ -11,6 +11,12 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
 import Unison.Util.List (safeHead)
 
+-- | Creates a PPE which is biased towards a particular name.
+--
+-- This is helpful when printing a specific definition,
+--
+-- e.g. when pretty-printing for `view base.List.map`, we should prefer names which are close
+-- to `base.List.map`.
 fromNamesWithBias :: Int -> Maybe Name -> NamesWithHistory -> PrettyPrintEnv
 fromNamesWithBias len mayBias names = PrettyPrintEnv terms' types'
   where
@@ -19,6 +25,12 @@ fromNamesWithBias len mayBias names = PrettyPrintEnv terms' types'
     prioritize = sortOn \n ->
       (negate . length . Name.commonPrefix (HQ'.toName n) <$> mayBias, HQ'.toPriority n)
 
+-- | Creates a _suffixified_ PPE which is biased towards a particular name.
+--
+-- This is helpful when printing a specific definition,
+--
+-- e.g. when pretty-printing for `view base.List.map`, we should prefer names which are close
+-- to `base.List.map`.
 fromSuffixNamesWithBias :: Int -> Maybe Name -> NamesWithHistory -> PrettyPrintEnv
 fromSuffixNamesWithBias len mayBias names = PrettyPrintEnv terms' types'
   where

@@ -113,7 +113,10 @@ instance Show Name where
   show =
     Text.unpack . toText
 
--- |
+-- | Returns the common prefix of two names as segments
+--
+-- Note: the returned segments are NOT reversed.
+--
 -- >>> commonPrefix "a.b.x" "a.b.y"
 -- [a,b]
 --
@@ -122,6 +125,10 @@ instance Show Name where
 --
 -- >>> commonPrefix "a.b.c" "a.b.c.d.e"
 -- [a,b,c]
+--
+-- Prefix matches are performed at the *segment* level:
+-- >>> commonPrefix "a.bears" "a.beats"
+-- [a]
 commonPrefix :: Name -> Name -> [NameSegment]
 commonPrefix x y = commonPrefix' (toList $ segments x) (toList $ segments y)
   where
