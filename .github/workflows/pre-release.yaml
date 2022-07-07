@@ -135,4 +135,6 @@ jobs:
           automatic_release_tag: "latest"
           prerelease: true
           title: "Development Build"
-          files: /tmp/ucm/**/*.tar.gz
+          files: |
+            /tmp/ucm/**/*.tar.gz
+            /tmp/ucm/**/*.zip
