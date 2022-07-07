@@ -169,6 +169,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Relation4 as R4
+import qualified Unison.Util.Set as Set
 import qualified Unison.Util.Star3 as Star3
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
@@ -1953,11 +1954,11 @@ handleTest TestInput {showFailures, showSuccesses} = do
     currentBranch'
       & Branch.head
       & Branch.deepTermMetadata
-      & uncurry R4.selectD34 isTest
-      & R4.d1
-      & Map.keys
+      & R4.restrict34d12 isTest
+      & (if True then id else R.filterRan (not . isInLibNamespace))
+      & R.dom
       & pure
-  let testRefs = Set.fromList [r | Referent.Ref r <- testTerms]
+  let testRefs = Set.mapMaybe Referent.toTermReference testTerms
       oks results =
         [ (r, msg)
           | (r, Term.List' ts) <- Map.toList results,
@@ -2012,6 +2013,12 @@ handleTest TestInput {showFailures, showSuccesses} = do
 
     let m = Map.fromList computedTests
     respond $ TestResults Output.NewlyComputed ppe showSuccesses showFailures (oks m) (fails m)
+  where
+    isInLibNamespace :: Name -> Bool
+    isInLibNamespace name =
+      case Name.segments name of
+        "lib" Nel.:| _ : _ -> True
+        _ -> False
 
 -- | Handle an @update@ command.
 handleUpdate :: forall m v. (Monad m, Var v) => Input -> OptionalPatch -> Set Name -> Action' m v ()
