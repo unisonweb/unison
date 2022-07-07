@@ -76,7 +76,7 @@ instance (forall a. Show a => Show (f a), Show v) => Show (Term f v a) where
     Abs v body -> showParen True $ (show v ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec p f
 
-amap :: (Functor f, Foldable f) => (a -> a') -> Term f v a -> Term f v a'
+amap :: Functor f => (a -> a') -> Term f v a -> Term f v a'
 amap = fmap
 
 vmap :: (Functor f, Foldable f, Ord v') => (v -> v') -> Term f v a -> Term f v' a
