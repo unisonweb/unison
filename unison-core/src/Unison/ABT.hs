@@ -200,13 +200,6 @@ amap' f t@(Term _ a out) = case out of
   Cycle r -> cycle' (f t a) (amap' f r)
   Abs v body -> abs' (f t a) v (amap' f body)
 
--- amap :: (Functor f, Foldable f) => (a -> a') -> Term f v a -> Term f v a'
--- amap f (Term fv a out) = Term fv (f a) $ case out of
---   Var v -> Var v
---   Tm fa -> Tm (amap f <$> fa)
---   Cycle r -> Cycle (amap f r)
---   Abs v body -> Abs v (amap f body)
-
 extraMap :: Functor g => (forall k. f k -> g k) -> Term f v a -> Term g v a
 extraMap p (Term fvs a sub) = Term fvs a (go p sub)
   where
