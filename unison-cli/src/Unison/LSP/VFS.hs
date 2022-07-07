@@ -89,13 +89,16 @@ checkFile docId = runMaybeT $ do
     Just (Right tf) -> pure $ FileInfo {parsedFile = Nothing, typecheckedFile = Just tf, ..}
 
 lspOpenFile :: NotificationMessage 'TextDocumentDidOpen -> Lsp ()
-lspOpenFile = usingVFS . openVFS vfsLogger
+lspOpenFile m = do
+  usingVFS . openVFS vfsLogger $ m
 
 lspCloseFile :: NotificationMessage 'TextDocumentDidClose -> Lsp ()
-lspCloseFile = usingVFS . closeVFS vfsLogger
+lspCloseFile m =
+  usingVFS . closeVFS vfsLogger $ m
 
 lspChangeFile :: NotificationMessage 'TextDocumentDidChange -> Lsp ()
-lspChangeFile = usingVFS . changeFromClientVFS vfsLogger
+lspChangeFile m = do
+  usingVFS . changeFromClientVFS vfsLogger $ m
 
 vfsLogger :: Colog.LogAction (StateT VFS Lsp) (Colog.WithSeverity VfsLog)
 vfsLogger = Colog.cmap (fmap tShow) (Colog.hoistLogAction lift LSP.defaultClientLogger)
