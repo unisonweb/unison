@@ -124,9 +124,12 @@ requalify hq r = case hq of
 -- | Sort the list of names by length of segments: smaller number of segments is listed first. NameOnly < HashQualified
 sortByLength :: [HashQualified Name] -> [HashQualified Name]
 sortByLength =
-  sortOn \case
-    NameOnly name -> (length (Name.reverseSegments name), Nothing, Name.isAbsolute name)
-    HashQualified name hash -> (length (Name.reverseSegments name), Just hash, Name.isAbsolute name)
+  sortOn toPriority
+
+toPriority :: HashQualified Name -> ((Int, Maybe ShortHash, Bool))
+toPriority = \case
+  NameOnly name -> (length (Name.reverseSegments name), Nothing, Name.isAbsolute name)
+  HashQualified name hash -> (length (Name.reverseSegments name), Just hash, Name.isAbsolute name)
 
 -- `HashQualified` is usually used for display, so we sort it alphabetically
 instance Name.Alphabetical n => Ord (HashQualified n) where

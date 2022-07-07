@@ -159,7 +159,7 @@ instance MonadTrans Backend where
 
 suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
-  PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
+  PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength Nothing $ NamesWithHistory.fromCurrentNames names
 
 -- | Biases a PPE to prefer names near another name, using longest-common-prefix.
 -- This is helpful when printing a definition and you want to prefer names near that
@@ -239,7 +239,7 @@ shallowPPE :: Monad m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrin
 shallowPPE codebase b = do
   hashLength <- Codebase.hashLength codebase
   names <- shallowNames codebase b
-  pure $ PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names mempty
+  pure $ PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength Nothing $ NamesWithHistory names mempty
 
 -- | A 'Names' which only includes mappings for things _directly_ accessible from the branch.
 --
@@ -846,10 +846,11 @@ prettyDefinitionsBySuffixes ::
   Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase query = do
   hqLength <- lift $ Codebase.hashLength codebase
+  let biasTarget = HQ.toName $ NE.head query
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
-  (_parseNames, _printNames, localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase root path
+  (_parseNames, _printNames, localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase root path biasTarget
   let ppe =
         PPE.PrettyPrintEnvDecl
           { unsuffixifiedPPE = preferNamesNear (NE.head query) (PPE.unsuffixifiedPPE unbiasedPPE),
@@ -1025,7 +1026,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   hqLength <- Codebase.hashLength codebase
   let printNames = prettyNamesForBranch root (AllNames currentPath)
   let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
-  let ppe = PPE.fromNamesDecl hqLength printNamesWithHistory
+  let ppe = PPE.fromNamesDecl hqLength Nothing printNamesWithHistory
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
   liftIO $ traverse_ (renderDocToHtmlFile docNamesByRef directory) docs
   where
@@ -1112,8 +1113,8 @@ bestNameForType ppe width =
 -- - 'local' includes ONLY the names within the provided path
 -- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, Names, Names, PPE.PrettyPrintEnvDecl)
-scopedNamesForBranchHash codebase mbh path = do
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Maybe Name -> Backend m (Names, Names, Names, PPE.PrettyPrintEnvDecl)
+scopedNamesForBranchHash codebase mbh path mayBias = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.hashLength codebase
   (parseNames, prettyNames, localNames) <- case mbh of
@@ -1129,8 +1130,8 @@ scopedNamesForBranchHash codebase mbh path = do
         else do
           flip prettyAndParseNamesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
 
-  let localPPE = PPE.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
-  let globalPPE = PPE.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames parseNames)
+  let localPPE = PPE.fromNamesDecl hashLen mayBias (NamesWithHistory.fromCurrentNames localNames)
+  let globalPPE = PPE.fromNamesDecl hashLen mayBias (NamesWithHistory.fromCurrentNames parseNames)
   pure (parseNames, prettyNames, localNames, mkPPE localPPE globalPPE)
   where
     mkPPE :: PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl

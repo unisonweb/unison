@@ -394,49 +394,49 @@ renderTypeError e env src = case e of
   AbilityCheckFailure {..}
     | [tv@(Type.Var' ev)] <- ambient,
       ev `Set.member` foldMap Type.freeVars requested ->
-        mconcat
-          [ "I tried to infer a cyclic ability.",
-            "\n\n",
-            "The expression ",
-            describeStyle ErrorSite,
-            " was inferred to require the ",
-            case length requested of
-              1 -> "ability: "
-              _ -> "abilities: ",
-            "\n\n    {",
-            commas (renderType' env) requested,
-            "}",
-            "\n\n",
-            "where `",
-            renderType' env tv,
-            "` is its overall abilities.",
-            "\n\n",
-            "I need a type signature to help figure this out.",
-            "\n\n",
-            annotatedAsErrorSite src abilityCheckFailureSite,
-            debugSummary note
-          ]
+      mconcat
+        [ "I tried to infer a cyclic ability.",
+          "\n\n",
+          "The expression ",
+          describeStyle ErrorSite,
+          " was inferred to require the ",
+          case length requested of
+            1 -> "ability: "
+            _ -> "abilities: ",
+          "\n\n    {",
+          commas (renderType' env) requested,
+          "}",
+          "\n\n",
+          "where `",
+          renderType' env tv,
+          "` is its overall abilities.",
+          "\n\n",
+          "I need a type signature to help figure this out.",
+          "\n\n",
+          annotatedAsErrorSite src abilityCheckFailureSite,
+          debugSummary note
+        ]
   AbilityCheckFailure {..}
     | C.InSubtype {} :<| _ <- C.path note ->
-        mconcat
-          [ "The expression ",
-            describeStyle ErrorSite,
-            "\n\n",
-            "              needs the abilities: {",
-            commas (renderType' env) requested,
-            "}\n",
-            "  but was assumed to only require: {",
-            commas (renderType' env) ambient,
-            "}",
-            "\n\n",
-            "This is likely a result of using an un-annotated ",
-            "function as an argument with concrete abilities. ",
-            "Try adding an annotation to the function definition whose ",
-            "body is red.",
-            "\n\n",
-            annotatedAsErrorSite src abilityCheckFailureSite,
-            debugSummary note
-          ]
+      mconcat
+        [ "The expression ",
+          describeStyle ErrorSite,
+          "\n\n",
+          "              needs the abilities: {",
+          commas (renderType' env) requested,
+          "}\n",
+          "  but was assumed to only require: {",
+          commas (renderType' env) ambient,
+          "}",
+          "\n\n",
+          "This is likely a result of using an un-annotated ",
+          "function as an argument with concrete abilities. ",
+          "Try adding an annotation to the function definition whose ",
+          "body is red.",
+          "\n\n",
+          annotatedAsErrorSite src abilityCheckFailureSite,
+          debugSummary note
+        ]
   AbilityCheckFailure {..} ->
     mconcat
       [ "The expression ",
@@ -1623,11 +1623,11 @@ intLiteralSyntaxTip ::
 intLiteralSyntaxTip term expectedType = case (term, expectedType) of
   (Term.Nat' n, Type.Ref' r)
     | r == Type.intRef ->
-        "\nTip: Use the syntax "
-          <> style Type2 ("+" <> show n)
-          <> " to produce an "
-          <> style Type2 "Int"
-          <> "."
+      "\nTip: Use the syntax "
+        <> style Type2 ("+" <> show n)
+        <> " to produce an "
+        <> style Type2 "Int"
+        <> "."
   _ -> ""
 
 -- | Pretty prints resolution failure annotations, including a table of disambiguation
@@ -1672,7 +1672,7 @@ prettyResolutionFailures s allFailures =
 
     ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
     ppeFromNames names0 =
-      PPE.fromNames PPE.todoHashLength (NamesWithHistory.NamesWithHistory {currentNames = names0, oldNames = mempty})
+      PPE.fromNames PPE.todoHashLength Nothing (NamesWithHistory.NamesWithHistory {currentNames = names0, oldNames = mempty})
 
     prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
     prettyRow (v, mSet) = case mSet of

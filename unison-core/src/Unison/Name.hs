@@ -25,6 +25,7 @@ module Unison.Name
     reverseSegments,
     segments,
     suffixes,
+    commonPrefix,
 
     -- * Basic manipulation
     makeAbsolute,
@@ -111,6 +112,22 @@ instance Ord Name where
 instance Show Name where
   show =
     Text.unpack . toText
+
+-- |
+-- >>> commonPrefix "a.b.x" "a.b.y"
+-- [a,b]
+--
+-- >>> commonPrefix "x.y.z" "a.b.c"
+-- []
+--
+-- >>> commonPrefix "a.b.c" "a.b.c.d.e"
+-- [a,b,c]
+commonPrefix :: Name -> Name -> [NameSegment]
+commonPrefix x y = commonPrefix' (toList $ segments x) (toList $ segments y)
+  where
+    commonPrefix' (a : as) (b : bs)
+      | a == b = a : commonPrefix' as bs
+    commonPrefix' _ _ = []
 
 -- | @compareSuffix x y@ compares the suffix of @y@ (in reverse segment order) that is as long as @x@ to @x@ (in reverse
 -- segment order).
