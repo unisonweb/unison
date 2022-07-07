@@ -5,13 +5,11 @@
 module Unison.LSP.RequestHandlers where
 
 import Control.Lens hiding (List)
-import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.String.Here.Uninterpolated (here)
 import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
-import qualified Text.FuzzyFind as Fuzzy
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.HashQualified as HQ
 import Unison.LSP.Types
@@ -19,7 +17,6 @@ import Unison.LSP.VFS
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Doc (Doc)
-import qualified Unison.Server.Endpoints.FuzzyFind as FZF
 import qualified Unison.Server.Syntax as Server
 import qualified Unison.Server.Types as Backend
 
@@ -59,44 +56,45 @@ hoverHandler m respond =
     docText = tShow
 
 completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
-completionHandler m respond =
-  respond =<< do
-    mayPrefix <- completionPrefix (m ^. params)
-    liftIO $ print ("COMPLETION" :: String, mayPrefix)
-    case mayPrefix of
-      Nothing -> pure . Right . InL . List $ []
-      Just (range, prefix) -> do
-        matches <- expand range prefix
-        let isIncomplete = True -- TODO: be smarter about this
-        pure . Right . InR . CompletionList isIncomplete . List $ snippetCompletions prefix range <> matches
-  where
-    resultToCompletion :: Range -> Text -> FZF.FoundResult -> CompletionItem
-    resultToCompletion range prefix = \case
-      FZF.FoundTermResult (FZF.FoundTerm {namedTerm = Backend.NamedTerm {termName, termType}}) -> do
-        (mkCompletionItem termName)
-          { _detail = (": " <>) . Text.pack . Server.toPlain <$> termType,
-            _kind = Just CiVariable,
-            _insertText = Text.stripPrefix prefix termName,
-            _textEdit = Just $ CompletionEditText (TextEdit range termName)
-          }
-      FZF.FoundTypeResult (FZF.FoundType {namedType = Backend.NamedType {typeName, typeTag}}) ->
-        let (detail, kind) = case typeTag of
-              Backend.Ability -> ("Ability", CiInterface)
-              Backend.Data -> ("Data", CiClass)
-         in (mkCompletionItem typeName)
-              { _detail = Just detail,
-                _kind = Just kind
-              }
-    expand :: Range -> Text -> Lsp [CompletionItem]
-    expand range prefix = do
-      -- We should probably write a different fzf specifically for completion, but for now, it
-      -- expects the unique pieces of the query to be different "words".
-      let query = Text.unwords . Text.splitOn "." $ prefix
-      cb <- asks codebase
-      lspBackend (FZF.serveFuzzyFind cb Nothing Nothing Nothing Nothing (Just $ Text.unpack query)) >>= \case
-        Left _be -> pure []
-        Right results ->
-          pure . fmap (resultToCompletion range prefix . snd) . take 15 . sortOn (Fuzzy.score . fst) $ results
+completionHandler _m _respond = error "unimplemented"
+
+-- completionHandler _m _respond =
+--   respond =<< do
+--     mayPrefix <- completionPrefix (m ^. params)
+--     case mayPrefix of
+--       Nothing -> pure . Right . InL . List $ []
+--       Just (range, prefix) -> do
+--         matches <- expand range prefix
+--         let isIncomplete = True -- TODO: be smarter about this
+--         pure . Right . InR . CompletionList isIncomplete . List $ snippetCompletions prefix range <> matches
+--   where
+--     resultToCompletion :: Range -> Text -> FZF.FoundResult -> CompletionItem
+--     resultToCompletion range prefix = \case
+--       FZF.FoundTermResult (FZF.FoundTerm {namedTerm = Backend.NamedTerm {termName, termType}}) -> do
+--         (mkCompletionItem termName)
+--           { _detail = (": " <>) . Text.pack . Server.toPlain <$> termType,
+--             _kind = Just CiVariable,
+--             _insertText = Text.stripPrefix prefix termName,
+--             _textEdit = Just $ CompletionEditText (TextEdit range termName)
+--           }
+--       FZF.FoundTypeResult (FZF.FoundType {namedType = Backend.NamedType {typeName, typeTag}}) ->
+--         let (detail, kind) = case typeTag of
+--               Backend.Ability -> ("Ability", CiInterface)
+--               Backend.Data -> ("Data", CiClass)
+--          in (mkCompletionItem typeName)
+--               { _detail = Just detail,
+--                 _kind = Just kind
+--               }
+--     expand :: Range -> Text -> Lsp [CompletionItem]
+--     expand range prefix = do
+--       -- We should probably write a different fzf specifically for completion, but for now, it
+--       -- expects the unique pieces of the query to be different "words".
+--       let query = Text.unwords . Text.splitOn "." $ prefix
+--       cb <- asks codebase
+--       lspBackend (FZF.serveFuzzyFind cb Nothing Nothing Nothing Nothing (Just $ Text.unpack query)) >>= \case
+--         Left _be -> pure []
+--         Right results ->
+--           pure . fmap (resultToCompletion range prefix . snd) . take 15 . sortOn (Fuzzy.score . fst) $ results
 
 snippetCompletions :: Text -> Range -> [CompletionItem]
 snippetCompletions prefix range =

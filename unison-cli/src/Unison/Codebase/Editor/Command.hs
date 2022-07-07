@@ -93,7 +93,7 @@ data LoadSourceResult
 type TypecheckingResult v =
   Result
     (Seq (Note v Ann))
-    (Either Names (UF.TypecheckedUnisonFile v Ann))
+    (Either (UF.UnisonFile v Ann) (UF.TypecheckedUnisonFile v Ann))
 
 data
   Command

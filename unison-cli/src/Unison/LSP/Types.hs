@@ -18,6 +18,8 @@ import UnliftIO
 newtype Lsp a = Lsp {runLspM :: ReaderT Env (LspM Config) a}
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadUnliftIO, MonadReader Env, MonadLsp Config)
 
+
+
 -- | Log an info message to the client's LSP log.
 logInfo :: Text -> Lsp ()
 logInfo msg = do
@@ -35,8 +37,15 @@ data Env = Env
   { context :: LanguageContextEnv Config,
     codebase :: Codebase IO Symbol Ann,
     vfsVar :: MVar VFS,
-    runtime :: Runtime Symbol
+    runtime :: Runtime Symbol,
+    checkedFilesVar :: MVar CheckedFiles,
   }
+
+-- | The information we have for each file, which may or may not have a valid parse or
+-- typecheck.
+newtype CheckedFiles
+  = CheckedFiles (Map TextDocumentIdentifier FileInfo)
+
 
 data Config = Config
 
