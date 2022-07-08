@@ -15,7 +15,6 @@ import qualified Text.Megaparsec.Error as MPE
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
-import Unison.Names (Names)
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import Unison.PrintError (prettyParseError)
