@@ -90,13 +90,13 @@ lspDoInitialize ::
   LanguageContextEnv Config ->
   Message 'Initialize ->
   IO (Either ResponseError Env)
-lspDoInitialize vfsVar codebase runtime scope ucmStateChanges context _initMsg = do
+lspDoInitialize vfsVar codebase runtime scope ucmStateChanges lspContext _initMsg = do
   checkedFilesVar <- newTVarIO mempty
   dirtyFilesVar <- newTVarIO mempty
   ppeCache <- newTVarIO mempty
   parseNamesCache <- newTVarIO mempty
   let env = Env {..}
-  let lspToIO = flip runReaderT context . unLspT . flip runReaderT env . runLspM
+  let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO VFS.fileCheckingWorker)
   Ki.fork scope (lspToIO $ ucmWorker ucmStateChanges)
   pure $ Right $ env
@@ -128,10 +128,10 @@ lspNotificationHandlers =
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO
-lspInterpretHandler env@(Env {context}) =
+lspInterpretHandler env@(Env {lspContext}) =
   Iso toIO fromIO
   where
-    toIO (Lsp m) = flip runReaderT context . unLspT . flip runReaderT env $ m
+    toIO (Lsp m) = flip runReaderT lspContext . unLspT . flip runReaderT env $ m
     fromIO m = liftIO m
 
 lspOptions :: Options

@@ -54,14 +54,13 @@ data Env = Env
     runtime :: Runtime Symbol,
     -- The information we have for each file, which may or may not have a valid parse or
     -- typecheck.
-    checkedFilesVar :: TVar (Map TextDocumentIdentifier FileInfo),
-    dirtyFilesVar :: TVar (Set TextDocumentIdentifier),
+    checkedFilesVar :: TVar (Map Uri FileInfo),
+    dirtyFilesVar :: TVar (Map Uri VersionedTextDocumentIdentifier),
     scope :: Ki.Scope
   }
 
 data FileInfo = FileInfo
-  { fileUri :: Uri,
-    docVersion :: Maybe UInt,
+  { docId :: VersionedTextDocumentIdentifier,
     lexedSource :: LexedSource,
     parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),

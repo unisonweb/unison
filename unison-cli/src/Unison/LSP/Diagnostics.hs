@@ -15,6 +15,7 @@ import Unison.Symbol (Symbol)
 noteDiagnostics :: Foldable f => f (Note Symbol Ann) -> [UnisonDiagnostic]
 noteDiagnostics notes = do
   flip foldMap notes \case
+    Result.TypeError {} -> [UnisonDiagnostic (Range (Position 1 1) (Position 1 4)) (TypeError "TODO")]
     Result.NameResolutionFailures failures ->
       failures
         & fmap (traverse annToRange)
@@ -28,7 +29,6 @@ noteDiagnostics notes = do
 -- TODO
 -- Result.Parsing {} -> _
 -- Result.UnknownSymbol v loc -> _
--- Result.TypeError {} -> _
 -- Result.TypeInfo {} -> []
 -- Result.CompilerBug {} -> _
 
