@@ -24,6 +24,7 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.LSP.FileAnalysis as Analysis
+import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers as Notifications
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
@@ -112,8 +113,8 @@ lspStaticHandlers =
 lspRequestHandlers :: SMethodMap (ClientMessageHandler Lsp 'Request)
 lspRequestHandlers =
   mempty
+    & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
 
--- & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
 -- & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
 -- & SMM.insert SCodeLensResolve (ClientMessageHandler codeLensResolveHandler)
 
