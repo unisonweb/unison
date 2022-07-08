@@ -1902,7 +1902,8 @@ test =
         pure $
           Input.TestI
             Input.TestInput
-              { showFailures = True,
+              { includeLibNamespace = False,
+                showFailures = True,
                 showSuccesses = True
               }
     )
@@ -1914,12 +1915,13 @@ testAll =
     []
     I.Visible
     []
-    "`test.all` runs unit tests for the current branch, including dependencies."
+    "`test.all` runs unit tests for the current branch (including the `lib` namespace)."
     ( const $
         pure $
           Input.TestI
             Input.TestInput
-              { showFailures = True,
+              { includeLibNamespace = True,
+                showFailures = True,
                 showSuccesses = True
               }
     )

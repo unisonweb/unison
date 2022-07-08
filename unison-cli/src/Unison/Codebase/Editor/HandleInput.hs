@@ -1947,7 +1947,7 @@ handleShowDefinition outputLoc inputQuery = do
 
 -- | Handle a @test@ command.
 handleTest :: Monad m => TestInput -> Action' m v ()
-handleTest TestInput {showFailures, showSuccesses} = do
+handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
   testTerms <- do
     currentPath' <- use LoopState.currentPath
     currentBranch' <- getAt currentPath'
@@ -1955,7 +1955,7 @@ handleTest TestInput {showFailures, showSuccesses} = do
       & Branch.head
       & Branch.deepTermMetadata
       & R4.restrict34d12 isTest
-      & (if True then id else R.filterRan (not . isInLibNamespace))
+      & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
       & R.dom
       & pure
   let testRefs = Set.mapMaybe Referent.toTermReference testTerms

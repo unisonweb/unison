@@ -196,7 +196,9 @@ data GistInput = GistInput
   deriving stock (Eq, Show)
 
 data TestInput = TestInput
-  { showFailures :: Bool,
+  { -- | Should we run tests in the `lib` namespace?
+    includeLibNamespace :: Bool,
+    showFailures :: Bool,
     showSuccesses :: Bool
   }
   deriving stock (Eq, Show)
