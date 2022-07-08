@@ -102,7 +102,9 @@ noteRanges = \case
   Result.CompilerBug e -> do
     Debug.debugM Debug.LSP "No Diagnostic configured for compiler error: " e
     empty
-  Result.Parsing {} -> todoAnnotation
+  Result.Parsing {} ->
+    -- Parse notes are handled manually in noteDiagnostics
+    todoAnnotation
   Result.NameResolutionFailures {} -> todoAnnotation
   where
     todoAnnotation = []
