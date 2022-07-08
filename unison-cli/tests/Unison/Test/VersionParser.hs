@@ -15,7 +15,7 @@ test =
   scope "versionparser" . tests . fmap makeTest $
     [ ("release/M1j", "releases._M1j"),
       ("release/M1j.2", "releases._M1j_2"),
-      ("latest-abc", "trunk"),
+      ("latest-abc", "latest"),
       ("release/M2i_3", "releases._M2i_3"),
       ("release/M2i-HOTFIX", "releases._M2i_HOTFIX")
     ]
@@ -29,7 +29,7 @@ makeTest (version, path) =
           ( ReadShareRemoteNamespace
               { server = DefaultCodeserver,
                 repo = "unison",
-                path = Path.fromList ["public", "dev", "base"] <> Path.fromText path
+                path = Path.fromList ["public", "base"] <> Path.fromText path
               }
           )
       )

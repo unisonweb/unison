@@ -14,18 +14,18 @@ import qualified Unison.Codebase.Path as Path
 -- | Parse git version strings into valid unison namespaces.
 --
 -- >>> parseMaybe defaultBaseLib "release/M1j"
--- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.dev.base.releases._M1j})
+-- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.releases._M1j})
 --
 -- >>> parseMaybe defaultBaseLib "release/M1j.2"
--- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.dev.base.releases._M1j_2})
+-- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.releases._M1j_2})
 --
 -- >>> parseMaybe defaultBaseLib "latest-1234"
--- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.dev.base.trunk})
+-- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.latest})
 defaultBaseLib :: Parsec Void Text ReadShareRemoteNamespace
 defaultBaseLib = fmap makeNS $ latest <|> release
   where
     latest, release, version :: Parsec Void Text Text
-    latest = "latest-" *> many anySingle *> eof $> "trunk"
+    latest = "latest-" *> many anySingle *> eof $> "latest"
     release = fmap ("releases._" <>) $ "release/" *> version <* eof
     version = do
       Text.pack <$> some (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))
@@ -34,5 +34,5 @@ defaultBaseLib = fmap makeNS $ latest <|> release
       ReadShareRemoteNamespace
         { server = DefaultCodeserver,
           repo = "unison",
-          path = "public" Path.:< "dev" Path.:< "base" Path.:< Path.fromText t
+          path = "public" Path.:< "base" Path.:< Path.fromText t
         }
