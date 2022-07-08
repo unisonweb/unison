@@ -20,12 +20,12 @@ import qualified Unison.Codebase.Path as Path
 -- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.releases._M1j_2})
 --
 -- >>> parseMaybe defaultBaseLib "latest-1234"
--- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.latest})
+-- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.main})
 defaultBaseLib :: Parsec Void Text ReadShareRemoteNamespace
 defaultBaseLib = fmap makeNS $ latest <|> release
   where
     latest, release, version :: Parsec Void Text Text
-    latest = "latest-" *> many anySingle *> eof $> "latest"
+    latest = "latest-" *> many anySingle *> eof $> "main"
     release = fmap ("releases._" <>) $ "release/" *> version <* eof
     version = do
       Text.pack <$> some (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))

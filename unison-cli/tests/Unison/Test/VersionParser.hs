@@ -15,7 +15,7 @@ test =
   scope "versionparser" . tests . fmap makeTest $
     [ ("release/M1j", "releases._M1j"),
       ("release/M1j.2", "releases._M1j_2"),
-      ("latest-abc", "latest"),
+      ("latest-abc", "main"),
       ("release/M2i_3", "releases._M2i_3"),
       ("release/M2i-HOTFIX", "releases._M2i_HOTFIX")
     ]
