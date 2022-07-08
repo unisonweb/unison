@@ -14,6 +14,6 @@ annToRange = \case
     toLspPos :: UPos.Pos -> Position
     toLspPos uPos =
       Position
-        { _line = fromIntegral $ UPos.line uPos,
-          _character = fromIntegral $ UPos.column uPos
+        { _line = fromIntegral $ UPos.line uPos - 1, -- 1 indexed vs 0 indexed
+          _character = fromIntegral $ UPos.column uPos - 1 -- 1 indexed vs 0 indexed
         }

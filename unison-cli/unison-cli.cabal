@@ -63,6 +63,7 @@ library
       Unison.LSP
       Unison.LSP.Diagnostics
       Unison.LSP.FileInfo
+      Unison.LSP.NotificationHandlers
       Unison.LSP.Orphans
       Unison.LSP.RequestHandlers
       Unison.LSP.Types

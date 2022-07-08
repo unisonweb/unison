@@ -23,6 +23,7 @@ import Unison.Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
+import Unison.LSP.NotificationHandlers as Notifications
 import Unison.LSP.Orphans ()
 import Unison.LSP.RequestHandlers
 import Unison.LSP.Types
@@ -125,6 +126,7 @@ lspNotificationHandlers =
     & SMM.insert STextDocumentDidOpen (ClientMessageHandler VFS.lspOpenFile)
     & SMM.insert STextDocumentDidClose (ClientMessageHandler VFS.lspCloseFile)
     & SMM.insert STextDocumentDidChange (ClientMessageHandler VFS.lspChangeFile)
+    & SMM.insert SInitialized (ClientMessageHandler Notifications.initializedHandler)
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO

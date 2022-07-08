@@ -6,7 +6,6 @@
 module Unison.LSP.VFS where
 
 import qualified Colog.Core as Colog
-import Control.Concurrent (threadDelay)
 import Control.Lens
 import qualified Control.Lens as Lens
 import Control.Monad.Reader
@@ -96,6 +95,8 @@ fileCheckingWorker :: Lsp ()
 fileCheckingWorker = forever do
   dirtyFilesV <- asks dirtyFilesVar
   checkedFilesV <- asks checkedFilesVar
+  -- We may want to debounce this if it typechecks too eagerly,
+  -- but typechecking is pretty fast right now when scratch files are small
   dirtyFileIDs <- atomically $ do
     dirty <- readTVar dirtyFilesV
     writeTVar dirtyFilesV mempty
@@ -107,11 +108,8 @@ fileCheckingWorker = forever do
   atomically $ modifyTVar' checkedFilesV (`Map.union` freshlyCheckedFiles)
   -- TODO: fork this
   for freshlyCheckedFiles \info -> do
-    reportDiagnostics (docId info) $ noteDiagnostics (notes info)
-  liftIO $ threadDelay (typecheckerDebounceSeconds * 1_000_000)
-  where
-    -- The typechecker will only run at most once every debounce interval
-    typecheckerDebounceSeconds = 5
+    diagnostics <- infoDiagnostics info
+    reportDiagnostics (docId info) $ diagnostics
 
 lspOpenFile :: NotificationMessage 'TextDocumentDidOpen -> Lsp ()
 lspOpenFile msg = do

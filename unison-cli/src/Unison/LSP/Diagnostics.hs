@@ -1,42 +1,77 @@
 module Unison.LSP.Diagnostics where
 
 import Control.Lens hiding (List)
+import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens hiding (to)
 import Unison.LSP.FileInfo (annToRange)
 import Unison.LSP.Types
+import qualified Unison.LSP.Types as LSP
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
+import qualified Unison.Typechecker.Context as Typechecker
+import qualified Unison.Util.Pretty as Pretty
 
-noteDiagnostics :: Foldable f => f (Note Symbol Ann) -> [UnisonDiagnostic]
-noteDiagnostics notes = do
-  flip foldMap notes \case
-    Result.TypeError {} -> [UnisonDiagnostic (Range (Position 1 1) (Position 1 4)) (TypeError "TODO")]
-    Result.NameResolutionFailures failures ->
-      failures
-        & fmap (traverse annToRange)
-        & catMaybes
-        <&> ( \case
-                f@(Names.TypeResolutionFailure _sym range _re) -> UnisonDiagnostic range (NameResolutionFailure f)
-                f@(Names.TermResolutionFailure _sym range _re) -> UnisonDiagnostic range (NameResolutionFailure f)
-            )
+infoDiagnostics :: FileInfo -> Lsp [Diagnostic]
+infoDiagnostics FileInfo {lexedSource = (srcText, _lexed), notes} = do
+  ppe <- LSP.globalPPE
+  pure $ noteDiagnostics (PPE.suffixifiedPPE ppe) (Text.unpack srcText) notes
+
+noteDiagnostics :: Foldable f => PrettyPrintEnv -> String -> f (Note Symbol Ann) -> [Diagnostic]
+noteDiagnostics ppe src notes = do
+  flip foldMap notes \note -> case note of
+    Result.TypeError {} ->
+      let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
+          mayRange = noteRange note >>= annToRange
+       in maybe [] (\range -> [mkDiagnostic range DsError msg]) mayRange
+    -- TODO
+    -- Result.Parsing {} -> _
+    -- Result.UnknownSymbol v loc -> _
+    -- Result.TypeInfo {} -> []
+    -- Result.CompilerBug {} -> _
     _ -> []
 
--- TODO
--- Result.Parsing {} -> _
--- Result.UnknownSymbol v loc -> _
--- Result.TypeInfo {} -> []
--- Result.CompilerBug {} -> _
+noteRange :: Note Symbol Ann -> Maybe Ann
+noteRange = \case
+  Result.Parsing {} -> todoAnnotation
+  Result.NameResolutionFailures {} -> todoAnnotation
+  Result.UnknownSymbol _sym loc -> Just loc
+  Result.TypeError (Typechecker.ErrorNote {cause}) -> case cause of
+    Typechecker.TypeMismatch _ctx -> todoAnnotation
+    Typechecker.IllFormedType _ctx -> todoAnnotation
+    Typechecker.UnknownSymbol loc _v -> Just loc
+    Typechecker.UnknownTerm loc _sym _suggestions _typ -> Just loc
+    Typechecker.AbilityCheckFailure {} -> todoAnnotation
+    Typechecker.EffectConstructorWrongArgCount {} -> todoAnnotation
+    Typechecker.MalformedEffectBind {} -> todoAnnotation
+    Typechecker.PatternArityMismatch loc _ _ -> Just loc
+    Typechecker.DuplicateDefinitions {} -> todoAnnotation
+    Typechecker.UnguardedLetRecCycle {} -> todoAnnotation
+    Typechecker.ConcatPatternWithoutConstantLength loc _ -> Just loc
+    Typechecker.HandlerOfUnexpectedType loc _ -> Just loc
+    Typechecker.DataEffectMismatch {} -> todoAnnotation
+  Result.TypeInfo {} -> todoAnnotation
+  Result.CompilerBug {} -> todoAnnotation
+  where
+    -- This error needs a specific annotation to occur at.
+    todoAnnotation = Nothing
 
-reportDiagnostics :: VersionedTextDocumentIdentifier -> [UnisonDiagnostic] -> Lsp ()
-reportDiagnostics _uri [] = pure ()
+reportDiagnostics ::
+  VersionedTextDocumentIdentifier ->
+  -- | Note, it's important to still send an empty list of diagnostics if there aren't any
+  -- because it clears existing diagnostics in the editor
+  [Diagnostic] ->
+  Lsp ()
 reportDiagnostics docId diags = do
   let jsonRPC = "" -- TODO: what's this for?
-  let params = PublishDiagnosticsParams {_uri = docId ^. uri, _version = docId ^? version . _Just . to fromIntegral, _diagnostics = List (toLSPDiagnostic <$> diags)}
+  let params = PublishDiagnosticsParams {_uri = docId ^. uri, _version = docId ^? version . _Just . to fromIntegral, _diagnostics = List diags}
   sendNotification (NotificationMessage jsonRPC STextDocumentPublishDiagnostics params)
 
 data UnisonDiagnostic = UnisonDiagnostic Range UnisonDiagnosticInfo
@@ -44,6 +79,18 @@ data UnisonDiagnostic = UnisonDiagnostic Range UnisonDiagnosticInfo
 data UnisonDiagnosticInfo
   = TypeError Text
   | NameResolutionFailure (Names.ResolutionFailure Symbol Range)
+
+mkDiagnostic :: Range -> DiagnosticSeverity -> Text -> Diagnostic
+mkDiagnostic r severity msg =
+  Diagnostic
+    { _range = r,
+      _severity = Just severity,
+      _code = Nothing, -- We could eventually pass error codes here
+      _source = Just "unison",
+      _message = msg,
+      _tags = Nothing,
+      _relatedInformation = Nothing
+    }
 
 getSeverity :: UnisonDiagnosticInfo -> DiagnosticSeverity
 getSeverity = \case

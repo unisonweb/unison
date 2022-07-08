@@ -68,6 +68,12 @@ data FileInfo = FileInfo
   }
   deriving (Show)
 
+globalPPE :: Lsp PrettyPrintEnvDecl
+globalPPE = asks ppeCache >>= readTVarIO
+
+parseNames :: Lsp NamesWithHistory
+parseNames = asks parseNamesCache >>= readTVarIO
+
 data Config = Config
 
 -- | Lift a backend computation into the Lsp monad.
