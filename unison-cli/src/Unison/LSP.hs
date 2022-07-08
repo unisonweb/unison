@@ -23,9 +23,9 @@ import Unison.Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
+import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.NotificationHandlers as Notifications
 import Unison.LSP.Orphans ()
-import Unison.LSP.RequestHandlers
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
 import qualified Unison.LSP.VFS as VFS
@@ -35,22 +35,20 @@ import Unison.Symbol
 import UnliftIO
 
 getLspPort :: IO String
-getLspPort = fromMaybe "5050" <$> lookupEnv "UNISON_LSP_PORT"
+getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
 
 -- | Spawn an LSP server on the configured port.
-spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> TQueue (Branch IO, Path.Absolute) -> IO ()
-spawnLsp codebase runtime ucmStateChanges = do
+spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM (Branch IO, Path.Absolute) -> IO ()
+spawnLsp codebase runtime ucmState = do
   lspPort <- getLspPort
-  putStrLn $ "  Language server listening at 127.0.0.1:" <> lspPort
-  putStrLn $ "  You can view LSP setup instructions at https://github.com/unisonweb/unison/blob/trunk/docs/ability-typechecking.markdown"
-  TCP.serve (TCP.Host "127.0.0.1") "5050" $ \(sock, _sockaddr) -> do
+  TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
     sockHandle <- socketToHandle sock ReadWriteMode
     Ki.scoped \scope -> do
       -- currently we have an independent VFS for each LSP client since each client might have
       -- different un-saved state for the same file.
       initVFS $ \vfs -> do
         vfsVar <- newMVar vfs
-        void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope ucmStateChanges)
+        void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope ucmState)
   where
     -- Where to send logs that occur before a client connects
     lspServerLogger = Colog.filterBySeverity Colog.Error Colog.getSeverity $ Colog.cmap (fmap tShow) (LogAction print)
@@ -62,13 +60,13 @@ serverDefinition ::
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
   Ki.Scope ->
-  TQueue (Branch IO, Path.Absolute) ->
+  STM (Branch IO, Path.Absolute) ->
   ServerDefinition Config
-serverDefinition vfsVar codebase runtime scope ucmStateChanges =
+serverDefinition vfsVar codebase runtime scope ucmState =
   ServerDefinition
     { defaultConfig = lspDefaultConfig,
       onConfigurationChange = lspOnConfigurationChange,
-      doInitialize = lspDoInitialize vfsVar codebase runtime scope ucmStateChanges,
+      doInitialize = lspDoInitialize vfsVar codebase runtime scope ucmState,
       staticHandlers = lspStaticHandlers,
       interpretHandler = lspInterpretHandler,
       options = lspOptions
@@ -87,19 +85,19 @@ lspDoInitialize ::
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
   Ki.Scope ->
-  TQueue (Branch IO, Path.Absolute) ->
+  STM (Branch IO, Path.Absolute) ->
   LanguageContextEnv Config ->
   Message 'Initialize ->
   IO (Either ResponseError Env)
-lspDoInitialize vfsVar codebase runtime scope ucmStateChanges lspContext _initMsg = do
+lspDoInitialize vfsVar codebase runtime scope ucmState lspContext _initMsg = do
   checkedFilesVar <- newTVarIO mempty
   dirtyFilesVar <- newTVarIO mempty
-  ppeCache <- newTVarIO mempty
-  parseNamesCache <- newTVarIO mempty
-  let env = Env {..}
+  ppeCacheVar <- newTVarIO mempty
+  parseNamesCacheVar <- newTVarIO mempty
+  let env = Env {ppeCache = readTVarIO ppeCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
-  Ki.fork scope (lspToIO VFS.fileCheckingWorker)
-  Ki.fork scope (lspToIO $ ucmWorker ucmStateChanges)
+  Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
+  Ki.fork scope (lspToIO $ ucmWorker ppeCacheVar parseNamesCacheVar ucmState)
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
@@ -114,8 +112,8 @@ lspStaticHandlers =
 lspRequestHandlers :: SMethodMap (ClientMessageHandler Lsp 'Request)
 lspRequestHandlers =
   mempty
-    & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
 
+-- & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
 -- & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
 -- & SMM.insert SCodeLensResolve (ClientMessageHandler codeLensResolveHandler)
 

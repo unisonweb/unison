@@ -1,43 +1,39 @@
 module Unison.LSP.UCMWorker where
 
-import Control.Concurrent.STM.TQueue
-import Control.Concurrent.STM.TVar
 import Control.Monad.Reader
-import Control.Monad.STM
-import qualified Data.List.NonEmpty as NE
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Debug as Debug
 import Unison.LSP.Types
+import qualified Unison.LSP.VFS as VFS
+import Unison.NamesWithHistory (NamesWithHistory)
+import Unison.PrettyPrintEnvDecl
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import qualified Unison.Server.Backend as Backend
+import UnliftIO.STM
 
 -- | Watches for state changes in UCM and updates cached LSP state accordingly
-ucmWorker :: TQueue (Branch IO, Path.Absolute) -> Lsp ()
-ucmWorker ucmStateChanges = do
-  Env {ppeCache, parseNamesCache, codebase} <- ask
-  let loop (currentBranch, currentPath) = do
-        (latestRoot, latestPath) <- atomically $ do
-          updates <- flushTQueue ucmStateChanges
-          case updates of
-            [] -> retry
-            (u : us) -> pure $ NE.last (u NE.:| us)
-          guard . not . null $ updates
-          pure $ last updates
-        Debug.debugM Debug.LSP "Detected updated path:" latestPath
-        if (Just latestRoot, Just latestPath) /= (currentBranch, currentPath)
-          then do
-            let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute latestPath)) latestRoot
-            atomically $ writeTVar parseNamesCache parseNames
-            hl <- Codebase.hashLength codebase
-            let ppe = PPE.fromNamesDecl hl parseNames
-            atomically $ writeTVar ppeCache ppe
-          else loop (Just latestRoot, Just latestPath)
+ucmWorker :: TVar PrettyPrintEnvDecl -> TVar NamesWithHistory -> STM (Branch IO, Path.Absolute) -> Lsp ()
+ucmWorker ppeVar parseNamesVar ucmState = do
+  Env {codebase} <- ask
+  let loop :: ((Branch IO, Path.Absolute) -> Lsp a)
+      loop (currentRoot, currentPath) = do
+        Debug.debugM Debug.LSP "LSP path: " currentPath
+        let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) currentRoot
+        hl <- liftIO $ Codebase.hashLength codebase
+        let ppe = PPE.fromNamesDecl hl parseNames
+        atomically $ do
+          writeTVar parseNamesVar parseNames
+          writeTVar ppeVar ppe
+        latest <- atomically $ do
+          latest <- ucmState
+          guard $ (currentRoot, currentPath) /= latest
+          pure latest
+        VFS.markAllFilesDirty
+        loop latest
 
   -- Bootstrap manually from codebase just in case we're in headless mode and don't get any
   -- updates from UCM
-  liftIO $ do
-    rootBranch <- Codebase.getRootBranch codebase
-    atomically $ writeTQueue ucmStateChanges (rootBranch, Path.absoluteEmpty)
-    loop (Nothing, Nothing)
+  rootBranch <- liftIO $ Codebase.getRootBranch codebase
+  loop (rootBranch, Path.absoluteEmpty)

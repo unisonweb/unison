@@ -61,11 +61,13 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
       Unison.LSP
+      Unison.LSP.CodeLens
+      Unison.LSP.Completion
       Unison.LSP.Diagnostics
-      Unison.LSP.FileInfo
+      Unison.LSP.FileAnalysis
+      Unison.LSP.Hover
       Unison.LSP.NotificationHandlers
       Unison.LSP.Orphans
-      Unison.LSP.RequestHandlers
       Unison.LSP.Types
       Unison.LSP.UCMWorker
       Unison.LSP.VFS

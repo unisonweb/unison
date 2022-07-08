@@ -1,14 +1,13 @@
 module Unison.LSP.Diagnostics where
 
-import Control.Lens hiding (List)
 import qualified Data.Text as Text
 import Language.LSP.Types
-import Language.LSP.Types.Lens hiding (to)
-import Unison.LSP.FileInfo (annToRange)
 import Unison.LSP.Types
 import qualified Unison.LSP.Types as LSP
+import qualified Unison.Lexer as Lex
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.Parser.Ann (Ann)
+import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnvDecl as PPE
@@ -19,8 +18,21 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Typechecker.Context as Typechecker
 import qualified Unison.Util.Pretty as Pretty
 
-infoDiagnostics :: FileInfo -> Lsp [Diagnostic]
-infoDiagnostics FileInfo {lexedSource = (srcText, _lexed), notes} = do
+annToRange :: Ann -> Maybe Range
+annToRange = \case
+  Ann.Intrinsic -> Nothing
+  Ann.External -> Nothing
+  Ann.Ann start end -> Just $ Range (toLspPos start) (toLspPos end)
+  where
+    toLspPos :: Lex.Pos -> Position
+    toLspPos uPos =
+      Position
+        { _line = fromIntegral $ Lex.line uPos - 1, -- 1 indexed vs 0 indexed
+          _character = fromIntegral $ Lex.column uPos - 1 -- 1 indexed vs 0 indexed
+        }
+
+infoDiagnostics :: FileAnalysis -> Lsp [Diagnostic]
+infoDiagnostics FileAnalysis {lexedSource = (srcText, _lexed), notes} = do
   ppe <- LSP.globalPPE
   pure $ noteDiagnostics (PPE.suffixifiedPPE ppe) (Text.unpack srcText) notes
 
@@ -64,14 +76,15 @@ noteRange = \case
     todoAnnotation = Nothing
 
 reportDiagnostics ::
-  VersionedTextDocumentIdentifier ->
+  Uri ->
+  Maybe FileVersion ->
   -- | Note, it's important to still send an empty list of diagnostics if there aren't any
   -- because it clears existing diagnostics in the editor
   [Diagnostic] ->
   Lsp ()
-reportDiagnostics docId diags = do
+reportDiagnostics docUri fileVersion diags = do
   let jsonRPC = "" -- TODO: what's this for?
-  let params = PublishDiagnosticsParams {_uri = docId ^. uri, _version = docId ^? version . _Just . to fromIntegral, _diagnostics = List diags}
+  let params = PublishDiagnosticsParams {_uri = docUri, _version = fromIntegral <$> fileVersion, _diagnostics = List diags}
   sendNotification (NotificationMessage jsonRPC STextDocumentPublishDiagnostics params)
 
 data UnisonDiagnostic = UnisonDiagnostic Range UnisonDiagnosticInfo

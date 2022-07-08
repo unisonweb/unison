@@ -218,11 +218,12 @@ main = withCP65001 do
       Launch isHeadless codebaseServerOpts downloadBase -> do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime RTI.Persistent Version.gitDescribeWithDate
-          -- TODO: This will leak memory if no clients, and also doesn't work with multiple
-          -- clients
-          ucmStateChangesQ <- newTQueueIO
-          let notifyOnUcmChanges = atomically . writeTQueue ucmStateChangesQ
-          withAsync (LSP.spawnLsp theCodebase runtime ucmStateChangesQ) $ \_ -> do
+          ucmStateVar <- newTVarIO Nothing
+          let notifyOnUcmChanges :: (Branch IO, Path.Absolute) -> IO ()
+              notifyOnUcmChanges = atomically . writeTVar ucmStateVar . Just
+          let ucmState :: STM (Branch IO, Path.Absolute)
+              ucmState = readTVar ucmStateVar >>= maybe retry pure
+          withAsync (LSP.spawnLsp theCodebase runtime ucmState) $ \_ -> do
             Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
               case exitOption of
                 DoNotExit -> do

@@ -45,22 +45,28 @@ logError msg = do
   let LogAction log = LSP.defaultClientLogger
   log (WithSeverity msg Error)
 
+-- | Environment for the Lsp monad.
 data Env = Env
-  { lspContext :: LanguageContextEnv Config,
+  { -- contains handlers for talking to the client.
+    lspContext :: LanguageContextEnv Config,
     codebase :: Codebase IO Symbol Ann,
-    parseNamesCache :: TVar NamesWithHistory,
-    ppeCache :: TVar PrettyPrintEnvDecl,
+    parseNamesCache :: IO NamesWithHistory,
+    ppeCache :: IO PrettyPrintEnvDecl,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
     -- The information we have for each file, which may or may not have a valid parse or
     -- typecheck.
-    checkedFilesVar :: TVar (Map Uri FileInfo),
-    dirtyFilesVar :: TVar (Map Uri VersionedTextDocumentIdentifier),
+    checkedFilesVar :: TVar (Map Uri FileAnalysis),
+    dirtyFilesVar :: TVar (Set Uri),
     scope :: Ki.Scope
   }
 
-data FileInfo = FileInfo
-  { docId :: VersionedTextDocumentIdentifier,
+-- | A monotonically increasing file version tracked by the lsp client.
+type FileVersion = Int32
+
+data FileAnalysis = FileAnalysis
+  { fileUri :: Uri,
+    fileVersion :: FileVersion,
     lexedSource :: LexedSource,
     parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
@@ -69,10 +75,10 @@ data FileInfo = FileInfo
   deriving (Show)
 
 globalPPE :: Lsp PrettyPrintEnvDecl
-globalPPE = asks ppeCache >>= readTVarIO
+globalPPE = asks ppeCache >>= liftIO
 
-parseNames :: Lsp NamesWithHistory
-parseNames = asks parseNamesCache >>= readTVarIO
+getParseNames :: Lsp NamesWithHistory
+getParseNames = asks parseNamesCache >>= liftIO
 
 data Config = Config
 
