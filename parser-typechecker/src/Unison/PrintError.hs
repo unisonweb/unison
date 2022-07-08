@@ -1091,26 +1091,14 @@ firstLexerError :: Foldable t => t (L.Token L.Lexeme) -> Maybe ([L.Token L.Lexem
 firstLexerError ts =
   find (const True) [(toList ts, e) | (L.payload -> L.Err e) <- toList ts]
 
-parseErrorRanges :: Parser.Err v -> [Range]
-parseErrorRanges = \case
-  P.TrivialError _ (LexerError ts _) _ -> rangeForToken <$> ts
-  P.TrivialError _errOffset (Just (P.Tokens (toList -> ts))) _expected -> rangeForToken <$> ts
-  P.TrivialError _errOffset (Just (P.EndOfInput)) _expected ->
-    -- TODO: Should have a range to represent the end of the file so the LSP can render this.
-    []
-  P.FancyError _sp fancyErrors ->
-    flip foldMap fancyErrors
-
--- mconcat (go' <$> Set.toList fancyErrors) <> lexerOutput
-
 prettyParseError ::
   forall v.
   Var v =>
   String ->
   Parser.Err v ->
   Pretty ColorText
-prettyParseError s =
-  mconcat (fst <$> renderParseErrors s) <> lexerOutput
+prettyParseError s e =
+  mconcat (fst <$> renderParseErrors s e) <> lexerOutput
   where
     lexerOutput :: Pretty (AnnotatedText a)
     lexerOutput =
@@ -1437,138 +1425,164 @@ renderParseErrors s = \case
                   else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
        in (msgs, allRanges)
     go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::" Nothing))) =
-      mconcat
-        [ "This looks like the start of an expression here but I was expecting a binding.",
-          "\nDid you mean to use a single " <> style Code ":",
-          " here for a type signature?",
-          "\n\n",
-          tokenAsErrorSite s t
-        ]
+      let msg =
+            mconcat
+              [ "This looks like the start of an expression here but I was expecting a binding.",
+                "\nDid you mean to use a single " <> style Code ":",
+                " here for a type signature?",
+                "\n\n",
+                tokenAsErrorSite s t
+              ]
+       in (msg, [rangeForToken t])
     go (Parser.DidntExpectExpression tok _nextTok) =
-      mconcat
-        [ "This looks like the start of an expression here \n\n",
-          tokenAsErrorSite s tok,
-          "\nbut at the file top-level, I expect one of the following:",
-          "\n",
-          "\n  - A binding, like " <> t <> style Code " = 42" <> " OR",
-          "\n                    " <> t <> style Code " : Nat",
-          "\n                    " <> t <> style Code " = 42",
-          "\n  - A watch expression, like " <> style Code "> " <> t
-            <> style
-              Code
-              " + 1",
-          "\n  - An `ability` declaration, like "
-            <> style Code "unique ability Foo where ...",
-          "\n  - A `type` declaration, like "
-            <> style Code "structural type Optional a = None | Some a",
-          "\n"
-        ]
+      let msg =
+            mconcat
+              [ "This looks like the start of an expression here \n\n",
+                tokenAsErrorSite s tok,
+                "\nbut at the file top-level, I expect one of the following:",
+                "\n",
+                "\n  - A binding, like " <> t <> style Code " = 42" <> " OR",
+                "\n                    " <> t <> style Code " : Nat",
+                "\n                    " <> t <> style Code " = 42",
+                "\n  - A watch expression, like " <> style Code "> " <> t
+                  <> style
+                    Code
+                    " + 1",
+                "\n  - An `ability` declaration, like "
+                  <> style Code "unique ability Foo where ...",
+                "\n  - A `type` declaration, like "
+                  <> style Code "structural type Optional a = None | Some a",
+                "\n"
+              ]
+       in (msg, [rangeForToken tok])
       where
         t = style Code (fromString (P.showTokens (Proxy @[L.Token L.Lexeme]) (pure tok)))
     go (Parser.ExpectedBlockOpen blockName tok@(L.payload -> L.Close)) =
-      mconcat
-        [ "I was expecting an indented block following the "
-            <> "`"
-            <> fromString blockName
-            <> "` keyword\n",
-          "but instead found an outdent:\n\n",
-          tokenAsErrorSite s tok -- todo: @aryairani why is this displaying weirdly?
-        ]
+      let msg =
+            mconcat
+              [ "I was expecting an indented block following the "
+                  <> "`"
+                  <> fromString blockName
+                  <> "` keyword\n",
+                "but instead found an outdent:\n\n",
+                tokenAsErrorSite s tok -- todo: @aryairani why is this displaying weirdly?
+              ]
+       in (msg, [rangeForToken tok])
     go (Parser.ExpectedBlockOpen blockName tok) =
-      mconcat
-        [ "I was expecting an indented block following the "
-            <> "`"
-            <> fromString blockName
-            <> "` keyword\n",
-          "but instead found this token:\n",
-          tokenAsErrorSite s tok
-        ]
+      let msg =
+            mconcat
+              [ "I was expecting an indented block following the "
+                  <> "`"
+                  <> fromString blockName
+                  <> "` keyword\n",
+                "but instead found this token:\n",
+                tokenAsErrorSite s tok
+              ]
+       in (msg, [rangeForToken tok])
     go (Parser.SignatureNeedsAccompanyingBody tok) =
-      mconcat
-        [ "You provided a type signature, but I didn't find an accompanying\n",
-          "binding after it.  Could it be a spelling mismatch?\n",
-          tokenAsErrorSite s tok
-        ]
+      let msg =
+            mconcat
+              [ "You provided a type signature, but I didn't find an accompanying\n",
+                "binding after it.  Could it be a spelling mismatch?\n",
+                tokenAsErrorSite s tok
+              ]
+       in (msg, [rangeForToken tok])
     go (Parser.EmptyBlock tok) =
-      mconcat
-        [ "I expected a block after this (",
-          describeStyle ErrorSite,
-          "), ",
-          "but there wasn't one.  Maybe check your indentation:\n",
-          tokenAsErrorSite s tok
-        ]
+      let msg =
+            mconcat
+              [ "I expected a block after this (",
+                describeStyle ErrorSite,
+                "), ",
+                "but there wasn't one.  Maybe check your indentation:\n",
+                tokenAsErrorSite s tok
+              ]
+       in (msg, [rangeForToken tok])
     go (Parser.EmptyMatch tok) =
-      Pr.indentN 2 . Pr.callout "😶" $
-        Pr.lines
-          [ Pr.wrap
-              ( "I expected some patterns after a "
-                  <> style ErrorSite "match"
-                  <> "/"
-                  <> style ErrorSite "with"
-                  <> " but I didn't find any."
-              ),
-            "",
-            tokenAsErrorSite s tok
-          ]
+      let msg =
+            Pr.indentN 2 . Pr.callout "😶" $
+              Pr.lines
+                [ Pr.wrap
+                    ( "I expected some patterns after a "
+                        <> style ErrorSite "match"
+                        <> "/"
+                        <> style ErrorSite "with"
+                        <> " but I didn't find any."
+                    ),
+                  "",
+                  tokenAsErrorSite s tok
+                ]
+       in (msg, [rangeForToken tok])
     go (Parser.EmptyWatch tok) =
-      Pr.lines
-        [ "I expected a non-empty watch expression and not just \">\"",
-          "",
-          annotatedAsErrorSite s tok
-        ]
-    go (Parser.UnknownAbilityConstructor tok _referents) = unknownConstructor "ability" tok
-    go (Parser.UnknownDataConstructor tok _referents) = unknownConstructor "data" tok
+      let msg =
+            Pr.lines
+              [ "I expected a non-empty watch expression and not just \">\"",
+                "",
+                annotatedAsErrorSite s tok
+              ]
+       in (msg, maybeToList $ rangeForAnnotated tok)
+    go (Parser.UnknownAbilityConstructor tok _referents) = (unknownConstructor "ability" tok, [rangeForToken tok])
+    go (Parser.UnknownDataConstructor tok _referents) = (unknownConstructor "data" tok, [rangeForToken tok])
     go (Parser.UnknownId tok referents references) =
-      Pr.lines
-        [ if missing
-            then "I couldn't resolve the reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
-            else "The reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous.",
-          "",
-          tokenAsErrorSite s $ HQ.toString <$> tok,
-          if missing
-            then "Make sure it's spelled correctly."
-            else "Try hash-qualifying the term you meant to reference."
-        ]
+      let msg =
+            Pr.lines
+              [ if missing
+                  then "I couldn't resolve the reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+                  else "The reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous.",
+                "",
+                tokenAsErrorSite s $ HQ.toString <$> tok,
+                if missing
+                  then "Make sure it's spelled correctly."
+                  else "Try hash-qualifying the term you meant to reference."
+              ]
+       in (msg, [rangeForToken tok])
       where
         missing = Set.null referents && Set.null references
     go (Parser.UnknownTerm tok referents) =
-      Pr.lines
-        [ if Set.null referents
-            then "I couldn't find a term for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
-            else "The term reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous.",
-          "",
-          tokenAsErrorSite s $ HQ.toString <$> tok,
-          if missing
-            then "Make sure it's spelled correctly."
-            else "Try hash-qualifying the term you meant to reference."
-        ]
+      let msg =
+            Pr.lines
+              [ if Set.null referents
+                  then "I couldn't find a term for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+                  else "The term reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous.",
+                "",
+                tokenAsErrorSite s $ HQ.toString <$> tok,
+                if missing
+                  then "Make sure it's spelled correctly."
+                  else "Try hash-qualifying the term you meant to reference."
+              ]
+       in (msg, [rangeForToken tok])
       where
         missing = Set.null referents
     go (Parser.UnknownType tok referents) =
-      Pr.lines
-        [ if Set.null referents
-            then "I couldn't find a type for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
-            else "The type reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous.",
-          "",
-          tokenAsErrorSite s $ HQ.toString <$> tok,
-          if missing
-            then "Make sure it's spelled correctly."
-            else "Try hash-qualifying the type you meant to reference."
-        ]
+      let msg =
+            Pr.lines
+              [ if Set.null referents
+                  then "I couldn't find a type for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+                  else "The type reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous.",
+                "",
+                tokenAsErrorSite s $ HQ.toString <$> tok,
+                if missing
+                  then "Make sure it's spelled correctly."
+                  else "Try hash-qualifying the type you meant to reference."
+              ]
+       in (msg, [rangeForToken tok])
       where
         missing = Set.null referents
     go (Parser.ResolutionFailures failures) =
-      Pr.border 2 . prettyResolutionFailures s $ failures
+      -- TODO: We should likely output separate diagnostics for each failure.
+      let ranges = catMaybes (rangeForAnnotated . Names.getAnnotation <$> failures)
+       in (Pr.border 2 . prettyResolutionFailures s $ failures, ranges)
     go (Parser.MissingTypeModifier keyword name) =
-      Pr.lines
-        [ Pr.wrap $
-            "I expected to see `structural` or `unique` at the start of this line:",
-          "",
-          tokensAsErrorSite s [void keyword, void name],
-          Pr.wrap $
-            "Learn more about when to use `structural` vs `unique` in the Unison Docs: "
-              <> structuralVsUniqueDocsLink
-        ]
+      let msg =
+            Pr.lines
+              [ Pr.wrap $
+                  "I expected to see `structural` or `unique` at the start of this line:",
+                "",
+                tokensAsErrorSite s [void keyword, void name],
+                Pr.wrap $
+                  "Learn more about when to use `structural` vs `unique` in the Unison Docs: "
+                    <> structuralVsUniqueDocsLink
+              ]
+       in (msg, rangeForToken <$> [void keyword, void name])
 
     unknownConstructor ::
       String -> L.Token (HashQualified Name) -> Pretty ColorText
