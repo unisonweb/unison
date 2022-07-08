@@ -1531,12 +1531,7 @@ notifyUser dir o = case o of
            )
   RefusedToPush pushBehavior path ->
     (pure . P.warnCallout) case pushBehavior of
-      PushBehavior.RequireEmpty ->
-        P.lines
-          [ "The remote namespace is not empty.",
-            "",
-            "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
-          ]
+      PushBehavior.RequireEmpty -> expectedEmptyPushDest path
       PushBehavior.RequireNonEmpty -> expectedNonEmptyPushDest path
   GistCreated remoteNamespace ->
     pure $
@@ -1592,8 +1587,10 @@ notifyUser dir o = case o of
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
   ShareError x -> (pure . P.warnCallout) case x of
     ShareErrorCheckAndSetPush e -> case e of
-      (Share.CheckAndSetPushErrorHashMismatch Share.HashMismatch {path = sharePath, expectedHash = _expectedHash, actualHash = _actualHash}) ->
-        P.wrap $ P.text "It looks like someone modified" <> prettySharePath sharePath <> P.text "an instant before you. Pull and try again? 🤞"
+      (Share.CheckAndSetPushErrorHashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash}) ->
+        case (expectedHash, actualHash) of
+          (Nothing, Just _) -> expectedEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
+          _ -> P.wrap $ P.text "It looks like someone modified" <> prettySharePath sharePath <> P.text "an instant before you. Pull and try again? 🤞"
       (Share.CheckAndSetPushErrorNoWritePermission sharePath) -> noWritePermission sharePath
       (Share.CheckAndSetPushErrorServerMissingDependencies hashes) -> missingDependencies hashes
     ShareErrorFastForwardPush e -> case e of
@@ -1677,6 +1674,12 @@ notifyUser dir o = case o of
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
+    expectedEmptyPushDest writeRemotePath =
+        P.lines
+          [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
+            "",
+            "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
+          ]
     expectedNonEmptyPushDest writeRemotePath =
       P.lines
         [ P.wrap ("The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty."),

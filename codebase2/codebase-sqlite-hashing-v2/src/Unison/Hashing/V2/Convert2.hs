@@ -12,11 +12,8 @@ import qualified U.Codebase.Reference as V2
 import qualified U.Codebase.Referent as V2.Referent
 import qualified U.Codebase.Term as V2 (F, F' (..), MatchCase (..), Pattern (..), SeqOp (..), TermRef, TypeRef)
 import qualified U.Codebase.Type as V2.Type
-import qualified U.Core.ABT as V2
-import qualified U.Core.ABT as V2.ABT
+import qualified U.Core.ABT as ABT
 import qualified U.Util.Hash as V2 (Hash)
-import qualified Unison.ABT as H2 (transform)
-import qualified Unison.ABT as V1.ABT
 import qualified Unison.Hashing.V2.Kind as H2
 import qualified Unison.Hashing.V2.Pattern as H2.Pattern
 import qualified Unison.Hashing.V2.Reference as H2
@@ -25,18 +22,8 @@ import qualified Unison.Hashing.V2.Term as H2
 import qualified Unison.Hashing.V2.Type as H2.Type
 import Unison.Prelude
 
--- | Delete me ASAP. I am defined elsewhere.
-abt2to1 :: Functor f => V2.ABT.Term f v a -> V1.ABT.Term f v a
-abt2to1 (V2.ABT.Term fv a out) = V1.ABT.Term fv a (go out)
-  where
-    go = \case
-      V2.ABT.Cycle body -> V1.ABT.Cycle (abt2to1 body)
-      V2.ABT.Abs v body -> V1.ABT.Abs v (abt2to1 body)
-      V2.ABT.Var v -> V1.ABT.Var v
-      V2.ABT.Tm tm -> V1.ABT.Tm (abt2to1 <$> tm)
-
-v2ToH2Term :: forall v. Ord v => V2.Hash -> V2.Term (V2.F v) v () -> H2.Term v ()
-v2ToH2Term thisTermComponentHash = H2.transform convertF . abt2to1
+v2ToH2Term :: forall v. Ord v => V2.Hash -> ABT.Term (V2.F v) v () -> H2.Term v ()
+v2ToH2Term thisTermComponentHash = ABT.transform convertF
   where
     convertF :: forall x. V2.F v x -> H2.F v () () x
     convertF = \case
@@ -118,7 +105,7 @@ v2ToH2TypeD :: forall v. Ord v => V2.Hash -> V2.Type.TypeD v -> H2.Type.Type v (
 v2ToH2TypeD defaultHash = v2ToH2Type' (convertReference' (convertId defaultHash))
 
 v2ToH2Type' :: forall r v. Ord v => (r -> H2.Reference) -> V2.Type.TypeR r v -> H2.Type.Type v ()
-v2ToH2Type' mkReference = H2.transform convertF . abt2to1
+v2ToH2Type' mkReference = ABT.transform convertF
   where
     convertF :: forall a. V2.Type.F' r a -> H2.Type.F a
     convertF = \case

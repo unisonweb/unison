@@ -144,6 +144,13 @@ packages:
       sha256: d4cc089c40c5052ee02f91eafa567e0a239908aabc561dfa6080ba3bfc8c25bd
   original:
     hackage: co-log-core-0.3.1.0
+- completed:
+    hackage: terminal-size-0.3.3@sha256:bd5f02333982bc8d6017db257b2a0b91870a295b4a37142a0c0525d8f533a48f,1255
+    pantry-tree:
+      size: 580
+      sha256: 2a9669ed392657d34ec2e180ddac68c9ef657e54bf4b5fbc9b9efaa7b1d341be
+  original:
+    hackage: terminal-size-0.3.3
 snapshots:
 - completed:
     size: 590100

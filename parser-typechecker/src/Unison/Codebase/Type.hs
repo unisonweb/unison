@@ -176,15 +176,10 @@ data Codebase m v a = Codebase
     -- Updates the root namespace names index.
     -- This isn't run automatically because it can be a bit slow.
     updateNameLookup :: m (),
-    -- | The SQLite connection this codebase closes over.
-    --
-    -- At one time the codebase was meant to abstract over the storage layer, but it has been cumbersome. Now we prefer
-    -- to interact with SQLite directly, and so provide this temporary escape hatch, until we can eliminate this
-    -- interface entirely.
-    connection :: Sqlite.Connection,
-    -- | Another escape hatch like the above connection, but this one makes a new connection to the same underlying
-    -- database file. This allows code (like pull-from-share) to use more than one connection concurrently.
-    withConnection :: forall x. (Sqlite.Connection -> IO x) -> IO x
+    -- | Acquire a new connection to the same underlying database file this codebase object connects to.
+    withConnection :: forall x. (Sqlite.Connection -> m x) -> m x,
+    -- | Acquire a new connection to the same underlying database file this codebase object connects to.
+    withConnectionIO :: forall x. (Sqlite.Connection -> IO x) -> IO x
   }
 
 -- | Whether a codebase is local or remote.

@@ -22,7 +22,7 @@ On startup, Unison prints a url for the codebase UI. If you did step 3 above, th
 
 Most test suites support selecting a specific test to run by passing a prefix as a test argument:
 
-* `stack test parser-typechecker --fast --test-arguments my-test-prefix` builds and runs most test suites, see below for exceptions to this (e.g. transcript tests).
+* `stack test unison-parser-typechecker --fast --test-arguments my-test-prefix` builds and runs most test suites, see below for exceptions to this (e.g. transcript tests).
 
 Some tests are executables instead:
 
