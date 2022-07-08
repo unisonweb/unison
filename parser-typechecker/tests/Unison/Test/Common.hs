@@ -25,7 +25,7 @@ import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
-import Unison.UnisonFile (TypecheckedUnisonFile)
+import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import qualified Unison.Util.Pretty as Pr
 import Unison.Var (Var)
 
@@ -67,7 +67,7 @@ parseAndSynthesizeAsFile ::
   String ->
   Result
     (Seq (Note Symbol Ann))
-    (Either Names (TypecheckedUnisonFile Symbol Ann))
+    (Either (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann))
 parseAndSynthesizeAsFile ambient filename s =
   FP.parseAndSynthesizeFile
     ambient
