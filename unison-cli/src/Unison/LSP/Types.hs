@@ -5,9 +5,11 @@
 module Unison.LSP.Types where
 
 import Colog.Core
-import Control.Lens
+import Control.Lens hiding (List)
 import Control.Monad.Except
 import Control.Monad.Reader
+import qualified Data.HashMap.Strict as HM
+import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
@@ -70,7 +72,9 @@ data FileAnalysis = FileAnalysis
     lexedSource :: LexedSource,
     parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
-    notes :: Seq (Note Symbol Ann)
+    notes :: Seq (Note Symbol Ann),
+    diagnostics :: IntervalMap Position [Diagnostic],
+    codeActions :: IntervalMap Position [CodeAction]
   }
   deriving (Show)
 
@@ -90,3 +94,41 @@ sendNotification :: forall (m :: Method 'FromServer 'Notification). (Message m ~
 sendNotification notif = do
   sendServerMessage <- asks (resSendMessage . lspContext)
   liftIO $ sendServerMessage $ FromServerMess (notif ^. method) (notif)
+
+data RangedCodeAction = RangedCodeAction
+  { -- All the ranges the code action applies
+    _codeActionRanges :: [Range],
+    _codeAction :: CodeAction
+  }
+  deriving stock (Eq, Show)
+
+instance HasCodeAction RangedCodeAction CodeAction where
+  codeAction = lens _codeAction (\rca ca -> rca {_codeAction = ca})
+
+rangedCodeAction :: Text -> [Diagnostic] -> [Range] -> RangedCodeAction
+rangedCodeAction title diags ranges =
+  RangedCodeAction ranges $
+    CodeAction
+      { _title = title,
+        _kind = Nothing,
+        _diagnostics = Just . List $ diags,
+        _isPreferred = Nothing,
+        _disabled = Nothing,
+        _edit = Nothing,
+        _command = Nothing,
+        _xdata = Nothing
+      }
+
+-- | Provided ranges must not intersect.
+includeEdits :: Uri -> Text -> [Range] -> RangedCodeAction -> RangedCodeAction
+includeEdits uri replacement ranges rca =
+  let edits = do
+        r <- ranges
+        pure $ TextEdit r replacement
+      workspaceEdit =
+        WorkspaceEdit
+          { _changes = Just $ HM.singleton uri (List edits),
+            _documentChanges = Nothing,
+            _changeAnnotations = Nothing
+          }
+   in rca & codeAction . edit ?~ workspaceEdit

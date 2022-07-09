@@ -61,8 +61,10 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
       Unison.LSP
+      Unison.LSP.CodeAction
       Unison.LSP.CodeLens
       Unison.LSP.Completion
+      Unison.LSP.Conversions
       Unison.LSP.Diagnostics
       Unison.LSP.FileAnalysis
       Unison.LSP.Hover
@@ -104,7 +106,8 @@ library
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , aeson
     , aeson-pretty
     , async
@@ -168,6 +171,7 @@ library
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
     , vector
     , wai
     , warp
@@ -214,7 +218,8 @@ executable cli-integration-tests
   build-tools:
       unison
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , aeson
     , aeson-pretty
     , async
@@ -282,6 +287,7 @@ executable cli-integration-tests
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
     , vector
     , wai
     , warp
@@ -321,7 +327,8 @@ executable transcripts
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , aeson
     , aeson-pretty
     , async
@@ -390,6 +397,7 @@ executable transcripts
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
     , vector
     , wai
     , warp
@@ -433,7 +441,8 @@ executable unison
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , aeson
     , aeson-pretty
     , async
@@ -503,6 +512,7 @@ executable unison
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
     , vector
     , wai
     , warp
@@ -550,7 +560,8 @@ test-suite cli-tests
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , aeson
     , aeson-pretty
     , async
@@ -619,6 +630,7 @@ test-suite cli-tests
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
     , vector
     , wai
     , warp

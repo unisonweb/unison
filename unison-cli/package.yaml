@@ -10,6 +10,7 @@ flags:
 ghc-options: -Wall
 
 dependencies:
+  - IntervalMap
   - ListLike
   - aeson
   - aeson-pretty
@@ -75,6 +76,7 @@ dependencies:
   - unison-util-base32hex
   - unison-util-relation
   - unliftio
+  - unordered-containers
   - vector
   - witherable
   - wai
