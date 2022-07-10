@@ -35,6 +35,7 @@ module Unison.Typechecker.Context
     infoNotes,
     Unknown (..),
     relax,
+    generalizeAndUnTypeVar,
   )
 where
 

@@ -49,7 +49,6 @@ import Unison.Symbol (Symbol)
 import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
-import qualified Unison.Typechecker.TypeVar as TypeVar
 import qualified Unison.UnisonFile as UF
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
@@ -238,14 +237,15 @@ analyseNotes fileUri ppe src notes = do
       | otherwise = do
         Env {codebase} <- ask
         ppe <- PPE.suffixifiedPPE <$> globalPPE
-        refs <- liftIO $ Codebase.termsOfType codebase (ABT.vmap TypeVar.underlying typ)
+        let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
+        refs <- liftIO $ Codebase.termsOfType codebase cleanedTyp
         forMaybe (toList refs) $ \ref -> runMaybeT $ do
           hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
           typ <- MaybeT . liftIO $ Codebase.getTypeOfReferent codebase ref
           let prettyType = TypePrinter.prettyStr Nothing ppe typ
           let txtName = HQ'.toText hqNameSuggestion
           let ranges = (diags ^.. folded . range)
-          let rca = rangedCodeAction ("UseT " <> txtName <> " : " <> Text.pack prettyType) diags ranges
+          let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
           pure $ includeEdits fileUri txtName ranges rca
     isUserBlank :: Symbol -> Bool
     isUserBlank v = case Var.typeOf v of
