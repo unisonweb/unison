@@ -19,7 +19,7 @@ import Language.LSP.Types
     TextDocumentIdentifier (TextDocumentIdentifier),
     Uri (getUri),
   )
-import Language.LSP.Types.Lens (HasRange (range), HasUri (uri))
+import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.HandleCommand (typecheckCommand)
@@ -141,7 +141,7 @@ analyseNotes fileUri ppe src notes = do
               Debug.debugM Debug.LSP "No Diagnostic configured for type error: " e
               empty
           diags = noteDiagnostic note ranges
-
+      -- Sort on match accuracy first, then name.
       codeActions <- case cause of
         Context.UnknownTerm _ v suggestions typ -> do
           typeHoleActions <- typeHoleReplacementCodeActions diags v typ
@@ -216,12 +216,22 @@ analyseNotes fileUri ppe src notes = do
             (range, references) <- ranges
             pure $ mkDiagnostic fileUri range DsError msg references
     -- Suggest name replacements or qualifications when there's ambiguity
-    nameResolutionCodeActions :: [Diagnostic] -> [Context.Suggestion v loc] -> [RangedCodeAction]
+    nameResolutionCodeActions :: [Diagnostic] -> [Context.Suggestion Symbol Ann] -> [RangedCodeAction]
     nameResolutionCodeActions diags suggestions = do
-      Context.Suggestion {suggestionName, suggestionType = _, suggestionMatch = _} <- suggestions
+      Context.Suggestion {suggestionName, suggestionType, suggestionMatch} <- sortOn nameResolutionSuggestionPriority suggestions
+      let prettyType = TypePrinter.prettyStr Nothing ppe suggestionType
       let ranges = (diags ^.. folded . range)
-      let rca = rangedCodeAction ("Use " <> suggestionName) diags ranges
-      pure $ includeEdits fileUri suggestionName ranges rca
+      let rca = rangedCodeAction ("Use " <> suggestionName <> " : " <> Text.pack prettyType) diags ranges
+      pure $
+        rca
+          & includeEdits fileUri suggestionName ranges
+          & codeAction . isPreferred ?~ (suggestionMatch == Context.Exact)
+
+    nameResolutionSuggestionPriority (Context.Suggestion {suggestionMatch, suggestionName}) = case suggestionMatch of
+      Context.Exact -> (0 :: Int, suggestionName)
+      Context.WrongType -> (1, suggestionName)
+      Context.WrongName -> (2, suggestionName)
+
     -- typeHoleReplacementCodeActions :: Symbol -> _ -> Lsp [a]
     typeHoleReplacementCodeActions diags v typ
       | not (isUserBlank v) = pure []
@@ -229,12 +239,13 @@ analyseNotes fileUri ppe src notes = do
         Env {codebase} <- ask
         ppe <- PPE.suffixifiedPPE <$> globalPPE
         refs <- liftIO $ Codebase.termsOfType codebase (ABT.vmap TypeVar.underlying typ)
-        forMaybe refs $ \ref -> runMaybeT $ do
+        forMaybe (toList refs) $ \ref -> runMaybeT $ do
           hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
           typ <- MaybeT . liftIO $ Codebase.getTypeOfReferent codebase ref
+          let prettyType = TypePrinter.prettyStr Nothing ppe typ
           let txtName = HQ'.toText hqNameSuggestion
           let ranges = (diags ^.. folded . range)
-          let rca = rangedCodeAction ("UseT " <> txtName) diags ranges
+          let rca = rangedCodeAction ("UseT " <> txtName <> " : " <> Text.pack prettyType) diags ranges
           pure $ includeEdits fileUri txtName ranges rca
     isUserBlank :: Symbol -> Bool
     isUserBlank v = case Var.typeOf v of
