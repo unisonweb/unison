@@ -24,6 +24,7 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens (HasRange (range), HasUri (uri))
 import qualified Unison.ABT as ABT
 import Unison.Codebase.Editor.HandleCommand (typecheckCommand)
+import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
 import Unison.LSP.Conversions
 import Unison.LSP.Diagnostics
@@ -36,6 +37,7 @@ import qualified Unison.LSP.Types as LSP
 import qualified Unison.LSP.VFS as VFS
 import qualified Unison.Lexer as L
 import Unison.Parser.Ann (Ann)
+import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnvDecl as PPE
@@ -103,13 +105,37 @@ fileAnalysisWorker = forever do
 analyseFile :: Foldable f => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText notes = do
   ppe <- LSP.globalPPE
-  pure $ noteDiagnostics fileUri (PPE.suffixifiedPPE ppe) (Text.unpack srcText) notes
+  pure $ analyseNotes fileUri (PPE.suffixifiedPPE ppe) (Text.unpack srcText) notes
 
-noteDiagnostics :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> ([Diagnostic], [RangedCodeAction])
-noteDiagnostics fileUri ppe src notes = do
+analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> ([Diagnostic], [RangedCodeAction])
+analyseNotes fileUri ppe src notes = do
   flip foldMap notes \note -> case note of
-    Result.TypeError (Context.ErrorNote {cause}) ->
-      let diags = noteDiagnostic note
+    -- Result.TypeError (Context.ErrorNote {cause = Context.PatternArityMismatch loc _ _}) ->
+    --   ([], singleRange loc)
+    Result.TypeError errNote@(Context.ErrorNote {cause}) ->
+      let typeErr = TypeError.typeErrorFromNote errNote
+          ranges = case typeErr of
+            TypeError.Mismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
+            TypeError.BooleanMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
+            TypeError.ExistentialMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
+            TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
+            TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
+            TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
+            TypeError.UnguardedLetRecCycle {cycleLocs} -> do
+              let ranges :: [Range]
+                  ranges = cycleLocs >>= aToR
+              (range, cycleRanges) <- withNeighbours ranges
+              pure (range, ("cycle",) <$> cycleRanges)
+            TypeError.UnknownType {typeSite} -> singleRange typeSite
+            TypeError.UnknownTerm {termSite} -> singleRange termSite
+            TypeError.DuplicateDefinitions {defns} -> do
+              (_v, locs) <- toList defns
+              (r, rs) <- withNeighbours (locs >>= aToR)
+              pure (r, ("duplicate definition",) <$> rs)
+            TypeError.Other e -> do
+              Debug.debugM Debug.LSP "No Diagnostic configured for type error: " e
+              empty
+          diags = noteDiagnostic note ranges
           codeActions = case cause of
             Context.UnknownTerm _ _ suggestions _ -> do
               Context.Suggestion {suggestionName, suggestionType = _, suggestionMatch = _} <- suggestions
@@ -118,68 +144,44 @@ noteDiagnostics fileUri ppe src notes = do
               pure $ includeEdits fileUri suggestionName ranges rca
             _ -> []
        in (diags, codeActions)
-    Result.NameResolutionFailures {} -> (noteDiagnostic note, [])
+    Result.NameResolutionFailures {} ->
+      -- TODO: diagnostics/code actions for resolution failures
+      (noteDiagnostic note todoAnnotation, [])
     Result.Parsing err ->
       let diags = do
             (errMsg, ranges) <- PrintError.renderParseErrors src err
             let txtMsg = Text.pack $ Pretty.toPlain 80 errMsg
             range <- ranges
             pure $ mkDiagnostic fileUri (uToLspRange range) DsError txtMsg []
-       in (diags, [])
-    Result.UnknownSymbol {} -> (noteDiagnostic note, [])
-    Result.TypeInfo {} -> ([], [])
-    Result.CompilerBug {} -> (noteDiagnostic note, [])
+       in -- TODO: Some parsing errors likely have reasonable code actions
+          (diags, [])
+    Result.UnknownSymbol _ loc ->
+      (noteDiagnostic note (singleRange loc), [])
+    Result.TypeInfo {} ->
+      -- No relevant diagnostics from type info.
+      ([], [])
+    Result.CompilerBug cbug ->
+      let ranges = case cbug of
+            Result.TopLevelComponentNotFound _ trm -> singleRange $ ABT.annotation trm
+            Result.ResolvedNameNotFound _ loc _ -> singleRange loc
+            Result.TypecheckerBug tcbug -> case tcbug of
+              Context.UnknownDecl _un _ref decls -> decls & foldMap \decl -> singleRange $ DD.annotation decl
+              Context.UnknownConstructor _un _gcr decl -> singleRange $ DD.annotation decl
+              Context.UndeclaredTermVariable _sym _con -> todoAnnotation
+              Context.RetractFailure _el _con -> todoAnnotation
+              Context.EmptyLetRec trm -> singleRange $ ABT.annotation trm
+              Context.PatternMatchFailure -> todoAnnotation
+              Context.EffectConstructorHadMultipleEffects typ -> singleRange $ ABT.annotation typ
+              Context.FreeVarsInTypeAnnotation _set -> todoAnnotation
+              Context.UnannotatedReference _ref -> todoAnnotation
+              Context.MalformedPattern pat -> singleRange $ Pattern.loc pat
+              Context.UnknownTermReference _ref -> todoAnnotation
+              Context.UnknownExistentialVariable _sym _con -> todoAnnotation
+              Context.IllegalContextExtension _con _el _s -> todoAnnotation
+              Context.OtherBug _s -> todoAnnotation
+       in (noteDiagnostic note ranges, [])
   where
-    noteDiagnostic :: Note Symbol Ann -> [Diagnostic]
-    noteDiagnostic note =
-      let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
-          ranges = noteRanges note
-       in do
-            (range, references) <- ranges
-            pure $ mkDiagnostic fileUri range DsError msg references
-
--- | Returns a list of ranges where this note should be marked in the document,
--- as well as a list of 'related' ranges the note might refer to, and their relevance.
---
--- E.g. a name conflict note might mark each conflicted name, and contain references to the
--- other conflicted name locations.
-noteRanges :: Note Symbol Ann -> [(Range, [(Text, Range)])]
-noteRanges = \case
-  Result.UnknownSymbol _sym loc -> singleRange loc
-  -- TODO: This should have an error extractor
-  Result.TypeError (Context.ErrorNote {cause = Context.PatternArityMismatch loc _ _}) -> singleRange loc
-  Result.TypeError errNote -> do
-    let typeErr = TypeError.typeErrorFromNote errNote
-    case typeErr of
-      TypeError.Mismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
-      TypeError.BooleanMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
-      TypeError.ExistentialMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
-      TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
-      TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
-      TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
-      TypeError.UnguardedLetRecCycle {cycleLocs} -> do
-        let ranges :: [Range]
-            ranges = cycleLocs >>= aToR
-        (range, cycleRanges) <- withNeighbours ranges
-        pure (range, ("cycle",) <$> cycleRanges)
-      TypeError.UnknownType {typeSite} -> singleRange typeSite
-      TypeError.UnknownTerm {termSite} -> singleRange termSite
-      TypeError.DuplicateDefinitions {defns} -> do
-        (_v, locs) <- toList defns
-        (r, rs) <- withNeighbours (locs >>= aToR)
-        pure (r, ("duplicate definition",) <$> rs)
-      TypeError.Other e -> do
-        Debug.debugM Debug.LSP "No Diagnostic configured for type error: " e
-        empty
-  Result.TypeInfo {} -> []
-  Result.CompilerBug e -> do
-    Debug.debugM Debug.LSP "No Diagnostic configured for compiler error: " e
-    empty
-  Result.Parsing {} ->
-    -- Parse notes are handled manually in noteDiagnostics
-    todoAnnotation
-  Result.NameResolutionFailures {} -> todoAnnotation
-  where
+    -- Diagnostics with this return value haven't been properly configured yet.
     todoAnnotation = []
     singleRange :: Ann -> [(Range, [a])]
     singleRange ann = do
@@ -193,6 +195,20 @@ noteRanges = \case
     withNeighbours :: [a] -> [(a, [a])]
     withNeighbours [] = []
     withNeighbours (a : as) = (a, as) : (second (a :) <$> withNeighbours as)
+    -- Builds diagnostics for a note, one diagnostic per range.
+    noteDiagnostic ::
+      Note Symbol Ann ->
+      -- All ranges affected by this note, each range may have references to 'related'
+      -- ranges.
+      -- E.g. a name conflict note might mark each conflicted name, and contain references to the
+      -- other conflicted name locations.
+      [(Range, [(Text, Range)])] ->
+      [Diagnostic]
+    noteDiagnostic note ranges =
+      let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
+       in do
+            (range, references) <- ranges
+            pure $ mkDiagnostic fileUri range DsError msg references
 
 toRangeMap :: (Foldable f) => f (Range, a) -> IntervalMap Position [a]
 toRangeMap vs =
