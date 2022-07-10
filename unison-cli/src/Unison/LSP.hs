@@ -9,6 +9,7 @@ import Colog.Core (LogAction (LogAction))
 import qualified Colog.Core as Colog
 import Control.Monad.Reader
 import Data.Aeson hiding (Options, defaultOptions)
+import Data.ByteString.Builder.Extra (defaultChunkSize)
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
@@ -17,7 +18,8 @@ import Language.LSP.Types.SMethodMap
 import qualified Language.LSP.Types.SMethodMap as SMM
 import Language.LSP.VFS
 import qualified Network.Simple.TCP as TCP
-import Network.Socket
+import qualified Network.Socket.ByteString as Socket
+import qualified Network.Socket.ByteString.Lazy as LSocket
 import System.Environment (lookupEnv)
 import Unison.Codebase
 import Unison.Codebase.Branch (Branch)
@@ -44,13 +46,14 @@ spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM (Branch IO, Path.Abs
 spawnLsp codebase runtime ucmState = do
   lspPort <- getLspPort
   TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
-    sockHandle <- socketToHandle sock ReadWriteMode
     Ki.scoped \scope -> do
       -- currently we have an independent VFS for each LSP client since each client might have
       -- different un-saved state for the same file.
       initVFS $ \vfs -> do
         vfsVar <- newMVar vfs
-        void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope ucmState)
+        let fromClient = Socket.recv sock defaultChunkSize
+        let toClient = LSocket.sendAll sock
+        void $ runServerWith lspServerLogger lspClientLogger fromClient toClient (serverDefinition vfsVar codebase runtime scope ucmState)
   where
     -- Where to send logs that occur before a client connects
     lspServerLogger = Colog.filterBySeverity Colog.Error Colog.getSeverity $ Colog.cmap (fmap tShow) (LogAction print)
