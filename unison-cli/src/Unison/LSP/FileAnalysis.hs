@@ -21,7 +21,7 @@ import Language.LSP.Types
     TextDocumentIdentifier (TextDocumentIdentifier),
     Uri (getUri),
   )
-import Language.LSP.Types.Lens (HasRange (range), HasUri (uri))
+import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
 import qualified Unison.ABT as ABT
 import Unison.Codebase.Editor.HandleCommand (typecheckCommand)
 import qualified Unison.DataDeclaration as DD
@@ -45,6 +45,7 @@ import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
+import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
 import qualified Unison.UnisonFile as UF
@@ -136,12 +137,21 @@ analyseNotes fileUri ppe src notes = do
               Debug.debugM Debug.LSP "No Diagnostic configured for type error: " e
               empty
           diags = noteDiagnostic note ranges
+          -- Sort on match accuracy first, then name.
+          suggestionPriority (Context.Suggestion {suggestionMatch, suggestionName}) = case suggestionMatch of
+            Context.Exact -> (0 :: Int, suggestionName)
+            Context.WrongType -> (1, suggestionName)
+            Context.WrongName -> (2, suggestionName)
           codeActions = case cause of
             Context.UnknownTerm _ _ suggestions _ -> do
-              Context.Suggestion {suggestionName, suggestionType = _, suggestionMatch = _} <- suggestions
+              Context.Suggestion {suggestionName, suggestionType, suggestionMatch} <- sortOn suggestionPriority suggestions
+              let prettyType = TypePrinter.prettyStr Nothing ppe suggestionType
               let ranges = (diags ^.. folded . range)
-              let rca = rangedCodeAction ("Use " <> suggestionName) diags ranges
-              pure $ includeEdits fileUri suggestionName ranges rca
+              let rca = rangedCodeAction ("Use " <> suggestionName <> " : " <> Text.pack prettyType) diags ranges
+              pure $
+                rca
+                  & includeEdits fileUri suggestionName ranges
+                  & codeAction . isPreferred ?~ (suggestionMatch == Context.Exact)
             _ -> []
        in (diags, codeActions)
     Result.NameResolutionFailures {} ->
