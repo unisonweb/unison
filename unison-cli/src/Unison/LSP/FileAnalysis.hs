@@ -76,7 +76,8 @@ checkFile doc = runMaybeT $ do
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
-  pure $ FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, ..}
+  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, testing = "hi!", ..}
+  pure $ fileAnalysis
 
 fileAnalysisWorker :: Lsp ()
 fileAnalysisWorker = forever do
@@ -93,9 +94,9 @@ fileAnalysisWorker = forever do
     Map.fromList <$> forMaybe (toList dirtyFileIDs) \docUri -> runMaybeT do
       fileInfo <- MaybeT (checkFile $ TextDocumentIdentifier docUri)
       pure (docUri, fileInfo)
-  Debug.debugM Debug.LSP "Typechecked " freshlyCheckedFiles
+  Debug.debugM Debug.LSP "Freshly Typechecked " freshlyCheckedFiles
   -- Overwrite any files we successfully checked
-  atomically $ modifyTVar' checkedFilesV (`Map.union` freshlyCheckedFiles)
+  atomically $ modifyTVar' checkedFilesV (Map.union freshlyCheckedFiles)
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 

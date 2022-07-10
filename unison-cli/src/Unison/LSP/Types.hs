@@ -74,7 +74,8 @@ data FileAnalysis = FileAnalysis
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     notes :: Seq (Note Symbol Ann),
     diagnostics :: IntervalMap Position [Diagnostic],
-    codeActions :: IntervalMap Position [CodeAction]
+    codeActions :: IntervalMap Position [CodeAction],
+    testing :: Text
   }
   deriving (Show)
 
