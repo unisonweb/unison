@@ -63,6 +63,7 @@ library
       Unison.LSP
       Unison.LSP.CodeAction
       Unison.LSP.CodeLens
+      Unison.LSP.Commands
       Unison.LSP.Completion
       Unison.LSP.Conversions
       Unison.LSP.Diagnostics

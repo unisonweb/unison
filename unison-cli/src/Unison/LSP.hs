@@ -26,6 +26,7 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.LSP.CodeAction (codeActionHandler)
+import Unison.LSP.CodeLens (codeLensHandler)
 import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers as Notifications
@@ -102,6 +103,7 @@ lspDoInitialize vfsVar codebase runtime scope ucmState lspContext _initMsg = do
   let env = Env {ppeCache = readTVarIO ppeCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
+  -- TODO: We could have a single UCM worker per UCM instance rather than per LSP connection
   Ki.fork scope (lspToIO $ ucmWorker ppeCacheVar parseNamesCacheVar ucmState)
   pure $ Right $ env
 
@@ -119,9 +121,11 @@ lspRequestHandlers =
   mempty
     & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
     & SMM.insert STextDocumentCodeAction (ClientMessageHandler codeActionHandler)
+    -- & SMM.insert SCodeLensResolve (ClientMessageHandler codeLensResolveHandler)
+    & SMM.insert STextDocumentCodeLens (ClientMessageHandler codeLensHandler)
+    & SMM.insert SWorkspaceExecuteCommand (ClientMessageHandler executeCommandHandler)
 
 -- & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
--- & SMM.insert SCodeLensResolve (ClientMessageHandler codeLensResolveHandler)
 
 -- | LSP notification handlers
 lspNotificationHandlers :: SMethodMap (ClientMessageHandler Lsp 'Notification)

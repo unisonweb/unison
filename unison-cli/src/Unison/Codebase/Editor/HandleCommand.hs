@@ -144,8 +144,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
         rng <- lift $ rngGen i
         liftIO $ typecheckCommand codebase ambient names sourceName source rng
       TypecheckFile file ambient -> lift $ typecheck' ambient codebase file
-      Evaluate ppe unisonFile -> lift $ evalUnisonFile ppe unisonFile []
-      Evaluate1 ppe useCache term -> lift $ eval1 ppe useCache term
+      Evaluate ppe unisonFile -> lift $ evalUnisonFile codebase rt ppe unisonFile []
+      Evaluate1 ppe useCache term -> lift $ eval1 codebase rt ppe useCache term
       LoadLocalRootBranch -> lift $ Codebase.getRootBranch codebase
       LoadLocalBranch h -> lift $ fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
       Merge mode b1 b2 ->
@@ -207,7 +207,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       --      pure $ Branch.append b0 b
 
       Execute ppe uf args ->
-        lift $ evalUnisonFile ppe uf args
+        lift $ evalUnisonFile codebase rt ppe uf args
       AppendToReflog reason old new -> lift $ Codebase.appendReflog codebase reason old new
       LoadReflog -> lift $ Codebase.getReflog codebase
       CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
@@ -244,40 +244,40 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       UCMVersion -> pure ucmVersion
       AnalyzeCodebaseIntegrity -> lift (Codebase.runTransaction codebase integrityCheckFullCodebase)
 
-    watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
-    watchCache h = do
-      maybeTerm <- Codebase.lookupWatchCache codebase h
-      pure (Term.amap (const ()) <$> maybeTerm)
+eval1 :: Codebase IO Symbol Ann -> Runtime Symbol -> PPE.PrettyPrintEnv -> UseCache -> Term Symbol Ann -> _
+eval1 codebase rt ppe useCache tm = do
+  let codeLookup = Codebase.toCodeLookup codebase
+      cache = if useCache then watchCache codebase else Runtime.noCache
+  r <- Runtime.evaluateTerm' codeLookup cache ppe rt tm
+  when useCache $ case r of
+    Right tmr ->
+      Codebase.putWatch
+        codebase
+        WK.RegularWatch
+        (Hashing.hashClosedTerm tm)
+        (Term.amap (const Ann.External) tmr)
+    Left _ -> pure ()
+  pure $ r <&> Term.amap (const Ann.External)
 
-    eval1 :: PPE.PrettyPrintEnv -> UseCache -> Term Symbol Ann -> _
-    eval1 ppe useCache tm = do
-      let codeLookup = Codebase.toCodeLookup codebase
-          cache = if useCache then watchCache else Runtime.noCache
-      r <- Runtime.evaluateTerm' codeLookup cache ppe rt tm
-      when useCache $ case r of
-        Right tmr ->
-          Codebase.putWatch
-            codebase
-            WK.RegularWatch
-            (Hashing.hashClosedTerm tm)
-            (Term.amap (const Ann.External) tmr)
-        Left _ -> pure ()
-      pure $ r <&> Term.amap (const Ann.External)
+watchCache :: Codebase IO Symbol Ann -> Reference.Id -> IO (Maybe (Term Symbol ()))
+watchCache codebase h = do
+  maybeTerm <- Codebase.lookupWatchCache codebase h
+  pure (Term.amap (const ()) <$> maybeTerm)
 
-    evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> _
-    evalUnisonFile ppe unisonFile args = withArgs args do
-      let codeLookup = Codebase.toCodeLookup codebase
-      r <- Runtime.evaluateWatches codeLookup ppe watchCache rt unisonFile
-      case r of
-        Left e -> pure (Left e)
-        Right rs@(_, map) -> do
-          forM_ (Map.elems map) $ \(_loc, kind, hash, _src, value, isHit) ->
-            if isHit
-              then pure ()
-              else do
-                let value' = Term.amap (const Ann.External) value
-                Codebase.putWatch codebase kind hash value'
-          pure $ Right rs
+evalUnisonFile :: Codebase IO Symbol Ann -> Runtime Symbol -> PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> _
+evalUnisonFile codebase rt ppe unisonFile args = withArgs args do
+  let codeLookup = Codebase.toCodeLookup codebase
+  r <- Runtime.evaluateWatches codeLookup ppe (watchCache codebase) rt unisonFile
+  case r of
+    Left e -> pure (Left e)
+    Right rs@(_, map) -> do
+      forM_ (Map.elems map) $ \(_loc, kind, hash, _src, value, isHit) ->
+        if isHit
+          then pure ()
+          else do
+            let value' = Term.amap (const Ann.External) value
+            Codebase.putWatch codebase kind hash value'
+      pure $ Right rs
 
 typecheckCommand ::
   (Random.DRG gen, Monad m) =>
