@@ -4,8 +4,6 @@ module Unison.LSP.FileAnalysis where
 
 import Control.Lens
 import Control.Monad.Reader
-  ( asks,
-  )
 import qualified Crypto.Random as Random
 import Data.Bifunctor (second)
 import Data.Foldable
@@ -23,9 +21,11 @@ import Language.LSP.Types
   )
 import Language.LSP.Types.Lens (HasRange (range), HasUri (uri))
 import qualified Unison.ABT as ABT
+import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.HandleCommand (typecheckCommand)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
+import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Conversions
 import Unison.LSP.Diagnostics
   ( mkDiagnostic,
@@ -40,15 +40,20 @@ import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
+import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
+import qualified Unison.Typechecker.TypeVar as TypeVar
 import qualified Unison.UnisonFile as UF
+import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
+import qualified Unison.Var as Var
 import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
 import Witherable (forMaybe)
 
@@ -105,14 +110,14 @@ fileAnalysisWorker = forever do
 analyseFile :: Foldable f => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText notes = do
   ppe <- LSP.globalPPE
-  pure $ analyseNotes fileUri (PPE.suffixifiedPPE ppe) (Text.unpack srcText) notes
+  analyseNotes fileUri (PPE.suffixifiedPPE ppe) (Text.unpack srcText) notes
 
-analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> ([Diagnostic], [RangedCodeAction])
+analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseNotes fileUri ppe src notes = do
-  flip foldMap notes \note -> case note of
+  flip foldMapM notes \note -> case note of
     -- Result.TypeError (Context.ErrorNote {cause = Context.PatternArityMismatch loc _ _}) ->
     --   ([], singleRange loc)
-    Result.TypeError errNote@(Context.ErrorNote {cause}) ->
+    Result.TypeError errNote@(Context.ErrorNote {cause}) -> do
       let typeErr = TypeError.typeErrorFromNote errNote
           ranges = case typeErr of
             TypeError.Mismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
@@ -136,31 +141,32 @@ analyseNotes fileUri ppe src notes = do
               Debug.debugM Debug.LSP "No Diagnostic configured for type error: " e
               empty
           diags = noteDiagnostic note ranges
-          codeActions = case cause of
-            Context.UnknownTerm _ _ suggestions _ -> do
-              Context.Suggestion {suggestionName, suggestionType = _, suggestionMatch = _} <- suggestions
-              let ranges = (diags ^.. folded . range)
-              let rca = rangedCodeAction ("Use " <> suggestionName) diags ranges
-              pure $ includeEdits fileUri suggestionName ranges rca
-            _ -> []
-       in (diags, codeActions)
-    Result.NameResolutionFailures {} ->
+
+      codeActions <- case cause of
+        Context.UnknownTerm _ v suggestions typ -> do
+          typeHoleActions <- typeHoleReplacementCodeActions diags v typ
+          pure $
+            nameResolutionCodeActions diags suggestions
+              <> typeHoleActions
+        _ -> pure []
+      pure (diags, codeActions)
+    Result.NameResolutionFailures {} -> do
       -- TODO: diagnostics/code actions for resolution failures
-      (noteDiagnostic note todoAnnotation, [])
-    Result.Parsing err ->
+      pure (noteDiagnostic note todoAnnotation, [])
+    Result.Parsing err -> do
       let diags = do
             (errMsg, ranges) <- PrintError.renderParseErrors src err
             let txtMsg = Text.pack $ Pretty.toPlain 80 errMsg
             range <- ranges
             pure $ mkDiagnostic fileUri (uToLspRange range) DsError txtMsg []
-       in -- TODO: Some parsing errors likely have reasonable code actions
-          (diags, [])
+      -- TODO: Some parsing errors likely have reasonable code actions
+      pure (diags, [])
     Result.UnknownSymbol _ loc ->
-      (noteDiagnostic note (singleRange loc), [])
+      pure (noteDiagnostic note (singleRange loc), [])
     Result.TypeInfo {} ->
       -- No relevant diagnostics from type info.
-      ([], [])
-    Result.CompilerBug cbug ->
+      pure ([], [])
+    Result.CompilerBug cbug -> do
       let ranges = case cbug of
             Result.TopLevelComponentNotFound _ trm -> singleRange $ ABT.annotation trm
             Result.ResolvedNameNotFound _ loc _ -> singleRange loc
@@ -179,7 +185,7 @@ analyseNotes fileUri ppe src notes = do
               Context.UnknownExistentialVariable _sym _con -> todoAnnotation
               Context.IllegalContextExtension _con _el _s -> todoAnnotation
               Context.OtherBug _s -> todoAnnotation
-       in (noteDiagnostic note ranges, [])
+      pure (noteDiagnostic note ranges, [])
   where
     -- Diagnostics with this return value haven't been properly configured yet.
     todoAnnotation = []
@@ -209,6 +215,31 @@ analyseNotes fileUri ppe src notes = do
        in do
             (range, references) <- ranges
             pure $ mkDiagnostic fileUri range DsError msg references
+    -- Suggest name replacements or qualifications when there's ambiguity
+    nameResolutionCodeActions :: [Diagnostic] -> [Context.Suggestion v loc] -> [RangedCodeAction]
+    nameResolutionCodeActions diags suggestions = do
+      Context.Suggestion {suggestionName, suggestionType = _, suggestionMatch = _} <- suggestions
+      let ranges = (diags ^.. folded . range)
+      let rca = rangedCodeAction ("Use " <> suggestionName) diags ranges
+      pure $ includeEdits fileUri suggestionName ranges rca
+    -- typeHoleReplacementCodeActions :: Symbol -> _ -> Lsp [a]
+    typeHoleReplacementCodeActions diags v typ
+      | not (isUserBlank v) = pure []
+      | otherwise = do
+        Env {codebase} <- ask
+        ppe <- PPE.suffixifiedPPE <$> globalPPE
+        refs <- liftIO $ Codebase.termsOfType codebase (ABT.vmap TypeVar.underlying typ)
+        forMaybe refs $ \ref -> runMaybeT $ do
+          hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
+          typ <- MaybeT . liftIO $ Codebase.getTypeOfReferent codebase ref
+          let txtName = HQ'.toText hqNameSuggestion
+          let ranges = (diags ^.. folded . range)
+          let rca = rangedCodeAction ("UseT " <> txtName) diags ranges
+          pure $ includeEdits fileUri txtName ranges rca
+    isUserBlank :: Symbol -> Bool
+    isUserBlank v = case Var.typeOf v of
+      Var.User name -> Text.isPrefixOf "_" name
+      _ -> False
 
 toRangeMap :: (Foldable f) => f (Range, a) -> IntervalMap Position [a]
 toRangeMap vs =
