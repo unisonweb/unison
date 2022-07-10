@@ -264,7 +264,7 @@ watchCache codebase h = do
   maybeTerm <- Codebase.lookupWatchCache codebase h
   pure (Term.amap (const ()) <$> maybeTerm)
 
-evalUnisonFile :: Codebase IO Symbol Ann -> Runtime Symbol -> PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> _
+evalUnisonFile :: Codebase IO Symbol Ann -> Runtime Symbol -> PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> IO (Runtime.WatchResults Symbol Ann)
 evalUnisonFile codebase rt ppe unisonFile args = withArgs args do
   let codeLookup = Codebase.toCodeLookup codebase
   r <- Runtime.evaluateWatches codeLookup ppe (watchCache codebase) rt unisonFile

@@ -19,6 +19,7 @@ import Language.LSP.VFS
 import Unison.Codebase
 import Unison.Codebase.Editor.Command (LexedSource)
 import Unison.Codebase.Runtime (Runtime)
+import qualified Unison.Codebase.Runtime as Runtime
 import Unison.LSP.Orphans ()
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
@@ -72,14 +73,30 @@ data FileAnalysis = FileAnalysis
     lexedSource :: LexedSource,
     parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
+    -- This is memoized using `once`
+    evaluatedFile :: Maybe (IO (Runtime.WatchResults Symbol Ann)),
     notes :: Seq (Note Symbol Ann),
     diagnostics :: IntervalMap Position [Diagnostic],
-    codeActions :: IntervalMap Position [CodeAction],
-    testing :: Text
+    codeActions :: IntervalMap Position [CodeAction]
   }
-  deriving (Show)
 
-globalPPE :: Lsp PrettyPrintEnvDecl
+instance Show FileAnalysis where
+  show (FileAnalysis fileUri fileVersion lexedSource parsedFile typecheckedFile evaluatedFile notes diagnostics codeActions) =
+    let fields =
+          [ ("fileUri", show @Uri fileUri),
+            ("fileVersion", show @FileVersion fileVersion),
+            ("lexedSource", show @LexedSource lexedSource),
+            ("parsedFile", show @(Maybe (UF.UnisonFile Symbol Ann)) parsedFile),
+            ("typecheckedFile", show @(Maybe (UF.TypecheckedUnisonFile Symbol Ann)) typecheckedFile),
+            ("notes", show @(Seq (Note Symbol Ann)) notes),
+            ("diagnostics", show @(IntervalMap Position [Diagnostic]) diagnostics),
+            ("codeActions", show @(IntervalMap Position [CodeAction]) codeActions),
+            ("evaluatedFile", maybe "Nothing" (const $ "Just (IO <evaluated_file>)") evaluatedFile)
+          ]
+            & foldMap \(field, contents) -> field <> " = " <> contents <> ",\n"
+     in "FileAnalysis\n  { " <> fields <> "  }"
+
+globalPPE :: (MonadReader Env m, MonadIO m) => m PrettyPrintEnvDecl
 globalPPE = asks ppeCache >>= liftIO
 
 getParseNames :: Lsp NamesWithHistory

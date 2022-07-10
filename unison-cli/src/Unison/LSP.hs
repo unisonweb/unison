@@ -27,6 +27,7 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.LSP.CodeAction (codeActionHandler)
 import Unison.LSP.CodeLens (codeLensHandler)
+import Unison.LSP.Commands (executeCommandHandler)
 import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers as Notifications

@@ -2,10 +2,9 @@
 
 module Unison.LSP.FileAnalysis where
 
+import Control.Concurrent.Extra (once)
 import Control.Lens
 import Control.Monad.Reader
-  ( asks,
-  )
 import qualified Crypto.Random as Random
 import Data.Bifunctor (second)
 import Data.Foldable
@@ -24,6 +23,8 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens (HasRange (range), HasUri (uri))
 import qualified Unison.ABT as ABT
 import Unison.Codebase.Editor.HandleCommand (typecheckCommand)
+import qualified Unison.Codebase.Editor.HandleCommand as Command
+import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
 import Unison.LSP.Conversions
@@ -55,20 +56,24 @@ import Witherable (forMaybe)
 -- | Lex, parse, and typecheck a file.
 checkFile :: HasUri d Uri => d -> Lsp (Maybe FileAnalysis)
 checkFile doc = runMaybeT $ do
+  Env {codebase, runtime} <- ask
+  ppe <- PPE.suffixifiedPPE <$> globalPPE
   let fileUri = doc ^. uri
   (fileVersion, contents) <- MaybeT (VFS.getFileContents doc)
   parseNames <- lift getParseNames
   let sourceName = getUri $ doc ^. uri
   let lexedSource@(srcText, _) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
-  cb <- asks codebase
   drg <- liftIO Random.getSystemDRG
-  r <- (liftIO $ typecheckCommand cb ambientAbilities parseNames sourceName lexedSource drg)
+  r <- (liftIO $ typecheckCommand codebase ambientAbilities parseNames sourceName lexedSource drg)
   let Result.Result notes mayResult = r
-  let (parsedFile, typecheckedFile) = case mayResult of
-        Nothing -> (Nothing, Nothing)
-        Just (Left uf) -> (Just uf, Nothing)
-        Just (Right tf) -> (Just $ UF.discardTypes tf, Just tf)
+  (parsedFile, typecheckedFile, evaluatedFile) <- case mayResult of
+    Nothing -> pure (Nothing, Nothing, Nothing)
+    Just (Left uf) -> pure (Just uf, Nothing, Nothing)
+    Just (Right tf) -> do
+      let systemArgs = []
+      memoizedEval <- liftIO . once $ Command.evalUnisonFile codebase runtime ppe tf systemArgs
+      pure (Just $ UF.discardTypes tf, Just tf, Just memoizedEval)
   (diagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
   let diagnosticRanges =
         diagnostics
@@ -78,7 +83,7 @@ checkFile doc = runMaybeT $ do
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
-  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, testing = "hi!", ..}
+  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, evaluatedFile, ..}
   pure $ fileAnalysis
 
 fileAnalysisWorker :: Lsp ()
@@ -219,3 +224,9 @@ getFileAnalysis uri = do
   checkedFilesV <- asks checkedFilesVar
   checkedFiles <- readTVarIO checkedFilesV
   pure $ Map.lookup uri checkedFiles
+
+getEvaluatedFile :: Uri -> Lsp (Maybe (Runtime.WatchResults Symbol Ann))
+getEvaluatedFile fileUri = runMaybeT $ do
+  FileAnalysis {evaluatedFile} <- MaybeT $ getFileAnalysis fileUri
+  ef <- MaybeT . pure $ evaluatedFile
+  liftIO ef

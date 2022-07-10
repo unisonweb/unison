@@ -2,32 +2,35 @@
 
 module Unison.LSP.Commands where
 
-import Control.Lens
+import Control.Lens hiding (List)
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Aeson
-import qualified Data.Aeson as Aeson
 import Language.LSP.Types
 import Language.LSP.Types.Lens
+import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.Editor.HandleCommand as Commands
+import Unison.CommandLine.OutputMessages (watchPrinter)
 import qualified Unison.Debug as Debug
+import Unison.LSP.FileAnalysis (getEvaluatedFile, getFileAnalysis)
 import Unison.LSP.Types
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.UnisonFile as UF
 import Unison.Util.Monoid (intercalateMap)
 
 data UCommand
-  = RefreshWatches
+  = RefreshWatches Uri
   deriving (Show, Eq, Ord)
 
 renderCommand :: UCommand -> Command
 renderCommand = \case
-  RefreshWatches ->
-    Command {_title = "Refresh", _command = "refresh-watches", _arguments = Nothing}
+  RefreshWatches uri ->
+    Command {_title = "Refresh", _command = "refresh-watches", _arguments = Just . List $ [toJSON uri]}
 
 parseCommand :: Text -> [Value] -> Maybe UCommand
-parseCommand cmd args = case cmd of
-  "refresh-watches" -> Just RefreshWatches
+parseCommand cmd args = case (cmd, fromJSON <$> args) of
+  ("refresh-watches", [Success uri]) -> Just $ RefreshWatches uri
   _ -> do
     Debug.debugM Debug.LSP "Unrecognized Command" (cmd, args)
     Nothing
@@ -45,9 +48,24 @@ executeCommandHandler m respond =
 
 runCommand :: UCommand -> Lsp ()
 runCommand = \case
-  RefreshWatches -> refreshWatches
+  RefreshWatches uri -> refreshWatches uri
 
-refreshWatches = do
-  Env {codebase, runtime} <- ask
+refreshWatches :: Uri -> Lsp ()
+refreshWatches fileUri = void . runMaybeT $ do
+  Env {codebase, runtime, lexedSource} <- ask
   ppe <- PPE.suffixifiedPPE <$> globalPPE
-  liftIO $ Commands.eval1 codebase runtime ppe True trm
+  ef <- MaybeT $ getEvaluatedFile fileUri
+  let (src, _lexed) = lexedSource
+
+-- watchPrinter src ppe
+
+-- FileAnalysis {typecheckedFile} <- MaybeT $ getFileAnalysis fileUri
+-- for_ (UF.watchComponents tf) \(wk, watches) ->
+--   for_ watches \(_v, trm, _typ) -> do
+--     (liftIO $ Commands.eval1 codebase runtime ppe True trm) >>= \case
+--       Left pr -> do
+--         -- TODO handle error?
+--         pure ()
+--       Right te -> do
+--         watchPrinter ppe (ABT.annotation trm) wk trm
+-- _
