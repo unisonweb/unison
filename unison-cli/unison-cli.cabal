@@ -67,6 +67,7 @@ library
       Unison.LSP.Conversions
       Unison.LSP.Diagnostics
       Unison.LSP.FileAnalysis
+      Unison.LSP.FoldingRange
       Unison.LSP.Hover
       Unison.LSP.NotificationHandlers
       Unison.LSP.Orphans

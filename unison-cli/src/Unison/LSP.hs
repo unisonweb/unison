@@ -27,6 +27,7 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.LSP.CodeAction (codeActionHandler)
 import qualified Unison.LSP.FileAnalysis as Analysis
+import Unison.LSP.FoldingRange (foldingRangeRequest)
 import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers as Notifications
 import Unison.LSP.Orphans ()
@@ -119,6 +120,7 @@ lspRequestHandlers =
   mempty
     & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
     & SMM.insert STextDocumentCodeAction (ClientMessageHandler codeActionHandler)
+    & SMM.insert STextDocumentFoldingRange (ClientMessageHandler foldingRangeRequest)
 
 -- & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
 -- & SMM.insert SCodeLensResolve (ClientMessageHandler codeLensResolveHandler)
