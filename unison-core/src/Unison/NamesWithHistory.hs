@@ -277,7 +277,7 @@ suffixedTermName :: Int -> Maybe Name -> Referent -> NamesWithHistory -> [HQ'.Ha
                   hq n = HQ'.take hashLen (hq' n r)
                   hqn = if isHQ'd then hq n' else HQ'.fromName n'
                   biasProximity n = negate . length . Name.commonPrefix n <$> mayBias
-               in (isHQ'd, biasProximity fqn, Name.countSegments fqn, Name.countSegments n', Name.isAbsolute n', hqn)
+               in (biasProximity fqn, isHQ'd, Name.countSegments fqn, Name.countSegments n', Name.isAbsolute n', hqn)
 
 -- Set HashQualified -> Branch m -> Action' m v Names
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names
