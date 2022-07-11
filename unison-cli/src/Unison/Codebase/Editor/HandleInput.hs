@@ -1811,7 +1811,16 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
             Branch.modifyAtM remotePath f remoteRoot & \case
               Nothing -> pure (Left $ RefusedToPush pushBehavior writeRemotePath)
               Just newRemoteRoot -> pure (Right newRemoteRoot)
-      let opts = PushGitBranchOpts {setRoot = True, syncMode}
+      let opts =
+            PushGitBranchOpts
+              { forcePush =
+                  case pushBehavior of
+                    PushBehavior.ForcePush -> True
+                    PushBehavior.RequireEmpty -> False
+                    PushBehavior.RequireNonEmpty -> False,
+                setRoot = True,
+                syncMode
+              }
       runExceptT (syncGitRemoteBranch repo opts withRemoteRoot) >>= \case
         Left gitErr -> respond (Output.GitError gitErr)
         Right (Left errOutput) -> respond errOutput
@@ -1820,7 +1829,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
       handlePushToUnisonShare sharePath localPath pushBehavior
     GistyPush repo -> do
       sourceBranch <- getAt localPath
-      let opts = PushGitBranchOpts {setRoot = False, syncMode}
+      let opts = PushGitBranchOpts {forcePush = False, setRoot = False, syncMode}
       runExceptT (syncGitRemoteBranch repo opts (\_remoteRoot -> pure (Right sourceBranch))) >>= \case
         Left gitErr -> respond (Output.GitError gitErr)
         Right (Left errOutput) -> respond errOutput
@@ -1838,11 +1847,13 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
   where
     -- Per `pushBehavior`, we are either:
     --
-    --   (1) updating an empty branch, which fails if the branch isn't empty (`push.create`)
-    --   (2) updating a non-empty branch, which fails if the branch is empty (`push`)
+    --   (1) force-pushing, in which case the remote branch state doesn't matter
+    --   (2) updating an empty branch, which fails if the branch isn't empty (`push.create`)
+    --   (3) updating a non-empty branch, which fails if the branch is empty (`push`)
     shouldPushTo :: PushBehavior -> Branch m -> Bool
     shouldPushTo pushBehavior remoteBranch =
       case pushBehavior of
+        PushBehavior.ForcePush -> True
         PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 

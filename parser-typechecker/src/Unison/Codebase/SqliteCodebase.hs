@@ -761,7 +761,7 @@ pushGitBranch ::
   -- An action which accepts the current root branch on the remote and computes a new branch.
   (Branch m -> m (Either e (Branch m))) ->
   m (Either C.GitError (Either e (Branch m)))
-pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = UnliftIO.try do
+pushGitBranch srcConn repo (PushGitBranchOpts forcePush setRoot _syncMode) action = UnliftIO.try do
   -- Pull the latest remote into our git cache
   -- Use a local git clone to copy this git repo into a temp-dir
   -- Delete the codebase in our temp-dir
@@ -812,23 +812,22 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
       let newBranchHash = Branch.headHash newBranch
       case codebaseStatus of
         ExistingCodebase -> do
-          -- the call to runDB "handles" the possible DB error by bombing
-          maybeOldRootHash <- fmap Cv.causalHash2to1 <$> run Ops.loadRootCausalHash
-          case maybeOldRootHash of
-            Nothing -> run (setRepoRoot newBranchHash)
-            Just oldRootHash -> do
-              run (CodebaseOps.before oldRootHash newBranchHash) >>= \case
-                Nothing ->
-                  error $
-                    "I couldn't find the hash " ++ show newBranchHash
-                      ++ " that I just synced to the cached copy of "
-                      ++ repoString
-                      ++ " in "
-                      ++ show remotePath
-                      ++ "."
-                Just False ->
-                  throwIO . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-                Just True -> pure ()
+          when (not forcePush) do
+            -- the call to runDB "handles" the possible DB error by bombing
+            run Ops.loadRootCausalHash >>= \case
+              Nothing -> pure ()
+              Just oldRootHash -> do
+                run (CodebaseOps.before (Cv.causalHash2to1 oldRootHash) newBranchHash) >>= \case
+                  Nothing ->
+                    error $
+                      "I couldn't find the hash " ++ show newBranchHash
+                        ++ " that I just synced to the cached copy of "
+                        ++ repoString
+                        ++ " in "
+                        ++ show remotePath
+                        ++ "."
+                  Just False -> throwIO . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                  Just True -> pure ()
         CreatedCodebase -> pure ()
       run (setRepoRoot newBranchHash)
     repoString = Text.unpack $ printWriteGitRepo repo
