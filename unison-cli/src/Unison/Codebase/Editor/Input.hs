@@ -1,6 +1,7 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
     GistInput (..),
+    PushRemoteBranchInput (..),
     Event (..),
     OutputLocation (..),
     PatchPath,
@@ -81,7 +82,7 @@ data Input
   | PreviewMergeLocalBranchI Path' Path'
   | DiffNamespaceI BranchId BranchId -- old new
   | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode PullMode Verbosity
-  | PushRemoteBranchI (Maybe WriteRemotePath) Path' PushBehavior SyncMode
+  | PushRemoteBranchI PushRemoteBranchInput
   | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
   | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
   | ResetRootI (Either ShortBranchHash Path')
@@ -191,6 +192,17 @@ data Input
 -- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
 data GistInput = GistInput
   { repo :: WriteGitRepo
+  }
+  deriving stock (Eq, Show)
+
+data PushRemoteBranchInput = PushRemoteBranchInput
+  { -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
+    localPath :: Path',
+    -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
+    maybeRemoteRepo :: Maybe WriteRemotePath,
+    -- | The push behavior (whether the remote branch is required to be empty or non-empty).
+    pushBehavior :: PushBehavior,
+    syncMode :: SyncMode
   }
   deriving stock (Eq, Show)
 

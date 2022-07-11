@@ -1541,7 +1541,7 @@ loop = do
                     if didUpdate
                       then respond $ PullSuccessful ns path
                       else respond unchangedMsg
-            PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch mayRepo path pushBehavior syncMode
+            PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq ->
               -- todo: add flag to handle transitive efficiently
@@ -1767,26 +1767,14 @@ handleGist (GistInput repo) =
   doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
 
 -- | Handle a @push@ command.
-handlePushRemoteBranch ::
-  forall m v.
-  MonadUnliftIO m =>
-  -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
-  Maybe WriteRemotePath ->
-  -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
-  Path' ->
-  -- | The push behavior (whether the remote branch is required to be empty or non-empty).
-  PushBehavior ->
-  SyncMode.SyncMode ->
-  Action' m v ()
-handlePushRemoteBranch mayRepo path pushBehavior syncMode =
-  time
-    "handlePushRemoteBranch"
-    case mayRepo of
-      Nothing ->
-        runExceptT (resolveConfiguredUrl Push path) >>= \case
-          Left output -> respond output
-          Right repo -> push repo
-      Just repo -> push repo
+handlePushRemoteBranch :: forall m v. MonadUnliftIO m => PushRemoteBranchInput -> Action' m v ()
+handlePushRemoteBranch PushRemoteBranchInput {maybeRemoteRepo = mayRepo, localPath = path, pushBehavior, syncMode} =
+  time "handlePushRemoteBranch" case mayRepo of
+    Nothing ->
+      runExceptT (resolveConfiguredUrl Push path) >>= \case
+        Left output -> respond output
+        Right repo -> push repo
+    Just repo -> push repo
   where
     push repo =
       doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
