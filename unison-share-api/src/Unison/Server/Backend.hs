@@ -825,7 +825,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
   (localNamesOnly, ppe) <- scopedNamesForBranchHash codebase root path biasTarget
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
-  DefinitionResults terms types misses <- restrictDefinitionsToScope localNamesOnly <$> lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles (toList query))
+  DefinitionResults terms types misses {- restrictDefinitionsToScope localNamesOnly <$> -} <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles (toList query))
   let width =
         mayDefaultWidth renderWidth
 
@@ -934,12 +934,13 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
-  where
-    restrictDefinitionsToScope :: Names -> DefinitionResults Symbol -> DefinitionResults Symbol
-    restrictDefinitionsToScope localNames (DefinitionResults terms types misses) =
-      let filteredTerms = Map.restrictKeys terms (Names.termReferences localNames)
-          filteredTypes = Map.restrictKeys types (Names.typeReferences localNames)
-       in DefinitionResults filteredTerms filteredTypes misses
+
+-- where
+--   restrictDefinitionsToScope :: Names -> DefinitionResults Symbol -> DefinitionResults Symbol
+--   restrictDefinitionsToScope localNames (DefinitionResults terms types misses) =
+--     let filteredTerms = Map.restrictKeys terms (Names.termReferences localNames)
+--         filteredTypes = Map.restrictKeys types (Names.typeReferences localNames)
+--      in DefinitionResults filteredTerms filteredTypes misses
 
 renderDoc ::
   PPE.PrettyPrintEnvDecl ->
