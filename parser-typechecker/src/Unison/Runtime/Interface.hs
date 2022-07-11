@@ -126,8 +126,8 @@ cacheContext =
     $ Map.keys builtinTermNumbering
       <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
 
-baseContext :: IO EvalCtx
-baseContext = cacheContext <$> baseCCache
+baseContext :: Bool -> IO EvalCtx
+baseContext sandboxed = cacheContext <$> baseCCache sandboxed
 
 resolveTermRef ::
   CodeLookup Symbol IO () ->
@@ -496,9 +496,9 @@ data RuntimeHost
   = OneOff
   | Persistent
 
-startRuntime :: RuntimeHost -> Text -> IO (Runtime Symbol)
-startRuntime runtimeHost version = do
-  ctxVar <- newIORef =<< baseContext
+startRuntime :: Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
+startRuntime sandboxed runtimeHost version = do
+  ctxVar <- newIORef =<< baseContext sandboxed
   (activeThreads, cleanupThreads) <- case runtimeHost of
     -- Don't bother tracking open threads when running standalone, they'll all be cleaned up
     -- when the process itself exits.

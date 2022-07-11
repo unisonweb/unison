@@ -104,9 +104,9 @@ refNumTy cc r =
 refNumTy' :: CCache -> Reference -> IO (Maybe Word64)
 refNumTy' cc r = M.lookup r <$> refNumsTy cc
 
-baseCCache :: IO CCache
-baseCCache =
-  CCache builtinForeigns noTrace
+baseCCache :: Bool -> IO CCache
+baseCCache sandboxed = do
+  CCache ffuncs noTrace
     <$> newTVarIO combs
     <*> newTVarIO builtinTermBackref
     <*> newTVarIO builtinTypeBackref
@@ -117,6 +117,7 @@ baseCCache =
     <*> newTVarIO builtinTypeNumbering
     <*> newTVarIO baseSandboxInfo
   where
+    ffuncs | sandboxed = sandboxedForeigns | otherwise = builtinForeigns
     noTrace _ _ = pure ()
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering

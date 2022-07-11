@@ -179,11 +179,12 @@ data
   -- of the same watches instantaneous.
 
   Evaluate ::
+    Bool -> -- sandboxed
     PPE.PrettyPrintEnv ->
     UF.TypecheckedUnisonFile v Ann ->
     Command m i v (Either Runtime.Error (EvalResult v))
   -- Evaluate a single closed definition
-  Evaluate1 :: PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
+  Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
   -- Add a cached watch to the codebase
   PutWatch :: WK.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
   -- Loads any cached watches of the given kind

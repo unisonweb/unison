@@ -182,20 +182,23 @@ withTranscriptRunner ::
   (TranscriptRunner -> m r) ->
   m r
 withTranscriptRunner ucmVersion configFile action = do
-  withRuntime $ \runtime -> withConfig $ \config -> do
+  withRuntime $ \runtime sbRuntime -> withConfig $ \config -> do
     action $ \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase $ \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
         result <- for parsed $ \stanzas -> do
-          liftIO $ run codebaseDir stanzas codebase runtime config ucmVersion (tShow baseUrl)
+          liftIO $ run codebaseDir stanzas codebase runtime sbRuntime config ucmVersion (tShow baseUrl)
         pure $ join @(Either TranscriptError) result
   where
-    withRuntime :: ((Runtime.Runtime Symbol -> m a) -> m a)
+    withRuntime :: ((Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a)
     withRuntime action =
       UnliftIO.bracket
-        (liftIO $ RTI.startRuntime RTI.Persistent ucmVersion)
-        (liftIO . Runtime.terminate)
-        action
+        (liftIO $ RTI.startRuntime False RTI.Persistent ucmVersion)
+        (liftIO . Runtime.terminate) $ \runtime ->
+        UnliftIO.bracket
+          (liftIO $ RTI.startRuntime True RTI.Persistent ucmVersion)
+          (liftIO . Runtime.terminate)
+          (action runtime)
     withConfig :: forall a. ((Maybe Config -> m a) -> m a)
     withConfig action = do
       case configFile of
@@ -214,11 +217,12 @@ run ::
   [Stanza] ->
   Codebase IO Symbol Ann ->
   Runtime.Runtime Symbol ->
+  Runtime.Runtime Symbol ->
   Maybe Config ->
   UCMVersion ->
   Text ->
   IO (Either TranscriptError Text)
-run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
+run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.try $ do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   let initialPath = Path.absoluteEmpty
   putPrettyLn $
@@ -459,6 +463,7 @@ run dir stanzas codebase runtime config ucmVersion baseURL = UnliftIO.try $ do
               awaitInput
               (const $ pure ())
               runtime
+              sbRuntime
               print
               printNumbered
               loadPreviousUnisonBlock

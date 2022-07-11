@@ -14,6 +14,7 @@ module Unison.Runtime.Builtin
     builtinTermBackref,
     builtinTypeBackref,
     builtinForeigns,
+    sandboxedForeigns,
     numberedTermLookup,
     Sandbox (..),
     baseSandboxInfo,
@@ -32,6 +33,7 @@ import Control.Exception (evaluate)
 import qualified Control.Exception.Safe as Exception
 import Control.Monad.Catch (MonadCatch)
 import qualified Control.Monad.Primitive as PA
+import Control.Monad.Reader (ReaderT(..), runReaderT, ask)
 import Control.Monad.State.Strict (State, execState, modify)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
@@ -1907,7 +1909,7 @@ builtinLookup =
       ++ foreignWrappers
 
 type FDecl v =
-  State (Word64, [(Data.Text.Text, (Sandbox, SuperNormal v))], EnumMap Word64 (Data.Text.Text, ForeignFunc))
+  ReaderT Bool (State (Word64, [(Data.Text.Text, (Sandbox, SuperNormal v))], EnumMap Word64 (Data.Text.Text, ForeignFunc)))
 
 -- Data type to determine whether a builtin should be tracked for
 -- sandboxing. Untracked means that it can be freely used, and Tracked
@@ -1916,15 +1918,25 @@ type FDecl v =
 data Sandbox = Tracked | Untracked
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
+bomb :: Data.Text.Text -> a -> IO r
+bomb name _ = die $ "attempted to use sandboxed operation: " ++ Data.Text.unpack name
+
 declareForeign ::
   Sandbox ->
   Data.Text.Text ->
   ForeignOp ->
   ForeignFunc ->
   FDecl Symbol ()
-declareForeign sand name op func =
-  modify $ \(w, cs, fs) ->
-    (w + 1, (name, (sand, uncurry Lambda (op w))) : cs, mapInsert w (name, func) fs)
+declareForeign sand name op func0 = do
+  sanitize <- ask
+  modify $ \(w, codes, funcs) ->
+    let func
+          | sanitize,
+            Tracked <- sand,
+            FF r w _ <- func0 = FF r w (bomb name)
+          | otherwise = func0
+        code = (name, (sand, uncurry Lambda (op w)))
+     in (w + 1, code : codes, mapInsert w (name, func) funcs)
 
 mkForeignIOF ::
   (ForeignConvention a, ForeignConvention r) =>
@@ -2980,11 +2992,12 @@ typeReferences = zip rs [1 ..]
         ++ [DerivedId i | (_, i, _) <- Ty.builtinEffectDecls]
 
 foreignDeclResults ::
-  (Word64, [(Data.Text.Text, (Sandbox, SuperNormal Symbol))], EnumMap Word64 (Data.Text.Text, ForeignFunc))
-foreignDeclResults = execState declareForeigns (0, [], mempty)
+  Bool -> (Word64, [(Data.Text.Text, (Sandbox, SuperNormal Symbol))], EnumMap Word64 (Data.Text.Text, ForeignFunc))
+foreignDeclResults sanitize =
+  execState (runReaderT declareForeigns sanitize) (0, [], mempty)
 
 foreignWrappers :: [(Data.Text.Text, (Sandbox, SuperNormal Symbol))]
-foreignWrappers | (_, l, _) <- foreignDeclResults = reverse l
+foreignWrappers | (_, l, _) <- foreignDeclResults False = reverse l
 
 numberedTermLookup :: EnumMap Word64 (SuperNormal Symbol)
 numberedTermLookup =
@@ -3007,10 +3020,13 @@ builtinTypeBackref = mapFromList $ swap <$> typeReferences
     swap (x, y) = (y, x)
 
 builtinForeigns :: EnumMap Word64 ForeignFunc
-builtinForeigns | (_, _, m) <- foreignDeclResults = snd <$> m
+builtinForeigns | (_, _, m) <- foreignDeclResults False = snd <$> m
+
+sandboxedForeigns :: EnumMap Word64 ForeignFunc
+sandboxedForeigns | (_, _, m) <- foreignDeclResults True = snd <$> m
 
 builtinForeignNames :: EnumMap Word64 Data.Text.Text
-builtinForeignNames | (_, _, m) <- foreignDeclResults = fst <$> m
+builtinForeignNames | (_, _, m) <- foreignDeclResults False = fst <$> m
 
 -- Bootstrapping for sandbox check. The eventual map will be one with
 -- associations `r -> s` where `s` is all the 'sensitive' base
