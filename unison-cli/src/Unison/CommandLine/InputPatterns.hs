@@ -451,15 +451,15 @@ find' cmd fscope =
         [ ("`find`", "lists all definitions in the current namespace."),
           ( "`find foo`",
             "lists all definitions with a name similar to 'foo' in the current "
-              <> "namespace. Falls back to `find.all` if no matches are found."
+              <> "namespace (excluding those under 'lib')."
           ),
           ( "`find foo bar`",
             "lists all definitions with a name similar to 'foo' or 'bar' in the "
-              <> "current namespace."
+              <> "current namespace (excluding those under 'lib')."
           ),
           ( "find.all foo",
             "lists all definitions with a name similar to 'foo' in the current "
-              <> "namespace or direct dependencies."
+              <> "namespace (including one level of 'lib')."
           ),
           ( "find.global foo",
             "lists all definitions with a name similar to 'foo' in any namespace"
