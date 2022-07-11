@@ -162,8 +162,9 @@ suffixifyNames hashLength names =
   PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
 
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
-prettyAndParseNamesForBranch :: Branch m -> NameScoping -> (Names, Names, Names)
-prettyAndParseNamesForBranch root scope =
+-- Returns (parseNames, prettyNames, localNames)
+namesForBranch :: Branch m -> NameScoping -> (Names, Names, Names)
+namesForBranch root scope =
   (parseNames0, prettyPrintNames0, currentPathNames)
   where
     path :: Path
@@ -201,10 +202,10 @@ basicSuffixifiedNames hashLength root nameScope =
    in suffixifyNames hashLength names0
 
 parseNamesForBranch :: Branch m -> NameScoping -> Names
-parseNamesForBranch root = prettyAndParseNamesForBranch root <&> \(n, _, _) -> n
+parseNamesForBranch root = namesForBranch root <&> \(n, _, _) -> n
 
 prettyNamesForBranch :: Branch m -> NameScoping -> Names
-prettyNamesForBranch root = prettyAndParseNamesForBranch root <&> \(_, n, _) -> n
+prettyNamesForBranch root = namesForBranch root <&> \(_, n, _) -> n
 
 shallowPPE :: Monad m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
 shallowPPE codebase b = do
@@ -821,7 +822,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
-  (_parseNames, _printNames, localNamesOnly, ppe) <- scopedNamesForBranchHash codebase root path biasTarget
+  (localNamesOnly, ppe) <- scopedNamesForBranchHash codebase root path biasTarget
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   DefinitionResults terms types misses <- restrictDefinitionsToScope localNamesOnly <$> lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles (toList query))
@@ -1079,36 +1080,38 @@ bestNameForType ppe width =
 -- - 'local' includes ONLY the names within the provided path
 -- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Maybe Name -> Backend m (Names, Names, Names, PPE.PrettyPrintEnvDecl)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Maybe Name -> Backend m (Names, PPE.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path mayBias = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.hashLength codebase
-  (parseNames, prettyNames, localNames) <- case mbh of
+  (parseNames, localNames) <- case mbh of
     Nothing
-      | shouldUseNamesIndex -> indexPrettyAndParseNames
+      | shouldUseNamesIndex -> indexNames
       | otherwise -> do
         rootBranch <- lift $ Codebase.getRootBranch codebase
-        pure $ prettyAndParseNamesForBranch rootBranch (AllNames path)
+        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+        pure (parseNames, localNames)
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
       if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
-        then indexPrettyAndParseNames
+        then indexNames
         else do
-          flip prettyAndParseNamesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
+          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
+          pure (parseNames, localNames)
 
   let localPPE = PPE.biasedPPEDecl hashLen mayBias (NamesWithHistory.fromCurrentNames localNames)
   let globalPPE = PPE.biasedPPEDecl hashLen mayBias (NamesWithHistory.fromCurrentNames parseNames)
-  pure (parseNames, prettyNames, localNames, mkPPE localPPE globalPPE)
+  pure (localNames, mkPPE localPPE globalPPE)
   where
     mkPPE :: PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl
     mkPPE primary fallback =
       PPE.PrettyPrintEnvDecl
         (PPE.unsuffixifiedPPE primary <> PPE.unsuffixifiedPPE fallback)
         (PPE.suffixifiedPPE primary <> PPE.suffixifiedPPE fallback)
-    indexPrettyAndParseNames :: Backend m (Names, Names, Names)
-    indexPrettyAndParseNames = do
+    indexNames :: Backend m (Names, Names)
+    indexNames = do
       scopedNames <- lift $ Codebase.namesAtPath codebase path
-      pure (ScopedNames.parseNames scopedNames, ScopedNames.prettyNames scopedNames, ScopedNames.namesAtPath scopedNames)
+      pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::
   Monad m => Maybe (Branch.CausalHash) -> Codebase m v a -> Backend m (Branch m)

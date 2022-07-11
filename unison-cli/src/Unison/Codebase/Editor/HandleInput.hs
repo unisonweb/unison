@@ -3382,7 +3382,7 @@ basicNames' :: (Functor m) => (Path -> Backend.NameScoping) -> Action m i v (Nam
 basicNames' nameScoping = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
-  let (parse, pretty, _local) = Backend.prettyAndParseNamesForBranch root' (nameScoping $ Path.unabsolute currentPath')
+  let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
   pure (parse, pretty)
 
 data AddRunMainResult v
@@ -3503,7 +3503,7 @@ diffHelperCmd ::
 diffHelperCmd currentRoot currentPath before after = do
   hqLength <- eval CodebaseHashLength
   diff <- eval . Eval $ BranchDiff.diff0 before after
-  let (_parseNames, prettyNames0, _local) = Backend.prettyAndParseNamesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
+  let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
   ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
   (ppe,)
     <$> OBranchDiff.toOutput
