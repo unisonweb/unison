@@ -132,6 +132,7 @@ data Output v
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
+  | FindNoLocalMatches
   | PatchAlreadyExists Path.Split'
   | NoExactTypeMatches
   | TypeAlreadyExists Path.Split' (Set Reference)
@@ -306,6 +307,7 @@ isFailure o = case o of
   BadMainFunction {} -> True
   CreatedNewBranch {} -> False
   BranchAlreadyExists {} -> True
+  FindNoLocalMatches {} -> True
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True

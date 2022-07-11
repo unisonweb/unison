@@ -650,6 +650,7 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
+
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -926,6 +927,8 @@ notifyUser dir o = case o of
           Input.UpdateI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s
+  FindNoLocalMatches ->
+    pure . P.callout "☝️" $ P.wrap "I couldn't find matches in this namespace, searching in 'lib'..."
   NoExactTypeMatches ->
     pure . P.callout "☝️" $ P.wrap "I couldn't find exact type matches, resorting to fuzzy matching..."
   TypeParseError src e ->
@@ -1675,11 +1678,11 @@ notifyUser dir o = case o of
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
-        P.lines
-          [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
-            "",
-            "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
-          ]
+      P.lines
+        [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
+          "",
+          "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
+        ]
     expectedNonEmptyPushDest writeRemotePath =
       P.lines
         [ P.wrap ("The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty."),

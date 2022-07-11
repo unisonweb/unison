@@ -1757,7 +1757,9 @@ handleFindI isVerbose fscope ws input = do
           respond $ ListOfDefinitions ppe isVerbose results'
     results <- getResults (getNames fscope)
     case (results, fscope) of
-      ([],Local) -> respondResults =<< getResults (getNames LocalAndDeps)
+      ([],Local) -> do
+        respond FindNoLocalMatches
+        respondResults =<< getResults (getNames LocalAndDeps)
       _ -> respondResults results
 
 handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
