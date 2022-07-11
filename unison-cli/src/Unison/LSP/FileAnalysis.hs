@@ -36,11 +36,13 @@ import Unison.LSP.Types
 import qualified Unison.LSP.Types as LSP
 import qualified Unison.LSP.VFS as VFS
 import qualified Unison.Lexer as L
+import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
@@ -50,6 +52,7 @@ import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
 import qualified Unison.UnisonFile as UF
+import qualified Unison.UnisonFile.Names as UF
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Var as Var
@@ -261,3 +264,15 @@ getFileAnalysis uri = do
   checkedFilesV <- asks checkedFilesVar
   checkedFiles <- readTVarIO checkedFilesV
   pure $ Map.lookup uri checkedFiles
+
+-- TODO memoize per file
+ppeForFile :: Uri -> Lsp PrettyPrintEnv
+ppeForFile fileUri = do
+  ppe <- PPE.suffixifiedPPE <$> globalPPE
+  getFileAnalysis fileUri >>= \case
+    Just (FileAnalysis {typecheckedFile = Just tf}) -> do
+      hl <- asks codebase >>= liftIO . Codebase.hashLength
+      let fileNames = UF.typecheckedToNames tf
+      let filePPE = PPE.fromSuffixNames hl (NamesWithHistory.fromCurrentNames fileNames)
+      pure (filePPE <> ppe)
+    _ -> pure ppe
