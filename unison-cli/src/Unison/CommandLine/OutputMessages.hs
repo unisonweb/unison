@@ -1629,8 +1629,11 @@ notifyUser dir o = case o of
         P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
     ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
     ShareErrorTransport te -> case te of
-      DecodeFailure msg _resp ->
-        "The server sent a response that we couldn't decode: " <> P.text msg
+      DecodeFailure msg resp ->
+        (P.lines . catMaybes)
+          [ Just ("The server sent a response that we couldn't decode: " <> P.text msg),
+            responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
+          ]
       Unauthenticated codeServerURL ->
         P.wrap . P.lines $
           [ "Authentication with this code server (" <> P.string (Servant.showBaseUrl codeServerURL) <> ") is missing or expired.",
@@ -1646,18 +1649,16 @@ notifyUser dir o = case o of
       RateLimitExceeded -> "Rate limit exceeded, please try again later."
       Timeout -> "The code server timed-out when responding to your request. Please try again later or report an issue if the problem persists."
       UnexpectedResponse resp ->
-        P.lines
-          ( catMaybes
-              [ Just
-                  ( "The server sent a "
-                      <> P.red (P.shown (Http.statusCode (Servant.responseStatusCode resp)))
-                      <> " that we didn't expect."
-                  ),
-                let body = Text.decodeUtf8 (LazyByteString.toStrict (Servant.responseBody resp))
-                 in if Text.null body then Nothing else Just (P.newline <> "Response body: " <> P.text body),
-                responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
-              ]
-          )
+        (P.lines . catMaybes)
+          [ Just
+              ( "The server sent a "
+                  <> P.red (P.shown (Http.statusCode (Servant.responseStatusCode resp)))
+                  <> " that we didn't expect."
+              ),
+            let body = Text.decodeUtf8 (LazyByteString.toStrict (Servant.responseBody resp))
+             in if Text.null body then Nothing else Just (P.newline <> "Response body: " <> P.text body),
+            responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
+          ]
     where
       -- Dig the request id out of a response header.
       responseRequestId :: Servant.Response -> Maybe Text
