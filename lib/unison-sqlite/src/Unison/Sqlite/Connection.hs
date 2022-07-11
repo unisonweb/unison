@@ -82,7 +82,6 @@ where
 import Data.Bifunctor (bimap)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
-import Debug.Pretty.Simple (pTraceShowM)
 import Debug.RecoverRTTI (anythingToString)
 import GHC.Stack (currentCallStack)
 import qualified Unison.Debug as Debug

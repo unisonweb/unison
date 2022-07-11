@@ -22,7 +22,6 @@ import qualified Data.Text.Lazy.IO as Text.Lazy
 import qualified System.Console.Haskeline as Line
 import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
-import Text.Pretty.Simple (pShow)
 import Unison.Auth.CredentialManager (newCredentialManager)
 import qualified Unison.Auth.HTTPClient as AuthN
 import qualified Unison.Auth.Tokens as AuthN

@@ -40,6 +40,7 @@ module Unison.Names
     typesNamed,
     unionLeft,
     unionLeftName,
+    unionLeftRef,
     namesForReference,
     namesForReferent,
     shadowTerms,
@@ -221,8 +222,15 @@ unionLeftName = unionLeft' $ const . R.memberDom
 -- e.g. unionLeftRef [foo -> #a, bar -> #a, cat -> #c]
 --                   [foo -> #b, baz -> #c]
 --                 = [foo -> #a, bar -> #a, foo -> #b, cat -> #c]
-_unionLeftRef :: Names -> Names -> Names
-_unionLeftRef = unionLeft' $ const R.memberRan
+-- unionLeftRef :: Names -> Names -> Names
+-- unionLeftRef = unionLeft' $ const R.memberRan
+unionLeftRef :: Names -> Names -> Names
+unionLeftRef (Names priorityTerms priorityTypes) (Names fallbackTerms fallbackTypes) =
+  Names (restricter priorityTerms fallbackTerms) (restricter priorityTypes fallbackTypes)
+  where
+    restricter priorityRel fallbackRel =
+      let refsExclusiveToFallback = (Relation.ran fallbackRel) `Set.difference` (Relation.ran priorityRel)
+       in priorityRel <> Relation.restrictRan fallbackRel refsExclusiveToFallback
 
 -- unionLeft two Names, but don't create new aliases or new name conflicts.
 -- e.g. unionLeft [foo -> #a, bar -> #a, cat -> #c]
@@ -239,12 +247,12 @@ unionLeft' ::
   Names ->
   Names ->
   Names
-unionLeft' p a b = Names terms' types'
+unionLeft' shouldOmit a b = Names terms' types'
   where
     terms' = foldl' go (terms a) (R.toList $ terms b)
     types' = foldl' go (types a) (R.toList $ types b)
     go :: (Ord a, Ord b) => Relation a b -> (a, b) -> Relation a b
-    go acc (n, r) = if p n r acc then acc else R.insert n r acc
+    go acc (n, r) = if shouldOmit n r acc then acc else R.insert n r acc
 
 -- | TODO: get this from database. For now it's a constant.
 numHashChars :: Int

@@ -67,6 +67,8 @@ import qualified System.IO as IO
 import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import qualified UnliftIO
+import Text.Pretty.Simple as X (pPrint, pShow)
+import Debug.Pretty.Simple as X (pTrace, pTraceId, pTraceShow, pTraceShowId, pTraceM, pTraceShowM)
 
 -- | E.g.
 --

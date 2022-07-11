@@ -141,7 +141,7 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
       maybe mempty Path.fromPath'
         <$> traverse (parsePath . Text.unpack) relativePath
     rootHash <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    (localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase rootHash rel Nothing
+    (_parseNames, localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase rootHash rel Nothing
     let alignments ::
           ( [ ( FZF.Alignment,
                 UnisonName,
