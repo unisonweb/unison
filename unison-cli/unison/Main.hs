@@ -13,9 +13,9 @@ import ArgParse
     Command (Init, Launch, PrintVersion, Run, Transcript),
     GlobalOptions (GlobalOptions, codebasePathOption, exitOption),
     IsHeadless (Headless, WithCLI),
-    ShouldExit(Exit, DoNotExit),
     RunSource (..),
     ShouldDownloadBase (..),
+    ShouldExit (DoNotExit, Exit),
     ShouldForkCodebase (..),
     ShouldSaveCodebase (..),
     UsageRenderer,
@@ -212,7 +212,7 @@ main = withCP65001 do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime RTI.Persistent Version.gitDescribeWithDate
           Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
-            case exitOption of 
+            case exitOption of
               DoNotExit -> do
                 case isHeadless of
                   Headless -> do
