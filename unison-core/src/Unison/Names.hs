@@ -52,8 +52,6 @@ module Unison.Names
   )
 where
 
-import Control.Lens.Cons (snoc, unsnoc)
-import Data.Bifunctor (first)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -66,7 +64,6 @@ import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -74,7 +71,6 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
-import qualified Unison.Util.List as List
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation as Relation
