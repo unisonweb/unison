@@ -33,7 +33,7 @@ import Control.Exception (evaluate)
 import qualified Control.Exception.Safe as Exception
 import Control.Monad.Catch (MonadCatch)
 import qualified Control.Monad.Primitive as PA
-import Control.Monad.Reader (ReaderT(..), runReaderT, ask)
+import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
@@ -1933,7 +1933,8 @@ declareForeign sand name op func0 = do
     let func
           | sanitize,
             Tracked <- sand,
-            FF r w _ <- func0 = FF r w (bomb name)
+            FF r w _ <- func0 =
+              FF r w (bomb name)
           | otherwise = func0
         code = (name, (sand, uncurry Lambda (op w)))
      in (w + 1, code : codes, mapInsert w (name, func) funcs)

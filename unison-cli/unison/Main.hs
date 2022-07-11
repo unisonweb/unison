@@ -13,9 +13,9 @@ import ArgParse
     Command (Init, Launch, PrintVersion, Run, Transcript),
     GlobalOptions (GlobalOptions, codebasePathOption, exitOption),
     IsHeadless (Headless, WithCLI),
-    ShouldExit(Exit, DoNotExit),
     RunSource (..),
     ShouldDownloadBase (..),
+    ShouldExit (DoNotExit, Exit),
     ShouldForkCodebase (..),
     ShouldSaveCodebase (..),
     UsageRenderer,
@@ -120,15 +120,15 @@ main = withCP65001 do
       Run (RunFromFile file mainName) args
         | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
         | otherwise -> do
-          e <- safeReadUtf8 file
-          case e of
-            Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
-            Right contents -> do
-              getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-                rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
-                sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
-                let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
+            e <- safeReadUtf8 file
+            case e of
+              Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
+              Right contents -> do
+                getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+                  rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
+                  sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
+                  let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
@@ -216,7 +216,7 @@ main = withCP65001 do
           runtime <- RTI.startRuntime False RTI.Persistent Version.gitDescribeWithDate
           sbRuntime <- RTI.startRuntime True RTI.Persistent Version.gitDescribeWithDate
           Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
-            case exitOption of 
+            case exitOption of
               DoNotExit -> do
                 case isHeadless of
                   Headless -> do
