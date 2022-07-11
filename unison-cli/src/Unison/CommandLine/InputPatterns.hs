@@ -493,13 +493,25 @@ findVerbose :: InputPattern
 findVerbose =
   InputPattern
     "find.verbose"
-    ["list.verbose", "ls.verbose"]
+    []
     I.Visible
     [(ZeroPlus, fuzzyDefinitionQueryArg)]
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
     (pure . Input.FindI True Input.Local)
+
+findVerboseAll :: InputPattern
+findVerboseAll =
+  InputPattern
+    "find.all.verbose"
+    []
+    I.Visible
+    [(ZeroPlus, fuzzyDefinitionQueryArg)]
+    ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
+        <> "and aliases in the results."
+    )
+    (pure . Input.FindI True Input.LocalAndDeps)
 
 findPatch :: InputPattern
 findPatch =
@@ -2117,6 +2129,7 @@ validInputs =
       findAll,
       findShallow,
       findVerbose,
+      findVerboseAll,
       view,
       display,
       displayTo,
