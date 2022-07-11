@@ -587,7 +587,7 @@ getStoredCache =
 
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
-  CCache builtinForeigns uglyTrace
+  CCache builtinForeigns False uglyTrace
     <$> newTVarIO (cs <> combs)
     <*> newTVarIO (crs <> builtinTermBackref)
     <*> newTVarIO (trs <> builtinTypeBackref)
