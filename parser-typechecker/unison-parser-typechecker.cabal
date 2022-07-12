@@ -149,6 +149,7 @@ library
       Unison.Util.Rope
       Unison.Util.Star3
       Unison.Util.Text
+      Unison.Util.Text.Pattern
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
   hs-source-dirs:

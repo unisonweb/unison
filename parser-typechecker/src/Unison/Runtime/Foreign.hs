@@ -35,6 +35,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Type as Ty
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Text (Text)
+import Unison.Util.Text.Pattern (CPattern)
 import Unsafe.Coerce
 
 data Foreign where
@@ -74,6 +75,7 @@ ref2eq r
   | r == Ty.marrayRef = Just $ promote ((==) @(MutableArray () ()))
   | r == Ty.mbytearrayRef = Just $ promote ((==) @(MutableByteArray ()))
   | r == Ty.ibytearrayRef = Just $ promote ((==) @ByteArray)
+  | r == Ty.patternRef = Just $ promote ((==) @CPattern)
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
@@ -84,6 +86,7 @@ ref2cmp r
   | r == Ty.bytesRef = Just $ promote (compare @Bytes)
   | r == Ty.threadIdRef = Just $ promote (compare @ThreadId)
   | r == Ty.ibytearrayRef = Just $ promote (compare @ByteArray)
+  | r == Ty.patternRef = Just $ promote (compare @CPattern)
   | otherwise = Nothing
 
 instance Eq Foreign where
@@ -158,6 +161,9 @@ newtype Tls = Tls TLS.Context
 data Failure a = Failure Reference Text a
 
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
+
+instance BuiltinForeign CPattern where
+  foreignRef = Tagged Ty.patternRef
 
 wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
 wrapBuiltin x = Wrap r x

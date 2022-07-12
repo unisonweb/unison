@@ -271,6 +271,9 @@ tlsRef = Reference.Builtin "Tls"
 stmRef :: Reference
 stmRef = Reference.Builtin "STM"
 
+patternRef :: Reference
+patternRef = Reference.Builtin "Pattern"
+
 tlsClientConfigRef :: Reference
 tlsClientConfigRef = Reference.Builtin "Tls.ClientConfig"
 
