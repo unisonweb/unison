@@ -185,12 +185,12 @@ biasedPrettyPrintEnvDecl :: MonadCommand n m i v => Maybe Name -> NamesWithHisto
 biasedPrettyPrintEnvDecl bias ns = eval CodebaseHashLength <&> (\hl -> PPE.biasedPPEDecl hl bias ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action' m v PPE.PrettyPrintEnvDecl
-currentPrettyPrintEnvDecl scoping = do
+currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Maybe Name -> Action' m v PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl scoping bias = do
   root' <- use LoopState.root
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   hqLen <- eval CodebaseHashLength
-  pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
+  pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') bias root'
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
@@ -565,7 +565,7 @@ loop = do
                     diffHelper (Branch.head root') (Branch.head root'')
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
                   else do
-                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within Nothing
                     respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
             ApiI -> eval API
@@ -786,11 +786,11 @@ loop = do
                     then doDelete
                     else case insistence of
                       Force -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within Nothing
                         doDelete
                         respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                       Try -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within Nothing
                         respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
                 doDelete = do
@@ -1582,7 +1582,7 @@ loop = do
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within (Just . Path.toName . Path.unabsolute $ path)
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> use LoopState.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
@@ -1744,7 +1744,7 @@ handleDependents hq = do
            in LD.fold tp tm ld
         -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
         -- unambiguous name.
-        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within (HQ.toName hq)
         let results :: [(Reference, Maybe Name)]
             results =
               -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
@@ -1964,8 +1964,8 @@ handleShowDefinition outputLoc inputQuery = do
     eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
-    let printNames = Backend.getCurrentPrettyNames hqLength (Backend.AllNames currentPath') root'
-    let ppe = PPE.biasedPPEDecl hqLength (safeHead inputQuery >>= HQ.toName) printNames
+    let bias = safeHead inputQuery >>= HQ.toName
+    let ppe = Backend.getCurrentPrettyNames hqLength (Backend.AllNames currentPath') bias root'
     respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (respond (SearchTermsNotFound misses))
   -- We set latestFile to be programmatically generated, if we
