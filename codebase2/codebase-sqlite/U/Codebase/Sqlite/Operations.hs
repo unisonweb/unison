@@ -64,7 +64,8 @@ module U.Codebase.Sqlite.Operations
 
     -- ** name lookup index
     rebuildNameIndex,
-    rootBranchNames,
+    rootNamesByPath,
+    NamesByPath (..),
 
     -- * low-level stuff
     expectDbBranch,
@@ -1030,9 +1031,28 @@ rebuildNameIndex termNames typeNames = do
   Q.insertTermNames ((fmap (c2sTextReferent *** fmap c2sConstructorType) <$> termNames))
   Q.insertTypeNames ((fmap c2sTextReference <$> typeNames))
 
+data NamesByPath = NamesByPath
+  { termNamesInPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
+    termNamesExternalToPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
+    typeNamesInPath :: [S.NamedRef C.Reference],
+    typeNamesExternalToPath :: [S.NamedRef C.Reference]
+  }
+
 -- | Get all the term and type names for the root namespace from the lookup table.
-rootBranchNames :: Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
-rootBranchNames = do
-  termNames <- Q.rootTermNames
-  typeNames <- Q.rootTypeNames
-  pure (fmap (bimap s2cTextReferent (fmap s2cConstructorType)) <$> termNames, fmap s2cTextReference <$> typeNames)
+rootNamesByPath ::
+  -- | A relative namespace string, e.g. Just "base.List"
+  Maybe Text ->
+  Transaction NamesByPath
+rootNamesByPath path = do
+  (termNamesInPath, termNamesExternalToPath) <- Q.rootTermNamesByPath path
+  (typeNamesInPath, typeNamesExternalToPath) <- Q.rootTypeNamesByPath path
+  pure $
+    NamesByPath
+      { termNamesInPath = convertTerms <$> termNamesInPath,
+        termNamesExternalToPath = convertTerms <$> termNamesExternalToPath,
+        typeNamesInPath = convertTypes <$> typeNamesInPath,
+        typeNamesExternalToPath = convertTypes <$> typeNamesExternalToPath
+      }
+  where
+    convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
+    convertTypes = fmap s2cTextReference
