@@ -823,17 +823,19 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
-  (localNamesOnly, ppe) <- scopedNamesForBranchHash codebase root path
+  (parseNames, localNamesOnly, ppe) <- scopedNamesForBranchHash codebase root path
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
-  DefinitionResults terms types misses <- restrictDefinitionsToScope localNamesOnly <$> lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
+  DefinitionResults terms types misses <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
   let width =
         mayDefaultWidth renderWidth
+
+      namesWithFallback = localNamesOnly `Names.unionLeftRef` parseNames
 
       termFqns :: Map Reference (Set Text)
       termFqns = Map.mapWithKey f terms
         where
-          rel = Names.terms localNamesOnly
+          rel = Names.terms namesWithFallback
           f k _ =
             Set.fromList . fmap Name.toText . toList $
               R.lookupRan (Referent.Ref k) rel
@@ -841,7 +843,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
       typeFqns :: Map Reference (Set Text)
       typeFqns = Map.mapWithKey f types
         where
-          rel = Names.types localNamesOnly
+          rel = Names.types namesWithFallback
           f k _ =
             Set.fromList . fmap Name.toText . toList $
               R.lookupRan k rel
@@ -935,12 +937,6 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
-  where
-    restrictDefinitionsToScope :: Names -> DefinitionResults Symbol -> DefinitionResults Symbol
-    restrictDefinitionsToScope localNames (DefinitionResults terms types misses) =
-      let filteredTerms = Map.restrictKeys terms (Names.termReferences localNames)
-          filteredTypes = Map.restrictKeys types (Names.typeReferences localNames)
-       in DefinitionResults filteredTerms filteredTypes misses
 
 renderDoc ::
   PPE.PrettyPrintEnvDecl ->
@@ -1081,7 +1077,7 @@ bestNameForType ppe width =
 -- - 'local' includes ONLY the names within the provided path
 -- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, PPE.PrettyPrintEnvDecl)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, Names, PPE.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.hashLength codebase
@@ -1102,7 +1098,7 @@ scopedNamesForBranchHash codebase mbh path = do
 
   let localPPE = PPE.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
   let globalPPE = PPE.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames parseNames)
-  pure (localNames, mkPPE localPPE globalPPE)
+  pure (parseNames, localNames, mkPPE localPPE globalPPE)
   where
     mkPPE :: PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl
     mkPPE primary fallback =
