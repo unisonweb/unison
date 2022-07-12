@@ -22,7 +22,6 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Path.Parse (parsePath')
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
@@ -96,13 +95,13 @@ namespaceDetails runtime codebase namespaceName maySBH mayWidth =
         namespaceCausal <- Backend.getShallowCausalAtPathFromRootHash codebase mayRootHash namespacePath
         shallowBranch <- lift $ V2Causal.value namespaceCausal
         namespaceDetails <- do
-          (_parseNames, printNames) <- Backend.scopedNamesForBranchHash codebase mayRootHash namespacePath
+          (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase mayRootHash namespacePath
           readme <-
             Backend.findShallowReadmeInBranchAndRender
               width
               runtime
               codebase
-              (NamesWithHistory.fromCurrentNames printNames)
+              ppe
               shallowBranch
           let causalHash = v2CausalBranchToUnisonHash namespaceCausal
           pure $ NamespaceDetails namespaceName causalHash readme
