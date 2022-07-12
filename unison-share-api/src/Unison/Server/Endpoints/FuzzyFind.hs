@@ -36,7 +36,7 @@ import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types

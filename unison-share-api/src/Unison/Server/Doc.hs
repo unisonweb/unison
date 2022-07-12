@@ -34,7 +34,6 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -128,7 +127,7 @@ data Src = Src SyntaxText SyntaxText
 renderDoc ::
   forall v m.
   (Var v, Monad m) =>
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   (Reference -> m (Maybe (Term v ()))) ->
   (Referent -> m (Maybe (Type v ()))) ->
   (Term v () -> m (Maybe (Term v ()))) ->

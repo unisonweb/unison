@@ -3,6 +3,7 @@
 module Unison.PrettyPrintEnv.Names (fromNames) where
 
 import qualified Data.Set as Set
+import Data.Set.NonEmpty (NESet)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.HashQualified' as HQ'
@@ -12,7 +13,7 @@ import qualified Unison.Names as Names
 import Unison.NamesWithHistory (NamesWithHistory)
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv (..), Suffixify (..))
+import Unison.PrettyPrintEnv (Perspective (..), PrettyPrintEnv (..), Suffixify (..))
 import qualified Unison.Util.Relation as Rel
 
 -- | Creates a PPE which is biased towards a particular name.
@@ -21,20 +22,22 @@ import qualified Unison.Util.Relation as Rel
 --
 -- e.g. when pretty-printing for `view base.List.map`, we should prefer names which are close
 -- to `base.List.map`.
-fromNames :: Int -> Path -> Maybe Name -> Suffixify -> NamesWithHistory -> PrettyPrintEnv
-fromNames hashLen perspective bias suffixify names = PrettyPrintEnv {termNames = terms', typeNames = types', bias, perspective, suffixify}
+fromNames :: Int -> Maybe (NESet Path) -> Perspective -> Maybe Name -> Suffixify -> NamesWithHistory -> PrettyPrintEnv
+fromNames hashLen restrictions perspective bias suffixify names = PrettyPrintEnv {termNames = terms', typeNames = types', bias, perspective, suffixify, restrictions}
   where
-    terms' p b suff r =
+    terms' restr p b suff r =
       NamesWithHistory.termName hashLen r names
         & Set.toList
+        & restrict restr
         & prioritizeBias b
         & relativizeToPerspective p
         & case suff of
           Suffixify -> shortestUniqueSuffixes r (Names.terms $ NamesWithHistory.currentNames names)
           NoSuffixify -> id
-    types' p b suff r =
+    types' restr p b suff r =
       NamesWithHistory.typeName hashLen r names
         & Set.toList
+        & restrict restr
         & prioritizeBias b
         & relativizeToPerspective p
         & case suff of
@@ -42,9 +45,18 @@ fromNames hashLen perspective bias suffixify names = PrettyPrintEnv {termNames =
           NoSuffixify -> id
 
 -- | Adjust names to be relative to a perspective.
-relativizeToPerspective :: Path -> [HQ'.HashQualified Name] -> [HQ'.HashQualified Name]
+relativizeToPerspective :: Perspective -> [HQ'.HashQualified Name] -> [HQ'.HashQualified Name]
 relativizeToPerspective p ns =
-  ns <&> fmap \name -> fromMaybe name $ Name.stripNamePrefix (Path.toName p) name
+  case p of
+    Root -> ns
+    RelativeTo p -> ns <&> fmap \name -> fromMaybe name $ Name.stripNamePrefix (Path.toName p) name
+
+-- | Only return names within the given set of paths.
+restrict :: Maybe (NESet Path) -> [HQ'.HashQualified Name] -> [HQ'.HashQualified Name]
+restrict Nothing ns = ns
+restrict (Just paths) ns = do
+  let pathNames = Path.toName <$> toList paths
+  ns & filter (\hqname -> any (\pn -> Name.isPrefixOf pn (HQ'.toName hqname)) pathNames)
 
 prioritizeBias :: Maybe Name -> [HQ'.HashQualified Name] -> [HQ'.HashQualified Name]
 prioritizeBias mayBias = sortOn \n ->

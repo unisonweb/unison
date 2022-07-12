@@ -77,9 +77,8 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
-import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -159,7 +158,7 @@ instance MonadTrans Backend where
 
 suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
-  PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
+  PPE.fromNames hashLength Nothing PPE.Root Nothing PPE.Suffixify $ NamesWithHistory.fromCurrentNames names
 
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
 -- Returns (parseNames, prettyNames, localNames)
@@ -201,8 +200,8 @@ basicSuffixifiedNames hashLength root nameScope =
   let names0 = prettyNamesForBranch root nameScope
    in suffixifyNames hashLength names0
 
-parseNamesForBranch :: Branch m -> NameScoping -> Names
-parseNamesForBranch root = namesForBranch root <&> \(n, _, _) -> n
+parseNamesForBranch :: Branch m -> Names
+parseNamesForBranch root = namesForBranch root (AllNames Path.empty) & (\(n, _, _) -> n)
 
 prettyNamesForBranch :: Branch m -> NameScoping -> Names
 prettyNamesForBranch root = namesForBranch root <&> \(_, n, _) -> n
@@ -211,7 +210,7 @@ shallowPPE :: Monad m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrin
 shallowPPE codebase b = do
   hashLength <- Codebase.hashLength codebase
   names <- shallowNames codebase b
-  pure $ PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names mempty
+  pure . PPE.fromNames hashLength Nothing PPE.Root Nothing PPE.Suffixify $ NamesWithHistory names mempty
 
 -- | A 'Names' which only includes mappings for things _directly_ accessible from the branch.
 --
@@ -325,11 +324,11 @@ findShallowReadmeInBranchAndRender ::
   Width ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   V2Branch.Branch m ->
   Backend IO (Maybe Doc.Doc)
 findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
-  let renderReadme :: PPE.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
+  let renderReadme :: PPE.PrettyPrintEnv -> Reference -> IO Doc.Doc
       renderReadme ppe docReference = do
         (_, _, doc) <- renderDoc ppe width runtime codebase docReference
         pure doc
@@ -617,17 +616,13 @@ toAllNames :: NameScoping -> NameScoping
 toAllNames (AllNames p) = AllNames p
 toAllNames (Within p) = AllNames p
 
-getCurrentPrettyNames :: Int -> NameScoping -> Maybe Name -> Branch m -> PPE.PrettyPrintEnvDecl
-getCurrentPrettyNames hashLen scope mayBias root =
-  let primary = PPE.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
-      backup = PPE.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
-   in PPE.PrettyPrintEnvDecl
-        (PPE.unsuffixifiedPPE primary <> PPE.unsuffixifiedPPE backup)
-        (PPE.suffixifiedPPE primary <> PPE.suffixifiedPPE backup)
+getCurrentPrettyNames :: Int -> PPE.Perspective -> Maybe Name -> Branch m -> PPE.PrettyPrintEnv
+getCurrentPrettyNames hashLen perspective bias root =
+  PPE.fromNames hashLen Nothing perspective bias PPE.Suffixify $ NamesWithHistory (parseNamesForBranch root) mempty
 
-getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
-getCurrentParseNames scope root =
-  NamesWithHistory (parseNamesForBranch root scope) mempty
+getCurrentParseNames :: Branch m -> NamesWithHistory
+getCurrentParseNames root =
+  NamesWithHistory (parseNamesForBranch root) mempty
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
@@ -801,7 +796,7 @@ formatType ppe w = mungeSyntaxText . formatType' ppe w
 
 formatSuffixedType ::
   Var v =>
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   Width ->
   Type v Ann ->
   Syntax.SyntaxText
@@ -946,7 +941,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
        in DefinitionResults filteredTerms filteredTypes misses
 
 renderDoc ::
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   Width ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
@@ -997,7 +992,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   hqLength <- Codebase.hashLength codebase
   let printNames = prettyNamesForBranch root (AllNames currentPath)
   let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
-  let ppe = PPE.fromNamesDecl hqLength printNamesWithHistory
+  let ppe = PPE.fromNames hqLength Nothing (PPE.RelativeTo currentPath) Nothing PPE.Suffixify printNamesWithHistory
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
   liftIO $ traverse_ (renderDocToHtmlFile docNamesByRef directory) docs
   where
@@ -1084,7 +1079,7 @@ bestNameForType ppe width =
 -- - 'local' includes ONLY the names within the provided path
 -- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Maybe Name -> Backend m (Names, PPE.PrettyPrintEnvDecl)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Maybe Name -> Backend m (Names, PPE.PrettyPrintEnv)
 scopedNamesForBranchHash codebase mbh path mayBias = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.hashLength codebase
@@ -1092,9 +1087,9 @@ scopedNamesForBranchHash codebase mbh path mayBias = do
     Nothing
       | shouldUseNamesIndex -> indexNames
       | otherwise -> do
-          rootBranch <- lift $ Codebase.getRootBranch codebase
-          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-          pure (parseNames, localNames)
+        rootBranch <- lift $ Codebase.getRootBranch codebase
+        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+        pure (parseNames, localNames)
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
       if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
@@ -1103,15 +1098,14 @@ scopedNamesForBranchHash codebase mbh path mayBias = do
           (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
           pure (parseNames, localNames)
 
-  let localPPE = PPE.biasedPPEDecl hashLen mayBias (NamesWithHistory.fromCurrentNames localNames)
-  let globalPPE = PPE.biasedPPEDecl hashLen mayBias (NamesWithHistory.fromCurrentNames parseNames)
-  pure (localNames, mkPPE localPPE globalPPE)
+  let localPPE = PPE.fromNames hashLen Nothing (PPE.RelativeTo path) mayBias PPE.NoSuffixify (NamesWithHistory.fromCurrentNames parseNames)
+  pure (localNames, localPPE)
   where
-    mkPPE :: PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl
-    mkPPE primary fallback =
-      PPE.PrettyPrintEnvDecl
-        (PPE.unsuffixifiedPPE primary <> PPE.unsuffixifiedPPE fallback)
-        (PPE.suffixifiedPPE primary <> PPE.suffixifiedPPE fallback)
+    -- mkPPE :: PPE.PrettyPrintEnv -> PPE.PrettyPrintEnv -> PPE.PrettyPrintEnv
+    -- mkPPE primary fallback =
+    --   PPE.PrettyPrintEnv
+    --     (PPE.unsuffixifiedPPE primary <> PPE.unsuffixifiedPPE fallback)
+    --     (PPE.suffixifiedPPE primary <> PPE.suffixifiedPPE fallback)
     indexNames :: Backend m (Names, Names)
     indexNames = do
       scopedNames <- lift $ Codebase.namesAtPath codebase path
@@ -1209,7 +1203,7 @@ termsToSyntax ::
   Ord a =>
   Suffixify ->
   Width ->
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   Map Reference.Reference (DisplayObject (Type v a) (Term v a)) ->
   Map Reference.Reference (DisplayObject SyntaxText SyntaxText)
 termsToSyntax suff width ppe0 terms =
@@ -1240,7 +1234,7 @@ typesToSyntax ::
   Ord a =>
   Suffixify ->
   Width ->
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a)) ->
   Map Reference.Reference (DisplayObject SyntaxText SyntaxText)
 typesToSyntax suff width ppe0 types =

@@ -22,7 +22,6 @@ import Unison.NamePrinter (styleHashQualified'')
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PPE
-import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.Reference (Reference (DerivedId))
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
@@ -42,13 +41,13 @@ type SyntaxText = S.SyntaxText' Reference
 
 prettyDecl ::
   Var v =>
-  PrettyPrintEnvDecl ->
+  PrettyPrintEnv ->
   Reference ->
   HashQualified Name ->
   DD.Decl v a ->
   Pretty SyntaxText
 prettyDecl ppe r hq d = case d of
-  Left e -> prettyEffectDecl (suffixifiedPPE ppe) r hq e
+  Left e -> prettyEffectDecl (PPE.suffixifiedPPE ppe) r hq e
   Right dd -> prettyDataDecl ppe r hq dd
 
 prettyEffectDecl ::
@@ -98,18 +97,20 @@ prettyPattern env ctorType namespace ref =
 
 prettyDataDecl ::
   Var v =>
-  PrettyPrintEnvDecl ->
+  PrettyPrintEnv ->
   Reference ->
   HashQualified Name ->
   DataDeclaration v a ->
   Pretty SyntaxText
-prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
+prettyDataDecl ppe r name dd =
   (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | ")) $
     constructor
       <$> zip
         [0 ..]
         (DD.constructors' dd)
   where
+    suffixifiedPPE = PPE.suffixifiedPPE ppe
+    unsuffixifiedPPE = PPE.unsuffixifiedPPE ppe
     constructor (n, (_, _, (Type.ForallsNamed' _ t))) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
     constructor' n t = case Type.unArrows t of

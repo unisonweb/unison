@@ -97,8 +97,6 @@ library
       Unison.PrettyPrintEnv.FQN
       Unison.PrettyPrintEnv.Names
       Unison.PrettyPrintEnv.Util
-      Unison.PrettyPrintEnvDecl
-      Unison.PrettyPrintEnvDecl.Names
       Unison.PrintError
       Unison.Result
       Unison.Runtime.ANF
