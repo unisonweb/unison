@@ -290,7 +290,7 @@ loop = do
           let ppe = PPE.suffixifiedPPE pped
           unsafeTime "typechecked.respond" $ respond $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
-            (bindings, e) <- unsafeTime "evaluate" $ ExceptT . eval . Evaluate ppe $ unisonFile
+            (bindings, e) <- unsafeTime "evaluate" $ ExceptT . eval . Evaluate True ppe $ unisonFile
             lift do
               let e' = Map.map go e
                   go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
@@ -1365,7 +1365,7 @@ loop = do
                         Just tm -> do
                           respond $ TestIncrementalOutputStart ppe (n, total) r tm
                           --                          v don't cache; test cache populated below
-                          tm' <- eval $ Evaluate1 ppe False tm
+                          tm' <- eval $ Evaluate1 True ppe False tm
                           case tm' of
                             Left e -> respond (EvaluationFailure e) $> []
                             Right tm' -> do
@@ -1445,8 +1445,8 @@ loop = do
                           let a = ABT.annotation tm
                               tm = DD.forceTerm a a (Term.ref a ref)
                            in do
-                                --                          v Don't cache IO tests
-                                tm' <- eval $ Evaluate1 ppe False tm
+                                --         Don't cache IO tests   v
+                                tm' <- eval $ Evaluate1 False ppe False tm
                                 case tm' of
                                   Left e -> respond (EvaluationFailure e)
                                   Right tm' ->
@@ -2407,7 +2407,7 @@ doDisplay outputLoc names tm = do
       useCache = True
       evalTerm tm =
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) . eval $
-          Evaluate1 (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
+          Evaluate1 True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) . eval $ LoadTerm r
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
@@ -2998,14 +2998,14 @@ displayI prettyPrintNames outputLoc hq = do
             do
               let tm = Term.fromReferent External $ Set.findMin results
               pped <- prettyPrintEnvDecl parseNames
-              tm <- eval $ Evaluate1 (PPE.suffixifiedPPE pped) True tm
+              tm <- eval $ Evaluate1 True (PPE.suffixifiedPPE pped) True tm
               case tm of
                 Left e -> respond (EvaluationFailure e)
                 Right tm -> doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
       ppe <- executePPE unisonFile
       unlessError' EvaluationFailure do
-        evalResult <- ExceptT . eval . Evaluate ppe $ unisonFile
+        evalResult <- ExceptT . eval . Evaluate True ppe $ unisonFile
         case Command.lookupEvalResult toDisplay evalResult of
           Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
           Just tm -> lift do
@@ -3054,7 +3054,7 @@ docsI srcLoc prettyPrintNames src = do
           len <- eval BranchHashLength
           let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
           let tm = Term.ref External ref
-          tm <- eval $ Evaluate1 (PPE.fromNames len names) True tm
+          tm <- eval $ Evaluate1 True (PPE.fromNames len names) True tm
           case tm of
             Left e -> respond (EvaluationFailure e)
             Right tm -> doDisplay ConsoleLocation names (Term.unannotate tm)

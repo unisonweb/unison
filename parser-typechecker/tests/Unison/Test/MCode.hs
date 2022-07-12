@@ -44,7 +44,7 @@ modifyTVarTest v f = io . atomically $ modifyTVar v f
 
 testEval0 :: EnumMap Word64 Combs -> Section -> Test ()
 testEval0 env sect = do
-  cc <- io baseCCache
+  cc <- io (baseCCache False)
   modifyTVarTest (combs cc) (env <>)
   modifyTVarTest (combRefs cc) ((dummyRef <$ env) <>)
   io $ eval0 cc Nothing sect
