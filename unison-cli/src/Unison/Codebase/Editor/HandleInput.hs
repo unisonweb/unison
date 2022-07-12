@@ -170,6 +170,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Relation4 as R4
+import qualified Unison.Util.Set as Set
 import qualified Unison.Util.Star3 as Star3
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
@@ -1275,63 +1276,7 @@ loop = do
             TodoI patchPath branchPath' -> do
               patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
               doShowTodoOutput patch $ resolveToAbsolute branchPath'
-            TestI showOk showFail -> do
-              let testTerms =
-                    Map.keys . R4.d1 . uncurry R4.selectD34 isTest
-                      . Branch.deepTermMetadata
-                      $ currentBranch0
-                  testRefs = Set.fromList [r | Referent.Ref r <- toList testTerms]
-                  oks results =
-                    [ (r, msg)
-                      | (r, Term.List' ts) <- Map.toList results,
-                        Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-                        cid == DD.okConstructorId && ref == DD.testResultRef
-                    ]
-                  fails results =
-                    [ (r, msg)
-                      | (r, Term.List' ts) <- Map.toList results,
-                        Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-                        cid == DD.failConstructorId && ref == DD.testResultRef
-                    ]
-              cachedTests <- fmap Map.fromList . eval $ LoadWatches WK.TestWatch testRefs
-              let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
-              names <-
-                makePrintNamesFromLabeled' $
-                  LD.referents testTerms
-                    <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
-              ppe <- fqnPPE names
-              respond $
-                TestResults
-                  stats
-                  ppe
-                  showOk
-                  showFail
-                  (oks cachedTests)
-                  (fails cachedTests)
-              let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
-              unless (Set.null toCompute) $ do
-                let total = Set.size toCompute
-                computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
-                  case r of
-                    Reference.DerivedId rid -> do
-                      tm <- eval $ LoadTerm rid
-                      case tm of
-                        Nothing -> [] <$ respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
-                        Just tm -> do
-                          respond $ TestIncrementalOutputStart ppe (n, total) r tm
-                          --                          v don't cache; test cache populated below
-                          tm' <- eval $ Evaluate1 True ppe False tm
-                          case tm' of
-                            Left e -> respond (EvaluationFailure e) $> []
-                            Right tm' -> do
-                              -- After evaluation, cache the result of the test
-                              eval $ PutWatch WK.TestWatch rid tm'
-                              respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
-                              pure [(r, tm')]
-                    r -> error $ "unpossible, tests can't be builtins: " <> show r
-
-                let m = Map.fromList computedTests
-                respond $ TestResults Output.NewlyComputed ppe showOk showFail (oks m) (fails m)
+            TestI testInput -> handleTest testInput
             PropagatePatchI patchPath scopePath -> do
               patch <- getPatchAt patchPath
               updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
@@ -2036,6 +1981,81 @@ handleShowDefinition outputLoc inputQuery = do
           use LoopState.latestFile <&> \case
             Nothing -> Just "scratch.u"
             Just (path, _) -> Just path
+
+-- | Handle a @test@ command.
+handleTest :: Monad m => TestInput -> Action' m v ()
+handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
+  testTerms <- do
+    currentPath' <- use LoopState.currentPath
+    currentBranch' <- getAt currentPath'
+    currentBranch'
+      & Branch.head
+      & Branch.deepTermMetadata
+      & R4.restrict34d12 isTest
+      & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
+      & R.dom
+      & pure
+  let testRefs = Set.mapMaybe Referent.toTermReference testTerms
+      oks results =
+        [ (r, msg)
+          | (r, Term.List' ts) <- Map.toList results,
+            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
+            cid == DD.okConstructorId && ref == DD.testResultRef
+        ]
+      fails results =
+        [ (r, msg)
+          | (r, Term.List' ts) <- Map.toList results,
+            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
+            cid == DD.failConstructorId && ref == DD.testResultRef
+        ]
+  cachedTests <- fmap Map.fromList . eval $ LoadWatches WK.TestWatch testRefs
+  let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
+  names <-
+    makePrintNamesFromLabeled' $
+      LD.referents testTerms
+        <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
+  ppe <- fqnPPE names
+  respond $
+    TestResults
+      stats
+      ppe
+      showSuccesses
+      showFailures
+      (oks cachedTests)
+      (fails cachedTests)
+  let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
+  unless (Set.null toCompute) do
+    let total = Set.size toCompute
+    computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
+      case r of
+        Reference.DerivedId rid -> do
+          tm <- eval $ LoadTerm rid
+          case tm of
+            Nothing -> do
+              hqLength <- eval CodebaseHashLength
+              respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
+              pure []
+            Just tm -> do
+              respond $ TestIncrementalOutputStart ppe (n, total) r tm
+              --                          v don't cache; test cache populated below
+              tm' <- eval $ Evaluate1 True ppe False tm
+              case tm' of
+                Left e -> respond (EvaluationFailure e) $> []
+                Right tm' -> do
+                  -- After evaluation, cache the result of the test
+                  eval $ PutWatch WK.TestWatch rid tm'
+                  respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
+                  pure [(r, tm')]
+        r -> error $ "unpossible, tests can't be builtins: " <> show r
+
+    let m = Map.fromList computedTests
+    respond $ TestResults Output.NewlyComputed ppe showSuccesses showFailures (oks m) (fails m)
+  where
+    isInLibNamespace :: Name -> Bool
+    isInLibNamespace name =
+      case Name.segments name of
+        "lib" Nel.:| _ : _ -> True
+        _ -> False
 
 -- | Handle an @update@ command.
 handleUpdate :: forall m v. (Monad m, Var v) => Input -> OptionalPatch -> Set Name -> Action' m v ()

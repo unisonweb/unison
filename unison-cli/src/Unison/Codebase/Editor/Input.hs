@@ -1,6 +1,7 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
     GistInput (..),
+    TestInput (..),
     Event (..),
     OutputLocation (..),
     PatchPath,
@@ -145,10 +146,10 @@ data Input
     IOTestI (HQ.HashQualified Name)
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
-  | TestI Bool Bool -- TestI showSuccesses showFailures
-  -- metadata
-  -- `link metadata definitions` (adds metadata to all of `definitions`)
-  | LinkI (HQ.HashQualified Name) [Path.HQSplit']
+  | TestI TestInput
+  | -- metadata
+    -- `link metadata definitions` (adds metadata to all of `definitions`)
+    LinkI (HQ.HashQualified Name) [Path.HQSplit']
   | -- `unlink metadata definitions` (removes metadata from all of `definitions`)
     UnlinkI (HQ.HashQualified Name) [Path.HQSplit']
   | -- links from <type>
@@ -192,6 +193,14 @@ data Input
 -- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
 data GistInput = GistInput
   { repo :: WriteGitRepo
+  }
+  deriving stock (Eq, Show)
+
+data TestInput = TestInput
+  { -- | Should we run tests in the `lib` namespace?
+    includeLibNamespace :: Bool,
+    showFailures :: Bool,
+    showSuccesses :: Bool
   }
   deriving stock (Eq, Show)
 
