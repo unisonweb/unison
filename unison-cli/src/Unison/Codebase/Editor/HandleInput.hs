@@ -99,7 +99,7 @@ import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
-import Unison.Codebase.Type (Codebase (..), GitError)
+import Unison.Codebase.Type (GitError)
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
@@ -149,7 +149,6 @@ import qualified Unison.Share.Sync as Share
 import qualified Unison.Share.Sync.Types as Sync
 import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
-import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share (Path (..))
 import Unison.Term (Term)
@@ -190,7 +189,8 @@ currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action' m v PPE.Pr
 currentPrettyPrintEnvDecl scoping = do
   root' <- use LoopState.root
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
-  prettyPrintEnvDecl (Backend.getCurrentPrettyNames (scoping currentPath') root')
+  hqLen <- eval CodebaseHashLength
+  pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
@@ -1868,45 +1868,44 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
   ensureAuthenticatedWithCodeserver codeserver
 
-  LoopState.Env {authHTTPClient, codebase = Codebase {connection, withConnection}} <- ask
+  LoopState.Env {authHTTPClient, codebase} <- ask
 
   -- doesn't handle the case where a non-existent path is supplied
-  Sqlite.runTransaction connection (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath)))
-    >>= \case
-      Nothing -> respond (BranchNotFound . Path.absoluteToPath' $ localPath)
-      Just localCausalHash ->
-        case behavior of
-          PushBehavior.RequireEmpty -> do
-            let push :: IO (Either (Sync.SyncError Share.CheckAndSetPushError) ())
-                push =
-                  withEntitiesUploadedProgressCallbacks \callbacks ->
-                    Share.checkAndSetPush
-                      authHTTPClient
-                      baseURL
-                      withConnection
-                      sharePath
-                      Nothing
-                      localCausalHash
-                      callbacks
-            liftIO push >>= \case
-              Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorCheckAndSetPush err))
-              Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
-              Right () -> pure ()
-          PushBehavior.RequireNonEmpty -> do
-            let push :: IO (Either (Sync.SyncError Share.FastForwardPushError) ())
-                push = do
-                  withEntitiesUploadedProgressCallbacks \callbacks ->
-                    Share.fastForwardPush
-                      authHTTPClient
-                      baseURL
-                      withConnection
-                      sharePath
-                      localCausalHash
-                      callbacks
-            liftIO push >>= \case
-              Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorFastForwardPush err))
-              Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
-              Right () -> pure ()
+  eval (Eval (Codebase.runTransaction codebase (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))))) >>= \case
+    Nothing -> respond (BranchNotFound . Path.absoluteToPath' $ localPath)
+    Just localCausalHash ->
+      case behavior of
+        PushBehavior.RequireEmpty -> do
+          let push :: IO (Either (Sync.SyncError Share.CheckAndSetPushError) ())
+              push =
+                withEntitiesUploadedProgressCallbacks \callbacks ->
+                  Share.checkAndSetPush
+                    authHTTPClient
+                    baseURL
+                    (Codebase.withConnectionIO codebase)
+                    sharePath
+                    Nothing
+                    localCausalHash
+                    callbacks
+          liftIO push >>= \case
+            Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorCheckAndSetPush err))
+            Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
+            Right () -> pure ()
+        PushBehavior.RequireNonEmpty -> do
+          let push :: IO (Either (Sync.SyncError Share.FastForwardPushError) ())
+              push = do
+                withEntitiesUploadedProgressCallbacks \callbacks ->
+                  Share.fastForwardPush
+                    authHTTPClient
+                    baseURL
+                    (Codebase.withConnectionIO codebase)
+                    sharePath
+                    localCausalHash
+                    callbacks
+          liftIO push >>= \case
+            Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorFastForwardPush err))
+            Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
+            Right () -> pure ()
   where
     pathToSegments :: Path -> [Text]
     pathToSegments =
@@ -1965,7 +1964,7 @@ handleShowDefinition outputLoc inputQuery = do
     eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
-    let printNames = Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root'
+    let printNames = Backend.getCurrentPrettyNames hqLength (Backend.AllNames currentPath') root'
     let ppe = PPE.biasedPPEDecl hqLength (safeHead inputQuery >>= HQ.toName) printNames
     respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (respond (SearchTermsNotFound misses))
@@ -2325,14 +2324,14 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
-    LoopState.Env {authHTTPClient, codebase = codebase@Codebase {withConnection}} <- ask
+    LoopState.Env {authHTTPClient, codebase} <- ask
     let pull :: IO (Either (Sync.SyncError Share.PullError) CausalHash)
         pull =
           withEntitiesDownloadedProgressCallbacks \callbacks ->
             Share.pull
               authHTTPClient
               baseURL
-              withConnection
+              (Codebase.withConnectionIO codebase)
               shareFlavoredPath
               callbacks
     liftIO pull >>= \case

@@ -2696,15 +2696,10 @@ equateAbilities ls rs =
                 refine True [(loc t, bc, cv)] [cls ++ crs]
             | [] <- com, null rs, null cls -> for_ vls defaultAbility
             | [] <- com, null ls, null crs -> for_ vrs defaultAbility
-            | otherwise -> do
-                mrefine mlSlack ls rs
-                mrefine mrSlack rs ls
+            | [] <- com, Just pl <- mlSlack, null cls -> refine False [pl] [rs]
+            | [] <- com, Just pr <- mrSlack, null crs -> refine False [pr] [ls]
+            | otherwise -> getContext >>= failWith . AbilityCheckFailure ls rs
   where
-    mrefine (Just p) _ es = refine False [p] [es]
-    mrefine Nothing _ [] = pure ()
-    mrefine Nothing hs es =
-      getContext >>= failWith . AbilityCheckFailure hs es
-
     refine common lbvs ess = do
       cv <- traverse freshenVar cn
       ctx <- getContext
