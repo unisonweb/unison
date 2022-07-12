@@ -22,6 +22,8 @@ import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Input (Input)
 import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
+import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemotePath)
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
@@ -1021,7 +1023,7 @@ pullImpl name verbosity pullMode addendum = do
                   )
                 ],
               "",
-              explainRemote
+              explainRemote Pull
             ]
         )
         ( \case
@@ -1042,7 +1044,7 @@ pullExhaustive =
   InputPattern
     "debug.pull-exhaustive"
     []
-    I.Visible
+    I.Hidden
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
@@ -1091,7 +1093,7 @@ push =
               )
             ],
           "",
-          explainRemote
+          explainRemote Push
         ]
     )
     ( \case
@@ -1132,7 +1134,7 @@ pushCreate =
               )
             ],
           "",
-          explainRemote
+          explainRemote Push
         ]
     )
     ( \case
@@ -1152,7 +1154,7 @@ pushExhaustive =
   InputPattern
     "debug.push-exhaustive"
     []
-    I.Visible
+    I.Hidden
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
@@ -1192,8 +1194,8 @@ createPullRequest =
             "example: "
               <> makeExampleNoBackticks
                 createPullRequest
-                [ "https://github.com/unisonweb/base:.trunk",
-                  "https://github.com/me/unison:.prs.base._myFeature"
+                [ "unison.base.main",
+                  "myself.prs.base._myFeature"
                 ]
           ]
     )
@@ -2048,15 +2050,19 @@ gist =
         [ "Publish the current namespace.",
           "",
           P.wrapColumn2
-            [ ( "`gist remote`",
-                "publishes the contents of the current namespace into the repo `remote`."
+            [ ( "`gist git(git@github.com:user/repo)`",
+                "publishes the contents of the current namespace into the specified git repo."
               )
-            ]
+            ],
+          "",
+          P.indentN 2 . P.wrap $
+            "Note: Gists are not yet supported on Unison Share, though you can just do a normal"
+              <> "`push.create` of the current namespace to your Unison Share codebase wherever you like!"
         ]
     )
     ( \case
         [repoString] -> do
-          repo <- parseWriteGitRepo "repo" repoString
+          repo <- parseWriteGitRepo "gist git repo" repoString
           pure (Input.GistI (Input.GistInput repo))
         _ -> Left (showPatternHelp gist)
     )
@@ -2362,7 +2368,7 @@ noCompletions =
       globTargets = mempty
     }
 
--- Arya: I could imagine completions coming from previous git pulls
+-- Arya: I could imagine completions coming from previous pulls
 gitUrlArg :: ArgumentType
 gitUrlArg =
   ArgumentType
@@ -2401,18 +2407,21 @@ remoteNamespaceArg =
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
 
-explainRemote :: P.Pretty CT.ColorText
-explainRemote =
-  P.lines
-    [ P.wrap "where `remote` is a git repository, optionally followed by `:`"
-        <> "and an absolute remote path, a branch, or both, such as:",
-      P.indentN 2 . P.lines $
-        [ P.backticked "https://github.com/org/repo",
-          P.backticked "https://github.com/org/repo:.some.remote.path",
-          P.backticked "https://github.com/org/repo:some-branch:.some.remote.path",
-          P.backticked "https://github.com/org/repo:some-branch"
-        ]
-    ]
+explainRemote :: PushPull -> P.Pretty CT.ColorText
+explainRemote pushPull =
+  P.group $
+    P.lines
+      [ P.wrap $ "where `remote` is a hosted codebase, such as:",
+        P.indentN 2 . P.column2 $
+          [ ("Unison Share", P.backticked "user.public.some.remote.path"),
+            ("Git + root", P.backticked $ "git(" <> gitRepo <> "user/repo)"),
+            ("Git + path", P.backticked $ "git(" <> gitRepo <> "user/repo).some.remote.path"),
+            ("Git + branch", P.backticked $ "git(" <> gitRepo <> "user/repo:some-branch)"),
+            ("Git + branch + path", P.backticked $ "git(" <> gitRepo <> "user/repo:some-branch).some.remote.path")
+          ]
+      ]
+  where
+    gitRepo = PushPull.fold @(P.Pretty P.ColorText) "git@github.com:" "https://github.com/" pushPull
 
 showErrorFancy :: P.ShowErrorComponent e => P.ErrorFancy e -> String
 showErrorFancy (P.ErrorFail msg) = msg

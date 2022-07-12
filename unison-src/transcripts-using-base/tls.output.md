@@ -16,14 +16,15 @@ not_a_cert = "-----BEGIN SCHERMIFICATE-----\n-----END SCHERMIFICATE-----"
 First lets make sure we can load our cert and private key
 
 ```unison
-test> this_should_work=match (decodeCert.impl (toUtf8 self_signed_cert_pem2) with
+this_should_work=match (decodeCert.impl (toUtf8 self_signed_cert_pem2) with
   Left (Failure _ t _) -> [Fail t]
   Right _ -> [Ok "succesfully decoded self_signed_pem"]
 
-test> this_should_not_work=match (decodeCert.impl (toUtf8 not_a_cert) with
+this_should_not_work=match (decodeCert.impl (toUtf8 not_a_cert) with
   Left _ -> [Ok "failed"]
   Right _ -> [Fail "um, that was a schmificate"]
 
+what_should_work _ = this_should_work ++ this_should_not_work
 ```
 
 ```ucm
@@ -36,17 +37,28 @@ test> this_should_not_work=match (decodeCert.impl (toUtf8 not_a_cert) with
     
       this_should_not_work : [Result]
       this_should_work     : [Result]
-  
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+      what_should_work     : ∀ _. _ -> [Result]
 
-    1 | test> this_should_work=match (decodeCert.impl (toUtf8 self_signed_cert_pem2) with
-    
-    ✅ Passed succesfully decoded self_signed_pem
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
   
-    5 | test> this_should_not_work=match (decodeCert.impl (toUtf8 not_a_cert) with
-    
-    ✅ Passed failed
+    this_should_not_work : [Result]
+    this_should_work     : [Result]
+    what_should_work     : ∀ _. _ -> [Result]
+
+.> io.test what_should_work
+
+    New test results:
+  
+  ◉ what_should_work   succesfully decoded self_signed_pem
+  ◉ what_should_work   failed
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view what_should_work to view the source of a test.
 
 ```
 Test handshaking a client/server a local TCP connection using our
