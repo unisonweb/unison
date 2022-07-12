@@ -2291,7 +2291,7 @@ declareForeigns = do
     \() -> unsafeSTMToIO STM.retry :: IO Closure
 
   -- Scope and Ref stuff
-  declareForeign Tracked "Scope.ref" boxDirect
+  declareForeign Untracked "Scope.ref" boxDirect
     . mkForeign
     $ \(c :: Closure) -> newIORef c
 
@@ -2299,10 +2299,10 @@ declareForeigns = do
     . mkForeign
     $ \(c :: Closure) -> newIORef c
 
-  declareForeign Tracked "Ref.read" boxDirect . mkForeign $
+  declareForeign Untracked "Ref.read" boxDirect . mkForeign $
     \(r :: IORef Closure) -> readIORef r
 
-  declareForeign Tracked "Ref.write" boxBoxTo0 . mkForeign $
+  declareForeign Untracked "Ref.write" boxBoxTo0 . mkForeign $
     \(r :: IORef Closure, c :: Closure) -> writeIORef r c
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
@@ -2465,7 +2465,7 @@ declareForeigns = do
   declareForeign Untracked "Bytes.encodeNat16be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16be
   declareForeign Untracked "Bytes.encodeNat16le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16le
 
-  declareForeign Tracked "MutableArray.copyTo!" boxNatBoxNatNatToExnUnit
+  declareForeign Untracked "MutableArray.copyTo!" boxNatBoxNatNatToExnUnit
     . mkForeign
     $ \(dst, doff, src, soff, l) ->
       let name = "MutableArray.copyTo!"
@@ -2482,7 +2482,7 @@ declareForeigns = do
                       (fromIntegral soff)
                       (fromIntegral l)
 
-  declareForeign Tracked "MutableByteArray.copyTo!" boxNatBoxNatNatToExnUnit
+  declareForeign Untracked "MutableByteArray.copyTo!" boxNatBoxNatNatToExnUnit
     . mkForeign
     $ \(dst, doff, src, soff, l) ->
       let name = "MutableByteArray.copyTo!"
@@ -2499,7 +2499,7 @@ declareForeigns = do
                       (fromIntegral soff)
                       (fromIntegral l)
 
-  declareForeign Tracked "ImmutableArray.copyTo!" boxNatBoxNatNatToExnUnit
+  declareForeign Untracked "ImmutableArray.copyTo!" boxNatBoxNatNatToExnUnit
     . mkForeign
     $ \(dst, doff, src, soff, l) ->
       let name = "ImmutableArray.copyTo!"
@@ -2525,7 +2525,7 @@ declareForeigns = do
   declareForeign Untracked "MutableByteArray.size" boxToNat . mkForeign $
     pure . fromIntegral @Int @Word64 . PA.sizeofMutableByteArray @PA.RealWorld
 
-  declareForeign Tracked "ImmutableByteArray.copyTo!" boxNatBoxNatNatToExnUnit
+  declareForeign Untracked "ImmutableByteArray.copyTo!" boxNatBoxNatNatToExnUnit
     . mkForeign
     $ \(dst, doff, src, soff, l) ->
       let name = "ImmutableByteArray.copyTo!"
@@ -2542,41 +2542,41 @@ declareForeigns = do
                       (fromIntegral soff)
                       (fromIntegral l)
 
-  declareForeign Tracked "MutableArray.read" boxNatToExnBox
+  declareForeign Untracked "MutableArray.read" boxNatToExnBox
     . mkForeign
     $ checkedRead "MutableArray.read"
-  declareForeign Tracked "MutableByteArray.read8" boxNatToExnNat
+  declareForeign Untracked "MutableByteArray.read8" boxNatToExnNat
     . mkForeign
     $ checkedRead8 "MutableByteArray.read8"
-  declareForeign Tracked "MutableByteArray.read16be" boxNatToExnNat
+  declareForeign Untracked "MutableByteArray.read16be" boxNatToExnNat
     . mkForeign
     $ checkedRead16 "MutableByteArray.read16be"
-  declareForeign Tracked "MutableByteArray.read24be" boxNatToExnNat
+  declareForeign Untracked "MutableByteArray.read24be" boxNatToExnNat
     . mkForeign
     $ checkedRead24 "MutableByteArray.read24be"
-  declareForeign Tracked "MutableByteArray.read32be" boxNatToExnNat
+  declareForeign Untracked "MutableByteArray.read32be" boxNatToExnNat
     . mkForeign
     $ checkedRead32 "MutableByteArray.read32be"
-  declareForeign Tracked "MutableByteArray.read40be" boxNatToExnNat
+  declareForeign Untracked "MutableByteArray.read40be" boxNatToExnNat
     . mkForeign
     $ checkedRead40 "MutableByteArray.read40be"
-  declareForeign Tracked "MutableByteArray.read64be" boxNatToExnNat
+  declareForeign Untracked "MutableByteArray.read64be" boxNatToExnNat
     . mkForeign
     $ checkedRead64 "MutableByteArray.read64be"
 
-  declareForeign Tracked "MutableArray.write" boxNatBoxToExnUnit
+  declareForeign Untracked "MutableArray.write" boxNatBoxToExnUnit
     . mkForeign
     $ checkedWrite "MutableArray.write"
-  declareForeign Tracked "MutableByteArray.write8" boxNatNatToExnUnit
+  declareForeign Untracked "MutableByteArray.write8" boxNatNatToExnUnit
     . mkForeign
     $ checkedWrite8 "MutableByteArray.write8"
-  declareForeign Tracked "MutableByteArray.write16be" boxNatNatToExnUnit
+  declareForeign Untracked "MutableByteArray.write16be" boxNatNatToExnUnit
     . mkForeign
     $ checkedWrite16 "MutableByteArray.write16be"
-  declareForeign Tracked "MutableByteArray.write32be" boxNatNatToExnUnit
+  declareForeign Untracked "MutableByteArray.write32be" boxNatNatToExnUnit
     . mkForeign
     $ checkedWrite32 "MutableByteArray.write32be"
-  declareForeign Tracked "MutableByteArray.write64be" boxNatNatToExnUnit
+  declareForeign Untracked "MutableByteArray.write64be" boxNatNatToExnUnit
     . mkForeign
     $ checkedWrite64 "MutableByteArray.write64be"
 
@@ -2602,12 +2602,12 @@ declareForeigns = do
     . mkForeign
     $ checkedIndex64 "ImmutableByteArray.read64be"
 
-  declareForeign Tracked "MutableByteArray.freeze!" boxDirect . mkForeign $
+  declareForeign Untracked "MutableByteArray.freeze!" boxDirect . mkForeign $
     PA.unsafeFreezeByteArray
-  declareForeign Tracked "MutableArray.freeze!" boxDirect . mkForeign $
+  declareForeign Untracked "MutableArray.freeze!" boxDirect . mkForeign $
     PA.unsafeFreezeArray @IO @Closure
 
-  declareForeign Tracked "MutableByteArray.freeze" boxNatNatToExnBox . mkForeign $
+  declareForeign Untracked "MutableByteArray.freeze" boxNatNatToExnBox . mkForeign $
     \(src, off, len) ->
       if len == 0
         then fmap Right . PA.unsafeFreezeByteArray =<< PA.newByteArray 0
@@ -2619,7 +2619,7 @@ declareForeigns = do
             0
             $ Right <$> PA.freezeByteArray src (fromIntegral off) (fromIntegral len)
 
-  declareForeign Tracked "MutableArray.freeze" boxNatNatToExnBox . mkForeign $
+  declareForeign Untracked "MutableArray.freeze" boxNatNatToExnBox . mkForeign $
     \(src, off, len) ->
       if len == 0
         then fmap Right . PA.unsafeFreezeArray =<< PA.newArray 0 Closure.BlackHole
@@ -2648,12 +2648,12 @@ declareForeigns = do
       PA.fillByteArray arr 0 sz init
       pure arr
 
-  declareForeign Tracked "Scope.array" natToBox . mkForeign $
+  declareForeign Untracked "Scope.array" natToBox . mkForeign $
     \n -> PA.newArray n Closure.BlackHole
-  declareForeign Tracked "Scope.arrayOf" boxNatToBox . mkForeign $
+  declareForeign Untracked "Scope.arrayOf" boxNatToBox . mkForeign $
     \(v :: Closure, n) -> PA.newArray n v
-  declareForeign Tracked "Scope.bytearray" natToBox . mkForeign $ PA.newByteArray
-  declareForeign Tracked "Scope.bytearrayOf" natNatToBox
+  declareForeign Untracked "Scope.bytearray" natToBox . mkForeign $ PA.newByteArray
+  declareForeign Untracked "Scope.bytearrayOf" natNatToBox
     . mkForeign
     $ \(sz, init) -> do
       arr <- PA.newByteArray sz

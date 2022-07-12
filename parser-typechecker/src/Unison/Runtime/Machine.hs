@@ -333,14 +333,12 @@ exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 LOAD i)
           poke ustk 1
           poke bstk x
       pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 VALU i)
-  | sandboxed env = die "attempted to use sandboxed operation: value"
-  | otherwise = do
-      m <- readTVarIO (tagRefs env)
-      c <- peekOff bstk i
-      bstk <- bump bstk
-      pokeBi bstk =<< reflectValue m c
-      pure (denv, ustk, bstk, k)
+exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 VALU i) = do
+  m <- readTVarIO (tagRefs env)
+  c <- peekOff bstk i
+  bstk <- bump bstk
+  pokeBi bstk =<< reflectValue m c
+  pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k (BPrim1 op i) = do
   (ustk, bstk) <- bprim1 ustk bstk op i
   pure (denv, ustk, bstk, k)
