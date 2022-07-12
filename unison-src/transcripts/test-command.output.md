@@ -92,3 +92,46 @@ test2 = [Ok "test2"]
   Tip: Use view lib.test2 to view the source of a test.
 
 ```
+`test` will descend into namespaces named `lib` if they aren't at the top-level, though.
+
+```unison
+test3 : [Result]
+test3 = [Ok "test3"]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      test3 : [Result]
+
+```
+```ucm
+.> test
+
+    
+    Cached test results (`help testcache` to learn more)
+    
+    ◉ test1   test1
+    
+    ✅ 1 test(s) passing
+    
+    ✅  
+
+  
+
+  
+
+    New test results:
+  
+  ◉ hello.lib.test3   test3
+  
+  ✅ 1 test(s) passing
+  
+  Tip: Use view hello.lib.test3 to view the source of a test.
+
+```

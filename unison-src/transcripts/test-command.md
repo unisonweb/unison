@@ -39,3 +39,19 @@ test2 = [Ok "test2"]
 .> test
 .> test.all
 ```
+
+`test` will descend into namespaces named `lib` if they aren't at the top-level, though.
+
+```unison
+test3 : [Result]
+test3 = [Ok "test3"]
+```
+
+```ucm:hide
+.hello.lib> add
+.hello.lib> link .builtin.metadata.isTest test3
+```
+
+```ucm
+.> test
+```
