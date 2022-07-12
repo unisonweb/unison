@@ -200,8 +200,8 @@ basicSuffixifiedNames hashLength root nameScope =
   let names0 = prettyNamesForBranch root nameScope
    in suffixifyNames hashLength names0
 
-parseNamesForBranch :: Branch m -> Names
-parseNamesForBranch root = namesForBranch root (AllNames Path.empty) & (\(n, _, _) -> n)
+parseNamesForBranch :: Branch m -> NameScoping -> Names
+parseNamesForBranch root = namesForBranch root <&> \(n, _, _) -> n
 
 prettyNamesForBranch :: Branch m -> NameScoping -> Names
 prettyNamesForBranch root = namesForBranch root <&> \(_, n, _) -> n
@@ -618,11 +618,11 @@ toAllNames (Within p) = AllNames p
 
 getCurrentPrettyNames :: Int -> PPE.Perspective -> Maybe Name -> Branch m -> PPE.PrettyPrintEnv
 getCurrentPrettyNames hashLen perspective bias root =
-  PPE.fromNames hashLen Nothing perspective bias PPE.Suffixify $ NamesWithHistory (parseNamesForBranch root) mempty
+  PPE.fromNames hashLen Nothing perspective bias PPE.Suffixify $ NamesWithHistory (parseNamesForBranch root (AllNames Path.empty)) mempty
 
-getCurrentParseNames :: Branch m -> NamesWithHistory
-getCurrentParseNames root =
-  NamesWithHistory (parseNamesForBranch root) mempty
+getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
+getCurrentParseNames scope root =
+  NamesWithHistory (parseNamesForBranch root scope) mempty
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
@@ -775,14 +775,14 @@ expandShortBranchHash codebase hash = do
       throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
-getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (V2Branch.CausalBranch m)
+getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path.Absolute -> Backend m (V2Branch.CausalBranch m)
 getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
   shallowRoot <- case mayRootHash of
     Nothing -> lift (Codebase.getShallowRootBranch codebase)
     Just h -> do
       lift $ Codebase.getShallowBranchForHash codebase (Cv.causalHash1to2 h)
   causal <-
-    (lift $ Codebase.shallowBranchAtPath path shallowRoot) >>= \case
+    (lift $ Codebase.shallowBranchAtPath (Path.unabsolute path) shallowRoot) >>= \case
       Nothing -> pure $ Cv.causalbranch1to2 (Branch.empty)
       Just lc -> pure lc
   pure causal
@@ -807,7 +807,7 @@ mungeSyntaxText ::
 mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes ::
-  Path ->
+  Path.Absolute ->
   Maybe (Branch.CausalHash) ->
   Maybe Width ->
   Suffixify ->
@@ -981,16 +981,16 @@ docsInBranchToHtmlFiles ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Branch IO ->
-  Path ->
+  Path.Absolute ->
   FilePath ->
   IO ()
 docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
-  let currentBranch = Branch.getAt' currentPath root
+  let currentBranch = Branch.getAt' (Path.unabsolute currentPath) root
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
   docTermsWithNames <- filterM (isDoc codebase . fst) allTerms
   let docNamesByRef = Map.fromList docTermsWithNames
   hqLength <- Codebase.hashLength codebase
-  let printNames = prettyNamesForBranch root (AllNames currentPath)
+  let printNames = prettyNamesForBranch root (AllNames $ Path.unabsolute currentPath)
   let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
   let ppe = PPE.fromNames hqLength Nothing (PPE.RelativeTo currentPath) Nothing PPE.Suffixify printNamesWithHistory
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
@@ -1079,7 +1079,7 @@ bestNameForType ppe width =
 -- - 'local' includes ONLY the names within the provided path
 -- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Maybe Name -> Backend m (Names, PPE.PrettyPrintEnv)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path.Absolute -> Maybe Name -> Backend m (Names, PPE.PrettyPrintEnv)
 scopedNamesForBranchHash codebase mbh path mayBias = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.hashLength codebase
@@ -1088,14 +1088,14 @@ scopedNamesForBranchHash codebase mbh path mayBias = do
       | shouldUseNamesIndex -> indexNames
       | otherwise -> do
         rootBranch <- lift $ Codebase.getRootBranch codebase
-        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames $ Path.unabsolute path)
         pure (parseNames, localNames)
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
       if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
         then indexNames
         else do
-          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
+          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames $ Path.unabsolute path) <$> resolveCausalHash (Just bh) codebase
           pure (parseNames, localNames)
 
   let localPPE = PPE.fromNames hashLen Nothing (PPE.RelativeTo path) mayBias PPE.NoSuffixify (NamesWithHistory.fromCurrentNames parseNames)
@@ -1108,7 +1108,7 @@ scopedNamesForBranchHash codebase mbh path mayBias = do
     --     (PPE.suffixifiedPPE primary <> PPE.suffixifiedPPE fallback)
     indexNames :: Backend m (Names, Names)
     indexNames = do
-      scopedNames <- lift $ Codebase.namesAtPath codebase path
+      scopedNames <- lift $ Codebase.namesAtPath codebase (Path.unabsolute path)
       pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::

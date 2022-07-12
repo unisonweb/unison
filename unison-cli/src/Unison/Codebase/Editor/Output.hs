@@ -52,7 +52,6 @@ import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -97,13 +96,13 @@ data NumberedOutput v
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
-    TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
+    TodoOutput PPE.PrettyPrintEnv (TO.TodoOutput v Ann)
   | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
-    CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+    CantDeleteDefinitions PPE.PrettyPrintEnv (Map LabeledDependency (NESet LabeledDependency))
   | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
-    CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+    CantDeleteNamespace PPE.PrettyPrintEnv (Map LabeledDependency (NESet LabeledDependency))
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
-    DeletedDespiteDependents PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+    DeletedDespiteDependents PPE.PrettyPrintEnv (Map LabeledDependency (NESet LabeledDependency))
   | -- |    size limit, history                       , how the history ends
     History
       (Maybe Int) -- Amount of history to print
@@ -191,7 +190,7 @@ data Output v
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
     DisplayDefinitions
       (Maybe FilePath)
-      PPE.PrettyPrintEnvDecl
+      PPE.PrettyPrintEnv
       (Map Reference (DisplayObject () (Decl v Ann)))
       (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term v Ann)

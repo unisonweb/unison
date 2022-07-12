@@ -12,7 +12,7 @@ import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, rea
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
 import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
-import Control.Monad.Reader (ask)
+import Control.Monad.Reader (ask, asks)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
@@ -127,8 +127,6 @@ import Unison.Position (Position (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
-import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import Unison.Reference (Reference (..))
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -178,19 +176,25 @@ import qualified Unison.WatchKind as WK
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
 
-prettyPrintEnvDecl :: MonadCommand n m i v => NamesWithHistory -> n PPE.PrettyPrintEnvDecl
-prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
-
-biasedPrettyPrintEnvDecl :: MonadCommand n m i v => Maybe Name -> NamesWithHistory -> n PPE.PrettyPrintEnvDecl
-biasedPrettyPrintEnvDecl bias ns = eval CodebaseHashLength <&> (\hl -> PPE.biasedPPEDecl hl bias ns)
-
--- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Maybe Name -> Action' m v PPE.PrettyPrintEnvDecl
-currentPrettyPrintEnvDecl scoping mayBias = do
+-- | TODO: cache this in loop state
+prettyPrintEnv :: MonadCommand n m i v => n PPE.PrettyPrintEnv
+prettyPrintEnv = do
   root' <- use LoopState.root
-  currentPath' <- Path.unabsolute <$> use LoopState.currentPath
-  hqLen <- eval CodebaseHashLength
-  pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') mayBias root'
+  hashLen <- eval CodebaseHashLength
+  currentPath' <- use LoopState.currentPath
+  pure $ Backend.getCurrentPrettyNames hashLen (PPE.RelativeTo currentPath') Nothing root'
+  -- pure $ PPE.fromNames hashLen Nothing PPE.Root Nothing PPE.NoSuffixify ns
+
+-- biasedPrettyPrintEnvDecl :: MonadCommand n m i v => Maybe Name -> NamesWithHistory -> n PPE.PrettyPrintEnvDecl
+-- biasedPrettyPrintEnvDecl bias ns = eval CodebaseHashLength <&> (\hl -> PPE.biasedPPEDecl hl bias ns)
+
+-- -- | Get a pretty print env decl for the current names at the current path.
+-- currentPrettyPrintEnv :: Action' m v PPE.PrettyPrintEnv
+-- currentPrettyPrintEnv mkPerspective mayBias = do
+--   root' <- use LoopState.root
+--   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
+--   hqLen <- eval CodebaseHashLength
+--   pure $ Backend.getCurrentPrettyNames hqLen (mkPerspective currentPath') mayBias root'
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
@@ -288,8 +292,7 @@ loop = do
           currentNames <- unsafeTime "currentPathNames" currentPathNames
           let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
           names <- unsafeTime "displayNames" $ displayNames unisonFile
-          pped <- prettyPrintEnvDecl names
-          let ppe = PPE.suffixifiedPPE pped
+          ppe <- suffixifiedPPE names
           unsafeTime "typechecked.respond" $ respond $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
             (bindings, e) <- unsafeTime "evaluate" $ ExceptT . eval . Evaluate ppe $ unisonFile
@@ -531,7 +534,7 @@ loop = do
             success
           previewResponse sourceName sr uf = do
             names <- displayNames uf
-            ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+            ppe <- suffixifiedPPE names
             respond $ Typechecked (Text.pack sourceName) ppe sr uf
 
           delete ::
@@ -565,8 +568,8 @@ loop = do
                     diffHelper (Branch.head root') (Branch.head root'')
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
                   else do
-                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
-                    respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
+                    ppe <- PPE.restrictTo currentPath' <$> prettyPrintEnv
+                    respondNumbered $ CantDeleteDefinitions ppe endangerments
        in case input of
             ApiI -> eval API
             CreateMessage pretty ->
@@ -784,14 +787,14 @@ loop = do
                   endangerments <- computeEndangerments b0
                   if null endangerments
                     then doDelete
-                    else case insistence of
-                      Force -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
-                        doDelete
-                        respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
-                      Try -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
-                        respondNumbered $ CantDeleteNamespace ppeDecl endangerments
+                    else do
+                      ppe <- PPE.restrictTo currentPath' <$> prettyPrintEnv
+                      case insistence of
+                        Force -> do
+                          doDelete
+                          respondNumbered $ DeletedDespiteDependents ppe endangerments
+                        Try -> do
+                          respondNumbered $ CantDeleteNamespace ppe endangerments
               where
                 doDelete = do
                   stepAt Branch.CompressHistory $ BranchUtil.makeDeleteBranch (resolveSplit' p)
@@ -866,7 +869,7 @@ loop = do
                     >>= respondNumbered . uncurry Output.ShowDiffAfterUndo
             UiI -> eval UI
             DocsToHtmlI namespacePath' sourceDirectory -> do
-              let absPath = Path.unabsolute $ resolveToAbsolute namespacePath'
+              let absPath = resolveToAbsolute namespacePath'
               eval (DocsToHtml root' absPath sourceDirectory)
             AliasTermI src dest -> do
               referents <- resolveHHQS'Referents src
@@ -1299,7 +1302,9 @@ loop = do
                   let adds = SlurpResult.adds sr
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-                  ppe <- prettyPrintEnvDecl =<< displayNames uf
+                  hashLen <- eval CodebaseHashLength
+                  dispNames <- displayNames uf
+                  let ppe = PPE.fromNames hashLen Nothing PPE.Root Nothing PPE.Suffixify dispNames
                   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
                   addDefaultMetadata adds
                   syncRoot
@@ -1582,7 +1587,7 @@ loop = do
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+                  ppe <- PPE.unsuffixifiedPPE . PPE.restrictTo currentPath' <$> prettyPrintEnv
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> use LoopState.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
@@ -1744,7 +1749,7 @@ handleDependents hq = do
            in LD.fold tp tm ld
         -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
         -- unambiguous name.
-        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+        ppe <- PPE.unsuffixifiedPPE <$> prettyPrintEnv
         let results :: [(Reference, Maybe Name)]
             results =
               -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
@@ -1964,8 +1969,8 @@ handleShowDefinition outputLoc inputQuery = do
     eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
-    let printNames = Backend.getCurrentPrettyNames hqLength (Backend.AllNames currentPath') root'
-    let ppe = PPE.biasedPPEDecl hqLength (safeHead inputQuery >>= HQ.toName) printNames
+    let bias = safeHead inputQuery >>= HQ.toName
+    let ppe = Backend.getCurrentPrettyNames hqLength (PPE.RelativeTo currentPath') bias root'
     respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (respond (SearchTermsNotFound misses))
   -- We set latestFile to be programmatically generated, if we
@@ -2139,8 +2144,8 @@ handleUpdate input optionalPatch requestedNames = do
                 Just (_, update, p) -> [(Path.unabsolute p, update)]
           )
         eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-      ppe <- prettyPrintEnvDecl =<< displayNames uf
-      respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+      ppe <- suffixifiedPPE =<< displayNames uf
+      respond $ SlurpOutput input ppe sr
       -- propagatePatch prints TodoOutput
       for_ patchOps $ \case
         (updatedPatch, _, _) -> void $ propagatePatchNoSync updatedPatch currentPath'
@@ -2399,7 +2404,7 @@ resolveHQToLabeledDependencies = \case
 
 doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Action' m Symbol ()
 doDisplay outputLoc names tm = do
-  ppe <- prettyPrintEnvDecl names
+  ppe <- prettyPrintEnv names
   tf <- use LoopState.latestTypecheckedFile
   let (tms, typs) = maybe mempty UF.indexByReference tf
   latestFile' <- use LoopState.latestFile
@@ -2475,7 +2480,7 @@ getLinks' src selection0 = do
         Set.map LD.termRef allRefs
           <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
   let ppeBias = Just (Path.toName' . HQ'.toName . Path.unsplitHQ' $ src)
-  ppe <- biasedPrettyPrintEnvDecl ppeBias =<< makePrintNamesFromLabeled' deps
+  ppe <- prettyPrintEnv ppeBias =<< makePrintNamesFromLabeled' deps
   let ppeDecl = PPE.unsuffixifiedPPE ppe
   let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
   let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
@@ -2538,7 +2543,7 @@ doShowTodoOutput patch scopePath = do
 showTodoOutput ::
   -- | Action that fetches the pretty print env. It's expensive because it
   -- involves looking up historical names, so only call it if necessary.
-  Action' m v PPE.PrettyPrintEnvDecl ->
+  Action' m v PPE.PrettyPrintEnv ->
   Patch ->
   Names ->
   Action' m v ()
@@ -3256,11 +3261,15 @@ lexedSource name src = do
   parseNames <- makeHistoricalParsingNames hqs
   pure (parseNames, (src, tokens))
 
-suffixifiedPPE :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnv
-suffixifiedPPE ns = eval CodebaseHashLength <&> (`PPE.fromSuffixNames` ns)
+suffixifiedPPE :: MonadCommand n m i v => NamesWithHistory -> n PPE.PrettyPrintEnv
+suffixifiedPPE ns = do
+  hashLen <- eval CodebaseHashLength
+  pure $ PPE.fromNames hashLen Nothing PPE.Root Nothing PPE.Suffixify ns
 
-fqnPPE :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnv
-fqnPPE ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
+fqnPPE :: MonadCommand n m i v => NamesWithHistory -> n PPE.PrettyPrintEnv
+fqnPPE ns = do
+  hashLen <- eval CodebaseHashLength
+  pure $ PPE.fromNames hashLen Nothing PPE.Root Nothing PPE.NoSuffixify ns
 
 parseSearchType ::
   (Monad m, Var v) =>
@@ -3503,7 +3512,7 @@ diffHelperCmd currentRoot currentPath before after = do
   hqLength <- eval CodebaseHashLength
   diff <- eval . Eval $ BranchDiff.diff0 before after
   let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
+  ppe <- suffixifiedPPE (NamesWithHistory prettyNames0 mempty)
   (ppe,)
     <$> OBranchDiff.toOutput
       loadTypeOfTerm

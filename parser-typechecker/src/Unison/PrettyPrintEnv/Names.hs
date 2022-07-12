@@ -4,7 +4,6 @@ module Unison.PrettyPrintEnv.Names (fromNames) where
 
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
-import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
@@ -22,7 +21,7 @@ import qualified Unison.Util.Relation as Rel
 --
 -- e.g. when pretty-printing for `view base.List.map`, we should prefer names which are close
 -- to `base.List.map`.
-fromNames :: Int -> Maybe (NESet Path) -> Perspective -> Maybe Name -> Suffixify -> NamesWithHistory -> PrettyPrintEnv
+fromNames :: Int -> Maybe (NESet Path.Absolute) -> Perspective -> Maybe Name -> Suffixify -> NamesWithHistory -> PrettyPrintEnv
 fromNames hashLen restrictions perspective bias suffixify names = PrettyPrintEnv {termNames = terms', typeNames = types', bias, perspective, suffixify, restrictions}
   where
     terms' restr p b suff r =
@@ -49,13 +48,13 @@ relativizeToPerspective :: Perspective -> [HQ'.HashQualified Name] -> [HQ'.HashQ
 relativizeToPerspective p ns =
   case p of
     Root -> ns
-    RelativeTo p -> ns <&> fmap \name -> fromMaybe name $ Name.stripNamePrefix (Path.toName p) name
+    RelativeTo p -> ns <&> fmap \name -> fromMaybe name $ Name.stripNamePrefix (Path.toName $ Path.unabsolute p) name
 
 -- | Only return names within the given set of paths.
-restrict :: Maybe (NESet Path) -> [HQ'.HashQualified Name] -> [HQ'.HashQualified Name]
+restrict :: Maybe (NESet Path.Absolute) -> [HQ'.HashQualified Name] -> [HQ'.HashQualified Name]
 restrict Nothing ns = ns
 restrict (Just paths) ns = do
-  let pathNames = Path.toName <$> toList paths
+  let pathNames = Path.toName . Path.unabsolute <$> toList paths
   ns & filter (\hqname -> any (\pn -> Name.isPrefixOf pn (HQ'.toName hqname)) pathNames)
 
 prioritizeBias :: Maybe Name -> [HQ'.HashQualified Name] -> [HQ'.HashQualified Name]

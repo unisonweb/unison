@@ -86,7 +86,7 @@ namespaceDetails runtime codebase namespaceName maySBH mayWidth =
       fqnToPath fqn = do
         let fqnS = Text.unpack fqn
         path' <- errFromEither (`Backend.BadNamespace` fqnS) $ parsePath' fqnS
-        pure (Path.fromPath' path')
+        pure (Path.Absolute $ Path.fromPath' path')
 
       width = mayDefaultWidth mayWidth
    in do

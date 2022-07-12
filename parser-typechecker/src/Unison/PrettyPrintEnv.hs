@@ -2,6 +2,8 @@
 
 module Unison.PrettyPrintEnv
   ( PrettyPrintEnv (..),
+    terms,
+    types,
     patterns,
     patternName,
     termName,
@@ -11,13 +13,15 @@ module Unison.PrettyPrintEnv
     todoHashLength,
     suffixifiedPPE,
     unsuffixifiedPPE,
+    restrictTo,
     Suffixify (..),
     Perspective (..),
   )
 where
 
 import Data.Set.NonEmpty (NESet)
-import Unison.Codebase.Path (Path)
+import qualified Data.Set.NonEmpty as NESet
+import qualified Unison.Codebase.Path as Path
 import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.ConstructorType as CT
 import Unison.HashQualified (HashQualified)
@@ -38,20 +42,20 @@ data Suffixify
 
 data Perspective
   = -- Make names in Path relative, and prefer those names, but fall back to external names
-    RelativeTo Path
+    RelativeTo Path.Absolute
   | -- View everything from the root perspective with fully qualified names.
     Root
   deriving (Show, Eq, Ord)
 
 data PrettyPrintEnv = PrettyPrintEnv
   { -- names for terms, constructors, and requests
-    termNames :: Maybe (NESet Path) -> Perspective -> Maybe Name -> Suffixify -> Referent -> [HQ'.HashQualified Name],
+    termNames :: Maybe (NESet Path.Absolute) -> Perspective -> Maybe Name -> Suffixify -> Referent -> [HQ'.HashQualified Name],
     -- names for types
-    typeNames :: Maybe (NESet Path) -> Perspective -> Maybe Name -> Suffixify -> Reference -> [HQ'.HashQualified Name],
+    typeNames :: Maybe (NESet Path.Absolute) -> Perspective -> Maybe Name -> Suffixify -> Reference -> [HQ'.HashQualified Name],
     -- allows adjusting a pretty-printer to a specific perspective
     perspective :: Perspective,
     -- Optionally restrict all names to names contained within any of these paths
-    restrictions :: Maybe (NESet Path),
+    restrictions :: Maybe (NESet Path.Absolute),
     -- allows biasing returned names towards a specific location
     bias :: Maybe Name,
     suffixify :: Suffixify
@@ -78,6 +82,15 @@ suffixifiedPPE ppe = ppe {suffixify = Suffixify}
 
 unsuffixifiedPPE :: PrettyPrintEnv -> PrettyPrintEnv
 unsuffixifiedPPE ppe = ppe {suffixify = NoSuffixify}
+
+restrictTo :: Path.Absolute -> PrettyPrintEnv -> PrettyPrintEnv
+restrictTo p ppe =
+  let oldRestrictions =
+        case restrictions ppe of
+          Nothing -> mempty
+          Just rs -> NESet.toSet rs
+      newRestrictions = NESet.insertSet p oldRestrictions
+   in ppe {restrictions = Just newRestrictions}
 
 terms :: PrettyPrintEnv -> Referent -> Maybe (HQ'.HashQualified Name)
 terms PrettyPrintEnv {termNames, perspective, bias, suffixify, restrictions} ref =

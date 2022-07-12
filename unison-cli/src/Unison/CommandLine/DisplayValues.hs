@@ -20,7 +20,6 @@ import qualified Unison.NamePrinter as NP
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -41,7 +40,7 @@ type Pretty = P.Pretty P.ColorText
 
 displayTerm ::
   Monad m =>
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   (Reference -> m (Maybe (Term Symbol ()))) ->
   (Referent -> m (Maybe (Type Symbol ()))) ->
   (Term Symbol () -> m (Maybe (Term Symbol ()))) ->
@@ -65,7 +64,7 @@ type ElideUnit = Bool
 displayTerm' ::
   Monad m =>
   ElideUnit ->
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   (Reference -> m (Maybe (Term Symbol ()))) ->
   (Referent -> m (Maybe (Type Symbol ()))) ->
   (Term Symbol () -> m (Maybe (Term Symbol ()))) ->
@@ -76,16 +75,16 @@ displayTerm' elideUnit pped terms typeOf eval types = \case
   tm@(Term.Apps' (Term.Constructor' (ConstructorReference typ _)) _)
     | typ == DD.docRef -> displayDoc pped terms typeOf eval types tm
     | typ == DD.doc2Ref -> do
-        -- Pretty.get (doc.formatConsole tm)
-        let tm' =
-              Term.app
-                ()
-                (Term.ref () DD.prettyGetRef)
-                (Term.app () (Term.ref () DD.doc2FormatConsoleRef) tm)
-        tm <- eval tm'
-        case tm of
-          Nothing -> pure $ errMsg tm'
-          Just tm -> displayTerm pped terms typeOf eval types tm
+      -- Pretty.get (doc.formatConsole tm)
+      let tm' =
+            Term.app
+              ()
+              (Term.ref () DD.prettyGetRef)
+              (Term.app () (Term.ref () DD.doc2FormatConsoleRef) tm)
+      tm <- eval tm'
+      case tm of
+        Nothing -> pure $ errMsg tm'
+        Just tm -> displayTerm pped terms typeOf eval types tm
     | typ == DD.prettyAnnotatedRef -> displayPretty pped terms typeOf eval types tm
   tm -> pure $ src tm
   where
@@ -110,7 +109,7 @@ displayTerm' elideUnit pped terms typeOf eval types = \case
 displayPretty ::
   forall m.
   Monad m =>
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   (Reference -> m (Maybe (Term Symbol ()))) ->
   (Referent -> m (Maybe (Type Symbol ()))) ->
   (Term Symbol () -> m (Maybe (Term Symbol ()))) ->
@@ -165,7 +164,7 @@ displayPretty pped terms typeOf eval types tm = go tm
                 missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
          in Map.fromList <$> traverse go tms
       -- in docs, we use suffixed names everywhere
-      let pped' = pped {PPE.unsuffixifiedPPE = PPE.suffixifiedPPE pped}
+      let pped' = PPE.suffixifiedPPE pped
       pure . P.group . P.indentN 4 $ OutputMessages.displayDefinitions' pped' typeMap termMap
 
     goSpecial = \case
@@ -285,7 +284,7 @@ displayPretty pped terms typeOf eval types tm = go tm
 displayDoc ::
   forall v m.
   (Var v, Monad m) =>
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   (Reference -> m (Maybe (Term v ()))) ->
   (Referent -> m (Maybe (Type v ()))) ->
   (Term v () -> m (Maybe (Term v ()))) ->

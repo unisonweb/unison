@@ -123,7 +123,7 @@ serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
       root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
       let hqns = HQ.unsafeFromText <$> neRawHqns
       Backend.prettyDefinitionsBySuffixes
-        (fromMaybe Path.empty rel)
+        (maybe Path.absoluteEmpty Path.Absolute rel)
         root
         width
         (fromMaybe (Suffixify True) suff)

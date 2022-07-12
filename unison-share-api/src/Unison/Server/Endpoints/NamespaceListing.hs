@@ -199,14 +199,12 @@ serve codebase maySBH mayRelativeTo mayNamespaceName =
         relativeToPath' <- (parsePath . Text.unpack) $ fromMaybe "." mayRelativeTo
         namespacePath' <- (parsePath . Text.unpack) $ fromMaybe "." mayNamespaceName
 
-        let path = Path.fromPath' relativeToPath' <> Path.fromPath' namespacePath'
-        let path' = Path.toPath' path
-
+        let path = Path.Absolute $ Path.fromPath' relativeToPath' <> Path.fromPath' namespacePath'
         mayRootHash <- traverse (Backend.expandShortBranchHash codebase) maySBH
         listingCausal <- Backend.getShallowCausalAtPathFromRootHash codebase mayRootHash path
         listingBranch <- liftIO $ V2Causal.value listingCausal
         shallowPPE <- liftIO $ Backend.shallowPPE codebase listingBranch
-        let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
+        let listingFQN = Path.toText . Path.unabsolute $ path
         let listingHash = v2CausalBranchToUnisonHash listingCausal
         listingEntries <- lift (findShallow listingBranch)
 

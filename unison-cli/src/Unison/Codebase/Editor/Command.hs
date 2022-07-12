@@ -110,7 +110,7 @@ data
     Branch m -> -- Root branch
 
     -- | namespace source
-    Path ->
+    Path.Absolute ->
     -- | file destination
     FilePath ->
     Command m i v ()

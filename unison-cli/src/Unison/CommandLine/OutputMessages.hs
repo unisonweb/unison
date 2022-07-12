@@ -109,7 +109,6 @@ import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
 import Unison.PrettyTerminal
   ( clearCurrentLine,
     putPretty',
@@ -1675,11 +1674,11 @@ notifyUser dir o = case o of
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
-        P.lines
-          [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
-            "",
-            "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
-          ]
+      P.lines
+        [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
+          "",
+          "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
+        ]
     expectedNonEmptyPushDest writeRemotePath =
       P.lines
         [ P.wrap ("The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty."),
@@ -1783,7 +1782,7 @@ formatMissingStuff terms types =
 displayDefinitions' ::
   Var v =>
   Ord a1 =>
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
   Pretty
@@ -1852,7 +1851,7 @@ displayDefinitions ::
   Var v =>
   Ord a1 =>
   Maybe FilePath ->
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
   IO Pretty
@@ -2162,7 +2161,7 @@ runNumbered m =
   let (a, (_, args)) = State.runState m (0, mempty)
    in (a, Foldable.toList args)
 
-todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
+todoOutput :: Var v => PPE.PrettyPrintEnv -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
 todoOutput ppe todo = runNumbered do
   conflicts <- todoConflicts
   edits <- todoEdits
@@ -2971,7 +2970,7 @@ isTestOk tm = case tm of
 -- | Get the list of numbered args corresponding to an endangerment map, which is used by a
 -- few outputs. See 'endangeredDependentsTable'.
 numberedArgsForEndangerments ::
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   Map LabeledDependency (NESet LabeledDependency) ->
   NumberedArgs
 numberedArgsForEndangerments (PPE.unsuffixifiedPPE -> ppe) m =
@@ -2982,7 +2981,7 @@ numberedArgsForEndangerments (PPE.unsuffixifiedPPE -> ppe) m =
 
 -- | Format and render all dependents which are endangered by references going extinct.
 endangeredDependentsTable ::
-  PPE.PrettyPrintEnvDecl ->
+  PPE.PrettyPrintEnv ->
   Map LabeledDependency (NESet LabeledDependency) ->
   P.Pretty P.ColorText
 endangeredDependentsTable ppeDecl m =
