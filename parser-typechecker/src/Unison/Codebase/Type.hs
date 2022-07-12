@@ -190,10 +190,7 @@ data LocalOrRemote
   deriving (Show, Eq, Ord)
 
 data PushGitBranchOpts = PushGitBranchOpts
-  { -- | Should we perform a local `before` check, or just force-push?
-    forcePush :: Bool,
-    -- | Set the branch as root?
-    setRoot :: Bool,
+  { behavior :: GitPushBehavior,
     syncMode :: SyncMode
   }
 
@@ -204,10 +201,6 @@ data GitPushBehavior
     GitPushBehaviorFf
   | -- | After syncing entities, just set the root (force-pushy).
     GitPushBehaviorForce
-
--- valid: dont set root,
---        set root, fast-forward
---        set root, force push
 
 data GitError
   = GitProtocolError GitProtocolError

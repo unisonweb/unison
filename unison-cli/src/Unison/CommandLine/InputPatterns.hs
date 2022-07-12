@@ -1175,6 +1175,40 @@ pushCreate =
                 }
     )
 
+pushForce :: InputPattern
+pushForce =
+  InputPattern
+    "push.force"
+    []
+    I.Visible
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
+    (P.wrap "Like `push`, but overwrites any remote namespace.")
+    ( \case
+        [] ->
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.ForcePush,
+                  syncMode = SyncMode.ShortCircuit
+                }
+        url : rest -> do
+          pushPath <- parseWriteRemotePath "remote-path" url
+          p <- case rest of
+            [] -> Right Path.relativeEmpty'
+            [path] -> first fromString $ Path.parsePath' path
+            _ -> Left (I.help push)
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.ForcePush,
+                  syncMode = SyncMode.ShortCircuit
+                }
+    )
+
 pushExhaustive :: InputPattern
 pushExhaustive =
   InputPattern
@@ -2131,6 +2165,7 @@ validInputs =
       names False, -- names
       push,
       pushCreate,
+      pushForce,
       pull,
       pullWithoutHistory,
       pullSilent,
