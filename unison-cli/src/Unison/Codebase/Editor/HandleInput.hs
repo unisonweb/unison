@@ -185,12 +185,12 @@ biasedPrettyPrintEnvDecl :: MonadCommand n m i v => Maybe Name -> NamesWithHisto
 biasedPrettyPrintEnvDecl bias ns = eval CodebaseHashLength <&> (\hl -> PPE.biasedPPEDecl hl bias ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action' m v PPE.PrettyPrintEnvDecl
-currentPrettyPrintEnvDecl scoping = do
+currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Maybe Name -> Action' m v PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl scoping mayBias = do
   root' <- use LoopState.root
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   hqLen <- eval CodebaseHashLength
-  pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
+  pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') mayBias root'
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do

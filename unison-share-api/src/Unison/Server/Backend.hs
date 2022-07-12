@@ -617,8 +617,8 @@ toAllNames :: NameScoping -> NameScoping
 toAllNames (AllNames p) = AllNames p
 toAllNames (Within p) = AllNames p
 
-getCurrentPrettyNames :: Int -> NameScoping -> Branch m -> PPE.PrettyPrintEnvDecl
-getCurrentPrettyNames hashLen scope root =
+getCurrentPrettyNames :: Int -> NameScoping -> Maybe Name -> Branch m -> PPE.PrettyPrintEnvDecl
+getCurrentPrettyNames hashLen scope mayBias root =
   let primary = PPE.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
       backup = PPE.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
    in PPE.PrettyPrintEnvDecl

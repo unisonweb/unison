@@ -9,9 +9,12 @@ module Unison.PrettyPrintEnv
     labeledRefName,
     -- | Exported only for cases where the codebase's configured hash length is unavailable.
     todoHashLength,
+    Suffixify (..),
   )
 where
 
+import Unison.Codebase.Path (Path)
+import qualified Unison.Codebase.Path as Path
 import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.ConstructorType as CT
 import Unison.HashQualified (HashQualified)
@@ -25,12 +28,30 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 
+data Suffixify
+  = Suffixify
+  | NoSuffixify
+  deriving (Show, Eq, Ord)
+
 data PrettyPrintEnv = PrettyPrintEnv
   { -- names for terms, constructors, and requests
-    terms :: Referent -> Maybe (HQ'.HashQualified Name),
+    termNames :: Path -> Maybe Name -> Suffixify -> Referent -> [HQ'.HashQualified Name],
     -- names for types
-    types :: Reference -> Maybe (HQ'.HashQualified Name)
+    typeNames :: Path -> Maybe Name -> Suffixify -> Reference -> [HQ'.HashQualified Name],
+    -- allows adjusting a pretty-printer to a specific perspective
+    perspective :: Path,
+    -- allows biasing returned names towards a specific location
+    bias :: Maybe Name,
+    suffixify :: Suffixify
   }
+
+terms :: PrettyPrintEnv -> Referent -> Maybe (HQ'.HashQualified Name)
+terms PrettyPrintEnv {termNames, perspective, bias, suffixify} ref =
+  listToMaybe $ termNames perspective bias suffixify ref
+
+types :: PrettyPrintEnv -> Reference -> Maybe (HQ'.HashQualified Name)
+types PrettyPrintEnv {typeNames, perspective, bias, suffixify} ref =
+  listToMaybe $ typeNames perspective bias suffixify ref
 
 patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
 patterns ppe r =
@@ -42,10 +63,14 @@ instance Show PrettyPrintEnv where
 
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
-unionLeft e1 e2 =
+unionLeft (PrettyPrintEnv {bias, perspective, termNames, typeNames, suffixify}) (PrettyPrintEnv {termNames = fallbackTerms, typeNames = fallbackTypes}) =
   PrettyPrintEnv
-    (\r -> terms e1 r <|> terms e2 r)
-    (\r -> types e1 r <|> types e2 r)
+    { bias,
+      perspective,
+      suffixify,
+      termNames = \b p suff r -> termNames b p suff r <|> fallbackTerms b p suff r,
+      typeNames = \b p suff r -> typeNames b p suff r <|> fallbackTypes b p suff r
+    }
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
@@ -76,7 +101,7 @@ patternName env r =
     Nothing -> HQ.take todoHashLength $ HQ.fromPattern r
 
 instance Monoid PrettyPrintEnv where
-  mempty = PrettyPrintEnv (const Nothing) (const Nothing)
+  mempty = PrettyPrintEnv {termNames = mempty, typeNames = mempty, bias = Nothing, perspective = Path.empty, suffixify = NoSuffixify}
   mappend = unionLeft
 
 instance Semigroup PrettyPrintEnv where
