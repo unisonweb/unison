@@ -931,6 +931,8 @@ notifyUser dir o = case o of
           Input.UpdateI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s
+  FindNoLocalMatches ->
+    pure . P.callout "☝️" $ P.wrap "I couldn't find matches in this namespace, searching in 'lib'..."
   NoExactTypeMatches ->
     pure . P.callout "☝️" $ P.wrap "I couldn't find exact type matches, resorting to fuzzy matching..."
   TypeParseError src e ->

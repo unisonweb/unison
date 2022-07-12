@@ -514,7 +514,6 @@ loop = do
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
           importRemoteGitBranch ns mode preprocess =
             ExceptT . eval $ ImportRemoteGitBranch ns mode preprocess
-          loadSearchResults = eval . LoadSearchResults
           saveAndApplyPatch patchPath'' patchName patch' = do
             stepAtM
               Branch.CompressHistory
@@ -1116,52 +1115,8 @@ loop = do
                       p | last p == '.' -> p ++ s
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
-            FindI isVerbose global ws -> do
-              let prettyPrintNames = basicPrettyPrintNames
-              unlessError do
-                results <- case ws of
-                  -- no query, list everything
-                  [] -> pure . listBranch $ Branch.head currentBranch'
-                  -- type query
-                  ":" : ws ->
-                    ExceptT (parseSearchType (show input) (unwords ws)) >>= \typ ->
-                      ExceptT $ do
-                        let named = Branch.deepReferents root0
-                        matches <-
-                          fmap (filter (`Set.member` named) . toList) $
-                            eval $ GetTermsOfType typ
-                        matches <-
-                          if null matches
-                            then do
-                              respond NoExactTypeMatches
-                              fmap (filter (`Set.member` named) . toList) $
-                                eval $ GetTermsMentioningType typ
-                            else pure matches
-                        let results =
-                              -- in verbose mode, aliases are shown, so we collapse all
-                              -- aliases to a single search result; in non-verbose mode,
-                              -- a separate result may be shown for each alias
-                              (if isVerbose then uniqueBy SR.toReferent else id) $
-                                searchResultsFor prettyPrintNames matches []
-                        pure . pure $ results
-
-                  -- name query
-                  (map HQ.unsafeFromString -> qs) -> do
-                    ns <-
-                      lift $
-                        if not global
-                          then basicParseNames
-                          else fst <$> basicNames' Backend.AllNames
-                    let srs = searchBranchScored ns fuzzyNameDistance qs
-                    pure $ uniqueBy SR.toReferent srs
-                lift do
-                  LoopState.numberedArgs .= fmap searchResultToHQString results
-                  results' <- loadSearchResults results
-                  ppe <-
-                    suffixifiedPPE
-                      =<< makePrintNamesFromLabeled'
-                        (foldMap SR'.labeledDependencies results')
-                  respond $ ListOfDefinitions ppe isVerbose results'
+            FindI isVerbose fscope ws ->
+              handleFindI isVerbose fscope ws input
             ResolveTypeNameI hq ->
               zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
               where
@@ -1725,6 +1680,87 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
             Right baseBranch -> do
               diff <- mergeAndDiff baseBranch headBranch
               respondNumbered diff
+
+handleFindI
+  :: (Monad m, Var v)
+  => Bool
+  -> FindScope
+  -> [String]
+  -> Input
+  -> Action' m v ()
+handleFindI isVerbose fscope ws input = do
+  root' <- use LoopState.root
+  currentPath' <- use LoopState.currentPath
+  currentBranch' <- getAt currentPath'
+  let currentBranch0 = Branch.head currentBranch'
+      getNames :: FindScope -> Names
+      getNames findScope =
+        let namesWithinCurrentPath = Backend.prettyNamesForBranch root' nameScope
+            cp = Path.unabsolute currentPath'
+            nameScope = case findScope of
+              Local -> Backend.Within cp
+              LocalAndDeps -> Backend.Within cp
+              Global -> Backend.AllNames cp
+            scopeFilter = case findScope of
+              Local ->
+                let f n =
+                      case Name.segments n of
+                        "lib" Nel.:| _ : _ -> False
+                        _ -> True
+                in Names.filter f
+              Global -> id
+              LocalAndDeps ->
+                let f n =
+                      case Name.segments n of
+                        "lib" Nel.:| (_ : "lib" : _) -> False
+                        _ -> True
+                in Names.filter f
+        in scopeFilter namesWithinCurrentPath
+  unlessError do
+    let getResults names = do
+          case ws of
+            [] -> pure (List.sortOn (\s -> (SR.name s, s)) (SR.fromNames names))
+            -- type query
+            ":" : ws ->
+              ExceptT (parseSearchType (show input) (unwords ws)) >>= \typ ->
+                ExceptT $ do
+                  let named = Branch.deepReferents currentBranch0
+                  matches <-
+                    fmap (filter (`Set.member` named) . toList) $
+                      eval $ GetTermsOfType typ
+                  matches <-
+                    if null matches
+                      then do
+                        respond NoExactTypeMatches
+                        fmap (filter (`Set.member` named) . toList) $
+                          eval $ GetTermsMentioningType typ
+                      else pure matches
+                  let results =
+                        -- in verbose mode, aliases are shown, so we collapse all
+                        -- aliases to a single search result; in non-verbose mode,
+                        -- a separate result may be shown for each alias
+                        (if isVerbose then uniqueBy SR.toReferent else id) $
+                          searchResultsFor names matches []
+                  pure . pure $ results
+
+            -- name query
+            (map HQ.unsafeFromString -> qs) -> do
+              let srs = searchBranchScored names fuzzyNameDistance qs
+              pure $ uniqueBy SR.toReferent srs
+    let respondResults results = lift do
+          LoopState.numberedArgs .= fmap searchResultToHQString results
+          results' <- eval $ LoadSearchResults results
+          ppe <-
+            suffixifiedPPE
+              =<< makePrintNamesFromLabeled'
+                (foldMap SR'.labeledDependencies results')
+          respond $ ListOfDefinitions ppe isVerbose results'
+    results <- getResults (getNames fscope)
+    case (results, fscope) of
+      ([],Local) -> do
+        respond FindNoLocalMatches
+        respondResults =<< getResults (getNames LocalAndDeps)
+      _ -> respondResults results
 
 handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
 handleDependents hq = do
@@ -2586,10 +2622,6 @@ confirmedCommand :: Input -> Action m i v Bool
 confirmedCommand i = do
   i0 <- use LoopState.lastInput
   pure $ Just i == i0
-
-listBranch :: Branch0 m -> [SearchResult]
-listBranch (Branch.toNames -> b) =
-  List.sortOn (\s -> (SR.name s, s)) (SR.fromNames b)
 
 -- | restores the full hash to these search results, for _numberedArgs purposes
 searchResultToHQString :: SearchResult -> String
