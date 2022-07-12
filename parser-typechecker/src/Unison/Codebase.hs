@@ -90,8 +90,10 @@ module Unison.Codebase
     CodebasePath,
     SyncToDir,
 
-    -- * Sqlite escape hatch
-    connection,
+    -- * Direct codebase access
+    runTransaction,
+    withConnection,
+    withConnectionIO,
 
     -- * Misc (organize these better)
     addDefsToCodebase,
@@ -154,6 +156,12 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
+import qualified Unison.Sqlite as Sqlite
+
+-- | Run a transaction on a codebase.
+runTransaction :: MonadIO m => Codebase m v a -> Sqlite.Transaction b -> m b
+runTransaction Codebase{withConnection} action =
+  withConnection \conn -> Sqlite.runTransaction conn action
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.

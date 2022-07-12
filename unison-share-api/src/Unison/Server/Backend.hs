@@ -615,9 +615,13 @@ toAllNames :: NameScoping -> NameScoping
 toAllNames (AllNames p) = AllNames p
 toAllNames (Within p) = AllNames p
 
-getCurrentPrettyNames :: NameScoping -> Branch m -> NamesWithHistory
-getCurrentPrettyNames scope root =
-  NamesWithHistory (prettyNamesForBranch root scope) mempty
+getCurrentPrettyNames :: Int -> NameScoping -> Branch m -> PPE.PrettyPrintEnvDecl
+getCurrentPrettyNames hashLen scope root =
+  let primary = PPE.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
+      backup = PPE.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
+   in PPE.PrettyPrintEnvDecl
+        (PPE.unsuffixifiedPPE primary <> PPE.unsuffixifiedPPE backup)
+        (PPE.suffixifiedPPE primary <> PPE.suffixifiedPPE backup)
 
 getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
 getCurrentParseNames scope root =
@@ -1085,9 +1089,9 @@ scopedNamesForBranchHash codebase mbh path = do
     Nothing
       | shouldUseNamesIndex -> indexNames
       | otherwise -> do
-        rootBranch <- lift $ Codebase.getRootBranch codebase
-        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-        pure (parseNames, localNames)
+          rootBranch <- lift $ Codebase.getRootBranch codebase
+          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+          pure (parseNames, localNames)
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
       if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex

@@ -43,7 +43,6 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Result as Result
 import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
-import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -243,8 +242,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
               UnliftIO.UnliftIO toIO -> toIO . Free.fold go
         pure runF
       UCMVersion -> pure ucmVersion
-      AnalyzeCodebaseIntegrity -> do
-        Sqlite.runTransaction (Codebase.connection codebase) integrityCheckFullCodebase
+      AnalyzeCodebaseIntegrity -> lift (Codebase.runTransaction codebase integrityCheckFullCodebase)
 
     watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
     watchCache h = do
