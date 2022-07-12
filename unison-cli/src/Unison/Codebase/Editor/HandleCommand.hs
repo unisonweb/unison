@@ -213,14 +213,14 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
       HQNameQuery mayPath branch query -> do
         hqLength <- lift $ Codebase.hashLength codebase
-        let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
+        let namingScope = Backend.AllNames $ fromMaybe Path.absoluteEmpty mayPath
         let parseNames = Backend.parseNamesForBranch branch namingScope
         let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
         lift $ Backend.hqNameQuery codebase nameSearch query
       LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
       GetDefinitionsBySuffixes mayPath branch includeCycles query -> do
         hqLength <- lift $ Codebase.hashLength codebase
-        let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
+        let namingScope = Backend.AllNames $ fromMaybe Path.absoluteEmpty mayPath
         let parseNames = Backend.parseNamesForBranch branch namingScope
         let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
         lift (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)

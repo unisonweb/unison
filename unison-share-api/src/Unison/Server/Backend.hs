@@ -46,7 +46,6 @@ import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
-import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash
@@ -166,13 +165,13 @@ namesForBranch :: Branch m -> NameScoping -> (Names, Names, Names)
 namesForBranch root scope =
   (parseNames0, prettyPrintNames0, currentPathNames)
   where
-    path :: Path
+    path :: Path.Absolute
     includeAllNames :: Bool
     (path, includeAllNames) = case scope of
       AllNames path -> (path, True)
       Within path -> (path, False)
     root0 = Branch.head root
-    currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
+    currentBranch = fromMaybe Branch.empty $ Branch.getAt (Path.unabsolute path) root
     absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
     currentBranch0 = Branch.head currentBranch
     currentPathNames = Branch.toNames currentBranch0
@@ -185,8 +184,9 @@ namesForBranch root scope =
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
         rootNames = Branch.toNames root0
         pathPrefixed = case path of
-          Path.Path (toList -> []) -> const mempty
-          p -> Names.prefix0 (Path.toName p)
+          p
+            | p == Path.absoluteEmpty -> const mempty
+            | otherwise -> Names.prefix0 (Path.toName' . Path.absoluteToPath' $ p)
     -- parsing should respond to local and absolute names
     parseNames0 = currentPathNames <> Monoid.whenM includeAllNames absoluteRootNames
     -- pretty-printing should use local names where available
@@ -608,9 +608,9 @@ termReferentsByShortHash codebase sh = do
 data NameScoping
   = -- | Find all names, making any names which are children of this path,
     -- otherwise leave them absolute.
-    AllNames Path
+    AllNames Path.Absolute
   | -- | Filter returned names to only include names within this path.
-    Within Path
+    Within Path.Absolute
 
 toAllNames :: NameScoping -> NameScoping
 toAllNames (AllNames p) = AllNames p
@@ -618,7 +618,7 @@ toAllNames (Within p) = AllNames p
 
 getCurrentPrettyNames :: Int -> PPE.Perspective -> Maybe Name -> Branch m -> PPE.PrettyPrintEnv
 getCurrentPrettyNames hashLen perspective bias root =
-  PPE.fromNames hashLen Nothing perspective bias PPE.Suffixify $ NamesWithHistory (parseNamesForBranch root (AllNames Path.empty)) mempty
+  PPE.fromNames hashLen Nothing perspective bias PPE.Suffixify $ NamesWithHistory (parseNamesForBranch root (AllNames Path.absoluteEmpty)) mempty
 
 getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
 getCurrentParseNames scope root =
@@ -990,7 +990,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   docTermsWithNames <- filterM (isDoc codebase . fst) allTerms
   let docNamesByRef = Map.fromList docTermsWithNames
   hqLength <- Codebase.hashLength codebase
-  let printNames = prettyNamesForBranch root (AllNames $ Path.unabsolute currentPath)
+  let printNames = prettyNamesForBranch root (AllNames currentPath)
   let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
   let ppe = PPE.fromNames hqLength Nothing (PPE.RelativeTo currentPath) Nothing PPE.Suffixify printNamesWithHistory
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
@@ -1088,14 +1088,14 @@ scopedNamesForBranchHash codebase mbh path mayBias = do
       | shouldUseNamesIndex -> indexNames
       | otherwise -> do
         rootBranch <- lift $ Codebase.getRootBranch codebase
-        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames $ Path.unabsolute path)
+        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
         pure (parseNames, localNames)
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
       if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
         then indexNames
         else do
-          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames $ Path.unabsolute path) <$> resolveCausalHash (Just bh) codebase
+          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
           pure (parseNames, localNames)
 
   let localPPE = PPE.fromNames hashLen Nothing (PPE.RelativeTo path) mayBias PPE.NoSuffixify (NamesWithHistory.fromCurrentNames parseNames)

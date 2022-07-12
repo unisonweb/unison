@@ -183,7 +183,8 @@ prettyPrintEnv = do
   hashLen <- eval CodebaseHashLength
   currentPath' <- use LoopState.currentPath
   pure $ Backend.getCurrentPrettyNames hashLen (PPE.RelativeTo currentPath') Nothing root'
-  -- pure $ PPE.fromNames hashLen Nothing PPE.Root Nothing PPE.NoSuffixify ns
+
+-- pure $ PPE.fromNames hashLen Nothing PPE.Root Nothing PPE.NoSuffixify ns
 
 -- biasedPrettyPrintEnvDecl :: MonadCommand n m i v => Maybe Name -> NamesWithHistory -> n PPE.PrettyPrintEnvDecl
 -- biasedPrettyPrintEnvDecl bias ns = eval CodebaseHashLength <&> (\hl -> PPE.biasedPPEDecl hl bias ns)
@@ -1962,7 +1963,7 @@ handleShowDefinition outputLoc inputQuery = do
             _ -> respond (HelpMessage InputPatterns.edit) $> []
           Just defs -> pure defs
       else pure inputQuery
-  currentPath' <- Path.unabsolute <$> use LoopState.currentPath
+  currentPath' <- use LoopState.currentPath
   root' <- use LoopState.root
   hqLength <- eval CodebaseHashLength
   Backend.DefinitionResults terms types misses <-

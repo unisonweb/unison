@@ -123,7 +123,7 @@ data
     [SR.SearchResult] ->
     Command m i v [SR'.SearchResult' v Ann]
   GetDefinitionsBySuffixes ::
-    Maybe Path ->
+    Maybe Path.Absolute ->
     Branch m ->
     IncludeCycles ->
     [HQ.HashQualified Name] ->
