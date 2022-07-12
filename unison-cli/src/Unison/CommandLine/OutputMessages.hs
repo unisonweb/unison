@@ -47,6 +47,7 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
+import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRepo,
     ReadRemoteNamespace,
@@ -1235,7 +1236,7 @@ notifyUser dir o = case o of
   NoConfiguredRemoteMapping pp p ->
     pure . P.fatalCallout . P.wrap $
       "I don't know where to "
-        <> pushPull "push to!" "pull from!" pp
+        <> PushPull.fold "push to!" "pull from!" pp
         <> ( if Path.isRoot p
                then ""
                else
@@ -1243,7 +1244,7 @@ notifyUser dir o = case o of
                    <> " = namespace.path' to .unisonConfig. "
            )
         <> "Type `help "
-        <> pushPull "push" "pull" pp
+        <> PushPull.fold "push" "pull" pp
         <> "` for more information."
   --  | ConfiguredGitUrlParseError PushPull Path' Text String
   ConfiguredRemoteMappingParseError pp p url err ->
@@ -1259,7 +1260,7 @@ notifyUser dir o = case o of
         P.string err,
         "",
         P.wrap $
-          "Type" <> P.backticked ("help " <> pushPull "push" "pull" pp)
+          "Type" <> P.backticked ("help " <> PushPull.fold "push" "pull" pp)
             <> "for more information."
       ]
   NoBranchWithHash _h ->
@@ -1675,11 +1676,11 @@ notifyUser dir o = case o of
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
-        P.lines
-          [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
-            "",
-            "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
-          ]
+      P.lines
+        [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
+          "",
+          "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
+        ]
     expectedNonEmptyPushDest writeRemotePath =
       P.lines
         [ P.wrap ("The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty."),
