@@ -30,8 +30,10 @@ import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
 import qualified Text.Megaparsec as P
-import U.Codebase.HashTags (CausalHash)
+import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Sqlite.Operations as Ops
+import U.Util.Hash32 (Hash32)
+import qualified U.Util.Hash32 as Hash32
 import U.Util.Timing (time, unsafeTime)
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
@@ -100,7 +102,7 @@ import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
-import Unison.Codebase.Type (GitError)
+import Unison.Codebase.Type (GitError, GitPushBehavior (..))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
@@ -147,11 +149,11 @@ import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Share.Codeserver as Codeserver
 import qualified Unison.Share.Sync as Share
-import qualified Unison.Share.Sync.Types as Sync
+import qualified Unison.Share.Sync.Types as Share
 import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import Unison.Symbol (Symbol)
-import qualified Unison.Sync.Types as Share (Path (..))
+import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -1442,7 +1444,7 @@ loop = do
                     if didUpdate
                       then respond $ PullSuccessful ns path
                       else respond unchangedMsg
-            PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch mayRepo path pushBehavior syncMode
+            PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq ->
               -- todo: add flag to handle transitive efficiently
@@ -1749,26 +1751,14 @@ handleGist (GistInput repo) =
   doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
 
 -- | Handle a @push@ command.
-handlePushRemoteBranch ::
-  forall m v.
-  MonadUnliftIO m =>
-  -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
-  Maybe WriteRemotePath ->
-  -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
-  Path' ->
-  -- | The push behavior (whether the remote branch is required to be empty or non-empty).
-  PushBehavior ->
-  SyncMode.SyncMode ->
-  Action' m v ()
-handlePushRemoteBranch mayRepo path pushBehavior syncMode =
-  time
-    "handlePushRemoteBranch"
-    case mayRepo of
-      Nothing ->
-        runExceptT (resolveConfiguredUrl Push path) >>= \case
-          Left output -> respond output
-          Right repo -> push repo
-      Just repo -> push repo
+handlePushRemoteBranch :: forall m v. MonadUnliftIO m => PushRemoteBranchInput -> Action' m v ()
+handlePushRemoteBranch PushRemoteBranchInput {maybeRemoteRepo = mayRepo, localPath = path, pushBehavior, syncMode} =
+  time "handlePushRemoteBranch" case mayRepo of
+    Nothing ->
+      runExceptT (resolveConfiguredUrl Push path) >>= \case
+        Left output -> respond output
+        Right repo -> push repo
+    Just repo -> push repo
   where
     push repo =
       doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
@@ -1805,16 +1795,27 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
             Branch.modifyAtM remotePath f remoteRoot & \case
               Nothing -> pure (Left $ RefusedToPush pushBehavior writeRemotePath)
               Just newRemoteRoot -> pure (Right newRemoteRoot)
-      let opts = PushGitBranchOpts {setRoot = True, syncMode}
+      let opts =
+            PushGitBranchOpts
+              { behavior =
+                  case pushBehavior of
+                    PushBehavior.ForcePush -> GitPushBehaviorForce
+                    PushBehavior.RequireEmpty -> GitPushBehaviorFf
+                    PushBehavior.RequireNonEmpty -> GitPushBehaviorFf,
+                syncMode
+              }
       runExceptT (syncGitRemoteBranch repo opts withRemoteRoot) >>= \case
         Left gitErr -> respond (Output.GitError gitErr)
         Right (Left errOutput) -> respond errOutput
         Right (Right _branch) -> respond Success
-    NormalPush (WriteRemotePathShare sharePath) pushBehavior ->
-      handlePushToUnisonShare sharePath localPath pushBehavior
+    NormalPush (WriteRemotePathShare sharePath) pushBehavior -> handlePushToUnisonShare sharePath localPath pushBehavior
     GistyPush repo -> do
       sourceBranch <- getAt localPath
-      let opts = PushGitBranchOpts {setRoot = False, syncMode}
+      let opts =
+            PushGitBranchOpts
+              { behavior = GitPushBehaviorGist,
+                syncMode
+              }
       runExceptT (syncGitRemoteBranch repo opts (\_remoteRoot -> pure (Right sourceBranch))) >>= \case
         Left gitErr -> respond (Output.GitError gitErr)
         Right (Left errOutput) -> respond errOutput
@@ -1832,15 +1833,17 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
   where
     -- Per `pushBehavior`, we are either:
     --
-    --   (1) updating an empty branch, which fails if the branch isn't empty (`push.create`)
-    --   (2) updating a non-empty branch, which fails if the branch is empty (`push`)
+    --   (1) force-pushing, in which case the remote branch state doesn't matter
+    --   (2) updating an empty branch, which fails if the branch isn't empty (`push.create`)
+    --   (3) updating a non-empty branch, which fails if the branch is empty (`push`)
     shouldPushTo :: PushBehavior -> Branch m -> Bool
     shouldPushTo pushBehavior remoteBranch =
       case pushBehavior of
+        PushBehavior.ForcePush -> True
         PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
-handlePushToUnisonShare :: (MonadUnliftIO m) => WriteShareRemotePath -> Path.Absolute -> PushBehavior -> Action' m v ()
+handlePushToUnisonShare :: MonadUnliftIO m => WriteShareRemotePath -> Path.Absolute -> PushBehavior -> Action' m v ()
 handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
@@ -1852,26 +1855,40 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
   -- doesn't handle the case where a non-existent path is supplied
   eval (Eval (Codebase.runTransaction codebase (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))))) >>= \case
     Nothing -> respond (BranchNotFound . Path.absoluteToPath' $ localPath)
-    Just localCausalHash ->
-      case behavior of
-        PushBehavior.RequireEmpty -> do
-          let push :: IO (Either (Sync.SyncError Share.CheckAndSetPushError) ())
-              push =
-                withEntitiesUploadedProgressCallbacks \callbacks ->
+    Just localCausalHash -> do
+      let checkAndSetPush :: Maybe Hash32 -> IO (Either (Share.SyncError Share.CheckAndSetPushError) ())
+          checkAndSetPush remoteHash =
+            withEntitiesUploadedProgressCallbacks \callbacks ->
+              if Just (Hash32.fromHash (unCausalHash localCausalHash)) == remoteHash
+                then pure (Right ())
+                else
                   Share.checkAndSetPush
                     authHTTPClient
                     baseURL
                     (Codebase.withConnectionIO codebase)
                     sharePath
-                    Nothing
+                    remoteHash
                     localCausalHash
                     callbacks
-          liftIO push >>= \case
-            Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorCheckAndSetPush err))
-            Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
+      let respondPushError :: (a -> Output.ShareError) -> Share.SyncError a -> Action' m v ()
+          respondPushError f =
+            respond . \case
+              Share.SyncError err -> Output.ShareError (f err)
+              Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
+      case behavior of
+        PushBehavior.ForcePush ->
+          liftIO (Share.getCausalHashByPath authHTTPClient baseURL sharePath) >>= \case
+            Left err -> respond (Output.ShareError (ShareErrorGetCausalHashByPath err))
+            Right maybeHashJwt ->
+              liftIO (checkAndSetPush (Share.hashJWTHash <$> maybeHashJwt)) >>= \case
+                Left err -> respondPushError ShareErrorCheckAndSetPush err
+                Right () -> respond (ViewOnShare remote)
+        PushBehavior.RequireEmpty -> do
+          liftIO (checkAndSetPush Nothing) >>= \case
+            Left err -> respondPushError ShareErrorCheckAndSetPush err
             Right () -> respond (ViewOnShare remote)
         PushBehavior.RequireNonEmpty -> do
-          let push :: IO (Either (Sync.SyncError Share.FastForwardPushError) ())
+          let push :: IO (Either (Share.SyncError Share.FastForwardPushError) ())
               push = do
                 withEntitiesUploadedProgressCallbacks \callbacks ->
                   Share.fastForwardPush
@@ -1882,8 +1899,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
                     localCausalHash
                     callbacks
           liftIO push >>= \case
-            Left (Sync.SyncError err) -> respond (Output.ShareError (ShareErrorFastForwardPush err))
-            Left (Sync.TransportError err) -> respond (Output.ShareError (ShareErrorTransport err))
+            Left err -> respondPushError ShareErrorFastForwardPush err
             Right () -> respond (ViewOnShare remote)
   where
     pathToSegments :: Path -> [Text]
@@ -2378,7 +2394,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
     LoopState.Env {authHTTPClient, codebase} <- ask
-    let pull :: IO (Either (Sync.SyncError Share.PullError) CausalHash)
+    let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
         pull =
           withEntitiesDownloadedProgressCallbacks \callbacks ->
             Share.pull
@@ -2388,8 +2404,8 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
               shareFlavoredPath
               callbacks
     liftIO pull >>= \case
-      Left (Sync.SyncError err) -> pure (Left (Output.ShareErrorPull err))
-      Left (Sync.TransportError err) -> pure (Left (Output.ShareErrorTransport err))
+      Left (Share.SyncError err) -> pure (Left (Output.ShareErrorPull err))
+      Left (Share.TransportError err) -> pure (Left (Output.ShareErrorTransport err))
       Right causalHash -> do
         (eval . Eval) (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
           Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"

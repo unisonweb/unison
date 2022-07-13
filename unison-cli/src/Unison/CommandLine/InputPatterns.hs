@@ -1117,14 +1117,28 @@ push =
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
         url : rest -> do
           pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
     )
 
 pushCreate :: InputPattern
@@ -1158,14 +1172,62 @@ pushCreate =
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.RequireEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
         url : rest -> do
           pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.RequireEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
+    )
+
+pushForce :: InputPattern
+pushForce =
+  InputPattern
+    "unsafe.force-push"
+    []
+    I.Hidden
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
+    (P.wrap "Like `push`, but overwrites any remote namespace.")
+    ( \case
+        [] ->
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.ForcePush,
+                  syncMode = SyncMode.ShortCircuit
+                }
+        url : rest -> do
+          pushPath <- parseWriteRemotePath "remote-path" url
+          p <- case rest of
+            [] -> Right Path.relativeEmpty'
+            [path] -> first fromString $ Path.parsePath' path
+            _ -> Left (I.help push)
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.ForcePush,
+                  syncMode = SyncMode.ShortCircuit
+                }
     )
 
 pushExhaustive :: InputPattern
@@ -1186,14 +1248,28 @@ pushExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.Complete
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.Complete
+                }
         url : rest -> do
           pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireNonEmpty SyncMode.Complete
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.Complete
+                }
     )
 
 createPullRequest :: InputPattern
@@ -2140,6 +2216,7 @@ validInputs =
       names False, -- names
       push,
       pushCreate,
+      pushForce,
       pull,
       pullWithoutHistory,
       pullSilent,
