@@ -316,7 +316,81 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
 GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
 {
     "missingDefinitions": [],
-    "termDefinitions": {},
+    "termDefinitions": {
+        "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8": {
+            "bestTermName": "x",
+            "defnTermTag": null,
+            "signature": [
+                {
+                    "annotation": {
+                        "contents": "##Nat",
+                        "tag": "TypeReference"
+                    },
+                    "segment": "Nat"
+                }
+            ],
+            "termDefinition": {
+                "contents": [
+                    {
+                        "annotation": {
+                            "contents": "x",
+                            "tag": "HashQualifier"
+                        },
+                        "segment": "x"
+                    },
+                    {
+                        "annotation": {
+                            "tag": "TypeAscriptionColon"
+                        },
+                        "segment": " :"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": {
+                            "contents": "##Nat",
+                            "tag": "TypeReference"
+                        },
+                        "segment": "Nat"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": "\n"
+                    },
+                    {
+                        "annotation": {
+                            "contents": "x",
+                            "tag": "HashQualifier"
+                        },
+                        "segment": "x"
+                    },
+                    {
+                        "annotation": {
+                            "tag": "BindingEquals"
+                        },
+                        "segment": " ="
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": {
+                            "tag": "NumericLiteral"
+                        },
+                        "segment": "42"
+                    }
+                ],
+                "tag": "UserObject"
+            },
+            "termDocs": [],
+            "termNames": [
+                ".nested.names.x"
+            ]
+        }
+    },
     "typeDefinitions": {}
 }
 ```
