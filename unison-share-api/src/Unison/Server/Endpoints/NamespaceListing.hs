@@ -189,7 +189,11 @@ serve codebase maySBH mayRelativeTo mayNamespaceName = do
     (True, Just rh)
       | rh == causalHash2to1 codebaseRootHash ->
         serveFromIndex codebase mayRootHash path'
-    (_, Just rh) -> do
+      | otherwise -> do
+        mayBranch <- liftIO $ Codebase.getBranchForHash codebase rh
+        branch <- maybe (throwError $ Backend.NoBranchForHash rh) pure mayBranch
+        serveFromBranch codebase path' branch
+    (False, Just rh) -> do
       mayBranch <- liftIO $ Codebase.getBranchForHash codebase rh
       branch <- maybe (throwError $ Backend.NoBranchForHash rh) pure mayBranch
       serveFromBranch codebase path' branch
@@ -208,7 +212,8 @@ serveFromBranch ::
   Backend.Backend IO NamespaceListing
 serveFromBranch codebase path' branch = do
   let branchAtPath = Branch.getAt' (Path.fromPath' path') branch
-  -- TODO: Currently the ppe is just used for rendering types which don't appear in the UI,
+  -- TODO: Currently the ppe is just used to render the types returned from the namespace
+  -- listing, which are currently unused because we don't show types in the side-bar.
   -- If we ever show types on hover we need to build and use a proper PPE here, but it's not
   -- worth slowing down the request for this right now.
   let ppe = mempty
@@ -225,10 +230,9 @@ serveFromIndex ::
 serveFromIndex codebase mayRootHash path' = do
   listingCausal <- Backend.getShallowCausalAtPathFromRootHash codebase mayRootHash (Path.fromPath' path')
   listingBranch <- liftIO $ V2Causal.value listingCausal
-
-  -- TODO: Currently the ppe is just used for rendering types which don't appear in the UI,
+  -- TODO: Currently the ppe is just used to render the types returned from the namespace
+  -- listing, which are currently unused because we don't show types in the side-bar.
   -- If we ever show types on hover we need to build and use a proper PPE here, but it's not
-  -- worth slowing down the request for this right now.
   -- shallowPPE <- liftIO $ Backend.shallowPPE codebase listingBranch
   let shallowPPE = mempty
   let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
