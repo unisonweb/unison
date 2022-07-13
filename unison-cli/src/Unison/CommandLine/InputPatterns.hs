@@ -1178,7 +1178,7 @@ pushCreate =
 pushForce :: InputPattern
 pushForce =
   InputPattern
-    "push.force"
+    "unsafe.force-push"
     []
     I.Visible
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
