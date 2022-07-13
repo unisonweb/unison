@@ -1844,7 +1844,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
 handlePushToUnisonShare :: MonadUnliftIO m => WriteShareRemotePath -> Path.Absolute -> PushBehavior -> Action' m v ()
-handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
+handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
@@ -1882,11 +1882,11 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
             Right maybeHashJwt ->
               liftIO (checkAndSetPush (Share.hashJWTHash <$> maybeHashJwt)) >>= \case
                 Left err -> respondPushError ShareErrorCheckAndSetPush err
-                Right () -> pure ()
+                Right () -> respond (ViewOnShare remote)
         PushBehavior.RequireEmpty -> do
           liftIO (checkAndSetPush Nothing) >>= \case
             Left err -> respondPushError ShareErrorCheckAndSetPush err
-            Right () -> pure ()
+            Right () -> respond (ViewOnShare remote)
         PushBehavior.RequireNonEmpty -> do
           let push :: IO (Either (Share.SyncError Share.FastForwardPushError) ())
               push = do
@@ -1900,7 +1900,7 @@ handlePushToUnisonShare WriteShareRemotePath {server, repo, path = remotePath} l
                     callbacks
           liftIO push >>= \case
             Left err -> respondPushError ShareErrorFastForwardPush err
-            Right () -> pure ()
+            Right () -> respond (ViewOnShare remote)
   where
     pathToSegments :: Path -> [Text]
     pathToSegments =
