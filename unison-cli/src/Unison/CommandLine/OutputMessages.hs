@@ -1695,7 +1695,7 @@ notifyUser dir o = case o of
         P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
   ViewOnShare repoPath ->
     pure $
-      "View it on share: " <> prettyShareLink repoPath
+      "View it on Unison Share: " <> prettyShareLink repoPath
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
