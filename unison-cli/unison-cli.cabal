@@ -150,6 +150,7 @@ library
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
     , vector
     , wai
     , warp
@@ -255,6 +256,7 @@ executable cli-integration-tests
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
     , vector
     , wai
     , warp
@@ -354,6 +356,7 @@ executable transcripts
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
     , vector
     , wai
     , warp
@@ -458,6 +461,7 @@ executable unison
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
     , vector
     , wai
     , warp
@@ -566,6 +570,7 @@ test-suite cli-tests
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
     , vector
     , wai
     , warp

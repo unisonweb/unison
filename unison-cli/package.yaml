@@ -40,6 +40,7 @@ dependencies:
   - memory
   - mtl
   - network-uri
+  - uri-encode
   - nonempty-containers
   - open-browser
   - pretty-simple

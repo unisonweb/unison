@@ -203,6 +203,7 @@ data Output v
     BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
   | ShareError ShareError
+  | ViewOnShare WriteShareRemotePath
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
@@ -392,6 +393,7 @@ isFailure o = case o of
       NoIntegrityErrors -> False
       IntegrityErrorDetected {} -> True
   ShareError {} -> True
+  ViewOnShare {} -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

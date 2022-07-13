@@ -26,6 +26,7 @@ import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
+import qualified Network.URI.Encode as URI
 import qualified Servant.Client as Servant
 import System.Directory
   ( canonicalizePath,
@@ -106,6 +107,7 @@ import Unison.NamePrinter
     styleHashQualified',
   )
 import Unison.NameSegment (NameSegment (..))
+import qualified Unison.NameSegment as NameSegment
 import Unison.Names (Names (..))
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as Names
@@ -644,8 +646,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
+        pure $
+          P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -654,7 +656,6 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
-
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1692,6 +1693,9 @@ notifyUser dir o = case o of
         P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettySharePath sharePath <> ".")
       noWritePermission sharePath =
         P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
+  ViewOnShare repoPath ->
+    pure $
+      "View it on share: " <> prettyShareLink repoPath
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
@@ -1746,6 +1750,14 @@ notifyUser dir o = case o of
 --    where
 --      ns targets = P.oxfordCommas $
 --        map (fromString . Names.renderNameTarget) (toList targets)
+
+prettyShareLink :: WriteShareRemotePath -> Pretty
+prettyShareLink WriteShareRemotePath {repo, path} =
+  let encodedPath =
+        Path.toList path
+          & fmap (URI.encodeText . NameSegment.toText)
+          & Text.intercalate "/"
+   in P.green . P.text $ "https://share-next.unison-lang.org/users/" <> repo <> "/code/latest/namespaces/" <> encodedPath
 
 prettyFilePath :: FilePath -> Pretty
 prettyFilePath fp =
@@ -2316,7 +2328,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-      ("The namespaces are identical.", mempty)
+    ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
