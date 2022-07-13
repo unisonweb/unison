@@ -1751,13 +1751,16 @@ notifyUser dir o = case o of
 --      ns targets = P.oxfordCommas $
 --        map (fromString . Names.renderNameTarget) (toList targets)
 
+shareOrigin :: Text
+shareOrigin = "https://share.unison-lang.org"
+
 prettyShareLink :: WriteShareRemotePath -> Pretty
 prettyShareLink WriteShareRemotePath {repo, path} =
   let encodedPath =
         Path.toList path
           & fmap (URI.encodeText . NameSegment.toText)
           & Text.intercalate "/"
-   in P.green . P.text $ "https://share-next.unison-lang.org/users/" <> repo <> "/code/latest/namespaces/" <> encodedPath
+   in P.green . P.text $ shareOrigin <> "/users/" <> repo <> "/code/latest/namespaces/" <> encodedPath
 
 prettyFilePath :: FilePath -> Pretty
 prettyFilePath fp =
