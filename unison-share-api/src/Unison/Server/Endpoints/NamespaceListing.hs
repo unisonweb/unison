@@ -143,12 +143,12 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowTermEntry te ->
     TermObject $ Backend.termEntryToNamedTerm ppe typeWidth te
   Backend.ShallowTypeEntry te -> TypeObject $ Backend.typeEntryToNamedType te
-  Backend.ShallowBranchEntry name hash _size ->
+  Backend.ShallowBranchEntry name hash size ->
     Subnamespace $
       NamedNamespace
         { namespaceName = NameSegment.toText name,
           namespaceHash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash),
-          namespaceSize = Nothing
+          namespaceSize = size
         }
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name
@@ -207,13 +207,14 @@ serveFromBranch ::
   Branch IO ->
   Backend.Backend IO NamespaceListing
 serveFromBranch codebase path' branch = do
+  let branchAtPath = Branch.getAt' (Path.fromPath' path') branch
   -- TODO: Currently the ppe is just used for rendering types which don't appear in the UI,
   -- If we ever show types on hover we need to build and use a proper PPE here, but it's not
   -- worth slowing down the request for this right now.
   let ppe = mempty
   let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-  let listingHash = branchToUnisonHash branch
-  listingEntries <- liftIO $ Backend.lsBranch codebase branch
+  let listingHash = branchToUnisonHash branchAtPath
+  listingEntries <- liftIO $ Backend.lsBranch codebase branchAtPath
   makeNamespaceListing ppe listingFQN listingHash listingEntries
 
 serveFromIndex ::
