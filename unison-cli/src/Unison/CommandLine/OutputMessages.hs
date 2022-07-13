@@ -10,6 +10,7 @@ import Control.Monad.State
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.Trans.Writer.CPS
 import Data.Bifunctor (first, second)
+import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Foldable as Foldable
 import Data.List (sort, stripPrefix)
 import qualified Data.List as List
@@ -20,8 +21,10 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
+import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
 import qualified Servant.Client as Servant
 import System.Directory
@@ -47,6 +50,7 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
+import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRepo,
     ReadRemoteNamespace,
@@ -640,8 +644,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -650,6 +654,7 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
+
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -926,6 +931,8 @@ notifyUser dir o = case o of
           Input.UpdateI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s
+  FindNoLocalMatches ->
+    pure . P.callout "☝️" $ P.wrap "I couldn't find matches in this namespace, searching in 'lib'..."
   NoExactTypeMatches ->
     pure . P.callout "☝️" $ P.wrap "I couldn't find exact type matches, resorting to fuzzy matching..."
   TypeParseError src e ->
@@ -1235,7 +1242,7 @@ notifyUser dir o = case o of
   NoConfiguredRemoteMapping pp p ->
     pure . P.fatalCallout . P.wrap $
       "I don't know where to "
-        <> pushPull "push to!" "pull from!" pp
+        <> PushPull.fold "push to!" "pull from!" pp
         <> ( if Path.isRoot p
                then ""
                else
@@ -1243,7 +1250,7 @@ notifyUser dir o = case o of
                    <> " = namespace.path' to .unisonConfig. "
            )
         <> "Type `help "
-        <> pushPull "push" "pull" pp
+        <> PushPull.fold "push" "pull" pp
         <> "` for more information."
   --  | ConfiguredGitUrlParseError PushPull Path' Text String
   ConfiguredRemoteMappingParseError pp p url err ->
@@ -1259,7 +1266,7 @@ notifyUser dir o = case o of
         P.string err,
         "",
         P.wrap $
-          "Type" <> P.backticked ("help " <> pushPull "push" "pull" pp)
+          "Type" <> P.backticked ("help " <> PushPull.fold "push" "pull" pp)
             <> "for more information."
       ]
   NoBranchWithHash _h ->
@@ -1586,7 +1593,7 @@ notifyUser dir o = case o of
           "Host names should NOT include a schema or path."
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
-  ShareError x -> (pure . P.warnCallout) case x of
+  ShareError x -> (pure . P.fatalCallout) case x of
     ShareErrorCheckAndSetPush e -> case e of
       (Share.CheckAndSetPushErrorHashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash}) ->
         case (expectedHash, actualHash) of
@@ -1599,12 +1606,10 @@ notifyUser dir o = case o of
         expectedNonEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
       (Share.FastForwardPushErrorNoReadPermission sharePath) -> noReadPermission sharePath
       (Share.FastForwardPushInvalidParentage parent child) ->
-        P.fatalCallout
-          ( P.lines
-              [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
-                "The history in question is the hash: " <> prettyHash32 child <> " with the ancestor: " <> prettyHash32 parent
-              ]
-          )
+        P.lines
+          [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
+            "The history in question is the hash: " <> prettyHash32 child <> " with the ancestor: " <> prettyHash32 parent
+          ]
       Share.FastForwardPushErrorNotFastForward sharePath ->
         P.lines $
           [ P.wrap $
@@ -1628,24 +1633,42 @@ notifyUser dir o = case o of
         P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
     ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
     ShareErrorTransport te -> case te of
+      DecodeFailure msg resp ->
+        (P.lines . catMaybes)
+          [ Just ("The server sent a response that we couldn't decode: " <> P.text msg),
+            responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
+          ]
       Unauthenticated codeServerURL ->
-        P.fatalCallout $
-          P.wrap . P.lines $
-            [ "Authentication with this code server (" <> P.string (Servant.showBaseUrl codeServerURL) <> ") is missing or expired.",
-              "Please run " <> makeExample' IP.authLogin <> "."
-            ]
-      PermissionDenied msg -> P.fatalCallout $ P.hang "Permission denied:" (P.text msg)
+        P.wrap . P.lines $
+          [ "Authentication with this code server (" <> P.string (Servant.showBaseUrl codeServerURL) <> ") is missing or expired.",
+            "Please run " <> makeExample' IP.authLogin <> "."
+          ]
+      PermissionDenied msg -> P.hang "Permission denied:" (P.text msg)
       UnreachableCodeserver codeServerURL ->
         P.lines $
           [ P.wrap $ "Unable to reach the code server hosted at:" <> P.string (Servant.showBaseUrl codeServerURL),
             "",
             P.wrap "Please check your network, ensure you've provided the correct location, or try again later."
           ]
-      InvalidResponse resp -> P.fatalCallout $ P.hang "Invalid response received from codeserver:" (P.shown resp)
-      RateLimitExceeded -> P.warnCallout "Rate limit exceeded, please try again later."
-      InternalServerError -> P.fatalCallout "The code server encountered an error. Please try again later or report an issue if the problem persists."
-      Timeout -> P.fatalCallout "The code server timed-out when responding to your request. Please try again later or report an issue if the problem persists."
+      RateLimitExceeded -> "Rate limit exceeded, please try again later."
+      Timeout -> "The code server timed-out when responding to your request. Please try again later or report an issue if the problem persists."
+      UnexpectedResponse resp ->
+        (P.lines . catMaybes)
+          [ Just
+              ( "The server sent a "
+                  <> P.red (P.shown (Http.statusCode (Servant.responseStatusCode resp)))
+                  <> " that we didn't expect."
+              ),
+            let body = Text.decodeUtf8 (LazyByteString.toStrict (Servant.responseBody resp))
+             in if Text.null body then Nothing else Just (P.newline <> "Response body: " <> P.text body),
+            responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
+          ]
     where
+      -- Dig the request id out of a response header.
+      responseRequestId :: Servant.Response -> Maybe Text
+      responseRequestId =
+        fmap Text.decodeUtf8 . List.lookup "X-RequestId" . Foldable.toList @Seq . Servant.responseHeaders
+
       prettySharePath =
         prettyRelative
           . Path.Relative
@@ -1676,11 +1699,11 @@ notifyUser dir o = case o of
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
-        P.lines
-          [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
-            "",
-            "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
-          ]
+      P.lines
+        [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
+          "",
+          "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
+        ]
     expectedNonEmptyPushDest writeRemotePath =
       P.lines
         [ P.wrap ("The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty."),
@@ -2294,7 +2317,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where

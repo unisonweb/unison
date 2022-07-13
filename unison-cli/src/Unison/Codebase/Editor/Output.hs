@@ -8,10 +8,8 @@ module Unison.Codebase.Editor.Output
     HistoryTail (..),
     TestReportStats (..),
     UndoFailureReason (..),
-    PushPull (..),
     ReflogEntry (..),
     ShareError (..),
-    pushPull,
     isFailure,
     isNumberedFailure,
   )
@@ -26,6 +24,7 @@ import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
+import Unison.Codebase.Editor.Output.PushPull (PushPull)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import qualified Unison.Codebase.Editor.SlurpResult as SR
@@ -76,13 +75,6 @@ type NumberedArgs = [String]
 
 type HashLength = Int
 
-data PushPull = Push | Pull deriving (Eq, Ord, Show)
-
-pushPull :: a -> a -> PushPull -> a
-pushPull push pull p = case p of
-  Push -> push
-  Pull -> pull
-
 data NumberedOutput v
   = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
@@ -132,6 +124,7 @@ data Output v
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
+  | FindNoLocalMatches
   | PatchAlreadyExists Path.Split'
   | NoExactTypeMatches
   | TypeAlreadyExists Path.Split' (Set Reference)
@@ -306,6 +299,7 @@ isFailure o = case o of
   BadMainFunction {} -> True
   CreatedNewBranch {} -> False
   BranchAlreadyExists {} -> True
+  FindNoLocalMatches {} -> True
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True

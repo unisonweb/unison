@@ -63,6 +63,7 @@ import Unison.Sync.Common (causalHashToHash32, entityToTempEntity, expectEntity,
 import qualified Unison.Sync.Types as Share
 import Unison.Util.Monoid (foldMapM)
 import qualified UnliftIO
+import UnliftIO.Exception (throwIO)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pile of constants
@@ -851,34 +852,31 @@ httpUploadEntities :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.UploadEnt
           go httpUploadEntities
         )
     where
-      hoist :: Servant.ClientM a -> ReaderT (BaseUrl, Servant.ClientEnv) IO a
+      hoist :: Servant.ClientM a -> ReaderT Servant.ClientEnv IO a
       hoist m = do
-        (shareURL, clientEnv) <- Reader.ask
-        throwEitherM $
-          liftIO (Servant.runClientM m clientEnv) >>= \case
-            Right a -> pure $ Right a
-            Left err -> do
-              Debug.debugLogM Debug.Sync (show err)
-              pure . Left $ case err of
-                Servant.FailureResponse _req resp -> case HTTP.statusCode $ Servant.responseStatusCode resp of
-                  401 -> Unauthenticated shareURL
+        clientEnv <- Reader.ask
+        liftIO (Servant.runClientM m clientEnv) >>= \case
+          Right a -> pure a
+          Left err -> do
+            Debug.debugLogM Debug.Sync (show err)
+            throwIO case err of
+              Servant.FailureResponse _req resp ->
+                case HTTP.statusCode $ Servant.responseStatusCode resp of
+                  401 -> Unauthenticated (Servant.baseUrl clientEnv)
                   -- The server should provide semantically relevant permission-denied messages
                   -- when possible, but this should catch any we miss.
                   403 -> PermissionDenied (Text.Lazy.toStrict . Text.Lazy.decodeUtf8 $ Servant.responseBody resp)
                   408 -> Timeout
                   429 -> RateLimitExceeded
-                  500 -> InternalServerError
                   504 -> Timeout
-                  code
-                    | code >= 500 -> InternalServerError
-                    | otherwise -> InvalidResponse resp
-                Servant.DecodeFailure _msg resp -> InvalidResponse resp
-                Servant.UnsupportedContentType _ct resp -> InvalidResponse resp
-                Servant.InvalidContentTypeHeader resp -> InvalidResponse resp
-                Servant.ConnectionError {} -> UnreachableCodeserver shareURL
+                  _ -> UnexpectedResponse resp
+              Servant.DecodeFailure msg resp -> DecodeFailure msg resp
+              Servant.UnsupportedContentType _ct resp -> UnexpectedResponse resp
+              Servant.InvalidContentTypeHeader resp -> UnexpectedResponse resp
+              Servant.ConnectionError _ -> UnreachableCodeserver (Servant.baseUrl clientEnv)
 
       go ::
-        (req -> ReaderT (BaseUrl, Servant.ClientEnv) IO resp) ->
+        (req -> ReaderT Servant.ClientEnv IO resp) ->
         Auth.AuthenticatedHttpClient ->
         BaseUrl ->
         req ->
@@ -886,15 +884,13 @@ httpUploadEntities :: Auth.AuthenticatedHttpClient -> BaseUrl -> Share.UploadEnt
       go f (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req =
         runReaderT
           (f req)
-          ( unisonShareUrl,
-            (Servant.mkClientEnv httpClient unisonShareUrl)
-              { Servant.makeClientRequest = \url request ->
-                  -- Disable client-side timeouts
-                  (Servant.defaultMakeClientRequest url request)
-                    { Http.Client.responseTimeout = Http.Client.responseTimeoutNone
-                    }
-              }
-          )
+          (Servant.mkClientEnv httpClient unisonShareUrl)
+            { Servant.makeClientRequest = \url request ->
+                -- Disable client-side timeouts
+                (Servant.defaultMakeClientRequest url request)
+                  { Http.Client.responseTimeout = Http.Client.responseTimeoutNone
+                  }
+            }
 
 catchSyncErrors :: IO (Either e a) -> IO (Either (SyncError e) a)
 catchSyncErrors action =

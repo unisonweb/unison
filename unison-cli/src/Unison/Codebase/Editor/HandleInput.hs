@@ -62,6 +62,7 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
+import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import qualified Unison.Codebase.Editor.Propagate as Propagate
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
@@ -171,6 +172,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Relation4 as R4
+import qualified Unison.Util.Set as Set
 import qualified Unison.Util.Star3 as Star3
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
@@ -291,7 +293,7 @@ loop = do
           let ppe = PPE.suffixifiedPPE pped
           unsafeTime "typechecked.respond" $ respond $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
-            (bindings, e) <- unsafeTime "evaluate" $ ExceptT . eval . Evaluate ppe $ unisonFile
+            (bindings, e) <- unsafeTime "evaluate" $ ExceptT . eval . Evaluate False ppe $ unisonFile
             lift do
               let e' = Map.map go e
                   go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
@@ -515,7 +517,6 @@ loop = do
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
           importRemoteGitBranch ns mode preprocess =
             ExceptT . eval $ ImportRemoteGitBranch ns mode preprocess
-          loadSearchResults = eval . LoadSearchResults
           saveAndApplyPatch patchPath'' patchName patch' = do
             stepAtM
               Branch.CompressHistory
@@ -723,8 +724,8 @@ loop = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                      -- Branch exists and isn't empty, print an error
-                      throwError (BranchAlreadyExists (Path.unsplit' dest))
+                    -- Branch exists and isn't empty, print an error
+                    throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -1117,52 +1118,8 @@ loop = do
                       p | last p == '.' -> p ++ s
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
-            FindI isVerbose global ws -> do
-              let prettyPrintNames = basicPrettyPrintNames
-              unlessError do
-                results <- case ws of
-                  -- no query, list everything
-                  [] -> pure . listBranch $ Branch.head currentBranch'
-                  -- type query
-                  ":" : ws ->
-                    ExceptT (parseSearchType (show input) (unwords ws)) >>= \typ ->
-                      ExceptT $ do
-                        let named = Branch.deepReferents root0
-                        matches <-
-                          fmap (filter (`Set.member` named) . toList) $
-                            eval $ GetTermsOfType typ
-                        matches <-
-                          if null matches
-                            then do
-                              respond NoExactTypeMatches
-                              fmap (filter (`Set.member` named) . toList) $
-                                eval $ GetTermsMentioningType typ
-                            else pure matches
-                        let results =
-                              -- in verbose mode, aliases are shown, so we collapse all
-                              -- aliases to a single search result; in non-verbose mode,
-                              -- a separate result may be shown for each alias
-                              (if isVerbose then uniqueBy SR.toReferent else id) $
-                                searchResultsFor prettyPrintNames matches []
-                        pure . pure $ results
-
-                  -- name query
-                  (map HQ.unsafeFromString -> qs) -> do
-                    ns <-
-                      lift $
-                        if not global
-                          then basicParseNames
-                          else fst <$> basicNames' Backend.AllNames
-                    let srs = searchBranchScored ns fuzzyNameDistance qs
-                    pure $ uniqueBy SR.toReferent srs
-                lift do
-                  LoopState.numberedArgs .= fmap searchResultToHQString results
-                  results' <- loadSearchResults results
-                  ppe <-
-                    suffixifiedPPE
-                      =<< makePrintNamesFromLabeled'
-                        (foldMap SR'.labeledDependencies results')
-                  respond $ ListOfDefinitions ppe isVerbose results'
+            FindI isVerbose fscope ws ->
+              handleFindI isVerbose fscope ws input
             ResolveTypeNameI hq ->
               zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
               where
@@ -1321,63 +1278,7 @@ loop = do
             TodoI patchPath branchPath' -> do
               patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
               doShowTodoOutput patch $ resolveToAbsolute branchPath'
-            TestI showOk showFail -> do
-              let testTerms =
-                    Map.keys . R4.d1 . uncurry R4.selectD34 isTest
-                      . Branch.deepTermMetadata
-                      $ currentBranch0
-                  testRefs = Set.fromList [r | Referent.Ref r <- toList testTerms]
-                  oks results =
-                    [ (r, msg)
-                      | (r, Term.List' ts) <- Map.toList results,
-                        Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-                        cid == DD.okConstructorId && ref == DD.testResultRef
-                    ]
-                  fails results =
-                    [ (r, msg)
-                      | (r, Term.List' ts) <- Map.toList results,
-                        Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-                        cid == DD.failConstructorId && ref == DD.testResultRef
-                    ]
-              cachedTests <- fmap Map.fromList . eval $ LoadWatches WK.TestWatch testRefs
-              let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
-              names <-
-                makePrintNamesFromLabeled' $
-                  LD.referents testTerms
-                    <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
-              ppe <- fqnPPE names
-              respond $
-                TestResults
-                  stats
-                  ppe
-                  showOk
-                  showFail
-                  (oks cachedTests)
-                  (fails cachedTests)
-              let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
-              unless (Set.null toCompute) $ do
-                let total = Set.size toCompute
-                computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
-                  case r of
-                    Reference.DerivedId rid -> do
-                      tm <- eval $ LoadTerm rid
-                      case tm of
-                        Nothing -> [] <$ respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
-                        Just tm -> do
-                          respond $ TestIncrementalOutputStart ppe (n, total) r tm
-                          --                          v don't cache; test cache populated below
-                          tm' <- eval $ Evaluate1 ppe False tm
-                          case tm' of
-                            Left e -> respond (EvaluationFailure e) $> []
-                            Right tm' -> do
-                              -- After evaluation, cache the result of the test
-                              eval $ PutWatch WK.TestWatch rid tm'
-                              respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
-                              pure [(r, tm')]
-                    r -> error $ "unpossible, tests can't be builtins: " <> show r
-
-                let m = Map.fromList computedTests
-                respond $ TestResults Output.NewlyComputed ppe showOk showFail (oks m) (fails m)
+            TestI testInput -> handleTest testInput
             PropagatePatchI patchPath scopePath -> do
               patch <- getPatchAt patchPath
               updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
@@ -1412,11 +1313,11 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
-                      eval (MakeStandalone ppe ref output) >>= \case
-                        Just err -> respond $ EvaluationFailure err
-                        Nothing -> pure ()
+                    eval (MakeStandalone ppe ref output) >>= \case
+                      Just err -> respond $ EvaluationFailure err
+                      Nothing -> pure ()
                   | otherwise ->
-                      respond $ BadMainFunction smain ty ppe [mainType]
+                    respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -1446,8 +1347,8 @@ loop = do
                           let a = ABT.annotation tm
                               tm = DD.forceTerm a a (Term.ref a ref)
                            in do
-                                --                          v Don't cache IO tests
-                                tm' <- eval $ Evaluate1 ppe False tm
+                                --         Don't cache IO tests   v
+                                tm' <- eval $ Evaluate1 False ppe False tm
                                 case tm' of
                                   Left e -> respond (EvaluationFailure e)
                                   Right tm' ->
@@ -1726,6 +1627,87 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
             Right baseBranch -> do
               diff <- mergeAndDiff baseBranch headBranch
               respondNumbered diff
+
+handleFindI
+  :: (Monad m, Var v)
+  => Bool
+  -> FindScope
+  -> [String]
+  -> Input
+  -> Action' m v ()
+handleFindI isVerbose fscope ws input = do
+  root' <- use LoopState.root
+  currentPath' <- use LoopState.currentPath
+  currentBranch' <- getAt currentPath'
+  let currentBranch0 = Branch.head currentBranch'
+      getNames :: FindScope -> Names
+      getNames findScope =
+        let namesWithinCurrentPath = Backend.prettyNamesForBranch root' nameScope
+            cp = Path.unabsolute currentPath'
+            nameScope = case findScope of
+              Local -> Backend.Within cp
+              LocalAndDeps -> Backend.Within cp
+              Global -> Backend.AllNames cp
+            scopeFilter = case findScope of
+              Local ->
+                let f n =
+                      case Name.segments n of
+                        "lib" Nel.:| _ : _ -> False
+                        _ -> True
+                in Names.filter f
+              Global -> id
+              LocalAndDeps ->
+                let f n =
+                      case Name.segments n of
+                        "lib" Nel.:| (_ : "lib" : _) -> False
+                        _ -> True
+                in Names.filter f
+        in scopeFilter namesWithinCurrentPath
+  unlessError do
+    let getResults names = do
+          case ws of
+            [] -> pure (List.sortOn (\s -> (SR.name s, s)) (SR.fromNames names))
+            -- type query
+            ":" : ws ->
+              ExceptT (parseSearchType (show input) (unwords ws)) >>= \typ ->
+                ExceptT $ do
+                  let named = Branch.deepReferents currentBranch0
+                  matches <-
+                    fmap (filter (`Set.member` named) . toList) $
+                      eval $ GetTermsOfType typ
+                  matches <-
+                    if null matches
+                      then do
+                        respond NoExactTypeMatches
+                        fmap (filter (`Set.member` named) . toList) $
+                          eval $ GetTermsMentioningType typ
+                      else pure matches
+                  let results =
+                        -- in verbose mode, aliases are shown, so we collapse all
+                        -- aliases to a single search result; in non-verbose mode,
+                        -- a separate result may be shown for each alias
+                        (if isVerbose then uniqueBy SR.toReferent else id) $
+                          searchResultsFor names matches []
+                  pure . pure $ results
+
+            -- name query
+            (map HQ.unsafeFromString -> qs) -> do
+              let srs = searchBranchScored names fuzzyNameDistance qs
+              pure $ uniqueBy SR.toReferent srs
+    let respondResults results = lift do
+          LoopState.numberedArgs .= fmap searchResultToHQString results
+          results' <- eval $ LoadSearchResults results
+          ppe <-
+            suffixifiedPPE
+              =<< makePrintNamesFromLabeled'
+                (foldMap SR'.labeledDependencies results')
+          respond $ ListOfDefinitions ppe isVerbose results'
+    results <- getResults (getNames fscope)
+    case (results, fscope) of
+      ([],Local) -> do
+        respond FindNoLocalMatches
+        respondResults =<< getResults (getNames LocalAndDeps)
+      _ -> respondResults results
 
 handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
 handleDependents hq = do
@@ -2015,6 +1997,81 @@ handleShowDefinition outputLoc inputQuery = do
           use LoopState.latestFile <&> \case
             Nothing -> Just "scratch.u"
             Just (path, _) -> Just path
+
+-- | Handle a @test@ command.
+handleTest :: Monad m => TestInput -> Action' m v ()
+handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
+  testTerms <- do
+    currentPath' <- use LoopState.currentPath
+    currentBranch' <- getAt currentPath'
+    currentBranch'
+      & Branch.head
+      & Branch.deepTermMetadata
+      & R4.restrict34d12 isTest
+      & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
+      & R.dom
+      & pure
+  let testRefs = Set.mapMaybe Referent.toTermReference testTerms
+      oks results =
+        [ (r, msg)
+          | (r, Term.List' ts) <- Map.toList results,
+            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
+            cid == DD.okConstructorId && ref == DD.testResultRef
+        ]
+      fails results =
+        [ (r, msg)
+          | (r, Term.List' ts) <- Map.toList results,
+            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
+            cid == DD.failConstructorId && ref == DD.testResultRef
+        ]
+  cachedTests <- fmap Map.fromList . eval $ LoadWatches WK.TestWatch testRefs
+  let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
+  names <-
+    makePrintNamesFromLabeled' $
+      LD.referents testTerms
+        <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
+  ppe <- fqnPPE names
+  respond $
+    TestResults
+      stats
+      ppe
+      showSuccesses
+      showFailures
+      (oks cachedTests)
+      (fails cachedTests)
+  let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
+  unless (Set.null toCompute) do
+    let total = Set.size toCompute
+    computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
+      case r of
+        Reference.DerivedId rid -> do
+          tm <- eval $ LoadTerm rid
+          case tm of
+            Nothing -> do
+              hqLength <- eval CodebaseHashLength
+              respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
+              pure []
+            Just tm -> do
+              respond $ TestIncrementalOutputStart ppe (n, total) r tm
+              --                          v don't cache; test cache populated below
+              tm' <- eval $ Evaluate1 True ppe False tm
+              case tm' of
+                Left e -> respond (EvaluationFailure e) $> []
+                Right tm' -> do
+                  -- After evaluation, cache the result of the test
+                  eval $ PutWatch WK.TestWatch rid tm'
+                  respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
+                  pure [(r, tm')]
+        r -> error $ "unpossible, tests can't be builtins: " <> show r
+
+    let m = Map.fromList computedTests
+    respond $ TestResults Output.NewlyComputed ppe showSuccesses showFailures (oks m) (fails m)
+  where
+    isInLibNamespace :: Name -> Bool
+    isInLibNamespace name =
+      case Name.segments name of
+        "lib" Nel.:| _ : _ -> True
+        _ -> False
 
 -- | Handle an @update@ command.
 handleUpdate :: forall m v. (Monad m, Var v) => Input -> OptionalPatch -> Set Name -> Action' m v ()
@@ -2422,7 +2479,7 @@ doDisplay outputLoc names tm = do
       useCache = True
       evalTerm tm =
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) . eval $
-          Evaluate1 (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
+          Evaluate1 True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) . eval $ LoadTerm r
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
@@ -2602,10 +2659,6 @@ confirmedCommand i = do
   i0 <- use LoopState.lastInput
   pure $ Just i == i0
 
-listBranch :: Branch0 m -> [SearchResult]
-listBranch (Branch.toNames -> b) =
-  List.sortOn (\s -> (SR.name s, s)) (SR.fromNames b)
-
 -- | restores the full hash to these search results, for _numberedArgs purposes
 searchResultToHQString :: SearchResult -> String
 searchResultToHQString = \case
@@ -2668,10 +2721,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2688,10 +2741,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -3013,14 +3066,14 @@ displayI prettyPrintNames outputLoc hq = do
             do
               let tm = Term.fromReferent External $ Set.findMin results
               pped <- prettyPrintEnvDecl parseNames
-              tm <- eval $ Evaluate1 (PPE.suffixifiedPPE pped) True tm
+              tm <- eval $ Evaluate1 True (PPE.suffixifiedPPE pped) True tm
               case tm of
                 Left e -> respond (EvaluationFailure e)
                 Right tm -> doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
       ppe <- executePPE unisonFile
       unlessError' EvaluationFailure do
-        evalResult <- ExceptT . eval . Evaluate ppe $ unisonFile
+        evalResult <- ExceptT . eval . Evaluate True ppe $ unisonFile
         case Command.lookupEvalResult toDisplay evalResult of
           Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
           Just tm -> lift do
@@ -3069,7 +3122,7 @@ docsI srcLoc prettyPrintNames src = do
           len <- eval BranchHashLength
           let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
           let tm = Term.ref External ref
-          tm <- eval $ Evaluate1 (PPE.fromNames len names) True tm
+          tm <- eval $ Evaluate1 True (PPE.fromNames len names) True tm
           case tm of
             Left e -> respond (EvaluationFailure e)
             Right tm -> doDisplay ConsoleLocation names (Term.unannotate tm)
@@ -3084,7 +3137,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-              respond $ ListOfLinks mempty []
+            respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>
@@ -3392,7 +3445,8 @@ basicNames' :: (Functor m) => (Path -> Backend.NameScoping) -> Action m i v (Nam
 basicNames' nameScoping = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
-  pure $ Backend.prettyAndParseNamesForBranch root' (nameScoping $ Path.unabsolute currentPath')
+  let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
+  pure (parse, pretty)
 
 data AddRunMainResult v
   = NoTermWithThatName
@@ -3512,7 +3566,7 @@ diffHelperCmd ::
 diffHelperCmd currentRoot currentPath before after = do
   hqLength <- eval CodebaseHashLength
   diff <- eval . Eval $ BranchDiff.diff0 before after
-  let (_parseNames, prettyNames0) = Backend.prettyAndParseNamesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
+  let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
   ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
   (ppe,)
     <$> OBranchDiff.toOutput

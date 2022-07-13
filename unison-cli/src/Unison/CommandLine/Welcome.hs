@@ -27,6 +27,7 @@ data Welcome = Welcome
 data DownloadBase
   = DownloadBase ReadShareRemoteNamespace
   | DontDownloadBase
+  deriving (Show, Eq)
 
 -- Previously Created is different from Previously Onboarded because a user can
 -- 1.) create a new codebase
@@ -35,6 +36,7 @@ data DownloadBase
 data CodebaseInitStatus
   = NewlyCreatedCodebase -- Can transition to [Base, Author, Finished]
   | PreviouslyCreatedCodebase -- Can transition to [Base, Author, Finished, PreviouslyOnboarded].
+  deriving (Show, Eq)
 
 data Onboarding
   = Init CodebaseInitStatus -- Can transition to [DownloadingBase, Author, Finished, PreviouslyOnboarded]
@@ -43,6 +45,7 @@ data Onboarding
   -- End States
   | Finished
   | PreviouslyOnboarded
+  deriving (Show, Eq)
 
 welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> Text -> Welcome
 welcome initStatus downloadBase filePath unisonVersion =

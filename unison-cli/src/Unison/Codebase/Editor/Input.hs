@@ -2,6 +2,7 @@ module Unison.Codebase.Editor.Input
   ( Input (..),
     GistInput (..),
     PushRemoteBranchInput (..),
+    TestInput (..),
     Event (..),
     OutputLocation (..),
     PatchPath,
@@ -12,6 +13,7 @@ module Unison.Codebase.Editor.Input
     Insistence (..),
     PullMode (..),
     OptionalPatch (..),
+    FindScope (..),
     IsGlobal,
   )
 where
@@ -145,10 +147,10 @@ data Input
     IOTestI (HQ.HashQualified Name)
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
-  | TestI Bool Bool -- TestI showSuccesses showFailures
-  -- metadata
-  -- `link metadata definitions` (adds metadata to all of `definitions`)
-  | LinkI (HQ.HashQualified Name) [Path.HQSplit']
+  | TestI TestInput
+  | -- metadata
+    -- `link metadata definitions` (adds metadata to all of `definitions`)
+    LinkI (HQ.HashQualified Name) [Path.HQSplit']
   | -- `unlink metadata definitions` (removes metadata from all of `definitions`)
     UnlinkI (HQ.HashQualified Name) [Path.HQSplit']
   | -- links from <type>
@@ -159,7 +161,7 @@ data Input
   | -- Display docs for provided terms. If list is empty, prompt a fuzzy search.
     DocsI [Path.HQSplit']
   | -- other
-    FindI Bool IsGlobal [String] -- FindI isVerbose global query
+    FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
   | FindPatchI
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.
@@ -206,6 +208,14 @@ data PushRemoteBranchInput = PushRemoteBranchInput
   }
   deriving stock (Eq, Show)
 
+data TestInput = TestInput
+  { -- | Should we run tests in the `lib` namespace?
+    includeLibNamespace :: Bool,
+    showFailures :: Bool,
+    showSuccesses :: Bool
+  }
+  deriving stock (Eq, Show)
+
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation
   = ConsoleLocation
@@ -213,3 +223,9 @@ data OutputLocation
   | FileLocation FilePath
   -- ClipboardLocation
   deriving (Eq, Show)
+
+data FindScope
+  = Local
+  | LocalAndDeps
+  | Global
+  deriving stock (Eq, Show)

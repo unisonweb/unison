@@ -14,7 +14,7 @@ The deleted namespace shouldn't appear in `ls` output.
 .> ls
 ```
 ```ucm:error
-.> ls.verbose
+.> find.verbose
 ```
 ```ucm:error
 .> find mynamespace

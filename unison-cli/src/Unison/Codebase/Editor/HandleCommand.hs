@@ -91,6 +91,7 @@ commandLine ::
   IO i ->
   (Branch IO -> IO ()) ->
   Runtime Symbol ->
+  Runtime Symbol ->
   (Output Symbol -> IO ()) ->
   (NumberedOutput Symbol -> IO NumberedArgs) ->
   (SourceName -> IO LoadSourceResult) ->
@@ -100,7 +101,7 @@ commandLine ::
   (Int -> IO gen) ->
   Free (Command IO i Symbol) a ->
   IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl ucmVersion rngGen free = do
+commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl ucmVersion rngGen free = do
   rndSeed <- STM.newTVarIO 0
   flip runReaderT rndSeed . Free.fold go $ free
   where
@@ -124,7 +125,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
           Just url -> lift . void $ openBrowser (Server.urlFor Server.UI url)
           Nothing -> lift (return ())
       DocsToHtml root sourcePath destination ->
-        liftIO $ Backend.docsInBranchToHtmlFiles rt codebase root sourcePath destination
+        liftIO $ Backend.docsInBranchToHtmlFiles sdbxRt codebase root sourcePath destination
       Input -> lift awaitInput
       Notify output -> lift $ notifyUser output
       NotifyNumbered output -> lift $ notifyNumbered output
@@ -144,8 +145,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
             env = Parser.ParsingEnv namegen names
         lift $ typecheck ambient codebase env sourceName source
       TypecheckFile file ambient -> lift $ typecheck' ambient codebase file
-      Evaluate ppe unisonFile -> lift $ evalUnisonFile ppe unisonFile []
-      Evaluate1 ppe useCache term -> lift $ eval1 ppe useCache term
+      Evaluate sdbx ppe unisonFile -> lift $ evalUnisonFile sdbx ppe unisonFile []
+      Evaluate1 sdbx ppe useCache term -> lift $ eval1 sdbx ppe useCache term
       LoadLocalRootBranch -> lift $ Codebase.getRootBranch codebase
       LoadLocalBranch h -> lift $ fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
       Merge mode b1 b2 ->
@@ -207,7 +208,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       --      pure $ Branch.append b0 b
 
       Execute ppe uf args ->
-        lift $ evalUnisonFile ppe uf args
+        lift $ evalUnisonFile False ppe uf args
       AppendToReflog reason old new -> lift $ Codebase.appendReflog codebase reason old new
       LoadReflog -> lift $ Codebase.getReflog codebase
       CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
@@ -249,11 +250,12 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       maybeTerm <- Codebase.lookupWatchCache codebase h
       pure (Term.amap (const ()) <$> maybeTerm)
 
-    eval1 :: PPE.PrettyPrintEnv -> UseCache -> Term Symbol Ann -> _
-    eval1 ppe useCache tm = do
+    eval1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term Symbol Ann -> _
+    eval1 sandbox ppe useCache tm = do
       let codeLookup = Codebase.toCodeLookup codebase
           cache = if useCache then watchCache else Runtime.noCache
-      r <- Runtime.evaluateTerm' codeLookup cache ppe rt tm
+          rt' | sandbox = sdbxRt | otherwise = rt
+      r <- Runtime.evaluateTerm' codeLookup cache ppe rt' tm
       when useCache $ case r of
         Right tmr ->
           Codebase.putWatch
@@ -264,10 +266,11 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
         Left _ -> pure ()
       pure $ r <&> Term.amap (const Ann.External)
 
-    evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> _
-    evalUnisonFile ppe unisonFile args = withArgs args do
+    evalUnisonFile :: Bool -> PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> _
+    evalUnisonFile sandbox ppe unisonFile args = withArgs args do
       let codeLookup = Codebase.toCodeLookup codebase
-      r <- Runtime.evaluateWatches codeLookup ppe watchCache rt unisonFile
+          rt' | sandbox = sdbxRt | otherwise = rt
+      r <- Runtime.evaluateWatches codeLookup ppe watchCache rt' unisonFile
       case r of
         Left e -> pure (Left e)
         Right rs@(_, map) -> do

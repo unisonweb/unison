@@ -160,9 +160,10 @@ suffixifyNames hashLength names =
   PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
 
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
-prettyAndParseNamesForBranch :: Branch m -> NameScoping -> (Names, Names)
-prettyAndParseNamesForBranch root scope =
-  (parseNames0, prettyPrintNames0)
+-- Returns (parseNames, prettyNames, localNames)
+namesForBranch :: Branch m -> NameScoping -> (Names, Names, Names)
+namesForBranch root scope =
+  (parseNames0, prettyPrintNames0, currentPathNames)
   where
     path :: Path
     includeAllNames :: Bool
@@ -199,10 +200,10 @@ basicSuffixifiedNames hashLength root nameScope =
    in suffixifyNames hashLength names0
 
 parseNamesForBranch :: Branch m -> NameScoping -> Names
-parseNamesForBranch root = fst . prettyAndParseNamesForBranch root
+parseNamesForBranch root = namesForBranch root <&> \(n, _, _) -> n
 
 prettyNamesForBranch :: Branch m -> NameScoping -> Names
-prettyNamesForBranch root = snd . prettyAndParseNamesForBranch root
+prettyNamesForBranch root = namesForBranch root <&> \(_, n, _) -> n
 
 shallowPPE :: Monad m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
 shallowPPE codebase b = do
@@ -322,13 +323,11 @@ findShallowReadmeInBranchAndRender ::
   Width ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  NamesWithHistory ->
+  PPE.PrettyPrintEnvDecl ->
   V2Branch.Branch m ->
   Backend IO (Maybe Doc.Doc)
-findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBranch =
-  let ppe hqLen = PPE.fromNamesDecl hqLen printNames
-
-      renderReadme :: PPE.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
+findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
+  let renderReadme :: PPE.PrettyPrintEnvDecl -> Reference -> IO Doc.Doc
       renderReadme ppe docReference = do
         (_, _, doc) <- renderDoc ppe width runtime codebase docReference
         pure doc
@@ -348,8 +347,7 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
         where
           termsMap = V2Branch.terms namespaceBranch
    in liftIO $ do
-        hqLen <- Codebase.hashLength codebase
-        traverse (renderReadme (ppe hqLen)) readme
+        traverse (renderReadme ppe) readme
 
 isDoc :: Monad m => Codebase m Symbol Ann -> Referent -> m Bool
 isDoc codebase ref = do
@@ -822,24 +820,20 @@ prettyDefinitionsBySuffixes ::
   Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase query = do
   hqLength <- lift $ Codebase.hashLength codebase
-  (_parseNames, printNames) <- scopedNamesForBranchHash codebase root path
-  let nameSearch :: NameSearch
-      nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames printNames)
-  DefinitionResults terms types misses <-
-    lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
-  let ppe =
-        PPE.fromNamesDecl hqLength (NamesWithHistory.fromCurrentNames printNames)
-
-      width =
+  (localNamesOnly, ppe) <- scopedNamesForBranchHash codebase root path
+  let nameSearch :: NameSearch
+      nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
+  DefinitionResults terms types misses <- restrictDefinitionsToScope localNamesOnly <$> lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
+  let width =
         mayDefaultWidth renderWidth
 
       termFqns :: Map Reference (Set Text)
       termFqns = Map.mapWithKey f terms
         where
-          rel = Names.terms printNames
+          rel = Names.terms localNamesOnly
           f k _ =
             Set.fromList . fmap Name.toText . toList $
               R.lookupRan (Referent.Ref k) rel
@@ -847,7 +841,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
       typeFqns :: Map Reference (Set Text)
       typeFqns = Map.mapWithKey f types
         where
-          rel = Names.types printNames
+          rel = Names.types localNamesOnly
           f k _ =
             Set.fromList . fmap Name.toText . toList $
               R.lookupRan k rel
@@ -871,7 +865,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
       -- you get both its source and its rendered form
       docResults :: [Reference] -> [Name] -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults rs0 docs = do
-        let refsFor n = NamesWithHistory.lookupHQTerm (HQ.NameOnly n) (NamesWithHistory.fromCurrentNames printNames)
+        let refsFor n = NamesWithHistory.lookupHQTerm (HQ.NameOnly n) (NamesWithHistory.fromCurrentNames localNamesOnly)
         let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
@@ -897,7 +891,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
                   referent
                   (HQ'.NameOnly (NameSegment bn))
             )
-        docs <- lift (docResults [r] $ docNames (NamesWithHistory.termName hqLength (Referent.Ref r) (NamesWithHistory.fromCurrentNames printNames)))
+        docs <- lift (docResults [r] $ docNames (NamesWithHistory.termName hqLength (Referent.Ref r) (NamesWithHistory.fromCurrentNames localNamesOnly)))
         mk docs ts bn tag
         where
           mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
@@ -918,7 +912,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
               codebase
               r
               (HQ'.NameOnly (NameSegment bn))
-        docs <- docResults [] $ docNames (NamesWithHistory.typeName hqLength r (NamesWithHistory.fromCurrentNames printNames))
+        docs <- docResults [] $ docNames (NamesWithHistory.typeName hqLength r (NamesWithHistory.fromCurrentNames localNamesOnly))
         pure $
           TypeDefinition
             (flatten $ Map.lookup r typeFqns)
@@ -941,6 +935,12 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
+  where
+    restrictDefinitionsToScope :: Names -> DefinitionResults Symbol -> DefinitionResults Symbol
+    restrictDefinitionsToScope localNames (DefinitionResults terms types misses) =
+      let filteredTerms = Map.restrictKeys terms (Names.termReferences localNames)
+          filteredTypes = Map.restrictKeys types (Names.typeReferences localNames)
+       in DefinitionResults filteredTerms filteredTypes misses
 
 renderDoc ::
   PPE.PrettyPrintEnvDecl ->
@@ -1074,25 +1074,45 @@ bestNameForType ppe width =
     . TypePrinter.pretty0 @v ppe mempty (-1)
     . Type.ref ()
 
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, Names)
+-- | Returns (parse, pretty, local, ppe) where:
+--
+-- - 'parse' includes ALL fully qualified names from the root, and ALSO all names from within the provided path, relative to that path.
+-- - 'pretty' includes names within the provided path, relative to that path, and also all globally scoped names _outside_ of the path
+-- - 'local' includes ONLY the names within the provided path
+-- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
+--     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, PPE.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
-  case mbh of
+  hashLen <- lift $ Codebase.hashLength codebase
+  (parseNames, localNames) <- case mbh of
     Nothing
-      | shouldUseNamesIndex -> indexPrettyAndParseNames
+      | shouldUseNamesIndex -> indexNames
       | otherwise -> do
           rootBranch <- lift $ Codebase.getRootBranch codebase
-          pure $ prettyAndParseNamesForBranch rootBranch (AllNames path)
+          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+          pure (parseNames, localNames)
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
       if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
-        then indexPrettyAndParseNames
-        else flip prettyAndParseNamesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
+        then indexNames
+        else do
+          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
+          pure (parseNames, localNames)
+
+  let localPPE = PPE.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
+  let globalPPE = PPE.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames parseNames)
+  pure (localNames, mkPPE localPPE globalPPE)
   where
-    indexPrettyAndParseNames :: Backend m (Names, Names)
-    indexPrettyAndParseNames = do
-      names <- lift $ Codebase.namesAtPath codebase path
-      pure (ScopedNames.parseNames names, ScopedNames.prettyNames names)
+    mkPPE :: PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl
+    mkPPE primary fallback =
+      PPE.PrettyPrintEnvDecl
+        (PPE.unsuffixifiedPPE primary <> PPE.unsuffixifiedPPE fallback)
+        (PPE.suffixifiedPPE primary <> PPE.suffixifiedPPE fallback)
+    indexNames :: Backend m (Names, Names)
+    indexNames = do
+      scopedNames <- lift $ Codebase.namesAtPath codebase path
+      pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::
   Monad m => Maybe (Branch.CausalHash) -> Codebase m v a -> Backend m (Branch m)
