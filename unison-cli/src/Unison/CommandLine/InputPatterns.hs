@@ -1201,7 +1201,7 @@ pushForce =
   InputPattern
     "unsafe.force-push"
     []
-    I.Visible
+    I.Hidden
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     (P.wrap "Like `push`, but overwrites any remote namespace.")
     ( \case
