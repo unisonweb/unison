@@ -1538,6 +1538,7 @@ notifyUser dir o = case o of
            )
   RefusedToPush pushBehavior path ->
     (pure . P.warnCallout) case pushBehavior of
+      PushBehavior.ForcePush -> error "impossible: refused to push due to ForcePush?"
       PushBehavior.RequireEmpty -> expectedEmptyPushDest path
       PushBehavior.RequireNonEmpty -> expectedNonEmptyPushDest path
   GistCreated remoteNamespace ->
