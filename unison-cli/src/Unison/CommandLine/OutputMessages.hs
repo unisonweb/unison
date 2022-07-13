@@ -953,9 +953,9 @@ notifyUser dir o = case o of
         ]
   ParseErrors src es ->
     pure . P.sep "\n\n" $ prettyParseError (Text.unpack src) <$> es
-  TypeErrors src ppenv notes -> do
+  TypeErrors curPath src ppenv notes -> do
     let showNote =
-          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
+          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src) curPath)
             . map Result.TypeError
     pure . showNote $ notes
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs

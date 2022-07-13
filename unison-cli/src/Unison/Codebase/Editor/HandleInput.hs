@@ -278,7 +278,7 @@ loop = do
                     | Result.CompilerBug (Result.TypecheckerBug bug) <-
                         toList notes
                   ]
-            when (not $ null tes) . respond $ TypeErrors text ppe tes
+            when (not $ null tes) . respond $ TypeErrors currentPath' text ppe tes
             when (not $ null cbs) . respond $ CompilerBugs text ppe cbs
           Just (Right uf) -> k uf
       loadUnisonFile sourceName text = do

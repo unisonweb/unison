@@ -170,7 +170,7 @@ data Output v
     SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
   | -- Original source, followed by the errors:
     ParseErrors Text [Parser.Err v]
-  | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
+  | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug v Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure Runtime.Error
