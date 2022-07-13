@@ -25,7 +25,9 @@ import Unison.Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
+import qualified Unison.Codebase.Type as Codebase
 import Unison.LSP.CodeAction (codeActionHandler)
+import Unison.LSP.Completion (completionHandler)
 import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers as Notifications
@@ -103,6 +105,9 @@ lspDoInitialize vfsVar codebase runtime scope ucmState lspContext _initMsg = do
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
   Ki.fork scope (lspToIO $ ucmWorker ppeCacheVar parseNamesCacheVar ucmState)
+  -- We need this index for autocomplete to work, but probably shouldn't block the whole
+  -- server until it's ready :|
+  liftIO $ Codebase.updateNameLookup codebase
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
@@ -119,8 +124,8 @@ lspRequestHandlers =
   mempty
     & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
     & SMM.insert STextDocumentCodeAction (ClientMessageHandler codeActionHandler)
+    & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
 
--- & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
 -- & SMM.insert SCodeLensResolve (ClientMessageHandler codeLensResolveHandler)
 
 -- | LSP notification handlers

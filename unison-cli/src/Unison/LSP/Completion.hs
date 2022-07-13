@@ -11,12 +11,15 @@ import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import qualified Text.FuzzyFind as Fuzzy
+import qualified U.Codebase.Sqlite.Queries as Q
+import qualified Unison.Codebase as Codebase
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import Unison.Prelude
 import qualified Unison.Server.Endpoints.FuzzyFind as FZF
 import qualified Unison.Server.Syntax as Server
 import qualified Unison.Server.Types as Backend
+import Unison.Sqlite (runTransaction)
 
 -- | Rudimentary auto-completion handler
 --
@@ -32,13 +35,15 @@ completionHandler m respond =
     mayPrefix <- VFS.completionPrefix (m ^. params)
     case mayPrefix of
       Nothing -> pure . Right . InL . List $ []
-      Just (range, prefix) -> do
-        matches <- expand range prefix
-        let isIncomplete = True -- TODO: be smarter about this
-        pure . Right . InR . CompletionList isIncomplete . List $ snippetCompletions prefix range <> matches
+      Just (_range, prefix) -> do
+        Right . InL . List <$> namespaceCompleter prefix
   where
-    resultToCompletion :: Range -> Text -> FZF.FoundResult -> CompletionItem
-    resultToCompletion range prefix = \case
+    -- matches <- expand range prefix
+    -- let isIncomplete = True -- TODO: be smarter about this
+    -- pure . Right . InR . CompletionList isIncomplete . List $ snippetCompletions prefix range <> matches
+
+    _resultToCompletion :: Range -> Text -> FZF.FoundResult -> CompletionItem
+    _resultToCompletion range prefix = \case
       FZF.FoundTermResult (FZF.FoundTerm {namedTerm = Backend.NamedTerm {termName, termType}}) -> do
         (mkCompletionItem termName)
           { _detail = (": " <>) . Text.pack . Server.toPlain <$> termType,
@@ -54,8 +59,8 @@ completionHandler m respond =
               { _detail = Just detail,
                 _kind = Just kind
               }
-    expand :: Range -> Text -> Lsp [CompletionItem]
-    expand range prefix = do
+    _expand :: Range -> Text -> Lsp [CompletionItem]
+    _expand range prefix = do
       -- We should probably write a different fzf specifically for completion, but for now, it
       -- expects the unique pieces of the query to be different "words".
       let query = Text.unwords . Text.splitOn "." $ prefix
@@ -63,7 +68,7 @@ completionHandler m respond =
       lspBackend (FZF.serveFuzzyFind cb Nothing Nothing Nothing Nothing (Just $ Text.unpack query)) >>= \case
         Left _be -> pure []
         Right results ->
-          pure . fmap (resultToCompletion range prefix . snd) . take 15 . sortOn (Fuzzy.score . fst) $ results
+          pure . fmap (_resultToCompletion range prefix . snd) . take 15 . sortOn (Fuzzy.score . fst) $ results
 
 snippetCompletions :: Text -> Range -> [CompletionItem]
 snippetCompletions prefix range =
@@ -122,3 +127,11 @@ mkCompletionItem lbl =
       _command = Nothing,
       _xdata = Nothing
     }
+
+namespaceCompleter :: Text -> Lsp [CompletionItem]
+namespaceCompleter prefix = do
+  Env {codebase} <- ask
+  liftIO $ Codebase.withConnection codebase \conn -> runTransaction conn $ do
+    matchingNamespaces <- Q.namespacesByPrefix prefix
+    matchingTermsAndTypes <- Q.termAndTypeNamesCompletion prefix
+    pure $ mkCompletionItem <$> (matchingTermsAndTypes <> matchingNamespaces)

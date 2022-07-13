@@ -130,6 +130,8 @@ module U.Codebase.Sqlite.Queries
     rootTermNames,
     rootTypeNames,
     getNamespaceDefinitionCount,
+    namespacesByPrefix,
+    termAndTypeNamesCompletion,
 
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
@@ -170,7 +172,7 @@ module U.Codebase.Sqlite.Queries
   )
 where
 
-import Control.Lens (Lens')
+import Control.Lens (Lens', pattern (:>))
 import qualified Control.Lens as Lens
 import Control.Monad.Extra ((||^))
 import Control.Monad.State (MonadState, evalStateT)
@@ -1506,6 +1508,39 @@ getNamespaceDefinitionCount namespace = do
           UNION ALL
           SELECT 1 FROM type_name_lookup WHERE namespace GLOB ? OR namespace = ?
         )
+      |]
+
+-- | Used for things like LSP completion
+namespacesByPrefix :: Text -> Transaction [Text]
+namespacesByPrefix prefix = do
+  let subnamespace = globEscape prefix <> "*"
+  queryListCol sql (Only subnamespace)
+  where
+    sql =
+      [here|
+        SELECT DISTINCT namespace FROM term_name_lookup WHERE namespace GLOB ?
+      |]
+
+-- | Used for things like LSP completion
+termAndTypeNamesCompletion :: Text -> Transaction [Text]
+termAndTypeNamesCompletion query = do
+  let segments = Text.splitOn "." query
+  results <-
+    case segments of
+      [] -> pure []
+      [""] -> pure []
+      [namePrefix] -> do
+        let pat = globEscape namePrefix <> "*"
+        queryListCol sql (Only pat)
+      (pathSuffix :> namePrefix) -> do
+        let pat = globEscape namePrefix <> "*" <> "." <> Text.intercalate "." (reverse pathSuffix)
+        queryListCol sql (Only pat)
+      _ -> error "impossible"
+  pure (results <&> Text.intercalate "." . reverse . Text.splitOn ".")
+  where
+    sql =
+      [here|
+        SELECT DISTINCT reversed_name FROM term_name_lookup WHERE reversed_name GLOB ?
       |]
 
 -- | Insert the given set of type names into the name lookup table

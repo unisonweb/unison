@@ -1,9 +1,11 @@
 module Unison.LSP.UCMWorker where
 
 import Control.Monad.Reader
+import qualified Ki
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Type as Codebase
 import qualified Unison.Debug as Debug
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
@@ -16,9 +18,10 @@ import UnliftIO.STM
 -- | Watches for state changes in UCM and updates cached LSP state accordingly
 ucmWorker :: TVar PrettyPrintEnvDecl -> TVar NamesWithHistory -> STM (Branch IO, Path.Absolute) -> Lsp ()
 ucmWorker ppeVar parseNamesVar ucmState = do
-  Env {codebase} <- ask
+  Env {codebase, scope} <- ask
   let loop :: ((Branch IO, Path.Absolute) -> Lsp a)
       loop (currentRoot, currentPath) = do
+        liftIO . Ki.fork scope $ Codebase.updateNameLookup codebase
         Debug.debugM Debug.LSP "LSP path: " currentPath
         let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) currentRoot
         hl <- liftIO $ Codebase.hashLength codebase
