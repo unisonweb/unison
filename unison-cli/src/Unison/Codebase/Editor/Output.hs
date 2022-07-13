@@ -140,6 +140,7 @@ data Output v
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
   | BadNamespace String String
   | BranchNotFound Path'
+  | EmptyPush Path'
   | NameNotFound Path.HQSplit'
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
@@ -304,6 +305,7 @@ isFailure o = case o of
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True
+  EmptyPush {} -> True
   BranchNotEmpty {} -> True
   TypeAlreadyExists {} -> True
   TypeParseError {} -> True

@@ -809,6 +809,8 @@ notifyUser dir o = case o of
     pure . P.warnCallout $ "Invalid namespace " <> P.blue (P.string path) <> ", " <> P.string msg
   BranchNotFound b ->
     pure . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " doesn't exist."
+  EmptyPush b ->
+    pure . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " is empty. There is nothing to push."
   CreatedNewBranch path ->
     pure $
       "☝️  The namespace " <> P.blue (P.shown path) <> " is empty."

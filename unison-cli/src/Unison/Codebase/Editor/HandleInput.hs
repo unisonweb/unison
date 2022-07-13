@@ -1854,7 +1854,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
 
   -- doesn't handle the case where a non-existent path is supplied
   eval (Eval (Codebase.runTransaction codebase (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))))) >>= \case
-    Nothing -> respond (BranchNotFound . Path.absoluteToPath' $ localPath)
+    Nothing -> respond (EmptyPush . Path.absoluteToPath' $ localPath)
     Just localCausalHash -> do
       let checkAndSetPush :: Maybe Hash32 -> IO (Either (Share.SyncError Share.CheckAndSetPushError) ())
           checkAndSetPush remoteHash =
