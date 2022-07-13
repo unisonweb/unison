@@ -72,7 +72,7 @@ GET /api/list?namespace=nested.names
             "contents": {
                 "namespaceHash": "#n1egracfeljprftoktbjcase2hs4f4p8idbhs5ujipl42agld1810hrq9t7p7ped16aagni2cm1fjcjhho770jh80ipthhmg0cnsur0",
                 "namespaceName": "x",
-                "namespaceSize": null
+                "namespaceSize": 1
             },
             "tag": "Subnamespace"
         }
@@ -121,7 +121,7 @@ GET /api/list?namespace=names&relativeTo=nested
             "contents": {
                 "namespaceHash": "#n1egracfeljprftoktbjcase2hs4f4p8idbhs5ujipl42agld1810hrq9t7p7ped16aagni2cm1fjcjhho770jh80ipthhmg0cnsur0",
                 "namespaceName": "x",
-                "namespaceSize": null
+                "namespaceSize": 1
             },
             "tag": "Subnamespace"
         }
