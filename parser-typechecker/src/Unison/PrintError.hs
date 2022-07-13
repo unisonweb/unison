@@ -512,7 +512,7 @@ renderTypeError e env src curPath = case e of
               )
               <> "\n\n"
               <> "To add a library to this project use the command: "
-              <> Pr.backticked ("fork <.path.to.lib> " <> prettyPath' (libPath Path.:> "<libname>")),
+              <> Pr.backticked ("fork <.path.to.lib> " <> Pr.shown (libPath Path.:> "<libname>")),
             "\n\n",
             case expectedType of
               Type.Var' (TypeVar.Existential {}) -> "There are no constraints on its type."

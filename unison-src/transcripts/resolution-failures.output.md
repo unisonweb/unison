@@ -111,7 +111,7 @@ useAmbiguousTerm = ambiguousTerm
       1 | useAmbiguousTerm = ambiguousTerm
   
   Some common causes of this error include:
-    * Your current perspective is too deep to contain the
+    * Your current namespace is too deep to contain the
       definition in its subtree
     * The definition is part of a library which hasn't been
       added to this project
