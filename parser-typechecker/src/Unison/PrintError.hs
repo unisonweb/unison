@@ -506,7 +506,7 @@ renderTypeError e env src curPath = case e of
             Pr.hang
               "Some common causes of this error include:"
               ( Pr.bulleted
-                  [ Pr.wrap "Your current perspective is too deep to contain the definition in its subtree",
+                  [ Pr.wrap "Your current namespace is too deep to contain the definition in its subtree",
                     Pr.wrap "The definition is part of a library which hasn't been added to this project"
                   ]
               )
