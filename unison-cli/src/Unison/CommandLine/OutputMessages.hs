@@ -644,8 +644,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -1603,7 +1603,8 @@ notifyUser dir o = case o of
     ShareErrorFastForwardPush e -> case e of
       (Share.FastForwardPushErrorNoHistory sharePath) ->
         expectedNonEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
-      (Share.FastForwardPushErrorNoReadPermission sharePath) -> noReadPermission sharePath
+      (Share.FastForwardPushErrorNoReadPermission sharePath) ->
+        noWritePermissionFastForwardPushError sharePath
       (Share.FastForwardPushInvalidParentage parent child) ->
         P.lines
           [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
@@ -1690,24 +1691,31 @@ notifyUser dir o = case o of
         Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermission sharePath
       noReadPermission sharePath =
         P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettySharePath sharePath <> ".")
+      noWritePermissionFastForwardPushError sharePath =
+        case Share.pathSegments sharePath of
+          _ NEList.:| "public" : _ ->
+            P.wrap $
+              P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
+          uname NEList.:| ys -> pushPublicNote IP.push uname ys
+      pushPublicNote cmd uname ys =
+        let msg =
+              mconcat
+                [ "Unison Share currently only supports sharing public code. ",
+                  "This is done by hosting code in a public namespace under your handle.",
+                  "It looks like you were trying to push directly to the" <> P.backticked (P.text uname),
+                  "handle. Try nesting under `public` like so: "
+                ]
+            pushCommand = IP.makeExampleNoBackticks cmd [prettySharePath exPath]
+            exPath = Share.Path (uname NEList.:| "public" : ys)
+         in P.lines
+              [ P.wrap msg,
+                "",
+                P.indentN 4 pushCommand
+              ]
       noWritePermission sharePath =
         case Share.pathSegments sharePath of
           _ NEList.:| "public" : _ -> P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
-          uname NEList.:| ys ->
-            let msg =
-                  mconcat
-                    [ "Unison Share currently only supports sharing public code. ",
-                      "This is done by hosting code in a public namespace under your handle.",
-                      "It looks like you were trying to push textExtra to the " <> P.backticked (P.text uname),
-                      " handle. Try nesting under `public` like so: "
-                    ]
-                pushCommand = IP.makeExampleNoBackticks IP.push [prettySharePath exPath]
-                exPath = Share.Path (uname NEList.:| "public" : ys)
-             in P.lines
-                  [ P.wrap msg,
-                    "",
-                    P.indentN 4 pushCommand
-                  ]
+          uname NEList.:| ys -> pushPublicNote IP.pushCreate uname ys
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
@@ -2332,7 +2340,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
