@@ -2,7 +2,6 @@
 
 module Unison.Codebase.Editor.VersionParser where
 
-import Data.Functor (($>))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Void (Void)
@@ -26,10 +25,10 @@ import qualified Unison.Codebase.Path as Path
 -- >>> parseMaybe defaultBaseLib "release/M3-409-gbcdf68db3'"
 -- Nothing
 defaultBaseLib :: Parsec Void Text ReadShareRemoteNamespace
-defaultBaseLib = fmap makeNS $ latest <|> release
+defaultBaseLib = fmap makeNS $ release <|> unknown
   where
-    latest, release, version :: Parsec Void Text Text
-    latest = "latest-" *> many anySingle *> eof $> "main"
+    unknown, release, version :: Parsec Void Text Text
+    unknown = pure "main"
     release = fmap ("releases._" <>) $ "release/" *> version <* eof
     version = do
       v <- Text.pack <$> some (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))
