@@ -84,11 +84,11 @@ curl -sSL https://github.com/unisonweb/unison/releases/download/release%2FM2h/uc
 
 __9__
 
-[In the docs site repository](https://github.com/unisonweb/unisonweb-org/pulls), find a branch with the matching release name (if one exists), merge it into the master branch, then merge master into the production branch. Confirm with @rlmark.
+Give go ahead to @rlmark and @hojberg to deploy new version of website with blog post, updated install instructions, etc.
 
 __10__
 
-Bug @pchiusano to update [the Slack post](https://unisonlanguage.slack.com/files/TLL09QC85/FMT7TDDDY?origin_team=TLL09QC85) which provides install instructions for people coming from [the quickstart guide](https://www.unisonweb.org/docs/quickstart/).
+Smoke test of the new release. Try `brew upgrade unison-language`, launch it, launch `ui`.
 
 __11__
 
