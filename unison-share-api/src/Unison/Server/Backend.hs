@@ -985,7 +985,9 @@ docsInBranchToHtmlFiles ::
 docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   let currentBranch = Branch.getAt' currentPath root
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
-  docTermsWithNames <- filterM (isDoc codebase . fst) allTerms
+  -- ignores docs inside lib namespace, recursively
+  let notLib (_, name) = all (/= "lib") (Name.segments name)
+  docTermsWithNames <- filterM (isDoc codebase . fst) (filter notLib allTerms)
   let docNamesByRef = Map.fromList docTermsWithNames
   hqLength <- Codebase.hashLength codebase
   let printNames = prettyNamesForBranch root (AllNames currentPath)
