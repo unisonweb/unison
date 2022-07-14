@@ -9,11 +9,15 @@ Create and push the tag to github. This will trigger the build. To determine the
 
 ```
 git fetch
-git checkout series/M2
-git merge origin/trunk
+git checkout origin/trunk
+git tag -a dev/$RELEASE_NAME -m "dev release"
+git checkout series/$SERIES # substitute whatever previous release
+git merge dev/$RELEASE_NAME
 git tag -a release/$RELEASE_NAME -m "release"
+# optional: stack clean && stack build --fast, and try out the resulting executable, 
+# checking stuff like that base downloads properly for a new codebase, etc.
 git push origin release/$RELEASE_NAME
-git push origin series/M2
+git push origin series/$SERIES
 ```
 
 __2__
