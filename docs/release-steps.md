@@ -80,14 +80,6 @@ curl -sSL https://github.com/unisonweb/unison/releases/download/release%2FM2h/uc
 
 __9__
 
-[In the docs site repository](https://github.com/unisonweb/unisonweb-org/pulls), find a branch with the matching release name (if one exists), merge it into the master branch, then merge master into the production branch. Confirm with @rlmark.
-
-__10__
-
-Bug @pchiusano to update [the Slack post](https://unisonlanguage.slack.com/files/TLL09QC85/FMT7TDDDY?origin_team=TLL09QC85) which provides install instructions for people coming from [the quickstart guide](https://www.unisonweb.org/docs/quickstart/).
-
-__11__
-
 Announce on #general Slack channel. Template below.
 
 ---
