@@ -400,6 +400,7 @@ termLeaf =
       keywordBlock,
       list term,
       delayQuote,
+      delayBlock,
       bang,
       docBlock,
       doc2Block
@@ -901,6 +902,11 @@ delayQuote = P.label "quote" $ do
   e <- termLeaf
   pure $ DD.delayTerm (ann start <> ann e) e
 
+delayBlock :: Var v => TermP v
+delayBlock = P.label "do" $ do
+  b <- block "do"
+  pure $ DD.delayTerm (ann b) b
+
 bang :: Var v => TermP v
 bang = P.label "bang" $ do
   start <- reserved "!"
@@ -1073,9 +1079,9 @@ data BlockElement v
   | Action (Term v Ann)
 
 instance Show v => Show (BlockElement v) where
-  show (Binding ((pos, name), _)) = show ("binding: ", pos, name)
-  show (DestructuringBind (pos, _)) = show ("destructuring bind: ", pos)
-  show (Action tm) = show ("action: ", ann tm)
+  show (Binding ((pos, name), _)) = show ("binding: " :: Text, pos, name)
+  show (DestructuringBind (pos, _)) = show ("destructuring bind: " :: Text, pos)
+  show (Action tm) = show ("action: " :: Text, ann tm)
 
 -- subst
 -- use Foo.Bar + blah

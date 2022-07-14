@@ -34,15 +34,15 @@ x = 1 + 1
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7q3vkcpt75 .old`   to make an old namespace
+    `fork #3uk2laeo44 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7q3vkcpt75`  to reset the root namespace and
+    `reset-root #3uk2laeo44`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #9u7u21tka1 : add
-  2. #7q3vkcpt75 : builtins.mergeio
+  1. #5d37lofc79 : add
+  2. #3uk2laeo44 : builtins.mergeio
   3. #sg60bvjo91 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -116,17 +116,17 @@ Without the above stanza, the `edit` will send the definition to the most recent
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7q3vkcpt75 .old`   to make an old namespace
+    `fork #3uk2laeo44 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7q3vkcpt75`  to reset the root namespace and
+    `reset-root #3uk2laeo44`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #braja24u2c : add
-  2. #7q3vkcpt75 : reset-root #7q3vkcpt75
-  3. #9u7u21tka1 : add
-  4. #7q3vkcpt75 : builtins.mergeio
+  1. #m90i9pca73 : add
+  2. #3uk2laeo44 : reset-root #3uk2laeo44
+  3. #5d37lofc79 : add
+  4. #3uk2laeo44 : builtins.mergeio
   5. #sg60bvjo91 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -191,19 +191,19 @@ f x = let
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7q3vkcpt75 .old`   to make an old namespace
+    `fork #3uk2laeo44 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7q3vkcpt75`  to reset the root namespace and
+    `reset-root #3uk2laeo44`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #r4cr8bjrq6 : add
-  2. #7q3vkcpt75 : reset-root #7q3vkcpt75
-  3. #braja24u2c : add
-  4. #7q3vkcpt75 : reset-root #7q3vkcpt75
-  5. #9u7u21tka1 : add
-  6. #7q3vkcpt75 : builtins.mergeio
+  1. #ru0oo7dcnh : add
+  2. #3uk2laeo44 : reset-root #3uk2laeo44
+  3. #m90i9pca73 : add
+  4. #3uk2laeo44 : reset-root #3uk2laeo44
+  5. #5d37lofc79 : add
+  6. #3uk2laeo44 : builtins.mergeio
   7. #sg60bvjo91 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -273,21 +273,21 @@ h xs = match xs with
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7q3vkcpt75 .old`   to make an old namespace
+    `fork #3uk2laeo44 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7q3vkcpt75`  to reset the root namespace and
+    `reset-root #3uk2laeo44`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #uhh1lpve1d : add
-  2. #7q3vkcpt75 : reset-root #7q3vkcpt75
-  3. #r4cr8bjrq6 : add
-  4. #7q3vkcpt75 : reset-root #7q3vkcpt75
-  5. #braja24u2c : add
-  6. #7q3vkcpt75 : reset-root #7q3vkcpt75
-  7. #9u7u21tka1 : add
-  8. #7q3vkcpt75 : builtins.mergeio
+  1. #c5qfjje3vn : add
+  2. #3uk2laeo44 : reset-root #3uk2laeo44
+  3. #ru0oo7dcnh : add
+  4. #3uk2laeo44 : reset-root #3uk2laeo44
+  5. #m90i9pca73 : add
+  6. #3uk2laeo44 : reset-root #3uk2laeo44
+  7. #5d37lofc79 : add
+  8. #3uk2laeo44 : builtins.mergeio
   9. #sg60bvjo91 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -353,23 +353,23 @@ foo n _ = n
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7q3vkcpt75 .old`   to make an old namespace
+    `fork #3uk2laeo44 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7q3vkcpt75`  to reset the root namespace and
+    `reset-root #3uk2laeo44`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #v4mbt4a1fa : add
-  2.  #7q3vkcpt75 : reset-root #7q3vkcpt75
-  3.  #uhh1lpve1d : add
-  4.  #7q3vkcpt75 : reset-root #7q3vkcpt75
-  5.  #r4cr8bjrq6 : add
-  6.  #7q3vkcpt75 : reset-root #7q3vkcpt75
-  7.  #braja24u2c : add
-  8.  #7q3vkcpt75 : reset-root #7q3vkcpt75
-  9.  #9u7u21tka1 : add
-  10. #7q3vkcpt75 : builtins.mergeio
+  1.  #90vn9fdk1t : add
+  2.  #3uk2laeo44 : reset-root #3uk2laeo44
+  3.  #c5qfjje3vn : add
+  4.  #3uk2laeo44 : reset-root #3uk2laeo44
+  5.  #ru0oo7dcnh : add
+  6.  #3uk2laeo44 : reset-root #3uk2laeo44
+  7.  #m90i9pca73 : add
+  8.  #3uk2laeo44 : reset-root #3uk2laeo44
+  9.  #5d37lofc79 : add
+  10. #3uk2laeo44 : builtins.mergeio
   11. #sg60bvjo91 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -432,25 +432,25 @@ foo =
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #7q3vkcpt75 .old`   to make an old namespace
+    `fork #3uk2laeo44 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #7q3vkcpt75`  to reset the root namespace and
+    `reset-root #3uk2laeo44`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #qam2buklki : add
-  2.  #7q3vkcpt75 : reset-root #7q3vkcpt75
-  3.  #v4mbt4a1fa : add
-  4.  #7q3vkcpt75 : reset-root #7q3vkcpt75
-  5.  #uhh1lpve1d : add
-  6.  #7q3vkcpt75 : reset-root #7q3vkcpt75
-  7.  #r4cr8bjrq6 : add
-  8.  #7q3vkcpt75 : reset-root #7q3vkcpt75
-  9.  #braja24u2c : add
-  10. #7q3vkcpt75 : reset-root #7q3vkcpt75
-  11. #9u7u21tka1 : add
-  12. #7q3vkcpt75 : builtins.mergeio
+  1.  #fqe7rpjits : add
+  2.  #3uk2laeo44 : reset-root #3uk2laeo44
+  3.  #90vn9fdk1t : add
+  4.  #3uk2laeo44 : reset-root #3uk2laeo44
+  5.  #c5qfjje3vn : add
+  6.  #3uk2laeo44 : reset-root #3uk2laeo44
+  7.  #ru0oo7dcnh : add
+  8.  #3uk2laeo44 : reset-root #3uk2laeo44
+  9.  #m90i9pca73 : add
+  10. #3uk2laeo44 : reset-root #3uk2laeo44
+  11. #5d37lofc79 : add
+  12. #3uk2laeo44 : builtins.mergeio
   13. #sg60bvjo91 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -595,7 +595,7 @@ x = '(let
     
     x : 'Optional Nat
     x =
-      ('let
+      (do
         abort
         0) |> toOptional
     
@@ -665,7 +665,7 @@ r = 'let
   /Users/pchiusano/unison/scratch.u
   
     r : 'Nat
-    r = 'let
+    r = do
       y = 0
       y
   
@@ -770,7 +770,7 @@ broken =
       use Nat +
       y = 12
       13 + y
-    !addNumbers    
+    !addNumbers
 ```
 
 ```ucm
@@ -790,7 +790,7 @@ broken =
     broken : Nat
     broken =
       addNumbers : 'Nat
-      addNumbers = 'let
+      addNumbers = do
         use Nat +
         y = 12
         13 + y
@@ -823,7 +823,7 @@ broken =
 ```unison
 tvarmodify tvar fun = ()
 
-broken tvar = 
+broken tvar =
   '(tvarmodify tvar (cases
      Some _ -> "oh boy isn't this a very very very very very very very long string?"
      None -> ""))
@@ -883,7 +883,7 @@ broken tvar =
 
 ```
 ```unison
-broken = cases 
+broken = cases
   Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
 ```
 
@@ -938,7 +938,7 @@ broken = cases
 structural type SomethingUnusuallyLong = SomethingUnusuallyLong Text Text Text
 
 foo = let
-  go x = 
+  go x =
     'match (a -> a) x with
       SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
         lijaefliejalfijelfj == aefilaeifhlei -> 0
@@ -955,7 +955,7 @@ foo = let
     structural type SomethingUnusuallyLong
     foo : 'Nat
 
-.> edit SomethingUnusuallyLong foo 
+.> edit SomethingUnusuallyLong foo
 
   ☝️
   
@@ -968,11 +968,11 @@ foo = let
     foo : 'Nat
     foo =
       go x =
-        'match (a -> a) x with
+        '(match (a -> a) x with
             SomethingUnusuallyLong
               lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij 
               | lijaefliejalfijelfj == aefilaeifhlei   -> 0
-              | lijaefliejalfijelfj == liaehjffeafijij -> 1
+              | lijaefliejalfijelfj == liaehjffeafijij -> 1)
       go (SomethingUnusuallyLong "one" "two" "three")
   
   You can edit them there, then do `update` to replace the
@@ -1068,11 +1068,11 @@ foo = let
 ## Multiline expressions in multiliine lists
 
 ```unison
-foo a b c d e f g h i j = 42 
+foo a b c d e f g h i j = 42
 
 use Nat +
 x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
-    , foo 12939233 2102020 329292 429292 522020 62929292 72020202 820202 920202 1020202 ] 
+    , foo 12939233 2102020 329292 429292 522020 62929292 72020202 820202 920202 1020202 ]
 ```
 
 ```ucm
@@ -1176,20 +1176,20 @@ x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
 ## Delayed computations passed to a function as the last argument
 
 When a delayed computation block is passed to a function as the last argument
-in a context where the ambient precedence is low enough, we can elide parentheses 
-around it and use a "soft hang" to put the `'let` on the same line as the function call. 
+in a context where the ambient precedence is low enough, we can elide parentheses
+around it and use a "soft hang" to put the `'let` on the same line as the function call.
 This looks nice.
 
-    forkAt usEast 'let
+    forkAt usEast do
       x = thing1
       y = thing2
       ...
 
 vs the not as pretty but still correct:
 
-    forkAt 
-      usEast 
-      ('let 
+    forkAt
+      usEast
+      (do
           x = thing1
           y = thing2
           ...)
@@ -1199,33 +1199,33 @@ Okay, here's the test, showing that we use the prettier version when possible:
 ```unison
 (+) a b = ##Nat.+ a b
 
-foo a b = 42 
+foo a b = 42
 
-bar0 x = 'let
+bar0 x = do
   a = 1
   b = 2
   foo a 'let
     c = 3
     a + b
 
-bar1 x = 'let
+bar1 x = do
   a = 1
   b = 2
   foo (100 + 200 + 300 + 400 + 500 + 600 + 700 + 800 + 900 + 1000 + 1100 + 1200 + 1300 + 1400 + 1500) 'let
     c = 3
     a + b
 
-bar2 x = 'let
+bar2 x = do
   a = 1
   b = 2
-  1 + foo a 'let
+  1 + foo a do
     c = 3
     a + b
 
-bar3 x = 'let
+bar3 x = do
   a = 1
   b = 2
-  c = foo 'let
+  c = foo do
     c = 3
     a + b
   c
@@ -1251,16 +1251,16 @@ bar3 x = 'let
   /Users/pchiusano/unison/scratch.u
   
     bar0 : x -> () -> Nat
-    bar0 x = 'let
+    bar0 x = do
       a = 1
       b = 2
-      foo a 'let
+      foo a do
         c = 3
         a + b
     
     bar1 : x -> () -> Nat
     bar1 x =
-      'let
+      do
         a = 1
         b = 2
         foo
@@ -1279,24 +1279,24 @@ bar3 x = 'let
             + 1300
             + 1400
             + 1500)
-          'let
+          do
             c = 3
             a + b
     
     bar2 : x -> () -> Nat
-    bar2 x = 'let
+    bar2 x = do
       a = 1
       b = 2
-      1 + (foo a 'let
+      1 + (foo a do
         c = 3
         a + b)
     
     bar3 : x -> () -> b -> Nat
-    bar3 x = 'let
+    bar3 x = do
       a = 1
       b = 2
       c =
-        foo 'let
+        foo do
           c = 3
           a + b
       c

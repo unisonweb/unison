@@ -9,11 +9,11 @@ module Unison.Codebase.Branch
     Branch (..),
     UnwrappedBranch,
     Branch0 (..),
-    Raw (..),
+    Raw,
     Star,
-    Hash,
+    NamespaceHash,
+    CausalHash,
     EditHash,
-    pattern Hash,
 
     -- * Branch construction
     branch0,
@@ -88,12 +88,13 @@ import qualified Data.Map as Map
 import qualified Data.Semialign as Align
 import qualified Data.Set as Set
 import Data.These (These (..))
-import Unison.Codebase.Branch.Raw (Raw (Raw))
+import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0 (..),
+    CausalHash (..),
     EditHash,
-    Hash,
+    NamespaceHash,
     Star,
     UnwrappedBranch,
     edits,
@@ -307,8 +308,6 @@ discardHistory b =
 before :: Monad m => Branch m -> Branch m -> m Bool
 before (Branch b1) (Branch b2) = Causal.before b1 b2
 
-pattern Hash h = Causal.RawHash h
-
 -- | what does this do? —AI
 toList0 :: Branch0 m -> [(Path, Branch0 m)]
 toList0 = go Path.empty
@@ -373,7 +372,7 @@ step f = runIdentity . stepM (Identity . f)
 -- | Perform an update over the current branch and create a new causal step.
 stepM :: (Monad n, Applicative m) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepM f = \case
-  Branch (Causal.One _h e) | e == empty0 -> Branch . Causal.one <$> f empty0
+  Branch (Causal.One _h _eh e) | e == empty0 -> Branch . Causal.one <$> f empty0
   b -> mapMOf history (Causal.stepDistinctM f) b
 
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
@@ -617,13 +616,13 @@ addTypeName r new md =
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b
   | Star3.memberD1 (r, n) (view terms b) =
-      over terms (Star3.deletePrimaryD1 (r, n)) b
+    over terms (Star3.deletePrimaryD1 (r, n)) b
 deleteTermName _ _ b = b
 
 deleteTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b
   | Star3.memberD1 (r, n) (view types b) =
-      over types (Star3.deletePrimaryD1 (r, n)) b
+    over types (Star3.deletePrimaryD1 (r, n)) b
 deleteTypeName _ _ b = b
 
 lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
@@ -643,8 +642,8 @@ transform f b = case _history b of
     transformB0s ::
       Functor m =>
       (forall a. m a -> n a) ->
-      Causal m Raw (Branch0 m) ->
-      Causal m Raw (Branch0 n)
+      Causal m (Branch0 m) ->
+      Causal m (Branch0 n)
     transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
 
 -- | Traverse the head branch of all direct children.

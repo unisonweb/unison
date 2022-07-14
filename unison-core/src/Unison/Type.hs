@@ -4,13 +4,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Type where
 
 import Control.Lens (Prism')
 import qualified Control.Monad.Writer.Strict as Writer
-import Data.Functor.Identity (runIdentity)
 import Data.Generics.Sum (_Ctor)
 import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
@@ -253,6 +253,14 @@ scopeRef, refRef :: Reference
 scopeRef = Reference.Builtin "Scope"
 refRef = Reference.Builtin "Ref"
 
+iarrayRef, marrayRef :: Reference
+iarrayRef = Reference.Builtin "ImmutableArray"
+marrayRef = Reference.Builtin "MutableArray"
+
+ibytearrayRef, mbytearrayRef :: Reference
+ibytearrayRef = Reference.Builtin "ImmutableByteArray"
+mbytearrayRef = Reference.Builtin "MutableByteArray"
+
 mvarRef, tvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
@@ -262,6 +270,9 @@ tlsRef = Reference.Builtin "Tls"
 
 stmRef :: Reference
 stmRef = Reference.Builtin "STM"
+
+patternRef :: Reference
+patternRef = Reference.Builtin "Pattern"
 
 tlsClientConfigRef :: Reference
 tlsClientConfigRef = Reference.Builtin "Tls.ClientConfig"
@@ -290,6 +301,9 @@ valueRef = Reference.Builtin "Value"
 
 anyRef :: Reference
 anyRef = Reference.Builtin "Any"
+
+timeSpecRef :: Reference
+timeSpecRef = Reference.Builtin "TimeSpec"
 
 any :: Ord v => a -> Type v a
 any a = ref a anyRef
@@ -329,6 +343,12 @@ scopeType a = ref a scopeRef
 
 refType :: Ord v => a -> Type v a
 refType a = ref a refRef
+
+iarrayType, marrayType, ibytearrayType, mbytearrayType :: Ord v => a -> Type v a
+iarrayType a = ref a iarrayRef
+marrayType a = ref a marrayRef
+ibytearrayType a = ref a ibytearrayRef
+mbytearrayType a = ref a mbytearrayRef
 
 socket :: Ord v => a -> Type v a
 socket a = ref a socketRef

@@ -8,6 +8,7 @@ module Unison.Name
     joinDot,
     fromSegment,
     fromSegments,
+    fromReverseSegments,
 
     -- ** Unsafe construction
     unsafeFromString,
@@ -20,6 +21,7 @@ module Unison.Name
     isPrefixOf,
     endsWithReverseSegments,
     endsWithSegments,
+    stripReversedPrefix,
     reverseSegments,
     segments,
     suffixes,
@@ -37,6 +39,7 @@ module Unison.Name
     sortNamed,
     sortByText,
     searchBySuffix,
+    searchByRankedSuffix,
     suffixFrom,
     shortestUniqueSuffix,
     toString,
@@ -55,9 +58,11 @@ where
 import Control.Lens (mapped, over, _1, _2)
 import qualified Control.Lens as Lens
 import qualified Data.List as List
+import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
+import qualified Data.Map as Map
 import qualified Data.RFC5051 as RFC5051
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -69,6 +74,7 @@ import qualified Unison.NameSegment as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
+import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -174,9 +180,24 @@ endsWithSegments name ss =
 -- | Like 'endsWithSegments', but accepts a list of name segments in reverse order.
 --
 -- Slightly more efficient than 'endsWithSegments'.
+--
+-- >>> endsWithReverseSegments "a.b.c" ["c", "b"]
+-- True
 endsWithReverseSegments :: Name -> [NameSegment] -> Bool
 endsWithReverseSegments (Name _ ss0) ss1 =
   List.NonEmpty.isPrefixOf ss1 ss0
+
+-- >>> stripReversedPrefix "a.b.c" ["b", "a"]
+-- Just c
+-- >>> stripReversedPrefix "x.y" ["b", "a"]
+-- Nothing
+-- >>> stripReversedPrefix "a.b" ["b", "a"]
+-- Nothing
+stripReversedPrefix :: Name -> [NameSegment] -> Maybe Name
+stripReversedPrefix (Name p segs) suffix = do
+  stripped <- List.stripSuffix suffix (toList segs)
+  nonEmptyStripped <- List.NonEmpty.nonEmpty stripped
+  pure $ Name p nonEmptyStripped
 
 -- | Is this name absolute?
 --
@@ -265,6 +286,16 @@ fromSegments :: NonEmpty NameSegment -> Name
 fromSegments ss =
   Name Relative (List.NonEmpty.reverse ss)
 
+-- | Construct a relative name from a list of name segments which are in reverse order
+--
+-- >>> fromReverseSegments ("c" :| ["b", "a"])
+-- a.b.c
+--
+-- /O(1)/
+fromReverseSegments :: NonEmpty NameSegment -> Name
+fromReverseSegments rs =
+  Name Relative rs
+
 -- | Return the name segments of a name, in reverse order.
 --
 -- >>> reverseSegments "a.b.c"
@@ -286,6 +317,33 @@ searchBySuffix suffix rel =
   R.lookupDom suffix rel `orElse` R.searchDom (compareSuffix suffix) rel
   where
     orElse s1 s2 = if Set.null s1 then s2 else s1
+
+-- Like `searchBySuffix`, but prefers names that have fewer
+-- segments equal to "lib". This is used to prefer "local"
+-- names rather than names coming from libraries, which
+-- are traditionally placed under a "lib" subnamespace.
+--
+-- Example: foo.bar shadows lib.foo.bar
+-- Example: lib.foo.bar shadows lib.blah.lib.foo.bar
+searchByRankedSuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
+searchByRankedSuffix suffix rel = case searchBySuffix suffix rel of
+  rs | Set.size rs <= 1 -> rs
+  rs -> case Map.lookup 0 byDepth <|> Map.lookup 1 byDepth of
+    -- anything with more than one lib in it is treated the same
+    Nothing -> rs
+    Just rs -> Set.fromList rs
+    where
+      byDepth =
+        List.multimap
+          [ (minLibs ns, r)
+            | r <- toList rs,
+              ns <- [filter ok (toList (R.lookupRan r rel))]
+          ]
+      lib = NameSegment "lib"
+      libCount = length . filter (== lib) . toList . reverseSegments
+      minLibs [] = 0
+      minLibs ns = minimum (map libCount ns)
+      ok name = compareSuffix suffix name == EQ
 
 -- | Return the name segments of a name.
 --

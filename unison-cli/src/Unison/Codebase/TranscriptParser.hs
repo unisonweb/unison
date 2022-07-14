@@ -19,10 +19,11 @@ module Unison.Codebase.TranscriptParser
 where
 
 import Control.Concurrent.STM (atomically)
-import Control.Error (rightMay)
 import Control.Lens (view)
-import Control.Monad.State (runStateT)
 import qualified Crypto.Random as Random
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encode.Pretty as Aeson
+import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.Char as Char
 import qualified Data.Configurator as Configurator
 import Data.Configurator.Types (Config)
@@ -30,11 +31,16 @@ import Data.IORef
 import Data.List (isSubsequenceOf)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Network.HTTP.Client as HTTP
 import System.Directory (doesFileExist)
+import System.Environment (lookupEnv)
 import System.Exit (die)
 import qualified System.IO as IO
 import System.IO.Error (catchIOError)
 import qualified Text.Megaparsec as P
+import qualified Unison.Auth.CredentialManager as AuthN
+import qualified Unison.Auth.HTTPClient as AuthN
+import qualified Unison.Auth.Tokens as AuthN
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -44,6 +50,7 @@ import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -56,15 +63,24 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
 import qualified Unison.Runtime.Interface as RTI
+import qualified Unison.Server.Backend as Backend
+import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
 import Prelude hiding (readFile, writeFile)
 
 -- | Render transcript errors at a width of 65 chars.
-terminalWidth :: P.Width
+terminalWidth :: Pretty.Width
 terminalWidth = 65
+
+-- | If provided, this access token will be used on all
+-- requests which use the Authenticated HTTP Client; i.e. all codeserver interactions.
+--
+-- It's useful in scripted contexts or when running transcripts against a codeserver.
+accessTokenEnvVarKey :: String
+accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
 
 type ExpectingError = Bool
 
@@ -79,9 +95,18 @@ data UcmLine
   = UcmCommand Path.Absolute Text
   | UcmComment Text -- Text does not include the '--' prefix.
 
+data APIRequest
+  = GetRequest Text
+  | APIComment Text
+
+instance Show APIRequest where
+  show (GetRequest txt) = "GET " <> Text.unpack txt
+  show (APIComment txt) = "-- " <> Text.unpack txt
+
 data Stanza
   = Ucm Hidden ExpectingError [UcmLine]
   | Unison Hidden ExpectingError (Maybe ScratchFileName) Text
+  | API [APIRequest]
   | UnprocessedFence FenceType Text
   | Unfenced Text
 
@@ -112,6 +137,13 @@ instance Show Stanza where
                   ""
                 ]
         ]
+    API apiRequests ->
+      "```api\n"
+        <> ( apiRequests
+               & fmap (\(GetRequest txt) -> Text.unpack txt)
+               & unlines
+           )
+        <> "```\n"
     UnprocessedFence typ txt ->
       unlines
         [ "```" <> Text.unpack typ,
@@ -145,24 +177,28 @@ type TranscriptRunner =
 withTranscriptRunner ::
   forall m r.
   UnliftIO.MonadUnliftIO m =>
-  String ->
+  UCMVersion ->
   Maybe FilePath ->
   (TranscriptRunner -> m r) ->
   m r
-withTranscriptRunner version configFile action = do
-  withRuntime $ \runtime -> withConfig $ \config -> do
+withTranscriptRunner ucmVersion configFile action = do
+  withRuntime $ \runtime sbRuntime -> withConfig $ \config -> do
     action $ \transcriptName transcriptSrc (codebaseDir, codebase) -> do
-      let parsed = parse transcriptName transcriptSrc
-      result <- for parsed $ \stanzas -> do
-        liftIO $ run codebaseDir stanzas codebase runtime config
-      pure $ join @(Either TranscriptError) result
+      Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase $ \baseUrl -> do
+        let parsed = parse transcriptName transcriptSrc
+        result <- for parsed $ \stanzas -> do
+          liftIO $ run codebaseDir stanzas codebase runtime sbRuntime config ucmVersion (tShow baseUrl)
+        pure $ join @(Either TranscriptError) result
   where
-    withRuntime :: ((Runtime.Runtime Symbol -> m a) -> m a)
+    withRuntime :: ((Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a)
     withRuntime action =
       UnliftIO.bracket
-        (liftIO $ RTI.startRuntime RTI.UCM version)
-        (liftIO . Runtime.terminate)
-        action
+        (liftIO $ RTI.startRuntime False RTI.Persistent ucmVersion)
+        (liftIO . Runtime.terminate) $ \runtime ->
+        UnliftIO.bracket
+          (liftIO $ RTI.startRuntime True RTI.Persistent ucmVersion)
+          (liftIO . Runtime.terminate)
+          (action runtime)
     withConfig :: forall a. ((Maybe Config -> m a) -> m a)
     withConfig action = do
       case configFile of
@@ -181,19 +217,32 @@ run ::
   [Stanza] ->
   Codebase IO Symbol Ann ->
   Runtime.Runtime Symbol ->
+  Runtime.Runtime Symbol ->
   Maybe Config ->
+  UCMVersion ->
+  Text ->
   IO (Either TranscriptError Text)
-run dir stanzas codebase runtime config = UnliftIO.try $ do
+run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.try $ do
+  httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   let initialPath = Path.absoluteEmpty
   putPrettyLn $
-    P.lines
+    Pretty.lines
       [ asciiartUnison,
         "",
         "Running the provided transcript file...",
         ""
       ]
-  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
+  root <- Codebase.getRootBranch codebase
   do
+    mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
+    credMan <- AuthN.newCredentialManager
+    let tokenProvider :: AuthN.TokenProvider
+        tokenProvider =
+          case mayShareAccessToken of
+            Nothing -> do
+              AuthN.newTokenProvider credMan
+            Just accessToken ->
+              \_codeserverID -> pure $ Right accessToken
     pathRef <- newIORef initialPath
     rootBranchRef <- newIORef root
     numberedArgsRef <- newIORef []
@@ -205,7 +254,7 @@ run dir stanzas codebase runtime config = UnliftIO.try $ do
     allowErrors <- newIORef False
     hasErrors <- newIORef False
     mStanza <- newIORef Nothing
-    traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 ..])
+    traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 :: Int ..])
     let patternMap =
           Map.fromList $
             validInputs
@@ -224,6 +273,22 @@ run dir stanzas codebase runtime config = UnliftIO.try $ do
         output, outputEcho :: (String -> IO ())
         output = output' False
         outputEcho = output' True
+
+        apiRequest :: APIRequest -> IO ()
+        apiRequest req = do
+          output (show req <> "\n")
+          case req of
+            (APIComment {}) -> pure ()
+            (GetRequest path) -> do
+              req <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
+                Left err -> dieWithMsg (show err)
+                Right req -> pure req
+              respBytes <- HTTP.httpLbs req httpManager
+              case Aeson.eitherDecode (HTTP.responseBody respBytes) of
+                Right (v :: Aeson.Value) -> do
+                  let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
+                  output . (<> "\n") . BL.unpack $ prettyBytes
+                Left err -> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err)
 
         awaitInput :: IO (Either Event Input)
         awaitInput = do
@@ -258,7 +323,7 @@ run dir stanzas codebase runtime config = UnliftIO.try $ do
                         currentRoot <- Branch.head <$> readIORef rootBranchRef
                         case parseInput currentRoot curPath numberedArgs patternMap args of
                           -- invalid command is treated as a failure
-                          Left msg -> dieWithMsg $ P.toPlain terminalWidth msg
+                          Left msg -> dieWithMsg $ Pretty.toPlain terminalWidth msg
                           Right input -> pure $ Right input
             Nothing -> do
               dieUnexpectedSuccess
@@ -291,6 +356,11 @@ run dir stanzas codebase runtime config = UnliftIO.try $ do
                       atomically . Q.enqueue cmdQueue $ Nothing
                       modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt)
                       pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
+                    API apiRequests -> do
+                      output "```api\n"
+                      for_ apiRequests apiRequest
+                      output "```"
+                      awaitInput
                     Ucm hide errOk cmds -> do
                       writeIORef hidden hide
                       writeIORef allowErrors errOk
@@ -315,20 +385,22 @@ run dir stanzas codebase runtime config = UnliftIO.try $ do
               let f = LoadSuccess <$> readUtf8 (Text.unpack name)
                in f <|> pure InvalidSourceNameError
 
+        print :: Output.Output Symbol -> IO ()
         print o = do
           msg <- notifyUser dir o
           errOk <- readIORef allowErrors
-          let rendered = P.toPlain terminalWidth (P.border 2 msg)
+          let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
           output rendered
           when (Output.isFailure o) $
             if errOk
               then writeIORef hasErrors True
               else dieWithMsg rendered
 
+        printNumbered :: Output.NumberedOutput Symbol -> IO Output.NumberedArgs
         printNumbered o = do
           let (msg, numberedArgs) = notifyNumbered o
           errOk <- readIORef allowErrors
-          let rendered = P.toPlain terminalWidth (P.border 2 msg)
+          let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
           output rendered
           when (Output.isNumberedFailure o) $
             if errOk
@@ -374,9 +446,16 @@ run dir stanzas codebase runtime config = UnliftIO.try $ do
                   "The transcript was expecting an error in the stanza above, but did not encounter one."
                 ]
 
-        loop state = do
+    authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
+    let loop state = do
           writeIORef pathRef (view LoopState.currentPath state)
-          let free = runStateT (runMaybeT HandleInput.loop) state
+          let env =
+                LoopState.Env
+                  { LoopState.authHTTPClient = authenticatedHTTPClient,
+                    LoopState.codebase = codebase,
+                    LoopState.credentialManager = credMan
+                  }
+          let free = LoopState.runAction env state $ HandleInput.loop
               rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
           (o, state') <-
             HandleCommand.commandLine
@@ -384,11 +463,13 @@ run dir stanzas codebase runtime config = UnliftIO.try $ do
               awaitInput
               (const $ pure ())
               runtime
+              sbRuntime
               print
               printNumbered
               loadPreviousUnisonBlock
               codebase
               Nothing
+              ucmVersion
               rng
               free
           case o of
@@ -436,31 +517,50 @@ ucmLine = ucmCommand <|> ucmComment
       line <- P.takeWhileP Nothing (/= '\n') <* spaces
       pure $ UcmComment line
 
+apiRequest :: P APIRequest
+apiRequest = do
+  apiComment <|> getRequest
+  where
+    getRequest = do
+      word "GET"
+      spaces
+      path <- P.takeWhile1P Nothing (/= '\n')
+      spaces
+      pure (GetRequest path)
+    apiComment = do
+      word "--"
+      comment <- P.takeWhileP Nothing (/= '\n')
+      spaces
+      pure (APIComment comment)
+
 fenced :: P Stanza
 fenced = do
   fence
-  fenceType <- lineToken (word "ucm" <|> word "unison" <|> language)
+  fenceType <- lineToken (word "ucm" <|> word "unison" <|> word "api" <|> language)
   stanza <-
-    if fenceType == "ucm"
-      then do
+    case fenceType of
+      "ucm" -> do
         hide <- hidden
         err <- expectingError
         _ <- spaces
         cmds <- many ucmLine
         pure $ Ucm hide err cmds
-      else
-        if fenceType == "unison"
-          then do
-            -- todo: this has to be more interesting
-            -- ```unison:hide
-            -- ```unison
-            -- ```unison:hide:all scratch.u
-            hide <- lineToken hidden
-            err <- lineToken expectingError
-            fileName <- optional untilSpace1
-            blob <- spaces *> untilFence
-            pure $ Unison hide err fileName blob
-          else UnprocessedFence fenceType <$> untilFence
+      "unison" ->
+        do
+          -- todo: this has to be more interesting
+          -- ```unison:hide
+          -- ```unison
+          -- ```unison:hide:all scratch.u
+          hide <- lineToken hidden
+          err <- lineToken expectingError
+          fileName <- optional untilSpace1
+          blob <- spaces *> untilFence
+          pure $ Unison hide err fileName blob
+      "api" -> do
+        _ <- spaces
+        apiRequests <- many apiRequest
+        pure $ API apiRequests
+      _ -> UnprocessedFence fenceType <$> untilFence
   fence
   pure stanza
 

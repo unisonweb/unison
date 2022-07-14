@@ -1,6 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Debug (debug, debugM, whenDebug, debugLog, debugLogM, DebugFlag (..)) where
+module Unison.Debug
+  ( debug,
+    debugM,
+    whenDebug,
+    debugLog,
+    debugLogM,
+    shouldDebug,
+    DebugFlag (..),
+  )
+where
 
 import Control.Applicative (empty)
 import Control.Monad (when)
@@ -12,13 +21,19 @@ import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO.Environment (lookupEnv)
 
 data DebugFlag
-  = Git
-  | Sqlite
+  = Auth
   | Codebase
+  | Git
+  | Integrity
+  | Migration
+  | Sqlite
+  | Sync
+  | -- | Timing how long things take
+    Timing
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
-debugFlags = pTraceShowId $ case pTraceShowId $ (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
+debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
   Nothing -> Set.empty
   -- Enable all debugging flags for bare UNISON_DEBUG declarations like:
   -- UNISON_DEBUG= ucm
@@ -26,9 +41,14 @@ debugFlags = pTraceShowId $ case pTraceShowId $ (unsafePerformIO (lookupEnv "UNI
   Just s -> Set.fromList $ do
     w <- (Text.splitOn "," . Text.pack $ s)
     case Text.toUpper . Text.strip $ w of
-      "GIT" -> pure Git
-      "SQLITE" -> pure Sqlite
+      "AUTH" -> pure Auth
       "CODEBASE" -> pure Codebase
+      "GIT" -> pure Git
+      "INTEGRITY" -> pure Integrity
+      "MIGRATION" -> pure Migration
+      "SQLITE" -> pure Sqlite
+      "SYNC" -> pure Sync
+      "TIMING" -> pure Timing
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -43,6 +63,26 @@ debugSqlite = Sqlite `Set.member` debugFlags
 debugCodebase :: Bool
 debugCodebase = Codebase `Set.member` debugFlags
 {-# NOINLINE debugCodebase #-}
+
+debugAuth :: Bool
+debugAuth = Auth `Set.member` debugFlags
+{-# NOINLINE debugAuth #-}
+
+debugMigration :: Bool
+debugMigration = Migration `Set.member` debugFlags
+{-# NOINLINE debugMigration #-}
+
+debugIntegrity :: Bool
+debugIntegrity = Integrity `Set.member` debugFlags
+{-# NOINLINE debugIntegrity #-}
+
+debugSync :: Bool
+debugSync = Sync `Set.member` debugFlags
+{-# NOINLINE debugSync #-}
+
+debugTiming :: Bool
+debugTiming = Timing `Set.member` debugFlags
+{-# NOINLINE debugTiming #-}
 
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
@@ -63,19 +103,19 @@ debug flag msg a =
 --   ...
 debugM :: (Show a, Monad m) => DebugFlag -> String -> a -> m ()
 debugM flag msg a =
-  when (shouldDebug flag) $ do
+  whenDebug flag do
     pTraceM (msg <> ":\n")
     pTraceShowM a
 
 debugLog :: DebugFlag -> String -> a -> a
 debugLog flag msg =
-  if (shouldDebug flag)
+  if shouldDebug flag
     then pTrace msg
     else id
 
 debugLogM :: (Monad m) => DebugFlag -> String -> m ()
 debugLogM flag msg =
-  when (shouldDebug flag) $ pTraceM msg
+  whenDebug flag $ pTraceM msg
 
 -- | A 'when' block which is triggered if the given flag is being debugged.
 whenDebug :: Monad m => DebugFlag -> m () -> m ()
@@ -84,6 +124,11 @@ whenDebug flag action = do
 
 shouldDebug :: DebugFlag -> Bool
 shouldDebug = \case
-  Git -> debugGit
-  Sqlite -> debugSqlite
+  Auth -> debugAuth
   Codebase -> debugCodebase
+  Git -> debugGit
+  Integrity -> debugIntegrity
+  Migration -> debugMigration
+  Sqlite -> debugSqlite
+  Sync -> debugSync
+  Timing -> debugTiming

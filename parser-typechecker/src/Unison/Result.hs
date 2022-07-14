@@ -12,7 +12,6 @@ import Control.Monad.Writer
     WriterT (..),
     runWriterT,
   )
-import Data.Functor.Identity
 import Unison.Name (Name)
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Parser as Parser

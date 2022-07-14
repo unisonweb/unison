@@ -10,18 +10,22 @@ where
 import Compat (withInterruptHandler)
 import qualified Control.Concurrent.Async as Async
 import Control.Concurrent.STM (atomically)
-import Control.Error (rightMay)
 import Control.Exception (catch, finally)
 import Control.Lens (view)
-import Control.Monad.State (runStateT)
+import Control.Monad.Catch (MonadMask)
 import qualified Crypto.Random as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy.IO as Text.Lazy
 import qualified System.Console.Haskeline as Line
 import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
+import Text.Pretty.Simple (pShow)
+import Unison.Auth.CredentialManager (newCredentialManager)
+import qualified Unison.Auth.HTTPClient as AuthN
+import qualified Unison.Auth.Tokens as AuthN
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
@@ -32,6 +36,7 @@ import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.CommandLine
@@ -51,7 +56,7 @@ import qualified UnliftIO
 
 getUserInput ::
   forall m v a.
-  (MonadIO m, Line.MonadException m) =>
+  (MonadIO m, MonadMask m) =>
   Map String InputPattern ->
   Codebase m v a ->
   Branch m ->
@@ -108,11 +113,13 @@ main ::
   (Config, IO ()) ->
   [Either Event Input] ->
   Runtime.Runtime Symbol ->
+  Runtime.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
+  UCMVersion ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl = do
-  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion = do
+  root <- Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
   do
@@ -165,6 +172,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
 
     let cleanup = do
           Runtime.terminate runtime
+          Runtime.terminate sbRuntime
           cancelConfig
           cancelFileSystemWatch
           cancelWatchBranchUpdates
@@ -188,13 +196,23 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
       let loop :: LoopState.LoopState IO Symbol -> IO ()
           loop state = do
             writeIORef pathRef (view LoopState.currentPath state)
-            let free = runStateT (runMaybeT HandleInput.loop) state
+            credMan <- newCredentialManager
+            let tokenProvider = AuthN.newTokenProvider credMan
+            authorizedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
+            let env =
+                  LoopState.Env
+                    { LoopState.authHTTPClient = authorizedHTTPClient,
+                      LoopState.codebase = codebase,
+                      LoopState.credentialManager = credMan
+                    }
+            let free = LoopState.runAction env state HandleInput.loop
             let handleCommand =
                   HandleCommand.commandLine
                     config
                     awaitInput
                     (writeIORef rootRef)
                     runtime
+                    sbRuntime
                     notify
                     ( \o ->
                         let (p, args) = notifyNumbered o
@@ -203,6 +221,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                     loadSourceFile
                     codebase
                     serverBaseUrl
+                    ucmVersion
                     (const Random.getSystemDRG)
                     free
             UnliftIO.race waitForInterrupt (try handleCommand) >>= \case
@@ -228,7 +247,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
         `finally` cleanup
   where
     printException :: SomeException -> IO ()
-    printException e = hPutStrLn stderr ("Encountered Exception: " <> show (e :: SomeException))
+    printException e = Text.Lazy.hPutStrLn stderr ("Encountered exception:\n" <> pShow e)
 
 -- | Installs a posix interrupt handler for catching SIGINT.
 -- This replaces GHC's default sigint handler which throws a UserInterrupt async exception

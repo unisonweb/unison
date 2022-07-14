@@ -24,21 +24,31 @@ flag optimized
 library
   exposed-modules:
       Compat
+      Unison.Auth.CredentialFile
+      Unison.Auth.CredentialManager
+      Unison.Auth.Discovery
+      Unison.Auth.HTTPClient
+      Unison.Auth.OAuth
+      Unison.Auth.Tokens
+      Unison.Auth.Types
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleCommand
       Unison.Codebase.Editor.HandleInput
+      Unison.Codebase.Editor.HandleInput.AuthLogin
       Unison.Codebase.Editor.HandleInput.LoopState
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
       Unison.Codebase.Editor.Output.DumpNamespace
+      Unison.Codebase.Editor.Output.PushPull
       Unison.Codebase.Editor.Propagate
       Unison.Codebase.Editor.Slurp
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
       Unison.Codebase.Editor.TodoOutput
+      Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
       Unison.Codebase.Editor.VersionParser
       Unison.Codebase.TranscriptParser
@@ -51,8 +61,10 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
-  other-modules:
-      Paths_unison_cli
+      Unison.Share.Codeserver
+      Unison.Share.Sync
+      Unison.Share.Sync.Types
+      Unison.Util.HTTP
   hs-source-dirs:
       src
   default-extensions:
@@ -65,12 +77,14 @@ library
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -81,36 +95,65 @@ library
   ghc-options: -Wall
   build-depends:
       ListLike
+    , aeson
+    , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
+    , either
     , errors
+    , exceptions
     , extra
     , filepath
+    , generic-lens
     , haskeline
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
+    , ki
     , lens
-    , megaparsec >=5.0.0 && <7.0.0
+    , lock-file
+    , megaparsec
+    , memory
     , mtl
+    , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , stm
     , text
     , these
+    , time
     , transformers
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
+    , unison-share-api
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
+    , vector
+    , wai
+    , warp
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   if !os(windows)
@@ -118,11 +161,10 @@ library
         unix
   default-language: Haskell2010
 
-executable integration-tests
+executable cli-integration-tests
   main-is: Suite.hs
   other-modules:
       IntegrationTests.ArgumentParsing
-      Paths_unison_cli
   hs-source-dirs:
       integration-tests
   default-extensions:
@@ -135,12 +177,14 @@ executable integration-tests
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -153,49 +197,75 @@ executable integration-tests
       unison
   build-depends:
       ListLike
+    , aeson
+    , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
+    , exceptions
     , extra
     , filepath
+    , generic-lens
     , haskeline
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
+    , ki
     , lens
-    , megaparsec >=5.0.0 && <7.0.0
+    , lock-file
+    , megaparsec
+    , memory
     , mtl
+    , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , process
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , text
     , these
     , time
     , transformers
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
+    , unison-share-api
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
+    , vector
+    , wai
+    , warp
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
 
 executable transcripts
   main-is: Transcripts.hs
-  other-modules:
-      Paths_unison_cli
   hs-source-dirs:
       transcripts
   default-extensions:
@@ -208,12 +278,14 @@ executable transcripts
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -224,41 +296,70 @@ executable transcripts
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
   build-depends:
       ListLike
+    , aeson
+    , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
+    , exceptions
     , extra
     , filepath
+    , generic-lens
     , haskeline
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
+    , ki
     , lens
-    , megaparsec >=5.0.0 && <7.0.0
+    , lock-file
+    , megaparsec
+    , memory
     , mtl
+    , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , process
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , text
     , these
+    , time
     , transformers
     , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
+    , unison-share-api
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
+    , vector
+    , wai
+    , warp
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
@@ -269,7 +370,6 @@ executable unison
       ArgParse
       System.Path
       Version
-      Paths_unison_cli
   hs-source-dirs:
       unison
   default-extensions:
@@ -282,12 +382,14 @@ executable unison
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -298,47 +400,76 @@ executable unison
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
       ListLike
+    , aeson
+    , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
+    , either
     , errors
+    , exceptions
     , extra
     , filepath
+    , generic-lens
     , haskeline
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
+    , ki
     , lens
-    , megaparsec >=5.0.0 && <7.0.0
+    , lock-file
+    , megaparsec
+    , memory
     , mtl
+    , network-uri
     , nonempty-containers
     , open-browser
     , optparse-applicative >=0.16.1.0
+    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , template-haskell
     , temporary
     , text
     , these
+    , time
     , transformers
     , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
+    , unison-share-api
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
+    , vector
+    , wai
+    , warp
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
 
-test-suite tests
+test-suite cli-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
@@ -348,7 +479,6 @@ test-suite tests
       Unison.Test.Ucm
       Unison.Test.UriParser
       Unison.Test.VersionParser
-      Paths_unison_cli
   hs-source-dirs:
       tests
   default-extensions:
@@ -361,12 +491,14 @@ test-suite tests
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -377,42 +509,71 @@ test-suite tests
   ghc-options: -Wall
   build-depends:
       ListLike
+    , aeson
+    , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
+    , exceptions
     , extra
     , filepath
+    , generic-lens
     , haskeline
     , here
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
+    , ki
     , lens
-    , megaparsec >=5.0.0 && <7.0.0
+    , lock-file
+    , megaparsec
+    , memory
     , mtl
+    , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
     , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , temporary
     , text
     , these
+    , time
     , transformers
     , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
+    , unison-share-api
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
+    , vector
+    , wai
+    , warp
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010

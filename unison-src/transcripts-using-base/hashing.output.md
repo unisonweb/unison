@@ -3,7 +3,7 @@
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
 ```ucm
-.builtin> ls Bytes
+.> ls builtin.Bytes
 
   1.  ++                    (Bytes -> Bytes -> Bytes)
   2.  at                    (Nat -> Bytes -> Optional Nat)
@@ -87,6 +87,7 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
       ex4      : Text
       ex5      : Text
       f        : x -> x
+        (also named id)
       mysecret : Bytes
   
   Now evaluating any watch expressions (lines starting with
@@ -106,11 +107,11 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
   
     25 | > ex4
            ⧩
-           "1e014deb2a1ef1dc3c8765a6f7ebf7184ccaeaecbc2b5428030befd7085139db"
+           "a52c81c976ff4fe9c809d9896d6dc32775c6272bb100555c507b72f20ace4b39"
   
     26 | > ex5
            ⧩
-           "c729f5ed4b2a89dc33ae06cd0b925174c990328c736123bc220e6fe8b42d3d53"
+           "b9f05335381fc8eecba3bfa6e82a4dc23fdab95a04f24b97d14785f0f15f56b4"
 
 ```
 And here's the full API:
@@ -123,23 +124,39 @@ And here's the full API:
   3.  HashAlgorithm.Blake2b_256 : HashAlgorithm
   4.  HashAlgorithm.Blake2b_512 : HashAlgorithm
   5.  HashAlgorithm.Blake2s_256 : HashAlgorithm
-  6.  HashAlgorithm.Sha2_256 : HashAlgorithm
-  7.  HashAlgorithm.Sha2_512 : HashAlgorithm
-  8.  HashAlgorithm.Sha3_256 : HashAlgorithm
-  9.  HashAlgorithm.Sha3_512 : HashAlgorithm
-  10. hashBytes : HashAlgorithm -> Bytes -> Bytes
-  11. hmac : HashAlgorithm -> Bytes -> a -> Bytes
-  12. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
+  6.  HashAlgorithm.Sha1 : HashAlgorithm
+  7.  HashAlgorithm.Sha2_256 : HashAlgorithm
+  8.  HashAlgorithm.Sha2_512 : HashAlgorithm
+  9.  HashAlgorithm.Sha3_256 : HashAlgorithm
+  10. HashAlgorithm.Sha3_512 : HashAlgorithm
+  11. hashBytes : HashAlgorithm -> Bytes -> Bytes
+  12. hmac : HashAlgorithm -> Bytes -> a -> Bytes
+  13. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
   
+
+.> cd .
 
 ```
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
-```
+```unison
 > crypto.hash Sha3_256 (fromHex "3849238492")
-
 ```
 
+```ucm
+
+  ✅
+  
+  scratch.u changed.
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    1 | > crypto.hash Sha3_256 (fromHex "3849238492")
+          ⧩
+          0xse34b43a163bed5ed9e6961b667be73232441d7c9608d8c06aa49df705a19400c
+
+```
 ## Hashing tests
 
 Here are some test vectors (taken from [here](https://www.di-mgt.com.au/sha_testvectors.html) and [here](https://en.wikipedia.org/wiki/BLAKE_(hash_function))) for the various hashing algorithms:
@@ -227,6 +244,26 @@ test> sha2_256.tests.ex4 =
     "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
     "cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1"
 
+test> sha1.tests.ex1 =
+  ex Sha1
+    "abc"
+    "a9993e364706816aba3e25717850c26c9cd0d89d"
+
+test> sha1.tests.ex2 =
+  ex Sha1
+    ""
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+
+test> sha1.tests.ex3 =
+  ex Sha1
+    "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+    "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
+
+test> sha1.tests.ex4 =
+  ex Sha1
+    "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
+    "a49b2446a02c645bf419f995b67091253a04a259"
+
 test> blake2s_256.tests.ex1 =
   ex Blake2s_256
     ""
@@ -249,7 +286,7 @@ test> blake2b_512.tests.ex3 =
 ```
 
 ```ucm
-.scratch> test
+.> test
 
   Cached test results (`help testcache` to learn more)
   
@@ -257,6 +294,10 @@ test> blake2b_512.tests.ex3 =
   ◉ blake2b_512.tests.ex2   Passed
   ◉ blake2b_512.tests.ex3   Passed
   ◉ blake2s_256.tests.ex1   Passed
+  ◉ sha1.tests.ex1          Passed
+  ◉ sha1.tests.ex2          Passed
+  ◉ sha1.tests.ex3          Passed
+  ◉ sha1.tests.ex4          Passed
   ◉ sha2_256.tests.ex1      Passed
   ◉ sha2_256.tests.ex2      Passed
   ◉ sha2_256.tests.ex3      Passed
@@ -274,7 +315,7 @@ test> blake2b_512.tests.ex3 =
   ◉ sha3_512.tests.ex3      Passed
   ◉ sha3_512.tests.ex4      Passed
   
-  ✅ 20 test(s) passing
+  ✅ 24 test(s) passing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.
@@ -288,9 +329,9 @@ These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231
 ex' alg secret msg expected = checks [hmacBytes alg (fromHex secret) (ascii msg) == fromHex expected]
 
 test> hmac_sha2_256.tests.ex1 =
-  ex' Sha2_256 
-    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b" 
-    "Hi There" 
+  ex' Sha2_256
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
+    "Hi There"
     "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
 test> hmac_sha2_512.tests.ex1 =
   ex' Sha2_512
@@ -332,7 +373,7 @@ test> hmac_sha2_512.tests.ex2 =
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    4 |   ex' Sha2_256 
+    4 |   ex' Sha2_256
     
     ✅ Passed Passed
   
@@ -350,7 +391,7 @@ test> hmac_sha2_512.tests.ex2 =
 
 ```
 ```ucm
-.scratch> test
+.> test
 
   Cached test results (`help testcache` to learn more)
   
@@ -362,6 +403,10 @@ test> hmac_sha2_512.tests.ex2 =
   ◉ hmac_sha2_256.tests.ex2   Passed
   ◉ hmac_sha2_512.tests.ex1   Passed
   ◉ hmac_sha2_512.tests.ex2   Passed
+  ◉ sha1.tests.ex1            Passed
+  ◉ sha1.tests.ex2            Passed
+  ◉ sha1.tests.ex3            Passed
+  ◉ sha1.tests.ex4            Passed
   ◉ sha2_256.tests.ex1        Passed
   ◉ sha2_256.tests.ex2        Passed
   ◉ sha2_256.tests.ex3        Passed
@@ -379,7 +424,7 @@ test> hmac_sha2_512.tests.ex2 =
   ◉ sha3_512.tests.ex3        Passed
   ◉ sha3_512.tests.ex4        Passed
   
-  ✅ 24 test(s) passing
+  ✅ 28 test(s) passing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.

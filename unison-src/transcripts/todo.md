@@ -17,6 +17,7 @@ useMyType = match MyType 1 with
 
 ```ucm:hide
 .simple> add
+.> cd .
 ```
 
 Perform a type-changing update so dependents are added to our update frontier.
@@ -30,6 +31,7 @@ structural type MyType = MyType Text
 ```ucm:error
 .simple> update
 .simple> todo
+.> cd .
 ```
 
 ## A merge with conflicting updates.
@@ -55,6 +57,7 @@ structural type MyType = MyType Nat
 
 ```ucm:hide
 .mergeA> update
+.> cd .
 ```
 
 ```unison:hide

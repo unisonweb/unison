@@ -184,11 +184,6 @@ checkForDuplicateTermsAndConstructors uf = do
 -- Or it is a binding like:
 --   foo : Nat -> Nat
 --   foo x = x + 42
--- Or it is a namespace like:
---   namespace Woot where
---     x = 42
---     y = 17
--- which parses as [(Woot.x, 42), (Woot.y, 17)]
 
 data Stanza v term
   = WatchBinding UF.WatchKind Ann ((Ann, v), term)
@@ -351,7 +346,8 @@ dataDeclaration mod = do
           sepBy1 (reserved "," <* optional semi) $
             liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
         _ <- closeBlock
-        pure ([go name (snd <$> fields)], [(name, fields)])
+        let lastSegment = name <&> (\v -> Var.named (Name.toText $ Name.unqualified (Name.unsafeFromVar v)))
+        pure ([go lastSegment (snd <$> fields)], [(name, fields)])
   (constructors, accessors) <-
     msum [record, (,[]) <$> sepBy (reserved "|") dataConstructor]
   _ <- closeBlock

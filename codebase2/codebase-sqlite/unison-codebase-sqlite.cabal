@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.7.
 --
 -- see: https://github.com/sol/hpack
 
@@ -10,6 +10,7 @@ homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
 build-type:     Simple
 extra-source-files:
+    sql/001-temp-entity-tables.sql
     sql/create.sql
 
 source-repository head
@@ -22,14 +23,17 @@ library
       U.Codebase.Sqlite.Branch.Format
       U.Codebase.Sqlite.Branch.Full
       U.Codebase.Sqlite.Causal
-      U.Codebase.Sqlite.Connection
       U.Codebase.Sqlite.DbId
       U.Codebase.Sqlite.Decl.Format
-      U.Codebase.Sqlite.JournalMode
+      U.Codebase.Sqlite.Decode
+      U.Codebase.Sqlite.Entity
+      U.Codebase.Sqlite.HashHandle
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
+      U.Codebase.Sqlite.NamedRef
       U.Codebase.Sqlite.ObjectType
       U.Codebase.Sqlite.Operations
+      U.Codebase.Sqlite.Orphans
       U.Codebase.Sqlite.Patch.Diff
       U.Codebase.Sqlite.Patch.Format
       U.Codebase.Sqlite.Patch.Full
@@ -41,9 +45,9 @@ library
       U.Codebase.Sqlite.Serialization
       U.Codebase.Sqlite.Symbol
       U.Codebase.Sqlite.Sync22
+      U.Codebase.Sqlite.TempEntity
+      U.Codebase.Sqlite.TempEntityType
       U.Codebase.Sqlite.Term.Format
-  other-modules:
-      Paths_unison_codebase_sqlite
   hs-source-dirs:
       ./
   default-extensions:
@@ -51,9 +55,15 @@ library
       BangPatterns
       BlockArguments
       ConstraintKinds
+      DeriveAnyClass
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
+      DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       FunctionalDependencies
@@ -62,14 +72,21 @@ library
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedStrings
       PatternSynonyms
+      QuasiQuotes
+      RankNTypes
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
       TypeApplications
       TypeFamilies
       TypeFamilyDependencies
+      TypeOperators
+      ViewPatterns
   build-depends:
-      base
+      Only
+    , base
     , bytes
     , bytestring
     , containers
@@ -79,15 +96,18 @@ library
     , lens
     , monad-validate
     , mtl
+    , nonempty-containers
     , safe
-    , sqlite-simple
     , text
     , transformers
     , unison-codebase
     , unison-codebase-sync
     , unison-core
     , unison-prelude
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
+    , unison-util-base32hex-orphans-sqlite
     , unison-util-serialization
     , unison-util-term
     , unliftio

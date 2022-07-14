@@ -41,7 +41,7 @@ unknownTag t w =
     exn $
       "unknown " ++ t ++ " word: " ++ show w
         ++ " ("
-        ++ show (fromIntegral r)
+        ++ show (fromIntegral @_ @Int r)
         ++ " bytes remaining)"
 
 class Tag t where

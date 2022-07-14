@@ -1215,17 +1215,33 @@ checkCases scrutType outType cases@(Term.MatchCase _ _ t : _) =
   scope (InMatch (ABT.annotation t)) $ do
     mes <- requestType (cases <&> \(Term.MatchCase p _ _) -> p)
     for_ mes $ \es ->
-      applyM scrutType >>= \sty -> do
-        v <- freshenVar Var.inferPatternPureV
-        g <- freshenVar Var.inferAbility
-        let lo = loc scrutType
-            vt = existentialp lo v
-            gt = existentialp lo g
-            es' = gt : es
-        appendContext [existential g, existential v]
-        subtype (Type.effectV lo (lo, Type.effects lo es') (lo, vt)) sty
+      applyM scrutType >>= \sty -> ensureReqEffects sty es
     scrutType' <- applyM =<< ungeneralize scrutType
     coalesceWanteds =<< traverse (checkCase scrutType' outType) cases
+
+-- Checks a scrutinee type against a list of effects from e.g. a list of cases
+-- from a handler.
+--
+-- This opportunistically destructures the scrutinee type if it is of the form
+-- `Request es r` in an effort to avoid introducing ability unification
+-- variables that will be more difficult to infer. In such cases, we just run an
+-- ability check directly against `es`. This works better, for instance, where a
+-- signature has been given for the handler, and es = {A,B,g}, for a universal
+-- g. In such a situation, we have no good way of solving via the general check
+-- for {A,B,e} < {A,B,g} with a fresh `e` existential, but the `e` is actually
+-- useless in this scenario.
+ensureReqEffects :: Var v => Ord loc => Type v loc -> [Type v loc] -> M v loc ()
+ensureReqEffects (Type.Apps' (Type.Ref' req) [hes, _]) res
+  | req == Type.effectRef = expandAbilities [hes] >>= \hes -> abilityCheck' hes res
+ensureReqEffects sty res = do
+  v <- freshenVar Var.inferPatternPureV
+  g <- freshenVar Var.inferAbility
+  let lo = loc sty
+      vt = existentialp lo v
+      gt = existentialp lo g
+      es' = gt : res
+  appendContext [existential g, existential v]
+  subtype (Type.effectV lo (lo, Type.effects lo es') (lo, vt)) sty
 
 getEffect ::
   Var v => Ord loc => ConstructorReference -> M v loc (Type v loc)
@@ -1389,28 +1405,30 @@ checkPattern scrutineeType p =
       ((v, v') :) <$> checkPattern scrutineeType p'
     -- ex: { a } -> a
     -- ex: { (x, 42) } -> a
-    Pattern.EffectPure loc p -> do
-      vt <- lift $ do
-        v <- freshenVar Var.inferPatternPureV
-        e <- freshenVar Var.inferPatternPureE
-        let vt = existentialp loc v
-        let et = existentialp loc e
-        appendContext [existential v, existential e]
-        subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
-        applyM vt
-      checkPattern vt p
+    Pattern.EffectPure loc p
+      -- Avoid creating extra effect variables when the scrutinee is already
+      -- known to be a Request.
+      --
+      -- TODO: this should actually _always_ be the case, because we do a pass
+      -- across the entire case statement refining the scrutinee type. The
+      -- 'otherwise' still needs to be covered for exhaustivity, however.
+      | Type.Apps' (Type.Ref' req) [_, r] <- scrutineeType,
+        req == Type.effectRef ->
+          checkPattern r p
+      | otherwise -> do
+          vt <- lift $ do
+            v <- freshenVar Var.inferPatternPureV
+            e <- freshenVar Var.inferPatternPureE
+            let vt = existentialp loc v
+            let et = existentialp loc e
+            appendContext [existential v, existential e]
+            subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
+            applyM vt
+          checkPattern vt p
     -- ex: { Stream.emit x -> k } -> ...
     Pattern.EffectBind loc ref args k -> do
       -- scrutineeType should be a supertype of `Effect e vt`
       -- for fresh existentials `e` and `vt`
-      e <- lift $ extendExistential Var.inferPatternBindE
-      v <- lift $ extendExistential Var.inferPatternBindV
-      let evt =
-            Type.effectV
-              loc
-              (loc, existentialp loc e)
-              (loc, existentialp loc v)
-      lift $ subtype evt scrutineeType
       ect <- lift $ getEffectConstructorType ref
       uect <- lift $ skolemize forcedEffect ect
       unless (Type.arity uect == length args)
@@ -1423,27 +1441,22 @@ checkPattern scrutineeType p =
           step _ _ =
             lift . failWith $ PatternArityMismatch loc ect (length args)
       (ctorOutputType, vs) <- foldM step (uect, []) args
+      st <- lift $ applyM scrutineeType
       case ctorOutputType of
         -- an effect ctor should have exactly 1 effect!
-        Type.Effect'' [et] it -> do
+        Type.Effect'' [et] it
           -- expecting scrutineeType to be `Effect et vt`
-
-          -- ensure that the variables in `et` unify with those from
-          -- the scrutinee.
-          lift $ do
-            res <- Type.flattenEffects <$> applyM (existentialp loc e)
-            abilityCheck' res [et]
-
-          st <- lift $ applyM scrutineeType
-          case st of
-            Type.App' (Type.App' _ eff) vt ->
+          | Type.Apps' _ [eff, vt] <- st -> do
+              -- ensure that the variables in `et` unify with those from
+              -- the scrutinee.
+              lift $ abilityCheck' [eff] [et]
               let kt =
                     Type.arrow
                       (Pattern.loc k)
                       it
                       (Type.effect (Pattern.loc k) [eff] vt)
-               in (vs ++) <$> checkPattern kt k
-            _ -> lift . compilerCrash $ PatternMatchFailure
+              (vs ++) <$> checkPattern kt k
+          | otherwise -> lift . compilerCrash $ PatternMatchFailure
         _ ->
           lift . compilerCrash $
             EffectConstructorHadMultipleEffects
@@ -1619,7 +1632,7 @@ tweakEffects ::
   Type v loc ->
   M v loc ([v], Type v loc)
 tweakEffects v0 t0
-  | isEffectVar v0 t0 =
+  | isEffectVar v0 t0 && isVariant v0 t0 =
       rewrite (Just False) t0 >>= \case
         ([], ty) ->
           freshenTypeVar v0 >>= \out -> finish [out] ty
@@ -1674,6 +1687,21 @@ isEffectVar u (Type.Arrow'' i es o) =
     p (Type.Var' v) = v == u
     p _ = False
 isEffectVar _ _ = False
+
+-- Checks that a variable only occurs in variant positions. This may mean that
+-- it occurs in both covariant and contravariant positions, so long as it
+-- doesn't occur in a single position that is invariant, like the `x` in `F x`.
+isVariant :: Var v => TypeVar v loc -> Type v loc -> Bool
+isVariant u = walk True
+  where
+    walk var (Type.ForallNamed' v t)
+      | u == v = True
+      | otherwise = walk var t
+    walk var (Type.Arrow'' i es o) =
+      walk var i && walk var o && all (walk var) es
+    walk var (Type.App' f x) = walk var f && walk False x
+    walk var (Type.Var' v) = u /= v || var
+    walk _ _ = True
 
 skolemize ::
   Var v =>
@@ -1942,7 +1970,7 @@ defaultAbility _ = pure False
 -- Expects a fully substituted type, so that it is unnecessary to
 -- check if an existential in the type has been solved.
 discardCovariant :: Var v => Set v -> Type v loc -> Type v loc
-discardCovariant _ ty | debugShow ("discardCovariant", ty) = undefined
+discardCovariant _ ty | debugShow ("discardCovariant" :: Text, ty) = undefined
 discardCovariant gens ty =
   ABT.rewriteDown (strip $ keepVarsT True ty) ty
   where
@@ -2385,7 +2413,7 @@ refineEffectVar ::
   Type v loc ->
   M v loc ()
 refineEffectVar _ es _ v _
-  | debugShow ("refineEffectVar", es, v) = undefined
+  | debugShow ("refineEffectVar" :: Text, es, v) = undefined
 refineEffectVar _ [] _ _ _ = pure ()
 refineEffectVar l es blank v tv
   | ev <- TypeVar.Existential blank v,
@@ -2595,7 +2623,7 @@ pruneAbilities ::
   [Type v loc] ->
   M v loc (Wanted v loc)
 pruneAbilities want0 have0
-  | debugShow ("pruneAbilities", want0, have0) = undefined
+  | debugShow ("pruneAbilities" :: Text, want0, have0) = undefined
 pruneAbilities want0 have0 = do
   pwant <- pruneConcrete missing [] want0 have0
   if pwant /= want0
@@ -2645,7 +2673,7 @@ equateAbilities ::
   [Type v loc] ->
   M v loc ()
 equateAbilities abs1 abs2
-  | debugShow ("equateAbilities", abs1, abs2) = undefined
+  | debugShow ("equateAbilities" :: Text, abs1, abs2) = undefined
 equateAbilities ls rs =
   matchAbilities ls rs >>= \(com, ls, rs) ->
     let (vls, cls) = partition isExistential ls
@@ -2666,9 +2694,11 @@ equateAbilities ls rs =
               null vls,
               null vrs ->
                 refine True [(loc t, bc, cv)] [cls ++ crs]
-            | otherwise -> do
-                for_ mlSlack $ \p -> refine False [p] [rs]
-                for_ mrSlack $ \p -> refine False [p] [ls]
+            | [] <- com, null rs, null cls -> for_ vls defaultAbility
+            | [] <- com, null ls, null crs -> for_ vrs defaultAbility
+            | [] <- com, Just pl <- mlSlack, null cls -> refine False [pl] [rs]
+            | [] <- com, Just pr <- mrSlack, null crs -> refine False [pr] [ls]
+            | otherwise -> getContext >>= failWith . AbilityCheckFailure ls rs
   where
     refine common lbvs ess = do
       cv <- traverse freshenVar cn
@@ -2704,7 +2734,7 @@ subAbilities ::
   [Type v loc] ->
   M v loc ()
 subAbilities want have
-  | debugShow ("subAbilities", want, have) = undefined
+  | debugShow ("subAbilities" :: Text, want, have) = undefined
 subAbilities want have = do
   want <- expandWanted want
   have <- expandAbilities have

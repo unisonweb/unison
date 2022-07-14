@@ -38,9 +38,12 @@ type TypeLink = TypeRef
 --   * The term's type, also with internal references to local id.
 type LocallyIndexedComponent = LocallyIndexedComponent' TextId ObjectId
 
-newtype LocallyIndexedComponent' t d
-  = LocallyIndexedComponent (Vector (LocalIds' t d, Term, Type))
+newtype LocallyIndexedComponent' t d = LocallyIndexedComponent
+  {unLocallyIndexedComponent :: Vector (LocalIds' t d, Term, Type)}
   deriving (Show)
+
+newtype SyncLocallyIndexedComponent' t d
+  = SyncLocallyIndexedComponent (Vector (LocalIds' t d, ByteString))
 
 {-
 message = "hello, world"     -> ABT { ... { Term.F.Text "hello, world" } }    -> hashes to (#abc, 0)
@@ -109,8 +112,13 @@ type FTT = Type.F' Sqlite.Reference
 
 type TypeOfTerm = ABT.Term FTT Symbol ()
 
-data TermFormat
-  = Term LocallyIndexedComponent
+type TermFormat = TermFormat' TextId ObjectId
+
+data TermFormat' t d = Term (LocallyIndexedComponent' t d)
+
+type SyncTermFormat = SyncTermFormat' TextId ObjectId
+
+data SyncTermFormat' t d = SyncTerm (SyncLocallyIndexedComponent' t d)
 
 data WatchResultFormat
   = WatchResult WatchLocalIds Term

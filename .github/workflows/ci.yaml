@@ -27,7 +27,6 @@ jobs:
           # temporarily disable non-windows builds to speed up iteration time
           - ubuntu-20.04
           - macOS-11.0
-          - macOS-10.15
           - windows-2019
     steps:
       - uses: actions/checkout@v2
@@ -39,8 +38,9 @@ jobs:
       # purge one manually.
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
-      - uses: actions/cache@v2
-        name: cache ~/.stack
+      - uses: actions/cache@v3
+        name: cache ~/.stack (unix)
+        if: runner.os != 'Windows'
         with:
           path: ~/.stack
           # Main cache key: commit hash. This should always result in a cache miss...
@@ -55,8 +55,26 @@ jobs:
             stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
             stack-0_${{matrix.os}}
 
+      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
+      - uses: actions/cache@v3
+        name: cache ~/.stack (Windows)
+        if: runner.os == 'Windows'
+        with:
+          path: "C:\\Users\\runneradmin\\AppData\\Local\\Programs\\stack"
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
+          restore-keys: |
+            stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
+            stack-0_${{matrix.os}}
+
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         name: cache .stack-work
         with:
           path: |
@@ -100,7 +118,22 @@ jobs:
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
       - name: build dependencies
-        run: stack --no-terminal build --fast --only-dependencies
+        shell: bash
+        # Run up to 5 times in a row before giving up.
+        # It's very unlikely that our build-dependencies step will fail on most builds,
+        # so if it fails its almost certainly due to a race condition on the Windows
+        # file-system API that stack runs into. Since any successful packages are
+        # cached within a single build, it should get further along on each re-start
+        # and should hopefully finish!
+        run: |
+          tries=1
+          if [[ ${{matrix.os}} = "windows-"* ]]; then
+            tries=5
+          fi
+
+          for (( i = 0; i < $tries; i++ )); do
+              stack --no-terminal build --fast --only-dependencies && break;
+          done
       - name: build
         run: stack --no-terminal build --fast --no-run-tests --test
 
@@ -108,7 +141,7 @@ jobs:
       - name: unison-cli tests
         run: stack --no-terminal build --fast --test unison-cli
       - name: unison-parser-typechecker tests
-        run: stack --no-terminal exec tests
+        run: stack --no-terminal build --fast --test unison-parser-typechecker
       - name: unison-util-relation tests
         run: stack --no-terminal build --fast --test unison-util-relation
       - name: transcripts
@@ -120,5 +153,5 @@ jobs:
           git diff --cached --ignore-cr-at-eol --exit-code
       - name: prettyprint-round-trip
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
-      - name: integration-tests
-        run: stack --no-terminal exec integration-tests
+      - name: cli-integration-tests
+        run: stack --no-terminal exec cli-integration-tests

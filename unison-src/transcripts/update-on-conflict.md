@@ -14,9 +14,10 @@ Cause a conflict:
 .> add
 .merged> merge .a
 .merged> merge .b
+.> cd .
 ```
 
-Ideally we could just define the canonical `x` that we want, and update 
+Ideally we could just define the canonical `x` that we want, and update
 to accept it, but we can't:
 
 ```unison

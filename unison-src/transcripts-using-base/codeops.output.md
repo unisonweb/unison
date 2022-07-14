@@ -8,12 +8,25 @@ function. Also ask for its dependencies for display later.
 save : a -> Bytes
 save x = Value.serialize (Value.value x)
 
+Code.save : Code -> Bytes
+Code.save = Code.serialize
+
+Code.get : Link.Term -> Code
+Code.get tl = match Code.lookup tl with
+  Some co -> co
+  None -> throw "could not look up code"
+
 load : Bytes ->{io2.IO, Throw Text} a
 load b = match Value.deserialize b with
   Left _ -> throw "could not deserialize value"
   Right v -> match Value.load v with
     Left _ -> throw "could not load value"
     Right x -> x
+
+Code.load : Bytes ->{io2.IO, Throw Text} Code
+Code.load b = match Code.deserialize b with
+  Left _ -> throw "could not deserialize code"
+  Right co -> co
 
 roundtrip : a ->{io2.IO, Throw Text} a
 roundtrip x = load (save x)
@@ -77,6 +90,16 @@ extensionality t f = let
 identicality : Text -> a ->{io2.IO} Result
 identicality t x
   = handle identical "" x (roundtrip x) with handleTest t
+
+idempotence : Text -> Link.Term ->{io2.IO} Result
+idempotence t tl =
+  handle let
+    co1 = Code.get tl
+    b1 = Code.save co1
+    co2 = Code.load b1
+    b2 = Code.save co2
+    identical "" b1 b2
+  with handleTest t
 ```
 
 ```ucm
@@ -88,6 +111,9 @@ identicality t x
     ⍟ These new definitions are ok to `add`:
     
       structural type Three a b c
+      Code.get       : Link.Term ->{IO, Throw Text} Code
+      Code.load      : Bytes ->{IO, Throw Text} Code
+      Code.save      : Code -> Bytes
       concatMap      : (a ->{g} [b]) -> [a] ->{g} [b]
       extensionality : Text
                        -> (Three Nat Nat Nat -> Nat -> b)
@@ -99,6 +125,7 @@ identicality t x
                        ->{Throw Text} ()
       fib10          : [Nat]
       handleTest     : Text -> Request {Throw Text} a -> Result
+      idempotence    : Text -> Link.Term ->{IO} Result
       identical      : Text -> a -> a ->{Throw Text} ()
       identicality   : Text -> a ->{IO} Result
       load           : Bytes ->{IO, Throw Text} a
@@ -115,6 +142,9 @@ identicality t x
   ⍟ I've added these definitions:
   
     structural type Three a b c
+    Code.get       : Link.Term ->{IO, Throw Text} Code
+    Code.load      : Bytes ->{IO, Throw Text} Code
+    Code.save      : Code -> Bytes
     concatMap      : (a ->{g} [b]) -> [a] ->{g} [b]
     extensionality : Text
                      -> (Three Nat Nat Nat -> Nat -> b)
@@ -126,6 +156,7 @@ identicality t x
                      ->{Throw Text} ()
     fib10          : [Nat]
     handleTest     : Text -> Request {Throw Text} a -> Result
+    idempotence    : Text -> Link.Term ->{IO} Result
     identical      : Text -> a -> a ->{Throw Text} ()
     identicality   : Text -> a ->{IO} Result
     load           : Bytes ->{IO, Throw Text} a
@@ -169,6 +200,13 @@ zapper t = cases
   { r } -> r
   { zap -> k } -> handle k t with zapper (rotate t)
 
+bigFun : Nat -> Nat -> Nat -> Nat
+bigFun i j k = let
+  f x y = i + x + y
+  g x y = j + x + y
+  h x y = k + x + y
+  f j k + g i k + h i j
+
 tests : '{io2.IO} [Result]
 tests =
   '[ extensionality "ext f" (t x -> handle f x with zapper t)
@@ -193,7 +231,7 @@ badLoad _ =
     match Value.deserialize payload with
       Left t -> Fail "deserialize exception"
       Right a -> match Value.load a with
-        Left terms -> 
+        Left terms ->
             bs = Value.serialize (Value.value terms)
             s = size bs
             Ok ("serialized" ++ toText s)
@@ -214,6 +252,7 @@ badLoad _ =
     
       structural ability Zap
       badLoad : '{IO} [Result]
+      bigFun  : Nat -> Nat -> Nat -> Nat
       f       : Nat ->{Zap} Nat
       fDeps   : [Link.Term]
       fSer    : Bytes
@@ -235,6 +274,7 @@ to actual show that the serialization works.
   
     structural ability Zap
     badLoad : '{IO} [Result]
+    bigFun  : Nat -> Nat -> Nat -> Nat
     f       : Nat ->{Zap} Nat
     fDeps   : [Link.Term]
     fSer    : Bytes
@@ -243,10 +283,6 @@ to actual show that the serialization works.
     rotate  : Three Nat Nat Nat -> Three Nat Nat Nat
     tests   : '{IO} [Result]
     zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
-
-.> display fDeps
-
-  [termLink f]
 
 .> io.test tests
 
@@ -279,6 +315,58 @@ to actual show that the serialization works.
   ✅ 1 test(s) passing
   
   Tip: Use view badLoad to view the source of a test.
+
+```
+```unison
+codeTests : '{io2.IO} [Result]
+codeTests =
+  '[ idempotence "idem f" (termLink f)
+   , idempotence "idem h" (termLink h)
+   , idempotence "idem rotate" (termLink rotate)
+   , idempotence "idem zapper" (termLink zapper)
+   , idempotence "idem showThree" (termLink showThree)
+   , idempotence "idem concatMap" (termLink concatMap)
+   , idempotence "idem big" (termLink bigFun)
+   , idempotence "idem extensionality" (termLink extensionality)
+   , idempotence "idem identicality" (termLink identicality)
+   ]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      codeTests : '{IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    codeTests : '{IO} [Result]
+
+.> io.test codeTests
+
+    New test results:
+  
+  ◉ codeTests   (idem f) passed
+  ◉ codeTests   (idem h) passed
+  ◉ codeTests   (idem rotate) passed
+  ◉ codeTests   (idem zapper) passed
+  ◉ codeTests   (idem showThree) passed
+  ◉ codeTests   (idem concatMap) passed
+  ◉ codeTests   (idem big) passed
+  ◉ codeTests   (idem extensionality) passed
+  ◉ codeTests   (idem identicality) passed
+  
+  ✅ 9 test(s) passing
+  
+  Tip: Use view codeTests to view the source of a test.
 
 ```
 ```unison

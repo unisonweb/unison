@@ -11,24 +11,36 @@ To get cracking with Unison:
 1. [Install `stack`](https://docs.haskellstack.org/en/stable/README/#how-to-install).
 2. Build the project with `stack build`. This builds all executables.
 3. (Optional) Run `./dev-ui-install.hs` to fetch the latest release of the codebase UI. If you don't care about running the codebase UI locally you can ignore this step.
-4. After building do `stack exec unison -- init` will initialize a codebase in your home directory (in `~/.unison`). This only needs to be done once.
+4. After building do `stack exec unison` to will initialize a codebase in your home directory (in `~/.unison`). This only needs to be done once. (Alternatively, you can use `stack exec -- unison -C <other dir> to create a codebase in <other dir>`
 5. `stack exec unison` starts Unison and watches for `.u` file changes in the current directory. If you want to run it in a different directory, just add `unison` to your `PATH`, after finding it with `stack exec which unison`.
 
 On startup, Unison prints a url for the codebase UI. If you did step 3 above, then visiting that URL in a browser will give you a nice interface to your codebase.
 
 ## Running Tests
 
-* `stack exec tests` runs the tests
+* `stack test --fast` builds and runs most test suites, see below for exceptions to this (e.g. transcript tests).
+
+Most test suites support selecting a specific test to run by passing a prefix as a test argument:
+
+* `stack test unison-parser-typechecker --fast --test-arguments my-test-prefix` builds and runs most test suites, see below for exceptions to this (e.g. transcript tests).
+
+Some tests are executables instead:
+
 * `stack exec transcripts` runs the transcripts-related integration tests, found in `unison-src/transcripts`. You can add more tests to this directory.
+* `stack exec transcripts -- prefix-of-filename` runs only transcript tests with a matching filename prefix.
 * `stack exec integration-tests` runs the additional integration tests for cli. These tests are not triggered by `tests` or `trancscripts`.
-* `stack exec tests -- prefix-of-test` and `stack exec transcripts -- prefix-of-test` only run tests with a matching prefix.
 * `stack exec unison -- transcript unison-src/transcripts-round-trip/main.md` runs the pretty-printing round trip tests
+
+### Building everything at once, including tests and benchmarks, but without running them:
+Do:
+
+    stack build --fast --test --bench --no-run-tests --no-run-benchmarks
 
 ### What if you want a profiled build?
 
 Do:
 
-    stack build --executable-profiling --library-profiling --ghc-options="-fprof-auto -rtsopts" unison-parser-typechecker
+    stack build --profile unison-parser-typechecker
 
 Again you can leave off the flag. To run an executable with profiling enabled, do:
 

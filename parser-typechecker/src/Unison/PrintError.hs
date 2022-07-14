@@ -11,15 +11,16 @@ import Data.List (find, intersperse)
 import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
+import Data.Proxy
 import Data.Sequence (Seq (..))
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NES
 import qualified Data.Text as Text
-import Data.Void (Void)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import Unison.Builtin.Decls (pattern TupleType')
+import qualified Unison.Codebase.Path as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
@@ -160,8 +161,9 @@ renderTypeError ::
   TypeError v loc ->
   Env ->
   String ->
+  Path.Absolute ->
   Pretty ColorText
-renderTypeError e env src = case e of
+renderTypeError e env src curPath = case e of
   BooleanMismatch {..} ->
     mconcat
       [ Pr.wrap $
@@ -394,49 +396,49 @@ renderTypeError e env src = case e of
   AbilityCheckFailure {..}
     | [tv@(Type.Var' ev)] <- ambient,
       ev `Set.member` foldMap Type.freeVars requested ->
-        mconcat
-          [ "I tried to infer a cyclic ability.",
-            "\n\n",
-            "The expression ",
-            describeStyle ErrorSite,
-            " was inferred to require the ",
-            case length requested of
-              1 -> "ability: "
-              _ -> "abilities: ",
-            "\n\n    {",
-            commas (renderType' env) requested,
-            "}",
-            "\n\n",
-            "where `",
-            renderType' env tv,
-            "` is its overall abilities.",
-            "\n\n",
-            "I need a type signature to help figure this out.",
-            "\n\n",
-            annotatedAsErrorSite src abilityCheckFailureSite,
-            debugSummary note
-          ]
+      mconcat
+        [ "I tried to infer a cyclic ability.",
+          "\n\n",
+          "The expression ",
+          describeStyle ErrorSite,
+          " was inferred to require the ",
+          case length requested of
+            1 -> "ability: "
+            _ -> "abilities: ",
+          "\n\n    {",
+          commas (renderType' env) requested,
+          "}",
+          "\n\n",
+          "where `",
+          renderType' env tv,
+          "` is its overall abilities.",
+          "\n\n",
+          "I need a type signature to help figure this out.",
+          "\n\n",
+          annotatedAsErrorSite src abilityCheckFailureSite,
+          debugSummary note
+        ]
   AbilityCheckFailure {..}
     | C.InSubtype {} :<| _ <- C.path note ->
-        mconcat
-          [ "The expression ",
-            describeStyle ErrorSite,
-            "\n\n",
-            "              needs the abilities: {",
-            commas (renderType' env) requested,
-            "}\n",
-            "  but was assumed to only require: {",
-            commas (renderType' env) ambient,
-            "}",
-            "\n\n",
-            "This is likely a result of using an un-annotated ",
-            "function as an argument with concrete abilities. ",
-            "Try adding an annotation to the function definition whose ",
-            "body is red.",
-            "\n\n",
-            annotatedAsErrorSite src abilityCheckFailureSite,
-            debugSummary note
-          ]
+      mconcat
+        [ "The expression ",
+          describeStyle ErrorSite,
+          "\n\n",
+          "              needs the abilities: {",
+          commas (renderType' env) requested,
+          "}\n",
+          "  but was assumed to only require: {",
+          commas (renderType' env) ambient,
+          "}",
+          "\n\n",
+          "This is likely a result of using an un-annotated ",
+          "function as an argument with concrete abilities. ",
+          "Try adding an annotation to the function definition whose ",
+          "body is red.",
+          "\n\n",
+          annotatedAsErrorSite src abilityCheckFailureSite,
+          debugSummary note
+        ]
   AbilityCheckFailure {..} ->
     mconcat
       [ "The expression ",
@@ -492,19 +494,33 @@ renderTypeError e env src = case e of
             C.Exact -> (_1 %~ ((name, typ) :)) . r
             C.WrongType -> (_2 %~ ((name, typ) :)) . r
             C.WrongName -> (_3 %~ ((name, typ) :)) . r
+        libPath = Path.absoluteToPath' curPath Path.:> "lib"
      in mconcat
-          [ "I'm not sure what ",
+          [ "I couldn't find any definitions matching the name ",
             style ErrorSite (Var.nameStr unknownTermV),
-            " means at ",
-            annotatedToEnglish termSite,
+            " inside the namespace ",
+            prettyPath' (Path.absoluteToPath' curPath),
             "\n\n",
             annotatedAsErrorSite src termSite,
+            "\n",
+            Pr.hang
+              "Some common causes of this error include:"
+              ( Pr.bulleted
+                  [ Pr.wrap "Your current namespace is too deep to contain the definition in its subtree",
+                    Pr.wrap "The definition is part of a library which hasn't been added to this project"
+                  ]
+              )
+              <> "\n\n"
+              <> "To add a library to this project use the command: "
+              <> Pr.backticked ("fork <.path.to.lib> " <> Pr.shown (libPath Path.:> "<libname>")),
+            "\n\n",
             case expectedType of
-              Type.Var' (TypeVar.Existential {}) -> "\nThere are no constraints on its type."
+              Type.Var' (TypeVar.Existential {}) -> "There are no constraints on its type."
               _ ->
-                "\nWhatever it is, it has a type that conforms to "
+                "Whatever it is, its type should conform to "
                   <> style Type1 (renderType' env expectedType)
-                  <> ".\n",
+                  <> ".",
+            "\n\n",
             -- ++ showTypeWithProvenance env src Type1 expectedType
             case correct of
               [] -> case wrongTypes of
@@ -1046,9 +1062,10 @@ renderNoteAsANSI ::
   Pr.Width ->
   Env ->
   String ->
+  Path.Absolute ->
   Note v a ->
   String
-renderNoteAsANSI w e s n = Pr.toANSI w $ printNoteWithSource e s n
+renderNoteAsANSI w e s curPath n = Pr.toANSI w $ printNoteWithSource e s curPath n
 
 renderParseErrorAsANSI :: Var v => Pr.Width -> String -> Parser.Err v -> String
 renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
@@ -1057,18 +1074,19 @@ printNoteWithSource ::
   (Var v, Annotated a, Show a, Ord a) =>
   Env ->
   String ->
+  Path.Absolute ->
   Note v a ->
   Pretty ColorText
-printNoteWithSource env _s (TypeInfo n) = prettyTypeInfo n env
-printNoteWithSource _env s (Parsing e) = prettyParseError s e
-printNoteWithSource env s (TypeError e) = prettyTypecheckError e env s
-printNoteWithSource _env _s (NameResolutionFailures _es) = undefined
-printNoteWithSource _env s (UnknownSymbol v a) =
+printNoteWithSource env _s _curPath (TypeInfo n) = prettyTypeInfo n env
+printNoteWithSource _env s _curPath (Parsing e) = prettyParseError s e
+printNoteWithSource env s curPath (TypeError e) = prettyTypecheckError e env s curPath
+printNoteWithSource _env _s _curPath (NameResolutionFailures _es) = undefined
+printNoteWithSource _env s _curPath (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
     <> annotatedAsErrorSite s a
-printNoteWithSource env s (CompilerBug (Result.TypecheckerBug c)) =
+printNoteWithSource env s _curPath (CompilerBug (Result.TypecheckerBug c)) =
   renderCompilerBug env s c
-printNoteWithSource _env _s (CompilerBug c) =
+printNoteWithSource _env _s _curPath (CompilerBug c) =
   fromString $ "Compiler bug: " <> show c
 
 _printPosRange :: String -> L.Pos -> L.Pos -> String
@@ -1230,9 +1248,9 @@ prettyParseError s = \case
               excerpt
             ]
         L.Opaque msg -> style ErrorSite msg
-  P.TrivialError sp unexpected expected ->
+  te@(P.TrivialError _errOffset unexpected _expected) ->
     fromString
-      (P.parseErrorPretty @_ @Void (P.TrivialError sp unexpected expected))
+      (P.parseErrorPretty te)
       <> ( case unexpected of
              Just (P.Tokens (toList -> ts)) -> case ts of
                [] -> mempty
@@ -1410,15 +1428,13 @@ prettyParseError s = \case
               Code
               " + 1",
           "\n  - An `ability` declaration, like "
-            <> style Code "ability Foo where ...",
+            <> style Code "unique ability Foo where ...",
           "\n  - A `type` declaration, like "
             <> style Code "structural type Optional a = None | Some a",
-          "\n  - A `namespace` declaration, like "
-            <> style Code "namespace Seq where ...",
           "\n"
         ]
       where
-        t = style Code (fromString (P.showTokens (pure tok)))
+        t = style Code (fromString (P.showTokens (Proxy @[L.Token L.Lexeme]) (pure tok)))
     go (Parser.ExpectedBlockOpen blockName tok@(L.payload -> L.Close)) =
       mconcat
         [ "I was expecting an indented block following the "
@@ -1609,8 +1625,10 @@ prettyTypecheckError ::
   C.ErrorNote v loc ->
   Env ->
   String ->
+  Path.Absolute ->
   Pretty ColorText
-prettyTypecheckError = renderTypeError . typeErrorFromNote
+prettyTypecheckError note env src curPath =
+  renderTypeError (typeErrorFromNote note) env src curPath
 
 prettyTypeInfo ::
   (Var v, Ord loc, Show loc, Parser.Annotated loc) =>
@@ -1625,11 +1643,11 @@ intLiteralSyntaxTip ::
 intLiteralSyntaxTip term expectedType = case (term, expectedType) of
   (Term.Nat' n, Type.Ref' r)
     | r == Type.intRef ->
-        "\nTip: Use the syntax "
-          <> style Type2 ("+" <> show n)
-          <> " to produce an "
-          <> style Type2 "Int"
-          <> "."
+      "\nTip: Use the syntax "
+        <> style Type2 ("+" <> show n)
+        <> " to produce an "
+        <> style Type2 "Int"
+        <> "."
   _ -> ""
 
 -- | Pretty prints resolution failure annotations, including a table of disambiguation
@@ -1692,3 +1710,6 @@ useExamples =
           (Pr.blue "use .foo bar.baz", Pr.wrap "Introduces `bar.baz` as a local alias for the absolute name `.foo.bar.baz`")
         ]
     ]
+
+prettyPath' :: Path.Path' -> Pretty ColorText
+prettyPath' p' = Pr.blue (Pr.shown p')

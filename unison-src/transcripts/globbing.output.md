@@ -107,11 +107,11 @@ Globbing should work from within a namespace with both absolute and relative pat
 ```ucm
 .nested> view .othernest.to?
 
-  .othernest.toList : ##Nat
-  .othernest.toList = 6
+  othernest.toList : ##Nat
+  othernest.toList = 6
   
-  .othernest.toMap : ##Nat
-  .othernest.toMap = 7
+  othernest.toMap : ##Nat
+  othernest.toMap = 7
 
 .nested> view to?
 

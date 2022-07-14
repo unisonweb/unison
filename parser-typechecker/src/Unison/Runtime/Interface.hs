@@ -42,7 +42,7 @@ import Data.Set as Set
     (\\),
   )
 import qualified Data.Set as Set
-import Data.Text (Text, isPrefixOf, pack)
+import Data.Text (Text, isPrefixOf)
 import Data.Traversable (for)
 import Data.Word (Word64)
 import GHC.Stack (HasCallStack)
@@ -126,8 +126,8 @@ cacheContext =
     $ Map.keys builtinTermNumbering
       <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
 
-baseContext :: IO EvalCtx
-baseContext = cacheContext <$> baseCCache
+baseContext :: Bool -> IO EvalCtx
+baseContext sandboxed = cacheContext <$> baseCCache sandboxed
 
 resolveTermRef ::
   CodeLookup Symbol IO () ->
@@ -490,21 +490,22 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
         <*> getNat
         <*> getStoredCache
 
--- | Whether the runtime is hosted within a UCM session or as a standalone process.
+-- | Whether the runtime is hosted within a persistent session or as a one-off process.
+-- This affects the amount of clean-up and book-keeping the runtime does.
 data RuntimeHost
-  = Standalone
-  | UCM
+  = OneOff
+  | Persistent
 
-startRuntime :: RuntimeHost -> String -> IO (Runtime Symbol)
-startRuntime runtimeHost version = do
-  ctxVar <- newIORef =<< baseContext
+startRuntime :: Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
+startRuntime sandboxed runtimeHost version = do
+  ctxVar <- newIORef =<< baseContext sandboxed
   (activeThreads, cleanupThreads) <- case runtimeHost of
     -- Don't bother tracking open threads when running standalone, they'll all be cleaned up
     -- when the process itself exits.
-    Standalone -> pure (Nothing, pure ())
+    OneOff -> pure (Nothing, pure ())
     -- Track all forked threads so that they can be killed when the main process returns,
     -- otherwise they'll be orphaned and left running.
-    UCM -> do
+    Persistent -> do
       activeThreads <- newIORef Set.empty
       let cleanupThreads = do
             threads <- readIORef activeThreads
@@ -528,7 +529,7 @@ startRuntime runtimeHost version = do
           Just w <- Map.lookup rf <$> readTVarIO (refTm cc)
           sto <- standalone cc w
           BL.writeFile path . runPutL $ do
-            serialize $ pack version
+            serialize $ version
             serialize $ RF.showShort 8 rf
             putNat w
             putStoredCache sto,
@@ -566,7 +567,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
   putEnumMap putNat putReference trs
   putNat ftm
   putNat fty
-  putMap putReference putGroup int
+  putMap putReference (putGroup mempty) int
   putMap putReference putNat rtm
   putMap putReference putNat rty
   putMap putReference (putFoldable putReference) sbs
@@ -586,7 +587,7 @@ getStoredCache =
 
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
-  CCache builtinForeigns uglyTrace
+  CCache builtinForeigns False uglyTrace
     <$> newTVarIO (cs <> combs)
     <*> newTVarIO (crs <> builtinTermBackref)
     <*> newTVarIO (trs <> builtinTypeBackref)

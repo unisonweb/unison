@@ -49,7 +49,6 @@ import qualified Text.Megaparsec as P
 import Text.Megaparsec.Char (char)
 import qualified Text.Megaparsec.Char as CP
 import qualified Text.Megaparsec.Char.Lexer as LP
-import Text.Megaparsec.Error (ShowToken (..))
 import qualified Text.Megaparsec.Error as EP
 import qualified Text.Megaparsec.Internal as PI
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
@@ -68,7 +67,7 @@ data Token a = Token
     start :: !Pos,
     end :: !Pos
   }
-  deriving (Eq, Ord, Show, Functor)
+  deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data ParsingEnv = ParsingEnv
   { layout :: !Layout, -- layout stack
@@ -92,7 +91,7 @@ local f p = do
     Left e -> parseFailure e
     Right a -> pure a
 
-parseFailure :: EP.ParseError Char (Token Err) -> P a
+parseFailure :: EP.ParseError [Char] (Token Err) -> P a
 parseFailure e = PI.ParsecT $ \s _ _ _ eerr -> eerr e s
 
 data Err
@@ -160,7 +159,7 @@ token = token' (\a start end -> [Token a start end])
 
 pos :: P Pos
 pos = do
-  p <- P.getPosition
+  p <- P.getSourcePos
   pure $ Pos (P.unPos (P.sourceLine p)) (P.unPos (P.sourceColumn p))
 
 -- Token parser: strips trailing whitespace and comments after a
@@ -175,7 +174,7 @@ err start t = do
   stop <- pos
   -- This consumes a character and therefore produces committed failure,
   -- so `err s t <|> p2` won't try `p2`
-  _ <- void CP.anyChar <|> P.eof
+  _ <- void P.anySingle <|> P.eof
   P.customFailure (Token t start stop)
 
 {-
@@ -249,17 +248,40 @@ token'' tok p = do
     topHasClosePair ((name, _) : _) =
       name `elem` ["{", "(", "[", "handle", "match", "if", "then"]
 
+showErrorFancy :: P.ShowErrorComponent e => P.ErrorFancy e -> String
+showErrorFancy (P.ErrorFail msg) = msg
+showErrorFancy (P.ErrorIndentation ord ref actual) =
+  "incorrect indentation (got " <> show (P.unPos actual)
+    <> ", should be "
+    <> p
+    <> show (P.unPos ref)
+    <> ")"
+  where
+    p = case ord of
+      LT -> "less than "
+      EQ -> "equal to "
+      GT -> "greater than "
+showErrorFancy (P.ErrorCustom a) = P.showErrorComponent a
+
 lexer0' :: String -> String -> [Token Lexeme]
 lexer0' scope rem =
   case flip S.evalState env0 $ P.runParserT lexemes scope rem of
-    Left e -> case e of
-      P.FancyError _ (customErrs -> es) | not (null es) -> es
-      P.FancyError (top Nel.:| _) es ->
-        let msg = intercalateMap "\n" P.showErrorComponent es
-         in [Token (Err (Opaque msg)) (toPos top) (toPos top)]
-      P.TrivialError (top Nel.:| _) _ _ ->
-        let msg = Opaque $ EP.parseErrorPretty e
-         in [Token (Err msg) (toPos top) (toPos top)]
+    Left e ->
+      let errsWithSourcePos =
+            fst $
+              P.attachSourcePos
+                P.errorOffset
+                (toList (P.bundleErrors e))
+                (P.bundlePosState e)
+          errorToTokens (err, top) = case err of
+            P.FancyError _ (customErrs -> es) | not (null es) -> es
+            P.FancyError _errOffset es ->
+              let msg = intercalateMap "\n" showErrorFancy es
+               in [Token (Err (Opaque msg)) (toPos top) (toPos top)]
+            P.TrivialError _errOffset _ _ ->
+              let msg = Opaque $ EP.parseErrorPretty err
+               in [Token (Err msg) (toPos top) (toPos top)]
+       in errsWithSourcePos >>= errorToTokens
     Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak ts
   where
     customErrs es = [Err <$> e | P.ErrorCustom e <- toList es]
@@ -387,9 +409,9 @@ lexemes' eof =
                 P.lookAhead $
                   void docClose
                     <|> void docOpen
-                    <|> void (CP.satisfy isSpace)
+                    <|> void (P.satisfy isSpace)
                     <|> void closing
-          word <- P.manyTill (CP.satisfy (\ch -> not (isSpace ch))) end
+          word <- P.manyTill (P.satisfy (\ch -> not (isSpace ch))) end
           guard (not $ reserved word || null word)
           pure word
 
@@ -471,8 +493,8 @@ lexemes' eof =
         verbatim =
           P.label "code (examples: ''**unformatted**'', '''_words_''')" $ do
             (start, txt, stop) <- positioned $ do
-              quotes <- lit "''" <+> many (CP.satisfy (== '\''))
-              P.someTill CP.anyChar (lit quotes)
+              quotes <- lit "''" <+> many (P.satisfy (== '\''))
+              P.someTill P.anySingle (lit quotes)
             if all isSpace $ takeWhile (/= '\n') txt
               then
                 wrap "syntax.docVerbatim" $
@@ -523,7 +545,7 @@ lexemes' eof =
             evalUnison = wrap "syntax.docEval" $ do
               -- commit after seeing that ``` is on its own line
               fence <- P.try $ do
-                fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
+                fence <- lit "```" <+> P.many (P.satisfy (== '`'))
                 b <- all isSpace <$> P.lookAhead (P.takeWhileP Nothing (/= '\n'))
                 fence <$ guard b
               CP.space
@@ -533,7 +555,7 @@ lexemes' eof =
 
             exampleBlock = wrap "syntax.docExampleBlock" $ do
               void $ lit "@typecheck" <* CP.space
-              fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
+              fence <- lit "```" <+> P.many (P.satisfy (== '`'))
               local
                 (\env -> env {inLayout = True, opening = Just "docExampleBlock"})
                 (restoreStack "docExampleBlock" $ lexemes' ([] <$ lit fence))
@@ -550,31 +572,31 @@ lexemes' eof =
 
             other = wrap "syntax.docCodeBlock" $ do
               column <- (\x -> x - 1) . toInteger . P.unPos <$> LP.indentLevel
-              tabWidth <- toInteger . P.unPos <$> P.getTabWidth
-              fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
+              let tabWidth = toInteger . P.unPos $ P.defaultTabWidth
+              fence <- lit "```" <+> P.many (P.satisfy (== '`'))
               name <-
-                P.many (CP.satisfy nonNewlineSpace)
+                P.many (P.satisfy nonNewlineSpace)
                   *> tok (Textual <$> P.takeWhile1P Nothing (not . isSpace))
-                  <* P.many (CP.satisfy nonNewlineSpace)
+                  <* P.many (P.satisfy nonNewlineSpace)
               _ <- void CP.eol
               verbatim <-
                 tok $
                   Textual . uncolumn column tabWidth . trim
-                    <$> P.someTill CP.anyChar ([] <$ lit fence)
+                    <$> P.someTill P.anySingle ([] <$ lit fence)
               pure (name <> verbatim)
 
         boldOrItalicOrStrikethrough closing = do
           let start =
-                some (CP.satisfy (== '*')) <|> some (CP.satisfy (== '_'))
+                some (P.satisfy (== '*')) <|> some (P.satisfy (== '_'))
                   <|> some
-                    (CP.satisfy (== '~'))
+                    (P.satisfy (== '~'))
               name s =
                 if take 1 s == "~"
                   then "syntax.docStrikethrough"
                   else if take 1 s == "*" then "syntax.docBold" else "syntax.docItalic"
           end <- P.try $ do
             end <- start
-            P.lookAhead (CP.satisfy (not . isSpace))
+            P.lookAhead (P.satisfy (not . isSpace))
             pure end
           wrap (name end) . wrap "syntax.docParagraph" $
             join
@@ -618,8 +640,8 @@ lexemes' eof =
         listSep = P.try $ newline *> nonNewlineSpaces *> P.lookAhead (bulletedStart <|> numberedStart)
 
         bulletedStart = P.try $ do
-          r <- listItemStart' $ [] <$ CP.satisfy bulletChar
-          P.lookAhead (CP.satisfy isSpace)
+          r <- listItemStart' $ [] <$ P.satisfy bulletChar
+          P.lookAhead (P.satisfy isSpace)
           pure r
           where
             bulletChar ch = ch == '*' || ch == '-' || ch == '+'
@@ -733,14 +755,14 @@ lexemes' eof =
         body :: P [Token Lexeme]
         body = txt <+> (atk <|> pure [])
           where
-            ch = (":]" <$ lit "\\:]") <|> ("@" <$ lit "\\@") <|> (pure <$> CP.anyChar)
+            ch = (":]" <$ lit "\\:]") <|> ("@" <$ lit "\\@") <|> (pure <$> P.anySingle)
             txt = tok (Textual . join <$> P.manyTill ch (P.lookAhead sep))
             sep = void at <|> void close
             ref = at *> (tok wordyId <|> tok symbolyId <|> docTyp)
             atk = (ref <|> docTyp) <+> body
             docTyp = do
               _ <- lit "["
-              typ <- tok (P.manyTill CP.anyChar (P.lookAhead (lit "]")))
+              typ <- tok (P.manyTill P.anySingle (P.lookAhead (lit "]")))
               _ <- lit "]" *> CP.space
               t <- tok wordyId <|> tok symbolyId
               pure $ (fmap Reserved <$> typ) <> t
@@ -760,7 +782,7 @@ lexemes' eof =
     wordyId :: P Lexeme
     wordyId = P.label wordyMsg . P.try $ do
       dot <- P.optional (lit ".")
-      segs <- P.sepBy1 wordyIdSeg (P.try (char '.' <* P.lookAhead (CP.satisfy wordyIdChar)))
+      segs <- P.sepBy1 wordyIdSeg (P.try (char '.' <* P.lookAhead (P.satisfy wordyIdChar)))
       shorthash <- P.optional shorthash
       pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
       where
@@ -794,8 +816,8 @@ lexemes' eof =
     -- wordyIdSeg = litSeg <|> (P.try do -- todo
     wordyIdSeg = P.try $ do
       start <- pos
-      ch <- CP.satisfy wordyIdStartChar
-      rest <- P.many (CP.satisfy wordyIdChar)
+      ch <- P.satisfy wordyIdStartChar
+      rest <- P.many (P.satisfy wordyIdChar)
       let word = ch : rest
       when (Set.member word keywords) $ do
         stop <- pos
@@ -824,13 +846,13 @@ lexemes' eof =
         Just sh -> pure sh
 
     separated :: (Char -> Bool) -> P a -> P a
-    separated ok p = P.try $ p <* P.lookAhead (void (CP.satisfy ok) <|> P.eof)
+    separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)
 
     numeric = bytes <|> otherbase <|> float <|> intOrNat
       where
         intOrNat = P.try $ num <$> sign <*> LP.decimal
         float = do
-          _ <- P.try (P.lookAhead (sign >> LP.decimal >> (char '.' <|> char 'e' <|> char 'E'))) -- commit after this
+          _ <- P.try (P.lookAhead (sign >> (LP.decimal :: P Int) >> (char '.' <|> char 'e' <|> char 'E'))) -- commit after this
           start <- pos
           sign <- fromMaybe "" <$> sign
           base <- P.takeWhile1P (Just "base") isDigit
@@ -907,6 +929,7 @@ lexemes' eof =
             <|> openKw "cases"
             <|> openKw "where"
             <|> openKw "let"
+            <|> openKw "do"
           where
             ifElse =
               openKw "if" <|> closeKw' (Just "then") ["if"] (lit "then")
@@ -973,7 +996,7 @@ lexemes' eof =
               -- if we're within an existing {{ }} block, inLayout will be false
               -- so we can actually allow }} to appear in normal code
               inLayout <- S.gets inLayout
-              when (not inLayout) $ void $ P.lookAhead (CP.satisfy (/= '}'))
+              when (not inLayout) $ void $ P.lookAhead (P.satisfy (/= '}'))
               pure l
         matchWithBlocks = ["match-with", "cases"]
         parens = open "(" <|> close ["("] (lit ")")
@@ -992,12 +1015,12 @@ lexemes' eof =
             _ -> fail "this comma is a pattern separator"
 
         delim = P.try $ do
-          ch <- CP.satisfy (\ch -> ch /= ';' && Set.member ch delimiters)
+          ch <- P.satisfy (\ch -> ch /= ';' && Set.member ch delimiters)
           pos <- pos
           pure [Token (Reserved [ch]) pos (inc pos)]
 
         delayOrForce = separated ok $ do
-          (start, op, end) <- positioned $ CP.satisfy isDelayOrForce
+          (start, op, end) <- positioned $ P.satisfy isDelayOrForce
           pure [Token (Reserved [op]) start end]
           where
             ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters || c == '\"'
@@ -1248,6 +1271,7 @@ keywords =
     [ "if",
       "then",
       "else",
+      "do",
       "forall",
       "∀",
       "handle",
@@ -1333,8 +1357,8 @@ instance EP.ShowErrorComponent (Token Err) where
         e -> show e
       excerpt s = if length s < 15 then s else take 15 s <> "..."
 
-instance ShowToken (Token Lexeme) where
-  showTokens xs =
+instance P.VisualStream [Token Lexeme] where
+  showTokens _ xs =
     join . Nel.toList . S.evalState (traverse go xs) . end $ Nel.head xs
     where
       go :: Token Lexeme -> S.State Pos String

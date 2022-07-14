@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 module Unison.Util.EnumContainers
   ( EnumMap,
     EnumSet,
@@ -49,24 +46,28 @@ instance EnumKey Word16 where
   intToKey i = fromIntegral i
 
 newtype EnumMap k a = EM (IM.IntMap a)
-  deriving
-    ( Monoid,
-      Semigroup,
-      Functor,
+  deriving stock
+    ( Functor,
       Foldable,
       Traversable,
       Show,
       Eq,
       Ord
     )
+  deriving newtype
+    ( Monoid,
+      Semigroup
+    )
 
 newtype EnumSet k = ES IS.IntSet
-  deriving
-    ( Monoid,
-      Semigroup,
-      Show,
+  deriving stock
+    ( Show,
       Eq,
       Ord
+    )
+  deriving newtype
+    ( Monoid,
+      Semigroup
     )
 
 mapFromList :: EnumKey k => [(k, a)] -> EnumMap k a

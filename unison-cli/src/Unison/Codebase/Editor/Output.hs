@@ -8,9 +8,8 @@ module Unison.Codebase.Editor.Output
     HistoryTail (..),
     TestReportStats (..),
     UndoFailureReason (..),
-    PushPull (..),
     ReflogEntry (..),
-    pushPull,
+    ShareError (..),
     isFailure,
     isNumberedFailure,
   )
@@ -19,15 +18,18 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
-import Unison.Codebase (GetRootBranchError)
+import Network.URI (URI)
+import Unison.Auth.Types (CredentialFailure)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
+import Unison.Codebase.Editor.Output.PushPull (PushPull)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.TodoOutput as TO
+import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path')
 import qualified Unison.Codebase.Path as Path
@@ -55,6 +57,7 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResult' (SearchResult')
+import qualified Unison.Share.Sync.Types as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -71,13 +74,6 @@ type SourceName = Text
 type NumberedArgs = [String]
 
 type HashLength = Int
-
-data PushPull = Push | Pull deriving (Eq, Ord, Show)
-
-pushPull :: a -> a -> PushPull -> a
-pushPull push pull p = case p of
-  Push -> push
-  Pull -> pull
 
 data NumberedOutput v
   = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
@@ -104,7 +100,7 @@ data NumberedOutput v
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(Branch.Hash, Names.Diff)]
+      [(Branch.CausalHash, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
   | ListEdits Patch PPE.PrettyPrintEnv
 
@@ -128,6 +124,7 @@ data Output v
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
+  | FindNoLocalMatches
   | PatchAlreadyExists Path.Split'
   | NoExactTypeMatches
   | TypeAlreadyExists Path.Split' (Set Reference)
@@ -141,7 +138,9 @@ data Output v
   | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
+  | BadNamespace String String
   | BranchNotFound Path'
+  | EmptyPush Path'
   | NameNotFound Path.HQSplit'
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
@@ -159,6 +158,7 @@ data Output v
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames
+      IsGlobal
       Int -- hq length to print References
       [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
       [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
@@ -171,7 +171,7 @@ data Output v
     SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
   | -- Original source, followed by the errors:
     ParseErrors Text [Parser.Err v]
-  | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
+  | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug v Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure Runtime.Error
@@ -203,9 +203,11 @@ data Output v
     -- and a nicer render.
     BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
+  | ShareError ShareError
+  | ViewOnShare WriteShareRemotePath
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
-  | NoConfiguredGitUrl PushPull Path'
-  | ConfiguredGitUrlParseError PushPull Path' Text String
+  | NoConfiguredRemoteMapping PushPull Path.Absolute
+  | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
@@ -235,27 +237,39 @@ data Output v
       Path.Absolute -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
-  | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
+  | DumpBitBooster Branch.CausalHash (Map Branch.CausalHash [Branch.CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
-  | BadRootBranch GetRootBranchError
-  | CouldntLoadBranch Branch.Hash
+  | CouldntLoadBranch Branch.CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-    RefusedToPush PushBehavior
-  | -- | @GistCreated repo hash@ means causal @hash@ was just published to @repo@.
-    GistCreated Int WriteRepo Branch.Hash
+    RefusedToPush PushBehavior WriteRemotePath
+  | -- | @GistCreated repo@ means a causal was just published to @repo@.
+    GistCreated ReadRemoteNamespace
+  | -- | Directs the user to URI to begin an authorization flow.
+    InitiateAuthFlow URI
+  | UnknownCodeServer Text
+  | CredentialFailureMsg CredentialFailure
+  | PrintVersion Text
+  | IntegrityCheck IntegrityResult
+
+data ShareError
+  = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
+  | ShareErrorFastForwardPush Sync.FastForwardPushError
+  | ShareErrorPull Sync.PullError
+  | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
+  | ShareErrorTransport Sync.CodeserverTransportError
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
 
 data HistoryTail
-  = EndOfLog Branch.Hash
-  | MergeTail Branch.Hash [Branch.Hash]
-  | PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex
+  = EndOfLog Branch.CausalHash
+  | MergeTail Branch.CausalHash [Branch.CausalHash]
+  | PageEnd Branch.CausalHash Int -- PageEnd nextHash nextIndex
   deriving (Show)
 
 data TestReportStats
@@ -279,7 +293,6 @@ isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success {} -> False
   PrintMessage {} -> False
-  BadRootBranch {} -> True
   CouldntLoadBranch {} -> True
   NoUnisonFile {} -> True
   InvalidSourceName {} -> True
@@ -288,9 +301,11 @@ isFailure o = case o of
   BadMainFunction {} -> True
   CreatedNewBranch {} -> False
   BranchAlreadyExists {} -> True
+  FindNoLocalMatches {} -> True
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True
+  EmptyPush {} -> True
   BranchNotEmpty {} -> True
   TypeAlreadyExists {} -> True
   TypeParseError {} -> True
@@ -303,6 +318,7 @@ isFailure o = case o of
   TermAmbiguous {} -> True
   BranchHashAmbiguous {} -> True
   BadName {} -> True
+  BadNamespace {} -> True
   BranchNotFound {} -> True
   NameNotFound {} -> True
   PatchNotFound {} -> True
@@ -315,7 +331,7 @@ isFailure o = case o of
   DeleteBranchConfirmation {} -> False
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
-  ListNames _ tys tms -> null tms && null tys
+  ListNames _ _ tys tms -> null tms && null tys
   ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
@@ -336,8 +352,8 @@ isFailure o = case o of
   GitError {} -> True
   BustedBuiltins {} -> True
   ConfiguredMetadataParseError {} -> True
-  NoConfiguredGitUrl {} -> True
-  ConfiguredGitUrlParseError {} -> True
+  NoConfiguredRemoteMapping {} -> True
+  ConfiguredRemoteMappingParseError {} -> True
   MetadataMissingType {} -> True
   MetadataAmbiguous {} -> True
   PatchNeedsToBeConflictFree {} -> True
@@ -370,6 +386,16 @@ isFailure o = case o of
   NamespaceEmpty {} -> True
   RefusedToPush {} -> True
   GistCreated {} -> False
+  InitiateAuthFlow {} -> False
+  UnknownCodeServer {} -> True
+  CredentialFailureMsg {} -> True
+  PrintVersion {} -> False
+  IntegrityCheck r ->
+    case r of
+      NoIntegrityErrors -> False
+      IntegrityErrorDetected {} -> True
+  ShareError {} -> True
+  ViewOnShare {} -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

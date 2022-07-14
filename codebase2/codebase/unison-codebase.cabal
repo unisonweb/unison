@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: b4d3c77715f39c915cacffccf179f1ed62bce29ba013cecc3a25c847f5851233
 
 name:           unison-codebase
 version:        0.0.0
@@ -32,8 +30,6 @@ library
       U.Codebase.Type
       U.Codebase.TypeEdit
       U.Codebase.WatchKind
-  other-modules:
-      Paths_unison_codebase
   hs-source-dirs:
       ./
   default-extensions:
@@ -62,4 +58,5 @@ library
     , unison-core
     , unison-prelude
     , unison-util
+    , unison-util-base32hex
   default-language: Haskell2010

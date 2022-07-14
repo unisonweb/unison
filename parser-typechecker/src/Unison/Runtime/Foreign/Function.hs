@@ -18,9 +18,11 @@ import Control.Exception (evaluate)
 import qualified Data.Char as Char
 import Data.Foldable (toList)
 import Data.IORef (IORef)
+import Data.Primitive.Array as PA
+import Data.Primitive.ByteArray as PA
 import qualified Data.Sequence as Sq
 import Data.Time.Clock.POSIX (POSIXTime)
-import Data.Word (Word64)
+import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Network.Socket (Socket)
 import System.IO (BufferMode (..), Handle, IOMode, SeekMode)
@@ -32,7 +34,16 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
-import Unison.Type (mvarRef, refRef, tvarRef, typeLinkRef)
+import Unison.Type
+  ( iarrayRef,
+    ibytearrayRef,
+    marrayRef,
+    mbytearrayRef,
+    mvarRef,
+    refRef,
+    tvarRef,
+    typeLinkRef,
+  )
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Text (Text, pack, unpack)
 
@@ -85,6 +96,18 @@ instance ForeignConvention Word64 where
   writeForeign ustk bstk n = do
     ustk <- bump ustk
     (ustk, bstk) <$ pokeN ustk n
+
+instance ForeignConvention Word8 where
+  readForeign = readForeignAs (fromIntegral :: Word64 -> Word8)
+  writeForeign = writeForeignAs (fromIntegral :: Word8 -> Word64)
+
+instance ForeignConvention Word16 where
+  readForeign = readForeignAs (fromIntegral :: Word64 -> Word16)
+  writeForeign = writeForeignAs (fromIntegral :: Word16 -> Word64)
+
+instance ForeignConvention Word32 where
+  readForeign = readForeignAs (fromIntegral :: Word64 -> Word32)
+  writeForeign = writeForeignAs (fromIntegral :: Word32 -> Word64)
 
 instance ForeignConvention Char where
   readForeign (i : us) bs ustk _ = (us,bs,) . Char.chr <$> peekOff ustk i
@@ -327,6 +350,30 @@ instance
     (ustk, bstk) <- writeForeign ustk bstk b
     writeForeign ustk bstk a
 
+instance
+  ( ForeignConvention a,
+    ForeignConvention b,
+    ForeignConvention c,
+    ForeignConvention d,
+    ForeignConvention e
+  ) =>
+  ForeignConvention (a, b, c, d, e)
+  where
+  readForeign us bs ustk bstk = do
+    (us, bs, a) <- readForeign us bs ustk bstk
+    (us, bs, b) <- readForeign us bs ustk bstk
+    (us, bs, c) <- readForeign us bs ustk bstk
+    (us, bs, d) <- readForeign us bs ustk bstk
+    (us, bs, e) <- readForeign us bs ustk bstk
+    pure (us, bs, (a, b, c, d, e))
+
+  writeForeign ustk bstk (a, b, c, d, e) = do
+    (ustk, bstk) <- writeForeign ustk bstk e
+    (ustk, bstk) <- writeForeign ustk bstk d
+    (ustk, bstk) <- writeForeign ustk bstk c
+    (ustk, bstk) <- writeForeign ustk bstk b
+    writeForeign ustk bstk a
+
 no'buf, line'buf, block'buf, sblock'buf :: Int
 no'buf = fromIntegral Ty.bufferModeNoBufferingId
 line'buf = fromIntegral Ty.bufferModeLineBufferingId
@@ -394,6 +441,22 @@ instance ForeignConvention Value where
 instance ForeignConvention Foreign where
   readForeign = readForeignAs marshalToForeign
   writeForeign = writeForeignAs Foreign
+
+instance ForeignConvention (PA.MutableArray s Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap marrayRef)
+
+instance ForeignConvention (PA.MutableByteArray s) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap mbytearrayRef)
+
+instance ForeignConvention (PA.Array Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap iarrayRef)
+
+instance ForeignConvention PA.ByteArray where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap ibytearrayRef)
 
 instance {-# OVERLAPPABLE #-} BuiltinForeign b => ForeignConvention b where
   readForeign = readForeignBuiltin

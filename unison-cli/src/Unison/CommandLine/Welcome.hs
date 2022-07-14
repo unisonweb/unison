@@ -7,7 +7,7 @@ import System.Random (randomRIO)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.Input
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareRemoteNamespace (..))
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
@@ -21,12 +21,13 @@ data Welcome = Welcome
   { onboarding :: Onboarding, -- Onboarding States
     downloadBase :: DownloadBase,
     watchDir :: FilePath,
-    unisonVersion :: String
+    unisonVersion :: Text
   }
 
 data DownloadBase
-  = DownloadBase ReadRemoteNamespace
+  = DownloadBase ReadShareRemoteNamespace
   | DontDownloadBase
+  deriving (Show, Eq)
 
 -- Previously Created is different from Previously Onboarded because a user can
 -- 1.) create a new codebase
@@ -35,25 +36,33 @@ data DownloadBase
 data CodebaseInitStatus
   = NewlyCreatedCodebase -- Can transition to [Base, Author, Finished]
   | PreviouslyCreatedCodebase -- Can transition to [Base, Author, Finished, PreviouslyOnboarded].
+  deriving (Show, Eq)
 
 data Onboarding
   = Init CodebaseInitStatus -- Can transition to [DownloadingBase, Author, Finished, PreviouslyOnboarded]
-  | DownloadingBase ReadRemoteNamespace -- Can transition to [Author, Finished]
+  | DownloadingBase ReadShareRemoteNamespace -- Can transition to [Author, Finished]
   | Author -- Can transition to [Finished]
   -- End States
   | Finished
   | PreviouslyOnboarded
+  deriving (Show, Eq)
 
-welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> String -> Welcome
+welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> Text -> Welcome
 welcome initStatus downloadBase filePath unisonVersion =
   Welcome (Init initStatus) downloadBase filePath unisonVersion
 
-pullBase :: ReadRemoteNamespace -> Either Event Input
+pullBase :: ReadShareRemoteNamespace -> Either Event Input
 pullBase ns =
   let seg = NameSegment "base"
       rootPath = Path.Path {Path.toSeq = singleton seg}
       abs = Path.Absolute {Path.unabsolute = rootPath}
-      pullRemote = PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete PullWithHistory Verbosity.Silent
+      pullRemote =
+        PullRemoteBranchI
+          (Just (ReadRemoteNamespaceShare ns))
+          (Path.Path' {Path.unPath' = Left abs})
+          SyncMode.Complete
+          PullWithHistory
+          Verbosity.Silent
    in Right pullRemote
 
 run :: Codebase IO v a -> Welcome -> IO [Either Event Input]
@@ -71,7 +80,7 @@ run codebase Welcome {onboarding = onboarding, downloadBase = downloadBase, watc
           go PreviouslyOnboarded (headerMsg : acc)
           where
             headerMsg = toInput (header version)
-        DownloadingBase ns@(_, _, path) ->
+        DownloadingBase ns@(ReadShareRemoteNamespace {path}) ->
           go Author ([pullBaseInput, downloadMsg] ++ acc)
           where
             downloadMsg = Right $ CreateMessage (downloading path)
@@ -98,7 +107,7 @@ determineFirstStep downloadBase codebase = do
   case downloadBase of
     DownloadBase ns
       | isEmptyCodebase ->
-          pure $ DownloadingBase ns
+        pure $ DownloadingBase ns
     _ ->
       pure PreviouslyOnboarded
 
@@ -141,14 +150,14 @@ downloading path =
         )
     ]
 
-header :: String -> P.Pretty P.ColorText
+header :: Text -> P.Pretty P.ColorText
 header version =
   asciiartUnison
     <> P.newline
     <> P.newline
     <> P.linesSpaced
       [ P.wrap "👋 Welcome to Unison!",
-        P.wrap ("You are running version: " <> P.bold (P.string version))
+        P.wrap ("You are running version: " <> P.bold (P.text version))
       ]
 
 authorSuggestion :: P.Pretty P.ColorText

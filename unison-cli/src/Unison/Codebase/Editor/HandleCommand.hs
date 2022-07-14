@@ -8,7 +8,6 @@
 module Unison.Codebase.Editor.HandleCommand where
 
 import qualified Control.Concurrent.STM as STM
-import Control.Monad.Except (runExceptT)
 import Control.Monad.Reader (ReaderT (runReaderT), ask)
 import qualified Crypto.Random as Random
 import qualified Data.Configurator as Config
@@ -25,12 +24,15 @@ import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UseCache)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
+import Unison.Codebase.IntegrityCheck (integrityCheckFullCodebase)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
 import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.NamesWithHistory as NamesWithHistory
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
@@ -89,15 +91,17 @@ commandLine ::
   IO i ->
   (Branch IO -> IO ()) ->
   Runtime Symbol ->
+  Runtime Symbol ->
   (Output Symbol -> IO ()) ->
   (NumberedOutput Symbol -> IO NumberedArgs) ->
   (SourceName -> IO LoadSourceResult) ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
+  UCMVersion ->
   (Int -> IO gen) ->
   Free (Command IO i Symbol) a ->
   IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen free = do
+commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl ucmVersion rngGen free = do
   rndSeed <- STM.newTVarIO 0
   flip runReaderT rndSeed . Free.fold go $ free
   where
@@ -121,7 +125,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
           Just url -> lift . void $ openBrowser (Server.urlFor Server.UI url)
           Nothing -> lift (return ())
       DocsToHtml root sourcePath destination ->
-        liftIO $ Backend.docsInBranchToHtmlFiles rt codebase root sourcePath destination
+        liftIO $ Backend.docsInBranchToHtmlFiles sdbxRt codebase root sourcePath destination
       Input -> lift awaitInput
       Notify output -> lift $ notifyUser output
       NotifyNumbered output -> lift $ notifyNumbered output
@@ -141,23 +145,23 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
             env = Parser.ParsingEnv namegen names
         lift $ typecheck ambient codebase env sourceName source
       TypecheckFile file ambient -> lift $ typecheck' ambient codebase file
-      Evaluate ppe unisonFile -> lift $ evalUnisonFile ppe unisonFile []
-      Evaluate1 ppe useCache term -> lift $ eval1 ppe useCache term
-      LoadLocalRootBranch -> lift $ either (const Branch.empty) id <$> Codebase.getRootBranch codebase
+      Evaluate sdbx ppe unisonFile -> lift $ evalUnisonFile sdbx ppe unisonFile []
+      Evaluate1 sdbx ppe useCache term -> lift $ eval1 sdbx ppe useCache term
+      LoadLocalRootBranch -> lift $ Codebase.getRootBranch codebase
       LoadLocalBranch h -> lift $ fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
       Merge mode b1 b2 ->
         lift $ Branch.merge'' (Codebase.lca codebase) mode b1 b2
       SyncLocalRootBranch branch -> lift $ do
         setBranchRef branch
         Codebase.putRootBranch codebase branch
-      ViewRemoteBranch ns gitBranchBehavior action -> do
+      ViewRemoteGitBranch ns gitBranchBehavior action -> do
         -- TODO: We probably won'd need to unlift anything once we remove the Command
         -- abstraction.
         toIO <- UnliftIO.askRunInIO
         lift $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (toIO . Free.fold go . action)
-      ImportRemoteBranch ns syncMode preprocess ->
+      ImportRemoteGitBranch ns syncMode preprocess ->
         lift $ Codebase.importRemoteBranch codebase ns syncMode preprocess
-      SyncRemoteBranch repo opts action ->
+      SyncRemoteGitBranch repo opts action ->
         lift $ Codebase.pushGitBranch codebase repo opts action
       LoadTerm r -> lift $ Codebase.getTerm codebase r
       LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r
@@ -204,18 +208,24 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       --      pure $ Branch.append b0 b
 
       Execute ppe uf args ->
-        lift $ evalUnisonFile ppe uf args
+        lift $ evalUnisonFile False ppe uf args
       AppendToReflog reason old new -> lift $ Codebase.appendReflog codebase reason old new
       LoadReflog -> lift $ Codebase.getReflog codebase
       CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
       HQNameQuery mayPath branch query -> do
+        hqLength <- lift $ Codebase.hashLength codebase
         let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
-        lift $ Backend.hqNameQuery namingScope branch codebase query
+        let parseNames = Backend.parseNamesForBranch branch namingScope
+        let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+        lift $ Backend.hqNameQuery codebase nameSearch query
       LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
       GetDefinitionsBySuffixes mayPath branch includeCycles query -> do
+        hqLength <- lift $ Codebase.hashLength codebase
         let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
-        lift (Backend.definitionsBySuffixes namingScope branch codebase includeCycles query)
-      FindShallow path -> lift . runExceptT $ Backend.findShallow codebase path
+        let parseNames = Backend.parseNamesForBranch branch namingScope
+        let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+        lift (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
+      FindShallow path -> liftIO $ Backend.findShallow codebase path
       MakeStandalone ppe ref out -> lift $ do
         let cl = Codebase.toCodeLookup codebase
         Runtime.compileTo rt (() <$ cl) ppe ref (out <> ".uc")
@@ -232,17 +242,20 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
               -- in-scope.
               UnliftIO.UnliftIO toIO -> toIO . Free.fold go
         pure runF
+      UCMVersion -> pure ucmVersion
+      AnalyzeCodebaseIntegrity -> lift (Codebase.runTransaction codebase integrityCheckFullCodebase)
 
     watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
     watchCache h = do
       maybeTerm <- Codebase.lookupWatchCache codebase h
       pure (Term.amap (const ()) <$> maybeTerm)
 
-    eval1 :: PPE.PrettyPrintEnv -> UseCache -> Term Symbol Ann -> _
-    eval1 ppe useCache tm = do
+    eval1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term Symbol Ann -> _
+    eval1 sandbox ppe useCache tm = do
       let codeLookup = Codebase.toCodeLookup codebase
           cache = if useCache then watchCache else Runtime.noCache
-      r <- Runtime.evaluateTerm' codeLookup cache ppe rt tm
+          rt' | sandbox = sdbxRt | otherwise = rt
+      r <- Runtime.evaluateTerm' codeLookup cache ppe rt' tm
       when useCache $ case r of
         Right tmr ->
           Codebase.putWatch
@@ -253,10 +266,11 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
         Left _ -> pure ()
       pure $ r <&> Term.amap (const Ann.External)
 
-    evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> _
-    evalUnisonFile ppe unisonFile args = withArgs args do
+    evalUnisonFile :: Bool -> PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> _
+    evalUnisonFile sandbox ppe unisonFile args = withArgs args do
       let codeLookup = Codebase.toCodeLookup codebase
-      r <- Runtime.evaluateWatches codeLookup ppe watchCache rt unisonFile
+          rt' | sandbox = sdbxRt | otherwise = rt
+      r <- Runtime.evaluateWatches codeLookup ppe watchCache rt' unisonFile
       case r of
         Left e -> pure (Left e)
         Right rs@(_, map) -> do

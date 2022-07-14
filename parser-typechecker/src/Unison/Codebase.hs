@@ -7,6 +7,7 @@ module Unison.Codebase
     unsafeGetTermWithType,
     getTermComponentWithTypes,
     getTypeOfTerm,
+    getDeclType,
     unsafeGetTypeOfTermById,
     isTerm,
     putTerm,
@@ -35,13 +36,17 @@ module Unison.Codebase
     branchHashesByPrefix,
     lca,
     beforeImpl,
+    shallowBranchAtPath,
+    getShallowBranchForHash,
+    getShallowRootBranch,
 
     -- * Root branch
     getRootBranch,
     getRootBranchExists,
-    GetRootBranchError (..),
+    getRootBranchHash,
     putRootBranch,
     rootBranchUpdates,
+    namesAtPath,
 
     -- * Patches
     patchExists,
@@ -85,6 +90,11 @@ module Unison.Codebase
     CodebasePath,
     SyncToDir,
 
+    -- * Direct codebase access
+    runTransaction,
+    withConnection,
+    withConnectionIO,
+
     -- * Misc (organize these better)
     addDefsToCodebase,
     componentReferencesForReference,
@@ -95,12 +105,14 @@ module Unison.Codebase
   )
 where
 
-import Control.Error.Util (hush)
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Control.Monad.Trans.Except (throwE)
 import Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified U.Codebase.Branch as V2
+import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Causal as V2Causal
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Terms as Builtin
@@ -110,12 +122,14 @@ import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
 import qualified Unison.Codebase.CodeLookup as CL
 import Unison.Codebase.Editor.Git (withStatus)
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace)
 import qualified Unison.Codebase.GitError as GitError
+import Unison.Codebase.Path
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
-    GetRootBranchError (..),
     GitError (GitCodebaseError),
     PushGitBranchOpts (..),
     SyncToDir,
@@ -142,14 +156,38 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
-import UnliftIO (MonadUnliftIO)
+import qualified Unison.Sqlite as Sqlite
+
+-- | Run a transaction on a codebase.
+runTransaction :: MonadIO m => Codebase m v a -> Sqlite.Transaction b -> m b
+runTransaction Codebase{withConnection} action =
+  withConnection \conn -> Sqlite.runTransaction conn action
+
+-- | Get the shallow representation of the root branches without loading the children or
+-- history.
+getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
+getShallowRootBranch codebase = do
+  hash <- getRootBranchHash codebase
+  getShallowBranchForHash codebase hash
+
+-- | Recursively descend into shallow branches following the given path.
+shallowBranchAtPath :: Monad m => Path -> V2Branch.CausalBranch m -> m (Maybe (V2Branch.CausalBranch m))
+shallowBranchAtPath path causal = do
+  case path of
+    Path.Empty -> pure (Just causal)
+    (ns Path.:< p) -> do
+      b <- V2Causal.value causal
+      case (V2Branch.childAt (Cv.namesegment1to2 ns) b) of
+        Nothing -> pure Nothing
+        Just childCausal -> shallowBranchAtPath p childCausal
 
 -- | Get a branch from the codebase.
-getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
+getBranchForHash :: Monad m => Codebase m v a -> Branch.CausalHash -> m (Maybe (Branch m))
 getBranchForHash codebase h =
   -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
   -- If not found, attempt to find it in the Codebase (sqlite)
-  let nestedChildrenForDepth depth b =
+  let nestedChildrenForDepth :: Int -> Branch m -> [Branch m]
+      nestedChildrenForDepth depth b =
         if depth == 0
           then []
           else b : (Map.elems (Branch._children (Branch.head b)) >>= nestedChildrenForDepth (depth - 1))
@@ -158,10 +196,8 @@ getBranchForHash codebase h =
 
       find rb = List.find headHashEq (nestedChildrenForDepth 3 rb)
    in do
-        rootBranch <- hush <$> getRootBranch codebase
-        case rootBranch of
-          Just rb -> maybe (getBranchForHashImpl codebase h) (pure . Just) (find rb)
-          Nothing -> getBranchForHashImpl codebase h
+        rootBranch <- getRootBranch codebase
+        maybe (getBranchForHashImpl codebase h) (pure . Just) (find rootBranch)
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
 lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
@@ -353,14 +389,14 @@ data Preprocessing m
   = Unmodified
   | Preprocessed (Branch m -> m (Branch m))
 
--- | Sync elements as needed from a remote codebase into the local one.
+-- | Sync elements as needed from a remote git codebase into the local one.
 -- If `sbh` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
 importRemoteBranch ::
   forall m v a.
   MonadUnliftIO m =>
   Codebase m v a ->
-  ReadRemoteNamespace ->
+  ReadGitRemoteNamespace ->
   SyncMode ->
   Preprocessing m ->
   m (Either GitError (Branch m))
@@ -386,7 +422,7 @@ importRemoteBranch codebase ns mode preprocess = runExceptT $ do
 viewRemoteBranch ::
   MonadIO m =>
   Codebase m v a ->
-  ReadRemoteNamespace ->
+  ReadGitRemoteNamespace ->
   Git.GitBranchBehavior ->
   (Branch m -> m r) ->
   m (Either GitError r)

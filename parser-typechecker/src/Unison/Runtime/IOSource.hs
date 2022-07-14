@@ -7,7 +7,6 @@
 module Unison.Runtime.IOSource where
 
 import Control.Lens (view, _1)
-import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
 import qualified Data.Map as Map

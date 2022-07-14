@@ -1,0 +1,119 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           unison-share-api
+version:        0.0.0
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+copyright:      Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+library
+  exposed-modules:
+      Unison.Server.Backend
+      Unison.Server.CodebaseServer
+      Unison.Server.Doc
+      Unison.Server.Doc.AsHtml
+      Unison.Server.Endpoints.FuzzyFind
+      Unison.Server.Endpoints.GetDefinitions
+      Unison.Server.Endpoints.NamespaceDetails
+      Unison.Server.Endpoints.NamespaceListing
+      Unison.Server.Endpoints.Projects
+      Unison.Server.Errors
+      Unison.Server.Orphans
+      Unison.Server.QueryResult
+      Unison.Server.SearchResult
+      Unison.Server.SearchResult'
+      Unison.Server.Syntax
+      Unison.Server.Types
+      Unison.Sync.API
+      Unison.Sync.Common
+      Unison.Sync.Types
+      Unison.Util.Find
+  hs-source-dirs:
+      src
+  default-extensions:
+      BlockArguments
+      ConstraintKinds
+      DeriveAnyClass
+      DeriveFunctor
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      GADTs
+      GeneralizedNewtypeDeriving
+      KindSignatures
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      NumericUnderscores
+      OverloadedStrings
+      PatternSynonyms
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      TypeOperators
+      ViewPatterns
+  ghc-options: -Wall
+  build-depends:
+      NanoID
+    , aeson
+    , async
+    , base
+    , binary
+    , bytestring
+    , containers
+    , directory
+    , errors
+    , extra
+    , filepath
+    , fuzzyfind
+    , http-media
+    , http-types
+    , jose
+    , jwt
+    , lens
+    , lucid
+    , memory
+    , mtl
+    , mwc-random
+    , nonempty-containers
+    , openapi3
+    , regex-tdfa
+    , servant
+    , servant-auth
+    , servant-docs
+    , servant-openapi3
+    , servant-server
+    , text
+    , transformers
+    , unison-codebase
+    , unison-codebase-sqlite
+    , unison-core1
+    , unison-parser-typechecker
+    , unison-prelude
+    , unison-pretty-printer
+    , unison-sqlite
+    , unison-util
+    , unison-util-base32hex
+    , unison-util-base32hex-orphans-aeson
+    , unison-util-relation
+    , unliftio
+    , unordered-containers
+    , uri-encode
+    , utf8-string
+    , vector
+    , wai
+    , warp
+    , yaml
+  default-language: Haskell2010

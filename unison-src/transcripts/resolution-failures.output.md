@@ -106,11 +106,21 @@ useAmbiguousTerm = ambiguousTerm
 
 ```ucm
 
-  I'm not sure what ambiguousTerm means at line 1, columns 20-33
+  I couldn't find any definitions matching the name ambiguousTerm inside the namespace .example.resolution_failures
   
       1 | useAmbiguousTerm = ambiguousTerm
   
-  There are no constraints on its type.I found some terms in scope that have matching names and types. Maybe you meant one of these:
+  Some common causes of this error include:
+    * Your current namespace is too deep to contain the
+      definition in its subtree
+    * The definition is part of a library which hasn't been
+      added to this project
+  
+  To add a library to this project use the command: `fork <.path.to.lib> .example.resolution_failures.lib.<libname>`
+  
+  There are no constraints on its type.
+  
+  I found some terms in scope that have matching names and types. Maybe you meant one of these:
   
     - one.ambiguousTerm : ##Text
     - two.ambiguousTerm : ##Text

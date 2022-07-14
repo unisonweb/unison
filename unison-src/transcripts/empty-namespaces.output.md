@@ -12,21 +12,37 @@ The deleted namespace shouldn't appear in `ls` output.
 
 ```
 ```ucm
-.> ls.verbose
+.> find.verbose
+
+  ☝️
+  
+  I couldn't find matches in this namespace, searching in
+  'lib'...
 
   😶
   
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
+  
+  `find.global` can be used to search outside the current
+  namespace.
 
 ```
 ```ucm
 .> find mynamespace
 
+  ☝️
+  
+  I couldn't find matches in this namespace, searching in
+  'lib'...
+
   😶
   
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
+  
+  `find.global` can be used to search outside the current
+  namespace.
 
 ```
 ## history
@@ -127,11 +143,7 @@ The history should be that of the moved namespace.
 ```ucm
 .> delete.namespace moveoverme
 
-  Removed definitions:
-  
-    1. x : ##Nat
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .> history moveme
 

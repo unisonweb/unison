@@ -28,14 +28,20 @@ not_a_cert = "-----BEGIN SCHERMIFICATE-----\n-----END SCHERMIFICATE-----"
 First lets make sure we can load our cert and private key
 
 ```unison
-test> this_should_work=match (decodeCert.impl (toUtf8 self_signed_cert_pem2) with
+this_should_work=match (decodeCert.impl (toUtf8 self_signed_cert_pem2) with
   Left (Failure _ t _) -> [Fail t]
   Right _ -> [Ok "succesfully decoded self_signed_pem"]
 
-test> this_should_not_work=match (decodeCert.impl (toUtf8 not_a_cert) with
+this_should_not_work=match (decodeCert.impl (toUtf8 not_a_cert) with
   Left _ -> [Ok "failed"]
   Right _ -> [Fail "um, that was a schmificate"]
 
+what_should_work _ = this_should_work ++ this_should_not_work
+```
+
+```ucm
+.> add
+.> io.test what_should_work
 ```
 
 Test handshaking a client/server a local TCP connection using our

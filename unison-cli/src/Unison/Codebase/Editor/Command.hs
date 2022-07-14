@@ -29,6 +29,8 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
+import Unison.Codebase.IntegrityCheck (IntegrityResult)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Reflog as Reflog
@@ -58,8 +60,7 @@ import Unison.Result
     Result,
   )
 import Unison.Server.Backend
-  ( BackendError,
-    DefinitionResults,
+  ( DefinitionResults,
     IncludeCycles,
     ShallowListEntry,
   )
@@ -73,7 +74,7 @@ import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
 import qualified Unison.WatchKind as WK
-import UnliftIO (MonadUnliftIO (..), UnliftIO)
+import UnliftIO (UnliftIO)
 import qualified UnliftIO
 
 type AmbientAbilities v = [Type v Ann]
@@ -129,7 +130,7 @@ data
     Command m i v (DefinitionResults v)
   FindShallow ::
     Path.Absolute ->
-    Command m i v (Either BackendError [ShallowListEntry v Ann])
+    Command m i v [ShallowListEntry v Ann]
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)
   Input :: Command m i v i
   -- Presents some output to the user
@@ -144,7 +145,7 @@ data
   TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
   -- the hash length needed to disambiguate any branch in the codebase
   BranchHashLength :: Command m i v Int
-  BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.Hash)
+  BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.CausalHash)
   ParseType ::
     NamesWithHistory ->
     LexedSource ->
@@ -178,11 +179,12 @@ data
   -- of the same watches instantaneous.
 
   Evaluate ::
+    Bool -> -- sandboxed
     PPE.PrettyPrintEnv ->
     UF.TypecheckedUnisonFile v Ann ->
     Command m i v (Either Runtime.Error (EvalResult v))
   -- Evaluate a single closed definition
-  Evaluate1 :: PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
+  Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
   -- Add a cached watch to the codebase
   PutWatch :: WK.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
   -- Loads any cached watches of the given kind
@@ -192,19 +194,19 @@ data
   -- codebase are copied there.
   LoadLocalRootBranch :: Command m i v (Branch m)
   -- Like `LoadLocalRootBranch`.
-  LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m)
+  LoadLocalBranch :: Branch.CausalHash -> Command m i v (Branch m)
   -- Merge two branches, using the codebase for the LCA calculation where possible.
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
-  ViewRemoteBranch ::
-    ReadRemoteNamespace ->
+  ViewRemoteGitBranch ::
+    ReadGitRemoteNamespace ->
     Git.GitBranchBehavior ->
     (Branch m -> (Free (Command m i v) r)) ->
     Command m i v (Either GitError r)
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
   -- imported and not retain any resources from the remote codebase
-  ImportRemoteBranch ::
-    ReadRemoteNamespace ->
+  ImportRemoteGitBranch ::
+    ReadGitRemoteNamespace ->
     SyncMode ->
     -- | A preprocessing step to perform on the branch before it's imported.
     -- This is sometimes useful for minimizing the number of definitions to sync.
@@ -215,10 +217,10 @@ data
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
-  SyncRemoteBranch :: WriteRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> Command m i v (Either GitError (Either e (Branch m)))
+  SyncRemoteGitBranch :: WriteGitRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> Command m i v (Either GitError (Either e (Branch m)))
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
   -- load the reflog in file (chronological) order
-  LoadReflog :: Command m i v [Reflog.Entry Branch.Hash]
+  LoadReflog :: Command m i v [Reflog.Entry Branch.CausalHash]
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
   -- LoadTermComponent :: H.Hash -> Command m i v (Maybe [Term v Ann])
   LoadTermComponentWithTypes :: H.Hash -> Command m i v (Maybe [(Term v Ann, Type v Ann)])
@@ -250,6 +252,7 @@ data
   RuntimeMain :: Command m i v (Type v Ann)
   RuntimeTest :: Command m i v (Type v Ann)
   ClearWatchCache :: Command m i v ()
+  AnalyzeCodebaseIntegrity :: Command m i v IntegrityResult
   MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
   -- | Trigger an interactive fuzzy search over the provided options and return all
   -- selected results.
@@ -266,6 +269,7 @@ data
   -- Ideally we will eventually remove the Command type entirely and won't need
   -- this anymore.
   CmdUnliftIO :: Command m i v (UnliftIO (Free (Command m i v)))
+  UCMVersion :: Command m i v UCMVersion
 
 instance MonadIO m => MonadIO (Free (Command m i v)) where
   liftIO io = Free.eval $ Eval (liftIO io)
@@ -313,10 +317,10 @@ commandName = \case
   LoadLocalRootBranch -> "LoadLocalRootBranch"
   LoadLocalBranch {} -> "LoadLocalBranch"
   Merge {} -> "Merge"
-  ViewRemoteBranch {} -> "ViewRemoteBranch"
-  ImportRemoteBranch {} -> "ImportRemoteBranch"
+  ViewRemoteGitBranch {} -> "ViewRemoteGitBranch"
+  ImportRemoteGitBranch {} -> "ImportRemoteGitBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
-  SyncRemoteBranch {} -> "SyncRemoteBranch"
+  SyncRemoteGitBranch {} -> "SyncRemoteGitBranch"
   AppendToReflog {} -> "AppendToReflog"
   LoadReflog -> "LoadReflog"
   LoadTerm {} -> "LoadTerm"
@@ -344,3 +348,5 @@ commandName = \case
   MakeStandalone {} -> "MakeStandalone"
   FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"
+  UCMVersion {} -> "UCMVersion"
+  AnalyzeCodebaseIntegrity -> "AnalyzeCodebaseIntegrity"

@@ -29,7 +29,7 @@ def2 = 2
 
   metadata.copyrightHolders.alicecoder : CopyrightHolder
   metadata.copyrightHolders.alicecoder =
-    CopyrightHolder alicecoder.guid "Alice McGee"
+    CopyrightHolder guid "Alice McGee"
 
 .foo> link metadata.authors.alicecoder def1 def2
 
