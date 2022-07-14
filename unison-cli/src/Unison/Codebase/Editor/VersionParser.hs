@@ -19,7 +19,7 @@ import qualified Unison.Codebase.Path as Path
 -- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.releases.M4b})
 -- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.releases.M4c_2})
 
--- >>> parseMaybe defaultBaseLib "dev/M3-409-gbcdf68db3"
+-- >>> parseMaybe defaultBaseLib "dev/M4-1-g22ccb0b3b"
 -- Just (ReadShareRemoteNamespace {server = DefaultCodeserver, repo = "unison", path = public.base.main})
 
 -- A version with the 'dirty' flag
