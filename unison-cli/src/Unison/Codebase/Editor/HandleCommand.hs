@@ -158,8 +158,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         -- abstraction.
         toIO <- UnliftIO.askRunInIO
         lift $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (toIO . Free.fold go . action)
-      ImportRemoteGitBranch ns syncMode preprocess ->
-        lift $ Codebase.importRemoteBranch codebase ns syncMode preprocess
       SyncRemoteGitBranch repo opts action ->
         lift $ Codebase.pushGitBranch codebase repo opts action
       LoadDeclComponent r -> lift $ Codebase.getDeclComponent codebase r

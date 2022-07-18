@@ -21,7 +21,7 @@ import Control.Lens (view, _5)
 
 import Data.Configurator.Types (Configured)
 import qualified Data.Map as Map
-import Unison.Codebase (Preprocessing, PushGitBranchOpts)
+import Unison.Codebase (PushGitBranchOpts)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
@@ -35,10 +35,7 @@ import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Reflog as Reflog
 import qualified Unison.Codebase.Runtime as Runtime
-import Unison.Codebase.ShortBranchHash
-  ( ShortBranchHash,
-  )
-import Unison.Codebase.SyncMode (SyncMode)
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Unison.DataDeclaration (Decl)
@@ -55,15 +52,8 @@ import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
-import Unison.Result
-  ( Note,
-    Result,
-  )
-import Unison.Server.Backend
-  ( DefinitionResults,
-    IncludeCycles,
-    ShallowListEntry,
-  )
+import Unison.Result (Note, Result)
+import Unison.Server.Backend (DefinitionResults, IncludeCycles, ShallowListEntry)
 import Unison.Server.QueryResult (QueryResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
@@ -198,17 +188,6 @@ data
     Git.GitBranchBehavior ->
     (Branch m -> (Free (Command m i v) r)) ->
     Command m i v (Either GitError r)
-  -- we want to import as little as possible, so we pass the SBH/path as part
-  -- of the `RemoteNamespace`.  The Branch that's returned should be fully
-  -- imported and not retain any resources from the remote codebase
-  ImportRemoteGitBranch ::
-    ReadGitRemoteNamespace ->
-    SyncMode ->
-    -- | A preprocessing step to perform on the branch before it's imported.
-    -- This is sometimes useful for minimizing the number of definitions to sync.
-    -- Simply pass 'pure' if you don't need to do any pre-processing.
-    Preprocessing m ->
-    Command m i v (Either GitError (Branch m))
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
@@ -308,7 +287,6 @@ commandName = \case
   LoadLocalBranch {} -> "LoadLocalBranch"
   Merge {} -> "Merge"
   ViewRemoteGitBranch {} -> "ViewRemoteGitBranch"
-  ImportRemoteGitBranch {} -> "ImportRemoteGitBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
   SyncRemoteGitBranch {} -> "SyncRemoteGitBranch"
   AppendToReflog {} -> "AppendToReflog"

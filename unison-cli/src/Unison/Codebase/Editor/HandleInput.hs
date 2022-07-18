@@ -39,8 +39,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
-import Unison.Codebase (Preprocessing (..), PushGitBranchOpts (..))
-import Unison.Codebase (Codebase)
+import Unison.Codebase (Codebase, Preprocessing (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
@@ -516,8 +515,6 @@ loop = do
             (Branch m -> Action m i v1 (Branch m)) ->
             Action m i v1 Bool
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
-          importRemoteGitBranch ns mode preprocess =
-            ExceptT . eval $ ImportRemoteGitBranch ns mode preprocess
           saveAndApplyPatch patchPath'' patchName patch' = do
             stepAtM
               Branch.CompressHistory
@@ -674,12 +671,15 @@ loop = do
                       outputDiff
             CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
             LoadPullRequestI baseRepo headRepo dest0 -> do
+              codebase <- LoopState.askCodebase
               let desta = resolveToAbsolute dest0
               let dest = Path.unabsolute desta
               destb <- getAt desta
               let tryImportBranch = \case
                     ReadRemoteNamespaceGit repo ->
-                      withExceptT Output.GitError (importRemoteGitBranch repo SyncMode.ShortCircuit Unmodified)
+                      withExceptT
+                        Output.GitError
+                        (ExceptT (eval (Eval (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified))))
                     ReadRemoteNamespaceShare repo ->
                       ExceptT (importRemoteShareBranch repo)
               if Branch.isEmpty0 (Branch.head destb)
@@ -725,8 +725,8 @@ loop = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                    -- Branch exists and isn't empty, print an error
-                    throwError (BranchAlreadyExists (Path.unsplit' dest))
+                      -- Branch exists and isn't empty, print an error
+                      throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -1317,11 +1317,11 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
-                    eval (MakeStandalone ppe ref output) >>= \case
-                      Just err -> respond $ EvaluationFailure err
-                      Nothing -> pure ()
+                      eval (MakeStandalone ppe ref output) >>= \case
+                        Just err -> respond $ EvaluationFailure err
+                        Nothing -> pure ()
                   | otherwise ->
-                    respond $ BadMainFunction smain ty ppe [mainType]
+                      respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               codebase <- LoopState.askCodebase
@@ -1415,13 +1415,17 @@ loop = do
                   =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               respondNumbered $ ListEdits patch ppe
             PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> unlessError do
+              codebase <- lift LoopState.askCodebase
               let preprocess = case pullMode of
                     Input.PullWithHistory -> Unmodified
                     Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
               ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
               lift $ unlessError do
                 remoteBranch <- case ns of
-                  ReadRemoteNamespaceGit repo -> withExceptT Output.GitError (importRemoteGitBranch repo syncMode preprocess)
+                  ReadRemoteNamespaceGit repo ->
+                    withExceptT
+                      Output.GitError
+                      (ExceptT (eval (Eval (Codebase.importRemoteBranch codebase repo syncMode preprocess))))
                   ReadRemoteNamespaceShare repo -> ExceptT (importRemoteShareBranch repo)
                 let unchangedMsg = PullAlreadyUpToDate ns path
                 let destAbs = resolveToAbsolute path
@@ -1637,13 +1641,13 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
               diff <- mergeAndDiff baseBranch headBranch
               respondNumbered diff
 
-handleFindI
-  :: (Monad m, Var v)
-  => Bool
-  -> FindScope
-  -> [String]
-  -> Input
-  -> Action' m v ()
+handleFindI ::
+  (Monad m, Var v) =>
+  Bool ->
+  FindScope ->
+  [String] ->
+  Input ->
+  Action' m v ()
 handleFindI isVerbose fscope ws input = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
@@ -1663,15 +1667,15 @@ handleFindI isVerbose fscope ws input = do
                       case Name.segments n of
                         "lib" Nel.:| _ : _ -> False
                         _ -> True
-                in Names.filter f
+                 in Names.filter f
               Global -> id
               LocalAndDeps ->
                 let f n =
                       case Name.segments n of
                         "lib" Nel.:| (_ : "lib" : _) -> False
                         _ -> True
-                in Names.filter f
-        in scopeFilter namesWithinCurrentPath
+                 in Names.filter f
+         in scopeFilter namesWithinCurrentPath
   unlessError do
     let getResults names = do
           case ws of
@@ -1713,7 +1717,7 @@ handleFindI isVerbose fscope ws input = do
           respond $ ListOfDefinitions ppe isVerbose results'
     results <- getResults (getNames fscope)
     case (results, fscope) of
-      ([],Local) -> do
+      ([], Local) -> do
         respond FindNoLocalMatches
         respondResults =<< getResults (getNames LocalAndDeps)
       _ -> respondResults results
@@ -2740,10 +2744,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2760,10 +2764,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -3158,7 +3162,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-            respond $ ListOfLinks mempty []
+              respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>
