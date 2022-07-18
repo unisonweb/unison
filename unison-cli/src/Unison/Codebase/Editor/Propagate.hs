@@ -14,6 +14,8 @@ import Data.Configurator ()
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
@@ -81,12 +83,13 @@ noEdits = Edits mempty mempty mempty mempty mempty mempty mempty
 propagateAndApply ::
   forall m i v.
   (Applicative m, Var v) =>
+  Codebase m v Ann ->
   Names ->
   Patch ->
   Branch0 m ->
   F m i v (Branch0 m)
-propagateAndApply rootNames patch branch = do
-  edits <- propagate rootNames patch branch
+propagateAndApply codebase rootNames patch branch = do
+  edits <- propagate codebase rootNames patch branch
   f <- applyPropagate patch edits
   (pure . f . applyDeprecations patch) branch
 
@@ -238,12 +241,13 @@ debugMode = False
 propagate ::
   forall m i v.
   (Applicative m, Var v) =>
+  Codebase m v Ann ->
   Names -> -- TODO: this argument can be removed once patches have term replacement
   -- of type `Referent -> Referent`
   Patch ->
   Branch0 m ->
   F m i v (Edits v)
-propagate rootNames patch b = case validatePatch patch of
+propagate codebase rootNames patch b = case validatePatch patch of
   Nothing -> do
     eval $ Notify PatchNeedsToBeConflictFree
     pure noEdits
@@ -491,7 +495,6 @@ propagate rootNames patch b = case validatePatch patch of
     -- However, if we want this to be parametric in the annotation type, then
     -- Command would have to be made parametric in the annotation type too.
     unhashTermComponent ::
-      forall m v.
       (Applicative m, Var v) =>
       Reference ->
       F m i v (Map v (Reference, Term v _, Type v _))
@@ -502,12 +505,11 @@ propagate rootNames patch b = case validatePatch patch of
         pure $ fmap (over _1 Reference.DerivedId) unhashed
 
     unhashTermComponent' ::
-      forall m v.
       (Applicative m, Var v) =>
       Hash ->
       F m i v (Map v (Reference.Id, Term v _, Type v _))
     unhashTermComponent' h =
-      eval (LoadTermComponentWithTypes h) <&> foldMap \termsWithTypes ->
+      eval (Eval (Codebase.getTermComponentWithTypes codebase h)) <&> foldMap \termsWithTypes ->
         unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
       where
         unhash m =

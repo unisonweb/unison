@@ -163,7 +163,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         lift $ Codebase.importRemoteBranch codebase ns syncMode preprocess
       SyncRemoteGitBranch repo opts action ->
         lift $ Codebase.pushGitBranch codebase repo opts action
-      LoadTermComponentWithTypes h -> lift $ Codebase.getTermComponentWithTypes codebase h
       LoadType r -> lift $ Codebase.getTypeDeclaration codebase r
       LoadDeclComponent r -> lift $ Codebase.getDeclComponent codebase r
       PutTerm r tm tp -> lift $ Codebase.putTerm codebase r tm tp

@@ -2581,13 +2581,14 @@ propagatePatchNoSync ::
   Patch ->
   Path.Absolute ->
   Action' m v Bool
-propagatePatchNoSync patch scopePath = unsafeTime "propagate" $ do
+propagatePatchNoSync patch scopePath = unsafeTime "propagate" do
+  codebase <- LoopState.askCodebase
   r <- use LoopState.root
   let nroot = Branch.toNames (Branch.head r)
   stepAtMNoSync'
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
-      liftF . Propagate.propagateAndApply nroot patch
+      liftF . Propagate.propagateAndApply codebase nroot patch
     )
 
 -- Returns True if the operation changed the namespace, False otherwise.
@@ -2598,13 +2599,14 @@ propagatePatch ::
   Path.Absolute ->
   Action' m v Bool
 propagatePatch inputDescription patch scopePath = do
+  codebase <- LoopState.askCodebase
   r <- use LoopState.root
   let nroot = Branch.toNames (Branch.head r)
   stepAtM'
     Branch.CompressHistory
     (inputDescription <> " (applying patch)")
     ( Path.unabsolute scopePath,
-      liftF . Propagate.propagateAndApply nroot patch
+      liftF . Propagate.propagateAndApply codebase nroot patch
     )
 
 -- | Create the args needed for showTodoOutput and call it
