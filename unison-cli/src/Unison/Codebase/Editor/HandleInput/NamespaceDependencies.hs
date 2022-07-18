@@ -6,10 +6,12 @@ where
 import Control.Monad.Trans.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.HandleInput.LoopState (Action, eval)
+import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState (askCodebase)
 import qualified Unison.DataDeclaration as DD
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
@@ -38,6 +40,8 @@ import qualified Unison.Util.Relation4 as Relation4
 -- scope on this branch, and also want to list ALL names of dependents, including aliases.
 namespaceDependencies :: forall m i v. Ord v => Branch0 m -> Action m i v (Map LabeledDependency (Set Name))
 namespaceDependencies branch = do
+  codebase <- LoopState.askCodebase
+
   typeDeps <- for (Map.toList currentBranchTypeRefs) $ \(typeRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
     refId <- MaybeT . pure $ Reference.toId typeRef
     decl <- MaybeT $ eval (LoadType refId)
@@ -46,7 +50,7 @@ namespaceDependencies branch = do
 
   termDeps <- for (Map.toList currentBranchTermRefs) $ \(termRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
     refId <- MaybeT . pure $ Referent.toReferenceId termRef
-    term <- MaybeT $ eval (LoadTerm refId)
+    term <- MaybeT $ eval (Eval (Codebase.getTerm codebase refId))
     let termDeps = Term.labeledDependencies term
     pure $ foldMap (`Map.singleton` names) termDeps
 

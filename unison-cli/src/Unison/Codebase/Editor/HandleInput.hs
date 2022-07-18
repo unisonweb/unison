@@ -1446,7 +1446,9 @@ loop = do
                       else respond unchangedMsg
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
-            ListDependenciesI hq ->
+            ListDependenciesI hq -> do
+              codebase <- LoopState.askCodebase
+
               -- todo: add flag to handle transitive efficiently
               resolveHQToLabeledDependencies hq >>= \lds ->
                 if null lds
@@ -1459,7 +1461,7 @@ loop = do
                               Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
                           tp _ = pure mempty
                           tm (Referent.Ref r@(Reference.DerivedId i)) =
-                            eval (LoadTerm i) <&> \case
+                            eval (Eval (Codebase.getTerm codebase i)) <&> \case
                               Nothing -> error $ "What happened to " ++ show i ++ "?"
                               Just tm -> Set.delete r $ Term.dependencies tm
                           tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
@@ -2001,6 +2003,8 @@ handleShowDefinition outputLoc inputQuery = do
 -- | Handle a @test@ command.
 handleTest :: Monad m => TestInput -> Action' m v ()
 handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
+  codebase <- LoopState.askCodebase
+
   testTerms <- do
     currentPath' <- use LoopState.currentPath
     currentBranch' <- getAt currentPath'
@@ -2045,7 +2049,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
     computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
       case r of
         Reference.DerivedId rid -> do
-          tm <- eval $ LoadTerm rid
+          tm <- eval $ Eval (Codebase.getTerm codebase rid)
           case tm of
             Nothing -> do
               hqLength <- eval CodebaseHashLength
@@ -2468,6 +2472,8 @@ resolveHQToLabeledDependencies = \case
 
 doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Action' m Symbol ()
 doDisplay outputLoc names tm = do
+  codebase <- LoopState.askCodebase
+
   ppe <- prettyPrintEnvDecl names
   tf <- use LoopState.latestTypecheckedFile
   let (tms, typs) = maybe mempty UF.indexByReference tf
@@ -2481,7 +2487,7 @@ doDisplay outputLoc names tm = do
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) . eval $
           Evaluate1 True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
-        Nothing -> fmap (fmap Term.unannotate) . eval $ LoadTerm r
+        Nothing -> fmap (fmap Term.unannotate) . eval $ Eval (Codebase.getTerm codebase r)
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
       loadTerm _ = pure Nothing
       loadDecl (Reference.DerivedId r) = case Map.lookup r typs of

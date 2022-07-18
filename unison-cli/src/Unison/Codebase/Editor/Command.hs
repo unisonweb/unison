@@ -221,7 +221,6 @@ data
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
   -- load the reflog in file (chronological) order
   LoadReflog :: Command m i v [Reflog.Entry Branch.CausalHash]
-  LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
   -- LoadTermComponent :: H.Hash -> Command m i v (Maybe [Term v Ann])
   LoadTermComponentWithTypes :: H.Hash -> Command m i v (Maybe [(Term v Ann, Type v Ann)])
   -- todo: change this to take Reference and return DeclOrBuiltin
@@ -323,7 +322,6 @@ commandName = \case
   SyncRemoteGitBranch {} -> "SyncRemoteGitBranch"
   AppendToReflog {} -> "AppendToReflog"
   LoadReflog -> "LoadReflog"
-  LoadTerm {} -> "LoadTerm"
   LoadTermComponentWithTypes {} -> "LoadTermComponentWithTypes"
   LoadType {} -> "LoadType"
   LoadTypeOfTerm {} -> "LoadTypeOfTerm"
