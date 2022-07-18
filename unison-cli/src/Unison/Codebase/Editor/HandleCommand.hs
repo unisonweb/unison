@@ -147,7 +147,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
       TypecheckFile file ambient -> lift $ typecheck' ambient codebase file
       Evaluate sdbx ppe unisonFile -> lift $ evalUnisonFile sdbx ppe unisonFile []
       Evaluate1 sdbx ppe useCache term -> lift $ eval1 sdbx ppe useCache term
-      LoadLocalRootBranch -> lift $ Codebase.getRootBranch codebase
       LoadLocalBranch h -> lift $ fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
       Merge mode b1 b2 ->
         lift $ Branch.merge'' (Codebase.lca codebase) mode b1 b2

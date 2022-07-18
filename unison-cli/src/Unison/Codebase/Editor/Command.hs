@@ -189,10 +189,6 @@ data
   PutWatch :: WK.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
   -- Loads any cached watches of the given kind
   LoadWatches :: WK.WatchKind -> Set Reference -> Command m i v [(Reference, Term v Ann)]
-  -- Loads a root branch from some codebase, returning `Nothing` if not found.
-  -- Any definitions in the head of the requested root that aren't in the local
-  -- codebase are copied there.
-  LoadLocalRootBranch :: Command m i v (Branch m)
   -- Like `LoadLocalRootBranch`.
   LoadLocalBranch :: Branch.CausalHash -> Command m i v (Branch m)
   -- Merge two branches, using the codebase for the LCA calculation where possible.
@@ -309,7 +305,6 @@ commandName = \case
   Evaluate1 {} -> "Evaluate1"
   PutWatch {} -> "PutWatch"
   LoadWatches {} -> "LoadWatches"
-  LoadLocalRootBranch -> "LoadLocalRootBranch"
   LoadLocalBranch {} -> "LoadLocalBranch"
   Merge {} -> "Merge"
   ViewRemoteGitBranch {} -> "ViewRemoteGitBranch"
