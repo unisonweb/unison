@@ -1794,6 +1794,7 @@ doPushRemoteBranch ::
   SyncMode.SyncMode ->
   Action' m v ()
 doPushRemoteBranch pushFlavor localPath0 syncMode = do
+  codebase <- LoopState.askCodebase
   currentPath' <- use LoopState.currentPath
   let localPath = Path.resolve currentPath' localPath0
 
@@ -1817,7 +1818,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
                     PushBehavior.RequireNonEmpty -> GitPushBehaviorFf,
                 syncMode
               }
-      runExceptT (syncGitRemoteBranch repo opts withRemoteRoot) >>= \case
+      eval (Eval (Codebase.pushGitBranch codebase repo opts withRemoteRoot)) >>= \case
         Left gitErr -> respond (Output.GitError gitErr)
         Right (Left errOutput) -> respond errOutput
         Right (Right _branch) -> respond Success
@@ -1829,7 +1830,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
               { behavior = GitPushBehaviorGist,
                 syncMode
               }
-      runExceptT (syncGitRemoteBranch repo opts (\_remoteRoot -> pure (Right sourceBranch))) >>= \case
+      eval (Eval (Codebase.pushGitBranch codebase repo opts (\_remoteRoot -> pure (Right sourceBranch)))) >>= \case
         Left gitErr -> respond (Output.GitError gitErr)
         Right (Left errOutput) -> respond errOutput
         Right _result -> do
@@ -2452,18 +2453,6 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
           Console.Regions.finishConsoleRegion region $
             "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
           pure result
-
--- | Given the current root branch of a remote
--- (or an empty branch if no root branch exists)
--- compute a new branch, which will then be synced and pushed.
-syncGitRemoteBranch ::
-  MonadCommand n m i v =>
-  WriteGitRepo ->
-  PushGitBranchOpts ->
-  (Branch m -> m (Either e (Branch m))) ->
-  ExceptT GitError n (Either e (Branch m))
-syncGitRemoteBranch repo opts action =
-  ExceptT . eval $ SyncRemoteGitBranch repo opts action
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
