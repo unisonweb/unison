@@ -166,7 +166,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
           go (Reference.Builtin _) = pure Nothing
           go r@(Reference.DerivedId rid) =
             fmap (r,) <$> Codebase.getWatch codebase kind rid
-      IsTerm r -> lift $ Codebase.isTerm codebase r
       IsType r -> lift $ Codebase.isType codebase r
       GetDependents r -> lift $ Codebase.dependents codebase r
       GetDependentsOfComponent h -> lift $ Codebase.dependentsOfComponent codebase h

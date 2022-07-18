@@ -196,9 +196,6 @@ data
   LoadReflog :: Command m i v [Reflog.Entry Branch.CausalHash]
   PutTerm :: Reference.Id -> Term v Ann -> Type v Ann -> Command m i v ()
   PutDecl :: Reference.Id -> Decl v Ann -> Command m i v ()
-  -- todo: eliminate these hopefully
-  -- (why, again? because we can know from the Reference?)
-  IsTerm :: Reference -> Command m i v Bool
   IsType :: Reference -> Command m i v Bool
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
@@ -287,7 +284,6 @@ commandName = \case
   LoadReflog -> "LoadReflog"
   PutTerm {} -> "PutTerm"
   PutDecl {} -> "PutDecl"
-  IsTerm {} -> "IsTerm"
   IsType {} -> "IsType"
   GetDependents {} -> "GetDependents"
   GetDependentsOfComponent {} -> "GetDependentsOfComponent"

@@ -2570,10 +2570,10 @@ resolveShortBranchHash hash = ExceptT do
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatchNoSync ::
-  (Monad m, Var v) =>
+  Monad m =>
   Patch ->
   Path.Absolute ->
-  Action' m v Bool
+  Action' m Symbol Bool
 propagatePatchNoSync patch scopePath = unsafeTime "propagate" do
   codebase <- LoopState.askCodebase
   r <- use LoopState.root
@@ -2586,11 +2586,11 @@ propagatePatchNoSync patch scopePath = unsafeTime "propagate" do
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch ::
-  (Monad m, Var v) =>
+  Monad m =>
   LoopState.InputDescription ->
   Patch ->
   Path.Absolute ->
-  Action' m v Bool
+  Action' m Symbol Bool
 propagatePatch inputDescription patch scopePath = do
   codebase <- LoopState.askCodebase
   r <- use LoopState.root
@@ -3281,7 +3281,7 @@ loadDisplayInfo ::
     )
 loadDisplayInfo refs = do
   codebase <- LoopState.askCodebase
-  termRefs <- filterM (eval . IsTerm) (toList refs)
+  termRefs <- filterM (eval . Eval . Codebase.isTerm codebase) (toList refs)
   typeRefs <- filterM (eval . IsType) (toList refs)
   terms <- forM termRefs $ \r -> (r,) <$> eval (Eval (Codebase.getTypeOfTerm codebase r))
   types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject r

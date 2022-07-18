@@ -46,6 +46,7 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
 import qualified Unison.Runtime.IOSource as IOSource
+import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -81,13 +82,13 @@ noEdits :: Edits v
 noEdits = Edits mempty mempty mempty mempty mempty mempty mempty
 
 propagateAndApply ::
-  forall m i v.
-  (Applicative m, Var v) =>
-  Codebase m v Ann ->
+  forall m i.
+  Applicative m =>
+  Codebase m Symbol Ann ->
   Names ->
   Patch ->
   Branch0 m ->
-  F m i v (Branch0 m)
+  F m i Symbol (Branch0 m)
 propagateAndApply codebase rootNames patch branch = do
   edits <- propagate codebase rootNames patch branch
   f <- applyPropagate patch edits
@@ -239,14 +240,14 @@ debugMode = False
 -- "dirty" means in need of update
 -- "frontier" means updated definitions responsible for the "dirty"
 propagate ::
-  forall m i v.
-  (Applicative m, Var v) =>
-  Codebase m v Ann ->
+  forall m i.
+  Applicative m =>
+  Codebase m Symbol Ann ->
   Names -> -- TODO: this argument can be removed once patches have term replacement
   -- of type `Referent -> Referent`
   Patch ->
   Branch0 m ->
-  F m i v (Edits v)
+  F m i Symbol (Edits Symbol)
 propagate codebase rootNames patch b = case validatePatch patch of
   Nothing -> do
     eval $ Notify PatchNeedsToBeConflictFree
@@ -288,11 +289,11 @@ propagate codebase rootNames patch b = case validatePatch patch of
         getOrdered rs =
           Map.fromList [(i, r) | r <- toList rs, Just i <- [Map.lookup r order]]
         collectEdits ::
-          (Applicative m, Var v) =>
-          Edits v ->
+          Applicative m =>
+          Edits Symbol ->
           Set Reference ->
           Map Int Reference ->
-          F m i v (Edits v)
+          F m i Symbol (Edits Symbol)
         collectEdits es@Edits {..} seen todo = case Map.minView todo of
           Nothing -> pure es
           Just (r, todo) -> case r of
@@ -311,7 +312,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                 then collectEdits es seen todo
                 else do
                   haveType <- eval $ IsType r
-                  haveTerm <- eval $ IsTerm r
+                  haveTerm <- eval $ Eval (Codebase.isTerm codebase r)
                   let message =
                         "This reference is not a term nor a type " <> show r
                       mmayEdits
@@ -329,7 +330,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
 
-            doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
+            doType :: Reference -> F m i Symbol (Maybe (Edits Symbol), Set Reference)
             doType r = do
               when debugMode $ traceM ("Rewriting type: " <> refName r)
               componentMap <- unhashTypeComponent codebase r
@@ -351,7 +352,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                 Right c -> pure . Map.fromList $ (\(v, r, d) -> (v, (r, d))) <$> c
               let -- Relation: (nameOfType, oldRef, newRef, newType)
                   joinedStuff ::
-                    [(v, (Reference, Reference, Decl.DataDeclaration v _))]
+                    [(Symbol, (Reference, Reference, Decl.DataDeclaration Symbol _))]
                   joinedStuff =
                     Map.toList (Map.intersectionWith f declMap hashedComponents')
                   f (oldRef, _) (newRef, newType) = (oldRef, newRef, newType)
@@ -392,7 +393,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                       constructorReplacements',
                   seen'
                 )
-            doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
+            doTerm :: Reference -> F m i Symbol (Maybe (Edits Symbol), Set Reference)
             doTerm r = do
               when debugMode (traceM $ "Rewriting term: " <> show r)
               componentMap <- unhashTermComponent r
@@ -495,9 +496,9 @@ propagate codebase rootNames patch b = case validatePatch patch of
     -- However, if we want this to be parametric in the annotation type, then
     -- Command would have to be made parametric in the annotation type too.
     unhashTermComponent ::
-      (Applicative m, Var v) =>
+      Applicative m =>
       Reference ->
-      F m i v (Map v (Reference, Term v _, Type v _))
+      F m i Symbol (Map Symbol (Reference, Term Symbol _, Type Symbol _))
     unhashTermComponent r = case Reference.toId r of
       Nothing -> pure mempty
       Just r -> do
@@ -505,9 +506,9 @@ propagate codebase rootNames patch b = case validatePatch patch of
         pure $ fmap (over _1 Reference.DerivedId) unhashed
 
     unhashTermComponent' ::
-      (Applicative m, Var v) =>
+      Applicative m =>
       Hash ->
-      F m i v (Map v (Reference.Id, Term v _, Type v _))
+      F m i Symbol (Map Symbol (Reference.Id, Term Symbol _, Type Symbol _))
     unhashTermComponent' h =
       eval (Eval (Codebase.getTermComponentWithTypes codebase h)) <&> foldMap \termsWithTypes ->
         unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
@@ -521,9 +522,9 @@ propagate codebase rootNames patch b = case validatePatch patch of
                 [(v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m']
 
     verifyTermComponent ::
-      Map v (Reference, Term v _, a) ->
-      Edits v ->
-      F m i v (Maybe (Map v (Reference, Maybe WatchKind, Term v _, Type v _)))
+      Map Symbol (Reference, Term Symbol _, a) ->
+      Edits Symbol ->
+      F m i Symbol (Maybe (Map Symbol (Reference, Maybe WatchKind, Term Symbol _, Type Symbol _)))
     verifyTermComponent componentMap Edits {..} = do
       -- If the term contains references to old patterns, we can't update it.
       -- If the term had a redunant type signature, it's discarded and a new type
