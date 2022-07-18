@@ -151,12 +151,12 @@ propagateCtorMapping oldComponent newComponent =
 -- and if the number of constructors is 1, then the constructor names need not
 -- be the same.
 genInitialCtorMapping ::
-  forall v m i. Var v => Names -> Map Reference Reference -> F m i v (Map Referent Referent)
-genInitialCtorMapping rootNames initialTypeReplacements = do
+  forall v m i. Var v => Codebase m v Ann -> Names -> Map Reference Reference -> F m i v (Map Referent Referent)
+genInitialCtorMapping codebase rootNames initialTypeReplacements = do
   let mappings :: (Reference, Reference) -> _ (Map Referent Referent)
       mappings (old, new) = do
-        old <- unhashTypeComponent old
-        new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent new
+        old <- unhashTypeComponent codebase old
+        new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent codebase new
         pure $ ctorMapping old new
   Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
   where
@@ -281,7 +281,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
     -- TODO: once patches can directly contain constructor replacements, this
     -- line can turn into a pure function that takes the subset of the term replacements
     -- in the patch which have a `Referent.Con` as their LHS.
-    initialCtorMappings <- genInitialCtorMapping rootNames initialTypeReplacements
+    initialCtorMappings <- genInitialCtorMapping codebase rootNames initialTypeReplacements
 
     order <- sortDependentsGraph initialDirty entireBranch
     let getOrdered :: Set Reference -> Map Int Reference
@@ -332,7 +332,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
             doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
             doType r = do
               when debugMode $ traceM ("Rewriting type: " <> refName r)
-              componentMap <- unhashTypeComponent r
+              componentMap <- unhashTypeComponent codebase r
               let componentMap' =
                     over _2 (Decl.updateDependencies typeReplacements)
                       <$> componentMap
@@ -553,16 +553,16 @@ propagate codebase rootNames patch b = case validatePatch patch of
             $ runIdentity (Result.toMaybe typecheckResult)
               >>= hush
 
-unhashTypeComponent :: Var v => Reference -> F m i v (Map v (Reference, Decl v Ann))
-unhashTypeComponent r = case Reference.toId r of
+unhashTypeComponent :: Var v => Codebase m v Ann -> Reference -> F m i v (Map v (Reference, Decl v Ann))
+unhashTypeComponent codebase r = case Reference.toId r of
   Nothing -> pure mempty
   Just id -> do
-    unhashed <- unhashTypeComponent' (Reference.idToHash id)
+    unhashed <- unhashTypeComponent' codebase (Reference.idToHash id)
     pure $ over _1 Reference.DerivedId <$> unhashed
 
-unhashTypeComponent' :: Var v => Hash -> F m i v (Map v (Reference.Id, Decl v Ann))
-unhashTypeComponent' h =
-  eval (LoadDeclComponent h) <&> foldMap \decls ->
+unhashTypeComponent' :: Var v => Codebase m v Ann -> Hash -> F m i v (Map v (Reference.Id, Decl v Ann))
+unhashTypeComponent' codebase h =
+  eval (Eval (Codebase.getDeclComponent codebase h)) <&> foldMap \decls ->
     unhash $ Map.fromList (Reference.componentFor h decls)
   where
     unhash =

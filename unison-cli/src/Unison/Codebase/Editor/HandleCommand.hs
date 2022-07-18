@@ -160,7 +160,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         lift $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (toIO . Free.fold go . action)
       SyncRemoteGitBranch repo opts action ->
         lift $ Codebase.pushGitBranch codebase repo opts action
-      LoadDeclComponent r -> lift $ Codebase.getDeclComponent codebase r
       PutTerm r tm tp -> lift $ Codebase.putTerm codebase r tm tp
       PutDecl r decl -> lift $ Codebase.putTypeDeclaration codebase r decl
       PutWatch kind r e -> lift $ Codebase.putWatch codebase kind r e
