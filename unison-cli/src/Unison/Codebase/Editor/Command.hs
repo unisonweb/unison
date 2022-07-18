@@ -227,7 +227,6 @@ data
   -- todo: change this to LoadDecl
   LoadType :: Reference.Id -> Command m i v (Maybe (Decl v Ann))
   LoadDeclComponent :: H.Hash -> Command m i v (Maybe [Decl v Ann])
-  LoadTypeOfTerm :: Reference -> Command m i v (Maybe (Type v Ann))
   PutTerm :: Reference.Id -> Term v Ann -> Type v Ann -> Command m i v ()
   PutDecl :: Reference.Id -> Decl v Ann -> Command m i v ()
   -- todo: eliminate these hopefully
@@ -324,7 +323,6 @@ commandName = \case
   LoadReflog -> "LoadReflog"
   LoadTermComponentWithTypes {} -> "LoadTermComponentWithTypes"
   LoadType {} -> "LoadType"
-  LoadTypeOfTerm {} -> "LoadTypeOfTerm"
   LoadDeclComponent {} -> "LoadDeclComponent"
   PutTerm {} -> "PutTerm"
   PutDecl {} -> "PutDecl"

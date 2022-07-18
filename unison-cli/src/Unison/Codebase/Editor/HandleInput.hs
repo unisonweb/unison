@@ -40,6 +40,7 @@ import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
 import Unison.Codebase (Preprocessing (..), PushGitBranchOpts (..))
+import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
@@ -538,7 +539,7 @@ loop = do
             (Path.HQSplit' -> Set Referent) -> -- compute matching terms
             (Path.HQSplit' -> Set Reference) -> -- compute matching types
             Path.HQSplit' ->
-            Action' m v ()
+            Action' m Symbol ()
           delete getHQ'Terms getHQ'Types hq = do
             let matchingTerms = toList (getHQ'Terms hq)
             let matchingTypes = toList (getHQ'Types hq)
@@ -1136,6 +1137,8 @@ loop = do
                   BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
                 go r = stepManyAt Branch.CompressHistory . fmap makeDelete . toList . Set.delete r $ conflicted
             ReplaceI from to patchPath -> do
+              codebase <- LoopState.askCodebase
+
               let patchPath' = fromMaybe defaultPatchPath patchPath
               patch <- getPatchAt patchPath'
               QueryResult fromMisses' fromHits <- hqNameQuery [from]
@@ -1175,8 +1178,8 @@ loop = do
                     Reference ->
                     Action m (Either Event Input) Symbol ()
                   replaceTerms fr tr = do
-                    mft <- eval $ LoadTypeOfTerm fr
-                    mtt <- eval $ LoadTypeOfTerm tr
+                    mft <- eval $ Eval (Codebase.getTypeOfTerm codebase fr)
+                    mtt <- eval $ Eval (Codebase.getTypeOfTerm codebase tr)
                     let termNotFound =
                           respond . TermNotFound'
                             . SH.take hqLength
@@ -1301,6 +1304,7 @@ loop = do
                     Left e -> respond $ EvaluationFailure e
                     Right _ -> pure () -- TODO
             MakeStandaloneI output main -> do
+              codebase <- LoopState.askCodebase
               mainType <- eval RuntimeMain
               parseNames <-
                 flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintNamesA
@@ -1309,7 +1313,7 @@ loop = do
                   smain = HQ.toString main
               filtered <-
                 catMaybes
-                  <$> traverse (\r -> fmap (r,) <$> loadTypeOfTerm r) resolved
+                  <$> traverse (\r -> fmap (r,) <$> loadTypeOfTerm codebase r) resolved
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType ->
@@ -1320,6 +1324,7 @@ loop = do
                     respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
+              codebase <- LoopState.askCodebase
               -- todo - allow this to run tests from scratch file, using addRunMain
               testType <- eval RuntimeTest
               parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
@@ -1341,7 +1346,7 @@ loop = do
                   results = NamesWithHistory.lookupHQTerm main parseNames
                in case toList results of
                     [Referent.Ref ref] -> do
-                      typ <- loadTypeOfTerm (Referent.Ref ref)
+                      typ <- loadTypeOfTerm codebase (Referent.Ref ref)
                       case typ of
                         Just typ | Typechecker.isSubtype typ testType -> do
                           let a = ABT.annotation tm
@@ -1571,8 +1576,10 @@ loop = do
     Right input -> LoopState.lastInput .= Just input
     _ -> pure ()
 
-handleCreatePullRequest :: forall m v. MonadUnliftIO m => ReadRemoteNamespace -> ReadRemoteNamespace -> Action' m v ()
+handleCreatePullRequest :: forall m. MonadUnliftIO m => ReadRemoteNamespace -> ReadRemoteNamespace -> Action' m Symbol ()
 handleCreatePullRequest baseRepo0 headRepo0 = do
+  codebase <- LoopState.askCodebase
+
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
 
@@ -1585,10 +1592,10 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
   -- We have the StateT layer goes away (can put it into an IORef in the environment),
   -- We have the MaybeT layer that signals end of input (can just been an IORef bool that we check before looping),
   -- and once all those things become IO, we can add a MonadUnliftIO instance on Action, and unify these cases.
-  let mergeAndDiff :: MonadCommand n m i v => Branch m -> Branch m -> n (NumberedOutput v)
+  let mergeAndDiff :: MonadCommand n m i Symbol => Branch m -> Branch m -> n (NumberedOutput Symbol)
       mergeAndDiff baseBranch headBranch = do
         merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
-        (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
+        (ppe, diff) <- diffHelperCmd codebase root' currentPath' (Branch.head baseBranch) (Branch.head merged)
         pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
 
   case (baseRepo0, headRepo0) of
@@ -2078,12 +2085,14 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
         _ -> False
 
 -- | Handle an @update@ command.
-handleUpdate :: forall m v. (Monad m, Var v) => Input -> OptionalPatch -> Set Name -> Action' m v ()
+handleUpdate :: forall m. Monad m => Input -> OptionalPatch -> Set Name -> Action' m Symbol ()
 handleUpdate input optionalPatch requestedNames = do
   let requestedVars = Set.map Name.toVar requestedNames
   use LoopState.latestTypecheckedFile >>= \case
     Nothing -> respond NoUnisonFile
     Just uf -> do
+      codebase <- LoopState.askCodebase
+
       currentPath' <- use LoopState.currentPath
       let defaultPatchPath :: PatchPath
           defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
@@ -2099,7 +2108,7 @@ handleUpdate input optionalPatch requestedNames = do
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
       let sr = Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames
-          addsAndUpdates :: SlurpComponent v
+          addsAndUpdates :: SlurpComponent Symbol
           addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
           fileNames :: Names
           fileNames = UF.typecheckedToNames uf
@@ -2119,7 +2128,7 @@ handleUpdate input optionalPatch requestedNames = do
                       ++ show actual
                 where
                   n = Name.unsafeFromVar v
-          hashTerms :: Map Reference (Type v Ann)
+          hashTerms :: Map Reference (Type Symbol Ann)
           hashTerms = Map.fromList (toList hashTerms0)
             where
               hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
@@ -2167,7 +2176,7 @@ handleUpdate input optionalPatch requestedNames = do
         allTypes :: Map Reference (Type v Ann) <-
           fmap Map.fromList . for (toList neededTypes) $ \r ->
             (r,) . fromMaybe (Type.builtin External "unknown type")
-              <$> (eval . LoadTypeOfTerm) r
+              <$> (eval . Eval . Codebase.getTypeOfTerm codebase) r
 
         let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 hashTerms) of
               (Just t1, Just t2)
@@ -2228,7 +2237,7 @@ handleUpdate input optionalPatch requestedNames = do
 -- Add default metadata to all added types and terms in a slurp component.
 --
 -- No-op if the slurp component is empty.
-addDefaultMetadata :: (Monad m, Var v) => SlurpComponent v -> Action m (Either Event Input) v ()
+addDefaultMetadata :: Monad m => SlurpComponent Symbol -> Action m (Either Event Input) Symbol ()
 addDefaultMetadata adds =
   when (not (SC.isEmpty adds)) do
     currentPath' <- use LoopState.currentPath
@@ -2277,8 +2286,8 @@ resolveDefaultMetadata path = do
 -- `op` is the operation to add/remove/alter metadata mappings.
 --   e.g. `Metadata.insert` is passed to add metadata links.
 manageLinks ::
-  forall m v.
-  (Monad m, Var v) =>
+  forall m.
+  Monad m =>
   Bool ->
   [(Path', HQ'.HQSegment)] ->
   [HQ.HashQualified Name] ->
@@ -2288,7 +2297,7 @@ manageLinks ::
     Branch.Star r NameSegment ->
     Branch.Star r NameSegment
   ) ->
-  Action m (Either Event Input) v ()
+  Action m (Either Event Input) Symbol ()
 manageLinks silent srcs mdValues op = do
   runExceptT (for mdValues \val -> ExceptT (getMetadataFromName val)) >>= \case
     Left output -> respond output
@@ -2470,7 +2479,7 @@ resolveHQToLabeledDependencies = \case
       types <- eval $ TypeReferencesByShortHash sh
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
-doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Action' m Symbol ()
+doDisplay :: Applicative m => OutputLocation -> NamesWithHistory -> Term Symbol () -> Action' m Symbol ()
 doDisplay outputLoc names tm = do
   codebase <- LoopState.askCodebase
 
@@ -2496,21 +2505,21 @@ doDisplay outputLoc names tm = do
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
         | Just (_, ty) <- Map.lookup r tms = pure $ Just (void ty)
-      loadTypeOfTerm' r = fmap (fmap void) . loadTypeOfTerm $ r
+      loadTypeOfTerm' r = fmap (fmap void) . loadTypeOfTerm codebase $ r
   rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm' evalTerm loadDecl tm
   respond $ DisplayRendered loc rendered
 
 getLinks ::
-  (Var v, Monad m) =>
+  Monad m =>
   SrcLoc ->
   Path.HQSplit' ->
   Either (Set Reference) (Maybe String) ->
   ExceptT
-    (Output v)
-    (Action' m v)
+    (Output Symbol)
+    (Action' m Symbol)
     ( PPE.PrettyPrintEnv,
       --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-      [(HQ.HashQualified Name, Reference, Maybe (Type v Ann))]
+      [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
     )
 getLinks srcLoc src mdTypeStr = ExceptT $ do
   let go = fmap Right . getLinks' src
@@ -2523,17 +2532,18 @@ getLinks srcLoc src mdTypeStr = ExceptT $ do
         Right typ -> go . Just . Set.singleton $ Hashing.typeToReference typ
 
 getLinks' ::
-  (Var v, Monad m) =>
+  Monad m =>
   Path.HQSplit' -> -- definition to print metadata of
   Maybe (Set Reference) -> -- return all metadata if empty
   Action'
     m
-    v
+    Symbol
     ( PPE.PrettyPrintEnv,
       --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-      [(HQ.HashQualified Name, Reference, Maybe (Type v Ann))]
+      [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
     )
 getLinks' src selection0 = do
+  codebase <- LoopState.askCodebase
   root0 <- Branch.head <$> use LoopState.root
   currentPath' <- use LoopState.currentPath
   let resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
@@ -2545,7 +2555,7 @@ getLinks' src selection0 = do
       allMd' = maybe allMd (`R.restrictDom` allMd) selection0
       -- then list the values after filtering by type
       allRefs :: Set Reference = R.ran allMd'
-  sigs <- for (toList allRefs) (loadTypeOfTerm . Referent.Ref)
+  sigs <- for (toList allRefs) (loadTypeOfTerm codebase . Referent.Ref)
   let deps =
         Set.map LD.termRef allRefs
           <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
@@ -2598,7 +2608,7 @@ propagatePatch inputDescription patch scopePath = do
     )
 
 -- | Create the args needed for showTodoOutput and call it
-doShowTodoOutput :: Monad m => Patch -> Path.Absolute -> Action' m v ()
+doShowTodoOutput :: Monad m => Patch -> Path.Absolute -> Action' m Symbol ()
 doShowTodoOutput patch scopePath = do
   scope <- getAt scopePath
   let names0 = Branch.toNames (Branch.head scope)
@@ -2610,12 +2620,13 @@ doShowTodoOutput patch scopePath = do
 
 -- | Show todo output if there are any conflicts or edits.
 showTodoOutput ::
+  Applicative m =>
   -- | Action that fetches the pretty print env. It's expensive because it
   -- involves looking up historical names, so only call it if necessary.
-  Action' m v PPE.PrettyPrintEnvDecl ->
+  Action' m Symbol PPE.PrettyPrintEnvDecl ->
   Patch ->
   Names ->
-  Action' m v ()
+  Action' m Symbol ()
 showTodoOutput getPpe patch names0 = do
   todo <- checkTodo patch names0
   if TO.noConflicts todo && TO.noEdits todo
@@ -2628,7 +2639,7 @@ showTodoOutput getPpe patch names0 = do
       ppe <- getPpe
       respondNumbered $ TodoOutput ppe todo
 
-checkTodo :: Patch -> Names -> Action m i v (TO.TodoOutput v Ann)
+checkTodo :: Applicative m => Patch -> Names -> Action m i Symbol (TO.TodoOutput Symbol Ann)
 checkTodo patch names0 = do
   let shouldUpdate = Names.contains names0
   f <- Propagate.computeFrontier (eval . GetDependents) patch shouldUpdate
@@ -2767,14 +2778,14 @@ unlessError' f ma = unlessError $ withExceptT f ma
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
 mergeBranchAndPropagateDefaultPatch ::
-  (Monad m, Var v) =>
+  Monad m =>
   Branch.MergeMode ->
   LoopState.InputDescription ->
-  Maybe (Output v) ->
+  Maybe (Output Symbol) ->
   Branch m ->
   Maybe Path.Path' ->
   Path.Absolute ->
-  Action' m v ()
+  Action' m Symbol ()
 mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb dest0 dest =
   ifM
     (mergeBranch mode inputDescription srcb dest0 dest)
@@ -2782,14 +2793,14 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     (for_ unchangedMessage respond)
   where
     mergeBranch ::
-      (Monad m, Var v) =>
+      Monad m =>
       Branch.MergeMode ->
       LoopState.InputDescription ->
       Branch m ->
       Maybe Path.Path' ->
       Path.Absolute ->
-      Action' m v Bool
-    mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" $ do
+      Action' m Symbol Bool
+    mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" do
       destb <- getAt dest
       merged <- eval $ Merge mode srcb destb
       b <- updateAtM inputDescription dest (const $ pure merged)
@@ -2799,12 +2810,12 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
       pure b
 
 loadPropagateDiffDefaultPatch ::
-  (Monad m, Var v) =>
+  Monad m =>
   LoopState.InputDescription ->
   Maybe Path.Path' ->
   Path.Absolute ->
-  Action' m v ()
-loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagate Default Patch" $ do
+  Action' m Symbol ()
+loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagate Default Patch" do
   original <- getAt dest
   patch <- eval . Eval $ Branch.getPatch defaultPatchNameSegment (Branch.head original)
   patchDidChange <- propagatePatch inputDescription patch dest
@@ -2822,13 +2833,15 @@ loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagat
 --     type.
 --   * 'MetadataAmbiguous', if the given name is associated with more than one reference.
 getMetadataFromName ::
-  Var v =>
+  Applicative m =>
   HQ.HashQualified Name ->
-  Action m (Either Event Input) v (Either (Output v) (Metadata.Type, Metadata.Value))
+  Action m (Either Event Input) Symbol (Either (Output Symbol) (Metadata.Type, Metadata.Value))
 getMetadataFromName name = do
+  codebase <- LoopState.askCodebase
+
   (Set.toList <$> getHQTerms name) >>= \case
     [ref@(Referent.Ref val)] ->
-      eval (LoadTypeOfTerm val) >>= \case
+      eval (Eval (Codebase.getTypeOfTerm codebase val)) >>= \case
         Nothing -> do
           ppe <- getPPE
           pure (Left (MetadataMissingType ppe ref))
@@ -3262,18 +3275,20 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
     errorEmptyVar = error "encountered an empty var name"
 
 loadDisplayInfo ::
+  Applicative m =>
   Set Reference ->
   Action
     m
     i
-    v
-    ( [(Reference, Maybe (Type v Ann))],
-      [(Reference, DisplayObject () (DD.Decl v Ann))]
+    Symbol
+    ( [(Reference, Maybe (Type Symbol Ann))],
+      [(Reference, DisplayObject () (DD.Decl Symbol Ann))]
     )
 loadDisplayInfo refs = do
+  codebase <- LoopState.askCodebase
   termRefs <- filterM (eval . IsTerm) (toList refs)
   typeRefs <- filterM (eval . IsType) (toList refs)
-  terms <- forM termRefs $ \r -> (r,) <$> eval (LoadTypeOfTerm r)
+  terms <- forM termRefs $ \r -> (r,) <$> eval (Eval (Codebase.getTypeOfTerm codebase r))
   types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject r
   pure (terms, types)
 
@@ -3494,13 +3509,15 @@ addWatch watchName (Just uf) = do
 -- If that function doesn't exist in the typechecked file, the
 -- codebase is consulted.
 addRunMain ::
-  (Monad m, Var v) =>
+  Monad m =>
   String ->
-  Maybe (TypecheckedUnisonFile v Ann) ->
-  Action' m v (AddRunMainResult v)
+  Maybe (TypecheckedUnisonFile Symbol Ann) ->
+  Action' m Symbol (AddRunMainResult Symbol)
 addRunMain mainName Nothing = do
+  codebase <- LoopState.askCodebase
+
   parseNames <- basicParseNames
-  let loadTypeOfTerm ref = eval $ LoadTypeOfTerm ref
+  let loadTypeOfTerm ref = eval $ Eval (Codebase.getTypeOfTerm codebase ref)
   mainType <- eval RuntimeMain
   mainToFile
     <$> MainTerm.getMainTerm loadTypeOfTerm parseNames mainName mainType
@@ -3552,31 +3569,33 @@ displayNames unisonFile =
     (UF.typecheckedToNames unisonFile)
 
 diffHelper ::
-  (Monad m) =>
+  Monad m =>
   Branch0 m ->
   Branch0 m ->
-  Action' m v (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput v Ann)
-diffHelper before after = unsafeTime "HandleInput.diffHelper" $ do
+  Action' m Symbol (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
+diffHelper before after = unsafeTime "HandleInput.diffHelper" do
+  codebase <- LoopState.askCodebase
   currentRoot <- use LoopState.root
   currentPath <- use LoopState.currentPath
-  diffHelperCmd currentRoot currentPath before after
+  diffHelperCmd codebase currentRoot currentPath before after
 
 -- | A version of diffHelper that only requires a MonadCommand constraint
 diffHelperCmd ::
-  (Monad m, MonadCommand n m i v) =>
+  (Monad m, MonadCommand n m i Symbol) =>
+  Codebase m Symbol Ann ->
   Branch m ->
   Path.Absolute ->
   Branch0 m ->
   Branch0 m ->
-  n (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput v Ann)
-diffHelperCmd currentRoot currentPath before after = do
+  n (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
+diffHelperCmd codebase currentRoot currentPath before after = do
   hqLength <- eval CodebaseHashLength
   diff <- eval . Eval $ BranchDiff.diff0 before after
   let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
   ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
   (ppe,)
     <$> OBranchDiff.toOutput
-      loadTypeOfTerm
+      (loadTypeOfTerm codebase)
       declOrBuiltin
       hqLength
       (Branch.toNames before)
@@ -3584,14 +3603,14 @@ diffHelperCmd currentRoot currentPath before after = do
       ppe
       diff
 
-loadTypeOfTerm :: MonadCommand n m i v => Referent -> n (Maybe (Type v Ann))
-loadTypeOfTerm (Referent.Ref r) = eval $ LoadTypeOfTerm r
-loadTypeOfTerm (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
+loadTypeOfTerm :: (Applicative m, MonadCommand n m i Symbol) => Codebase m Symbol Ann -> Referent -> n (Maybe (Type Symbol Ann))
+loadTypeOfTerm codebase (Referent.Ref r) = eval (Eval (Codebase.getTypeOfTerm codebase r))
+loadTypeOfTerm _ (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
   decl <- eval $ LoadType r
   case decl of
     Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
     Nothing -> pure Nothing
-loadTypeOfTerm Referent.Con {} =
+loadTypeOfTerm _ Referent.Con {} =
   error $
     reportBug "924628772" "Attempt to load a type declaration which is a builtin!"
 
