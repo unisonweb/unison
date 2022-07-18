@@ -3282,7 +3282,7 @@ loadDisplayInfo ::
 loadDisplayInfo refs = do
   codebase <- LoopState.askCodebase
   termRefs <- filterM (eval . Eval . Codebase.isTerm codebase) (toList refs)
-  typeRefs <- filterM (eval . IsType) (toList refs)
+  typeRefs <- filterM (eval . Eval . Codebase.isType codebase) (toList refs)
   terms <- forM termRefs $ \r -> (r,) <$> eval (Eval (Codebase.getTypeOfTerm codebase r))
   types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject r
   pure (terms, types)
