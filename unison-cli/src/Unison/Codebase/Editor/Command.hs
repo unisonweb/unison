@@ -223,7 +223,6 @@ data
   LoadReflog :: Command m i v [Reflog.Entry Branch.CausalHash]
   -- todo: change this to take Reference and return DeclOrBuiltin
   -- todo: change this to LoadDecl
-  LoadType :: Reference.Id -> Command m i v (Maybe (Decl v Ann))
   LoadDeclComponent :: H.Hash -> Command m i v (Maybe [Decl v Ann])
   PutTerm :: Reference.Id -> Term v Ann -> Type v Ann -> Command m i v ()
   PutDecl :: Reference.Id -> Decl v Ann -> Command m i v ()
@@ -319,7 +318,6 @@ commandName = \case
   SyncRemoteGitBranch {} -> "SyncRemoteGitBranch"
   AppendToReflog {} -> "AppendToReflog"
   LoadReflog -> "LoadReflog"
-  LoadType {} -> "LoadType"
   LoadDeclComponent {} -> "LoadDeclComponent"
   PutTerm {} -> "PutTerm"
   PutDecl {} -> "PutDecl"

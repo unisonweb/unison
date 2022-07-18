@@ -1461,7 +1461,7 @@ loop = do
                   else for_ lds $ \ld -> do
                     dependencies :: Set Reference <-
                       let tp r@(Reference.DerivedId i) =
-                            eval (LoadType i) <&> \case
+                            eval (Eval (Codebase.getTypeDeclaration codebase i)) <&> \case
                               Nothing -> error $ "What happened to " ++ show i ++ "?"
                               Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
                           tp _ = pure mempty
@@ -1470,7 +1470,7 @@ loop = do
                               Nothing -> error $ "What happened to " ++ show i ++ "?"
                               Just tm -> Set.delete r $ Term.dependencies tm
                           tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
-                            eval (LoadType i) <&> \case
+                            eval (Eval (Codebase.getTypeDeclaration codebase i)) <&> \case
                               Nothing -> error $ "What happened to " ++ show i ++ "?"
                               Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
                                 Nothing -> error $ "What happened to " ++ show con ++ "?"
@@ -2500,7 +2500,7 @@ doDisplay outputLoc names tm = do
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
       loadTerm _ = pure Nothing
       loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
-        Nothing -> fmap (fmap $ DD.amap (const ())) . eval $ LoadType r
+        Nothing -> fmap (fmap $ DD.amap (const ())) . eval $ Eval (Codebase.getTypeDeclaration codebase r)
         Just decl -> pure (Just $ DD.amap (const ()) decl)
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
@@ -3327,9 +3327,10 @@ loadTypeDisplayObject ::
   Reference -> Action m i v (DisplayObject () (DD.Decl v Ann))
 loadTypeDisplayObject = \case
   Reference.Builtin _ -> pure (BuiltinObject ())
-  Reference.DerivedId id ->
+  Reference.DerivedId id -> do
+    codebase <- LoopState.askCodebase
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
-      <$> eval (LoadType id)
+      <$> eval (Eval (Codebase.getTypeDeclaration codebase id))
 
 lexedSource :: Monad m => SourceName -> Source -> Action' m v (NamesWithHistory, LexedSource)
 lexedSource name src = do
@@ -3598,7 +3599,7 @@ diffHelperCmd codebase currentRoot currentPath before after = do
   (ppe,)
     <$> OBranchDiff.toOutput
       (loadTypeOfTerm codebase)
-      declOrBuiltin
+      (declOrBuiltin codebase)
       hqLength
       (Branch.toNames before)
       (Branch.toNames after)
@@ -3607,8 +3608,8 @@ diffHelperCmd codebase currentRoot currentPath before after = do
 
 loadTypeOfTerm :: (Applicative m, MonadCommand n m i Symbol) => Codebase m Symbol Ann -> Referent -> n (Maybe (Type Symbol Ann))
 loadTypeOfTerm codebase (Referent.Ref r) = eval (Eval (Codebase.getTypeOfTerm codebase r))
-loadTypeOfTerm _ (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
-  decl <- eval $ LoadType r
+loadTypeOfTerm codebase (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
+  decl <- eval $ Eval (Codebase.getTypeDeclaration codebase r)
   case decl of
     Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
     Nothing -> pure Nothing
@@ -3616,12 +3617,12 @@ loadTypeOfTerm _ Referent.Con {} =
   error $
     reportBug "924628772" "Attempt to load a type declaration which is a builtin!"
 
-declOrBuiltin :: MonadCommand n m i v => Reference -> n (Maybe (DD.DeclOrBuiltin v Ann))
-declOrBuiltin r = case r of
+declOrBuiltin :: MonadCommand n m i Symbol => Codebase m Symbol Ann -> Reference -> n (Maybe (DD.DeclOrBuiltin Symbol Ann))
+declOrBuiltin codebase r = case r of
   Reference.Builtin {} ->
     pure . fmap DD.Builtin $ Map.lookup r Builtin.builtinConstructorType
   Reference.DerivedId id ->
-    fmap DD.Decl <$> eval (LoadType id)
+    fmap DD.Decl <$> eval (Eval (Codebase.getTypeDeclaration codebase id))
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.
