@@ -49,6 +49,7 @@ import qualified Unison.Codebase.BranchDiff as BranchDiff
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
+import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
@@ -128,6 +129,7 @@ import qualified Unison.Names as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
+import qualified Unison.Parser.Ann as Ann
 import Unison.Position (Position (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -1030,7 +1032,8 @@ loop = do
                 guid@(guidRef, _, _)
                 author@(authorRef, _, _)
                 copyrightHolder@(copyrightHolderRef, _, _) <-
-                eval $ CreateAuthorInfo authorFullName
+                AuthorInfo.createAuthorInfo Ann.External authorFullName
+
               -- add the new definitions to the codebase and to the namespace
               traverse_ (liftIO . uncurry3 (Codebase.putTerm codebase)) [guid, author, copyrightHolder]
               stepManyAt

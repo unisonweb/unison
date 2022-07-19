@@ -20,7 +20,6 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch.Merge as Branch
-import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UseCache)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
@@ -181,7 +180,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
 
       Execute ppe uf args ->
         lift $ evalUnisonFile False ppe uf args
-      CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
       HQNameQuery mayPath branch query -> do
         hqLength <- lift $ Codebase.hashLength codebase
         let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath

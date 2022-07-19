@@ -24,7 +24,6 @@ import Data.Configurator.Types (Configured)
 import qualified Data.Map as Map
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch.Merge as Branch
-import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
@@ -180,7 +179,6 @@ data
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
   Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command i v (Runtime.WatchResults v Ann)
-  CreateAuthorInfo :: Text -> Command i v (AuthorInfo v Ann)
   -- | Trigger an interactive fuzzy search over the provided options and return all
   -- selected results.
   FuzzySelect ::
@@ -247,7 +245,6 @@ commandName = \case
   ViewRemoteGitBranch {} -> "ViewRemoteGitBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
   Execute {} -> "Execute"
-  CreateAuthorInfo {} -> "CreateAuthorInfo"
   HQNameQuery {} -> "HQNameQuery"
   LoadSearchResults {} -> "LoadSearchResults"
   GetDefinitionsBySuffixes {} -> "GetDefinitionsBySuffixes"
