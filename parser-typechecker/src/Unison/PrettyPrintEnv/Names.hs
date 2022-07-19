@@ -48,13 +48,16 @@ relativizeToPerspective :: Perspective -> [HQ'.HashQualified Name] -> [HQ'.HashQ
 relativizeToPerspective p ns =
   case p of
     Root -> ns
-    RelativeTo p -> ns <&> fmap \name -> fromMaybe name $ Name.stripNamePrefix (Path.toName $ Path.unabsolute p) name
+    RelativeTo p ->
+      ns <&> fmap \name -> fromMaybe name $ do
+        pathName <- Path.toName $ Path.unabsolute p
+        Name.stripNamePrefix pathName name
 
 -- | Only return names within the given set of paths.
 restrict :: Maybe (NESet Path.Absolute) -> [HQ'.HashQualified Name] -> [HQ'.HashQualified Name]
 restrict Nothing ns = ns
 restrict (Just paths) ns = do
-  let pathNames = Path.toName . Path.unabsolute <$> toList paths
+  let pathNames = catMaybes (Path.toName . Path.unabsolute <$> toList paths)
   ns & filter (\hqname -> any (\pn -> Name.isPrefixOf pn (HQ'.toName hqname)) pathNames)
 
 prioritizeBias :: Maybe Name -> [HQ'.HashQualified Name] -> [HQ'.HashQualified Name]

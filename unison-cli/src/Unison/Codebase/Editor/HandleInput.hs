@@ -13,7 +13,7 @@ import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
 import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
 import Control.Monad.Reader (ask)
-import Control.Monad.State (StateT, MonadState)
+import Control.Monad.State (MonadState, StateT)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
 import Data.Configurator ()
@@ -172,6 +172,7 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import Data.Maybe (fromJust)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -190,7 +191,6 @@ prettyPrintEnvWithFallback fallback = do
   hashLen <- eval CodebaseHashLength
   currentPath' <- use LoopState.currentPath
   pure $ ppe <> PPE.fromNames hashLen Nothing (PPE.RelativeTo currentPath') Nothing PPE.NoSuffixify (NamesWithHistory.fromCurrentNames fallback)
-
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
@@ -286,8 +286,7 @@ loop = do
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
           currentNames <- unsafeTime "currentPathNames" currentPathNames
           let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-          names <- unsafeTime "displayNames" $ displayNames unisonFile
-          ppe <- suffixifiedPPE names
+          ppe <- unsafeTime "displayNames" $ displayNames unisonFile
           unsafeTime "typechecked.respond" $ respond $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
             (bindings, e) <- unsafeTime "evaluate" $ ExceptT . eval . Evaluate ppe $ unisonFile
@@ -528,8 +527,7 @@ loop = do
             -- Say something
             success
           previewResponse sourceName sr uf = do
-            names <- displayNames uf
-            ppe <- suffixifiedPPE names
+            ppe <- displayNames uf
             respond $ Typechecked (Text.pack sourceName) ppe sr uf
 
           delete ::
@@ -547,7 +545,7 @@ loop = do
               resolvedPath = resolveSplit' (HQ'.toName <$> hq)
               goMany tms tys = do
                 let rootNames = Branch.toNames root0
-                    name = Path.toName (Path.unsplit resolvedPath)
+                    name = fromJust $ Path.toName (Path.unsplit resolvedPath)
                     toRel :: Ord ref => Set ref -> R.Relation Name ref
                     toRel = R.fromList . fmap (name,) . toList
                     -- these names are relative to the root
@@ -800,7 +798,7 @@ loop = do
                   let rootNames = Branch.toNames root0
                       toDelete =
                         Names.prefix0
-                          (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
+                          (fromJust . Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
                           (Branch.toNames b0)
                   getEndangeredDependents (eval . GetDependents) toDelete rootNames
             SwitchBranchI maybePath' -> do
@@ -965,7 +963,7 @@ loop = do
                         (Just as1, Just as2) -> (missingSrcs, actions ++ as1 ++ as2)
 
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
-                fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
+                fixupOutput = fmap (fromJust . Path.toName) . HQ'.toHQ . Path.unsplitHQ
             NamesI global thing -> do
               ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
               let ns = NamesWithHistory ns0 mempty
@@ -1085,7 +1083,7 @@ loop = do
             ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
             FindPatchI -> do
               let patches =
-                    [ Path.toName $ Path.snoc p seg
+                    [ fromJust . Path.toName $ Path.snoc p seg
                       | (p, b) <- Branch.toList0 currentBranch0,
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
@@ -1297,9 +1295,7 @@ loop = do
                   let adds = SlurpResult.adds sr
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-                  hashLen <- eval CodebaseHashLength
-                  dispNames <- displayNames uf
-                  let ppe = PPE.fromNames hashLen Nothing PPE.Root Nothing PPE.Suffixify dispNames
+                  ppe <- PPE.suffixifiedPPE <$> displayNames uf
                   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
                   addDefaultMetadata adds
                   syncRoot
@@ -2139,7 +2135,7 @@ handleUpdate input optionalPatch requestedNames = do
                 Just (_, update, p) -> [(Path.unabsolute p, update)]
           )
         eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-      ppe <- suffixifiedPPE =<< displayNames uf
+      ppe <- displayNames uf
       respond $ SlurpOutput input ppe sr
       -- propagatePatch prints TodoOutput
       for_ patchOps $ \case
@@ -2473,7 +2469,7 @@ getLinks' src selection0 = do
   let deps =
         Set.map LD.termRef allRefs
           <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
-  let ppeBias = Just (Path.toName' . HQ'.toName . Path.unsplitHQ' $ src)
+  let ppeBias = Just (fromJust . Path.toName' . HQ'.toName . Path.unsplitHQ' $ src)
   hqLength <- eval CodebaseHashLength
   ppe <- PPE.fromNames hqLength Nothing PPE.Root ppeBias PPE.NoSuffixify <$> makePrintNamesFromLabeled' deps
   let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
@@ -2613,7 +2609,7 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
     Nothing -> []
     Just b -> SR.fromNames . Names.prefix0 n $ names0
       where
-        lastName = Path.toName (Path.singleton last)
+        lastName = fromJust $ Path.toName (Path.singleton last)
         subnames =
           Branch.toNames . Branch.head $
             Branch.getAt' (Path.singleton last) b
@@ -2778,7 +2774,7 @@ getHQTerms = \case
             & Path.resolve currentPath'
             & Path.unabsolute
             & Path.toName
-    pure $ R.lookupRan path (Branch.deepTerms root0)
+    pure . fromMaybe mempty $ R.lookupRan <$> path <*> pure (Branch.deepTerms root0)
   HQ.HashOnly sh -> hashOnly sh
   HQ.HashQualified _ sh -> hashOnly sh
   where
@@ -3004,8 +3000,7 @@ displayI prettyPrintNames outputLoc hq = do
         case Command.lookupEvalResult toDisplay evalResult of
           Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
           Just tm -> lift do
-            hqLength <- eval CodebaseHashLength
-            ppe <- PPE.fromNames hqLength Nothing PPE.Root Nothing PPE.NoSuffixify <$> displayNames unisonFile
+            ppe <- displayNames unisonFile
             doDisplay outputLoc ppe tm
 
 docsI ::
@@ -3025,7 +3020,7 @@ docsI srcLoc prettyPrintNames src = do
     hq :: HQ.HashQualified Name
     hq =
       let hq' :: HQ'.HashQualified Name
-          hq' = Name.convert @Path.Path' @Name <$> Name.convert src
+          hq' = fromJust . Path.toName' <$> Name.convert src
        in Name.convert hq'
 
     dotDoc :: HQ.HashQualified Name
@@ -3206,13 +3201,13 @@ loadDisplayInfo refs = do
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
 fixupNamesRelative :: Path.Absolute -> Names -> Names
-fixupNamesRelative currentPath' = Names.map fixName
+fixupNamesRelative root = Names.map fixName
   where
-    prefix = Path.toName (Path.unabsolute currentPath')
     fixName n =
-      if currentPath' == Path.absoluteEmpty
-        then n
-        else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
+      case Path.toName $ Path.unabsolute root of
+        Nothing -> n
+        Just pathName ->
+          fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix pathName n)
 
 makeHistoricalParsingNames ::
   Monad m => Set (HQ.HashQualified Name) -> Action' m v NamesWithHistory
@@ -3288,11 +3283,6 @@ parseType input src = do
       Left es -> Left $ ParseResolutionFailures src (toList es)
       Right typ -> Right typ
 
-makeShadowedPrintNamesFromLabeled ::
-  Monad m => Set LabeledDependency -> Names -> Action' m v NamesWithHistory
-makeShadowedPrintNamesFromLabeled deps shadowing =
-  NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeled' deps
-
 makePrintNamesFromLabeled' ::
   Monad m => Set LabeledDependency -> Action' m v NamesWithHistory
 makePrintNamesFromLabeled' deps = do
@@ -3347,10 +3337,9 @@ findHistoricalHQs lexedHQs0 = do
         -- some absolute name that isn't just "."
         '.' : t@(_ : _) -> Name.unsafeFromString t
         -- something in current path
-        _ ->
-          if Path.isRoot curPath
-            then n
-            else Name.joinDot (Path.toName . Path.unabsolute $ curPath) n
+        _ -> case (Path.toName . Path.unabsolute $ curPath) of
+          Just pathName -> Name.joinDot pathName n
+          Nothing -> n
 
       lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root'
@@ -3473,19 +3462,23 @@ executePPE ::
   (Var v, Monad m) =>
   TypecheckedUnisonFile v a ->
   Action' m v PPE.PrettyPrintEnv
-executePPE unisonFile =
-  suffixifiedPPE =<< displayNames unisonFile
+executePPE unisonFile = displayNames unisonFile
 
 -- Produce a `Names` needed to display all the hashes used in the given file.
 displayNames ::
   (Var v, Monad m) =>
   TypecheckedUnisonFile v a ->
-  Action' m v NamesWithHistory
-displayNames unisonFile =
-  -- voodoo
-  makeShadowedPrintNamesFromLabeled
-    (UF.termSignatureExternalLabeledDependencies unisonFile)
-    (UF.typecheckedToNames unisonFile)
+  Action' m v PPE.PrettyPrintEnv
+displayNames unisonFile = do
+  ppe <- prettyPrintEnv
+  hashLen <- eval CodebaseHashLength
+  let namesInFile = PPE.fromNames hashLen Nothing PPE.Root Nothing PPE.NoSuffixify (NamesWithHistory.fromCurrentNames $ UF.typecheckedToNames unisonFile)
+  pure (PPE.suffixifiedPPE $ namesInFile <> ppe)
+
+-- voodoo
+-- makeShadowedPrintNamesFromLabeled
+--   (UF.termSignatureExternalLabeledDependencies unisonFile)
+--   (UF.typecheckedToNames unisonFile)
 
 diffHelper ::
   (Monad m) =>
@@ -3509,7 +3502,7 @@ diffHelperCmd currentRoot currentPath before after = do
   hqLength <- eval CodebaseHashLength
   diff <- eval . Eval $ BranchDiff.diff0 before after
   let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames currentPath)
-  ppe <- suffixifiedPPE (NamesWithHistory prettyNames0 mempty)
+  ppe <- PPE.withPerspective (PPE.RelativeTo currentPath) <$> suffixifiedPPE (NamesWithHistory prettyNames0 mempty)
   (ppe,)
     <$> OBranchDiff.toOutput
       loadTypeOfTerm

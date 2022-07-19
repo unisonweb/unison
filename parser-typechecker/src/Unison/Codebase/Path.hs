@@ -79,6 +79,7 @@ import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
 import Data.List.Extra (dropPrefix)
 import qualified Data.List.NonEmpty as List.NonEmpty
+import Data.Maybe (fromJust)
 import Data.Sequence (Seq ((:<|), (:|>)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
@@ -212,11 +213,11 @@ splitFromName :: Name -> Maybe Split
 splitFromName = unsnoc . fromName
 
 -- | what is this? —AI
-unprefixName :: Absolute -> Name -> Name
+unprefixName :: Absolute -> Name -> Maybe Name
 unprefixName prefix = toName . unprefix prefix . fromName'
 
 prefixName :: Absolute -> Name -> Name
-prefixName p = toName . prefix p . fromName'
+prefixName p = fromJust . toName . prefix p . fromName'
 
 singleton :: NameSegment -> Path
 singleton n = fromList [n]
@@ -256,12 +257,17 @@ fromName' n = case take 1 (Name.toString n) of
     path = fromName n
     seq = toSeq path
 
-toName :: Path -> Name
-toName = Name.unsafeFromText . toText
+toName :: Path -> Maybe Name
+toName = \case
+  Empty -> Nothing
+  p@(_ :> _) -> Just . Name.unsafeFromText . toText $ p
 
 -- | Convert a Path' to a Name
-toName' :: Path' -> Name
-toName' = Name.unsafeFromText . toText'
+toName' :: Path' -> Maybe Name
+toName' = \case
+  p
+    | fromPath' p == empty -> Nothing
+    | otherwise -> Just . Name.unsafeFromText . toText' $ p
 
 pattern Empty = Path Seq.Empty
 
@@ -398,10 +404,6 @@ instance Convert [NameSegment] Path where convert = fromList
 instance Convert Path [NameSegment] where convert = toList
 
 instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ
-
-instance Convert Path Name where convert = toName
-
-instance Convert Path' Name where convert = toName'
 
 instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
 

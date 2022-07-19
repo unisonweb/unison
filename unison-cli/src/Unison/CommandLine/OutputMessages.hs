@@ -16,6 +16,7 @@ import qualified Data.List as List
 import Data.List.Extra (notNull, nubOrd, nubOrdOn)
 import qualified Data.List.NonEmpty as NEList
 import qualified Data.Map as Map
+import Data.Maybe (fromJust)
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
@@ -1305,7 +1306,7 @@ notifyUser dir o = case o of
       ]
     where
       name :: Name
-      name = Path.toName' (HQ'.toName (Path.unsplitHQ' p))
+      name = fromJust $ Path.toName' (HQ'.toName (Path.unsplitHQ' p))
       qualifyTerm :: Referent -> Pretty
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
       qualifyType :: Reference -> Pretty

@@ -183,10 +183,9 @@ namesForBranch root scope =
       where
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
         rootNames = Branch.toNames root0
-        pathPrefixed = case path of
-          p
-            | p == Path.absoluteEmpty -> const mempty
-            | otherwise -> Names.prefix0 (Path.toName' . Path.absoluteToPath' $ p)
+        pathPrefixed = case Path.toName (Path.unabsolute path) of
+          Nothing -> const mempty
+          Just pathName -> Names.prefix0 pathName
     -- parsing should respond to local and absolute names
     parseNames0 = currentPathNames <> Monoid.whenM includeAllNames absoluteRootNames
     -- pretty-printing should use local names where available
@@ -634,11 +633,11 @@ getCurrentParseNames scope root =
 fixupNamesRelative :: Path.Absolute -> Names -> Names
 fixupNamesRelative root = Names.map fixName
   where
-    prefix = Path.toName $ Path.unabsolute root
     fixName n =
-      if root == Path.absoluteEmpty
-        then n
-        else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
+      case Path.toName $ Path.unabsolute root of
+        Nothing -> n
+        Just pathName ->
+          fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix pathName n)
 
 -- | A @Search r@ is a small bag of functions that is used to power a search for @r@s.
 --

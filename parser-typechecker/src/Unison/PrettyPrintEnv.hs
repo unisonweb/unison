@@ -14,6 +14,7 @@ module Unison.PrettyPrintEnv
     suffixifiedPPE,
     unsuffixifiedPPE,
     restrictTo,
+    withPerspective,
     biasTo,
     Suffixify (..),
     Perspective (..),
@@ -83,6 +84,9 @@ suffixifiedPPE ppe = ppe {suffixify = Suffixify}
 
 unsuffixifiedPPE :: PrettyPrintEnv -> PrettyPrintEnv
 unsuffixifiedPPE ppe = ppe {suffixify = NoSuffixify}
+
+withPerspective :: Perspective -> PrettyPrintEnv -> PrettyPrintEnv
+withPerspective persp ppe = ppe {perspective = persp}
 
 restrictTo :: Path.Absolute -> PrettyPrintEnv -> PrettyPrintEnv
 restrictTo p ppe =
