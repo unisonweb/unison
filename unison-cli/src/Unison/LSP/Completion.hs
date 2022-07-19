@@ -13,6 +13,7 @@ import Language.LSP.Types.Lens
 import qualified Text.FuzzyFind as Fuzzy
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Debug as Debug
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import Unison.Prelude
@@ -36,7 +37,8 @@ completionHandler m respond =
     case mayPrefix of
       Nothing -> pure . Right . InL . List $ []
       Just (_range, prefix) -> do
-        Right . InL . List <$> namespaceCompleter prefix
+        let isIncomplete = True -- TODO: be smarter about this
+        Right . InR . CompletionList isIncomplete . List <$> namespaceCompleter prefix
   where
     -- matches <- expand range prefix
     -- let isIncomplete = True -- TODO: be smarter about this
@@ -45,7 +47,7 @@ completionHandler m respond =
     _resultToCompletion :: Range -> Text -> FZF.FoundResult -> CompletionItem
     _resultToCompletion range prefix = \case
       FZF.FoundTermResult (FZF.FoundTerm {namedTerm = Backend.NamedTerm {termName, termType}}) -> do
-        (mkCompletionItem termName)
+        (mkCompletionItem Nothing termName)
           { _detail = (": " <>) . Text.pack . Server.toPlain <$> termType,
             _kind = Just CiVariable,
             _insertText = Text.stripPrefix prefix termName,
@@ -55,7 +57,7 @@ completionHandler m respond =
         let (detail, kind) = case typeTag of
               Backend.Ability -> ("Ability", CiInterface)
               Backend.Data -> ("Data", CiClass)
-         in (mkCompletionItem typeName)
+         in (mkCompletionItem Nothing typeName)
               { _detail = Just detail,
                 _kind = Just kind
               }
@@ -68,7 +70,7 @@ completionHandler m respond =
       lspBackend (FZF.serveFuzzyFind cb Nothing Nothing Nothing Nothing (Just $ Text.unpack query)) >>= \case
         Left _be -> pure []
         Right results ->
-          pure . fmap (_resultToCompletion range prefix . snd) . take 15 . sortOn (Fuzzy.score . fst) $ results
+          pure . fmap (_resultToCompletion range prefix . snd) . take 150 . sortOn (Fuzzy.score . fst) $ results
 
 snippetCompletions :: Text -> Range -> [CompletionItem]
 snippetCompletions prefix range =
@@ -81,7 +83,7 @@ snippetCompletions prefix range =
   where
     toCompletion :: (Text, Text) -> CompletionItem
     toCompletion (pat, snippet) =
-      (mkCompletionItem pat)
+      (mkCompletionItem (Just CiSnippet) pat)
         { _insertTextFormat = Just Snippet,
           _insertTextMode = Just AdjustIndentation,
           _textEdit = Just $ CompletionEditText (TextEdit range snippet)
@@ -106,11 +108,11 @@ match ${1} with
     ${3}
     |]
 
-mkCompletionItem :: Text -> CompletionItem
-mkCompletionItem lbl =
+mkCompletionItem :: Maybe CompletionItemKind -> Text -> CompletionItem
+mkCompletionItem kind lbl =
   CompletionItem
     { _label = lbl,
-      _kind = Nothing,
+      _kind = kind,
       _tags = Nothing,
       _detail = Nothing,
       _documentation = Nothing,
@@ -132,6 +134,9 @@ namespaceCompleter :: Text -> Lsp [CompletionItem]
 namespaceCompleter prefix = do
   Env {codebase} <- ask
   liftIO $ Codebase.withConnection codebase \conn -> runTransaction conn $ do
-    matchingNamespaces <- Q.namespacesByPrefix prefix
-    matchingTermsAndTypes <- Q.termAndTypeNamesCompletion prefix
-    pure $ mkCompletionItem <$> (matchingTermsAndTypes <> matchingNamespaces)
+    matchingNamespaces <- fmap (mkCompletionItem (Just CiModule)) <$> Q.namespacesByPrefix prefix
+    matchingTermsAndTypes <- fmap (mkCompletionItem (Just CiModule)) <$> Q.termAndTypeNamesCompletion prefix
+    Debug.debugM Debug.LSP "Namespaces" matchingNamespaces
+    Debug.debugM Debug.LSP "Terms and Types" matchingTermsAndTypes
+    Debug.debugM Debug.LSP "Prefix" prefix
+    pure $ (matchingTermsAndTypes <> matchingNamespaces)
