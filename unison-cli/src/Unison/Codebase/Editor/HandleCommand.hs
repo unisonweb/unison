@@ -154,9 +154,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         -- abstraction.
         toIO <- UnliftIO.askRunInIO
         lift $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (toIO . Free.fold go . action)
-      -- all builtin and derived term references & type constructors
-      TermReferentsByShortHash sh ->
-        lift $ Backend.termReferentsByShortHash codebase sh
       ParseType names (src, _) ->
         pure $
           Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)

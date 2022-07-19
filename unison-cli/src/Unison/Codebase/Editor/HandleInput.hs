@@ -245,11 +245,6 @@ loop = do
       basicPrettyPrintNames =
         Backend.prettyNamesForBranch root' (Backend.AllNames $ Path.unabsolute currentPath')
 
-      -- Term Refs and Cons
-      resolveHHQS'Referents =
-        either
-          (eval . TermReferentsByShortHash)
-          (pure . getHQ'Terms)
       getTypes :: Path.Split' -> Set Reference
       getTypes = getHQ'Types . fmap HQ'.NameOnly
       getTerms :: Path.Split' -> Set Referent
@@ -879,7 +874,12 @@ loop = do
               let absPath = Path.unabsolute $ resolveToAbsolute namespacePath'
               eval (DocsToHtml root' absPath sourceDirectory)
             AliasTermI src dest -> do
-              referents <- resolveHHQS'Referents src
+              codebase <- LoopState.askCodebase
+              referents <-
+                either
+                  (liftIO . Backend.termReferentsByShortHash codebase)
+                  (pure . getHQ'Terms)
+                  src
               case (toList referents, toList (getTerms dest)) of
                 ([r], []) -> do
                   stepAt Branch.CompressHistory (BranchUtil.makeAddTermName (resolveSplit' dest) r (oldMD r))
@@ -2505,7 +2505,7 @@ resolveHQToLabeledDependencies = \case
   where
     resolveHashOnly sh = do
       codebase <- LoopState.askCodebase
-      terms <- eval $ TermReferentsByShortHash sh
+      terms <- liftIO (Backend.termReferentsByShortHash codebase sh)
       types <- liftIO (Backend.typeReferencesByShortHash codebase sh)
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
@@ -2901,7 +2901,9 @@ getHQTerms = \case
   HQ.HashOnly sh -> hashOnly sh
   HQ.HashQualified _ sh -> hashOnly sh
   where
-    hashOnly sh = eval $ TermReferentsByShortHash sh
+    hashOnly sh = do
+      codebase <- LoopState.askCodebase
+      liftIO (Backend.termReferentsByShortHash codebase sh)
 
 getAt :: Path.Absolute -> Action i v (Branch IO)
 getAt (Path.Absolute p) =
