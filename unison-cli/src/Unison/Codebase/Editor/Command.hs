@@ -186,7 +186,6 @@ data
   RuntimeTest :: Command i v (Type v Ann)
   ClearWatchCache :: Command i v ()
   AnalyzeCodebaseIntegrity :: Command i v IntegrityResult
-  MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command i v (Maybe Runtime.Error)
   -- | Trigger an interactive fuzzy search over the provided options and return all
   -- selected results.
   FuzzySelect ::
@@ -261,7 +260,6 @@ commandName = \case
   GetDefinitionsBySuffixes {} -> "GetDefinitionsBySuffixes"
   FindShallow {} -> "FindShallow"
   ClearWatchCache {} -> "ClearWatchCache"
-  MakeStandalone {} -> "MakeStandalone"
   FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"
   UCMVersion {} -> "UCMVersion"

@@ -14,9 +14,7 @@ import qualified Data.List.NonEmpty as Nel
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
-import Unison.Codebase.Branch
-  ( Branch (..),
-  )
+import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
@@ -142,3 +140,8 @@ respondNumbered output = do
 askCodebase :: Action i v (Codebase IO v Ann)
 askCodebase =
   asks codebase
+
+-- | Get the runtime out of the environment.
+askRuntime :: Action i v (Runtime v)
+askRuntime =
+  asks runtime

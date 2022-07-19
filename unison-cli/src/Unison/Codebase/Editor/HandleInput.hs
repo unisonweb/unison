@@ -29,6 +29,7 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
+import qualified Unison.Codebase.Runtime as Runtime
 import qualified Text.Megaparsec as P
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -1327,8 +1328,10 @@ loop = do
                   <$> traverse (\r -> fmap (r,) <$> loadTypeOfTerm codebase r) resolved
               case filtered of
                 [(Referent.Ref ref, ty)]
-                  | Typechecker.isSubtype ty mainType ->
-                      eval (MakeStandalone ppe ref output) >>= \case
+                  | Typechecker.isSubtype ty mainType -> do
+                      runtime <- LoopState.askRuntime
+                      codebase <- LoopState.askCodebase
+                      liftIO (Runtime.compileTo runtime (() <$ Codebase.toCodeLookup codebase) ppe ref (output <> ".uc")) >>= \case
                         Just err -> respond $ EvaluationFailure err
                         Nothing -> pure ()
                   | otherwise ->
