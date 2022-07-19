@@ -2089,7 +2089,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
                 Left e -> respond (EvaluationFailure e) $> []
                 Right tm' -> do
                   -- After evaluation, cache the result of the test
-                  eval $ PutWatch WK.TestWatch rid tm'
+                  eval $ Eval (Codebase.putWatch codebase WK.TestWatch rid tm')
                   respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
                   pure [(r, tm')]
         r -> error $ "unpossible, tests can't be builtins: " <> show r

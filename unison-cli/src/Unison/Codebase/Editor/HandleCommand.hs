@@ -160,7 +160,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         lift $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (toIO . Free.fold go . action)
       PutTerm r tm tp -> lift $ Codebase.putTerm codebase r tm tp
       PutDecl r decl -> lift $ Codebase.putTypeDeclaration codebase r decl
-      PutWatch kind r e -> lift $ Codebase.putWatch codebase kind r e
       LoadWatches kind rs -> lift $ catMaybes <$> traverse go (toList rs)
         where
           go (Reference.Builtin _) = pure Nothing

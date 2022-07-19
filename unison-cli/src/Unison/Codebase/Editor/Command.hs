@@ -169,8 +169,6 @@ data
     Command m i v (Either Runtime.Error (EvalResult v))
   -- Evaluate a single closed definition
   Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
-  -- Add a cached watch to the codebase
-  PutWatch :: WK.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
   -- Loads any cached watches of the given kind
   LoadWatches :: WK.WatchKind -> Set Reference -> Command m i v [(Reference, Term v Ann)]
   -- Like `LoadLocalRootBranch`.
@@ -259,7 +257,6 @@ commandName = \case
   TypecheckFile {} -> "TypecheckFile"
   Evaluate {} -> "Evaluate"
   Evaluate1 {} -> "Evaluate1"
-  PutWatch {} -> "PutWatch"
   LoadWatches {} -> "LoadWatches"
   LoadLocalBranch {} -> "LoadLocalBranch"
   Merge {} -> "Merge"
