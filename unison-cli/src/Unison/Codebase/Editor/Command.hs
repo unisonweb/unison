@@ -160,8 +160,6 @@ data
     Command i v (Either Runtime.Error (EvalResult v))
   -- Evaluate a single closed definition
   Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command i v (Either Runtime.Error (Term v Ann))
-  -- Loads any cached watches of the given kind
-  LoadWatches :: WK.WatchKind -> Set Reference -> Command i v [(Reference, Term v Ann)]
   -- Merge two branches, using the codebase for the LCA calculation where possible.
   Merge :: Branch.MergeMode -> Branch IO -> Branch IO -> Command i v (Branch IO)
   ViewRemoteGitBranch ::
@@ -240,7 +238,6 @@ commandName = \case
   TypecheckFile {} -> "TypecheckFile"
   Evaluate {} -> "Evaluate"
   Evaluate1 {} -> "Evaluate1"
-  LoadWatches {} -> "LoadWatches"
   Merge {} -> "Merge"
   ViewRemoteGitBranch {} -> "ViewRemoteGitBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"

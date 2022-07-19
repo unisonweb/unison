@@ -156,11 +156,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         -- abstraction.
         toIO <- UnliftIO.askRunInIO
         lift $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (toIO . Free.fold go . action)
-      LoadWatches kind rs -> lift $ catMaybes <$> traverse go (toList rs)
-        where
-          go (Reference.Builtin _) = pure Nothing
-          go r@(Reference.DerivedId rid) =
-            fmap (r,) <$> Codebase.getWatch codebase kind rid
       -- all builtin and derived type references
       TypeReferencesByShortHash sh ->
         lift $ Backend.typeReferencesByShortHash codebase sh

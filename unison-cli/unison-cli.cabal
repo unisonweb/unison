@@ -154,6 +154,7 @@ library
     , vector
     , wai
     , warp
+    , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   if !os(windows)
@@ -260,6 +261,7 @@ executable cli-integration-tests
     , vector
     , wai
     , warp
+    , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
@@ -360,6 +362,7 @@ executable transcripts
     , vector
     , wai
     , warp
+    , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
@@ -465,6 +468,7 @@ executable unison
     , vector
     , wai
     , warp
+    , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
@@ -574,6 +578,7 @@ test-suite cli-tests
     , vector
     , wai
     , warp
+    , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010

@@ -182,6 +182,7 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import Witherable (wither)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -2071,7 +2072,11 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
             Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
             cid == DD.failConstructorId && ref == DD.testResultRef
         ]
-  cachedTests <- fmap Map.fromList . eval $ LoadWatches WK.TestWatch testRefs
+  cachedTests <- do
+    fmap Map.fromList do
+      Set.toList testRefs & wither \case
+        Reference.Builtin _ -> pure Nothing
+        r@(Reference.DerivedId rid) -> liftIO (fmap (r,) <$> Codebase.getWatch codebase WK.TestWatch rid)
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
   names <-
     makePrintNamesFromLabeled' $
