@@ -124,8 +124,6 @@ data
   -- Presents some output to the user
   Notify :: Output v -> Command m i v ()
   NotifyNumbered :: NumberedOutput v -> Command m i v NumberedArgs
-  -- the hash length needed to disambiguate any definition in the codebase
-  CodebaseHashLength :: Command m i v Int
   TypeReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
   TermReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
   TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
@@ -250,7 +248,6 @@ commandName = \case
   Input -> "Input"
   Notify {} -> "Notify"
   NotifyNumbered {} -> "NotifyNumbered"
-  CodebaseHashLength -> "CodebaseHashLength"
   TypeReferencesByShortHash {} -> "TypeReferencesByShortHash"
   TermReferencesByShortHash {} -> "TermReferencesByShortHash"
   TermReferentsByShortHash {} -> "TermReferentsByShortHash"

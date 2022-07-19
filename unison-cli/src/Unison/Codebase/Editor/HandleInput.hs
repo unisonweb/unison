@@ -182,15 +182,21 @@ import qualified Unison.WatchKind as WK
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
 
-prettyPrintEnvDecl :: MonadCommand n m i v => NamesWithHistory -> n PPE.PrettyPrintEnvDecl
-prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
+prettyPrintEnvDecl :: NamesWithHistory -> Action' m Symbol PPE.PrettyPrintEnvDecl
+prettyPrintEnvDecl ns = do
+  codebase <- LoopState.askCodebase
+  prettyPrintEnvDeclCmd codebase ns
+
+prettyPrintEnvDeclCmd :: MonadCommand n m i v => Codebase m v Ann -> NamesWithHistory -> n PPE.PrettyPrintEnvDecl
+prettyPrintEnvDeclCmd codebase ns = eval (Eval (Codebase.hashLength codebase)) <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
 currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action' m v PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl scoping = do
+  codebase <- LoopState.askCodebase
   root' <- use LoopState.root
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
-  hqLen <- eval CodebaseHashLength
+  hqLen <- eval (Eval (Codebase.hashLength codebase))
   pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
@@ -201,7 +207,7 @@ loop = do
   latestFile' <- use LoopState.latestFile
   currentBranch' <- getAt currentPath'
   e <- eval Input
-  hqLength <- eval CodebaseHashLength
+  hqLength <- LoopState.askCodebase >>= \codebase -> eval (Eval (Codebase.hashLength codebase))
   sbhLength <- eval BranchHashLength
   let currentPath'' = Path.unabsolute currentPath'
       hqNameQuery q = eval $ HQNameQuery (Just currentPath'') root' q
@@ -1601,7 +1607,7 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
   -- We have the StateT layer goes away (can put it into an IORef in the environment),
   -- We have the MaybeT layer that signals end of input (can just been an IORef bool that we check before looping),
   -- and once all those things become IO, we can add a MonadUnliftIO instance on Action, and unify these cases.
-  let mergeAndDiff :: MonadCommand n m i Symbol => Branch m -> Branch m -> n (NumberedOutput Symbol)
+  let mergeAndDiff :: MonadCommand n m (Either Event Input) Symbol => Branch m -> Branch m -> n (NumberedOutput Symbol)
       mergeAndDiff baseBranch headBranch = do
         merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
         (ppe, diff) <- diffHelperCmd codebase root' currentPath' (Branch.head baseBranch) (Branch.head merged)
@@ -1731,7 +1737,7 @@ handleFindI isVerbose fscope ws input = do
 handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
 handleDependents hq = do
   codebase <- LoopState.askCodebase
-  hqLength <- eval CodebaseHashLength
+  hqLength <- eval (Eval (Codebase.hashLength codebase))
   -- todo: add flag to handle transitive efficiently
   resolveHQToLabeledDependencies hq >>= \lds ->
     if null lds
@@ -1962,6 +1968,7 @@ handleShowDefinition ::
   [HQ.HashQualified Name] ->
   Action' m v ()
 handleShowDefinition outputLoc inputQuery = do
+  codebase <- LoopState.askCodebase
   -- If the query is empty, run a fuzzy search.
   query <-
     if null inputQuery
@@ -1975,7 +1982,7 @@ handleShowDefinition outputLoc inputQuery = do
       else pure inputQuery
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   root' <- use LoopState.root
-  hqLength <- eval CodebaseHashLength
+  hqLength <- eval (Eval (Codebase.hashLength codebase))
   Backend.DefinitionResults terms types misses <-
     eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
   outputPath <- getOutputPath
@@ -2071,7 +2078,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
           tm <- eval $ Eval (Codebase.getTerm codebase rid)
           case tm of
             Nothing -> do
-              hqLength <- eval CodebaseHashLength
+              hqLength <- eval (Eval (Codebase.hashLength codebase))
               respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
               pure []
             Just tm -> do
@@ -3346,10 +3353,14 @@ lexedSource name src = do
   pure (parseNames, (src, tokens))
 
 suffixifiedPPE :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnv
-suffixifiedPPE ns = eval CodebaseHashLength <&> (`PPE.fromSuffixNames` ns)
+suffixifiedPPE ns = do
+  codebase <- LoopState.askCodebase
+  eval (Eval (Codebase.hashLength codebase)) <&> (`PPE.fromSuffixNames` ns)
 
 fqnPPE :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnv
-fqnPPE ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
+fqnPPE ns = do
+  codebase <- LoopState.askCodebase
+  eval (Eval (Codebase.hashLength codebase)) <&> (`PPE.fromNames` ns)
 
 parseSearchType ::
   (Monad m, Var v) =>
@@ -3585,7 +3596,7 @@ diffHelper before after = unsafeTime "HandleInput.diffHelper" do
 
 -- | A version of diffHelper that only requires a MonadCommand constraint
 diffHelperCmd ::
-  (Monad m, MonadCommand n m i Symbol) =>
+  (Monad m, MonadCommand n m (Either Event Input) Symbol) =>
   Codebase m Symbol Ann ->
   Branch m ->
   Path.Absolute ->
@@ -3593,10 +3604,10 @@ diffHelperCmd ::
   Branch0 m ->
   n (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
 diffHelperCmd codebase currentRoot currentPath before after = do
-  hqLength <- eval CodebaseHashLength
+  hqLength <- eval (Eval (Codebase.hashLength codebase))
   diff <- eval . Eval $ BranchDiff.diff0 before after
   let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
+  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDeclCmd codebase (NamesWithHistory prettyNames0 mempty)
   (ppe,)
     <$> OBranchDiff.toOutput
       (loadTypeOfTerm codebase)

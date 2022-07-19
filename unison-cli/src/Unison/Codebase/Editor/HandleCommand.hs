@@ -166,7 +166,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
           go (Reference.Builtin _) = pure Nothing
           go r@(Reference.DerivedId rid) =
             fmap (r,) <$> Codebase.getWatch codebase kind rid
-      CodebaseHashLength -> lift $ Codebase.hashLength codebase
       -- all builtin and derived type references
       TypeReferencesByShortHash sh ->
         lift $ Backend.typeReferencesByShortHash codebase sh
