@@ -1699,7 +1699,7 @@ handleFindI isVerbose fscope ws input = do
                       then do
                         respond NoExactTypeMatches
                         fmap (filter (`Set.member` named) . toList) $
-                          eval $ GetTermsMentioningType typ
+                          eval $ Eval (Codebase.termsMentioningType codebase typ)
                       else pure matches
                   let results =
                         -- in verbose mode, aliases are shown, so we collapse all
