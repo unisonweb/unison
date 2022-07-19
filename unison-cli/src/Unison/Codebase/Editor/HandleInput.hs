@@ -577,7 +577,8 @@ loop = do
             CreateMessage pretty ->
               respond $ PrintMessage pretty
             ShowReflogI -> do
-              entries <- convertEntries Nothing [] <$> eval LoadReflog
+              codebase <- LoopState.askCodebase
+              entries <- convertEntries Nothing [] <$> eval (Eval (Codebase.getReflog codebase))
               LoopState.numberedArgs .= fmap (('#' :) . SBH.toString . Output.hash) entries
               respond $ ShowReflog entries
               where

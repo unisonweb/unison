@@ -22,7 +22,6 @@ import Control.Lens (view, _5)
 import Data.Configurator.Types (Configured)
 import qualified Data.Map as Map
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
 import qualified Unison.Codebase.Editor.Git as Git
@@ -32,7 +31,6 @@ import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.IntegrityCheck (IntegrityResult)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Reflog as Reflog
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
@@ -177,8 +175,6 @@ data
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
-  -- load the reflog in file (chronological) order
-  LoadReflog :: Command m i v [Reflog.Entry Branch.CausalHash]
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
 
@@ -249,7 +245,6 @@ commandName = \case
   Merge {} -> "Merge"
   ViewRemoteGitBranch {} -> "ViewRemoteGitBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
-  LoadReflog -> "LoadReflog"
   Execute {} -> "Execute"
   CreateAuthorInfo {} -> "CreateAuthorInfo"
   RuntimeMain -> "RuntimeMain"
