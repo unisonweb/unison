@@ -19,7 +19,6 @@ import qualified Unison.Builtin as B
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch.Merge as Branch
 import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UseCache)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
 import qualified Unison.Codebase.Path as Path
@@ -140,8 +139,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
       TypecheckFile file ambient -> lift $ typecheck' ambient codebase file
       Evaluate sdbx ppe unisonFile -> lift $ evalUnisonFile sdbx ppe unisonFile []
       Evaluate1 sdbx ppe useCache term -> lift $ eval1 sdbx ppe useCache term
-      Merge mode b1 b2 ->
-        lift $ Branch.merge'' (Codebase.lca codebase) mode b1 b2
       SyncLocalRootBranch branch -> lift $ do
         setBranchRef branch
         Codebase.putRootBranch codebase branch

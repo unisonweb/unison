@@ -646,13 +646,14 @@ loop = do
                   let err = Just $ MergeAlreadyUpToDate src0 dest0
                   mergeBranchAndPropagateDefaultPatch mergeMode inputDescription err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
+              codebase <- LoopState.askCodebase
               let [src, dest] = resolveToAbsolute <$> [src0, dest0]
               srcb <- getAt src
               if Branch.isEmpty srcb
                 then branchNotFound src0
                 else do
                   destb <- getAt dest
-                  merged <- eval $ Merge Branch.RegularMerge srcb destb
+                  merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
                   if merged == destb
                     then respond (PreviewMergeAlreadyUpToDate src0 dest0)
                     else
@@ -692,8 +693,8 @@ loop = do
                   baseb <- tryImportBranch baseRepo
                   headb <- tryImportBranch headRepo
                   lift $ do
-                    mergedb <- eval $ Merge Branch.RegularMerge baseb headb
-                    squashedb <- eval $ Merge Branch.SquashMerge headb baseb
+                    mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
+                    squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
                     stepManyAt
                       Branch.AllowRewritingHistory
                       [ BranchUtil.makeSetBranch (dest, "base") baseb,
@@ -1405,8 +1406,8 @@ loop = do
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names0
-              _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
-                eval $ Merge Branch.RegularMerge srcb destb
+              _ <- updateAtM (currentPath' `snoc` "builtin") \destb ->
+                liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               success
             MergeIOBuiltinsI -> do
               codebase <- LoopState.askCodebase
@@ -1428,8 +1429,8 @@ loop = do
                     Builtin.names0
                       <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
-              _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
-                eval $ Merge Branch.RegularMerge srcb destb
+              _ <- updateAtM (currentPath' `snoc` "builtin") \destb ->
+                liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               success
             ListEditsI maybePath -> do
               let (p, seg) =
@@ -1627,13 +1628,9 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
   -- We have the StateT layer goes away (can put it into an IORef in the environment),
   -- We have the MaybeT layer that signals end of input (can just been an IORef bool that we check before looping),
   -- and once all those things become IO, we can add a MonadUnliftIO instance on Action, and unify these cases.
-  let mergeAndDiff ::
-        (MonadCommand m (Either Event Input) Symbol, MonadIO m) =>
-        Branch IO ->
-        Branch IO ->
-        m (NumberedOutput Symbol)
-      mergeAndDiff baseBranch headBranch = do
-        merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
+  let mergeAndDiff :: MonadIO m => Branch IO -> Branch IO -> m (NumberedOutput Symbol)
+      mergeAndDiff baseBranch headBranch = liftIO do
+        merged <- Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch
         (ppe, diff) <- diffHelperCmd codebase root' currentPath' (Branch.head baseBranch) (Branch.head merged)
         pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
 
@@ -2831,8 +2828,9 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
       Path.Absolute ->
       Action' Symbol Bool
     mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" do
+      codebase <- LoopState.askCodebase
       destb <- getAt dest
-      merged <- eval $ Merge mode srcb destb
+      merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
       b <- updateAtM inputDescription dest (const $ pure merged)
       for_ dest0 $ \dest0 ->
         diffHelper (Branch.head destb) (Branch.head merged)

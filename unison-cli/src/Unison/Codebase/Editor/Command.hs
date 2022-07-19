@@ -23,7 +23,6 @@ import Control.Lens (view, _5)
 import Data.Configurator.Types (Configured)
 import qualified Data.Map as Map
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
@@ -138,8 +137,6 @@ data
     Command i v (Either Runtime.Error (EvalResult v))
   -- Evaluate a single closed definition
   Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command i v (Either Runtime.Error (Term v Ann))
-  -- Merge two branches, using the codebase for the LCA calculation where possible.
-  Merge :: Branch.MergeMode -> Branch IO -> Branch IO -> Command i v (Branch IO)
   ViewRemoteGitBranch ::
     ReadGitRemoteNamespace ->
     Git.GitBranchBehavior ->
@@ -202,7 +199,6 @@ commandName = \case
   TypecheckFile {} -> "TypecheckFile"
   Evaluate {} -> "Evaluate"
   Evaluate1 {} -> "Evaluate1"
-  Merge {} -> "Merge"
   ViewRemoteGitBranch {} -> "ViewRemoteGitBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
   Execute {} -> "Execute"
