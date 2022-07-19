@@ -1255,11 +1255,12 @@ loop = do
               case uf of
                 Nothing -> respond NoUnisonFile
                 Just uf -> do
+                  codebase <- LoopState.askCodebase
                   currentNames <- currentPathNames
                   let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
                   let adds = SlurpResult.adds sr
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
-                  eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
+                  eval . Eval . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
                   ppe <- prettyPrintEnvDecl =<< displayNames uf
                   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
                   addDefaultMetadata adds
@@ -1368,6 +1369,7 @@ loop = do
             --   checkTodo
 
             MergeBuiltinsI -> do
+              codebase <- LoopState.askCodebase
               -- these were added once, but maybe they've changed and need to be
               -- added again.
               let uf =
@@ -1376,7 +1378,7 @@ loop = do
                       (Map.fromList Builtin.builtinEffectDecls)
                       [Builtin.builtinTermsSrc Intrinsic]
                       mempty
-              eval $ AddDefsToCodebase uf
+              eval $ Eval (Codebase.addDefsToCodebase codebase uf)
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names0
@@ -1384,6 +1386,7 @@ loop = do
                 eval $ Merge Branch.RegularMerge srcb destb
               success
             MergeIOBuiltinsI -> do
+              codebase <- LoopState.askCodebase
               -- these were added once, but maybe they've changed and need to be
               -- added again.
               let uf =
@@ -1392,9 +1395,9 @@ loop = do
                       (Map.fromList Builtin.builtinEffectDecls)
                       [Builtin.builtinTermsSrc Intrinsic]
                       mempty
-              eval $ AddDefsToCodebase uf
+              eval $ Eval (Codebase.addDefsToCodebase codebase uf)
               -- these have not necessarily been added yet
-              eval $ AddDefsToCodebase IOSource.typecheckedFile'
+              eval $ Eval (Codebase.addDefsToCodebase codebase IOSource.typecheckedFile')
 
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
@@ -2228,7 +2231,7 @@ handleUpdate input optionalPatch requestedNames = do
                 Nothing -> []
                 Just (_, update, p) -> [(Path.unabsolute p, update)]
           )
-        eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
+        eval . Eval . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
       ppe <- prettyPrintEnvDecl =<< displayNames uf
       respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
       -- propagatePatch prints TodoOutput

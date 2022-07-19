@@ -124,8 +124,6 @@ data
   -- Presents some output to the user
   Notify :: Output v -> Command m i v ()
   NotifyNumbered :: NumberedOutput v -> Command m i v NumberedArgs
-  -- literally just write some terms and types .unison/{terms,types}
-  AddDefsToCodebase :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
   -- the hash length needed to disambiguate any definition in the codebase
   CodebaseHashLength :: Command m i v Int
   TypeReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
@@ -254,7 +252,6 @@ commandName = \case
   Input -> "Input"
   Notify {} -> "Notify"
   NotifyNumbered {} -> "NotifyNumbered"
-  AddDefsToCodebase {} -> "AddDefsToCodebase"
   CodebaseHashLength -> "CodebaseHashLength"
   TypeReferencesByShortHash {} -> "TypeReferencesByShortHash"
   TermReferencesByShortHash {} -> "TermReferencesByShortHash"
