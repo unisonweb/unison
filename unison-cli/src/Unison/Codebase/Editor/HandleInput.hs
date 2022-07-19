@@ -128,8 +128,10 @@ import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import qualified Unison.NamesWithHistory as NamesWithHistory
+import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Parser.Ann as Ann
+import qualified Unison.Parsers as Parsers
 import Unison.Position (Position (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -3396,8 +3398,7 @@ parseType input src = do
         NamesWithHistory.push
           (NamesWithHistory.currentNames names0)
           (NamesWithHistory.NamesWithHistory parseNames (NamesWithHistory.oldNames names0))
-  e <- eval $ ParseType names lexed
-  pure $ case e of
+  pure case Parsers.parseType (Text.unpack (fst lexed)) (Parser.ParsingEnv mempty names) of
     Left err -> Left $ TypeParseError src err
     Right typ -> case Type.bindNames mempty (NamesWithHistory.currentNames names) $
       Type.generalizeLowercase mempty typ of

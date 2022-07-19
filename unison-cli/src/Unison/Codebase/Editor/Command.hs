@@ -36,7 +36,6 @@ import qualified Unison.Lexer as L
 import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.NamesWithHistory (NamesWithHistory)
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -110,10 +109,6 @@ data
   -- Presents some output to the user
   Notify :: Output v -> Command i v ()
   NotifyNumbered :: NumberedOutput v -> Command i v NumberedArgs
-  ParseType ::
-    NamesWithHistory ->
-    LexedSource ->
-    Command i v (Either (Parser.Err v) (Type v Ann))
   LoadSource :: SourceName -> Command i v LoadSourceResult
   Typecheck ::
     AmbientAbilities v ->
@@ -217,7 +212,6 @@ commandName = \case
   Input -> "Input"
   Notify {} -> "Notify"
   NotifyNumbered {} -> "NotifyNumbered"
-  ParseType {} -> "ParseType"
   LoadSource {} -> "LoadSource"
   Typecheck {} -> "Typecheck"
   TypecheckFile {} -> "TypecheckFile"

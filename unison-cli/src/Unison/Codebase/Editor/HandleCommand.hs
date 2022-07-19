@@ -32,7 +32,6 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
-import qualified Unison.Parsers as Parsers
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
@@ -154,9 +153,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         -- abstraction.
         toIO <- UnliftIO.askRunInIO
         lift $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (toIO . Free.fold go . action)
-      ParseType names (src, _) ->
-        pure $
-          Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
       --    Todo b -> doTodo codebase (Branch.head b)
       --    Propagate b -> do
       --      b0 <- Codebase.propagate codebase (Branch.head b)
