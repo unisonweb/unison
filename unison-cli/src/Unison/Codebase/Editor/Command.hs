@@ -40,7 +40,6 @@ import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
-import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Result (Note, Result)
@@ -113,7 +112,6 @@ data
   -- Presents some output to the user
   Notify :: Output v -> Command i v ()
   NotifyNumbered :: NumberedOutput v -> Command i v NumberedArgs
-  TermReferencesByShortHash :: ShortHash -> Command i v (Set Reference)
   TermReferentsByShortHash :: ShortHash -> Command i v (Set Referent)
   ParseType ::
     NamesWithHistory ->
@@ -222,7 +220,6 @@ commandName = \case
   Input -> "Input"
   Notify {} -> "Notify"
   NotifyNumbered {} -> "NotifyNumbered"
-  TermReferencesByShortHash {} -> "TermReferencesByShortHash"
   TermReferentsByShortHash {} -> "TermReferentsByShortHash"
   ParseType {} -> "ParseType"
   LoadSource {} -> "LoadSource"
