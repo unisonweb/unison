@@ -21,6 +21,7 @@ import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Runtime (Runtime)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.UnisonFile as UF
@@ -32,7 +33,8 @@ type F m i v = Free (Command m i v)
 data Env m v = Env
   { authHTTPClient :: AuthenticatedHttpClient,
     codebase :: Codebase m v Ann,
-    credentialManager :: CredentialManager
+    credentialManager :: CredentialManager,
+    runtime :: Runtime v
   }
 
 newtype Action m i v a = Action {unAction :: MaybeT (ReaderT (Env m v) (StateT (LoopState m v) (F m i v))) a}
