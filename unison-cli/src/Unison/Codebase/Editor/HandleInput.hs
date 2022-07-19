@@ -1299,15 +1299,16 @@ loop = do
               patch <- getPatchAt patchPath
               updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
               unless updated (respond $ NothingToPatch patchPath scopePath)
-            ExecuteI main args ->
+            ExecuteI main args -> do
+              runtime <- LoopState.askRuntime
+              let mainType = Runtime.mainType runtime
+
               addRunMain main uf >>= \case
                 NoTermWithThatName -> do
                   ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-                  mainType <- eval RuntimeMain
                   respond $ NoMainFunction main ppe [mainType]
                 TermHasBadType ty -> do
                   ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-                  mainType <- eval RuntimeMain
                   respond $ BadMainFunction main ty ppe [mainType]
                 RunMainSuccess unisonFile -> do
                   ppe <- executePPE unisonFile
@@ -1317,8 +1318,9 @@ loop = do
                     Left e -> respond $ EvaluationFailure e
                     Right _ -> pure () -- TODO
             MakeStandaloneI output main -> do
+              runtime <- LoopState.askRuntime
               codebase <- LoopState.askCodebase
-              mainType <- eval RuntimeMain
+              let mainType = Runtime.mainType runtime
               parseNames <-
                 flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintNamesA
               ppe <- suffixifiedPPE parseNames
@@ -3523,13 +3525,13 @@ addRunMain ::
   Maybe (TypecheckedUnisonFile Symbol Ann) ->
   Action' Symbol (AddRunMainResult Symbol)
 addRunMain mainName Nothing = do
+  runtime <- LoopState.askRuntime
   codebase <- LoopState.askCodebase
 
   parseNames <- basicParseNames
   let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
-  mainType <- eval RuntimeMain
   mainToFile
-    <$> MainTerm.getMainTerm loadTypeOfTerm parseNames mainName mainType
+    <$> MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
   where
     mainToFile (MainTerm.NotAFunctionName _) = NoTermWithThatName
     mainToFile (MainTerm.NotFound _) = NoTermWithThatName
@@ -3539,9 +3541,11 @@ addRunMain mainName Nothing = do
         let v = Var.named (HQ.toText hq)
          in UF.typecheckedUnisonFile mempty mempty mempty [("main", [(v, tm, typ)])] -- mempty
 addRunMain mainName (Just uf) = do
+  runtime <- LoopState.askRuntime
+
   let components = join $ UF.topLevelComponents uf
   let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
-  mainType <- eval RuntimeMain
+  let mainType = Runtime.mainType runtime
   case mainComponent of
     [(v, tm, ty)] ->
       pure $
