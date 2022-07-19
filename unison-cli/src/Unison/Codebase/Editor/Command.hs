@@ -126,8 +126,6 @@ data
   TypeReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
   TermReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
   TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
-  -- the hash length needed to disambiguate any branch in the codebase
-  BranchHashLength :: Command m i v Int
   BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.CausalHash)
   ParseType ::
     NamesWithHistory ->
@@ -244,7 +242,6 @@ commandName = \case
   TypeReferencesByShortHash {} -> "TypeReferencesByShortHash"
   TermReferencesByShortHash {} -> "TermReferencesByShortHash"
   TermReferentsByShortHash {} -> "TermReferentsByShortHash"
-  BranchHashLength -> "BranchHashLength"
   BranchHashesByPrefix {} -> "BranchHashesByPrefix"
   ParseType {} -> "ParseType"
   LoadSource {} -> "LoadSource"

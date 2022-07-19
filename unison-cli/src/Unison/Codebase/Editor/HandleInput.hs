@@ -208,7 +208,7 @@ loop = do
   currentBranch' <- getAt currentPath'
   e <- eval Input
   hqLength <- LoopState.askCodebase >>= \codebase -> eval (Eval (Codebase.hashLength codebase))
-  sbhLength <- eval BranchHashLength
+  sbhLength <- LoopState.askCodebase >>= \codebase -> eval (Eval (Codebase.branchHashLength codebase))
   let currentPath'' = Path.unabsolute currentPath'
       hqNameQuery q = eval $ HQNameQuery (Just currentPath'') root' q
       root0 = Branch.head root'
@@ -1848,7 +1848,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
         Left gitErr -> respond (Output.GitError gitErr)
         Right (Left errOutput) -> respond errOutput
         Right _result -> do
-          sbhLength <- eval BranchHashLength
+          sbhLength <- eval (Eval (Codebase.branchHashLength codebase))
           respond $
             GistCreated
               ( ReadRemoteNamespaceGit
@@ -2578,7 +2578,7 @@ resolveShortBranchHash ::
 resolveShortBranchHash hash = ExceptT do
   codebase <- LoopState.askCodebase
   hashSet <- eval $ BranchHashesByPrefix hash
-  len <- eval BranchHashLength
+  len <- eval (Eval (Codebase.branchHashLength codebase))
   case Set.toList hashSet of
     [] -> pure . Left $ NoBranchWithHash hash
     [h] -> do
@@ -2847,11 +2847,19 @@ loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagat
 --     type.
 --   * 'MetadataAmbiguous', if the given name is associated with more than one reference.
 getMetadataFromName ::
+  forall m.
   Applicative m =>
   HQ.HashQualified Name ->
   Action m (Either Event Input) Symbol (Either (Output Symbol) (Metadata.Type, Metadata.Value))
 getMetadataFromName name = do
   codebase <- LoopState.askCodebase
+  currentPath' <- use LoopState.currentPath
+  sbhLength <- eval (Eval (Codebase.branchHashLength codebase))
+
+  let getPPE :: Action m (Either Event Input) v PPE.PrettyPrintEnv
+      getPPE =
+        Backend.basicSuffixifiedNames sbhLength
+          <$> use LoopState.root <*> pure (Backend.Within $ Path.unabsolute currentPath')
 
   (Set.toList <$> getHQTerms name) >>= \case
     [ref@(Referent.Ref val)] ->
@@ -2864,12 +2872,6 @@ getMetadataFromName name = do
     refs -> do
       ppe <- getPPE
       pure (Left (MetadataAmbiguous name ppe refs))
-  where
-    getPPE :: Action m (Either Event Input) v PPE.PrettyPrintEnv
-    getPPE = do
-      currentPath' <- use LoopState.currentPath
-      sbhLength <- eval BranchHashLength
-      Backend.basicSuffixifiedNames sbhLength <$> use LoopState.root <*> pure (Backend.Within $ Path.unabsolute currentPath')
 
 -- | Get the set of terms related to a hash-qualified name.
 getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
@@ -3152,7 +3154,8 @@ docsI srcLoc prettyPrintNames src = do
       lift case out of
         [] -> codebaseByName
         [(_name, ref, _tm)] -> do
-          len <- eval BranchHashLength
+          codebase <- LoopState.askCodebase
+          len <- eval (Eval (Codebase.branchHashLength codebase))
           let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
           let tm = Term.ref External ref
           tm <- eval $ Evaluate1 True (PPE.fromNames len names) True tm
