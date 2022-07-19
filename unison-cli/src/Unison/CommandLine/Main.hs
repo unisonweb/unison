@@ -31,9 +31,9 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Command (LoadSourceResult (..))
+import qualified Unison.Codebase.Editor.Command as Command
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
-import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
@@ -193,23 +193,24 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                   pure x
     (onInterrupt, waitForInterrupt) <- buildInterruptHandler
     withInterruptHandler onInterrupt $ do
-      let loop :: LoopState.LoopState Symbol -> IO ()
+      let loop :: Command.LoopState Symbol -> IO ()
           loop state = do
-            writeIORef pathRef (view LoopState.currentPath state)
+            writeIORef pathRef (view Command.currentPath state)
             credMan <- newCredentialManager
             let tokenProvider = AuthN.newTokenProvider credMan
             authorizedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
             let env =
-                  LoopState.Env
-                    { LoopState.authHTTPClient = authorizedHTTPClient,
-                      LoopState.codebase = codebase,
-                      LoopState.credentialManager = credMan,
-                      LoopState.runtime = runtime,
-                      LoopState.ucmVersion = ucmVersion
+                  Command.Env
+                    { Command.authHTTPClient = authorizedHTTPClient,
+                      Command.codebase = codebase,
+                      Command.credentialManager = credMan,
+                      Command.runtime = runtime,
+                      Command.ucmVersion = ucmVersion
                     }
-            let free = LoopState.runAction env state HandleInput.loop
             let handleCommand =
                   HandleCommand.commandLine
+                    env
+                    state
                     config
                     awaitInput
                     (writeIORef rootRef)
@@ -224,7 +225,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     codebase
                     serverBaseUrl
                     (const Random.getSystemDRG)
-                    free
+                    HandleInput.loop
             UnliftIO.race waitForInterrupt (try handleCommand) >>= \case
               -- SIGINT
               Left () -> do
@@ -239,12 +240,12 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                 case o of
                   Nothing -> pure ()
                   Just () -> do
-                    writeIORef numberedArgsRef (LoopState._numberedArgs state')
+                    writeIORef numberedArgsRef (Command._numberedArgs state')
                     loop state'
 
       -- Run the main program loop, always run cleanup,
       -- If an exception occurred, print it before exiting.
-      loop (LoopState.loopState0 root initialPath)
+      loop (Command.loopState0 root initialPath)
         `finally` cleanup
   where
     printException :: SomeException -> IO ()

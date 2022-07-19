@@ -1,34 +1,63 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Codebase.Editor.Command
   ( Command (..),
+    Env (..),
+    LoopState (..),
     AmbientAbilities,
     LexedSource,
     Source,
     SourceName,
     TypecheckingResult,
     LoadSourceResult (..),
-    RunInIO (..),
     UseCache,
     EvalResult,
     commandName,
     lookupEvalResult,
+    abort,
+    quit,
+    root,
+    numberedArgs,
+    currentPathStack,
+    lastInput,
+    lastSavedRoot,
+    latestFile,
+    latestTypecheckedFile,
+    currentPath,
+    loopState0,
+    respond,
+    respondNumbered,
+    askCodebase,
+    askRuntime,
+    InputDescription,
+    Action (..),
+    Action',
+    eval,
   )
 where
 
-import Control.Lens (view, _5)
+import Control.Lens (Getter, makeLenses, to, view, (.=), _5)
 -- TODO: Don't import backend, but move dependencies to own modules
 
+import Control.Monad.Reader (MonadReader (..), asks)
+import Control.Monad.State (MonadState (..))
 import Data.Configurator.Types (Configured)
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
+import Unison.Auth.CredentialManager (CredentialManager)
+import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
+import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Editor.Input (Event, Input)
 import Unison.Codebase.Editor.Output
-import Unison.Codebase.Editor.RemoteRepo
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path (Path)
+import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
-import Unison.Codebase.Type (GitError)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import Unison.Name (Name)
@@ -47,8 +76,6 @@ import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
 import qualified Unison.WatchKind as WK
-import UnliftIO (UnliftIO)
-import qualified UnliftIO
 
 type AmbientAbilities v = [Type v Ann]
 
@@ -75,6 +102,10 @@ data
     a -- Result of running the command
   where
   -- Escape hatch.
+  AskEnv :: Command i v (Env v)
+  LocalEnv :: (Env v -> Env v) -> Free (Command i v) a -> Command i v a
+  GetLoopState :: Command i v (LoopState v)
+  PutLoopState :: LoopState v -> Command i v ()
   Eval :: IO a -> Command i v a
   UI :: Command i v ()
   API :: Command i v ()
@@ -137,11 +168,6 @@ data
     Command i v (Either Runtime.Error (EvalResult v))
   -- Evaluate a single closed definition
   Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command i v (Either Runtime.Error (Term v Ann))
-  ViewRemoteGitBranch ::
-    ReadGitRemoteNamespace ->
-    Git.GitBranchBehavior ->
-    (Branch IO -> (Free (Command i v) r)) ->
-    Command i v (Either GitError r)
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
@@ -152,25 +178,12 @@ data
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
   Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command i v (Runtime.WatchResults v Ann)
-  -- | Trigger an interactive fuzzy search over the provided options and return all
-  -- selected results.
-  -- | This allows us to implement MonadUnliftIO for (Free (Command i v)).
-  -- Ideally we will eventually remove the Command type entirely and won't need
-  -- this anymore.
-  CmdUnliftIO :: Command i v (UnliftIO (Free (Command i v)))
-  ResetAndUnlift :: Command i v (RunInIO i v)
+  WithRunInIO :: ((forall x. Action i v x -> IO x) -> IO a) -> Command i v a
   Abort :: Command i v a
+  Quit :: Command i v a
 
 instance MonadIO (Free (Command i v)) where
   liftIO io = Free.eval $ Eval io
-
-instance MonadUnliftIO (Free (Command i v)) where
-  withRunInIO f = do
-    UnliftIO.UnliftIO toIO <- Free.eval CmdUnliftIO
-    liftIO $ f toIO
-
-newtype RunInIO i v
-  = RunInIO (forall x. Free (Command i v) x -> IO x)
 
 type UseCache = Bool
 
@@ -184,8 +197,13 @@ lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 
 commandName :: Command i v a -> String
 commandName = \case
+  AskEnv -> "AskEnv"
+  LocalEnv {} -> "LocalEnv"
+  GetLoopState -> "GetLoopState"
+  PutLoopState {} -> "PutLoopState"
   Abort -> "Abort"
-  ResetAndUnlift {} -> "ResetAndUnlift"
+  Quit -> "Quit"
+  WithRunInIO {} -> "WithRunInIO"
   Eval {} -> "Eval"
   API -> "API"
   UI -> "UI"
@@ -199,9 +217,108 @@ commandName = \case
   TypecheckFile {} -> "TypecheckFile"
   Evaluate {} -> "Evaluate"
   Evaluate1 {} -> "Evaluate1"
-  ViewRemoteGitBranch {} -> "ViewRemoteGitBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
   Execute {} -> "Execute"
   HQNameQuery {} -> "HQNameQuery"
   GetDefinitionsBySuffixes {} -> "GetDefinitionsBySuffixes"
-  CmdUnliftIO {} -> "UnliftIO"
+
+data LoopState v = LoopState
+  { _root :: Branch IO,
+    _lastSavedRoot :: Branch IO,
+    -- the current position in the namespace
+    _currentPathStack :: NonEmpty Path.Absolute,
+    -- TBD
+    -- , _activeEdits :: Set Branch.EditGuid
+
+    -- The file name last modified, and whether to skip the next file
+    -- change event for that path (we skip file changes if the file has
+    -- just been modified programmatically)
+    _latestFile :: Maybe (FilePath, SkipNextUpdate),
+    _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann),
+    -- The previous user input. Used to request confirmation of
+    -- questionable user commands.
+    _lastInput :: Maybe Input,
+    -- A 1-indexed list of strings that can be referenced by index at the
+    -- CLI prompt.  e.g. Given ["Foo.bat", "Foo.cat"],
+    -- `rename 2 Foo.foo` will rename `Foo.cat` to `Foo.foo`.
+    _numberedArgs :: NumberedArgs
+  }
+
+type SkipNextUpdate = Bool
+
+data Env v = Env
+  { authHTTPClient :: AuthenticatedHttpClient,
+    codebase :: Codebase IO v Ann,
+    credentialManager :: CredentialManager,
+    runtime :: Runtime v,
+    ucmVersion :: UCMVersion
+  }
+
+newtype Action i v a = Action {unAction :: Free (Command i v) a}
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadIO
+    )
+
+instance MonadReader (Env v) (Action i v) where
+  ask = Action (Free.eval AskEnv)
+  local a (Action b) = Action (Free.eval (LocalEnv a b))
+
+instance MonadState (LoopState v) (Action i v) where
+  get = Action (Free.eval GetLoopState)
+  put st = Action (Free.eval (PutLoopState st))
+
+instance MonadUnliftIO (Action i v) where
+  withRunInIO k = Action (Free.eval (WithRunInIO k))
+
+abort :: Action i v r
+abort = Action (Free.eval Abort)
+
+quit :: Action i v r
+quit = Action (Free.eval Quit)
+
+eval :: Command i v a -> Action i v a
+eval x = Action (Free.eval x)
+
+makeLenses ''LoopState
+
+-- replacing the old read/write scalar Lens with "peek" Getter for the NonEmpty
+currentPath :: Getter (LoopState v) Path.Absolute
+currentPath = currentPathStack . to Nel.head
+
+loopState0 :: Branch IO -> Path.Absolute -> LoopState v
+loopState0 b p =
+  LoopState
+    { _root = b,
+      _lastSavedRoot = b,
+      _currentPathStack = (pure p),
+      _latestFile = Nothing,
+      _latestTypecheckedFile = Nothing,
+      _lastInput = Nothing,
+      _numberedArgs = []
+    }
+
+respond :: Output v -> Action i v ()
+respond output = Action (Free.eval $ Notify output)
+
+respondNumbered :: NumberedOutput v -> Action i v ()
+respondNumbered output = do
+  args <- Action (Free.eval $ NotifyNumbered output)
+  unless (null args) $
+    numberedArgs .= toList args
+
+-- | Get the codebase out of the environment.
+askCodebase :: Action i v (Codebase IO v Ann)
+askCodebase =
+  asks codebase
+
+-- | Get the runtime out of the environment.
+askRuntime :: Action i v (Runtime v)
+askRuntime =
+  asks runtime
+
+type InputDescription = Text
+
+type Action' v = Action (Either Event Input) v

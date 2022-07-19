@@ -8,6 +8,7 @@ where
 
 -- TODO: Don't import backend
 
+import Control.Monad.Writer (WriterT(..))
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
@@ -54,8 +55,6 @@ import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
-import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', MonadCommand (..), eval, liftF, respond, respondNumbered)
-import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.Input
 import qualified Unison.Codebase.Editor.Input as Input
@@ -142,7 +141,6 @@ import Unison.Reference (Reference (..))
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-import Unison.Result (pattern Result)
 import qualified Unison.Result as Result
 import Unison.Runtime.IOSource (isTest)
 import qualified Unison.Runtime.IOSource as DD
@@ -170,7 +168,6 @@ import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Find as Find
-import Unison.Util.Free (Free)
 import Unison.Util.List (uniqueBy)
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Monoid as Monoid
@@ -191,7 +188,7 @@ defaultPatchNameSegment = "patch"
 
 prettyPrintEnvDecl :: NamesWithHistory -> Action' Symbol PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = do
-  codebase <- LoopState.askCodebase
+  codebase <- Command.askCodebase
   prettyPrintEnvDeclCmd codebase ns
 
 prettyPrintEnvDeclCmd :: MonadIO m => Codebase IO v Ann -> NamesWithHistory -> m PPE.PrettyPrintEnvDecl
@@ -200,22 +197,22 @@ prettyPrintEnvDeclCmd codebase ns = liftIO (Codebase.hashLength codebase) <&> (`
 -- | Get a pretty print env decl for the current names at the current path.
 currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action' v PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl scoping = do
-  codebase <- LoopState.askCodebase
-  root' <- use LoopState.root
-  currentPath' <- Path.unabsolute <$> use LoopState.currentPath
+  codebase <- Command.askCodebase
+  root' <- use Command.root
+  currentPath' <- Path.unabsolute <$> use Command.currentPath
   hqLen <- liftIO (Codebase.hashLength codebase)
   pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
 
 loop :: Action (Either Event Input) Symbol ()
 loop = do
-  uf <- use LoopState.latestTypecheckedFile
-  root' <- use LoopState.root
-  currentPath' <- use LoopState.currentPath
-  latestFile' <- use LoopState.latestFile
+  uf <- use Command.latestTypecheckedFile
+  root' <- use Command.root
+  currentPath' <- use Command.currentPath
+  latestFile' <- use Command.latestFile
   currentBranch' <- getAt currentPath'
   e <- eval Input
-  hqLength <- LoopState.askCodebase >>= \codebase -> liftIO (Codebase.hashLength codebase)
-  sbhLength <- LoopState.askCodebase >>= \codebase -> liftIO (Codebase.branchHashLength codebase)
+  hqLength <- Command.askCodebase >>= \codebase -> liftIO (Codebase.hashLength codebase)
+  sbhLength <- Command.askCodebase >>= \codebase -> liftIO (Codebase.branchHashLength codebase)
   let currentPath'' = Path.unabsolute currentPath'
       hqNameQuery q = eval $ HQNameQuery (Just currentPath'') root' q
       root0 = Branch.head root'
@@ -256,6 +253,8 @@ loop = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
         b <- getAt p
         liftIO $ Branch.getPatch seg (Branch.head b)
+
+      withFile :: AmbientAbilities v -> Text -> (Text, [L.Token L.Lexeme]) -> (TypecheckedUnisonFile v Ann -> Action' v ()) -> Action' v ()
       withFile ambient sourceName lexed@(text, tokens) k = do
         let getHQ = \case
               L.WordyId s (Just sh) ->
@@ -266,9 +265,9 @@ loop = do
               _ -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
         let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') root'
-        LoopState.latestFile .= Just (Text.unpack sourceName, False)
-        LoopState.latestTypecheckedFile .= Nothing
-        Result notes r <- unsafeTime "typechecking" $ eval $ Typecheck ambient parseNames sourceName lexed
+        Command.latestFile .= Just (Text.unpack sourceName, False)
+        Command.latestTypecheckedFile .= Nothing
+        MaybeT (WriterT (Identity (r, notes))) <- unsafeTime "typechecking" $ eval $ Typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
           Nothing ->
@@ -302,7 +301,7 @@ loop = do
                   go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
               unless (null e') $
                 unsafeTime "evaluate.respond" $ respond $ Evaluated text ppe bindings e'
-              LoopState.latestTypecheckedFile .= Just unisonFile
+              Command.latestTypecheckedFile .= Just unisonFile
 
   case e of
     Left (IncomingRootBranch hashes) ->
@@ -313,7 +312,7 @@ loop = do
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
-        then modifying LoopState.latestFile (fmap (const False) <$>)
+        then modifying Command.latestFile (fmap (const False) <$>)
         else loadUnisonFile sourceName text
     Right input ->
       let branchNotFound = respond . BranchNotFound
@@ -378,7 +377,7 @@ loop = do
             traverse_ go (if isTerm then tmRefs else tpRefs)
           typeExists dest = respond . TypeAlreadyExists dest
           termExists dest = respond . TermAlreadyExists dest
-          inputDescription :: LoopState.InputDescription
+          inputDescription :: Command.InputDescription
           inputDescription = case input of
             ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
             MergeLocalBranchI src dest mode -> case mode of
@@ -512,7 +511,7 @@ loop = do
           stepAt = Unison.Codebase.Editor.HandleInput.stepAt inputDescription
           stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
           updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
-          syncRoot = use LoopState.root >>= updateRoot
+          syncRoot = use Command.root >>= updateRoot
           updateAtM ::
             Path.Absolute ->
             (Branch IO -> Action i v1 (Branch IO)) ->
@@ -555,7 +554,7 @@ loop = do
                     toRel = R.fromList . fmap (name,) . toList
                     -- these names are relative to the root
                     toDelete = Names (toRel tms) (toRel tys)
-                codebase <- LoopState.askCodebase
+                codebase <- Command.askCodebase
                 endangerments <-
                   getEndangeredDependents (liftIO . Codebase.dependents codebase) toDelete rootNames
                 if null endangerments
@@ -563,7 +562,7 @@ loop = do
                     let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
                     let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
                     stepManyAt Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
-                    root'' <- use LoopState.root
+                    root'' <- use Command.root
                     diffHelper (Branch.head root') (Branch.head root'')
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
                   else do
@@ -574,9 +573,9 @@ loop = do
             CreateMessage pretty ->
               respond $ PrintMessage pretty
             ShowReflogI -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
               entries <- convertEntries Nothing [] <$> liftIO (Codebase.getReflog codebase)
-              LoopState.numberedArgs .= fmap (('#' :) . SBH.toString . Output.hash) entries
+              Command.numberedArgs .= fmap (('#' :) . SBH.toString . Output.hash) entries
               respond $ ShowReflog entries
               where
                 -- reverses & formats entries, adds synthetic entries when there is a
@@ -646,7 +645,7 @@ loop = do
                   let err = Just $ MergeAlreadyUpToDate src0 dest0
                   mergeBranchAndPropagateDefaultPatch mergeMode inputDescription err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
               let [src, dest] = resolveToAbsolute <$> [src0, dest0]
               srcb <- getAt src
               if Branch.isEmpty srcb
@@ -677,7 +676,7 @@ loop = do
                       outputDiff
             CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
             LoadPullRequestI baseRepo headRepo dest0 -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
               let desta = resolveToAbsolute dest0
               let dest = Path.unabsolute desta
               destb <- getAt desta
@@ -713,9 +712,9 @@ loop = do
                       (snoc desta "merged")
                 else respond . BranchNotEmpty . Path.Path' . Left $ currentPath'
 
-            -- move the LoopState.root to a sub-branch
+            -- move the Command.root to a sub-branch
             MoveBranchI Nothing dest -> do
-              b <- use LoopState.root
+              b <- use Command.root
               -- Overwrite history at destination.
               stepManyAt
                 Branch.AllowRewritingHistory
@@ -806,7 +805,7 @@ loop = do
                 -- Looks similar to the 'toDelete' above... investigate me! ;)
                 computeEndangerments :: Branch0 m1 -> Action' v (Map LabeledDependency (NESet LabeledDependency))
                 computeEndangerments b0 = do
-                  codebase <- LoopState.askCodebase
+                  codebase <- Command.askCodebase
                   let rootNames = Branch.toNames root0
                       toDelete =
                         Names.prefix0
@@ -826,17 +825,17 @@ loop = do
                 Nothing -> pure ()
                 Just path' -> do
                   let path = resolveToAbsolute path'
-                  LoopState.currentPathStack %= Nel.cons path
+                  Command.currentPathStack %= Nel.cons path
                   branch' <- getAt path
                   when (Branch.isEmpty0 $ Branch.head branch') (respond $ CreatedNewBranch path)
             UpI ->
-              use LoopState.currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
+              use Command.currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
                 Nothing -> pure ()
-                Just (path, _) -> LoopState.currentPathStack %= Nel.cons (Path.Absolute path)
+                Just (path, _) -> Command.currentPathStack %= Nel.cons (Path.Absolute path)
             PopBranchI ->
-              use (LoopState.currentPathStack . to Nel.uncons) >>= \case
+              use (Command.currentPathStack . to Nel.uncons) >>= \case
                 (_, Nothing) -> respond StartOfCurrentPathHistory
-                (_, Just t) -> LoopState.currentPathStack .= t
+                (_, Just t) -> Command.currentPathStack .= t
             HistoryI resultsCap diffCap from -> case from of
               Left hash -> unlessError do
                 b <- resolveShortBranchHash hash
@@ -877,7 +876,7 @@ loop = do
               let absPath = Path.unabsolute $ resolveToAbsolute namespacePath'
               eval (DocsToHtml root' absPath sourceDirectory)
             AliasTermI src dest -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
               referents <-
                 either
                   (liftIO . Backend.termReferentsByShortHash codebase)
@@ -901,7 +900,7 @@ loop = do
                     )
                     src
             AliasTypeI src dest -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
               refs <-
                 either
                   (liftIO . Backend.typeReferencesByShortHash codebase)
@@ -1014,7 +1013,7 @@ loop = do
             LinksI src mdTypeStr -> unlessError do
               (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
               lift do
-                LoopState.numberedArgs .= fmap (HQ.toString . view _1) out
+                Command.numberedArgs .= fmap (HQ.toString . view _1) out
                 respond $ ListOfLinks ppe out
             DocsI srcs -> do
               srcs' <- case srcs of
@@ -1030,7 +1029,7 @@ loop = do
                 xs -> pure xs
               for_ srcs' (docsI (show input) basicPrettyPrintNames)
             CreateAuthorI authorNameSegment authorFullName -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
               initialBranch <- getAt currentPath'
               AuthorInfo
                 guid@(guidRef, _, _)
@@ -1112,9 +1111,9 @@ loop = do
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
               respond $ ListOfPatches $ Set.fromList patches
-              LoopState.numberedArgs .= fmap Name.toString patches
+              Command.numberedArgs .= fmap Name.toString patches
             FindShallowI pathArg -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
 
               let pathArgAbs = resolveToAbsolute pathArg
                   ppe =
@@ -1124,7 +1123,7 @@ loop = do
                       (Backend.AllNames $ Path.fromPath' pathArg)
               entries <- liftIO (Backend.findShallow codebase pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
-              LoopState.numberedArgs .= fmap entryToHQString entries
+              Command.numberedArgs .= fmap entryToHQString entries
               respond $ ListShallow ppe entries
               where
                 entryToHQString :: ShallowListEntry v Ann -> String
@@ -1158,7 +1157,7 @@ loop = do
                   BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
                 go r = stepManyAt Branch.CompressHistory . fmap makeDelete . toList . Set.delete r $ conflicted
             ReplaceI from to patchPath -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
 
               let patchPath' = fromMaybe defaultPatchPath patchPath
               patch <- getPatchAt patchPath'
@@ -1274,7 +1273,7 @@ loop = do
               case uf of
                 Nothing -> respond NoUnisonFile
                 Just uf -> do
-                  codebase <- LoopState.askCodebase
+                  codebase <- Command.askCodebase
                   currentNames <- currentPathNames
                   let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
                   let adds = SlurpResult.adds sr
@@ -1309,7 +1308,7 @@ loop = do
               updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
               unless updated (respond $ NothingToPatch patchPath scopePath)
             ExecuteI main args -> do
-              runtime <- LoopState.askRuntime
+              runtime <- Command.askRuntime
               let mainType = Runtime.mainType runtime
 
               addRunMain main uf >>= \case
@@ -1327,8 +1326,8 @@ loop = do
                     Left e -> respond $ EvaluationFailure e
                     Right _ -> pure () -- TODO
             MakeStandaloneI output main -> do
-              runtime <- LoopState.askRuntime
-              codebase <- LoopState.askCodebase
+              runtime <- Command.askRuntime
+              codebase <- Command.askCodebase
               let mainType = Runtime.mainType runtime
               parseNames <-
                 flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintNamesA
@@ -1341,8 +1340,8 @@ loop = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType -> do
-                      runtime <- LoopState.askRuntime
-                      codebase <- LoopState.askCodebase
+                      runtime <- Command.askRuntime
+                      codebase <- Command.askCodebase
                       liftIO (Runtime.compileTo runtime (() <$ Codebase.toCodeLookup codebase) ppe ref (output <> ".uc")) >>= \case
                         Just err -> respond $ EvaluationFailure err
                         Nothing -> pure ()
@@ -1350,8 +1349,8 @@ loop = do
                       respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
-              runtime <- LoopState.askRuntime
-              codebase <- LoopState.askCodebase
+              runtime <- Command.askRuntime
+              codebase <- Command.askCodebase
               -- todo - allow this to run tests from scratch file, using addRunMain
               let testType = Runtime.ioTestType runtime
               parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
@@ -1393,7 +1392,7 @@ loop = do
             --   checkTodo
 
             MergeBuiltinsI -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
               -- these were added once, but maybe they've changed and need to be
               -- added again.
               let uf =
@@ -1410,7 +1409,7 @@ loop = do
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               success
             MergeIOBuiltinsI -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
               -- these were added once, but maybe they've changed and need to be
               -- added again.
               let uf =
@@ -1444,7 +1443,7 @@ loop = do
                   =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               respondNumbered $ ListEdits patch ppe
             PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> unlessError do
-              codebase <- lift LoopState.askCodebase
+              codebase <- lift Command.askCodebase
               let preprocess = case pullMode of
                     Input.PullWithHistory -> Unmodified
                     Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
@@ -1485,7 +1484,7 @@ loop = do
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
 
               -- todo: add flag to handle transitive efficiently
               resolveHQToLabeledDependencies hq >>= \lds ->
@@ -1514,7 +1513,7 @@ loop = do
                     let types = R.toList $ Names.types names0
                     let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
                     let names = types <> terms
-                    LoopState.numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
+                    Command.numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
                     respond $ ListDependencies hqLength ld names missing
             NamespaceDependenciesI namespacePath' -> do
               let path = maybe currentPath' resolveToAbsolute namespacePath'
@@ -1524,7 +1523,7 @@ loop = do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
                   ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
                   respond $ ListNamespaceDependencies ppe path externalDependencies
-            DebugNumberedArgsI -> use LoopState.numberedArgs >>= respond . DumpNumberedArgs
+            DebugNumberedArgsI -> use Command.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
               Nothing -> respond NoUnisonFile
               Just uf ->
@@ -1584,10 +1583,10 @@ loop = do
               for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
             DebugClearWatchI {} -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
               liftIO (Codebase.clearWatches codebase)
             DebugDoctorI {} -> do
-              codebase <- LoopState.askCodebase
+              codebase <- Command.askCodebase
               r <- liftIO (Codebase.runTransaction codebase IntegrityCheck.integrityCheckFullCodebase)
               respond (IntegrityCheck r)
             DeprecateTermI {} -> notImplemented
@@ -1598,26 +1597,26 @@ loop = do
               doRemoveReplacement from patchPath False
             ShowDefinitionByPrefixI {} -> notImplemented
             UpdateBuiltinsI -> notImplemented
-            QuitI -> empty
+            QuitI -> quit
             GistI input -> handleGist input
             AuthLoginI -> authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
             VersionI -> do
-              ucmVersion <- asks LoopState.ucmVersion
+              ucmVersion <- asks Command.ucmVersion
               respond $ PrintVersion ucmVersion
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success
 
   case e of
-    Right input -> LoopState.lastInput .= Just input
+    Right input -> Command.lastInput .= Just input
     _ -> pure ()
 
 handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Action' Symbol ()
 handleCreatePullRequest baseRepo0 headRepo0 = do
-  codebase <- LoopState.askCodebase
+  codebase <- Command.askCodebase
 
-  root' <- use LoopState.root
-  currentPath' <- use LoopState.currentPath
+  root' <- use Command.root
+  currentPath' <- use Command.currentPath
 
   -- One of these needs a callback and the other doesn't. you might think you can get around that problem with
   -- a helper function to unify the two cases, but we tried that and they were in such different monads that it
@@ -1680,8 +1679,8 @@ handleFindI ::
   Input ->
   Action' Symbol ()
 handleFindI isVerbose fscope ws input = do
-  root' <- use LoopState.root
-  currentPath' <- use LoopState.currentPath
+  root' <- use Command.root
+  currentPath' <- use Command.currentPath
   currentBranch' <- getAt currentPath'
   let currentBranch0 = Branch.head currentBranch'
       getNames :: FindScope -> Names
@@ -1715,7 +1714,7 @@ handleFindI isVerbose fscope ws input = do
             ":" : ws ->
               ExceptT (parseSearchType (show input) (unwords ws)) >>= \typ ->
                 ExceptT do
-                  codebase <- LoopState.askCodebase
+                  codebase <- Command.askCodebase
                   let named = Branch.deepReferents currentBranch0
                   matches <-
                     fmap (filter (`Set.member` named) . toList) $
@@ -1740,8 +1739,8 @@ handleFindI isVerbose fscope ws input = do
               let srs = searchBranchScored names fuzzyNameDistance qs
               pure $ uniqueBy SR.toReferent srs
     let respondResults results = lift do
-          codebase <- LoopState.askCodebase
-          LoopState.numberedArgs .= fmap searchResultToHQString results
+          codebase <- Command.askCodebase
+          Command.numberedArgs .= fmap searchResultToHQString results
           results' <- liftIO (Backend.loadSearchResults codebase results)
           ppe <-
             suffixifiedPPE
@@ -1751,13 +1750,13 @@ handleFindI isVerbose fscope ws input = do
     results <- getResults (getNames fscope)
     case (results, fscope) of
       ([], Local) -> do
-        respond FindNoLocalMatches
+        lift $ respond FindNoLocalMatches
         respondResults =<< getResults (getNames LocalAndDeps)
       _ -> respondResults results
 
 handleDependents :: HQ.HashQualified Name -> Action' v ()
 handleDependents hq = do
-  codebase <- LoopState.askCodebase
+  codebase <- Command.askCodebase
   hqLength <- liftIO (Codebase.hashLength codebase)
   -- todo: add flag to handle transitive efficiently
   resolveHQToLabeledDependencies hq >>= \lds ->
@@ -1789,7 +1788,7 @@ handleDependents hq = do
                     g :: HQ'.HashQualified Name -> (Reference, Maybe Name)
                     g hqName =
                       (reference, Just (HQ'.toName hqName))
-        LoopState.numberedArgs .= map (Text.unpack . Reference.toText . fst) results
+        Command.numberedArgs .= map (Text.unpack . Reference.toText . fst) results
         respond (ListDependents hqLength ld results)
 
 -- | Handle a @gist@ command.
@@ -1827,8 +1826,8 @@ doPushRemoteBranch ::
   SyncMode.SyncMode ->
   Action' v ()
 doPushRemoteBranch pushFlavor localPath0 syncMode = do
-  codebase <- LoopState.askCodebase
-  currentPath' <- use LoopState.currentPath
+  codebase <- Command.askCodebase
+  currentPath' <- use Command.currentPath
   let localPath = Path.resolve currentPath' localPath0
 
   case pushFlavor of
@@ -1897,7 +1896,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
   ensureAuthenticatedWithCodeserver codeserver
 
-  LoopState.Env {authHTTPClient, codebase} <- ask
+  Command.Env {authHTTPClient, codebase} <- ask
 
   -- doesn't handle the case where a non-existent path is supplied
   liftIO (Codebase.runTransaction codebase (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath)))) >>= \case
@@ -1987,7 +1986,7 @@ handleShowDefinition ::
   [HQ.HashQualified Name] ->
   Action' v ()
 handleShowDefinition outputLoc inputQuery = do
-  codebase <- LoopState.askCodebase
+  codebase <- Command.askCodebase
   -- If the query is empty, run a fuzzy search.
   query <-
     if null inputQuery
@@ -1999,8 +1998,8 @@ handleShowDefinition outputLoc inputQuery = do
             _ -> respond (HelpMessage InputPatterns.edit) $> []
           Just defs -> pure defs
       else pure inputQuery
-  currentPath' <- Path.unabsolute <$> use LoopState.currentPath
-  root' <- use LoopState.root
+  currentPath' <- Path.unabsolute <$> use Command.currentPath
+  root' <- use Command.root
   hqLength <- liftIO (Codebase.hashLength codebase)
   Backend.DefinitionResults terms types misses <-
     eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
@@ -2012,19 +2011,19 @@ handleShowDefinition outputLoc inputQuery = do
   -- We set latestFile to be programmatically generated, if we
   -- are viewing these definitions to a file - this will skip the
   -- next update for that file (which will happen immediately)
-  LoopState.latestFile .= ((,True) <$> outputPath)
+  Command.latestFile .= ((,True) <$> outputPath)
   where
     -- `view`: fuzzy find globally; `edit`: fuzzy find local to current branch
     fuzzyBranch :: Action' v (Branch0 IO)
     fuzzyBranch =
       case outputLoc of
-        ConsoleLocation {} -> Branch.head <$> use LoopState.root
+        ConsoleLocation {} -> Branch.head <$> use Command.root
         -- fuzzy finding for 'edit's are local to the current branch
         LatestFileLocation {} -> currentBranch0
         FileLocation {} -> currentBranch0
       where
         currentBranch0 = do
-          currentPath' <- use LoopState.currentPath
+          currentPath' <- use Command.currentPath
           currentBranch <- getAt currentPath'
           pure (Branch.head currentBranch)
     -- `view`: don't include cycles; `edit`: include cycles
@@ -2041,17 +2040,17 @@ handleShowDefinition outputLoc inputQuery = do
         ConsoleLocation -> pure Nothing
         FileLocation path -> pure (Just path)
         LatestFileLocation ->
-          use LoopState.latestFile <&> \case
+          use Command.latestFile <&> \case
             Nothing -> Just "scratch.u"
             Just (path, _) -> Just path
 
 -- | Handle a @test@ command.
 handleTest :: TestInput -> Action' v ()
 handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
-  codebase <- LoopState.askCodebase
+  codebase <- Command.askCodebase
 
   testTerms <- do
-    currentPath' <- use LoopState.currentPath
+    currentPath' <- use Command.currentPath
     currentBranch' <- getAt currentPath'
     currentBranch'
       & Branch.head
@@ -2130,12 +2129,12 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
 handleUpdate :: Input -> OptionalPatch -> Set Name -> Action' Symbol ()
 handleUpdate input optionalPatch requestedNames = do
   let requestedVars = Set.map Name.toVar requestedNames
-  use LoopState.latestTypecheckedFile >>= \case
+  use Command.latestTypecheckedFile >>= \case
     Nothing -> respond NoUnisonFile
     Just uf -> do
-      codebase <- LoopState.askCodebase
+      codebase <- Command.askCodebase
 
-      currentPath' <- use LoopState.currentPath
+      currentPath' <- use Command.currentPath
       let defaultPatchPath :: PatchPath
           defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
           getPatchAt :: Path.Split' -> Action' v Patch
@@ -2282,7 +2281,7 @@ handleUpdate input optionalPatch requestedNames = do
 addDefaultMetadata :: SlurpComponent Symbol -> Action (Either Event Input) Symbol ()
 addDefaultMetadata adds =
   when (not (SC.isEmpty adds)) do
-    currentPath' <- use LoopState.currentPath
+    currentPath' <- use Command.currentPath
 
     let addedVs = Set.toList $ SC.types adds <> SC.terms adds
         addedNs = traverse (Path.hqSplitFromName' . Name.unsafeFromVar) addedVs
@@ -2342,12 +2341,12 @@ manageLinks silent srcs mdValues op = do
   runExceptT (for mdValues \val -> ExceptT (getMetadataFromName val)) >>= \case
     Left output -> respond output
     Right metadata -> do
-      before <- Branch.head <$> use LoopState.root
+      before <- Branch.head <$> use Command.root
       traverse_ go metadata
       if silent
         then respond DefaultMetadataNotification
         else do
-          after <- Branch.head <$> use LoopState.root
+          after <- Branch.head <$> use Command.root
           (ppe, outputDiff) <- diffHelper before after
           if OBranchDiff.isEmpty outputDiff
             then respond NoOp
@@ -2361,8 +2360,8 @@ manageLinks silent srcs mdValues op = do
   where
     go :: (Metadata.Type, Metadata.Value) -> Action (Either Event Input) v ()
     go (mdType, mdValue) = do
-      newRoot <- use LoopState.root
-      currentPath' <- use LoopState.currentPath
+      newRoot <- use Command.root
+      currentPath' <- use Command.currentPath
       let resolveToAbsolute :: Path' -> Path.Absolute
           resolveToAbsolute = Path.resolve currentPath'
           resolveSplit' :: (Path', a) -> (Path, a)
@@ -2391,7 +2390,7 @@ resolveConfiguredUrl ::
   Path' ->
   ExceptT (Output v) (Action i v) WriteRemotePath
 resolveConfiguredUrl pushPull destPath' = ExceptT do
-  currentPath' <- use LoopState.currentPath
+  currentPath' <- use Command.currentPath
   let destPath = Path.resolve currentPath' destPath'
   let remoteMappingConfigKey = remoteMappingKey destPath
   (eval . ConfigLookup) remoteMappingConfigKey >>= \case
@@ -2430,13 +2429,14 @@ configKey k p =
         (Path.toSeq $ Path.unabsolute p)
 
 viewRemoteGitBranch ::
-  MonadCommand m i v =>
   ReadGitRemoteNamespace ->
   Git.GitBranchBehavior ->
-  (Branch IO -> Free (Command i v) r) ->
-  m (Either GitError r)
+  (Branch IO -> Action i v r) ->
+  Action i v (Either GitError r)
 viewRemoteGitBranch ns gitBranchBehavior action = do
-  eval $ ViewRemoteGitBranch ns gitBranchBehavior action
+  codebase <- Command.askCodebase
+  withRunInIO \runInIO -> do
+    liftIO $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (runInIO . action)
 
 importRemoteShareBranch :: ReadShareRemoteNamespace -> Action' v (Either (Output v) (Branch IO))
 importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
@@ -2446,7 +2446,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
-    LoopState.Env {authHTTPClient, codebase} <- ask
+    Command.Env {authHTTPClient, codebase} <- ask
     let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
         pull =
           withEntitiesDownloadedProgressCallbacks \callbacks ->
@@ -2503,19 +2503,19 @@ resolveHQToLabeledDependencies = \case
   HQ.HashOnly sh -> resolveHashOnly sh
   where
     resolveHashOnly sh = do
-      codebase <- LoopState.askCodebase
+      codebase <- Command.askCodebase
       terms <- liftIO (Backend.termReferentsByShortHash codebase sh)
       types <- liftIO (Backend.typeReferencesByShortHash codebase sh)
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
 doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Action' Symbol ()
 doDisplay outputLoc names tm = do
-  codebase <- LoopState.askCodebase
+  codebase <- Command.askCodebase
 
   ppe <- prettyPrintEnvDecl names
-  tf <- use LoopState.latestTypecheckedFile
+  tf <- use Command.latestTypecheckedFile
   let (tms, typs) = maybe mempty UF.indexByReference tf
-  latestFile' <- use LoopState.latestFile
+  latestFile' <- use Command.latestFile
   let loc = case outputLoc of
         ConsoleLocation -> Nothing
         FileLocation path -> Just path
@@ -2569,9 +2569,9 @@ getLinks' ::
       [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
     )
 getLinks' src selection0 = do
-  codebase <- LoopState.askCodebase
-  root0 <- Branch.head <$> use LoopState.root
-  currentPath' <- use LoopState.currentPath
+  codebase <- Command.askCodebase
+  root0 <- Branch.head <$> use Command.root
+  currentPath' <- use Command.currentPath
   let resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       p = resolveSplit' src -- ex: the (parent,hqsegment) of `List.map` - `List`
       -- all metadata (type+value) associated with name `src`
@@ -2594,7 +2594,7 @@ getLinks' src selection0 = do
 resolveShortBranchHash ::
   ShortBranchHash -> ExceptT (Output v) (Action' v) (Branch IO)
 resolveShortBranchHash hash = ExceptT do
-  codebase <- LoopState.askCodebase
+  codebase <- Command.askCodebase
   hashSet <- liftIO (Codebase.branchHashesByPrefix codebase hash)
   len <- liftIO (Codebase.branchHashLength codebase)
   case Set.toList hashSet of
@@ -2610,30 +2610,30 @@ propagatePatchNoSync ::
   Path.Absolute ->
   Action' Symbol Bool
 propagatePatchNoSync patch scopePath = unsafeTime "propagate" do
-  codebase <- LoopState.askCodebase
-  r <- use LoopState.root
+  codebase <- Command.askCodebase
+  r <- use Command.root
   let nroot = Branch.toNames (Branch.head r)
   stepAtMNoSync'
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
-      liftF . Propagate.propagateAndApply codebase nroot patch
+      Propagate.propagateAndApply codebase nroot patch
     )
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch ::
-  LoopState.InputDescription ->
+  Command.InputDescription ->
   Patch ->
   Path.Absolute ->
   Action' Symbol Bool
 propagatePatch inputDescription patch scopePath = do
-  codebase <- LoopState.askCodebase
-  r <- use LoopState.root
+  codebase <- Command.askCodebase
+  r <- use Command.root
   let nroot = Branch.toNames (Branch.head r)
   stepAtM'
     Branch.CompressHistory
     (inputDescription <> " (applying patch)")
     ( Path.unabsolute scopePath,
-      liftF . Propagate.propagateAndApply codebase nroot patch
+      Propagate.propagateAndApply codebase nroot patch
     )
 
 -- | Create the args needed for showTodoOutput and call it
@@ -2660,7 +2660,7 @@ showTodoOutput getPpe patch names0 = do
   if TO.noConflicts todo && TO.noEdits todo
     then respond NoConflictsOrEdits
     else do
-      LoopState.numberedArgs
+      Command.numberedArgs
         .= ( Text.unpack . Reference.toText . view _2
                <$> fst (TO.todoFrontierDependents todo)
            )
@@ -2669,7 +2669,7 @@ showTodoOutput getPpe patch names0 = do
 
 checkTodo :: Patch -> Names -> Action i Symbol (TO.TodoOutput Symbol Ann)
 checkTodo patch names0 = do
-  codebase <- LoopState.askCodebase
+  codebase <- Command.askCodebase
   let shouldUpdate = Names.contains names0
   f <- Propagate.computeFrontier (liftIO . Codebase.dependents codebase) patch shouldUpdate
   let dirty = R.dom f
@@ -2702,7 +2702,7 @@ checkTodo patch names0 = do
 
 confirmedCommand :: Input -> Action i v Bool
 confirmedCommand i = do
-  i0 <- use LoopState.lastInput
+  i0 <- use Command.lastInput
   pure $ Just i == i0
 
 -- | restores the full hash to these search results, for _numberedArgs purposes
@@ -2808,7 +2808,7 @@ unlessError' f ma = unlessError $ withExceptT f ma
 --   supply unchangedMessage if you want to display it if merge had no effect
 mergeBranchAndPropagateDefaultPatch ::
   Branch.MergeMode ->
-  LoopState.InputDescription ->
+  Command.InputDescription ->
   Maybe (Output Symbol) ->
   Branch IO ->
   Maybe Path.Path' ->
@@ -2822,13 +2822,13 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
   where
     mergeBranch ::
       Branch.MergeMode ->
-      LoopState.InputDescription ->
+      Command.InputDescription ->
       Branch IO ->
       Maybe Path.Path' ->
       Path.Absolute ->
       Action' Symbol Bool
     mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" do
-      codebase <- LoopState.askCodebase
+      codebase <- Command.askCodebase
       destb <- getAt dest
       merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
       b <- updateAtM inputDescription dest (const $ pure merged)
@@ -2838,7 +2838,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
       pure b
 
 loadPropagateDiffDefaultPatch ::
-  LoopState.InputDescription ->
+  Command.InputDescription ->
   Maybe Path.Path' ->
   Path.Absolute ->
   Action' Symbol ()
@@ -2863,14 +2863,14 @@ getMetadataFromName ::
   HQ.HashQualified Name ->
   Action (Either Event Input) Symbol (Either (Output Symbol) (Metadata.Type, Metadata.Value))
 getMetadataFromName name = do
-  codebase <- LoopState.askCodebase
-  currentPath' <- use LoopState.currentPath
+  codebase <- Command.askCodebase
+  currentPath' <- use Command.currentPath
   sbhLength <- liftIO (Codebase.branchHashLength codebase)
 
   let getPPE :: Action (Either Event Input) v PPE.PrettyPrintEnv
       getPPE =
         Backend.basicSuffixifiedNames sbhLength
-          <$> use LoopState.root <*> pure (Backend.Within $ Path.unabsolute currentPath')
+          <$> use Command.root <*> pure (Backend.Within $ Path.unabsolute currentPath')
 
   (Set.toList <$> getHQTerms name) >>= \case
     [ref@(Referent.Ref val)] ->
@@ -2888,8 +2888,8 @@ getMetadataFromName name = do
 getHQTerms :: HQ.HashQualified Name -> Action' v (Set Referent)
 getHQTerms = \case
   HQ.NameOnly n -> do
-    root0 <- Branch.head <$> use LoopState.root
-    currentPath' <- use LoopState.currentPath
+    root0 <- Branch.head <$> use Command.root
+    currentPath' <- use Command.currentPath
     -- absolute-ify the name, then lookup in deepTerms of root
     let path =
           n
@@ -2902,29 +2902,29 @@ getHQTerms = \case
   HQ.HashQualified _ sh -> hashOnly sh
   where
     hashOnly sh = do
-      codebase <- LoopState.askCodebase
+      codebase <- Command.askCodebase
       liftIO (Backend.termReferentsByShortHash codebase sh)
 
 getAt :: Path.Absolute -> Action i v (Branch IO)
 getAt (Path.Absolute p) =
-  use LoopState.root <&> fromMaybe Branch.empty . Branch.getAt p
+  use Command.root <&> fromMaybe Branch.empty . Branch.getAt p
 
 -- Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM ::
-  LoopState.InputDescription ->
+  Command.InputDescription ->
   Path.Absolute ->
   (Branch IO -> Action i v (Branch IO)) ->
   Action i v Bool
 updateAtM reason (Path.Absolute p) f = do
-  b <- use LoopState.lastSavedRoot
+  b <- use Command.lastSavedRoot
   b' <- Branch.modifyAtM p f b
   updateRoot b' reason
   pure $ b /= b'
 
 stepAt ::
   forall i v.
-  LoopState.InputDescription ->
+  Command.InputDescription ->
   Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Branch0 IO) ->
   Action i v ()
@@ -2940,7 +2940,7 @@ stepAtNoSync strat = stepManyAtNoSync @[] strat . pure
 stepAtM ::
   forall i v.
   Branch.UpdateStrategy ->
-  LoopState.InputDescription ->
+  Command.InputDescription ->
   (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Action i v ()
 stepAtM cause strat = stepManyAtM @[] cause strat . pure
@@ -2948,7 +2948,7 @@ stepAtM cause strat = stepManyAtM @[] cause strat . pure
 stepAtM' ::
   forall i v.
   Branch.UpdateStrategy ->
-  LoopState.InputDescription ->
+  Command.InputDescription ->
   (Path, Branch0 IO -> Action i v (Branch0 IO)) ->
   Action i v Bool
 stepAtM' cause strat = stepManyAtM' @[] cause strat . pure
@@ -2962,35 +2962,35 @@ stepAtMNoSync' strat = stepManyAtMNoSync' @[] strat . pure
 
 stepManyAt ::
   Foldable f =>
-  LoopState.InputDescription ->
+  Command.InputDescription ->
   Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> Branch0 IO) ->
   Action i v ()
 stepManyAt reason strat actions = do
   stepManyAtNoSync strat actions
-  b <- use LoopState.root
+  b <- use Command.root
   updateRoot b reason
 
--- Like stepManyAt, but doesn't update the LoopState.root
+-- Like stepManyAt, but doesn't update the Command.root
 stepManyAtNoSync ::
   Foldable f =>
   Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> Branch0 IO) ->
   Action i v ()
 stepManyAtNoSync strat actions = do
-  b <- use LoopState.root
+  b <- use Command.root
   let new = Branch.stepManyAt strat actions b
-  LoopState.root .= new
+  Command.root .= new
 
 stepManyAtM ::
   Foldable f =>
   Branch.UpdateStrategy ->
-  LoopState.InputDescription ->
+  Command.InputDescription ->
   f (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Action i v ()
 stepManyAtM strat reason actions = do
   stepManyAtMNoSync strat actions
-  b <- use LoopState.root
+  b <- use Command.root
   updateRoot b reason
 
 stepManyAtMNoSync ::
@@ -2999,18 +2999,18 @@ stepManyAtMNoSync ::
   f (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Action i v ()
 stepManyAtMNoSync strat actions = do
-  b <- use LoopState.root
+  b <- use Command.root
   b' <- liftIO $ Branch.stepManyAtM strat actions b
-  LoopState.root .= b'
+  Command.root .= b'
 
 stepManyAtM' ::
   Foldable f =>
   Branch.UpdateStrategy ->
-  LoopState.InputDescription ->
+  Command.InputDescription ->
   f (Path, Branch0 IO -> Action i v (Branch0 IO)) ->
   Action i v Bool
 stepManyAtM' strat reason actions = do
-  b <- use LoopState.root
+  b <- use Command.root
   b' <- Branch.stepManyAtM strat actions b
   updateRoot b' reason
   pure (b /= b')
@@ -3021,26 +3021,26 @@ stepManyAtMNoSync' ::
   f (Path, Branch0 IO -> Action i v (Branch0 IO)) ->
   Action i v Bool
 stepManyAtMNoSync' strat actions = do
-  b <- use LoopState.root
+  b <- use Command.root
   b' <- Branch.stepManyAtM strat actions b
-  LoopState.root .= b'
+  Command.root .= b'
   pure (b /= b')
 
 -- | Sync the in-memory root branch.
-syncRoot :: LoopState.InputDescription -> Action i v ()
+syncRoot :: Command.InputDescription -> Action i v ()
 syncRoot description = unsafeTime "syncRoot" $ do
-  root' <- use LoopState.root
+  root' <- use Command.root
   Unison.Codebase.Editor.HandleInput.updateRoot root' description
 
-updateRoot :: Branch IO -> LoopState.InputDescription -> Action i v ()
+updateRoot :: Branch IO -> Command.InputDescription -> Action i v ()
 updateRoot new reason = unsafeTime "updateRoot" do
-  codebase <- LoopState.askCodebase
-  old <- use LoopState.lastSavedRoot
+  codebase <- Command.askCodebase
+  old <- use Command.lastSavedRoot
   when (old /= new) do
-    LoopState.root .= new
+    Command.root .= new
     eval $ SyncLocalRootBranch new
     liftIO (Codebase.appendReflog codebase reason old new)
-    LoopState.lastSavedRoot .= new
+    Command.lastSavedRoot .= new
 
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible
@@ -3094,7 +3094,7 @@ displayI ::
   HQ.HashQualified Name ->
   Action (Either Event Input) Symbol ()
 displayI prettyPrintNames outputLoc hq = do
-  uf <- use LoopState.latestTypecheckedFile >>= addWatch (HQ.toString hq)
+  uf <- use Command.latestTypecheckedFile >>= addWatch (HQ.toString hq)
   case uf of
     Nothing -> do
       let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
@@ -3145,7 +3145,7 @@ docsI srcLoc prettyPrintNames src = do
     dotDoc = hq <&> \n -> Name.joinDot n "doc"
 
     fileByName = do
-      ns <- maybe mempty UF.typecheckedToNames <$> use LoopState.latestTypecheckedFile
+      ns <- maybe mempty UF.typecheckedToNames <$> use Command.latestTypecheckedFile
       fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
       case NamesWithHistory.lookupHQTerm dotDoc fnames of
         s | Set.size s == 1 -> do
@@ -3160,7 +3160,7 @@ docsI srcLoc prettyPrintNames src = do
       lift case out of
         [] -> codebaseByName
         [(_name, ref, _tm)] -> do
-          codebase <- LoopState.askCodebase
+          codebase <- Command.askCodebase
           len <- liftIO (Codebase.branchHashLength codebase)
           let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
           let tm = Term.ref External ref
@@ -3169,7 +3169,7 @@ docsI srcLoc prettyPrintNames src = do
             Left e -> respond (EvaluationFailure e)
             Right tm -> doDisplay ConsoleLocation names (Term.unannotate tm)
         out -> do
-          LoopState.numberedArgs .= fmap (HQ.toString . view _1) out
+          Command.numberedArgs .= fmap (HQ.toString . view _1) out
           respond $ ListOfLinks ppe out
 
     codebaseByName = do
@@ -3306,7 +3306,7 @@ loadDisplayInfo ::
       [(Reference, DisplayObject () (DD.Decl Symbol Ann))]
     )
 loadDisplayInfo refs = do
-  codebase <- LoopState.askCodebase
+  codebase <- Command.askCodebase
   termRefs <- filterM (liftIO . Codebase.isTerm codebase) (toList refs)
   typeRefs <- filterM (liftIO . Codebase.isType codebase) (toList refs)
   terms <- forM termRefs $ \r -> (r,) <$> liftIO (Codebase.getTypeOfTerm codebase r)
@@ -3317,7 +3317,7 @@ loadDisplayInfo refs = do
 -- are converted to names relative to current path. all other names are
 -- converted to absolute names. For example:
 --
--- e.g. if LoopState.currentPath = .foo.bar
+-- e.g. if Command.currentPath = .foo.bar
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
 fixupNamesRelative :: Path.Absolute -> Names -> Names
@@ -3334,7 +3334,7 @@ makeHistoricalParsingNames ::
 makeHistoricalParsingNames lexedHQs = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames <- basicParseNames
-  curPath <- use LoopState.currentPath
+  curPath <- use Command.currentPath
   pure $
     NamesWithHistory
       basicNames
@@ -3347,7 +3347,7 @@ loadTypeDisplayObject ::
 loadTypeDisplayObject = \case
   Reference.Builtin _ -> pure (BuiltinObject ())
   Reference.DerivedId id -> do
-    codebase <- LoopState.askCodebase
+    codebase <- Command.askCodebase
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> liftIO (Codebase.getTypeDeclaration codebase id)
 
@@ -3365,12 +3365,12 @@ lexedSource name src = do
 
 suffixifiedPPE :: NamesWithHistory -> Action' v PPE.PrettyPrintEnv
 suffixifiedPPE ns = do
-  codebase <- LoopState.askCodebase
+  codebase <- Command.askCodebase
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromSuffixNames` ns)
 
 fqnPPE :: NamesWithHistory -> Action' v PPE.PrettyPrintEnv
 fqnPPE ns = do
-  codebase <- LoopState.askCodebase
+  codebase <- Command.askCodebase
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNames` ns)
 
 parseSearchType ::
@@ -3411,8 +3411,8 @@ makeShadowedPrintNamesFromLabeled deps shadowing =
 makePrintNamesFromLabeled' ::
   Set LabeledDependency -> Action' v NamesWithHistory
 makePrintNamesFromLabeled' deps = do
-  root' <- use LoopState.root
-  curPath <- use LoopState.currentPath
+  root' <- use Command.root
+  curPath <- use Command.currentPath
   (_missing, rawHistoricalNames) <-
     liftIO $
       Branch.findHistoricalRefs
@@ -3439,14 +3439,14 @@ getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
 -- I'd enforce it with finer-grained types if we had them.
 findHistoricalHQs :: Set (HQ.HashQualified Name) -> Action' v Names
 findHistoricalHQs lexedHQs0 = do
-  root' <- use LoopState.root
-  curPath <- use LoopState.currentPath
+  root' <- use Command.root
+  curPath <- use Command.currentPath
   let -- omg this nightmare name-to-path parsing code is littered everywhere.
       -- We need to refactor so that the absolute-ness of a name isn't represented
       -- by magical text combinations.
       -- Anyway, this function takes a name, tries to determine whether it is
       -- relative or absolute, and tries to return the corresponding name that is
-      -- /relative/ to the LoopState.root.
+      -- /relative/ to the Command.root.
       preprocess n = case Name.toString n of
         -- some absolute name that isn't just "."
         '.' : t@(_ : _) -> Name.unsafeFromString t
@@ -3467,7 +3467,7 @@ makeShadowedPrintNamesFromHQ :: Set (HQ.HashQualified Name) -> Names -> Action' 
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames <- basicPrettyPrintNamesA
-  curPath <- use LoopState.currentPath
+  curPath <- use Command.currentPath
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
   pure $
@@ -3482,15 +3482,15 @@ slurpResultNames = currentPathNames
 
 currentPathNames :: Action' v Names
 currentPathNames = do
-  currentPath' <- use LoopState.currentPath
+  currentPath' <- use Command.currentPath
   currentBranch' <- getAt currentPath'
   pure $ Branch.toNames (Branch.head currentBranch')
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
 basicNames' :: (Path -> Backend.NameScoping) -> Action i v (Names, Names)
 basicNames' nameScoping = do
-  root' <- use LoopState.root
-  currentPath' <- use LoopState.currentPath
+  root' <- use Command.root
+  currentPath' <- use Command.currentPath
   let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
   pure (parse, pretty)
 
@@ -3538,8 +3538,8 @@ addRunMain ::
   Maybe (TypecheckedUnisonFile Symbol Ann) ->
   Action' Symbol (AddRunMainResult Symbol)
 addRunMain mainName Nothing = do
-  runtime <- LoopState.askRuntime
-  codebase <- LoopState.askCodebase
+  runtime <- Command.askRuntime
+  codebase <- Command.askCodebase
 
   parseNames <- basicParseNames
   let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
@@ -3554,7 +3554,7 @@ addRunMain mainName Nothing = do
         let v = Var.named (HQ.toText hq)
          in UF.typecheckedUnisonFile mempty mempty mempty [("main", [(v, tm, typ)])] -- mempty
 addRunMain mainName (Just uf) = do
-  runtime <- LoopState.askRuntime
+  runtime <- Command.askRuntime
 
   let components = join $ UF.topLevelComponents uf
   let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
@@ -3599,9 +3599,9 @@ diffHelper ::
   Branch0 IO ->
   Action' Symbol (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
 diffHelper before after = unsafeTime "HandleInput.diffHelper" do
-  codebase <- LoopState.askCodebase
-  currentRoot <- use LoopState.root
-  currentPath <- use LoopState.currentPath
+  codebase <- Command.askCodebase
+  currentRoot <- use Command.root
+  currentPath <- use Command.currentPath
   diffHelperCmd codebase currentRoot currentPath before after
 
 -- | A version of diffHelper
