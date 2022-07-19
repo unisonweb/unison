@@ -34,7 +34,6 @@ import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Reflog as Reflog
 import qualified Unison.Codebase.Runtime as Runtime
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import qualified Unison.HashQualified as HQ
@@ -126,7 +125,6 @@ data
   TypeReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
   TermReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
   TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
-  BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.CausalHash)
   ParseType ::
     NamesWithHistory ->
     LexedSource ->
@@ -242,7 +240,6 @@ commandName = \case
   TypeReferencesByShortHash {} -> "TypeReferencesByShortHash"
   TermReferencesByShortHash {} -> "TermReferencesByShortHash"
   TermReferentsByShortHash {} -> "TermReferentsByShortHash"
-  BranchHashesByPrefix {} -> "BranchHashesByPrefix"
   ParseType {} -> "ParseType"
   LoadSource {} -> "LoadSource"
   Typecheck {} -> "Typecheck"

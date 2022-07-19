@@ -2577,7 +2577,7 @@ resolveShortBranchHash ::
   Monad m => ShortBranchHash -> ExceptT (Output v) (Action' m v) (Branch m)
 resolveShortBranchHash hash = ExceptT do
   codebase <- LoopState.askCodebase
-  hashSet <- eval $ BranchHashesByPrefix hash
+  hashSet <- eval $ Eval (Codebase.branchHashesByPrefix codebase hash)
   len <- eval (Eval (Codebase.branchHashLength codebase))
   case Set.toList hashSet of
     [] -> pure . Left $ NoBranchWithHash hash

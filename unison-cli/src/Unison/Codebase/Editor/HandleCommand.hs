@@ -170,8 +170,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
       -- all builtin and derived term references & type constructors
       TermReferentsByShortHash sh ->
         lift $ Backend.termReferentsByShortHash codebase sh
-      BranchHashesByPrefix h ->
-        lift $ Codebase.branchHashesByPrefix codebase h
       ParseType names (src, _) ->
         pure $
           Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
