@@ -25,7 +25,6 @@ import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (Prin
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.NamesWithHistory as NamesWithHistory
@@ -172,7 +171,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         let parseNames = Backend.parseNamesForBranch branch namingScope
         let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
         lift (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
-      FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
       CmdUnliftIO -> do
         -- Get the unlifter for the ReaderT we're currently working in.
         unlifted <- UnliftIO.askUnliftIO

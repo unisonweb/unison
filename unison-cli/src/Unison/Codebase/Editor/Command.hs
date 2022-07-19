@@ -30,7 +30,6 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.Type (GitError)
-import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import Unison.Name (Name)
@@ -158,15 +157,6 @@ data
   Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command i v (Runtime.WatchResults v Ann)
   -- | Trigger an interactive fuzzy search over the provided options and return all
   -- selected results.
-  FuzzySelect ::
-    -- | Configure the selection.
-    Fuzzy.Options ->
-    -- | Select the text to fuzzy find on
-    (a -> Text) ->
-    -- | The elements to select from
-    [a] ->
-    -- | The selected results, or Nothing if a failure occurred.
-    Command i v (Maybe [a])
   -- | This allows us to implement MonadUnliftIO for (Free (Command i v)).
   -- Ideally we will eventually remove the Command type entirely and won't need
   -- this anymore.
@@ -218,5 +208,4 @@ commandName = \case
   Execute {} -> "Execute"
   HQNameQuery {} -> "HQNameQuery"
   GetDefinitionsBySuffixes {} -> "GetDefinitionsBySuffixes"
-  FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"

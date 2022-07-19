@@ -3650,8 +3650,8 @@ declOrBuiltin codebase r = case r of
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-fuzzySelectDefinition :: Position -> Branch0 m -> Action (Either Event Input) v (Maybe [HQ.HashQualified Name])
-fuzzySelectDefinition pos searchBranch0 = do
+fuzzySelectDefinition :: MonadIO m => Position -> Branch0 m0 -> m (Maybe [HQ.HashQualified Name])
+fuzzySelectDefinition pos searchBranch0 = liftIO do
   let termsAndTypes =
         Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
           <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
@@ -3660,12 +3660,12 @@ fuzzySelectDefinition pos searchBranch0 = do
         termsAndTypes
           & Set.toList
           & map (fmap (Name.setPosition pos))
-  eval (FuzzySelect Fuzzy.defaultOptions HQ.toText inputs)
+  Fuzzy.fuzzySelect Fuzzy.defaultOptions HQ.toText inputs
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
-fuzzySelectNamespace :: Position -> Branch0 m -> Action (Either Event Input) v (Maybe [Path'])
-fuzzySelectNamespace pos searchBranch0 = do
+fuzzySelectNamespace :: MonadIO m => Position -> Branch0 m0 -> m (Maybe [Path'])
+fuzzySelectNamespace pos searchBranch0 = liftIO do
   let intoPath' :: Path -> Path'
       intoPath' = case pos of
         Relative -> Path' . Right . Path.Relative
@@ -3676,12 +3676,10 @@ fuzzySelectNamespace pos searchBranch0 = do
           & Branch.deepPaths
           & Set.toList
           & map intoPath'
-  eval
-    ( FuzzySelect
-        Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-        tShow
-        inputs
-    )
+  Fuzzy.fuzzySelect
+    Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
+    tShow
+    inputs
 
 -- | Get a branch from a BranchId, returning an empty one if missing, or failing with an
 -- appropriate error message if a hash cannot be found.
