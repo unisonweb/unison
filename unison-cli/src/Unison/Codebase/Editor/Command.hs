@@ -31,7 +31,6 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.IntegrityCheck (IntegrityResult)
-import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Reflog as Reflog
 import qualified Unison.Codebase.Runtime as Runtime
@@ -115,7 +114,7 @@ data
     FilePath ->
     Command m i v ()
   HQNameQuery ::
-    Maybe Path ->
+    Maybe Path.Absolute ->
     Branch m ->
     [HQ.HashQualified Name] ->
     Command m i v QueryResult

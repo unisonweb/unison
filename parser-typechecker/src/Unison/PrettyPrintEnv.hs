@@ -14,6 +14,7 @@ module Unison.PrettyPrintEnv
     suffixifiedPPE,
     unsuffixifiedPPE,
     restrictTo,
+    biasTo,
     Suffixify (..),
     Perspective (..),
   )
@@ -91,6 +92,9 @@ restrictTo p ppe =
           Just rs -> NESet.toSet rs
       newRestrictions = NESet.insertSet p oldRestrictions
    in ppe {restrictions = Just newRestrictions}
+
+biasTo :: Maybe Name -> PrettyPrintEnv -> PrettyPrintEnv
+biasTo bias ppe = ppe {bias = bias}
 
 terms :: PrettyPrintEnv -> Referent -> Maybe (HQ'.HashQualified Name)
 terms PrettyPrintEnv {termNames, perspective, bias, suffixify, restrictions} ref =

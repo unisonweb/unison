@@ -12,8 +12,8 @@ import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, rea
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
 import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
-import Control.Monad.Reader (ask, asks)
-import Control.Monad.State (StateT)
+import Control.Monad.Reader (ask)
+import Control.Monad.State (StateT, MonadState)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
 import Data.Configurator ()
@@ -177,25 +177,20 @@ defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
 
 -- | TODO: cache this in loop state
-prettyPrintEnv :: MonadCommand n m i v => n PPE.PrettyPrintEnv
+prettyPrintEnv :: (MonadState (LoopState.LoopState m v) n, MonadCommand n m i v) => n PPE.PrettyPrintEnv
 prettyPrintEnv = do
   root' <- use LoopState.root
   hashLen <- eval CodebaseHashLength
   currentPath' <- use LoopState.currentPath
   pure $ Backend.getCurrentPrettyNames hashLen (PPE.RelativeTo currentPath') Nothing root'
 
--- pure $ PPE.fromNames hashLen Nothing PPE.Root Nothing PPE.NoSuffixify ns
+prettyPrintEnvWithFallback :: (MonadState (LoopState.LoopState m v) n, MonadCommand n m i v) => Names -> n PPE.PrettyPrintEnv
+prettyPrintEnvWithFallback fallback = do
+  ppe <- prettyPrintEnv
+  hashLen <- eval CodebaseHashLength
+  currentPath' <- use LoopState.currentPath
+  pure $ ppe <> PPE.fromNames hashLen Nothing (PPE.RelativeTo currentPath') Nothing PPE.NoSuffixify (NamesWithHistory.fromCurrentNames fallback)
 
--- biasedPrettyPrintEnvDecl :: MonadCommand n m i v => Maybe Name -> NamesWithHistory -> n PPE.PrettyPrintEnvDecl
--- biasedPrettyPrintEnvDecl bias ns = eval CodebaseHashLength <&> (\hl -> PPE.biasedPPEDecl hl bias ns)
-
--- -- | Get a pretty print env decl for the current names at the current path.
--- currentPrettyPrintEnv :: Action' m v PPE.PrettyPrintEnv
--- currentPrettyPrintEnv mkPerspective mayBias = do
---   root' <- use LoopState.root
---   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
---   hqLen <- eval CodebaseHashLength
---   pure $ Backend.getCurrentPrettyNames hqLen (mkPerspective currentPath') mayBias root'
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
@@ -207,8 +202,7 @@ loop = do
   e <- eval Input
   hqLength <- eval CodebaseHashLength
   sbhLength <- eval BranchHashLength
-  let currentPath'' = Path.unabsolute currentPath'
-      hqNameQuery q = eval $ HQNameQuery (Just currentPath'') root' q
+  let hqNameQuery q = eval $ HQNameQuery (Just currentPath') root' q
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
@@ -236,7 +230,7 @@ loop = do
 
       basicPrettyPrintNames :: Names
       basicPrettyPrintNames =
-        Backend.prettyNamesForBranch root' (Backend.AllNames $ Path.unabsolute currentPath')
+        Backend.prettyNamesForBranch root' (Backend.AllNames currentPath')
 
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
       resolveHHQS'Types =
@@ -266,7 +260,7 @@ loop = do
               L.Hash sh -> Just (HQ.HashOnly sh)
               _ -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') root'
+        let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath') root'
         LoopState.latestFile .= Just (Text.unpack sourceName, False)
         LoopState.latestTypecheckedFile .= Nothing
         Result notes r <- unsafeTime "typechecking" $ eval $ Typecheck ambient parseNames sourceName lexed
@@ -1103,7 +1097,7 @@ loop = do
                     Backend.basicSuffixifiedNames
                       sbhLength
                       root'
-                      (Backend.AllNames $ Path.fromPath' pathArg)
+                      (Backend.AllNames pathArgAbs)
               entries <- eval $ FindShallow pathArgAbs
               -- caching the result as an absolute path, for easier jumping around
               LoopState.numberedArgs .= fmap entryToHQString entries
@@ -2403,9 +2397,8 @@ resolveHQToLabeledDependencies = \case
       types <- eval $ TypeReferencesByShortHash sh
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
-doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Action' m Symbol ()
-doDisplay outputLoc names tm = do
-  ppe <- prettyPrintEnv names
+doDisplay :: OutputLocation -> PPE.PrettyPrintEnv -> Term Symbol () -> Action' m Symbol ()
+doDisplay outputLoc ppe tm = do
   tf <- use LoopState.latestTypecheckedFile
   let (tms, typs) = maybe mempty UF.indexByReference tf
   latestFile' <- use LoopState.latestFile
@@ -2481,10 +2474,10 @@ getLinks' src selection0 = do
         Set.map LD.termRef allRefs
           <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
   let ppeBias = Just (Path.toName' . HQ'.toName . Path.unsplitHQ' $ src)
-  ppe <- prettyPrintEnv ppeBias =<< makePrintNamesFromLabeled' deps
-  let ppeDecl = PPE.unsuffixifiedPPE ppe
+  hqLength <- eval CodebaseHashLength
+  ppe <- PPE.fromNames hqLength Nothing PPE.Root ppeBias PPE.NoSuffixify <$> makePrintNamesFromLabeled' deps
   let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
-  let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
+  let out = [(PPE.termName ppe (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
   pure (PPE.suffixifiedPPE ppe, out)
 
 resolveShortBranchHash ::
@@ -2536,8 +2529,7 @@ doShowTodoOutput patch scopePath = do
   let names0 = Branch.toNames (Branch.head scope)
   -- only needs the local references to check for obsolete defs
   let getPpe = do
-        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-        prettyPrintEnvDecl names
+        ppeFromLabeled (Patch.labeledDependencies patch)
   showTodoOutput getPpe patch names0
 
 -- | Show todo output if there are any conflicts or edits.
@@ -2762,23 +2754,16 @@ getMetadataFromName ::
   HQ.HashQualified Name ->
   Action m (Either Event Input) v (Either (Output v) (Metadata.Type, Metadata.Value))
 getMetadataFromName name = do
+  ppe <- prettyPrintEnv
   (Set.toList <$> getHQTerms name) >>= \case
     [ref@(Referent.Ref val)] ->
       eval (LoadTypeOfTerm val) >>= \case
         Nothing -> do
-          ppe <- getPPE
           pure (Left (MetadataMissingType ppe ref))
         Just ty -> pure (Right (Hashing.typeToReference ty, val))
     -- FIXME: we want a different error message if the given name is associated with a data constructor (`Con`).
     refs -> do
-      ppe <- getPPE
       pure (Left (MetadataAmbiguous name ppe refs))
-  where
-    getPPE :: Action m (Either Event Input) v PPE.PrettyPrintEnv
-    getPPE = do
-      currentPath' <- use LoopState.currentPath
-      sbhLength <- eval BranchHashLength
-      Backend.basicSuffixifiedNames sbhLength <$> use LoopState.root <*> pure (Backend.Within $ Path.unabsolute currentPath')
 
 -- | Get the set of terms related to a hash-qualified name.
 getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
@@ -3007,11 +2992,11 @@ displayI prettyPrintNames outputLoc hq = do
             else -- ... but use the unsuffixed names for display
             do
               let tm = Term.fromReferent External $ Set.findMin results
-              pped <- biasedPrettyPrintEnvDecl (HQ.toName hq) parseNames
-              tm <- eval $ Evaluate1 (PPE.suffixifiedPPE pped) True tm
+              ppe <- PPE.biasTo (HQ.toName hq) <$> prettyPrintEnv
+              tm <- eval $ Evaluate1 (PPE.suffixifiedPPE ppe) True tm
               case tm of
                 Left e -> respond (EvaluationFailure e)
-                Right tm -> doDisplay outputLoc parseNames (Term.unannotate tm)
+                Right tm -> doDisplay outputLoc ppe (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
       ppe <- executePPE unisonFile
       unlessError' EvaluationFailure do
@@ -3019,8 +3004,9 @@ displayI prettyPrintNames outputLoc hq = do
         case Command.lookupEvalResult toDisplay evalResult of
           Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
           Just tm -> lift do
-            ns <- displayNames unisonFile
-            doDisplay outputLoc ns tm
+            hqLength <- eval CodebaseHashLength
+            ppe <- PPE.fromNames hqLength Nothing PPE.Root Nothing PPE.NoSuffixify <$> displayNames unisonFile
+            doDisplay outputLoc ppe tm
 
 docsI ::
   Monad m =>
@@ -3061,13 +3047,12 @@ docsI srcLoc prettyPrintNames src = do
       lift case out of
         [] -> codebaseByName
         [(_name, ref, _tm)] -> do
-          len <- eval BranchHashLength
-          let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
+          ppe <- prettyPrintEnv
           let tm = Term.ref External ref
-          tm <- eval $ Evaluate1 (PPE.fromNames len names) True tm
+          tm <- eval $ Evaluate1 ppe True tm
           case tm of
             Left e -> respond (EvaluationFailure e)
-            Right tm -> doDisplay ConsoleLocation names (Term.unannotate tm)
+            Right tm -> doDisplay ConsoleLocation ppe (Term.unannotate tm)
         out -> do
           LoopState.numberedArgs .= fmap (HQ.toString . view _1) out
           respond $ ListOfLinks ppe out
@@ -3321,6 +3306,17 @@ makePrintNamesFromLabeled' deps = do
   basicNames <- basicPrettyPrintNamesA
   pure $ NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames)
 
+ppeFromLabeled ::
+  Monad m => Set LabeledDependency -> Action' m v PPE.PrettyPrintEnv
+ppeFromLabeled deps = do
+  root' <- use LoopState.root
+  (_missing, rawHistoricalNames) <-
+    eval . Eval $
+      Branch.findHistoricalRefs
+        deps
+        root'
+  prettyPrintEnvWithFallback rawHistoricalNames
+
 getTermsIncludingHistorical ::
   Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
 getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
@@ -3387,11 +3383,11 @@ currentPathNames = do
   pure $ Branch.toNames (Branch.head currentBranch')
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNames' :: (Functor m) => (Path -> Backend.NameScoping) -> Action m i v (Names, Names)
+basicNames' :: (Functor m) => (Path.Absolute -> Backend.NameScoping) -> Action m i v (Names, Names)
 basicNames' nameScoping = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
-  let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
+  let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping currentPath')
   pure (parse, pretty)
 
 data AddRunMainResult v
@@ -3512,7 +3508,7 @@ diffHelperCmd ::
 diffHelperCmd currentRoot currentPath before after = do
   hqLength <- eval CodebaseHashLength
   diff <- eval . Eval $ BranchDiff.diff0 before after
-  let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
+  let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames currentPath)
   ppe <- suffixifiedPPE (NamesWithHistory prettyNames0 mempty)
   (ppe,)
     <$> OBranchDiff.toOutput
