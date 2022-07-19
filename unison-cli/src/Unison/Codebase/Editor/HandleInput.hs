@@ -1111,13 +1111,15 @@ loop = do
               respond $ ListOfPatches $ Set.fromList patches
               LoopState.numberedArgs .= fmap Name.toString patches
             FindShallowI pathArg -> do
+              codebase <- LoopState.askCodebase
+
               let pathArgAbs = resolveToAbsolute pathArg
                   ppe =
                     Backend.basicSuffixifiedNames
                       sbhLength
                       root'
                       (Backend.AllNames $ Path.fromPath' pathArg)
-              entries <- eval $ FindShallow pathArgAbs
+              entries <- liftIO (Backend.findShallow codebase pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               LoopState.numberedArgs .= fmap entryToHQString entries
               respond $ ListShallow ppe entries

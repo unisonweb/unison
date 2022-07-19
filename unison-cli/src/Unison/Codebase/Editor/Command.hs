@@ -29,7 +29,6 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
@@ -46,7 +45,7 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Result (Note, Result)
-import Unison.Server.Backend (DefinitionResults, IncludeCycles, ShallowListEntry)
+import Unison.Server.Backend (DefinitionResults, IncludeCycles)
 import Unison.Server.QueryResult (QueryResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
@@ -110,9 +109,6 @@ data
     IncludeCycles ->
     [HQ.HashQualified Name] ->
     Command i v (DefinitionResults v)
-  FindShallow ::
-    Path.Absolute ->
-    Command i v [ShallowListEntry v Ann]
   ConfigLookup :: Configured a => Text -> Command i v (Maybe a)
   Input :: Command i v i
   -- Presents some output to the user
@@ -245,7 +241,6 @@ commandName = \case
   HQNameQuery {} -> "HQNameQuery"
   LoadSearchResults {} -> "LoadSearchResults"
   GetDefinitionsBySuffixes {} -> "GetDefinitionsBySuffixes"
-  FindShallow {} -> "FindShallow"
   FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"
   UCMVersion {} -> "UCMVersion"
