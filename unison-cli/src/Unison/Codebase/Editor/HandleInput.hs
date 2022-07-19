@@ -3026,12 +3026,13 @@ syncRoot description = unsafeTime "syncRoot" $ do
   Unison.Codebase.Editor.HandleInput.updateRoot root' description
 
 updateRoot :: Branch m -> LoopState.InputDescription -> Action m i v ()
-updateRoot new reason = unsafeTime "updateRoot" $ do
+updateRoot new reason = unsafeTime "updateRoot" do
+  codebase <- LoopState.askCodebase
   old <- use LoopState.lastSavedRoot
-  when (old /= new) $ do
+  when (old /= new) do
     LoopState.root .= new
     eval $ SyncLocalRootBranch new
-    eval $ AppendToReflog reason old new
+    eval $ Eval (Codebase.appendReflog codebase reason old new)
     LoopState.lastSavedRoot .= new
 
 -- cata for 0, 1, or more elements of a Foldable

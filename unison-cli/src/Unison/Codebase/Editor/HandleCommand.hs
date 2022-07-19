@@ -182,7 +182,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
 
       Execute ppe uf args ->
         lift $ evalUnisonFile False ppe uf args
-      AppendToReflog reason old new -> lift $ Codebase.appendReflog codebase reason old new
       LoadReflog -> lift $ Codebase.getReflog codebase
       CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
       HQNameQuery mayPath branch query -> do

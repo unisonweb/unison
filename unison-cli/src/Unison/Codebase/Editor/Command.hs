@@ -177,7 +177,6 @@ data
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
-  AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
   -- load the reflog in file (chronological) order
   LoadReflog :: Command m i v [Reflog.Entry Branch.CausalHash]
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
@@ -250,7 +249,6 @@ commandName = \case
   Merge {} -> "Merge"
   ViewRemoteGitBranch {} -> "ViewRemoteGitBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
-  AppendToReflog {} -> "AppendToReflog"
   LoadReflog -> "LoadReflog"
   Execute {} -> "Execute"
   CreateAuthorInfo {} -> "CreateAuthorInfo"
