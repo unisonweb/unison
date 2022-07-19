@@ -454,7 +454,8 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                   { LoopState.authHTTPClient = authenticatedHTTPClient,
                     LoopState.codebase = codebase,
                     LoopState.credentialManager = credMan,
-                    LoopState.runtime = runtime
+                    LoopState.runtime = runtime,
+                    LoopState.ucmVersion = ucmVersion
                   }
           let free = LoopState.runAction env state $ HandleInput.loop
               rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))

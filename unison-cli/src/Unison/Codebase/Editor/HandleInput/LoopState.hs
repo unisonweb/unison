@@ -18,6 +18,7 @@ import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Parser.Ann (Ann (..))
@@ -32,7 +33,8 @@ data Env v = Env
   { authHTTPClient :: AuthenticatedHttpClient,
     codebase :: Codebase IO v Ann,
     credentialManager :: CredentialManager,
-    runtime :: Runtime v
+    runtime :: Runtime v,
+    ucmVersion :: UCMVersion
   }
 
 newtype Action i v a = Action {unAction :: MaybeT (ReaderT (Env v) (StateT (LoopState v) (F i v))) a}

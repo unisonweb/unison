@@ -204,7 +204,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     { LoopState.authHTTPClient = authorizedHTTPClient,
                       LoopState.codebase = codebase,
                       LoopState.credentialManager = credMan,
-                      LoopState.runtime = runtime
+                      LoopState.runtime = runtime,
+                      LoopState.ucmVersion = ucmVersion
                     }
             let free = LoopState.runAction env state HandleInput.loop
             let handleCommand =
