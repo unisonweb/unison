@@ -27,7 +27,6 @@ import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
-import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.Type (GitError)
@@ -190,7 +189,6 @@ data
   CmdUnliftIO :: Command i v (UnliftIO (Free (Command i v)))
   ResetAndUnlift :: Command i v (RunInIO i v)
   Abort :: Command i v a
-  UCMVersion :: Command i v UCMVersion
 
 instance MonadIO (Free (Command i v)) where
   liftIO io = Free.eval $ Eval io
@@ -243,4 +241,3 @@ commandName = \case
   GetDefinitionsBySuffixes {} -> "GetDefinitionsBySuffixes"
   FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"
-  UCMVersion {} -> "UCMVersion"

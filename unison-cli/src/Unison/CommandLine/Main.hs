@@ -223,7 +223,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     loadSourceFile
                     codebase
                     serverBaseUrl
-                    ucmVersion
                     (const Random.getSystemDRG)
                     free
             UnliftIO.race waitForInterrupt (try handleCommand) >>= \case

@@ -471,7 +471,6 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               loadPreviousUnisonBlock
               codebase
               Nothing
-              ucmVersion
               rng
               free
           case o of

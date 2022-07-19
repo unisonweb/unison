@@ -22,7 +22,6 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch.Merge as Branch
 import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UseCache)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
-import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
@@ -94,11 +93,10 @@ commandLine ::
   (SourceName -> IO LoadSourceResult) ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
-  UCMVersion ->
   (Int -> IO gen) ->
   Free (Command i Symbol) a ->
   IO a
-commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl ucmVersion rngGen free = do
+commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen free = do
   rndSeed <- STM.newTVarIO 0
   flip runReaderT rndSeed . Free.fold go $ free
   where
@@ -200,7 +198,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
               -- in-scope.
               UnliftIO.UnliftIO toIO -> toIO . Free.fold go
         pure runF
-      UCMVersion -> pure ucmVersion
 
     watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
     watchCache h = do
