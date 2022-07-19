@@ -1688,11 +1688,12 @@ handleFindI isVerbose fscope ws input = do
             -- type query
             ":" : ws ->
               ExceptT (parseSearchType (show input) (unwords ws)) >>= \typ ->
-                ExceptT $ do
+                ExceptT do
+                  codebase <- LoopState.askCodebase
                   let named = Branch.deepReferents currentBranch0
                   matches <-
                     fmap (filter (`Set.member` named) . toList) $
-                      eval $ GetTermsOfType typ
+                      eval $ Eval (Codebase.termsOfType codebase typ)
                   matches <-
                     if null matches
                       then do

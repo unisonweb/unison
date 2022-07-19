@@ -196,7 +196,6 @@ data
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
 
-  GetTermsOfType :: Type v Ann -> Command m i v (Set Referent)
   GetTermsMentioningType :: Type v Ann -> Command m i v (Set Referent)
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
@@ -274,7 +273,6 @@ commandName = \case
   LoadReflog -> "LoadReflog"
   PutTerm {} -> "PutTerm"
   PutDecl {} -> "PutDecl"
-  GetTermsOfType {} -> "GetTermsOfType"
   GetTermsMentioningType {} -> "GetTermsMentioningType"
   Execute {} -> "Execute"
   CreateAuthorInfo {} -> "CreateAuthorInfo"
