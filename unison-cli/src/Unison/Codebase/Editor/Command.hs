@@ -29,7 +29,6 @@ import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import Unison.Codebase.IntegrityCheck (IntegrityResult)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -184,7 +183,6 @@ data
   CreateAuthorInfo :: Text -> Command i v (AuthorInfo v Ann)
   RuntimeMain :: Command i v (Type v Ann)
   RuntimeTest :: Command i v (Type v Ann)
-  AnalyzeCodebaseIntegrity :: Command i v IntegrityResult
   -- | Trigger an interactive fuzzy search over the provided options and return all
   -- selected results.
   FuzzySelect ::
@@ -261,4 +259,3 @@ commandName = \case
   FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"
   UCMVersion {} -> "UCMVersion"
-  AnalyzeCodebaseIntegrity -> "AnalyzeCodebaseIntegrity"

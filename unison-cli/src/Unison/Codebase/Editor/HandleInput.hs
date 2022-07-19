@@ -85,6 +85,7 @@ import qualified Unison.Codebase.Editor.SlurpResult as Slurp
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import qualified Unison.Codebase.Editor.UriParser as UriParser
+import qualified Unison.Codebase.IntegrityCheck as IntegrityCheck (integrityCheckFullCodebase)
 import qualified Unison.Codebase.MainTerm as MainTerm
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch (..))
@@ -1574,7 +1575,8 @@ loop = do
               codebase <- LoopState.askCodebase
               liftIO (Codebase.clearWatches codebase)
             DebugDoctorI {} -> do
-              r <- eval AnalyzeCodebaseIntegrity
+              codebase <- LoopState.askCodebase
+              r <- liftIO (Codebase.runTransaction codebase IntegrityCheck.integrityCheckFullCodebase)
               respond (IntegrityCheck r)
             DeprecateTermI {} -> notImplemented
             DeprecateTypeI {} -> notImplemented

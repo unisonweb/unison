@@ -24,7 +24,6 @@ import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UseCache)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import Unison.Codebase.IntegrityCheck (integrityCheckFullCodebase)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
@@ -212,7 +211,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
               UnliftIO.UnliftIO toIO -> toIO . Free.fold go
         pure runF
       UCMVersion -> pure ucmVersion
-      AnalyzeCodebaseIntegrity -> lift (Codebase.runTransaction codebase integrityCheckFullCodebase)
 
     watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
     watchCache h = do
