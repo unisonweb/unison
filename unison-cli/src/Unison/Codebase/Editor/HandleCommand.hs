@@ -98,13 +98,13 @@ commandLine ::
   Maybe Server.BaseUrl ->
   UCMVersion ->
   (Int -> IO gen) ->
-  Free (Command IO i Symbol) a ->
+  Free (Command i Symbol) a ->
   IO a
 commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl ucmVersion rngGen free = do
   rndSeed <- STM.newTVarIO 0
   flip runReaderT rndSeed . Free.fold go $ free
   where
-    go :: forall x. Command IO i Symbol x -> ReaderT (STM.TVar Int) IO x
+    go :: forall x. Command i Symbol x -> ReaderT (STM.TVar Int) IO x
     go x = case x of
       -- Wait until we get either user input or a unison file update
       Eval m -> lift m
@@ -208,7 +208,7 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         -- Get the unlifter for the ReaderT we're currently working in.
         unlifted <- UnliftIO.askUnliftIO
         -- Built an unliftIO for the Free monad
-        let runF :: UnliftIO.UnliftIO (Free (Command IO i Symbol))
+        let runF :: UnliftIO.UnliftIO (Free (Command i Symbol))
             runF = UnliftIO.UnliftIO $ case unlifted of
               -- We need to case-match on the UnliftIO within this function
               -- because `toIO` is existential and we need the right types

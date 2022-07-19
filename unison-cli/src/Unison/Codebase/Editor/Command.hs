@@ -9,7 +9,7 @@ module Unison.Codebase.Editor.Command
     SourceName,
     TypecheckingResult,
     LoadSourceResult (..),
-    RunInM (..),
+    RunInIO (..),
     UseCache,
     EvalResult,
     commandName,
@@ -82,63 +82,62 @@ type TypecheckingResult v =
 
 data
   Command
-    m -- Command monad
     i -- Input type
     v -- Type of variables in the codebase
     a -- Result of running the command
   where
   -- Escape hatch.
-  Eval :: m a -> Command m i v a
-  UI :: Command m i v ()
-  API :: Command m i v ()
+  Eval :: IO a -> Command i v a
+  UI :: Command i v ()
+  API :: Command i v ()
   DocsToHtml ::
-    Branch m -> -- Root branch
+    Branch IO -> -- Root branch
 
     -- | namespace source
     Path ->
     -- | file destination
     FilePath ->
-    Command m i v ()
+    Command i v ()
   HQNameQuery ::
     Maybe Path ->
-    Branch m ->
+    Branch IO ->
     [HQ.HashQualified Name] ->
-    Command m i v QueryResult
+    Command i v QueryResult
   LoadSearchResults ::
     [SR.SearchResult] ->
-    Command m i v [SR'.SearchResult' v Ann]
+    Command i v [SR'.SearchResult' v Ann]
   GetDefinitionsBySuffixes ::
     Maybe Path ->
-    Branch m ->
+    Branch IO ->
     IncludeCycles ->
     [HQ.HashQualified Name] ->
-    Command m i v (DefinitionResults v)
+    Command i v (DefinitionResults v)
   FindShallow ::
     Path.Absolute ->
-    Command m i v [ShallowListEntry v Ann]
-  ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)
-  Input :: Command m i v i
+    Command i v [ShallowListEntry v Ann]
+  ConfigLookup :: Configured a => Text -> Command i v (Maybe a)
+  Input :: Command i v i
   -- Presents some output to the user
-  Notify :: Output v -> Command m i v ()
-  NotifyNumbered :: NumberedOutput v -> Command m i v NumberedArgs
-  TypeReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
-  TermReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
-  TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
+  Notify :: Output v -> Command i v ()
+  NotifyNumbered :: NumberedOutput v -> Command i v NumberedArgs
+  TypeReferencesByShortHash :: ShortHash -> Command i v (Set Reference)
+  TermReferencesByShortHash :: ShortHash -> Command i v (Set Reference)
+  TermReferentsByShortHash :: ShortHash -> Command i v (Set Referent)
   ParseType ::
     NamesWithHistory ->
     LexedSource ->
-    Command m i v (Either (Parser.Err v) (Type v Ann))
-  LoadSource :: SourceName -> Command m i v LoadSourceResult
+    Command i v (Either (Parser.Err v) (Type v Ann))
+  LoadSource :: SourceName -> Command i v LoadSourceResult
   Typecheck ::
     AmbientAbilities v ->
     NamesWithHistory ->
     SourceName ->
     LexedSource ->
-    Command m i v (TypecheckingResult v)
+    Command i v (TypecheckingResult v)
   TypecheckFile ::
     UF.UnisonFile v Ann ->
     [Type v Ann] ->
-    Command m i v (TypecheckingResult v)
+    Command i v (TypecheckingResult v)
   -- Evaluate all watched expressions in a UnisonFile and return
   -- their results, keyed by the name of the watch variable. The tuple returned
   -- has the form:
@@ -160,34 +159,34 @@ data
     Bool -> -- sandboxed
     PPE.PrettyPrintEnv ->
     UF.TypecheckedUnisonFile v Ann ->
-    Command m i v (Either Runtime.Error (EvalResult v))
+    Command i v (Either Runtime.Error (EvalResult v))
   -- Evaluate a single closed definition
-  Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
+  Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command i v (Either Runtime.Error (Term v Ann))
   -- Loads any cached watches of the given kind
-  LoadWatches :: WK.WatchKind -> Set Reference -> Command m i v [(Reference, Term v Ann)]
+  LoadWatches :: WK.WatchKind -> Set Reference -> Command i v [(Reference, Term v Ann)]
   -- Merge two branches, using the codebase for the LCA calculation where possible.
-  Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
+  Merge :: Branch.MergeMode -> Branch IO -> Branch IO -> Command i v (Branch IO)
   ViewRemoteGitBranch ::
     ReadGitRemoteNamespace ->
     Git.GitBranchBehavior ->
-    (Branch m -> (Free (Command m i v) r)) ->
-    Command m i v (Either GitError r)
+    (Branch IO -> (Free (Command i v) r)) ->
+    Command i v (Either GitError r)
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
-  SyncLocalRootBranch :: Branch m -> Command m i v ()
+  SyncLocalRootBranch :: Branch IO -> Command i v ()
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
 
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
-  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command m i v (Runtime.WatchResults v Ann)
-  CreateAuthorInfo :: Text -> Command m i v (AuthorInfo v Ann)
-  RuntimeMain :: Command m i v (Type v Ann)
-  RuntimeTest :: Command m i v (Type v Ann)
-  ClearWatchCache :: Command m i v ()
-  AnalyzeCodebaseIntegrity :: Command m i v IntegrityResult
-  MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
+  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command i v (Runtime.WatchResults v Ann)
+  CreateAuthorInfo :: Text -> Command i v (AuthorInfo v Ann)
+  RuntimeMain :: Command i v (Type v Ann)
+  RuntimeTest :: Command i v (Type v Ann)
+  ClearWatchCache :: Command i v ()
+  AnalyzeCodebaseIntegrity :: Command i v IntegrityResult
+  MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command i v (Maybe Runtime.Error)
   -- | Trigger an interactive fuzzy search over the provided options and return all
   -- selected results.
   FuzzySelect ::
@@ -198,25 +197,25 @@ data
     -- | The elements to select from
     [a] ->
     -- | The selected results, or Nothing if a failure occurred.
-    Command m i v (Maybe [a])
-  -- | This allows us to implement MonadUnliftIO for (Free (Command m i v)).
+    Command i v (Maybe [a])
+  -- | This allows us to implement MonadUnliftIO for (Free (Command i v)).
   -- Ideally we will eventually remove the Command type entirely and won't need
   -- this anymore.
-  CmdUnliftIO :: Command m i v (UnliftIO (Free (Command m i v)))
-  ResetAndUnlift :: Command m i v (RunInM m i v)
-  Abort :: Command m i v a
-  UCMVersion :: Command m i v UCMVersion
+  CmdUnliftIO :: Command i v (UnliftIO (Free (Command i v)))
+  ResetAndUnlift :: Command i v (RunInIO i v)
+  Abort :: Command i v a
+  UCMVersion :: Command i v UCMVersion
 
-instance MonadIO m => MonadIO (Free (Command m i v)) where
-  liftIO io = Free.eval $ Eval (liftIO io)
+instance MonadIO (Free (Command i v)) where
+  liftIO io = Free.eval $ Eval io
 
-instance MonadIO m => MonadUnliftIO (Free (Command m i v)) where
+instance MonadUnliftIO (Free (Command i v)) where
   withRunInIO f = do
     UnliftIO.UnliftIO toIO <- Free.eval CmdUnliftIO
     liftIO $ f toIO
 
-newtype RunInM m i v
-  = RunInM (forall x. Free (Command m i v) x -> m x)
+newtype RunInIO i v
+  = RunInIO (forall x. Free (Command i v) x -> IO x)
 
 type UseCache = Bool
 
@@ -228,7 +227,7 @@ type EvalResult v =
 lookupEvalResult :: Ord v => v -> EvalResult v -> Maybe (Term v ())
 lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 
-commandName :: Command m i v a -> String
+commandName :: Command i v a -> String
 commandName = \case
   Abort -> "Abort"
   ResetAndUnlift {} -> "ResetAndUnlift"

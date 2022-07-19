@@ -193,7 +193,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                   pure x
     (onInterrupt, waitForInterrupt) <- buildInterruptHandler
     withInterruptHandler onInterrupt $ do
-      let loop :: LoopState.LoopState IO Symbol -> IO ()
+      let loop :: LoopState.LoopState Symbol -> IO ()
           loop state = do
             writeIORef pathRef (view LoopState.currentPath state)
             credMan <- newCredentialManager
