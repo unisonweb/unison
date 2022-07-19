@@ -38,7 +38,6 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Unison.DataDeclaration (Decl)
-import qualified Unison.Hash as H
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import Unison.Name (Name)
@@ -199,7 +198,6 @@ data
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
 
-  GetDependentsOfComponent :: H.Hash -> Command m i v (Set Reference)
   GetTermsOfType :: Type v Ann -> Command m i v (Set Referent)
   GetTermsMentioningType :: Type v Ann -> Command m i v (Set Referent)
   -- Execute a UnisonFile for its IO effects
@@ -279,7 +277,6 @@ commandName = \case
   LoadReflog -> "LoadReflog"
   PutTerm {} -> "PutTerm"
   PutDecl {} -> "PutDecl"
-  GetDependentsOfComponent {} -> "GetDependentsOfComponent"
   GetTermsOfType {} -> "GetTermsOfType"
   GetTermsMentioningType {} -> "GetTermsMentioningType"
   Execute {} -> "Execute"

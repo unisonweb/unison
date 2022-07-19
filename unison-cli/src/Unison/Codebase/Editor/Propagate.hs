@@ -326,7 +326,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                       -- plan to update the dependents of this component too
                       dependents <- case r of
                         Reference.Builtin {} -> eval $ Eval (Codebase.dependents codebase r)
-                        Reference.Derived h _i -> eval $ GetDependentsOfComponent h
+                        Reference.Derived h _i -> eval $ (Eval (Codebase.dependentsOfComponent codebase h))
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
 
