@@ -1341,9 +1341,10 @@ loop = do
                       respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
+              runtime <- LoopState.askRuntime
               codebase <- LoopState.askCodebase
               -- todo - allow this to run tests from scratch file, using addRunMain
-              testType <- eval RuntimeTest
+              let testType = Runtime.ioTestType runtime
               parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
               ppe <- suffixifiedPPE parseNames
               -- use suffixed names for resolving the argument to display

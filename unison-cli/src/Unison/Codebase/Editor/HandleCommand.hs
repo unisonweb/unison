@@ -174,7 +174,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
       ParseType names (src, _) ->
         pure $
           Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
-      RuntimeTest -> pure $ Runtime.ioTestType rt
       --    Todo b -> doTodo codebase (Branch.head b)
       --    Propagate b -> do
       --      b0 <- Codebase.propagate codebase (Branch.head b)

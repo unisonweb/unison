@@ -181,7 +181,6 @@ data
   -- todo: Execute should do some evaluation?
   Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command i v (Runtime.WatchResults v Ann)
   CreateAuthorInfo :: Text -> Command i v (AuthorInfo v Ann)
-  RuntimeTest :: Command i v (Type v Ann)
   -- | Trigger an interactive fuzzy search over the provided options and return all
   -- selected results.
   FuzzySelect ::
@@ -249,7 +248,6 @@ commandName = \case
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
   Execute {} -> "Execute"
   CreateAuthorInfo {} -> "CreateAuthorInfo"
-  RuntimeTest -> "RuntimeTest"
   HQNameQuery {} -> "HQNameQuery"
   LoadSearchResults {} -> "LoadSearchResults"
   GetDefinitionsBySuffixes {} -> "GetDefinitionsBySuffixes"
