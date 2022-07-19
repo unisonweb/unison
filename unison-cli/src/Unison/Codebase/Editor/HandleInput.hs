@@ -245,11 +245,6 @@ loop = do
       basicPrettyPrintNames =
         Backend.prettyNamesForBranch root' (Backend.AllNames $ Path.unabsolute currentPath')
 
-      resolveHHQS'Types :: HashOrHQSplit' -> Action' v (Set Reference)
-      resolveHHQS'Types =
-        either
-          (eval . TypeReferencesByShortHash)
-          (pure . getHQ'Types)
       -- Term Refs and Cons
       resolveHHQS'Referents =
         either
@@ -903,7 +898,12 @@ loop = do
                     )
                     src
             AliasTypeI src dest -> do
-              refs <- resolveHHQS'Types src
+              codebase <- LoopState.askCodebase
+              refs <-
+                either
+                  (liftIO . Backend.typeReferencesByShortHash codebase)
+                  (pure . getHQ'Types)
+                  src
               case (toList refs, toList (getTypes dest)) of
                 ([r], []) -> do
                   stepAt Branch.CompressHistory (BranchUtil.makeAddTypeName (resolveSplit' dest) r (oldMD r))
@@ -2504,8 +2504,9 @@ resolveHQToLabeledDependencies = \case
   HQ.HashOnly sh -> resolveHashOnly sh
   where
     resolveHashOnly sh = do
+      codebase <- LoopState.askCodebase
       terms <- eval $ TermReferentsByShortHash sh
-      types <- eval $ TypeReferencesByShortHash sh
+      types <- liftIO (Backend.typeReferencesByShortHash codebase sh)
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
 doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Action' Symbol ()

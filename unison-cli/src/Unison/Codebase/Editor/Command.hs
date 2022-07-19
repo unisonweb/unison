@@ -113,7 +113,6 @@ data
   -- Presents some output to the user
   Notify :: Output v -> Command i v ()
   NotifyNumbered :: NumberedOutput v -> Command i v NumberedArgs
-  TypeReferencesByShortHash :: ShortHash -> Command i v (Set Reference)
   TermReferencesByShortHash :: ShortHash -> Command i v (Set Reference)
   TermReferentsByShortHash :: ShortHash -> Command i v (Set Referent)
   ParseType ::
@@ -223,7 +222,6 @@ commandName = \case
   Input -> "Input"
   Notify {} -> "Notify"
   NotifyNumbered {} -> "NotifyNumbered"
-  TypeReferencesByShortHash {} -> "TypeReferencesByShortHash"
   TermReferencesByShortHash {} -> "TermReferencesByShortHash"
   TermReferentsByShortHash {} -> "TermReferentsByShortHash"
   ParseType {} -> "ParseType"
