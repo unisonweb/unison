@@ -1677,12 +1677,11 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
               respondNumbered diff
 
 handleFindI ::
-  Var v =>
   Bool ->
   FindScope ->
   [String] ->
   Input ->
-  Action' v ()
+  Action' Symbol ()
 handleFindI isVerbose fscope ws input = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
@@ -1744,8 +1743,9 @@ handleFindI isVerbose fscope ws input = do
               let srs = searchBranchScored names fuzzyNameDistance qs
               pure $ uniqueBy SR.toReferent srs
     let respondResults results = lift do
+          codebase <- LoopState.askCodebase
           LoopState.numberedArgs .= fmap searchResultToHQString results
-          results' <- eval $ LoadSearchResults results
+          results' <- liftIO (Backend.loadSearchResults codebase results)
           ppe <-
             suffixifiedPPE
               =<< makePrintNamesFromLabeled'

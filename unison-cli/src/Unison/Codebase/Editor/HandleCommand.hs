@@ -166,7 +166,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         let parseNames = Backend.parseNamesForBranch branch namingScope
         let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
         lift $ Backend.hqNameQuery codebase nameSearch query
-      LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
       GetDefinitionsBySuffixes mayPath branch includeCycles query -> do
         hqLength <- lift $ Codebase.hashLength codebase
         let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath

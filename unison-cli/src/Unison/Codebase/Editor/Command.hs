@@ -43,8 +43,6 @@ import qualified Unison.Reference as Reference
 import Unison.Result (Note, Result)
 import Unison.Server.Backend (DefinitionResults, IncludeCycles)
 import Unison.Server.QueryResult (QueryResult)
-import qualified Unison.Server.SearchResult as SR
-import qualified Unison.Server.SearchResult' as SR'
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
@@ -95,9 +93,6 @@ data
     Branch IO ->
     [HQ.HashQualified Name] ->
     Command i v QueryResult
-  LoadSearchResults ::
-    [SR.SearchResult] ->
-    Command i v [SR'.SearchResult' v Ann]
   GetDefinitionsBySuffixes ::
     Maybe Path ->
     Branch IO ->
@@ -222,7 +217,6 @@ commandName = \case
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
   Execute {} -> "Execute"
   HQNameQuery {} -> "HQNameQuery"
-  LoadSearchResults {} -> "LoadSearchResults"
   GetDefinitionsBySuffixes {} -> "GetDefinitionsBySuffixes"
   FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"
