@@ -274,7 +274,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
           [] -> Referent.toString r
           n : _ -> show n
 
-    initialDirty <- computeDirty (eval . Eval . Codebase.dependents codebase) patch (Names.contains names0)
+    initialDirty <- computeDirty (liftIO . Codebase.dependents codebase) patch (Names.contains names0)
 
     let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
     -- TODO: once patches can directly contain constructor replacements, this
@@ -308,8 +308,8 @@ propagate codebase rootNames patch b = case validatePatch patch of
               if Map.member r termEdits || Set.member r seen || Map.member r typeEdits
                 then collectEdits es seen todo
                 else do
-                  haveType <- eval $ Eval (Codebase.isType codebase r)
-                  haveTerm <- eval $ Eval (Codebase.isTerm codebase r)
+                  haveType <- liftIO (Codebase.isType codebase r)
+                  haveTerm <- liftIO (Codebase.isTerm codebase r)
                   let message =
                         "This reference is not a term nor a type " <> show r
                       mmayEdits
@@ -322,8 +322,8 @@ propagate codebase rootNames patch b = case validatePatch patch of
                     (Just edits', seen') -> do
                       -- plan to update the dependents of this component too
                       dependents <- case r of
-                        Reference.Builtin {} -> eval $ Eval (Codebase.dependents codebase r)
-                        Reference.Derived h _i -> eval $ (Eval (Codebase.dependentsOfComponent codebase h))
+                        Reference.Builtin {} -> liftIO (Codebase.dependents codebase r)
+                        Reference.Derived h _i -> liftIO (Codebase.dependentsOfComponent codebase h)
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
 
@@ -372,7 +372,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                     )
                   seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
                   writeTypes =
-                    traverse_ (\(Reference.DerivedId id, tp) -> eval $ Eval (Codebase.putTypeDeclaration codebase id tp))
+                    traverse_ (\(Reference.DerivedId id, tp) -> liftIO (Codebase.putTypeDeclaration codebase id tp))
                   !newCtorMappings =
                     let r = propagateCtorMapping componentMap hashedComponents'
                      in if debugMode then traceShow ("constructorMappings: " :: Text, r) r else r
@@ -431,7 +431,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                       writeTerms =
                         traverse_
                           ( \(Reference.DerivedId id, (tm, tp)) ->
-                              eval $ Eval (Codebase.putTerm codebase id tm tp)
+                              liftIO (Codebase.putTerm codebase id tm tp)
                           )
                   writeTerms
                     [(r, (tm, ty)) | (_old, r, tm, _oldTy, ty) <- joinedStuff]
@@ -467,11 +467,11 @@ propagate codebase rootNames patch b = case validatePatch patch of
     sortDependentsGraph dependencies restrictTo = do
       closure <-
         transitiveClosure
-          (fmap (Set.intersection restrictTo) . eval . Eval . Codebase.dependents codebase)
+          (fmap (Set.intersection restrictTo) . liftIO . Codebase.dependents codebase)
           dependencies
       dependents <-
         traverse
-          (\r -> (r,) <$> (eval . Eval . Codebase.dependents codebase) r)
+          (\r -> (r,) <$> (liftIO . Codebase.dependents codebase) r)
           (toList closure)
       let graphEdges = [(r, r, toList deps) | (r, deps) <- toList dependents]
           (graph, getReference, _) = Graph.graphFromEdges graphEdges
@@ -505,7 +505,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
       Hash ->
       F i Symbol (Map Symbol (Reference.Id, Term Symbol _, Type Symbol _))
     unhashTermComponent' h =
-      eval (Eval (Codebase.getTermComponentWithTypes codebase h)) <&> foldMap \termsWithTypes ->
+      liftIO (Codebase.getTermComponentWithTypes codebase h) <&> foldMap \termsWithTypes ->
         unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
       where
         unhash m =
@@ -558,7 +558,7 @@ unhashTypeComponent codebase r = case Reference.toId r of
 
 unhashTypeComponent' :: Var v => Codebase IO v Ann -> Hash -> F i v (Map v (Reference.Id, Decl v Ann))
 unhashTypeComponent' codebase h =
-  eval (Eval (Codebase.getDeclComponent codebase h)) <&> foldMap \decls ->
+  liftIO (Codebase.getDeclComponent codebase h) <&> foldMap \decls ->
     unhash $ Map.fromList (Reference.componentFor h decls)
   where
     unhash =
