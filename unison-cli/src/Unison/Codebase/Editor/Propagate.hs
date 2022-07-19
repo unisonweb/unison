@@ -375,7 +375,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                     )
                   seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
                   writeTypes =
-                    traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
+                    traverse_ (\(Reference.DerivedId id, tp) -> eval $ Eval (Codebase.putTypeDeclaration codebase id tp))
                   !newCtorMappings =
                     let r = propagateCtorMapping componentMap hashedComponents'
                      in if debugMode then traceShow ("constructorMappings: " :: Text, r) r else r

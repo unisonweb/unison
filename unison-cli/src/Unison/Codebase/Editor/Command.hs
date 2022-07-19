@@ -37,7 +37,6 @@ import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
-import Unison.DataDeclaration (Decl)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import Unison.Name (Name)
@@ -187,7 +186,6 @@ data
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
   -- load the reflog in file (chronological) order
   LoadReflog :: Command m i v [Reflog.Entry Branch.CausalHash]
-  PutDecl :: Reference.Id -> Decl v Ann -> Command m i v ()
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
 
@@ -263,7 +261,6 @@ commandName = \case
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
   AppendToReflog {} -> "AppendToReflog"
   LoadReflog -> "LoadReflog"
-  PutDecl {} -> "PutDecl"
   Execute {} -> "Execute"
   CreateAuthorInfo {} -> "CreateAuthorInfo"
   RuntimeMain -> "RuntimeMain"
