@@ -2574,13 +2574,16 @@ getLinks' src selection0 = do
   pure (PPE.suffixifiedPPE ppe, out)
 
 resolveShortBranchHash ::
-  ShortBranchHash -> ExceptT (Output v) (Action' m v) (Branch m)
+  Monad m => ShortBranchHash -> ExceptT (Output v) (Action' m v) (Branch m)
 resolveShortBranchHash hash = ExceptT do
+  codebase <- LoopState.askCodebase
   hashSet <- eval $ BranchHashesByPrefix hash
   len <- eval BranchHashLength
   case Set.toList hashSet of
     [] -> pure . Left $ NoBranchWithHash hash
-    [h] -> fmap Right . eval $ LoadLocalBranch h
+    [h] -> do
+      branch <- eval (Eval (Codebase.getBranchForHash codebase h))
+      pure (Right (fromMaybe Branch.empty branch))
     _ -> pure . Left $ BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet)
 
 -- Returns True if the operation changed the namespace, False otherwise.
@@ -3674,7 +3677,7 @@ fuzzySelectNamespace pos searchBranch0 = do
 
 -- | Get a branch from a BranchId, returning an empty one if missing, or failing with an
 -- appropriate error message if a hash cannot be found.
-branchForBranchId :: Functor m => AbsBranchId -> ExceptT (Output v) (Action' m v) (Branch m)
+branchForBranchId :: Monad m => AbsBranchId -> ExceptT (Output v) (Action' m v) (Branch m)
 branchForBranchId = \case
   Left hash -> do
     resolveShortBranchHash hash

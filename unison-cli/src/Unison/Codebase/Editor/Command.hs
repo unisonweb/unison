@@ -170,8 +170,6 @@ data
   Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
   -- Loads any cached watches of the given kind
   LoadWatches :: WK.WatchKind -> Set Reference -> Command m i v [(Reference, Term v Ann)]
-  -- Like `LoadLocalRootBranch`.
-  LoadLocalBranch :: Branch.CausalHash -> Command m i v (Branch m)
   -- Merge two branches, using the codebase for the LCA calculation where possible.
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
   ViewRemoteGitBranch ::
@@ -255,7 +253,6 @@ commandName = \case
   Evaluate {} -> "Evaluate"
   Evaluate1 {} -> "Evaluate1"
   LoadWatches {} -> "LoadWatches"
-  LoadLocalBranch {} -> "LoadLocalBranch"
   Merge {} -> "Merge"
   ViewRemoteGitBranch {} -> "ViewRemoteGitBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
