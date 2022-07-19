@@ -276,7 +276,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
           [] -> Referent.toString r
           n : _ -> show n
 
-    initialDirty <- computeDirty (eval . GetDependents) patch (Names.contains names0)
+    initialDirty <- computeDirty (eval . Eval . Codebase.dependents codebase) patch (Names.contains names0)
 
     let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
     -- TODO: once patches can directly contain constructor replacements, this
@@ -325,7 +325,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                     (Just edits', seen') -> do
                       -- plan to update the dependents of this component too
                       dependents <- case r of
-                        Reference.Builtin {} -> eval $ GetDependents r
+                        Reference.Builtin {} -> eval $ Eval (Codebase.dependents codebase r)
                         Reference.Derived h _i -> eval $ GetDependentsOfComponent h
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
@@ -470,11 +470,11 @@ propagate codebase rootNames patch b = case validatePatch patch of
     sortDependentsGraph dependencies restrictTo = do
       closure <-
         transitiveClosure
-          (fmap (Set.intersection restrictTo) . eval . GetDependents)
+          (fmap (Set.intersection restrictTo) . eval . Eval . Codebase.dependents codebase)
           dependencies
       dependents <-
         traverse
-          (\r -> (r,) <$> (eval . GetDependents) r)
+          (\r -> (r,) <$> (eval . Eval . Codebase.dependents codebase) r)
           (toList closure)
       let graphEdges = [(r, r, toList deps) | (r, deps) <- toList dependents]
           (graph, getReference, _) = Graph.graphFromEdges graphEdges

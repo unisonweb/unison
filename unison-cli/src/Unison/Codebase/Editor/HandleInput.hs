@@ -552,8 +552,9 @@ loop = do
                     toRel = R.fromList . fmap (name,) . toList
                     -- these names are relative to the root
                     toDelete = Names (toRel tms) (toRel tys)
+                codebase <- LoopState.askCodebase
                 endangerments <-
-                  getEndangeredDependents (eval . GetDependents) toDelete rootNames
+                  getEndangeredDependents (eval . Eval . Codebase.dependents codebase) toDelete rootNames
                 if null endangerments
                   then do
                     let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
@@ -800,12 +801,13 @@ loop = do
                 -- Looks similar to the 'toDelete' above... investigate me! ;)
                 computeEndangerments :: Branch0 m1 -> Action' m v (Map LabeledDependency (NESet LabeledDependency))
                 computeEndangerments b0 = do
+                  codebase <- LoopState.askCodebase
                   let rootNames = Branch.toNames root0
                       toDelete =
                         Names.prefix0
                           (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
                           (Branch.toNames b0)
-                  getEndangeredDependents (eval . GetDependents) toDelete rootNames
+                  getEndangeredDependents (eval . Eval . Codebase.dependents codebase) toDelete rootNames
             SwitchBranchI maybePath' -> do
               mpath' <- case maybePath' of
                 Nothing ->
@@ -1724,6 +1726,7 @@ handleFindI isVerbose fscope ws input = do
 
 handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
 handleDependents hq = do
+  codebase <- LoopState.askCodebase
   hqLength <- eval CodebaseHashLength
   -- todo: add flag to handle transitive efficiently
   resolveHQToLabeledDependencies hq >>= \lds ->
@@ -1732,9 +1735,9 @@ handleDependents hq = do
       else for_ lds \ld -> do
         -- The full set of dependent references, any number of which may not have names in the current namespace.
         dependents <-
-          let tp r = eval $ GetDependents r
-              tm (Referent.Ref r) = eval $ GetDependents r
-              tm (Referent.Con (ConstructorReference r _cid) _ct) = eval $ GetDependents r
+          let tp r = eval $ Eval (Codebase.dependents codebase r)
+              tm (Referent.Ref r) = eval $ Eval (Codebase.dependents codebase r)
+              tm (Referent.Con (ConstructorReference r _cid) _ct) = eval $ Eval (Codebase.dependents codebase r)
            in LD.fold tp tm ld
         -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
         -- unambiguous name.
@@ -2636,8 +2639,9 @@ showTodoOutput getPpe patch names0 = do
 
 checkTodo :: Applicative m => Patch -> Names -> Action m i Symbol (TO.TodoOutput Symbol Ann)
 checkTodo patch names0 = do
+  codebase <- LoopState.askCodebase
   let shouldUpdate = Names.contains names0
-  f <- Propagate.computeFrontier (eval . GetDependents) patch shouldUpdate
+  f <- Propagate.computeFrontier (eval . Eval . Codebase.dependents codebase) patch shouldUpdate
   let dirty = R.dom f
       frontier = R.ran f
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
@@ -2645,7 +2649,7 @@ checkTodo patch names0 = do
   -- todo: something more intelligent here?
   let scoreFn = const 1
   remainingTransitive <-
-    frontierTransitiveDependents (eval . GetDependents) names0 frontier
+    frontierTransitiveDependents (eval . Eval . Codebase.dependents codebase) names0 frontier
   let scoredDirtyTerms =
         List.sortOn (view _1) [(scoreFn r, r, t) | (r, t) <- dirtyTerms]
       scoredDirtyTypes =

@@ -199,10 +199,6 @@ data
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
 
-  -- | Get the immediate (not transitive) dependents of the given reference
-  -- This might include historical definitions not in any current path; these
-  -- should be filtered by the caller of this command if that's not desired.
-  GetDependents :: Reference -> Command m i v (Set Reference)
   GetDependentsOfComponent :: H.Hash -> Command m i v (Set Reference)
   GetTermsOfType :: Type v Ann -> Command m i v (Set Referent)
   GetTermsMentioningType :: Type v Ann -> Command m i v (Set Referent)
@@ -283,7 +279,6 @@ commandName = \case
   LoadReflog -> "LoadReflog"
   PutTerm {} -> "PutTerm"
   PutDecl {} -> "PutDecl"
-  GetDependents {} -> "GetDependents"
   GetDependentsOfComponent {} -> "GetDependentsOfComponent"
   GetTermsOfType {} -> "GetTermsOfType"
   GetTermsMentioningType {} -> "GetTermsMentioningType"
