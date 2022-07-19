@@ -434,7 +434,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                       writeTerms =
                         traverse_
                           ( \(Reference.DerivedId id, (tm, tp)) ->
-                              eval $ PutTerm id tm tp
+                              eval $ Eval (Codebase.putTerm codebase id tm tp)
                           )
                   writeTerms
                     [(r, (tm, ty)) | (_old, r, tm, _oldTy, ty) <- joinedStuff]

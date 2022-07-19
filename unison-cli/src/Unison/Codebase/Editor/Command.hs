@@ -187,7 +187,6 @@ data
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
   -- load the reflog in file (chronological) order
   LoadReflog :: Command m i v [Reflog.Entry Branch.CausalHash]
-  PutTerm :: Reference.Id -> Term v Ann -> Type v Ann -> Command m i v ()
   PutDecl :: Reference.Id -> Decl v Ann -> Command m i v ()
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
@@ -264,7 +263,6 @@ commandName = \case
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
   AppendToReflog {} -> "AppendToReflog"
   LoadReflog -> "LoadReflog"
-  PutTerm {} -> "PutTerm"
   PutDecl {} -> "PutDecl"
   Execute {} -> "Execute"
   CreateAuthorInfo {} -> "CreateAuthorInfo"

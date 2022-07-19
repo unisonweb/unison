@@ -1021,6 +1021,7 @@ loop = do
                 xs -> pure xs
               for_ srcs' (docsI (show input) basicPrettyPrintNames)
             CreateAuthorI authorNameSegment authorFullName -> do
+              codebase <- LoopState.askCodebase
               initialBranch <- getAt currentPath'
               AuthorInfo
                 guid@(guidRef, _, _)
@@ -1028,7 +1029,7 @@ loop = do
                 copyrightHolder@(copyrightHolderRef, _, _) <-
                 eval $ CreateAuthorInfo authorFullName
               -- add the new definitions to the codebase and to the namespace
-              traverse_ (eval . uncurry3 PutTerm) [guid, author, copyrightHolder]
+              traverse_ (eval . Eval . uncurry3 (Codebase.putTerm codebase)) [guid, author, copyrightHolder]
               stepManyAt
                 Branch.CompressHistory
                 [ BranchUtil.makeAddTermName (resolveSplit' authorPath) (d authorRef) mempty,

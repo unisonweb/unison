@@ -158,7 +158,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         -- abstraction.
         toIO <- UnliftIO.askRunInIO
         lift $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (toIO . Free.fold go . action)
-      PutTerm r tm tp -> lift $ Codebase.putTerm codebase r tm tp
       PutDecl r decl -> lift $ Codebase.putTypeDeclaration codebase r decl
       LoadWatches kind rs -> lift $ catMaybes <$> traverse go (toList rs)
         where
