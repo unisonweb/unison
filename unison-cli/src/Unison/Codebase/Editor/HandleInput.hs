@@ -1570,7 +1570,9 @@ loop = do
                 traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
               for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
-            DebugClearWatchI {} -> eval ClearWatchCache
+            DebugClearWatchI {} -> do
+              codebase <- LoopState.askCodebase
+              eval (Eval (Codebase.clearWatches codebase))
             DebugDoctorI {} -> do
               r <- eval AnalyzeCodebaseIntegrity
               respond (IntegrityCheck r)

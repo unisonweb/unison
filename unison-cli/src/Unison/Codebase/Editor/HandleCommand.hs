@@ -199,7 +199,6 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
         let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
         lift (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
       FindShallow path -> liftIO $ Backend.findShallow codebase path
-      ClearWatchCache -> lift $ Codebase.clearWatches codebase
       FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
       CmdUnliftIO -> do
         -- Get the unlifter for the ReaderT we're currently working in.

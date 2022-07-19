@@ -184,7 +184,6 @@ data
   CreateAuthorInfo :: Text -> Command i v (AuthorInfo v Ann)
   RuntimeMain :: Command i v (Type v Ann)
   RuntimeTest :: Command i v (Type v Ann)
-  ClearWatchCache :: Command i v ()
   AnalyzeCodebaseIntegrity :: Command i v IntegrityResult
   -- | Trigger an interactive fuzzy search over the provided options and return all
   -- selected results.
@@ -259,7 +258,6 @@ commandName = \case
   LoadSearchResults {} -> "LoadSearchResults"
   GetDefinitionsBySuffixes {} -> "GetDefinitionsBySuffixes"
   FindShallow {} -> "FindShallow"
-  ClearWatchCache {} -> "ClearWatchCache"
   FuzzySelect {} -> "FuzzySelect"
   CmdUnliftIO {} -> "UnliftIO"
   UCMVersion {} -> "UCMVersion"
