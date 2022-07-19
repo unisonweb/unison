@@ -43,6 +43,14 @@ newtype Action m i v a = Action {unAction :: MaybeT (ReaderT (Env m v) (StateT (
   -- but it's currently in use.
   deriving newtype (MonadFail)
 
+resetAndUnlift :: forall m i v r. ((forall x. F m i v x -> m x) -> m r) -> Action m i v r
+resetAndUnlift k = do
+  RunInM ru <- eval ResetAndUnlift
+  eval (Eval (k ru))
+
+abort :: Action m i v r
+abort = eval Abort
+
 runAction :: Env m v -> LoopState m v -> Action m i v a -> (F m i v (Maybe a, LoopState m v))
 runAction env state (Action m) =
   m

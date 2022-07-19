@@ -151,6 +151,8 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
       SyncLocalRootBranch branch -> lift $ do
         setBranchRef branch
         Codebase.putRootBranch codebase branch
+      ResetAndUnlift -> undefined
+      Abort -> undefined
       ViewRemoteGitBranch ns gitBranchBehavior action -> do
         -- TODO: We probably won'd need to unlift anything once we remove the Command
         -- abstraction.

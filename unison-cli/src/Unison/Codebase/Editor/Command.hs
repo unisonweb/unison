@@ -9,6 +9,7 @@ module Unison.Codebase.Editor.Command
     SourceName,
     TypecheckingResult,
     LoadSourceResult (..),
+    RunInM (..),
     UseCache,
     EvalResult,
     commandName,
@@ -202,6 +203,8 @@ data
   -- Ideally we will eventually remove the Command type entirely and won't need
   -- this anymore.
   CmdUnliftIO :: Command m i v (UnliftIO (Free (Command m i v)))
+  ResetAndUnlift :: Command m i v (RunInM m i v)
+  Abort :: Command m i v a
   UCMVersion :: Command m i v UCMVersion
 
 instance MonadIO m => MonadIO (Free (Command m i v)) where
@@ -211,6 +214,9 @@ instance MonadIO m => MonadUnliftIO (Free (Command m i v)) where
   withRunInIO f = do
     UnliftIO.UnliftIO toIO <- Free.eval CmdUnliftIO
     liftIO $ f toIO
+
+newtype RunInM m i v
+  = RunInM (forall x. Free (Command m i v) x -> m x)
 
 type UseCache = Bool
 
@@ -224,6 +230,8 @@ lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 
 commandName :: Command m i v a -> String
 commandName = \case
+  Abort -> "Abort"
+  ResetAndUnlift {} -> "ResetAndUnlift"
   Eval {} -> "Eval"
   API -> "API"
   UI -> "UI"
