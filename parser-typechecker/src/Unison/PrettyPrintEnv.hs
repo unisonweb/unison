@@ -83,8 +83,8 @@ addFallback primary fallback =
 union :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
 union e1 e2 =
   PrettyPrintEnv
-    (termNames e1 <> termNames e2)
-    (typeNames e1 <> typeNames e2)
+    (\r -> termNames e1 r <|> termNames e2 r)
+    (\r -> typeNames e1 r <|> typeNames e2 r)
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
