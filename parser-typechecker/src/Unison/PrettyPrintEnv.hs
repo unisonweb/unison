@@ -51,9 +51,9 @@ data Perspective
 
 data PrettyPrintEnv = PrettyPrintEnv
   { -- names for terms, constructors, and requests
-    termNames :: Maybe (NESet Path.Absolute) -> Perspective -> Maybe Name -> Suffixify -> Referent -> [HQ'.HashQualified Name],
+    termNames :: Maybe (NESet Path.Absolute) -> Perspective -> Maybe Name -> Suffixify -> Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)],
     -- names for types
-    typeNames :: Maybe (NESet Path.Absolute) -> Perspective -> Maybe Name -> Suffixify -> Reference -> [HQ'.HashQualified Name],
+    typeNames :: Maybe (NESet Path.Absolute) -> Perspective -> Maybe Name -> Suffixify -> Reference -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)],
     -- allows adjusting a pretty-printer to a specific perspective
     perspective :: Perspective,
     -- Optionally restrict all names to names contained within any of these paths
@@ -102,11 +102,11 @@ biasTo bias ppe = ppe {bias = bias}
 
 terms :: PrettyPrintEnv -> Referent -> Maybe (HQ'.HashQualified Name)
 terms PrettyPrintEnv {termNames, perspective, bias, suffixify, restrictions} ref =
-  listToMaybe $ termNames restrictions perspective bias suffixify ref
+  fmap snd . listToMaybe $ termNames restrictions perspective bias suffixify ref
 
 types :: PrettyPrintEnv -> Reference -> Maybe (HQ'.HashQualified Name)
 types PrettyPrintEnv {typeNames, perspective, bias, suffixify, restrictions} ref =
-  listToMaybe $ typeNames restrictions perspective bias suffixify ref
+  fmap snd . listToMaybe $ typeNames restrictions perspective bias suffixify ref
 
 patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
 patterns ppe r =

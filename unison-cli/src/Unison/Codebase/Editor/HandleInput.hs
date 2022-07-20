@@ -173,6 +173,7 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Data.Maybe (fromJust)
+import Debug.Pretty.Simple (pTraceShowM)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -183,14 +184,17 @@ prettyPrintEnv = do
   root' <- use LoopState.root
   hashLen <- eval CodebaseHashLength
   currentPath' <- use LoopState.currentPath
-  pure $ Backend.getCurrentPrettyNames hashLen (PPE.RelativeTo currentPath') Nothing root'
+  let allAbsoluteNames = Names.makeAbsolute (Branch.toNames $ Branch.head root')
+  pTraceShowM ("Absolute Names" :: String, allAbsoluteNames)
+  pure $ PPE.fromNames hashLen Nothing (PPE.RelativeTo currentPath') Nothing PPE.Suffixify $ NamesWithHistory allAbsoluteNames mempty
 
-prettyPrintEnvWithFallback :: (MonadState (LoopState.LoopState m v) n, MonadCommand n m i v) => Names -> n PPE.PrettyPrintEnv
-prettyPrintEnvWithFallback fallback = do
-  ppe <- prettyPrintEnv
-  hashLen <- eval CodebaseHashLength
-  currentPath' <- use LoopState.currentPath
-  pure $ ppe <> PPE.fromNames hashLen Nothing (PPE.RelativeTo currentPath') Nothing PPE.NoSuffixify (NamesWithHistory.fromCurrentNames fallback)
+-- prettyPrintEnvWithFallback :: (MonadState (LoopState.LoopState m v) n, MonadCommand n m i v) => Names -> n PPE.PrettyPrintEnv
+-- prettyPrintEnvWithFallback fallback = do
+--   ppe <- prettyPrintEnv
+--   hashLen <- eval CodebaseHashLength
+--   currentPath' <- use LoopState.currentPath
+--   pTraceShowM ("Current Path" :: String, currentPath')
+--   pure $ ppe <> PPE.fromNames hashLen Nothing (PPE.RelativeTo currentPath') Nothing PPE.NoSuffixify (NamesWithHistory.fromCurrentNames fallback)
 
 loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
@@ -1578,7 +1582,7 @@ loop = do
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
-                  ppe <- PPE.unsuffixifiedPPE . PPE.restrictTo currentPath' <$> prettyPrintEnv
+                  ppe <- PPE.unsuffixifiedPPE <$> prettyPrintEnv
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> use LoopState.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
@@ -2975,10 +2979,11 @@ displayI ::
   HQ.HashQualified Name ->
   Action m (Either Event Input) Symbol ()
 displayI prettyPrintNames outputLoc hq = do
+  currentPathAbs <- use LoopState.currentPath
   uf <- use LoopState.latestTypecheckedFile >>= addWatch (HQ.toString hq)
   case uf of
     Nothing -> do
-      let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
+      let parseNames = NamesWithHistory.fromCurrentNames prettyPrintNames
           results = NamesWithHistory.lookupHQTerm hq parseNames
       if Set.null results
         then respond $ SearchTermsNotFound [hq]
@@ -2988,19 +2993,18 @@ displayI prettyPrintNames outputLoc hq = do
             else -- ... but use the unsuffixed names for display
             do
               let tm = Term.fromReferent External $ Set.findMin results
-              ppe <- PPE.biasTo (HQ.toName hq) <$> prettyPrintEnv
+              ppe <- PPE.biasTo (Path.prefixName currentPathAbs <$> HQ.toName hq) <$> prettyPrintEnv
               tm <- eval $ Evaluate1 (PPE.suffixifiedPPE ppe) True tm
               case tm of
                 Left e -> respond (EvaluationFailure e)
                 Right tm -> doDisplay outputLoc ppe (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
-      ppe <- executePPE unisonFile
+      ppe <- PPE.biasTo (Path.prefixName currentPathAbs <$> HQ.toName hq) <$> executePPE unisonFile
       unlessError' EvaluationFailure do
         evalResult <- ExceptT . eval . Evaluate ppe $ unisonFile
         case Command.lookupEvalResult toDisplay evalResult of
           Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
           Just tm -> lift do
-            ppe <- displayNames unisonFile
             doDisplay outputLoc ppe tm
 
 docsI ::
@@ -3300,12 +3304,16 @@ ppeFromLabeled ::
   Monad m => Set LabeledDependency -> Action' m v PPE.PrettyPrintEnv
 ppeFromLabeled deps = do
   root' <- use LoopState.root
-  (_missing, rawHistoricalNames) <-
+  (_missing, Names.makeAbsolute -> rawHistoricalNames) <-
     eval . Eval $
       Branch.findHistoricalRefs
         deps
         root'
-  prettyPrintEnvWithFallback rawHistoricalNames
+  pTraceShowM ("LabeledNames" :: String, rawHistoricalNames)
+  hashLen <- eval CodebaseHashLength
+  currentPath' <- use LoopState.currentPath
+  pTraceShowM ("Current Path" :: String, currentPath')
+  pure $ PPE.fromNames hashLen (Just (NESet.singleton currentPath')) (PPE.RelativeTo currentPath') Nothing PPE.NoSuffixify (NamesWithHistory.fromCurrentNames rawHistoricalNames)
 
 getTermsIncludingHistorical ::
   Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
