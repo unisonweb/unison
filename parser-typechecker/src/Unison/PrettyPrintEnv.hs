@@ -8,12 +8,15 @@ module Unison.PrettyPrintEnv
     types,
     termName,
     typeName,
+    biasTo,
     labeledRefName,
     -- | Exported only for cases where the codebase's configured hash length is unavailable.
     todoHashLength,
   )
 where
 
+import Data.Ord (Down (Down))
+import Data.Semigroup (Max (Max))
 import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.ConstructorType as CT
 import Unison.HashQualified (HashQualified)
@@ -22,6 +25,7 @@ import qualified Unison.HashQualified' as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
+import qualified Unison.Name as Name
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -89,3 +93,20 @@ instance Monoid PrettyPrintEnv where
 
 instance Semigroup PrettyPrintEnv where
   (<>) = mappend
+
+biasTo :: [Name] -> PrettyPrintEnv -> PrettyPrintEnv
+biasTo targets PrettyPrintEnv {termNames, typeNames} =
+  PrettyPrintEnv
+    { termNames = prioritizeBias targets . termNames,
+      typeNames = prioritizeBias targets . typeNames
+    }
+
+prioritizeBias :: [Name] -> [(HQ'.HashQualified Name, a)] -> [(HQ'.HashQualified Name, a)]
+prioritizeBias targets =
+  sortOn \(fqn, _) ->
+    targets
+      & foldMap
+        ( \target ->
+            Just (Max (Name.commonPrefix target (HQ'.toName fqn)))
+        )
+      & Down
