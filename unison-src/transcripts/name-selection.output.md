@@ -54,7 +54,7 @@ d = c + 10
     c : Nat
     d : Nat
 
-.a2> alias.term c aaaa.tooManySegments
+.a2> alias.term c long.name.but.shortest.suffixification
 
   Done.
 
@@ -379,7 +379,7 @@ d = c + 10
                                                          (Scope
                                                            s)
     164. ┌ c#gjmq673r1v                                : Nat
-    165. └ aaaa.tooManySegments                        : Nat
+    165. └ long.name.but.shortest.suffixification      : Nat
     166. builtin.Code.cache_                           : [( Term,
                                                          Code)]
                                                        ->{IO} [Term]
@@ -1347,7 +1347,9 @@ d = c + 10
        merge.
 
 ```
-At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2` namespace has an unconflicted definition for `c` and `d`, so those are preferred.
+At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized. 
+The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope, 
+`long.name.but.shortest.suffixification` is chosen because its suffixified version has the fewest segments.
 
 ```ucm
 .> view a b c d
@@ -1368,7 +1370,7 @@ At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2`
   a2.d : Nat
   a2.d =
     use Nat +
-    a2.c + 10
+    suffixification + 10
   
   a3.c#dcgdua2lj6 : Nat
   a3.c#dcgdua2lj6 = 2

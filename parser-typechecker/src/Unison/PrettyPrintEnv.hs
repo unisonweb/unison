@@ -4,6 +4,8 @@ module Unison.PrettyPrintEnv
   ( PrettyPrintEnv (..),
     patterns,
     patternName,
+    terms,
+    types,
     termName,
     typeName,
     labeledRefName,
@@ -26,11 +28,17 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 
 data PrettyPrintEnv = PrettyPrintEnv
-  { -- names for terms, constructors, and requests
-    terms :: Referent -> Maybe (HQ'.HashQualified Name),
-    -- names for types
-    types :: Reference -> Maybe (HQ'.HashQualified Name)
+  { -- names for terms, constructors, and requests; e.g. [(original name, relativized and/or suffixified pretty name)]
+    termNames :: Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)],
+    -- names for types; e.g. [(original name, relativized and/or suffixified pretty name)]
+    typeNames :: Reference -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
   }
+
+terms :: PrettyPrintEnv -> Referent -> Maybe (HQ'.HashQualified Name)
+terms ppe = fmap snd . listToMaybe . termNames ppe
+
+types :: PrettyPrintEnv -> Reference -> Maybe (HQ'.HashQualified Name)
+types ppe = fmap snd . listToMaybe . typeNames ppe
 
 patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
 patterns ppe r =
@@ -44,8 +52,8 @@ instance Show PrettyPrintEnv where
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
 unionLeft e1 e2 =
   PrettyPrintEnv
-    (\r -> terms e1 r <|> terms e2 r)
-    (\r -> types e1 r <|> types e2 r)
+    (\r -> termNames e1 r <|> termNames e2 r)
+    (\r -> typeNames e1 r <|> typeNames e2 r)
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
@@ -76,7 +84,7 @@ patternName env r =
     Nothing -> HQ.take todoHashLength $ HQ.fromPattern r
 
 instance Monoid PrettyPrintEnv where
-  mempty = PrettyPrintEnv (const Nothing) (const Nothing)
+  mempty = PrettyPrintEnv (const []) (const [])
   mappend = unionLeft
 
 instance Semigroup PrettyPrintEnv where

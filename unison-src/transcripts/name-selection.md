@@ -40,7 +40,7 @@ d = c + 10
 ```
 ```ucm
 .a2> add
-.a2> alias.term c aaaa.tooManySegments
+.a2> alias.term c long.name.but.shortest.suffixification
 ```
 
 ```unison:hide
@@ -53,7 +53,9 @@ d = c + 10
 .a3> merge .a2 .a3
 ```
 
-At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2` namespace has an unconflicted definition for `c` and `d`, so those are preferred.
+At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized. 
+The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope, 
+`long.name.but.shortest.suffixification` is chosen because its suffixified version has the fewest segments.
 
 ```ucm
 .> view a b c d
