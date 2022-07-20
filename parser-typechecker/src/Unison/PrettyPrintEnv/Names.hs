@@ -4,7 +4,6 @@ module Unison.PrettyPrintEnv.Names (fromNames, fromSuffixNames) where
 
 import Data.Bifunctor (second)
 import qualified Data.Set as Set
-import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
@@ -23,13 +22,11 @@ fromNames len names = PrettyPrintEnv terms' types'
         & Set.toList
         & fmap (\n -> (n, n))
         & prioritize
-        & Debug.debug Debug.Names (show ("Prioritized names" :: String, r))
     types' r =
       NamesWithHistory.typeName len r names
         & Set.toList
         & fmap (\n -> (n, n))
         & prioritize
-        & Debug.debug Debug.Names (show ("Prioritized names" :: String, r))
 
 prioritize :: [(HQ'.HashQualified Name, HQ'.HashQualified Name)] -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
 prioritize =
@@ -46,14 +43,12 @@ fromSuffixNames len names = PrettyPrintEnv terms' types'
         & fmap (\n -> (n, n))
         & shortestUniqueSuffixes r (Names.terms $ NamesWithHistory.currentNames names)
         & prioritize
-        & Debug.debug Debug.Names (show ("Prioritized suffixed names" :: String, r))
     types' r =
       NamesWithHistory.typeName len r names
         & Set.toList
         & fmap (\n -> (n, n))
         & shortestUniqueSuffixes r (Names.types $ NamesWithHistory.currentNames names)
         & prioritize
-        & Debug.debug Debug.Names (show ("Prioritized suffixed names" :: String, r))
 
 shortestUniqueSuffixes :: Ord ref => ref -> Rel.Relation Name ref -> [(a, HQ'.HashQualified Name)] -> [(a, HQ'.HashQualified Name)]
 shortestUniqueSuffixes ref rel names = names <&> second (fmap (\name -> Name.shortestUniqueSuffix name ref rel))

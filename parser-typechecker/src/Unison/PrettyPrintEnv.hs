@@ -12,7 +12,9 @@ module Unison.PrettyPrintEnv
     labeledRefName,
     -- | Exported only for cases where the codebase's configured hash length is unavailable.
     todoHashLength,
-    fallback,
+    addFallback,
+    union,
+    empty,
   )
 where
 
@@ -20,7 +22,6 @@ import Data.Ord (Down (Down))
 import Data.Semigroup (Max (Max))
 import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.ConstructorType as CT
-import qualified Unison.Debug as Debug
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -28,7 +29,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.Prelude
+import Unison.Prelude hiding (empty)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -54,23 +55,31 @@ patterns ppe r =
 instance Show PrettyPrintEnv where
   show _ = "PrettyPrintEnv"
 
--- Left-biased union of environments
-fallback :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
-fallback e1 e2 =
+-- | Attempts to find a name in primary ppe, falls back to backup ppe only if no names are
+-- found.
+addFallback :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
+addFallback primary fallback =
   PrettyPrintEnv
     ( \r ->
-        let primary = termNames e1 r
-         in if null primary
-              then termNames e2 r
-              else primary
+        let primaryNames = termNames primary r
+         in if null primaryNames
+              then termNames fallback r
+              else primaryNames
     )
     ( \r ->
-        let primary = typeNames e1 r
-         in if null primary
-              then typeNames e2 r
-              else primary
+        let primaryNames = typeNames primary r
+         in if null primaryNames
+              then typeNames fallback r
+              else primaryNames
     )
 
+-- | Finds names from both PPEs.
+--
+-- This is distinct from `addFallback` with respect to biasing;
+-- A bias applied to a union might select a name in the right half of the union.
+-- Whereas, a bias applied to the result of `addFallback` will bias within the available names
+-- inside the left PPE and will only search in the fallback if there aren't ANY names in the
+-- primary ppe.
 union :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
 union e1 e2 =
   PrettyPrintEnv
@@ -105,33 +114,42 @@ patternName env r =
     Just name -> HQ'.toHQ name
     Nothing -> HQ.take todoHashLength $ HQ.fromPattern r
 
-instance Monoid PrettyPrintEnv where
-  mempty = PrettyPrintEnv (const []) (const [])
+empty :: PrettyPrintEnv
+empty = PrettyPrintEnv mempty mempty
 
-instance Semigroup PrettyPrintEnv where
-  (<>) = union
-
+-- | Prefer names which share a common prefix with any provided target.
+--
+-- Results are sorted according to the longest common prefix found against ANY target.
 biasTo :: [Name] -> PrettyPrintEnv -> PrettyPrintEnv
 biasTo targets PrettyPrintEnv {termNames, typeNames} =
   PrettyPrintEnv
     { termNames = \r ->
         r
           & termNames
-          & prioritizeBias targets
-          & Debug.debugLog Debug.Names (show ("Biased to:" :: String, targets)),
+          & prioritizeBias targets,
       typeNames = \r ->
         r
           & typeNames
           & prioritizeBias targets
-          & Debug.debugLog Debug.Names (show ("Biased to:" :: String, targets))
     }
 
+-- | Prefer names which share a common prefix with any provided target.
+--
+-- Results are sorted according to the longest common prefix found against ANY target.
+--
+-- >>> prioritizeBias ["a.b", "x"] [(HQ'.unsafeFromText "q", ()), (HQ'.unsafeFromText "x.y", ()), (HQ'.unsafeFromText "a.b.c", ())]
+-- [(a.b.c,()),(x.y,()),(q,())]
+--
+-- Sort is stable if there are no common prefixes
+-- >>> prioritizeBias ["not-applicable"] [(HQ'.unsafeFromText "q", ()), (HQ'.unsafeFromText "a.b.c", ()), (HQ'.unsafeFromText "x", ())]
+-- [(q,()),(a.b.c,()),(x,())]
 prioritizeBias :: [Name] -> [(HQ'.HashQualified Name, a)] -> [(HQ'.HashQualified Name, a)]
 prioritizeBias targets =
   sortOn \(fqn, _) ->
     targets
       & foldMap
         ( \target ->
-            Just (Max (Name.commonPrefix target (HQ'.toName fqn)))
+            Just (Max (length $ Name.commonPrefix target (HQ'.toName fqn)))
         )
-      & Down
+      & fromMaybe 0
+      & Down -- Sort large common prefixes highest
