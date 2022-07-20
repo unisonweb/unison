@@ -183,9 +183,9 @@ namesForBranch root scope =
       where
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
         rootNames = Branch.toNames root0
-        pathPrefixed = case path of
-          Path.Path (toList -> []) -> const mempty
-          p -> Names.prefix0 (Path.toName p)
+        pathPrefixed = case Path.toName path of
+          Nothing -> const mempty
+          Just pathName -> Names.prefix0 pathName
     -- parsing should respond to local and absolute names
     parseNames0 = currentPathNames <> Monoid.whenM includeAllNames absoluteRootNames
     -- pretty-printing should use local names where available
@@ -635,10 +635,12 @@ getCurrentParseNames scope root =
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
 fixupNamesRelative :: Path.Absolute -> Names -> Names
-fixupNamesRelative root = Names.map fixName
+fixupNamesRelative root names =
+  case (Path.toName $ Path.unabsolute root) of
+    Nothing -> names
+    Just prefix -> Names.map (fixName prefix) names
   where
-    prefix = Path.toName $ Path.unabsolute root
-    fixName n =
+    fixName prefix n =
       if root == Path.absoluteEmpty
         then n
         else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)

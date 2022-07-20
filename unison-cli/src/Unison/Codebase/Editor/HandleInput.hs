@@ -549,7 +549,7 @@ loop = do
               resolvedPath = resolveSplit' (HQ'.toName <$> hq)
               goMany tms tys = do
                 let rootNames = Branch.toNames root0
-                    name = Path.toName (Path.unsplit resolvedPath)
+                    name = Path.unsafeToName (Path.unsplit resolvedPath)
                     toRel :: Ord ref => Set ref -> R.Relation Name ref
                     toRel = R.fromList . fmap (name,) . toList
                     -- these names are relative to the root
@@ -802,7 +802,7 @@ loop = do
                   let rootNames = Branch.toNames root0
                       toDelete =
                         Names.prefix0
-                          (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
+                          (Path.unsafeToName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
                           (Branch.toNames b0)
                   getEndangeredDependents (eval . GetDependents) toDelete rootNames
             SwitchBranchI maybePath' -> do
@@ -967,7 +967,7 @@ loop = do
                         (Just as1, Just as2) -> (missingSrcs, actions ++ as1 ++ as2)
 
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
-                fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
+                fixupOutput = fmap Path.unsafeToName . HQ'.toHQ . Path.unsplitHQ
             NamesI global thing -> do
               ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
               let ns = NamesWithHistory ns0 mempty
@@ -997,7 +997,7 @@ loop = do
               (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
               lift do
                 LoopState.numberedArgs .= fmap (HQ.toString . view _1) out
-                respond $ ListOfLinks ppe out
+                respond $ ListOfLinks (PPE.biasTo (maybeToList . Path.toName' . HQ'.toName $ Path.unsplitHQ' src) ppe) out
             DocsI srcs -> do
               srcs' <- case srcs of
                 [] ->
@@ -1087,7 +1087,7 @@ loop = do
             ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
             FindPatchI -> do
               let patches =
-                    [ Path.toName $ Path.snoc p seg
+                    [ Path.unsafeToName $ Path.snoc p seg
                       | (p, b) <- Branch.toList0 currentBranch0,
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
@@ -2679,7 +2679,7 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
     Nothing -> []
     Just b -> SR.fromNames . Names.prefix0 n $ names0
       where
-        lastName = Path.toName (Path.singleton last)
+        lastName = (Name.fromSegment last)
         subnames =
           Branch.toNames . Branch.head $
             Branch.getAt' (Path.singleton last) b
@@ -2851,7 +2851,7 @@ getHQTerms = \case
             & Path.resolve currentPath'
             & Path.unabsolute
             & Path.toName
-    pure $ R.lookupRan path (Branch.deepTerms root0)
+    pure $ fromMaybe mempty $ (R.lookupRan <$> path <*> pure (Branch.deepTerms root0))
   HQ.HashOnly sh -> hashOnly sh
   HQ.HashQualified _ sh -> hashOnly sh
   where
@@ -3098,7 +3098,7 @@ docsI srcLoc prettyPrintNames src = do
     hq :: HQ.HashQualified Name
     hq =
       let hq' :: HQ'.HashQualified Name
-          hq' = Name.convert @Path.Path' @Name <$> Name.convert src
+          hq' = Path.unsafeToName' <$> Name.convert src
        in Name.convert hq'
 
     dotDoc :: HQ.HashQualified Name
@@ -3282,11 +3282,12 @@ loadDisplayInfo refs = do
 fixupNamesRelative :: Path.Absolute -> Names -> Names
 fixupNamesRelative currentPath' = Names.map fixName
   where
-    prefix = Path.toName (Path.unabsolute currentPath')
     fixName n =
       if currentPath' == Path.absoluteEmpty
         then n
-        else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
+        else fromMaybe (Name.makeAbsolute n) do
+             prefix <- Path.toName (Path.unabsolute currentPath')
+             Name.stripNamePrefix prefix n
 
 makeHistoricalParsingNames ::
   Monad m => Set (HQ.HashQualified Name) -> Action' m v NamesWithHistory
@@ -3409,7 +3410,7 @@ findHistoricalHQs lexedHQs0 = do
         _ ->
           if Path.isRoot curPath
             then n
-            else Name.joinDot (Path.toName . Path.unabsolute $ curPath) n
+            else Name.joinDot (Path.unsafeToName . Path.unabsolute $ curPath) n
 
       lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root'

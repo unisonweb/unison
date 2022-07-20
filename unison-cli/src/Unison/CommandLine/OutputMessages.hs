@@ -1316,7 +1316,7 @@ notifyUser dir o = case o of
       ]
     where
       name :: Name
-      name = Path.toName' (HQ'.toName (Path.unsplitHQ' p))
+      name = Path.unsafeToName' (HQ'.toName (Path.unsplitHQ' p))
       qualifyTerm :: Referent -> Pretty
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
       qualifyType :: Reference -> Pretty
