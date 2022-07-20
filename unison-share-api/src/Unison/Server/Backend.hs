@@ -620,8 +620,8 @@ getCurrentPrettyNames hashLen scope root =
   let primary = PPE.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
       backup = PPE.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
    in PPE.PrettyPrintEnvDecl
-        (PPE.unsuffixifiedPPE primary `PPE.fallback` PPE.unsuffixifiedPPE backup)
-        (PPE.suffixifiedPPE primary `PPE.fallback` PPE.suffixifiedPPE backup)
+        (PPE.unsuffixifiedPPE primary `PPE.addFallback` PPE.unsuffixifiedPPE backup)
+        (PPE.suffixifiedPPE primary `PPE.addFallback` PPE.suffixifiedPPE backup)
 
 getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
 getCurrentParseNames scope root =
@@ -1103,10 +1103,10 @@ scopedNamesForBranchHash codebase mbh path = do
   pure (parseNames, localNames, mkPPE localPPE globalPPE)
   where
     mkPPE :: PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl
-    mkPPE primary fallback =
+    mkPPE primary addFallback =
       PPE.PrettyPrintEnvDecl
-        (PPE.unsuffixifiedPPE primary `PPE.fallback` PPE.unsuffixifiedPPE fallback)
-        (PPE.suffixifiedPPE primary `PPE.fallback` PPE.suffixifiedPPE fallback)
+        (PPE.unsuffixifiedPPE primary `PPE.addFallback` PPE.unsuffixifiedPPE addFallback)
+        (PPE.suffixifiedPPE primary `PPE.addFallback` PPE.suffixifiedPPE addFallback)
     indexNames :: Backend m (Names, Names)
     indexNames = do
       scopedNames <- lift $ Codebase.namesAtPath codebase path

@@ -42,5 +42,5 @@ execute codebase runtime mainName =
       MainTerm.BadType s _ -> die (s ++ " is not of type '{IO} ()")
       MainTerm.Success _ tm _ -> do
         let codeLookup = Codebase.toCodeLookup codebase
-            ppe = PPE.PrettyPrintEnv (const []) (const [])
+            ppe = PPE.empty
         void $ Runtime.evaluateTerm codeLookup ppe runtime tm

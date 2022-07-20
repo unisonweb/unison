@@ -3136,9 +3136,9 @@ docsI srcLoc prettyPrintNames src = do
       case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
         s
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
-          | Set.size s == 0 -> respond $ ListOfLinks mempty []
+          | Set.size s == 0 -> respond $ ListOfLinks PPE.empty []
           | otherwise -> -- todo: return a list of links here too
-            respond $ ListOfLinks mempty []
+            respond $ ListOfLinks PPE.empty []
 
 filterBySlurpResult ::
   Ord v =>
