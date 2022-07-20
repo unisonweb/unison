@@ -1381,3 +1381,82 @@ The original `a2` namespace has an unconflicted definition for `c` and `d`, but 
     c#dcgdua2lj6 + 10
 
 ```
+## Name biasing
+
+```unison
+deeply.nested.term = 
+  a + 1
+
+deeply.nested.value = 10
+
+a = 10
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      a                   : Nat
+      deeply.nested.term  : Nat
+      deeply.nested.value : Nat
+
+```
+```ucm
+  ☝️  The namespace .biasing is empty.
+
+.biasing> add
+
+  ⍟ I've added these definitions:
+  
+    a                   : Nat
+    deeply.nested.term  : Nat
+    deeply.nested.value : Nat
+
+-- Despite being saved with name `a`, 
+-- the pretty printer should prefer the suffixified 'deeply.nested.value name' over the shallow 'a'.
+-- It's closer to the term being printed.
+.biasing> view deeply.nested.term
+
+  deeply.nested.term : Nat
+  deeply.nested.term =
+    use Nat +
+    value + 1
+
+```
+Add another term with `value` suffix to force longer suffixification of `deeply.nested.value`
+
+```unison
+other.value = 20
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      other.value : Nat
+
+```
+```ucm
+.biasing> add
+
+  ⍟ I've added these definitions:
+  
+    other.value : Nat
+
+-- nested.value should still be preferred even if the suffixification requires more segments than `a`
+.biasing> view deeply.nested.term
+
+  deeply.nested.term : Nat
+  deeply.nested.term =
+    use Nat +
+    nested.value + 1
+
+```

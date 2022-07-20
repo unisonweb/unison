@@ -60,3 +60,35 @@ The original `a2` namespace has an unconflicted definition for `c` and `d`, but 
 ```ucm
 .> view a b c d
 ```
+
+## Name biasing
+
+```unison
+deeply.nested.term = 
+  a + 1
+
+deeply.nested.value = 10
+
+a = 10
+```
+
+```ucm
+.biasing> add
+-- Despite being saved with name `a`, 
+-- the pretty printer should prefer the suffixified 'deeply.nested.value name' over the shallow 'a'.
+-- It's closer to the term being printed.
+.biasing> view deeply.nested.term
+```
+
+Add another term with `value` suffix to force longer suffixification of `deeply.nested.value`
+
+```unison
+other.value = 20
+```
+
+```ucm
+.biasing> add
+-- nested.value should still be preferred even if the suffixification requires more segments than `a`
+.biasing> view deeply.nested.term
+```
+
