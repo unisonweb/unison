@@ -337,9 +337,9 @@ prepareEvaluation ppe tm ctx = do
             $ Map.fromList bs,
         mn <- Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0,
         rmn <- RF.DerivedId $ Hashing.hashClosedTerm mn =
-        (rmn, (rmn, mn) : Map.elems hcs)
+          (rmn, (rmn, mn) : Map.elems hcs)
       | rmn <- RF.DerivedId $ Hashing.hashClosedTerm tm =
-        (rmn, [(rmn, tm)])
+          (rmn, [(rmn, tm)])
 
     (rgrp, rbkr) = intermediateTerms ppe ctx rtms
 
@@ -402,55 +402,55 @@ executeMainComb init cc =
     handler (BU nm c) = do
       crs <- readTVarIO (combRefs cc)
       let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
-      pure . either id (bugMsg (error "mempty") nm) $ decom c
+      pure . either id (bugMsg mempty nm) $ decom c
 
 bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
 bugMsg ppe name tm
   | name == "blank expression" =
-    P.callout icon . P.lines $
-      [ P.wrap
-          ( "I encountered a" <> P.red (P.text name)
-              <> "with the following name/message:"
-          ),
-        "",
-        P.indentN 2 $ pretty ppe tm,
-        "",
-        sorryMsg
-      ]
+      P.callout icon . P.lines $
+        [ P.wrap
+            ( "I encountered a" <> P.red (P.text name)
+                <> "with the following name/message:"
+            ),
+          "",
+          P.indentN 2 $ pretty ppe tm,
+          "",
+          sorryMsg
+        ]
   | "pattern match failure" `isPrefixOf` name =
-    P.callout icon . P.lines $
-      [ P.wrap
-          ( "I've encountered a" <> P.red (P.text name)
-              <> "while scrutinizing:"
-          ),
-        "",
-        P.indentN 2 $ pretty ppe tm,
-        "",
-        "This happens when calling a function that doesn't handle all \
-        \possible inputs",
-        sorryMsg
-      ]
+      P.callout icon . P.lines $
+        [ P.wrap
+            ( "I've encountered a" <> P.red (P.text name)
+                <> "while scrutinizing:"
+            ),
+          "",
+          P.indentN 2 $ pretty ppe tm,
+          "",
+          "This happens when calling a function that doesn't handle all \
+          \possible inputs",
+          sorryMsg
+        ]
   | name == "builtin.raise" =
-    P.callout icon . P.lines $
-      [ P.wrap ("The program halted with an unhandled exception:"),
-        "",
-        P.indentN 2 $ pretty ppe tm
-      ]
+      P.callout icon . P.lines $
+        [ P.wrap ("The program halted with an unhandled exception:"),
+          "",
+          P.indentN 2 $ pretty ppe tm
+        ]
   | name == "builtin.bug",
     RF.TupleTerm' [Tm.Text' msg, x] <- tm,
     "pattern match failure" `isPrefixOf` msg =
-    P.callout icon . P.lines $
-      [ P.wrap
-          ( "I've encountered a" <> P.red (P.text msg)
-              <> "while scrutinizing:"
-          ),
-        "",
-        P.indentN 2 $ pretty ppe x,
-        "",
-        "This happens when calling a function that doesn't handle all \
-        \possible inputs",
-        sorryMsg
-      ]
+      P.callout icon . P.lines $
+        [ P.wrap
+            ( "I've encountered a" <> P.red (P.text msg)
+                <> "while scrutinizing:"
+            ),
+          "",
+          P.indentN 2 $ pretty ppe x,
+          "",
+          "This happens when calling a function that doesn't handle all \
+          \possible inputs",
+          sorryMsg
+        ]
 bugMsg ppe name tm =
   P.callout icon . P.lines $
     [ P.wrap
@@ -617,7 +617,7 @@ traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init
     go acc w
       | hasKey w acc = pure acc
       | Just co <- EC.lookup w src =
-        foldlM go (mapInsert w co acc) (foldMap combDeps co)
+          foldlM go (mapInsert w co acc) (foldMap combDeps co)
       | otherwise = die $ "traceNeeded: unknown combinator: " ++ show w
 
 buildSCache ::

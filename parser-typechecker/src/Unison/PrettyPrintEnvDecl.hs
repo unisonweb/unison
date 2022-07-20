@@ -20,6 +20,7 @@ data PrettyPrintEnvDecl = PrettyPrintEnvDecl
   }
   deriving (Show)
 
+-- | Lifts 'biasTo' over a PrettyPrintEnvDecl
 biasTo :: [Name] -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
 biasTo targets PrettyPrintEnvDecl {unsuffixifiedPPE, suffixifiedPPE} =
   PrettyPrintEnvDecl
