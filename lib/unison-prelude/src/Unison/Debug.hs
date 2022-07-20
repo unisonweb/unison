@@ -28,6 +28,8 @@ data DebugFlag
   | Migration
   | Sqlite
   | Sync
+  | -- Debug pretty printers and how names are selected
+    Names
   | -- | Timing how long things take
     Timing
   deriving (Eq, Ord, Show, Bounded, Enum)
@@ -49,6 +51,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "SQLITE" -> pure Sqlite
       "SYNC" -> pure Sync
       "TIMING" -> pure Timing
+      "NAMES" -> pure Names
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -84,6 +87,10 @@ debugTiming :: Bool
 debugTiming = Timing `Set.member` debugFlags
 {-# NOINLINE debugTiming #-}
 
+debugNames :: Bool
+debugNames = Names `Set.member` debugFlags
+{-# NOINLINE debugNames #-}
+
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
 --
@@ -93,7 +100,7 @@ debugTiming = Timing `Set.member` debugFlags
 debug :: Show a => DebugFlag -> String -> a -> a
 debug flag msg a =
   if shouldDebug flag
-    then pTrace (msg <> ":\n") $ pTraceShowId a
+    then pTraceShowId (pTrace (msg <> ":\n") a)
     else a
 
 -- | Use for selective debug logging in monadic contexts.
@@ -132,3 +139,4 @@ shouldDebug = \case
   Sqlite -> debugSqlite
   Sync -> debugSync
   Timing -> debugTiming
+  Names -> debugNames

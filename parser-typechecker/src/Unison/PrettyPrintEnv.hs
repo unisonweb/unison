@@ -12,6 +12,7 @@ module Unison.PrettyPrintEnv
     labeledRefName,
     -- | Exported only for cases where the codebase's configured hash length is unavailable.
     todoHashLength,
+    fallback,
   )
 where
 
@@ -19,6 +20,7 @@ import Data.Ord (Down (Down))
 import Data.Semigroup (Max (Max))
 import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.ConstructorType as CT
+import qualified Unison.Debug as Debug
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -53,11 +55,27 @@ instance Show PrettyPrintEnv where
   show _ = "PrettyPrintEnv"
 
 -- Left-biased union of environments
-unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
-unionLeft e1 e2 =
+fallback :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
+fallback e1 e2 =
   PrettyPrintEnv
-    (\r -> termNames e1 r <|> termNames e2 r)
-    (\r -> typeNames e1 r <|> typeNames e2 r)
+    ( \r ->
+        let primary = termNames e1 r
+         in if null primary
+              then termNames e2 r
+              else primary
+    )
+    ( \r ->
+        let primary = typeNames e1 r
+         in if null primary
+              then typeNames e2 r
+              else primary
+    )
+
+union :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
+union e1 e2 =
+  PrettyPrintEnv
+    (termNames e1 <> termNames e2)
+    (typeNames e1 <> typeNames e2)
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
@@ -89,16 +107,23 @@ patternName env r =
 
 instance Monoid PrettyPrintEnv where
   mempty = PrettyPrintEnv (const []) (const [])
-  mappend = unionLeft
 
 instance Semigroup PrettyPrintEnv where
-  (<>) = mappend
+  (<>) = union
 
 biasTo :: [Name] -> PrettyPrintEnv -> PrettyPrintEnv
 biasTo targets PrettyPrintEnv {termNames, typeNames} =
   PrettyPrintEnv
-    { termNames = prioritizeBias targets . termNames,
-      typeNames = prioritizeBias targets . typeNames
+    { termNames = \r ->
+        r
+          & termNames
+          & prioritizeBias targets
+          & Debug.debugLog Debug.Names (show ("Biased to:" :: String, targets)),
+      typeNames = \r ->
+        r
+          & typeNames
+          & prioritizeBias targets
+          & Debug.debugLog Debug.Names (show ("Biased to:" :: String, targets))
     }
 
 prioritizeBias :: [Name] -> [(HQ'.HashQualified Name, a)] -> [(HQ'.HashQualified Name, a)]

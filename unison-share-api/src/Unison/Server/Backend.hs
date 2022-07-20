@@ -620,8 +620,8 @@ getCurrentPrettyNames hashLen scope root =
   let primary = PPE.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
       backup = PPE.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
    in PPE.PrettyPrintEnvDecl
-        (PPE.unsuffixifiedPPE primary <> PPE.unsuffixifiedPPE backup)
-        (PPE.suffixifiedPPE primary <> PPE.suffixifiedPPE backup)
+        (PPE.unsuffixifiedPPE primary `PPE.fallback` PPE.unsuffixifiedPPE backup)
+        (PPE.suffixifiedPPE primary `PPE.fallback` PPE.suffixifiedPPE backup)
 
 getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
 getCurrentParseNames scope root =
@@ -1087,9 +1087,9 @@ scopedNamesForBranchHash codebase mbh path = do
     Nothing
       | shouldUseNamesIndex -> indexNames
       | otherwise -> do
-          rootBranch <- lift $ Codebase.getRootBranch codebase
-          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-          pure (parseNames, localNames)
+        rootBranch <- lift $ Codebase.getRootBranch codebase
+        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+        pure (parseNames, localNames)
     Just bh -> do
       rootHash <- lift $ Codebase.getRootBranchHash codebase
       if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
@@ -1105,8 +1105,8 @@ scopedNamesForBranchHash codebase mbh path = do
     mkPPE :: PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl -> PPE.PrettyPrintEnvDecl
     mkPPE primary fallback =
       PPE.PrettyPrintEnvDecl
-        (PPE.unsuffixifiedPPE primary <> PPE.unsuffixifiedPPE fallback)
-        (PPE.suffixifiedPPE primary <> PPE.suffixifiedPPE fallback)
+        (PPE.unsuffixifiedPPE primary `PPE.fallback` PPE.unsuffixifiedPPE fallback)
+        (PPE.suffixifiedPPE primary `PPE.fallback` PPE.suffixifiedPPE fallback)
     indexNames :: Backend m (Names, Names)
     indexNames = do
       scopedNames <- lift $ Codebase.namesAtPath codebase path
