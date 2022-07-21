@@ -12,7 +12,9 @@ import Control.Error.Util (hush)
 import Control.Lens
 import Data.Configurator ()
 import qualified Data.Graph as Graph
+import Unison.FileParsers (synthesizeFile')
 import qualified Data.Map as Map
+import qualified Unison.Builtin as Builtin
 import qualified Data.Set as Set
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -20,6 +22,7 @@ import Unison.Codebase.Branch (Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Command
+import qualified Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch (..))
@@ -534,12 +537,19 @@ propagate codebase rootNames patch b = case validatePatch patch of
                   mempty
                   (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
                   mempty
-          typecheckResult <- eval $ TypecheckFile file []
+          typecheckResult <- typecheckFile [] file
           pure
             . fmap UF.hashTerms
             $ runIdentity (Result.toMaybe typecheckResult)
               >>= hush
 
+typecheckFile :: [Type Symbol Ann] -> UF.UnisonFile Symbol Ann -> Action (TypecheckingResult Symbol)
+typecheckFile ambient file = do
+  codebase <- Command.askCodebase
+  typeLookup <- liftIO (Codebase.typeLookupForDependencies codebase (UF.dependencies file))
+  pure . fmap Right $ synthesizeFile' ambient (typeLookup <> Builtin.typeLookup) file
+
+        -- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
 unhashTypeComponent :: Codebase IO Symbol Ann -> Reference -> Action (Map Symbol (Reference, Decl Symbol Ann))
 unhashTypeComponent codebase r = case Reference.toId r of
   Nothing -> pure mempty

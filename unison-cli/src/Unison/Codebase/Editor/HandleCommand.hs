@@ -20,14 +20,13 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Command (Action (..), Command (..), Env, LexedSource, LoopState, SourceName, TypecheckingResult)
 import Unison.Codebase.Editor.Input (Event, Input)
-import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
+import Unison.FileParsers (parseAndSynthesizeFile)
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
 import Unison.Type (Type)
-import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Free as Free
 import qualified UnliftIO
 
@@ -47,18 +46,6 @@ typecheck ambient codebase parsingEnv sourceName src =
       parsingEnv
       (Text.unpack sourceName)
       (fst src)
-
-typecheck' ::
-  Monad m =>
-  [Type Symbol Ann] ->
-  Codebase m Symbol Ann ->
-  UF.UnisonFile Symbol Ann ->
-  m (TypecheckingResult Symbol)
-typecheck' ambient codebase file = do
-  typeLookup <-
-    (<> B.typeLookup)
-      <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
-  pure . fmap Right $ synthesizeFile' ambient typeLookup file
 
 data ReturnType a
   = Success a
@@ -129,7 +116,6 @@ commandLine env0 loopState0 awaitInput setBranchRef codebase rngGen action = do
           let namegen = Parser.uniqueBase32Namegen rng
               env = Parser.ParsingEnv namegen names
           liftIO $ typecheck ambient codebase env sourceName source
-        TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
         SyncLocalRootBranch branch -> liftIO $ do
           setBranchRef branch
           Codebase.putRootBranch codebase branch

@@ -109,10 +109,6 @@ data Command a where
     SourceName ->
     LexedSource ->
     Command (TypecheckingResult Symbol)
-  TypecheckFile ::
-    UF.UnisonFile Symbol Ann ->
-    [Type Symbol Ann] ->
-    Command (TypecheckingResult Symbol)
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
@@ -148,7 +144,6 @@ commandName = \case
   WithRunInIO {} -> "WithRunInIO"
   Eval {} -> "Eval"
   Typecheck {} -> "Typecheck"
-  TypecheckFile {} -> "TypecheckFile"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
 
 data LoopState = LoopState
