@@ -152,7 +152,6 @@ commandLine env0 loopState0 awaitInput setBranchRef rt sdbxRt notifyUser notifyN
                     P.newline,
                     P.indentN 2 (P.hiBlue ("API: " <> fromString (Server.urlFor Server.Api baseUrl)))
                   ]
-        Notify output -> liftIO $ notifyUser output
         NotifyNumbered output -> liftIO $ notifyNumbered output
         LoadSource sourcePath -> liftIO $ loadSource sourcePath
         Typecheck ambient names sourceName source -> do

@@ -306,7 +306,7 @@ loop e = do
 
   case e of
     Left (IncomingRootBranch hashes) ->
-      eval . Notify $
+      respond $
         WarnIncomingRootBranch
           (SBH.fromHash sbhLength $ Branch.headHash root')
           (Set.map (SBH.fromHash sbhLength) hashes)
@@ -1539,7 +1539,7 @@ loop e = do
                     datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
                     effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
                     terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
-                 in eval . Notify $ DumpUnisonFileHashes hqLength datas effects terms
+                 in respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
@@ -1612,7 +1612,7 @@ loop e = do
               ucmVersion <- asks Command.ucmVersion
               respond $ PrintVersion ucmVersion
       where
-        notImplemented = eval $ Notify NotImplemented
+        notImplemented = respond NotImplemented
         success = respond Success
 
   case e of

@@ -239,7 +239,7 @@ propagate ::
   Action (Edits Symbol)
 propagate codebase rootNames patch b = case validatePatch patch of
   Nothing -> do
-    eval $ Notify PatchNeedsToBeConflictFree
+    respond PatchNeedsToBeConflictFree
     pure noEdits
   Just (initialTermEdits, initialTypeEdits) -> do
     let entireBranch =

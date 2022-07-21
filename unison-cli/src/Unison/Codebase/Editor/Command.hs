@@ -111,8 +111,6 @@ data Command a where
     Branch IO ->
     [HQ.HashQualified Name] ->
     Command QueryResult
-  -- Presents some output to the user
-  Notify :: Output -> Command ()
   NotifyNumbered :: NumberedOutput Symbol -> Command NumberedArgs
   LoadSource :: SourceName -> Command LoadSourceResult
   Typecheck ::
@@ -187,7 +185,6 @@ commandName = \case
   WithRunInIO {} -> "WithRunInIO"
   Eval {} -> "Eval"
   API -> "API"
-  Notify {} -> "Notify"
   NotifyNumbered {} -> "NotifyNumbered"
   LoadSource {} -> "LoadSource"
   Typecheck {} -> "Typecheck"
@@ -282,7 +279,9 @@ loopState0 b p =
     }
 
 respond :: Output -> Action ()
-respond output = Action (Free.eval $ Notify output)
+respond output = do
+  Env {notify} <- ask
+  liftIO (notify output)
 
 respondNumbered :: NumberedOutput Symbol -> Action ()
 respondNumbered output = do
