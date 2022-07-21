@@ -114,6 +114,7 @@ import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.DataDeclaration as DD
+import Unison.FileParsers (parseAndSynthesizeFile)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
@@ -265,7 +266,8 @@ loop e = do
         let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') root'
         Command.latestFile .= Just (Text.unpack sourceName, False)
         Command.latestTypecheckedFile .= Nothing
-        MaybeT (WriterT (Identity (r, notes))) <- unsafeTime "typechecking" $ eval $ Typecheck ambient parseNames sourceName lexed
+        MaybeT (WriterT (Identity (r, notes))) <-
+          unsafeTime "typechecking" (typecheck ambient parseNames sourceName lexed)
         case r of
           -- Parsing failed
           Nothing ->
@@ -3683,6 +3685,24 @@ branchForBranchId = \case
     resolveShortBranchHash hash
   Right path -> do
     lift $ getAt path
+
+typecheck ::
+  [Type Symbol Ann] ->
+  NamesWithHistory ->
+  SourceName ->
+  LexedSource ->
+  Action (TypecheckingResult Symbol)
+typecheck ambient names sourceName source = do
+  codebase <- Command.askCodebase
+  generateUniqueName <- Command.askGenerateUniqueName
+  uniqueName <- liftIO generateUniqueName
+  (liftIO . Result.getResult) $
+    parseAndSynthesizeFile
+      ambient
+      (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+      (Parser.ParsingEnv uniqueName names)
+      (Text.unpack sourceName)
+      (fst source)
 
 -- | Evaluate all watched expressions in a UnisonFile and return
 -- their results, keyed by the name of the watch variable. The tuple returned

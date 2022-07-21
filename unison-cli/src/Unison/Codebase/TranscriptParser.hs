@@ -59,6 +59,7 @@ import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Welcome (asciiartUnison)
+import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -448,6 +449,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                 ]
 
     authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
+    seedRef <- newIORef (0::Int)
     let loop state = do
           writeIORef pathRef (view Command.currentPath state)
           let env =
@@ -456,6 +458,9 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                     codebase,
                     config = fromMaybe Configurator.empty config,
                     credentialManager = credMan,
+                    generateUniqueName = do
+                      i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
+                      pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
                     loadSource = loadPreviousUnisonBlock,
                     notify = print,
                     notifyNumbered = printNumbered,
@@ -464,7 +469,6 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                     serverBaseUrl = Nothing,
                     ucmVersion
                   }
-          let rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
           (o, state') <-
             HandleCommand.commandLine
               env
@@ -472,7 +476,6 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               awaitInput
               (const $ pure ())
               codebase
-              rng
               HandleInput.loop
           case o of
             Nothing -> do

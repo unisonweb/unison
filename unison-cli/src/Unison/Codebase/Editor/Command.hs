@@ -32,6 +32,7 @@ module Unison.Codebase.Editor.Command
     respond,
     respondNumbered,
     askCodebase,
+    askGenerateUniqueName,
     askLoadSource,
     askRuntime,
     askSandboxedRuntime,
@@ -65,7 +66,7 @@ import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Lexer as L
 import Unison.Names (Names)
-import Unison.NamesWithHistory (NamesWithHistory)
+import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Reference as Reference
@@ -103,12 +104,6 @@ data Command a where
   GetLoopState :: Command LoopState
   PutLoopState :: LoopState -> Command ()
   Eval :: IO a -> Command a
-  Typecheck ::
-    AmbientAbilities Symbol ->
-    NamesWithHistory ->
-    SourceName ->
-    LexedSource ->
-    Command (TypecheckingResult Symbol)
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
@@ -143,7 +138,6 @@ commandName = \case
   Quit -> "Quit"
   WithRunInIO {} -> "WithRunInIO"
   Eval {} -> "Eval"
-  Typecheck {} -> "Typecheck"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
 
 data LoopState = LoopState
@@ -175,6 +169,8 @@ data Env = Env
     codebase :: Codebase IO Symbol Ann,
     config :: Configurator.Config,
     credentialManager :: CredentialManager,
+    -- | Generate a unique name.
+    generateUniqueName :: IO Parser.UniqueName,
     -- | How to load source code.
     loadSource :: SourceName -> IO LoadSourceResult,
     -- | What to do with output for the user.
@@ -257,6 +253,11 @@ respondNumbered output = do
 askCodebase :: Action (Codebase IO Symbol Ann)
 askCodebase =
   asks codebase
+
+-- | Get an action that generates a unique name out of the environment.
+askGenerateUniqueName :: Action (IO Parser.UniqueName)
+askGenerateUniqueName =
+  asks generateUniqueName
 
 -- | Get how to load source code out of the environment.
 askLoadSource :: Action (SourceName -> IO LoadSourceResult)

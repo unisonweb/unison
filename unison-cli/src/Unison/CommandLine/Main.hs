@@ -45,6 +45,7 @@ import qualified Unison.CommandLine.InputPattern as IP
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import qualified Unison.CommandLine.Welcome as Welcome
+import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -206,6 +207,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                       config,
                       credentialManager = credMan,
                       loadSource = loadSourceFile,
+                      generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
                       notify,
                       notifyNumbered = \o ->
                         let (p, args) = notifyNumbered o
@@ -222,7 +224,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     awaitInput
                     (writeIORef rootRef)
                     codebase
-                    (const Random.getSystemDRG)
                     HandleInput.loop
             UnliftIO.race waitForInterrupt (try handleCommand) >>= \case
               -- SIGINT

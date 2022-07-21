@@ -9,43 +9,18 @@
 
 module Unison.Codebase.Editor.HandleCommand where
 
-import qualified Control.Concurrent.STM as STM
 import Control.Monad.Reader (MonadReader (ask, local), ReaderT (ReaderT))
 import Control.Monad.Trans.Cont
-import qualified Crypto.Random as Random
-import qualified Data.Text as Text
-import qualified Unison.Builtin as B
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Editor.Command (Action (..), Command (..), Env, LexedSource, LoopState, SourceName, TypecheckingResult)
+import Unison.Codebase.Editor.Command (Action (..), Command (..), Env, LoopState)
 import Unison.Codebase.Editor.Input (Event, Input)
-import Unison.FileParsers (parseAndSynthesizeFile)
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
-import Unison.Type (Type)
 import qualified Unison.Util.Free as Free
 import qualified UnliftIO
-
-typecheck ::
-  Monad m =>
-  [Type Symbol Ann] ->
-  Codebase m Symbol Ann ->
-  Parser.ParsingEnv ->
-  SourceName ->
-  LexedSource ->
-  m (TypecheckingResult Symbol)
-typecheck ambient codebase parsingEnv sourceName src =
-  Result.getResult $
-    parseAndSynthesizeFile
-      ambient
-      (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
-      parsingEnv
-      (Text.unpack sourceName)
-      (fst src)
 
 data ReturnType a
   = Success a
@@ -85,18 +60,14 @@ short :: ReturnType r -> Cli r a
 short r = Cli \_k _env -> pure r
 
 commandLine ::
-  forall gen.
-  Random.DRG gen =>
   Env ->
   LoopState ->
   IO (Either Event Input) ->
   (Branch IO -> IO ()) ->
   Codebase IO Symbol Ann ->
-  (Int -> IO gen) ->
   (Either Event Input -> Action ()) ->
   IO (Maybe (), LoopState)
-commandLine env0 loopState0 awaitInput setBranchRef codebase rngGen action = do
-  rndSeed :: STM.TVar Int <- STM.newTVarIO 0
+commandLine env0 loopState0 awaitInput setBranchRef codebase action = do
   loopStateRef <- UnliftIO.newIORef loopState0
   let go :: forall r x. Command x -> Cli r x
       go x = case x of
@@ -105,17 +76,6 @@ commandLine env0 loopState0 awaitInput setBranchRef codebase rngGen action = do
         GetLoopState -> liftIO (UnliftIO.readIORef loopStateRef)
         PutLoopState st -> liftIO (UnliftIO.writeIORef loopStateRef st)
         Eval m -> liftIO m
-        Typecheck ambient names sourceName source -> do
-          -- todo: if guids are being shown to users,
-          -- not ideal to generate new guid every time
-          i <- UnliftIO.atomically $ do
-            i <- STM.readTVar rndSeed
-            STM.writeTVar rndSeed (i + 1)
-            pure i
-          rng <- liftIO $ rngGen i
-          let namegen = Parser.uniqueBase32Namegen rng
-              env = Parser.ParsingEnv namegen names
-          liftIO $ typecheck ambient codebase env sourceName source
         SyncLocalRootBranch branch -> liftIO $ do
           setBranchRef branch
           Codebase.putRootBranch codebase branch
