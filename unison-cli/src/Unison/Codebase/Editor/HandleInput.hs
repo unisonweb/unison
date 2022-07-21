@@ -191,10 +191,7 @@ defaultPatchNameSegment = "patch"
 prettyPrintEnvDecl :: NamesWithHistory -> Action PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = do
   codebase <- Command.askCodebase
-  prettyPrintEnvDeclCmd codebase ns
-
-prettyPrintEnvDeclCmd :: MonadIO m => Codebase IO v Ann -> NamesWithHistory -> m PPE.PrettyPrintEnvDecl
-prettyPrintEnvDeclCmd codebase ns = liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
+  liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
 currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action PPE.PrettyPrintEnvDecl
@@ -3596,7 +3593,7 @@ diffHelper before after = unsafeTime "HandleInput.diffHelper" do
   hqLength <- liftIO (Codebase.hashLength codebase)
   diff <- liftIO (BranchDiff.diff0 before after)
   let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDeclCmd codebase (NamesWithHistory prettyNames0 mempty)
+  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
   liftIO do
     fmap (ppe,) do
       OBranchDiff.toOutput
