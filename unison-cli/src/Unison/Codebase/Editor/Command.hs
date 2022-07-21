@@ -111,7 +111,7 @@ data Command a where
     Branch IO ->
     [HQ.HashQualified Name] ->
     Command QueryResult
-  NotifyNumbered :: NumberedOutput Symbol -> Command NumberedArgs
+  NotifyNumbered :: NumberedOutput -> Command NumberedArgs
   LoadSource :: SourceName -> Command LoadSourceResult
   Typecheck ::
     AmbientAbilities Symbol ->
@@ -283,7 +283,7 @@ respond output = do
   Env {notify} <- ask
   liftIO (notify output)
 
-respondNumbered :: NumberedOutput Symbol -> Action ()
+respondNumbered :: NumberedOutput -> Action ()
 respondNumbered output = do
   args <- Action (Free.eval $ NotifyNumbered output)
   unless (null args) $

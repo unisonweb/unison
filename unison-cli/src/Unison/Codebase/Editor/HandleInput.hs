@@ -1635,7 +1635,7 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
   -- We have the StateT layer goes away (can put it into an IORef in the environment),
   -- We have the MaybeT layer that signals end of input (can just been an IORef bool that we check before looping),
   -- and once all those things become IO, we can add a MonadUnliftIO instance on Action, and unify these cases.
-  let mergeAndDiff :: MonadIO m => Branch IO -> Branch IO -> m (NumberedOutput Symbol)
+  let mergeAndDiff :: MonadIO m => Branch IO -> Branch IO -> m NumberedOutput
       mergeAndDiff baseBranch headBranch = liftIO do
         merged <- Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch
         (ppe, diff) <- diffHelperCmd codebase root' currentPath' (Branch.head baseBranch) (Branch.head merged)

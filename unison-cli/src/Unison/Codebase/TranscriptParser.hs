@@ -397,7 +397,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               then writeIORef hasErrors True
               else dieWithMsg rendered
 
-        printNumbered :: Output.NumberedOutput Symbol -> IO Output.NumberedArgs
+        printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
         printNumbered o = do
           let (msg, numberedArgs) = notifyNumbered o
           errOk <- readIORef allowErrors

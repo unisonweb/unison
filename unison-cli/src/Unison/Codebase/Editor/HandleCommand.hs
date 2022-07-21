@@ -124,7 +124,7 @@ commandLine ::
   Runtime Symbol ->
   Runtime Symbol ->
   (Output -> IO ()) ->
-  (NumberedOutput Symbol -> IO NumberedArgs) ->
+  (NumberedOutput -> IO NumberedArgs) ->
   (SourceName -> IO LoadSourceResult) ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->

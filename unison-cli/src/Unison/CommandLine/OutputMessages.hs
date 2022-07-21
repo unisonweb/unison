@@ -165,7 +165,7 @@ shortenDirectory dir = do
 renderFileName :: FilePath -> IO Pretty
 renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 
-notifyNumbered :: Var v => NumberedOutput v -> (Pretty, NumberedArgs)
+notifyNumbered :: NumberedOutput -> (Pretty, NumberedArgs)
 notifyNumbered o = case o of
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
     showDiffNamespace ShowNumbers ppe oldPrefix newPrefix diffOutput
