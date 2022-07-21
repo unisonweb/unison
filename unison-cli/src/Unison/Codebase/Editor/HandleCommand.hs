@@ -43,21 +43,61 @@ newtype Cli r a = Cli {unCli :: (a -> Env -> IO (ReturnType r)) -> Env -> IO (Re
     )
     via ContT (ReturnType r) (ReaderT Env IO)
 
-withCliToIO :: ((forall x. Cli x x -> IO x) -> IO a) -> Cli r a
-withCliToIO run = Cli \k env -> do
+-- | 'withCliToIO' generalized to accept other monads that we can turn
+-- into 'Cli' (e.g. Action)
+withCliToIO' :: forall r a. ((forall m x. (m x -> Cli x x) -> m x -> IO x) -> IO a) -> Cli r a
+withCliToIO' run = Cli \k env -> do
   ea <- try $
-    run $ \(Cli ma) ->
-      ma (\a _ -> pure (Success a)) env >>= \case
-        HaltStep -> UnliftIO.throwIO HaltingStep
-        HaltRepl -> UnliftIO.throwIO HaltingRepl
-        Success a -> pure a
+    run $ \toCli someMonad ->
+      let Cli ma = toCli someMonad
+       in ma (\a _ -> pure (Success a)) env >>= \case
+            HaltStep -> UnliftIO.throwIO HaltingStep
+            HaltRepl -> UnliftIO.throwIO HaltingRepl
+            Success a -> pure a
   case ea of
     Left HaltingStep -> pure HaltStep
     Left HaltingRepl -> pure HaltRepl
     Right a -> k a env
 
+-- | Provide a way to run 'Cli' to IO. Note that this also delimits
+-- the scope of and 'succeedWith' or 'with' calls.
+withCliToIO :: ((forall x. Cli x x -> IO x) -> IO a) -> Cli r a
+withCliToIO k = withCliToIO' \k' -> k (k' id)
+
 short :: ReturnType r -> Cli r a
 short r = Cli \_k _env -> pure r
+
+-- | Short-circuit success. Returns 'r' to the nearest enclosing
+-- 'scopeWith'
+succeedWith :: r -> Cli r a
+succeedWith = short . Success
+
+-- | Short-circuit success
+abortStep :: Cli r a
+abortStep = short HaltStep
+
+-- | Halt the repl
+haltRepl :: Cli r a
+haltRepl = short HaltRepl
+
+-- | Wrap a continuation with 'Cli'. Provides a nicer syntax to
+-- resource acquiring functions.
+--
+-- @
+-- resource <- with (bracket acquire close)
+-- @
+--
+-- Delimit the scope of acquired resources with 'scopeWith'.
+with :: (forall x. (a -> IO x) -> IO x) -> Cli r a
+with resourceK = Cli \k env -> resourceK (\resource -> k resource env)
+
+-- | Delimit the scope of 'with' calls
+scopeWith :: Cli x x -> Cli r x
+scopeWith (Cli ma) = Cli \k env -> do
+  ma (\x _ -> pure (Success x)) env >>= \case
+    Success x -> k x env
+    HaltStep -> pure HaltStep
+    HaltRepl -> pure HaltRepl
 
 commandLine ::
   Env ->
@@ -79,17 +119,8 @@ commandLine env0 loopState0 awaitInput setBranchRef codebase action = do
         SyncLocalRootBranch branch -> liftIO $ do
           setBranchRef branch
           Codebase.putRootBranch codebase branch
-        WithRunInIO doUnlifts -> Cli \k env -> do
-          let phi :: forall x. Action x -> IO x
-              phi (Action ma) =
-                unCli (Free.fold go ma) (\a _env -> pure (Success a)) env >>= \case
-                  HaltStep -> UnliftIO.throwIO HaltingStep
-                  HaltRepl -> UnliftIO.throwIO HaltingRepl
-                  Success x -> pure x
-          UnliftIO.try (doUnlifts phi) >>= \case
-            Left HaltingStep -> pure HaltStep
-            Left HaltingRepl -> pure HaltRepl
-            Right x -> k x env
+        WithRunInIO doUnlifts -> withCliToIO' \runInIO ->
+          doUnlifts (\(Action free) -> runInIO (Free.fold go) free)
         Abort -> short HaltStep
         Quit -> short HaltRepl
 
