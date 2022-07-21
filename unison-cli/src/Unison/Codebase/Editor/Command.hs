@@ -100,8 +100,8 @@ data
     a -- Result of running the command
   where
   -- Escape hatch.
-  AskEnv :: Command (Env Symbol)
-  LocalEnv :: (Env Symbol -> Env Symbol) -> Free Command a -> Command a
+  AskEnv :: Command Env
+  LocalEnv :: (Env -> Env) -> Free Command a -> Command a
   GetLoopState :: Command (LoopState Symbol)
   PutLoopState :: LoopState Symbol -> Command ()
   Eval :: IO a -> Command a
@@ -226,12 +226,12 @@ data LoopState v = LoopState
 
 type SkipNextUpdate = Bool
 
-data Env v = Env
+data Env = Env
   { authHTTPClient :: AuthenticatedHttpClient,
-    codebase :: Codebase IO v Ann,
+    codebase :: Codebase IO Symbol Ann,
     credentialManager :: CredentialManager,
-    runtime :: Runtime v,
-    sandboxedRuntime :: Runtime v,
+    runtime :: Runtime Symbol,
+    sandboxedRuntime :: Runtime Symbol,
     ucmVersion :: UCMVersion
   }
 
@@ -243,7 +243,7 @@ newtype Action a = Action {unAction :: Free Command a}
       MonadIO
     )
 
-instance MonadReader (Env Symbol) Action where
+instance MonadReader Env Action where
   ask = Action (Free.eval AskEnv)
   local a (Action b) = Action (Free.eval (LocalEnv a b))
 

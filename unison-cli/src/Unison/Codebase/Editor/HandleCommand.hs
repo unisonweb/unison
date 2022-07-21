@@ -12,7 +12,6 @@ module Unison.Codebase.Editor.HandleCommand where
 import qualified Control.Concurrent.STM as STM
 import Control.Monad.Reader (MonadReader (ask, local), ReaderT (ReaderT))
 import Control.Monad.Trans.Cont
-import Unison.Codebase.Editor.Input (Event, Input)
 import qualified Crypto.Random as Random
 import qualified Data.Configurator as Config
 import Data.Configurator.Types (Config)
@@ -24,6 +23,7 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Command (Action (..), Command (..), Env, LexedSource, LoadSourceResult, LoopState, SourceName, TypecheckingResult, UseCache)
+import Unison.Codebase.Editor.Input (Event, Input)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
@@ -91,15 +91,15 @@ data Bailing
   deriving stock (Show)
   deriving anyclass (Exception)
 
-newtype Cli r a = Cli {unCli :: (a -> Env Symbol -> IO (ReturnType r)) -> Env Symbol -> IO (ReturnType r)}
+newtype Cli r a = Cli {unCli :: (a -> Env -> IO (ReturnType r)) -> Env -> IO (ReturnType r)}
   deriving
     ( Functor,
       Applicative,
       Monad,
       MonadIO,
-      MonadReader (Env Symbol)
+      MonadReader Env
     )
-    via ContT (ReturnType r) (ReaderT (Env Symbol) IO)
+    via ContT (ReturnType r) (ReaderT Env IO)
 
 withCliToIO :: ((forall x. Cli x x -> IO x) -> IO a) -> Cli r a
 withCliToIO run = Cli \k env -> do
@@ -120,7 +120,7 @@ short r = Cli \_k _env -> pure r
 commandLine ::
   forall gen.
   Random.DRG gen =>
-  Env Symbol ->
+  Env ->
   LoopState Symbol ->
   Config ->
   IO (Either Event Input) ->
