@@ -61,7 +61,7 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind)
 
-type F m i v = Free (Command m i v)
+type F i v = Free (Command i v)
 
 data Edits v = Edits
   { termEdits :: Map Reference TermEdit,
@@ -84,7 +84,7 @@ propagateAndApply ::
   Names ->
   Patch ->
   Branch0 m ->
-  F m i v (Branch0 m)
+  F i v (Branch0 m)
 propagateAndApply rootNames patch branch = do
   edits <- propagate rootNames patch branch
   f <- applyPropagate patch edits
@@ -148,7 +148,7 @@ propagateCtorMapping oldComponent newComponent =
 -- and if the number of constructors is 1, then the constructor names need not
 -- be the same.
 genInitialCtorMapping ::
-  forall v m i. Var v => Names -> Map Reference Reference -> F m i v (Map Referent Referent)
+  forall v i. Var v => Names -> Map Reference Reference -> F i v (Map Referent Referent)
 genInitialCtorMapping rootNames initialTypeReplacements = do
   let mappings :: (Reference, Reference) -> _ (Map Referent Referent)
       mappings (old, new) = do
@@ -242,7 +242,7 @@ propagate ::
   -- of type `Referent -> Referent`
   Patch ->
   Branch0 m ->
-  F m i v (Edits v)
+  F i v (Edits v)
 propagate rootNames patch b = case validatePatch patch of
   Nothing -> do
     eval $ Notify PatchNeedsToBeConflictFree
@@ -288,7 +288,7 @@ propagate rootNames patch b = case validatePatch patch of
           Edits v ->
           Set Reference ->
           Map Int Reference ->
-          F m i v (Edits v)
+          F i v (Edits v)
         collectEdits es@Edits {..} seen todo = case Map.minView todo of
           Nothing -> pure es
           Just (r, todo) -> case r of
@@ -325,7 +325,7 @@ propagate rootNames patch b = case validatePatch patch of
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
 
-            doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
+            doType :: Reference -> F i v (Maybe (Edits v), Set Reference)
             doType r = do
               when debugMode $ traceM ("Rewriting type: " <> refName r)
               componentMap <- unhashTypeComponent r
@@ -388,7 +388,7 @@ propagate rootNames patch b = case validatePatch patch of
                       constructorReplacements',
                   seen'
                 )
-            doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
+            doTerm :: Reference -> F i v (Maybe (Edits v), Set Reference)
             doTerm r = do
               when debugMode (traceM $ "Rewriting term: " <> show r)
               componentMap <- unhashTermComponent r
@@ -491,10 +491,10 @@ propagate rootNames patch b = case validatePatch patch of
     -- However, if we want this to be parametric in the annotation type, then
     -- Command would have to be made parametric in the annotation type too.
     unhashTermComponent ::
-      forall m v.
-      (Applicative m, Var v) =>
+      forall v.
+      Var v =>
       Reference ->
-      F m i v (Map v (Reference, Term v _, Type v _))
+      F i v (Map v (Reference, Term v _, Type v _))
     unhashTermComponent r = case Reference.toId r of
       Nothing -> pure mempty
       Just r -> do
@@ -502,10 +502,10 @@ propagate rootNames patch b = case validatePatch patch of
         pure $ fmap (over _1 Reference.DerivedId) unhashed
 
     unhashTermComponent' ::
-      forall m v.
-      (Applicative m, Var v) =>
+      forall v.
+      Var v =>
       Hash ->
-      F m i v (Map v (Reference.Id, Term v _, Type v _))
+      F i v (Map v (Reference.Id, Term v _, Type v _))
     unhashTermComponent' h =
       eval (LoadTermComponentWithTypes h) <&> foldMap \termsWithTypes ->
         unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
@@ -521,7 +521,7 @@ propagate rootNames patch b = case validatePatch patch of
     verifyTermComponent ::
       Map v (Reference, Term v _, a) ->
       Edits v ->
-      F m i v (Maybe (Map v (Reference, Maybe WatchKind, Term v _, Type v _)))
+      F i v (Maybe (Map v (Reference, Maybe WatchKind, Term v _, Type v _)))
     verifyTermComponent componentMap Edits {..} = do
       -- If the term contains references to old patterns, we can't update it.
       -- If the term had a redunant type signature, it's discarded and a new type
@@ -551,14 +551,14 @@ propagate rootNames patch b = case validatePatch patch of
             $ runIdentity (Result.toMaybe typecheckResult)
               >>= hush
 
-unhashTypeComponent :: Var v => Reference -> F m i v (Map v (Reference, Decl v Ann))
+unhashTypeComponent :: Var v => Reference -> F i v (Map v (Reference, Decl v Ann))
 unhashTypeComponent r = case Reference.toId r of
   Nothing -> pure mempty
   Just id -> do
     unhashed <- unhashTypeComponent' (Reference.idToHash id)
     pure $ over _1 Reference.DerivedId <$> unhashed
 
-unhashTypeComponent' :: Var v => Hash -> F m i v (Map v (Reference.Id, Decl v Ann))
+unhashTypeComponent' :: Var v => Hash -> F i v (Map v (Reference.Id, Decl v Ann))
 unhashTypeComponent' h =
   eval (LoadDeclComponent h) <&> foldMap \decls ->
     unhash $ Map.fromList (Reference.componentFor h decls)
@@ -591,7 +591,7 @@ applyDeprecations patch =
 -- definition that is created by the `Edits` which is passed in is marked as
 -- a propagated change.
 applyPropagate ::
-  Var v => Applicative m => Patch -> Edits v -> F m i v (Branch0 m -> Branch0 m)
+  Var v => Applicative m => Patch -> Edits v -> F i v (Branch0 m -> Branch0 m)
 applyPropagate patch Edits {..} = do
   let termTypes = Map.map (Hashing.typeToReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
