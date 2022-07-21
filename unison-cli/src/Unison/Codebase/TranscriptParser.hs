@@ -465,7 +465,6 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             HandleCommand.commandLine
               env
               state
-              (fromMaybe Configurator.empty config)
               awaitInput
               (const $ pure ())
               runtime

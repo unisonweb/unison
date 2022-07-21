@@ -213,7 +213,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                   HandleCommand.commandLine
                     env
                     state
-                    config
                     awaitInput
                     (writeIORef rootRef)
                     runtime

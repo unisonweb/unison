@@ -2313,8 +2313,7 @@ resolveDefaultMetadata path = do
     for
       superpaths
       ( \path -> do
-          mayNames <-
-            eval . ConfigLookup @[String] $ configKey "DefaultMetadata" path
+          mayNames <- Command.getConfig @[String] (configKey "DefaultMetadata" path)
           pure . join $ toList mayNames
       )
   pure . join $ toList xs
@@ -2392,11 +2391,11 @@ resolveConfiguredUrl pushPull destPath' = ExceptT do
   currentPath' <- use Command.currentPath
   let destPath = Path.resolve currentPath' destPath'
   let remoteMappingConfigKey = remoteMappingKey destPath
-  (eval . ConfigLookup) remoteMappingConfigKey >>= \case
+  Command.getConfig remoteMappingConfigKey >>= \case
     Nothing -> do
       let gitUrlConfigKey = gitUrlKey destPath
       -- Fall back to deprecated GitUrl key
-      (eval . ConfigLookup) gitUrlConfigKey >>= \case
+      Command.getConfig gitUrlConfigKey >>= \case
         Just url ->
           case WriteRemotePathGit <$> P.parse UriParser.deprecatedWriteGitRemotePath (Text.unpack gitUrlConfigKey) url of
             Left e ->

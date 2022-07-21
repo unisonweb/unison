@@ -32,6 +32,7 @@ module Unison.Codebase.Editor.Command
     askCodebase,
     askRuntime,
     askSandboxedRuntime,
+    getConfig,
     InputDescription,
     Action (..),
     eval,
@@ -43,7 +44,8 @@ import Control.Lens (Getter, makeLenses, to, view, (.=), _5)
 
 import Control.Monad.Reader (MonadReader (..), asks)
 import Control.Monad.State (MonadState (..))
-import Data.Configurator.Types (Config, Configured)
+import qualified Data.Configurator as Configurator
+import qualified Data.Configurator.Types as Configurator
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
@@ -108,7 +110,6 @@ data Command a where
     Branch IO ->
     [HQ.HashQualified Name] ->
     Command QueryResult
-  ConfigLookup :: Configured a => Text -> Command (Maybe a)
   -- Presents some output to the user
   Notify :: Output -> Command ()
   NotifyNumbered :: NumberedOutput Symbol -> Command NumberedArgs
@@ -186,7 +187,6 @@ commandName = \case
   Eval {} -> "Eval"
   API -> "API"
   UI -> "UI"
-  ConfigLookup {} -> "ConfigLookup"
   Notify {} -> "Notify"
   NotifyNumbered {} -> "NotifyNumbered"
   LoadSource {} -> "LoadSource"
@@ -225,7 +225,7 @@ type SkipNextUpdate = Bool
 data Env = Env
   { authHTTPClient :: AuthenticatedHttpClient,
     codebase :: Codebase IO Symbol Ann,
-    config :: Config,
+    config :: Configurator.Config,
     credentialManager :: CredentialManager,
     runtime :: Runtime Symbol,
     sandboxedRuntime :: Runtime Symbol,
@@ -301,5 +301,11 @@ askRuntime =
 askSandboxedRuntime :: Action (Runtime Symbol)
 askSandboxedRuntime =
   asks sandboxedRuntime
+
+-- | Lookup a config value by key.
+getConfig :: Configurator.Configured a => Text -> Action (Maybe a)
+getConfig key = do
+  cfg <- asks config
+  liftIO (Configurator.lookup cfg key)
 
 type InputDescription = Text

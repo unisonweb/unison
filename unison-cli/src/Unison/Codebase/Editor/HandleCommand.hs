@@ -13,8 +13,6 @@ import qualified Control.Concurrent.STM as STM
 import Control.Monad.Reader (MonadReader (ask, local), ReaderT (ReaderT))
 import Control.Monad.Trans.Cont
 import qualified Crypto.Random as Random
-import qualified Data.Configurator as Config
-import Data.Configurator.Types (Config)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import System.Environment (withArgs)
@@ -122,7 +120,6 @@ commandLine ::
   Random.DRG gen =>
   Env ->
   LoopState ->
-  Config ->
   IO (Either Event Input) ->
   (Branch IO -> IO ()) ->
   Runtime Symbol ->
@@ -135,7 +132,7 @@ commandLine ::
   (Int -> IO gen) ->
   (Either Event Input -> Action ()) ->
   IO (Maybe (), LoopState)
-commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen action = do
+commandLine env0 loopState0 awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen action = do
   rndSeed :: STM.TVar Int <- STM.newTVarIO 0
   loopStateRef <- UnliftIO.newIORef loopState0
   let go :: forall r x. Command x -> Cli r x
@@ -162,8 +159,6 @@ commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser 
             Nothing -> liftIO (return ())
         Notify output -> liftIO $ notifyUser output
         NotifyNumbered output -> liftIO $ notifyNumbered output
-        ConfigLookup name ->
-          liftIO $ Config.lookup config name
         LoadSource sourcePath -> liftIO $ loadSource sourcePath
         Typecheck ambient names sourceName source -> do
           -- todo: if guids are being shown to users,
