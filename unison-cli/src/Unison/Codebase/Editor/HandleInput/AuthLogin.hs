@@ -10,18 +10,17 @@ import Unison.Codebase.Editor.Command
   )
 import Unison.Codebase.Editor.Output (Output (CredentialFailureMsg, Success))
 import Unison.Share.Types
-import Unison.Symbol (Symbol)
 
 -- | Checks if the user has valid auth for the given codeserver,
 -- and runs through an authentication flow if not.
-ensureAuthenticatedWithCodeserver :: CodeserverURI -> Action Symbol ()
+ensureAuthenticatedWithCodeserver :: CodeserverURI -> Action ()
 ensureAuthenticatedWithCodeserver codeserverURI = do
   credsMan <- asks credentialManager
   getCredentials credsMan (codeserverIdFromCodeserverURI codeserverURI) >>= \case
     Right _ -> pure ()
     Left _ -> authLogin codeserverURI
 
-authLogin :: CodeserverURI -> Action Symbol ()
+authLogin :: CodeserverURI -> Action ()
 authLogin host = do
   credsMan <- asks credentialManager
   authenticateCodeserver credsMan host >>= \case

@@ -28,7 +28,6 @@ import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Debug
 import Unison.Prelude
 import Unison.Share.Types (CodeserverURI, codeserverIdFromCodeserverURI)
-import Unison.Symbol (Symbol)
 import qualified UnliftIO
 import qualified Web.Browser as Web
 
@@ -54,7 +53,7 @@ authTransferServer callback req respond =
 
 -- | Direct the user through an authentication flow with the given server and store the
 -- credentials in the provided credential manager.
-authenticateCodeserver :: CredentialManager -> CodeserverURI -> Action Symbol (Either CredentialFailure ())
+authenticateCodeserver :: CredentialManager -> CodeserverURI -> Action (Either CredentialFailure ())
 authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- liftIO HTTP.getGlobalManager
   let discoveryURI = discoveryURIForCodeserver codeserverURI
@@ -92,7 +91,7 @@ authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialF
     let creds = codeserverCredentials discoveryURI tokens
     saveCredentials credsManager codeserverId creds
   where
-    throwCredFailure :: Action v (Either CredentialFailure a) -> Action v a
+    throwCredFailure :: Action (Either CredentialFailure a) -> Action a
     throwCredFailure = throwEitherM
 
 -- | Construct an authorization URL from the parameters required.

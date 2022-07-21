@@ -161,7 +161,7 @@ data
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
   Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> Command (Runtime.WatchResults Symbol Ann)
-  WithRunInIO :: ((forall x. Action Symbol x -> IO x) -> IO a) -> Command a
+  WithRunInIO :: ((forall x. Action x -> IO x) -> IO a) -> Command a
   Abort :: Command a
   Quit :: Command a
 
@@ -235,7 +235,7 @@ data Env v = Env
     ucmVersion :: UCMVersion
   }
 
-newtype Action v a = Action {unAction :: Free Command a}
+newtype Action a = Action {unAction :: Free Command a}
   deriving newtype
     ( Functor,
       Applicative,
@@ -243,24 +243,24 @@ newtype Action v a = Action {unAction :: Free Command a}
       MonadIO
     )
 
-instance MonadReader (Env Symbol) (Action Symbol) where
+instance MonadReader (Env Symbol) Action where
   ask = Action (Free.eval AskEnv)
   local a (Action b) = Action (Free.eval (LocalEnv a b))
 
-instance MonadState (LoopState Symbol) (Action Symbol) where
+instance MonadState (LoopState Symbol) Action where
   get = Action (Free.eval GetLoopState)
   put st = Action (Free.eval (PutLoopState st))
 
-instance MonadUnliftIO (Action Symbol) where
+instance MonadUnliftIO Action where
   withRunInIO k = Action (Free.eval (WithRunInIO k))
 
-abort :: Action v r
+abort :: Action r
 abort = Action (Free.eval Abort)
 
-quit :: Action v r
+quit :: Action r
 quit = Action (Free.eval Quit)
 
-eval :: Command a -> Action v a
+eval :: Command a -> Action a
 eval x = Action (Free.eval x)
 
 makeLenses ''LoopState
@@ -281,27 +281,27 @@ loopState0 b p =
       _numberedArgs = []
     }
 
-respond :: Output Symbol -> Action Symbol ()
+respond :: Output Symbol -> Action ()
 respond output = Action (Free.eval $ Notify output)
 
-respondNumbered :: NumberedOutput Symbol -> Action Symbol ()
+respondNumbered :: NumberedOutput Symbol -> Action ()
 respondNumbered output = do
   args <- Action (Free.eval $ NotifyNumbered output)
   unless (null args) $
     numberedArgs .= toList args
 
 -- | Get the codebase out of the environment.
-askCodebase :: Action Symbol (Codebase IO Symbol Ann)
+askCodebase :: Action (Codebase IO Symbol Ann)
 askCodebase =
   asks codebase
 
 -- | Get the runtime out of the environment.
-askRuntime :: Action Symbol (Runtime Symbol)
+askRuntime :: Action (Runtime Symbol)
 askRuntime =
   asks runtime
 
 -- | Get the sandboxed runtime out of the environment.
-askSandboxedRuntime :: Action Symbol (Runtime Symbol)
+askSandboxedRuntime :: Action (Runtime Symbol)
 askSandboxedRuntime =
   asks sandboxedRuntime
 
