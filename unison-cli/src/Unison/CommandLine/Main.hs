@@ -205,6 +205,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                       Command.codebase = codebase,
                       Command.credentialManager = credMan,
                       Command.runtime = runtime,
+                      Command.sandboxedRuntime = sbRuntime,
                       Command.ucmVersion = ucmVersion
                     }
             let handleCommand =

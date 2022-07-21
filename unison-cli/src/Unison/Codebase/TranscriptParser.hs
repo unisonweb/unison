@@ -456,6 +456,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                     Command.codebase = codebase,
                     Command.credentialManager = credMan,
                     Command.runtime = runtime,
+                    Command.sandboxedRuntime = sbRuntime,
                     Command.ucmVersion = ucmVersion
                   }
           let rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))

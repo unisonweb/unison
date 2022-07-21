@@ -243,6 +243,7 @@ data Env v = Env
     codebase :: Codebase IO v Ann,
     credentialManager :: CredentialManager,
     runtime :: Runtime v,
+    sandboxedRuntime :: Runtime v,
     ucmVersion :: UCMVersion
   }
 
