@@ -117,9 +117,8 @@ main ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
-  ((Branch IO, Path.Absolute) -> IO ()) ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyChange = do
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion = do
   root <- Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
@@ -196,7 +195,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
     withInterruptHandler onInterrupt $ do
       let loop :: LoopState.LoopState Symbol -> IO ()
           loop state = do
-            notifyChange (LoopState._root state, view LoopState.currentPath state)
             writeIORef pathRef (view LoopState.currentPath state)
             credMan <- newCredentialManager
             let tokenProvider = AuthN.newTokenProvider credMan
