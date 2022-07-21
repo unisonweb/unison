@@ -121,7 +121,7 @@ commandLine ::
   forall gen.
   Random.DRG gen =>
   Env ->
-  LoopState Symbol ->
+  LoopState ->
   Config ->
   IO (Either Event Input) ->
   (Branch IO -> IO ()) ->
@@ -134,7 +134,7 @@ commandLine ::
   Maybe Server.BaseUrl ->
   (Int -> IO gen) ->
   (Either Event Input -> Action ()) ->
-  IO (Maybe (), LoopState Symbol)
+  IO (Maybe (), LoopState)
 commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen action = do
   rndSeed :: STM.TVar Int <- STM.newTVarIO 0
   loopStateRef <- UnliftIO.newIORef loopState0

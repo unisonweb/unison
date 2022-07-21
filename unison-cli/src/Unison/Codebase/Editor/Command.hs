@@ -102,8 +102,8 @@ data
   -- Escape hatch.
   AskEnv :: Command Env
   LocalEnv :: (Env -> Env) -> Free Command a -> Command a
-  GetLoopState :: Command (LoopState Symbol)
-  PutLoopState :: LoopState Symbol -> Command ()
+  GetLoopState :: Command LoopState
+  PutLoopState :: LoopState -> Command ()
   Eval :: IO a -> Command a
   UI :: Command ()
   API :: Command ()
@@ -202,7 +202,7 @@ commandName = \case
   Execute {} -> "Execute"
   HQNameQuery {} -> "HQNameQuery"
 
-data LoopState v = LoopState
+data LoopState = LoopState
   { _root :: Branch IO,
     _lastSavedRoot :: Branch IO,
     -- the current position in the namespace
@@ -214,7 +214,7 @@ data LoopState v = LoopState
     -- change event for that path (we skip file changes if the file has
     -- just been modified programmatically)
     _latestFile :: Maybe (FilePath, SkipNextUpdate),
-    _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann),
+    _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     -- The previous user input. Used to request confirmation of
     -- questionable user commands.
     _lastInput :: Maybe Input,
@@ -247,7 +247,7 @@ instance MonadReader Env Action where
   ask = Action (Free.eval AskEnv)
   local a (Action b) = Action (Free.eval (LocalEnv a b))
 
-instance MonadState (LoopState Symbol) Action where
+instance MonadState LoopState Action where
   get = Action (Free.eval GetLoopState)
   put st = Action (Free.eval (PutLoopState st))
 
@@ -266,10 +266,10 @@ eval x = Action (Free.eval x)
 makeLenses ''LoopState
 
 -- replacing the old read/write scalar Lens with "peek" Getter for the NonEmpty
-currentPath :: Getter (LoopState v) Path.Absolute
+currentPath :: Getter LoopState Path.Absolute
 currentPath = currentPathStack . to Nel.head
 
-loopState0 :: Branch IO -> Path.Absolute -> LoopState v
+loopState0 :: Branch IO -> Path.Absolute -> LoopState
 loopState0 b p =
   LoopState
     { _root = b,
