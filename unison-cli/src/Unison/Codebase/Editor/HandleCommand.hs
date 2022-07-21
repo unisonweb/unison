@@ -121,8 +121,10 @@ commandLine env0 loopState0 awaitInput setBranchRef codebase action = do
           Codebase.putRootBranch codebase branch
         WithRunInIO doUnlifts -> withCliToIO' \runInIO ->
           doUnlifts (\(Action free) -> runInIO (Free.fold go) free)
-        Abort -> short HaltStep
-        Quit -> short HaltRepl
+        Abort -> abortStep
+        Quit -> haltRepl
+        WithResource k -> with k
+        Reset (Action act) -> scopeWith (Free.fold go act)
 
   input <- awaitInput
   res <- (\(Cli ma) -> ma (\a _env -> pure (Success a)) env0) . Free.fold go $ unAction (action input)

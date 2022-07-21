@@ -112,6 +112,8 @@ data Command a where
   -- IsDerivedType :: H.Hash -> Command m i v Bool
 
   WithRunInIO :: ((forall x. Action x -> IO x) -> IO a) -> Command a
+  WithResource :: (forall r. (a -> IO r) -> IO r) -> Command a
+  Reset :: Action a -> Command a
   Abort :: Command a
   Quit :: Command a
 
@@ -130,6 +132,8 @@ lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 
 commandName :: Command a -> String
 commandName = \case
+  WithResource {} -> "WithResource"
+  Reset {} -> "Reset"
   AskEnv -> "AskEnv"
   LocalEnv {} -> "LocalEnv"
   GetLoopState -> "GetLoopState"
@@ -213,11 +217,11 @@ eval x = Action (Free.eval x)
 
 -- | Acquire a resource for the duration of an action.
 with :: (forall b. (a -> IO b) -> IO b) -> Action a
-with _ = undefined
+with k = Action (Free.eval (WithResource k))
 
 -- | Delimit the scope of inner 'with' actions.
 reset :: Action a -> Action a
-reset _ = undefined
+reset a = Action (Free.eval (Reset a))
 
 makeLenses ''LoopState
 
