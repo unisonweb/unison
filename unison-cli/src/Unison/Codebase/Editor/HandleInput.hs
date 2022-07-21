@@ -203,14 +203,13 @@ currentPrettyPrintEnvDecl scoping = do
   hqLen <- liftIO (Codebase.hashLength codebase)
   pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
 
-loop :: Action (Either Event Input) Symbol ()
-loop = do
+loop :: Either Event Input -> Action (Either Event Input) Symbol ()
+loop e = do
   uf <- use Command.latestTypecheckedFile
   root' <- use Command.root
   currentPath' <- use Command.currentPath
   latestFile' <- use Command.latestFile
   currentBranch' <- getAt currentPath'
-  e <- eval Input
   hqLength <- Command.askCodebase >>= \codebase -> liftIO (Codebase.hashLength codebase)
   sbhLength <- Command.askCodebase >>= \codebase -> liftIO (Codebase.branchHashLength codebase)
   let currentPath'' = Path.unabsolute currentPath'

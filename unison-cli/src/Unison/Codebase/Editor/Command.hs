@@ -115,7 +115,6 @@ data
     [HQ.HashQualified Name] ->
     Command i v QueryResult
   ConfigLookup :: Configured a => Text -> Command i v (Maybe a)
-  Input :: Command i v i
   -- Presents some output to the user
   Notify :: Output v -> Command i v ()
   NotifyNumbered :: NumberedOutput v -> Command i v NumberedArgs
@@ -194,7 +193,6 @@ commandName = \case
   API -> "API"
   UI -> "UI"
   ConfigLookup {} -> "ConfigLookup"
-  Input -> "Input"
   Notify {} -> "Notify"
   NotifyNumbered {} -> "NotifyNumbered"
   LoadSource {} -> "LoadSource"

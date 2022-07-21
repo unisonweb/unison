@@ -132,9 +132,9 @@ commandLine ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   (Int -> IO gen) ->
-  Action i Symbol () ->
+  (i -> Action i Symbol ()) ->
   IO (Maybe (), LoopState Symbol)
-commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen (Action free) = do
+commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen action = do
   rndSeed :: STM.TVar Int <- STM.newTVarIO 0
   loopStateRef <- UnliftIO.newIORef loopState0
   let go :: forall r x. Command i Symbol x -> Cli r x
@@ -159,7 +159,6 @@ commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser 
           case serverBaseUrl of
             Just url -> liftIO . void $ openBrowser (Server.urlFor Server.UI url)
             Nothing -> liftIO (return ())
-        Input -> liftIO awaitInput
         Notify output -> liftIO $ notifyUser output
         NotifyNumbered output -> liftIO $ notifyNumbered output
         ConfigLookup name ->
@@ -240,7 +239,8 @@ commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser 
                   let value' = Term.amap (const Ann.External) value
                   Codebase.putWatch codebase kind hash value'
             pure $ Right rs
-  res <- (\(Cli ma) -> ma (\a _env -> pure (Success a)) env0) . Free.fold go $ free
+  input <- awaitInput
+  res <- (\(Cli ma) -> ma (\a _env -> pure (Success a)) env0) . Free.fold go $ unAction (action input)
   finalState <- UnliftIO.readIORef loopStateRef
   pure case res of
     Success () -> (Just (), finalState)
