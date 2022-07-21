@@ -133,7 +133,7 @@ commandLine ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   (Int -> IO gen) ->
-  (Either Event Input -> Action (Either Event Input) Symbol ()) ->
+  (Either Event Input -> Action Symbol ()) ->
   IO (Maybe (), LoopState Symbol)
 commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen action = do
   rndSeed :: STM.TVar Int <- STM.newTVarIO 0
@@ -183,7 +183,7 @@ commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser 
           setBranchRef branch
           Codebase.putRootBranch codebase branch
         WithRunInIO doUnlifts -> Cli \k env -> do
-          let phi :: forall x. Action (Either Event Input) Symbol x -> IO x
+          let phi :: forall x. Action Symbol x -> IO x
               phi (Action ma) =
                 unCli (Free.fold go ma) (\a _env -> pure (Success a)) env >>= \case
                   HaltStep -> UnliftIO.throwIO HaltingStep

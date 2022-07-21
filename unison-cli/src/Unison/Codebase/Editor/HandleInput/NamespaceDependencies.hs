@@ -36,7 +36,7 @@ import qualified Unison.Util.Relation4 as Relation4
 --
 -- Returns a Set of names rather than using the PPE since we already have the correct names in
 -- scope on this branch, and also want to list ALL names of dependents, including aliases.
-namespaceDependencies :: forall m i v. Ord v => Branch0 m -> Action i v (Map LabeledDependency (Set Name))
+namespaceDependencies :: forall m v. Ord v => Branch0 m -> Action v (Map LabeledDependency (Set Name))
 namespaceDependencies branch = do
   codebase <- askCodebase
 

@@ -34,7 +34,6 @@ module Unison.Codebase.Editor.Command
     askSandboxedRuntime,
     InputDescription,
     Action (..),
-    Action',
     eval,
   )
 where
@@ -52,7 +51,7 @@ import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Editor.Input (Event, Input)
+import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path (Path)
@@ -162,7 +161,7 @@ data
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
   Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command v (Runtime.WatchResults v Ann)
-  WithRunInIO :: ((forall x. Action (Either Event Input) v x -> IO x) -> IO a) -> Command v a
+  WithRunInIO :: ((forall x. Action v x -> IO x) -> IO a) -> Command v a
   Abort :: Command v a
   Quit :: Command v a
 
@@ -236,7 +235,7 @@ data Env v = Env
     ucmVersion :: UCMVersion
   }
 
-newtype Action i v a = Action {unAction :: Free (Command v) a}
+newtype Action v a = Action {unAction :: Free (Command v) a}
   deriving newtype
     ( Functor,
       Applicative,
@@ -244,24 +243,24 @@ newtype Action i v a = Action {unAction :: Free (Command v) a}
       MonadIO
     )
 
-instance MonadReader (Env v) (Action i v) where
+instance MonadReader (Env v) (Action v) where
   ask = Action (Free.eval AskEnv)
   local a (Action b) = Action (Free.eval (LocalEnv a b))
 
-instance MonadState (LoopState v) (Action i v) where
+instance MonadState (LoopState v) (Action v) where
   get = Action (Free.eval GetLoopState)
   put st = Action (Free.eval (PutLoopState st))
 
-instance MonadUnliftIO (Action (Either Event Input) v) where
+instance MonadUnliftIO (Action v) where
   withRunInIO k = Action (Free.eval (WithRunInIO k))
 
-abort :: Action i v r
+abort :: Action v r
 abort = Action (Free.eval Abort)
 
-quit :: Action i v r
+quit :: Action v r
 quit = Action (Free.eval Quit)
 
-eval :: Command v a -> Action i v a
+eval :: Command v a -> Action v a
 eval x = Action (Free.eval x)
 
 makeLenses ''LoopState
@@ -282,30 +281,28 @@ loopState0 b p =
       _numberedArgs = []
     }
 
-respond :: Output v -> Action i v ()
+respond :: Output v -> Action v ()
 respond output = Action (Free.eval $ Notify output)
 
-respondNumbered :: NumberedOutput v -> Action i v ()
+respondNumbered :: NumberedOutput v -> Action v ()
 respondNumbered output = do
   args <- Action (Free.eval $ NotifyNumbered output)
   unless (null args) $
     numberedArgs .= toList args
 
 -- | Get the codebase out of the environment.
-askCodebase :: Action i v (Codebase IO v Ann)
+askCodebase :: Action v (Codebase IO v Ann)
 askCodebase =
   asks codebase
 
 -- | Get the runtime out of the environment.
-askRuntime :: Action i v (Runtime v)
+askRuntime :: Action v (Runtime v)
 askRuntime =
   asks runtime
 
 -- | Get the sandboxed runtime out of the environment.
-askSandboxedRuntime :: Action i v (Runtime v)
+askSandboxedRuntime :: Action v (Runtime v)
 askSandboxedRuntime =
   asks sandboxedRuntime
 
 type InputDescription = Text
-
-type Action' v = Action (Either Event Input) v
