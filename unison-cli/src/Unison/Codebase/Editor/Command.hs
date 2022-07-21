@@ -59,13 +59,10 @@ import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
-import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann (Ann)
@@ -73,7 +70,6 @@ import Unison.Prelude
 import qualified Unison.Reference as Reference
 import Unison.Result (Note, Result)
 import qualified Unison.Server.CodebaseServer as Server
-import Unison.Server.QueryResult (QueryResult)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -106,11 +102,6 @@ data Command a where
   GetLoopState :: Command LoopState
   PutLoopState :: LoopState -> Command ()
   Eval :: IO a -> Command a
-  HQNameQuery ::
-    Maybe Path ->
-    Branch IO ->
-    [HQ.HashQualified Name] ->
-    Command QueryResult
   LoadSource :: SourceName -> Command LoadSourceResult
   Typecheck ::
     AmbientAbilities Symbol ->
@@ -160,7 +151,6 @@ commandName = \case
   Typecheck {} -> "Typecheck"
   TypecheckFile {} -> "TypecheckFile"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
-  HQNameQuery {} -> "HQNameQuery"
 
 data LoopState = LoopState
   { _root :: Branch IO,

@@ -20,14 +20,11 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Command (Action (..), Command (..), Env, LexedSource, LoadSourceResult, LoopState, SourceName, TypecheckingResult)
 import Unison.Codebase.Editor.Input (Event, Input)
-import qualified Unison.Codebase.Path as Path
 import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
-import qualified Unison.NamesWithHistory as NamesWithHistory
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Result as Result
-import qualified Unison.Server.Backend as Backend
 import Unison.Symbol (Symbol)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
@@ -151,12 +148,6 @@ commandLine env0 loopState0 awaitInput setBranchRef loadSource codebase rngGen a
             Right x -> k x env
         Abort -> short HaltStep
         Quit -> short HaltRepl
-        HQNameQuery mayPath branch query -> do
-          hqLength <- liftIO $ Codebase.hashLength codebase
-          let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
-          let parseNames = Backend.parseNamesForBranch branch namingScope
-          let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
-          liftIO $ Backend.hqNameQuery codebase nameSearch query
 
   input <- awaitInput
   res <- (\(Cli ma) -> ma (\a _env -> pure (Success a)) env0) . Free.fold go $ unAction (action input)

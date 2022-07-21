@@ -213,7 +213,6 @@ loop e = do
   hqLength <- Command.askCodebase >>= \codebase -> liftIO (Codebase.hashLength codebase)
   sbhLength <- Command.askCodebase >>= \codebase -> liftIO (Codebase.branchHashLength codebase)
   let currentPath'' = Path.unabsolute currentPath'
-      hqNameQuery q = eval $ HQNameQuery (Just currentPath'') root' q
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
@@ -3632,6 +3631,16 @@ declOrBuiltin codebase r = case r of
     pure . fmap DD.Builtin $ Map.lookup r Builtin.builtinConstructorType
   Reference.DerivedId id ->
     fmap DD.Decl <$> Codebase.getTypeDeclaration codebase id
+
+hqNameQuery :: [HQ.HashQualified Name] -> Action QueryResult
+hqNameQuery query = do
+  root' <- use Command.root
+  currentPath' <- Path.unabsolute <$> use Command.currentPath
+  codebase <- Command.askCodebase
+  hqLength <- liftIO (Codebase.hashLength codebase)
+  let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames currentPath')
+  let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+  liftIO (Backend.hqNameQuery codebase nameSearch query)
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.
