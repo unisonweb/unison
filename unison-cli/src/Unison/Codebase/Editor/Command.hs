@@ -31,6 +31,7 @@ module Unison.Codebase.Editor.Command
     respondNumbered,
     askCodebase,
     askRuntime,
+    askSandboxedRuntime,
     InputDescription,
     Action (..),
     Action',
@@ -108,14 +109,6 @@ data
   Eval :: IO a -> Command i v a
   UI :: Command i v ()
   API :: Command i v ()
-  DocsToHtml ::
-    Branch IO -> -- Root branch
-
-    -- | namespace source
-    Path ->
-    -- | file destination
-    FilePath ->
-    Command i v ()
   HQNameQuery ::
     Maybe Path ->
     Branch IO ->
@@ -200,7 +193,6 @@ commandName = \case
   Eval {} -> "Eval"
   API -> "API"
   UI -> "UI"
-  DocsToHtml {} -> "DocsToHtml"
   ConfigLookup {} -> "ConfigLookup"
   Input -> "Input"
   Notify {} -> "Notify"
@@ -311,6 +303,11 @@ askCodebase =
 askRuntime :: Action i v (Runtime v)
 askRuntime =
   asks runtime
+
+-- | Get the sandboxed runtime out of the environment.
+askSandboxedRuntime :: Action i v (Runtime v)
+askSandboxedRuntime =
+  asks sandboxedRuntime
 
 type InputDescription = Text
 

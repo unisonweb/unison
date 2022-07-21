@@ -873,8 +873,10 @@ loop = do
                     >>= respondNumbered . uncurry Output.ShowDiffAfterUndo
             UiI -> eval UI
             DocsToHtmlI namespacePath' sourceDirectory -> do
+              sandboxedRuntime <- Command.askSandboxedRuntime
+              codebase <- Command.askCodebase
               let absPath = Path.unabsolute $ resolveToAbsolute namespacePath'
-              eval (DocsToHtml root' absPath sourceDirectory)
+              liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase root' absPath sourceDirectory)
             AliasTermI src dest -> do
               codebase <- Command.askCodebase
               referents <-

@@ -159,8 +159,6 @@ commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser 
           case serverBaseUrl of
             Just url -> liftIO . void $ openBrowser (Server.urlFor Server.UI url)
             Nothing -> liftIO (return ())
-        DocsToHtml root sourcePath destination ->
-          liftIO $ Backend.docsInBranchToHtmlFiles sdbxRt codebase root sourcePath destination
         Input -> liftIO awaitInput
         Notify output -> liftIO $ notifyUser output
         NotifyNumbered output -> liftIO $ notifyNumbered output
