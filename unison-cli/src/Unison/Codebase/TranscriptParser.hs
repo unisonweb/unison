@@ -457,6 +457,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                     config = fromMaybe Configurator.empty config,
                     credentialManager = credMan,
                     notify = print,
+                    notifyNumbered = printNumbered,
                     runtime,
                     sandboxedRuntime = sbRuntime,
                     serverBaseUrl = Nothing,

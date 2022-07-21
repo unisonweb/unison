@@ -206,6 +206,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                       config,
                       credentialManager = credMan,
                       notify,
+                      notifyNumbered = \o ->
+                        let (p, args) = notifyNumbered o
+                         in putPrettyNonempty p $> args,
                       runtime,
                       sandboxedRuntime = sbRuntime,
                       serverBaseUrl,

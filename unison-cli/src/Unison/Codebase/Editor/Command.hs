@@ -195,6 +195,8 @@ data Env = Env
     credentialManager :: CredentialManager,
     -- | What to do with output for the user.
     notify :: Output -> IO (),
+    -- | What to do with numbered output for the user.
+    notifyNumbered :: (NumberedOutput -> IO NumberedArgs),
     runtime :: Runtime Symbol,
     sandboxedRuntime :: Runtime Symbol,
     serverBaseUrl :: Maybe Server.BaseUrl,
