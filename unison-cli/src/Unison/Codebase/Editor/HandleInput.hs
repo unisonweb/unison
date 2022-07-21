@@ -1279,8 +1279,8 @@ loop e = do
               case maybePath <|> (fst <$> latestFile') of
                 Nothing -> respond NoUnisonFile
                 Just path -> do
-                  res <- eval . LoadSource . Text.pack $ path
-                  case res of
+                  loadSource <- Command.askLoadSource
+                  liftIO (loadSource (Text.pack path)) >>= \case
                     InvalidSourceNameError -> respond $ InvalidSourceName path
                     LoadError -> respond $ SourceLoadFailed path
                     LoadSuccess contents -> loadUnisonFile (Text.pack path) contents

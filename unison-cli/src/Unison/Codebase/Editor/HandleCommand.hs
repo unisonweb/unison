@@ -18,7 +18,7 @@ import qualified Unison.Builtin as B
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Editor.Command (Action (..), Command (..), Env, LexedSource, LoadSourceResult, LoopState, SourceName, TypecheckingResult)
+import Unison.Codebase.Editor.Command (Action (..), Command (..), Env, LexedSource, LoopState, SourceName, TypecheckingResult)
 import Unison.Codebase.Editor.Input (Event, Input)
 import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
 import qualified Unison.Parser as Parser
@@ -104,12 +104,11 @@ commandLine ::
   LoopState ->
   IO (Either Event Input) ->
   (Branch IO -> IO ()) ->
-  (SourceName -> IO LoadSourceResult) ->
   Codebase IO Symbol Ann ->
   (Int -> IO gen) ->
   (Either Event Input -> Action ()) ->
   IO (Maybe (), LoopState)
-commandLine env0 loopState0 awaitInput setBranchRef loadSource codebase rngGen action = do
+commandLine env0 loopState0 awaitInput setBranchRef codebase rngGen action = do
   rndSeed :: STM.TVar Int <- STM.newTVarIO 0
   loopStateRef <- UnliftIO.newIORef loopState0
   let go :: forall r x. Command x -> Cli r x
@@ -119,7 +118,6 @@ commandLine env0 loopState0 awaitInput setBranchRef loadSource codebase rngGen a
         GetLoopState -> liftIO (UnliftIO.readIORef loopStateRef)
         PutLoopState st -> liftIO (UnliftIO.writeIORef loopStateRef st)
         Eval m -> liftIO m
-        LoadSource sourcePath -> liftIO $ loadSource sourcePath
         Typecheck ambient names sourceName source -> do
           -- todo: if guids are being shown to users,
           -- not ideal to generate new guid every time

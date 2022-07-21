@@ -32,6 +32,7 @@ module Unison.Codebase.Editor.Command
     respond,
     respondNumbered,
     askCodebase,
+    askLoadSource,
     askRuntime,
     askSandboxedRuntime,
     askServerBaseUrl,
@@ -102,7 +103,6 @@ data Command a where
   GetLoopState :: Command LoopState
   PutLoopState :: LoopState -> Command ()
   Eval :: IO a -> Command a
-  LoadSource :: SourceName -> Command LoadSourceResult
   Typecheck ::
     AmbientAbilities Symbol ->
     NamesWithHistory ->
@@ -147,7 +147,6 @@ commandName = \case
   Quit -> "Quit"
   WithRunInIO {} -> "WithRunInIO"
   Eval {} -> "Eval"
-  LoadSource {} -> "LoadSource"
   Typecheck {} -> "Typecheck"
   TypecheckFile {} -> "TypecheckFile"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
@@ -263,6 +262,11 @@ respondNumbered output = do
 askCodebase :: Action (Codebase IO Symbol Ann)
 askCodebase =
   asks codebase
+
+-- | Get how to load source code out of the environment.
+askLoadSource :: Action (SourceName -> IO LoadSourceResult)
+askLoadSource =
+  asks loadSource
 
 -- | Get the runtime out of the environment.
 askRuntime :: Action (Runtime Symbol)

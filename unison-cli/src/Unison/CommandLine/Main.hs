@@ -221,7 +221,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     state
                     awaitInput
                     (writeIORef rootRef)
-                    loadSourceFile
                     codebase
                     (const Random.getSystemDRG)
                     HandleInput.loop
