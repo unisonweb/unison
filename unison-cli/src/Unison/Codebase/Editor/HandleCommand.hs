@@ -47,7 +47,6 @@ import qualified Unison.Util.Free as Free
 import qualified Unison.Util.Pretty as P
 import qualified Unison.WatchKind as WK
 import qualified UnliftIO
-import Web.Browser (openBrowser)
 
 typecheck ::
   Monad m =>
@@ -153,10 +152,6 @@ commandLine env0 loopState0 awaitInput setBranchRef rt sdbxRt notifyUser notifyN
                     P.newline,
                     P.indentN 2 (P.hiBlue ("API: " <> fromString (Server.urlFor Server.Api baseUrl)))
                   ]
-        UI ->
-          case serverBaseUrl of
-            Just url -> liftIO . void $ openBrowser (Server.urlFor Server.UI url)
-            Nothing -> liftIO (return ())
         Notify output -> liftIO $ notifyUser output
         NotifyNumbered output -> liftIO $ notifyNumbered output
         LoadSource sourcePath -> liftIO $ loadSource sourcePath

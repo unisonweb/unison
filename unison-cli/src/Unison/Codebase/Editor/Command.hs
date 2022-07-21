@@ -32,6 +32,7 @@ module Unison.Codebase.Editor.Command
     askCodebase,
     askRuntime,
     askSandboxedRuntime,
+    askServerBaseUrl,
     getConfig,
     InputDescription,
     Action (..),
@@ -104,7 +105,6 @@ data Command a where
   GetLoopState :: Command LoopState
   PutLoopState :: LoopState -> Command ()
   Eval :: IO a -> Command a
-  UI :: Command ()
   API :: Command ()
   HQNameQuery ::
     Maybe Path ->
@@ -187,7 +187,6 @@ commandName = \case
   WithRunInIO {} -> "WithRunInIO"
   Eval {} -> "Eval"
   API -> "API"
-  UI -> "UI"
   Notify {} -> "Notify"
   NotifyNumbered {} -> "NotifyNumbered"
   LoadSource {} -> "LoadSource"
@@ -303,6 +302,11 @@ askRuntime =
 askSandboxedRuntime :: Action (Runtime Symbol)
 askSandboxedRuntime =
   asks sandboxedRuntime
+
+-- | Get the server base url out of the environment.
+askServerBaseUrl :: Action (Maybe Server.BaseUrl)
+askServerBaseUrl =
+  asks serverBaseUrl
 
 -- | Lookup a config value by key.
 getConfig :: Configurator.Configured a => Text -> Action (Maybe a)

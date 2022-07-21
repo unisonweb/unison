@@ -147,6 +147,7 @@ import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Server.Backend (ShallowListEntry (..), TermEntry (..), TypeEntry (..))
 import qualified Unison.Server.Backend as Backend
+import qualified Unison.Server.CodebaseServer as Server
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
@@ -181,6 +182,7 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import Web.Browser (openBrowser)
 import Witherable (wither)
 
 defaultPatchNameSegment :: NameSegment
@@ -870,7 +872,12 @@ loop e = do
                   updateRoot prev
                   diffHelper (Branch.head prev) (Branch.head root')
                     >>= respondNumbered . uncurry Output.ShowDiffAfterUndo
-            UiI -> eval UI
+            UiI ->
+              Command.askServerBaseUrl >>= \case
+                Nothing -> pure ()
+                Just url -> do
+                  _success <- liftIO (openBrowser (Server.urlFor Server.UI url))
+                  pure ()
             DocsToHtmlI namespacePath' sourceDirectory -> do
               sandboxedRuntime <- Command.askSandboxedRuntime
               codebase <- Command.askCodebase
