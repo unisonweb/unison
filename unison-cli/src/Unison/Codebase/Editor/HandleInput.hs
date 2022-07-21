@@ -8,7 +8,6 @@ where
 
 -- TODO: Don't import backend
 
-import Control.Monad.Writer (WriterT(..))
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
@@ -16,6 +15,7 @@ import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
 import Control.Monad.Reader (ask, asks)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
+import Control.Monad.Writer (WriterT (..))
 import Data.Bifunctor (first, second)
 import Data.Configurator ()
 import qualified Data.Foldable as Foldable
@@ -1833,7 +1833,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
   case pushFlavor of
     NormalPush (writeRemotePath@(WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath})) pushBehavior -> do
       sourceBranch <- getAt localPath
-      let withRemoteRoot :: Branch IO -> IO (Either (Output v) (Branch IO))
+      let withRemoteRoot :: Branch IO -> IO (Either Output (Branch IO))
           withRemoteRoot remoteRoot = do
             let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
                 -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
@@ -2387,7 +2387,7 @@ manageLinks silent srcs mdValues op = do
 resolveConfiguredUrl ::
   PushPull ->
   Path' ->
-  ExceptT (Output v) (Action) WriteRemotePath
+  ExceptT Output (Action) WriteRemotePath
 resolveConfiguredUrl pushPull destPath' = ExceptT do
   currentPath' <- use Command.currentPath
   let destPath = Path.resolve currentPath' destPath'
@@ -2437,7 +2437,7 @@ viewRemoteGitBranch ns gitBranchBehavior action = do
   withRunInIO \runInIO -> do
     liftIO $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (runInIO . action)
 
-importRemoteShareBranch :: ReadShareRemoteNamespace -> Action (Either (Output v) (Branch IO))
+importRemoteShareBranch :: ReadShareRemoteNamespace -> Action (Either Output (Branch IO))
 importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
@@ -2542,7 +2542,7 @@ getLinks ::
   Path.HQSplit' ->
   Either (Set Reference) (Maybe String) ->
   ExceptT
-    (Output Symbol)
+    Output
     (Action)
     ( PPE.PrettyPrintEnv,
       --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
@@ -2590,7 +2590,7 @@ getLinks' src selection0 = do
   pure (PPE.suffixifiedPPE ppe, out)
 
 resolveShortBranchHash ::
-  ShortBranchHash -> ExceptT (Output v) (Action) (Branch IO)
+  ShortBranchHash -> ExceptT Output (Action) (Branch IO)
 resolveShortBranchHash hash = ExceptT do
   codebase <- Command.askCodebase
   hashSet <- liftIO (Codebase.branchHashesByPrefix codebase hash)
@@ -2796,10 +2796,10 @@ searchBranchScored names0 score queries =
               Just score -> Set.singleton (Just score, result)
               Nothing -> mempty
 
-unlessError :: ExceptT (Output Symbol) (Action) () -> Action ()
+unlessError :: ExceptT Output (Action) () -> Action ()
 unlessError ma = runExceptT ma >>= either respond pure
 
-unlessError' :: (e -> Output Symbol) -> ExceptT e (Action) () -> Action ()
+unlessError' :: (e -> Output) -> ExceptT e (Action) () -> Action ()
 unlessError' f ma = unlessError $ withExceptT f ma
 
 -- | supply `dest0` if you want to print diff messages
@@ -2807,7 +2807,7 @@ unlessError' f ma = unlessError $ withExceptT f ma
 mergeBranchAndPropagateDefaultPatch ::
   Branch.MergeMode ->
   Command.InputDescription ->
-  Maybe (Output Symbol) ->
+  Maybe Output ->
   Branch IO ->
   Maybe Path.Path' ->
   Path.Absolute ->
@@ -2859,7 +2859,7 @@ loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagat
 --   * 'MetadataAmbiguous', if the given name is associated with more than one reference.
 getMetadataFromName ::
   HQ.HashQualified Name ->
-  Action (Either (Output Symbol) (Metadata.Type, Metadata.Value))
+  Action (Either Output (Metadata.Type, Metadata.Value))
 getMetadataFromName name = do
   codebase <- Command.askCodebase
   currentPath' <- use Command.currentPath
@@ -3364,20 +3364,18 @@ fqnPPE ns = do
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNames` ns)
 
 parseSearchType ::
-  Var v =>
   SrcLoc ->
   String ->
-  Action (Either (Output v) (Type v Ann))
+  Action (Either Output (Type Symbol Ann))
 parseSearchType srcLoc typ = fmap Type.removeAllEffectVars <$> parseType srcLoc typ
 
 -- | A description of where the given parse was triggered from, for error messaging purposes.
 type SrcLoc = String
 
 parseType ::
-  Var v =>
   SrcLoc ->
   String ->
-  Action (Either (Output v) (Type v Ann))
+  Action (Either Output (Type Symbol Ann))
 parseType input src = do
   -- `show Input` is the name of the "file" being lexed
   (names0, lexed) <- lexedSource (Text.pack input) (Text.pack src)
@@ -3671,7 +3669,7 @@ fuzzySelectNamespace pos searchBranch0 = liftIO do
 
 -- | Get a branch from a BranchId, returning an empty one if missing, or failing with an
 -- appropriate error message if a hash cannot be found.
-branchForBranchId :: AbsBranchId -> ExceptT (Output v) (Action) (Branch IO)
+branchForBranchId :: AbsBranchId -> ExceptT Output (Action) (Branch IO)
 branchForBranchId = \case
   Left hash -> do
     resolveShortBranchHash hash

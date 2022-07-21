@@ -95,11 +95,7 @@ type TypecheckingResult v =
     (Seq (Note v Ann))
     (Either Names (UF.TypecheckedUnisonFile v Ann))
 
-data
-  Command
-    a -- Result of running the command
-  where
-  -- Escape hatch.
+data Command a where
   AskEnv :: Command Env
   LocalEnv :: (Env -> Env) -> Free Command a -> Command a
   GetLoopState :: Command LoopState
@@ -114,7 +110,7 @@ data
     Command QueryResult
   ConfigLookup :: Configured a => Text -> Command (Maybe a)
   -- Presents some output to the user
-  Notify :: Output Symbol -> Command ()
+  Notify :: Output -> Command ()
   NotifyNumbered :: NumberedOutput Symbol -> Command NumberedArgs
   LoadSource :: SourceName -> Command LoadSourceResult
   Typecheck ::
@@ -254,10 +250,10 @@ instance MonadState LoopState Action where
 instance MonadUnliftIO Action where
   withRunInIO k = Action (Free.eval (WithRunInIO k))
 
-abort :: Action r
+abort :: Action a
 abort = Action (Free.eval Abort)
 
-quit :: Action r
+quit :: Action a
 quit = Action (Free.eval Quit)
 
 eval :: Command a -> Action a
@@ -281,7 +277,7 @@ loopState0 b p =
       _numberedArgs = []
     }
 
-respond :: Output Symbol -> Action ()
+respond :: Output -> Action ()
 respond output = Action (Free.eval $ Notify output)
 
 respondNumbered :: NumberedOutput Symbol -> Action ()

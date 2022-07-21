@@ -127,7 +127,7 @@ commandLine ::
   (Branch IO -> IO ()) ->
   Runtime Symbol ->
   Runtime Symbol ->
-  (Output Symbol -> IO ()) ->
+  (Output -> IO ()) ->
   (NumberedOutput Symbol -> IO NumberedArgs) ->
   (SourceName -> IO LoadSourceResult) ->
   Codebase IO Symbol Ann ->

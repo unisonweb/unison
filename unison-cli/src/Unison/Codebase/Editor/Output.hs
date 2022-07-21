@@ -59,6 +59,7 @@ import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResult' (SearchResult')
 import qualified Unison.Share.Sync.Types as Sync
 import Unison.ShortHash (ShortHash)
+import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Typechecker.Context as Context
@@ -106,7 +107,7 @@ data NumberedOutput v
 
 --  | ShowDiff
 
-data Output v
+data Output
   = -- Generic Success response; we might consider deleting this.
     Success
   | -- User did `add` or `update` before typechecking a file?
@@ -116,9 +117,9 @@ data Output v
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
-    NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
+    NoMainFunction String PPE.PrettyPrintEnv [Type Symbol Ann]
   | -- Main function found, but has improper type
-    BadMainFunction String (Type v Ann) PPE.PrettyPrintEnv [Type v Ann]
+    BadMainFunction String (Type Symbol Ann) PPE.PrettyPrintEnv [Type Symbol Ann]
   | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
@@ -128,9 +129,9 @@ data Output v
   | PatchAlreadyExists Path.Split'
   | NoExactTypeMatches
   | TypeAlreadyExists Path.Split' (Set Reference)
-  | TypeParseError String (Parser.Err v)
-  | ParseResolutionFailures String [Names.ResolutionFailure v Ann]
-  | TypeHasFreeVars (Type v Ann)
+  | TypeParseError String (Parser.Err Symbol)
+  | ParseResolutionFailures String [Names.ResolutionFailure Symbol Ann]
+  | TypeHasFreeVars (Type Symbol Ann)
   | TermAlreadyExists Path.Split' (Set Referent)
   | LabeledReferenceAmbiguous Int (HQ.HashQualified Name) (Set LabeledDependency)
   | LabeledReferenceNotFound (HQ.HashQualified Name)
@@ -154,7 +155,7 @@ data Output v
     -- with whatever named definitions would not have any remaining names if
     -- the path is deleted.
     DeleteBranchConfirmation
-      [(Path', (Names, [SearchResult' v Ann]))]
+      [(Path', (Names, [SearchResult' Symbol Ann]))]
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames
@@ -163,33 +164,33 @@ data Output v
       [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
       [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
       -- list of all the definitions within this branch
-  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
-  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type v Ann))]
-  | ListShallow PPE.PrettyPrintEnv [ShallowListEntry v Ann]
+  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
+  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
+  | ListShallow PPE.PrettyPrintEnv [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
   | -- show the result of add/update
-    SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
+    SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult Symbol)
   | -- Original source, followed by the errors:
-    ParseErrors Text [Parser.Err v]
-  | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
-  | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug v Ann]
+    ParseErrors Text [Parser.Err Symbol]
+  | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote Symbol Ann]
+  | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure Runtime.Error
   | Evaluated
       SourceFileContents
       PPE.PrettyPrintEnv
-      [(v, Term v ())]
-      (Map v (Ann, WK.WatchKind, Term v (), Runtime.IsCacheHit))
-  | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
+      [(Symbol, Term Symbol ())]
+      (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
+  | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult Symbol) (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
     DisplayDefinitions
       (Maybe FilePath)
       PPE.PrettyPrintEnvDecl
-      (Map Reference (DisplayObject () (Decl v Ann)))
-      (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
-  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term v Ann)
-  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term v Ann)
+      (Map Reference (DisplayObject () (Decl Symbol Ann)))
+      (Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)))
+  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
+  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
   | TestResults
       TestReportStats
       PPE.PrettyPrintEnv
@@ -289,7 +290,7 @@ data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving (Show)
 
 type SourceFileContents = Text
 
-isFailure :: Ord v => Output v -> Bool
+isFailure :: Output -> Bool
 isFailure o = case o of
   Success {} -> False
   PrintMessage {} -> False

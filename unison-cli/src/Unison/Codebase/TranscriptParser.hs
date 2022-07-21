@@ -386,7 +386,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               let f = LoadSuccess <$> readUtf8 (Text.unpack name)
                in f <|> pure InvalidSourceNameError
 
-        print :: Output.Output Symbol -> IO ()
+        print :: Output.Output -> IO ()
         print o = do
           msg <- notifyUser dir o
           errOk <- readIORef allowErrors

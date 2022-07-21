@@ -160,7 +160,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     return $ LoadSuccess contents
                in catch go handle
             else return InvalidSourceNameError
-    let notify :: Output Symbol -> IO ()
+    let notify :: Output -> IO ()
         notify =
           notifyUser dir
             >=> ( \o ->
