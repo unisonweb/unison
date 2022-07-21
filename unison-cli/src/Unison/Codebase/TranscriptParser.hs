@@ -469,8 +469,6 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               state
               awaitInput
               (const $ pure ())
-              runtime
-              sbRuntime
               printNumbered
               loadPreviousUnisonBlock
               codebase

@@ -70,7 +70,6 @@ import Unison.Names (Names)
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import Unison.Result (Note, Result)
 import qualified Unison.Server.CodebaseServer as Server
@@ -124,8 +123,6 @@ data Command a where
     UF.UnisonFile Symbol Ann ->
     [Type Symbol Ann] ->
     Command (TypecheckingResult Symbol)
-  -- Evaluate a single closed definition
-  Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term Symbol Ann -> Command (Either Runtime.Error (Term Symbol Ann))
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
@@ -164,7 +161,6 @@ commandName = \case
   LoadSource {} -> "LoadSource"
   Typecheck {} -> "Typecheck"
   TypecheckFile {} -> "TypecheckFile"
-  Evaluate1 {} -> "Evaluate1"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
   HQNameQuery {} -> "HQNameQuery"
 

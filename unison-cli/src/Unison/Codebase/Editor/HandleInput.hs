@@ -1394,7 +1394,7 @@ loop e = do
                               tm = DD.forceTerm a a (Term.ref a ref)
                            in do
                                 --         Don't cache IO tests   v
-                                tm' <- eval $ Evaluate1 False ppe False tm
+                                tm' <- evalUnisonTerm False ppe False tm
                                 case tm' of
                                   Left e -> respond (EvaluationFailure e)
                                   Right tm' ->
@@ -2116,7 +2116,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
             Just tm -> do
               respond $ TestIncrementalOutputStart ppe (n, total) r tm
               --                          v don't cache; test cache populated below
-              tm' <- eval $ Evaluate1 True ppe False tm
+              tm' <- evalUnisonTerm True ppe False tm
               case tm' of
                 Left e -> respond (EvaluationFailure e) $> []
                 Right tm' -> do
@@ -2531,8 +2531,8 @@ doDisplay outputLoc names tm = do
         LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
       useCache = True
       evalTerm tm =
-        fmap ErrorUtil.hush . fmap (fmap Term.unannotate) . eval $
-          Evaluate1 True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
+        fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
+          evalUnisonTerm True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) $ liftIO (Codebase.getTerm codebase r)
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
@@ -3111,7 +3111,7 @@ displayI prettyPrintNames outputLoc hq = do
             do
               let tm = Term.fromReferent External $ Set.findMin results
               pped <- prettyPrintEnvDecl parseNames
-              tm <- eval $ Evaluate1 True (PPE.suffixifiedPPE pped) True tm
+              tm <- evalUnisonTerm True (PPE.suffixifiedPPE pped) True tm
               case tm of
                 Left e -> respond (EvaluationFailure e)
                 Right tm -> doDisplay outputLoc parseNames (Term.unannotate tm)
@@ -3167,7 +3167,7 @@ docsI srcLoc prettyPrintNames src = do
           len <- liftIO (Codebase.branchHashLength codebase)
           let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
           let tm = Term.ref External ref
-          tm <- eval $ Evaluate1 True (PPE.fromNames len names) True tm
+          tm <- evalUnisonTerm True (PPE.fromNames len names) True tm
           case tm of
             Left e -> respond (EvaluationFailure e)
             Right tm -> doDisplay ConsoleLocation names (Term.unannotate tm)
@@ -3718,3 +3718,33 @@ evalUnisonFile sandbox ppe unisonFile args = do
               let value' = Term.amap (\() -> Ann.External) value
               liftIO (Codebase.putWatch codebase kind hash value')
         pure (Right rs)
+
+-- | Evaluate a single closed definition.
+evalUnisonTerm ::
+  Bool ->
+  PPE.PrettyPrintEnv ->
+  UseCache ->
+  Term Symbol Ann ->
+  Action (Either Runtime.Error (Term Symbol Ann))
+evalUnisonTerm sandbox ppe useCache tm = do
+  codebase <- Command.askCodebase
+  runtime <- if sandbox then Command.askSandboxedRuntime else Command.askRuntime
+
+  let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
+      watchCache ref = do
+        maybeTerm <- Codebase.lookupWatchCache codebase ref
+        pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
+
+  let cache = if useCache then watchCache else Runtime.noCache
+  r <- liftIO (Runtime.evaluateTerm' (Codebase.toCodeLookup codebase) cache ppe runtime tm)
+  when useCache do
+    case r of
+      Right tmr ->
+        liftIO $
+          Codebase.putWatch
+            codebase
+            WK.RegularWatch
+            (Hashing.hashClosedTerm tm)
+            (Term.amap (const Ann.External) tmr)
+      Left _ -> pure ()
+  pure $ r <&> Term.amap (\() -> Ann.External)

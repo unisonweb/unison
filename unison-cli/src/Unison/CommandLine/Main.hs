@@ -217,8 +217,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     state
                     awaitInput
                     (writeIORef rootRef)
-                    runtime
-                    sbRuntime
                     ( \o ->
                         let (p, args) = notifyNumbered o
                          in putPrettyNonempty p $> args
