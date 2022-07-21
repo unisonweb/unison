@@ -190,6 +190,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
     withInterruptHandler onInterrupt $ do
       let loop :: Command.LoopState -> IO ()
           loop state = do
+            writeIORef rootRef (Command._lastSavedRoot state)
             writeIORef pathRef (view Command.currentPath state)
             credMan <- newCredentialManager
             let tokenProvider = AuthN.newTokenProvider credMan
@@ -216,8 +217,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     env
                     state
                     awaitInput
-                    (writeIORef rootRef)
-                    codebase
                     HandleInput.loop
             UnliftIO.race waitForInterrupt (try handleCommand) >>= \case
               -- SIGINT

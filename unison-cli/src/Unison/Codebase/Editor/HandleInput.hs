@@ -3042,7 +3042,7 @@ updateRoot new reason = unsafeTime "updateRoot" do
   old <- use Command.lastSavedRoot
   when (old /= new) do
     Command.root .= new
-    eval $ SyncLocalRootBranch new
+    liftIO (Codebase.putRootBranch codebase new)
     liftIO (Codebase.appendReflog codebase reason old new)
     Command.lastSavedRoot .= new
 

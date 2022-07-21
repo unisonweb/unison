@@ -104,10 +104,6 @@ data Command a where
   GetLoopState :: Command LoopState
   PutLoopState :: LoopState -> Command ()
   Eval :: IO a -> Command a
-  -- Syncs the Branch to some codebase and updates the head to the head of this causal.
-  -- Any definitions in the head of the supplied branch that aren't in the target
-  -- codebase are copied there.
-  SyncLocalRootBranch :: Branch IO -> Command ()
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
 
@@ -142,7 +138,6 @@ commandName = \case
   Quit -> "Quit"
   WithRunInIO {} -> "WithRunInIO"
   Eval {} -> "Eval"
-  SyncLocalRootBranch {} -> "SyncLocalRootBranch"
 
 data LoopState = LoopState
   { _root :: Branch IO,

@@ -11,14 +11,9 @@ module Unison.Codebase.Editor.HandleCommand where
 
 import Control.Monad.Reader (MonadReader (ask, local), ReaderT (ReaderT))
 import Control.Monad.Trans.Cont
-import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Command (Action (..), Command (..), Env, LoopState)
 import Unison.Codebase.Editor.Input (Event, Input)
-import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.Symbol (Symbol)
 import qualified Unison.Util.Free as Free
 import qualified UnliftIO
 
@@ -103,11 +98,9 @@ commandLine ::
   Env ->
   LoopState ->
   IO (Either Event Input) ->
-  (Branch IO -> IO ()) ->
-  Codebase IO Symbol Ann ->
   (Either Event Input -> Action ()) ->
   IO (Maybe (), LoopState)
-commandLine env0 loopState0 awaitInput setBranchRef codebase action = do
+commandLine env0 loopState0 awaitInput action = do
   loopStateRef <- UnliftIO.newIORef loopState0
   let go :: forall r x. Command x -> Cli r x
       go x = case x of
@@ -116,9 +109,6 @@ commandLine env0 loopState0 awaitInput setBranchRef codebase action = do
         GetLoopState -> liftIO (UnliftIO.readIORef loopStateRef)
         PutLoopState st -> liftIO (UnliftIO.writeIORef loopStateRef st)
         Eval m -> liftIO m
-        SyncLocalRootBranch branch -> liftIO $ do
-          setBranchRef branch
-          Codebase.putRootBranch codebase branch
         WithRunInIO doUnlifts -> withCliToIO' \runInIO ->
           doUnlifts (\(Action free) -> runInIO (Free.fold go) free)
         Abort -> abortStep

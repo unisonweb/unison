@@ -474,8 +474,6 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               env
               state
               awaitInput
-              (const $ pure ())
-              codebase
               HandleInput.loop
           case o of
             Nothing -> do
