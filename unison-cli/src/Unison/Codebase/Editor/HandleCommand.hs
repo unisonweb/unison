@@ -13,9 +13,7 @@ import qualified Control.Concurrent.STM as STM
 import Control.Monad.Reader (MonadReader (ask, local), ReaderT (ReaderT))
 import Control.Monad.Trans.Cont
 import qualified Crypto.Random as Random
-import qualified Data.Map as Map
 import qualified Data.Text as Text
-import System.Environment (withArgs)
 import qualified Unison.Builtin as B
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -151,7 +149,6 @@ commandLine env0 loopState0 awaitInput setBranchRef rt sdbxRt notifyNumbered loa
               env = Parser.ParsingEnv namegen names
           liftIO $ typecheck ambient codebase env sourceName source
         TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
-        Evaluate sdbx ppe unisonFile -> liftIO $ evalUnisonFile sdbx ppe unisonFile []
         Evaluate1 sdbx ppe useCache term -> liftIO $ eval1 sdbx ppe useCache term
         SyncLocalRootBranch branch -> liftIO $ do
           setBranchRef branch
@@ -197,21 +194,6 @@ commandLine env0 loopState0 awaitInput setBranchRef rt sdbxRt notifyNumbered loa
           Left _ -> pure ()
         pure $ r <&> Term.amap (const Ann.External)
 
-      evalUnisonFile :: Bool -> PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> _
-      evalUnisonFile sandbox ppe unisonFile args = withArgs args do
-        let codeLookup = Codebase.toCodeLookup codebase
-            rt' | sandbox = sdbxRt | otherwise = rt
-        r <- Runtime.evaluateWatches codeLookup ppe watchCache rt' unisonFile
-        case r of
-          Left e -> pure (Left e)
-          Right rs@(_, map) -> do
-            forM_ (Map.elems map) $ \(_loc, kind, hash, _src, value, isHit) ->
-              if isHit
-                then pure ()
-                else do
-                  let value' = Term.amap (const Ann.External) value
-                  Codebase.putWatch codebase kind hash value'
-            pure $ Right rs
   input <- awaitInput
   res <- (\(Cli ma) -> ma (\a _env -> pure (Success a)) env0) . Free.fold go $ unAction (action input)
   finalState <- UnliftIO.readIORef loopStateRef

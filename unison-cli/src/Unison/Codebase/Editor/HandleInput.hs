@@ -294,7 +294,7 @@ loop e = do
           let ppe = PPE.suffixifiedPPE pped
           unsafeTime "typechecked.respond" $ respond $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
-            (bindings, e) <- unsafeTime "evaluate" $ ExceptT . eval . Evaluate False ppe $ unisonFile
+            (bindings, e) <- unsafeTime "evaluate" $ ExceptT (evalUnisonFile False ppe unisonFile [])
             lift do
               let e' = Map.map go e
                   go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
@@ -3118,7 +3118,7 @@ displayI prettyPrintNames outputLoc hq = do
     Just (toDisplay, unisonFile) -> do
       ppe <- executePPE unisonFile
       unlessError' EvaluationFailure do
-        evalResult <- ExceptT . eval . Evaluate True ppe $ unisonFile
+        evalResult <- ExceptT (evalUnisonFile True ppe unisonFile [])
         case Command.lookupEvalResult toDisplay evalResult of
           Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
           Just tm -> lift do
@@ -3675,7 +3675,22 @@ branchForBranchId = \case
   Right path -> do
     lift $ getAt path
 
--- | Evaluate a Unison file.
+-- | Evaluate all watched expressions in a UnisonFile and return
+-- their results, keyed by the name of the watch variable. The tuple returned
+-- has the form:
+--   (hash, (ann, sourceTerm, evaluatedTerm, isCacheHit))
+--
+-- where
+--   `hash` is the hash of the original watch expression definition
+--   `ann` gives the location of the watch expression
+--   `sourceTerm` is a closed term (no free vars) for the watch expression
+--   `evaluatedTerm` is the result of evaluating that `sourceTerm`
+--   `isCacheHit` is True if the result was computed by just looking up
+--   in a cache
+--
+-- It's expected that the user of this action might add the
+-- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
+-- of the same watches instantaneous.
 evalUnisonFile ::
   Bool ->
   PPE.PrettyPrintEnv ->

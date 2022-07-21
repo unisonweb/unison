@@ -124,28 +124,6 @@ data Command a where
     UF.UnisonFile Symbol Ann ->
     [Type Symbol Ann] ->
     Command (TypecheckingResult Symbol)
-  -- Evaluate all watched expressions in a UnisonFile and return
-  -- their results, keyed by the name of the watch variable. The tuple returned
-  -- has the form:
-  --   (hash, (ann, sourceTerm, evaluatedTerm, isCacheHit))
-  --
-  -- where
-  --   `hash` is the hash of the original watch expression definition
-  --   `ann` gives the location of the watch expression
-  --   `sourceTerm` is a closed term (no free vars) for the watch expression
-  --   `evaluatedTerm` is the result of evaluating that `sourceTerm`
-  --   `isCacheHit` is True if the result was computed by just looking up
-  --   in a cache
-  --
-  -- It's expected that the user of this action might add the
-  -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
-  -- of the same watches instantaneous.
-
-  Evaluate ::
-    Bool -> -- sandboxed
-    PPE.PrettyPrintEnv ->
-    UF.TypecheckedUnisonFile Symbol Ann ->
-    Command (Either Runtime.Error (EvalResult Symbol))
   -- Evaluate a single closed definition
   Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term Symbol Ann -> Command (Either Runtime.Error (Term Symbol Ann))
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
@@ -186,7 +164,6 @@ commandName = \case
   LoadSource {} -> "LoadSource"
   Typecheck {} -> "Typecheck"
   TypecheckFile {} -> "TypecheckFile"
-  Evaluate {} -> "Evaluate"
   Evaluate1 {} -> "Evaluate1"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
   HQNameQuery {} -> "HQNameQuery"
