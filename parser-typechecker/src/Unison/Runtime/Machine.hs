@@ -136,6 +136,12 @@ info ctx x = infos ctx (show x)
 infos :: String -> String -> IO ()
 infos ctx s = putStrLn $ ctx ++ ": " ++ s
 
+stk'info :: Stack 'BX -> IO ()
+stk'info s@(BS _ _ sp _) = do
+  let prn i | i < 0 = return ()
+            | otherwise = peekOff s i >>= print >> prn (i-1)
+  prn sp
+
 -- Entry point for evaluating a section
 eval0 :: CCache -> ActiveThreads -> Section -> IO ()
 eval0 !env !activeThreads !co = do
@@ -154,7 +160,7 @@ topDEnv rfTy rfTm
     rcrf <- Builtin (DTx.pack "raise"),
     Just j <- M.lookup rcrf rfTm =
       ( EC.mapSingleton n (PAp (CIx rcrf j 0) unull bnull),
-        Mark (EC.setSingleton n) mempty
+        Mark 0 0 (EC.setSingleton n) mempty
       )
 topDEnv _ _ = (mempty, id)
 
@@ -243,9 +249,9 @@ exec !_ !denv !_activeThreads !ustk !bstk !k (SetDyn p i) = do
   clo <- peekOff bstk i
   pure (EC.mapInsert p clo denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k (Capture p) = do
-  (sk, denv, ustk, bstk, useg, bseg, k) <- splitCont denv ustk bstk k p
+  (cap, denv, ustk, bstk, k) <- splitCont denv ustk bstk k p
   bstk <- bump bstk
-  poke bstk $ Captured sk useg bseg
+  poke bstk cap
   pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k (UPrim1 op i) = do
   ustk <- uprim1 ustk op i
@@ -405,7 +411,9 @@ exec !_ !denv !_activeThreads !ustk !bstk !k (Lit (MY r)) = do
   poke bstk (Foreign (Wrap Rf.typeLinkRef r))
   pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k (Reset ps) = do
-  pure (denv, ustk, bstk, Mark ps clos k)
+  (ustk, ua) <- saveArgs ustk
+  (bstk, ba) <- saveArgs bstk
+  pure (denv, ustk, bstk, Mark ua ba ps clos k)
   where
     clos = EC.restrictKeys denv ps
 exec !_ !denv !_activeThreads !ustk !bstk !k (Seq as) = do
@@ -452,7 +460,7 @@ eval !env !denv !activeThreads !ustk !bstk !k (Match i br) = do
   eval env denv activeThreads ustk bstk k $ selectBranch n br
 eval !env !denv !activeThreads !ustk !bstk !k (Yield args)
   | asize ustk + asize bstk > 0,
-    BArg1 i <- args = do
+    BArg1 i <- args =
       peekOff bstk i >>= apply env denv activeThreads ustk bstk k False ZArgs
   | otherwise = do
       (ustk, bstk) <- moveArgs ustk bstk args
@@ -603,14 +611,23 @@ jump ::
   Closure ->
   IO ()
 jump !env !denv !activeThreads !ustk !bstk !k !args clo = case clo of
-  Captured sk useg bseg -> do
+  Captured sk0 ua ba useg bseg -> do
+    let (up, bp, sk) = adjust sk0
     (useg, bseg) <- closeArgs K ustk bstk useg bseg args
     ustk <- discardFrame ustk
     bstk <- discardFrame bstk
-    ustk <- dumpSeg ustk useg . F $ ucount args
-    bstk <- dumpSeg bstk bseg . F $ bcount args
+    ustk <- dumpSeg ustk useg $ F (ucount args) ua
+    bstk <- dumpSeg bstk bseg $ F (bcount args) ba
+    ustk <- adjustArgs ustk up
+    bstk <- adjustArgs bstk bp
     repush env activeThreads ustk bstk denv sk k
   _ -> die "jump: non-cont"
+  where
+    adjust (Mark ua ba rs denv k) =
+      (0, 0, Mark (ua + asize ustk) (ba + asize bstk) rs denv k)
+    adjust (Push un bn ua ba cix k) =
+      (0, 0, Push un bn (ua + asize ustk) (ba + asize bstk) cix k)
+    adjust k = (asize ustk, asize bstk, k)
 {-# INLINE jump #-}
 
 repush ::
@@ -625,7 +642,7 @@ repush ::
 repush !env !activeThreads !ustk !bstk = go
   where
     go !denv KE !k = yield env denv activeThreads ustk bstk k
-    go !denv (Mark ps cs sk) !k = go denv' sk $ Mark ps cs' k
+    go !denv (Mark ua ba ps cs sk) !k = go denv' sk $ Mark ua ba ps cs' k
       where
         denv' = cs <> EC.withoutKeys denv ps
         cs' = EC.restrictKeys denv ps
@@ -1541,10 +1558,12 @@ yield ::
   IO ()
 yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
   where
-    leap !denv0 (Mark ps cs k) = do
+    leap !denv0 (Mark ua ba ps cs k) = do
       let denv = cs <> EC.withoutKeys denv0 ps
           clo = denv0 EC.! EC.findMin ps
       poke bstk . DataB1 Rf.effectRef 0 =<< peek bstk
+      ustk <- adjustArgs ustk ua
+      bstk <- adjustArgs bstk ba
       apply env denv activeThreads ustk bstk k False (BArg1 0) clo
     leap !denv (Push ufsz bfsz uasz basz cix k) = do
       Lam _ _ uf bf nx <- combSection env cix
@@ -1580,27 +1599,31 @@ splitCont ::
   Stack 'BX ->
   K ->
   Word64 ->
-  IO (K, DEnv, Stack 'UN, Stack 'BX, Seg 'UN, Seg 'BX, K)
+  IO (Closure, DEnv, Stack 'UN, Stack 'BX, K)
 splitCont !denv !ustk !bstk !k !p =
-  walk denv (asize ustk) (asize bstk) KE k
+  walk denv uasz basz KE k
   where
+    uasz = asize ustk
+    basz = asize bstk
     walk !denv !usz !bsz !ck KE =
-      die "fell off stack" >> finish denv usz bsz ck KE
+      die "fell off stack" >> finish denv usz bsz 0 0 ck KE
     walk !denv !usz !bsz !ck (CB _) =
-      die "fell off stack" >> finish denv usz bsz ck KE
-    walk !denv !usz !bsz !ck (Mark ps cs k)
-      | EC.member p ps = finish denv' usz bsz ck k
-      | otherwise = walk denv' usz bsz (Mark ps cs' ck) k
+      die "fell off stack" >> finish denv usz bsz 0 0 ck KE
+    walk !denv !usz !bsz !ck (Mark ua ba ps cs k)
+      | EC.member p ps = finish denv' usz bsz ua ba ck k
+      | otherwise = walk denv' (usz + ua) (bsz + ba) (Mark ua ba ps cs' ck) k
       where
         denv' = cs <> EC.withoutKeys denv ps
         cs' = EC.restrictKeys denv ps
     walk !denv !usz !bsz !ck (Push un bn ua ba br k) =
       walk denv (usz + un + ua) (bsz + bn + ba) (Push un bn ua ba br ck) k
 
-    finish !denv !usz !bsz !ck !k = do
+    finish !denv !usz !bsz !ua !ba !ck !k = do
       (useg, ustk) <- grab ustk usz
       (bseg, bstk) <- grab bstk bsz
-      return (ck, denv, ustk, bstk, useg, bseg, k)
+      ustk <- adjustArgs ustk ua
+      bstk <- adjustArgs bstk ba
+      return (Captured ck uasz basz useg bseg, denv, ustk, bstk, k)
 {-# INLINE splitCont #-}
 
 discardCont ::
@@ -1612,7 +1635,7 @@ discardCont ::
   IO (DEnv, Stack 'UN, Stack 'BX, K)
 discardCont denv ustk bstk k p =
   splitCont denv ustk bstk k p
-    <&> \(_, denv, ustk, bstk, _, _, k) -> (denv, ustk, bstk, k)
+    <&> \(_, denv, ustk, bstk, k) -> (denv, ustk, bstk, k)
 {-# INLINE discardCont #-}
 
 resolve :: CCache -> DEnv -> Stack 'BX -> Ref -> IO Closure
@@ -1807,17 +1830,17 @@ reflectValue rty = goV
       ANF.Partial (goIx cix) (fromIntegral <$> ua) <$> traverse goV ba
     goV (DataC r t us bs) =
       ANF.Data r (maskTags t) (fromIntegral <$> us) <$> traverse goV bs
-    goV (CapV k us bs) =
+    goV (CapV k _ _ us bs) =
       ANF.Cont (fromIntegral <$> us) <$> traverse goV bs <*> goK k
     goV (Foreign f) = ANF.BLit <$> goF f
     goV BlackHole = die $ err "black hole"
 
     goK (CB _) = die $ err "callback continuation"
     goK KE = pure ANF.KE
-    goK (Mark ps de k) = do
+    goK (Mark ua ba ps de k) = do
       ps <- traverse refTy (EC.setToList ps)
       de <- traverse (\(k, v) -> (,) <$> refTy k <*> goV v) (mapToList de)
-      ANF.Mark ps (M.fromList de) <$> goK k
+      ANF.Mark (fromIntegral ua) (fromIntegral ba) ps (M.fromList de) <$> goK k
     goK (Push uf bf ua ba cix k) =
       ANF.Push
         (fromIntegral uf)
@@ -1880,16 +1903,21 @@ reifyValue0 (rty, rtm) = goV
       DataC r t (fromIntegral <$> us) <$> traverse goV bs
     goV (ANF.Cont us bs k) = cv <$> goK k <*> traverse goV bs
       where
-        cv k bs = CapV k (fromIntegral <$> us) bs
+        cv k bs = CapV k ua ba (fromIntegral <$> us) bs
+          where
+            (uksz, bksz) = frameDataSize k
+            ua = fromIntegral $ length us - uksz
+            ba = fromIntegral $ length bs - bksz
     goV (ANF.BLit l) = goL l
 
     goK ANF.KE = pure KE
-    goK (ANF.Mark ps de k) =
+    goK (ANF.Mark ua ba ps de k) =
       mrk <$> traverse refTy ps
         <*> traverse (\(k, v) -> (,) <$> refTy k <*> goV v) (M.toList de)
         <*> goK k
       where
-        mrk ps de k = Mark (setFromList ps) (mapFromList de) k
+        mrk ps de k =
+          Mark (fromIntegral ua) (fromIntegral ba) (setFromList ps) (mapFromList de) k
     goK (ANF.Push uf bf ua ba gr k) =
       Push
         (fromIntegral uf)
@@ -1929,8 +1957,10 @@ universalEq frn = eqc
       i1 == i2
         && eql (==) us1 us2
         && eql eqc bs1 bs2
-    eqc (CapV k1 us1 bs1) (CapV k2 us2 bs2) =
+    eqc (CapV k1 ua1 ba1 us1 bs1) (CapV k2 ua2 ba2 us2 bs2) =
       k1 == k2
+        && ua1 == ua2
+        && ba1 == ba2
         && eql (==) us1 us2
         && eql eqc bs1 bs2
     eqc (Foreign fl) (Foreign fr)
@@ -2041,8 +2071,10 @@ universalCompare frn = cmpc False
       compare i1 i2
         <> cmpl compare us1 us2
         <> cmpl (cmpc tyEq) bs1 bs2
-    cmpc _ (CapV k1 us1 bs1) (CapV k2 us2 bs2) =
+    cmpc _ (CapV k1 ua1 ba1 us1 bs1) (CapV k2 ua2 ba2 us2 bs2) =
       compare k1 k2
+        <> compare ua1 ua2
+        <> compare ba1 ba2
         <> cmpl compare us1 us2
         <> cmpl (cmpc True) bs1 bs2
     cmpc tyEq (Foreign fl) (Foreign fr)

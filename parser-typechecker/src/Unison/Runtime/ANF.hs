@@ -1016,7 +1016,7 @@ data Value
 
 data Cont
   = KE
-  | Mark [Reference] (Map Reference Value) Cont
+  | Mark Word64 Word64 [Reference] (Map Reference Value) Cont
   | Push Word64 Word64 Word64 Word64 GroupRef Cont
   deriving (Show)
 
@@ -1457,7 +1457,7 @@ valueLinks f (BLit l) = litLinks f l
 contLinks :: Monoid a => (Bool -> Reference -> a) -> Cont -> a
 contLinks f (Push _ _ _ _ (GR cr _) k) =
   f False cr <> contLinks f k
-contLinks f (Mark ps de k) =
+contLinks f (Mark _ _ ps de k) =
   foldMap (f True) ps
     <> Map.foldMapWithKey (\k c -> f True k <> valueLinks f c) de
     <> contLinks f k

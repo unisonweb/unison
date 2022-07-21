@@ -17,7 +17,7 @@ import Data.Map as Map (Map, fromList, lookup)
 import qualified Data.Sequence as Seq
 import Data.Serialize.Put (runPutLazy)
 import Data.Text (Text)
-import Data.Word (Word16, Word64)
+import Data.Word (Word16, Word32, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
 import Unison.Reference (Reference)
@@ -28,6 +28,8 @@ import qualified Unison.Util.EnumContainers as EC
 import qualified Unison.Util.Text as Util.Text
 import Unison.Var (Type (ANFBlank), Var (..))
 import Prelude hiding (getChar, putChar)
+
+type Version = Word32
 
 data TmTag
   = VarT
@@ -570,11 +572,11 @@ putBLit (TmLink r) = putTag TmLinkT *> putReferent r
 putBLit (TyLink r) = putTag TyLinkT *> putReference r
 putBLit (Bytes b) = putTag BytesT *> putBytes b
 
-getBLit :: MonadGet m => m BLit
-getBLit =
+getBLit :: MonadGet m => Version -> m BLit
+getBLit v =
   getTag >>= \case
     TextT -> Text . Util.Text.fromText <$> getText
-    ListT -> List . Seq.fromList <$> getList getValue
+    ListT -> List . Seq.fromList <$> getList (getValue v)
     TmLinkT -> TmLink <$> getReferent
     TyLinkT -> TyLink <$> getReference
     BytesT -> Bytes <$> getBytes
@@ -695,23 +697,25 @@ putValue (Cont us bs k) =
 putValue (BLit l) =
   putTag BLitT *> putBLit l
 
-getValue :: MonadGet m => m Value
-getValue =
+getValue :: MonadGet m => Version -> m Value
+getValue v =
   getTag >>= \case
     PartialT ->
-      Partial <$> getGroupRef <*> getList getWord64be <*> getList getValue
+      Partial <$> getGroupRef <*> getList getWord64be <*> getList (getValue v)
     DataT ->
       Data <$> getReference
         <*> getWord64be
         <*> getList getWord64be
-        <*> getList getValue
-    ContT -> Cont <$> getList getWord64be <*> getList getValue <*> getCont
-    BLitT -> BLit <$> getBLit
+        <*> getList (getValue v)
+    ContT -> Cont <$> getList getWord64be <*> getList (getValue v) <*> getCont v
+    BLitT -> BLit <$> getBLit v
 
 putCont :: MonadPut m => Cont -> m ()
 putCont KE = putTag KET
-putCont (Mark rs ds k) =
+putCont (Mark ua ba rs ds k) =
   putTag MarkT
+    *> putWord64be ua
+    *> putWord64be ba
     *> putFoldable putReference rs
     *> putMap putReference putValue ds
     *> putCont k
@@ -724,20 +728,25 @@ putCont (Push i j m n gr k) =
     *> putGroupRef gr
     *> putCont k
 
-getCont :: MonadGet m => m Cont
-getCont =
+getCont :: MonadGet m => Version -> m Cont
+getCont v =
   getTag >>= \case
     KET -> pure KE
     MarkT ->
-      Mark <$> getList getReference
-        <*> getMap getReference getValue
-        <*> getCont
+      maker
+        <*> getList getReference
+        <*> getMap getReference (getValue v)
+        <*> getCont v
+      where
+        maker | v == 1 = pure (Mark 0 0)
+              | v == 2 = Mark <$> getWord64be <*> getWord64be
+              | otherwise = fail $ "getCont: unknown version"
     PushT ->
       Push <$> getWord64be <*> getWord64be
         <*> getWord64be
         <*> getWord64be
         <*> getGroupRef
-        <*> getCont
+        <*> getCont v
 
 deserializeGroup :: Var v => ByteString -> Either String (SuperGroup v)
 deserializeGroup bs = runGetS (getVersion *> getGroup) bs
@@ -754,17 +763,17 @@ serializeGroup fops sg = runPutS (putVersion *> putGroup fops sg)
     putVersion = putWord32be 1
 
 deserializeValue :: ByteString -> Either String Value
-deserializeValue bs = runGetS (getVersion *> getValue) bs
+deserializeValue bs = runGetS (getVersion >>= getValue) bs
   where
-    getVersion =
-      getWord32be >>= \case
-        1 -> pure ()
-        n -> fail $ "deserializeValue: unknown version: " ++ show n
+    getVersion = getWord32be >>= \case
+      n | n < 1 -> fail $ "deserializeValue: unknown version: " ++ show n
+        | n <= 2 -> pure n
+        | otherwise -> fail $ "deserializeValue: unknown version: " ++ show n
 
 serializeValue :: Value -> ByteString
 serializeValue v = runPutS (putVersion *> putValue v)
   where
-    putVersion = putWord32be 1
+    putVersion = putWord32be 2
 
 serializeValueLazy :: Value -> L.ByteString
 serializeValueLazy v = runPutLazy (putVersion *> putValue v)
