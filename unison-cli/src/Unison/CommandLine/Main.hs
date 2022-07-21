@@ -205,6 +205,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                       codebase,
                       config,
                       credentialManager = credMan,
+                      loadSource = loadSourceFile,
                       notify,
                       notifyNumbered = \o ->
                         let (p, args) = notifyNumbered o

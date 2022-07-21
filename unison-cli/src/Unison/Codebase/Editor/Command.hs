@@ -181,10 +181,12 @@ data Env = Env
     codebase :: Codebase IO Symbol Ann,
     config :: Configurator.Config,
     credentialManager :: CredentialManager,
+    -- | How to load source code.
+    loadSource :: SourceName -> IO LoadSourceResult,
     -- | What to do with output for the user.
     notify :: Output -> IO (),
     -- | What to do with numbered output for the user.
-    notifyNumbered :: (NumberedOutput -> IO NumberedArgs),
+    notifyNumbered :: NumberedOutput -> IO NumberedArgs,
     runtime :: Runtime Symbol,
     sandboxedRuntime :: Runtime Symbol,
     serverBaseUrl :: Maybe Server.BaseUrl,
