@@ -131,11 +131,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
     numberedArgsRef <- newIORef []
     pageOutput <- newIORef True
     cancelFileSystemWatch <- watchFileSystem eventQueue dir
-    cancelWatchBranchUpdates <-
-      watchBranchUpdates
-        (readIORef rootRef)
-        eventQueue
-        codebase
     let patternMap :: Map String InputPattern
         patternMap =
           Map.fromList $
@@ -176,7 +171,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
           Runtime.terminate sbRuntime
           cancelConfig
           cancelFileSystemWatch
-          cancelWatchBranchUpdates
         awaitInput :: IO (Either Event Input)
         awaitInput = do
           -- use up buffered input before consulting external events
