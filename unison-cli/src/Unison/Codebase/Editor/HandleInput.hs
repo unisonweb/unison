@@ -2431,8 +2431,8 @@ configKey k p =
 viewRemoteGitBranch ::
   ReadGitRemoteNamespace ->
   Git.GitBranchBehavior ->
-  (Branch IO -> Action i v r) ->
-  Action i v (Either GitError r)
+  (Branch IO -> Action' v r) ->
+  Action' v (Either GitError r)
 viewRemoteGitBranch ns gitBranchBehavior action = do
   codebase <- Command.askCodebase
   withRunInIO \runInIO -> do

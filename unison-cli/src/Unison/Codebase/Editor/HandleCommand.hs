@@ -12,6 +12,7 @@ module Unison.Codebase.Editor.HandleCommand where
 import qualified Control.Concurrent.STM as STM
 import Control.Monad.Reader (MonadReader (ask, local), ReaderT (ReaderT))
 import Control.Monad.Trans.Cont
+import Unison.Codebase.Editor.Input (Event, Input)
 import qualified Crypto.Random as Random
 import qualified Data.Configurator as Config
 import Data.Configurator.Types (Config)
@@ -117,12 +118,12 @@ short :: ReturnType r -> Cli r a
 short r = Cli \_k _env -> pure r
 
 commandLine ::
-  forall i gen.
+  forall gen.
   Random.DRG gen =>
   Env Symbol ->
   LoopState Symbol ->
   Config ->
-  IO i ->
+  IO (Either Event Input) ->
   (Branch IO -> IO ()) ->
   Runtime Symbol ->
   Runtime Symbol ->
@@ -132,12 +133,12 @@ commandLine ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   (Int -> IO gen) ->
-  (i -> Action i Symbol ()) ->
+  (Either Event Input -> Action (Either Event Input) Symbol ()) ->
   IO (Maybe (), LoopState Symbol)
 commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen action = do
   rndSeed :: STM.TVar Int <- STM.newTVarIO 0
   loopStateRef <- UnliftIO.newIORef loopState0
-  let go :: forall r x. Command i Symbol x -> Cli r x
+  let go :: forall r x. Command Symbol x -> Cli r x
       go x = case x of
         AskEnv -> ask
         LocalEnv f e -> local f (Free.fold go e)
@@ -182,7 +183,7 @@ commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser 
           setBranchRef branch
           Codebase.putRootBranch codebase branch
         WithRunInIO doUnlifts -> Cli \k env -> do
-          let phi :: forall x. Action i Symbol x -> IO x
+          let phi :: forall x. Action (Either Event Input) Symbol x -> IO x
               phi (Action ma) =
                 unCli (Free.fold go ma) (\a _env -> pure (Success a)) env >>= \case
                   HaltStep -> UnliftIO.throwIO HaltingStep

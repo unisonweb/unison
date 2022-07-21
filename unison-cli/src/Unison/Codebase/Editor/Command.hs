@@ -97,38 +97,37 @@ type TypecheckingResult v =
 
 data
   Command
-    i -- Input type
     v -- Type of variables in the codebase
     a -- Result of running the command
   where
   -- Escape hatch.
-  AskEnv :: Command i v (Env v)
-  LocalEnv :: (Env v -> Env v) -> Free (Command i v) a -> Command i v a
-  GetLoopState :: Command i v (LoopState v)
-  PutLoopState :: LoopState v -> Command i v ()
-  Eval :: IO a -> Command i v a
-  UI :: Command i v ()
-  API :: Command i v ()
+  AskEnv :: Command v (Env v)
+  LocalEnv :: (Env v -> Env v) -> Free (Command v) a -> Command v a
+  GetLoopState :: Command v (LoopState v)
+  PutLoopState :: LoopState v -> Command v ()
+  Eval :: IO a -> Command v a
+  UI :: Command v ()
+  API :: Command v ()
   HQNameQuery ::
     Maybe Path ->
     Branch IO ->
     [HQ.HashQualified Name] ->
-    Command i v QueryResult
-  ConfigLookup :: Configured a => Text -> Command i v (Maybe a)
+    Command v QueryResult
+  ConfigLookup :: Configured a => Text -> Command v (Maybe a)
   -- Presents some output to the user
-  Notify :: Output v -> Command i v ()
-  NotifyNumbered :: NumberedOutput v -> Command i v NumberedArgs
-  LoadSource :: SourceName -> Command i v LoadSourceResult
+  Notify :: Output v -> Command v ()
+  NotifyNumbered :: NumberedOutput v -> Command v NumberedArgs
+  LoadSource :: SourceName -> Command v LoadSourceResult
   Typecheck ::
     AmbientAbilities v ->
     NamesWithHistory ->
     SourceName ->
     LexedSource ->
-    Command i v (TypecheckingResult v)
+    Command v (TypecheckingResult v)
   TypecheckFile ::
     UF.UnisonFile v Ann ->
     [Type v Ann] ->
-    Command i v (TypecheckingResult v)
+    Command v (TypecheckingResult v)
   -- Evaluate all watched expressions in a UnisonFile and return
   -- their results, keyed by the name of the watch variable. The tuple returned
   -- has the form:
@@ -150,24 +149,24 @@ data
     Bool -> -- sandboxed
     PPE.PrettyPrintEnv ->
     UF.TypecheckedUnisonFile v Ann ->
-    Command i v (Either Runtime.Error (EvalResult v))
+    Command v (Either Runtime.Error (EvalResult v))
   -- Evaluate a single closed definition
-  Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command i v (Either Runtime.Error (Term v Ann))
+  Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command v (Either Runtime.Error (Term v Ann))
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
-  SyncLocalRootBranch :: Branch IO -> Command i v ()
+  SyncLocalRootBranch :: Branch IO -> Command v ()
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
 
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
-  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command i v (Runtime.WatchResults v Ann)
-  WithRunInIO :: ((forall x. Action i v x -> IO x) -> IO a) -> Command i v a
-  Abort :: Command i v a
-  Quit :: Command i v a
+  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command v (Runtime.WatchResults v Ann)
+  WithRunInIO :: ((forall x. Action (Either Event Input) v x -> IO x) -> IO a) -> Command v a
+  Abort :: Command v a
+  Quit :: Command v a
 
-instance MonadIO (Free (Command i v)) where
+instance MonadIO (Free (Command v)) where
   liftIO io = Free.eval $ Eval io
 
 type UseCache = Bool
@@ -180,7 +179,7 @@ type EvalResult v =
 lookupEvalResult :: Ord v => v -> EvalResult v -> Maybe (Term v ())
 lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 
-commandName :: Command i v a -> String
+commandName :: Command v a -> String
 commandName = \case
   AskEnv -> "AskEnv"
   LocalEnv {} -> "LocalEnv"
@@ -237,7 +236,7 @@ data Env v = Env
     ucmVersion :: UCMVersion
   }
 
-newtype Action i v a = Action {unAction :: Free (Command i v) a}
+newtype Action i v a = Action {unAction :: Free (Command v) a}
   deriving newtype
     ( Functor,
       Applicative,
@@ -253,7 +252,7 @@ instance MonadState (LoopState v) (Action i v) where
   get = Action (Free.eval GetLoopState)
   put st = Action (Free.eval (PutLoopState st))
 
-instance MonadUnliftIO (Action i v) where
+instance MonadUnliftIO (Action (Either Event Input) v) where
   withRunInIO k = Action (Free.eval (WithRunInIO k))
 
 abort :: Action i v r
@@ -262,7 +261,7 @@ abort = Action (Free.eval Abort)
 quit :: Action i v r
 quit = Action (Free.eval Quit)
 
-eval :: Command i v a -> Action i v a
+eval :: Command v a -> Action i v a
 eval x = Action (Free.eval x)
 
 makeLenses ''LoopState

@@ -23,7 +23,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import Unison.Auth.CredentialManager (CredentialManager, saveCredentials)
 import Unison.Auth.Discovery (discoveryURIForCodeserver, fetchDiscoveryDoc)
 import Unison.Auth.Types
-import Unison.Codebase.Editor.Command (Action, respond)
+import Unison.Codebase.Editor.Command (Action', respond)
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Debug
 import Unison.Prelude
@@ -53,7 +53,7 @@ authTransferServer callback req respond =
 
 -- | Direct the user through an authentication flow with the given server and store the
 -- credentials in the provided credential manager.
-authenticateCodeserver :: forall i v. CredentialManager -> CodeserverURI -> Action i v (Either CredentialFailure ())
+authenticateCodeserver :: forall v. CredentialManager -> CodeserverURI -> Action' v (Either CredentialFailure ())
 authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- liftIO HTTP.getGlobalManager
   let discoveryURI = discoveryURIForCodeserver codeserverURI
@@ -91,7 +91,7 @@ authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialF
     let creds = codeserverCredentials discoveryURI tokens
     saveCredentials credsManager codeserverId creds
   where
-    throwCredFailure :: Action i v (Either CredentialFailure a) -> Action i v a
+    throwCredFailure :: Action' v (Either CredentialFailure a) -> Action' v a
     throwCredFailure = throwEitherM
 
 -- | Construct an authorization URL from the parameters required.
