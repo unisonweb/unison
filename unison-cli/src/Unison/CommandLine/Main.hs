@@ -201,12 +201,13 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
             authorizedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
             let env =
                   Command.Env
-                    { Command.authHTTPClient = authorizedHTTPClient,
+                    { authHTTPClient = authorizedHTTPClient,
                       codebase,
                       config,
-                      Command.credentialManager = credMan,
+                      credentialManager = credMan,
                       runtime,
-                      Command.sandboxedRuntime = sbRuntime,
+                      sandboxedRuntime = sbRuntime,
+                      serverBaseUrl,
                       ucmVersion
                     }
             let handleCommand =

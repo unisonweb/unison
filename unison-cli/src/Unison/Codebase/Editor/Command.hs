@@ -70,6 +70,7 @@ import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import Unison.Result (Note, Result)
+import qualified Unison.Server.CodebaseServer as Server
 import Unison.Server.QueryResult (QueryResult)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
@@ -229,6 +230,7 @@ data Env = Env
     credentialManager :: CredentialManager,
     runtime :: Runtime Symbol,
     sandboxedRuntime :: Runtime Symbol,
+    serverBaseUrl :: Maybe Server.BaseUrl,
     ucmVersion :: UCMVersion
   }
 

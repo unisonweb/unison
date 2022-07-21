@@ -452,12 +452,13 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
           writeIORef pathRef (view Command.currentPath state)
           let env =
                 Command.Env
-                  { Command.authHTTPClient = authenticatedHTTPClient,
+                  { authHTTPClient = authenticatedHTTPClient,
                     codebase,
-                    Command.config = fromMaybe Configurator.empty config,
-                    Command.credentialManager = credMan,
+                    config = fromMaybe Configurator.empty config,
+                    credentialManager = credMan,
                     runtime,
-                    Command.sandboxedRuntime = sbRuntime,
+                    sandboxedRuntime = sbRuntime,
+                    serverBaseUrl = Nothing,
                     ucmVersion
                   }
           let rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
