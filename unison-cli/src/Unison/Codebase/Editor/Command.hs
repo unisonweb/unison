@@ -18,6 +18,8 @@ module Unison.Codebase.Editor.Command
     lookupEvalResult,
     abort,
     quit,
+    with,
+    reset,
     root,
     numberedArgs,
     currentPathStack,
@@ -153,9 +155,6 @@ data Command a where
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
 
-  -- Execute a UnisonFile for its IO effects
-  -- todo: Execute should do some evaluation?
-  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> Command (Runtime.WatchResults Symbol Ann)
   WithRunInIO :: ((forall x. Action x -> IO x) -> IO a) -> Command a
   Abort :: Command a
   Quit :: Command a
@@ -190,7 +189,6 @@ commandName = \case
   Evaluate {} -> "Evaluate"
   Evaluate1 {} -> "Evaluate1"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
-  Execute {} -> "Execute"
   HQNameQuery {} -> "HQNameQuery"
 
 data LoopState = LoopState
@@ -257,6 +255,14 @@ quit = Action (Free.eval Quit)
 
 eval :: Command a -> Action a
 eval x = Action (Free.eval x)
+
+-- | Acquire a resource for the duration of an action.
+with :: (forall b. (a -> IO b) -> IO b) -> Action a
+with _ = undefined
+
+-- | Delimit the scope of inner 'with' actions.
+reset :: Action a -> Action a
+reset _ = undefined
 
 makeLenses ''LoopState
 

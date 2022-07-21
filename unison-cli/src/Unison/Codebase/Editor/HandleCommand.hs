@@ -169,8 +169,6 @@ commandLine env0 loopState0 awaitInput setBranchRef rt sdbxRt notifyNumbered loa
             Right x -> k x env
         Abort -> short HaltStep
         Quit -> short HaltRepl
-        Execute ppe uf args ->
-          liftIO $ evalUnisonFile False ppe uf args
         HQNameQuery mayPath branch query -> do
           hqLength <- liftIO $ Codebase.hashLength codebase
           let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath

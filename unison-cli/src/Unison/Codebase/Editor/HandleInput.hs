@@ -30,6 +30,7 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
+import System.Environment (withArgs)
 import qualified Text.Megaparsec as P
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -1336,9 +1337,7 @@ loop e = do
                   respond $ BadMainFunction main ty ppe [mainType]
                 RunMainSuccess unisonFile -> do
                   ppe <- executePPE unisonFile
-                  e <- eval $ Execute ppe unisonFile args
-
-                  case e of
+                  evalUnisonFile False ppe unisonFile args >>= \case
                     Left e -> respond $ EvaluationFailure e
                     Right _ -> pure () -- TODO
             MakeStandaloneI output main -> do
@@ -3675,3 +3674,32 @@ branchForBranchId = \case
     resolveShortBranchHash hash
   Right path -> do
     lift $ getAt path
+
+-- | Evaluate a Unison file.
+evalUnisonFile ::
+  Bool ->
+  PPE.PrettyPrintEnv ->
+  TypecheckedUnisonFile Symbol Ann ->
+  [String] ->
+  Action (Runtime.WatchResults Symbol Ann)
+evalUnisonFile sandbox ppe unisonFile args = do
+  codebase <- Command.askCodebase
+  runtime <- if sandbox then Command.askSandboxedRuntime else Command.askRuntime
+
+  let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
+      watchCache ref = do
+        maybeTerm <- Codebase.lookupWatchCache codebase ref
+        pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
+
+  reset do
+    with (\k -> withArgs args (k ()))
+    liftIO (Runtime.evaluateWatches (Codebase.toCodeLookup codebase) ppe watchCache runtime unisonFile) >>= \case
+      Left e -> pure (Left e)
+      Right rs@(_, map) -> do
+        forM_ (Map.elems map) $ \(_loc, kind, hash, _src, value, isHit) ->
+          if isHit
+            then pure ()
+            else do
+              let value' = Term.amap (\() -> Ann.External) value
+              liftIO (Codebase.putWatch codebase kind hash value')
+        pure (Right rs)
