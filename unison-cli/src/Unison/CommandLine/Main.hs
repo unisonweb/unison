@@ -202,11 +202,12 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
             let env =
                   Command.Env
                     { Command.authHTTPClient = authorizedHTTPClient,
-                      Command.codebase = codebase,
+                      codebase,
+                      config,
                       Command.credentialManager = credMan,
-                      Command.runtime = runtime,
+                      runtime,
                       Command.sandboxedRuntime = sbRuntime,
-                      Command.ucmVersion = ucmVersion
+                      ucmVersion
                     }
             let handleCommand =
                   HandleCommand.commandLine

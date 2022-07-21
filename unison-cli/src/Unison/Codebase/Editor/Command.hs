@@ -43,7 +43,7 @@ import Control.Lens (Getter, makeLenses, to, view, (.=), _5)
 
 import Control.Monad.Reader (MonadReader (..), asks)
 import Control.Monad.State (MonadState (..))
-import Data.Configurator.Types (Configured)
+import Data.Configurator.Types (Config, Configured)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
@@ -225,6 +225,7 @@ type SkipNextUpdate = Bool
 data Env = Env
   { authHTTPClient :: AuthenticatedHttpClient,
     codebase :: Codebase IO Symbol Ann,
+    config :: Config,
     credentialManager :: CredentialManager,
     runtime :: Runtime Symbol,
     sandboxedRuntime :: Runtime Symbol,

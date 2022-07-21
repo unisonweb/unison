@@ -453,11 +453,12 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
           let env =
                 Command.Env
                   { Command.authHTTPClient = authenticatedHTTPClient,
-                    Command.codebase = codebase,
+                    codebase,
+                    Command.config = fromMaybe Configurator.empty config,
                     Command.credentialManager = credMan,
-                    Command.runtime = runtime,
+                    runtime,
                     Command.sandboxedRuntime = sbRuntime,
-                    Command.ucmVersion = ucmVersion
+                    ucmVersion
                   }
           let rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
           (o, state') <-
