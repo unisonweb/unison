@@ -1623,9 +1623,6 @@ handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Action 
 handleCreatePullRequest baseRepo0 headRepo0 = do
   codebase <- Command.askCodebase
 
-  root' <- use Command.root
-  currentPath' <- use Command.currentPath
-
   -- One of these needs a callback and the other doesn't. you might think you can get around that problem with
   -- a helper function to unify the two cases, but we tried that and they were in such different monads that it
   -- was hard to do.
@@ -1635,10 +1632,10 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
   -- We have the StateT layer goes away (can put it into an IORef in the environment),
   -- We have the MaybeT layer that signals end of input (can just been an IORef bool that we check before looping),
   -- and once all those things become IO, we can add a MonadUnliftIO instance on Action, and unify these cases.
-  let mergeAndDiff :: MonadIO m => Branch IO -> Branch IO -> m NumberedOutput
-      mergeAndDiff baseBranch headBranch = liftIO do
-        merged <- Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch
-        (ppe, diff) <- diffHelperCmd codebase root' currentPath' (Branch.head baseBranch) (Branch.head merged)
+  let mergeAndDiff :: Branch IO -> Branch IO -> Action NumberedOutput
+      mergeAndDiff baseBranch headBranch = do
+        merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
+        (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
         pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
 
   case (baseRepo0, headRepo0) of
@@ -3596,31 +3593,20 @@ diffHelper before after = unsafeTime "HandleInput.diffHelper" do
   codebase <- Command.askCodebase
   currentRoot <- use Command.root
   currentPath <- use Command.currentPath
-  diffHelperCmd codebase currentRoot currentPath before after
-
--- | A version of diffHelper
-diffHelperCmd ::
-  MonadIO m =>
-  Codebase IO Symbol Ann ->
-  Branch IO ->
-  Path.Absolute ->
-  Branch0 IO ->
-  Branch0 IO ->
-  m (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
-diffHelperCmd codebase currentRoot currentPath before after = liftIO do
-  hqLength <- Codebase.hashLength codebase
-  diff <- BranchDiff.diff0 before after
+  hqLength <- liftIO (Codebase.hashLength codebase)
+  diff <- liftIO (BranchDiff.diff0 before after)
   let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
   ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDeclCmd codebase (NamesWithHistory prettyNames0 mempty)
-  (ppe,)
-    <$> OBranchDiff.toOutput
-      (loadTypeOfTerm codebase)
-      (declOrBuiltin codebase)
-      hqLength
-      (Branch.toNames before)
-      (Branch.toNames after)
-      ppe
-      diff
+  liftIO do
+    fmap (ppe,) do
+      OBranchDiff.toOutput
+        (loadTypeOfTerm codebase)
+        (declOrBuiltin codebase)
+        hqLength
+        (Branch.toNames before)
+        (Branch.toNames after)
+        ppe
+        diff
 
 loadTypeOfTerm :: Monad m => Codebase m Symbol Ann -> Referent -> m (Maybe (Type Symbol Ann))
 loadTypeOfTerm codebase (Referent.Ref r) = Codebase.getTypeOfTerm codebase r
