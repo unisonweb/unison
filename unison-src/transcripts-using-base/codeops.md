@@ -191,7 +191,6 @@ to actual show that the serialization works.
 
 ```ucm
 .> add
-.> display fDeps
 .> io.test tests
 .> io.test badLoad
 ```

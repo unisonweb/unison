@@ -27,55 +27,55 @@ import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
 
-type F m i v = Free (Command m i v)
+type F i v = Free (Command i v)
 
-data Env m v = Env
+data Env v = Env
   { authHTTPClient :: AuthenticatedHttpClient,
-    codebase :: Codebase m v Ann,
+    codebase :: Codebase IO v Ann,
     credentialManager :: CredentialManager
   }
 
-newtype Action m i v a = Action {unAction :: MaybeT (ReaderT (Env m v) (StateT (LoopState m v) (F m i v))) a}
-  deriving newtype (Functor, Applicative, Alternative, Monad, MonadIO, MonadState (LoopState m v), MonadReader (Env m v))
+newtype Action i v a = Action {unAction :: MaybeT (ReaderT (Env v) (StateT (LoopState v) (F i v))) a}
+  deriving newtype (Functor, Applicative, Alternative, Monad, MonadIO, MonadState (LoopState v), MonadReader (Env v))
   -- We should likely remove this MonadFail instance since it's really hard to debug,
   -- but it's currently in use.
   deriving newtype (MonadFail)
 
-runAction :: Env m v -> LoopState m v -> Action m i v a -> (F m i v (Maybe a, LoopState m v))
+runAction :: Env v -> LoopState v -> Action i v a -> (F i v (Maybe a, LoopState v))
 runAction env state (Action m) =
   m
     & runMaybeT
     & flip runReaderT env
     & flip runStateT state
 
-liftF :: F m i v a -> Action m i v a
+liftF :: F i v a -> Action i v a
 liftF = Action . lift . lift . lift
 
 -- | A typeclass representing monads which can evaluate 'Command's.
-class Monad n => MonadCommand n m v i | n -> m v i where
-  eval :: Command m v i a -> n a
+class Monad m => MonadCommand m v i | m -> v i where
+  eval :: Command v i a -> m a
 
-instance MonadCommand (Free (Command m i v)) m i v where
+instance MonadCommand (Free (Command i v)) i v where
   eval = Free.eval
 
-instance MonadCommand n m i v => MonadCommand (StateT s n) m i v where
+instance MonadCommand m i v => MonadCommand (StateT s m) i v where
   eval = lift . eval
 
-instance MonadCommand n m i v => MonadCommand (MaybeT n) m i v where
+instance MonadCommand m i v => MonadCommand (MaybeT m) i v where
   eval = lift . eval
 
-instance MonadCommand n m i v => MonadCommand (ExceptT e n) m i v where
+instance MonadCommand m i v => MonadCommand (ExceptT e m) i v where
   eval = lift . eval
 
-instance MonadCommand n m i v => MonadCommand (ReaderT r n) m i v where
+instance MonadCommand m i v => MonadCommand (ReaderT r m) i v where
   eval = lift . eval
 
-instance MonadCommand (Action m i v) m i v where
+instance MonadCommand (Action i v) i v where
   eval = Action . eval
 
-data LoopState m v = LoopState
-  { _root :: Branch m,
-    _lastSavedRoot :: Branch m,
+data LoopState v = LoopState
+  { _root :: Branch IO,
+    _lastSavedRoot :: Branch IO,
     -- the current position in the namespace
     _currentPathStack :: NonEmpty Path.Absolute,
     -- TBD
@@ -95,7 +95,7 @@ data LoopState m v = LoopState
     _numberedArgs :: NumberedArgs
   }
 
-type Action' m v = Action m (Either Event Input) v
+type Action' v = Action (Either Event Input) v
 
 type SkipNextUpdate = Bool
 
@@ -104,10 +104,10 @@ type InputDescription = Text
 makeLenses ''LoopState
 
 -- replacing the old read/write scalar Lens with "peek" Getter for the NonEmpty
-currentPath :: Getter (LoopState m v) Path.Absolute
+currentPath :: Getter (LoopState v) Path.Absolute
 currentPath = currentPathStack . to Nel.head
 
-loopState0 :: Branch m -> Path.Absolute -> LoopState m v
+loopState0 :: Branch IO -> Path.Absolute -> LoopState v
 loopState0 b p =
   LoopState
     { _root = b,
@@ -119,16 +119,16 @@ loopState0 b p =
       _numberedArgs = []
     }
 
-respond :: MonadCommand n m i v => Output v -> n ()
+respond :: MonadCommand m i v => Output v -> m ()
 respond output = eval $ Notify output
 
-respondNumbered :: NumberedOutput v -> Action m i v ()
+respondNumbered :: NumberedOutput v -> Action i v ()
 respondNumbered output = do
   args <- eval $ NotifyNumbered output
   unless (null args) $
     numberedArgs .= toList args
 
 -- | Get the codebase out of the environment.
-askCodebase :: Action m i v (Codebase m v Ann)
+askCodebase :: Action i v (Codebase IO v Ann)
 askCodebase =
   asks codebase

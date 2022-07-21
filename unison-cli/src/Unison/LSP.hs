@@ -96,11 +96,14 @@ lspDoInitialize ::
   Message 'Initialize ->
   IO (Either ResponseError Env)
 lspDoInitialize vfsVar codebase runtime scope ucmState lspContext _initMsg = do
+  -- TODO: some of these should probably be MVars so that we correctly wait for names and
+  -- things to be generated before serving requests.
   checkedFilesVar <- newTVarIO mempty
   dirtyFilesVar <- newTVarIO mempty
   ppeCacheVar <- newTVarIO mempty
   parseNamesCacheVar <- newTVarIO mempty
-  let env = Env {ppeCache = readTVarIO ppeCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, ..}
+  currentPathCacheVar <- newTVarIO Path.absoluteEmpty
+  let env = Env {ppeCache = readTVarIO ppeCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
   Ki.fork scope (lspToIO $ ucmWorker ppeCacheVar parseNamesCacheVar ucmState)

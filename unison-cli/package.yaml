@@ -48,6 +48,7 @@ dependencies:
   - network-simple
   - network
   - co-log-core
+  - uri-encode
   - nonempty-containers
   - open-browser
   - pretty-simple

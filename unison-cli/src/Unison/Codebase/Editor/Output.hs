@@ -8,10 +8,8 @@ module Unison.Codebase.Editor.Output
     HistoryTail (..),
     TestReportStats (..),
     UndoFailureReason (..),
-    PushPull (..),
     ReflogEntry (..),
     ShareError (..),
-    pushPull,
     isFailure,
     isNumberedFailure,
   )
@@ -26,6 +24,7 @@ import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
+import Unison.Codebase.Editor.Output.PushPull (PushPull)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import qualified Unison.Codebase.Editor.SlurpResult as SR
@@ -76,13 +75,6 @@ type NumberedArgs = [String]
 
 type HashLength = Int
 
-data PushPull = Push | Pull deriving (Eq, Ord, Show)
-
-pushPull :: a -> a -> PushPull -> a
-pushPull push pull p = case p of
-  Push -> push
-  Pull -> pull
-
 data NumberedOutput v
   = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
@@ -132,6 +124,7 @@ data Output v
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
+  | FindNoLocalMatches
   | PatchAlreadyExists Path.Split'
   | NoExactTypeMatches
   | TypeAlreadyExists Path.Split' (Set Reference)
@@ -147,6 +140,7 @@ data Output v
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
   | BadNamespace String String
   | BranchNotFound Path'
+  | EmptyPush Path'
   | NameNotFound Path.HQSplit'
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
@@ -177,7 +171,7 @@ data Output v
     SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
   | -- Original source, followed by the errors:
     ParseErrors Text [Parser.Err v]
-  | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
+  | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug v Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure Runtime.Error
@@ -210,6 +204,7 @@ data Output v
     BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
   | ShareError ShareError
+  | ViewOnShare WriteShareRemotePath
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
@@ -306,9 +301,11 @@ isFailure o = case o of
   BadMainFunction {} -> True
   CreatedNewBranch {} -> False
   BranchAlreadyExists {} -> True
+  FindNoLocalMatches {} -> True
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True
+  EmptyPush {} -> True
   BranchNotEmpty {} -> True
   TypeAlreadyExists {} -> True
   TypeParseError {} -> True
@@ -398,6 +395,7 @@ isFailure o = case o of
       NoIntegrityErrors -> False
       IntegrityErrorDetected {} -> True
   ShareError {} -> True
+  ViewOnShare {} -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

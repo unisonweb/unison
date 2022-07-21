@@ -23,6 +23,7 @@ import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPr
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.HandleCommand (typecheckCommand)
+import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified' as HQ'
@@ -116,6 +117,7 @@ analyseFile fileUri srcText notes = do
 
 analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseNotes fileUri ppe src notes = do
+  currentPath <- getCurrentPath
   flip foldMapM notes \note -> case note of
     -- Result.TypeError (Context.ErrorNote {cause = Context.PatternArityMismatch loc _ _}) ->
     --   ([], singleRange loc)
@@ -142,7 +144,7 @@ analyseNotes fileUri ppe src notes = do
             TypeError.Other e -> do
               Debug.debugM Debug.LSP "No Diagnostic configured for type error: " e
               empty
-          diags = noteDiagnostic note ranges
+          diags = noteDiagnostic currentPath note ranges
       -- Sort on match accuracy first, then name.
       codeActions <- case cause of
         Context.UnknownTerm _ v suggestions typ -> do
@@ -154,7 +156,7 @@ analyseNotes fileUri ppe src notes = do
       pure (diags, codeActions)
     Result.NameResolutionFailures {} -> do
       -- TODO: diagnostics/code actions for resolution failures
-      pure (noteDiagnostic note todoAnnotation, [])
+      pure (noteDiagnostic currentPath note todoAnnotation, [])
     Result.Parsing err -> do
       let diags = do
             (errMsg, ranges) <- PrintError.renderParseErrors src err
@@ -164,7 +166,7 @@ analyseNotes fileUri ppe src notes = do
       -- TODO: Some parsing errors likely have reasonable code actions
       pure (diags, [])
     Result.UnknownSymbol _ loc ->
-      pure (noteDiagnostic note (singleRange loc), [])
+      pure (noteDiagnostic currentPath note (singleRange loc), [])
     Result.TypeInfo {} ->
       -- No relevant diagnostics from type info.
       pure ([], [])
@@ -187,7 +189,7 @@ analyseNotes fileUri ppe src notes = do
               Context.UnknownExistentialVariable _sym _con -> todoAnnotation
               Context.IllegalContextExtension _con _el _s -> todoAnnotation
               Context.OtherBug _s -> todoAnnotation
-      pure (noteDiagnostic note ranges, [])
+      pure (noteDiagnostic currentPath note ranges, [])
   where
     -- Diagnostics with this return value haven't been properly configured yet.
     todoAnnotation = []
@@ -205,6 +207,7 @@ analyseNotes fileUri ppe src notes = do
     withNeighbours (a : as) = (a, as) : (second (a :) <$> withNeighbours as)
     -- Builds diagnostics for a note, one diagnostic per range.
     noteDiagnostic ::
+      Path.Absolute ->
       Note Symbol Ann ->
       -- All ranges affected by this note, each range may have references to 'related'
       -- ranges.
@@ -212,8 +215,8 @@ analyseNotes fileUri ppe src notes = do
       -- other conflicted name locations.
       [(Range, [(Text, Range)])] ->
       [Diagnostic]
-    noteDiagnostic note ranges =
-      let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
+    noteDiagnostic currentPath note ranges =
+      let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src currentPath note
        in do
             (range, references) <- ranges
             pure $ mkDiagnostic fileUri range DsError msg references

@@ -53,7 +53,7 @@ authTransferServer callback req respond =
 
 -- | Direct the user through an authentication flow with the given server and store the
 -- credentials in the provided credential manager.
-authenticateCodeserver :: forall m n i v. (UnliftIO.MonadUnliftIO m, MonadCommand m n i v) => CredentialManager -> CodeserverURI -> m (Either CredentialFailure ())
+authenticateCodeserver :: forall m i v. (UnliftIO.MonadUnliftIO m, MonadCommand m i v) => CredentialManager -> CodeserverURI -> m (Either CredentialFailure ())
 authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- liftIO HTTP.getGlobalManager
   let discoveryURI = discoveryURIForCodeserver codeserverURI

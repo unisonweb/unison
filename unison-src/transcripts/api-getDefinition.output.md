@@ -312,7 +312,7 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
     },
     "typeDefinitions": {}
 }
---  Should find definitions by hash, using global names if no names in specified path.
+--  Should filter out any definitions which aren't in the provided namespace even if the hash matches.
 GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
 {
     "missingDefinitions": [],
@@ -385,21 +385,7 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
                 ],
                 "tag": "UserObject"
             },
-            "termDocs": [
-                [
-                    "doc",
-                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
-                    {
-                        "contents": [
-                            {
-                                "contents": "Documentation",
-                                "tag": "Word"
-                            }
-                        ],
-                        "tag": "Paragraph"
-                    }
-                ]
-            ],
+            "termDocs": [],
             "termNames": [
                 ".nested.names.x"
             ]

@@ -151,6 +151,13 @@ packages:
       sha256: 2a9669ed392657d34ec2e180ddac68c9ef657e54bf4b5fbc9b9efaa7b1d341be
   original:
     hackage: terminal-size-0.3.3
+- completed:
+    pantry-tree:
+      sha256: 90969690d0f9b49bdd6f02e5dd6ab005851f70c5778eff40043ce00cba655eaa
+      size: 2955
+    hackage: haskeline-0.8.1.3@sha256:a1ecc7bcaa959ecd751b2eec1c5466aa2db6697471d7e35ea8f1803faad8e985,6011
+  original:
+    hackage: haskeline-0.8.1.3
 snapshots:
 - completed:
     size: 590100

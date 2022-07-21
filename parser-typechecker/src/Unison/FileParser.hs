@@ -346,7 +346,8 @@ dataDeclaration mod = do
           sepBy1 (reserved "," <* optional semi) $
             liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
         _ <- closeBlock
-        pure ([go name (snd <$> fields)], [(name, fields)])
+        let lastSegment = name <&> (\v -> Var.named (Name.toText $ Name.unqualified (Name.unsafeFromVar v)))
+        pure ([go lastSegment (snd <$> fields)], [(name, fields)])
   (constructors, accessors) <-
     msum [record, (,[]) <$> sepBy (reserved "|") dataConstructor]
   _ <- closeBlock

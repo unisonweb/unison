@@ -280,12 +280,6 @@ trySync hh runSrc runDest tCache hCache oCache cCache = \case
       oIds' <- traverse syncLocalObjectId oIds
       tIds' <- lift $ traverse syncTextLiteral tIds
       hIds' <- lift $ traverse syncHashLiteral hIds
-
-      -- workaround for requiring components to compute component lengths for references.
-      -- this line requires objects in the destination for any hashes referenced in the source,
-      -- (making those objects dependencies of this patch).  See Sync21.filter{Term,Type}Edit
-      traverse_ syncLocalObjectId =<< traverse (lift . runSrc . Q.expectObjectIdForAnyHashId) hIds
-
       pure $ PL.LocalIds tIds' hIds' oIds'
 
     syncBranchLocalIds :: BL.BranchLocalIds -> ValidateT (Set Entity) m BL.BranchLocalIds

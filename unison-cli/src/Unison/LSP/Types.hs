@@ -18,6 +18,7 @@ import Language.LSP.Types.Lens
 import Language.LSP.VFS
 import Unison.Codebase
 import Unison.Codebase.Editor.Command (LexedSource)
+import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.LSP.Orphans ()
 import Unison.NamesWithHistory (NamesWithHistory)
@@ -54,6 +55,7 @@ data Env = Env
     codebase :: Codebase IO Symbol Ann,
     parseNamesCache :: IO NamesWithHistory,
     ppeCache :: IO PrettyPrintEnvDecl,
+    currentPathCache :: IO Path.Absolute,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
     -- The information we have for each file, which may or may not have a valid parse or
@@ -78,6 +80,9 @@ data FileAnalysis = FileAnalysis
     testing :: Text
   }
   deriving (Show)
+
+getCurrentPath :: Lsp Path.Absolute
+getCurrentPath = asks currentPathCache >>= liftIO
 
 globalPPE :: Lsp PrettyPrintEnvDecl
 globalPPE = asks ppeCache >>= liftIO

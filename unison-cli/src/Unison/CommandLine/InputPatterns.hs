@@ -22,6 +22,8 @@ import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Input (Input)
 import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
+import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemotePath)
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
@@ -432,13 +434,16 @@ viewByPrefix =
     )
 
 find :: InputPattern
-find = find' "find" False
+find = find' "find" Input.Local
+
+findAll :: InputPattern
+findAll = find' "find.all" Input.LocalAndDeps
 
 findGlobal :: InputPattern
-findGlobal = find' "find.global" True
+findGlobal = find' "find.global" Input.Global
 
-find' :: String -> Bool -> InputPattern
-find' cmd global =
+find' :: String -> Input.FindScope -> InputPattern
+find' cmd fscope =
   InputPattern
     cmd
     []
@@ -448,18 +453,22 @@ find' cmd global =
         [ ("`find`", "lists all definitions in the current namespace."),
           ( "`find foo`",
             "lists all definitions with a name similar to 'foo' in the current "
-              <> "namespace."
+              <> "namespace (excluding those under 'lib')."
           ),
           ( "`find foo bar`",
             "lists all definitions with a name similar to 'foo' or 'bar' in the "
-              <> "current namespace."
+              <> "current namespace (excluding those under 'lib')."
+          ),
+          ( "find.all foo",
+            "lists all definitions with a name similar to 'foo' in the current "
+              <> "namespace (including one level of 'lib')."
           ),
           ( "find.global foo",
             "lists all definitions with a name similar to 'foo' in any namespace"
           )
         ]
     )
-    (pure . Input.FindI False global)
+    (pure . Input.FindI False fscope)
 
 findShallow :: InputPattern
 findShallow =
@@ -486,13 +495,25 @@ findVerbose :: InputPattern
 findVerbose =
   InputPattern
     "find.verbose"
-    ["list.verbose", "ls.verbose"]
+    []
     I.Visible
     [(ZeroPlus, fuzzyDefinitionQueryArg)]
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True False)
+    (pure . Input.FindI True Input.Local)
+
+findVerboseAll :: InputPattern
+findVerboseAll =
+  InputPattern
+    "find.all.verbose"
+    []
+    I.Visible
+    [(ZeroPlus, fuzzyDefinitionQueryArg)]
+    ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
+        <> "and aliases in the results."
+    )
+    (pure . Input.FindI True Input.LocalAndDeps)
 
 findPatch :: InputPattern
 findPatch =
@@ -1021,7 +1042,7 @@ pullImpl name verbosity pullMode addendum = do
                   )
                 ],
               "",
-              explainRemote
+              explainRemote Pull
             ]
         )
         ( \case
@@ -1042,7 +1063,7 @@ pullExhaustive =
   InputPattern
     "debug.pull-exhaustive"
     []
-    I.Visible
+    I.Hidden
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
@@ -1091,19 +1112,33 @@ push =
               )
             ],
           "",
-          explainRemote
+          explainRemote Push
         ]
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
         url : rest -> do
           pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
     )
 
 pushCreate :: InputPattern
@@ -1132,19 +1167,67 @@ pushCreate =
               )
             ],
           "",
-          explainRemote
+          explainRemote Push
         ]
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.RequireEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
         url : rest -> do
           pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.RequireEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
+    )
+
+pushForce :: InputPattern
+pushForce =
+  InputPattern
+    "unsafe.force-push"
+    []
+    I.Hidden
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
+    (P.wrap "Like `push`, but overwrites any remote namespace.")
+    ( \case
+        [] ->
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.ForcePush,
+                  syncMode = SyncMode.ShortCircuit
+                }
+        url : rest -> do
+          pushPath <- parseWriteRemotePath "remote-path" url
+          p <- case rest of
+            [] -> Right Path.relativeEmpty'
+            [path] -> first fromString $ Path.parsePath' path
+            _ -> Left (I.help push)
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.ForcePush,
+                  syncMode = SyncMode.ShortCircuit
+                }
     )
 
 pushExhaustive :: InputPattern
@@ -1152,7 +1235,7 @@ pushExhaustive =
   InputPattern
     "debug.push-exhaustive"
     []
-    I.Visible
+    I.Hidden
     [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
@@ -1165,14 +1248,28 @@ pushExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.Complete
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.Complete
+                }
         url : rest -> do
           pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just pushPath) p PushBehavior.RequireNonEmpty SyncMode.Complete
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.Complete
+                }
     )
 
 createPullRequest :: InputPattern
@@ -1192,8 +1289,8 @@ createPullRequest =
             "example: "
               <> makeExampleNoBackticks
                 createPullRequest
-                [ "https://github.com/unisonweb/base:.trunk",
-                  "https://github.com/me/unison:.prs.base._myFeature"
+                [ "unison.base.main",
+                  "myself.prs.base._myFeature"
                 ]
           ]
     )
@@ -1898,7 +1995,33 @@ test =
     I.Visible
     []
     "`test` runs unit tests for the current branch."
-    (const $ pure $ Input.TestI True True)
+    ( const $
+        pure $
+          Input.TestI
+            Input.TestInput
+              { includeLibNamespace = False,
+                showFailures = True,
+                showSuccesses = True
+              }
+    )
+
+testAll :: InputPattern
+testAll =
+  InputPattern
+    "test.all"
+    []
+    I.Visible
+    []
+    "`test.all` runs unit tests for the current branch (including the `lib` namespace)."
+    ( const $
+        pure $
+          Input.TestI
+            Input.TestInput
+              { includeLibNamespace = True,
+                showFailures = True,
+                showSuccesses = True
+              }
+    )
 
 docsToHtml :: InputPattern
 docsToHtml =
@@ -2022,15 +2145,19 @@ gist =
         [ "Publish the current namespace.",
           "",
           P.wrapColumn2
-            [ ( "`gist remote`",
-                "publishes the contents of the current namespace into the repo `remote`."
+            [ ( "`gist git(git@github.com:user/repo)`",
+                "publishes the contents of the current namespace into the specified git repo."
               )
-            ]
+            ],
+          "",
+          P.indentN 2 . P.wrap $
+            "Note: Gists are not yet supported on Unison Share, though you can just do a normal"
+              <> "`push.create` of the current namespace to your Unison Share codebase wherever you like!"
         ]
     )
     ( \case
         [repoString] -> do
-          repo <- parseWriteGitRepo "repo" repoString
+          repo <- parseWriteGitRepo "gist git repo" repoString
           pure (Input.GistI (Input.GistInput repo))
         _ -> Left (showPatternHelp gist)
     )
@@ -2089,6 +2216,7 @@ validInputs =
       names False, -- names
       push,
       pushCreate,
+      pushForce,
       pull,
       pullWithoutHistory,
       pullSilent,
@@ -2107,8 +2235,10 @@ validInputs =
       copyPatch,
       find,
       findGlobal,
+      findAll,
       findShallow,
       findVerbose,
+      findVerboseAll,
       view,
       display,
       displayTo,
@@ -2138,6 +2268,7 @@ validInputs =
       deleteTermReplacement,
       deleteTypeReplacement,
       test,
+      testAll,
       ioTest,
       execute,
       viewReflog,
@@ -2335,7 +2466,7 @@ noCompletions =
       globTargets = mempty
     }
 
--- Arya: I could imagine completions coming from previous git pulls
+-- Arya: I could imagine completions coming from previous pulls
 gitUrlArg :: ArgumentType
 gitUrlArg =
   ArgumentType
@@ -2374,18 +2505,21 @@ remoteNamespaceArg =
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
 
-explainRemote :: P.Pretty CT.ColorText
-explainRemote =
-  P.lines
-    [ P.wrap "where `remote` is a git repository, optionally followed by `:`"
-        <> "and an absolute remote path, a branch, or both, such as:",
-      P.indentN 2 . P.lines $
-        [ P.backticked "https://github.com/org/repo",
-          P.backticked "https://github.com/org/repo:.some.remote.path",
-          P.backticked "https://github.com/org/repo:some-branch:.some.remote.path",
-          P.backticked "https://github.com/org/repo:some-branch"
-        ]
-    ]
+explainRemote :: PushPull -> P.Pretty CT.ColorText
+explainRemote pushPull =
+  P.group $
+    P.lines
+      [ P.wrap $ "where `remote` is a hosted codebase, such as:",
+        P.indentN 2 . P.column2 $
+          [ ("Unison Share", P.backticked "user.public.some.remote.path"),
+            ("Git + root", P.backticked $ "git(" <> gitRepo <> "user/repo)"),
+            ("Git + path", P.backticked $ "git(" <> gitRepo <> "user/repo).some.remote.path"),
+            ("Git + branch", P.backticked $ "git(" <> gitRepo <> "user/repo:some-branch)"),
+            ("Git + branch + path", P.backticked $ "git(" <> gitRepo <> "user/repo:some-branch).some.remote.path")
+          ]
+      ]
+  where
+    gitRepo = PushPull.fold @(P.Pretty P.ColorText) "git@github.com:" "https://github.com/" pushPull
 
 showErrorFancy :: P.ShowErrorComponent e => P.ErrorFancy e -> String
 showErrorFancy (P.ErrorFail msg) = msg

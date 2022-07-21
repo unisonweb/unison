@@ -79,6 +79,16 @@ selectD34 c d r =
             (Map.lookup c (d3 r))
     ]
 
+restrict34d12 ::
+  (Ord a, Ord b, Ord c, Ord d) =>
+  (c, d) ->
+  Relation4 a b c d ->
+  Relation a b
+restrict34d12 (c, d) Relation4{d3} =
+  fromMaybe R.empty do
+    abd <- Map.lookup c d3
+    Map.lookup d (R3.d3 abd)
+
 keys :: Relation4 a b c d -> (Set a, Set b, Set c, Set d)
 keys Relation4 {d1, d2, d3, d4} =
   (Map.keysSet d1, Map.keysSet d2, Map.keysSet d3, Map.keysSet d4)
