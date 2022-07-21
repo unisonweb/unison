@@ -227,6 +227,8 @@ data Env = Env
     codebase :: Codebase IO Symbol Ann,
     config :: Configurator.Config,
     credentialManager :: CredentialManager,
+    -- | What to do with output for the user.
+    notify :: Output -> IO (),
     runtime :: Runtime Symbol,
     sandboxedRuntime :: Runtime Symbol,
     serverBaseUrl :: Maybe Server.BaseUrl,

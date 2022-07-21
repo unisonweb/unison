@@ -205,6 +205,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                       codebase,
                       config,
                       credentialManager = credMan,
+                      notify,
                       runtime,
                       sandboxedRuntime = sbRuntime,
                       serverBaseUrl,
