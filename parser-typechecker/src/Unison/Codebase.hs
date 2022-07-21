@@ -45,7 +45,6 @@ module Unison.Codebase
     getRootBranchExists,
     getRootBranchHash,
     putRootBranch,
-    rootBranchUpdates,
     namesAtPath,
 
     -- * Patches
