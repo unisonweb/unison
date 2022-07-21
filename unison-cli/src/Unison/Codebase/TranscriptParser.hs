@@ -471,11 +471,9 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               (const $ pure ())
               runtime
               sbRuntime
-              print
               printNumbered
               loadPreviousUnisonBlock
               codebase
-              Nothing
               rng
               HandleInput.loop
           case o of

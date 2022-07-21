@@ -22,7 +22,7 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Command (Action (..), Command (..), Env, LexedSource, LoadSourceResult, LoopState, SourceName, TypecheckingResult, UseCache)
 import Unison.Codebase.Editor.Input (Event, Input)
-import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
+import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
@@ -37,14 +37,12 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import qualified Unison.Result as Result
 import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Free as Free
-import qualified Unison.Util.Pretty as P
 import qualified Unison.WatchKind as WK
 import qualified UnliftIO
 
@@ -123,15 +121,13 @@ commandLine ::
   (Branch IO -> IO ()) ->
   Runtime Symbol ->
   Runtime Symbol ->
-  (Output -> IO ()) ->
   (NumberedOutput -> IO NumberedArgs) ->
   (SourceName -> IO LoadSourceResult) ->
   Codebase IO Symbol Ann ->
-  Maybe Server.BaseUrl ->
   (Int -> IO gen) ->
   (Either Event Input -> Action ()) ->
   IO (Maybe (), LoopState)
-commandLine env0 loopState0 awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen action = do
+commandLine env0 loopState0 awaitInput setBranchRef rt sdbxRt notifyNumbered loadSource codebase rngGen action = do
   rndSeed :: STM.TVar Int <- STM.newTVarIO 0
   loopStateRef <- UnliftIO.newIORef loopState0
   let go :: forall r x. Command x -> Cli r x
@@ -141,17 +137,6 @@ commandLine env0 loopState0 awaitInput setBranchRef rt sdbxRt notifyUser notifyN
         GetLoopState -> liftIO (UnliftIO.readIORef loopStateRef)
         PutLoopState st -> liftIO (UnliftIO.writeIORef loopStateRef st)
         Eval m -> liftIO m
-        API -> liftIO $
-          forM_ serverBaseUrl $ \baseUrl ->
-            notifyUser $
-              PrintMessage $
-                P.lines
-                  [ "The API information is as follows:",
-                    P.newline,
-                    P.indentN 2 (P.hiBlue ("UI: " <> fromString (Server.urlFor Server.UI baseUrl))),
-                    P.newline,
-                    P.indentN 2 (P.hiBlue ("API: " <> fromString (Server.urlFor Server.Api baseUrl)))
-                  ]
         NotifyNumbered output -> liftIO $ notifyNumbered output
         LoadSource sourcePath -> liftIO $ loadSource sourcePath
         Typecheck ambient names sourceName source -> do

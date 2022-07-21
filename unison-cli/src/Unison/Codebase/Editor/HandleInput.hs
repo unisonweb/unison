@@ -567,7 +567,18 @@ loop e = do
                     ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                     respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
-            ApiI -> eval API
+            ApiI -> do
+              serverBaseUrl <- Command.askServerBaseUrl
+              whenJust serverBaseUrl \baseUrl ->
+                respond $
+                  PrintMessage $
+                    P.lines
+                      [ "The API information is as follows:",
+                        P.newline,
+                        P.indentN 2 (P.hiBlue ("UI: " <> fromString (Server.urlFor Server.UI baseUrl))),
+                        P.newline,
+                        P.indentN 2 (P.hiBlue ("API: " <> fromString (Server.urlFor Server.Api baseUrl)))
+                      ]
             CreateMessage pretty ->
               respond $ PrintMessage pretty
             ShowReflogI -> do

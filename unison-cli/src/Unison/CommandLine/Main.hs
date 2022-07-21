@@ -219,14 +219,12 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     (writeIORef rootRef)
                     runtime
                     sbRuntime
-                    notify
                     ( \o ->
                         let (p, args) = notifyNumbered o
                          in putPrettyNonempty p $> args
                     )
                     loadSourceFile
                     codebase
-                    serverBaseUrl
                     (const Random.getSystemDRG)
                     HandleInput.loop
             UnliftIO.race waitForInterrupt (try handleCommand) >>= \case

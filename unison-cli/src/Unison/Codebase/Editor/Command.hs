@@ -105,7 +105,6 @@ data Command a where
   GetLoopState :: Command LoopState
   PutLoopState :: LoopState -> Command ()
   Eval :: IO a -> Command a
-  API :: Command ()
   HQNameQuery ::
     Maybe Path ->
     Branch IO ->
@@ -184,7 +183,6 @@ commandName = \case
   Quit -> "Quit"
   WithRunInIO {} -> "WithRunInIO"
   Eval {} -> "Eval"
-  API -> "API"
   NotifyNumbered {} -> "NotifyNumbered"
   LoadSource {} -> "LoadSource"
   Typecheck {} -> "Typecheck"
