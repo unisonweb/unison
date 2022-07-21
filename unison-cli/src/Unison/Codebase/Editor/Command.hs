@@ -68,7 +68,6 @@ import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import Unison.Result (Note, Result)
-import Unison.Server.Backend (DefinitionResults, IncludeCycles)
 import Unison.Server.QueryResult (QueryResult)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -122,12 +121,6 @@ data
     Branch IO ->
     [HQ.HashQualified Name] ->
     Command i v QueryResult
-  GetDefinitionsBySuffixes ::
-    Maybe Path ->
-    Branch IO ->
-    IncludeCycles ->
-    [HQ.HashQualified Name] ->
-    Command i v (DefinitionResults v)
   ConfigLookup :: Configured a => Text -> Command i v (Maybe a)
   Input :: Command i v i
   -- Presents some output to the user
@@ -220,7 +213,6 @@ commandName = \case
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
   Execute {} -> "Execute"
   HQNameQuery {} -> "HQNameQuery"
-  GetDefinitionsBySuffixes {} -> "GetDefinitionsBySuffixes"
 
 data LoopState v = LoopState
   { _root :: Branch IO,

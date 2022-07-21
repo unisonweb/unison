@@ -1980,11 +1980,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
           pure result
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition ::
-  forall v.
-  OutputLocation ->
-  [HQ.HashQualified Name] ->
-  Action' v ()
+handleShowDefinition :: OutputLocation -> [HQ.HashQualified Name] -> Action' Symbol ()
 handleShowDefinition outputLoc inputQuery = do
   codebase <- Command.askCodebase
   -- If the query is empty, run a fuzzy search.
@@ -2001,8 +1997,11 @@ handleShowDefinition outputLoc inputQuery = do
   currentPath' <- Path.unabsolute <$> use Command.currentPath
   root' <- use Command.root
   hqLength <- liftIO (Codebase.hashLength codebase)
-  Backend.DefinitionResults terms types misses <-
-    eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
+  Backend.DefinitionResults terms types misses <- do
+    let namingScope = Backend.AllNames currentPath'
+    let parseNames = Backend.parseNamesForBranch root' namingScope
+    let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+    liftIO (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
     let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root'

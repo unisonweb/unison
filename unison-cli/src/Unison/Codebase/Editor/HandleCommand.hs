@@ -139,7 +139,6 @@ commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser 
   loopStateRef <- UnliftIO.newIORef loopState0
   let go :: forall r x. Command i Symbol x -> Cli r x
       go x = case x of
-        -- Wait until we get either user input or a unison file update
         AskEnv -> ask
         LocalEnv f e -> local f (Free.fold go e)
         GetLoopState -> liftIO (UnliftIO.readIORef loopStateRef)
@@ -206,12 +205,6 @@ commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser 
           let parseNames = Backend.parseNamesForBranch branch namingScope
           let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
           liftIO $ Backend.hqNameQuery codebase nameSearch query
-        GetDefinitionsBySuffixes mayPath branch includeCycles query -> do
-          hqLength <- liftIO $ Codebase.hashLength codebase
-          let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
-          let parseNames = Backend.parseNamesForBranch branch namingScope
-          let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
-          liftIO (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
 
       watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
       watchCache h = do
@@ -251,7 +244,7 @@ commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser 
             pure $ Right rs
   res <- (\(Cli ma) -> ma (\a _env -> pure (Success a)) env0) . Free.fold go $ free
   finalState <- UnliftIO.readIORef loopStateRef
-  case res of
-    Success () -> pure (Just (), finalState)
-    HaltStep -> pure (Just (), finalState)
-    HaltRepl -> pure (Nothing, finalState)
+  pure case res of
+    Success () -> (Just (), finalState)
+    HaltStep -> (Just (), finalState)
+    HaltRepl -> (Nothing, finalState)
