@@ -55,6 +55,7 @@ import qualified Unison.WatchKind as WK
 import qualified UnliftIO
 import Web.Browser (openBrowser)
 
+-- | Typecheck a file from LexedSource
 typecheck ::
   Monad m =>
   [Type Symbol Ann] ->
@@ -72,6 +73,7 @@ typecheck ambient codebase parsingEnv sourceName src =
       (Text.unpack sourceName)
       (fst src)
 
+-- | Typecheck a file from a pre-constructed UnisonFile
 typecheck' ::
   Monad m =>
   [Type Symbol Ann] ->
@@ -141,9 +143,7 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
           STM.writeTVar iVar (i + 1)
           pure i
         rng <- lift $ rngGen i
-        let namegen = Parser.uniqueBase32Namegen rng
-            env = Parser.ParsingEnv namegen names
-        lift $ typecheck ambient codebase env sourceName source
+        liftIO $ typecheckCommand codebase ambient names sourceName source rng
       TypecheckFile file ambient -> lift $ typecheck' ambient codebase file
       Evaluate sdbx ppe unisonFile -> lift $ evalUnisonFile sdbx ppe unisonFile []
       Evaluate1 sdbx ppe useCache term -> lift $ eval1 sdbx ppe useCache term
@@ -281,6 +281,20 @@ commandLine config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered l
                 let value' = Term.amap (const Ann.External) value
                 Codebase.putWatch codebase kind hash value'
           pure $ Right rs
+
+typecheckCommand ::
+  (Random.DRG gen, Monad m) =>
+  Codebase m Symbol Ann ->
+  [Type Symbol Ann] ->
+  NamesWithHistory.NamesWithHistory ->
+  SourceName ->
+  LexedSource ->
+  gen ->
+  m (TypecheckingResult Symbol)
+typecheckCommand codebase ambient names sourceName source gen = do
+  let namegen = Parser.uniqueBase32Namegen gen
+      parsingEnv = Parser.ParsingEnv namegen names
+  typecheck ambient codebase parsingEnv sourceName source
 
 -- doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 -- doTodo code b = do

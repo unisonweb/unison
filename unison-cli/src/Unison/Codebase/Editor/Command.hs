@@ -46,7 +46,6 @@ import qualified Unison.Hash as H
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import Unison.Name (Name)
-import Unison.Names (Names)
 import Unison.NamesWithHistory (NamesWithHistory)
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
@@ -93,7 +92,7 @@ data LoadSourceResult
 type TypecheckingResult v =
   Result
     (Seq (Note v Ann))
-    (Either Names (UF.TypecheckedUnisonFile v Ann))
+    (Either (UF.UnisonFile v Ann) (UF.TypecheckedUnisonFile v Ann))
 
 data
   Command
