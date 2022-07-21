@@ -18,6 +18,7 @@ import Data.Bifunctor (first)
 import Data.Containers.ListUtils (nubOrdOn)
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
+import qualified Data.List.NonEmpty.Extra as NonEmpty
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -55,6 +56,7 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Debug as Debug
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -826,7 +828,17 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
   (parseNames, localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase root path
-  let ppe = PPED.biasTo (mapMaybe HQ.toName query) unbiasedPPE
+  -- Bias towards both relative and absolute path to queries,
+  -- This allows us to still bias towards definitions outside our perspective but within the
+  -- same tree;
+  -- e.g. if the query is `map` and we're in `base.trunk.List`,
+  -- we bias towards `map` and `.base.trunk.List.map` which ensures we still prefer names in
+  -- `trunk` over those in other releases.
+  let biases =
+        mapMaybe HQ.toName query
+          & foldMap (\name -> [name, Name.makeAbsolute . Name.fromSegments $ NonEmpty.appendr (Path.toList path) (Name.segments name)])
+  Debug.debugM Debug.Sync "Biases" biases
+  let ppe = PPED.biasTo biases unbiasedPPE
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   DefinitionResults terms types misses <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles query)
