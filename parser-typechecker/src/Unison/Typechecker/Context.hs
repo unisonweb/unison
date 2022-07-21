@@ -85,6 +85,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.TypeVar as TypeVar
 import Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.PrettyPrintEnv as PPE
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -2986,10 +2987,10 @@ instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of
     TypeVar.Universal x -> "@" <> show x
     e -> show e
-  show (Solved _ v t) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing mempty (Type.getPolytype t)
+  show (Solved _ v t) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing PPE.empty (Type.getPolytype t)
   show (Ann v t) =
     Text.unpack (Var.name v) ++ " : "
-      ++ TP.prettyStr Nothing mempty t
+      ++ TP.prettyStr Nothing PPE.empty t
   show (Marker v) = "|" ++ Text.unpack (Var.name v) ++ "|"
 
 instance (Ord loc, Var v) => Show (Context v loc) where
@@ -2998,8 +2999,8 @@ instance (Ord loc, Var v) => Show (Context v loc) where
       showElem _ctx (Var v) = case v of
         TypeVar.Universal x -> "@" <> show x
         e -> show e
-      showElem ctx (Solved _ v (Type.Monotype t)) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing mempty (apply ctx t)
-      showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing mempty (apply ctx t)
+      showElem ctx (Solved _ v (Type.Monotype t)) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
+      showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
       showElem _ (Marker v) = "|" ++ Text.unpack (Var.name v) ++ "|"
 
 instance Monad f => Monad (MT v loc f) where
