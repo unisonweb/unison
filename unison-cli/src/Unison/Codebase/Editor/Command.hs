@@ -69,6 +69,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import Unison.Result (Note, Result)
 import Unison.Server.QueryResult (QueryResult)
+import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
@@ -96,37 +97,36 @@ type TypecheckingResult v =
 
 data
   Command
-    v -- Type of variables in the codebase
     a -- Result of running the command
   where
   -- Escape hatch.
-  AskEnv :: Command v (Env v)
-  LocalEnv :: (Env v -> Env v) -> Free (Command v) a -> Command v a
-  GetLoopState :: Command v (LoopState v)
-  PutLoopState :: LoopState v -> Command v ()
-  Eval :: IO a -> Command v a
-  UI :: Command v ()
-  API :: Command v ()
+  AskEnv :: Command (Env Symbol)
+  LocalEnv :: (Env Symbol -> Env Symbol) -> Free Command a -> Command a
+  GetLoopState :: Command (LoopState Symbol)
+  PutLoopState :: LoopState Symbol -> Command ()
+  Eval :: IO a -> Command a
+  UI :: Command ()
+  API :: Command ()
   HQNameQuery ::
     Maybe Path ->
     Branch IO ->
     [HQ.HashQualified Name] ->
-    Command v QueryResult
-  ConfigLookup :: Configured a => Text -> Command v (Maybe a)
+    Command QueryResult
+  ConfigLookup :: Configured a => Text -> Command (Maybe a)
   -- Presents some output to the user
-  Notify :: Output v -> Command v ()
-  NotifyNumbered :: NumberedOutput v -> Command v NumberedArgs
-  LoadSource :: SourceName -> Command v LoadSourceResult
+  Notify :: Output Symbol -> Command ()
+  NotifyNumbered :: NumberedOutput Symbol -> Command NumberedArgs
+  LoadSource :: SourceName -> Command LoadSourceResult
   Typecheck ::
-    AmbientAbilities v ->
+    AmbientAbilities Symbol ->
     NamesWithHistory ->
     SourceName ->
     LexedSource ->
-    Command v (TypecheckingResult v)
+    Command (TypecheckingResult Symbol)
   TypecheckFile ::
-    UF.UnisonFile v Ann ->
-    [Type v Ann] ->
-    Command v (TypecheckingResult v)
+    UF.UnisonFile Symbol Ann ->
+    [Type Symbol Ann] ->
+    Command (TypecheckingResult Symbol)
   -- Evaluate all watched expressions in a UnisonFile and return
   -- their results, keyed by the name of the watch variable. The tuple returned
   -- has the form:
@@ -147,25 +147,25 @@ data
   Evaluate ::
     Bool -> -- sandboxed
     PPE.PrettyPrintEnv ->
-    UF.TypecheckedUnisonFile v Ann ->
-    Command v (Either Runtime.Error (EvalResult v))
+    UF.TypecheckedUnisonFile Symbol Ann ->
+    Command (Either Runtime.Error (EvalResult Symbol))
   -- Evaluate a single closed definition
-  Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command v (Either Runtime.Error (Term v Ann))
+  Evaluate1 :: Bool -> PPE.PrettyPrintEnv -> UseCache -> Term Symbol Ann -> Command (Either Runtime.Error (Term Symbol Ann))
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
-  SyncLocalRootBranch :: Branch IO -> Command v ()
+  SyncLocalRootBranch :: Branch IO -> Command ()
   -- IsDerivedTerm :: H.Hash -> Command m i v Bool
   -- IsDerivedType :: H.Hash -> Command m i v Bool
 
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
-  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command v (Runtime.WatchResults v Ann)
-  WithRunInIO :: ((forall x. Action v x -> IO x) -> IO a) -> Command v a
-  Abort :: Command v a
-  Quit :: Command v a
+  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> Command (Runtime.WatchResults Symbol Ann)
+  WithRunInIO :: ((forall x. Action Symbol x -> IO x) -> IO a) -> Command a
+  Abort :: Command a
+  Quit :: Command a
 
-instance MonadIO (Free (Command v)) where
+instance MonadIO (Free Command) where
   liftIO io = Free.eval $ Eval io
 
 type UseCache = Bool
@@ -178,7 +178,7 @@ type EvalResult v =
 lookupEvalResult :: Ord v => v -> EvalResult v -> Maybe (Term v ())
 lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 
-commandName :: Command v a -> String
+commandName :: Command a -> String
 commandName = \case
   AskEnv -> "AskEnv"
   LocalEnv {} -> "LocalEnv"
@@ -235,7 +235,7 @@ data Env v = Env
     ucmVersion :: UCMVersion
   }
 
-newtype Action v a = Action {unAction :: Free (Command v) a}
+newtype Action v a = Action {unAction :: Free Command a}
   deriving newtype
     ( Functor,
       Applicative,
@@ -243,15 +243,15 @@ newtype Action v a = Action {unAction :: Free (Command v) a}
       MonadIO
     )
 
-instance MonadReader (Env v) (Action v) where
+instance MonadReader (Env Symbol) (Action Symbol) where
   ask = Action (Free.eval AskEnv)
   local a (Action b) = Action (Free.eval (LocalEnv a b))
 
-instance MonadState (LoopState v) (Action v) where
+instance MonadState (LoopState Symbol) (Action Symbol) where
   get = Action (Free.eval GetLoopState)
   put st = Action (Free.eval (PutLoopState st))
 
-instance MonadUnliftIO (Action v) where
+instance MonadUnliftIO (Action Symbol) where
   withRunInIO k = Action (Free.eval (WithRunInIO k))
 
 abort :: Action v r
@@ -260,7 +260,7 @@ abort = Action (Free.eval Abort)
 quit :: Action v r
 quit = Action (Free.eval Quit)
 
-eval :: Command v a -> Action v a
+eval :: Command a -> Action v a
 eval x = Action (Free.eval x)
 
 makeLenses ''LoopState
@@ -281,27 +281,27 @@ loopState0 b p =
       _numberedArgs = []
     }
 
-respond :: Output v -> Action v ()
+respond :: Output Symbol -> Action Symbol ()
 respond output = Action (Free.eval $ Notify output)
 
-respondNumbered :: NumberedOutput v -> Action v ()
+respondNumbered :: NumberedOutput Symbol -> Action Symbol ()
 respondNumbered output = do
   args <- Action (Free.eval $ NotifyNumbered output)
   unless (null args) $
     numberedArgs .= toList args
 
 -- | Get the codebase out of the environment.
-askCodebase :: Action v (Codebase IO v Ann)
+askCodebase :: Action Symbol (Codebase IO Symbol Ann)
 askCodebase =
   asks codebase
 
 -- | Get the runtime out of the environment.
-askRuntime :: Action v (Runtime v)
+askRuntime :: Action Symbol (Runtime Symbol)
 askRuntime =
   asks runtime
 
 -- | Get the sandboxed runtime out of the environment.
-askSandboxedRuntime :: Action v (Runtime v)
+askSandboxedRuntime :: Action Symbol (Runtime Symbol)
 askSandboxedRuntime =
   asks sandboxedRuntime
 

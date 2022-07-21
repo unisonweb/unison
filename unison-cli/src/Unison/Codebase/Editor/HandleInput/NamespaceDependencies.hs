@@ -19,6 +19,7 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
+import Unison.Symbol (Symbol)
 import qualified Unison.Term as Term
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Relation3 as Relation3
@@ -36,7 +37,7 @@ import qualified Unison.Util.Relation4 as Relation4
 --
 -- Returns a Set of names rather than using the PPE since we already have the correct names in
 -- scope on this branch, and also want to list ALL names of dependents, including aliases.
-namespaceDependencies :: forall m v. Ord v => Branch0 m -> Action v (Map LabeledDependency (Set Name))
+namespaceDependencies :: forall m. Branch0 m -> Action Symbol (Map LabeledDependency (Set Name))
 namespaceDependencies branch = do
   codebase <- askCodebase
 

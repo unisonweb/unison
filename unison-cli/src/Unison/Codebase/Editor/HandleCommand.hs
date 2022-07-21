@@ -138,7 +138,7 @@ commandLine ::
 commandLine env0 loopState0 config awaitInput setBranchRef rt sdbxRt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen action = do
   rndSeed :: STM.TVar Int <- STM.newTVarIO 0
   loopStateRef <- UnliftIO.newIORef loopState0
-  let go :: forall r x. Command Symbol x -> Cli r x
+  let go :: forall r x. Command x -> Cli r x
       go x = case x of
         AskEnv -> ask
         LocalEnv f e -> local f (Free.fold go e)

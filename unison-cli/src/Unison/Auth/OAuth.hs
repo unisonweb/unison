@@ -28,6 +28,7 @@ import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Debug
 import Unison.Prelude
 import Unison.Share.Types (CodeserverURI, codeserverIdFromCodeserverURI)
+import Unison.Symbol (Symbol)
 import qualified UnliftIO
 import qualified Web.Browser as Web
 
@@ -53,7 +54,7 @@ authTransferServer callback req respond =
 
 -- | Direct the user through an authentication flow with the given server and store the
 -- credentials in the provided credential manager.
-authenticateCodeserver :: forall v. CredentialManager -> CodeserverURI -> Action v (Either CredentialFailure ())
+authenticateCodeserver :: CredentialManager -> CodeserverURI -> Action Symbol (Either CredentialFailure ())
 authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- liftIO HTTP.getGlobalManager
   let discoveryURI = discoveryURIForCodeserver codeserverURI
@@ -130,10 +131,10 @@ exchangeCode httpClient tokenEndpoint code verifier redirectURI = liftIO $ do
   case HTTP.responseStatus resp of
     status
       | status < status300 -> do
-        let respBytes = HTTP.responseBody resp
-        pure $ case Aeson.eitherDecode @Tokens respBytes of
-          Left err -> Left (InvalidTokenResponse tokenEndpoint (Text.pack err))
-          Right a -> Right a
+          let respBytes = HTTP.responseBody resp
+          pure $ case Aeson.eitherDecode @Tokens respBytes of
+            Left err -> Left (InvalidTokenResponse tokenEndpoint (Text.pack err))
+            Right a -> Right a
       | otherwise -> pure $ Left (InvalidTokenResponse tokenEndpoint $ "Received " <> tShow status <> " response from token endpoint")
 
 addQueryParam :: ByteString -> ByteString -> URI -> URI
