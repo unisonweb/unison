@@ -6,18 +6,17 @@ import Unison.Auth.OAuth (authenticateCodeserver)
 import Unison.Codebase.Editor.HandleInput.LoopState
 import Unison.Codebase.Editor.Output (Output (CredentialFailureMsg, Success))
 import Unison.Share.Types
-import qualified UnliftIO
 
 -- | Checks if the user has valid auth for the given codeserver,
 -- and runs through an authentication flow if not.
-ensureAuthenticatedWithCodeserver :: UnliftIO.MonadUnliftIO m => CodeserverURI -> Action m i v ()
+ensureAuthenticatedWithCodeserver :: CodeserverURI -> Action i v ()
 ensureAuthenticatedWithCodeserver codeserverURI = do
   credsMan <- asks credentialManager
   getCredentials credsMan (codeserverIdFromCodeserverURI codeserverURI) >>= \case
     Right _ -> pure ()
     Left _ -> authLogin codeserverURI
 
-authLogin :: UnliftIO.MonadUnliftIO m => CodeserverURI -> Action m i v ()
+authLogin :: CodeserverURI -> Action i v ()
 authLogin host = do
   credsMan <- asks credentialManager
   (Action . lift . lift . lift $ authenticateCodeserver credsMan host) >>= \case

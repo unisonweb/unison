@@ -13,6 +13,7 @@ import System.Directory (doesFileExist)
 import System.FilePath (joinPath, replaceExtension, splitPath)
 import System.FilePath.Find (always, extension, find, (==?))
 import qualified Unison.Builtin as Builtin
+import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime, evaluateWatches)
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
@@ -59,7 +60,7 @@ bad r = EasyTest.expectLeft r >> done
 
 test :: Test ()
 test = do
-  rt <- io (RTI.startRuntime RTI.OneOff "")
+  rt <- io (RTI.startRuntime False RTI.OneOff "")
   scope "unison-src"
     . tests
     $ [ go rt shouldPassNow good,
@@ -91,7 +92,7 @@ go rt files how = do
 
 showNotes :: Foldable f => String -> PrintError.Env -> f Note -> String
 showNotes source env =
-  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source
+  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
 
 decodeResult ::
   String -> SynthResult -> EitherResult --  String (UF.TypecheckedUnisonFile Symbol Ann)

@@ -5,6 +5,7 @@ module Unison.Codebase.Type
   ( Codebase (..),
     CodebasePath,
     PushGitBranchOpts (..),
+    GitPushBehavior (..),
     GitError (..),
     SyncToDir,
     LocalOrRemote (..),
@@ -189,10 +190,17 @@ data LocalOrRemote
   deriving (Show, Eq, Ord)
 
 data PushGitBranchOpts = PushGitBranchOpts
-  { -- | Set the branch as root?
-    setRoot :: Bool,
+  { behavior :: GitPushBehavior,
     syncMode :: SyncMode
   }
+
+data GitPushBehavior
+  = -- | Don't set root, just sync entities.
+    GitPushBehaviorGist
+  | -- | After syncing entities, do a fast-forward check, then set the root.
+    GitPushBehaviorFf
+  | -- | After syncing entities, just set the root (force-pushy).
+    GitPushBehaviorForce
 
 data GitError
   = GitProtocolError GitProtocolError

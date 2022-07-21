@@ -113,12 +113,13 @@ main ::
   (Config, IO ()) ->
   [Either Event Input] ->
   Runtime.Runtime Symbol ->
+  Runtime.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
   ((Branch IO, Path.Absolute) -> IO ()) ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl ucmVersion notifyChange = do
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyChange = do
   root <- Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
@@ -172,6 +173,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
 
     let cleanup = do
           Runtime.terminate runtime
+          Runtime.terminate sbRuntime
           cancelConfig
           cancelFileSystemWatch
           cancelWatchBranchUpdates
@@ -192,7 +194,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                   pure x
     (onInterrupt, waitForInterrupt) <- buildInterruptHandler
     withInterruptHandler onInterrupt $ do
-      let loop :: LoopState.LoopState IO Symbol -> IO ()
+      let loop :: LoopState.LoopState Symbol -> IO ()
           loop state = do
             notifyChange (LoopState._root state, view LoopState.currentPath state)
             writeIORef pathRef (view LoopState.currentPath state)
@@ -212,6 +214,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                     awaitInput
                     (writeIORef rootRef)
                     runtime
+                    sbRuntime
                     notify
                     ( \o ->
                         let (p, args) = notifyNumbered o

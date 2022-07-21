@@ -761,7 +761,7 @@ pushGitBranch ::
   -- An action which accepts the current root branch on the remote and computes a new branch.
   (Branch m -> m (Either e (Branch m))) ->
   m (Either C.GitError (Either e (Branch m)))
-pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = UnliftIO.try do
+pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = UnliftIO.try do
   -- Pull the latest remote into our git cache
   -- Use a local git clone to copy this git repo into a temp-dir
   -- Delete the codebase in our temp-dir
@@ -801,36 +801,32 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
       Sqlite.runReadOnlyTransaction srcConn \runSrc -> do
         Sqlite.runWriteTransaction destConn \runDest -> do
           _ <- syncInternal (syncProgress progressStateRef) runSrc runDest newBranch
-          when setRoot (overwriteRoot runDest codebaseStatus remotePath newBranch)
-    overwriteRoot ::
-      (forall a. Sqlite.Transaction a -> m a) ->
-      CodebaseStatus ->
-      FilePath ->
-      Branch m ->
-      m ()
-    overwriteRoot run codebaseStatus remotePath newBranch = do
-      let newBranchHash = Branch.headHash newBranch
-      case codebaseStatus of
-        ExistingCodebase -> do
-          -- the call to runDB "handles" the possible DB error by bombing
-          maybeOldRootHash <- fmap Cv.causalHash2to1 <$> run Ops.loadRootCausalHash
-          case maybeOldRootHash of
-            Nothing -> run (setRepoRoot newBranchHash)
-            Just oldRootHash -> do
-              run (CodebaseOps.before oldRootHash newBranchHash) >>= \case
-                Nothing ->
-                  error $
-                    "I couldn't find the hash " ++ show newBranchHash
-                      ++ " that I just synced to the cached copy of "
-                      ++ repoString
-                      ++ " in "
-                      ++ show remotePath
-                      ++ "."
-                Just False ->
-                  throwIO . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-                Just True -> pure ()
-        CreatedCodebase -> pure ()
-      run (setRepoRoot newBranchHash)
+          let overwriteRoot forcePush = do
+                let newBranchHash = Branch.headHash newBranch
+                case codebaseStatus of
+                  ExistingCodebase -> do
+                    when (not forcePush) do
+                      -- the call to runDB "handles" the possible DB error by bombing
+                      runDest Ops.loadRootCausalHash >>= \case
+                        Nothing -> pure ()
+                        Just oldRootHash -> do
+                          runDest (CodebaseOps.before (Cv.causalHash2to1 oldRootHash) newBranchHash) >>= \case
+                            Nothing ->
+                              error $
+                                "I couldn't find the hash " ++ show newBranchHash
+                                  ++ " that I just synced to the cached copy of "
+                                  ++ repoString
+                                  ++ " in "
+                                  ++ show remotePath
+                                  ++ "."
+                            Just False -> throwIO . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                            Just True -> pure ()
+                  CreatedCodebase -> pure ()
+                runDest (setRepoRoot newBranchHash)
+          case behavior of
+            C.GitPushBehaviorGist -> pure ()
+            C.GitPushBehaviorFf -> overwriteRoot False
+            C.GitPushBehaviorForce -> overwriteRoot True
     repoString = Text.unpack $ printWriteGitRepo repo
     setRepoRoot :: Branch.CausalHash -> Sqlite.Transaction ()
     setRepoRoot h = do

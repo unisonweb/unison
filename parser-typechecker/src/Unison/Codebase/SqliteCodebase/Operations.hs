@@ -25,6 +25,7 @@ import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
 import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
+import U.Codebase.Sqlite.Operations (NamesByPath (..))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sqlite.V2.Decl (saveDeclComponent)
@@ -552,29 +553,28 @@ namesAtPath ::
   Path ->
   Transaction ScopedNames
 namesAtPath path = do
-  (termNames, typeNames) <- Ops.rootBranchNames
+  let namespace = if path == Path.empty then Nothing else Just $ tShow path
+  NamesByPath {termNamesInPath, termNamesExternalToPath, typeNamesInPath, typeNamesExternalToPath} <- Ops.rootNamesByPath namespace
+  let termsInPath = convertTerms termNamesInPath
+  let typesInPath = convertTypes typeNamesInPath
+  let termsOutsidePath = convertTerms termNamesExternalToPath
+  let typesOutsidePath = convertTypes typeNamesExternalToPath
   let allTerms :: [(Name, Referent.Referent)]
-      allTerms =
-        termNames <&> \(S.NamedRef {reversedSegments, ref = (ref, ct)}) ->
-          let v1ref = runIdentity $ Cv.referent2to1 (const . pure . Cv.constructorType2to1 . fromMaybe (error "Required constructor type for constructor but it was null") $ ct) ref
-           in (Name.fromReverseSegments (coerce reversedSegments), v1ref)
+      allTerms = termsInPath <> termsOutsidePath
   let allTypes :: [(Name, Reference.Reference)]
-      allTypes =
-        typeNames <&> \(S.NamedRef {reversedSegments, ref}) ->
-          (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
+      allTypes = typesInPath <> typesOutsidePath
   let rootTerms = Rel.fromList allTerms
   let rootTypes = Rel.fromList allTypes
   let absoluteRootNames = Names {terms = rootTerms, types = rootTypes}
-  let (relativeScopedNames, absoluteExternalNames) =
+  let absoluteExternalNames = Names {terms = Rel.fromList termsOutsidePath, types = Rel.fromList typesOutsidePath}
+  let relativeScopedNames =
         case path of
-          Path.Empty -> (absoluteRootNames, mempty)
+          Path.Empty -> (absoluteRootNames)
           p ->
             let reversedPathSegments = reverse . Path.toList $ p
-                (relativeTerms, externalTerms) = foldMap (partitionByPathPrefix reversedPathSegments) allTerms
-                (relativeTypes, externalTypes) = foldMap (partitionByPathPrefix reversedPathSegments) allTypes
-             in ( Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes},
-                  Names {terms = Rel.fromList externalTerms, types = Rel.fromList externalTypes}
-                )
+                relativeTerms = stripPathPrefix reversedPathSegments <$> termsInPath
+                relativeTypes = stripPathPrefix reversedPathSegments <$> typesInPath
+             in (Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes})
   pure $
     ScopedNames
       { absoluteExternalNames,
@@ -582,18 +582,23 @@ namesAtPath path = do
         absoluteRootNames
       }
   where
+    convertTypes names =
+      names <&> \(S.NamedRef {reversedSegments, ref}) ->
+        (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
+    convertTerms names =
+      names <&> \(S.NamedRef {reversedSegments, ref = (ref, ct)}) ->
+        let v1ref = runIdentity $ Cv.referent2to1 (const . pure . Cv.constructorType2to1 . fromMaybe (error "Required constructor type for constructor but it was null") $ ct) ref
+         in (Name.fromReverseSegments (coerce reversedSegments), v1ref)
+
     -- If the given prefix matches the given name, the prefix is stripped and it's collected
     -- on the left, otherwise it's left as-is and collected on the right.
-    -- >>> partitionByPathPrefix ["b", "a"] ("a.b.c", ())
-    -- ([(c,())],[])
-    --
-    -- >>> partitionByPathPrefix ["y", "x"] ("a.b.c", ())
-    -- ([],[(a.b.c,())])
-    partitionByPathPrefix :: [NameSegment] -> (Name, r) -> ([(Name, r)], [(Name, r)])
-    partitionByPathPrefix reversedPathSegments (n, ref) =
+    -- >>> stripPathPrefix ["b", "a"] ("a.b.c", ())
+    -- ([(c,())])
+    stripPathPrefix :: [NameSegment] -> (Name, r) -> (Name, r)
+    stripPathPrefix reversedPathSegments (n, ref) =
       case Name.stripReversedPrefix n reversedPathSegments of
-        Nothing -> (mempty, [(n, ref)])
-        Just stripped -> ([(Name.makeRelative stripped, ref)], mempty)
+        Nothing -> error $ "Expected name to be in namespace" <> show (n, reverse reversedPathSegments)
+        Just stripped -> (Name.makeRelative stripped, ref)
 
 -- | Update the root namespace names index which is used by the share server for serving api
 -- requests.

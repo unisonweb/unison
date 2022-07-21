@@ -42,6 +42,7 @@ library
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
       Unison.Codebase.Editor.Output.DumpNamespace
+      Unison.Codebase.Editor.Output.PushPull
       Unison.Codebase.Editor.Propagate
       Unison.Codebase.Editor.Slurp
       Unison.Codebase.Editor.SlurpComponent
@@ -168,6 +169,7 @@ library
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
     , vector
     , wai
     , warp
@@ -282,6 +284,7 @@ executable cli-integration-tests
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
     , vector
     , wai
     , warp
@@ -390,6 +393,7 @@ executable transcripts
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
     , vector
     , wai
     , warp
@@ -503,6 +507,7 @@ executable unison
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
     , vector
     , wai
     , warp
@@ -619,6 +624,7 @@ test-suite cli-tests
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , uri-encode
     , vector
     , wai
     , warp

@@ -12,7 +12,12 @@ The deleted namespace shouldn't appear in `ls` output.
 
 ```
 ```ucm
-.> ls.verbose
+.> find.verbose
+
+  ☝️
+  
+  I couldn't find matches in this namespace, searching in
+  'lib'...
 
   😶
   
@@ -25,6 +30,11 @@ The deleted namespace shouldn't appear in `ls` output.
 ```
 ```ucm
 .> find mynamespace
+
+  ☝️
+  
+  I couldn't find matches in this namespace, searching in
+  'lib'...
 
   😶
   

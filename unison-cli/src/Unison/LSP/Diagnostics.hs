@@ -12,7 +12,6 @@ import qualified Unison.Names.ResolutionResult as Names
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
@@ -41,25 +40,26 @@ uToLspRange (Range.Range start end) = Range (uToLspPos start) (uToLspPos end)
 
 infoDiagnostics :: FileAnalysis -> Lsp [Diagnostic]
 infoDiagnostics FileAnalysis {fileUri, lexedSource = (srcText, _lexed), notes} = do
-  ppe <- LSP.globalPPE
-  pure $ noteDiagnostics fileUri (PPE.suffixifiedPPE ppe) (Text.unpack srcText) notes
+  noteDiagnostics fileUri (Text.unpack srcText) notes
 
-noteDiagnostics :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> [Diagnostic]
-noteDiagnostics fileUri ppe src notes = do
-  flip foldMap notes \note -> case note of
-    Result.TypeError {} -> noteDiagnostic note
-    Result.NameResolutionFailures {} -> noteDiagnostic note
+noteDiagnostics :: Foldable f => Uri -> String -> f (Note Symbol Ann) -> Lsp [Diagnostic]
+noteDiagnostics fileUri src notes = do
+  currentPath <- LSP.getCurrentPath
+  ppe <- PPE.suffixifiedPPE <$> LSP.globalPPE
+  pure $ flip foldMap notes \note -> case note of
+    Result.TypeError {} -> noteDiagnostic ppe currentPath note
+    Result.NameResolutionFailures {} -> noteDiagnostic ppe currentPath note
     Result.Parsing err -> do
       (errMsg, ranges) <- PrintError.renderParseErrors src err
       let txtMsg = Text.pack $ Pretty.toPlain 80 errMsg
       range <- ranges
       pure $ mkDiagnostic fileUri (uToLspRange range) DsError txtMsg []
-    Result.UnknownSymbol {} -> noteDiagnostic note
+    Result.UnknownSymbol {} -> noteDiagnostic ppe currentPath note
     Result.TypeInfo {} -> []
-    Result.CompilerBug {} -> noteDiagnostic note
+    Result.CompilerBug {} -> noteDiagnostic ppe currentPath note
   where
-    noteDiagnostic note =
-      let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
+    noteDiagnostic ppe currentPath note =
+      let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src currentPath note
           ranges = noteRanges note
        in do
             (range, references) <- ranges

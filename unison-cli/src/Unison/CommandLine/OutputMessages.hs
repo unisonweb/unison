@@ -10,6 +10,7 @@ import Control.Monad.State
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.Trans.Writer.CPS
 import Data.Bifunctor (first, second)
+import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Foldable as Foldable
 import Data.List (sort, stripPrefix)
 import qualified Data.List as List
@@ -20,9 +21,12 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
+import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
+import qualified Network.URI.Encode as URI
 import qualified Servant.Client as Servant
 import System.Directory
   ( canonicalizePath,
@@ -47,6 +51,7 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
+import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRepo,
     ReadRemoteNamespace,
@@ -102,6 +107,7 @@ import Unison.NamePrinter
     styleHashQualified',
   )
 import Unison.NameSegment (NameSegment (..))
+import qualified Unison.NameSegment as NameSegment
 import Unison.Names (Names (..))
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as Names
@@ -803,6 +809,8 @@ notifyUser dir o = case o of
     pure . P.warnCallout $ "Invalid namespace " <> P.blue (P.string path) <> ", " <> P.string msg
   BranchNotFound b ->
     pure . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " doesn't exist."
+  EmptyPush b ->
+    pure . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " is empty. There is nothing to push."
   CreatedNewBranch path ->
     pure $
       "☝️  The namespace " <> P.blue (P.shown path) <> " is empty."
@@ -926,6 +934,8 @@ notifyUser dir o = case o of
           Input.UpdateI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s
+  FindNoLocalMatches ->
+    pure . P.callout "☝️" $ P.wrap "I couldn't find matches in this namespace, searching in 'lib'..."
   NoExactTypeMatches ->
     pure . P.callout "☝️" $ P.wrap "I couldn't find exact type matches, resorting to fuzzy matching..."
   TypeParseError src e ->
@@ -946,9 +956,9 @@ notifyUser dir o = case o of
         ]
   ParseErrors src es ->
     pure . P.sep "\n\n" $ prettyParseError (Text.unpack src) <$> es
-  TypeErrors src ppenv notes -> do
+  TypeErrors curPath src ppenv notes -> do
     let showNote =
-          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
+          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src) curPath)
             . map Result.TypeError
     pure . showNote $ notes
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs
@@ -1235,7 +1245,7 @@ notifyUser dir o = case o of
   NoConfiguredRemoteMapping pp p ->
     pure . P.fatalCallout . P.wrap $
       "I don't know where to "
-        <> pushPull "push to!" "pull from!" pp
+        <> PushPull.fold "push to!" "pull from!" pp
         <> ( if Path.isRoot p
                then ""
                else
@@ -1243,7 +1253,7 @@ notifyUser dir o = case o of
                    <> " = namespace.path' to .unisonConfig. "
            )
         <> "Type `help "
-        <> pushPull "push" "pull" pp
+        <> PushPull.fold "push" "pull" pp
         <> "` for more information."
   --  | ConfiguredGitUrlParseError PushPull Path' Text String
   ConfiguredRemoteMappingParseError pp p url err ->
@@ -1259,7 +1269,7 @@ notifyUser dir o = case o of
         P.string err,
         "",
         P.wrap $
-          "Type" <> P.backticked ("help " <> pushPull "push" "pull" pp)
+          "Type" <> P.backticked ("help " <> PushPull.fold "push" "pull" pp)
             <> "for more information."
       ]
   NoBranchWithHash _h ->
@@ -1531,6 +1541,7 @@ notifyUser dir o = case o of
            )
   RefusedToPush pushBehavior path ->
     (pure . P.warnCallout) case pushBehavior of
+      PushBehavior.ForcePush -> error "impossible: refused to push due to ForcePush?"
       PushBehavior.RequireEmpty -> expectedEmptyPushDest path
       PushBehavior.RequireNonEmpty -> expectedNonEmptyPushDest path
   GistCreated remoteNamespace ->
@@ -1585,7 +1596,7 @@ notifyUser dir o = case o of
           "Host names should NOT include a schema or path."
         ]
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
-  ShareError x -> (pure . P.warnCallout) case x of
+  ShareError x -> (pure . P.fatalCallout) case x of
     ShareErrorCheckAndSetPush e -> case e of
       (Share.CheckAndSetPushErrorHashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash}) ->
         case (expectedHash, actualHash) of
@@ -1596,14 +1607,13 @@ notifyUser dir o = case o of
     ShareErrorFastForwardPush e -> case e of
       (Share.FastForwardPushErrorNoHistory sharePath) ->
         expectedNonEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
-      (Share.FastForwardPushErrorNoReadPermission sharePath) -> noReadPermission sharePath
+      (Share.FastForwardPushErrorNoReadPermission sharePath) ->
+        noWritePermissionFastForwardPushError sharePath
       (Share.FastForwardPushInvalidParentage parent child) ->
-        P.fatalCallout
-          ( P.lines
-              [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
-                "The history in question is the hash: " <> prettyHash32 child <> " with the ancestor: " <> prettyHash32 parent
-              ]
-          )
+        P.lines
+          [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
+            "The history in question is the hash: " <> prettyHash32 child <> " with the ancestor: " <> prettyHash32 parent
+          ]
       Share.FastForwardPushErrorNotFastForward sharePath ->
         P.lines $
           [ P.wrap $
@@ -1627,24 +1637,42 @@ notifyUser dir o = case o of
         P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
     ShareErrorGetCausalHashByPath err -> handleGetCausalHashByPathError err
     ShareErrorTransport te -> case te of
+      DecodeFailure msg resp ->
+        (P.lines . catMaybes)
+          [ Just ("The server sent a response that we couldn't decode: " <> P.text msg),
+            responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
+          ]
       Unauthenticated codeServerURL ->
-        P.fatalCallout $
-          P.wrap . P.lines $
-            [ "Authentication with this code server (" <> P.string (Servant.showBaseUrl codeServerURL) <> ") is missing or expired.",
-              "Please run " <> makeExample' IP.authLogin <> "."
-            ]
-      PermissionDenied msg -> P.fatalCallout $ P.hang "Permission denied:" (P.text msg)
+        P.wrap . P.lines $
+          [ "Authentication with this code server (" <> P.string (Servant.showBaseUrl codeServerURL) <> ") is missing or expired.",
+            "Please run " <> makeExample' IP.authLogin <> "."
+          ]
+      PermissionDenied msg -> P.hang "Permission denied:" (P.text msg)
       UnreachableCodeserver codeServerURL ->
         P.lines $
           [ P.wrap $ "Unable to reach the code server hosted at:" <> P.string (Servant.showBaseUrl codeServerURL),
             "",
             P.wrap "Please check your network, ensure you've provided the correct location, or try again later."
           ]
-      InvalidResponse resp -> P.fatalCallout $ P.hang "Invalid response received from codeserver:" (P.shown resp)
-      RateLimitExceeded -> P.warnCallout "Rate limit exceeded, please try again later."
-      InternalServerError -> P.fatalCallout "The code server encountered an error. Please try again later or report an issue if the problem persists."
-      Timeout -> P.fatalCallout "The code server timed-out when responding to your request. Please try again later or report an issue if the problem persists."
+      RateLimitExceeded -> "Rate limit exceeded, please try again later."
+      Timeout -> "The code server timed-out when responding to your request. Please try again later or report an issue if the problem persists."
+      UnexpectedResponse resp ->
+        (P.lines . catMaybes)
+          [ Just
+              ( "The server sent a "
+                  <> P.red (P.shown (Http.statusCode (Servant.responseStatusCode resp)))
+                  <> " that we didn't expect."
+              ),
+            let body = Text.decodeUtf8 (LazyByteString.toStrict (Servant.responseBody resp))
+             in if Text.null body then Nothing else Just (P.newline <> "Response body: " <> P.text body),
+            responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
+          ]
     where
+      -- Dig the request id out of a response header.
+      responseRequestId :: Servant.Response -> Maybe Text
+      responseRequestId =
+        fmap Text.decodeUtf8 . List.lookup "X-RequestId" . Foldable.toList @Seq . Servant.responseHeaders
+
       prettySharePath =
         prettyRelative
           . Path.Relative
@@ -1667,19 +1695,45 @@ notifyUser dir o = case o of
         Share.GetCausalHashByPathErrorNoReadPermission sharePath -> noReadPermission sharePath
       noReadPermission sharePath =
         P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettySharePath sharePath <> ".")
+      noWritePermissionFastForwardPushError sharePath =
+        case Share.pathSegments sharePath of
+          _ NEList.:| "public" : _ ->
+            P.wrap $
+              P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
+          uname NEList.:| ys -> pushPublicNote IP.push uname ys
+      pushPublicNote cmd uname ys =
+        let msg =
+              mconcat
+                [ "Unison Share currently only supports sharing public code. ",
+                  "This is done by hosting code in a public namespace under your handle.",
+                  "It looks like you were trying to push directly to the" <> P.backticked (P.text uname),
+                  "handle. Try nesting under `public` like so: "
+                ]
+            pushCommand = IP.makeExampleNoBackticks cmd [prettySharePath exPath]
+            exPath = Share.Path (uname NEList.:| "public" : ys)
+         in P.lines
+              [ P.wrap msg,
+                "",
+                P.indentN 4 pushCommand
+              ]
       noWritePermission sharePath =
-        P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
+        case Share.pathSegments sharePath of
+          _ NEList.:| "public" : _ -> P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
+          uname NEList.:| ys -> pushPublicNote IP.pushCreate uname ys
+  ViewOnShare repoPath ->
+    pure $
+      "View it on Unison Share: " <> prettyShareLink repoPath
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
-        P.lines
-          [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
-            "",
-            "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
-          ]
+      P.lines
+        [ "The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is not empty.",
+          "",
+          "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
+        ]
     expectedNonEmptyPushDest writeRemotePath =
       P.lines
         [ P.wrap ("The remote namespace " <> prettyWriteRemotePath writeRemotePath <> " is empty."),
@@ -1723,6 +1777,17 @@ notifyUser dir o = case o of
 --    where
 --      ns targets = P.oxfordCommas $
 --        map (fromString . Names.renderNameTarget) (toList targets)
+
+shareOrigin :: Text
+shareOrigin = "https://share.unison-lang.org"
+
+prettyShareLink :: WriteShareRemotePath -> Pretty
+prettyShareLink WriteShareRemotePath {repo, path} =
+  let encodedPath =
+        Path.toList path
+          & fmap (URI.encodeText . NameSegment.toText)
+          & Text.intercalate "/"
+   in P.green . P.text $ shareOrigin <> "/@" <> repo <> "/code/latest/namespaces/" <> encodedPath
 
 prettyFilePath :: FilePath -> Pretty
 prettyFilePath fp =
