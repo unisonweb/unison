@@ -220,10 +220,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     state
                     awaitInput
                     (writeIORef rootRef)
-                    ( \o ->
-                        let (p, args) = notifyNumbered o
-                         in putPrettyNonempty p $> args
-                    )
                     loadSourceFile
                     codebase
                     (const Random.getSystemDRG)

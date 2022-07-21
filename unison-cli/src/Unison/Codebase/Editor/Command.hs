@@ -111,7 +111,6 @@ data Command a where
     Branch IO ->
     [HQ.HashQualified Name] ->
     Command QueryResult
-  NotifyNumbered :: NumberedOutput -> Command NumberedArgs
   LoadSource :: SourceName -> Command LoadSourceResult
   Typecheck ::
     AmbientAbilities Symbol ->
@@ -157,7 +156,6 @@ commandName = \case
   Quit -> "Quit"
   WithRunInIO {} -> "WithRunInIO"
   Eval {} -> "Eval"
-  NotifyNumbered {} -> "NotifyNumbered"
   LoadSource {} -> "LoadSource"
   Typecheck {} -> "Typecheck"
   TypecheckFile {} -> "TypecheckFile"
@@ -264,7 +262,8 @@ respond output = do
 
 respondNumbered :: NumberedOutput -> Action ()
 respondNumbered output = do
-  args <- Action (Free.eval $ NotifyNumbered output)
+  Env {notifyNumbered} <- ask
+  args <- liftIO (notifyNumbered output)
   unless (null args) $
     numberedArgs .= toList args
 

@@ -20,7 +20,6 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Command (Action (..), Command (..), Env, LexedSource, LoadSourceResult, LoopState, SourceName, TypecheckingResult)
 import Unison.Codebase.Editor.Input (Event, Input)
-import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput)
 import qualified Unison.Codebase.Path as Path
 import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
 import qualified Unison.NamesWithHistory as NamesWithHistory
@@ -108,13 +107,12 @@ commandLine ::
   LoopState ->
   IO (Either Event Input) ->
   (Branch IO -> IO ()) ->
-  (NumberedOutput -> IO NumberedArgs) ->
   (SourceName -> IO LoadSourceResult) ->
   Codebase IO Symbol Ann ->
   (Int -> IO gen) ->
   (Either Event Input -> Action ()) ->
   IO (Maybe (), LoopState)
-commandLine env0 loopState0 awaitInput setBranchRef notifyNumbered loadSource codebase rngGen action = do
+commandLine env0 loopState0 awaitInput setBranchRef loadSource codebase rngGen action = do
   rndSeed :: STM.TVar Int <- STM.newTVarIO 0
   loopStateRef <- UnliftIO.newIORef loopState0
   let go :: forall r x. Command x -> Cli r x
@@ -124,7 +122,6 @@ commandLine env0 loopState0 awaitInput setBranchRef notifyNumbered loadSource co
         GetLoopState -> liftIO (UnliftIO.readIORef loopStateRef)
         PutLoopState st -> liftIO (UnliftIO.writeIORef loopStateRef st)
         Eval m -> liftIO m
-        NotifyNumbered output -> liftIO $ notifyNumbered output
         LoadSource sourcePath -> liftIO $ loadSource sourcePath
         Typecheck ambient names sourceName source -> do
           -- todo: if guids are being shown to users,
