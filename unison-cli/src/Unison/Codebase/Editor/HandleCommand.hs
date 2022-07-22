@@ -6,7 +6,7 @@ where
 import Control.Monad.Reader (MonadReader (ask, local))
 import Unison.Codebase.Editor.Command (Action (..), Command (..), Env, LoopState)
 import Unison.Codebase.Editor.Input (Event, Input)
-import Unison.Monad.Cli (Cli (..), ReturnType (..), abortStep, haltRepl, scopeWith, with, withCliToIO')
+import Unison.Monad.Cli (Cli (..), ReturnType (..), haltRepl, returnEarly, scopeWith, with, withCliToIO')
 import Unison.Prelude
 import qualified Unison.Util.Free as Free
 import qualified UnliftIO
@@ -28,7 +28,7 @@ commandLine env0 loopState0 awaitInput action = do
         Eval m -> liftIO m
         WithRunInIO doUnlifts -> withCliToIO' \runInIO ->
           doUnlifts (\(Action free) -> runInIO (Free.fold go) free)
-        Abort -> abortStep
+        Abort -> returnEarly
         Quit -> haltRepl
         WithResource k -> with k
         Reset (Action act) -> scopeWith (Free.fold go act)

@@ -121,6 +121,8 @@ import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import qualified Unison.Lexer as L
+import Unison.Monad.Cli (Cli)
+import qualified Unison.Monad.Cli as Cli
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
@@ -685,7 +687,7 @@ loop e = do
                       (resolveToAbsolute <$> after)
                       ppe
                       outputDiff
-            CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
+            CreatePullRequestI baseRepo headRepo -> runCli (handleCreatePullRequestCli baseRepo headRepo)
             LoadPullRequestI baseRepo headRepo dest0 -> do
               codebase <- Command.askCodebase
               let desta = resolveToAbsolute dest0
@@ -1626,6 +1628,64 @@ loop e = do
   case e of
     Right input -> Command.lastInput .= Just input
     _ -> pure ()
+
+handleCreatePullRequestCli :: ReadRemoteNamespace -> ReadRemoteNamespace -> Cli () ()
+handleCreatePullRequestCli baseRepo0 headRepo0 = do
+  Env{codebase} <- ask
+
+  -- One of these needs a callback and the other doesn't. you might think you can get around that problem with
+  -- a helper function to unify the two cases, but we tried that and they were in such different monads that it
+  -- was hard to do.
+  -- viewRemoteBranch' :: forall r. ReadGitRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
+  -- because there's no MonadUnliftIO instance on Action.
+  -- We need `Command` to go away (the FreeT layer goes away),
+  -- We have the StateT layer goes away (can put it into an IORef in the environment),
+  -- We have the MaybeT layer that signals end of input (can just been an IORef bool that we check before looping),
+  -- and once all those things become IO, we can add a MonadUnliftIO instance on Action, and unify these cases.
+  let mergeAndDiff :: Branch IO -> Branch IO -> Cli () NumberedOutput
+      mergeAndDiff baseBranch headBranch = do
+        merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
+        (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
+        pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
+
+  case (baseRepo0, headRepo0) of
+    (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceGit headRepo) -> do
+      result <-
+        viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch ->
+          viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch ->
+            mergeAndDiff baseBranch headBranch
+      case join result of
+        Left gitErr -> respond (Output.GitError gitErr)
+        Right diff -> respondNumbered diff
+    (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceShare headRepo) ->
+      importRemoteShareBranch headRepo >>= \case
+        Left err -> respond err
+        Right headBranch -> do
+          result <-
+            viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch ->
+              mergeAndDiff baseBranch headBranch
+          case result of
+            Left gitErr -> respond (Output.GitError gitErr)
+            Right diff -> respondNumbered diff
+    (ReadRemoteNamespaceShare baseRepo, ReadRemoteNamespaceGit headRepo) ->
+      importRemoteShareBranch baseRepo >>= \case
+        Left err -> respond err
+        Right baseBranch -> do
+          result <-
+            viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch ->
+              mergeAndDiff baseBranch headBranch
+          case result of
+            Left gitErr -> respond (Output.GitError gitErr)
+            Right diff -> respondNumbered diff
+    (ReadRemoteNamespaceShare baseRepo, ReadRemoteNamespaceShare headRepo) ->
+      importRemoteShareBranch headRepo >>= \case
+        Left err -> respond err
+        Right headBranch ->
+          importRemoteShareBranch baseRepo >>= \case
+            Left err -> respond err
+            Right baseBranch -> do
+              diff <- mergeAndDiff baseBranch headBranch
+              respondNumbered diff
 
 handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Action ()
 handleCreatePullRequest baseRepo0 headRepo0 = do
@@ -3599,6 +3659,29 @@ diffHelper ::
   Action (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
 diffHelper before after = unsafeTime "HandleInput.diffHelper" do
   codebase <- Command.askCodebase
+  currentRoot <- use Command.root
+  currentPath <- use Command.currentPath
+  hqLength <- liftIO (Codebase.hashLength codebase)
+  diff <- liftIO (BranchDiff.diff0 before after)
+  let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
+  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
+  liftIO do
+    fmap (ppe,) do
+      OBranchDiff.toOutput
+        (loadTypeOfTerm codebase)
+        (declOrBuiltin codebase)
+        hqLength
+        (Branch.toNames before)
+        (Branch.toNames after)
+        ppe
+        diff
+
+diffHelperCli ::
+  Branch0 IO ->
+  Branch0 IO ->
+  Cli () (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
+diffHelperCli before after = time "HandleInput.diffHelper" do
+  Env{codebase} <- ask
   currentRoot <- use Command.root
   currentPath <- use Command.currentPath
   hqLength <- liftIO (Codebase.hashLength codebase)

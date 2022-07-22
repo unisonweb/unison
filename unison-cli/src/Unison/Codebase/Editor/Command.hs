@@ -133,28 +133,6 @@ commandName = \case
   Eval {} -> "Eval"
   RunCli {} -> "RunCli"
 
-data LoopState = LoopState
-  { _root :: Branch IO,
-    _lastSavedRoot :: Branch IO,
-    -- the current position in the namespace
-    _currentPathStack :: NonEmpty Path.Absolute,
-    -- TBD
-    -- , _activeEdits :: Set Branch.EditGuid
-
-    -- The file name last modified, and whether to skip the next file
-    -- change event for that path (we skip file changes if the file has
-    -- just been modified programmatically)
-    _latestFile :: Maybe (FilePath, SkipNextUpdate),
-    _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
-    -- The previous user input. Used to request confirmation of
-    -- questionable user commands.
-    _lastInput :: Maybe Input,
-    -- A 1-indexed list of strings that can be referenced by index at the
-    -- CLI prompt.  e.g. Given ["Foo.bat", "Foo.cat"],
-    -- `rename 2 Foo.foo` will rename `Foo.cat` to `Foo.foo`.
-    _numberedArgs :: NumberedArgs
-  }
-
 type SkipNextUpdate = Bool
 
 newtype Action a = Action {unAction :: Free Command a}

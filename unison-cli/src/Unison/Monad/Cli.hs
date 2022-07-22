@@ -6,10 +6,11 @@ module Unison.Monad.Cli where
 import Control.Monad.Reader (MonadReader (..), ReaderT (ReaderT))
 import Control.Monad.Trans.Cont
 import qualified Data.Configurator.Types as Configurator
+import Data.IORef
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
-import Unison.Codebase.Editor.Output (Output, NumberedOutput, NumberedArgs)
+import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Parser as Parser
@@ -18,6 +19,35 @@ import Unison.Prelude
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified UnliftIO
+import Control.Monad.Reader (MonadReader (..), asks)
+import Control.Monad.State (MonadState (..))
+import qualified Data.Configurator as Configurator
+import qualified Data.Configurator.Types as Configurator
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as Nel
+import qualified Data.Map as Map
+import Unison.Codebase (Codebase)
+import Unison.Codebase.Branch (Branch)
+import Unison.Codebase.Editor.Input (Input)
+import Unison.Codebase.Editor.Output
+import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Runtime (Runtime)
+import qualified Unison.Codebase.Runtime as Runtime
+import qualified Unison.Lexer as L
+import Unison.Names (Names)
+import qualified Unison.Parser as Parser
+import Unison.Parser.Ann (Ann)
+import Unison.Prelude
+import qualified Unison.Reference as Reference
+import Unison.Result (Note, Result)
+import qualified Unison.Server.CodebaseServer as Server
+import Unison.Symbol (Symbol)
+import Unison.Term (Term)
+import Unison.Type (Type)
+import qualified Unison.UnisonFile as UF
+import Unison.Util.Free (Free)
+import qualified Unison.Util.Free as Free
+import qualified Unison.WatchKind as WK
 
 data ReturnType a
   = Success a
@@ -49,6 +79,7 @@ data Env = Env
     generateUniqueName :: IO Parser.UniqueName,
     -- | How to load source code.
     loadSource :: SourceName -> IO LoadSourceResult,
+    loopStateRef :: IORef LoopState,
     -- | What to do with output for the user.
     notify :: Output -> IO (),
     -- | What to do with numbered output for the user.
@@ -58,6 +89,29 @@ data Env = Env
     serverBaseUrl :: Maybe Server.BaseUrl,
     ucmVersion :: UCMVersion
   }
+
+data LoopState = LoopState
+  { _root :: Branch IO,
+    _lastSavedRoot :: Branch IO,
+    -- the current position in the namespace
+    _currentPathStack :: NonEmpty Path.Absolute,
+    -- TBD
+    -- , _activeEdits :: Set Branch.EditGuid
+
+    -- The file name last modified, and whether to skip the next file
+    -- change event for that path (we skip file changes if the file has
+    -- just been modified programmatically)
+    _latestFile :: Maybe (FilePath, SkipNextUpdate),
+    _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
+    -- The previous user input. Used to request confirmation of
+    -- questionable user commands.
+    _lastInput :: Maybe Input,
+    -- A 1-indexed list of strings that can be referenced by index at the
+    -- CLI prompt.  e.g. Given ["Foo.bat", "Foo.cat"],
+    -- `rename 2 Foo.foo` will rename `Foo.cat` to `Foo.foo`.
+    _numberedArgs :: NumberedArgs
+  }
+
 
 type SourceName = Text
 
@@ -95,9 +149,9 @@ short r = Cli \_k _env -> pure r
 succeedWith :: r -> Cli r a
 succeedWith = short . Success
 
--- | Short-circuit success
-abortStep :: Cli r a
-abortStep = short HaltStep
+-- | Short-circuit the processing of this input.
+returnEarly :: Cli r a
+returnEarly = short HaltStep
 
 -- | Halt the repl
 haltRepl :: Cli r a
