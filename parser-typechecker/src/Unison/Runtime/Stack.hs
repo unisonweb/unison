@@ -102,8 +102,8 @@ data Closure
   | DataB2 !Reference !Word64 !Closure !Closure
   | DataUB !Reference !Word64 !Int !Closure
   | DataG !Reference !Word64 !(Seg 'UN) !(Seg 'BX)
-  -- code cont, u/b arg size, u/b data stacks
-  | Captured !K !Int !Int {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
+  | -- code cont, u/b arg size, u/b data stacks
+    Captured !K !Int !Int {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
   | Foreign !Foreign
   | BlackHole
   deriving (Show, Eq, Ord)
@@ -137,11 +137,12 @@ formData r t [i] [x] = DataUB r t i x
 formData r t us bs = DataG r t (useg us) (L.fromList $ reverse bs)
 
 frameDataSize :: K -> (Int, Int)
-frameDataSize = go 0 0 where
-  go usz bsz KE = (usz, bsz)
-  go usz bsz (CB _) = (usz, bsz)
-  go usz bsz (Mark ua ba _ _ k) = go (usz + ua) (bsz + ba) k
-  go usz bsz (Push uf bf ua ba _ k) = go (usz + uf + ua) (bsz + bf + ba) k
+frameDataSize = go 0 0
+  where
+    go usz bsz KE = (usz, bsz)
+    go usz bsz (CB _) = (usz, bsz)
+    go usz bsz (Mark ua ba _ _ k) = go (usz + ua) (bsz + ba) k
+    go usz bsz (Push uf bf ua ba _ k) = go (usz + uf + ua) (bsz + bf + ba) k
 
 pattern DataC :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
 pattern DataC rf ct us bs <-
@@ -432,7 +433,7 @@ instance MEM 'UN where
       ap' = dumpAP ap fp sz mode
   {-# INLINE dumpSeg #-}
 
-  adjustArgs (US ap fp sp stk) sz = pure $ US (ap-sz) fp sp stk
+  adjustArgs (US ap fp sp stk) sz = pure $ US (ap - sz) fp sp stk
   {-# INLINE adjustArgs #-}
 
   fsize (US _ fp sp _) = sp - fp
@@ -641,7 +642,7 @@ instance MEM 'BX where
       ap' = dumpAP ap fp sz mode
   {-# INLINE dumpSeg #-}
 
-  adjustArgs (BS ap fp sp stk) sz = pure $ BS (ap-sz) fp sp stk
+  adjustArgs (BS ap fp sp stk) sz = pure $ BS (ap - sz) fp sp stk
   {-# INLINE adjustArgs #-}
 
   fsize (BS _ fp sp _) = sp - fp

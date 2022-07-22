@@ -138,8 +138,9 @@ infos ctx s = putStrLn $ ctx ++ ": " ++ s
 
 stk'info :: Stack 'BX -> IO ()
 stk'info s@(BS _ _ sp _) = do
-  let prn i | i < 0 = return ()
-            | otherwise = peekOff s i >>= print >> prn (i-1)
+  let prn i
+        | i < 0 = return ()
+        | otherwise = peekOff s i >>= print >> prn (i - 1)
   prn sp
 
 -- Entry point for evaluating a section
