@@ -54,17 +54,15 @@ import qualified Data.Configurator.Types as Configurator
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
-import Unison.Auth.CredentialManager (CredentialManager)
-import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output
-import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Lexer as L
+import Unison.Monad.Cli hiding (with)
 import Unison.Names (Names)
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
@@ -82,16 +80,9 @@ import qualified Unison.WatchKind as WK
 
 type AmbientAbilities v = [Type v Ann]
 
-type SourceName = Text
-
 type Source = Text
 
 type LexedSource = (Text, [L.Token L.Lexeme])
-
-data LoadSourceResult
-  = InvalidSourceNameError
-  | LoadError
-  | LoadSuccess Text
 
 type TypecheckingResult v =
   Result
@@ -162,25 +153,6 @@ data LoopState = LoopState
   }
 
 type SkipNextUpdate = Bool
-
-data Env = Env
-  { authHTTPClient :: AuthenticatedHttpClient,
-    codebase :: Codebase IO Symbol Ann,
-    config :: Configurator.Config,
-    credentialManager :: CredentialManager,
-    -- | Generate a unique name.
-    generateUniqueName :: IO Parser.UniqueName,
-    -- | How to load source code.
-    loadSource :: SourceName -> IO LoadSourceResult,
-    -- | What to do with output for the user.
-    notify :: Output -> IO (),
-    -- | What to do with numbered output for the user.
-    notifyNumbered :: NumberedOutput -> IO NumberedArgs,
-    runtime :: Runtime Symbol,
-    sandboxedRuntime :: Runtime Symbol,
-    serverBaseUrl :: Maybe Server.BaseUrl,
-    ucmVersion :: UCMVersion
-  }
 
 newtype Action a = Action {unAction :: Free Command a}
   deriving newtype

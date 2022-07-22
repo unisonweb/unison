@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.6.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 
@@ -60,6 +60,7 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.Monad.Cli
       Unison.Share.Codeserver
       Unison.Share.Sync
       Unison.Share.Sync.Types
@@ -70,15 +71,18 @@ library
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
@@ -171,15 +175,18 @@ executable cli-integration-tests
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
@@ -273,15 +280,18 @@ executable transcripts
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
@@ -378,15 +388,18 @@ executable unison
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
@@ -488,15 +501,18 @@ test-suite cli-tests
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses

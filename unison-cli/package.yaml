@@ -150,15 +150,18 @@ default-extensions:
   - ApplicativeDo
   - BangPatterns
   - BlockArguments
+  - DeriveAnyClass
   - DeriveFunctor
   - DeriveFoldable
   - DeriveTraversable
   - DeriveGeneric
   - DerivingStrategies
+  - DerivingVia
   - DoAndIfThenElse
   - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
+  - GADTs
   - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
