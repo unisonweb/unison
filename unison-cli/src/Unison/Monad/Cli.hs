@@ -7,47 +7,23 @@ import Control.Monad.Reader (MonadReader (..), ReaderT (ReaderT))
 import Control.Monad.Trans.Cont
 import qualified Data.Configurator.Types as Configurator
 import Data.IORef
+import Data.List.NonEmpty (NonEmpty)
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
-import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
-import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.Parser as Parser
-import Unison.Parser.Ann (Ann)
-import Unison.Prelude
-import qualified Unison.Server.CodebaseServer as Server
-import Unison.Symbol (Symbol)
-import qualified UnliftIO
-import Control.Monad.Reader (MonadReader (..), asks)
-import Control.Monad.State (MonadState (..))
-import qualified Data.Configurator as Configurator
-import qualified Data.Configurator.Types as Configurator
-import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Map as Map
-import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input)
-import Unison.Codebase.Editor.Output
+import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.Lexer as L
-import Unison.Names (Names)
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import Unison.Result (Note, Result)
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
-import Unison.Term (Term)
-import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
-import Unison.Util.Free (Free)
-import qualified Unison.Util.Free as Free
-import qualified Unison.WatchKind as WK
+import qualified UnliftIO
 
 data ReturnType a
   = Success a
@@ -101,7 +77,7 @@ data LoopState = LoopState
     -- The file name last modified, and whether to skip the next file
     -- change event for that path (we skip file changes if the file has
     -- just been modified programmatically)
-    _latestFile :: Maybe (FilePath, SkipNextUpdate),
+    _latestFile :: Maybe (FilePath, Bool),
     _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     -- The previous user input. Used to request confirmation of
     -- questionable user commands.
@@ -111,7 +87,6 @@ data LoopState = LoopState
     -- `rename 2 Foo.foo` will rename `Foo.cat` to `Foo.foo`.
     _numberedArgs :: NumberedArgs
   }
-
 
 type SourceName = Text
 
@@ -136,8 +111,8 @@ withCliToIO' run = Cli \k env -> do
     Left HaltingRepl -> pure HaltRepl
     Right a -> k a env
 
--- | Provide a way to run 'Cli' to IO. Note that this also delimits
--- the scope of and 'succeedWith' or 'with' calls.
+-- | Provide a way to run 'Cli' to IO. Note that provided run-in-IO function also delimits
+-- the scope of 'succeedWith' and 'with' calls.
 withCliToIO :: ((forall x. Cli x x -> IO x) -> IO a) -> Cli r a
 withCliToIO k = withCliToIO' \k' -> k (k' id)
 
@@ -175,3 +150,13 @@ scopeWith (Cli ma) = Cli \k env -> do
     Success x -> k x env
     HaltStep -> pure HaltStep
     HaltRepl -> pure HaltRepl
+
+respondNumbered :: NumberedOutput -> Cli r ()
+respondNumbered output = do
+  Env {loopStateRef, notifyNumbered} <- ask
+  args <- liftIO (notifyNumbered output)
+  unless (null args) do
+    liftIO do
+      atomicModifyIORef' loopStateRef \loopState ->
+        let !numberedArgs = toList args
+         in (loopState {_numberedArgs = numberedArgs}, ())

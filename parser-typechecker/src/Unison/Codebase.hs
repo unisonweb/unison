@@ -79,6 +79,7 @@ module Unison.Codebase
 
     -- ** Remote sync
     viewRemoteBranch,
+    viewRemoteBranch2,
     importRemoteBranch,
     Preprocessing (..),
     pushGitBranch,
@@ -427,6 +428,18 @@ viewRemoteBranch ::
   m (Either GitError r)
 viewRemoteBranch codebase ns gitBranchBehavior action =
   viewRemoteBranch' codebase ns gitBranchBehavior (\(b, _dir) -> action b)
+
+-- | Pull a git branch and view it from the cache, without syncing into the
+-- local codebase.
+viewRemoteBranch2 ::
+  MonadIO m =>
+  Codebase m v a ->
+  ReadGitRemoteNamespace ->
+  Git.GitBranchBehavior ->
+  (Either GitError (Branch m) -> m r) ->
+  m r
+viewRemoteBranch2 codebase ns gitBranchBehavior action =
+  undefined
 
 unsafeGetComponentLength :: (HasCallStack, Monad m) => Codebase m v a -> Hash -> m Reference.CycleSize
 unsafeGetComponentLength codebase h =

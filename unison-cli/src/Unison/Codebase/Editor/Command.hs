@@ -52,18 +52,16 @@ import Control.Monad.Reader (MonadReader (..), asks)
 import Control.Monad.State (MonadState (..))
 import qualified Data.Configurator as Configurator
 import qualified Data.Configurator.Types as Configurator
-import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Lexer as L
-import Unison.Monad.Cli hiding (with)
+import Unison.Monad.Cli hiding (respondNumbered, with)
 import Unison.Names (Names)
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
@@ -133,8 +131,6 @@ commandName = \case
   Eval {} -> "Eval"
   RunCli {} -> "RunCli"
 
-type SkipNextUpdate = Bool
-
 newtype Action a = Action {unAction :: Free Command a}
   deriving newtype
     ( Functor,
@@ -193,7 +189,7 @@ loopState0 b p =
       _numberedArgs = []
     }
 
-respond :: Output -> Action ()
+respond :: (MonadIO m, MonadReader Env m) => Output -> m ()
 respond output = do
   Env {notify} <- ask
   liftIO (notify output)

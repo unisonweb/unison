@@ -19,6 +19,7 @@ import Control.Monad.Writer (WriterT (..))
 import Data.Bifunctor (first, second)
 import Data.Configurator ()
 import qualified Data.Foldable as Foldable
+import Data.IORef
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as Nel
@@ -1631,61 +1632,22 @@ loop e = do
 
 handleCreatePullRequestCli :: ReadRemoteNamespace -> ReadRemoteNamespace -> Cli () ()
 handleCreatePullRequestCli baseRepo0 headRepo0 = do
-  Env{codebase} <- ask
+  Env {codebase} <- ask
 
-  -- One of these needs a callback and the other doesn't. you might think you can get around that problem with
-  -- a helper function to unify the two cases, but we tried that and they were in such different monads that it
-  -- was hard to do.
-  -- viewRemoteBranch' :: forall r. ReadGitRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
-  -- because there's no MonadUnliftIO instance on Action.
-  -- We need `Command` to go away (the FreeT layer goes away),
-  -- We have the StateT layer goes away (can put it into an IORef in the environment),
-  -- We have the MaybeT layer that signals end of input (can just been an IORef bool that we check before looping),
-  -- and once all those things become IO, we can add a MonadUnliftIO instance on Action, and unify these cases.
-  let mergeAndDiff :: Branch IO -> Branch IO -> Cli () NumberedOutput
-      mergeAndDiff baseBranch headBranch = do
-        merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
-        (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
-        pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
+  let getBranch :: ReadRemoteNamespace -> Cli r (Branch IO)
+      getBranch = \case
+        ReadRemoteNamespaceGit repo -> do
+          Cli.with (Codebase.viewRemoteBranch2 codebase repo Git.RequireExistingBranch) >>= \case
+            Left err -> do
+              respond (Output.GitError err)
+              Cli.returnEarly
+            Right branch -> pure branch
 
-  case (baseRepo0, headRepo0) of
-    (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceGit headRepo) -> do
-      result <-
-        viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch ->
-          viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch ->
-            mergeAndDiff baseBranch headBranch
-      case join result of
-        Left gitErr -> respond (Output.GitError gitErr)
-        Right diff -> respondNumbered diff
-    (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceShare headRepo) ->
-      importRemoteShareBranch headRepo >>= \case
-        Left err -> respond err
-        Right headBranch -> do
-          result <-
-            viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch ->
-              mergeAndDiff baseBranch headBranch
-          case result of
-            Left gitErr -> respond (Output.GitError gitErr)
-            Right diff -> respondNumbered diff
-    (ReadRemoteNamespaceShare baseRepo, ReadRemoteNamespaceGit headRepo) ->
-      importRemoteShareBranch baseRepo >>= \case
-        Left err -> respond err
-        Right baseBranch -> do
-          result <-
-            viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch ->
-              mergeAndDiff baseBranch headBranch
-          case result of
-            Left gitErr -> respond (Output.GitError gitErr)
-            Right diff -> respondNumbered diff
-    (ReadRemoteNamespaceShare baseRepo, ReadRemoteNamespaceShare headRepo) ->
-      importRemoteShareBranch headRepo >>= \case
-        Left err -> respond err
-        Right headBranch ->
-          importRemoteShareBranch baseRepo >>= \case
-            Left err -> respond err
-            Right baseBranch -> do
-              diff <- mergeAndDiff baseBranch headBranch
-              respondNumbered diff
+  baseBranch <- getBranch baseRepo0
+  headBranch <- getBranch headRepo0
+  merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
+  (ppe, diff) <- diffHelperCli (Branch.head baseBranch) (Branch.head merged)
+  Cli.respondNumbered (ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff)
 
 handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Action ()
 handleCreatePullRequest baseRepo0 headRepo0 = do
@@ -2558,6 +2520,61 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
           Console.Regions.finishConsoleRegion region $
             "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
           pure result
+
+importRemoteShareBranchCli :: ReadShareRemoteNamespace -> Cli r (Either Output (Branch IO))
+importRemoteShareBranchCli rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
+  undefined
+
+{-
+  let codeserver = Codeserver.resolveCodeserver server
+  let baseURL = codeserverBaseURL codeserver
+  -- Auto-login to share if pulling from a non-public path
+  when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
+  mapLeft Output.ShareError <$> do
+    let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
+    Command.Env {authHTTPClient, codebase} <- ask
+    let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
+        pull =
+          withEntitiesDownloadedProgressCallbacks \callbacks ->
+            Share.pull
+              authHTTPClient
+              baseURL
+              (Codebase.withConnectionIO codebase)
+              shareFlavoredPath
+              callbacks
+    liftIO pull >>= \case
+      Left (Share.SyncError err) -> pure (Left (Output.ShareErrorPull err))
+      Left (Share.TransportError err) -> pure (Left (Output.ShareErrorTransport err))
+      Right causalHash -> do
+        liftIO (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
+          Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
+          Just branch -> pure (Right branch)
+  where
+    -- Provide the given action callbacks that display to the terminal.
+    withEntitiesDownloadedProgressCallbacks :: (Share.DownloadProgressCallbacks -> IO a) -> IO a
+    withEntitiesDownloadedProgressCallbacks action = do
+      entitiesDownloadedVar <- newTVarIO 0
+      entitiesToDownloadVar <- newTVarIO 0
+      Console.Regions.displayConsoleRegions do
+        Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
+          Console.Regions.setConsoleRegion region do
+            entitiesDownloaded <- readTVar entitiesDownloadedVar
+            entitiesToDownload <- readTVar entitiesToDownloadVar
+            pure $
+              "\n  Downloaded "
+                <> tShow entitiesDownloaded
+                <> "/"
+                <> tShow entitiesToDownload
+                <> " entities...\n\n"
+          result <- do
+            let downloaded n = atomically (modifyTVar' entitiesDownloadedVar (+ n))
+            let toDownload n = atomically (modifyTVar' entitiesToDownloadVar (+ n))
+            action Share.DownloadProgressCallbacks {downloaded, toDownload}
+          entitiesDownloaded <- readTVarIO entitiesDownloadedVar
+          Console.Regions.finishConsoleRegion region $
+            "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
+          pure result
+  -}
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Action (Set LabeledDependency)
@@ -3679,25 +3696,28 @@ diffHelper before after = unsafeTime "HandleInput.diffHelper" do
 diffHelperCli ::
   Branch0 IO ->
   Branch0 IO ->
-  Cli () (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
+  Cli r (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
 diffHelperCli before after = time "HandleInput.diffHelper" do
-  Env{codebase} <- ask
-  currentRoot <- use Command.root
-  currentPath <- use Command.currentPath
+  Env {codebase, loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let currentRoot = loopState ^. Command.root
+  let currentPath = loopState ^. Command.currentPath
   hqLength <- liftIO (Codebase.hashLength codebase)
   diff <- liftIO (BranchDiff.diff0 before after)
   let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
-  liftIO do
-    fmap (ppe,) do
-      OBranchDiff.toOutput
-        (loadTypeOfTerm codebase)
-        (declOrBuiltin codebase)
-        hqLength
-        (Branch.toNames before)
-        (Branch.toNames after)
-        ppe
-        diff
+  undefined
+
+-- ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
+-- liftIO do
+--   fmap (ppe,) do
+--     OBranchDiff.toOutput
+--       (loadTypeOfTerm codebase)
+--       (declOrBuiltin codebase)
+--       hqLength
+--       (Branch.toNames before)
+--       (Branch.toNames after)
+--       ppe
+--       diff
 
 loadTypeOfTerm :: Monad m => Codebase m Symbol Ann -> Referent -> m (Maybe (Type Symbol Ann))
 loadTypeOfTerm codebase (Referent.Ref r) = Codebase.getTypeOfTerm codebase r
