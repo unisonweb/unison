@@ -623,6 +623,12 @@ jump !env !denv !activeThreads !ustk !bstk !k !args clo = case clo of
     repush env activeThreads ustk bstk denv sk k
   _ -> die "jump: non-cont"
   where
+    -- Adjusts a repushed continuation to account for pending arguments. If
+    -- there are any frames in the pushed continuation, the nearest one needs to
+    -- record the additional pending arguments.
+    --
+    -- If the repushed continuation has no frames, then the arguments are still
+    -- pending, and the result stacks need to be adjusted. Hence the 3 results.
     adjust (Mark ua ba rs denv k) =
       (0, 0, Mark (ua + asize ustk) (ba + asize bstk) rs denv k)
     adjust (Push un bn ua ba cix k) =
@@ -1593,6 +1599,18 @@ selectBranch t (TestW df cs) = lookupWithDefault df t cs
 selectBranch _ (TestT {}) = error "impossible"
 {-# INLINE selectBranch #-}
 
+-- Splits off a portion of the continuation up to a given prompt.
+--
+-- The main procedure walks along the 'code' stack `k`, keeping track of how
+-- many cells of the data stacks need to be captured. Then the `finish` function
+-- performs the actual splitting of the data stacks together with some tweaking.
+--
+-- Some special attention is required for pending arguments for over-applied
+-- functions. They are part of the continuation, so how many there are at the
+-- time of capture is recorded in the `Captured` closure, so that information
+-- can be restored later. Also, the `Mark` frame that is popped off as part of
+-- this operation potentially exposes pending arguments beyond the delimited
+-- region, so those are restored in the `finish` function.
 splitCont ::
   DEnv ->
   Stack 'UN ->
