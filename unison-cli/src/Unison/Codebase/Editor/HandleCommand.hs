@@ -32,6 +32,7 @@ commandLine env0 loopState0 awaitInput action = do
         Quit -> haltRepl
         WithResource k -> with k
         Reset (Action act) -> scopeWith (Free.fold go act)
+        RunCli cli -> undefined
 
   input <- awaitInput
   res <- (\(Cli ma) -> ma (\a _env -> pure (Success a)) env0) . Free.fold go $ unAction (action input)

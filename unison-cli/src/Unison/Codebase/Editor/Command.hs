@@ -20,6 +20,7 @@ module Unison.Codebase.Editor.Command
     quit,
     with,
     reset,
+    runCli,
     root,
     numberedArgs,
     currentPathStack,
@@ -103,6 +104,7 @@ data Command a where
   Reset :: Action a -> Command a
   Abort :: Command a
   Quit :: Command a
+  RunCli :: Cli a a -> Command a
 
 instance MonadIO (Free Command) where
   liftIO io = Free.eval $ Eval io
@@ -129,6 +131,7 @@ commandName = \case
   Quit -> "Quit"
   WithRunInIO {} -> "WithRunInIO"
   Eval {} -> "Eval"
+  RunCli {} -> "RunCli"
 
 data LoopState = LoopState
   { _root :: Branch IO,
@@ -189,6 +192,10 @@ with k = Action (Free.eval (WithResource k))
 -- | Delimit the scope of inner 'with' actions.
 reset :: Action a -> Action a
 reset a = Action (Free.eval (Reset a))
+
+runCli :: Cli a a -> Action a
+runCli cli =
+  Action (Free.eval (RunCli cli))
 
 makeLenses ''LoopState
 
