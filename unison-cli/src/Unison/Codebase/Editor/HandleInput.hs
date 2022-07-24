@@ -212,6 +212,16 @@ currentPrettyPrintEnvDecl scoping = do
   hqLen <- liftIO (Codebase.hashLength codebase)
   pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
 
+-- | Get a pretty print env decl for the current names at the current path.
+currentPrettyPrintEnvDeclCli :: (Path -> Backend.NameScoping) -> Cli r PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDeclCli scoping = do
+  Env {codebase, loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let root' = loopState ^. Command.root
+  let currentPath' = Path.unabsolute (loopState ^. Command.currentPath)
+  hqLen <- liftIO (Codebase.hashLength codebase)
+  pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
+
 loop :: Either Event Input -> Action ()
 loop e = do
   uf <- use Command.latestTypecheckedFile
@@ -1506,7 +1516,7 @@ loop e = do
                       then respond $ PullSuccessful ns path
                       else respond unchangedMsg
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
-            ListDependentsI hq -> handleDependents hq
+            ListDependentsI hq -> runCli (handleDependents hq)
             ListDependenciesI hq -> do
               codebase <- Command.askCodebase
 
@@ -1742,42 +1752,47 @@ handleFindI isVerbose fscope ws input = do
         respondResults =<< getResults (getNames LocalAndDeps)
       _ -> respondResults results
 
-handleDependents :: HQ.HashQualified Name -> Action ()
+handleDependents :: HQ.HashQualified Name -> Cli r ()
 handleDependents hq = do
-  codebase <- Command.askCodebase
+  Env {codebase, loopStateRef} <- ask
   hqLength <- liftIO (Codebase.hashLength codebase)
   -- todo: add flag to handle transitive efficiently
-  resolveHQToLabeledDependencies hq >>= \lds ->
-    if null lds
-      then respond $ LabeledReferenceNotFound hq
-      else for_ lds \ld -> do
-        -- The full set of dependent references, any number of which may not have names in the current namespace.
-        dependents <-
-          let tp r = liftIO (Codebase.dependents codebase r)
-              tm (Referent.Ref r) = liftIO (Codebase.dependents codebase r)
-              tm (Referent.Con (ConstructorReference r _cid) _ct) = liftIO (Codebase.dependents codebase r)
-           in LD.fold tp tm ld
-        -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
-        -- unambiguous name.
-        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
-        let results :: [(Reference, Maybe Name)]
-            results =
-              -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
-              -- take a flag to control whether we want to show all dependents
-              mapMaybe f (Set.toList dependents)
+  lds <- resolveHQToLabeledDependenciesCli hq
+
+  when (null lds) do
+    respond (LabeledReferenceNotFound hq)
+    Cli.returnEarly
+
+  for_ lds \ld -> do
+    -- The full set of dependent references, any number of which may not have names in the current namespace.
+    dependents <-
+      let tp r = liftIO (Codebase.dependents codebase r)
+          tm (Referent.Ref r) = liftIO (Codebase.dependents codebase r)
+          tm (Referent.Con (ConstructorReference r _cid) _ct) = liftIO (Codebase.dependents codebase r)
+       in LD.fold tp tm ld
+    -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
+    -- unambiguous name.
+    ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDeclCli Backend.Within
+    let results :: [(Reference, Maybe Name)]
+        results =
+          -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
+          -- take a flag to control whether we want to show all dependents
+          mapMaybe f (Set.toList dependents)
+          where
+            f :: Reference -> Maybe (Reference, Maybe Name)
+            f reference =
+              asum
+                [ g <$> PPE.terms ppe (Referent.Ref reference),
+                  g <$> PPE.types ppe reference
+                ]
               where
-                f :: Reference -> Maybe (Reference, Maybe Name)
-                f reference =
-                  asum
-                    [ g <$> PPE.terms ppe (Referent.Ref reference),
-                      g <$> PPE.types ppe reference
-                    ]
-                  where
-                    g :: HQ'.HashQualified Name -> (Reference, Maybe Name)
-                    g hqName =
-                      (reference, Just (HQ'.toName hqName))
-        Command.numberedArgs .= map (Text.unpack . Reference.toText . fst) results
-        respond (ListDependents hqLength ld results)
+                g :: HQ'.HashQualified Name -> (Reference, Maybe Name)
+                g hqName =
+                  (reference, Just (HQ'.toName hqName))
+    liftIO $
+      modifyIORef' loopStateRef \loopState ->
+        loopState {_numberedArgs = map (Text.unpack . Reference.toText . fst) results}
+    respond (ListDependents hqLength ld results)
 
 -- | Handle a @gist@ command.
 handleGist :: GistInput -> Action ()
@@ -2530,6 +2545,25 @@ resolveHQToLabeledDependencies = \case
   where
     resolveHashOnly sh = do
       codebase <- Command.askCodebase
+      terms <- liftIO (Backend.termReferentsByShortHash codebase sh)
+      types <- liftIO (Backend.typeReferencesByShortHash codebase sh)
+      pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
+
+-- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
+resolveHQToLabeledDependenciesCli :: HQ.HashQualified Name -> Cli r (Set LabeledDependency)
+resolveHQToLabeledDependenciesCli = \case
+  HQ.NameOnly n -> do
+    parseNames <- basicParseNamesCli
+    let terms, types :: Set LabeledDependency
+        terms = Set.map LD.referent . Name.searchBySuffix n $ Names.terms parseNames
+        types = Set.map LD.typeRef . Name.searchBySuffix n $ Names.types parseNames
+    pure $ terms <> types
+  -- rationale: the hash should be unique enough that the name never helps
+  HQ.HashQualified _n sh -> resolveHashOnly sh
+  HQ.HashOnly sh -> resolveHashOnly sh
+  where
+    resolveHashOnly sh = do
+      Env {codebase} <- ask
       terms <- liftIO (Backend.termReferentsByShortHash codebase sh)
       types <- liftIO (Backend.typeReferencesByShortHash codebase sh)
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
@@ -3495,6 +3529,10 @@ basicParseNames = fst <$> basicNames' Backend.Within
 -- we check the file against everything in the current path
 slurpResultNames = currentPathNames
 
+basicParseNamesCli :: Cli r Names
+basicParseNamesCli =
+  fst <$> basicNamesCli' Backend.Within
+
 currentPathNames :: Action Names
 currentPathNames = do
   currentPath' <- use Command.currentPath
@@ -3506,6 +3544,16 @@ basicNames' :: (Path -> Backend.NameScoping) -> Action (Names, Names)
 basicNames' nameScoping = do
   root' <- use Command.root
   currentPath' <- use Command.currentPath
+  let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
+  pure (parse, pretty)
+
+-- implementation detail of basicParseNames and basicPrettyPrintNames
+basicNamesCli' :: (Path -> Backend.NameScoping) -> Cli r (Names, Names)
+basicNamesCli' nameScoping = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let root' = loopState ^. Command.root
+  let currentPath' = loopState ^. Command.currentPath
   let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
   pure (parse, pretty)
 
