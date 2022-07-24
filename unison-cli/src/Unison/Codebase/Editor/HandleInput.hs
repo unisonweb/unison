@@ -688,7 +688,7 @@ loop e = do
                       (resolveToAbsolute <$> after)
                       ppe
                       outputDiff
-            CreatePullRequestI baseRepo headRepo -> runCli (handleCreatePullRequestCli baseRepo headRepo)
+            CreatePullRequestI baseRepo headRepo -> runCli (handleCreatePullRequest baseRepo headRepo)
             LoadPullRequestI baseRepo headRepo dest0 -> do
               codebase <- Command.askCodebase
               let desta = resolveToAbsolute dest0
@@ -1630,82 +1630,30 @@ loop e = do
     Right input -> Command.lastInput .= Just input
     _ -> pure ()
 
-handleCreatePullRequestCli :: ReadRemoteNamespace -> ReadRemoteNamespace -> Cli () ()
-handleCreatePullRequestCli baseRepo0 headRepo0 = do
+handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Cli r ()
+handleCreatePullRequest baseRepo0 headRepo0 = do
   Env {codebase} <- ask
 
   let getBranch :: ReadRemoteNamespace -> Cli r (Branch IO)
       getBranch = \case
         ReadRemoteNamespaceGit repo -> do
-          Cli.with (Codebase.viewRemoteBranch2 codebase repo Git.RequireExistingBranch) >>= \case
+          Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \err -> do
+            respond (Output.GitError err)
+            Cli.returnEarly
+        ReadRemoteNamespaceShare repo ->
+          importRemoteShareBranchCli repo >>= \case
             Left err -> do
-              respond (Output.GitError err)
+              respond err
               Cli.returnEarly
             Right branch -> pure branch
 
-  baseBranch <- getBranch baseRepo0
-  headBranch <- getBranch headRepo0
-  merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
-  (ppe, diff) <- diffHelperCli (Branch.head baseBranch) (Branch.head merged)
+  (ppe, diff) <-
+    Cli.scopeWith do
+      baseBranch <- getBranch baseRepo0
+      headBranch <- getBranch headRepo0
+      merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
+      diffHelperCli (Branch.head baseBranch) (Branch.head merged)
   Cli.respondNumbered (ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff)
-
-handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Action ()
-handleCreatePullRequest baseRepo0 headRepo0 = do
-  codebase <- Command.askCodebase
-
-  -- One of these needs a callback and the other doesn't. you might think you can get around that problem with
-  -- a helper function to unify the two cases, but we tried that and they were in such different monads that it
-  -- was hard to do.
-  -- viewRemoteBranch' :: forall r. ReadGitRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
-  -- because there's no MonadUnliftIO instance on Action.
-  -- We need `Command` to go away (the FreeT layer goes away),
-  -- We have the StateT layer goes away (can put it into an IORef in the environment),
-  -- We have the MaybeT layer that signals end of input (can just been an IORef bool that we check before looping),
-  -- and once all those things become IO, we can add a MonadUnliftIO instance on Action, and unify these cases.
-  let mergeAndDiff :: Branch IO -> Branch IO -> Action NumberedOutput
-      mergeAndDiff baseBranch headBranch = do
-        merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
-        (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
-        pure $ ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff
-
-  case (baseRepo0, headRepo0) of
-    (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceGit headRepo) -> do
-      result <-
-        viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch ->
-          viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch ->
-            mergeAndDiff baseBranch headBranch
-      case join result of
-        Left gitErr -> respond (Output.GitError gitErr)
-        Right diff -> respondNumbered diff
-    (ReadRemoteNamespaceGit baseRepo, ReadRemoteNamespaceShare headRepo) ->
-      importRemoteShareBranch headRepo >>= \case
-        Left err -> respond err
-        Right headBranch -> do
-          result <-
-            viewRemoteGitBranch baseRepo Git.RequireExistingBranch \baseBranch ->
-              mergeAndDiff baseBranch headBranch
-          case result of
-            Left gitErr -> respond (Output.GitError gitErr)
-            Right diff -> respondNumbered diff
-    (ReadRemoteNamespaceShare baseRepo, ReadRemoteNamespaceGit headRepo) ->
-      importRemoteShareBranch baseRepo >>= \case
-        Left err -> respond err
-        Right baseBranch -> do
-          result <-
-            viewRemoteGitBranch headRepo Git.RequireExistingBranch \headBranch ->
-              mergeAndDiff baseBranch headBranch
-          case result of
-            Left gitErr -> respond (Output.GitError gitErr)
-            Right diff -> respondNumbered diff
-    (ReadRemoteNamespaceShare baseRepo, ReadRemoteNamespaceShare headRepo) ->
-      importRemoteShareBranch headRepo >>= \case
-        Left err -> respond err
-        Right headBranch ->
-          importRemoteShareBranch baseRepo >>= \case
-            Left err -> respond err
-            Right baseBranch -> do
-              diff <- mergeAndDiff baseBranch headBranch
-              respondNumbered diff
 
 handleFindI ::
   Bool ->
@@ -2459,16 +2407,6 @@ configKey k p =
       :<| fmap
         NameSegment.toText
         (Path.toSeq $ Path.unabsolute p)
-
-viewRemoteGitBranch ::
-  ReadGitRemoteNamespace ->
-  Git.GitBranchBehavior ->
-  (Branch IO -> Action r) ->
-  Action (Either GitError r)
-viewRemoteGitBranch ns gitBranchBehavior action = do
-  codebase <- Command.askCodebase
-  withRunInIO \runInIO -> do
-    liftIO $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (runInIO . action)
 
 importRemoteShareBranch :: ReadShareRemoteNamespace -> Action (Either Output (Branch IO))
 importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do

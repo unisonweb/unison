@@ -143,6 +143,15 @@ haltRepl = short HaltRepl
 with :: (forall x. (a -> IO x) -> IO x) -> Cli r a
 with resourceK = Cli \k env -> resourceK (\resource -> k resource env)
 
+-- | A variant of 'with' for the variant of bracketing function that may return a Left rather than call the provided
+-- continuation.
+withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (e -> Cli r a) -> Cli r a
+withE resourceK errK =
+  Cli \k env ->
+    resourceK (\resource -> k resource env) >>= \case
+      Left err -> unCli (errK err) k env
+      Right val -> pure val
+
 -- | Delimit the scope of 'with' calls
 scopeWith :: Cli x x -> Cli r x
 scopeWith (Cli ma) = Cli \k env -> do
