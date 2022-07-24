@@ -28,7 +28,6 @@ library
       Unison.Auth.CredentialManager
       Unison.Auth.Discovery
       Unison.Auth.HTTPClient
-      Unison.Auth.OAuth
       Unison.Auth.Tokens
       Unison.Auth.Types
       Unison.Codebase.Editor.AuthorInfo

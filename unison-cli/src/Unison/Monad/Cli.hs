@@ -95,6 +95,14 @@ data LoadSourceResult
   | LoadError
   | LoadSuccess Text
 
+-- | Lift an action of type @IO (Either e a)@, given a continuation for @e@.
+ioE :: IO (Either e a) -> (e -> Cli r a) -> Cli r a
+ioE action errK =
+  Cli \k env ->
+    action >>= \case
+      Left err -> unCli (errK err) k env
+      Right value -> k value env
+
 -- | 'withCliToIO' generalized to accept other monads that we can turn
 -- into 'Cli' (e.g. Action)
 withCliToIO' :: forall r a. ((forall m x. (m x -> Cli x x) -> m x -> IO x) -> IO a) -> Cli r a

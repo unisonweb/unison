@@ -106,7 +106,7 @@ import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
-import Unison.Codebase.Type (GitError, GitPushBehavior (..))
+import Unison.Codebase.Type (GitPushBehavior (..))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
@@ -196,6 +196,11 @@ defaultPatchNameSegment = "patch"
 prettyPrintEnvDecl :: NamesWithHistory -> Action PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = do
   codebase <- Command.askCodebase
+  liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
+
+prettyPrintEnvDeclCli :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
+prettyPrintEnvDeclCli ns = do
+  Env {codebase} <- ask
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
@@ -1618,7 +1623,7 @@ loop e = do
             UpdateBuiltinsI -> notImplemented
             QuitI -> quit
             GistI input -> handleGist input
-            AuthLoginI -> authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
+            AuthLoginI -> runCli (authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver))
             VersionI -> do
               ucmVersion <- asks Command.ucmVersion
               respond $ PrintVersion ucmVersion
@@ -1876,7 +1881,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
-  ensureAuthenticatedWithCodeserver codeserver
+  runCli (ensureAuthenticatedWithCodeserver codeserver)
 
   Command.Env {authHTTPClient, codebase} <- ask
 
@@ -2413,7 +2418,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
-  when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
+  when (not $ RemoteRepo.isPublic rrn) $ runCli (ensureAuthenticatedWithCodeserver codeserver)
   mapLeft Output.ShareError <$> do
     let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
     Command.Env {authHTTPClient, codebase} <- ask
@@ -2461,9 +2466,6 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
 
 importRemoteShareBranchCli :: ReadShareRemoteNamespace -> Cli r (Either Output (Branch IO))
 importRemoteShareBranchCli rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
-  undefined
-
-{-
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
@@ -2512,7 +2514,6 @@ importRemoteShareBranchCli rrn@(ReadShareRemoteNamespace {server, repo, path}) =
           Console.Regions.finishConsoleRegion region $
             "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
           pure result
-  -}
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Action (Set LabeledDependency)
@@ -3643,19 +3644,17 @@ diffHelperCli before after = time "HandleInput.diffHelper" do
   hqLength <- liftIO (Codebase.hashLength codebase)
   diff <- liftIO (BranchDiff.diff0 before after)
   let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
-  undefined
-
--- ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
--- liftIO do
---   fmap (ppe,) do
---     OBranchDiff.toOutput
---       (loadTypeOfTerm codebase)
---       (declOrBuiltin codebase)
---       hqLength
---       (Branch.toNames before)
---       (Branch.toNames after)
---       ppe
---       diff
+  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDeclCli (NamesWithHistory prettyNames0 mempty)
+  liftIO do
+    fmap (ppe,) do
+      OBranchDiff.toOutput
+        (loadTypeOfTerm codebase)
+        (declOrBuiltin codebase)
+        hqLength
+        (Branch.toNames before)
+        (Branch.toNames after)
+        ppe
+        diff
 
 loadTypeOfTerm :: Monad m => Codebase m Symbol Ann -> Referent -> m (Maybe (Type Symbol Ann))
 loadTypeOfTerm codebase (Referent.Ref r) = Codebase.getTypeOfTerm codebase r

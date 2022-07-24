@@ -245,6 +245,8 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               AuthN.newTokenProvider credMan
             Just accessToken ->
               \_codeserverID -> pure $ Right accessToken
+    loopStateRef <- newIORef (Command.loopState0 root initialPath)
+    seedRef <- newIORef (0::Int)
     pathRef <- newIORef initialPath
     rootBranchRef <- newIORef root
     numberedArgsRef <- newIORef []
@@ -449,7 +451,6 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                 ]
 
     authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
-    seedRef <- newIORef (0::Int)
     let loop state = do
           writeIORef pathRef (view Command.currentPath state)
           let env =
@@ -462,6 +463,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                       i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
                       pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
                     loadSource = loadPreviousUnisonBlock,
+                    loopStateRef,
                     notify = print,
                     notifyNumbered = printNumbered,
                     runtime,
