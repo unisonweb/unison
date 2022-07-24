@@ -704,42 +704,42 @@ loop e = do
                       ppe
                       outputDiff
             CreatePullRequestI baseRepo headRepo -> runCli (handleCreatePullRequest baseRepo headRepo)
-            LoadPullRequestI baseRepo headRepo dest0 -> do
-              codebase <- Command.askCodebase
+            LoadPullRequestI baseRepo headRepo dest0 -> runCli do
+              Env {codebase} <- ask
               let desta = resolveToAbsolute dest0
               let dest = Path.unabsolute desta
-              destb <- getAt desta
-              let tryImportBranch = \case
+              destb <- getAtCli desta
+              let getBranch = \case
                     ReadRemoteNamespaceGit repo ->
-                      withExceptT
-                        Output.GitError
-                        (ExceptT (liftIO (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified)))
-                    ReadRemoteNamespaceShare repo ->
-                      ExceptT (importRemoteShareBranch repo)
-              if Branch.isEmpty0 (Branch.head destb)
-                then unlessError do
-                  baseb <- tryImportBranch baseRepo
-                  headb <- tryImportBranch headRepo
-                  lift $ do
-                    mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
-                    squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
-                    stepManyAt
-                      Branch.AllowRewritingHistory
-                      [ BranchUtil.makeSetBranch (dest, "base") baseb,
-                        BranchUtil.makeSetBranch (dest, "head") headb,
-                        BranchUtil.makeSetBranch (dest, "merged") mergedb,
-                        BranchUtil.makeSetBranch (dest, "squashed") squashedb
-                      ]
-                    let base = snoc dest0 "base"
-                        head = snoc dest0 "head"
-                        merged = snoc dest0 "merged"
-                        squashed = snoc dest0 "squashed"
-                    respond $ LoadPullRequest baseRepo headRepo base head merged squashed
-                    loadPropagateDiffDefaultPatch
-                      inputDescription
-                      (Just merged)
-                      (snoc desta "merged")
-                else respond . BranchNotEmpty . Path.Path' . Left $ currentPath'
+                      Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err -> do
+                        respond (Output.GitError err)
+                        Cli.returnEarly
+                    ReadRemoteNamespaceShare repo -> importRemoteShareBranchCli repo
+              when (not (Branch.isEmpty0 (Branch.head destb))) do
+                respond . BranchNotEmpty . Path.Path' . Left $ currentPath'
+                Cli.returnEarly
+              Cli.scopeWith do
+                baseb <- getBranch baseRepo
+                headb <- getBranch headRepo
+                mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
+                squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
+                stepManyAtCli
+                  inputDescription
+                  Branch.AllowRewritingHistory
+                  [ BranchUtil.makeSetBranch (dest, "base") baseb,
+                    BranchUtil.makeSetBranch (dest, "head") headb,
+                    BranchUtil.makeSetBranch (dest, "merged") mergedb,
+                    BranchUtil.makeSetBranch (dest, "squashed") squashedb
+                  ]
+              let base = snoc dest0 "base"
+                  head = snoc dest0 "head"
+                  merged = snoc dest0 "merged"
+                  squashed = snoc dest0 "squashed"
+              respond $ LoadPullRequest baseRepo headRepo base head merged squashed
+              loadPropagateDiffDefaultPatchCli
+                inputDescription
+                (Just merged)
+                (snoc desta "merged")
 
             -- move the Command.root to a sub-branch
             MoveBranchI Nothing dest -> do
@@ -1655,12 +1655,7 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
           Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \err -> do
             respond (Output.GitError err)
             Cli.returnEarly
-        ReadRemoteNamespaceShare repo ->
-          importRemoteShareBranchCli repo >>= \case
-            Left err -> do
-              respond err
-              Cli.returnEarly
-            Right branch -> pure branch
+        ReadRemoteNamespaceShare repo -> importRemoteShareBranchCli repo
 
   (ppe, diff) <-
     Cli.scopeWith do
@@ -2479,31 +2474,33 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
             "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
           pure result
 
-importRemoteShareBranchCli :: ReadShareRemoteNamespace -> Cli r (Either Output (Branch IO))
+importRemoteShareBranchCli :: ReadShareRemoteNamespace -> Cli r (Branch IO)
 importRemoteShareBranchCli rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
   when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
-  mapLeft Output.ShareError <$> do
-    let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
-    Command.Env {authHTTPClient, codebase} <- ask
-    let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
-        pull =
-          withEntitiesDownloadedProgressCallbacks \callbacks ->
-            Share.pull
-              authHTTPClient
-              baseURL
-              (Codebase.withConnectionIO codebase)
-              shareFlavoredPath
-              callbacks
-    liftIO pull >>= \case
-      Left (Share.SyncError err) -> pure (Left (Output.ShareErrorPull err))
-      Left (Share.TransportError err) -> pure (Left (Output.ShareErrorTransport err))
-      Right causalHash -> do
-        liftIO (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
-          Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
-          Just branch -> pure (Right branch)
+  -- mapLeft Output.ShareError <$> do
+  let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
+  Command.Env {authHTTPClient, codebase} <- ask
+  let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
+      pull =
+        withEntitiesDownloadedProgressCallbacks \callbacks ->
+          Share.pull
+            authHTTPClient
+            baseURL
+            (Codebase.withConnectionIO codebase)
+            shareFlavoredPath
+            callbacks
+  causalHash <-
+    Cli.ioE pull \err0 -> do
+      respond case err0 of
+        Share.SyncError err -> Output.ShareError (Output.ShareErrorPull err)
+        Share.TransportError err -> Output.ShareError (Output.ShareErrorTransport err)
+      Cli.returnEarly
+  liftIO (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
+    Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
+    Just branch -> pure branch
   where
     -- Provide the given action callbacks that display to the terminal.
     withEntitiesDownloadedProgressCallbacks :: (Share.DownloadProgressCallbacks -> IO a) -> IO a
@@ -2911,6 +2908,14 @@ loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagat
     diffHelper (Branch.head original) (Branch.head patched)
       >>= respondNumbered . uncurry (ShowDiffAfterMergePropagate dest0 dest patchPath)
 
+loadPropagateDiffDefaultPatchCli ::
+  Command.InputDescription ->
+  Maybe Path.Path' ->
+  Path.Absolute ->
+  Cli r ()
+loadPropagateDiffDefaultPatchCli inputDescription dest0 dest = unsafeTime "Propagate Default Patch" do
+  undefined
+
 -- | Get metadata type/value from a name.
 --
 -- May fail with either:
@@ -2968,6 +2973,12 @@ getAt :: Path.Absolute -> Action (Branch IO)
 getAt (Path.Absolute p) =
   use Command.root <&> fromMaybe Branch.empty . Branch.getAt p
 
+getAtCli :: Path.Absolute -> Cli r (Branch IO)
+getAtCli (Path.Absolute p) = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  pure (fromMaybe Branch.empty (Branch.getAt p (loopState ^. Command.root)))
+
 -- Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM ::
@@ -3024,6 +3035,15 @@ stepManyAt reason strat actions = do
   stepManyAtNoSync strat actions
   b <- use Command.root
   updateRoot b reason
+
+stepManyAtCli ::
+  Foldable f =>
+  Command.InputDescription ->
+  Branch.UpdateStrategy ->
+  f (Path, Branch0 IO -> Branch0 IO) ->
+  Cli r ()
+stepManyAtCli reason strat actions = do
+  undefined
 
 -- Like stepManyAt, but doesn't update the Command.root
 stepManyAtNoSync ::
