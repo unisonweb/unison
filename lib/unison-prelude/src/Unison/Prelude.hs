@@ -11,7 +11,9 @@ module Unison.Prelude
 
     -- * @Maybe@ control flow
     onNothing,
+    onNothingM,
     whenNothing,
+    whenNothingM,
     whenJust,
     whenJustM,
     eitherToMaybe,
@@ -76,9 +78,17 @@ import qualified UnliftIO
 onNothing :: Applicative m => m a -> Maybe a -> m a
 onNothing m may = maybe m pure may
 
+onNothingM :: Monad m => m a -> m (Maybe a) -> m a
+onNothingM =
+  flip whenNothingM
+
 -- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
 whenNothing :: Applicative m => Maybe a -> m a -> m a
 whenNothing may m = maybe m pure may
+
+whenNothingM :: Monad m => m (Maybe a) -> m a -> m a
+whenNothingM mx my =
+  mx >>= maybe my pure
 
 whenJust :: Applicative m => Maybe a -> (a -> m ()) -> m ()
 whenJust mx f =

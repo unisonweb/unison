@@ -223,19 +223,36 @@ currentPrettyPrintEnvDeclCli scoping = do
   hqLen <- liftIO (Codebase.hashLength codebase)
   pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
 
+getBranchAt :: Path.Absolute -> Cli r (Maybe (Branch IO))
+getBranchAt (Path.Absolute p) = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  pure (Branch.getAt p (loopState ^. Command.root))
+
+getBranchAtSplit' :: Path.Split' -> Cli r (Maybe (Branch IO))
+getBranchAtSplit' s = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let currentPath' = loopState ^. Command.currentPath
+  getBranchAt (Path.unsplitAbsolute (Path.toAbsoluteSplit currentPath' s))
+
+expectBranchAtSplit' :: Path.Split' -> Cli r (Branch IO)
+expectBranchAtSplit' s =
+  getBranchAtSplit' s & onNothingM do
+    respond (BranchNotFound (Path.unsplit' s))
+    Cli.returnEarly
+
 -- | Get the patch at a path, or return early if there's no such patch.
 expectPatchAtSplitCli' :: Path.Split' -> Cli r Patch
 expectPatchAtSplitCli' s = do
   Env {loopStateRef} <- ask
   loopState <- liftIO (readIORef loopStateRef)
   let currentPath' = loopState ^. Command.currentPath
-  let (p, seg) = Path.toAbsoluteSplit currentPath' s
-  b <- getAtCli p
-  liftIO (Branch.getMaybePatch seg (Branch.head b)) >>= \case
-    Nothing -> do
-      respond (PatchNotFound s)
-      Cli.returnEarly
-    Just patch -> pure patch
+  let (path, name) = Path.toAbsoluteSplit currentPath' s
+  branch <- getAtCli path
+  liftIO (Branch.getMaybePatch name (Branch.head branch)) & onNothingM do
+    respond (PatchNotFound s)
+    Cli.returnEarly
 
 -- | Assert that there's no patch at a path, or return early if there is one.
 assertNoPatchAtSplitCli' :: Path.Split' -> Cli r ()
@@ -243,9 +260,9 @@ assertNoPatchAtSplitCli' s = do
   Env {loopStateRef} <- ask
   loopState <- liftIO (readIORef loopStateRef)
   let currentPath' = loopState ^. Command.currentPath
-  let (p, seg) = Path.toAbsoluteSplit currentPath' s
-  b <- getAtCli p
-  whenJustM (liftIO (Branch.getMaybePatch seg (Branch.head b))) \_ -> do
+  let (path, name) = Path.toAbsoluteSplit currentPath' s
+  branch <- getAtCli path
+  whenJustM (liftIO (Branch.getMaybePatch name (Branch.head branch))) \_ -> do
     respond (PatchAlreadyExists s)
     Cli.returnEarly
 
@@ -356,7 +373,6 @@ loop e = do
         else loadUnisonFile sourceName text
     Right input ->
       let branchNotFound = respond . BranchNotFound
-          branchNotFound' = respond . BranchNotFound . Path.unsplit'
           typeNotFound = respond . TypeNotFound
           typeNotFound' = respond . TypeNotFound'
           termNotFound = respond . TermNotFound
@@ -816,38 +832,37 @@ loop e = do
                 Branch.CompressHistory
                 (BranchUtil.makeDeletePatch (resolveSplit' src))
               respond Success
-            DeleteBranchI insistence Nothing -> do
+            DeleteBranchI insistence Nothing -> runCli do
               hasConfirmed <- confirmedCommand input
-              if (hasConfirmed || insistence == Force)
+              if hasConfirmed || insistence == Force
                 then do
-                  stepAt
+                  stepAtCli
+                    inputDescription
                     Branch.CompressHistory -- Wipe out all definitions, but keep root branch history.
                     (Path.empty, const Branch.empty0)
                   respond DeletedEverything
                 else respond DeleteEverythingConfirmation
-            DeleteBranchI insistence (Just p) -> do
-              case getAtSplit' p of
-                Nothing -> branchNotFound' p
-                Just (Branch.head -> b0) -> do
-                  endangerments <- computeEndangerments b0
-                  if null endangerments
-                    then doDelete
-                    else case insistence of
-                      Force -> do
-                        ppeDecl <- runCli $ currentPrettyPrintEnvDecl Backend.Within
-                        doDelete
-                        respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
-                      Try -> do
-                        ppeDecl <- runCli $ currentPrettyPrintEnvDecl Backend.Within
-                        respondNumbered $ CantDeleteNamespace ppeDecl endangerments
+            DeleteBranchI insistence (Just p) -> runCli do
+              branch <- expectBranchAtSplit' p
+              endangerments <- computeEndangerments (Branch.head branch)
+              if null endangerments
+                then doDelete
+                else case insistence of
+                  Force -> do
+                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                    doDelete
+                    Cli.respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
+                  Try -> do
+                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                    Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
                 doDelete = do
-                  stepAt Branch.CompressHistory $ BranchUtil.makeDeleteBranch (resolveSplit' p)
+                  stepAtCli inputDescription Branch.CompressHistory $ BranchUtil.makeDeleteBranch (resolveSplit' p)
                   respond Success
                 -- Looks similar to the 'toDelete' above... investigate me! ;)
-                computeEndangerments :: Branch0 m1 -> Action (Map LabeledDependency (NESet LabeledDependency))
+                computeEndangerments :: Branch0 m1 -> Cli r (Map LabeledDependency (NESet LabeledDependency))
                 computeEndangerments b0 = do
-                  codebase <- Command.askCodebase
+                  Env {codebase} <- ask
                   let rootNames = Branch.toNames root0
                       toDelete =
                         Names.prefix0
@@ -2788,10 +2803,11 @@ checkTodo patch names0 = do
       -- we don't want the frontier in the result
       pure $ tdeps `Set.difference` rs
 
-confirmedCommand :: Input -> Action Bool
+confirmedCommand :: Input -> Cli r Bool
 confirmedCommand i = do
-  i0 <- use Command.lastInput
-  pure $ Just i == i0
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  pure $ Just i == (loopState ^. Command.lastInput)
 
 -- | restores the full hash to these search results, for _numberedArgs purposes
 searchResultToHQString :: SearchResult -> String

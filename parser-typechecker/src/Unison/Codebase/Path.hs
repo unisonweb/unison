@@ -56,6 +56,7 @@ module Unison.Codebase.Path
     toText',
     unsplit,
     unsplit',
+    unsplitAbsolute,
     unsplitHQ,
     unsplitHQ',
 
@@ -141,6 +142,10 @@ unsplit' (Path' (Right (Relative p)), seg) = Path' (Right (Relative (unsplit (p,
 
 unsplit :: Split -> Path
 unsplit (Path p, a) = Path (p :|> a)
+
+unsplitAbsolute :: (Absolute, NameSegment) -> Absolute
+unsplitAbsolute =
+  coerce unsplit
 
 unsplitHQ :: HQSplit -> HQ'.HashQualified Path
 unsplitHQ (p, a) = fmap (snoc p) a
