@@ -165,7 +165,7 @@ shortenDirectory dir = do
 renderFileName :: FilePath -> IO Pretty
 renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 
-notifyNumbered :: Var v => NumberedOutput v -> (Pretty, NumberedArgs)
+notifyNumbered :: NumberedOutput -> (Pretty, NumberedArgs)
 notifyNumbered o = case o of
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
     showDiffNamespace ShowNumbers ppe oldPrefix newPrefix diffOutput
@@ -534,7 +534,7 @@ prettyWriteRemotePath :: WriteRemotePath -> Pretty
 prettyWriteRemotePath =
   P.group . P.blue . P.text . RemoteRepo.printWriteRemotePath
 
-notifyUser :: forall v. Var v => FilePath -> Output v -> IO Pretty
+notifyUser :: FilePath -> Output -> IO Pretty
 notifyUser dir o = case o of
   Success -> pure $ P.bold "Done."
   PrintMessage pretty -> do
@@ -899,12 +899,12 @@ notifyUser dir o = case o of
         then P.lit "nothing to show"
         else numberedEntries entries
     where
-      numberedEntries :: [ShallowListEntry v a] -> Pretty
+      numberedEntries :: Var v => [ShallowListEntry v a] -> Pretty
       numberedEntries entries =
         (P.column3 . fmap f) ([(1 :: Integer) ..] `zip` fmap formatEntry entries)
         where
           f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
-      formatEntry :: ShallowListEntry v a -> (Pretty, Pretty)
+      formatEntry :: Var v => ShallowListEntry v a -> (Pretty, Pretty)
       formatEntry = \case
         ShallowTermEntry (TermEntry _r hq ot _) ->
           ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq,

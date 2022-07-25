@@ -3,22 +3,26 @@ module Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthentica
 import Control.Monad.Reader
 import Unison.Auth.CredentialManager (getCredentials)
 import Unison.Auth.OAuth (authenticateCodeserver)
-import Unison.Codebase.Editor.HandleInput.LoopState
+import Unison.Codebase.Editor.Command
+  ( Action,
+    Env (credentialManager),
+    respond,
+  )
 import Unison.Codebase.Editor.Output (Output (CredentialFailureMsg, Success))
 import Unison.Share.Types
 
 -- | Checks if the user has valid auth for the given codeserver,
 -- and runs through an authentication flow if not.
-ensureAuthenticatedWithCodeserver :: CodeserverURI -> Action i v ()
+ensureAuthenticatedWithCodeserver :: CodeserverURI -> Action ()
 ensureAuthenticatedWithCodeserver codeserverURI = do
   credsMan <- asks credentialManager
   getCredentials credsMan (codeserverIdFromCodeserverURI codeserverURI) >>= \case
     Right _ -> pure ()
     Left _ -> authLogin codeserverURI
 
-authLogin :: CodeserverURI -> Action i v ()
+authLogin :: CodeserverURI -> Action ()
 authLogin host = do
   credsMan <- asks credentialManager
-  (Action . lift . lift . lift $ authenticateCodeserver credsMan host) >>= \case
+  authenticateCodeserver credsMan host >>= \case
     Left err -> respond (CredentialFailureMsg err)
     Right () -> respond Success

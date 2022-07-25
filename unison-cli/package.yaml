@@ -71,6 +71,7 @@ dependencies:
   - vector
   - wai
   - warp
+  - witherable
 
 library:
   source-dirs: src

@@ -23,7 +23,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import Unison.Auth.CredentialManager (CredentialManager, saveCredentials)
 import Unison.Auth.Discovery (discoveryURIForCodeserver, fetchDiscoveryDoc)
 import Unison.Auth.Types
-import Unison.Codebase.Editor.HandleInput.LoopState (MonadCommand, respond)
+import Unison.Codebase.Editor.Command (Action, respond)
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Debug
 import Unison.Prelude
@@ -53,7 +53,7 @@ authTransferServer callback req respond =
 
 -- | Direct the user through an authentication flow with the given server and store the
 -- credentials in the provided credential manager.
-authenticateCodeserver :: forall m i v. (UnliftIO.MonadUnliftIO m, MonadCommand m i v) => CredentialManager -> CodeserverURI -> m (Either CredentialFailure ())
+authenticateCodeserver :: CredentialManager -> CodeserverURI -> Action (Either CredentialFailure ())
 authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialFailure $ do
   httpClient <- liftIO HTTP.getGlobalManager
   let discoveryURI = discoveryURIForCodeserver codeserverURI
@@ -91,7 +91,7 @@ authenticateCodeserver credsManager codeserverURI = UnliftIO.try @_ @CredentialF
     let creds = codeserverCredentials discoveryURI tokens
     saveCredentials credsManager codeserverId creds
   where
-    throwCredFailure :: m (Either CredentialFailure a) -> m a
+    throwCredFailure :: Action (Either CredentialFailure a) -> Action a
     throwCredFailure = throwEitherM
 
 -- | Construct an authorization URL from the parameters required.
@@ -130,10 +130,10 @@ exchangeCode httpClient tokenEndpoint code verifier redirectURI = liftIO $ do
   case HTTP.responseStatus resp of
     status
       | status < status300 -> do
-        let respBytes = HTTP.responseBody resp
-        pure $ case Aeson.eitherDecode @Tokens respBytes of
-          Left err -> Left (InvalidTokenResponse tokenEndpoint (Text.pack err))
-          Right a -> Right a
+          let respBytes = HTTP.responseBody resp
+          pure $ case Aeson.eitherDecode @Tokens respBytes of
+            Left err -> Left (InvalidTokenResponse tokenEndpoint (Text.pack err))
+            Right a -> Right a
       | otherwise -> pure $ Left (InvalidTokenResponse tokenEndpoint $ "Received " <> tShow status <> " response from token endpoint")
 
 addQueryParam :: ByteString -> ByteString -> URI -> URI
