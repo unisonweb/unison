@@ -88,6 +88,16 @@ data LoopState = LoopState
     _numberedArgs :: NumberedArgs
   }
 
+getLoopState :: Cli r LoopState
+getLoopState = do
+  Env{loopStateRef} <- ask
+  liftIO (readIORef loopStateRef)
+
+putLoopState :: LoopState -> Cli r ()
+putLoopState newSt = do
+  Env{loopStateRef} <- ask
+  liftIO (writeIORef loopStateRef newSt)
+
 type SourceName = Text
 
 data LoadSourceResult
