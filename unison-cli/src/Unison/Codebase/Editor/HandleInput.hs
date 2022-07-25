@@ -271,11 +271,6 @@ loop e = do
       getAtSplit p = BranchUtil.getBranch p root0
       getAtSplit' :: Path.Split' -> Maybe (Branch IO)
       getAtSplit' = getAtSplit . resolveSplit'
-      getPatchAtSplit' :: Path.Split' -> Action (Maybe Patch)
-      getPatchAtSplit' s = do
-        let (p, seg) = Path.toAbsoluteSplit currentPath' s
-        b <- getAt p
-        liftIO $ Branch.getMaybePatch seg (Branch.head b)
       getHQ'TermsIncludingHistorical p =
         getTermsIncludingHistorical (resolveSplit' p) root0
 
@@ -362,10 +357,6 @@ loop e = do
     Right input ->
       let branchNotFound = respond . BranchNotFound
           branchNotFound' = respond . BranchNotFound . Path.unsplit'
-          patchNotFound :: Path.Split' -> Action ()
-          patchNotFound s = respond $ PatchNotFound s
-          patchExists :: Path.Split' -> Action ()
-          patchExists s = respond $ PatchAlreadyExists s
           typeNotFound = respond . TypeNotFound
           typeNotFound' = respond . TypeNotFound'
           termNotFound = respond . TermNotFound
@@ -818,15 +809,13 @@ loop e = do
                 Branch.CompressHistory
                 (BranchUtil.makeReplacePatch (resolveSplit' dest) p)
               respond Success
-            DeletePatchI src -> do
-              psrc <- getPatchAtSplit' src
-              case psrc of
-                Nothing -> patchNotFound src
-                Just _ -> do
-                  stepAt
-                    Branch.CompressHistory
-                    (BranchUtil.makeDeletePatch (resolveSplit' src))
-                  success
+            DeletePatchI src -> runCli do
+              _ <- expectPatchAtSplitCli' src
+              stepAtCli
+                inputDescription
+                Branch.CompressHistory
+                (BranchUtil.makeDeletePatch (resolveSplit' src))
+              respond Success
             DeleteBranchI insistence Nothing -> do
               hasConfirmed <- confirmedCommand input
               if (hasConfirmed || insistence == Force)
