@@ -1619,8 +1619,8 @@ loop e = do
             DebugClearWatchI {} -> do
               codebase <- Command.askCodebase
               liftIO (Codebase.clearWatches codebase)
-            DebugDoctorI {} -> do
-              codebase <- Command.askCodebase
+            DebugDoctorI {} -> runCli do
+              Env{codebase} <- ask
               r <- liftIO (Codebase.runTransaction codebase IntegrityCheck.integrityCheckFullCodebase)
               respond (IntegrityCheck r)
             DeprecateTermI {} -> notImplemented
