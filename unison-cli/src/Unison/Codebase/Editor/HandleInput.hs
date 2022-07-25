@@ -1616,8 +1616,8 @@ loop e = do
                 traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
               for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
-            DebugClearWatchI {} -> do
-              codebase <- Command.askCodebase
+            DebugClearWatchI {} -> runCli do
+              Env{codebase} <- ask
               liftIO (Codebase.clearWatches codebase)
             DebugDoctorI {} -> runCli do
               Env{codebase} <- ask
