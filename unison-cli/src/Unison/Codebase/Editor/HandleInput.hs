@@ -1557,7 +1557,9 @@ loop e = do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
                   ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
                   respond $ ListNamespaceDependencies ppe path externalDependencies
-            DebugNumberedArgsI -> use Command.numberedArgs >>= respond . DumpNumberedArgs
+            DebugNumberedArgsI -> runCli do
+              numArgs <- view Command.numberedArgs <$> Cli.getLoopState
+              respond (DumpNumberedArgs numArgs)
             DebugTypecheckedUnisonFileI -> case uf of
               Nothing -> respond NoUnisonFile
               Just uf ->
