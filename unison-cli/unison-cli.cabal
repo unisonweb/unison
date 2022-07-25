@@ -86,6 +86,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -190,6 +191,7 @@ executable cli-integration-tests
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -295,6 +297,7 @@ executable transcripts
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -403,6 +406,7 @@ executable unison
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -516,6 +520,7 @@ test-suite cli-tests
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms

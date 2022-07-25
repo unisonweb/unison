@@ -8,6 +8,11 @@ import Control.Monad.Trans.Cont
 import qualified Data.Configurator.Types as Configurator
 import Data.IORef
 import Data.List.NonEmpty (NonEmpty)
+import Data.Time.Clock (DiffTime, diffTimeToPicoseconds, picosecondsToDiffTime)
+import Data.Time.Clock.System (getSystemTime, systemToTAITime)
+import Data.Time.Clock.TAI (diffAbsoluteTime)
+import System.CPUTime (getCPUTime)
+import Text.Printf (printf)
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
@@ -17,6 +22,7 @@ import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
+import qualified Unison.Debug as Debug
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -177,6 +183,51 @@ scopeWith (Cli ma) = Cli \k env -> do
     Success x -> k x env
     HaltStep -> pure HaltStep
     HaltRepl -> pure HaltRepl
+
+-- | Time an action.
+time :: String -> Cli r ()
+time label =
+  if Debug.shouldDebug Debug.Timing
+    then Cli \k env -> do
+      systemStart <- getSystemTime
+      cpuPicoStart <- getCPUTime
+      r <- k () env
+      cpuPicoEnd <- getCPUTime
+      systemEnd <- getSystemTime
+      let systemDiff =
+            diffTimeToNanos
+              (diffAbsoluteTime (systemToTAITime systemEnd) (systemToTAITime systemStart))
+      let cpuDiff = picosToNanos (cpuPicoEnd - cpuPicoStart)
+      printf "%s: %s (cpu), %s (system)\n" label (renderNanos cpuDiff) (renderNanos systemDiff)
+      pure r
+    else pure ()
+  where
+    diffTimeToNanos :: DiffTime -> Double
+    diffTimeToNanos =
+      picosToNanos . diffTimeToPicoseconds
+
+    picosToNanos :: Integer -> Double
+    picosToNanos =
+      (/ 1_000) . realToFrac
+
+    -- Render nanoseconds, trying to fit into 4 characters.
+    renderNanos :: Double -> String
+    renderNanos ns
+      | ns < 0.5 = "0 ns"
+      | ns < 995 = printf "%.0f ns" ns
+      | ns < 9_950 = printf "%.2f µs" us
+      | ns < 99_500 = printf "%.1f µs" us
+      | ns < 995_000 = printf "%.0f µs" us
+      | ns < 9_950_000 = printf "%.2f ms" ms
+      | ns < 99_500_000 = printf "%.1f ms" ms
+      | ns < 995_000_000 = printf "%.0f ms" ms
+      | ns < 9_950_000_000 = printf "%.2f s" s
+      | ns < 99_500_000_000 = printf "%.1f s" s
+      | otherwise = printf "%.0f s" s
+      where
+        us = ns / 1_000
+        ms = ns / 1_000_000
+        s = ns / 1_000_000_000
 
 respondNumbered :: NumberedOutput -> Cli r ()
 respondNumbered output = do

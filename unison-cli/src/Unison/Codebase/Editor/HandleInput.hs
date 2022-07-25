@@ -632,20 +632,20 @@ loop e = do
                         (Just new)
                         (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
                         rest
-            ResetRootI src0 -> unsafeTime "reset-root" $
-              case src0 of
-                Left hash -> unlessError do
-                  newRoot <- unsafeTime "resolveShortBranchHash" $ resolveShortBranchHash hash
-                  lift do
-                    updateRoot newRoot
-                    success
-                Right path' -> do
-                  newRoot <- getAt $ resolveToAbsolute path'
-                  if Branch.isEmpty newRoot
-                    then respond $ BranchNotFound path'
-                    else do
-                      updateRoot newRoot
-                      success
+            ResetRootI src0 ->
+              runCli do
+                Cli.time "reset-root"
+                newRoot <-
+                  case src0 of
+                    Left hash -> resolveShortBranchHashCli hash
+                    Right path' -> do
+                      newRoot <- getAtCli (resolveToAbsolute path')
+                      when (Branch.isEmpty newRoot) do
+                        respond (BranchNotFound path')
+                        Cli.returnEarly
+                      pure newRoot
+                updateRootCli newRoot inputDescription
+                respond Success
             ForkLocalBranchI src0 dest0 -> do
               let tryUpdateDest srcb dest0 = do
                     let dest = resolveToAbsolute dest0
@@ -2661,6 +2661,24 @@ resolveShortBranchHash hash = ExceptT do
       pure (Right (fromMaybe Branch.empty branch))
     _ -> pure . Left $ BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet)
 
+resolveShortBranchHashCli :: ShortBranchHash -> Cli r (Branch IO)
+resolveShortBranchHashCli hash = do
+  Cli.scopeWith do
+    Cli.time "resolveShortBranchHash"
+    Env {codebase} <- ask
+    hashSet <- liftIO (Codebase.branchHashesByPrefix codebase hash)
+    len <- liftIO (Codebase.branchHashLength codebase)
+    case Set.toList hashSet of
+      [] -> do
+        respond (NoBranchWithHash hash)
+        Cli.returnEarly
+      [h] -> do
+        branch <- liftIO (Codebase.getBranchForHash codebase h)
+        pure (fromMaybe Branch.empty branch)
+      _ -> do
+        respond (BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet))
+        Cli.returnEarly
+
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatchNoSync ::
   Patch ->
@@ -3103,12 +3121,12 @@ stepManyAtMNoSync' strat actions = do
 
 -- | Sync the in-memory root branch.
 syncRoot :: Command.InputDescription -> Action ()
-syncRoot description = unsafeTime "syncRoot" $ do
+syncRoot description = time "syncRoot" do
   root' <- use Command.root
   Unison.Codebase.Editor.HandleInput.updateRoot root' description
 
 updateRoot :: Branch IO -> Command.InputDescription -> Action ()
-updateRoot new reason = unsafeTime "updateRoot" do
+updateRoot new reason = time "updateRoot" do
   codebase <- Command.askCodebase
   old <- use Command.lastSavedRoot
   when (old /= new) do
@@ -3116,6 +3134,17 @@ updateRoot new reason = unsafeTime "updateRoot" do
     liftIO (Codebase.putRootBranch codebase new)
     liftIO (Codebase.appendReflog codebase reason old new)
     Command.lastSavedRoot .= new
+
+updateRootCli :: Branch IO -> Command.InputDescription -> Cli r ()
+updateRootCli new reason = time "updateRoot" do
+  Env {codebase, loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let old = loopState ^. Command.lastSavedRoot
+  when (old /= new) do
+    liftIO (modifyIORef' loopStateRef (set Command.root new))
+    liftIO (Codebase.putRootBranch codebase new)
+    liftIO (Codebase.appendReflog codebase reason old new)
+    liftIO (modifyIORef' loopStateRef (set Command.lastSavedRoot new))
 
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible
