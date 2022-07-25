@@ -11,7 +11,7 @@ where
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
-import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
+import Control.Monad.Except (ExceptT (..), runExceptT, withExceptT)
 import Control.Monad.Reader (ask, asks)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
@@ -206,7 +206,7 @@ prettyPrintEnvDeclCli ns = do
 -- | Get a pretty print env decl for the current names at the current path.
 currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli r PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl scoping = do
-  Env{codebase} <- ask
+  Env {codebase} <- ask
   ls <- Cli.getLoopState
   let root' = view Command.root ls
       currentPath' = Path.unabsolute (view Command.currentPath ls)
@@ -743,34 +743,37 @@ loop e = do
                 (snoc desta "merged")
 
             -- move the Command.root to a sub-branch
-            MoveBranchI Nothing dest -> do
-              b <- use Command.root
+            MoveBranchI Nothing dest -> runCli do
+              Env {loopStateRef} <- ask
+              loopState <- liftIO (readIORef loopStateRef)
+              let b = loopState ^. Command.root
               -- Overwrite history at destination.
-              stepManyAt
+              stepManyAtCli
+                inputDescription
                 Branch.AllowRewritingHistory
                 [ (Path.empty, const Branch.empty0),
                   BranchUtil.makeSetBranch (resolveSplit' dest) b
                 ]
-              success
-            MoveBranchI (Just src) dest -> unlessError $ do
+              respond Success
+            MoveBranchI (Just src) dest -> runCli do
               srcBranch <- case getAtSplit' src of
-                Just existingSrc | not (Branch.isEmpty0 (Branch.head existingSrc)) -> do
-                  pure existingSrc
-                _ -> throwError $ BranchNotFound (Path.unsplit' src)
-              case getAtSplit' dest of
-                Just existingDest
-                  | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                      -- Branch exists and isn't empty, print an error
-                      throwError (BranchAlreadyExists (Path.unsplit' dest))
-                _ -> pure ()
+                Just existingSrc | not (Branch.isEmpty0 (Branch.head existingSrc)) -> pure existingSrc
+                _ -> do
+                  respond (BranchNotFound (Path.unsplit' src))
+                  Cli.returnEarly
+              whenJust (getAtSplit' dest) \existingDest ->
+                when (not (Branch.isEmpty0 (Branch.head existingDest))) do
+                  -- Branch exists and isn't empty, print an error
+                  respond (BranchAlreadyExists (Path.unsplit' dest))
+                  Cli.returnEarly
               -- allow rewriting history to ensure we move the branch's history too.
-              lift $
-                stepManyAt
-                  Branch.AllowRewritingHistory
-                  [ BranchUtil.makeDeleteBranch (resolveSplit' src),
-                    BranchUtil.makeSetBranch (resolveSplit' dest) srcBranch
-                  ]
-              lift $ success -- could give rando stats about new defns
+              stepManyAtCli
+                inputDescription
+                Branch.AllowRewritingHistory
+                [ BranchUtil.makeDeleteBranch (resolveSplit' src),
+                  BranchUtil.makeSetBranch (resolveSplit' dest) srcBranch
+                ]
+              respond Success -- could give rando stats about new defns
             MovePatchI src dest -> do
               psrc <- getPatchAtSplit' src
               pdest <- getPatchAtSplit' dest
@@ -1620,10 +1623,10 @@ loop e = do
               for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
             DebugClearWatchI {} -> runCli do
-              Env{codebase} <- ask
+              Env {codebase} <- ask
               liftIO (Codebase.clearWatches codebase)
             DebugDoctorI {} -> runCli do
-              Env{codebase} <- ask
+              Env {codebase} <- ask
               r <- liftIO (Codebase.runTransaction codebase IntegrityCheck.integrityCheckFullCodebase)
               respond (IntegrityCheck r)
             DeprecateTermI {} -> notImplemented
@@ -1826,7 +1829,7 @@ doPushRemoteBranch ::
   SyncMode.SyncMode ->
   Cli r ()
 doPushRemoteBranch pushFlavor localPath0 syncMode = do
-  Env{codebase} <- ask
+  Env {codebase} <- ask
   currentPath' <- view Command.currentPath <$> Cli.getLoopState
   let localPath = Path.resolve currentPath' localPath0
   case pushFlavor of
@@ -3063,7 +3066,11 @@ stepManyAtCli ::
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
 stepManyAtCli reason strat actions = do
-  undefined
+  stepManyAtNoSyncCli strat actions
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let b = loopState ^. Command.root
+  updateRootCli b reason
 
 -- Like stepManyAt, but doesn't update the Command.root
 stepManyAtNoSync ::
@@ -3075,6 +3082,16 @@ stepManyAtNoSync strat actions = do
   b <- use Command.root
   let new = Branch.stepManyAt strat actions b
   Command.root .= new
+
+-- Like stepManyAt, but doesn't update the Command.root
+stepManyAtNoSyncCli ::
+  Foldable f =>
+  Branch.UpdateStrategy ->
+  f (Path, Branch0 IO -> Branch0 IO) ->
+  Cli r ()
+stepManyAtNoSyncCli strat actions = do
+  Env {loopStateRef} <- ask
+  liftIO (modifyIORef' loopStateRef (over Command.root (Branch.stepManyAt strat actions)))
 
 stepManyAtM ::
   Foldable f =>
