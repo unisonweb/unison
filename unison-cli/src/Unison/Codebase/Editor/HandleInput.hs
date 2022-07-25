@@ -810,17 +810,14 @@ loop e = do
                   BranchUtil.makeReplacePatch (resolveSplit' dest) p
                 ]
               respond Success
-            CopyPatchI src dest -> do
-              psrc <- getPatchAtSplit' src
-              pdest <- getPatchAtSplit' dest
-              case (psrc, pdest) of
-                (Nothing, _) -> patchNotFound src
-                (_, Just _) -> patchExists dest
-                (Just p, Nothing) -> do
-                  stepAt
-                    Branch.CompressHistory
-                    (BranchUtil.makeReplacePatch (resolveSplit' dest) p)
-                  success
+            CopyPatchI src dest -> runCli do
+              p <- expectPatchAtSplitCli' src
+              assertNoPatchAtSplitCli' dest
+              stepAtCli
+                inputDescription
+                Branch.CompressHistory
+                (BranchUtil.makeReplacePatch (resolveSplit' dest) p)
+              respond Success
             DeletePatchI src -> do
               psrc <- getPatchAtSplit' src
               case psrc of
@@ -3044,6 +3041,13 @@ stepAt ::
   (Path, Branch0 IO -> Branch0 IO) ->
   Action ()
 stepAt cause strat = stepManyAt @[] cause strat . pure
+
+stepAtCli ::
+  Command.InputDescription ->
+  Branch.UpdateStrategy ->
+  (Path, Branch0 IO -> Branch0 IO) ->
+  Cli r ()
+stepAtCli cause strat = undefined
 
 stepAtNoSync ::
   Branch.UpdateStrategy ->
