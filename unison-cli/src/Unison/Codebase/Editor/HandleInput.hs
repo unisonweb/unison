@@ -1632,7 +1632,7 @@ loop e = do
             ShowDefinitionByPrefixI {} -> notImplemented
             UpdateBuiltinsI -> notImplemented
             QuitI -> quit
-            GistI input -> handleGist input
+            GistI input -> runCli (handleGist input)
             AuthLoginI -> runCli (authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver))
             VersionI -> do
               ucmVersion <- asks Command.ucmVersion
@@ -1790,9 +1790,9 @@ handleDependents hq = do
     respond (ListDependents hqLength ld results)
 
 -- | Handle a @gist@ command.
-handleGist :: GistInput -> Action ()
+handleGist :: GistInput -> Cli r ()
 handleGist (GistInput repo) =
-  runCli $ doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
+  doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Action ()
