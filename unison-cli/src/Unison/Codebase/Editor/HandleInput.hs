@@ -204,11 +204,12 @@ prettyPrintEnvDeclCli ns = do
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli r PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl scoping = do
-  codebase <- Command.askCodebase
-  root' <- use Command.root
-  currentPath' <- Path.unabsolute <$> use Command.currentPath
+  Env{codebase} <- ask
+  ls <- Cli.getLoopState
+  let root' = view Command.root ls
+      currentPath' = Path.unabsolute (view Command.currentPath ls)
   hqLen <- liftIO (Codebase.hashLength codebase)
   pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
 
@@ -584,7 +585,7 @@ loop e = do
                     diffHelper (Branch.head root') (Branch.head root'')
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
                   else do
-                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                    ppeDecl <- runCli $ currentPrettyPrintEnvDecl Backend.Within
                     respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
             ApiI -> do
@@ -821,11 +822,11 @@ loop e = do
                     then doDelete
                     else case insistence of
                       Force -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                        ppeDecl <- runCli $ currentPrettyPrintEnvDecl Backend.Within
                         doDelete
                         respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                       Try -> do
-                        ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                        ppeDecl <- runCli $ currentPrettyPrintEnvDecl Backend.Within
                         respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
                 doDelete = do
@@ -1555,7 +1556,7 @@ loop e = do
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <- runCli (NamespaceDependencies.namespaceDependencies (Branch.head b))
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+                  ppe <- PPE.unsuffixifiedPPE <$> runCli (currentPrettyPrintEnvDecl Backend.Within)
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> runCli do
               numArgs <- view Command.numberedArgs <$> Cli.getLoopState
