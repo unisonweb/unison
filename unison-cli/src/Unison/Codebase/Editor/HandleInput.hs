@@ -223,6 +223,32 @@ currentPrettyPrintEnvDeclCli scoping = do
   hqLen <- liftIO (Codebase.hashLength codebase)
   pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
 
+-- | Get the patch at a path, or return early if there's no such patch.
+expectPatchAtSplitCli' :: Path.Split' -> Cli r Patch
+expectPatchAtSplitCli' s = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let currentPath' = loopState ^. Command.currentPath
+  let (p, seg) = Path.toAbsoluteSplit currentPath' s
+  b <- getAtCli p
+  liftIO (Branch.getMaybePatch seg (Branch.head b)) >>= \case
+    Nothing -> do
+      respond (PatchNotFound s)
+      Cli.returnEarly
+    Just patch -> pure patch
+
+-- | Assert that there's no patch at a path, or return early if there is one.
+assertNoPatchAtSplitCli' :: Path.Split' -> Cli r ()
+assertNoPatchAtSplitCli' s = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let currentPath' = loopState ^. Command.currentPath
+  let (p, seg) = Path.toAbsoluteSplit currentPath' s
+  b <- getAtCli p
+  whenJustM (liftIO (Branch.getMaybePatch seg (Branch.head b))) \_ -> do
+    respond (PatchAlreadyExists s)
+    Cli.returnEarly
+
 loop :: Either Event Input -> Action ()
 loop e = do
   uf <- use Command.latestTypecheckedFile
@@ -774,19 +800,16 @@ loop e = do
                   BranchUtil.makeSetBranch (resolveSplit' dest) srcBranch
                 ]
               respond Success -- could give rando stats about new defns
-            MovePatchI src dest -> do
-              psrc <- getPatchAtSplit' src
-              pdest <- getPatchAtSplit' dest
-              case (psrc, pdest) of
-                (Nothing, _) -> patchNotFound src
-                (_, Just _) -> patchExists dest
-                (Just p, Nothing) -> do
-                  stepManyAt
-                    Branch.CompressHistory
-                    [ BranchUtil.makeDeletePatch (resolveSplit' src),
-                      BranchUtil.makeReplacePatch (resolveSplit' dest) p
-                    ]
-                  success
+            MovePatchI src dest -> runCli do
+              p <- expectPatchAtSplitCli' src
+              assertNoPatchAtSplitCli' dest
+              stepManyAtCli
+                inputDescription
+                Branch.CompressHistory
+                [ BranchUtil.makeDeletePatch (resolveSplit' src),
+                  BranchUtil.makeReplacePatch (resolveSplit' dest) p
+                ]
+              respond Success
             CopyPatchI src dest -> do
               psrc <- getPatchAtSplit' src
               pdest <- getPatchAtSplit' dest
