@@ -229,6 +229,19 @@ getBranchAt (Path.Absolute p) = do
   loopState <- liftIO (readIORef loopStateRef)
   pure (Branch.getAt p (loopState ^. Command.root))
 
+getBranchAtPath' :: Path' -> Cli r (Maybe (Branch IO))
+getBranchAtPath' path = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let currentPath' = loopState ^. Command.currentPath
+  getBranchAt (Path.resolve currentPath' path)
+
+expectBranchAtPath' :: Path' -> Cli r (Branch IO)
+expectBranchAtPath' path = do
+  getBranchAtPath' path & onNothingM do
+    respond (BranchNotFound path)
+    Cli.returnEarly
+
 getBranchAtSplit' :: Path.Split' -> Cli r (Maybe (Branch IO))
 getBranchAtSplit' s = do
   Env {loopStateRef} <- ask
@@ -621,8 +634,8 @@ loop e = do
                     ppeDecl <- runCli $ currentPrettyPrintEnvDecl Backend.Within
                     respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
-            ApiI -> do
-              serverBaseUrl <- Command.askServerBaseUrl
+            ApiI -> runCli do
+              Env {serverBaseUrl} <- ask
               whenJust serverBaseUrl \baseUrl ->
                 respond $
                   PrintMessage $
@@ -666,20 +679,14 @@ loop e = do
                         (Just new)
                         (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
                         rest
-            ResetRootI src0 ->
-              runCli do
-                Cli.time "reset-root"
-                newRoot <-
-                  case src0 of
-                    Left hash -> resolveShortBranchHashCli hash
-                    Right path' -> do
-                      newRoot <- getAtCli (resolveToAbsolute path')
-                      when (Branch.isEmpty newRoot) do
-                        respond (BranchNotFound path')
-                        Cli.returnEarly
-                      pure newRoot
-                updateRootCli newRoot inputDescription
-                respond Success
+            ResetRootI src0 -> runCli do
+              Cli.time "reset-root"
+              newRoot <-
+                case src0 of
+                  Left hash -> resolveShortBranchHashCli hash
+                  Right path' -> expectBranchAtPath' path'
+              updateRootCli newRoot inputDescription
+              respond Success
             ForkLocalBranchI src0 dest0 -> do
               let tryUpdateDest srcb dest0 = do
                     let dest = resolveToAbsolute dest0
@@ -789,11 +796,7 @@ loop e = do
                 ]
               respond Success
             MoveBranchI (Just src) dest -> runCli do
-              srcBranch <- case getAtSplit' src of
-                Just existingSrc | not (Branch.isEmpty0 (Branch.head existingSrc)) -> pure existingSrc
-                _ -> do
-                  respond (BranchNotFound (Path.unsplit' src))
-                  Cli.returnEarly
+              srcBranch <- expectBranchAtSplit' src
               whenJust (getAtSplit' dest) \existingDest ->
                 when (not (Branch.isEmpty0 (Branch.head existingDest))) do
                   -- Branch exists and isn't empty, print an error
