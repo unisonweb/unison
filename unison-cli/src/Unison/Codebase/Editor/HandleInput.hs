@@ -1550,13 +1550,13 @@ loop e = do
                     let names = types <> terms
                     Command.numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
                     respond $ ListDependencies hqLength ld names missing
-            NamespaceDependenciesI namespacePath' -> do
+            NamespaceDependenciesI namespacePath' -> runCli do
               let path = maybe currentPath' resolveToAbsolute namespacePath'
               case (Branch.getAt (Path.unabsolute path) root') of
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
-                  externalDependencies <- runCli (NamespaceDependencies.namespaceDependencies (Branch.head b))
-                  ppe <- PPE.unsuffixifiedPPE <$> runCli (currentPrettyPrintEnvDecl Backend.Within)
+                  externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
+                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> runCli do
               numArgs <- view Command.numberedArgs <$> Cli.getLoopState
