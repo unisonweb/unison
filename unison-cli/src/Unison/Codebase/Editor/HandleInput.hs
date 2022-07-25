@@ -1792,7 +1792,7 @@ handleDependents hq = do
 -- | Handle a @gist@ command.
 handleGist :: GistInput -> Action ()
 handleGist (GistInput repo) =
-  doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
+  runCli $ doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Action ()
@@ -1805,7 +1805,7 @@ handlePushRemoteBranch PushRemoteBranchInput {maybeRemoteRepo = mayRepo, localPa
     Just repo -> push repo
   where
     push repo =
-      doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
+      runCli $ doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
 
 -- | Either perform a "normal" push (updating a remote path), which takes a 'PushBehavior' (to control whether creating
 -- a new namespace is allowed), or perform a "gisty" push, which doesn't update any paths (and also is currently only
@@ -1821,15 +1821,14 @@ doPushRemoteBranch ::
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
   Path' ->
   SyncMode.SyncMode ->
-  Action ()
+  Cli r ()
 doPushRemoteBranch pushFlavor localPath0 syncMode = do
-  codebase <- Command.askCodebase
-  currentPath' <- use Command.currentPath
+  Env{codebase} <- ask
+  currentPath' <- view Command.currentPath <$> Cli.getLoopState
   let localPath = Path.resolve currentPath' localPath0
-
   case pushFlavor of
     NormalPush (writeRemotePath@(WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath})) pushBehavior -> do
-      sourceBranch <- getAt localPath
+      sourceBranch <- getAtCli localPath
       let withRemoteRoot :: Branch IO -> IO (Either Output (Branch IO))
           withRemoteRoot remoteRoot = do
             let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
@@ -1853,7 +1852,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
         Right (Right _branch) -> respond Success
     NormalPush (WriteRemotePathShare sharePath) pushBehavior -> handlePushToUnisonShare sharePath localPath pushBehavior
     GistyPush repo -> do
-      sourceBranch <- getAt localPath
+      sourceBranch <- getAtCli localPath
       let opts =
             PushGitBranchOpts
               { behavior = GitPushBehaviorGist,
@@ -1886,12 +1885,12 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
         PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
-handlePushToUnisonShare :: WriteShareRemotePath -> Path.Absolute -> PushBehavior -> Action ()
+handlePushToUnisonShare :: WriteShareRemotePath -> Path.Absolute -> PushBehavior -> Cli r ()
 handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remotePath} localPath behavior = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   let sharePath = Share.Path (repo Nel.:| pathToSegments remotePath)
-  runCli (ensureAuthenticatedWithCodeserver codeserver)
+  ensureAuthenticatedWithCodeserver codeserver
 
   Command.Env {authHTTPClient, codebase} <- ask
 
@@ -1913,7 +1912,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
                     remoteHash
                     localCausalHash
                     callbacks
-      let respondPushError :: (a -> Output.ShareError) -> Share.SyncError a -> Action ()
+      let respondPushError :: (a -> Output.ShareError) -> Share.SyncError a -> Cli r ()
           respondPushError f =
             respond . \case
               Share.SyncError err -> Output.ShareError (f err)
