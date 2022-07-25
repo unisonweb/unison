@@ -3,16 +3,17 @@ module Unison.Codebase.Editor.HandleInput.NamespaceDependencies
   )
 where
 
+import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0)
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Command (Action, askCodebase)
 import qualified Unison.DataDeclaration as DD
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
+import Unison.Monad.Cli (Cli, Env (..))
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -36,9 +37,9 @@ import qualified Unison.Util.Relation4 as Relation4
 --
 -- Returns a Set of names rather than using the PPE since we already have the correct names in
 -- scope on this branch, and also want to list ALL names of dependents, including aliases.
-namespaceDependencies :: forall m. Branch0 m -> Action (Map LabeledDependency (Set Name))
+namespaceDependencies :: forall m r. Branch0 m -> Cli r (Map LabeledDependency (Set Name))
 namespaceDependencies branch = do
-  codebase <- askCodebase
+  Env {codebase} <- ask
 
   typeDeps <- for (Map.toList currentBranchTypeRefs) $ \(typeRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
     refId <- MaybeT . pure $ Reference.toId typeRef

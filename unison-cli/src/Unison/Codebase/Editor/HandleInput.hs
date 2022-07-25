@@ -1554,7 +1554,7 @@ loop e = do
               case (Branch.getAt (Path.unabsolute path) root') of
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
-                  externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
+                  externalDependencies <- runCli (NamespaceDependencies.namespaceDependencies (Branch.head b))
                   ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> runCli do
