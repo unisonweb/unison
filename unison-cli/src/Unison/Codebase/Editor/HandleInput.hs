@@ -271,7 +271,6 @@ resolveShortBranchHash hash = do
         respond (BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet))
         Cli.returnEarly
 
-
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting branches, patches, etc.
 
@@ -445,7 +444,6 @@ loop e = do
       let typeNotFound = respond . TypeNotFound
           typeNotFound' = respond . TypeNotFound'
           termNotFound = respond . TermNotFound
-          termNotFound' = respond . TermNotFound'
           nameConflicted src tms tys = respond (DeleteNameAmbiguous hqLength src tms tys)
           typeConflicted src = nameConflicted src Set.empty
           termConflicted src tms = nameConflicted src tms Set.empty
@@ -974,16 +972,16 @@ loop e = do
                   (ppe, diff) <- diffHelperCli (Branch.head prev) (Branch.head root')
                   Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
             UiI -> runCli do
-              Env{serverBaseUrl} <- ask
+              Env {serverBaseUrl} <- ask
               whenJust serverBaseUrl \url -> do
                 _success <- liftIO (openBrowser (Server.urlFor Server.UI url))
                 pure ()
             DocsToHtmlI namespacePath' sourceDirectory -> runCli do
-              Env{codebase, sandboxedRuntime} <- ask
+              Env {codebase, sandboxedRuntime} <- ask
               absPath <- Path.unabsolute <$> resolvePath' namespacePath'
               liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase root' (absPath) sourceDirectory)
-            AliasTermI src dest -> do
-              codebase <- Command.askCodebase
+            AliasTermI src dest -> runCli do
+              Env {codebase} <- ask
               referents <-
                 either
                   (liftIO . Backend.termReferentsByShortHash codebase)
@@ -991,12 +989,20 @@ loop e = do
                   src
               case (toList referents, toList (getTerms dest)) of
                 ([r], []) -> do
-                  stepAt Branch.CompressHistory (BranchUtil.makeAddTermName (resolveSplit' dest) r (oldMD r))
-                  success
-                ([_], rs@(_ : _)) -> termExists dest (Set.fromList rs)
-                ([], _) -> either termNotFound' termNotFound src
+                  stepAtCli
+                    inputDescription
+                    Branch.CompressHistory
+                    (BranchUtil.makeAddTermName (resolveSplit' dest) r (oldMD r))
+                  respond Success
+                ([_], rs@(_ : _)) -> respond (TermAlreadyExists dest (Set.fromList rs))
+                ([], _) ->
+                  case src of
+                    Left hash -> respond (TermNotFound' hash)
+                    Right name -> respond (TermNotFound name)
                 (rs, _) ->
-                  either hashConflicted termConflicted src (Set.fromList rs)
+                  case src of
+                    Left hash -> respond (HashAmbiguous hash (Set.fromList rs))
+                    Right name -> respond (DeleteNameAmbiguous hqLength name (Set.fromList rs) Set.empty)
               where
                 oldMD r =
                   either
@@ -1588,7 +1594,7 @@ loop e = do
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> runCli (handleDependents hq)
             ListDependenciesI hq -> runCli do
-              Env{codebase} <- ask
+              Env {codebase} <- ask
               -- todo: add flag to handle transitive efficiently
               resolveHQToLabeledDependenciesCli hq >>= \lds ->
                 if null lds
