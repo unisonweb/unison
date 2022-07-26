@@ -2963,32 +2963,22 @@ mergeBranchAndPropagateDefaultPatchCli ::
   Maybe Path.Path' ->
   Path.Absolute ->
   Cli r ()
-mergeBranchAndPropagateDefaultPatchCli mode inputDescription unchangedMessage srcb dest0 dest =
-  undefined
-
-{-
-ifM
-  (mergeBranch mode inputDescription srcb dest0 dest)
-  (loadPropagateDiffDefaultPatch inputDescription dest0 dest)
-  (for_ unchangedMessage respond)
-where
-  mergeBranch ::
-    Branch.MergeMode ->
-    Command.InputDescription ->
-    Branch IO ->
-    Maybe Path.Path' ->
-    Path.Absolute ->
-    Action Bool
-  mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" do
-    codebase <- Command.askCodebase
-    destb <- getAt dest
-    merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
-    b <- updateAtM inputDescription dest (const $ pure merged)
-    for_ dest0 $ \dest0 ->
-      diffHelper (Branch.head destb) (Branch.head merged)
-        >>= respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
-    pure b
--}
+mergeBranchAndPropagateDefaultPatchCli mode inputDescription unchangedMessage srcb maybeDest0 dest =
+  ifM
+    mergeBranch
+    (loadPropagateDiffDefaultPatchCli inputDescription maybeDest0 dest)
+    (for_ unchangedMessage respond)
+  where
+    mergeBranch :: Cli r Bool
+    mergeBranch = unsafeTime "mergeBranch" do
+      Env{codebase} <- ask
+      destb <- fromMaybe Branch.empty <$> getBranchAt dest
+      merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
+      b <- updateAtMCli inputDescription dest (const $ pure merged)
+      for_ maybeDest0 \dest0 -> do
+        (ppe, o) <- diffHelperCli (Branch.head destb) (Branch.head merged)
+        Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe o)
+      pure b
 
 loadPropagateDiffDefaultPatch ::
   Command.InputDescription ->
