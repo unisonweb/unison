@@ -906,10 +906,11 @@ loop e = do
                   liftIO (modifyIORef' loopStateRef (over Command.currentPathStack (Nel.cons path)))
                   branch' <- getBranchAt path <&> fromMaybe Branch.empty
                   when (Branch.isEmpty0 $ Branch.head branch') (respond $ CreatedNewBranch path)
-            UpI ->
-              use Command.currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
-                Nothing -> pure ()
-                Just (path, _) -> Command.currentPathStack %= Nel.cons (Path.Absolute path)
+            UpI -> runCli do
+              Env {loopStateRef} <- ask
+              loopState <- liftIO (readIORef loopStateRef)
+              whenJust (unsnoc (loopState ^. Command.currentPath)) \(path, _) ->
+                liftIO (modifyIORef' loopStateRef (over Command.currentPathStack (Nel.cons path)))
             PopBranchI ->
               use (Command.currentPathStack . to Nel.uncons) >>= \case
                 (_, Nothing) -> respond StartOfCurrentPathHistory
