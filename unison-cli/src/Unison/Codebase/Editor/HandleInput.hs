@@ -1100,8 +1100,8 @@ loop e = do
 
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
                 fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
-            NamesI global thing -> do
-              ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
+            NamesI global thing -> runCli do
+              ns0 <- if global then pure basicPrettyPrintNames else basicParseNamesCli
               let ns = NamesWithHistory ns0 mempty
                   terms = NamesWithHistory.lookupHQTerm thing ns
                   types = NamesWithHistory.lookupHQType thing ns
