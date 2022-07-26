@@ -973,17 +973,15 @@ loop e = do
                   updateRootCli prev inputDescription
                   (ppe, diff) <- diffHelperCli (Branch.head prev) (Branch.head root')
                   Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
-            UiI ->
-              Command.askServerBaseUrl >>= \case
-                Nothing -> pure ()
-                Just url -> do
-                  _success <- liftIO (openBrowser (Server.urlFor Server.UI url))
-                  pure ()
-            DocsToHtmlI namespacePath' sourceDirectory -> do
-              sandboxedRuntime <- Command.askSandboxedRuntime
-              codebase <- Command.askCodebase
-              let absPath = Path.unabsolute $ resolveToAbsolute namespacePath'
-              liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase root' absPath sourceDirectory)
+            UiI -> runCli do
+              Env{serverBaseUrl} <- ask
+              whenJust serverBaseUrl \url -> do
+                _success <- liftIO (openBrowser (Server.urlFor Server.UI url))
+                pure ()
+            DocsToHtmlI namespacePath' sourceDirectory -> runCli do
+              Env{codebase, sandboxedRuntime} <- ask
+              absPath <- Path.unabsolute <$> resolvePath' namespacePath'
+              liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase root' (absPath) sourceDirectory)
             AliasTermI src dest -> do
               codebase <- Command.askCodebase
               referents <-
