@@ -1568,11 +1568,10 @@ loop e = do
                       else respond unchangedMsg
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> runCli (handleDependents hq)
-            ListDependenciesI hq -> do
-              codebase <- Command.askCodebase
-
+            ListDependenciesI hq -> runCli do
+              Env{codebase} <- ask
               -- todo: add flag to handle transitive efficiently
-              resolveHQToLabeledDependencies hq >>= \lds ->
+              resolveHQToLabeledDependenciesCli hq >>= \lds ->
                 if null lds
                   then respond $ LabeledReferenceNotFound hq
                   else for_ lds $ \ld -> do
@@ -1598,7 +1597,9 @@ loop e = do
                     let types = R.toList $ Names.types names0
                     let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
                     let names = types <> terms
-                    Command.numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
+                    () <- do
+                      ls <- Cli.getLoopState
+                      Cli.putLoopState $ ls & Command.numberedArgs .~ fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
                     respond $ ListDependencies hqLength ld names missing
             NamespaceDependenciesI namespacePath' -> runCli do
               let path = maybe currentPath' resolveToAbsolute namespacePath'
