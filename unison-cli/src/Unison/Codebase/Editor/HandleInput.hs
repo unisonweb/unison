@@ -726,14 +726,11 @@ loop e = do
               dest <- resolvePath' dest0
               ok <- updateAtMCli inputDescription dest (const $ pure srcb)
               respond if ok then Success else BranchEmpty src0
-            MergeLocalBranchI src0 dest0 mergeMode -> do
-              let [src, dest] = resolveToAbsolute <$> [src0, dest0]
-              srcb <- getAt src
-              if Branch.isEmpty srcb
-                then branchNotFound src0
-                else do
-                  let err = Just $ MergeAlreadyUpToDate src0 dest0
-                  mergeBranchAndPropagateDefaultPatch mergeMode inputDescription err srcb (Just dest0) dest
+            MergeLocalBranchI src0 dest0 mergeMode -> runCli do
+              srcb <- expectBranchAtPath' src0
+              dest <- resolvePath' dest0
+              let err = Just $ MergeAlreadyUpToDate src0 dest0
+              mergeBranchAndPropagateDefaultPatchCli mergeMode inputDescription err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
               codebase <- Command.askCodebase
               let [src, dest] = resolveToAbsolute <$> [src0, dest0]
@@ -2956,6 +2953,43 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
           >>= respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
       pure b
 
+-- | supply `dest0` if you want to print diff messages
+--   supply unchangedMessage if you want to display it if merge had no effect
+mergeBranchAndPropagateDefaultPatchCli ::
+  Branch.MergeMode ->
+  Command.InputDescription ->
+  Maybe Output ->
+  Branch IO ->
+  Maybe Path.Path' ->
+  Path.Absolute ->
+  Cli r ()
+mergeBranchAndPropagateDefaultPatchCli mode inputDescription unchangedMessage srcb dest0 dest =
+  undefined
+
+{-
+ifM
+  (mergeBranch mode inputDescription srcb dest0 dest)
+  (loadPropagateDiffDefaultPatch inputDescription dest0 dest)
+  (for_ unchangedMessage respond)
+where
+  mergeBranch ::
+    Branch.MergeMode ->
+    Command.InputDescription ->
+    Branch IO ->
+    Maybe Path.Path' ->
+    Path.Absolute ->
+    Action Bool
+  mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" do
+    codebase <- Command.askCodebase
+    destb <- getAt dest
+    merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
+    b <- updateAtM inputDescription dest (const $ pure merged)
+    for_ dest0 $ \dest0 ->
+      diffHelper (Branch.head destb) (Branch.head merged)
+        >>= respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
+    pure b
+-}
+
 loadPropagateDiffDefaultPatch ::
   Command.InputDescription ->
   Maybe Path.Path' ->
@@ -3063,7 +3097,7 @@ updateAtMCli ::
   (Branch IO -> Cli r (Branch IO)) ->
   Cli r Bool
 updateAtMCli reason (Path.Absolute p) f = do
-  Env{loopStateRef} <- ask
+  Env {loopStateRef} <- ask
   loopState <- liftIO (readIORef loopStateRef)
   let b = loopState ^. Command.lastSavedRoot
   b' <- Branch.modifyAtM p f b
