@@ -648,10 +648,13 @@ loop e = do
                       ]
             CreateMessage pretty ->
               respond $ PrintMessage pretty
-            ShowReflogI -> do
-              codebase <- Command.askCodebase
+            ShowReflogI -> runCli do
+              Env {codebase, loopStateRef} <- ask
               entries <- convertEntries Nothing [] <$> liftIO (Codebase.getReflog codebase)
-              Command.numberedArgs .= fmap (('#' :) . SBH.toString . Output.hash) entries
+              liftIO do
+                modifyIORef'
+                  loopStateRef
+                  (set Command.numberedArgs (fmap (('#' :) . SBH.toString . Output.hash) entries))
               respond $ ShowReflog entries
               where
                 -- reverses & formats entries, adds synthetic entries when there is a
