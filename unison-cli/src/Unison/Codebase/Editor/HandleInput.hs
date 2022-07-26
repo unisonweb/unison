@@ -770,19 +770,16 @@ loop e = do
                       diff
             CreatePullRequestI baseRepo headRepo -> runCli (handleCreatePullRequest baseRepo headRepo)
             LoadPullRequestI baseRepo headRepo dest0 -> runCli do
+              assertNoBranchAtPath' dest0
               Env {codebase} <- ask
               let desta = resolveToAbsolute dest0
               let dest = Path.unabsolute desta
-              destb <- getAtCli desta
               let getBranch = \case
                     ReadRemoteNamespaceGit repo ->
                       Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err -> do
                         respond (Output.GitError err)
                         Cli.returnEarly
                     ReadRemoteNamespaceShare repo -> importRemoteShareBranchCli repo
-              when (not (Branch.isEmpty0 (Branch.head destb))) do
-                respond . BranchNotEmpty . Path.Path' . Left $ currentPath'
-                Cli.returnEarly
               Cli.scopeWith do
                 baseb <- getBranch baseRepo
                 headb <- getBranch headRepo
@@ -892,7 +889,7 @@ loop e = do
                           (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
                           (Branch.toNames b0)
                   getEndangeredDependents (liftIO . Codebase.dependents codebase) toDelete rootNames
-            SwitchBranchI maybePath' -> do
+            SwitchBranchI maybePath' -> runCli do
               mpath' <- case maybePath' of
                 Nothing ->
                   fuzzySelectNamespace Absolute root0 >>= \case
@@ -904,9 +901,10 @@ loop e = do
               case mpath' of
                 Nothing -> pure ()
                 Just path' -> do
-                  let path = resolveToAbsolute path'
-                  Command.currentPathStack %= Nel.cons path
-                  branch' <- getAt path
+                  path <- resolvePath' path'
+                  Env{loopStateRef} <- ask
+                  liftIO (modifyIORef' loopStateRef (over Command.currentPathStack (Nel.cons path)))
+                  branch' <- getBranchAt path <&> fromMaybe Branch.empty
                   when (Branch.isEmpty0 $ Branch.head branch') (respond $ CreatedNewBranch path)
             UpI ->
               use Command.currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
