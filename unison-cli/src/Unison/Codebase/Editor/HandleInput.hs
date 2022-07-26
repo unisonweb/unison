@@ -442,7 +442,6 @@ loop e = do
         else loadUnisonFile sourceName text
     Right input ->
       let typeNotFound = respond . TypeNotFound
-          typeNotFound' = respond . TypeNotFound'
           termNotFound = respond . TermNotFound
           nameConflicted src tms tys = respond (DeleteNameAmbiguous hqLength src tms tys)
           typeConflicted src = nameConflicted src Set.empty
@@ -627,7 +626,6 @@ loop e = do
                 Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
               hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
               ps' = p' . Path.unsplit'
-          stepAt = Unison.Codebase.Editor.HandleInput.stepAt inputDescription
           stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
           updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
           syncRoot = use Command.root >>= updateRoot
@@ -858,14 +856,14 @@ loop e = do
             CopyPatchI src dest -> runCli do
               p <- expectPatchAtSplitCli' src
               assertNoPatchAtSplitCli' dest
-              stepAtCli
+              stepAt
                 inputDescription
                 Branch.CompressHistory
                 (BranchUtil.makeReplacePatch (resolveSplit' dest) p)
               respond Success
             DeletePatchI src -> runCli do
               _ <- expectPatchAtSplitCli' src
-              stepAtCli
+              stepAt
                 inputDescription
                 Branch.CompressHistory
                 (BranchUtil.makeDeletePatch (resolveSplit' src))
@@ -874,7 +872,7 @@ loop e = do
               hasConfirmed <- confirmedCommand input
               if hasConfirmed || insistence == Force
                 then do
-                  stepAtCli
+                  stepAt
                     inputDescription
                     Branch.CompressHistory -- Wipe out all definitions, but keep root branch history.
                     (Path.empty, const Branch.empty0)
@@ -895,7 +893,7 @@ loop e = do
                     Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
                 doDelete = do
-                  stepAtCli inputDescription Branch.CompressHistory $ BranchUtil.makeDeleteBranch (resolveSplit' p)
+                  stepAt inputDescription Branch.CompressHistory $ BranchUtil.makeDeleteBranch (resolveSplit' p)
                   respond Success
                 -- Looks similar to the 'toDelete' above... investigate me! ;)
                 computeEndangerments :: Branch0 m1 -> Cli r (Map LabeledDependency (NESet LabeledDependency))
@@ -989,7 +987,7 @@ loop e = do
                   src
               case (toList referents, toList (getTerms dest)) of
                 ([r], []) -> do
-                  stepAtCli
+                  stepAt
                     inputDescription
                     Branch.CompressHistory
                     (BranchUtil.makeAddTermName (resolveSplit' dest) r (oldMD r))
@@ -1012,8 +1010,8 @@ loop e = do
                          in BranchUtil.getTermMetadataAt p r root0
                     )
                     src
-            AliasTypeI src dest -> do
-              codebase <- Command.askCodebase
+            AliasTypeI src dest -> runCli do
+              Env {codebase} <- ask
               refs <-
                 either
                   (liftIO . Backend.typeReferencesByShortHash codebase)
@@ -1021,16 +1019,20 @@ loop e = do
                   src
               case (toList refs, toList (getTypes dest)) of
                 ([r], []) -> do
-                  stepAt Branch.CompressHistory (BranchUtil.makeAddTypeName (resolveSplit' dest) r (oldMD r))
-                  success
-                ([_], rs@(_ : _)) -> typeExists dest (Set.fromList rs)
-                ([], _) -> either typeNotFound' typeNotFound src
+                  stepAt
+                    inputDescription
+                    Branch.CompressHistory
+                    (BranchUtil.makeAddTypeName (resolveSplit' dest) r (oldMD r))
+                  respond Success
+                ([_], rs@(_ : _)) -> respond (TypeAlreadyExists dest (Set.fromList rs))
+                ([], _) ->
+                  case src of
+                    Left hash -> respond (TypeNotFound' hash)
+                    Right name -> respond (TypeNotFound name)
                 (rs, _) ->
-                  either
-                    (\src -> hashConflicted src . Set.map Referent.Ref)
-                    typeConflicted
-                    src
-                    (Set.fromList rs)
+                  case src of
+                    Left hash -> respond (HashAmbiguous hash (Set.map Referent.Ref (Set.fromList rs)))
+                    Right name -> respond (DeleteNameAmbiguous hqLength name Set.empty (Set.fromList rs))
               where
                 oldMD r =
                   either
@@ -3102,15 +3104,8 @@ stepAt ::
   Command.InputDescription ->
   Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Branch0 IO) ->
-  Action ()
-stepAt cause strat = stepManyAt @[] cause strat . pure
-
-stepAtCli ::
-  Command.InputDescription ->
-  Branch.UpdateStrategy ->
-  (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepAtCli cause strat = undefined
+stepAt cause strat = stepManyAtCli @[] cause strat . pure
 
 stepAtNoSync ::
   Branch.UpdateStrategy ->
