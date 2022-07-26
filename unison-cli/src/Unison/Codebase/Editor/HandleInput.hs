@@ -243,6 +243,16 @@ resolveSplitCli' s = do
   pure (Path.toAbsoluteSplit currentPath' s)
 
 ------------------------------------------------------------------------------------------------------------------------
+-- Branch id resolution
+
+-- | Resolve an @AbsBranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
+-- branches by path are OK - the empty branch will be returned).
+resolveAbsBranchId :: AbsBranchId -> Cli r (Branch IO)
+resolveAbsBranchId = \case
+  Left hash -> resolveShortBranchHashCli hash
+  Right path -> getBranchAt path <&> fromMaybe Branch.empty
+
+------------------------------------------------------------------------------------------------------------------------
 -- Getting branches, patches, etc.
 
 -- | Get the branch at an absolute path.
@@ -739,24 +749,25 @@ loop e = do
               if merged == destb
                 then respond (PreviewMergeAlreadyUpToDate src0 dest0)
                 else do
-                  (ppe, o) <- diffHelperCli (Branch.head destb) (Branch.head merged)
-                  Cli.respondNumbered (ShowDiffAfterMergePreview dest0 dest ppe o)
-            DiffNamespaceI before after -> unsafeTime "diff.namespace" $ unlessError do
-              let (absBefore, absAfter) = (resolveToAbsolute <$> before, resolveToAbsolute <$> after)
-              beforeBranch0 <- Branch.head <$> branchForBranchId absBefore
-              afterBranch0 <- Branch.head <$> branchForBranchId absAfter
-              lift $ case (Branch.isEmpty0 beforeBranch0, Branch.isEmpty0 afterBranch0) of
+                  (ppe, diff) <- diffHelperCli (Branch.head destb) (Branch.head merged)
+                  Cli.respondNumbered (ShowDiffAfterMergePreview dest0 dest ppe diff)
+            DiffNamespaceI before after -> runCli do
+              absBefore <- traverseOf _Right resolvePath' before
+              absAfter <- traverseOf _Right resolvePath' after
+              beforeBranch0 <- Branch.head <$> resolveAbsBranchId absBefore
+              afterBranch0 <- Branch.head <$> resolveAbsBranchId absAfter
+              case (Branch.isEmpty0 beforeBranch0, Branch.isEmpty0 afterBranch0) of
                 (True, True) -> respond . NamespaceEmpty $ (absBefore Nel.:| [absAfter])
                 (True, False) -> respond . NamespaceEmpty $ (absBefore Nel.:| [])
                 (False, True) -> respond . NamespaceEmpty $ (absAfter Nel.:| [])
                 _ -> do
-                  (ppe, outputDiff) <- diffHelper beforeBranch0 afterBranch0
-                  respondNumbered $
+                  (ppe, diff) <- diffHelperCli beforeBranch0 afterBranch0
+                  Cli.respondNumbered $
                     ShowDiffNamespace
                       (resolveToAbsolute <$> before)
                       (resolveToAbsolute <$> after)
                       ppe
-                      outputDiff
+                      diff
             CreatePullRequestI baseRepo headRepo -> runCli (handleCreatePullRequest baseRepo headRepo)
             LoadPullRequestI baseRepo headRepo dest0 -> runCli do
               Env {codebase} <- ask
@@ -2972,8 +2983,8 @@ mergeBranchAndPropagateDefaultPatchCli mode inputDescription unchangedMessage sr
       merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
       b <- updateAtMCli inputDescription dest (const $ pure merged)
       for_ maybeDest0 \dest0 -> do
-        (ppe, o) <- diffHelperCli (Branch.head destb) (Branch.head merged)
-        Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe o)
+        (ppe, diff) <- diffHelperCli (Branch.head destb) (Branch.head merged)
+        Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
       pure b
 
 loadPropagateDiffDefaultPatch ::
