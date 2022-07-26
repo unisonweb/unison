@@ -1206,8 +1206,7 @@ loop e = do
                       p | last p == '.' -> p ++ s
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
-            FindI isVerbose fscope ws ->
-              handleFindI isVerbose fscope ws input
+            FindI isVerbose fscope ws -> runCli (handleFindI isVerbose fscope ws input)
             ResolveTypeNameI hq ->
               zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
               where
@@ -1703,11 +1702,13 @@ handleFindI ::
   FindScope ->
   [String] ->
   Input ->
-  Action ()
+  Cli r ()
 handleFindI isVerbose fscope ws input = do
-  root' <- use Command.root
-  currentPath' <- use Command.currentPath
-  currentBranch' <- getAt currentPath'
+  Env {codebase, loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let root' = loopState ^. Command.root
+  let currentPath' = loopState ^. Command.currentPath
+  currentBranch' <- getBranchAt currentPath' <&> fromMaybe Branch.empty
   let currentBranch0 = Branch.head currentBranch'
       getNames :: FindScope -> Names
       getNames findScope =
@@ -1732,53 +1733,49 @@ handleFindI isVerbose fscope ws input = do
                         _ -> True
                  in Names.filter f
          in scopeFilter namesWithinCurrentPath
-  unlessError do
-    let getResults names = do
-          case ws of
-            [] -> pure (List.sortOn (\s -> (SR.name s, s)) (SR.fromNames names))
-            -- type query
-            ":" : ws ->
-              ExceptT (parseSearchType (show input) (unwords ws)) >>= \typ ->
-                ExceptT do
-                  codebase <- Command.askCodebase
-                  let named = Branch.deepReferents currentBranch0
-                  matches <-
-                    fmap (filter (`Set.member` named) . toList) $
-                      liftIO (Codebase.termsOfType codebase typ)
-                  matches <-
-                    if null matches
-                      then do
-                        respond NoExactTypeMatches
-                        fmap (filter (`Set.member` named) . toList) $
-                          liftIO (Codebase.termsMentioningType codebase typ)
-                      else pure matches
-                  let results =
-                        -- in verbose mode, aliases are shown, so we collapse all
-                        -- aliases to a single search result; in non-verbose mode,
-                        -- a separate result may be shown for each alias
-                        (if isVerbose then uniqueBy SR.toReferent else id) $
-                          searchResultsFor names matches []
-                  pure . pure $ results
+  let getResults :: Names -> Cli r [SearchResult]
+      getResults names = do
+        case ws of
+          [] -> pure (List.sortOn (\s -> (SR.name s, s)) (SR.fromNames names))
+          -- type query
+          ":" : ws -> do
+            typ <- parseSearchTypeCli (show input) (unwords ws)
+            let named = Branch.deepReferents currentBranch0
+            matches <-
+              fmap (filter (`Set.member` named) . toList) $
+                liftIO (Codebase.termsOfType codebase typ)
+            matches <-
+              if null matches
+                then do
+                  respond NoExactTypeMatches
+                  fmap (filter (`Set.member` named) . toList) $
+                    liftIO (Codebase.termsMentioningType codebase typ)
+                else pure matches
+            pure $
+              -- in verbose mode, aliases are shown, so we collapse all
+              -- aliases to a single search result; in non-verbose mode,
+              -- a separate result may be shown for each alias
+              (if isVerbose then uniqueBy SR.toReferent else id) $
+                searchResultsFor names matches []
 
-            -- name query
-            (map HQ.unsafeFromString -> qs) -> do
-              let srs = searchBranchScored names fuzzyNameDistance qs
-              pure $ uniqueBy SR.toReferent srs
-    let respondResults results = lift do
-          codebase <- Command.askCodebase
-          Command.numberedArgs .= fmap searchResultToHQString results
-          results' <- liftIO (Backend.loadSearchResults codebase results)
-          ppe <-
-            suffixifiedPPE
-              =<< makePrintNamesFromLabeled'
-                (foldMap SR'.labeledDependencies results')
-          respond $ ListOfDefinitions ppe isVerbose results'
-    results <- getResults (getNames fscope)
-    case (results, fscope) of
-      ([], Local) -> do
-        lift $ respond FindNoLocalMatches
-        respondResults =<< getResults (getNames LocalAndDeps)
-      _ -> respondResults results
+          -- name query
+          (map HQ.unsafeFromString -> qs) -> do
+            let srs = searchBranchScored names fuzzyNameDistance qs
+            pure $ uniqueBy SR.toReferent srs
+  let respondResults results = do
+        liftIO (modifyIORef' loopStateRef (set Command.numberedArgs (fmap searchResultToHQString results)))
+        results' <- liftIO (Backend.loadSearchResults codebase results)
+        ppe <-
+          suffixifiedPPECli
+            =<< makePrintNamesFromLabeledCli'
+              (foldMap SR'.labeledDependencies results')
+        respond $ ListOfDefinitions ppe isVerbose results'
+  results <- getResults (getNames fscope)
+  case (results, fscope) of
+    ([], Local) -> do
+      respond FindNoLocalMatches
+      respondResults =<< getResults (getNames LocalAndDeps)
+    _ -> respondResults results
 
 handleDependents :: HQ.HashQualified Name -> Cli r ()
 handleDependents hq = do
@@ -3484,12 +3481,26 @@ fixupNamesRelative currentPath' = Names.map fixName
         then n
         else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
 
-makeHistoricalParsingNames ::
-  Set (HQ.HashQualified Name) -> Action NamesWithHistory
+makeHistoricalParsingNames :: Set (HQ.HashQualified Name) -> Action NamesWithHistory
 makeHistoricalParsingNames lexedHQs = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames <- basicParseNames
   curPath <- use Command.currentPath
+  pure $
+    NamesWithHistory
+      basicNames
+      ( Names.makeAbsolute rawHistoricalNames
+          <> fixupNamesRelative curPath rawHistoricalNames
+      )
+
+makeHistoricalParsingNamesCli :: Set (HQ.HashQualified Name) -> Cli r NamesWithHistory
+makeHistoricalParsingNamesCli lexedHQs = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let curPath = loopState ^. Command.currentPath
+
+  rawHistoricalNames <- findHistoricalHQsCli lexedHQs
+  basicNames <- basicParseNamesCli
   pure $
     NamesWithHistory
       basicNames
@@ -3517,9 +3528,26 @@ lexedSource name src = do
   parseNames <- makeHistoricalParsingNames hqs
   pure (parseNames, (src, tokens))
 
+lexedSourceCli :: SourceName -> Source -> Cli r (NamesWithHistory, LexedSource)
+lexedSourceCli name src = do
+  let tokens = L.lexer (Text.unpack name) (Text.unpack src)
+      getHQ = \case
+        L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+        L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+        L.Hash sh -> Just (HQ.HashOnly sh)
+        _ -> Nothing
+      hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
+  parseNames <- makeHistoricalParsingNamesCli hqs
+  pure (parseNames, (src, tokens))
+
 suffixifiedPPE :: NamesWithHistory -> Action PPE.PrettyPrintEnv
 suffixifiedPPE ns = do
   codebase <- Command.askCodebase
+  liftIO (Codebase.hashLength codebase) <&> (`PPE.fromSuffixNames` ns)
+
+suffixifiedPPECli :: NamesWithHistory -> Cli r PPE.PrettyPrintEnv
+suffixifiedPPECli ns = do
+  Env {codebase} <- ask
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromSuffixNames` ns)
 
 fqnPPE :: NamesWithHistory -> Action PPE.PrettyPrintEnv
@@ -3532,6 +3560,9 @@ parseSearchType ::
   String ->
   Action (Either Output (Type Symbol Ann))
 parseSearchType srcLoc typ = fmap Type.removeAllEffectVars <$> parseType srcLoc typ
+
+parseSearchTypeCli :: SrcLoc -> String -> Cli r (Type Symbol Ann)
+parseSearchTypeCli srcLoc typ = Type.removeAllEffectVars <$> parseTypeCli srcLoc typ
 
 -- | A description of where the given parse was triggered from, for error messaging purposes.
 type SrcLoc = String
@@ -3555,13 +3586,32 @@ parseType input src = do
       Left es -> Left $ ParseResolutionFailures src (toList es)
       Right typ -> Right typ
 
+parseTypeCli :: SrcLoc -> String -> Cli r (Type Symbol Ann)
+parseTypeCli input src = do
+  -- `show Input` is the name of the "file" being lexed
+  (names0, lexed) <- lexedSourceCli (Text.pack input) (Text.pack src)
+  parseNames <- basicParseNamesCli
+  let names =
+        NamesWithHistory.push
+          (NamesWithHistory.currentNames names0)
+          (NamesWithHistory.NamesWithHistory parseNames (NamesWithHistory.oldNames names0))
+  case Parsers.parseType (Text.unpack (fst lexed)) (Parser.ParsingEnv mempty names) of
+    Left err -> do
+      respond (TypeParseError src err)
+      Cli.returnEarly
+    Right typ ->
+      case Type.bindNames mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) of
+        Left es -> do
+          respond (ParseResolutionFailures src (toList es))
+          Cli.returnEarly
+        Right typ -> pure typ
+
 makeShadowedPrintNamesFromLabeled ::
   Set LabeledDependency -> Names -> Action NamesWithHistory
 makeShadowedPrintNamesFromLabeled deps shadowing =
   NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeled' deps
 
-makePrintNamesFromLabeled' ::
-  Set LabeledDependency -> Action NamesWithHistory
+makePrintNamesFromLabeled' :: Set LabeledDependency -> Action NamesWithHistory
 makePrintNamesFromLabeled' deps = do
   root' <- use Command.root
   curPath <- use Command.currentPath
@@ -3571,6 +3621,20 @@ makePrintNamesFromLabeled' deps = do
         deps
         root'
   basicNames <- basicPrettyPrintNamesA
+  pure $ NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames)
+
+makePrintNamesFromLabeledCli' :: Set LabeledDependency -> Cli r NamesWithHistory
+makePrintNamesFromLabeledCli' deps = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let root' = loopState ^. Command.root
+  let curPath = loopState ^. Command.currentPath
+  (_missing, rawHistoricalNames) <-
+    liftIO $
+      Branch.findHistoricalRefs
+        deps
+        root'
+  basicNames <- basicPrettyPrintNamesACli
   pure $ NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames)
 
 getTermsIncludingHistorical ::
@@ -3612,8 +3676,38 @@ findHistoricalHQs lexedHQs0 = do
   (_missing, rawHistoricalNames) <- liftIO $ Branch.findHistoricalHQs lexedHQs root'
   pure rawHistoricalNames
 
+-- discards inputs that aren't hashqualified;
+-- I'd enforce it with finer-grained types if we had them.
+findHistoricalHQsCli :: Set (HQ.HashQualified Name) -> Cli r Names
+findHistoricalHQsCli lexedHQs0 = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let root' = loopState ^. Command.root
+  let curPath = loopState ^. Command.currentPath
+  let -- omg this nightmare name-to-path parsing code is littered everywhere.
+      -- We need to refactor so that the absolute-ness of a name isn't represented
+      -- by magical text combinations.
+      -- Anyway, this function takes a name, tries to determine whether it is
+      -- relative or absolute, and tries to return the corresponding name that is
+      -- /relative/ to the Command.root.
+      preprocess n = case Name.toString n of
+        -- some absolute name that isn't just "."
+        '.' : t@(_ : _) -> Name.unsafeFromString t
+        -- something in current path
+        _ ->
+          if Path.isRoot curPath
+            then n
+            else Name.joinDot (Path.toName . Path.unabsolute $ curPath) n
+
+      lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
+  (_missing, rawHistoricalNames) <- liftIO $ Branch.findHistoricalHQs lexedHQs root'
+  pure rawHistoricalNames
+
 basicPrettyPrintNamesA :: Action Names
 basicPrettyPrintNamesA = snd <$> basicNames' Backend.AllNames
+
+basicPrettyPrintNamesACli :: Cli r Names
+basicPrettyPrintNamesACli = snd <$> basicNamesCli' Backend.AllNames
 
 makeShadowedPrintNamesFromHQ :: Set (HQ.HashQualified Name) -> Names -> Action NamesWithHistory
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do

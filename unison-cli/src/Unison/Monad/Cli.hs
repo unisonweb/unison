@@ -8,7 +8,7 @@ import Control.Monad.Trans.Cont
 import qualified Data.Configurator.Types as Configurator
 import Data.IORef
 import Data.List.NonEmpty (NonEmpty)
-import Data.Time.Clock (DiffTime, diffTimeToPicoseconds, picosecondsToDiffTime)
+import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
 import System.CPUTime (getCPUTime)
@@ -96,12 +96,12 @@ data LoopState = LoopState
 
 getLoopState :: Cli r LoopState
 getLoopState = do
-  Env{loopStateRef} <- ask
+  Env {loopStateRef} <- ask
   liftIO (readIORef loopStateRef)
 
 putLoopState :: LoopState -> Cli r ()
 putLoopState newSt = do
-  Env{loopStateRef} <- ask
+  Env {loopStateRef} <- ask
   liftIO (writeIORef loopStateRef newSt)
 
 type SourceName = Text
