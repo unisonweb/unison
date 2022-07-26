@@ -961,7 +961,7 @@ loop e = do
                         b' <- fmap Branch.Branch . liftIO $ snd tail
                         let elem = (Branch.headHash b, Branch.namesDiff b' b)
                         doHistory (n + 1) b' (elem : acc)
-            UndoI -> do
+            UndoI -> runCli do
               prev <- liftIO (Branch.uncons root')
               case prev of
                 Nothing ->
@@ -970,9 +970,9 @@ loop e = do
                       then CantUndoPastStart
                       else CantUndoPastMerge
                 Just (_, prev) -> do
-                  updateRoot prev
-                  diffHelper (Branch.head prev) (Branch.head root')
-                    >>= respondNumbered . uncurry Output.ShowDiffAfterUndo
+                  updateRootCli prev inputDescription
+                  (ppe, diff) <- diffHelperCli (Branch.head prev) (Branch.head root')
+                  Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
             UiI ->
               Command.askServerBaseUrl >>= \case
                 Nothing -> pure ()
