@@ -911,10 +911,12 @@ loop e = do
               loopState <- liftIO (readIORef loopStateRef)
               whenJust (unsnoc (loopState ^. Command.currentPath)) \(path, _) ->
                 liftIO (modifyIORef' loopStateRef (over Command.currentPathStack (Nel.cons path)))
-            PopBranchI ->
-              use (Command.currentPathStack . to Nel.uncons) >>= \case
+            PopBranchI -> runCli do
+              Env {loopStateRef} <- ask
+              loopState <- liftIO (readIORef loopStateRef)
+              case Nel.uncons (loopState ^. Command.currentPathStack) of
                 (_, Nothing) -> respond StartOfCurrentPathHistory
-                (_, Just t) -> Command.currentPathStack .= t
+                (_, Just paths) -> liftIO (writeIORef loopStateRef $! (loopState & Command.currentPathStack .~ paths))
             HistoryI resultsCap diffCap from -> case from of
               Left hash -> unlessError do
                 b <- resolveShortBranchHash hash
