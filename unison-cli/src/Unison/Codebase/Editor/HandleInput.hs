@@ -243,14 +243,34 @@ resolveSplitCli' s = do
   pure (Path.toAbsoluteSplit currentPath' s)
 
 ------------------------------------------------------------------------------------------------------------------------
--- Branch id resolution
+-- Branch resolution
 
 -- | Resolve an @AbsBranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
 -- branches by path are OK - the empty branch will be returned).
 resolveAbsBranchId :: AbsBranchId -> Cli r (Branch IO)
 resolveAbsBranchId = \case
-  Left hash -> resolveShortBranchHashCli hash
+  Left hash -> resolveShortBranchHash hash
   Right path -> getBranchAt path <&> fromMaybe Branch.empty
+
+-- | Resolve a @ShortBranchHash@ to the corresponding @Branch IO@, or fail if no such branch hash is found.
+resolveShortBranchHash :: ShortBranchHash -> Cli r (Branch IO)
+resolveShortBranchHash hash = do
+  Cli.scopeWith do
+    Cli.time "resolveShortBranchHash"
+    Env {codebase} <- ask
+    hashSet <- liftIO (Codebase.branchHashesByPrefix codebase hash)
+    len <- liftIO (Codebase.branchHashLength codebase)
+    case Set.toList hashSet of
+      [] -> do
+        respond (NoBranchWithHash hash)
+        Cli.returnEarly
+      [h] -> do
+        branch <- liftIO (Codebase.getBranchForHash codebase h)
+        pure (fromMaybe Branch.empty branch)
+      _ -> do
+        respond (BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet))
+        Cli.returnEarly
+
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting branches, patches, etc.
@@ -722,14 +742,14 @@ loop e = do
               Cli.time "reset-root"
               newRoot <-
                 case src0 of
-                  Left hash -> resolveShortBranchHashCli hash
+                  Left hash -> resolveShortBranchHash hash
                   Right path' -> expectBranchAtPath' path'
               updateRootCli newRoot inputDescription
               respond Success
             ForkLocalBranchI src0 dest0 -> runCli do
               srcb <-
                 case src0 of
-                  Left hash -> resolveShortBranchHashCli hash
+                  Left hash -> resolveShortBranchHash hash
                   Right path' -> expectBranchAtPath' path'
               assertNoBranchAtPath' dest0
               dest <- resolvePath' dest0
@@ -741,7 +761,7 @@ loop e = do
               let err = Just $ MergeAlreadyUpToDate src0 dest0
               mergeBranchAndPropagateDefaultPatchCli mergeMode inputDescription err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> runCli do
-              Env{codebase} <- ask
+              Env {codebase} <- ask
               srcb <- expectBranchAtPath' src0
               dest <- resolvePath' dest0
               destb <- getBranchAt dest <&> fromMaybe Branch.empty
@@ -902,7 +922,7 @@ loop e = do
                 Nothing -> pure ()
                 Just path' -> do
                   path <- resolvePath' path'
-                  Env{loopStateRef} <- ask
+                  Env {loopStateRef} <- ask
                   liftIO (modifyIORef' loopStateRef (over Command.currentPathStack (Nel.cons path)))
                   branch' <- getBranchAt path <&> fromMaybe Branch.empty
                   when (Branch.isEmpty0 $ Branch.head branch') (respond $ CreatedNewBranch path)
@@ -917,25 +937,26 @@ loop e = do
               case Nel.uncons (loopState ^. Command.currentPathStack) of
                 (_, Nothing) -> respond StartOfCurrentPathHistory
                 (_, Just paths) -> liftIO (writeIORef loopStateRef $! (loopState & Command.currentPathStack .~ paths))
-            HistoryI resultsCap diffCap from -> case from of
-              Left hash -> unlessError do
-                b <- resolveShortBranchHash hash
-                lift $ doHistory 0 b []
-              Right path' -> do
-                let path = resolveToAbsolute path'
-                branch' <- getAt path
-                if Branch.isEmpty branch'
-                  then respond $ CreatedNewBranch path
-                  else doHistory 0 branch' []
+            HistoryI resultsCap diffCap from -> runCli do
+              case from of
+                Left hash -> do
+                  branch <- resolveShortBranchHash hash
+                  doHistory 0 branch []
+                Right path' -> do
+                  path <- resolvePath' path'
+                  getBranchAt path >>= \case
+                    Nothing -> respond (CreatedNewBranch path)
+                    Just branch -> doHistory 0 branch []
               where
+                doHistory :: Int -> Branch IO -> [(Causal.CausalHash, NamesWithHistory.Diff)] -> Cli r ()
                 doHistory !n b acc =
                   if maybe False (n >=) resultsCap
-                    then respondNumbered $ History diffCap sbhLength acc (PageEnd (Branch.headHash b) n)
+                    then Cli.respondNumbered $ History diffCap sbhLength acc (PageEnd (Branch.headHash b) n)
                     else case Branch._history b of
                       Causal.One {} ->
-                        respondNumbered $ History diffCap sbhLength acc (EndOfLog $ Branch.headHash b)
+                        Cli.respondNumbered $ History diffCap sbhLength acc (EndOfLog $ Branch.headHash b)
                       Causal.Merge _ _ _ tails ->
-                        respondNumbered $ History diffCap sbhLength acc (MergeTail (Branch.headHash b) $ Map.keys tails)
+                        Cli.respondNumbered $ History diffCap sbhLength acc (MergeTail (Branch.headHash b) $ Map.keys tails)
                       Causal.Cons _ _ _ tail -> do
                         b' <- fmap Branch.Branch . liftIO $ snd tail
                         let elem = (Branch.headHash b, Branch.namesDiff b' b)
@@ -2698,36 +2719,6 @@ getLinks' src selection0 = do
   let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
   pure (PPE.suffixifiedPPE ppe, out)
 
-resolveShortBranchHash :: ShortBranchHash -> ExceptT Output (Action) (Branch IO)
-resolveShortBranchHash hash = ExceptT do
-  codebase <- Command.askCodebase
-  hashSet <- liftIO (Codebase.branchHashesByPrefix codebase hash)
-  len <- liftIO (Codebase.branchHashLength codebase)
-  case Set.toList hashSet of
-    [] -> pure . Left $ NoBranchWithHash hash
-    [h] -> do
-      branch <- liftIO (Codebase.getBranchForHash codebase h)
-      pure (Right (fromMaybe Branch.empty branch))
-    _ -> pure . Left $ BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet)
-
-resolveShortBranchHashCli :: ShortBranchHash -> Cli r (Branch IO)
-resolveShortBranchHashCli hash = do
-  Cli.scopeWith do
-    Cli.time "resolveShortBranchHash"
-    Env {codebase} <- ask
-    hashSet <- liftIO (Codebase.branchHashesByPrefix codebase hash)
-    len <- liftIO (Codebase.branchHashLength codebase)
-    case Set.toList hashSet of
-      [] -> do
-        respond (NoBranchWithHash hash)
-        Cli.returnEarly
-      [h] -> do
-        branch <- liftIO (Codebase.getBranchForHash codebase h)
-        pure (fromMaybe Branch.empty branch)
-      _ -> do
-        respond (BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet))
-        Cli.returnEarly
-
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatchNoSync ::
   Patch ->
@@ -2980,7 +2971,7 @@ mergeBranchAndPropagateDefaultPatchCli mode inputDescription unchangedMessage sr
   where
     mergeBranch :: Cli r Bool
     mergeBranch = unsafeTime "mergeBranch" do
-      Env{codebase} <- ask
+      Env {codebase} <- ask
       destb <- fromMaybe Branch.empty <$> getBranchAt dest
       merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
       b <- updateAtMCli inputDescription dest (const $ pure merged)
@@ -4024,15 +4015,6 @@ fuzzySelectNamespace pos searchBranch0 = liftIO do
     Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
     tShow
     inputs
-
--- | Get a branch from a BranchId, returning an empty one if missing, or failing with an
--- appropriate error message if a hash cannot be found.
-branchForBranchId :: AbsBranchId -> ExceptT Output (Action) (Branch IO)
-branchForBranchId = \case
-  Left hash -> do
-    resolveShortBranchHash hash
-  Right path -> do
-    lift $ getAt path
 
 typecheck ::
   [Type Symbol Ann] ->
