@@ -223,12 +223,36 @@ currentPrettyPrintEnvDeclCli scoping = do
   hqLen <- liftIO (Codebase.hashLength codebase)
   pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
 
+------------------------------------------------------------------------------------------------------------------------
+-- Path resolution
+
+-- | Resolve a @Path'@ to a @Path.Absolute@, per the current path.
+resolvePath' :: Path' -> Cli r Path.Absolute
+resolvePath' path = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let currentPath' = loopState ^. Command.currentPath
+  pure (Path.resolve currentPath' path)
+
+-- | Resolve a @Path.Split'@ to a @(Path.Absolute, NameSegment)@, per the current path.
+resolveSplitCli' :: Path.Split' -> Cli r (Path.Absolute, NameSegment)
+resolveSplitCli' s = do
+  Env {loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let currentPath' = loopState ^. Command.currentPath
+  pure (Path.toAbsoluteSplit currentPath' s)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Getting branches, patches, etc.
+
+-- | Get the branch at an absolute path.
 getBranchAt :: Path.Absolute -> Cli r (Maybe (Branch IO))
 getBranchAt (Path.Absolute p) = do
   Env {loopStateRef} <- ask
   loopState <- liftIO (readIORef loopStateRef)
   pure (Branch.getAt p (loopState ^. Command.root))
 
+-- | Get the branch at an absolute or relative path.
 getBranchAtPath' :: Path' -> Cli r (Maybe (Branch IO))
 getBranchAtPath' path = do
   Env {loopStateRef} <- ask
@@ -236,32 +260,39 @@ getBranchAtPath' path = do
   let currentPath' = loopState ^. Command.currentPath
   getBranchAt (Path.resolve currentPath' path)
 
+-- | Get the branch at an absolute or relative path, or return early if it's not found.
 expectBranchAtPath' :: Path' -> Cli r (Branch IO)
 expectBranchAtPath' path = do
   getBranchAtPath' path & onNothingM do
     respond (BranchNotFound path)
     Cli.returnEarly
 
-getBranchAtSplit' :: Path.Split' -> Cli r (Maybe (Branch IO))
-getBranchAtSplit' s = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
-  let currentPath' = loopState ^. Command.currentPath
-  getBranchAt (Path.unsplitAbsolute (Path.toAbsoluteSplit currentPath' s))
+-- | Assert that there's "no branch" at an absolute or relative path, or return early if there is one, where "no branch"
+-- means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
+-- current terms/types etc).
+assertNoBranchAtPath' :: Path' -> Cli r ()
+assertNoBranchAtPath' path =
+  whenJustM (getBranchAtPath' path) \branch ->
+    when (not (Branch.isEmpty0 (Branch.head branch))) do
+      respond (BranchAlreadyExists path)
+      Cli.returnEarly
 
+-- | Get the branch at an absolute or relative split, or return early if it's not found.
 expectBranchAtSplit' :: Path.Split' -> Cli r (Branch IO)
-expectBranchAtSplit' s =
-  getBranchAtSplit' s & onNothingM do
-    respond (BranchNotFound (Path.unsplit' s))
-    Cli.returnEarly
+expectBranchAtSplit' =
+  expectBranchAtPath' . Path.unsplit'
+
+-- | Assert that there's "no branch" at an absolute or relative split, or return early if there is one, where "no
+-- branch" means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a
+-- history, but no current terms/types etc).
+assertNoBranchAtSplit' :: Path.Split' -> Cli r ()
+assertNoBranchAtSplit' =
+  assertNoBranchAtPath' . Path.unsplit'
 
 -- | Get the patch at a path, or return early if there's no such patch.
 expectPatchAtSplitCli' :: Path.Split' -> Cli r Patch
 expectPatchAtSplitCli' s = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
-  let currentPath' = loopState ^. Command.currentPath
-  let (path, name) = Path.toAbsoluteSplit currentPath' s
+  (path, name) <- resolveSplitCli' s
   branch <- getAtCli path
   liftIO (Branch.getMaybePatch name (Branch.head branch)) & onNothingM do
     respond (PatchNotFound s)
@@ -270,14 +301,14 @@ expectPatchAtSplitCli' s = do
 -- | Assert that there's no patch at a path, or return early if there is one.
 assertNoPatchAtSplitCli' :: Path.Split' -> Cli r ()
 assertNoPatchAtSplitCli' s = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
-  let currentPath' = loopState ^. Command.currentPath
-  let (path, name) = Path.toAbsoluteSplit currentPath' s
+  (path, name) <- resolveSplitCli' s
   branch <- getAtCli path
   whenJustM (liftIO (Branch.getMaybePatch name (Branch.head branch))) \_ -> do
     respond (PatchAlreadyExists s)
     Cli.returnEarly
+
+------------------------------------------------------------------------------------------------------------------------
+-- Main loop
 
 loop :: Either Event Input -> Action ()
 loop e = do
@@ -297,10 +328,6 @@ loop e = do
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolveToAbsolute :: Path' -> Path.Absolute
       resolveToAbsolute = Path.resolve currentPath'
-      getAtSplit :: Path.Split -> Maybe (Branch IO)
-      getAtSplit p = BranchUtil.getBranch p root0
-      getAtSplit' :: Path.Split' -> Maybe (Branch IO)
-      getAtSplit' = getAtSplit . resolveSplit'
       getHQ'TermsIncludingHistorical p =
         getTermsIncludingHistorical (resolveSplit' p) root0
 
@@ -690,25 +717,15 @@ loop e = do
                   Right path' -> expectBranchAtPath' path'
               updateRootCli newRoot inputDescription
               respond Success
-            ForkLocalBranchI src0 dest0 -> do
-              let tryUpdateDest srcb dest0 = do
-                    let dest = resolveToAbsolute dest0
-                    -- if dest isn't empty: leave dest unchanged, and complain.
-                    destb <- getAt dest
-                    if Branch.isEmpty0 (Branch.head destb)
-                      then do
-                        ok <- updateAtM dest (const $ pure srcb)
-                        if ok then success else respond $ BranchEmpty src0
-                      else respond $ BranchAlreadyExists dest0
-              case src0 of
-                Left hash -> unlessError do
-                  srcb <- resolveShortBranchHash hash
-                  lift $ tryUpdateDest srcb dest0
-                Right path' -> do
-                  srcb <- getAt $ resolveToAbsolute path'
-                  if Branch.isEmpty srcb
-                    then respond $ BranchNotFound path'
-                    else tryUpdateDest srcb dest0
+            ForkLocalBranchI src0 dest0 -> runCli do
+              srcb <-
+                case src0 of
+                  Left hash -> resolveShortBranchHashCli hash
+                  Right path' -> expectBranchAtPath' path'
+              assertNoBranchAtPath' dest0
+              dest <- resolvePath' dest0
+              ok <- updateAtMCli inputDescription dest (const $ pure srcb)
+              respond if ok then Success else BranchEmpty src0
             MergeLocalBranchI src0 dest0 mergeMode -> do
               let [src, dest] = resolveToAbsolute <$> [src0, dest0]
               srcb <- getAt src
@@ -800,11 +817,7 @@ loop e = do
               respond Success
             MoveBranchI (Just src) dest -> runCli do
               srcBranch <- expectBranchAtSplit' src
-              whenJust (getAtSplit' dest) \existingDest ->
-                when (not (Branch.isEmpty0 (Branch.head existingDest))) do
-                  -- Branch exists and isn't empty, print an error
-                  respond (BranchAlreadyExists (Path.unsplit' dest))
-                  Cli.returnEarly
+              assertNoBranchAtSplit' dest
               -- allow rewriting history to ensure we move the branch's history too.
               stepManyAtCli
                 inputDescription
@@ -2679,8 +2692,7 @@ getLinks' src selection0 = do
   let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
   pure (PPE.suffixifiedPPE ppe, out)
 
-resolveShortBranchHash ::
-  ShortBranchHash -> ExceptT Output (Action) (Branch IO)
+resolveShortBranchHash :: ShortBranchHash -> ExceptT Output (Action) (Branch IO)
 resolveShortBranchHash hash = ExceptT do
   codebase <- Command.askCodebase
   hashSet <- liftIO (Codebase.branchHashesByPrefix codebase hash)
@@ -3041,6 +3053,21 @@ updateAtM reason (Path.Absolute p) f = do
   b <- use Command.lastSavedRoot
   b' <- Branch.modifyAtM p f b
   updateRoot b' reason
+  pure $ b /= b'
+
+-- Update a branch at the given path, returning `True` if
+-- an update occurred and false otherwise
+updateAtMCli ::
+  Command.InputDescription ->
+  Path.Absolute ->
+  (Branch IO -> Cli r (Branch IO)) ->
+  Cli r Bool
+updateAtMCli reason (Path.Absolute p) f = do
+  Env{loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let b = loopState ^. Command.lastSavedRoot
+  b' <- Branch.modifyAtM p f b
+  updateRootCli b' reason
   pure $ b /= b'
 
 stepAt ::
