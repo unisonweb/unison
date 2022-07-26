@@ -1593,7 +1593,7 @@ loop e = do
                     if didUpdate
                       then respond $ PullSuccessful ns path
                       else respond unchangedMsg
-            PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
+            PushRemoteBranchI pushRemoteBranchInput -> runCli (handlePushRemoteBranch pushRemoteBranchInput)
             ListDependentsI hq -> runCli (handleDependents hq)
             ListDependenciesI hq -> runCli do
               Env {codebase} <- ask
@@ -1874,17 +1874,17 @@ handleGist (GistInput repo) =
   doPushRemoteBranch (GistyPush repo) Path.relativeEmpty' SyncMode.ShortCircuit
 
 -- | Handle a @push@ command.
-handlePushRemoteBranch :: PushRemoteBranchInput -> Action ()
+handlePushRemoteBranch :: PushRemoteBranchInput -> Cli r ()
 handlePushRemoteBranch PushRemoteBranchInput {maybeRemoteRepo = mayRepo, localPath = path, pushBehavior, syncMode} =
-  time "handlePushRemoteBranch" case mayRepo of
-    Nothing ->
-      runExceptT (resolveConfiguredUrl Push path) >>= \case
-        Left output -> respond output
-        Right repo -> push repo
-    Just repo -> push repo
+  Cli.scopeWith do
+    Cli.time "handlePushRemoteBranch"
+    repo <- case mayRepo of
+      Nothing -> resolveConfiguredUrlCli Push path
+      Just repo -> pure repo
+    push repo
   where
     push repo =
-      runCli $ doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
+      doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
 
 -- | Either perform a "normal" push (updating a remote path), which takes a 'PushBehavior' (to control whether creating
 -- a new namespace is allowed), or perform a "gisty" push, which doesn't update any paths (and also is currently only
@@ -2463,7 +2463,25 @@ resolveConfiguredUrl ::
   Path' ->
   ExceptT Output (Action) WriteRemotePath
 resolveConfiguredUrl pushPull destPath' = ExceptT do
-  currentPath' <- use Command.currentPath
+  runCli (resolveConfiguredUrlCli' pushPull destPath')
+
+resolveConfiguredUrlCli ::
+  PushPull ->
+  Path' ->
+  Cli r WriteRemotePath
+resolveConfiguredUrlCli pushPull destPath' =
+  resolveConfiguredUrlCli' pushPull destPath' >>= \case
+    Left x -> do
+      respond x
+      Cli.returnEarly
+    Right x -> pure x
+
+resolveConfiguredUrlCli' ::
+  PushPull ->
+  Path' ->
+  Cli r (Either Output WriteRemotePath)
+resolveConfiguredUrlCli' pushPull destPath' = do
+  currentPath' <- view Command.currentPath <$> Cli.getLoopState
   let destPath = Path.resolve currentPath' destPath'
   let remoteMappingConfigKey = remoteMappingKey destPath
   Command.getConfig remoteMappingConfigKey >>= \case

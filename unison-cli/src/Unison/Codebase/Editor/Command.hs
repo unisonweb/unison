@@ -232,7 +232,7 @@ askServerBaseUrl =
   asks serverBaseUrl
 
 -- | Lookup a config value by key.
-getConfig :: Configurator.Configured a => Text -> Action (Maybe a)
+getConfig :: forall a m. (MonadReader Env m, Configurator.Configured a, MonadIO m) => Text -> m (Maybe a)
 getConfig key = do
   cfg <- asks config
   liftIO (Configurator.lookup cfg key)
