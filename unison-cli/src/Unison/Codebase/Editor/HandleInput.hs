@@ -1045,15 +1045,15 @@ loop e = do
 
             -- this implementation will happily produce name conflicts,
             -- but will surface them in a normal diff at the end of the operation.
-            AliasManyI srcs dest' -> do
-              let destAbs = resolveToAbsolute dest'
-              old <- getAt destAbs
+            AliasManyI srcs dest' -> runCli do
+              destAbs <- resolvePath' dest'
+              old <- getBranchAt destAbs <&> fromMaybe Branch.empty
               let (unknown, actions) = foldl' go mempty srcs
-              stepManyAt Branch.CompressHistory actions
-              new <- getAt destAbs
-              diffHelper (Branch.head old) (Branch.head new)
-                >>= respondNumbered . uncurry (ShowDiffAfterModifyBranch dest' destAbs)
-              unless (null unknown) $
+              stepManyAtCli inputDescription Branch.CompressHistory actions
+              new <- getBranchAt destAbs <&> fromMaybe Branch.empty
+              (ppe, diff) <- diffHelperCli (Branch.head old) (Branch.head new)
+              Cli.respondNumbered (ShowDiffAfterModifyBranch dest' destAbs ppe diff)
+              when (not (null unknown)) do
                 respond . SearchTermsNotFound . fmap fixupOutput $ unknown
               where
                 -- a list of missing sources (if any) and the actions that do the work
