@@ -412,8 +412,7 @@ loop e = do
         then modifying Command.latestFile (fmap (const False) <$>)
         else loadUnisonFile sourceName text
     Right input ->
-      let branchNotFound = respond . BranchNotFound
-          typeNotFound = respond . TypeNotFound
+      let typeNotFound = respond . TypeNotFound
           typeNotFound' = respond . TypeNotFound'
           termNotFound = respond . TermNotFound
           termNotFound' = respond . TermNotFound'
@@ -731,20 +730,17 @@ loop e = do
               dest <- resolvePath' dest0
               let err = Just $ MergeAlreadyUpToDate src0 dest0
               mergeBranchAndPropagateDefaultPatchCli mergeMode inputDescription err srcb (Just dest0) dest
-            PreviewMergeLocalBranchI src0 dest0 -> do
-              codebase <- Command.askCodebase
-              let [src, dest] = resolveToAbsolute <$> [src0, dest0]
-              srcb <- getAt src
-              if Branch.isEmpty srcb
-                then branchNotFound src0
+            PreviewMergeLocalBranchI src0 dest0 -> runCli do
+              Env{codebase} <- ask
+              srcb <- expectBranchAtPath' src0
+              dest <- resolvePath' dest0
+              destb <- getBranchAt dest <&> fromMaybe Branch.empty
+              merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
+              if merged == destb
+                then respond (PreviewMergeAlreadyUpToDate src0 dest0)
                 else do
-                  destb <- getAt dest
-                  merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
-                  if merged == destb
-                    then respond (PreviewMergeAlreadyUpToDate src0 dest0)
-                    else
-                      diffHelper (Branch.head destb) (Branch.head merged)
-                        >>= respondNumbered . uncurry (ShowDiffAfterMergePreview dest0 dest)
+                  (ppe, o) <- diffHelperCli (Branch.head destb) (Branch.head merged)
+                  Cli.respondNumbered (ShowDiffAfterMergePreview dest0 dest ppe o)
             DiffNamespaceI before after -> unsafeTime "diff.namespace" $ unlessError do
               let (absBefore, absAfter) = (resolveToAbsolute <$> before, resolveToAbsolute <$> after)
               beforeBranch0 <- Branch.head <$> branchForBranchId absBefore
