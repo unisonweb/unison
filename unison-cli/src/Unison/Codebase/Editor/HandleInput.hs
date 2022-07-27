@@ -1521,8 +1521,8 @@ loop e = do
             --   stepAt updateBuiltins
             --   checkTodo
 
-            MergeBuiltinsI -> do
-              codebase <- Command.askCodebase
+            MergeBuiltinsI -> runCli do
+              Env{codebase} <- ask
               -- these were added once, but maybe they've changed and need to be
               -- added again.
               let uf =
@@ -1535,9 +1535,9 @@ loop e = do
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names0
-              _ <- updateAtM (currentPath' `snoc` "builtin") \destb ->
+              _ <- updateAtMCli inputDescription (currentPath' `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
-              success
+              respond Success
             MergeIOBuiltinsI -> do
               codebase <- Command.askCodebase
               -- these were added once, but maybe they've changed and need to be
