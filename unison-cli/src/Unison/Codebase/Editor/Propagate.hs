@@ -396,7 +396,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                       (Term.updateDependencies termReplacements typeReplacements)
                       <$> componentMap
                   seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
-              mayComponent <- verifyTermComponent componentMap' es
+              mayComponent <- runCli (verifyTermComponent componentMap' es)
               case mayComponent of
                 Nothing -> do
                   when debugMode (traceM $ refName r <> " did not typecheck after substitutions")
@@ -517,7 +517,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
     verifyTermComponent ::
       Map Symbol (Reference, Term Symbol _, a) ->
       Edits Symbol ->
-      Action (Maybe (Map Symbol (Reference, Maybe WatchKind, Term Symbol _, Type Symbol _)))
+      Cli r (Maybe (Map Symbol (Reference, Maybe WatchKind, Term Symbol _, Type Symbol _)))
     verifyTermComponent componentMap Edits {..} = do
       -- If the term contains references to old patterns, we can't update it.
       -- If the term had a redunant type signature, it's discarded and a new type
@@ -541,7 +541,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                   mempty
                   (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
                   mempty
-          typecheckResult <- runCli (typecheckFile [] file)
+          typecheckResult <- typecheckFile [] file
           pure
             . fmap UF.hashTerms
             $ runIdentity (Result.toMaybe typecheckResult)
