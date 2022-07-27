@@ -1700,7 +1700,7 @@ loop e = do
                       prettyDefn renderR (r, (Foldable.toList -> names, Foldable.toList -> links)) =
                         P.lines (P.shown <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyLinks renderR r links
               void . liftIO . flip State.execStateT mempty $ goCausal [getCausal root']
-            DebugDumpNamespaceSimpleI -> do
+            DebugDumpNamespaceSimpleI -> runCli do
               for_ (Relation.toList . Branch.deepTypes . Branch.head $ root') \(r, name) ->
                 traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
               for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
