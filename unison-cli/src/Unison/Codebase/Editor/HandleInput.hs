@@ -2368,7 +2368,7 @@ handleUpdate input optionalPatch requestedNames = do
       respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
       -- propagatePatch prints TodoOutput
       for_ patchOps $ \case
-        (updatedPatch, _, _) -> void $ propagatePatchNoSync updatedPatch currentPath'
+        (updatedPatch, _, _) -> void $ runCli $ propagatePatchNoSync updatedPatch currentPath'
       unsafeTime "addDefaultMetadata" $ addDefaultMetadata addsAndUpdates
       syncRoot $ case patchPath of
         Nothing -> "update.nopatch"
@@ -2868,15 +2868,16 @@ getLinksCli' src selection0 = do
 propagatePatchNoSync ::
   Patch ->
   Path.Absolute ->
-  Action Bool
-propagatePatchNoSync patch scopePath = unsafeTime "propagate" do
-  codebase <- Command.askCodebase
-  r <- use Command.root
+  Cli r Bool
+propagatePatchNoSync patch scopePath = Cli.scopeWith do
+  Cli.time "propagate"
+  Env{codebase} <- ask
+  r <- view Command.root <$> Cli.getLoopState
   let nroot = Branch.toNames (Branch.head r)
-  stepAtMNoSync'
+  stepAtCliNoSync'
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
-      runCli . Propagate.propagateAndApply codebase nroot patch
+      Propagate.propagateAndApply codebase nroot patch
     )
 
 -- Returns True if the operation changed the namespace, False otherwise.
