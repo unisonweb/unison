@@ -1153,11 +1153,11 @@ loop e = do
             -- > links List.map (.Docs .English)
             -- > links List.map -- give me all the
             -- > links Optional License
-            LinksI src mdTypeStr -> unlessError do
-              (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
-              lift do
-                Command.numberedArgs .= fmap (HQ.toString . view _1) out
-                respond $ ListOfLinks ppe out
+            LinksI src mdTypeStr -> runCli do
+              (ppe, out) <- getLinksCli (show input) src (Right mdTypeStr)
+              Env{loopStateRef} <- ask
+              liftIO (modifyIORef' loopStateRef (set Command.numberedArgs (fmap (HQ.toString . view _1) out)))
+              respond $ ListOfLinks ppe out
             DocsI srcs -> do
               srcs' <- case srcs of
                 [] ->
