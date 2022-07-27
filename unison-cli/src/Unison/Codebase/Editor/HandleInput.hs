@@ -396,11 +396,6 @@ loop e = do
       getTypes = getHQ'Types . fmap HQ'.NameOnly
       getTerms :: Path.Split' -> Set Referent
       getTerms = getHQ'Terms . fmap HQ'.NameOnly
-      getPatchAt :: Path.Split' -> Action Patch
-      getPatchAt patchPath' = do
-        let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
-        b <- getAt p
-        liftIO $ Branch.getPatch seg (Branch.head b)
 
       withFileCli :: AmbientAbilities Symbol -> Text -> (Text, [L.Token L.Lexeme]) -> Cli r (TypecheckedUnisonFile Symbol Ann)
       withFileCli ambient sourceName lexed@(text, tokens) = do
@@ -478,15 +473,11 @@ loop e = do
             [r | SR.Tm (SR.TermResult _ (Referent.Ref r) _) <- rs]
           termResults rs = [r | SR.Tm r <- rs]
           typeResults rs = [r | SR.Tp r <- rs]
-          doRemoveReplacement ::
-            HQ.HashQualified Name ->
-            Maybe PatchPath ->
-            Bool ->
-            Action ()
+          doRemoveReplacement :: HQ.HashQualified Name -> Maybe PatchPath -> Bool -> Cli r ()
           doRemoveReplacement from patchPath isTerm = do
             let patchPath' = fromMaybe defaultPatchPath patchPath
-            patch <- getPatchAt patchPath'
-            QueryResult misses' hits <- hqNameQuery [from]
+            patch <- getPatchAtCli patchPath' <&> fromMaybe Patch.empty
+            QueryResult misses' hits <- hqNameQueryCli [from]
             let tpRefs = Set.fromList $ typeReferences hits
                 tmRefs = Set.fromList $ termReferences hits
                 misses =
@@ -495,7 +486,7 @@ loop e = do
                     if isTerm
                       then Set.fromList $ SR.termName <$> termResults hits
                       else Set.fromList $ SR.typeName <$> typeResults hits
-                go :: Reference -> Action ()
+                go :: Reference -> Cli r ()
                 go fr = do
                   let termPatch =
                         over Patch.termEdits (R.deleteDom fr) patch
@@ -503,7 +494,7 @@ loop e = do
                         over Patch.typeEdits (R.deleteDom fr) patch
                       (patchPath'', patchName) = resolveSplit' patchPath'
                   -- Save the modified patch
-                  stepAtM
+                  stepAtMCli
                     Branch.CompressHistory
                     inputDescription
                     ( patchPath'',
@@ -512,7 +503,7 @@ loop e = do
                         (const (if isTerm then termPatch else typePatch))
                     )
                   -- Say something
-                  success
+                  respond Success
             unless (Set.null misses) $
               respond $ SearchTermsNotFound (Set.toList misses)
             traverse_ go (if isTerm then tmRefs else tpRefs)
@@ -1715,9 +1706,9 @@ loop e = do
             DeprecateTermI {} -> notImplemented
             DeprecateTypeI {} -> notImplemented
             RemoveTermReplacementI from patchPath ->
-              doRemoveReplacement from patchPath True
+              runCli (doRemoveReplacement from patchPath True)
             RemoveTypeReplacementI from patchPath ->
-              doRemoveReplacement from patchPath False
+              runCli (doRemoveReplacement from patchPath False)
             ShowDefinitionByPrefixI {} -> notImplemented
             UpdateBuiltinsI -> notImplemented
             QuitI -> quit
@@ -1728,7 +1719,6 @@ loop e = do
               respond $ PrintVersion ucmVersion
       where
         notImplemented = respond NotImplemented
-        success = respond Success
 
   case e of
     Right input -> Command.lastInput .= Just input
