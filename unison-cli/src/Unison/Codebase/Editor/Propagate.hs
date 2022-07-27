@@ -148,12 +148,12 @@ propagateCtorMapping oldComponent newComponent =
 -- If the cycle is size 1 for old and new, then the type names need not be the same,
 -- and if the number of constructors is 1, then the constructor names need not
 -- be the same.
-genInitialCtorMapping :: Codebase IO Symbol Ann -> Names -> Map Reference Reference -> Action (Map Referent Referent)
+genInitialCtorMapping :: Codebase IO Symbol Ann -> Names -> Map Reference Reference -> Cli r (Map Referent Referent)
 genInitialCtorMapping codebase rootNames initialTypeReplacements = do
   let mappings :: (Reference, Reference) -> _ (Map Referent Referent)
       mappings (old, new) = do
-        old <- runCli (unhashTypeComponent codebase old)
-        new <- fmap (over _2 (either Decl.toDataDecl id)) <$> runCli (unhashTypeComponent codebase new)
+        old <- unhashTypeComponent codebase old
+        new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent codebase new
         pure $ ctorMapping old new
   Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
   where
@@ -276,7 +276,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
     -- TODO: once patches can directly contain constructor replacements, this
     -- line can turn into a pure function that takes the subset of the term replacements
     -- in the patch which have a `Referent.Con` as their LHS.
-    initialCtorMappings <- genInitialCtorMapping codebase rootNames initialTypeReplacements
+    initialCtorMappings <- runCli (genInitialCtorMapping codebase rootNames initialTypeReplacements)
 
     order <- sortDependentsGraph initialDirty entireBranch
     let getOrdered :: Set Reference -> Map Int Reference
