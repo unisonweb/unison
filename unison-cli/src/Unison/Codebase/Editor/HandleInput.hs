@@ -2784,6 +2784,24 @@ getLinks srcLoc src mdTypeStr = ExceptT $ do
         Left e -> pure $ Left e
         Right typ -> go . Just . Set.singleton $ Hashing.typeToReference typ
 
+getLinksCli ::
+  SrcLoc ->
+  Path.HQSplit' ->
+  Either (Set Reference) (Maybe String) ->
+  Cli
+    r
+    ( PPE.PrettyPrintEnv,
+      --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
+      [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
+    )
+getLinksCli srcLoc src =
+  getLinksCli' src <=< \case
+    Left s -> pure (Just s)
+    Right Nothing -> pure Nothing
+    Right (Just mdTypeStr) -> do
+      typ <- parseTypeCli srcLoc mdTypeStr
+      pure (Just (Set.singleton (Hashing.typeToReference typ)))
+
 getLinks' ::
   Path.HQSplit' -> -- definition to print metadata of
   Maybe (Set Reference) -> -- return all metadata if empty
