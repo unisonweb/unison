@@ -671,7 +671,7 @@ loop e = do
               )
             -- Apply the modified patch to the current path
             -- since we might be able to propagate further.
-            void $ propagatePatch inputDescription patch' currentPath'
+            void $ runCli $ propagatePatch inputDescription patch' currentPath'
             -- Say something
             success
           previewResponse sourceName sr uf = do
@@ -1447,7 +1447,7 @@ loop e = do
             TestI testInput -> handleTest testInput
             PropagatePatchI patchPath scopePath -> do
               patch <- getPatchAt patchPath
-              updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
+              updated <- runCli $ propagatePatch inputDescription patch (resolveToAbsolute scopePath)
               unless updated (respond $ NothingToPatch patchPath scopePath)
             ExecuteI main args -> do
               runtime <- Command.askRuntime
@@ -2884,16 +2884,16 @@ propagatePatch ::
   Command.InputDescription ->
   Patch ->
   Path.Absolute ->
-  Action Bool
+  Cli r Bool
 propagatePatch inputDescription patch scopePath = do
-  codebase <- Command.askCodebase
-  r <- use Command.root
+  Env{codebase} <- ask
+  r <- view Command.root <$> Cli.getLoopState
   let nroot = Branch.toNames (Branch.head r)
-  stepAtM'
-    Branch.CompressHistory
+  stepAtCli'
     (inputDescription <> " (applying patch)")
+    Branch.CompressHistory
     ( Path.unabsolute scopePath,
-      runCli . Propagate.propagateAndApply codebase nroot patch
+      Propagate.propagateAndApply codebase nroot patch
     )
 
 -- | Create the args needed for showTodoOutput and call it
@@ -3133,7 +3133,7 @@ loadPropagateDiffDefaultPatch ::
 loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagate Default Patch" do
   original <- getAt dest
   patch <- liftIO $ Branch.getPatch defaultPatchNameSegment (Branch.head original)
-  patchDidChange <- propagatePatch inputDescription patch dest
+  patchDidChange <- runCli (propagatePatch inputDescription patch dest)
   when patchDidChange . for_ dest0 $ \dest0 -> do
     patched <- getAt dest
     let patchPath = snoc dest0 defaultPatchNameSegment
