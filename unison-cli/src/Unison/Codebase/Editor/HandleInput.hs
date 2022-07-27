@@ -1655,7 +1655,7 @@ loop e = do
                   effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
                   terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               respond $ DumpUnisonFileHashes hqLength datas effects terms
-            DebugDumpNamespacesI -> do
+            DebugDumpNamespacesI -> runCli do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
                   getCausal b = (Branch.headHash b, pure $ Branch._history b)
