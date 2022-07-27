@@ -1442,10 +1442,10 @@ loop e = do
               patch <- getPatchAtCli (fromMaybe defaultPatchPath patchPath) <&> fromMaybe Patch.empty
               doShowTodoOutput patch $ resolveToAbsolute branchPath'
             TestI testInput -> runCli (handleTest testInput)
-            PropagatePatchI patchPath scopePath -> do
-              patch <- getPatchAt patchPath
-              updated <- runCli $ propagatePatch inputDescription patch (resolveToAbsolute scopePath)
-              unless updated (respond $ NothingToPatch patchPath scopePath)
+            PropagatePatchI patchPath scopePath -> runCli do
+              patch <- getPatchAtCli patchPath <&> fromMaybe Patch.empty
+              updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
+              when (not updated) (respond $ NothingToPatch patchPath scopePath)
             ExecuteI main args -> do
               runtime <- Command.askRuntime
               let mainType = Runtime.mainType runtime
