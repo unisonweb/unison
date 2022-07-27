@@ -286,7 +286,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
           Edits Symbol ->
           Set Reference ->
           Map Int Reference ->
-          Action (Edits Symbol)
+          Cli r (Edits Symbol)
         collectEdits es@Edits {..} seen todo = case Map.minView todo of
           Nothing -> pure es
           Just (r, todo) -> case r of
@@ -309,8 +309,8 @@ propagate codebase rootNames patch b = case validatePatch patch of
                   let message =
                         "This reference is not a term nor a type " <> show r
                       mmayEdits
-                        | haveTerm = runCli (doTerm r)
-                        | haveType = runCli (doType r)
+                        | haveTerm = doTerm r
+                        | haveType = doType r
                         | otherwise = error message
                   mayEdits <- mmayEdits
                   case mayEdits of
@@ -443,18 +443,20 @@ propagate codebase rootNames patch b = case validatePatch patch of
                           constructorReplacements,
                       seen'
                     )
-    collectEdits
-      ( Edits
-          initialTermEdits
-          (initialTermReplacements initialCtorMappings initialTermEdits)
-          mempty
-          initialTypeEdits
-          initialTypeReplacements
-          mempty
-          initialCtorMappings
+    runCli
+      ( collectEdits
+          ( Edits
+              initialTermEdits
+              (initialTermReplacements initialCtorMappings initialTermEdits)
+              mempty
+              initialTypeEdits
+              initialTypeReplacements
+              mempty
+              initialCtorMappings
+          )
+          mempty -- things to skip
+          (getOrdered initialDirty)
       )
-      mempty -- things to skip
-      (getOrdered initialDirty)
   where
     initialTermReplacements ctors es =
       ctors
