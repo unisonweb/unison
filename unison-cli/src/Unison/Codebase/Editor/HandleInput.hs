@@ -669,6 +669,10 @@ loop e = do
             names <- displayNames uf
             ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
             respond $ Typechecked (Text.pack sourceName) ppe sr uf
+          previewResponseCli sourceName sr uf = do
+            names <- displayNamesCli uf
+            ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+            respond $ Typechecked (Text.pack sourceName) ppe sr uf
 
           delete ::
             (Path.HQSplit' -> Set Referent) -> -- compute matching terms
@@ -1421,13 +1425,14 @@ loop e = do
                   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
                   addDefaultMetadata adds
                   syncRoot inputDescription
-            PreviewAddI requestedNames -> case (latestFile', uf) of
-              (Just (sourceName, _), Just uf) -> do
-                let vars = Set.map Name.toVar requestedNames
-                currentNames <- currentPathNames
-                let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
-                previewResponse sourceName sr uf
-              _ -> respond NoUnisonFile
+            PreviewAddI requestedNames -> runCli do
+              case (latestFile', uf) of
+                (Just (sourceName, _), Just uf) -> do
+                  let vars = Set.map Name.toVar requestedNames
+                  currentNames <- currentPathNamesCli
+                  let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
+                  previewResponseCli sourceName sr uf
+                _ -> respond NoUnisonFile
             UpdateI optionalPatch requestedNames -> runCli (handleUpdate input optionalPatch requestedNames)
             PreviewUpdateI requestedNames -> case (latestFile', uf) of
               (Just (sourceName, _), Just uf) -> do
