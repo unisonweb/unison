@@ -12,7 +12,7 @@ import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, rea
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
 import Control.Monad.Except (ExceptT (..), runExceptT, withExceptT)
-import Control.Monad.Reader (ask, asks)
+import Control.Monad.Reader (MonadReader, ask, asks)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Control.Monad.Writer (WriterT (..))
@@ -192,9 +192,9 @@ import Witherable (wither)
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
 
-prettyPrintEnvDecl :: NamesWithHistory -> Action PPE.PrettyPrintEnvDecl
+prettyPrintEnvDecl :: (MonadReader Env m, MonadIO m) => NamesWithHistory -> m PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = do
-  codebase <- Command.askCodebase
+  Env {codebase} <- ask
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
 
 prettyPrintEnvDeclCli :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
@@ -1476,13 +1476,13 @@ loop e = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType -> do
-                      runtime <- Command.askRuntime
-                      codebase <- Command.askCodebase
-                      liftIO (Runtime.compileTo runtime (() <$ Codebase.toCodeLookup codebase) ppe ref (output <> ".uc")) >>= \case
-                        Just err -> respond $ EvaluationFailure err
-                        Nothing -> pure ()
+                    runtime <- Command.askRuntime
+                    codebase <- Command.askCodebase
+                    liftIO (Runtime.compileTo runtime (() <$ Codebase.toCodeLookup codebase) ppe ref (output <> ".uc")) >>= \case
+                      Just err -> respond $ EvaluationFailure err
+                      Nothing -> pure ()
                   | otherwise ->
-                      respond $ BadMainFunction smain ty ppe [mainType]
+                    respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               runtime <- Command.askRuntime
@@ -1578,45 +1578,47 @@ loop e = do
                 suffixifiedPPE
                   =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               respondNumbered $ ListEdits patch ppe
-            PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> unlessError do
-              codebase <- lift Command.askCodebase
+            PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> runCli do
+              Env {codebase} <- ask
               let preprocess = case pullMode of
                     Input.PullWithHistory -> Unmodified
                     Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-              ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
-              lift $ unlessError do
-                remoteBranch <- case ns of
-                  ReadRemoteNamespaceGit repo ->
-                    withExceptT
-                      Output.GitError
-                      (ExceptT (liftIO (Codebase.importRemoteBranch codebase repo syncMode preprocess)))
-                  ReadRemoteNamespaceShare repo -> ExceptT (importRemoteShareBranch repo)
-                let unchangedMsg = PullAlreadyUpToDate ns path
-                let destAbs = resolveToAbsolute path
-                let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
-                lift $ case pullMode of
-                  Input.PullWithHistory -> do
-                    destBranch <- getAt destAbs
-                    if Branch.isEmpty0 (Branch.head destBranch)
-                      then do
-                        void $ updateAtM destAbs (const $ pure remoteBranch)
-                        respond $ MergeOverEmpty path
-                      else
-                        mergeBranchAndPropagateDefaultPatch
-                          Branch.RegularMerge
-                          inputDescription
-                          (Just unchangedMsg)
-                          remoteBranch
-                          printDiffPath
-                          destAbs
-                  Input.PullWithoutHistory -> do
-                    didUpdate <-
-                      updateAtM
+              ns <- maybe (writePathToRead <$> resolveConfiguredUrlCli Pull path) pure mayRepo
+              remoteBranch <- case ns of
+                ReadRemoteNamespaceGit repo ->
+                  liftIO (Codebase.importRemoteBranch codebase repo syncMode preprocess) >>= \case
+                    Left err -> do
+                      respond (Output.GitError err)
+                      Cli.returnEarly
+                    Right x -> pure x
+                ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
+              let unchangedMsg = PullAlreadyUpToDate ns path
+              let destAbs = resolveToAbsolute path
+              let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
+              case pullMode of
+                Input.PullWithHistory -> do
+                  destBranch <- getAtCli destAbs
+                  if Branch.isEmpty0 (Branch.head destBranch)
+                    then do
+                      void $ updateAtMCli inputDescription destAbs (const $ pure remoteBranch)
+                      respond $ MergeOverEmpty path
+                    else
+                      mergeBranchAndPropagateDefaultPatch
+                        Branch.RegularMerge
+                        inputDescription
+                        (Just unchangedMsg)
+                        remoteBranch
+                        printDiffPath
                         destAbs
-                        (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
-                    if didUpdate
-                      then respond $ PullSuccessful ns path
-                      else respond unchangedMsg
+                Input.PullWithoutHistory -> do
+                  didUpdate <-
+                    updateAtMCli
+                      inputDescription
+                      destAbs
+                      (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
+                  if didUpdate
+                    then respond $ PullSuccessful ns path
+                    else respond unchangedMsg
             PushRemoteBranchI pushRemoteBranchInput -> runCli (handlePushRemoteBranch pushRemoteBranchInput)
             ListDependentsI hq -> runCli (handleDependents hq)
             ListDependenciesI hq -> runCli do
@@ -2441,7 +2443,7 @@ manageLinks silent srcs mdValues op = do
         then respond DefaultMetadataNotification
         else do
           after <- Branch.head <$> use Command.root
-          (ppe, outputDiff) <- diffHelper before after
+          (ppe, outputDiff) <- runCli (diffHelper before after)
           if OBranchDiff.isEmpty outputDiff
             then respond NoOp
             else
@@ -2601,31 +2603,36 @@ configKey k p =
         NameSegment.toText
         (Path.toSeq $ Path.unabsolute p)
 
-importRemoteShareBranch :: ReadShareRemoteNamespace -> Action (Either Output (Branch IO))
+importRemoteShareBranch :: ReadShareRemoteNamespace -> Cli r (Branch IO)
 importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
-  when (not $ RemoteRepo.isPublic rrn) $ runCli (ensureAuthenticatedWithCodeserver codeserver)
-  mapLeft Output.ShareError <$> do
-    let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
-    Command.Env {authHTTPClient, codebase} <- ask
-    let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
-        pull =
-          withEntitiesDownloadedProgressCallbacks \callbacks ->
-            Share.pull
-              authHTTPClient
-              baseURL
-              (Codebase.withConnectionIO codebase)
-              shareFlavoredPath
-              callbacks
-    liftIO pull >>= \case
-      Left (Share.SyncError err) -> pure (Left (Output.ShareErrorPull err))
-      Left (Share.TransportError err) -> pure (Left (Output.ShareErrorTransport err))
-      Right causalHash -> do
-        liftIO (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
-          Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
-          Just branch -> pure (Right branch)
+  when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
+  -- mapLeft Output.ShareError <$> do
+  let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
+  Command.Env {authHTTPClient, codebase} <- ask
+  let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
+      pull =
+        withEntitiesDownloadedProgressCallbacks \callbacks ->
+          Share.pull
+            authHTTPClient
+            baseURL
+            (Codebase.withConnectionIO codebase)
+            shareFlavoredPath
+            callbacks
+      respondAndReturnEarly :: Output.ShareError -> Cli r a
+      respondAndReturnEarly out = do
+        respond (Output.ShareError out)
+        Cli.returnEarly
+  liftIO pull >>= \case
+    Left shareError -> respondAndReturnEarly case shareError of
+      Share.SyncError err -> Output.ShareErrorPull err
+      Share.TransportError err -> Output.ShareErrorTransport err
+    Right causalHash -> do
+      liftIO (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
+        Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
+        Just branch -> pure branch
   where
     -- Provide the given action callbacks that display to the terminal.
     withEntitiesDownloadedProgressCallbacks :: (Share.DownloadProgressCallbacks -> IO a) -> IO a
@@ -2966,10 +2973,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2986,10 +2993,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -3012,7 +3019,7 @@ mergeBranchAndPropagateDefaultPatch ::
   Branch IO ->
   Maybe Path.Path' ->
   Path.Absolute ->
-  Action ()
+  Cli r ()
 mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb dest0 dest =
   ifM
     (mergeBranch mode inputDescription srcb dest0 dest)
@@ -3025,15 +3032,16 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
       Branch IO ->
       Maybe Path.Path' ->
       Path.Absolute ->
-      Action Bool
-    mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" do
-      codebase <- Command.askCodebase
-      destb <- getAt dest
+      Cli r Bool
+    mergeBranch mode inputDescription srcb dest0 dest = Cli.scopeWith do
+      Cli.time "Merge Branch"
+      Env {codebase} <- ask
+      destb <- getAtCli dest
       merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
-      b <- updateAtM inputDescription dest (const $ pure merged)
+      b <- updateAtMCli inputDescription dest (const $ pure merged)
       for_ dest0 $ \dest0 ->
         diffHelper (Branch.head destb) (Branch.head merged)
-          >>= respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
+          >>= Cli.respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
       pure b
 
 -- | supply `dest0` if you want to print diff messages
@@ -3067,16 +3075,17 @@ loadPropagateDiffDefaultPatch ::
   Command.InputDescription ->
   Maybe Path.Path' ->
   Path.Absolute ->
-  Action ()
-loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagate Default Patch" do
-  original <- getAt dest
+  Cli r ()
+loadPropagateDiffDefaultPatch inputDescription dest0 dest = Cli.scopeWith do
+  Cli.time "Propagate Default Patch"
+  original <- getAtCli dest
   patch <- liftIO $ Branch.getPatch defaultPatchNameSegment (Branch.head original)
-  patchDidChange <- runCli (propagatePatch inputDescription patch dest)
+  patchDidChange <- propagatePatch inputDescription patch dest
   when patchDidChange . for_ dest0 $ \dest0 -> do
-    patched <- getAt dest
+    patched <- getAtCli dest
     let patchPath = snoc dest0 defaultPatchNameSegment
     diffHelper (Branch.head original) (Branch.head patched)
-      >>= respondNumbered . uncurry (ShowDiffAfterMergePropagate dest0 dest patchPath)
+      >>= Cli.respondNumbered . uncurry (ShowDiffAfterMergePropagate dest0 dest patchPath)
 
 loadPropagateDiffDefaultPatchCli ::
   Command.InputDescription ->
@@ -3511,7 +3520,7 @@ docsI srcLoc prettyPrintNames src =
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-              respond $ ListOfLinks mempty []
+            respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>
@@ -4052,11 +4061,13 @@ displayNamesCli unisonFile =
 diffHelper ::
   Branch0 IO ->
   Branch0 IO ->
-  Action (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
-diffHelper before after = unsafeTime "HandleInput.diffHelper" do
-  codebase <- Command.askCodebase
-  currentRoot <- use Command.root
-  currentPath <- use Command.currentPath
+  Cli r (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
+diffHelper before after = Cli.scopeWith do
+  Cli.time "HandleInput.diffHelper"
+  Env {codebase} <- ask
+  loopState <- Cli.getLoopState
+  let currentRoot = view Command.root loopState
+  let currentPath = view Command.currentPath loopState
   hqLength <- liftIO (Codebase.hashLength codebase)
   diff <- liftIO (BranchDiff.diff0 before after)
   let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
