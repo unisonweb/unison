@@ -1157,9 +1157,9 @@ loop e = do
                       pure . mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString) $ defs
                 xs -> pure xs
               for_ srcs' (docsI (show input) basicPrettyPrintNames)
-            CreateAuthorI authorNameSegment authorFullName -> do
-              codebase <- Command.askCodebase
-              initialBranch <- getAt currentPath'
+            CreateAuthorI authorNameSegment authorFullName -> runCli do
+              Env {codebase} <- ask
+              initialBranch <- getBranchAt currentPath' <&> fromMaybe Branch.empty
               AuthorInfo
                 guid@(guidRef, _, _)
                 author@(authorRef, _, _)
@@ -1168,22 +1168,23 @@ loop e = do
 
               -- add the new definitions to the codebase and to the namespace
               traverse_ (liftIO . uncurry3 (Codebase.putTerm codebase)) [guid, author, copyrightHolder]
-              stepManyAt
+              stepManyAtCli
+                inputDescription
                 Branch.CompressHistory
                 [ BranchUtil.makeAddTermName (resolveSplit' authorPath) (d authorRef) mempty,
                   BranchUtil.makeAddTermName (resolveSplit' copyrightHolderPath) (d copyrightHolderRef) mempty,
                   BranchUtil.makeAddTermName (resolveSplit' guidPath) (d guidRef) mempty
                 ]
-              finalBranch <- getAt currentPath'
+              finalBranch <- getBranchAt currentPath' <&> fromMaybe Branch.empty
               -- print some output
-              diffHelper (Branch.head initialBranch) (Branch.head finalBranch)
-                >>= respondNumbered
-                  . uncurry
-                    ( ShowDiffAfterCreateAuthor
-                        authorNameSegment
-                        (Path.unsplit' base)
-                        currentPath'
-                    )
+              (ppe, diff) <- diffHelperCli (Branch.head initialBranch) (Branch.head finalBranch)
+              Cli.respondNumbered $
+                ShowDiffAfterCreateAuthor
+                  authorNameSegment
+                  (Path.unsplit' base)
+                  currentPath'
+                  ppe
+                  diff
               where
                 d :: Reference.Id -> Referent
                 d = Referent.Ref . Reference.DerivedId
