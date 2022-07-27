@@ -1243,8 +1243,8 @@ loop e = do
                     ]
               respond $ ListOfPatches $ Set.fromList patches
               Cli.modifyLoopState (set Command.numberedArgs (fmap Name.toString patches))
-            FindShallowI pathArg -> do
-              codebase <- Command.askCodebase
+            FindShallowI pathArg -> runCli do
+              Env{codebase} <- ask
 
               let pathArgAbs = resolveToAbsolute pathArg
                   ppe =
@@ -1254,7 +1254,7 @@ loop e = do
                       (Backend.AllNames $ Path.fromPath' pathArg)
               entries <- liftIO (Backend.findShallow codebase pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
-              Command.numberedArgs .= fmap entryToHQString entries
+              Cli.modifyLoopState (set Command.numberedArgs (fmap entryToHQString entries))
               respond $ ListShallow ppe entries
               where
                 entryToHQString :: ShallowListEntry v Ann -> String
