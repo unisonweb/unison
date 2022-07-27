@@ -1462,13 +1462,12 @@ loop e = do
                   -- TODO
                   _ <- evalUnisonFile False ppe unisonFile args
                   pure ()
-            MakeStandaloneI output main -> do
-              runtime <- Command.askRuntime
-              codebase <- Command.askCodebase
+            MakeStandaloneI output main -> runCli do
+              Env{codebase,runtime} <- ask
               let mainType = Runtime.mainType runtime
               parseNames <-
-                flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintNamesA
-              ppe <- suffixifiedPPE parseNames
+                flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintNamesACli
+              ppe <- suffixifiedPPECli parseNames
               let resolved = toList $ NamesWithHistory.lookupHQTerm main parseNames
                   smain = HQ.toString main
               filtered <-
@@ -1477,8 +1476,6 @@ loop e = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType -> do
-                      runtime <- Command.askRuntime
-                      codebase <- Command.askCodebase
                       liftIO (Runtime.compileTo runtime (() <$ Codebase.toCodeLookup codebase) ppe ref (output <> ".uc")) >>= \case
                         Just err -> respond $ EvaluationFailure err
                         Nothing -> pure ()
