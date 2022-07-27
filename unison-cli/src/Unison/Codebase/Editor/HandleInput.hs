@@ -3354,7 +3354,9 @@ syncRoot description = time "syncRoot" do
 
 -- | Sync the in-memory root branch.
 syncRootCli :: Command.InputDescription -> Cli r ()
-syncRootCli description = undefined
+syncRootCli description = do
+  loopState <- Cli.getLoopState
+  updateRootCli (loopState ^. Command.root) description
 
 updateRoot :: Branch IO -> Command.InputDescription -> Action ()
 updateRoot new reason = time "updateRoot" do
