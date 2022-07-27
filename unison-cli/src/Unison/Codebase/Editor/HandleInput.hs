@@ -3083,8 +3083,18 @@ loadPropagateDiffDefaultPatchCli ::
   Maybe Path.Path' ->
   Path.Absolute ->
   Cli r ()
-loadPropagateDiffDefaultPatchCli inputDescription dest0 dest = unsafeTime "Propagate Default Patch" do
-  undefined
+loadPropagateDiffDefaultPatchCli inputDescription maybeDest0 dest = do
+  Cli.scopeWith do
+    Cli.time "propagate-default-patch"
+    original <- getBranchAt dest <&> fromMaybe Branch.empty
+    patch <- liftIO $ Branch.getPatch defaultPatchNameSegment (Branch.head original)
+    patchDidChange <- propagatePatch inputDescription patch dest
+    when patchDidChange do
+      whenJust maybeDest0 \dest0 -> do
+        patched <- getBranchAt dest <&> fromMaybe Branch.empty
+        let patchPath = snoc dest0 defaultPatchNameSegment
+        (ppe, diff) <- diffHelperCli (Branch.head original) (Branch.head patched)
+        Cli.respondNumbered (ShowDiffAfterMergePropagate dest0 dest patchPath ppe diff)
 
 -- | Get metadata type/value from a name.
 --
