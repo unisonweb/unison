@@ -88,7 +88,7 @@ propagateAndApply ::
   Action (Branch0 IO)
 propagateAndApply codebase rootNames patch branch = do
   edits <- propagate codebase rootNames patch branch
-  f <- applyPropagate patch edits
+  let f = applyPropagate patch edits
   (pure . f . applyDeprecations patch) branch
 
 -- This function produces constructor mappings for propagated type updates.
@@ -591,11 +591,11 @@ applyDeprecations patch =
 -- | Things in the patch are not marked as propagated changes, but every other
 -- definition that is created by the `Edits` which is passed in is marked as
 -- a propagated change.
-applyPropagate :: Applicative m => Patch -> Edits Symbol -> Action (Branch0 m -> Branch0 m)
+applyPropagate :: Applicative m => Patch -> Edits Symbol -> Branch0 m -> Branch0 m
 applyPropagate patch Edits {..} = do
   let termTypes = Map.map (Hashing.typeToReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
-  pure $ Branch.stepEverywhere (updateLevel termReplacements typeReplacements termTypes)
+  Branch.stepEverywhere (updateLevel termReplacements typeReplacements termTypes)
   where
     isPropagated r = Set.notMember r allPatchTargets
     allPatchTargets = Patch.allReferenceTargets patch
