@@ -10,6 +10,7 @@ module Unison.Codebase.Editor.Propagate (computeFrontier, propagateAndApply) whe
 
 import Control.Error.Util (hush)
 import Control.Lens
+import Control.Monad.Reader (ask)
 import Data.Configurator ()
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
@@ -538,15 +539,15 @@ propagate codebase rootNames patch b = case validatePatch patch of
                   mempty
                   (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
                   mempty
-          typecheckResult <- typecheckFile [] file
+          typecheckResult <- runCli (typecheckFile [] file)
           pure
             . fmap UF.hashTerms
             $ runIdentity (Result.toMaybe typecheckResult)
               >>= hush
 
-typecheckFile :: [Type Symbol Ann] -> UF.UnisonFile Symbol Ann -> Action (TypecheckingResult Symbol)
+typecheckFile :: [Type Symbol Ann] -> UF.UnisonFile Symbol Ann -> Cli r (TypecheckingResult Symbol)
 typecheckFile ambient file = do
-  codebase <- Command.askCodebase
+  Env {codebase} <- ask
   typeLookup <- liftIO (Codebase.typeLookupForDependencies codebase (UF.dependencies file))
   pure . fmap Right $ synthesizeFile' ambient (typeLookup <> Builtin.typeLookup) file
 
