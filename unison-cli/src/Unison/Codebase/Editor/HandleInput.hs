@@ -1235,14 +1235,14 @@ loop e = do
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc query -> runCli (handleShowDefinition outputLoc query)
-            FindPatchI -> do
+            FindPatchI -> runCli do
               let patches =
                     [ Path.toName $ Path.snoc p seg
                       | (p, b) <- Branch.toList0 currentBranch0,
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
               respond $ ListOfPatches $ Set.fromList patches
-              Command.numberedArgs .= fmap Name.toString patches
+              Cli.modifyLoopState (set Command.numberedArgs (fmap Name.toString patches))
             FindShallowI pathArg -> do
               codebase <- Command.askCodebase
 
