@@ -380,8 +380,6 @@ loop e = do
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolveToAbsolute :: Path' -> Path.Absolute
       resolveToAbsolute = Path.resolve currentPath'
-      getHQ'TermsIncludingHistorical p =
-        getTermsIncludingHistorical (resolveSplit' p) root0
 
       getHQ'Terms :: Path.HQSplit' -> Set Referent
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
@@ -465,7 +463,6 @@ loop e = do
         else loadUnisonFile sourceName text
     Right input ->
       let typeNotFound = respond . TypeNotFound
-          termNotFound = respond . TermNotFound
           nameConflicted src tms tys = respond (DeleteNameAmbiguous hqLength src tms tys)
           termConflicted src tms = nameConflicted src tms Set.empty
           hashConflicted src = respond . HashAmbiguous src
@@ -646,7 +643,6 @@ loop e = do
                 Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
               hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
               ps' = p' . Path.unsplit'
-          stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
           updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
           syncRoot = use Command.root >>= updateRoot
           updateAtM ::
@@ -1286,14 +1282,28 @@ loop e = do
                     . toList
                     . Set.delete r
                     $ conflicted
-            ResolveTermNameI hq -> do
-              refs <- getHQ'TermsIncludingHistorical hq
-              zeroOneOrMore refs (termNotFound hq) go (termConflicted hq)
+            ResolveTermNameI hq -> runCli do
+              loopState <- Cli.getLoopState
+              path <- resolveSplitCli' hq
+              refs <-
+                getTermsIncludingHistorical
+                  (Path.fromAbsoluteSplit path)
+                  (Branch.head (loopState ^. Command.root))
+              zeroOneOrMore
+                refs
+                (respond (TermNotFound hq))
+                go
+                (\tms -> respond (DeleteNameAmbiguous hqLength hq tms Set.empty))
               where
                 conflicted = getHQ'Terms (fmap HQ'.toNameOnly hq)
                 makeDelete =
                   BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
-                go r = stepManyAt Branch.CompressHistory . fmap makeDelete . toList . Set.delete r $ conflicted
+                go r =
+                  stepManyAtCli inputDescription Branch.CompressHistory
+                    . fmap makeDelete
+                    . toList
+                    . Set.delete r
+                    $ conflicted
             ReplaceI from to patchPath -> do
               codebase <- Command.askCodebase
 
@@ -3825,14 +3835,11 @@ makePrintNamesFromLabeledCli' deps = do
   basicNames <- basicPrettyPrintNamesACli
   pure $ NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames)
 
-getTermsIncludingHistorical ::
-  Monad m => Path.HQSplit -> Branch0 m -> Action (Set Referent)
+getTermsIncludingHistorical :: Monad m => Path.HQSplit -> Branch0 m -> Cli r (Set Referent)
 getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
   [] -> case hq of
     HQ'.HashQualified n hs -> do
-      names <-
-        findHistoricalHQs $
-          Set.fromList [HQ.HashQualified (Name.unsafeFromText (NameSegment.toText n)) hs]
+      names <- findHistoricalHQsCli (Set.fromList [HQ.HashQualified (Name.fromSegment n) hs])
       pure . R.ran $ Names.terms names
     _ -> pure Set.empty
   _ -> pure refs
