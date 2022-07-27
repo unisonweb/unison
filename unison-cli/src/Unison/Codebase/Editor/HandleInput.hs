@@ -647,11 +647,6 @@ loop e = do
                 Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
               hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
               ps' = p' . Path.unsplit'
-          updateAtM ::
-            Path.Absolute ->
-            (Branch IO -> Action (Branch IO)) ->
-            Action Bool
-          updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
           saveAndApplyPatch :: Path -> NameSegment -> Patch -> Cli r ()
           saveAndApplyPatch patchPath'' patchName patch' = do
             stepAtMCli
@@ -766,7 +761,7 @@ loop e = do
                   Right path' -> expectBranchAtPath' path'
               assertNoBranchAtPath' dest0
               dest <- resolvePath' dest0
-              ok <- updateAtMCli inputDescription dest (const $ pure srcb)
+              ok <- updateAtM inputDescription dest (const $ pure srcb)
               respond if ok then Success else BranchEmpty src0
             MergeLocalBranchI src0 dest0 mergeMode -> runCli do
               srcb <- expectBranchAtPath' src0
@@ -1535,11 +1530,11 @@ loop e = do
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names0
-              _ <- updateAtMCli inputDescription (currentPath' `snoc` "builtin") \destb ->
+              _ <- updateAtM inputDescription (currentPath' `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               respond Success
-            MergeIOBuiltinsI -> do
-              codebase <- Command.askCodebase
+            MergeIOBuiltinsI -> runCli do
+              Env{codebase} <- ask
               -- these were added once, but maybe they've changed and need to be
               -- added again.
               let uf =
@@ -1558,9 +1553,9 @@ loop e = do
                     Builtin.names0
                       <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
-              _ <- updateAtM (currentPath' `snoc` "builtin") \destb ->
+              _ <- updateAtM inputDescription (currentPath' `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
-              success
+              respond Success
             ListEditsI maybePath -> do
               let (p, seg) =
                     maybe
@@ -1594,7 +1589,7 @@ loop e = do
                   destBranch <- getAtCli destAbs
                   if Branch.isEmpty0 (Branch.head destBranch)
                     then do
-                      void $ updateAtMCli inputDescription destAbs (const $ pure remoteBranch)
+                      void $ updateAtM inputDescription destAbs (const $ pure remoteBranch)
                       respond $ MergeOverEmpty path
                     else
                       mergeBranchAndPropagateDefaultPatch
@@ -1606,7 +1601,7 @@ loop e = do
                         destAbs
                 Input.PullWithoutHistory -> do
                   didUpdate <-
-                    updateAtMCli
+                    updateAtM
                       inputDescription
                       destAbs
                       (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
@@ -2960,7 +2955,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
       Env {codebase} <- ask
       destb <- getAtCli dest
       merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
-      b <- updateAtMCli inputDescription dest (const $ pure merged)
+      b <- updateAtM inputDescription dest (const $ pure merged)
       for_ dest0 $ \dest0 ->
         diffHelper (Branch.head destb) (Branch.head merged)
           >>= Cli.respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
@@ -2987,7 +2982,7 @@ mergeBranchAndPropagateDefaultPatchCli mode inputDescription unchangedMessage sr
       Env {codebase} <- ask
       destb <- fromMaybe Branch.empty <$> getBranchAt dest
       merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
-      b <- updateAtMCli inputDescription dest (const $ pure merged)
+      b <- updateAtM inputDescription dest (const $ pure merged)
       for_ maybeDest0 \dest0 -> do
         (ppe, diff) <- diffHelperCli (Branch.head destb) (Branch.head merged)
         Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
@@ -3063,22 +3058,9 @@ getAtCli (Path.Absolute p) = do
 updateAtM ::
   Command.InputDescription ->
   Path.Absolute ->
-  (Branch IO -> Action (Branch IO)) ->
-  Action Bool
-updateAtM reason (Path.Absolute p) f = do
-  b <- use Command.lastSavedRoot
-  b' <- Branch.modifyAtM p f b
-  updateRoot b' reason
-  pure $ b /= b'
-
--- Update a branch at the given path, returning `True` if
--- an update occurred and false otherwise
-updateAtMCli ::
-  Command.InputDescription ->
-  Path.Absolute ->
   (Branch IO -> Cli r (Branch IO)) ->
   Cli r Bool
-updateAtMCli reason (Path.Absolute p) f = do
+updateAtM reason (Path.Absolute p) f = do
   loopState <- Cli.getLoopState
   let b = loopState ^. Command.lastSavedRoot
   b' <- Branch.modifyAtM p f b
