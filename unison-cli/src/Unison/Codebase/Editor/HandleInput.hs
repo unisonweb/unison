@@ -2755,7 +2755,7 @@ propagatePatchNoSync patch scopePath = unsafeTime "propagate" do
   stepAtMNoSync'
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
-      Propagate.propagateAndApply codebase nroot patch
+      runCli . Propagate.propagateAndApply codebase nroot patch
     )
 
 -- Returns True if the operation changed the namespace, False otherwise.
@@ -2772,7 +2772,7 @@ propagatePatch inputDescription patch scopePath = do
     Branch.CompressHistory
     (inputDescription <> " (applying patch)")
     ( Path.unabsolute scopePath,
-      Propagate.propagateAndApply codebase nroot patch
+      runCli . Propagate.propagateAndApply codebase nroot patch
     )
 
 -- | Create the args needed for showTodoOutput and call it

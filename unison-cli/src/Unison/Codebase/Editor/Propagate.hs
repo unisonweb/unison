@@ -85,9 +85,9 @@ propagateAndApply ::
   Names ->
   Patch ->
   Branch0 IO ->
-  Action (Branch0 IO)
+  Cli r (Branch0 IO)
 propagateAndApply codebase rootNames patch branch = do
-  edits <- runCli (propagate codebase rootNames patch branch)
+  edits <- propagate codebase rootNames patch branch
   let f = applyPropagate patch edits
   (pure . f . applyDeprecations patch) branch
 
