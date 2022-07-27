@@ -262,8 +262,8 @@ resolvePath' path = do
   let currentPath' = loopState ^. Command.currentPath
   pure (Path.resolve currentPath' path)
 
--- | Resolve a @Path.Split'@ to a @(Path.Absolute, NameSegment)@, per the current path.
-resolveSplitCli' :: Path.Split' -> Cli r (Path.Absolute, NameSegment)
+-- | Resolve a path split, per the current path.
+resolveSplitCli' :: (Path', a) -> Cli r (Path.Absolute, a)
 resolveSplitCli' s = do
   Env {loopStateRef} <- ask
   loopState <- liftIO (readIORef loopStateRef)
@@ -2810,6 +2810,37 @@ getLinks' src selection0 = do
         Set.map LD.termRef allRefs
           <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
   ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
+  let ppeDecl = PPE.unsuffixifiedPPE ppe
+  let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
+  let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
+  pure (PPE.suffixifiedPPE ppe, out)
+
+getLinksCli' ::
+  Path.HQSplit' -> -- definition to print metadata of
+  Maybe (Set Reference) -> -- return all metadata if empty
+  Cli
+    r
+    ( PPE.PrettyPrintEnv,
+      --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
+      [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
+    )
+getLinksCli' src selection0 = do
+  Env {codebase, loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let root0 = Branch.head (loopState ^. Command.root)
+  p <- Path.fromAbsoluteSplit <$> resolveSplitCli' src -- ex: the (parent,hqsegment) of `List.map` - `List`
+  let -- all metadata (type+value) associated with name `src`
+      allMd =
+        R4.d34 (BranchUtil.getTermMetadataHQNamed p root0)
+          <> R4.d34 (BranchUtil.getTypeMetadataHQNamed p root0)
+      allMd' = maybe allMd (`R.restrictDom` allMd) selection0
+      -- then list the values after filtering by type
+      allRefs :: Set Reference = R.ran allMd'
+  sigs <- for (toList allRefs) (liftIO . loadTypeOfTerm codebase . Referent.Ref)
+  let deps =
+        Set.map LD.termRef allRefs
+          <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
+  ppe <- prettyPrintEnvDeclCli =<< makePrintNamesFromLabeledCli' deps
   let ppeDecl = PPE.unsuffixifiedPPE ppe
   let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
   let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
