@@ -1446,22 +1446,22 @@ loop e = do
               patch <- getPatchAtCli patchPath <&> fromMaybe Patch.empty
               updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
               when (not updated) (respond $ NothingToPatch patchPath scopePath)
-            ExecuteI main args -> do
-              runtime <- Command.askRuntime
+            ExecuteI main args -> runCli do
+              Env {runtime} <- ask
               let mainType = Runtime.mainType runtime
 
               addRunMain main uf >>= \case
                 NoTermWithThatName -> do
-                  ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+                  ppe <- suffixifiedPPECli (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
                   respond $ NoMainFunction main ppe [mainType]
                 TermHasBadType ty -> do
-                  ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+                  ppe <- suffixifiedPPECli (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
                   respond $ BadMainFunction main ty ppe [mainType]
                 RunMainSuccess unisonFile -> do
                   ppe <- executePPE unisonFile
-                  evalUnisonFile False ppe unisonFile args >>= \case
-                    Left e -> respond $ EvaluationFailure e
-                    Right _ -> pure () -- TODO
+                  -- TODO
+                  _ <- evalUnisonFileCli False ppe unisonFile args
+                  pure ()
             MakeStandaloneI output main -> do
               runtime <- Command.askRuntime
               codebase <- Command.askCodebase
@@ -3374,7 +3374,7 @@ displayI prettyPrintNames outputLoc hq = do
               tm <- evalUnisonTermCli True (PPE.suffixifiedPPE pped) True tm
               doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
-      ppe <- executePPECli unisonFile
+      ppe <- executePPE unisonFile
       evalResult <- evalUnisonFileCli True ppe unisonFile []
       case Command.lookupEvalResult toDisplay evalResult of
         Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
@@ -3898,61 +3898,51 @@ addWatch watchName (Just uf) = do
 --
 -- If that function doesn't exist in the typechecked file, the
 -- codebase is consulted.
-addRunMain ::
-  String ->
-  Maybe (TypecheckedUnisonFile Symbol Ann) ->
-  Action (AddRunMainResult Symbol)
-addRunMain mainName Nothing = do
-  runtime <- Command.askRuntime
-  codebase <- Command.askCodebase
+addRunMain :: String -> Maybe (TypecheckedUnisonFile Symbol Ann) -> Cli r (AddRunMainResult Symbol)
+addRunMain mainName = \case
+  Nothing -> do
+    Env {codebase, runtime} <- ask
 
-  parseNames <- basicParseNames
-  let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
-  mainToFile
-    <$> MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
-  where
-    mainToFile (MainTerm.NotAFunctionName _) = NoTermWithThatName
-    mainToFile (MainTerm.NotFound _) = NoTermWithThatName
-    mainToFile (MainTerm.BadType _ ty) = maybe NoTermWithThatName TermHasBadType ty
-    mainToFile (MainTerm.Success hq tm typ) =
-      RunMainSuccess $
-        let v = Var.named (HQ.toText hq)
-         in UF.typecheckedUnisonFile mempty mempty mempty [("main", [(v, tm, typ)])] -- mempty
-addRunMain mainName (Just uf) = do
-  runtime <- Command.askRuntime
+    parseNames <- basicParseNamesCli
+    let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
+    mainToFile
+      <$> MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
+    where
+      mainToFile (MainTerm.NotAFunctionName _) = NoTermWithThatName
+      mainToFile (MainTerm.NotFound _) = NoTermWithThatName
+      mainToFile (MainTerm.BadType _ ty) = maybe NoTermWithThatName TermHasBadType ty
+      mainToFile (MainTerm.Success hq tm typ) =
+        RunMainSuccess $
+          let v = Var.named (HQ.toText hq)
+           in UF.typecheckedUnisonFile mempty mempty mempty [("main", [(v, tm, typ)])] -- mempty
+  Just uf -> do
+    Env {runtime} <- ask
 
-  let components = join $ UF.topLevelComponents uf
-  let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
-  let mainType = Runtime.mainType runtime
-  case mainComponent of
-    [(v, tm, ty)] ->
-      pure $
-        let v2 = Var.freshIn (Set.fromList [v]) v
-            a = ABT.annotation tm
-         in if Typechecker.isSubtype ty mainType
-              then
-                RunMainSuccess $
-                  let runMain = DD.forceTerm a a (Term.var a v)
-                   in UF.typecheckedUnisonFile
-                        (UF.dataDeclarationsId' uf)
-                        (UF.effectDeclarationsId' uf)
-                        (UF.topLevelComponents' uf)
-                        (UF.watchComponents uf <> [("main", [(v2, runMain, mainType)])])
-              else TermHasBadType ty
-    _ -> addRunMain mainName Nothing
+    let components = join $ UF.topLevelComponents uf
+    let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
+    let mainType = Runtime.mainType runtime
+    case mainComponent of
+      [(v, tm, ty)] ->
+        pure $
+          let v2 = Var.freshIn (Set.fromList [v]) v
+              a = ABT.annotation tm
+           in if Typechecker.isSubtype ty mainType
+                then
+                  RunMainSuccess $
+                    let runMain = DD.forceTerm a a (Term.var a v)
+                     in UF.typecheckedUnisonFile
+                          (UF.dataDeclarationsId' uf)
+                          (UF.effectDeclarationsId' uf)
+                          (UF.topLevelComponents' uf)
+                          (UF.watchComponents uf <> [("main", [(v2, runMain, mainType)])])
+                else TermHasBadType ty
+      _ -> addRunMain mainName Nothing
 
 executePPE ::
   Var v =>
   TypecheckedUnisonFile v a ->
-  Action PPE.PrettyPrintEnv
-executePPE unisonFile =
-  suffixifiedPPE =<< displayNames unisonFile
-
-executePPECli ::
-  Var v =>
-  TypecheckedUnisonFile v a ->
   Cli r PPE.PrettyPrintEnv
-executePPECli unisonFile =
+executePPE unisonFile =
   suffixifiedPPECli =<< displayNamesCli unisonFile
 
 -- Produce a `Names` needed to display all the hashes used in the given file.
