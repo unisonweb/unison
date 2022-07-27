@@ -467,7 +467,6 @@ loop e = do
       let typeNotFound = respond . TypeNotFound
           termNotFound = respond . TermNotFound
           nameConflicted src tms tys = respond (DeleteNameAmbiguous hqLength src tms tys)
-          typeConflicted src = nameConflicted src Set.empty
           termConflicted src tms = nameConflicted src tms Set.empty
           hashConflicted src = respond . HashAmbiguous src
           typeReferences :: [SearchResult] -> [Reference]
@@ -1244,7 +1243,7 @@ loop e = do
               respond $ ListOfPatches $ Set.fromList patches
               Cli.modifyLoopState (set Command.numberedArgs (fmap Name.toString patches))
             FindShallowI pathArg -> runCli do
-              Env{codebase} <- ask
+              Env {codebase} <- ask
 
               let pathArgAbs = resolveToAbsolute pathArg
                   ppe =
@@ -1271,13 +1270,22 @@ loop e = do
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> runCli (handleFindI isVerbose fscope ws input)
-            ResolveTypeNameI hq ->
-              zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
+            ResolveTypeNameI hq -> runCli do
+              zeroOneOrMore
+                (getHQ'Types hq)
+                (typeNotFound hq)
+                go
+                (\tys -> respond (DeleteNameAmbiguous hqLength hq Set.empty tys))
               where
                 conflicted = getHQ'Types (fmap HQ'.toNameOnly hq)
                 makeDelete =
                   BranchUtil.makeDeleteTypeName (resolveSplit' (HQ'.toName <$> hq))
-                go r = stepManyAt Branch.CompressHistory . fmap makeDelete . toList . Set.delete r $ conflicted
+                go r =
+                  stepManyAtCli inputDescription Branch.CompressHistory
+                    . fmap makeDelete
+                    . toList
+                    . Set.delete r
+                    $ conflicted
             ResolveTermNameI hq -> do
               refs <- getHQ'TermsIncludingHistorical hq
               zeroOneOrMore refs (termNotFound hq) go (termConflicted hq)
