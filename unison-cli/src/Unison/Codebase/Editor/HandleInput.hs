@@ -452,6 +452,7 @@ loop e = do
               unless (null e') $
                 unsafeTime "evaluate.respond" $ respond $ Evaluated text ppe bindings e'
               Command.latestTypecheckedFile .= Just unisonFile
+      loadUnisonFileCli sourceName text = undefined
 
   case e of
     Left (IncomingRootBranch hashes) ->
@@ -1398,15 +1399,15 @@ loop e = do
                 ([_], tos, [], []) -> ambiguous to tos
                 ([], [], [_], tos) -> ambiguous to tos
                 (_, _, _, _) -> error "unpossible"
-            LoadI maybePath ->
+            LoadI maybePath -> runCli do
               case maybePath <|> (fst <$> latestFile') of
                 Nothing -> respond NoUnisonFile
                 Just path -> do
-                  loadSource <- Command.askLoadSource
+                  Env {loadSource} <- ask
                   liftIO (loadSource (Text.pack path)) >>= \case
                     InvalidSourceNameError -> respond $ InvalidSourceName path
                     LoadError -> respond $ SourceLoadFailed path
-                    LoadSuccess contents -> loadUnisonFile (Text.pack path) contents
+                    LoadSuccess contents -> loadUnisonFileCli (Text.pack path) contents
             AddI requestedNames -> do
               let vars = Set.map Name.toVar requestedNames
               case uf of
