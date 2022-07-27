@@ -309,7 +309,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                   let message =
                         "This reference is not a term nor a type " <> show r
                       mmayEdits
-                        | haveTerm = doTerm r
+                        | haveTerm = runCli (doTerm r)
                         | haveType = doType r
                         | otherwise = error message
                   mayEdits <- mmayEdits
@@ -386,7 +386,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                       constructorReplacements',
                   seen'
                 )
-            doTerm :: Reference -> Action (Maybe (Edits Symbol), Set Reference)
+            doTerm :: Reference -> Cli r (Maybe (Edits Symbol), Set Reference)
             doTerm r = do
               when debugMode (traceM $ "Rewriting term: " <> show r)
               componentMap <- unhashTermComponent r
@@ -396,7 +396,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                       (Term.updateDependencies termReplacements typeReplacements)
                       <$> componentMap
                   seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
-              mayComponent <- runCli (verifyTermComponent componentMap' es)
+              mayComponent <- verifyTermComponent componentMap' es
               case mayComponent of
                 Nothing -> do
                   when debugMode (traceM $ refName r <> " did not typecheck after substitutions")
