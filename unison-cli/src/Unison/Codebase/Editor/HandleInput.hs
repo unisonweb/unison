@@ -341,21 +341,24 @@ assertNoBranchAtSplit' :: Path.Split' -> Cli r ()
 assertNoBranchAtSplit' =
   assertNoBranchAtPath' . Path.unsplit'
 
--- | Get the patch at a path, or return early if there's no such patch.
-expectPatchAtSplitCli' :: Path.Split' -> Cli r Patch
-expectPatchAtSplitCli' s = do
+-- | Get the patch at a path.
+getPatchAtCli :: Path.Split' -> Cli r (Maybe Patch)
+getPatchAtCli s = do
   (path, name) <- resolveSplitCli' s
   branch <- getAtCli path
-  liftIO (Branch.getMaybePatch name (Branch.head branch)) & onNothingM do
+  liftIO (Branch.getMaybePatch name (Branch.head branch))
+
+-- | Get the patch at a path, or return early if there's no such patch.
+expectPatchAt :: Path.Split' -> Cli r Patch
+expectPatchAt s =
+  getPatchAtCli s & onNothingM do
     respond (PatchNotFound s)
     Cli.returnEarly
 
 -- | Assert that there's no patch at a path, or return early if there is one.
-assertNoPatchAtSplitCli' :: Path.Split' -> Cli r ()
-assertNoPatchAtSplitCli' s = do
-  (path, name) <- resolveSplitCli' s
-  branch <- getAtCli path
-  whenJustM (liftIO (Branch.getMaybePatch name (Branch.head branch))) \_ -> do
+assertNoPatchAt :: Path.Split' -> Cli r ()
+assertNoPatchAt s = do
+  whenJustM (getPatchAtCli s) \_ -> do
     respond (PatchAlreadyExists s)
     Cli.returnEarly
 
@@ -650,8 +653,9 @@ loop e = do
             (Branch IO -> Action (Branch IO)) ->
             Action Bool
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
+          saveAndApplyPatch :: Path -> NameSegment -> Patch -> Cli r ()
           saveAndApplyPatch patchPath'' patchName patch' = do
-            stepAtM
+            stepAtMCli
               Branch.CompressHistory
               (inputDescription <> " (1/2)")
               ( patchPath'',
@@ -659,9 +663,9 @@ loop e = do
               )
             -- Apply the modified patch to the current path
             -- since we might be able to propagate further.
-            void $ runCli $ propagatePatch inputDescription patch' currentPath'
+            void $ propagatePatch inputDescription patch' currentPath'
             -- Say something
-            success
+            respond Success
           previewResponse sourceName sr uf = do
             names <- displayNames uf
             ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
@@ -856,8 +860,8 @@ loop e = do
                 ]
               respond Success -- could give rando stats about new defns
             MovePatchI src dest -> runCli do
-              p <- expectPatchAtSplitCli' src
-              assertNoPatchAtSplitCli' dest
+              p <- expectPatchAt src
+              assertNoPatchAt dest
               stepManyAtCli
                 inputDescription
                 Branch.CompressHistory
@@ -866,15 +870,15 @@ loop e = do
                 ]
               respond Success
             CopyPatchI src dest -> runCli do
-              p <- expectPatchAtSplitCli' src
-              assertNoPatchAtSplitCli' dest
+              p <- expectPatchAt src
+              assertNoPatchAt dest
               stepAt
                 inputDescription
                 Branch.CompressHistory
                 (BranchUtil.makeReplacePatch (resolveSplit' dest) p)
               respond Success
             DeletePatchI src -> runCli do
-              _ <- expectPatchAtSplitCli' src
+              _ <- expectPatchAt src
               stepAt
                 inputDescription
                 Branch.CompressHistory
@@ -1304,13 +1308,13 @@ loop e = do
                     . toList
                     . Set.delete r
                     $ conflicted
-            ReplaceI from to patchPath -> do
-              codebase <- Command.askCodebase
+            ReplaceI from to patchPath -> runCli do
+              Env {codebase} <- ask
 
               let patchPath' = fromMaybe defaultPatchPath patchPath
-              patch <- getPatchAt patchPath'
-              QueryResult fromMisses' fromHits <- hqNameQuery [from]
-              QueryResult toMisses' toHits <- hqNameQuery [to]
+              patch <- getPatchAtCli patchPath' <&> fromMaybe Patch.empty
+              QueryResult fromMisses' fromHits <- hqNameQueryCli [from]
+              QueryResult toMisses' toHits <- hqNameQueryCli [to]
               let termsFromRefs = termReferences fromHits
                   termsToRefs = termReferences toHits
                   typesFromRefs = typeReferences fromHits
@@ -1324,32 +1328,22 @@ loop e = do
                   --- [X] [Type]
                   --- [X] [Term]
                   -- Type hits are term misses
-                  termFromMisses =
-                    fromMisses'
-                      <> (SR.typeName <$> typeResults fromHits)
-                  termToMisses =
-                    toMisses'
-                      <> (SR.typeName <$> typeResults toHits)
+                  termFromMisses = fromMisses' <> (SR.typeName <$> typeResults fromHits)
+                  termToMisses = toMisses' <> (SR.typeName <$> typeResults toHits)
                   -- Term hits are type misses
-                  typeFromMisses =
-                    fromMisses'
-                      <> (SR.termName <$> termResults fromHits)
-                  typeToMisses =
-                    toMisses'
-                      <> (SR.termName <$> termResults toHits)
+                  typeFromMisses = fromMisses' <> (SR.termName <$> termResults fromHits)
+                  typeToMisses = toMisses' <> (SR.termName <$> termResults toHits)
 
                   termMisses = termFromMisses <> termToMisses
                   typeMisses = typeFromMisses <> typeToMisses
 
-                  replaceTerms ::
-                    Reference ->
-                    Reference ->
-                    Action ()
+                  replaceTerms :: Reference -> Reference -> Cli r ()
                   replaceTerms fr tr = do
                     mft <- liftIO (Codebase.getTypeOfTerm codebase fr)
                     mtt <- liftIO (Codebase.getTypeOfTerm codebase tr)
                     let termNotFound =
-                          respond . TermNotFound'
+                          respond
+                            . TermNotFound'
                             . SH.take hqLength
                             . Reference.toShortHash
                     case (mft, mtt) of
@@ -1367,10 +1361,7 @@ loop e = do
                             (patchPath'', patchName) = resolveSplit' patchPath'
                         saveAndApplyPatch patchPath'' patchName patch'
 
-                  replaceTypes ::
-                    Reference ->
-                    Reference ->
-                    Action ()
+                  replaceTypes :: Reference -> Reference -> Cli r ()
                   replaceTypes fr tr = do
                     let patch' =
                           -- The modified patch
@@ -1486,13 +1477,13 @@ loop e = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType -> do
-                    runtime <- Command.askRuntime
-                    codebase <- Command.askCodebase
-                    liftIO (Runtime.compileTo runtime (() <$ Codebase.toCodeLookup codebase) ppe ref (output <> ".uc")) >>= \case
-                      Just err -> respond $ EvaluationFailure err
-                      Nothing -> pure ()
+                      runtime <- Command.askRuntime
+                      codebase <- Command.askCodebase
+                      liftIO (Runtime.compileTo runtime (() <$ Codebase.toCodeLookup codebase) ppe ref (output <> ".uc")) >>= \case
+                        Just err -> respond $ EvaluationFailure err
+                        Nothing -> pure ()
                   | otherwise ->
-                    respond $ BadMainFunction smain ty ppe [mainType]
+                      respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               runtime <- Command.askRuntime
@@ -2973,10 +2964,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2993,10 +2984,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -3230,6 +3221,13 @@ stepAtM ::
   (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Action ()
 stepAtM cause strat = stepManyAtM @[] cause strat . pure
+
+stepAtMCli ::
+  Branch.UpdateStrategy ->
+  Command.InputDescription ->
+  (Path, Branch0 IO -> IO (Branch0 IO)) ->
+  Cli r ()
+stepAtMCli cause strat = undefined
 
 stepAtM' ::
   Branch.UpdateStrategy ->
@@ -3520,7 +3518,7 @@ docsI srcLoc prettyPrintNames src =
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks mempty []
           | otherwise -> -- todo: return a list of links here too
-            respond $ ListOfLinks mempty []
+              respond $ ListOfLinks mempty []
 
 filterBySlurpResult ::
   Ord v =>
@@ -4127,6 +4125,17 @@ hqNameQuery query = do
   root' <- use Command.root
   currentPath' <- Path.unabsolute <$> use Command.currentPath
   codebase <- Command.askCodebase
+  hqLength <- liftIO (Codebase.hashLength codebase)
+  let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames currentPath')
+  let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+  liftIO (Backend.hqNameQuery codebase nameSearch query)
+
+hqNameQueryCli :: [HQ.HashQualified Name] -> Cli r QueryResult
+hqNameQueryCli query = do
+  Env {codebase} <- ask
+  loopState <- Cli.getLoopState
+  let root' = loopState ^. Command.root
+  let currentPath' = Path.unabsolute (loopState ^. Command.currentPath)
   hqLength <- liftIO (Codebase.hashLength codebase)
   let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames currentPath')
   let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
