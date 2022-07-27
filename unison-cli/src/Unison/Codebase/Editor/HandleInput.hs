@@ -666,10 +666,6 @@ loop e = do
             -- Say something
             respond Success
           previewResponse sourceName sr uf = do
-            names <- displayNames uf
-            ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
-            respond $ Typechecked (Text.pack sourceName) ppe sr uf
-          previewResponseCli sourceName sr uf = do
             names <- displayNamesCli uf
             ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
             respond $ Typechecked (Text.pack sourceName) ppe sr uf
@@ -1431,16 +1427,17 @@ loop e = do
                   let vars = Set.map Name.toVar requestedNames
                   currentNames <- currentPathNamesCli
                   let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
-                  previewResponseCli sourceName sr uf
+                  previewResponse sourceName sr uf
                 _ -> respond NoUnisonFile
             UpdateI optionalPatch requestedNames -> runCli (handleUpdate input optionalPatch requestedNames)
-            PreviewUpdateI requestedNames -> case (latestFile', uf) of
-              (Just (sourceName, _), Just uf) -> do
-                let vars = Set.map Name.toVar requestedNames
-                currentNames <- currentPathNames
-                let sr = Slurp.slurpFile uf vars Slurp.UpdateOp currentNames
-                previewResponse sourceName sr uf
-              _ -> respond NoUnisonFile
+            PreviewUpdateI requestedNames -> runCli do
+              case (latestFile', uf) of
+                (Just (sourceName, _), Just uf) -> do
+                  let vars = Set.map Name.toVar requestedNames
+                  currentNames <- currentPathNamesCli
+                  let sr = Slurp.slurpFile uf vars Slurp.UpdateOp currentNames
+                  previewResponse sourceName sr uf
+                _ -> respond NoUnisonFile
             TodoI patchPath branchPath' -> do
               patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
               doShowTodoOutput patch $ resolveToAbsolute branchPath'
