@@ -1593,7 +1593,7 @@ loop e = do
               let preprocess = case pullMode of
                     Input.PullWithHistory -> Unmodified
                     Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-              ns <- maybe (writePathToRead <$> resolveConfiguredUrlCli Pull path) pure mayRepo
+              ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
               remoteBranch <- case ns of
                 ReadRemoteNamespaceGit repo ->
                   liftIO (Codebase.importRemoteBranch codebase repo syncMode preprocess) >>= \case
@@ -1911,7 +1911,7 @@ handlePushRemoteBranch PushRemoteBranchInput {maybeRemoteRepo = mayRepo, localPa
   Cli.scopeWith do
     Cli.time "handlePushRemoteBranch"
     repo <- case mayRepo of
-      Nothing -> resolveConfiguredUrlCli Push path
+      Nothing -> resolveConfiguredUrl Push path
       Just repo -> pure repo
     push repo
   where
@@ -2552,18 +2552,8 @@ manageLinksCli silent srcs metadataNames op = do
 -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
 -- otherwise, tries to load a value from .unisonConfig, and complains
 -- if needed.
-resolveConfiguredUrl ::
-  PushPull ->
-  Path' ->
-  ExceptT Output (Action) WriteRemotePath
-resolveConfiguredUrl pushPull destPath' = ExceptT do
-  runCli (resolveConfiguredUrlCli' pushPull destPath')
-
-resolveConfiguredUrlCli ::
-  PushPull ->
-  Path' ->
-  Cli r WriteRemotePath
-resolveConfiguredUrlCli pushPull destPath' =
+resolveConfiguredUrl :: PushPull -> Path' -> Cli r WriteRemotePath
+resolveConfiguredUrl pushPull destPath' =
   resolveConfiguredUrlCli' pushPull destPath' >>= \case
     Left x -> do
       respond x
