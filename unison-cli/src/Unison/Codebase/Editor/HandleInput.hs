@@ -224,6 +224,34 @@ currentPrettyPrintEnvDeclCli scoping = do
   pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
 
 ------------------------------------------------------------------------------------------------------------------------
+-- Metadata resolution
+
+-- | Resolve a metadata name to its type/value, or return early if no such metadata is found.
+resolveMetadata :: HQ.HashQualified Name -> Cli r (Metadata.Type, Metadata.Value)
+resolveMetadata name = do
+  Env {codebase, loopStateRef} <- ask
+  loopState <- liftIO (readIORef loopStateRef)
+  let root' = loopState ^. Command.root
+  let currentPath' = loopState ^. Command.currentPath
+  sbhLength <- liftIO (Codebase.branchHashLength codebase)
+
+  let ppe :: PPE.PrettyPrintEnv
+      ppe =
+        Backend.basicSuffixifiedNames sbhLength root' (Backend.Within $ Path.unabsolute currentPath')
+
+  (Set.toList <$> getHQTermsCli name) >>= \case
+    [ref@(Referent.Ref val)] ->
+      liftIO (Codebase.getTypeOfTerm codebase val) >>= \case
+        Nothing -> do
+          respond (MetadataMissingType ppe ref)
+          Cli.returnEarly
+        Just ty -> pure (Hashing.typeToReference ty, val)
+    -- FIXME: we want a different error message if the given name is associated with a data constructor (`Con`).
+    refs -> do
+      respond (MetadataAmbiguous name ppe refs)
+      Cli.returnEarly
+
+------------------------------------------------------------------------------------------------------------------------
 -- Path resolution
 
 -- | Resolve a @Path'@ to a @Path.Absolute@, per the current path.
@@ -1115,12 +1143,12 @@ loop e = do
                     where
                       go r = (r, NamesWithHistory.typeName hqLength r printNames)
               respond $ ListNames global hqLength (toList types') (toList terms')
-            LinkI mdValue srcs -> do
-              manageLinks False srcs [mdValue] Metadata.insert
-              syncRoot
-            UnlinkI mdValue srcs -> do
-              manageLinks False srcs [mdValue] Metadata.delete
-              syncRoot
+            LinkI mdValue srcs -> runCli do
+              manageLinksCli False srcs [mdValue] Metadata.insert
+              syncRootCli inputDescription
+            UnlinkI mdValue srcs -> runCli do
+              manageLinksCli False srcs [mdValue] Metadata.delete
+              syncRootCli inputDescription
 
             -- > links List.map (.Docs .English)
             -- > links List.map -- give me all the
@@ -1598,7 +1626,7 @@ loop e = do
             ListDependenciesI hq -> runCli do
               Env {codebase} <- ask
               -- todo: add flag to handle transitive efficiently
-              resolveHQToLabeledDependenciesCli hq >>= \lds ->
+              resolveHQToLabeledDependencies hq >>= \lds ->
                 if null lds
                   then respond $ LabeledReferenceNotFound hq
                   else for_ lds $ \ld -> do
@@ -1831,7 +1859,7 @@ handleDependents hq = do
   Env {codebase, loopStateRef} <- ask
   hqLength <- liftIO (Codebase.hashLength codebase)
   -- todo: add flag to handle transitive efficiently
-  lds <- resolveHQToLabeledDependenciesCli hq
+  lds <- resolveHQToLabeledDependencies hq
 
   when (null lds) do
     respond (LabeledReferenceNotFound hq)
@@ -2455,6 +2483,69 @@ manageLinks silent srcs mdValues op = do
           steps = srcs <&> \(path, _hq) -> (Path.unabsolute (resolveToAbsolute path), step)
       stepManyAtNoSync Branch.CompressHistory steps
 
+-- Add/remove links between definitions and metadata.
+-- `silent` controls whether this produces any output to the user.
+-- `srcs` is (names of the) definitions to pass to `op`
+-- `mdValues` is (names of the) metadata to pass to `op`
+-- `op` is the operation to add/remove/alter metadata mappings.
+--   e.g. `Metadata.insert` is passed to add metadata links.
+manageLinksCli ::
+  Bool ->
+  [(Path', HQ'.HQSegment)] ->
+  [HQ.HashQualified Name] ->
+  ( forall r.
+    Ord r =>
+    (r, Metadata.Type, Metadata.Value) ->
+    Branch.Star r NameSegment ->
+    Branch.Star r NameSegment
+  ) ->
+  Cli r ()
+manageLinksCli silent srcs metadataNames op = do
+  Env {loopStateRef} <- ask
+  metadata <- traverse resolveMetadata metadataNames
+  before <- liftIO (readIORef loopStateRef <&> Branch.head . view Command.root)
+  traverse_ go metadata
+  if silent
+    then respond DefaultMetadataNotification
+    else do
+      after <- liftIO (readIORef loopStateRef <&> Branch.head . view Command.root)
+      (ppe, diff) <- diffHelperCli before after
+      if OBranchDiff.isEmpty diff
+        then respond NoOp
+        else
+          Cli.respondNumbered $
+            ShowDiffNamespace
+              (Right Path.absoluteEmpty)
+              (Right Path.absoluteEmpty)
+              ppe
+              diff
+  where
+    go :: (Metadata.Type, Metadata.Value) -> Cli r ()
+    go (mdType, mdValue) = do
+      Env {loopStateRef} <- ask
+      loopState <- liftIO (readIORef loopStateRef)
+      let newRoot = loopState ^. Command.root
+      let currentPath' = loopState ^. Command.currentPath
+      let resolveToAbsolute :: Path' -> Path.Absolute
+          resolveToAbsolute = Path.resolve currentPath'
+          resolveSplit' :: (Path', a) -> (Path, a)
+          resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
+          r0 = Branch.head newRoot
+          getTerms p = BranchUtil.getTerm (resolveSplit' p) r0
+          getTypes p = BranchUtil.getType (resolveSplit' p) r0
+          !srcle = toList . getTerms =<< srcs
+          !srclt = toList . getTypes =<< srcs
+      let step b0 =
+            let tmUpdates terms = foldl' go terms srcle
+                  where
+                    go terms src = op (src, mdType, mdValue) terms
+                tyUpdates types = foldl' go types srclt
+                  where
+                    go types src = op (src, mdType, mdValue) types
+             in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
+          steps = srcs <&> \(path, _hq) -> (Path.unabsolute (resolveToAbsolute path), step)
+      stepManyAtNoSyncCli Branch.CompressHistory steps
+
 -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
 -- otherwise, tries to load a value from .unisonConfig, and complains
 -- if needed.
@@ -2624,27 +2715,8 @@ importRemoteShareBranchCli rrn@(ReadShareRemoteNamespace {server, repo, path}) =
           pure result
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
-resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Action (Set LabeledDependency)
+resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli r (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
-  HQ.NameOnly n -> do
-    parseNames <- basicParseNames
-    let terms, types :: Set LabeledDependency
-        terms = Set.map LD.referent . Name.searchBySuffix n $ Names.terms parseNames
-        types = Set.map LD.typeRef . Name.searchBySuffix n $ Names.types parseNames
-    pure $ terms <> types
-  -- rationale: the hash should be unique enough that the name never helps
-  HQ.HashQualified _n sh -> resolveHashOnly sh
-  HQ.HashOnly sh -> resolveHashOnly sh
-  where
-    resolveHashOnly sh = do
-      codebase <- Command.askCodebase
-      terms <- liftIO (Backend.termReferentsByShortHash codebase sh)
-      types <- liftIO (Backend.typeReferencesByShortHash codebase sh)
-      pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
-
--- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
-resolveHQToLabeledDependenciesCli :: HQ.HashQualified Name -> Cli r (Set LabeledDependency)
-resolveHQToLabeledDependenciesCli = \case
   HQ.NameOnly n -> do
     parseNames <- basicParseNamesCli
     let terms, types :: Set LabeledDependency
@@ -3080,6 +3152,10 @@ getHQTerms = \case
       codebase <- Command.askCodebase
       liftIO (Backend.termReferentsByShortHash codebase sh)
 
+-- | Get the set of terms related to a hash-qualified name.
+getHQTermsCli :: HQ.HashQualified Name -> Cli r (Set Referent)
+getHQTermsCli = undefined
+
 getAt :: Path.Absolute -> Action (Branch IO)
 getAt (Path.Absolute p) =
   use Command.root <&> fromMaybe Branch.empty . Branch.getAt p
@@ -3245,6 +3321,10 @@ syncRoot :: Command.InputDescription -> Action ()
 syncRoot description = time "syncRoot" do
   root' <- use Command.root
   Unison.Codebase.Editor.HandleInput.updateRoot root' description
+
+-- | Sync the in-memory root branch.
+syncRootCli :: Command.InputDescription -> Cli r ()
+syncRootCli description = undefined
 
 updateRoot :: Branch IO -> Command.InputDescription -> Action ()
 updateRoot new reason = time "updateRoot" do
