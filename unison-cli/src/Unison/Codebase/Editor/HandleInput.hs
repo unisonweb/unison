@@ -1441,7 +1441,7 @@ loop e = do
             TodoI patchPath branchPath' -> runCli do
               patch <- getPatchAtCli (fromMaybe defaultPatchPath patchPath) <&> fromMaybe Patch.empty
               doShowTodoOutput patch $ resolveToAbsolute branchPath'
-            TestI testInput -> handleTest testInput
+            TestI testInput -> runCli (handleTest testInput)
             PropagatePatchI patchPath scopePath -> do
               patch <- getPatchAt patchPath
               updated <- runCli $ propagatePatch inputDescription patch (resolveToAbsolute scopePath)
@@ -2143,13 +2143,13 @@ handleShowDefinition outputLoc inputQuery = do
             Just (path, _) -> Just path
 
 -- | Handle a @test@ command.
-handleTest :: TestInput -> Action ()
+handleTest :: TestInput -> Cli r ()
 handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
-  codebase <- Command.askCodebase
+  Env {codebase} <- ask
 
   testTerms <- do
-    currentPath' <- use Command.currentPath
-    currentBranch' <- getAt currentPath'
+    loopState <- Cli.getLoopState
+    currentBranch' <- getBranchAt (loopState ^. Command.currentPath) <&> fromMaybe Branch.empty
     currentBranch'
       & Branch.head
       & Branch.deepTermMetadata
@@ -2177,7 +2177,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
         r@(Reference.DerivedId rid) -> liftIO (fmap (r,) <$> Codebase.getWatch codebase WK.TestWatch rid)
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
   names <-
-    makePrintNamesFromLabeled' $
+    makePrintNamesFromLabeledCli' $
       LD.referents testTerms
         <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
   ppe <- fqnPPE names
@@ -2190,13 +2190,12 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
       (oks cachedTests)
       (fails cachedTests)
   let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
-  unless (Set.null toCompute) do
+  when (not (Set.null toCompute)) do
     let total = Set.size toCompute
     computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
       case r of
-        Reference.DerivedId rid -> do
-          tm <- liftIO (Codebase.getTerm codebase rid)
-          case tm of
+        Reference.DerivedId rid ->
+          liftIO (Codebase.getTerm codebase rid) >>= \case
             Nothing -> do
               hqLength <- liftIO (Codebase.hashLength codebase)
               respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
@@ -2204,9 +2203,11 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
             Just tm -> do
               respond $ TestIncrementalOutputStart ppe (n, total) r tm
               --                          v don't cache; test cache populated below
-              tm' <- evalUnisonTerm True ppe False tm
+              tm' <- evalUnisonTermCliE True ppe False tm
               case tm' of
-                Left e -> respond (EvaluationFailure e) $> []
+                Left e -> do
+                  respond (EvaluationFailure e)
+                  pure []
                 Right tm' -> do
                   -- After evaluation, cache the result of the test
                   liftIO (Codebase.putWatch codebase WK.TestWatch rid tm')
@@ -3653,9 +3654,9 @@ suffixifiedPPECli ns = do
   Env {codebase} <- ask
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromSuffixNames` ns)
 
-fqnPPE :: NamesWithHistory -> Action PPE.PrettyPrintEnv
+fqnPPE :: NamesWithHistory -> Cli r PPE.PrettyPrintEnv
 fqnPPE ns = do
-  codebase <- Command.askCodebase
+  Env {codebase} <- ask
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNames` ns)
 
 parseSearchType ::
