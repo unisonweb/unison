@@ -19,7 +19,6 @@ import Control.Monad.Writer (WriterT (..))
 import Data.Bifunctor (first, second)
 import Data.Configurator ()
 import qualified Data.Foldable as Foldable
-import Data.IORef
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as Nel
@@ -216,8 +215,8 @@ currentPrettyPrintEnvDecl scoping = do
 -- | Get a pretty print env decl for the current names at the current path.
 currentPrettyPrintEnvDeclCli :: (Path -> Backend.NameScoping) -> Cli r PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDeclCli scoping = do
-  Env {codebase, loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  Env {codebase} <- ask
+  loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
   let currentPath' = Path.unabsolute (loopState ^. Command.currentPath)
   hqLen <- liftIO (Codebase.hashLength codebase)
@@ -229,8 +228,8 @@ currentPrettyPrintEnvDeclCli scoping = do
 -- | Resolve a metadata name to its type/value, or return early if no such metadata is found.
 resolveMetadata :: HQ.HashQualified Name -> Cli r (Metadata.Type, Metadata.Value)
 resolveMetadata name = do
-  Env {codebase, loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  Env {codebase} <- ask
+  loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
   let currentPath' = loopState ^. Command.currentPath
   sbhLength <- liftIO (Codebase.branchHashLength codebase)
@@ -257,16 +256,14 @@ resolveMetadata name = do
 -- | Resolve a @Path'@ to a @Path.Absolute@, per the current path.
 resolvePath' :: Path' -> Cli r Path.Absolute
 resolvePath' path = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  loopState <- Cli.getLoopState
   let currentPath' = loopState ^. Command.currentPath
   pure (Path.resolve currentPath' path)
 
 -- | Resolve a path split, per the current path.
 resolveSplitCli' :: (Path', a) -> Cli r (Path.Absolute, a)
 resolveSplitCli' s = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  loopState <- Cli.getLoopState
   let currentPath' = loopState ^. Command.currentPath
   pure (Path.toAbsoluteSplit currentPath' s)
 
@@ -305,15 +302,13 @@ resolveShortBranchHash hash = do
 -- | Get the branch at an absolute path.
 getBranchAt :: Path.Absolute -> Cli r (Maybe (Branch IO))
 getBranchAt (Path.Absolute p) = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  loopState <- Cli.getLoopState
   pure (Branch.getAt p (loopState ^. Command.root))
 
 -- | Get the branch at an absolute or relative path.
 getBranchAtPath' :: Path' -> Cli r (Maybe (Branch IO))
 getBranchAtPath' path = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  loopState <- Cli.getLoopState
   let currentPath' = loopState ^. Command.currentPath
   getBranchAt (Path.resolve currentPath' path)
 
@@ -729,12 +724,9 @@ loop e = do
             CreateMessage pretty ->
               respond $ PrintMessage pretty
             ShowReflogI -> runCli do
-              Env {codebase, loopStateRef} <- ask
+              Env {codebase} <- ask
               entries <- convertEntries Nothing [] <$> liftIO (Codebase.getReflog codebase)
-              liftIO do
-                modifyIORef'
-                  loopStateRef
-                  (set Command.numberedArgs (fmap (('#' :) . SBH.toString . Output.hash) entries))
+              Cli.modifyLoopState (set Command.numberedArgs (fmap (('#' :) . SBH.toString . Output.hash) entries))
               respond $ ShowReflog entries
               where
                 -- reverses & formats entries, adds synthetic entries when there is a
@@ -849,15 +841,13 @@ loop e = do
 
             -- move the Command.root to a sub-branch
             MoveBranchI Nothing dest -> runCli do
-              Env {loopStateRef} <- ask
-              loopState <- liftIO (readIORef loopStateRef)
-              let b = loopState ^. Command.root
+              loopState <- Cli.getLoopState
               -- Overwrite history at destination.
               stepManyAtCli
                 inputDescription
                 Branch.AllowRewritingHistory
                 [ (Path.empty, const Branch.empty0),
-                  BranchUtil.makeSetBranch (resolveSplit' dest) b
+                  BranchUtil.makeSetBranch (resolveSplit' dest) (loopState ^. Command.root)
                 ]
               respond Success
             MoveBranchI (Just src) dest -> runCli do
@@ -946,21 +936,18 @@ loop e = do
                 Nothing -> pure ()
                 Just path' -> do
                   path <- resolvePath' path'
-                  Env {loopStateRef} <- ask
-                  liftIO (modifyIORef' loopStateRef (over Command.currentPathStack (Nel.cons path)))
+                  Cli.modifyLoopState (over Command.currentPathStack (Nel.cons path))
                   branch' <- getBranchAt path <&> fromMaybe Branch.empty
                   when (Branch.isEmpty0 $ Branch.head branch') (respond $ CreatedNewBranch path)
             UpI -> runCli do
-              Env {loopStateRef} <- ask
-              loopState <- liftIO (readIORef loopStateRef)
+              loopState <- Cli.getLoopState
               whenJust (unsnoc (loopState ^. Command.currentPath)) \(path, _) ->
-                liftIO (modifyIORef' loopStateRef (over Command.currentPathStack (Nel.cons path)))
+                Cli.modifyLoopState (over Command.currentPathStack (Nel.cons path))
             PopBranchI -> runCli do
-              Env {loopStateRef} <- ask
-              loopState <- liftIO (readIORef loopStateRef)
+              loopState <- Cli.getLoopState
               case Nel.uncons (loopState ^. Command.currentPathStack) of
                 (_, Nothing) -> respond StartOfCurrentPathHistory
-                (_, Just paths) -> liftIO (writeIORef loopStateRef $! (loopState & Command.currentPathStack .~ paths))
+                (_, Just paths) -> Cli.putLoopState $! (loopState & Command.currentPathStack .~ paths)
             HistoryI resultsCap diffCap from -> runCli do
               case from of
                 Left hash -> do
@@ -1155,8 +1142,7 @@ loop e = do
             -- > links Optional License
             LinksI src mdTypeStr -> runCli do
               (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
-              Env {loopStateRef} <- ask
-              liftIO (modifyIORef' loopStateRef (set Command.numberedArgs (fmap (HQ.toString . view _1) out)))
+              Cli.modifyLoopState (set Command.numberedArgs (fmap (HQ.toString . view _1) out))
               respond $ ListOfLinks ppe out
             DocsI srcs -> runCli do
               srcs' <- case srcs of
@@ -1652,9 +1638,7 @@ loop e = do
                     let types = R.toList $ Names.types names0
                     let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
                     let names = types <> terms
-                    () <- do
-                      ls <- Cli.getLoopState
-                      Cli.putLoopState $ ls & Command.numberedArgs .~ fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
+                    Cli.modifyLoopState (set Command.numberedArgs (fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)))
                     respond $ ListDependencies hqLength ld names missing
             NamespaceDependenciesI namespacePath' -> runCli do
               let path = maybe currentPath' resolveToAbsolute namespacePath'
@@ -1781,8 +1765,8 @@ handleFindI ::
   Input ->
   Cli r ()
 handleFindI isVerbose fscope ws input = do
-  Env {codebase, loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  Env {codebase} <- ask
+  loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
   let currentPath' = loopState ^. Command.currentPath
   currentBranch' <- getBranchAt currentPath' <&> fromMaybe Branch.empty
@@ -1840,7 +1824,7 @@ handleFindI isVerbose fscope ws input = do
             let srs = searchBranchScored names fuzzyNameDistance qs
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
-        liftIO (modifyIORef' loopStateRef (set Command.numberedArgs (fmap searchResultToHQString results)))
+        Cli.modifyLoopState (set Command.numberedArgs (fmap searchResultToHQString results))
         results' <- liftIO (Backend.loadSearchResults codebase results)
         ppe <-
           suffixifiedPPECli
@@ -1856,7 +1840,7 @@ handleFindI isVerbose fscope ws input = do
 
 handleDependents :: HQ.HashQualified Name -> Cli r ()
 handleDependents hq = do
-  Env {codebase, loopStateRef} <- ask
+  Env {codebase} <- ask
   hqLength <- liftIO (Codebase.hashLength codebase)
   -- todo: add flag to handle transitive efficiently
   lds <- resolveHQToLabeledDependencies hq
@@ -1891,9 +1875,7 @@ handleDependents hq = do
                 g :: HQ'.HashQualified Name -> (Reference, Maybe Name)
                 g hqName =
                   (reference, Just (HQ'.toName hqName))
-    liftIO $
-      modifyIORef' loopStateRef \loopState ->
-        loopState {_numberedArgs = map (Text.unpack . Reference.toText . fst) results}
+    Cli.modifyLoopState (set Command.numberedArgs (map (Text.unpack . Reference.toText . fst) results))
     respond (ListDependents hqLength ld results)
 
 -- | Handle a @gist@ command.
@@ -2501,14 +2483,13 @@ manageLinksCli ::
   ) ->
   Cli r ()
 manageLinksCli silent srcs metadataNames op = do
-  Env {loopStateRef} <- ask
   metadata <- traverse resolveMetadata metadataNames
-  before <- liftIO (readIORef loopStateRef <&> Branch.head . view Command.root)
+  before <- Cli.getLoopState <&> Branch.head . view Command.root
   traverse_ go metadata
   if silent
     then respond DefaultMetadataNotification
     else do
-      after <- liftIO (readIORef loopStateRef <&> Branch.head . view Command.root)
+      after <- Cli.getLoopState <&> Branch.head . view Command.root
       (ppe, diff) <- diffHelperCli before after
       if OBranchDiff.isEmpty diff
         then respond NoOp
@@ -2522,8 +2503,7 @@ manageLinksCli silent srcs metadataNames op = do
   where
     go :: (Metadata.Type, Metadata.Value) -> Cli r ()
     go (mdType, mdValue) = do
-      Env {loopStateRef} <- ask
-      loopState <- liftIO (readIORef loopStateRef)
+      loopState <- Cli.getLoopState
       let newRoot = loopState ^. Command.root
       let currentPath' = loopState ^. Command.currentPath
       let resolveToAbsolute :: Path' -> Path.Absolute
@@ -2790,8 +2770,8 @@ getLinks' ::
       [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
     )
 getLinks' src selection0 = do
-  Env {codebase, loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  Env {codebase} <- ask
+  loopState <- Cli.getLoopState
   let root0 = Branch.head (loopState ^. Command.root)
   p <- Path.fromAbsoluteSplit <$> resolveSplitCli' src -- ex: the (parent,hqsegment) of `List.map` - `List`
   let -- all metadata (type+value) associated with name `src`
@@ -2818,7 +2798,7 @@ propagatePatchNoSync ::
   Cli r Bool
 propagatePatchNoSync patch scopePath = Cli.scopeWith do
   Cli.time "propagate"
-  Env{codebase} <- ask
+  Env {codebase} <- ask
   r <- view Command.root <$> Cli.getLoopState
   let nroot = Branch.toNames (Branch.head r)
   stepAtCliNoSync'
@@ -2834,7 +2814,7 @@ propagatePatch ::
   Path.Absolute ->
   Cli r Bool
 propagatePatch inputDescription patch scopePath = do
-  Env{codebase} <- ask
+  Env {codebase} <- ask
   r <- view Command.root <$> Cli.getLoopState
   let nroot = Branch.toNames (Branch.head r)
   stepAtCli'
@@ -2910,8 +2890,7 @@ checkTodo patch names0 = do
 
 confirmedCommand :: Input -> Cli r Bool
 confirmedCommand i = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  loopState <- Cli.getLoopState
   pure $ Just i == (loopState ^. Command.lastInput)
 
 -- | restores the full hash to these search results, for _numberedArgs purposes
@@ -3159,8 +3138,7 @@ getAt (Path.Absolute p) =
 
 getAtCli :: Path.Absolute -> Cli r (Branch IO)
 getAtCli (Path.Absolute p) = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  loopState <- Cli.getLoopState
   pure (fromMaybe Branch.empty (Branch.getAt p (loopState ^. Command.root)))
 
 -- Update a branch at the given path, returning `True` if
@@ -3184,8 +3162,7 @@ updateAtMCli ::
   (Branch IO -> Cli r (Branch IO)) ->
   Cli r Bool
 updateAtMCli reason (Path.Absolute p) f = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  loopState <- Cli.getLoopState
   let b = loopState ^. Command.lastSavedRoot
   b' <- Branch.modifyAtM p f b
   updateRootCli b' reason
@@ -3256,10 +3233,8 @@ stepManyAtCli ::
   Cli r ()
 stepManyAtCli reason strat actions = do
   stepManyAtNoSyncCli strat actions
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
-  let b = loopState ^. Command.root
-  updateRootCli b reason
+  loopState <- Cli.getLoopState
+  updateRootCli (loopState ^. Command.root) reason
 
 stepManyAtCli' ::
   Foldable f =>
@@ -3280,12 +3255,10 @@ stepManyAtCliNoSync' ::
   Cli r Bool
 stepManyAtCliNoSync' strat actions = do
   origRoot <- do
-      loopState <- Cli.getLoopState
-      pure (loopState ^. Command.root)
-  newRoot <- Branch.stepManyAtM strat actions origRoot
-  () <- do
     loopState <- Cli.getLoopState
-    Cli.putLoopState (loopState & Command.root .~ newRoot)
+    pure (loopState ^. Command.root)
+  newRoot <- Branch.stepManyAtM strat actions origRoot
+  Cli.modifyLoopState (set Command.root newRoot)
   pure (origRoot /= newRoot)
 
 -- Like stepManyAt, but doesn't update the Command.root
@@ -3305,9 +3278,8 @@ stepManyAtNoSyncCli ::
   Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepManyAtNoSyncCli strat actions = do
-  Env {loopStateRef} <- ask
-  liftIO (modifyIORef' loopStateRef (over Command.root (Branch.stepManyAt strat actions)))
+stepManyAtNoSyncCli strat actions =
+  Cli.modifyLoopState (over Command.root (Branch.stepManyAt strat actions))
 
 stepManyAtM ::
   Foldable f =>
@@ -3375,14 +3347,14 @@ updateRoot new reason = time "updateRoot" do
 
 updateRootCli :: Branch IO -> Command.InputDescription -> Cli r ()
 updateRootCli new reason = time "updateRoot" do
-  Env {codebase, loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  Env {codebase} <- ask
+  loopState <- Cli.getLoopState
   let old = loopState ^. Command.lastSavedRoot
   when (old /= new) do
-    liftIO (modifyIORef' loopStateRef (set Command.root new))
+    Cli.modifyLoopState (set Command.root new)
     liftIO (Codebase.putRootBranch codebase new)
     liftIO (Codebase.appendReflog codebase reason old new)
-    liftIO (modifyIORef' loopStateRef (set Command.lastSavedRoot new))
+    Cli.modifyLoopState (set Command.lastSavedRoot new)
 
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible
@@ -3678,8 +3650,7 @@ makeHistoricalParsingNames lexedHQs = do
 
 makeHistoricalParsingNamesCli :: Set (HQ.HashQualified Name) -> Cli r NamesWithHistory
 makeHistoricalParsingNamesCli lexedHQs = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  loopState <- Cli.getLoopState
   let curPath = loopState ^. Command.currentPath
 
   rawHistoricalNames <- findHistoricalHQsCli lexedHQs
@@ -3811,8 +3782,7 @@ makePrintNamesFromLabeled' deps = do
 
 makePrintNamesFromLabeledCli' :: Set LabeledDependency -> Cli r NamesWithHistory
 makePrintNamesFromLabeledCli' deps = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
   let curPath = loopState ^. Command.currentPath
   (_missing, rawHistoricalNames) <-
@@ -3866,8 +3836,7 @@ findHistoricalHQs lexedHQs0 = do
 -- I'd enforce it with finer-grained types if we had them.
 findHistoricalHQsCli :: Set (HQ.HashQualified Name) -> Cli r Names
 findHistoricalHQsCli lexedHQs0 = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
   let curPath = loopState ^. Command.currentPath
   let -- omg this nightmare name-to-path parsing code is littered everywhere.
@@ -3933,8 +3902,7 @@ basicNames' nameScoping = do
 -- implementation detail of basicParseNames and basicPrettyPrintNames
 basicNamesCli' :: (Path -> Backend.NameScoping) -> Cli r (Names, Names)
 basicNamesCli' nameScoping = do
-  Env {loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
   let currentPath' = loopState ^. Command.currentPath
   let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
@@ -4086,8 +4054,8 @@ diffHelperCli ::
   Branch0 IO ->
   Cli r (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
 diffHelperCli before after = time "HandleInput.diffHelper" do
-  Env {codebase, loopStateRef} <- ask
-  loopState <- liftIO (readIORef loopStateRef)
+  Env {codebase} <- ask
+  loopState <- Cli.getLoopState
   let currentRoot = loopState ^. Command.root
   let currentPath = loopState ^. Command.currentPath
   hqLength <- liftIO (Codebase.hashLength codebase)
