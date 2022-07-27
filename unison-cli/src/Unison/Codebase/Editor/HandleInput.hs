@@ -676,7 +676,7 @@ loop e = do
             (Path.HQSplit' -> Set Referent) -> -- compute matching terms
             (Path.HQSplit' -> Set Reference) -> -- compute matching types
             Path.HQSplit' ->
-            Action ()
+            Cli r ()
           delete getHQ'Terms getHQ'Types hq = do
             let matchingTerms = toList (getHQ'Terms hq)
             let matchingTypes = toList (getHQ'Types hq)
@@ -692,20 +692,21 @@ loop e = do
                     toRel = R.fromList . fmap (name,) . toList
                     -- these names are relative to the root
                     toDelete = Names (toRel tms) (toRel tys)
-                codebase <- Command.askCodebase
+                Env{codebase} <- ask
                 endangerments <-
                   getEndangeredDependents (liftIO . Codebase.dependents codebase) toDelete rootNames
                 if null endangerments
                   then do
                     let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
                     let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
-                    stepManyAt Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
-                    root'' <- use Command.root
-                    diffHelper (Branch.head root') (Branch.head root'')
-                      >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
+                    stepManyAtCli inputDescription Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
+                    loopState <- Cli.getLoopState
+                    let root'' = loopState ^. Command.root
+                    (ppe, diff) <- diffHelperCli (Branch.head root') (Branch.head root'')
+                    Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
                   else do
-                    ppeDecl <- runCli $ currentPrettyPrintEnvDecl Backend.Within
-                    respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
+                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                    Cli.respondNumbered (CantDeleteDefinitions ppeDecl endangerments)
        in case input of
             ApiI -> runCli do
               Env {serverBaseUrl} <- ask
@@ -1222,9 +1223,9 @@ loop e = do
               where
                 p = resolveSplit' (HQ'.toName <$> src)
                 mdSrc r = BranchUtil.getTypeMetadataAt p r root0
-            DeleteI hq -> delete getHQ'Terms getHQ'Types hq
-            DeleteTypeI hq -> delete (const Set.empty) getHQ'Types hq
-            DeleteTermI hq -> delete getHQ'Terms (const Set.empty) hq
+            DeleteI hq -> runCli (delete getHQ'Terms getHQ'Types hq)
+            DeleteTypeI hq -> runCli (delete (const Set.empty) getHQ'Types hq)
+            DeleteTermI hq -> runCli (delete getHQ'Terms (const Set.empty) hq)
             DisplayI outputLoc names' -> runCli do
               names <- case names' of
                 [] ->
