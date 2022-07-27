@@ -3250,6 +3250,13 @@ stepAt ::
   Cli r ()
 stepAt cause strat = stepManyAtCli @[] cause strat . pure
 
+stepAtCli' ::
+  Command.InputDescription ->
+  Branch.UpdateStrategy ->
+  (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
+  Cli r Bool
+stepAtCli' cause strat = stepManyAtCli' @[] cause strat . pure
+
 stepAtNoSync ::
   Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Branch0 IO) ->
@@ -3299,6 +3306,23 @@ stepManyAtCli reason strat actions = do
   loopState <- liftIO (readIORef loopStateRef)
   let b = loopState ^. Command.root
   updateRootCli b reason
+
+stepManyAtCli' ::
+  Foldable f =>
+  Command.InputDescription ->
+  Branch.UpdateStrategy ->
+  f (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
+  Cli r Bool
+stepManyAtCli' reason strat actions = do
+  origRoot <- do
+      loopState <- Cli.getLoopState
+      pure (loopState ^. Command.root)
+  newRoot <- Branch.stepManyAtM strat actions origRoot
+  () <- do
+    loopState <- Cli.getLoopState
+    Cli.putLoopState (loopState & Command.root .~ newRoot)
+  updateRootCli newRoot reason
+  pure (origRoot /= newRoot)
 
 -- Like stepManyAt, but doesn't update the Command.root
 stepManyAtNoSync ::
