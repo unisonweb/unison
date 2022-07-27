@@ -104,6 +104,11 @@ putLoopState newSt = do
   Env {loopStateRef} <- ask
   liftIO (writeIORef loopStateRef newSt)
 
+modifyLoopState :: (LoopState -> LoopState) -> Cli r ()
+modifyLoopState f = do
+  Env {loopStateRef} <- ask
+  liftIO (modifyIORef' loopStateRef f)
+
 type SourceName = Text
 
 data LoadSourceResult

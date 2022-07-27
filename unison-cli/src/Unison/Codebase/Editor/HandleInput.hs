@@ -1154,11 +1154,11 @@ loop e = do
             -- > links List.map -- give me all the
             -- > links Optional License
             LinksI src mdTypeStr -> runCli do
-              (ppe, out) <- getLinksCli (show input) src (Right mdTypeStr)
-              Env{loopStateRef} <- ask
+              (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
+              Env {loopStateRef} <- ask
               liftIO (modifyIORef' loopStateRef (set Command.numberedArgs (fmap (HQ.toString . view _1) out)))
               respond $ ListOfLinks ppe out
-            DocsI srcs -> do
+            DocsI srcs -> runCli do
               srcs' <- case srcs of
                 [] ->
                   fuzzySelectDefinition Absolute root0 >>= \case
@@ -1238,7 +1238,7 @@ loop e = do
             DeleteI hq -> delete getHQ'Terms getHQ'Types hq
             DeleteTypeI hq -> delete (const Set.empty) getHQ'Types hq
             DeleteTermI hq -> delete getHQ'Terms (const Set.empty) hq
-            DisplayI outputLoc names' -> do
+            DisplayI outputLoc names' -> runCli do
               names <- case names' of
                 [] ->
                   fuzzySelectDefinition Absolute root0 >>= \case
@@ -2733,22 +2733,21 @@ resolveHQToLabeledDependencies = \case
       types <- liftIO (Backend.typeReferencesByShortHash codebase sh)
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
-doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Action ()
+doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Cli r ()
 doDisplay outputLoc names tm = do
-  codebase <- Command.askCodebase
+  Env {codebase} <- ask
+  loopState <- Cli.getLoopState
 
-  ppe <- prettyPrintEnvDecl names
-  tf <- use Command.latestTypecheckedFile
-  let (tms, typs) = maybe mempty UF.indexByReference tf
-  latestFile' <- use Command.latestFile
+  ppe <- prettyPrintEnvDeclCli names
+  let (tms, typs) = maybe mempty UF.indexByReference (loopState ^. Command.latestTypecheckedFile)
   let loc = case outputLoc of
         ConsoleLocation -> Nothing
         FileLocation path -> Just path
-        LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+        LatestFileLocation -> fmap fst (loopState ^. Command.latestFile) <|> Just "scratch.u"
       useCache = True
       evalTerm tm =
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
-          evalUnisonTerm True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
+          evalUnisonTermCliE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) $ liftIO (Codebase.getTerm codebase r)
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
@@ -2767,35 +2766,14 @@ getLinks ::
   SrcLoc ->
   Path.HQSplit' ->
   Either (Set Reference) (Maybe String) ->
-  ExceptT
-    Output
-    (Action)
-    ( PPE.PrettyPrintEnv,
-      --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-      [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
-    )
-getLinks srcLoc src mdTypeStr = ExceptT $ do
-  let go = fmap Right . getLinks' src
-  case mdTypeStr of
-    Left s -> go (Just s)
-    Right Nothing -> go Nothing
-    Right (Just mdTypeStr) ->
-      parseType srcLoc mdTypeStr >>= \case
-        Left e -> pure $ Left e
-        Right typ -> go . Just . Set.singleton $ Hashing.typeToReference typ
-
-getLinksCli ::
-  SrcLoc ->
-  Path.HQSplit' ->
-  Either (Set Reference) (Maybe String) ->
   Cli
     r
     ( PPE.PrettyPrintEnv,
       --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
       [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
     )
-getLinksCli srcLoc src =
-  getLinksCli' src <=< \case
+getLinks srcLoc src =
+  getLinks' src <=< \case
     Left s -> pure (Just s)
     Right Nothing -> pure Nothing
     Right (Just mdTypeStr) -> do
@@ -2805,44 +2783,13 @@ getLinksCli srcLoc src =
 getLinks' ::
   Path.HQSplit' -> -- definition to print metadata of
   Maybe (Set Reference) -> -- return all metadata if empty
-  Action
-    ( PPE.PrettyPrintEnv,
-      --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-      [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
-    )
-getLinks' src selection0 = do
-  codebase <- Command.askCodebase
-  root0 <- Branch.head <$> use Command.root
-  currentPath' <- use Command.currentPath
-  let resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
-      p = resolveSplit' src -- ex: the (parent,hqsegment) of `List.map` - `List`
-      -- all metadata (type+value) associated with name `src`
-      allMd =
-        R4.d34 (BranchUtil.getTermMetadataHQNamed p root0)
-          <> R4.d34 (BranchUtil.getTypeMetadataHQNamed p root0)
-      allMd' = maybe allMd (`R.restrictDom` allMd) selection0
-      -- then list the values after filtering by type
-      allRefs :: Set Reference = R.ran allMd'
-  sigs <- for (toList allRefs) (liftIO . loadTypeOfTerm codebase . Referent.Ref)
-  let deps =
-        Set.map LD.termRef allRefs
-          <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
-  ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
-  let ppeDecl = PPE.unsuffixifiedPPE ppe
-  let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
-  let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
-  pure (PPE.suffixifiedPPE ppe, out)
-
-getLinksCli' ::
-  Path.HQSplit' -> -- definition to print metadata of
-  Maybe (Set Reference) -> -- return all metadata if empty
   Cli
     r
     ( PPE.PrettyPrintEnv,
       --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
       [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
     )
-getLinksCli' src selection0 = do
+getLinks' src selection0 = do
   Env {codebase, loopStateRef} <- ask
   loopState <- liftIO (readIORef loopStateRef)
   let root0 = Branch.head (loopState ^. Command.root)
@@ -3487,10 +3434,10 @@ displayI ::
   Names ->
   OutputLocation ->
   HQ.HashQualified Name ->
-  Action ()
+  Cli r ()
 displayI prettyPrintNames outputLoc hq = do
-  uf <- use Command.latestTypecheckedFile >>= addWatch (HQ.toString hq)
-  case uf of
+  loopState <- Cli.getLoopState
+  case addWatch (HQ.toString hq) (loopState ^. Command.latestTypecheckedFile) of
     Nothing -> do
       let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
           results = NamesWithHistory.lookupHQTerm hq parseNames
@@ -3502,27 +3449,20 @@ displayI prettyPrintNames outputLoc hq = do
             else -- ... but use the unsuffixed names for display
             do
               let tm = Term.fromReferent External $ Set.findMin results
-              pped <- prettyPrintEnvDecl parseNames
-              tm <- evalUnisonTerm True (PPE.suffixifiedPPE pped) True tm
-              case tm of
-                Left e -> respond (EvaluationFailure e)
-                Right tm -> doDisplay outputLoc parseNames (Term.unannotate tm)
+              pped <- prettyPrintEnvDeclCli parseNames
+              tm <- evalUnisonTermCli True (PPE.suffixifiedPPE pped) True tm
+              doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
-      ppe <- executePPE unisonFile
-      unlessError' EvaluationFailure do
-        evalResult <- ExceptT (evalUnisonFile True ppe unisonFile [])
-        case Command.lookupEvalResult toDisplay evalResult of
-          Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
-          Just tm -> lift do
-            ns <- displayNames unisonFile
-            doDisplay outputLoc ns tm
+      ppe <- executePPECli unisonFile
+      evalResult <- evalUnisonFileCli True ppe unisonFile []
+      case Command.lookupEvalResult toDisplay evalResult of
+        Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
+        Just tm -> do
+          ns <- displayNamesCli unisonFile
+          doDisplay outputLoc ns tm
 
-docsI ::
-  SrcLoc ->
-  Names ->
-  Path.HQSplit' ->
-  Action ()
-docsI srcLoc prettyPrintNames src = do
+docsI :: SrcLoc -> Names -> Path.HQSplit' -> Cli r ()
+docsI srcLoc prettyPrintNames src =
   fileByName
   where
     {- Given `docs foo`, we look for docs in 3 places, in this order:
@@ -3539,8 +3479,10 @@ docsI srcLoc prettyPrintNames src = do
     dotDoc :: HQ.HashQualified Name
     dotDoc = hq <&> \n -> Name.joinDot n "doc"
 
+    fileByName :: Cli r ()
     fileByName = do
-      ns <- maybe mempty UF.typecheckedToNames <$> use Command.latestTypecheckedFile
+      loopState <- Cli.getLoopState
+      let ns = maybe mempty UF.typecheckedToNames (loopState ^. Command.latestTypecheckedFile)
       fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
       case NamesWithHistory.lookupHQTerm dotDoc fnames of
         s | Set.size s == 1 -> do
@@ -3550,25 +3492,25 @@ docsI srcLoc prettyPrintNames src = do
           displayI prettyPrintNames ConsoleLocation fname'
         _ -> codebaseByMetadata
 
-    codebaseByMetadata = unlessError do
+    codebaseByMetadata :: Cli r ()
+    codebaseByMetadata = do
       (ppe, out) <- getLinks srcLoc src (Left $ Set.fromList [DD.docRef, DD.doc2Ref])
-      lift case out of
+      case out of
         [] -> codebaseByName
         [(_name, ref, _tm)] -> do
-          codebase <- Command.askCodebase
+          Env {codebase} <- ask
           len <- liftIO (Codebase.branchHashLength codebase)
           let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
           let tm = Term.ref External ref
-          tm <- evalUnisonTerm True (PPE.fromNames len names) True tm
-          case tm of
-            Left e -> respond (EvaluationFailure e)
-            Right tm -> doDisplay ConsoleLocation names (Term.unannotate tm)
+          tm <- evalUnisonTermCli True (PPE.fromNames len names) True tm
+          doDisplay ConsoleLocation names (Term.unannotate tm)
         out -> do
-          Command.numberedArgs .= fmap (HQ.toString . view _1) out
+          Cli.modifyLoopState (set Command.numberedArgs (fmap (HQ.toString . view _1) out))
           respond $ ListOfLinks ppe out
 
+    codebaseByName :: Cli r ()
     codebaseByName = do
-      parseNames <- basicParseNames
+      parseNames <- basicParseNamesCli
       case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
         s
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
@@ -3847,10 +3789,13 @@ parseTypeCli input src = do
           Cli.returnEarly
         Right typ -> pure typ
 
-makeShadowedPrintNamesFromLabeled ::
-  Set LabeledDependency -> Names -> Action NamesWithHistory
+makeShadowedPrintNamesFromLabeled :: Set LabeledDependency -> Names -> Action NamesWithHistory
 makeShadowedPrintNamesFromLabeled deps shadowing =
   NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeled' deps
+
+makeShadowedPrintNamesFromLabeledCli :: Set LabeledDependency -> Names -> Cli r NamesWithHistory
+makeShadowedPrintNamesFromLabeledCli deps shadowing =
+  NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeledCli' deps
 
 makePrintNamesFromLabeled' :: Set LabeledDependency -> Action NamesWithHistory
 makePrintNamesFromLabeled' deps = do
@@ -4009,14 +3954,14 @@ addWatch ::
   Var v =>
   String ->
   Maybe (TypecheckedUnisonFile v Ann) ->
-  Action (Maybe (v, TypecheckedUnisonFile v Ann))
-addWatch _watchName Nothing = pure Nothing
+  Maybe (v, TypecheckedUnisonFile v Ann)
+addWatch _watchName Nothing = Nothing
 addWatch watchName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
   let mainComponent = filter ((\v -> Var.nameStr v == watchName) . view _1) components
   case mainComponent of
     [(v, tm, ty)] ->
-      pure . pure $
+      Just $
         let v2 = Var.freshIn (Set.fromList [v]) v
             a = ABT.annotation tm
          in ( v2,
@@ -4084,6 +4029,13 @@ executePPE ::
 executePPE unisonFile =
   suffixifiedPPE =<< displayNames unisonFile
 
+executePPECli ::
+  Var v =>
+  TypecheckedUnisonFile v a ->
+  Cli r PPE.PrettyPrintEnv
+executePPECli unisonFile =
+  suffixifiedPPECli =<< displayNamesCli unisonFile
+
 -- Produce a `Names` needed to display all the hashes used in the given file.
 displayNames ::
   Var v =>
@@ -4092,6 +4044,17 @@ displayNames ::
 displayNames unisonFile =
   -- voodoo
   makeShadowedPrintNamesFromLabeled
+    (UF.termSignatureExternalLabeledDependencies unisonFile)
+    (UF.typecheckedToNames unisonFile)
+
+-- Produce a `Names` needed to display all the hashes used in the given file.
+displayNamesCli ::
+  Var v =>
+  TypecheckedUnisonFile v a ->
+  Cli r NamesWithHistory
+displayNamesCli unisonFile =
+  -- voodoo
+  makeShadowedPrintNamesFromLabeledCli
     (UF.termSignatureExternalLabeledDependencies unisonFile)
     (UF.typecheckedToNames unisonFile)
 
@@ -4265,6 +4228,53 @@ evalUnisonFile sandbox ppe unisonFile args = do
               liftIO (Codebase.putWatch codebase kind hash value')
         pure (Right rs)
 
+-- | Evaluate all watched expressions in a UnisonFile and return
+-- their results, keyed by the name of the watch variable. The tuple returned
+-- has the form:
+--   (hash, (ann, sourceTerm, evaluatedTerm, isCacheHit))
+--
+-- where
+--   `hash` is the hash of the original watch expression definition
+--   `ann` gives the location of the watch expression
+--   `sourceTerm` is a closed term (no free vars) for the watch expression
+--   `evaluatedTerm` is the result of evaluating that `sourceTerm`
+--   `isCacheHit` is True if the result was computed by just looking up
+--   in a cache
+--
+-- It's expected that the user of this action might add the
+-- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
+-- of the same watches instantaneous.
+evalUnisonFileCli ::
+  Bool ->
+  PPE.PrettyPrintEnv ->
+  TypecheckedUnisonFile Symbol Ann ->
+  [String] ->
+  Cli
+    r
+    ( [(Symbol, Term Symbol ())],
+      Map Symbol (Ann, WK.WatchKind, Reference.Id, Term Symbol (), Term Symbol (), Bool)
+    )
+evalUnisonFileCli sandbox ppe unisonFile args = do
+  Env {codebase, runtime, sandboxedRuntime} <- ask
+  let theRuntime = if sandbox then sandboxedRuntime else runtime
+
+  let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
+      watchCache ref = do
+        maybeTerm <- Codebase.lookupWatchCache codebase ref
+        pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
+
+  Cli.scopeWith do
+    Cli.with (\k -> withArgs args (k ()))
+    rs@(_, map) <-
+      Cli.ioE (Runtime.evaluateWatches (Codebase.toCodeLookup codebase) ppe watchCache theRuntime unisonFile) \err -> do
+        respond (EvaluationFailure err)
+        Cli.returnEarly
+    for_ (Map.elems map) \(_loc, kind, hash, _src, value, isHit) ->
+      when (not isHit) do
+        let value' = Term.amap (\() -> Ann.External) value
+        liftIO (Codebase.putWatch codebase kind hash value')
+    pure rs
+
 -- | Evaluate a single closed definition.
 evalUnisonTerm ::
   Bool ->
@@ -4294,3 +4304,45 @@ evalUnisonTerm sandbox ppe useCache tm = do
             (Term.amap (const Ann.External) tmr)
       Left _ -> pure ()
   pure $ r <&> Term.amap (\() -> Ann.External)
+
+-- | Evaluate a single closed definition.
+evalUnisonTermCliE ::
+  Bool ->
+  PPE.PrettyPrintEnv ->
+  UseCache ->
+  Term Symbol Ann ->
+  Cli r (Either Runtime.Error (Term Symbol Ann))
+evalUnisonTermCliE sandbox ppe useCache tm = do
+  Env {codebase, runtime, sandboxedRuntime} <- ask
+  let theRuntime = if sandbox then sandboxedRuntime else runtime
+
+  let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
+      watchCache ref = do
+        maybeTerm <- Codebase.lookupWatchCache codebase ref
+        pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
+
+  let cache = if useCache then watchCache else Runtime.noCache
+  r <- liftIO (Runtime.evaluateTerm' (Codebase.toCodeLookup codebase) cache ppe theRuntime tm)
+  when useCache do
+    case r of
+      Right tmr ->
+        liftIO $
+          Codebase.putWatch
+            codebase
+            WK.RegularWatch
+            (Hashing.hashClosedTerm tm)
+            (Term.amap (const Ann.External) tmr)
+      Left _ -> pure ()
+  pure $ r <&> Term.amap (\() -> Ann.External)
+
+-- | Evaluate a single closed definition.
+evalUnisonTermCli ::
+  Bool ->
+  PPE.PrettyPrintEnv ->
+  UseCache ->
+  Term Symbol Ann ->
+  Cli r (Term Symbol Ann)
+evalUnisonTermCli sandbox ppe useCache tm =
+  evalUnisonTermCliE sandbox ppe useCache tm & onLeftM \err -> do
+    respond (EvaluationFailure err)
+    Cli.returnEarly

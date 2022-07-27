@@ -20,7 +20,10 @@ module Unison.Prelude
     maybeToEither,
 
     -- * @Either@ control flow
+    onLeft,
+    onLeftM,
     whenLeft,
+    whenLeftM,
     throwEitherM,
     throwEitherMWith,
     throwExceptT,
@@ -98,10 +101,24 @@ whenJustM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
 whenJustM mx f = do
   mx >>= maybe (pure ()) f
 
+onLeft :: Applicative m => (a -> m b) -> Either a b -> m b
+onLeft =
+  flip whenLeft
+
+onLeftM :: Monad m => (a -> m b) -> m (Either a b) -> m b
+onLeftM =
+  flip whenLeftM
+
 whenLeft :: Applicative m => Either a b -> (a -> m b) -> m b
 whenLeft = \case
   Left a -> \f -> f a
   Right b -> \_ -> pure b
+
+whenLeftM :: Monad m => m (Either a b) -> (a -> m b) -> m b
+whenLeftM m f =
+  m >>= \case
+    Left x -> f x
+    Right y -> pure y
 
 throwExceptT :: (MonadIO m, Exception e) => ExceptT e m a -> m a
 throwExceptT = throwExceptTWith id
