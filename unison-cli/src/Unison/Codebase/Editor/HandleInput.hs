@@ -516,7 +516,6 @@ loop e = do
             unless (Set.null misses) $
               respond $ SearchTermsNotFound (Set.toList misses)
             traverse_ go (if isTerm then tmRefs else tpRefs)
-          typeExists dest = respond . TypeAlreadyExists dest
           inputDescription :: Command.InputDescription
           inputDescription = case input of
             ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
@@ -1207,18 +1206,19 @@ loop e = do
               where
                 p = resolveSplit' (HQ'.toName <$> src)
                 mdSrc r = BranchUtil.getTermMetadataAt p r root0
-            MoveTypeI src dest ->
+            MoveTypeI src dest -> runCli do
               case (toList (getHQ'Types src), toList (getTypes dest)) of
                 ([r], []) -> do
-                  stepManyAt
+                  stepManyAtCli
+                    inputDescription
                     Branch.CompressHistory
                     [ BranchUtil.makeDeleteTypeName p r,
                       BranchUtil.makeAddTypeName (resolveSplit' dest) r (mdSrc r)
                     ]
-                  success
-                ([_], rs) -> typeExists dest (Set.fromList rs)
-                ([], _) -> typeNotFound src
-                (rs, _) -> typeConflicted src (Set.fromList rs)
+                  respond Success
+                ([_], rs) -> respond (TypeAlreadyExists dest (Set.fromList rs))
+                ([], _) -> respond (TypeNotFound src)
+                (rs, _) -> respond (DeleteNameAmbiguous hqLength src Set.empty (Set.fromList rs))
               where
                 p = resolveSplit' (HQ'.toName <$> src)
                 mdSrc r = BranchUtil.getTypeMetadataAt p r root0
