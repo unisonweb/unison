@@ -692,7 +692,7 @@ loop e = do
                     toRel = R.fromList . fmap (name,) . toList
                     -- these names are relative to the root
                     toDelete = Names (toRel tms) (toRel tys)
-                Env{codebase} <- ask
+                Env {codebase} <- ask
                 endangerments <-
                   getEndangeredDependents (liftIO . Codebase.dependents codebase) toDelete rootNames
                 if null endangerments
@@ -1234,7 +1234,7 @@ loop e = do
                     Just defs -> pure defs
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
-            ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
+            ShowDefinitionI outputLoc query -> runCli (handleShowDefinition outputLoc query)
             FindPatchI -> do
               let patches =
                     [ Path.toName $ Path.snoc p seg
@@ -2067,9 +2067,10 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
           pure result
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition :: OutputLocation -> [HQ.HashQualified Name] -> Action ()
+handleShowDefinition :: OutputLocation -> [HQ.HashQualified Name] -> Cli r ()
 handleShowDefinition outputLoc inputQuery = do
-  codebase <- Command.askCodebase
+  Env {codebase} <- ask
+  loopState <- Cli.getLoopState
   -- If the query is empty, run a fuzzy search.
   query <-
     if null inputQuery
@@ -2081,8 +2082,8 @@ handleShowDefinition outputLoc inputQuery = do
             _ -> respond (HelpMessage InputPatterns.edit) $> []
           Just defs -> pure defs
       else pure inputQuery
-  currentPath' <- Path.unabsolute <$> use Command.currentPath
-  root' <- use Command.root
+  let currentPath' = Path.unabsolute (loopState ^. Command.currentPath)
+  let root' = loopState ^. Command.root
   hqLength <- liftIO (Codebase.hashLength codebase)
   Backend.DefinitionResults terms types misses <- do
     let namingScope = Backend.AllNames currentPath'
@@ -2097,21 +2098,20 @@ handleShowDefinition outputLoc inputQuery = do
   -- We set latestFile to be programmatically generated, if we
   -- are viewing these definitions to a file - this will skip the
   -- next update for that file (which will happen immediately)
-  Command.latestFile .= ((,True) <$> outputPath)
+  Cli.modifyLoopState (set Command.latestFile ((,True) <$> outputPath))
   where
     -- `view`: fuzzy find globally; `edit`: fuzzy find local to current branch
-    fuzzyBranch :: Action (Branch0 IO)
-    fuzzyBranch =
-      case outputLoc of
-        ConsoleLocation {} -> Branch.head <$> use Command.root
-        -- fuzzy finding for 'edit's are local to the current branch
-        LatestFileLocation {} -> currentBranch0
-        FileLocation {} -> currentBranch0
-      where
-        currentBranch0 = do
-          currentPath' <- use Command.currentPath
-          currentBranch <- getAt currentPath'
-          pure (Branch.head currentBranch)
+    fuzzyBranch :: Cli r (Branch0 IO)
+    fuzzyBranch = do
+      loopState <- Cli.getLoopState
+      branch <-
+        case outputLoc of
+          ConsoleLocation {} -> pure (loopState ^. Command.root)
+          -- fuzzy finding for 'edit's are local to the current branch
+          LatestFileLocation {} -> getBranchAt (loopState ^. Command.currentPath) <&> fromMaybe Branch.empty
+          FileLocation {} -> getBranchAt (loopState ^. Command.currentPath) <&> fromMaybe Branch.empty
+      pure (Branch.head branch)
+
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
       case outputLoc of
@@ -2120,13 +2120,14 @@ handleShowDefinition outputLoc inputQuery = do
         LatestFileLocation -> Backend.IncludeCycles
 
     -- Get the file path to send the definition(s) to. `Nothing` means the terminal.
-    getOutputPath :: Action (Maybe FilePath)
+    getOutputPath :: Cli r (Maybe FilePath)
     getOutputPath =
       case outputLoc of
         ConsoleLocation -> pure Nothing
         FileLocation path -> pure (Just path)
-        LatestFileLocation ->
-          use Command.latestFile <&> \case
+        LatestFileLocation -> do
+          loopState <- Cli.getLoopState
+          pure case loopState ^. Command.latestFile of
             Nothing -> Just "scratch.u"
             Just (path, _) -> Just path
 
