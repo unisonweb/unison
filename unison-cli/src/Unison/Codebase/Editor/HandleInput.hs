@@ -695,7 +695,7 @@ loop e = do
                     stepManyAtCli inputDescription Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
                     loopState <- Cli.getLoopState
                     let root'' = loopState ^. Command.root
-                    (ppe, diff) <- diffHelperCli (Branch.head root') (Branch.head root'')
+                    (ppe, diff) <- diffHelper (Branch.head root') (Branch.head root'')
                     Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
                   else do
                     ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
@@ -777,7 +777,7 @@ loop e = do
               if merged == destb
                 then respond (PreviewMergeAlreadyUpToDate src0 dest0)
                 else do
-                  (ppe, diff) <- diffHelperCli (Branch.head destb) (Branch.head merged)
+                  (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
                   Cli.respondNumbered (ShowDiffAfterMergePreview dest0 dest ppe diff)
             DiffNamespaceI before after -> runCli do
               absBefore <- traverseOf _Right resolvePath' before
@@ -789,7 +789,7 @@ loop e = do
                 (True, False) -> respond . NamespaceEmpty $ (absBefore Nel.:| [])
                 (False, True) -> respond . NamespaceEmpty $ (absAfter Nel.:| [])
                 _ -> do
-                  (ppe, diff) <- diffHelperCli beforeBranch0 afterBranch0
+                  (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
                   Cli.respondNumbered $
                     ShowDiffNamespace
                       (resolveToAbsolute <$> before)
@@ -974,7 +974,7 @@ loop e = do
                       else CantUndoPastMerge
                 Just (_, prev) -> do
                   updateRootCli prev inputDescription
-                  (ppe, diff) <- diffHelperCli (Branch.head prev) (Branch.head root')
+                  (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head root')
                   Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
             UiI -> runCli do
               Env {serverBaseUrl} <- ask
@@ -1058,7 +1058,7 @@ loop e = do
               let (unknown, actions) = foldl' go mempty srcs
               stepManyAtCli inputDescription Branch.CompressHistory actions
               new <- getBranchAt destAbs <&> fromMaybe Branch.empty
-              (ppe, diff) <- diffHelperCli (Branch.head old) (Branch.head new)
+              (ppe, diff) <- diffHelper (Branch.head old) (Branch.head new)
               Cli.respondNumbered (ShowDiffAfterModifyBranch dest' destAbs ppe diff)
               when (not (null unknown)) do
                 respond . SearchTermsNotFound . fmap fixupOutput $ unknown
@@ -1169,7 +1169,7 @@ loop e = do
                 ]
               finalBranch <- getBranchAt currentPath' <&> fromMaybe Branch.empty
               -- print some output
-              (ppe, diff) <- diffHelperCli (Branch.head initialBranch) (Branch.head finalBranch)
+              (ppe, diff) <- diffHelper (Branch.head initialBranch) (Branch.head finalBranch)
               Cli.respondNumbered $
                 ShowDiffAfterCreateAuthor
                   authorNameSegment
@@ -1645,14 +1645,16 @@ loop e = do
             DebugNumberedArgsI -> runCli do
               numArgs <- view Command.numberedArgs <$> Cli.getLoopState
               respond (DumpNumberedArgs numArgs)
-            DebugTypecheckedUnisonFileI -> case uf of
-              Nothing -> respond NoUnisonFile
-              Just uf ->
-                let datas, effects, terms :: [(Name, Reference.Id)]
-                    datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
-                    effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
-                    terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
-                 in respond $ DumpUnisonFileHashes hqLength datas effects terms
+            DebugTypecheckedUnisonFileI -> runCli do
+              uf <-
+                uf & onNothing do
+                  respond NoUnisonFile
+                  Cli.returnEarly
+              let datas, effects, terms :: [(Name, Reference.Id)]
+                  datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
+                  effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
+                  terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
+              respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
@@ -1749,7 +1751,7 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
       baseBranch <- getBranch baseRepo0
       headBranch <- getBranch headRepo0
       merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
-      diffHelperCli (Branch.head baseBranch) (Branch.head merged)
+      diffHelper (Branch.head baseBranch) (Branch.head merged)
   Cli.respondNumbered (ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff)
 
 handleFindI ::
@@ -2429,7 +2431,7 @@ manageLinks silent srcs metadataNames op = do
     then respond DefaultMetadataNotification
     else do
       after <- Cli.getLoopState <&> Branch.head . view Command.root
-      (ppe, diff) <- diffHelperCli before after
+      (ppe, diff) <- diffHelper before after
       if OBranchDiff.isEmpty diff
         then respond NoOp
         else
@@ -2980,7 +2982,7 @@ mergeBranchAndPropagateDefaultPatchCli mode inputDescription unchangedMessage sr
       merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
       b <- updateAtM inputDescription dest (const $ pure merged)
       for_ maybeDest0 \dest0 -> do
-        (ppe, diff) <- diffHelperCli (Branch.head destb) (Branch.head merged)
+        (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
         Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
       pure b
 
@@ -3015,7 +3017,7 @@ loadPropagateDiffDefaultPatchCli inputDescription maybeDest0 dest = do
       whenJust maybeDest0 \dest0 -> do
         patched <- getBranchAt dest <&> fromMaybe Branch.empty
         let patchPath = snoc dest0 defaultPatchNameSegment
-        (ppe, diff) <- diffHelperCli (Branch.head original) (Branch.head patched)
+        (ppe, diff) <- diffHelper (Branch.head original) (Branch.head patched)
         Cli.respondNumbered (ShowDiffAfterMergePropagate dest0 dest patchPath ppe diff)
 
 -- | Get the set of terms related to a hash-qualified name.
@@ -3895,50 +3897,27 @@ diffHelper ::
   Branch0 IO ->
   Branch0 IO ->
   Cli r (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
-diffHelper before after = Cli.scopeWith do
-  Cli.time "HandleInput.diffHelper"
-  Env {codebase} <- ask
-  loopState <- Cli.getLoopState
-  let currentRoot = view Command.root loopState
-  let currentPath = view Command.currentPath loopState
-  hqLength <- liftIO (Codebase.hashLength codebase)
-  diff <- liftIO (BranchDiff.diff0 before after)
-  let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
-  liftIO do
-    fmap (ppe,) do
-      OBranchDiff.toOutput
-        (loadTypeOfTerm codebase)
-        (declOrBuiltin codebase)
-        hqLength
-        (Branch.toNames before)
-        (Branch.toNames after)
-        ppe
-        diff
-
-diffHelperCli ::
-  Branch0 IO ->
-  Branch0 IO ->
-  Cli r (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
-diffHelperCli before after = time "HandleInput.diffHelper" do
-  Env {codebase} <- ask
-  loopState <- Cli.getLoopState
-  let currentRoot = loopState ^. Command.root
-  let currentPath = loopState ^. Command.currentPath
-  hqLength <- liftIO (Codebase.hashLength codebase)
-  diff <- liftIO (BranchDiff.diff0 before after)
-  let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDeclCli (NamesWithHistory prettyNames0 mempty)
-  liftIO do
-    fmap (ppe,) do
-      OBranchDiff.toOutput
-        (loadTypeOfTerm codebase)
-        (declOrBuiltin codebase)
-        hqLength
-        (Branch.toNames before)
-        (Branch.toNames after)
-        ppe
-        diff
+diffHelper before after =
+  Cli.scopeWith do
+    Cli.time "diffHelper"
+    Env {codebase} <- ask
+    loopState <- Cli.getLoopState
+    let currentRoot = view Command.root loopState
+    let currentPath = view Command.currentPath loopState
+    hqLength <- liftIO (Codebase.hashLength codebase)
+    diff <- liftIO (BranchDiff.diff0 before after)
+    let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
+    ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
+    liftIO do
+      fmap (ppe,) do
+        OBranchDiff.toOutput
+          (loadTypeOfTerm codebase)
+          (declOrBuiltin codebase)
+          hqLength
+          (Branch.toNames before)
+          (Branch.toNames after)
+          ppe
+          diff
 
 loadTypeOfTerm :: Monad m => Codebase m Symbol Ann -> Referent -> m (Maybe (Type Symbol Ann))
 loadTypeOfTerm codebase (Referent.Ref r) = Codebase.getTypeOfTerm codebase r
