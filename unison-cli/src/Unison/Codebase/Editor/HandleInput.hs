@@ -1482,13 +1482,12 @@ loop e = do
                   | otherwise ->
                       respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
-            IOTestI main -> do
-              runtime <- Command.askRuntime
-              codebase <- Command.askCodebase
+            IOTestI main -> runCli do
+              Env{codebase, runtime} <- ask
               -- todo - allow this to run tests from scratch file, using addRunMain
               let testType = Runtime.ioTestType runtime
-              parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
-              ppe <- suffixifiedPPE parseNames
+              parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNamesCli
+              ppe <- suffixifiedPPECli parseNames
               -- use suffixed names for resolving the argument to display
               let oks results =
                     [ (r, msg)
@@ -1512,12 +1511,9 @@ loop e = do
                           let a = ABT.annotation tm
                               tm = DD.forceTerm a a (Term.ref a ref)
                            in do
-                                --         Don't cache IO tests   v
+                                -- Don't cache IO tests
                                 tm' <- evalUnisonTerm False ppe False tm
-                                case tm' of
-                                  Left e -> respond (EvaluationFailure e)
-                                  Right tm' ->
-                                    respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
+                                respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
                         _ -> respond $ NoMainFunction (HQ.toString main) ppe [testType]
                     _ -> respond $ NoMainFunction (HQ.toString main) ppe [testType]
 
@@ -2200,7 +2196,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
             Just tm -> do
               respond $ TestIncrementalOutputStart ppe (n, total) r tm
               --                          v don't cache; test cache populated below
-              tm' <- evalUnisonTermCliE True ppe False tm
+              tm' <- evalUnisonTermE True ppe False tm
               case tm' of
                 Left e -> do
                   respond (EvaluationFailure e)
@@ -2674,7 +2670,7 @@ doDisplay outputLoc names tm = do
       useCache = True
       evalTerm tm =
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
-          evalUnisonTermCliE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
+          evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) $ liftIO (Codebase.getTerm codebase r)
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
@@ -3362,7 +3358,7 @@ displayI prettyPrintNames outputLoc hq = do
             do
               let tm = Term.fromReferent External $ Set.findMin results
               pped <- prettyPrintEnvDeclCli parseNames
-              tm <- evalUnisonTermCli True (PPE.suffixifiedPPE pped) True tm
+              tm <- evalUnisonTerm True (PPE.suffixifiedPPE pped) True tm
               doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
       ppe <- executePPE unisonFile
@@ -3414,7 +3410,7 @@ docsI srcLoc prettyPrintNames src =
           len <- liftIO (Codebase.branchHashLength codebase)
           let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
           let tm = Term.ref External ref
-          tm <- evalUnisonTermCli True (PPE.fromNames len names) True tm
+          tm <- evalUnisonTerm True (PPE.fromNames len names) True tm
           doDisplay ConsoleLocation names (Term.unannotate tm)
         out -> do
           Cli.modifyLoopState (set Command.numberedArgs (fmap (HQ.toString . view _1) out))
@@ -4125,43 +4121,13 @@ evalUnisonFile sandbox ppe unisonFile args = do
     pure rs
 
 -- | Evaluate a single closed definition.
-evalUnisonTerm ::
-  Bool ->
-  PPE.PrettyPrintEnv ->
-  UseCache ->
-  Term Symbol Ann ->
-  Action (Either Runtime.Error (Term Symbol Ann))
-evalUnisonTerm sandbox ppe useCache tm = do
-  codebase <- Command.askCodebase
-  runtime <- if sandbox then Command.askSandboxedRuntime else Command.askRuntime
-
-  let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
-      watchCache ref = do
-        maybeTerm <- Codebase.lookupWatchCache codebase ref
-        pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
-
-  let cache = if useCache then watchCache else Runtime.noCache
-  r <- liftIO (Runtime.evaluateTerm' (Codebase.toCodeLookup codebase) cache ppe runtime tm)
-  when useCache do
-    case r of
-      Right tmr ->
-        liftIO $
-          Codebase.putWatch
-            codebase
-            WK.RegularWatch
-            (Hashing.hashClosedTerm tm)
-            (Term.amap (const Ann.External) tmr)
-      Left _ -> pure ()
-  pure $ r <&> Term.amap (\() -> Ann.External)
-
--- | Evaluate a single closed definition.
-evalUnisonTermCliE ::
+evalUnisonTermE ::
   Bool ->
   PPE.PrettyPrintEnv ->
   UseCache ->
   Term Symbol Ann ->
   Cli r (Either Runtime.Error (Term Symbol Ann))
-evalUnisonTermCliE sandbox ppe useCache tm = do
+evalUnisonTermE sandbox ppe useCache tm = do
   Env {codebase, runtime, sandboxedRuntime} <- ask
   let theRuntime = if sandbox then sandboxedRuntime else runtime
 
@@ -4185,13 +4151,13 @@ evalUnisonTermCliE sandbox ppe useCache tm = do
   pure $ r <&> Term.amap (\() -> Ann.External)
 
 -- | Evaluate a single closed definition.
-evalUnisonTermCli ::
+evalUnisonTerm ::
   Bool ->
   PPE.PrettyPrintEnv ->
   UseCache ->
   Term Symbol Ann ->
   Cli r (Term Symbol Ann)
-evalUnisonTermCli sandbox ppe useCache tm =
-  evalUnisonTermCliE sandbox ppe useCache tm & onLeftM \err -> do
+evalUnisonTerm sandbox ppe useCache tm =
+  evalUnisonTermE sandbox ppe useCache tm & onLeftM \err -> do
     respond (EvaluationFailure err)
     Cli.returnEarly
