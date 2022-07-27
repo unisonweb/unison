@@ -11,7 +11,6 @@ where
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
-import Control.Monad.Except (ExceptT (..), runExceptT, withExceptT)
 import Control.Monad.Reader (MonadReader, ask, asks)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
@@ -403,8 +402,8 @@ loop e = do
         b <- getAt p
         liftIO $ Branch.getPatch seg (Branch.head b)
 
-      withFile :: AmbientAbilities Symbol -> Text -> (Text, [L.Token L.Lexeme]) -> (TypecheckedUnisonFile Symbol Ann -> Action ()) -> Action ()
-      withFile ambient sourceName lexed@(text, tokens) k = do
+      withFileCli :: AmbientAbilities Symbol -> Text -> (Text, [L.Token L.Lexeme]) -> Cli r (TypecheckedUnisonFile Symbol Ann)
+      withFileCli ambient sourceName lexed@(text, tokens) = do
         let getHQ = \case
               L.WordyId s (Just sh) ->
                 Just (HQ.HashQualified (Name.unsafeFromString s) sh)
@@ -414,18 +413,19 @@ loop e = do
               _ -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
         let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') root'
-        Command.latestFile .= Just (Text.unpack sourceName, False)
-        Command.latestTypecheckedFile .= Nothing
-        MaybeT (WriterT (Identity (r, notes))) <-
-          unsafeTime "typechecking" (typecheck ambient parseNames sourceName lexed)
+        Cli.modifyLoopState \loopState ->
+          loopState
+            & Command.latestFile .~ Just (Text.unpack sourceName, False)
+            & Command.latestTypecheckedFile .~ Nothing
+        MaybeT (WriterT (Identity (r, notes))) <- typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
-          Nothing ->
-            respond $
-              ParseErrors text [err | Result.Parsing err <- toList notes]
+          Nothing -> do
+            respond (ParseErrors text [err | Result.Parsing err <- toList notes])
+            Cli.returnEarly
           Just (Left errNames) -> do
             ns <- makeShadowedPrintNamesFromHQ hqs errNames
-            ppe <- suffixifiedPPE ns
+            ppe <- suffixifiedPPECli ns
             let tes = [err | Result.TypeError err <- toList notes]
                 cbs =
                   [ bug
@@ -434,25 +434,25 @@ loop e = do
                   ]
             when (not $ null tes) . respond $ TypeErrors currentPath' text ppe tes
             when (not $ null cbs) . respond $ CompilerBugs text ppe cbs
-          Just (Right uf) -> k uf
-      loadUnisonFile sourceName text = do
+            Cli.returnEarly
+          Just (Right uf) -> pure uf
+
+      loadUnisonFileCli :: Text -> Text -> Cli r ()
+      loadUnisonFileCli sourceName text = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
-        withFile [] sourceName (text, lexed) $ \unisonFile -> do
-          currentNames <- unsafeTime "currentPathNames" currentPathNames
-          let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-          names <- unsafeTime "displayNames" $ displayNames unisonFile
-          pped <- prettyPrintEnvDecl names
-          let ppe = PPE.suffixifiedPPE pped
-          unsafeTime "typechecked.respond" $ respond $ Typechecked sourceName ppe sr unisonFile
-          unlessError' EvaluationFailure do
-            (bindings, e) <- unsafeTime "evaluate" $ ExceptT (evalUnisonFile False ppe unisonFile [])
-            lift do
-              let e' = Map.map go e
-                  go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-              unless (null e') $
-                unsafeTime "evaluate.respond" $ respond $ Evaluated text ppe bindings e'
-              Command.latestTypecheckedFile .= Just unisonFile
-      loadUnisonFileCli sourceName text = undefined
+        unisonFile <- withFileCli [] sourceName (text, lexed)
+        currentNames <- currentPathNames
+        let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
+        names <- displayNames unisonFile
+        pped <- prettyPrintEnvDecl names
+        let ppe = PPE.suffixifiedPPE pped
+        respond $ Typechecked sourceName ppe sr unisonFile
+        (bindings, e) <- evalUnisonFile False ppe unisonFile []
+        let e' = Map.map go e
+            go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+        when (not (null e')) do
+          respond $ Evaluated text ppe bindings e'
+        Cli.modifyLoopState (set Command.latestTypecheckedFile (Just unisonFile))
 
   case e of
     Left (IncomingRootBranch hashes) ->
@@ -464,7 +464,7 @@ loop e = do
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
         then modifying Command.latestFile (fmap (const False) <$>)
-        else loadUnisonFile sourceName text
+        else runCli (loadUnisonFileCli sourceName text)
     Right input ->
       let typeNotFound = respond . TypeNotFound
           nameConflicted src tms tys = respond (DeleteNameAmbiguous hqLength src tms tys)
@@ -666,7 +666,7 @@ loop e = do
             -- Say something
             respond Success
           previewResponse sourceName sr uf = do
-            names <- displayNamesCli uf
+            names <- displayNames uf
             ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
             respond $ Typechecked (Text.pack sourceName) ppe sr uf
 
@@ -1412,12 +1412,12 @@ loop e = do
                 Nothing -> respond NoUnisonFile
                 Just uf -> do
                   Env {codebase} <- ask
-                  currentNames <- currentPathNamesCli
+                  currentNames <- currentPathNames
                   let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
                   let adds = SlurpResult.adds sr
                   stepAtNoSyncCli Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
-                  ppe <- prettyPrintEnvDecl =<< displayNamesCli uf
+                  ppe <- prettyPrintEnvDecl =<< displayNames uf
                   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
                   addDefaultMetadata adds
                   syncRoot inputDescription
@@ -1425,7 +1425,7 @@ loop e = do
               case (latestFile', uf) of
                 (Just (sourceName, _), Just uf) -> do
                   let vars = Set.map Name.toVar requestedNames
-                  currentNames <- currentPathNamesCli
+                  currentNames <- currentPathNames
                   let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
                   previewResponse sourceName sr uf
                 _ -> respond NoUnisonFile
@@ -1434,7 +1434,7 @@ loop e = do
               case (latestFile', uf) of
                 (Just (sourceName, _), Just uf) -> do
                   let vars = Set.map Name.toVar requestedNames
-                  currentNames <- currentPathNamesCli
+                  currentNames <- currentPathNames
                   let sr = Slurp.slurpFile uf vars Slurp.UpdateOp currentNames
                   previewResponse sourceName sr uf
                 _ -> respond NoUnisonFile
@@ -1460,7 +1460,7 @@ loop e = do
                 RunMainSuccess unisonFile -> do
                   ppe <- executePPE unisonFile
                   -- TODO
-                  _ <- evalUnisonFileCli False ppe unisonFile args
+                  _ <- evalUnisonFile False ppe unisonFile args
                   pure ()
             MakeStandaloneI output main -> do
               runtime <- Command.askRuntime
@@ -2243,7 +2243,7 @@ handleUpdate input optionalPatch requestedNames = do
         NoPatch -> Nothing
         DefaultPatch -> Just defaultPatchPath
         UsePatch p -> Just p
-  slurpCheckNames <- currentPathNamesCli
+  slurpCheckNames <- currentPathNames
   let requestedVars = Set.map Name.toVar requestedNames
   let sr = Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames
       addsAndUpdates :: SlurpComponent Symbol
@@ -2359,7 +2359,7 @@ handleUpdate input optionalPatch requestedNames = do
             Just (_, update, p) -> [(Path.unabsolute p, update)]
       )
     liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
-  ppe <- prettyPrintEnvDecl =<< displayNamesCli uf
+  ppe <- prettyPrintEnvDecl =<< displayNames uf
   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
   -- propagatePatch prints TodoOutput
   for_ patchOps \case
@@ -2939,12 +2939,6 @@ searchBranchScored names0 score queries =
               Just score -> Set.singleton (Just score, result)
               Nothing -> mempty
 
-unlessError :: ExceptT Output (Action) () -> Action ()
-unlessError ma = runExceptT ma >>= either respond pure
-
-unlessError' :: (e -> Output) -> ExceptT e (Action) () -> Action ()
-unlessError' f ma = unlessError $ withExceptT f ma
-
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
 mergeBranchAndPropagateDefaultPatch ::
@@ -3375,11 +3369,11 @@ displayI prettyPrintNames outputLoc hq = do
               doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
       ppe <- executePPE unisonFile
-      evalResult <- evalUnisonFileCli True ppe unisonFile []
+      evalResult <- evalUnisonFile True ppe unisonFile []
       case Command.lookupEvalResult toDisplay evalResult of
         Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
         Just tm -> do
-          ns <- displayNamesCli unisonFile
+          ns <- displayNames unisonFile
           doDisplay outputLoc ns tm
 
 docsI :: SrcLoc -> Names -> Path.HQSplit' -> Cli r ()
@@ -3710,12 +3704,8 @@ parseTypeCli input src = do
           Cli.returnEarly
         Right typ -> pure typ
 
-makeShadowedPrintNamesFromLabeled :: Set LabeledDependency -> Names -> Action NamesWithHistory
+makeShadowedPrintNamesFromLabeled :: Set LabeledDependency -> Names -> Cli r NamesWithHistory
 makeShadowedPrintNamesFromLabeled deps shadowing =
-  NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeled' deps
-
-makeShadowedPrintNamesFromLabeledCli :: Set LabeledDependency -> Names -> Cli r NamesWithHistory
-makeShadowedPrintNamesFromLabeledCli deps shadowing =
   NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeledCli' deps
 
 makePrintNamesFromLabeled' :: Set LabeledDependency -> Action NamesWithHistory
@@ -3811,17 +3801,17 @@ basicPrettyPrintNamesA = snd <$> basicNames' Backend.AllNames
 basicPrettyPrintNamesACli :: Cli r Names
 basicPrettyPrintNamesACli = snd <$> basicNamesCli' Backend.AllNames
 
-makeShadowedPrintNamesFromHQ :: Set (HQ.HashQualified Name) -> Names -> Action NamesWithHistory
+makeShadowedPrintNamesFromHQ :: Set (HQ.HashQualified Name) -> Names -> Cli r NamesWithHistory
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
-  rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames <- basicPrettyPrintNamesA
-  curPath <- use Command.currentPath
+  rawHistoricalNames <- findHistoricalHQsCli lexedHQs
+  basicNames <- basicPrettyPrintNamesACli
+  loopState <- Cli.getLoopState
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
   pure $
     NamesWithHistory.shadowing
       shadowing
-      (NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames))
+      (NamesWithHistory basicNames (fixupNamesRelative (loopState ^. Command.currentPath) rawHistoricalNames))
 
 basicParseNames :: Action Names
 basicParseNames = fst <$> basicNames' Backend.Within
@@ -3830,14 +3820,8 @@ basicParseNamesCli :: Cli r Names
 basicParseNamesCli =
   fst <$> basicNamesCli' Backend.Within
 
-currentPathNames :: Action Names
+currentPathNames :: Cli r Names
 currentPathNames = do
-  currentPath' <- use Command.currentPath
-  currentBranch' <- getAt currentPath'
-  pure $ Branch.toNames (Branch.head currentBranch')
-
-currentPathNamesCli :: Cli r Names
-currentPathNamesCli = do
   loopState <- Cli.getLoopState
   branch <- getBranchAt (loopState ^. Command.currentPath) <&> fromMaybe Branch.empty
   pure $ Branch.toNames (Branch.head branch)
@@ -3943,27 +3927,16 @@ executePPE ::
   TypecheckedUnisonFile v a ->
   Cli r PPE.PrettyPrintEnv
 executePPE unisonFile =
-  suffixifiedPPECli =<< displayNamesCli unisonFile
+  suffixifiedPPECli =<< displayNames unisonFile
 
 -- Produce a `Names` needed to display all the hashes used in the given file.
 displayNames ::
   Var v =>
   TypecheckedUnisonFile v a ->
-  Action NamesWithHistory
+  Cli r NamesWithHistory
 displayNames unisonFile =
   -- voodoo
   makeShadowedPrintNamesFromLabeled
-    (UF.termSignatureExternalLabeledDependencies unisonFile)
-    (UF.typecheckedToNames unisonFile)
-
--- Produce a `Names` needed to display all the hashes used in the given file.
-displayNamesCli ::
-  Var v =>
-  TypecheckedUnisonFile v a ->
-  Cli r NamesWithHistory
-displayNamesCli unisonFile =
-  -- voodoo
-  makeShadowedPrintNamesFromLabeledCli
     (UF.termSignatureExternalLabeledDependencies unisonFile)
     (UF.typecheckedToNames unisonFile)
 
@@ -4093,18 +4066,19 @@ typecheck ::
   NamesWithHistory ->
   SourceName ->
   LexedSource ->
-  Action (TypecheckingResult Symbol)
-typecheck ambient names sourceName source = do
-  codebase <- Command.askCodebase
-  generateUniqueName <- Command.askGenerateUniqueName
-  uniqueName <- liftIO generateUniqueName
-  (liftIO . Result.getResult) $
-    parseAndSynthesizeFile
-      ambient
-      (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
-      (Parser.ParsingEnv uniqueName names)
-      (Text.unpack sourceName)
-      (fst source)
+  Cli r (TypecheckingResult Symbol)
+typecheck ambient names sourceName source =
+  Cli.scopeWith do
+    Cli.time "typecheck"
+    Env {codebase, generateUniqueName} <- ask
+    uniqueName <- liftIO generateUniqueName
+    (liftIO . Result.getResult) $
+      parseAndSynthesizeFile
+        ambient
+        (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+        (Parser.ParsingEnv uniqueName names)
+        (Text.unpack sourceName)
+        (fst source)
 
 -- | Evaluate all watched expressions in a UnisonFile and return
 -- their results, keyed by the name of the watch variable. The tuple returned
@@ -4127,56 +4101,12 @@ evalUnisonFile ::
   PPE.PrettyPrintEnv ->
   TypecheckedUnisonFile Symbol Ann ->
   [String] ->
-  Action (Runtime.WatchResults Symbol Ann)
-evalUnisonFile sandbox ppe unisonFile args = do
-  codebase <- Command.askCodebase
-  runtime <- if sandbox then Command.askSandboxedRuntime else Command.askRuntime
-
-  let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
-      watchCache ref = do
-        maybeTerm <- Codebase.lookupWatchCache codebase ref
-        pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
-
-  reset do
-    with (\k -> withArgs args (k ()))
-    liftIO (Runtime.evaluateWatches (Codebase.toCodeLookup codebase) ppe watchCache runtime unisonFile) >>= \case
-      Left e -> pure (Left e)
-      Right rs@(_, map) -> do
-        forM_ (Map.elems map) $ \(_loc, kind, hash, _src, value, isHit) ->
-          if isHit
-            then pure ()
-            else do
-              let value' = Term.amap (\() -> Ann.External) value
-              liftIO (Codebase.putWatch codebase kind hash value')
-        pure (Right rs)
-
--- | Evaluate all watched expressions in a UnisonFile and return
--- their results, keyed by the name of the watch variable. The tuple returned
--- has the form:
---   (hash, (ann, sourceTerm, evaluatedTerm, isCacheHit))
---
--- where
---   `hash` is the hash of the original watch expression definition
---   `ann` gives the location of the watch expression
---   `sourceTerm` is a closed term (no free vars) for the watch expression
---   `evaluatedTerm` is the result of evaluating that `sourceTerm`
---   `isCacheHit` is True if the result was computed by just looking up
---   in a cache
---
--- It's expected that the user of this action might add the
--- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
--- of the same watches instantaneous.
-evalUnisonFileCli ::
-  Bool ->
-  PPE.PrettyPrintEnv ->
-  TypecheckedUnisonFile Symbol Ann ->
-  [String] ->
   Cli
     r
     ( [(Symbol, Term Symbol ())],
       Map Symbol (Ann, WK.WatchKind, Reference.Id, Term Symbol (), Term Symbol (), Bool)
     )
-evalUnisonFileCli sandbox ppe unisonFile args = do
+evalUnisonFile sandbox ppe unisonFile args = do
   Env {codebase, runtime, sandboxedRuntime} <- ask
   let theRuntime = if sandbox then sandboxedRuntime else runtime
 
