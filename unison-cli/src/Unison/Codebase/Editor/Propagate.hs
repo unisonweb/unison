@@ -310,7 +310,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
                         "This reference is not a term nor a type " <> show r
                       mmayEdits
                         | haveTerm = runCli (doTerm r)
-                        | haveType = doType r
+                        | haveType = runCli (doType r)
                         | otherwise = error message
                   mayEdits <- mmayEdits
                   case mayEdits of
@@ -323,10 +323,10 @@ propagate codebase rootNames patch b = case validatePatch patch of
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
 
-            doType :: Reference -> Action (Maybe (Edits Symbol), Set Reference)
+            doType :: Reference -> Cli r (Maybe (Edits Symbol), Set Reference)
             doType r = do
               when debugMode $ traceM ("Rewriting type: " <> refName r)
-              componentMap <- runCli (unhashTypeComponent codebase r)
+              componentMap <- unhashTypeComponent codebase r
               let componentMap' =
                     over _2 (Decl.updateDependencies typeReplacements)
                       <$> componentMap
