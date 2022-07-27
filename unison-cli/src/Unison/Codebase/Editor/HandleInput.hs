@@ -425,7 +425,7 @@ loop e = do
             Cli.returnEarly
           Just (Left errNames) -> do
             ns <- makeShadowedPrintNamesFromHQ hqs errNames
-            ppe <- suffixifiedPPECli ns
+            ppe <- suffixifiedPPE ns
             let tes = [err | Result.TypeError err <- toList notes]
                 cbs =
                   [ bug
@@ -1447,10 +1447,10 @@ loop e = do
 
               addRunMain main uf >>= \case
                 NoTermWithThatName -> do
-                  ppe <- suffixifiedPPECli (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+                  ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
                   respond $ NoMainFunction main ppe [mainType]
                 TermHasBadType ty -> do
-                  ppe <- suffixifiedPPECli (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+                  ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
                   respond $ BadMainFunction main ty ppe [mainType]
                 RunMainSuccess unisonFile -> do
                   ppe <- executePPE unisonFile
@@ -1461,8 +1461,8 @@ loop e = do
               Env{codebase,runtime} <- ask
               let mainType = Runtime.mainType runtime
               parseNames <-
-                flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintNamesACli
-              ppe <- suffixifiedPPECli parseNames
+                flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintNamesA
+              ppe <- suffixifiedPPE parseNames
               let resolved = toList $ NamesWithHistory.lookupHQTerm main parseNames
                   smain = HQ.toString main
               filtered <-
@@ -1482,7 +1482,7 @@ loop e = do
               -- todo - allow this to run tests from scratch file, using addRunMain
               let testType = Runtime.ioTestType runtime
               parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNamesCli
-              ppe <- suffixifiedPPECli parseNames
+              ppe <- suffixifiedPPE parseNames
               -- use suffixed names for resolving the argument to display
               let oks results =
                     [ (r, msg)
@@ -1556,17 +1556,12 @@ loop e = do
               _ <- updateAtM inputDescription (currentPath' `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               respond Success
-            ListEditsI maybePath -> do
-              let (p, seg) =
-                    maybe
-                      (Path.toAbsoluteSplit currentPath' defaultPatchPath)
-                      (Path.toAbsoluteSplit currentPath')
-                      maybePath
-              patch <- liftIO . Branch.getPatch seg . Branch.head =<< getAt p
+            ListEditsI maybePath -> runCli do
+              patch <- getPatchAtCli (fromMaybe defaultPatchPath maybePath) <&> fromMaybe Patch.empty
               ppe <-
                 suffixifiedPPE
                   =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-              respondNumbered $ ListEdits patch ppe
+              Cli.respondNumbered $ ListEdits patch ppe
             PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> runCli do
               Env {codebase} <- ask
               let preprocess = case pullMode of
@@ -1828,8 +1823,8 @@ handleFindI isVerbose fscope ws input = do
         Cli.modifyLoopState (set Command.numberedArgs (fmap searchResultToHQString results))
         results' <- liftIO (Backend.loadSearchResults codebase results)
         ppe <-
-          suffixifiedPPECli
-            =<< makePrintNamesFromLabeledCli'
+          suffixifiedPPE
+            =<< makePrintNamesFromLabeled'
               (foldMap SR'.labeledDependencies results')
         respond $ ListOfDefinitions ppe isVerbose results'
   results <- getResults (getNames fscope)
@@ -2165,7 +2160,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
         r@(Reference.DerivedId rid) -> liftIO (fmap (r,) <$> Codebase.getWatch codebase WK.TestWatch rid)
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
   names <-
-    makePrintNamesFromLabeledCli' $
+    makePrintNamesFromLabeled' $
       LD.referents testTerms
         <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
   ppe <- fqnPPE names
@@ -2723,7 +2718,7 @@ getLinks' src selection0 = do
   let deps =
         Set.map LD.termRef allRefs
           <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
-  ppe <- prettyPrintEnvDeclCli =<< makePrintNamesFromLabeledCli' deps
+  ppe <- prettyPrintEnvDeclCli =<< makePrintNamesFromLabeled' deps
   let ppeDecl = PPE.unsuffixifiedPPE ppe
   let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
   let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
@@ -2769,7 +2764,7 @@ doShowTodoOutput patch scopePath = do
   let names0 = Branch.toNames (Branch.head scope)
   -- only needs the local references to check for obsolete defs
   let getPpe = do
-        names <- makePrintNamesFromLabeledCli' (Patch.labeledDependencies patch)
+        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
         prettyPrintEnvDecl names
   showTodoOutput getPpe patch names0
 
@@ -3613,13 +3608,8 @@ lexedSourceCli name src = do
   parseNames <- makeHistoricalParsingNamesCli hqs
   pure (parseNames, (src, tokens))
 
-suffixifiedPPE :: NamesWithHistory -> Action PPE.PrettyPrintEnv
+suffixifiedPPE :: NamesWithHistory -> Cli r PPE.PrettyPrintEnv
 suffixifiedPPE ns = do
-  codebase <- Command.askCodebase
-  liftIO (Codebase.hashLength codebase) <&> (`PPE.fromSuffixNames` ns)
-
-suffixifiedPPECli :: NamesWithHistory -> Cli r PPE.PrettyPrintEnv
-suffixifiedPPECli ns = do
   Env {codebase} <- ask
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromSuffixNames` ns)
 
@@ -3681,22 +3671,10 @@ parseTypeCli input src = do
 
 makeShadowedPrintNamesFromLabeled :: Set LabeledDependency -> Names -> Cli r NamesWithHistory
 makeShadowedPrintNamesFromLabeled deps shadowing =
-  NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeledCli' deps
+  NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeled' deps
 
-makePrintNamesFromLabeled' :: Set LabeledDependency -> Action NamesWithHistory
+makePrintNamesFromLabeled' :: Set LabeledDependency -> Cli r NamesWithHistory
 makePrintNamesFromLabeled' deps = do
-  root' <- use Command.root
-  curPath <- use Command.currentPath
-  (_missing, rawHistoricalNames) <-
-    liftIO $
-      Branch.findHistoricalRefs
-        deps
-        root'
-  basicNames <- basicPrettyPrintNamesA
-  pure $ NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames)
-
-makePrintNamesFromLabeledCli' :: Set LabeledDependency -> Cli r NamesWithHistory
-makePrintNamesFromLabeledCli' deps = do
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
   let curPath = loopState ^. Command.currentPath
@@ -3705,7 +3683,7 @@ makePrintNamesFromLabeledCli' deps = do
       Branch.findHistoricalRefs
         deps
         root'
-  basicNames <- basicPrettyPrintNamesACli
+  basicNames <- basicPrettyPrintNamesA
   pure $ NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames)
 
 getTermsIncludingHistorical :: Monad m => Path.HQSplit -> Branch0 m -> Cli r (Set Referent)
@@ -3770,16 +3748,13 @@ findHistoricalHQsCli lexedHQs0 = do
   (_missing, rawHistoricalNames) <- liftIO $ Branch.findHistoricalHQs lexedHQs root'
   pure rawHistoricalNames
 
-basicPrettyPrintNamesA :: Action Names
-basicPrettyPrintNamesA = snd <$> basicNames' Backend.AllNames
-
-basicPrettyPrintNamesACli :: Cli r Names
-basicPrettyPrintNamesACli = snd <$> basicNamesCli' Backend.AllNames
+basicPrettyPrintNamesA :: Cli r Names
+basicPrettyPrintNamesA = snd <$> basicNamesCli' Backend.AllNames
 
 makeShadowedPrintNamesFromHQ :: Set (HQ.HashQualified Name) -> Names -> Cli r NamesWithHistory
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQsCli lexedHQs
-  basicNames <- basicPrettyPrintNamesACli
+  basicNames <- basicPrettyPrintNamesA
   loopState <- Cli.getLoopState
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
@@ -3902,7 +3877,7 @@ executePPE ::
   TypecheckedUnisonFile v a ->
   Cli r PPE.PrettyPrintEnv
 executePPE unisonFile =
-  suffixifiedPPECli =<< displayNames unisonFile
+  suffixifiedPPE =<< displayNames unisonFile
 
 -- Produce a `Names` needed to display all the hashes used in the given file.
 displayNames ::
