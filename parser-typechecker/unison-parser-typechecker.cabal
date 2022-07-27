@@ -143,7 +143,6 @@ library
       Unison.Util.CyclicOrd
       Unison.Util.EnumContainers
       Unison.Util.Exception
-      Unison.Util.Free
       Unison.Util.Logger
       Unison.Util.PinBoard
       Unison.Util.Rope
