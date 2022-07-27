@@ -1458,7 +1458,7 @@ loop e = do
                   _ <- evalUnisonFile False ppe unisonFile args
                   pure ()
             MakeStandaloneI output main -> runCli do
-              Env{codebase,runtime} <- ask
+              Env {codebase, runtime} <- ask
               let mainType = Runtime.mainType runtime
               parseNames <-
                 flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintNamesA
@@ -1478,7 +1478,7 @@ loop e = do
                       respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> runCli do
-              Env{codebase, runtime} <- ask
+              Env {codebase, runtime} <- ask
               -- todo - allow this to run tests from scratch file, using addRunMain
               let testType = Runtime.ioTestType runtime
               parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNamesCli
@@ -1517,7 +1517,7 @@ loop e = do
             --   checkTodo
 
             MergeBuiltinsI -> runCli do
-              Env{codebase} <- ask
+              Env {codebase} <- ask
               -- these were added once, but maybe they've changed and need to be
               -- added again.
               let uf =
@@ -1534,7 +1534,7 @@ loop e = do
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               respond Success
             MergeIOBuiltinsI -> runCli do
-              Env{codebase} <- ask
+              Env {codebase} <- ask
               -- these were added once, but maybe they've changed and need to be
               -- added again.
               let uf =
@@ -1570,11 +1570,9 @@ loop e = do
               ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
               remoteBranch <- case ns of
                 ReadRemoteNamespaceGit repo ->
-                  liftIO (Codebase.importRemoteBranch codebase repo syncMode preprocess) >>= \case
-                    Left err -> do
-                      respond (Output.GitError err)
-                      Cli.returnEarly
-                    Right x -> pure x
+                  Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err -> do
+                    respond (Output.GitError err)
+                    Cli.returnEarly
                 ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
               let unchangedMsg = PullAlreadyUpToDate ns path
               let destAbs = resolveToAbsolute path
@@ -1980,54 +1978,50 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
   Command.Env {authHTTPClient, codebase} <- ask
 
   -- doesn't handle the case where a non-existent path is supplied
-  liftIO (Codebase.runTransaction codebase (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath)))) >>= \case
-    Nothing -> respond (EmptyPush . Path.absoluteToPath' $ localPath)
-    Just localCausalHash -> do
-      let checkAndSetPush :: Maybe Hash32 -> IO (Either (Share.SyncError Share.CheckAndSetPushError) ())
-          checkAndSetPush remoteHash =
+  localCausalHash <-
+    liftIO (Codebase.runTransaction codebase (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath)))) & onNothingM do
+      respond (EmptyPush . Path.absoluteToPath' $ localPath)
+      Cli.returnEarly
+
+  let checkAndSetPush :: Maybe Hash32 -> IO (Either (Share.SyncError Share.CheckAndSetPushError) ())
+      checkAndSetPush remoteHash =
+        withEntitiesUploadedProgressCallbacks \callbacks ->
+          if Just (Hash32.fromHash (unCausalHash localCausalHash)) == remoteHash
+            then pure (Right ())
+            else
+              Share.checkAndSetPush
+                authHTTPClient
+                baseURL
+                (Codebase.withConnectionIO codebase)
+                sharePath
+                remoteHash
+                localCausalHash
+                callbacks
+
+  case behavior of
+    PushBehavior.ForcePush -> do
+      maybeHashJwt <-
+        Cli.ioE (Share.getCausalHashByPath authHTTPClient baseURL sharePath) \err -> do
+          respond (Output.ShareError (ShareErrorGetCausalHashByPath err))
+          Cli.returnEarly
+      Cli.ioE (checkAndSetPush (Share.hashJWTHash <$> maybeHashJwt)) (pushError ShareErrorCheckAndSetPush)
+      respond (ViewOnShare remote)
+    PushBehavior.RequireEmpty -> do
+      Cli.ioE (checkAndSetPush Nothing) (pushError ShareErrorCheckAndSetPush)
+      respond (ViewOnShare remote)
+    PushBehavior.RequireNonEmpty -> do
+      let push :: IO (Either (Share.SyncError Share.FastForwardPushError) ())
+          push = do
             withEntitiesUploadedProgressCallbacks \callbacks ->
-              if Just (Hash32.fromHash (unCausalHash localCausalHash)) == remoteHash
-                then pure (Right ())
-                else
-                  Share.checkAndSetPush
-                    authHTTPClient
-                    baseURL
-                    (Codebase.withConnectionIO codebase)
-                    sharePath
-                    remoteHash
-                    localCausalHash
-                    callbacks
-      let respondPushError :: (a -> Output.ShareError) -> Share.SyncError a -> Cli r ()
-          respondPushError f =
-            respond . \case
-              Share.SyncError err -> Output.ShareError (f err)
-              Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
-      case behavior of
-        PushBehavior.ForcePush ->
-          liftIO (Share.getCausalHashByPath authHTTPClient baseURL sharePath) >>= \case
-            Left err -> respond (Output.ShareError (ShareErrorGetCausalHashByPath err))
-            Right maybeHashJwt ->
-              liftIO (checkAndSetPush (Share.hashJWTHash <$> maybeHashJwt)) >>= \case
-                Left err -> respondPushError ShareErrorCheckAndSetPush err
-                Right () -> respond (ViewOnShare remote)
-        PushBehavior.RequireEmpty -> do
-          liftIO (checkAndSetPush Nothing) >>= \case
-            Left err -> respondPushError ShareErrorCheckAndSetPush err
-            Right () -> respond (ViewOnShare remote)
-        PushBehavior.RequireNonEmpty -> do
-          let push :: IO (Either (Share.SyncError Share.FastForwardPushError) ())
-              push = do
-                withEntitiesUploadedProgressCallbacks \callbacks ->
-                  Share.fastForwardPush
-                    authHTTPClient
-                    baseURL
-                    (Codebase.withConnectionIO codebase)
-                    sharePath
-                    localCausalHash
-                    callbacks
-          liftIO push >>= \case
-            Left err -> respondPushError ShareErrorFastForwardPush err
-            Right () -> respond (ViewOnShare remote)
+              Share.fastForwardPush
+                authHTTPClient
+                baseURL
+                (Codebase.withConnectionIO codebase)
+                sharePath
+                localCausalHash
+                callbacks
+      Cli.ioE push (pushError ShareErrorFastForwardPush)
+      respond (ViewOnShare remote)
   where
     pathToSegments :: Path -> [Text]
     pathToSegments =
@@ -2059,6 +2053,13 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
           Console.Regions.finishConsoleRegion region $
             "\n  Uploaded " <> tShow entitiesUploaded <> " entities.\n"
           pure result
+
+    pushError :: (a -> Output.ShareError) -> Share.SyncError a -> Cli r b
+    pushError f err0 = do
+      respond case err0 of
+        Share.SyncError err -> Output.ShareError (f err)
+        Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
+      Cli.returnEarly
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> [HQ.HashQualified Name] -> Cli r ()
