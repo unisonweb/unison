@@ -517,7 +517,6 @@ loop e = do
               respond $ SearchTermsNotFound (Set.toList misses)
             traverse_ go (if isTerm then tmRefs else tpRefs)
           typeExists dest = respond . TypeAlreadyExists dest
-          termExists dest = respond . TermAlreadyExists dest
           inputDescription :: Command.InputDescription
           inputDescription = case input of
             ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
@@ -1192,18 +1191,19 @@ loop e = do
                 authorPath = base |> "authors" |> authorNameSegment
                 copyrightHolderPath = base |> "copyrightHolders" |> authorNameSegment
                 guidPath = authorPath |> "guid"
-            MoveTermI src dest ->
+            MoveTermI src dest -> runCli do
               case (toList (getHQ'Terms src), toList (getTerms dest)) of
                 ([r], []) -> do
-                  stepManyAt
+                  stepManyAtCli
+                    inputDescription
                     Branch.CompressHistory
                     [ BranchUtil.makeDeleteTermName p r,
                       BranchUtil.makeAddTermName (resolveSplit' dest) r (mdSrc r)
                     ]
-                  success
-                ([_], rs) -> termExists dest (Set.fromList rs)
-                ([], _) -> termNotFound src
-                (rs, _) -> termConflicted src (Set.fromList rs)
+                  respond Success
+                ([_], rs) -> respond (TermAlreadyExists dest (Set.fromList rs))
+                ([], _) -> respond (TermNotFound src)
+                (rs, _) -> respond (DeleteNameAmbiguous hqLength src (Set.fromList rs) Set.empty)
               where
                 p = resolveSplit' (HQ'.toName <$> src)
                 mdSrc r = BranchUtil.getTermMetadataAt p r root0
