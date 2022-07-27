@@ -94,6 +94,11 @@ data LoopState = LoopState
     _numberedArgs :: NumberedArgs
   }
 
+-- | Run a @Cli@ action down to @IO@.
+runCli :: Env -> Cli a a -> IO (ReturnType a)
+runCli env (Cli action) =
+  action (\x _ -> pure (Success x)) env
+
 getLoopState :: Cli r LoopState
 getLoopState = do
   Env {loopStateRef} <- ask

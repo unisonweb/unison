@@ -2,7 +2,6 @@
 
 module Unison.Codebase.Editor.HandleInput
   ( loop,
-    parseSearchType,
   )
 where
 
@@ -274,7 +273,7 @@ resolveSplitCli' s = do
 resolveAbsBranchId :: AbsBranchId -> Cli r (Branch IO)
 resolveAbsBranchId = \case
   Left hash -> resolveShortBranchHash hash
-  Right path -> getBranchAt path <&> fromMaybe Branch.empty
+  Right path -> getBranchAt path
 
 -- | Resolve a @ShortBranchHash@ to the corresponding @Branch IO@, or fail if no such branch hash is found.
 resolveShortBranchHash :: ShortBranchHash -> Cli r (Branch IO)
@@ -299,22 +298,28 @@ resolveShortBranchHash hash = do
 -- Getting branches, patches, etc.
 
 -- | Get the branch at an absolute path.
-getBranchAt :: Path.Absolute -> Cli r (Maybe (Branch IO))
+getBranchAt :: Path.Absolute -> Cli r (Branch IO)
 getBranchAt (Path.Absolute p) = do
+  loopState <- Cli.getLoopState
+  pure (fromMaybe Branch.empty (Branch.getAt p (loopState ^. Command.root)))
+
+-- | Get the maybe-branch at an absolute path.
+getMaybeBranchAt :: Path.Absolute -> Cli r (Maybe (Branch IO))
+getMaybeBranchAt (Path.Absolute p) = do
   loopState <- Cli.getLoopState
   pure (Branch.getAt p (loopState ^. Command.root))
 
--- | Get the branch at an absolute or relative path.
-getBranchAtPath' :: Path' -> Cli r (Maybe (Branch IO))
-getBranchAtPath' path = do
+-- | Get the maybe-branch at an absolute or relative path.
+getMaybeBranchAtPath' :: Path' -> Cli r (Maybe (Branch IO))
+getMaybeBranchAtPath' path = do
   loopState <- Cli.getLoopState
   let currentPath' = loopState ^. Command.currentPath
-  getBranchAt (Path.resolve currentPath' path)
+  getMaybeBranchAt (Path.resolve currentPath' path)
 
--- | Get the branch at an absolute or relative path, or return early if it's not found.
+-- | Get the branch at an absolute or relative path, or return early if there's no such branch.
 expectBranchAtPath' :: Path' -> Cli r (Branch IO)
 expectBranchAtPath' path = do
-  getBranchAtPath' path & onNothingM do
+  getMaybeBranchAtPath' path & onNothingM do
     respond (BranchNotFound path)
     Cli.returnEarly
 
@@ -323,12 +328,12 @@ expectBranchAtPath' path = do
 -- current terms/types etc).
 assertNoBranchAtPath' :: Path' -> Cli r ()
 assertNoBranchAtPath' path =
-  whenJustM (getBranchAtPath' path) \branch ->
+  whenJustM (getMaybeBranchAtPath' path) \branch ->
     when (not (Branch.isEmpty0 (Branch.head branch))) do
       respond (BranchAlreadyExists path)
       Cli.returnEarly
 
--- | Get the branch at an absolute or relative split, or return early if it's not found.
+-- | Get the branch at an absolute or relative split, or return early if there's no such branch.
 expectBranchAtSplit' :: Path.Split' -> Cli r (Branch IO)
 expectBranchAtSplit' =
   expectBranchAtPath' . Path.unsplit'
@@ -344,7 +349,7 @@ assertNoBranchAtSplit' =
 getPatchAtCli :: Path.Split' -> Cli r (Maybe Patch)
 getPatchAtCli s = do
   (path, name) <- resolveSplitCli' s
-  branch <- getAtCli path
+  branch <- getBranchAt path
   liftIO (Branch.getMaybePatch name (Branch.head branch))
 
 -- | Get the patch at a path, or return early if there's no such patch.
@@ -364,15 +369,16 @@ assertNoPatchAt s = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
 
-loop :: Either Event Input -> Action ()
+loop :: Either Event Input -> Cli r ()
 loop e = do
-  uf <- use Command.latestTypecheckedFile
-  root' <- use Command.root
-  currentPath' <- use Command.currentPath
-  latestFile' <- use Command.latestFile
-  currentBranch' <- getAt currentPath'
-  hqLength <- Command.askCodebase >>= \codebase -> liftIO (Codebase.hashLength codebase)
-  sbhLength <- Command.askCodebase >>= \codebase -> liftIO (Codebase.branchHashLength codebase)
+  Env{codebase} <- ask
+  loopState <- Cli.getLoopState
+  let root' = loopState ^. Command.root
+  let currentPath' = loopState ^. Command.currentPath
+  let latestFile' = loopState ^. Command.latestFile
+  currentBranch' <- getBranchAt currentPath'
+  hqLength <- liftIO (Codebase.hashLength codebase)
+  sbhLength <- liftIO (Codebase.branchHashLength codebase)
   let currentPath'' = Path.unabsolute currentPath'
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
@@ -458,8 +464,8 @@ loop e = do
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
-        then modifying Command.latestFile (fmap (const False) <$>)
-        else runCli (loadUnisonFileCli sourceName text)
+        then Cli.modifyLoopState (set (Command.latestFile . _Just . _2) False)
+        else loadUnisonFileCli sourceName text
     Right input ->
       let typeNotFound = respond . TypeNotFound
           nameConflicted src tms tys = respond (DeleteNameAmbiguous hqLength src tms tys)
@@ -477,7 +483,7 @@ loop e = do
           doRemoveReplacement from patchPath isTerm = do
             let patchPath' = fromMaybe defaultPatchPath patchPath
             patch <- getPatchAtCli patchPath' <&> fromMaybe Patch.empty
-            QueryResult misses' hits <- hqNameQueryCli [from]
+            QueryResult misses' hits <- hqNameQuery [from]
             let tpRefs = Set.fromList $ typeReferences hits
                 tmRefs = Set.fromList $ termReferences hits
                 misses =
@@ -683,7 +689,7 @@ loop e = do
                   then do
                     let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
                     let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
-                    stepManyAtCli inputDescription Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
+                    stepManyAt inputDescription Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
                     loopState <- Cli.getLoopState
                     let root'' = loopState ^. Command.root
                     (ppe, diff) <- diffHelper (Branch.head root') (Branch.head root'')
@@ -692,7 +698,7 @@ loop e = do
                     ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                     Cli.respondNumbered (CantDeleteDefinitions ppeDecl endangerments)
        in case input of
-            ApiI -> runCli do
+            ApiI -> do
               Env {serverBaseUrl} <- ask
               whenJust serverBaseUrl \baseUrl ->
                 respond $
@@ -706,7 +712,7 @@ loop e = do
                       ]
             CreateMessage pretty ->
               respond $ PrintMessage pretty
-            ShowReflogI -> runCli do
+            ShowReflogI -> do
               Env {codebase} <- ask
               entries <- convertEntries Nothing [] <$> liftIO (Codebase.getReflog codebase)
               Cli.modifyLoopState (set Command.numberedArgs (fmap (('#' :) . SBH.toString . Output.hash) entries))
@@ -737,15 +743,15 @@ loop e = do
                         (Just new)
                         (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
                         rest
-            ResetRootI src0 -> runCli do
+            ResetRootI src0 -> do
               Cli.time "reset-root"
               newRoot <-
                 case src0 of
                   Left hash -> resolveShortBranchHash hash
                   Right path' -> expectBranchAtPath' path'
-              updateRootCli newRoot inputDescription
+              updateRoot newRoot inputDescription
               respond Success
-            ForkLocalBranchI src0 dest0 -> runCli do
+            ForkLocalBranchI src0 dest0 -> do
               srcb <-
                 case src0 of
                   Left hash -> resolveShortBranchHash hash
@@ -754,23 +760,23 @@ loop e = do
               dest <- resolvePath' dest0
               ok <- updateAtM inputDescription dest (const $ pure srcb)
               respond if ok then Success else BranchEmpty src0
-            MergeLocalBranchI src0 dest0 mergeMode -> runCli do
+            MergeLocalBranchI src0 dest0 mergeMode -> do
               srcb <- expectBranchAtPath' src0
               dest <- resolvePath' dest0
               let err = Just $ MergeAlreadyUpToDate src0 dest0
               mergeBranchAndPropagateDefaultPatchCli mergeMode inputDescription err srcb (Just dest0) dest
-            PreviewMergeLocalBranchI src0 dest0 -> runCli do
+            PreviewMergeLocalBranchI src0 dest0 -> do
               Env {codebase} <- ask
               srcb <- expectBranchAtPath' src0
               dest <- resolvePath' dest0
-              destb <- getBranchAt dest <&> fromMaybe Branch.empty
+              destb <- getBranchAt dest
               merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               if merged == destb
                 then respond (PreviewMergeAlreadyUpToDate src0 dest0)
                 else do
                   (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
                   Cli.respondNumbered (ShowDiffAfterMergePreview dest0 dest ppe diff)
-            DiffNamespaceI before after -> runCli do
+            DiffNamespaceI before after -> do
               absBefore <- traverseOf _Right resolvePath' before
               absAfter <- traverseOf _Right resolvePath' after
               beforeBranch0 <- Branch.head <$> resolveAbsBranchId absBefore
@@ -787,8 +793,8 @@ loop e = do
                       (resolveToAbsolute <$> after)
                       ppe
                       diff
-            CreatePullRequestI baseRepo headRepo -> runCli (handleCreatePullRequest baseRepo headRepo)
-            LoadPullRequestI baseRepo headRepo dest0 -> runCli do
+            CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
+            LoadPullRequestI baseRepo headRepo dest0 -> do
               assertNoBranchAtPath' dest0
               Env {codebase} <- ask
               let desta = resolveToAbsolute dest0
@@ -804,7 +810,7 @@ loop e = do
                 headb <- getBranch headRepo
                 mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
                 squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
-                stepManyAtCli
+                stepManyAt
                   inputDescription
                   Branch.AllowRewritingHistory
                   [ BranchUtil.makeSetBranch (dest, "base") baseb,
@@ -823,38 +829,38 @@ loop e = do
                 (snoc desta "merged")
 
             -- move the Command.root to a sub-branch
-            MoveBranchI Nothing dest -> runCli do
+            MoveBranchI Nothing dest -> do
               loopState <- Cli.getLoopState
               -- Overwrite history at destination.
-              stepManyAtCli
+              stepManyAt
                 inputDescription
                 Branch.AllowRewritingHistory
                 [ (Path.empty, const Branch.empty0),
                   BranchUtil.makeSetBranch (resolveSplit' dest) (loopState ^. Command.root)
                 ]
               respond Success
-            MoveBranchI (Just src) dest -> runCli do
+            MoveBranchI (Just src) dest -> do
               srcBranch <- expectBranchAtSplit' src
               assertNoBranchAtSplit' dest
               -- allow rewriting history to ensure we move the branch's history too.
-              stepManyAtCli
+              stepManyAt
                 inputDescription
                 Branch.AllowRewritingHistory
                 [ BranchUtil.makeDeleteBranch (resolveSplit' src),
                   BranchUtil.makeSetBranch (resolveSplit' dest) srcBranch
                 ]
               respond Success -- could give rando stats about new defns
-            MovePatchI src dest -> runCli do
+            MovePatchI src dest -> do
               p <- expectPatchAt src
               assertNoPatchAt dest
-              stepManyAtCli
+              stepManyAt
                 inputDescription
                 Branch.CompressHistory
                 [ BranchUtil.makeDeletePatch (resolveSplit' src),
                   BranchUtil.makeReplacePatch (resolveSplit' dest) p
                 ]
               respond Success
-            CopyPatchI src dest -> runCli do
+            CopyPatchI src dest -> do
               p <- expectPatchAt src
               assertNoPatchAt dest
               stepAt
@@ -862,14 +868,14 @@ loop e = do
                 Branch.CompressHistory
                 (BranchUtil.makeReplacePatch (resolveSplit' dest) p)
               respond Success
-            DeletePatchI src -> runCli do
+            DeletePatchI src -> do
               _ <- expectPatchAt src
               stepAt
                 inputDescription
                 Branch.CompressHistory
                 (BranchUtil.makeDeletePatch (resolveSplit' src))
               respond Success
-            DeleteBranchI insistence Nothing -> runCli do
+            DeleteBranchI insistence Nothing -> do
               hasConfirmed <- confirmedCommand input
               if hasConfirmed || insistence == Force
                 then do
@@ -879,7 +885,7 @@ loop e = do
                     (Path.empty, const Branch.empty0)
                   respond DeletedEverything
                 else respond DeleteEverythingConfirmation
-            DeleteBranchI insistence (Just p) -> runCli do
+            DeleteBranchI insistence (Just p) -> do
               branch <- expectBranchAtSplit' p
               endangerments <- computeEndangerments (Branch.head branch)
               if null endangerments
@@ -906,7 +912,7 @@ loop e = do
                           (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
                           (Branch.toNames b0)
                   getEndangeredDependents (liftIO . Codebase.dependents codebase) toDelete rootNames
-            SwitchBranchI maybePath' -> runCli do
+            SwitchBranchI maybePath' -> do
               mpath' <- case maybePath' of
                 Nothing ->
                   fuzzySelectNamespace Absolute root0 >>= \case
@@ -920,25 +926,25 @@ loop e = do
                 Just path' -> do
                   path <- resolvePath' path'
                   Cli.modifyLoopState (over Command.currentPathStack (Nel.cons path))
-                  branch' <- getBranchAt path <&> fromMaybe Branch.empty
+                  branch' <- getBranchAt path
                   when (Branch.isEmpty0 $ Branch.head branch') (respond $ CreatedNewBranch path)
-            UpI -> runCli do
+            UpI -> do
               loopState <- Cli.getLoopState
               whenJust (unsnoc (loopState ^. Command.currentPath)) \(path, _) ->
                 Cli.modifyLoopState (over Command.currentPathStack (Nel.cons path))
-            PopBranchI -> runCli do
+            PopBranchI -> do
               loopState <- Cli.getLoopState
               case Nel.uncons (loopState ^. Command.currentPathStack) of
                 (_, Nothing) -> respond StartOfCurrentPathHistory
                 (_, Just paths) -> Cli.putLoopState $! (loopState & Command.currentPathStack .~ paths)
-            HistoryI resultsCap diffCap from -> runCli do
+            HistoryI resultsCap diffCap from -> do
               case from of
                 Left hash -> do
                   branch <- resolveShortBranchHash hash
                   doHistory 0 branch []
                 Right path' -> do
                   path <- resolvePath' path'
-                  getBranchAt path >>= \case
+                  getMaybeBranchAt path >>= \case
                     Nothing -> respond (CreatedNewBranch path)
                     Just branch -> doHistory 0 branch []
               where
@@ -955,7 +961,7 @@ loop e = do
                         b' <- fmap Branch.Branch . liftIO $ snd tail
                         let elem = (Branch.headHash b, Branch.namesDiff b' b)
                         doHistory (n + 1) b' (elem : acc)
-            UndoI -> runCli do
+            UndoI -> do
               prev <- liftIO (Branch.uncons root')
               case prev of
                 Nothing ->
@@ -964,19 +970,19 @@ loop e = do
                       then CantUndoPastStart
                       else CantUndoPastMerge
                 Just (_, prev) -> do
-                  updateRootCli prev inputDescription
+                  updateRoot prev inputDescription
                   (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head root')
                   Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
-            UiI -> runCli do
+            UiI -> do
               Env {serverBaseUrl} <- ask
               whenJust serverBaseUrl \url -> do
                 _success <- liftIO (openBrowser (Server.urlFor Server.UI url))
                 pure ()
-            DocsToHtmlI namespacePath' sourceDirectory -> runCli do
+            DocsToHtmlI namespacePath' sourceDirectory -> do
               Env {codebase, sandboxedRuntime} <- ask
               absPath <- Path.unabsolute <$> resolvePath' namespacePath'
               liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase root' (absPath) sourceDirectory)
-            AliasTermI src dest -> runCli do
+            AliasTermI src dest -> do
               Env {codebase} <- ask
               referents <-
                 either
@@ -1008,7 +1014,7 @@ loop e = do
                          in BranchUtil.getTermMetadataAt p r root0
                     )
                     src
-            AliasTypeI src dest -> runCli do
+            AliasTypeI src dest -> do
               Env {codebase} <- ask
               refs <-
                 either
@@ -1043,12 +1049,12 @@ loop e = do
 
             -- this implementation will happily produce name conflicts,
             -- but will surface them in a normal diff at the end of the operation.
-            AliasManyI srcs dest' -> runCli do
+            AliasManyI srcs dest' -> do
               destAbs <- resolvePath' dest'
-              old <- getBranchAt destAbs <&> fromMaybe Branch.empty
+              old <- getBranchAt destAbs
               let (unknown, actions) = foldl' go mempty srcs
-              stepManyAtCli inputDescription Branch.CompressHistory actions
-              new <- getBranchAt destAbs <&> fromMaybe Branch.empty
+              stepManyAt inputDescription Branch.CompressHistory actions
+              new <- getBranchAt destAbs
               (ppe, diff) <- diffHelper (Branch.head old) (Branch.head new)
               Cli.respondNumbered (ShowDiffAfterModifyBranch dest' destAbs ppe diff)
               when (not (null unknown)) do
@@ -1098,8 +1104,8 @@ loop e = do
 
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
                 fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
-            NamesI global thing -> runCli do
-              ns0 <- if global then pure basicPrettyPrintNames else basicParseNamesCli
+            NamesI global thing -> do
+              ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
               let ns = NamesWithHistory ns0 mempty
                   terms = NamesWithHistory.lookupHQTerm thing ns
                   types = NamesWithHistory.lookupHQType thing ns
@@ -1113,21 +1119,21 @@ loop e = do
                     where
                       go r = (r, NamesWithHistory.typeName hqLength r printNames)
               respond $ ListNames global hqLength (toList types') (toList terms')
-            LinkI mdValue srcs -> runCli do
+            LinkI mdValue srcs -> do
               manageLinks False srcs [mdValue] Metadata.insert
               syncRoot inputDescription
-            UnlinkI mdValue srcs -> runCli do
+            UnlinkI mdValue srcs -> do
               manageLinks False srcs [mdValue] Metadata.delete
               syncRoot inputDescription
 
             -- > links List.map (.Docs .English)
             -- > links List.map -- give me all the
             -- > links Optional License
-            LinksI src mdTypeStr -> runCli do
+            LinksI src mdTypeStr -> do
               (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
               Cli.modifyLoopState (set Command.numberedArgs (fmap (HQ.toString . view _1) out))
               respond $ ListOfLinks ppe out
-            DocsI srcs -> runCli do
+            DocsI srcs -> do
               srcs' <- case srcs of
                 [] ->
                   fuzzySelectDefinition Absolute root0 >>= \case
@@ -1140,9 +1146,9 @@ loop e = do
                       pure . mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString) $ defs
                 xs -> pure xs
               for_ srcs' (docsI (show input) basicPrettyPrintNames)
-            CreateAuthorI authorNameSegment authorFullName -> runCli do
+            CreateAuthorI authorNameSegment authorFullName -> do
               Env {codebase} <- ask
-              initialBranch <- getBranchAt currentPath' <&> fromMaybe Branch.empty
+              initialBranch <- getBranchAt currentPath'
               AuthorInfo
                 guid@(guidRef, _, _)
                 author@(authorRef, _, _)
@@ -1151,14 +1157,14 @@ loop e = do
 
               -- add the new definitions to the codebase and to the namespace
               traverse_ (liftIO . uncurry3 (Codebase.putTerm codebase)) [guid, author, copyrightHolder]
-              stepManyAtCli
+              stepManyAt
                 inputDescription
                 Branch.CompressHistory
                 [ BranchUtil.makeAddTermName (resolveSplit' authorPath) (d authorRef) mempty,
                   BranchUtil.makeAddTermName (resolveSplit' copyrightHolderPath) (d copyrightHolderRef) mempty,
                   BranchUtil.makeAddTermName (resolveSplit' guidPath) (d guidRef) mempty
                 ]
-              finalBranch <- getBranchAt currentPath' <&> fromMaybe Branch.empty
+              finalBranch <- getBranchAt currentPath'
               -- print some output
               (ppe, diff) <- diffHelper (Branch.head initialBranch) (Branch.head finalBranch)
               Cli.respondNumbered $
@@ -1175,10 +1181,10 @@ loop e = do
                 authorPath = base |> "authors" |> authorNameSegment
                 copyrightHolderPath = base |> "copyrightHolders" |> authorNameSegment
                 guidPath = authorPath |> "guid"
-            MoveTermI src dest -> runCli do
+            MoveTermI src dest -> do
               case (toList (getHQ'Terms src), toList (getTerms dest)) of
                 ([r], []) -> do
-                  stepManyAtCli
+                  stepManyAt
                     inputDescription
                     Branch.CompressHistory
                     [ BranchUtil.makeDeleteTermName p r,
@@ -1191,10 +1197,10 @@ loop e = do
               where
                 p = resolveSplit' (HQ'.toName <$> src)
                 mdSrc r = BranchUtil.getTermMetadataAt p r root0
-            MoveTypeI src dest -> runCli do
+            MoveTypeI src dest -> do
               case (toList (getHQ'Types src), toList (getTypes dest)) of
                 ([r], []) -> do
-                  stepManyAtCli
+                  stepManyAt
                     inputDescription
                     Branch.CompressHistory
                     [ BranchUtil.makeDeleteTypeName p r,
@@ -1207,10 +1213,10 @@ loop e = do
               where
                 p = resolveSplit' (HQ'.toName <$> src)
                 mdSrc r = BranchUtil.getTypeMetadataAt p r root0
-            DeleteI hq -> runCli (delete getHQ'Terms getHQ'Types hq)
-            DeleteTypeI hq -> runCli (delete (const Set.empty) getHQ'Types hq)
-            DeleteTermI hq -> runCli (delete getHQ'Terms (const Set.empty) hq)
-            DisplayI outputLoc names' -> runCli do
+            DeleteI hq -> delete getHQ'Terms getHQ'Types hq
+            DeleteTypeI hq -> delete (const Set.empty) getHQ'Types hq
+            DeleteTermI hq -> delete getHQ'Terms (const Set.empty) hq
+            DisplayI outputLoc names' -> do
               names <- case names' of
                 [] ->
                   fuzzySelectDefinition Absolute root0 >>= \case
@@ -1218,8 +1224,8 @@ loop e = do
                     Just defs -> pure defs
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
-            ShowDefinitionI outputLoc query -> runCli (handleShowDefinition outputLoc query)
-            FindPatchI -> runCli do
+            ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
+            FindPatchI -> do
               let patches =
                     [ Path.toName $ Path.snoc p seg
                       | (p, b) <- Branch.toList0 currentBranch0,
@@ -1227,7 +1233,7 @@ loop e = do
                     ]
               respond $ ListOfPatches $ Set.fromList patches
               Cli.modifyLoopState (set Command.numberedArgs (fmap Name.toString patches))
-            FindShallowI pathArg -> runCli do
+            FindShallowI pathArg -> do
               Env {codebase} <- ask
 
               let pathArgAbs = resolveToAbsolute pathArg
@@ -1254,8 +1260,8 @@ loop e = do
                       p | last p == '.' -> p ++ s
                       p -> p ++ "." ++ s
                     pathArgStr = show pathArg
-            FindI isVerbose fscope ws -> runCli (handleFindI isVerbose fscope ws input)
-            ResolveTypeNameI hq -> runCli do
+            FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
+            ResolveTypeNameI hq -> do
               zeroOneOrMore
                 (getHQ'Types hq)
                 (typeNotFound hq)
@@ -1266,12 +1272,12 @@ loop e = do
                 makeDelete =
                   BranchUtil.makeDeleteTypeName (resolveSplit' (HQ'.toName <$> hq))
                 go r =
-                  stepManyAtCli inputDescription Branch.CompressHistory
+                  stepManyAt inputDescription Branch.CompressHistory
                     . fmap makeDelete
                     . toList
                     . Set.delete r
                     $ conflicted
-            ResolveTermNameI hq -> runCli do
+            ResolveTermNameI hq -> do
               loopState <- Cli.getLoopState
               path <- resolveSplitCli' hq
               refs <-
@@ -1288,18 +1294,18 @@ loop e = do
                 makeDelete =
                   BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
                 go r =
-                  stepManyAtCli inputDescription Branch.CompressHistory
+                  stepManyAt inputDescription Branch.CompressHistory
                     . fmap makeDelete
                     . toList
                     . Set.delete r
                     $ conflicted
-            ReplaceI from to patchPath -> runCli do
+            ReplaceI from to patchPath -> do
               Env {codebase} <- ask
 
               let patchPath' = fromMaybe defaultPatchPath patchPath
               patch <- getPatchAtCli patchPath' <&> fromMaybe Patch.empty
-              QueryResult fromMisses' fromHits <- hqNameQueryCli [from]
-              QueryResult toMisses' toHits <- hqNameQueryCli [to]
+              QueryResult fromMisses' fromHits <- hqNameQuery [from]
+              QueryResult toMisses' toHits <- hqNameQuery [to]
               let termsFromRefs = termReferences fromHits
                   termsToRefs = termReferences toHits
                   typesFromRefs = typeReferences fromHits
@@ -1383,18 +1389,19 @@ loop e = do
                 ([_], tos, [], []) -> ambiguous to tos
                 ([], [], [_], tos) -> ambiguous to tos
                 (_, _, _, _) -> error "unpossible"
-            LoadI maybePath -> runCli do
+            LoadI maybePath -> do
               case maybePath <|> (fst <$> latestFile') of
                 Nothing -> respond NoUnisonFile
                 Just path -> do
                   Env {loadSource} <- ask
                   liftIO (loadSource (Text.pack path)) >>= \case
-                    InvalidSourceNameError -> respond $ InvalidSourceName path
-                    LoadError -> respond $ SourceLoadFailed path
-                    LoadSuccess contents -> loadUnisonFileCli (Text.pack path) contents
-            AddI requestedNames -> runCli do
+                    Cli.InvalidSourceNameError -> respond $ InvalidSourceName path
+                    Cli.LoadError -> respond $ SourceLoadFailed path
+                    Cli.LoadSuccess contents -> loadUnisonFileCli (Text.pack path) contents
+            AddI requestedNames -> do
+              loopState <- Cli.getLoopState
               let vars = Set.map Name.toVar requestedNames
-              case uf of
+              case loopState ^. Command.latestTypecheckedFile of
                 Nothing -> respond NoUnisonFile
                 Just uf -> do
                   Env {codebase} <- ask
@@ -1407,36 +1414,38 @@ loop e = do
                   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
                   addDefaultMetadata adds
                   syncRoot inputDescription
-            PreviewAddI requestedNames -> runCli do
-              case (latestFile', uf) of
+            PreviewAddI requestedNames -> do
+              loopState <- Cli.getLoopState
+              case (latestFile', loopState ^. Command.latestTypecheckedFile) of
                 (Just (sourceName, _), Just uf) -> do
                   let vars = Set.map Name.toVar requestedNames
                   currentNames <- currentPathNames
                   let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
                   previewResponse sourceName sr uf
                 _ -> respond NoUnisonFile
-            UpdateI optionalPatch requestedNames -> runCli (handleUpdate input optionalPatch requestedNames)
-            PreviewUpdateI requestedNames -> runCli do
-              case (latestFile', uf) of
+            UpdateI optionalPatch requestedNames -> handleUpdate input optionalPatch requestedNames
+            PreviewUpdateI requestedNames -> do
+              loopState <- Cli.getLoopState
+              case (latestFile', loopState ^. Command.latestTypecheckedFile) of
                 (Just (sourceName, _), Just uf) -> do
                   let vars = Set.map Name.toVar requestedNames
                   currentNames <- currentPathNames
                   let sr = Slurp.slurpFile uf vars Slurp.UpdateOp currentNames
                   previewResponse sourceName sr uf
                 _ -> respond NoUnisonFile
-            TodoI patchPath branchPath' -> runCli do
+            TodoI patchPath branchPath' -> do
               patch <- getPatchAtCli (fromMaybe defaultPatchPath patchPath) <&> fromMaybe Patch.empty
               doShowTodoOutput patch $ resolveToAbsolute branchPath'
-            TestI testInput -> runCli (handleTest testInput)
-            PropagatePatchI patchPath scopePath -> runCli do
+            TestI testInput -> handleTest testInput
+            PropagatePatchI patchPath scopePath -> do
               patch <- getPatchAtCli patchPath <&> fromMaybe Patch.empty
               updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
               when (not updated) (respond $ NothingToPatch patchPath scopePath)
-            ExecuteI main args -> runCli do
+            ExecuteI main args -> do
               Env {runtime} <- ask
+              loopState <- Cli.getLoopState
               let mainType = Runtime.mainType runtime
-
-              addRunMain main uf >>= \case
+              addRunMain main (loopState ^. Command.latestTypecheckedFile) >>= \case
                 NoTermWithThatName -> do
                   ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
                   respond $ NoMainFunction main ppe [mainType]
@@ -1448,7 +1457,7 @@ loop e = do
                   -- TODO
                   _ <- evalUnisonFile False ppe unisonFile args
                   pure ()
-            MakeStandaloneI output main -> runCli do
+            MakeStandaloneI output main -> do
               Env {codebase, runtime} <- ask
               let mainType = Runtime.mainType runtime
               parseNames <-
@@ -1468,11 +1477,11 @@ loop e = do
                   | otherwise ->
                       respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
-            IOTestI main -> runCli do
+            IOTestI main -> do
               Env {codebase, runtime} <- ask
               -- todo - allow this to run tests from scratch file, using addRunMain
               let testType = Runtime.ioTestType runtime
-              parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNamesCli
+              parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
               ppe <- suffixifiedPPE parseNames
               -- use suffixed names for resolving the argument to display
               let oks results =
@@ -1507,7 +1516,7 @@ loop e = do
             --   stepAt updateBuiltins
             --   checkTodo
 
-            MergeBuiltinsI -> runCli do
+            MergeBuiltinsI -> do
               Env {codebase} <- ask
               -- these were added once, but maybe they've changed and need to be
               -- added again.
@@ -1524,7 +1533,7 @@ loop e = do
               _ <- updateAtM inputDescription (currentPath' `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               respond Success
-            MergeIOBuiltinsI -> runCli do
+            MergeIOBuiltinsI -> do
               Env {codebase} <- ask
               -- these were added once, but maybe they've changed and need to be
               -- added again.
@@ -1547,13 +1556,13 @@ loop e = do
               _ <- updateAtM inputDescription (currentPath' `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               respond Success
-            ListEditsI maybePath -> runCli do
+            ListEditsI maybePath -> do
               patch <- getPatchAtCli (fromMaybe defaultPatchPath maybePath) <&> fromMaybe Patch.empty
               ppe <-
                 suffixifiedPPE
                   =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               Cli.respondNumbered $ ListEdits patch ppe
-            PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> runCli do
+            PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> do
               Env {codebase} <- ask
               let preprocess = case pullMode of
                     Input.PullWithHistory -> Unmodified
@@ -1570,7 +1579,7 @@ loop e = do
               let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
               case pullMode of
                 Input.PullWithHistory -> do
-                  destBranch <- getAtCli destAbs
+                  destBranch <- getBranchAt destAbs
                   if Branch.isEmpty0 (Branch.head destBranch)
                     then do
                       void $ updateAtM inputDescription destAbs (const $ pure remoteBranch)
@@ -1592,9 +1601,9 @@ loop e = do
                   if didUpdate
                     then respond $ PullSuccessful ns path
                     else respond unchangedMsg
-            PushRemoteBranchI pushRemoteBranchInput -> runCli (handlePushRemoteBranch pushRemoteBranchInput)
-            ListDependentsI hq -> runCli (handleDependents hq)
-            ListDependenciesI hq -> runCli do
+            PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
+            ListDependentsI hq -> handleDependents hq
+            ListDependenciesI hq -> do
               Env {codebase} <- ask
               -- todo: add flag to handle transitive efficiently
               resolveHQToLabeledDependencies hq >>= \lds ->
@@ -1625,7 +1634,7 @@ loop e = do
                     let names = types <> terms
                     Cli.modifyLoopState (set Command.numberedArgs (fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)))
                     respond $ ListDependencies hqLength ld names missing
-            NamespaceDependenciesI namespacePath' -> runCli do
+            NamespaceDependenciesI namespacePath' -> do
               let path = maybe currentPath' resolveToAbsolute namespacePath'
               case (Branch.getAt (Path.unabsolute path) root') of
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
@@ -1633,12 +1642,13 @@ loop e = do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
                   ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
                   respond $ ListNamespaceDependencies ppe path externalDependencies
-            DebugNumberedArgsI -> runCli do
+            DebugNumberedArgsI -> do
               numArgs <- view Command.numberedArgs <$> Cli.getLoopState
               respond (DumpNumberedArgs numArgs)
-            DebugTypecheckedUnisonFileI -> runCli do
+            DebugTypecheckedUnisonFileI -> do
+              loopState <- Cli.getLoopState
               uf <-
-                uf & onNothing do
+                (loopState ^. Command.latestTypecheckedFile) & onNothing do
                   respond NoUnisonFile
                   Cli.returnEarly
               let datas, effects, terms :: [(Name, Reference.Id)]
@@ -1646,7 +1656,7 @@ loop e = do
                   effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
                   terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               respond $ DumpUnisonFileHashes hqLength datas effects terms
-            DebugDumpNamespacesI -> runCli do
+            DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
                   getCausal b = (Branch.headHash b, pure $ Branch._history b)
@@ -1691,29 +1701,27 @@ loop e = do
                       prettyDefn renderR (r, (Foldable.toList -> names, Foldable.toList -> links)) =
                         P.lines (P.shown <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyLinks renderR r links
               void . liftIO . flip State.execStateT mempty $ goCausal [getCausal root']
-            DebugDumpNamespaceSimpleI -> runCli do
+            DebugDumpNamespaceSimpleI -> do
               for_ (Relation.toList . Branch.deepTypes . Branch.head $ root') \(r, name) ->
                 traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
               for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
-            DebugClearWatchI {} -> runCli do
+            DebugClearWatchI {} -> do
               Env {codebase} <- ask
               liftIO (Codebase.clearWatches codebase)
-            DebugDoctorI {} -> runCli do
+            DebugDoctorI {} -> do
               Env {codebase} <- ask
               r <- liftIO (Codebase.runTransaction codebase IntegrityCheck.integrityCheckFullCodebase)
               respond (IntegrityCheck r)
             DeprecateTermI {} -> notImplemented
             DeprecateTypeI {} -> notImplemented
-            RemoveTermReplacementI from patchPath ->
-              runCli (doRemoveReplacement from patchPath True)
-            RemoveTypeReplacementI from patchPath ->
-              runCli (doRemoveReplacement from patchPath False)
+            RemoveTermReplacementI from patchPath -> doRemoveReplacement from patchPath True
+            RemoveTypeReplacementI from patchPath -> doRemoveReplacement from patchPath False
             ShowDefinitionByPrefixI {} -> notImplemented
             UpdateBuiltinsI -> notImplemented
-            QuitI -> quit
-            GistI input -> runCli (handleGist input)
-            AuthLoginI -> runCli (authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver))
+            QuitI -> Cli.haltRepl
+            GistI input -> handleGist input
+            AuthLoginI -> authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
             VersionI -> do
               ucmVersion <- asks Command.ucmVersion
               respond $ PrintVersion ucmVersion
@@ -1721,7 +1729,7 @@ loop e = do
         notImplemented = respond NotImplemented
 
   case e of
-    Right input -> Command.lastInput .= Just input
+    Right input -> Cli.modifyLoopState (set Command.lastInput (Just input))
     _ -> pure ()
 
 handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Cli r ()
@@ -1755,7 +1763,7 @@ handleFindI isVerbose fscope ws input = do
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
   let currentPath' = loopState ^. Command.currentPath
-  currentBranch' <- getBranchAt currentPath' <&> fromMaybe Branch.empty
+  currentBranch' <- getBranchAt currentPath'
   let currentBranch0 = Branch.head currentBranch'
       getNames :: FindScope -> Names
       getNames findScope =
@@ -1786,7 +1794,7 @@ handleFindI isVerbose fscope ws input = do
           [] -> pure (List.sortOn (\s -> (SR.name s, s)) (SR.fromNames names))
           -- type query
           ":" : ws -> do
-            typ <- parseSearchTypeCli (show input) (unwords ws)
+            typ <- parseSearchType (show input) (unwords ws)
             let named = Branch.deepReferents currentBranch0
             matches <-
               fmap (filter (`Set.member` named) . toList) $
@@ -1903,7 +1911,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
   let localPath = Path.resolve currentPath' localPath0
   case pushFlavor of
     NormalPush (writeRemotePath@(WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath})) pushBehavior -> do
-      sourceBranch <- getAtCli localPath
+      sourceBranch <- getBranchAt localPath
       let withRemoteRoot :: Branch IO -> IO (Either Output (Branch IO))
           withRemoteRoot remoteRoot = do
             let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
@@ -1927,7 +1935,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
         Right (Right _branch) -> respond Success
     NormalPush (WriteRemotePathShare sharePath) pushBehavior -> handlePushToUnisonShare sharePath localPath pushBehavior
     GistyPush repo -> do
-      sourceBranch <- getAtCli localPath
+      sourceBranch <- getBranchAt localPath
       let opts =
             PushGitBranchOpts
               { behavior = GitPushBehaviorGist,
@@ -2095,8 +2103,8 @@ handleShowDefinition outputLoc inputQuery = do
         case outputLoc of
           ConsoleLocation {} -> pure (loopState ^. Command.root)
           -- fuzzy finding for 'edit's are local to the current branch
-          LatestFileLocation {} -> getBranchAt (loopState ^. Command.currentPath) <&> fromMaybe Branch.empty
-          FileLocation {} -> getBranchAt (loopState ^. Command.currentPath) <&> fromMaybe Branch.empty
+          LatestFileLocation {} -> getBranchAt (loopState ^. Command.currentPath)
+          FileLocation {} -> getBranchAt (loopState ^. Command.currentPath)
       pure (Branch.head branch)
 
     -- `view`: don't include cycles; `edit`: include cycles
@@ -2125,7 +2133,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
 
   testTerms <- do
     loopState <- Cli.getLoopState
-    currentBranch' <- getBranchAt (loopState ^. Command.currentPath) <&> fromMaybe Branch.empty
+    currentBranch' <- getBranchAt (loopState ^. Command.currentPath)
     currentBranch'
       & Branch.head
       & Branch.deepTermMetadata
@@ -2321,7 +2329,7 @@ handleUpdate input optionalPatch requestedNames = do
   when (Slurp.hasAddsOrUpdates sr) $ do
     -- take a look at the `updates` from the SlurpResult
     -- and make a patch diff to record a replacement from the old to new references
-    stepManyAtMNoSyncCli
+    stepManyAtMNoSync
       Branch.CompressHistory
       ( [ ( Path.unabsolute currentPath',
             pure . doSlurpUpdates typeEdits termEdits termDeprecations
@@ -2455,7 +2463,7 @@ manageLinks silent srcs metadataNames op = do
                     go types src = op (src, mdType, mdValue) types
              in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
           steps = srcs <&> \(path, _hq) -> (Path.unabsolute (resolveToAbsolute path), step)
-      stepManyAtNoSyncCli Branch.CompressHistory steps
+      stepManyAtNoSync Branch.CompressHistory steps
 
 -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
 -- otherwise, tries to load a value from .unisonConfig, and complains
@@ -2624,7 +2632,7 @@ importRemoteShareBranchCli rrn@(ReadShareRemoteNamespace {server, repo, path}) =
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli r (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
   HQ.NameOnly n -> do
-    parseNames <- basicParseNamesCli
+    parseNames <- basicParseNames
     let terms, types :: Set LabeledDependency
         terms = Set.map LD.referent . Name.searchBySuffix n $ Names.terms parseNames
         types = Set.map LD.typeRef . Name.searchBySuffix n $ Names.types parseNames
@@ -2683,7 +2691,7 @@ getLinks srcLoc src =
     Left s -> pure (Just s)
     Right Nothing -> pure Nothing
     Right (Just mdTypeStr) -> do
-      typ <- parseTypeCli srcLoc mdTypeStr
+      typ <- parseType srcLoc mdTypeStr
       pure (Just (Set.singleton (Hashing.typeToReference typ)))
 
 getLinks' ::
@@ -2753,7 +2761,7 @@ propagatePatch inputDescription patch scopePath = do
 -- | Create the args needed for showTodoOutput and call it
 doShowTodoOutput :: Patch -> Path.Absolute -> Cli r ()
 doShowTodoOutput patch scopePath = do
-  scope <- getBranchAt scopePath <&> fromMaybe Branch.empty
+  scope <- getBranchAt scopePath
   let names0 = Branch.toNames (Branch.head scope)
   -- only needs the local references to check for obsolete defs
   let getPpe = do
@@ -2941,7 +2949,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     mergeBranch mode inputDescription srcb dest0 dest = Cli.scopeWith do
       Cli.time "Merge Branch"
       Env {codebase} <- ask
-      destb <- getAtCli dest
+      destb <- getBranchAt dest
       merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
       b <- updateAtM inputDescription dest (const $ pure merged)
       for_ dest0 $ \dest0 ->
@@ -2968,7 +2976,7 @@ mergeBranchAndPropagateDefaultPatchCli mode inputDescription unchangedMessage sr
     mergeBranch :: Cli r Bool
     mergeBranch = unsafeTime "mergeBranch" do
       Env {codebase} <- ask
-      destb <- fromMaybe Branch.empty <$> getBranchAt dest
+      destb <- getBranchAt dest
       merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
       b <- updateAtM inputDescription dest (const $ pure merged)
       for_ maybeDest0 \dest0 -> do
@@ -2983,11 +2991,11 @@ loadPropagateDiffDefaultPatch ::
   Cli r ()
 loadPropagateDiffDefaultPatch inputDescription dest0 dest = Cli.scopeWith do
   Cli.time "Propagate Default Patch"
-  original <- getAtCli dest
+  original <- getBranchAt dest
   patch <- liftIO $ Branch.getPatch defaultPatchNameSegment (Branch.head original)
   patchDidChange <- propagatePatch inputDescription patch dest
   when patchDidChange . for_ dest0 $ \dest0 -> do
-    patched <- getAtCli dest
+    patched <- getBranchAt dest
     let patchPath = snoc dest0 defaultPatchNameSegment
     diffHelper (Branch.head original) (Branch.head patched)
       >>= Cli.respondNumbered . uncurry (ShowDiffAfterMergePropagate dest0 dest patchPath)
@@ -3000,12 +3008,12 @@ loadPropagateDiffDefaultPatchCli ::
 loadPropagateDiffDefaultPatchCli inputDescription maybeDest0 dest = do
   Cli.scopeWith do
     Cli.time "propagate-default-patch"
-    original <- getBranchAt dest <&> fromMaybe Branch.empty
+    original <- getBranchAt dest
     patch <- liftIO $ Branch.getPatch defaultPatchNameSegment (Branch.head original)
     patchDidChange <- propagatePatch inputDescription patch dest
     when patchDidChange do
       whenJust maybeDest0 \dest0 -> do
-        patched <- getBranchAt dest <&> fromMaybe Branch.empty
+        patched <- getBranchAt dest
         let patchPath = snoc dest0 defaultPatchNameSegment
         (ppe, diff) <- diffHelper (Branch.head original) (Branch.head patched)
         Cli.respondNumbered (ShowDiffAfterMergePropagate dest0 dest patchPath ppe diff)
@@ -3032,15 +3040,6 @@ getHQTerms = \case
       Env {codebase} <- ask
       liftIO (Backend.termReferentsByShortHash codebase sh)
 
-getAt :: Path.Absolute -> Action (Branch IO)
-getAt (Path.Absolute p) =
-  use Command.root <&> fromMaybe Branch.empty . Branch.getAt p
-
-getAtCli :: Path.Absolute -> Cli r (Branch IO)
-getAtCli (Path.Absolute p) = do
-  loopState <- Cli.getLoopState
-  pure (fromMaybe Branch.empty (Branch.getAt p (loopState ^. Command.root)))
-
 -- Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM ::
@@ -3052,7 +3051,7 @@ updateAtM reason (Path.Absolute p) f = do
   loopState <- Cli.getLoopState
   let b = loopState ^. Command.lastSavedRoot
   b' <- Branch.modifyAtM p f b
-  updateRootCli b' reason
+  updateRoot b' reason
   pure $ b /= b'
 
 stepAt ::
@@ -3060,7 +3059,7 @@ stepAt ::
   Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepAt cause strat = stepManyAtCli @[] cause strat . pure
+stepAt cause strat = stepManyAt @[] cause strat . pure
 
 stepAtCli' ::
   Command.InputDescription ->
@@ -3075,66 +3074,28 @@ stepAtCliNoSync' ::
   Cli r Bool
 stepAtCliNoSync' strat = stepManyAtCliNoSync' @[] strat . pure
 
-stepAtNoSync ::
-  Branch.UpdateStrategy ->
-  (Path, Branch0 IO -> Branch0 IO) ->
-  Action ()
-stepAtNoSync strat = stepManyAtNoSync @[] strat . pure
-
 stepAtNoSyncCli ::
   Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepAtNoSyncCli strat = stepManyAtNoSyncCli @[] strat . pure
-
-stepAtM ::
-  Branch.UpdateStrategy ->
-  Command.InputDescription ->
-  (Path, Branch0 IO -> IO (Branch0 IO)) ->
-  Action ()
-stepAtM cause strat = stepManyAtM @[] cause strat . pure
+stepAtNoSyncCli strat = stepManyAtNoSync @[] strat . pure
 
 stepAtMCli ::
   Branch.UpdateStrategy ->
   Command.InputDescription ->
   (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Cli r ()
-stepAtMCli cause strat = undefined
-
-stepAtM' ::
-  Branch.UpdateStrategy ->
-  Command.InputDescription ->
-  (Path, Branch0 IO -> Action (Branch0 IO)) ->
-  Action Bool
-stepAtM' cause strat = stepManyAtM' @[] cause strat . pure
-
-stepAtMNoSync' ::
-  Branch.UpdateStrategy ->
-  (Path, Branch0 IO -> Action (Branch0 IO)) ->
-  Action Bool
-stepAtMNoSync' strat = stepManyAtMNoSync' @[] strat . pure
+stepAtMCli cause strat = stepManyAtM @[] cause strat . pure
 
 stepManyAt ::
   Foldable f =>
   Command.InputDescription ->
   Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> Branch0 IO) ->
-  Action ()
+  Cli r ()
 stepManyAt reason strat actions = do
   stepManyAtNoSync strat actions
-  b <- use Command.root
-  updateRoot b reason
-
-stepManyAtCli ::
-  Foldable f =>
-  Command.InputDescription ->
-  Branch.UpdateStrategy ->
-  f (Path, Branch0 IO -> Branch0 IO) ->
-  Cli r ()
-stepManyAtCli reason strat actions = do
-  stepManyAtNoSyncCli strat actions
-  loopState <- Cli.getLoopState
-  updateRootCli (loopState ^. Command.root) reason
+  syncRoot reason
 
 stepManyAtCli' ::
   Foldable f =>
@@ -3144,8 +3105,7 @@ stepManyAtCli' ::
   Cli r Bool
 stepManyAtCli' reason strat actions = do
   res <- stepManyAtCliNoSync' strat actions
-  loopState <- Cli.getLoopState
-  updateRootCli (loopState ^. Command.root) reason
+  syncRoot reason
   pure res
 
 stepManyAtCliNoSync' ::
@@ -3166,93 +3126,38 @@ stepManyAtNoSync ::
   Foldable f =>
   Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> Branch0 IO) ->
-  Action ()
-stepManyAtNoSync strat actions = do
-  b <- use Command.root
-  let new = Branch.stepManyAt strat actions b
-  Command.root .= new
-
--- Like stepManyAt, but doesn't update the Command.root
-stepManyAtNoSyncCli ::
-  Foldable f =>
-  Branch.UpdateStrategy ->
-  f (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepManyAtNoSyncCli strat actions =
+stepManyAtNoSync strat actions =
   Cli.modifyLoopState (over Command.root (Branch.stepManyAt strat actions))
 
 stepManyAtM ::
   Foldable f =>
   Branch.UpdateStrategy ->
-  Command.InputDescription ->
+  InputDescription ->
   f (Path, Branch0 IO -> IO (Branch0 IO)) ->
-  Action ()
+  Cli r ()
 stepManyAtM strat reason actions = do
   stepManyAtMNoSync strat actions
-  b <- use Command.root
-  updateRoot b reason
+  syncRoot reason
 
 stepManyAtMNoSync ::
   Foldable f =>
   Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> IO (Branch0 IO)) ->
-  Action ()
-stepManyAtMNoSync strat actions = do
-  b <- use Command.root
-  b' <- liftIO $ Branch.stepManyAtM strat actions b
-  Command.root .= b'
-
-stepManyAtMNoSyncCli ::
-  Foldable f =>
-  Branch.UpdateStrategy ->
-  f (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Cli r ()
-stepManyAtMNoSyncCli strat actions = do
+stepManyAtMNoSync strat actions = do
   loopState <- Cli.getLoopState
   newRoot <- liftIO $ Branch.stepManyAtM strat actions (loopState ^. Command.root)
   Cli.modifyLoopState (set Command.root newRoot)
-
-stepManyAtM' ::
-  Foldable f =>
-  Branch.UpdateStrategy ->
-  Command.InputDescription ->
-  f (Path, Branch0 IO -> Action (Branch0 IO)) ->
-  Action Bool
-stepManyAtM' strat reason actions = do
-  b <- use Command.root
-  b' <- Branch.stepManyAtM strat actions b
-  updateRoot b' reason
-  pure (b /= b')
-
-stepManyAtMNoSync' ::
-  Foldable f =>
-  Branch.UpdateStrategy ->
-  f (Path, Branch0 IO -> Action (Branch0 IO)) ->
-  Action Bool
-stepManyAtMNoSync' strat actions = do
-  b <- use Command.root
-  b' <- Branch.stepManyAtM strat actions b
-  Command.root .= b'
-  pure (b /= b')
 
 -- | Sync the in-memory root branch.
 syncRoot :: Command.InputDescription -> Cli r ()
 syncRoot description = do
   loopState <- Cli.getLoopState
-  updateRootCli (loopState ^. Command.root) description
+  updateRoot (loopState ^. Command.root) description
 
-updateRoot :: Branch IO -> Command.InputDescription -> Action ()
+updateRoot :: Branch IO -> Command.InputDescription -> Cli r ()
 updateRoot new reason = time "updateRoot" do
-  codebase <- Command.askCodebase
-  old <- use Command.lastSavedRoot
-  when (old /= new) do
-    Command.root .= new
-    liftIO (Codebase.putRootBranch codebase new)
-    liftIO (Codebase.appendReflog codebase reason old new)
-    Command.lastSavedRoot .= new
-
-updateRootCli :: Branch IO -> Command.InputDescription -> Cli r ()
-updateRootCli new reason = time "updateRoot" do
   Env {codebase} <- ask
   loopState <- Cli.getLoopState
   let old = loopState ^. Command.lastSavedRoot
@@ -3388,7 +3293,7 @@ docsI srcLoc prettyPrintNames src =
 
     codebaseByName :: Cli r ()
     codebaseByName = do
-      parseNames <- basicParseNamesCli
+      parseNames <- basicParseNames
       case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
         s
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
@@ -3543,25 +3448,13 @@ fixupNamesRelative currentPath' = Names.map fixName
         then n
         else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
 
-makeHistoricalParsingNames :: Set (HQ.HashQualified Name) -> Action NamesWithHistory
+makeHistoricalParsingNames :: Set (HQ.HashQualified Name) -> Cli r NamesWithHistory
 makeHistoricalParsingNames lexedHQs = do
-  rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames <- basicParseNames
-  curPath <- use Command.currentPath
-  pure $
-    NamesWithHistory
-      basicNames
-      ( Names.makeAbsolute rawHistoricalNames
-          <> fixupNamesRelative curPath rawHistoricalNames
-      )
-
-makeHistoricalParsingNamesCli :: Set (HQ.HashQualified Name) -> Cli r NamesWithHistory
-makeHistoricalParsingNamesCli lexedHQs = do
   loopState <- Cli.getLoopState
   let curPath = loopState ^. Command.currentPath
 
-  rawHistoricalNames <- findHistoricalHQsCli lexedHQs
-  basicNames <- basicParseNamesCli
+  rawHistoricalNames <- findHistoricalHQs lexedHQs
+  basicNames <- basicParseNames
   pure $
     NamesWithHistory
       basicNames
@@ -3577,7 +3470,7 @@ loadTypeDisplayObject = \case
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> liftIO (Codebase.getTypeDeclaration codebase id)
 
-lexedSource :: SourceName -> Source -> Action (NamesWithHistory, LexedSource)
+lexedSource :: SourceName -> Source -> Cli r (NamesWithHistory, LexedSource)
 lexedSource name src = do
   let tokens = L.lexer (Text.unpack name) (Text.unpack src)
       getHQ = \case
@@ -3587,18 +3480,6 @@ lexedSource name src = do
         _ -> Nothing
       hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
   parseNames <- makeHistoricalParsingNames hqs
-  pure (parseNames, (src, tokens))
-
-lexedSourceCli :: SourceName -> Source -> Cli r (NamesWithHistory, LexedSource)
-lexedSourceCli name src = do
-  let tokens = L.lexer (Text.unpack name) (Text.unpack src)
-      getHQ = \case
-        L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.Hash sh -> Just (HQ.HashOnly sh)
-        _ -> Nothing
-      hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-  parseNames <- makeHistoricalParsingNamesCli hqs
   pure (parseNames, (src, tokens))
 
 suffixifiedPPE :: NamesWithHistory -> Cli r PPE.PrettyPrintEnv
@@ -3611,42 +3492,17 @@ fqnPPE ns = do
   Env {codebase} <- ask
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNames` ns)
 
-parseSearchType ::
-  SrcLoc ->
-  String ->
-  Action (Either Output (Type Symbol Ann))
-parseSearchType srcLoc typ = fmap Type.removeAllEffectVars <$> parseType srcLoc typ
-
-parseSearchTypeCli :: SrcLoc -> String -> Cli r (Type Symbol Ann)
-parseSearchTypeCli srcLoc typ = Type.removeAllEffectVars <$> parseTypeCli srcLoc typ
+parseSearchType :: SrcLoc -> String -> Cli r (Type Symbol Ann)
+parseSearchType srcLoc typ = Type.removeAllEffectVars <$> parseType srcLoc typ
 
 -- | A description of where the given parse was triggered from, for error messaging purposes.
 type SrcLoc = String
 
-parseType ::
-  SrcLoc ->
-  String ->
-  Action (Either Output (Type Symbol Ann))
+parseType :: SrcLoc -> String -> Cli r (Type Symbol Ann)
 parseType input src = do
   -- `show Input` is the name of the "file" being lexed
   (names0, lexed) <- lexedSource (Text.pack input) (Text.pack src)
   parseNames <- basicParseNames
-  let names =
-        NamesWithHistory.push
-          (NamesWithHistory.currentNames names0)
-          (NamesWithHistory.NamesWithHistory parseNames (NamesWithHistory.oldNames names0))
-  pure case Parsers.parseType (Text.unpack (fst lexed)) (Parser.ParsingEnv mempty names) of
-    Left err -> Left $ TypeParseError src err
-    Right typ -> case Type.bindNames mempty (NamesWithHistory.currentNames names) $
-      Type.generalizeLowercase mempty typ of
-      Left es -> Left $ ParseResolutionFailures src (toList es)
-      Right typ -> Right typ
-
-parseTypeCli :: SrcLoc -> String -> Cli r (Type Symbol Ann)
-parseTypeCli input src = do
-  -- `show Input` is the name of the "file" being lexed
-  (names0, lexed) <- lexedSourceCli (Text.pack input) (Text.pack src)
-  parseNames <- basicParseNamesCli
   let names =
         NamesWithHistory.push
           (NamesWithHistory.currentNames names0)
@@ -3683,7 +3539,7 @@ getTermsIncludingHistorical :: Monad m => Path.HQSplit -> Branch0 m -> Cli r (Se
 getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
   [] -> case hq of
     HQ'.HashQualified n hs -> do
-      names <- findHistoricalHQsCli (Set.fromList [HQ.HashQualified (Name.fromSegment n) hs])
+      names <- findHistoricalHQs (Set.fromList [HQ.HashQualified (Name.fromSegment n) hs])
       pure . R.ran $ Names.terms names
     _ -> pure Set.empty
   _ -> pure refs
@@ -3692,33 +3548,8 @@ getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
 
 -- discards inputs that aren't hashqualified;
 -- I'd enforce it with finer-grained types if we had them.
-findHistoricalHQs :: Set (HQ.HashQualified Name) -> Action Names
+findHistoricalHQs :: Set (HQ.HashQualified Name) -> Cli r Names
 findHistoricalHQs lexedHQs0 = do
-  root' <- use Command.root
-  curPath <- use Command.currentPath
-  let -- omg this nightmare name-to-path parsing code is littered everywhere.
-      -- We need to refactor so that the absolute-ness of a name isn't represented
-      -- by magical text combinations.
-      -- Anyway, this function takes a name, tries to determine whether it is
-      -- relative or absolute, and tries to return the corresponding name that is
-      -- /relative/ to the Command.root.
-      preprocess n = case Name.toString n of
-        -- some absolute name that isn't just "."
-        '.' : t@(_ : _) -> Name.unsafeFromString t
-        -- something in current path
-        _ ->
-          if Path.isRoot curPath
-            then n
-            else Name.joinDot (Path.toName . Path.unabsolute $ curPath) n
-
-      lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
-  (_missing, rawHistoricalNames) <- liftIO $ Branch.findHistoricalHQs lexedHQs root'
-  pure rawHistoricalNames
-
--- discards inputs that aren't hashqualified;
--- I'd enforce it with finer-grained types if we had them.
-findHistoricalHQsCli :: Set (HQ.HashQualified Name) -> Cli r Names
-findHistoricalHQsCli lexedHQs0 = do
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
   let curPath = loopState ^. Command.currentPath
@@ -3742,11 +3573,11 @@ findHistoricalHQsCli lexedHQs0 = do
   pure rawHistoricalNames
 
 basicPrettyPrintNamesA :: Cli r Names
-basicPrettyPrintNamesA = snd <$> basicNamesCli' Backend.AllNames
+basicPrettyPrintNamesA = snd <$> basicNames' Backend.AllNames
 
 makeShadowedPrintNamesFromHQ :: Set (HQ.HashQualified Name) -> Names -> Cli r NamesWithHistory
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
-  rawHistoricalNames <- findHistoricalHQsCli lexedHQs
+  rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames <- basicPrettyPrintNamesA
   loopState <- Cli.getLoopState
   -- The basic names go into "current", but are shadowed by "shadowing".
@@ -3756,30 +3587,19 @@ makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
       shadowing
       (NamesWithHistory basicNames (fixupNamesRelative (loopState ^. Command.currentPath) rawHistoricalNames))
 
-basicParseNames :: Action Names
-basicParseNames = fst <$> basicNames' Backend.Within
-
-basicParseNamesCli :: Cli r Names
-basicParseNamesCli =
-  fst <$> basicNamesCli' Backend.Within
+basicParseNames :: Cli r Names
+basicParseNames =
+  fst <$> basicNames' Backend.Within
 
 currentPathNames :: Cli r Names
 currentPathNames = do
   loopState <- Cli.getLoopState
-  branch <- getBranchAt (loopState ^. Command.currentPath) <&> fromMaybe Branch.empty
+  branch <- getBranchAt (loopState ^. Command.currentPath)
   pure $ Branch.toNames (Branch.head branch)
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNames' :: (Path -> Backend.NameScoping) -> Action (Names, Names)
+basicNames' :: (Path -> Backend.NameScoping) -> Cli r (Names, Names)
 basicNames' nameScoping = do
-  root' <- use Command.root
-  currentPath' <- use Command.currentPath
-  let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
-  pure (parse, pretty)
-
--- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNamesCli' :: (Path -> Backend.NameScoping) -> Cli r (Names, Names)
-basicNamesCli' nameScoping = do
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
   let currentPath' = loopState ^. Command.currentPath
@@ -3830,7 +3650,7 @@ addRunMain mainName = \case
   Nothing -> do
     Env {codebase, runtime} <- ask
 
-    parseNames <- basicParseNamesCli
+    parseNames <- basicParseNames
     let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
     mainToFile
       <$> MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
@@ -3927,18 +3747,8 @@ declOrBuiltin codebase r = case r of
   Reference.DerivedId id ->
     fmap DD.Decl <$> Codebase.getTypeDeclaration codebase id
 
-hqNameQuery :: [HQ.HashQualified Name] -> Action QueryResult
+hqNameQuery :: [HQ.HashQualified Name] -> Cli r QueryResult
 hqNameQuery query = do
-  root' <- use Command.root
-  currentPath' <- Path.unabsolute <$> use Command.currentPath
-  codebase <- Command.askCodebase
-  hqLength <- liftIO (Codebase.hashLength codebase)
-  let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames currentPath')
-  let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
-  liftIO (Backend.hqNameQuery codebase nameSearch query)
-
-hqNameQueryCli :: [HQ.HashQualified Name] -> Cli r QueryResult
-hqNameQueryCli query = do
   Env {codebase} <- ask
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root

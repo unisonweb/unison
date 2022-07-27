@@ -22,7 +22,6 @@ import Unison.Codebase.Branch (Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Command
-import qualified Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch (..))
