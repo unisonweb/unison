@@ -87,7 +87,7 @@ propagateAndApply ::
   Branch0 IO ->
   Action (Branch0 IO)
 propagateAndApply codebase rootNames patch branch = do
-  edits <- propagate codebase rootNames patch branch
+  edits <- runCli (propagate codebase rootNames patch branch)
   let f = applyPropagate patch edits
   (pure . f . applyDeprecations patch) branch
 
@@ -241,7 +241,7 @@ propagate ::
   -- of type `Referent -> Referent`
   Patch ->
   Branch0 IO ->
-  Action (Edits Symbol)
+  Cli r (Edits Symbol)
 propagate codebase rootNames patch b = case validatePatch patch of
   Nothing -> do
     respond PatchNeedsToBeConflictFree
@@ -276,7 +276,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
     -- TODO: once patches can directly contain constructor replacements, this
     -- line can turn into a pure function that takes the subset of the term replacements
     -- in the patch which have a `Referent.Con` as their LHS.
-    initialCtorMappings <- runCli (genInitialCtorMapping codebase rootNames initialTypeReplacements)
+    initialCtorMappings <- genInitialCtorMapping codebase rootNames initialTypeReplacements
 
     order <- sortDependentsGraph initialDirty entireBranch
     let getOrdered :: Set Reference -> Map Int Reference
@@ -443,20 +443,19 @@ propagate codebase rootNames patch b = case validatePatch patch of
                           constructorReplacements,
                       seen'
                     )
-    runCli
-      ( collectEdits
-          ( Edits
-              initialTermEdits
-              (initialTermReplacements initialCtorMappings initialTermEdits)
-              mempty
-              initialTypeEdits
-              initialTypeReplacements
-              mempty
-              initialCtorMappings
-          )
-          mempty -- things to skip
-          (getOrdered initialDirty)
+
+    collectEdits
+      ( Edits
+          initialTermEdits
+          (initialTermReplacements initialCtorMappings initialTermEdits)
+          mempty
+          initialTypeEdits
+          initialTypeReplacements
+          mempty
+          initialCtorMappings
       )
+      mempty -- things to skip
+      (getOrdered initialDirty)
   where
     initialTermReplacements ctors es =
       ctors
