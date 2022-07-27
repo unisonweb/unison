@@ -1438,8 +1438,8 @@ loop e = do
                   let sr = Slurp.slurpFile uf vars Slurp.UpdateOp currentNames
                   previewResponse sourceName sr uf
                 _ -> respond NoUnisonFile
-            TodoI patchPath branchPath' -> do
-              patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
+            TodoI patchPath branchPath' -> runCli do
+              patch <- getPatchAtCli (fromMaybe defaultPatchPath patchPath) <&> fromMaybe Patch.empty
               doShowTodoOutput patch $ resolveToAbsolute branchPath'
             TestI testInput -> handleTest testInput
             PropagatePatchI patchPath scopePath -> do
@@ -2774,13 +2774,13 @@ propagatePatch inputDescription patch scopePath = do
     )
 
 -- | Create the args needed for showTodoOutput and call it
-doShowTodoOutput :: Patch -> Path.Absolute -> Action ()
+doShowTodoOutput :: Patch -> Path.Absolute -> Cli r ()
 doShowTodoOutput patch scopePath = do
-  scope <- getAt scopePath
+  scope <- getBranchAt scopePath <&> fromMaybe Branch.empty
   let names0 = Branch.toNames (Branch.head scope)
   -- only needs the local references to check for obsolete defs
   let getPpe = do
-        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        names <- makePrintNamesFromLabeledCli' (Patch.labeledDependencies patch)
         prettyPrintEnvDecl names
   showTodoOutput getPpe patch names0
 
@@ -2788,25 +2788,28 @@ doShowTodoOutput patch scopePath = do
 showTodoOutput ::
   -- | Action that fetches the pretty print env. It's expensive because it
   -- involves looking up historical names, so only call it if necessary.
-  Action PPE.PrettyPrintEnvDecl ->
+  Cli r PPE.PrettyPrintEnvDecl ->
   Patch ->
   Names ->
-  Action ()
+  Cli r ()
 showTodoOutput getPpe patch names0 = do
   todo <- checkTodo patch names0
   if TO.noConflicts todo && TO.noEdits todo
     then respond NoConflictsOrEdits
     else do
-      Command.numberedArgs
-        .= ( Text.unpack . Reference.toText . view _2
-               <$> fst (TO.todoFrontierDependents todo)
-           )
+      Cli.modifyLoopState
+        ( set
+            Command.numberedArgs
+            ( Text.unpack . Reference.toText . view _2
+                <$> fst (TO.todoFrontierDependents todo)
+            )
+        )
       ppe <- getPpe
-      respondNumbered $ TodoOutput ppe todo
+      Cli.respondNumbered $ TodoOutput ppe todo
 
-checkTodo :: Patch -> Names -> Action (TO.TodoOutput Symbol Ann)
+checkTodo :: Patch -> Names -> Cli r (TO.TodoOutput Symbol Ann)
 checkTodo patch names0 = do
-  codebase <- Command.askCodebase
+  Env {codebase} <- ask
   let shouldUpdate = Names.contains names0
   f <- Propagate.computeFrontier (liftIO . Codebase.dependents codebase) patch shouldUpdate
   let dirty = R.dom f
@@ -3553,12 +3556,13 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
 
 loadDisplayInfo ::
   Set Reference ->
-  Action
+  Cli
+    r
     ( [(Reference, Maybe (Type Symbol Ann))],
       [(Reference, DisplayObject () (DD.Decl Symbol Ann))]
     )
 loadDisplayInfo refs = do
-  codebase <- Command.askCodebase
+  Env {codebase} <- ask
   termRefs <- filterM (liftIO . Codebase.isTerm codebase) (toList refs)
   typeRefs <- filterM (liftIO . Codebase.isType codebase) (toList refs)
   terms <- forM termRefs $ \r -> (r,) <$> liftIO (Codebase.getTypeOfTerm codebase r)
@@ -3607,11 +3611,11 @@ makeHistoricalParsingNamesCli lexedHQs = do
           <> fixupNamesRelative curPath rawHistoricalNames
       )
 
-loadTypeDisplayObject :: Reference -> Action (DisplayObject () (DD.Decl Symbol Ann))
+loadTypeDisplayObject :: Reference -> Cli r (DisplayObject () (DD.Decl Symbol Ann))
 loadTypeDisplayObject = \case
   Reference.Builtin _ -> pure (BuiltinObject ())
   Reference.DerivedId id -> do
-    codebase <- Command.askCodebase
+    Env {codebase} <- ask
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> liftIO (Codebase.getTypeDeclaration codebase id)
 
