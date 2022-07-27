@@ -489,8 +489,9 @@ propagate codebase rootNames patch b = case validatePatch patch of
     -- However, if we want this to be parametric in the annotation type, then
     -- Command would have to be made parametric in the annotation type too.
     unhashTermComponent ::
+      MonadIO m =>
       Reference ->
-      Action (Map Symbol (Reference, Term Symbol _, Type Symbol _))
+      m (Map Symbol (Reference, Term Symbol _, Type Symbol _))
     unhashTermComponent r = case Reference.toId r of
       Nothing -> pure mempty
       Just r -> do
@@ -498,8 +499,9 @@ propagate codebase rootNames patch b = case validatePatch patch of
         pure $ fmap (over _1 Reference.DerivedId) unhashed
 
     unhashTermComponent' ::
+      MonadIO m =>
       Hash ->
-      Action (Map Symbol (Reference.Id, Term Symbol _, Type Symbol _))
+      m (Map Symbol (Reference.Id, Term Symbol _, Type Symbol _))
     unhashTermComponent' h =
       liftIO (Codebase.getTermComponentWithTypes codebase h) <&> foldMap \termsWithTypes ->
         unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
