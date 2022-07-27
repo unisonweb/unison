@@ -12,10 +12,9 @@ import Control.Error.Util (hush)
 import Control.Lens
 import Data.Configurator ()
 import qualified Data.Graph as Graph
-import Unison.FileParsers (synthesizeFile')
 import qualified Data.Map as Map
-import qualified Unison.Builtin as Builtin
 import qualified Data.Set as Set
+import qualified Unison.Builtin as Builtin
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
@@ -35,8 +34,10 @@ import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
+import Unison.FileParsers (synthesizeFile')
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Monad.Cli
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -150,8 +151,8 @@ genInitialCtorMapping :: Codebase IO Symbol Ann -> Names -> Map Reference Refere
 genInitialCtorMapping codebase rootNames initialTypeReplacements = do
   let mappings :: (Reference, Reference) -> _ (Map Referent Referent)
       mappings (old, new) = do
-        old <- unhashTypeComponent codebase old
-        new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent codebase new
+        old <- runCli (unhashTypeComponent codebase old)
+        new <- fmap (over _2 (either Decl.toDataDecl id)) <$> runCli (unhashTypeComponent codebase new)
         pure $ ctorMapping old new
   Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
   where
@@ -324,7 +325,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
             doType :: Reference -> Action (Maybe (Edits Symbol), Set Reference)
             doType r = do
               when debugMode $ traceM ("Rewriting type: " <> refName r)
-              componentMap <- unhashTypeComponent codebase r
+              componentMap <- runCli (unhashTypeComponent codebase r)
               let componentMap' =
                     over _2 (Decl.updateDependencies typeReplacements)
                       <$> componentMap
@@ -549,15 +550,15 @@ typecheckFile ambient file = do
   typeLookup <- liftIO (Codebase.typeLookupForDependencies codebase (UF.dependencies file))
   pure . fmap Right $ synthesizeFile' ambient (typeLookup <> Builtin.typeLookup) file
 
-        -- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
-unhashTypeComponent :: Codebase IO Symbol Ann -> Reference -> Action (Map Symbol (Reference, Decl Symbol Ann))
+-- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
+unhashTypeComponent :: Codebase IO Symbol Ann -> Reference -> Cli r (Map Symbol (Reference, Decl Symbol Ann))
 unhashTypeComponent codebase r = case Reference.toId r of
   Nothing -> pure mempty
   Just id -> do
     unhashed <- unhashTypeComponent' codebase (Reference.idToHash id)
     pure $ over _1 Reference.DerivedId <$> unhashed
 
-unhashTypeComponent' :: Codebase IO Symbol Ann -> Hash -> Action (Map Symbol (Reference.Id, Decl Symbol Ann))
+unhashTypeComponent' :: Codebase IO Symbol Ann -> Hash -> Cli r (Map Symbol (Reference.Id, Decl Symbol Ann))
 unhashTypeComponent' codebase h =
   liftIO (Codebase.getDeclComponent codebase h) <&> foldMap \decls ->
     unhash $ Map.fromList (Reference.componentFor h decls)
