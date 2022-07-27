@@ -647,8 +647,6 @@ loop e = do
                 Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
               hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
               ps' = p' . Path.unsplit'
-          updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
-          syncRoot = use Command.root >>= updateRoot
           updateAtM ::
             Path.Absolute ->
             (Branch IO -> Action (Branch IO)) ->
@@ -1408,21 +1406,21 @@ loop e = do
                     InvalidSourceNameError -> respond $ InvalidSourceName path
                     LoadError -> respond $ SourceLoadFailed path
                     LoadSuccess contents -> loadUnisonFileCli (Text.pack path) contents
-            AddI requestedNames -> do
+            AddI requestedNames -> runCli do
               let vars = Set.map Name.toVar requestedNames
               case uf of
                 Nothing -> respond NoUnisonFile
                 Just uf -> do
-                  codebase <- Command.askCodebase
-                  currentNames <- currentPathNames
+                  Env{codebase} <- ask
+                  currentNames <- currentPathNamesCli
                   let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
                   let adds = SlurpResult.adds sr
-                  stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
+                  stepAtNoSyncCli Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
-                  ppe <- prettyPrintEnvDecl =<< displayNames uf
+                  ppe <- prettyPrintEnvDecl =<< displayNamesCli uf
                   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
-                  addDefaultMetadata adds
-                  syncRoot
+                  addDefaultMetadataCli adds
+                  syncRootCli inputDescription
             PreviewAddI requestedNames -> case (latestFile', uf) of
               (Just (sourceName, _), Just uf) -> do
                 let vars = Set.map Name.toVar requestedNames
@@ -2406,8 +2404,53 @@ addDefaultMetadata adds =
               Right defaultMeta ->
                 manageLinks True addedNames defaultMeta Metadata.insert
 
+-- Add default metadata to all added types and terms in a slurp component.
+--
+-- No-op if the slurp component is empty.
+addDefaultMetadataCli :: SlurpComponent Symbol -> Cli r ()
+addDefaultMetadataCli adds =
+  when (not (SC.isEmpty adds)) do
+    loopState <- Cli.getLoopState
+    let currentPath' = loopState ^. Command.currentPath
+
+    let addedVs = Set.toList $ SC.types adds <> SC.terms adds
+        addedNs = traverse (Path.hqSplitFromName' . Name.unsafeFromVar) addedVs
+    case addedNs of
+      Nothing ->
+        error $
+          "I couldn't parse a name I just added to the codebase! "
+            <> "-- Added names: "
+            <> show addedVs
+      Just addedNames -> do
+        dm <- resolveDefaultMetadataCli currentPath'
+        case toList dm of
+          [] -> pure ()
+          dm' -> do
+            let hqs = traverse InputPatterns.parseHashQualifiedName dm'
+            case hqs of
+              Left e ->
+                respond $
+                  ConfiguredMetadataParseError
+                    (Path.absoluteToPath' currentPath')
+                    (show dm')
+                    e
+              Right defaultMeta ->
+                manageLinksCli True addedNames defaultMeta Metadata.insert
+
 resolveDefaultMetadata :: Path.Absolute -> Action [String]
 resolveDefaultMetadata path = do
+  let superpaths = Path.ancestors path
+  xs <-
+    for
+      superpaths
+      ( \path -> do
+          mayNames <- Command.getConfig @[String] (configKey "DefaultMetadata" path)
+          pure . join $ toList mayNames
+      )
+  pure . join $ toList xs
+
+resolveDefaultMetadataCli :: Path.Absolute -> Cli r [String]
+resolveDefaultMetadataCli path = do
   let superpaths = Path.ancestors path
   xs <-
     for
@@ -3216,6 +3259,12 @@ stepAtNoSync ::
   Action ()
 stepAtNoSync strat = stepManyAtNoSync @[] strat . pure
 
+stepAtNoSyncCli ::
+  Branch.UpdateStrategy ->
+  (Path, Branch0 IO -> Branch0 IO) ->
+  Cli r ()
+stepAtNoSyncCli strat = stepManyAtNoSyncCli @[] strat . pure
+
 stepAtM ::
   Branch.UpdateStrategy ->
   Command.InputDescription ->
@@ -3918,6 +3967,12 @@ currentPathNames = do
   currentPath' <- use Command.currentPath
   currentBranch' <- getAt currentPath'
   pure $ Branch.toNames (Branch.head currentBranch')
+
+currentPathNamesCli :: Cli r Names
+currentPathNamesCli = do
+  loopState <- Cli.getLoopState
+  branch <- getBranchAt (loopState ^. Command.currentPath) <&> fromMaybe Branch.empty
+  pure $ Branch.toNames (Branch.head branch)
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
 basicNames' :: (Path -> Backend.NameScoping) -> Action (Names, Names)
