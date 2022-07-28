@@ -33,7 +33,7 @@ import Unison.Auth.Types
     Tokens,
     codeserverCredentials,
   )
-import Unison.Codebase.Editor.Command (Env (..), respond)
+import Unison.Codebase.Editor.Command (Env (..))
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Debug as Debug
 import Unison.Monad.Cli (Cli)
@@ -59,17 +59,11 @@ ensureAuthenticatedWithCodeserver codeserverURI = do
 authLogin :: CodeserverURI -> Cli r ()
 authLogin host = do
   Env {credentialManager} <- ask
-  -- authenticateCodeserverCli credentialManager host >>= \case
-  --   Left err -> do
-  --     respond (CredentialFailureMsg err)
-  --     Cli.returnEarly
-  --   Right () -> respond Success
   httpClient <- liftIO HTTP.getGlobalManager
   let discoveryURI = discoveryURIForCodeserver host
   doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <-
     Cli.ioE (fetchDiscoveryDoc discoveryURI) \err -> do
-      respond (Output.CredentialFailureMsg err)
-      Cli.returnEarly
+      Cli.returnEarly (Output.CredentialFailureMsg err)
   Debug.debugM Debug.Auth "Discovery Doc" doc
   authResultVar <- liftIO (newEmptyMVar @(Either CredentialFailure Tokens))
   -- The redirect_uri depends on the port, so we need to spin up the server first, but
@@ -102,14 +96,13 @@ authLogin host = do
       liftIO (putMVar redirectURIVar redirectURI)
       let authorizationKickoff = authURI authorizationEndpoint redirectURI state challenge
       void . liftIO $ Web.openBrowser (show authorizationKickoff)
-      respond . Output.InitiateAuthFlow $ authorizationKickoff
+      Cli.respond . Output.InitiateAuthFlow $ authorizationKickoff
       Cli.ioE (readMVar authResultVar) \err -> do
-        respond (Output.CredentialFailureMsg err)
-        Cli.returnEarly
+        Cli.returnEarly (Output.CredentialFailureMsg err)
   let codeserverId = codeserverIdFromCodeserverURI host
   let creds = codeserverCredentials discoveryURI tokens
   liftIO (saveCredentials credentialManager codeserverId creds)
-  respond Output.Success
+  Cli.respond Output.Success
 
 -- | A server in the format expected for a Wai Application
 -- This is a temporary server which is spun up only until we get a code back from the

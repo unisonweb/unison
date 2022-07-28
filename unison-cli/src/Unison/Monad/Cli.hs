@@ -159,8 +159,15 @@ succeedWith :: r -> Cli r a
 succeedWith = short . Success
 
 -- | Short-circuit the processing of this input.
-returnEarly :: Cli r a
-returnEarly = short HaltStep
+returnEarly :: Output -> Cli r a
+returnEarly x = do
+  respond x
+  returnEarlyWithoutOutput
+
+-- | Variant of 'returnEarly' that doesn't take a final output message.
+returnEarlyWithoutOutput :: Cli r a
+returnEarlyWithoutOutput =
+  short HaltStep
 
 -- | Halt the repl
 haltRepl :: Cli r a
@@ -238,6 +245,11 @@ time label =
         us = ns / 1_000
         ms = ns / 1_000_000
         s = ns / 1_000_000_000
+
+respond :: Output -> Cli r ()
+respond output = do
+  Env {notify} <- ask
+  liftIO (notify output)
 
 respondNumbered :: NumberedOutput -> Cli r ()
 respondNumbered output = do

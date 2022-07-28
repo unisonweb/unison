@@ -18,7 +18,6 @@ module Unison.Codebase.Editor.Command
     latestTypecheckedFile,
     currentPath,
     loopState0,
-    respond,
     getConfig,
     InputDescription,
   )
@@ -31,7 +30,6 @@ import qualified Data.Configurator.Types as Configurator
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
 import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Lexer as L
@@ -84,11 +82,6 @@ loopState0 b p =
       _lastInput = Nothing,
       _numberedArgs = []
     }
-
-respond :: (MonadIO m, MonadReader Env m) => Output -> m ()
-respond output = do
-  Env {notify} <- ask
-  liftIO (notify output)
 
 -- | Lookup a config value by key.
 getConfig :: forall a m. (MonadReader Env m, Configurator.Configured a, MonadIO m) => Text -> m (Maybe a)
