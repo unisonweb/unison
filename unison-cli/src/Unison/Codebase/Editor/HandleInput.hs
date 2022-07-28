@@ -403,7 +403,6 @@ loop e = do
   hqLength <- liftIO (Codebase.hashLength codebase)
   sbhLength <- liftIO (Codebase.branchHashLength codebase)
   let currentPath'' = Path.unabsolute currentPath'
-      root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
       defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
@@ -680,8 +679,8 @@ loop e = do
             where
               resolvedPath = resolveSplit' (HQ'.toName <$> hq)
               goMany tms tys = do
-                let rootNames = Branch.toNames root0
-                    name = Path.toName (Path.unsplit resolvedPath)
+                rootNames <- Branch.toNames <$> getRootBranch0
+                let name = Path.toName (Path.unsplit resolvedPath)
                     toRel :: Ord ref => Set ref -> R.Relation Name ref
                     toRel = R.fromList . fmap (name,) . toList
                     -- these names are relative to the root
@@ -908,13 +907,14 @@ loop e = do
                 computeEndangerments :: Branch0 m1 -> Cli r (Map LabeledDependency (NESet LabeledDependency))
                 computeEndangerments b0 = do
                   Env {codebase} <- ask
-                  let rootNames = Branch.toNames root0
-                      toDelete =
+                  rootNames <- Branch.toNames <$> getRootBranch0
+                  let toDelete =
                         Names.prefix0
                           (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
                           (Branch.toNames b0)
                   getEndangeredDependents (liftIO . Codebase.dependents codebase) toDelete rootNames
             SwitchBranchI maybePath' -> do
+              root0 <- getRootBranch0
               path' <-
                 maybePath' & onNothing do
                   fuzzySelectNamespace Absolute root0 >>= \case
@@ -992,20 +992,18 @@ loop e = do
                     (False, Right name) -> DeleteNameAmbiguous hqLength name srcTerms Set.empty
               destTerms <- getTermsAt (Path.convert dest)
               when (not (Set.null destTerms)) (Cli.returnEarly (TermAlreadyExists dest destTerms))
+              srcMetadata <-
+                case src of
+                  Left _ -> pure Metadata.empty
+                  Right path0 -> do
+                    root0 <- getRootBranch0
+                    path <- resolveSplitCli' path0
+                    pure (BranchUtil.getTermMetadataAt (Path.fromAbsoluteSplit path) srcTerm root0)
               stepAt
                 inputDescription
                 Branch.CompressHistory
-                (BranchUtil.makeAddTermName (resolveSplit' dest) srcTerm (oldMD srcTerm))
+                (BranchUtil.makeAddTermName (resolveSplit' dest) srcTerm srcMetadata)
               Cli.respond Success
-              where
-                oldMD r =
-                  either
-                    (const mempty)
-                    ( \src ->
-                        let p = resolveSplit' src
-                         in BranchUtil.getTermMetadataAt p r root0
-                    )
-                    src
             AliasTypeI src dest -> do
               Env {codebase} <- ask
               srcTypes <-
@@ -1022,27 +1020,26 @@ loop e = do
                     (False, Right name) -> DeleteNameAmbiguous hqLength name Set.empty srcTypes
               destTypes <- getTypesAt (Path.convert dest)
               when (not (Set.null destTypes)) (Cli.returnEarly (TypeAlreadyExists dest destTypes))
+              srcMetadata <-
+                case src of
+                  Left _ -> pure Metadata.empty
+                  Right path0 -> do
+                    root0 <- getRootBranch0
+                    path <- resolveSplitCli' path0
+                    pure (BranchUtil.getTypeMetadataAt (Path.fromAbsoluteSplit path) srcType root0)
               stepAt
                 inputDescription
                 Branch.CompressHistory
-                (BranchUtil.makeAddTypeName (resolveSplit' dest) srcType (oldMD srcType))
+                (BranchUtil.makeAddTypeName (resolveSplit' dest) srcType srcMetadata)
               Cli.respond Success
-              where
-                oldMD r =
-                  either
-                    (const mempty)
-                    ( \src ->
-                        let p = resolveSplit' src
-                         in BranchUtil.getTypeMetadataAt p r root0
-                    )
-                    src
 
             -- this implementation will happily produce name conflicts,
             -- but will surface them in a normal diff at the end of the operation.
             AliasManyI srcs dest' -> do
+              root0 <- getRootBranch0
               destAbs <- resolvePath' dest'
               old <- getBranchAt destAbs
-              let (unknown, actions) = foldl' go mempty srcs
+              let (unknown, actions) = foldl' (go root0) mempty srcs
               stepManyAt inputDescription Branch.CompressHistory actions
               new <- getBranchAt destAbs
               (ppe, diff) <- diffHelper (Branch.head old) (Branch.head new)
@@ -1052,10 +1049,11 @@ loop e = do
               where
                 -- a list of missing sources (if any) and the actions that do the work
                 go ::
+                  Branch0 IO ->
                   ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)]) ->
                   Path.HQSplit ->
                   ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
-                go (missingSrcs, actions) hqsrc =
+                go root0 (missingSrcs, actions) hqsrc =
                   let src :: Path.Split
                       src = second HQ'.toName hqsrc
                       proposedDest :: Path.Split
@@ -1124,6 +1122,7 @@ loop e = do
               Cli.modifyLoopState (set Command.numberedArgs (fmap (HQ.toString . view _1) out))
               Cli.respond $ ListOfLinks ppe out
             DocsI srcs -> do
+              root0 <- getRootBranch0
               srcs' <- case srcs of
                 [] -> do
                   defs <-
@@ -1179,16 +1178,18 @@ loop e = do
                       else DeleteNameAmbiguous hqLength src srcTerms Set.empty
               destTerms <- getTermsAt (Path.convert dest)
               when (not (Set.null destTerms)) (Cli.returnEarly (TermAlreadyExists dest destTerms))
+              p <- Path.fromAbsoluteSplit <$> resolveSplitCli' src
+              srcMetadata <- do
+                root0 <- getRootBranch0
+                pure (BranchUtil.getTermMetadataAt p srcTerm root0)
               stepManyAt
                 inputDescription
                 Branch.CompressHistory
-                [ BranchUtil.makeDeleteTermName p srcTerm,
-                  BranchUtil.makeAddTermName (resolveSplit' dest) srcTerm (mdSrc srcTerm)
+                [ -- Mitchell: throwing away any hash-qualification here seems wrong!
+                  BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
+                  BranchUtil.makeAddTermName (over _2 HQ'.toName p) srcTerm srcMetadata
                 ]
               Cli.respond Success
-              where
-                p = resolveSplit' (HQ'.toName <$> src)
-                mdSrc r = BranchUtil.getTermMetadataAt p r root0
             MoveTypeI src dest -> do
               srcTypes <- getTypesAt src
               srcType <-
@@ -1199,20 +1200,23 @@ loop e = do
                       else DeleteNameAmbiguous hqLength src Set.empty srcTypes
               destTypes <- getTypesAt (Path.convert dest)
               when (not (Set.null destTypes)) (Cli.returnEarly (TypeAlreadyExists dest destTypes))
+              p <- Path.fromAbsoluteSplit <$> resolveSplitCli' src
+              srcMetadata <- do
+                root0 <- getRootBranch0
+                pure (BranchUtil.getTypeMetadataAt p srcType root0)
               stepManyAt
                 inputDescription
                 Branch.CompressHistory
-                [ BranchUtil.makeDeleteTypeName p srcType,
-                  BranchUtil.makeAddTypeName (resolveSplit' dest) srcType (mdSrc srcType)
+                [ -- Mitchell: throwing away any hash-qualification here seems wrong!
+                  BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
+                  BranchUtil.makeAddTypeName (over _2 HQ'.toName p) srcType srcMetadata
                 ]
               Cli.respond Success
-              where
-                p = resolveSplit' (HQ'.toName <$> src)
-                mdSrc r = BranchUtil.getTypeMetadataAt p r root0
             DeleteI hq -> delete getTermsAt getTypesAt hq
             DeleteTypeI hq -> delete (const (pure Set.empty)) getTypesAt hq
             DeleteTermI hq -> delete getTermsAt (const (pure Set.empty)) hq
             DisplayI outputLoc names' -> do
+              root0 <- getRootBranch0
               names <- case names' of
                 [] ->
                   fuzzySelectDefinition Absolute root0 & onNothingM do
