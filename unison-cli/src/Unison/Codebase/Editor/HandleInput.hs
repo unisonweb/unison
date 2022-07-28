@@ -198,9 +198,9 @@ currentPrettyPrintEnvDecl scoping = do
   Env {codebase} <- ask
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
-  let currentPath' = Path.unabsolute (loopState ^. Command.currentPath)
+  currentPath <- getCurrentPath
   hqLen <- liftIO (Codebase.hashLength codebase)
-  pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
+  pure $ Backend.getCurrentPrettyNames hqLen (scoping (Path.unabsolute currentPath)) root'
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Metadata resolution
@@ -211,7 +211,7 @@ resolveMetadata name = do
   Env {codebase} <- ask
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
-  let currentPath' = loopState ^. Command.currentPath
+  currentPath' <- getCurrentPath
   sbhLength <- liftIO (Codebase.branchHashLength codebase)
 
   let ppe :: PPE.PrettyPrintEnv
@@ -227,21 +227,25 @@ resolveMetadata name = do
     refs -> Cli.returnEarly (MetadataAmbiguous name ppe refs)
 
 ------------------------------------------------------------------------------------------------------------------------
--- Path resolution
+-- Getting paths, path resolution, etc.
+
+-- | Get the current path.
+getCurrentPath :: Cli r Path.Absolute
+getCurrentPath = do
+  loopState <- Cli.getLoopState
+  pure (loopState ^. Command.currentPath)
 
 -- | Resolve a @Path'@ to a @Path.Absolute@, per the current path.
 resolvePath' :: Path' -> Cli r Path.Absolute
 resolvePath' path = do
-  loopState <- Cli.getLoopState
-  let currentPath' = loopState ^. Command.currentPath
-  pure (Path.resolve currentPath' path)
+  currentPath <- getCurrentPath
+  pure (Path.resolve currentPath path)
 
 -- | Resolve a path split, per the current path.
 resolveSplitCli' :: (Path', a) -> Cli r (Path.Absolute, a)
 resolveSplitCli' s = do
-  loopState <- Cli.getLoopState
-  let currentPath' = loopState ^. Command.currentPath
-  pure (Path.toAbsoluteSplit currentPath' s)
+  path <- getCurrentPath
+  pure (Path.toAbsoluteSplit path s)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Branch resolution
@@ -271,6 +275,12 @@ resolveShortBranchHash hash = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting branches, patches, etc.
 
+-- | Get the current branch.
+getCurrentBranch :: Cli r (Branch IO)
+getCurrentBranch = do
+  path <- getCurrentPath
+  getBranchAt path
+
 -- | Get the branch at an absolute path.
 getBranchAt :: Path.Absolute -> Cli r (Branch IO)
 getBranchAt (Path.Absolute p) = do
@@ -283,26 +293,21 @@ getMaybeBranchAt (Path.Absolute p) = do
   loopState <- Cli.getLoopState
   pure (Branch.getAt p (loopState ^. Command.root))
 
--- | Get the maybe-branch at an absolute or relative path.
-getMaybeBranchAtPath' :: Path' -> Cli r (Maybe (Branch IO))
-getMaybeBranchAtPath' path = do
-  loopState <- Cli.getLoopState
-  let currentPath' = loopState ^. Command.currentPath
-  getMaybeBranchAt (Path.resolve currentPath' path)
-
 -- | Get the branch at an absolute or relative path, or return early if there's no such branch.
 expectBranchAtPath' :: Path' -> Cli r (Branch IO)
-expectBranchAtPath' path = do
-  getMaybeBranchAtPath' path & onNothingM (Cli.returnEarly (BranchNotFound path))
+expectBranchAtPath' path0 = do
+  path <- resolvePath' path0
+  getMaybeBranchAt path & onNothingM (Cli.returnEarly (BranchNotFound path0))
 
 -- | Assert that there's "no branch" at an absolute or relative path, or return early if there is one, where "no branch"
 -- means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
 -- current terms/types etc).
 assertNoBranchAtPath' :: Path' -> Cli r ()
-assertNoBranchAtPath' path =
-  whenJustM (getMaybeBranchAtPath' path) \branch ->
+assertNoBranchAtPath' path0 = do
+  path <- resolvePath' path0
+  whenJustM (getMaybeBranchAt path) \branch ->
     when (not (Branch.isEmpty0 (Branch.head branch))) do
-      Cli.returnEarly (BranchAlreadyExists path)
+      Cli.returnEarly (BranchAlreadyExists path0)
 
 -- | Get the branch at an absolute or relative split, or return early if there's no such branch.
 expectBranchAtSplit' :: Path.Split' -> Cli r (Branch IO)
@@ -346,9 +351,9 @@ loop e = do
   Env {codebase} <- ask
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
-  let currentPath' = loopState ^. Command.currentPath
+  currentPath' <- getCurrentPath
   let latestFile' = loopState ^. Command.latestFile
-  currentBranch' <- getBranchAt currentPath'
+  currentBranch' <- getCurrentBranch
   hqLength <- liftIO (Codebase.hashLength codebase)
   sbhLength <- liftIO (Codebase.branchHashLength codebase)
   let currentPath'' = Path.unabsolute currentPath'
@@ -895,8 +900,8 @@ loop e = do
                   branch' <- getBranchAt path
                   when (Branch.isEmpty0 $ Branch.head branch') (Cli.respond $ CreatedNewBranch path)
             UpI -> do
-              loopState <- Cli.getLoopState
-              whenJust (unsnoc (loopState ^. Command.currentPath)) \(path, _) ->
+              path0 <- getCurrentPath
+              whenJust (unsnoc path0) \(path, _) ->
                 Cli.modifyLoopState (over Command.currentPathStack (Nel.cons path))
             PopBranchI -> do
               loopState <- Cli.getLoopState
@@ -1114,7 +1119,7 @@ loop e = do
               for_ srcs' (docsI (show input) basicPrettyPrintNames)
             CreateAuthorI authorNameSegment authorFullName -> do
               Env {codebase} <- ask
-              initialBranch <- getBranchAt currentPath'
+              initialBranch <- getCurrentBranch
               AuthorInfo
                 guid@(guidRef, _, _)
                 author@(authorRef, _, _)
@@ -1130,7 +1135,7 @@ loop e = do
                   BranchUtil.makeAddTermName (resolveSplit' copyrightHolderPath) (d copyrightHolderRef) mempty,
                   BranchUtil.makeAddTermName (resolveSplit' guidPath) (d guidRef) mempty
                 ]
-              finalBranch <- getBranchAt currentPath'
+              finalBranch <- getCurrentBranch
               -- print some output
               (ppe, diff) <- diffHelper (Branch.head initialBranch) (Branch.head finalBranch)
               Cli.respondNumbered $
@@ -1537,7 +1542,7 @@ loop e = do
                     Cli.returnEarly (Output.GitError err)
                 ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
               let unchangedMsg = PullAlreadyUpToDate ns path
-              let destAbs = resolveToAbsolute path
+              destAbs <- resolvePath' path
               let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
               case pullMode of
                 Input.PullWithHistory -> do
@@ -1719,8 +1724,8 @@ handleFindI isVerbose fscope ws input = do
   Env {codebase} <- ask
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
-  let currentPath' = loopState ^. Command.currentPath
-  currentBranch' <- getBranchAt currentPath'
+  currentPath' <- getCurrentPath
+  currentBranch' <- getCurrentBranch
   let currentBranch0 = Branch.head currentBranch'
       getNames :: FindScope -> Names
       getNames findScope =
@@ -1863,8 +1868,7 @@ doPushRemoteBranch ::
   Cli r ()
 doPushRemoteBranch pushFlavor localPath0 syncMode = do
   Env {codebase} <- ask
-  currentPath' <- view Command.currentPath <$> Cli.getLoopState
-  let localPath = Path.resolve currentPath' localPath0
+  localPath <- resolvePath' localPath0
   case pushFlavor of
     NormalPush (writeRemotePath@(WriteRemotePathGit WriteGitRemotePath {repo, path = remotePath})) pushBehavior -> do
       sourceBranch <- getBranchAt localPath
@@ -2030,7 +2034,7 @@ handleShowDefinition outputLoc inputQuery = do
             _ -> Cli.respond (HelpMessage InputPatterns.edit) $> []
           Just defs -> pure defs
       else pure inputQuery
-  let currentPath' = Path.unabsolute (loopState ^. Command.currentPath)
+  currentPath' <- Path.unabsolute <$> getCurrentPath
   let root' = loopState ^. Command.root
   hqLength <- liftIO (Codebase.hashLength codebase)
   Backend.DefinitionResults terms types misses <- do
@@ -2051,13 +2055,12 @@ handleShowDefinition outputLoc inputQuery = do
     -- `view`: fuzzy find globally; `edit`: fuzzy find local to current branch
     fuzzyBranch :: Cli r (Branch0 IO)
     fuzzyBranch = do
-      loopState <- Cli.getLoopState
       branch <-
         case outputLoc of
-          ConsoleLocation {} -> pure (loopState ^. Command.root)
+          ConsoleLocation {} -> Cli.getLoopState <&> view Command.root
           -- fuzzy finding for 'edit's are local to the current branch
-          LatestFileLocation {} -> getBranchAt (loopState ^. Command.currentPath)
-          FileLocation {} -> getBranchAt (loopState ^. Command.currentPath)
+          LatestFileLocation {} -> getCurrentBranch
+          FileLocation {} -> getCurrentBranch
       pure (Branch.head branch)
 
     -- `view`: don't include cycles; `edit`: include cycles
@@ -2085,9 +2088,8 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
   Env {codebase} <- ask
 
   testTerms <- do
-    loopState <- Cli.getLoopState
-    currentBranch' <- getBranchAt (loopState ^. Command.currentPath)
-    currentBranch'
+    branch <- getCurrentBranch
+    branch
       & Branch.head
       & Branch.deepTermMetadata
       & R4.restrict34d12 isTest
@@ -2170,7 +2172,7 @@ handleUpdate input optionalPatch requestedNames = do
 
   Env {codebase} <- ask
 
-  let currentPath' = loopState ^. Command.currentPath
+  currentPath' <- getCurrentPath
   let defaultPatchPath :: PatchPath
       defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
   let patchPath = case optionalPatch of
@@ -2315,8 +2317,7 @@ addDefaultMetadata adds =
     Cli.scopeWith do
       Cli.time "add-default-metadata"
 
-      loopState <- Cli.getLoopState
-      let currentPath' = loopState ^. Command.currentPath
+      currentPath' <- getCurrentPath
 
       let addedVs = Set.toList $ SC.types adds <> SC.terms adds
           addedNs = traverse (Path.hqSplitFromName' . Name.unsafeFromVar) addedVs
@@ -2394,7 +2395,7 @@ manageLinks silent srcs metadataNames op = do
     go (mdType, mdValue) = do
       loopState <- Cli.getLoopState
       let newRoot = loopState ^. Command.root
-      let currentPath' = loopState ^. Command.currentPath
+      currentPath' <- getCurrentPath
       let resolveToAbsolute :: Path' -> Path.Absolute
           resolveToAbsolute = Path.resolve currentPath'
           resolveSplit' :: (Path', a) -> (Path, a)
@@ -2420,8 +2421,7 @@ manageLinks silent srcs metadataNames op = do
 -- if needed.
 resolveConfiguredUrl :: PushPull -> Path' -> Cli r WriteRemotePath
 resolveConfiguredUrl pushPull destPath' = do
-  currentPath' <- view Command.currentPath <$> Cli.getLoopState
-  let destPath = Path.resolve currentPath' destPath'
+  destPath <- resolvePath' destPath'
   let remoteMappingConfigKey = remoteMappingKey destPath
   Command.getConfig remoteMappingConfigKey >>= \case
     Nothing -> do
@@ -2847,7 +2847,7 @@ getHQTerms = \case
   HQ.NameOnly n -> do
     loopState <- Cli.getLoopState
     let root0 = Branch.head (loopState ^. Command.root)
-    let currentPath' = loopState ^. Command.currentPath
+    currentPath' <- getCurrentPath
     -- absolute-ify the name, then lookup in deepTerms of root
     let path =
           n
@@ -3275,8 +3275,7 @@ fixupNamesRelative currentPath' = Names.map fixName
 
 makeHistoricalParsingNames :: Set (HQ.HashQualified Name) -> Cli r NamesWithHistory
 makeHistoricalParsingNames lexedHQs = do
-  loopState <- Cli.getLoopState
-  let curPath = loopState ^. Command.currentPath
+  currentPath <- getCurrentPath
 
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames <- basicParseNames
@@ -3284,7 +3283,7 @@ makeHistoricalParsingNames lexedHQs = do
     NamesWithHistory
       basicNames
       ( Names.makeAbsolute rawHistoricalNames
-          <> fixupNamesRelative curPath rawHistoricalNames
+          <> fixupNamesRelative currentPath rawHistoricalNames
       )
 
 loadTypeDisplayObject :: Reference -> Cli r (DisplayObject () (DD.Decl Symbol Ann))
@@ -3347,7 +3346,7 @@ makePrintNamesFromLabeled' :: Set LabeledDependency -> Cli r NamesWithHistory
 makePrintNamesFromLabeled' deps = do
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
-  let curPath = loopState ^. Command.currentPath
+  curPath <- getCurrentPath
   (_missing, rawHistoricalNames) <-
     liftIO $
       Branch.findHistoricalRefs
@@ -3373,7 +3372,7 @@ findHistoricalHQs :: Set (HQ.HashQualified Name) -> Cli r Names
 findHistoricalHQs lexedHQs0 = do
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
-  let curPath = loopState ^. Command.currentPath
+  curPath <- getCurrentPath
   let -- omg this nightmare name-to-path parsing code is littered everywhere.
       -- We need to refactor so that the absolute-ness of a name isn't represented
       -- by magical text combinations.
@@ -3400,13 +3399,13 @@ makeShadowedPrintNamesFromHQ :: Set (HQ.HashQualified Name) -> Names -> Cli r Na
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames <- basicPrettyPrintNamesA
-  loopState <- Cli.getLoopState
+  currentPath <- getCurrentPath
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
   pure $
     NamesWithHistory.shadowing
       shadowing
-      (NamesWithHistory basicNames (fixupNamesRelative (loopState ^. Command.currentPath) rawHistoricalNames))
+      (NamesWithHistory basicNames (fixupNamesRelative currentPath rawHistoricalNames))
 
 basicParseNames :: Cli r Names
 basicParseNames =
@@ -3414,8 +3413,7 @@ basicParseNames =
 
 currentPathNames :: Cli r Names
 currentPathNames = do
-  loopState <- Cli.getLoopState
-  branch <- getBranchAt (loopState ^. Command.currentPath)
+  branch <- getCurrentBranch
   pure $ Branch.toNames (Branch.head branch)
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
@@ -3423,7 +3421,7 @@ basicNames' :: (Path -> Backend.NameScoping) -> Cli r (Names, Names)
 basicNames' nameScoping = do
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
-  let currentPath' = loopState ^. Command.currentPath
+  currentPath' <- getCurrentPath
   let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
   pure (parse, pretty)
 
@@ -3534,7 +3532,7 @@ diffHelper before after =
     Env {codebase} <- ask
     loopState <- Cli.getLoopState
     let currentRoot = view Command.root loopState
-    let currentPath = view Command.currentPath loopState
+    currentPath <- getCurrentPath
     hqLength <- liftIO (Codebase.hashLength codebase)
     diff <- liftIO (BranchDiff.diff0 before after)
     let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
@@ -3573,9 +3571,9 @@ hqNameQuery query = do
   Env {codebase} <- ask
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
-  let currentPath' = Path.unabsolute (loopState ^. Command.currentPath)
+  currentPath <- getCurrentPath
   hqLength <- liftIO (Codebase.hashLength codebase)
-  let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames currentPath')
+  let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
   let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
   liftIO (Backend.hqNameQuery codebase nameSearch query)
 
