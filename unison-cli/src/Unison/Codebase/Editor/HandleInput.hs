@@ -291,11 +291,13 @@ resolveShortBranchHash hash = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting branches
 
+-- | Get the root branch.
 getRootBranch :: Cli r (Branch IO)
 getRootBranch = do
   loopState <- Cli.getLoopState
   pure (loopState ^. Command.root)
 
+-- | Get the root branch0.
 getRootBranch0 :: Cli r (Branch0 IO)
 getRootBranch0 =
   Branch.head <$> getRootBranch
@@ -305,6 +307,11 @@ getCurrentBranch :: Cli r (Branch IO)
 getCurrentBranch = do
   path <- getCurrentPath
   getBranchAt path
+
+-- | Get the current branch0.
+getCurrentBranch0 :: Cli r (Branch0 IO)
+getCurrentBranch0 = do
+  Branch.head <$> getCurrentBranch
 
 -- | Get the branch at an absolute path.
 getBranchAt :: Path.Absolute -> Cli r (Branch IO)
@@ -403,11 +410,9 @@ loop e = do
   root' <- getRootBranch
   currentPath' <- getCurrentPath
   let latestFile' = loopState ^. Command.latestFile
-  currentBranch' <- getCurrentBranch
   hqLength <- liftIO (Codebase.hashLength codebase)
   sbhLength <- liftIO (Codebase.branchHashLength codebase)
   let currentPath'' = Path.unabsolute currentPath'
-      currentBranch0 = Branch.head currentBranch'
       resolveSplit' :: (Path', a) -> (Path, a)
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolveToAbsolute :: Path' -> Path.Absolute
@@ -453,7 +458,7 @@ loop e = do
       loadUnisonFile sourceName text = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         unisonFile <- withFile [] sourceName (text, lexed)
-        currentNames <- currentPathNames
+        currentNames <- Branch.toNames <$> getCurrentBranch0
         let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
         names <- displayNames unisonFile
         pped <- prettyPrintEnvDecl names
@@ -1039,9 +1044,10 @@ loop e = do
             -- but will surface them in a normal diff at the end of the operation.
             AliasManyI srcs dest' -> do
               root0 <- getRootBranch0
+              currentBranch0 <- getCurrentBranch0
               destAbs <- resolvePath' dest'
               old <- getBranchAt destAbs
-              let (unknown, actions) = foldl' (go root0) mempty srcs
+              let (unknown, actions) = foldl' (go root0 currentBranch0) mempty srcs
               stepManyAt inputDescription Branch.CompressHistory actions
               new <- getBranchAt destAbs
               (ppe, diff) <- diffHelper (Branch.head old) (Branch.head new)
@@ -1052,10 +1058,11 @@ loop e = do
                 -- a list of missing sources (if any) and the actions that do the work
                 go ::
                   Branch0 IO ->
+                  Branch0 IO ->
                   ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)]) ->
                   Path.HQSplit ->
                   ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
-                go root0 (missingSrcs, actions) hqsrc =
+                go root0 currentBranch0 (missingSrcs, actions) hqsrc =
                   let src :: Path.Split
                       src = second HQ'.toName hqsrc
                       proposedDest :: Path.Split
@@ -1153,9 +1160,9 @@ loop e = do
                   BranchUtil.makeAddTermName (resolveSplit' copyrightHolderPath) (d copyrightHolderRef) mempty,
                   BranchUtil.makeAddTermName (resolveSplit' guidPath) (d guidRef) mempty
                 ]
-              finalBranch <- getCurrentBranch
+              finalBranch <- getCurrentBranch0
               -- print some output
-              (ppe, diff) <- diffHelper (Branch.head initialBranch) (Branch.head finalBranch)
+              (ppe, diff) <- diffHelper (Branch.head initialBranch) finalBranch
               Cli.respondNumbered $
                 ShowDiffAfterCreateAuthor
                   authorNameSegment
@@ -1227,9 +1234,10 @@ loop e = do
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
             FindPatchI -> do
+              branch <- getCurrentBranch0
               let patches =
                     [ Path.toName $ Path.snoc p seg
-                      | (p, b) <- Branch.toList0 currentBranch0,
+                      | (p, b) <- Branch.toList0 branch,
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
               Cli.respond $ ListOfPatches $ Set.fromList patches
@@ -1399,7 +1407,7 @@ loop e = do
               let vars = Set.map Name.toVar requestedNames
               uf <- expectLatestTypecheckedFile
               Env {codebase} <- ask
-              currentNames <- currentPathNames
+              currentNames <- Branch.toNames <$> getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
               stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
@@ -1412,7 +1420,7 @@ loop e = do
               (sourceName, _) <- latestFile' & onNothing (Cli.returnEarly NoUnisonFile)
               uf <- expectLatestTypecheckedFile
               let vars = Set.map Name.toVar requestedNames
-              currentNames <- currentPathNames
+              currentNames <- Branch.toNames <$> getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               previewResponse sourceName sr uf
             UpdateI optionalPatch requestedNames -> handleUpdate input optionalPatch requestedNames
@@ -1420,7 +1428,7 @@ loop e = do
               (sourceName, _) <- latestFile' & onNothing (Cli.returnEarly NoUnisonFile)
               uf <- expectLatestTypecheckedFile
               let vars = Set.map Name.toVar requestedNames
-              currentNames <- currentPathNames
+              currentNames <- Branch.toNames <$> getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.UpdateOp currentNames
               previewResponse sourceName sr uf
             TodoI patchPath branchPath' -> do
@@ -1745,9 +1753,8 @@ handleFindI isVerbose fscope ws input = do
   Env {codebase} <- ask
   root' <- getRootBranch
   currentPath' <- getCurrentPath
-  currentBranch' <- getCurrentBranch
-  let currentBranch0 = Branch.head currentBranch'
-      getNames :: FindScope -> Names
+  currentBranch0 <- getCurrentBranch0
+  let getNames :: FindScope -> Names
       getNames findScope =
         let namesWithinCurrentPath = Backend.prettyNamesForBranch root' nameScope
             cp = Path.unabsolute currentPath'
@@ -2073,13 +2080,11 @@ handleShowDefinition outputLoc inputQuery = do
     -- `view`: fuzzy find globally; `edit`: fuzzy find local to current branch
     fuzzyBranch :: Cli r (Branch0 IO)
     fuzzyBranch = do
-      branch <-
         case outputLoc of
-          ConsoleLocation {} -> getRootBranch
+          ConsoleLocation {} -> getRootBranch0
           -- fuzzy finding for 'edit's are local to the current branch
-          LatestFileLocation {} -> getCurrentBranch
-          FileLocation {} -> getCurrentBranch
-      pure (Branch.head branch)
+          LatestFileLocation {} -> getCurrentBranch0
+          FileLocation {} -> getCurrentBranch0
 
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
@@ -2106,9 +2111,8 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
   Env {codebase} <- ask
 
   testTerms <- do
-    branch <- getCurrentBranch
+    branch <- getCurrentBranch0
     branch
-      & Branch.head
       & Branch.deepTermMetadata
       & R4.restrict34d12 isTest
       & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
@@ -2192,7 +2196,7 @@ handleUpdate input optionalPatch requestedNames = do
           NoPatch -> Nothing
           DefaultPatch -> Just defaultPatchPath
           UsePatch p -> Just p
-  slurpCheckNames <- currentPathNames
+  slurpCheckNames <- Branch.toNames <$> getCurrentBranch0
   let requestedVars = Set.map Name.toVar requestedNames
   let sr = Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames
       addsAndUpdates :: SlurpComponent Symbol
@@ -3409,11 +3413,6 @@ makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
 basicParseNames :: Cli r Names
 basicParseNames =
   fst <$> basicNames' Backend.Within
-
-currentPathNames :: Cli r Names
-currentPathNames = do
-  branch <- getCurrentBranch
-  pure $ Branch.toNames (Branch.head branch)
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
 basicNames' :: (Path -> Backend.NameScoping) -> Cli r (Names, Names)
