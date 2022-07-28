@@ -18,6 +18,7 @@ import qualified Data.Set as Set
 import qualified Unison.Builtin as Builtin
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
+import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
@@ -81,13 +82,11 @@ noEdits :: Edits v
 noEdits = Edits mempty mempty mempty mempty mempty mempty mempty
 
 propagateAndApply ::
-  Names ->
   Patch ->
   Branch0 IO ->
   Cli r (Branch0 IO)
-propagateAndApply rootNames patch branch = do
-  Env {codebase} <- ask
-  edits <- propagate codebase rootNames patch branch
+propagateAndApply patch branch = do
+  edits <- propagate patch branch
   let f = applyPropagate patch edits
   (pure . f . applyDeprecations patch) branch
 
@@ -236,17 +235,18 @@ debugMode = False
 -- "dirty" means in need of update
 -- "frontier" means updated definitions responsible for the "dirty"
 propagate ::
-  Codebase IO Symbol Ann ->
-  Names -> -- TODO: this argument can be removed once patches have term replacement
   -- of type `Referent -> Referent`
   Patch ->
   Branch0 IO ->
   Cli r (Edits Symbol)
-propagate codebase rootNames patch b = case validatePatch patch of
+propagate patch b = case validatePatch patch of
   Nothing -> do
     Cli.respond PatchNeedsToBeConflictFree
     pure noEdits
   Just (initialTermEdits, initialTypeEdits) -> do
+    -- TODO: this can be removed once patches have term replacement
+    rootNames <- Branch.toNames <$> Cli.getRootBranch0
+
     let entireBranch =
           Set.union
             (Branch.deepTypeReferences b)
@@ -270,6 +270,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
           [] -> Referent.toString r
           n : _ -> show n
 
+    Env {codebase} <- ask
     initialDirty <- computeDirty (liftIO . Codebase.dependents codebase) patch (Names.contains names0)
 
     let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
@@ -278,7 +279,7 @@ propagate codebase rootNames patch b = case validatePatch patch of
     -- in the patch which have a `Referent.Con` as their LHS.
     initialCtorMappings <- genInitialCtorMapping codebase rootNames initialTypeReplacements
 
-    order <- sortDependentsGraph initialDirty entireBranch
+    order <- liftIO (sortDependentsGraph codebase initialDirty entireBranch)
     let getOrdered :: Set Reference -> Map Int Reference
         getOrdered rs =
           Map.fromList [(i, r) | r <- toList rs, Just i <- [Map.lookup r order]]
@@ -460,8 +461,8 @@ propagate codebase rootNames patch b = case validatePatch patch of
     initialTermReplacements ctors es =
       ctors
         <> (Map.mapKeys Referent.Ref . fmap Referent.Ref . Map.mapMaybe TermEdit.toReference) es
-    sortDependentsGraph :: Set Reference -> Set Reference -> _ (Map Reference Int)
-    sortDependentsGraph dependencies restrictTo = do
+    sortDependentsGraph :: Codebase IO Symbol Ann -> Set Reference -> Set Reference -> IO (Map Reference Int)
+    sortDependentsGraph codebase dependencies restrictTo = do
       closure <-
         transitiveClosure
           (fmap (Set.intersection restrictTo) . liftIO . Codebase.dependents codebase)
@@ -490,9 +491,8 @@ propagate codebase rootNames patch b = case validatePatch patch of
     -- However, if we want this to be parametric in the annotation type, then
     -- Command would have to be made parametric in the annotation type too.
     unhashTermComponent ::
-      MonadIO m =>
       Reference ->
-      m (Map Symbol (Reference, Term Symbol _, Type Symbol _))
+      Cli r (Map Symbol (Reference, Term Symbol _, Type Symbol _))
     unhashTermComponent r = case Reference.toId r of
       Nothing -> pure mempty
       Just r -> do
@@ -500,10 +500,10 @@ propagate codebase rootNames patch b = case validatePatch patch of
         pure $ fmap (over _1 Reference.DerivedId) unhashed
 
     unhashTermComponent' ::
-      MonadIO m =>
       Hash ->
-      m (Map Symbol (Reference.Id, Term Symbol _, Type Symbol _))
-    unhashTermComponent' h =
+      Cli r (Map Symbol (Reference.Id, Term Symbol _, Type Symbol _))
+    unhashTermComponent' h = do
+      Env {codebase} <- ask
       liftIO (Codebase.getTermComponentWithTypes codebase h) <&> foldMap \termsWithTypes ->
         unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
       where

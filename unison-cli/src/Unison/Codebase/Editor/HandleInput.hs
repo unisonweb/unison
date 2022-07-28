@@ -2470,12 +2470,7 @@ propagatePatchNoSync ::
 propagatePatchNoSync patch scopePath =
   Cli.newBlock do
     Cli.time "propagatePatch"
-    rootBranch0 <- Cli.getRootBranch0
-    stepAtNoSync'
-      Branch.CompressHistory
-      ( Path.unabsolute scopePath,
-        Propagate.propagateAndApply (Branch.toNames rootBranch0) patch
-      )
+    stepAtNoSync' Branch.CompressHistory (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch ::
@@ -2486,13 +2481,10 @@ propagatePatch ::
 propagatePatch inputDescription patch scopePath = do
   Cli.newBlock do
     Cli.time "propagatePatch"
-    rootBranch0 <- Cli.getRootBranch0
     stepAt'
       (inputDescription <> " (applying patch)")
       Branch.CompressHistory
-      ( Path.unabsolute scopePath,
-        Propagate.propagateAndApply (Branch.toNames rootBranch0) patch
-      )
+      (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
 -- | Create the args needed for showTodoOutput and call it
 doShowTodoOutput :: Patch -> Path.Absolute -> Cli r ()
