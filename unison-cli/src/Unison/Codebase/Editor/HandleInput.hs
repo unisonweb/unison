@@ -334,9 +334,14 @@ assertNoBranchAtSplit' :: Path.Split' -> Cli r ()
 assertNoBranchAtSplit' =
   assertNoBranchAtPath' . Path.unsplit'
 
+-- | Get the patch at a path, or the empty patch if there's no such patch.
+getPatchAt :: Path.Split' -> Cli r Patch
+getPatchAt s =
+  getMaybePatchAt s <&> fromMaybe Patch.empty
+
 -- | Get the patch at a path.
-getPatchAtCli :: Path.Split' -> Cli r (Maybe Patch)
-getPatchAtCli s = do
+getMaybePatchAt :: Path.Split' -> Cli r (Maybe Patch)
+getMaybePatchAt s = do
   (path, name) <- resolveSplitCli' s
   branch <- getBranchAt path
   liftIO (Branch.getMaybePatch name (Branch.head branch))
@@ -344,12 +349,12 @@ getPatchAtCli s = do
 -- | Get the patch at a path, or return early if there's no such patch.
 expectPatchAt :: Path.Split' -> Cli r Patch
 expectPatchAt s =
-  getPatchAtCli s & onNothingM (Cli.returnEarly (PatchNotFound s))
+  getMaybePatchAt s & onNothingM (Cli.returnEarly (PatchNotFound s))
 
 -- | Assert that there's no patch at a path, or return early if there is one.
 assertNoPatchAt :: Path.Split' -> Cli r ()
 assertNoPatchAt s = do
-  whenJustM (getPatchAtCli s) \_ -> Cli.returnEarly (PatchAlreadyExists s)
+  whenJustM (getMaybePatchAt s) \_ -> Cli.returnEarly (PatchAlreadyExists s)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -461,7 +466,7 @@ loop e = do
           doRemoveReplacement :: HQ.HashQualified Name -> Maybe PatchPath -> Bool -> Cli r ()
           doRemoveReplacement from patchPath isTerm = do
             let patchPath' = fromMaybe defaultPatchPath patchPath
-            patch <- getPatchAtCli patchPath' <&> fromMaybe Patch.empty
+            patch <- getPatchAt patchPath'
             QueryResult misses' hits <- hqNameQuery [from]
             let tpRefs = Set.fromList $ typeReferences hits
                 tmRefs = Set.fromList $ termReferences hits
@@ -1282,7 +1287,7 @@ loop e = do
               Env {codebase} <- ask
 
               let patchPath' = fromMaybe defaultPatchPath patchPath
-              patch <- getPatchAtCli patchPath' <&> fromMaybe Patch.empty
+              patch <- getPatchAt patchPath'
               QueryResult fromMisses' fromHits <- hqNameQuery [from]
               QueryResult toMisses' toHits <- hqNameQuery [to]
               let termsFromRefs = termReferences fromHits
@@ -1410,11 +1415,11 @@ loop e = do
                   previewResponse sourceName sr uf
                 _ -> Cli.respond NoUnisonFile
             TodoI patchPath branchPath' -> do
-              patch <- getPatchAtCli (fromMaybe defaultPatchPath patchPath) <&> fromMaybe Patch.empty
+              patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
               doShowTodoOutput patch $ resolveToAbsolute branchPath'
             TestI testInput -> handleTest testInput
             PropagatePatchI patchPath scopePath -> do
-              patch <- getPatchAtCli patchPath <&> fromMaybe Patch.empty
+              patch <- getPatchAt patchPath
               updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
               when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath)
             ExecuteI main args -> do
@@ -1533,7 +1538,7 @@ loop e = do
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             ListEditsI maybePath -> do
-              patch <- getPatchAtCli (fromMaybe defaultPatchPath maybePath) <&> fromMaybe Patch.empty
+              patch <- getPatchAt (fromMaybe defaultPatchPath maybePath)
               ppe <-
                 suffixifiedPPE
                   =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
@@ -2239,7 +2244,7 @@ handleUpdate input optionalPatch requestedNames = do
             (n, r) <- Names.constructorsForType oldTypeRef slurpCheckNames
         ]
   patchOps <- for patchPath \patchPath -> do
-    ye'ol'Patch <- getPatchAtCli patchPath <&> fromMaybe Patch.empty
+    ye'ol'Patch <- getPatchAt patchPath
     -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
     -- with (a0 -> a') in patch'.
     -- So for all (a0 -> a) in patch, for all (a -> a') in `uf`,
