@@ -190,6 +190,7 @@ absoluteEmpty = Absolute empty
 relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
 
+-- | Mitchell: this function is bogus, because an empty name segment is bogus
 toPath' :: Path -> Path'
 toPath' = \case
   Path (NameSegment "" :<| tail) -> Path' . Left . Absolute . Path $ tail
@@ -389,6 +390,8 @@ instance Resolve Absolute HQSplit HQSplitAbsolute where
 instance Resolve Absolute Path' Absolute where
   resolve _ (Path' (Left a)) = a
   resolve a (Path' (Right r)) = resolve a r
+
+instance Convert Absolute Path' where convert = absoluteToPath'
 
 instance Convert Absolute Text where convert = toText' . absoluteToPath'
 

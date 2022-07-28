@@ -258,9 +258,8 @@ resolvePath' path = do
 
 -- | Resolve a path split, per the current path.
 resolveSplitCli' :: (Path', a) -> Cli r (Path.Absolute, a)
-resolveSplitCli' s = do
-  path <- getCurrentPath
-  pure (Path.toAbsoluteSplit path s)
+resolveSplitCli' =
+  traverseOf _1 resolvePath'
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Branch resolution
@@ -367,27 +366,32 @@ getTypesAt s0 = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting patches
 
+-- | The default patch path.
+defaultPatchPath :: Path.Split'
+defaultPatchPath =
+  (Path.RelativePath' (Path.Relative Path.empty), defaultPatchNameSegment)
+
 -- | Get the patch at a path, or the empty patch if there's no such patch.
 getPatchAt :: Path.Split' -> Cli r Patch
-getPatchAt s =
-  getMaybePatchAt s <&> fromMaybe Patch.empty
+getPatchAt path =
+  getMaybePatchAt path <&> fromMaybe Patch.empty
 
 -- | Get the patch at a path.
 getMaybePatchAt :: Path.Split' -> Cli r (Maybe Patch)
-getMaybePatchAt s = do
-  (path, name) <- resolveSplitCli' s
+getMaybePatchAt path0 = do
+  (path, name) <- resolveSplitCli' path0
   branch <- getBranchAt path
   liftIO (Branch.getMaybePatch name (Branch.head branch))
 
 -- | Get the patch at a path, or return early if there's no such patch.
 expectPatchAt :: Path.Split' -> Cli r Patch
-expectPatchAt s =
-  getMaybePatchAt s & onNothingM (Cli.returnEarly (PatchNotFound s))
+expectPatchAt path =
+  getMaybePatchAt path & onNothingM (Cli.returnEarly (PatchNotFound path))
 
 -- | Assert that there's no patch at a path, or return early if there is one.
 assertNoPatchAt :: Path.Split' -> Cli r ()
-assertNoPatchAt s = do
-  whenJustM (getMaybePatchAt s) \_ -> Cli.returnEarly (PatchAlreadyExists s)
+assertNoPatchAt path = do
+  whenJustM (getMaybePatchAt path) \_ -> Cli.returnEarly (PatchAlreadyExists path)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -404,8 +408,6 @@ loop e = do
   sbhLength <- liftIO (Codebase.branchHashLength codebase)
   let currentPath'' = Path.unabsolute currentPath'
       currentBranch0 = Branch.head currentBranch'
-      defaultPatchPath :: PatchPath
-      defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
       resolveSplit' :: (Path', a) -> (Path, a)
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolveToAbsolute :: Path' -> Path.Absolute
@@ -975,7 +977,7 @@ loop e = do
             DocsToHtmlI namespacePath' sourceDirectory -> do
               Env {codebase, sandboxedRuntime} <- ask
               absPath <- Path.unabsolute <$> resolvePath' namespacePath'
-              liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase root' (absPath) sourceDirectory)
+              liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase root' absPath sourceDirectory)
             AliasTermI src dest -> do
               Env {codebase} <- ask
               srcTerms <-
@@ -2185,12 +2187,11 @@ handleUpdate input optionalPatch requestedNames = do
   Env {codebase} <- ask
   currentPath' <- getCurrentPath
   uf <- expectLatestTypecheckedFile
-  let defaultPatchPath :: PatchPath
-      defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
-  let patchPath = case optionalPatch of
-        NoPatch -> Nothing
-        DefaultPatch -> Just defaultPatchPath
-        UsePatch p -> Just p
+  let patchPath =
+        case optionalPatch of
+          NoPatch -> Nothing
+          DefaultPatch -> Just defaultPatchPath
+          UsePatch p -> Just p
   slurpCheckNames <- currentPathNames
   let requestedVars = Set.map Name.toVar requestedNames
   let sr = Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames
