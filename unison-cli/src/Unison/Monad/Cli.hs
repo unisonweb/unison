@@ -30,7 +30,7 @@ module Unison.Monad.Cli
     newBlock,
 
     -- * Short-circuiting
-    succeedWith,
+    returnWith,
     returnEarly,
     returnEarlyWithoutOutput,
     haltRepl,
