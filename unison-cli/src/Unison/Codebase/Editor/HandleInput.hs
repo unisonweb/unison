@@ -2430,7 +2430,7 @@ resolveDefaultMetadata path = do
 --   e.g. `Metadata.insert` is passed to add metadata links.
 manageLinks ::
   Bool ->
-  [(Path', HQ'.HQSegment)] ->
+  [Path.HQSplit'] ->
   [HQ.HashQualified Name] ->
   ( forall r.
     Ord r =>
@@ -2440,9 +2440,24 @@ manageLinks ::
   ) ->
   Cli r ()
 manageLinks silent srcs metadataNames op = do
-  metadata <- traverse resolveMetadata metadataNames
+  metadatas <- traverse resolveMetadata metadataNames
   before <- getRootBranch0
-  traverse_ go metadata
+  srcle <- Monoid.foldMapM getTermsAt srcs
+  srclt <- Monoid.foldMapM getTypesAt srcs
+  for_ metadatas \(mdType, mdValue) -> do
+    let step =
+          let tmUpdates terms = foldl' go terms srcle
+                where
+                  go terms src = op (src, mdType, mdValue) terms
+              tyUpdates types = foldl' go types srclt
+                where
+                  go types src = op (src, mdType, mdValue) types
+           in over Branch.terms tmUpdates . over Branch.types tyUpdates
+    steps <-
+      for srcs \(path', _hq) -> do
+        path <- resolvePath' path'
+        pure (Path.unabsolute path, step)
+    stepManyAtNoSync Branch.CompressHistory steps
   if silent
     then Cli.respond DefaultMetadataNotification
     else do
@@ -2457,29 +2472,6 @@ manageLinks silent srcs metadataNames op = do
               (Right Path.absoluteEmpty)
               ppe
               diff
-  where
-    go :: (Metadata.Type, Metadata.Value) -> Cli r ()
-    go (mdType, mdValue) = do
-      newRoot0 <- getRootBranch0
-      currentPath' <- getCurrentPath
-      let resolveToAbsolute :: Path' -> Path.Absolute
-          resolveToAbsolute = Path.resolve currentPath'
-          resolveSplit' :: (Path', a) -> (Path, a)
-          resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
-          getTerms p = BranchUtil.getTerm (resolveSplit' p) newRoot0
-          getTypes p = BranchUtil.getType (resolveSplit' p) newRoot0
-          !srcle = toList . getTerms =<< srcs
-          !srclt = toList . getTypes =<< srcs
-      let step b0 =
-            let tmUpdates terms = foldl' go terms srcle
-                  where
-                    go terms src = op (src, mdType, mdValue) terms
-                tyUpdates types = foldl' go types srclt
-                  where
-                    go types src = op (src, mdType, mdValue) types
-             in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-          steps = srcs <&> \(path, _hq) -> (Path.unabsolute (resolveToAbsolute path), step)
-      stepManyAtNoSync Branch.CompressHistory steps
 
 -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
 -- otherwise, tries to load a value from .unisonConfig, and complains
