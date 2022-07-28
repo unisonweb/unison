@@ -202,6 +202,15 @@ currentPrettyPrintEnvDecl scoping = do
   pure $ Backend.getCurrentPrettyNames hqLen (scoping (Path.unabsolute currentPath)) root'
 
 ------------------------------------------------------------------------------------------------------------------------
+-- Latest typechecked unison file utils
+
+-- | Get the latest typechecked unison file, or return early if there isn't one.
+expectLatestTypecheckedFile :: Cli r (TypecheckedUnisonFile Symbol Ann)
+expectLatestTypecheckedFile = do
+  loopState <- Cli.getLoopState
+  (loopState ^. Command.latestTypecheckedFile) & onNothing (Cli.returnEarly NoUnisonFile)
+
+------------------------------------------------------------------------------------------------------------------------
 -- Metadata resolution
 
 -- | Resolve a metadata name to its type/value, or return early if no such metadata is found.
@@ -1396,9 +1405,8 @@ loop e = do
                     Cli.LoadError -> Cli.respond $ SourceLoadFailed path
                     Cli.LoadSuccess contents -> loadUnisonFile (Text.pack path) contents
             AddI requestedNames -> do
-              loopState <- Cli.getLoopState
               let vars = Set.map Name.toVar requestedNames
-              uf <- (loopState ^. Command.latestTypecheckedFile) & onNothing (Cli.returnEarly NoUnisonFile)
+              uf <- expectLatestTypecheckedFile
               Env {codebase} <- ask
               currentNames <- currentPathNames
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
@@ -1641,8 +1649,7 @@ loop e = do
               numArgs <- view Command.numberedArgs <$> Cli.getLoopState
               Cli.respond (DumpNumberedArgs numArgs)
             DebugTypecheckedUnisonFileI -> do
-              loopState <- Cli.getLoopState
-              uf <- (loopState ^. Command.latestTypecheckedFile) & onNothing (Cli.returnEarly NoUnisonFile)
+              uf <- expectLatestTypecheckedFile
               let datas, effects, terms :: [(Name, Reference.Id)]
                   datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
                   effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
@@ -2191,13 +2198,9 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
 -- | Handle an @update@ command.
 handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli r ()
 handleUpdate input optionalPatch requestedNames = do
-  loopState <- Cli.getLoopState
-
-  uf <- (loopState ^. Command.latestTypecheckedFile) & onNothing (Cli.returnEarly NoUnisonFile)
-
   Env {codebase} <- ask
-
   currentPath' <- getCurrentPath
+  uf <- expectLatestTypecheckedFile
   let defaultPatchPath :: PatchPath
       defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
   let patchPath = case optionalPatch of
