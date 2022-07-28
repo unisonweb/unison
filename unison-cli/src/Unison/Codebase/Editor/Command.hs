@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+-- TODO delete this module
 module Unison.Codebase.Editor.Command
   ( Env (..),
     AmbientAbilities,
@@ -19,9 +20,9 @@ import Control.Monad.Reader (MonadReader (..), asks)
 import qualified Data.Configurator as Configurator
 import qualified Data.Configurator.Types as Configurator
 import qualified Data.Map as Map
+import Unison.Cli.Monad hiding (respondNumbered, runCli, with)
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Lexer as L
-import Unison.Monad.Cli hiding (respondNumbered, runCli, with)
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude

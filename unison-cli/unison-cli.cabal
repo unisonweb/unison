@@ -30,6 +30,8 @@ library
       Unison.Auth.HTTPClient
       Unison.Auth.Tokens
       Unison.Auth.Types
+      Unison.Cli.Monad
+      Unison.Cli.MonadUtils
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleInput
@@ -58,7 +60,6 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
-      Unison.Monad.Cli
       Unison.Share.Codeserver
       Unison.Share.Sync
       Unison.Share.Sync.Types

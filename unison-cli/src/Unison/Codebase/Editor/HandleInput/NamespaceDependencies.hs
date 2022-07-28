@@ -7,13 +7,13 @@ import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Unison.Cli.Monad (Cli, Env (..))
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.DataDeclaration as DD
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
-import Unison.Monad.Cli (Cli, Env (..))
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (Reference)

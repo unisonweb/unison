@@ -16,6 +16,8 @@ import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Builtin as Builtin
+import Unison.Cli.Monad (Cli)
+import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
@@ -37,7 +39,6 @@ import qualified Unison.DataDeclaration as Decl
 import Unison.FileParsers (synthesizeFile')
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
-import Unison.Monad.Cli
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -243,7 +244,7 @@ propagate ::
   Cli r (Edits Symbol)
 propagate codebase rootNames patch b = case validatePatch patch of
   Nothing -> do
-    respond PatchNeedsToBeConflictFree
+    Cli.respond PatchNeedsToBeConflictFree
     pure noEdits
   Just (initialTermEdits, initialTypeEdits) -> do
     let entireBranch =

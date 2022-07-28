@@ -33,11 +33,11 @@ import Unison.Auth.Types
     Tokens,
     codeserverCredentials,
   )
+import Unison.Cli.Monad (Cli)
+import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase.Editor.Command (Env (..))
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Debug as Debug
-import Unison.Monad.Cli (Cli)
-import qualified Unison.Monad.Cli as Cli
 import Unison.Prelude
 import Unison.Share.Types
 import qualified Web.Browser as Web

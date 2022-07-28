@@ -41,6 +41,7 @@ import qualified Text.Megaparsec as P
 import qualified Unison.Auth.CredentialManager as AuthN
 import qualified Unison.Auth.HTTPClient as AuthN
 import qualified Unison.Auth.Tokens as AuthN
+import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -57,7 +58,6 @@ import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Welcome (asciiartUnison)
-import qualified Unison.Monad.Cli as Cli
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude

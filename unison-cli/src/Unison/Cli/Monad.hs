@@ -3,7 +3,7 @@
 -- | The main CLI monad.
 --
 -- TODO export list, docs
-module Unison.Monad.Cli
+module Unison.Cli.Monad
   ( -- * Cli monad
     Cli,
     ReturnType (..),

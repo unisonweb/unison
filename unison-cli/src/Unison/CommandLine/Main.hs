@@ -22,6 +22,7 @@ import Text.Pretty.Simple (pShow)
 import Unison.Auth.CredentialManager (newCredentialManager)
 import qualified Unison.Auth.HTTPClient as AuthN
 import qualified Unison.Auth.Tokens as AuthN
+import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
@@ -39,7 +40,6 @@ import qualified Unison.CommandLine.InputPattern as IP
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import qualified Unison.CommandLine.Welcome as Welcome
-import qualified Unison.Monad.Cli as Cli
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
