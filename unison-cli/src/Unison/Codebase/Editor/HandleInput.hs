@@ -1071,7 +1071,7 @@ loop e = do
               currentBranch0 <- getCurrentBranch0
               destAbs <- resolvePath' dest'
               old <- getBranchAt destAbs
-              let (unknown, actions) = foldl' (go root0 currentBranch0) mempty srcs
+              let (unknown, actions) = foldl' (go root0 currentBranch0 destAbs) mempty srcs
               stepManyAt inputDescription Branch.CompressHistory actions
               new <- getBranchAt destAbs
               (ppe, diff) <- diffHelper (Branch.head old) (Branch.head new)
@@ -1083,18 +1083,17 @@ loop e = do
                 go ::
                   Branch0 IO ->
                   Branch0 IO ->
+                  Path.Absolute ->
                   ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)]) ->
                   Path.HQSplit ->
                   ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
-                go root0 currentBranch0 (missingSrcs, actions) hqsrc =
+                go root0 currentBranch0 dest (missingSrcs, actions) hqsrc =
                   let src :: Path.Split
                       src = second HQ'.toName hqsrc
                       proposedDest :: Path.Split
                       proposedDest = second HQ'.toName hqProposedDest
                       hqProposedDest :: Path.HQSplit
-                      hqProposedDest =
-                        first Path.unabsolute $
-                          Path.resolve (resolveToAbsolute dest') hqsrc
+                      hqProposedDest = first Path.unabsolute $ Path.resolve dest hqsrc
                       -- `Nothing` if src doesn't exist
                       doType :: Maybe [(Path, Branch0 m -> Branch0 m)]
                       doType = case ( BranchUtil.getType hqsrc currentBranch0,
