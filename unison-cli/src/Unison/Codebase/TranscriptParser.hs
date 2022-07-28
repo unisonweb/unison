@@ -310,7 +310,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                 awaitInput
               p@(UcmCommand path lineTxt) -> do
                 loopState <- readIORef loopStateRef
-                let curPath = loopState ^. Command.currentPath
+                let curPath = loopState ^. #currentPath
                 if curPath /= path
                   then do
                     atomically $ Q.undequeue cmdQueue (Just p)
@@ -319,8 +319,8 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                     [] -> awaitInput
                     args -> do
                       output ("\n" <> show p <> "\n")
-                      let currentRoot = Branch.head (loopState ^. Command.root)
-                      case parseInput currentRoot curPath (loopState ^. Command.numberedArgs) patternMap args of
+                      let currentRoot = Branch.head (loopState ^. #root)
+                      case parseInput currentRoot curPath (loopState ^. #numberedArgs) patternMap args of
                         -- invalid command is treated as a failure
                         Left msg -> dieWithMsg $ Pretty.toPlain terminalWidth msg
                         Right input -> pure $ Right input

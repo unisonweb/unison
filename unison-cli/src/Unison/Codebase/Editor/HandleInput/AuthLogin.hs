@@ -90,7 +90,7 @@ authLogin host = do
                     [("LOCATION", BSC.pack $ show @URI nextURI)]
                     "Authorization successful. You may close this page and return to UCM."
   tokens <-
-    Cli.scopeWith do
+    Cli.newBlock do
       port <- Cli.with (Warp.withApplication (pure $ authTransferServer codeHandler))
       let redirectURI = "http://localhost:" <> show port <> "/redirect"
       liftIO (putMVar redirectURIVar redirectURI)

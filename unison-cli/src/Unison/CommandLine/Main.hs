@@ -133,9 +133,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
         getUserInput
           patternMap
           codebase
-          (loopState ^. Command.root)
-          (loopState ^. Command.currentPath)
-          (loopState ^. Command.numberedArgs)
+          (loopState ^. #root)
+          (loopState ^. #currentPath)
+          (loopState ^. #numberedArgs)
   let loadSourceFile :: Text -> IO Cli.LoadSourceResult
       loadSourceFile fname =
         if allow $ Text.unpack fname

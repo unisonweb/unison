@@ -82,6 +82,7 @@ library
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -187,6 +188,7 @@ executable cli-integration-tests
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -293,6 +295,7 @@ executable transcripts
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -402,6 +405,7 @@ executable unison
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -516,6 +520,7 @@ test-suite cli-tests
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
