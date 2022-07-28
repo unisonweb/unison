@@ -410,6 +410,10 @@ instance Convert Path' Name where convert = toName'
 
 instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
 
+instance Convert Split' HQSplit' where
+  convert (path, name) =
+    (path, HQ'.fromName name)
+
 instance Parse Name HQSplit' where parse = hqSplitFromName'
 
 instance Parse Name Split where parse = splitFromName
