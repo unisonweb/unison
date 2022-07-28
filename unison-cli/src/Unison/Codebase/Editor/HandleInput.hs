@@ -417,7 +417,6 @@ loop e = do
   Env {codebase} <- ask
   root' <- getRootBranch
   currentPath' <- getCurrentPath
-  hqLength <- liftIO (Codebase.hashLength codebase)
   sbhLength <- liftIO (Codebase.branchHashLength codebase)
   let currentPath'' = Path.unabsolute currentPath'
       resolveSplit' :: (Path', a) -> (Path, a)
@@ -999,11 +998,14 @@ loop e = do
                   src
               srcTerm <-
                 Set.asSingleton srcTerms & onNothing do
-                  Cli.returnEarly case (Set.null srcTerms, src) of
-                    (True, Left hash) -> TermNotFound' hash
-                    (True, Right name) -> TermNotFound name
-                    (False, Left hash) -> HashAmbiguous hash srcTerms
-                    (False, Right name) -> DeleteNameAmbiguous hqLength name srcTerms Set.empty
+                  Cli.returnEarly =<< case (Set.null srcTerms, src) of
+                    (True, Left hash) -> pure (TermNotFound' hash)
+                    (True, Right name) -> pure (TermNotFound name)
+                    (False, Left hash) -> pure (HashAmbiguous hash srcTerms)
+                    (False, Right name) -> do
+                      Env {codebase} <- ask
+                      hqLength <- liftIO (Codebase.hashLength codebase)
+                      pure (DeleteNameAmbiguous hqLength name srcTerms Set.empty)
               destTerms <- getTermsAt (Path.convert dest)
               when (not (Set.null destTerms)) (Cli.returnEarly (TermAlreadyExists dest destTerms))
               srcMetadata <-
@@ -1027,11 +1029,14 @@ loop e = do
                   src
               srcType <-
                 Set.asSingleton srcTypes & onNothing do
-                  Cli.returnEarly case (Set.null srcTypes, src) of
-                    (True, Left hash) -> TypeNotFound' hash
-                    (True, Right name) -> TypeNotFound name
-                    (False, Left hash) -> HashAmbiguous hash (Set.map Referent.Ref srcTypes)
-                    (False, Right name) -> DeleteNameAmbiguous hqLength name Set.empty srcTypes
+                  Cli.returnEarly =<< case (Set.null srcTypes, src) of
+                    (True, Left hash) -> pure (TypeNotFound' hash)
+                    (True, Right name) -> pure (TypeNotFound name)
+                    (False, Left hash) -> pure (HashAmbiguous hash (Set.map Referent.Ref srcTypes))
+                    (False, Right name) -> do
+                      Env {codebase} <- ask
+                      hqLength <- liftIO (Codebase.hashLength codebase)
+                      pure (DeleteNameAmbiguous hqLength name Set.empty srcTypes)
               destTypes <- getTypesAt (Path.convert dest)
               when (not (Set.null destTypes)) (Cli.returnEarly (TypeAlreadyExists dest destTypes))
               srcMetadata <-
@@ -1109,6 +1114,8 @@ loop e = do
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
                 fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
             NamesI global thing -> do
+              Env {codebase} <- ask
+              hqLength <- liftIO (Codebase.hashLength codebase)
               ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
               let ns = NamesWithHistory ns0 mempty
                   terms = NamesWithHistory.lookupHQTerm thing ns
@@ -1188,10 +1195,12 @@ loop e = do
               srcTerms <- getTermsAt src
               srcTerm <-
                 Set.asSingleton srcTerms & onNothing do
-                  Cli.returnEarly
-                    if Set.null srcTerms
-                      then TermNotFound src
-                      else DeleteNameAmbiguous hqLength src srcTerms Set.empty
+                  if Set.null srcTerms
+                    then Cli.returnEarly (TermNotFound src)
+                    else do
+                      Env {codebase} <- ask
+                      hqLength <- liftIO (Codebase.hashLength codebase)
+                      Cli.returnEarly (DeleteNameAmbiguous hqLength src srcTerms Set.empty)
               destTerms <- getTermsAt (Path.convert dest)
               when (not (Set.null destTerms)) (Cli.returnEarly (TermAlreadyExists dest destTerms))
               p <- Path.fromAbsoluteSplit <$> resolveSplitCli' src
@@ -1210,10 +1219,12 @@ loop e = do
               srcTypes <- getTypesAt src
               srcType <-
                 Set.asSingleton srcTypes & onNothing do
-                  Cli.returnEarly
-                    if Set.null srcTypes
-                      then TypeNotFound src
-                      else DeleteNameAmbiguous hqLength src Set.empty srcTypes
+                  if Set.null srcTypes
+                    then Cli.returnEarly (TypeNotFound src)
+                    else do
+                      Env {codebase} <- ask
+                      hqLength <- liftIO (Codebase.hashLength codebase)
+                      Cli.returnEarly (DeleteNameAmbiguous hqLength src Set.empty srcTypes)
               destTypes <- getTypesAt (Path.convert dest)
               when (not (Set.null destTypes)) (Cli.returnEarly (TypeAlreadyExists dest destTypes))
               p <- Path.fromAbsoluteSplit <$> resolveSplitCli' src
@@ -1278,6 +1289,8 @@ loop e = do
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             ResolveTypeNameI hq -> do
+              Env {codebase} <- ask
+              hqLength <- liftIO (Codebase.hashLength codebase)
               types <- getTypesAt hq
               zeroOneOrMore
                 types
@@ -1295,6 +1308,8 @@ loop e = do
                     & map makeDelete
                     & stepManyAt inputDescription Branch.CompressHistory
             ResolveTermNameI hq -> do
+              Env {codebase} <- ask
+              hqLength <- liftIO (Codebase.hashLength codebase)
               rootBranch0 <- getRootBranch0
               path <- resolveSplitCli' hq
               terms <- getTermsIncludingHistorical (Path.fromAbsoluteSplit path) rootBranch0
@@ -1315,6 +1330,7 @@ loop e = do
                     & stepManyAt inputDescription Branch.CompressHistory
             ReplaceI from to patchPath -> do
               Env {codebase} <- ask
+              hqLength <- liftIO (Codebase.hashLength codebase)
 
               let patchPath' = fromMaybe defaultPatchPath patchPath
               patch <- getPatchAt patchPath'
@@ -1611,6 +1627,7 @@ loop e = do
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> do
               Env {codebase} <- ask
+              hqLength <- liftIO (Codebase.hashLength codebase)
               -- todo: add flag to handle transitive efficiently
               lds <- resolveHQToLabeledDependencies hq
               when (null lds) do
@@ -1652,6 +1669,8 @@ loop e = do
               numArgs <- view Command.numberedArgs <$> Cli.getLoopState
               Cli.respond (DumpNumberedArgs numArgs)
             DebugTypecheckedUnisonFileI -> do
+              Env {codebase} <- ask
+              hqLength <- liftIO (Codebase.hashLength codebase)
               uf <- expectLatestTypecheckedFile
               let datas, effects, terms :: [(Name, Reference.Id)]
                   datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
