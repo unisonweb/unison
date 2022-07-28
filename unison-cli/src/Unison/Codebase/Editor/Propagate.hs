@@ -1,17 +1,14 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
-module Unison.Codebase.Editor.Propagate (computeFrontier, propagateAndApply) where
+module Unison.Codebase.Editor.Propagate
+  ( computeFrontier,
+    propagateAndApply,
+  )
+where
 
 import Control.Error.Util (hush)
 import Control.Lens
 import Control.Monad.Reader (ask)
-import Data.Configurator ()
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -149,7 +146,7 @@ propagateCtorMapping oldComponent newComponent =
 -- be the same.
 genInitialCtorMapping :: Codebase IO Symbol Ann -> Names -> Map Reference Reference -> Cli r (Map Referent Referent)
 genInitialCtorMapping codebase rootNames initialTypeReplacements = do
-  let mappings :: (Reference, Reference) -> _ (Map Referent Referent)
+  let mappings :: (Reference, Reference) -> Cli r (Map Referent Referent)
       mappings (old, new) = do
         old <- unhashTypeComponent codebase old
         new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent codebase new
@@ -345,8 +342,7 @@ propagate patch b = case validatePatch patch of
                       <> " could not be resolved."
                 Right c -> pure . Map.fromList $ (\(v, r, d) -> (v, (r, d))) <$> c
               let -- Relation: (nameOfType, oldRef, newRef, newType)
-                  joinedStuff ::
-                    [(Symbol, (Reference, Reference, Decl.DataDeclaration Symbol _))]
+                  joinedStuff :: [(Symbol, (Reference, Reference, Decl.DataDeclaration Symbol Ann))]
                   joinedStuff =
                     Map.toList (Map.intersectionWith f declMap hashedComponents')
                   f (oldRef, _) (newRef, newType) = (oldRef, newRef, newType)
@@ -490,18 +486,14 @@ propagate patch b = case validatePatch patch of
     --  Free (Command m i v) monad, passing in the actions that are needed.
     -- However, if we want this to be parametric in the annotation type, then
     -- Command would have to be made parametric in the annotation type too.
-    unhashTermComponent ::
-      Reference ->
-      Cli r (Map Symbol (Reference, Term Symbol _, Type Symbol _))
+    unhashTermComponent :: Reference -> Cli r (Map Symbol (Reference, Term Symbol Ann, Type Symbol Ann))
     unhashTermComponent r = case Reference.toId r of
       Nothing -> pure mempty
       Just r -> do
         unhashed <- unhashTermComponent' (Reference.idToHash r)
         pure $ fmap (over _1 Reference.DerivedId) unhashed
 
-    unhashTermComponent' ::
-      Hash ->
-      Cli r (Map Symbol (Reference.Id, Term Symbol _, Type Symbol _))
+    unhashTermComponent' :: Hash -> Cli r (Map Symbol (Reference.Id, Term Symbol Ann, Type Symbol Ann))
     unhashTermComponent' h = do
       Env {codebase} <- ask
       liftIO (Codebase.getTermComponentWithTypes codebase h) <&> foldMap \termsWithTypes ->
@@ -516,9 +508,9 @@ propagate patch b = case validatePatch patch of
                 [(v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m']
 
     verifyTermComponent ::
-      Map Symbol (Reference, Term Symbol _, a) ->
+      Map Symbol (Reference, Term Symbol Ann, a) ->
       Edits Symbol ->
-      Cli r (Maybe (Map Symbol (Reference, Maybe WatchKind, Term Symbol _, Type Symbol _)))
+      Cli r (Maybe (Map Symbol (Reference, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)))
     verifyTermComponent componentMap Edits {..} = do
       -- If the term contains references to old patterns, we can't update it.
       -- If the term had a redunant type signature, it's discarded and a new type
@@ -643,7 +635,7 @@ applyPropagate patch Edits {..} = do
               _ -> (tp, v)
             typeOf r t = fromMaybe t $ Map.lookup r termTypes
 
-        replaceTerm :: Referent -> Referent -> _ -> _
+        replaceTerm :: Referent -> Referent -> Metadata.Star Referent NameSegment -> Metadata.Star Referent NameSegment
         replaceTerm r r' s =
           ( if isPropagatedReferent r'
               then Metadata.insert (propagatedMd r') . Metadata.delete (propagatedMd r)
@@ -651,7 +643,11 @@ applyPropagate patch Edits {..} = do
           )
             $ s
 
-        replaceConstructor :: Referent -> Referent -> _ -> _
+        replaceConstructor ::
+          Referent ->
+          Referent ->
+          Metadata.Star Referent NameSegment ->
+          Metadata.Star Referent NameSegment
         replaceConstructor (Referent.Con _ _) !new s =
           -- TODO: revisit this once patches have constructor mappings
           -- at the moment, all constructor replacements are autopropagated
