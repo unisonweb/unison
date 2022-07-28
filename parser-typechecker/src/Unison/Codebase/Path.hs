@@ -1,11 +1,4 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Unison.Codebase.Path
   ( Path (..),
@@ -41,7 +34,6 @@ module Unison.Codebase.Path
 
     -- * things that could be replaced with `Convert` instances
     absoluteToPath',
-    fromAbsoluteSplit,
     fromList,
     fromName,
     fromName',
@@ -180,9 +172,6 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (resolve a p, s)
-
-fromAbsoluteSplit :: (Absolute, a) -> (Path, a)
-fromAbsoluteSplit (Absolute p, a) = (p, a)
 
 absoluteEmpty :: Absolute
 absoluteEmpty = Absolute empty
@@ -391,6 +380,8 @@ instance Resolve Absolute Path' Absolute where
   resolve _ (Path' (Left a)) = a
   resolve a (Path' (Right r)) = resolve a r
 
+instance Convert Absolute Path where convert = unabsolute
+
 instance Convert Absolute Path' where convert = absoluteToPath'
 
 instance Convert Absolute Text where convert = toText' . absoluteToPath'
@@ -416,6 +407,14 @@ instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
 instance Convert Split' HQSplit' where
   convert (path, name) =
     (path, HQ'.fromName name)
+
+instance Convert (path, NameSegment) (path, HQ'.HQSegment) where
+  convert (path, name) =
+    (path, HQ'.fromName name)
+
+instance Convert path0 path1 => Convert (path0, name) (path1, name) where
+  convert =
+    over _1 convert
 
 instance Parse Name HQSplit' where parse = hqSplitFromName'
 
