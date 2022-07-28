@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Unison.Codebase.Editor.HandleInput
   ( loop,
   )
@@ -10,7 +8,7 @@ where
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
-import Control.Monad.Reader (MonadReader, ask, asks)
+import Control.Monad.Reader (ask, asks)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Control.Monad.Writer (WriterT (..))
@@ -34,7 +32,6 @@ import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import U.Util.Hash32 (Hash32)
 import qualified U.Util.Hash32 as Hash32
-import U.Util.Timing (time, unsafeTime)
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
@@ -190,29 +187,14 @@ import Witherable (wither)
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
 
-prettyPrintEnvDecl :: (MonadReader Env m, MonadIO m) => NamesWithHistory -> m PPE.PrettyPrintEnvDecl
+prettyPrintEnvDecl :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = do
-  Env {codebase} <- ask
-  liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
-
-prettyPrintEnvDeclCli :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
-prettyPrintEnvDeclCli ns = do
   Env {codebase} <- ask
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
 currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli r PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl scoping = do
-  Env {codebase} <- ask
-  ls <- Cli.getLoopState
-  let root' = view Command.root ls
-      currentPath' = Path.unabsolute (view Command.currentPath ls)
-  hqLen <- liftIO (Codebase.hashLength codebase)
-  pure $ Backend.getCurrentPrettyNames hqLen (scoping currentPath') root'
-
--- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDeclCli :: (Path -> Backend.NameScoping) -> Cli r PPE.PrettyPrintEnvDecl
-currentPrettyPrintEnvDeclCli scoping = do
   Env {codebase} <- ask
   loopState <- Cli.getLoopState
   let root' = loopState ^. Command.root
@@ -393,8 +375,8 @@ loop e = do
       getTerms :: Path.Split' -> Set Referent
       getTerms = getHQ'Terms . fmap HQ'.NameOnly
 
-      withFileCli :: AmbientAbilities Symbol -> Text -> (Text, [L.Token L.Lexeme]) -> Cli r (TypecheckedUnisonFile Symbol Ann)
-      withFileCli ambient sourceName lexed@(text, tokens) = do
+      withFile :: AmbientAbilities Symbol -> Text -> (Text, [L.Token L.Lexeme]) -> Cli r (TypecheckedUnisonFile Symbol Ann)
+      withFile ambient sourceName lexed@(text, tokens) = do
         let getHQ = \case
               L.WordyId s (Just sh) ->
                 Just (HQ.HashQualified (Name.unsafeFromString s) sh)
@@ -426,10 +408,10 @@ loop e = do
             Cli.returnEarlyWithoutOutput
           Just (Right uf) -> pure uf
 
-      loadUnisonFileCli :: Text -> Text -> Cli r ()
-      loadUnisonFileCli sourceName text = do
+      loadUnisonFile :: Text -> Text -> Cli r ()
+      loadUnisonFile sourceName text = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
-        unisonFile <- withFileCli [] sourceName (text, lexed)
+        unisonFile <- withFile [] sourceName (text, lexed)
         currentNames <- currentPathNames
         let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
         names <- displayNames unisonFile
@@ -453,7 +435,7 @@ loop e = do
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
         then Cli.modifyLoopState (set (Command.latestFile . _Just . _2) False)
-        else loadUnisonFileCli sourceName text
+        else loadUnisonFile sourceName text
     Right input ->
       let typeReferences :: [SearchResult] -> [Reference]
           typeReferences rs =
@@ -484,7 +466,7 @@ loop e = do
                         over Patch.typeEdits (R.deleteDom fr) patch
                       (patchPath'', patchName) = resolveSplit' patchPath'
                   -- Save the modified patch
-                  stepAtMCli
+                  stepAtM
                     Branch.CompressHistory
                     inputDescription
                     ( patchPath'',
@@ -630,7 +612,7 @@ loop e = do
               ps' = p' . Path.unsplit'
           saveAndApplyPatch :: Path -> NameSegment -> Patch -> Cli r ()
           saveAndApplyPatch patchPath'' patchName patch' = do
-            stepAtMCli
+            stepAtM
               Branch.CompressHistory
               (inputDescription <> " (1/2)")
               ( patchPath'',
@@ -747,7 +729,7 @@ loop e = do
               srcb <- expectBranchAtPath' src0
               dest <- resolvePath' dest0
               let err = Just $ MergeAlreadyUpToDate src0 dest0
-              mergeBranchAndPropagateDefaultPatchCli mergeMode inputDescription err srcb (Just dest0) dest
+              mergeBranchAndPropagateDefaultPatch mergeMode inputDescription err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
               Env {codebase} <- ask
               srcb <- expectBranchAtPath' src0
@@ -786,7 +768,7 @@ loop e = do
                     ReadRemoteNamespaceGit repo ->
                       Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
                         Cli.returnEarly (Output.GitError err)
-                    ReadRemoteNamespaceShare repo -> importRemoteShareBranchCli repo
+                    ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
               Cli.scopeWith do
                 baseb <- getBranch baseRepo
                 headb <- getBranch headRepo
@@ -805,7 +787,7 @@ loop e = do
                   merged = snoc dest0 "merged"
                   squashed = snoc dest0 "squashed"
               Cli.respond $ LoadPullRequest baseRepo headRepo base head merged squashed
-              loadPropagateDiffDefaultPatchCli
+              loadPropagateDiffDefaultPatch
                 inputDescription
                 (Just merged)
                 (snoc desta "merged")
@@ -1380,7 +1362,7 @@ loop e = do
                   liftIO (loadSource (Text.pack path)) >>= \case
                     Cli.InvalidSourceNameError -> Cli.respond $ InvalidSourceName path
                     Cli.LoadError -> Cli.respond $ SourceLoadFailed path
-                    Cli.LoadSuccess contents -> loadUnisonFileCli (Text.pack path) contents
+                    Cli.LoadSuccess contents -> loadUnisonFile (Text.pack path) contents
             AddI requestedNames -> do
               loopState <- Cli.getLoopState
               let vars = Set.map Name.toVar requestedNames
@@ -1389,7 +1371,7 @@ loop e = do
               currentNames <- currentPathNames
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
-              stepAtNoSyncCli Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
+              stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
               liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
@@ -1717,7 +1699,7 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
         ReadRemoteNamespaceGit repo -> do
           Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \err ->
             Cli.returnEarly (Output.GitError err)
-        ReadRemoteNamespaceShare repo -> importRemoteShareBranchCli repo
+        ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
 
   (ppe, diff) <-
     Cli.scopeWith do
@@ -1826,7 +1808,7 @@ handleDependents hq = do
        in LD.fold tp tm ld
     -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
     -- unambiguous name.
-    ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDeclCli Backend.Within
+    ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
     let results :: [(Reference, Maybe Name)]
         results =
           -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
@@ -2473,7 +2455,6 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
   when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
-  -- mapLeft Output.ShareError <$> do
   let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
   Command.Env {authHTTPClient, codebase} <- ask
   let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
@@ -2492,58 +2473,6 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
         Share.TransportError err -> Output.ShareErrorTransport err
   liftIO (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) & onNothingM do
     error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
-  where
-    -- Provide the given action callbacks that display to the terminal.
-    withEntitiesDownloadedProgressCallbacks :: (Share.DownloadProgressCallbacks -> IO a) -> IO a
-    withEntitiesDownloadedProgressCallbacks action = do
-      entitiesDownloadedVar <- newTVarIO 0
-      entitiesToDownloadVar <- newTVarIO 0
-      Console.Regions.displayConsoleRegions do
-        Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
-          Console.Regions.setConsoleRegion region do
-            entitiesDownloaded <- readTVar entitiesDownloadedVar
-            entitiesToDownload <- readTVar entitiesToDownloadVar
-            pure $
-              "\n  Downloaded "
-                <> tShow entitiesDownloaded
-                <> "/"
-                <> tShow entitiesToDownload
-                <> " entities...\n\n"
-          result <- do
-            let downloaded n = atomically (modifyTVar' entitiesDownloadedVar (+ n))
-            let toDownload n = atomically (modifyTVar' entitiesToDownloadVar (+ n))
-            action Share.DownloadProgressCallbacks {downloaded, toDownload}
-          entitiesDownloaded <- readTVarIO entitiesDownloadedVar
-          Console.Regions.finishConsoleRegion region $
-            "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
-          pure result
-
-importRemoteShareBranchCli :: ReadShareRemoteNamespace -> Cli r (Branch IO)
-importRemoteShareBranchCli rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
-  let codeserver = Codeserver.resolveCodeserver server
-  let baseURL = codeserverBaseURL codeserver
-  -- Auto-login to share if pulling from a non-public path
-  when (not $ RemoteRepo.isPublic rrn) $ ensureAuthenticatedWithCodeserver codeserver
-  -- mapLeft Output.ShareError <$> do
-  let shareFlavoredPath = Share.Path (repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
-  Command.Env {authHTTPClient, codebase} <- ask
-  let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
-      pull =
-        withEntitiesDownloadedProgressCallbacks \callbacks ->
-          Share.pull
-            authHTTPClient
-            baseURL
-            (Codebase.withConnectionIO codebase)
-            shareFlavoredPath
-            callbacks
-  causalHash <-
-    Cli.ioE pull \err0 -> do
-      (Cli.returnEarly . Output.ShareError) case err0 of
-        Share.SyncError err -> Output.ShareErrorPull err
-        Share.TransportError err -> Output.ShareErrorTransport err
-  liftIO (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) >>= \case
-    Nothing -> error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
-    Just branch -> pure branch
   where
     -- Provide the given action callbacks that display to the terminal.
     withEntitiesDownloadedProgressCallbacks :: (Share.DownloadProgressCallbacks -> IO a) -> IO a
@@ -2594,7 +2523,7 @@ doDisplay outputLoc names tm = do
   Env {codebase} <- ask
   loopState <- Cli.getLoopState
 
-  ppe <- prettyPrintEnvDeclCli names
+  ppe <- prettyPrintEnvDecl names
   let (tms, typs) = maybe mempty UF.indexByReference (loopState ^. Command.latestTypecheckedFile)
   let loc = case outputLoc of
         ConsoleLocation -> Nothing
@@ -2661,7 +2590,7 @@ getLinks' src selection0 = do
   let deps =
         Set.map LD.termRef allRefs
           <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
-  ppe <- prettyPrintEnvDeclCli =<< makePrintNamesFromLabeled' deps
+  ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
   let ppeDecl = PPE.unsuffixifiedPPE ppe
   let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
   let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
@@ -2677,7 +2606,7 @@ propagatePatchNoSync patch scopePath = Cli.scopeWith do
   Env {codebase} <- ask
   r <- view Command.root <$> Cli.getLoopState
   let nroot = Branch.toNames (Branch.head r)
-  stepAtCliNoSync'
+  stepAtNoSync'
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
       Propagate.propagateAndApply codebase nroot patch
@@ -2693,7 +2622,7 @@ propagatePatch inputDescription patch scopePath = do
   Env {codebase} <- ask
   r <- view Command.root <$> Cli.getLoopState
   let nroot = Branch.toNames (Branch.head r)
-  stepAtCli'
+  stepAt'
     (inputDescription <> " (applying patch)")
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
@@ -2875,81 +2804,33 @@ mergeBranchAndPropagateDefaultPatch ::
   Maybe Path.Path' ->
   Path.Absolute ->
   Cli r ()
-mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb dest0 dest =
-  ifM
-    (mergeBranch mode inputDescription srcb dest0 dest)
-    (loadPropagateDiffDefaultPatch inputDescription dest0 dest)
-    (for_ unchangedMessage Cli.respond)
-  where
-    mergeBranch ::
-      Branch.MergeMode ->
-      Command.InputDescription ->
-      Branch IO ->
-      Maybe Path.Path' ->
-      Path.Absolute ->
-      Cli r Bool
-    mergeBranch mode inputDescription srcb dest0 dest = Cli.scopeWith do
-      Cli.time "Merge Branch"
-      Env {codebase} <- ask
-      destb <- getBranchAt dest
-      merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
-      b <- updateAtM inputDescription dest (const $ pure merged)
-      for_ dest0 $ \dest0 ->
-        diffHelper (Branch.head destb) (Branch.head merged)
-          >>= Cli.respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
-      pure b
-
--- | supply `dest0` if you want to print diff messages
---   supply unchangedMessage if you want to display it if merge had no effect
-mergeBranchAndPropagateDefaultPatchCli ::
-  Branch.MergeMode ->
-  Command.InputDescription ->
-  Maybe Output ->
-  Branch IO ->
-  Maybe Path.Path' ->
-  Path.Absolute ->
-  Cli r ()
-mergeBranchAndPropagateDefaultPatchCli mode inputDescription unchangedMessage srcb maybeDest0 dest =
+mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb maybeDest0 dest =
   ifM
     mergeBranch
-    (loadPropagateDiffDefaultPatchCli inputDescription maybeDest0 dest)
+    (loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest)
     (for_ unchangedMessage Cli.respond)
   where
     mergeBranch :: Cli r Bool
-    mergeBranch = unsafeTime "mergeBranch" do
-      Env {codebase} <- ask
-      destb <- getBranchAt dest
-      merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
-      b <- updateAtM inputDescription dest (const $ pure merged)
-      for_ maybeDest0 \dest0 -> do
-        (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
-        Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
-      pure b
+    mergeBranch =
+      Cli.scopeWith do
+        Cli.time "mergeBranch"
+        Env {codebase} <- ask
+        destb <- getBranchAt dest
+        merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
+        b <- updateAtM inputDescription dest (const $ pure merged)
+        for_ maybeDest0 \dest0 -> do
+          (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
+          Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
+        pure b
 
 loadPropagateDiffDefaultPatch ::
   Command.InputDescription ->
   Maybe Path.Path' ->
   Path.Absolute ->
   Cli r ()
-loadPropagateDiffDefaultPatch inputDescription dest0 dest = Cli.scopeWith do
-  Cli.time "Propagate Default Patch"
-  original <- getBranchAt dest
-  patch <- liftIO $ Branch.getPatch defaultPatchNameSegment (Branch.head original)
-  patchDidChange <- propagatePatch inputDescription patch dest
-  when patchDidChange . for_ dest0 $ \dest0 -> do
-    patched <- getBranchAt dest
-    let patchPath = snoc dest0 defaultPatchNameSegment
-    diffHelper (Branch.head original) (Branch.head patched)
-      >>= Cli.respondNumbered . uncurry (ShowDiffAfterMergePropagate dest0 dest patchPath)
-
-loadPropagateDiffDefaultPatchCli ::
-  Command.InputDescription ->
-  Maybe Path.Path' ->
-  Path.Absolute ->
-  Cli r ()
-loadPropagateDiffDefaultPatchCli inputDescription maybeDest0 dest = do
+loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
   Cli.scopeWith do
-    Cli.time "propagate-default-patch"
+    Cli.time "loadPropagateDiffDefaultPatch"
     original <- getBranchAt dest
     patch <- liftIO $ Branch.getPatch defaultPatchNameSegment (Branch.head original)
     patchDidChange <- propagatePatch inputDescription patch dest
@@ -3003,31 +2884,31 @@ stepAt ::
   Cli r ()
 stepAt cause strat = stepManyAt @[] cause strat . pure
 
-stepAtCli' ::
+stepAt' ::
   Command.InputDescription ->
   Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
   Cli r Bool
-stepAtCli' cause strat = stepManyAtCli' @[] cause strat . pure
+stepAt' cause strat = stepManyAt' @[] cause strat . pure
 
-stepAtCliNoSync' ::
+stepAtNoSync' ::
   Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
   Cli r Bool
-stepAtCliNoSync' strat = stepManyAtCliNoSync' @[] strat . pure
+stepAtNoSync' strat = stepManyAtNoSync' @[] strat . pure
 
-stepAtNoSyncCli ::
+stepAtNoSync ::
   Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepAtNoSyncCli strat = stepManyAtNoSync @[] strat . pure
+stepAtNoSync strat = stepManyAtNoSync @[] strat . pure
 
-stepAtMCli ::
+stepAtM ::
   Branch.UpdateStrategy ->
   Command.InputDescription ->
   (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Cli r ()
-stepAtMCli cause strat = stepManyAtM @[] cause strat . pure
+stepAtM cause strat = stepManyAtM @[] cause strat . pure
 
 stepManyAt ::
   Foldable f =>
@@ -3039,23 +2920,23 @@ stepManyAt reason strat actions = do
   stepManyAtNoSync strat actions
   syncRoot reason
 
-stepManyAtCli' ::
+stepManyAt' ::
   Foldable f =>
   Command.InputDescription ->
   Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
   Cli r Bool
-stepManyAtCli' reason strat actions = do
-  res <- stepManyAtCliNoSync' strat actions
+stepManyAt' reason strat actions = do
+  res <- stepManyAtNoSync' strat actions
   syncRoot reason
   pure res
 
-stepManyAtCliNoSync' ::
+stepManyAtNoSync' ::
   Foldable f =>
   Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
   Cli r Bool
-stepManyAtCliNoSync' strat actions = do
+stepManyAtNoSync' strat actions = do
   origRoot <- do
     loopState <- Cli.getLoopState
     pure (loopState ^. Command.root)
@@ -3099,15 +2980,17 @@ syncRoot description = do
   updateRoot (loopState ^. Command.root) description
 
 updateRoot :: Branch IO -> Command.InputDescription -> Cli r ()
-updateRoot new reason = time "updateRoot" do
-  Env {codebase} <- ask
-  loopState <- Cli.getLoopState
-  let old = loopState ^. Command.lastSavedRoot
-  when (old /= new) do
-    Cli.modifyLoopState (set Command.root new)
-    liftIO (Codebase.putRootBranch codebase new)
-    liftIO (Codebase.appendReflog codebase reason old new)
-    Cli.modifyLoopState (set Command.lastSavedRoot new)
+updateRoot new reason =
+  Cli.scopeWith do
+    Cli.time "updateRoot"
+    Env {codebase} <- ask
+    loopState <- Cli.getLoopState
+    let old = loopState ^. Command.lastSavedRoot
+    when (old /= new) do
+      Cli.modifyLoopState (set Command.root new)
+      liftIO (Codebase.putRootBranch codebase new)
+      liftIO (Codebase.appendReflog codebase reason old new)
+      Cli.modifyLoopState (set Command.lastSavedRoot new)
 
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible
@@ -3174,7 +3057,7 @@ displayI prettyPrintNames outputLoc hq = do
             else -- ... but use the unsuffixed names for display
             do
               let tm = Term.fromReferent External $ Set.findMin results
-              pped <- prettyPrintEnvDeclCli parseNames
+              pped <- prettyPrintEnvDecl parseNames
               tm <- evalUnisonTerm True (PPE.suffixifiedPPE pped) True tm
               doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
