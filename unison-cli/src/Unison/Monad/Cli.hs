@@ -29,7 +29,7 @@ module Unison.Monad.Cli
     -- * Scoping actions
     newBlock,
 
-    -- * Short-circuiting with failure or success
+    -- * Short-circuiting
     succeedWith,
     returnEarly,
     returnEarlyWithoutOutput,
@@ -222,12 +222,12 @@ ioE action errK =
 short :: ReturnType r -> Cli r a
 short r = Cli \_k _env -> pure r
 
--- | Short-circuit success. Returns @r@ to the nearest enclosing
+-- | Short-circuit with a value. Returns @r@ to the nearest enclosing
 -- 'newBlock' (or 'runCli' if there is no enclosing 'newBlock').
-succeedWith :: r -> Cli r a
-succeedWith = short . Success
+returnWith :: r -> Cli r a
+returnWith = short . Success
 
--- | Short-circuit the processing of this input.
+-- | Short-circuit the processing of the current input.
 returnEarly :: Output -> Cli r a
 returnEarly x = do
   respond x
@@ -242,8 +242,9 @@ returnEarlyWithoutOutput =
 haltRepl :: Cli r a
 haltRepl = short HaltRepl
 
--- | Wrap a continuation with 'Cli'. Provides a nicer syntax to
--- resource acquiring functions.
+-- | Wrap a continuation with 'Cli'.
+--
+-- Useful for resource acquisition:
 --
 -- @
 -- resource <- with (bracket acquire close)
@@ -272,6 +273,18 @@ newBlock (Cli ma) = Cli \k env -> do
     HaltRepl -> pure HaltRepl
 
 -- | Time an action.
+--
+-- Use 'newBlock' to scope what is timed. The following example times the execution of @foo2 >> foo3@
+--
+-- @
+-- foo0
+-- r <- newBlock do
+--   foo1
+--   time "barbaz"
+--   foo2
+--   foo3
+-- foo4
+-- @
 time :: String -> Cli r ()
 time label =
   if Debug.shouldDebug Debug.Timing
