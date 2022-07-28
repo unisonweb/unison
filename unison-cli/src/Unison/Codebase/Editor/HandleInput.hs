@@ -414,7 +414,6 @@ assertNoPatchAt path = do
 
 loop :: Either Event Input -> Cli r ()
 loop e = do
-  root' <- getRootBranch
   currentPath' <- getCurrentPath
   let currentPath'' = Path.unabsolute currentPath'
       resolveSplit' :: (Path', a) -> (Path, a)
@@ -422,9 +421,11 @@ loop e = do
       resolveToAbsolute :: Path' -> Path.Absolute
       resolveToAbsolute = Path.resolve currentPath'
 
-      basicPrettyPrintNames :: Names
-      basicPrettyPrintNames =
-        Backend.prettyNamesForBranch root' (Backend.AllNames $ Path.unabsolute currentPath')
+      getBasicPrettyPrintNames :: Cli r Names
+      getBasicPrettyPrintNames = do
+        rootBranch <- getRootBranch
+        currentPath' <- getCurrentPath
+        pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath')))
 
       withFile ::
         AmbientAbilities Symbol ->
@@ -438,7 +439,8 @@ loop e = do
               L.Hash sh -> Just (HQ.HashOnly sh)
               _ -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') root'
+        rootBranch <- getRootBranch
+        let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') rootBranch
         Cli.modifyLoopState \loopState ->
           loopState
             & Command.latestFile .~ Just (Text.unpack sourceName, False)
@@ -479,9 +481,10 @@ loop e = do
     Left (IncomingRootBranch hashes) -> do
       Env {codebase} <- ask
       sbhLength <- liftIO (Codebase.branchHashLength codebase)
+      rootBranch <- getRootBranch
       Cli.respond $
         WarnIncomingRootBranch
-          (SBH.fromHash sbhLength $ Branch.headHash root')
+          (SBH.fromHash sbhLength $ Branch.headHash rootBranch)
           (Set.map (SBH.fromHash sbhLength) hashes)
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
@@ -705,9 +708,10 @@ loop e = do
                   then do
                     let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
                     let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
+                    before <- getRootBranch0
                     stepManyAt inputDescription Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
-                    root'' <- getRootBranch
-                    (ppe, diff) <- diffHelper (Branch.head root') (Branch.head root'')
+                    after <- getRootBranch0
+                    (ppe, diff) <- diffHelper before after
                     Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
                   else do
                     ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
@@ -960,7 +964,7 @@ loop e = do
                   Right path' -> do
                     path <- resolvePath' path'
                     getMaybeBranchAt path & onNothingM (Cli.returnEarly (CreatedNewBranch path))
-              Env{codebase} <- ask
+              Env {codebase} <- ask
               sbhLength <- liftIO (Codebase.branchHashLength codebase)
               history <- liftIO (doHistory sbhLength 0 branch [])
               Cli.respondNumbered history
@@ -978,14 +982,15 @@ loop e = do
                         let elem = (Branch.headHash b, Branch.namesDiff b' b)
                         doHistory sbhLength (n + 1) b' (elem : acc)
             UndoI -> do
+              rootBranch <- getRootBranch
               (_, prev) <-
-                liftIO (Branch.uncons root') & onNothingM do
+                liftIO (Branch.uncons rootBranch) & onNothingM do
                   Cli.returnEarly . CantUndo $
-                    if Branch.isOne root'
+                    if Branch.isOne rootBranch
                       then CantUndoPastStart
                       else CantUndoPastMerge
               updateRoot prev inputDescription
-              (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head root')
+              (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
               Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
             UiI -> do
               Env {serverBaseUrl} <- ask
@@ -994,8 +999,9 @@ loop e = do
                 pure ()
             DocsToHtmlI namespacePath' sourceDirectory -> do
               Env {codebase, sandboxedRuntime} <- ask
+              rootBranch <- getRootBranch
               absPath <- Path.unabsolute <$> resolvePath' namespacePath'
-              liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase root' absPath sourceDirectory)
+              liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase rootBranch absPath sourceDirectory)
             AliasTermI src dest -> do
               Env {codebase} <- ask
               srcTerms <-
@@ -1123,6 +1129,7 @@ loop e = do
             NamesI global thing -> do
               Env {codebase} <- ask
               hqLength <- liftIO (Codebase.hashLength codebase)
+              basicPrettyPrintNames <- getBasicPrettyPrintNames
               ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
               let ns = NamesWithHistory ns0 mempty
                   terms = NamesWithHistory.lookupHQTerm thing ns
@@ -1153,6 +1160,7 @@ loop e = do
               Cli.respond $ ListOfLinks ppe out
             DocsI srcs -> do
               root0 <- getRootBranch0
+              basicPrettyPrintNames <- getBasicPrettyPrintNames
               srcs' <- case srcs of
                 [] -> do
                   defs <-
@@ -1251,6 +1259,7 @@ loop e = do
             DeleteTermI hq -> delete getTermsAt (const (pure Set.empty)) hq
             DisplayI outputLoc names' -> do
               root0 <- getRootBranch0
+              basicPrettyPrintNames <- getBasicPrettyPrintNames
               names <- case names' of
                 [] ->
                   fuzzySelectDefinition Absolute root0 & onNothingM do
@@ -1270,12 +1279,13 @@ loop e = do
             FindShallowI pathArg -> do
               Env {codebase} <- ask
               sbhLength <- liftIO (Codebase.branchHashLength codebase)
+              rootBranch <- getRootBranch
 
               let pathArgAbs = resolveToAbsolute pathArg
                   ppe =
                     Backend.basicSuffixifiedNames
                       sbhLength
-                      root'
+                      rootBranch
                       (Backend.AllNames $ Path.fromPath' pathArg)
               entries <- liftIO (Backend.findShallow codebase pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
@@ -1478,9 +1488,11 @@ loop e = do
                 unisonFile0 <- getLatestTypecheckedFile
                 addRunMain main unisonFile0 >>= \case
                   NoTermWithThatName -> do
+                    basicPrettyPrintNames <- getBasicPrettyPrintNames
                     ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
                     Cli.returnEarly $ NoMainFunction main ppe [mainType]
                   TermHasBadType ty -> do
+                    basicPrettyPrintNames <- getBasicPrettyPrintNames
                     ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
                     Cli.returnEarly $ BadMainFunction main ty ppe [mainType]
                   RunMainSuccess unisonFile -> pure unisonFile
@@ -1640,6 +1652,7 @@ loop e = do
               lds <- resolveHQToLabeledDependencies hq
               when (null lds) do
                 Cli.returnEarly (LabeledReferenceNotFound hq)
+              rootBranch <- getRootBranch
               for_ lds \ld -> do
                 dependencies :: Set Reference <-
                   let tp r@(Reference.DerivedId i) =
@@ -1659,7 +1672,7 @@ loop e = do
                             Just tp -> Type.dependencies tp
                       tm _ = pure mempty
                    in LD.fold tp tm ld
-                (missing, names0) <- liftIO (Branch.findHistoricalRefs' dependencies root')
+                (missing, names0) <- liftIO (Branch.findHistoricalRefs' dependencies rootBranch)
                 let types = R.toList $ Names.types names0
                 let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
                 let names = types <> terms
@@ -1729,11 +1742,13 @@ loop e = do
                       prettyLinks renderR r links = P.indentN 2 (P.lines (P.text (renderR r) : (links <&> \r -> "+ " <> P.text (Reference.toText r))))
                       prettyDefn renderR (r, (Foldable.toList -> names, Foldable.toList -> links)) =
                         P.lines (P.shown <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyLinks renderR r links
-              void . liftIO . flip State.execStateT mempty $ goCausal [getCausal root']
+              rootBranch <- getRootBranch
+              void . liftIO . flip State.execStateT mempty $ goCausal [getCausal rootBranch]
             DebugDumpNamespaceSimpleI -> do
-              for_ (Relation.toList . Branch.deepTypes . Branch.head $ root') \(r, name) ->
+              rootBranch0 <- getRootBranch0
+              for_ (Relation.toList . Branch.deepTypes $ rootBranch0) \(r, name) ->
                 traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
-              for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
+              for_ (Relation.toList . Branch.deepTerms $ rootBranch0) \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
             DebugClearWatchI {} -> do
               Env {codebase} <- ask
@@ -1791,8 +1806,7 @@ handleFindI isVerbose fscope ws input = do
   currentBranch0 <- getCurrentBranch0
   let getNames :: FindScope -> Names
       getNames findScope =
-        let namesWithinCurrentPath = Backend.prettyNamesForBranch root' nameScope
-            cp = Path.unabsolute currentPath'
+        let cp = Path.unabsolute currentPath'
             nameScope = case findScope of
               Local -> Backend.Within cp
               LocalAndDeps -> Backend.Within cp
@@ -1811,7 +1825,7 @@ handleFindI isVerbose fscope ws input = do
                         "lib" Nel.:| (_ : "lib" : _) -> False
                         _ -> True
                  in Names.filter f
-         in scopeFilter namesWithinCurrentPath
+         in scopeFilter (Backend.prettyNamesForBranch root' nameScope)
   let getResults :: Names -> Cli r [SearchResult]
       getResults names = do
         case ws of
