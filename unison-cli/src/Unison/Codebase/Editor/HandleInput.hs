@@ -202,7 +202,16 @@ currentPrettyPrintEnvDecl scoping = do
   pure $ Backend.getCurrentPrettyNames hqLen (scoping (Path.unabsolute currentPath)) root'
 
 ------------------------------------------------------------------------------------------------------------------------
--- Latest typechecked unison file utils
+-- Latest (typechecked) unison file utils
+
+getLatestFile :: Cli r (Maybe (FilePath, Bool))
+getLatestFile = do
+  loopState <- Cli.getLoopState
+  pure (loopState ^. Command.latestFile)
+
+expectLatestFile :: Cli r (FilePath, Bool)
+expectLatestFile = do
+  getLatestFile & onNothingM (Cli.returnEarly NoUnisonFile)
 
 -- | Get the latest typechecked unison file.
 getLatestTypecheckedFile :: Cli r (Maybe (TypecheckedUnisonFile Symbol Ann))
@@ -406,10 +415,8 @@ assertNoPatchAt path = do
 loop :: Either Event Input -> Cli r ()
 loop e = do
   Env {codebase} <- ask
-  loopState <- Cli.getLoopState
   root' <- getRootBranch
   currentPath' <- getCurrentPath
-  let latestFile' = loopState ^. Command.latestFile
   hqLength <- liftIO (Codebase.hashLength codebase)
   sbhLength <- liftIO (Codebase.branchHashLength codebase)
   let currentPath'' = Path.unabsolute currentPath'
@@ -479,9 +486,9 @@ loop e = do
           (Set.map (SBH.fromHash sbhLength) hashes)
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
-      if maybe False snd latestFile'
-        then Cli.modifyLoopState (set (Command.latestFile . _Just . _2) False)
-        else loadUnisonFile sourceName text
+      getLatestFile >>= \case
+        Just (_, True) -> Cli.modifyLoopState (set (Command.latestFile . _Just . _2) False)
+        _ -> loadUnisonFile sourceName text
     Right input ->
       let typeReferences :: [SearchResult] -> [Reference]
           typeReferences rs =
@@ -1395,7 +1402,8 @@ loop e = do
                 ([], [], [_], tos) -> ambiguous to tos
                 (_, _, _, _) -> error "unpossible"
             LoadI maybePath -> do
-              path <- (maybePath <|> (fst <$> latestFile')) & onNothing (Cli.returnEarly NoUnisonFile)
+              latestFile <- getLatestFile
+              path <- (maybePath <|> fst <$> latestFile) & onNothing (Cli.returnEarly NoUnisonFile)
               Env {loadSource} <- ask
               contents <-
                 liftIO (loadSource (Text.pack path)) >>= \case
@@ -1417,7 +1425,7 @@ loop e = do
               addDefaultMetadata adds
               syncRoot inputDescription
             PreviewAddI requestedNames -> do
-              (sourceName, _) <- latestFile' & onNothing (Cli.returnEarly NoUnisonFile)
+              (sourceName, _) <- expectLatestFile
               uf <- expectLatestTypecheckedFile
               let vars = Set.map Name.toVar requestedNames
               currentNames <- Branch.toNames <$> getCurrentBranch0
@@ -1425,7 +1433,7 @@ loop e = do
               previewResponse sourceName sr uf
             UpdateI optionalPatch requestedNames -> handleUpdate input optionalPatch requestedNames
             PreviewUpdateI requestedNames -> do
-              (sourceName, _) <- latestFile' & onNothing (Cli.returnEarly NoUnisonFile)
+              (sourceName, _) <- expectLatestFile
               uf <- expectLatestTypecheckedFile
               let vars = Set.map Name.toVar requestedNames
               currentNames <- Branch.toNames <$> getCurrentBranch0
@@ -2080,11 +2088,11 @@ handleShowDefinition outputLoc inputQuery = do
     -- `view`: fuzzy find globally; `edit`: fuzzy find local to current branch
     fuzzyBranch :: Cli r (Branch0 IO)
     fuzzyBranch = do
-        case outputLoc of
-          ConsoleLocation {} -> getRootBranch0
-          -- fuzzy finding for 'edit's are local to the current branch
-          LatestFileLocation {} -> getCurrentBranch0
-          FileLocation {} -> getCurrentBranch0
+      case outputLoc of
+        ConsoleLocation {} -> getRootBranch0
+        -- fuzzy finding for 'edit's are local to the current branch
+        LatestFileLocation {} -> getCurrentBranch0
+        FileLocation {} -> getCurrentBranch0
 
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
