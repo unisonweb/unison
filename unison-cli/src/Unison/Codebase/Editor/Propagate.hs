@@ -80,12 +80,12 @@ noEdits :: Edits v
 noEdits = Edits mempty mempty mempty mempty mempty mempty mempty
 
 propagateAndApply ::
-  Codebase IO Symbol Ann ->
   Names ->
   Patch ->
   Branch0 IO ->
   Cli r (Branch0 IO)
-propagateAndApply codebase rootNames patch branch = do
+propagateAndApply rootNames patch branch = do
+  Env {codebase} <- ask
   edits <- propagate codebase rootNames patch branch
   let f = applyPropagate patch edits
   (pure . f . applyDeprecations patch) branch
