@@ -414,10 +414,8 @@ assertNoPatchAt path = do
 
 loop :: Either Event Input -> Cli r ()
 loop e = do
-  Env {codebase} <- ask
   root' <- getRootBranch
   currentPath' <- getCurrentPath
-  sbhLength <- liftIO (Codebase.branchHashLength codebase)
   let currentPath'' = Path.unabsolute currentPath'
       resolveSplit' :: (Path', a) -> (Path, a)
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
@@ -478,7 +476,9 @@ loop e = do
         Cli.modifyLoopState (set Command.latestTypecheckedFile (Just unisonFile))
 
   case e of
-    Left (IncomingRootBranch hashes) ->
+    Left (IncomingRootBranch hashes) -> do
+      Env {codebase} <- ask
+      sbhLength <- liftIO (Codebase.branchHashLength codebase)
       Cli.respond $
         WarnIncomingRootBranch
           (SBH.fromHash sbhLength $ Branch.headHash root')
@@ -729,32 +729,37 @@ loop e = do
               Cli.respond $ PrintMessage pretty
             ShowReflogI -> do
               Env {codebase} <- ask
-              entries <- convertEntries Nothing [] <$> liftIO (Codebase.getReflog codebase)
+              sbhLength <- liftIO (Codebase.branchHashLength codebase)
+              entries <- convertEntries sbhLength Nothing [] <$> liftIO (Codebase.getReflog codebase)
               Cli.modifyLoopState (set Command.numberedArgs (fmap (('#' :) . SBH.toString . Output.hash) entries))
               Cli.respond $ ShowReflog entries
               where
                 -- reverses & formats entries, adds synthetic entries when there is a
                 -- discontinuity in the reflog.
                 convertEntries ::
+                  Int ->
                   Maybe Branch.CausalHash ->
                   [Output.ReflogEntry] ->
                   [Reflog.Entry Branch.CausalHash] ->
                   [Output.ReflogEntry]
-                convertEntries _ acc [] = acc
-                convertEntries Nothing acc entries@(Reflog.Entry old _ _ : _) =
+                convertEntries _ _ acc [] = acc
+                convertEntries sbhLength Nothing acc entries@(Reflog.Entry old _ _ : _) =
                   convertEntries
+                    sbhLength
                     (Just old)
                     (Output.ReflogEntry (SBH.fromHash sbhLength old) "(initial reflogged namespace)" : acc)
                     entries
-                convertEntries (Just lastHash) acc entries@(Reflog.Entry old new reason : rest) =
+                convertEntries sbhLength (Just lastHash) acc entries@(Reflog.Entry old new reason : rest) =
                   if lastHash /= old
                     then
                       convertEntries
+                        sbhLength
                         (Just old)
                         (Output.ReflogEntry (SBH.fromHash sbhLength old) "(external change)" : acc)
                         entries
                     else
                       convertEntries
+                        sbhLength
                         (Just new)
                         (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
                         rest
@@ -955,11 +960,13 @@ loop e = do
                   Right path' -> do
                     path <- resolvePath' path'
                     getMaybeBranchAt path & onNothingM (Cli.returnEarly (CreatedNewBranch path))
-              history <- liftIO (doHistory 0 branch [])
+              Env{codebase} <- ask
+              sbhLength <- liftIO (Codebase.branchHashLength codebase)
+              history <- liftIO (doHistory sbhLength 0 branch [])
               Cli.respondNumbered history
               where
-                doHistory :: Int -> Branch IO -> [(Causal.CausalHash, NamesWithHistory.Diff)] -> IO NumberedOutput
-                doHistory !n b acc =
+                doHistory :: Int -> Int -> Branch IO -> [(Causal.CausalHash, NamesWithHistory.Diff)] -> IO NumberedOutput
+                doHistory sbhLength !n b acc =
                   if maybe False (n >=) resultsCap
                     then pure (History diffCap sbhLength acc (PageEnd (Branch.headHash b) n))
                     else case Branch._history b of
@@ -969,7 +976,7 @@ loop e = do
                       Causal.Cons _ _ _ tail -> do
                         b' <- fmap Branch.Branch $ snd tail
                         let elem = (Branch.headHash b, Branch.namesDiff b' b)
-                        doHistory (n + 1) b' (elem : acc)
+                        doHistory sbhLength (n + 1) b' (elem : acc)
             UndoI -> do
               (_, prev) <-
                 liftIO (Branch.uncons root') & onNothingM do
@@ -1262,6 +1269,7 @@ loop e = do
               Cli.modifyLoopState (set Command.numberedArgs (fmap Name.toString patches))
             FindShallowI pathArg -> do
               Env {codebase} <- ask
+              sbhLength <- liftIO (Codebase.branchHashLength codebase)
 
               let pathArgAbs = resolveToAbsolute pathArg
                   ppe =
