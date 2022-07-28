@@ -196,8 +196,7 @@ prettyPrintEnvDecl ns = do
 currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli r PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl scoping = do
   Env {codebase} <- ask
-  loopState <- Cli.getLoopState
-  let root' = loopState ^. Command.root
+  root' <- getRootBranch
   currentPath <- getCurrentPath
   hqLen <- liftIO (Codebase.hashLength codebase)
   pure $ Backend.getCurrentPrettyNames hqLen (scoping (Path.unabsolute currentPath)) root'
@@ -209,8 +208,7 @@ currentPrettyPrintEnvDecl scoping = do
 resolveMetadata :: HQ.HashQualified Name -> Cli r (Metadata.Type, Metadata.Value)
 resolveMetadata name = do
   Env {codebase} <- ask
-  loopState <- Cli.getLoopState
-  let root' = loopState ^. Command.root
+  root' <- getRootBranch
   currentPath' <- getCurrentPath
   sbhLength <- liftIO (Codebase.branchHashLength codebase)
 
@@ -275,6 +273,15 @@ resolveShortBranchHash hash = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting branches, patches, etc.
 
+getRootBranch :: Cli r (Branch IO)
+getRootBranch = do
+  loopState <- Cli.getLoopState
+  pure (loopState ^. Command.root)
+
+getRootBranch0 :: Cli r (Branch0 IO)
+getRootBranch0 =
+  Branch.head <$> getRootBranch
+
 -- | Get the current branch.
 getCurrentBranch :: Cli r (Branch IO)
 getCurrentBranch = do
@@ -283,15 +290,14 @@ getCurrentBranch = do
 
 -- | Get the branch at an absolute path.
 getBranchAt :: Path.Absolute -> Cli r (Branch IO)
-getBranchAt (Path.Absolute p) = do
-  loopState <- Cli.getLoopState
-  pure (fromMaybe Branch.empty (Branch.getAt p (loopState ^. Command.root)))
+getBranchAt path =
+  getMaybeBranchAt path <&> fromMaybe Branch.empty
 
 -- | Get the maybe-branch at an absolute path.
 getMaybeBranchAt :: Path.Absolute -> Cli r (Maybe (Branch IO))
-getMaybeBranchAt (Path.Absolute p) = do
-  loopState <- Cli.getLoopState
-  pure (Branch.getAt p (loopState ^. Command.root))
+getMaybeBranchAt path = do
+  rootBranch <- getRootBranch
+  pure (Branch.getAt (Path.unabsolute path) rootBranch)
 
 -- | Get the branch at an absolute or relative path, or return early if there's no such branch.
 expectBranchAtPath' :: Path' -> Cli r (Branch IO)
@@ -350,7 +356,7 @@ loop :: Either Event Input -> Cli r ()
 loop e = do
   Env {codebase} <- ask
   loopState <- Cli.getLoopState
-  let root' = loopState ^. Command.root
+  root' <- getRootBranch
   currentPath' <- getCurrentPath
   let latestFile' = loopState ^. Command.latestFile
   currentBranch' <- getCurrentBranch
@@ -380,7 +386,11 @@ loop e = do
       getTerms :: Path.Split' -> Set Referent
       getTerms = getHQ'Terms . fmap HQ'.NameOnly
 
-      withFile :: AmbientAbilities Symbol -> Text -> (Text, [L.Token L.Lexeme]) -> Cli r (TypecheckedUnisonFile Symbol Ann)
+      withFile ::
+        AmbientAbilities Symbol ->
+        Text ->
+        (Text, [L.Token L.Lexeme]) ->
+        Cli r (TypecheckedUnisonFile Symbol Ann)
       withFile ambient sourceName lexed@(text, tokens) = do
         let getHQ = \case
               L.WordyId s (Just sh) ->
@@ -660,8 +670,7 @@ loop e = do
                     let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
                     let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
                     stepManyAt inputDescription Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
-                    loopState <- Cli.getLoopState
-                    let root'' = loopState ^. Command.root
+                    root'' <- getRootBranch
                     (ppe, diff) <- diffHelper (Branch.head root') (Branch.head root'')
                     Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
                   else do
@@ -799,13 +808,13 @@ loop e = do
 
             -- move the Command.root to a sub-branch
             MoveBranchI Nothing dest -> do
-              loopState <- Cli.getLoopState
+              rootBranch <- getRootBranch
               -- Overwrite history at destination.
               stepManyAt
                 inputDescription
                 Branch.AllowRewritingHistory
                 [ (Path.empty, const Branch.empty0),
-                  BranchUtil.makeSetBranch (resolveSplit' dest) (loopState ^. Command.root)
+                  BranchUtil.makeSetBranch (resolveSplit' dest) rootBranch
                 ]
               Cli.respond Success
             MoveBranchI (Just src) dest -> do
@@ -1249,12 +1258,12 @@ loop e = do
                     . Set.delete r
                     $ conflicted
             ResolveTermNameI hq -> do
-              loopState <- Cli.getLoopState
+              rootBranch0 <- getRootBranch0
               path <- resolveSplitCli' hq
               refs <-
                 getTermsIncludingHistorical
                   (Path.fromAbsoluteSplit path)
-                  (Branch.head (loopState ^. Command.root))
+                  rootBranch0
               zeroOneOrMore
                 refs
                 (Cli.respond (TermNotFound hq))
@@ -1722,8 +1731,7 @@ handleFindI ::
   Cli r ()
 handleFindI isVerbose fscope ws input = do
   Env {codebase} <- ask
-  loopState <- Cli.getLoopState
-  let root' = loopState ^. Command.root
+  root' <- getRootBranch
   currentPath' <- getCurrentPath
   currentBranch' <- getCurrentBranch
   let currentBranch0 = Branch.head currentBranch'
@@ -2022,7 +2030,6 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
 handleShowDefinition :: OutputLocation -> [HQ.HashQualified Name] -> Cli r ()
 handleShowDefinition outputLoc inputQuery = do
   Env {codebase} <- ask
-  loopState <- Cli.getLoopState
   -- If the query is empty, run a fuzzy search.
   query <-
     if null inputQuery
@@ -2034,8 +2041,8 @@ handleShowDefinition outputLoc inputQuery = do
             _ -> Cli.respond (HelpMessage InputPatterns.edit) $> []
           Just defs -> pure defs
       else pure inputQuery
+  root' <- getRootBranch
   currentPath' <- Path.unabsolute <$> getCurrentPath
-  let root' = loopState ^. Command.root
   hqLength <- liftIO (Codebase.hashLength codebase)
   Backend.DefinitionResults terms types misses <- do
     let namingScope = Backend.AllNames currentPath'
@@ -2057,7 +2064,7 @@ handleShowDefinition outputLoc inputQuery = do
     fuzzyBranch = do
       branch <-
         case outputLoc of
-          ConsoleLocation {} -> Cli.getLoopState <&> view Command.root
+          ConsoleLocation {} -> getRootBranch
           -- fuzzy finding for 'edit's are local to the current branch
           LatestFileLocation {} -> getCurrentBranch
           FileLocation {} -> getCurrentBranch
@@ -2374,12 +2381,12 @@ manageLinks ::
   Cli r ()
 manageLinks silent srcs metadataNames op = do
   metadata <- traverse resolveMetadata metadataNames
-  before <- Cli.getLoopState <&> Branch.head . view Command.root
+  before <- getRootBranch0
   traverse_ go metadata
   if silent
     then Cli.respond DefaultMetadataNotification
     else do
-      after <- Cli.getLoopState <&> Branch.head . view Command.root
+      after <- getRootBranch0
       (ppe, diff) <- diffHelper before after
       if OBranchDiff.isEmpty diff
         then Cli.respond NoOp
@@ -2393,16 +2400,14 @@ manageLinks silent srcs metadataNames op = do
   where
     go :: (Metadata.Type, Metadata.Value) -> Cli r ()
     go (mdType, mdValue) = do
-      loopState <- Cli.getLoopState
-      let newRoot = loopState ^. Command.root
+      newRoot0 <- getRootBranch0
       currentPath' <- getCurrentPath
       let resolveToAbsolute :: Path' -> Path.Absolute
           resolveToAbsolute = Path.resolve currentPath'
           resolveSplit' :: (Path', a) -> (Path, a)
           resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
-          r0 = Branch.head newRoot
-          getTerms p = BranchUtil.getTerm (resolveSplit' p) r0
-          getTypes p = BranchUtil.getType (resolveSplit' p) r0
+          getTerms p = BranchUtil.getTerm (resolveSplit' p) newRoot0
+          getTypes p = BranchUtil.getType (resolveSplit' p) newRoot0
           !srcle = toList . getTerms =<< srcs
           !srclt = toList . getTypes =<< srcs
       let step b0 =
@@ -2576,8 +2581,7 @@ getLinks' ::
     )
 getLinks' src selection0 = do
   Env {codebase} <- ask
-  loopState <- Cli.getLoopState
-  let root0 = Branch.head (loopState ^. Command.root)
+  root0 <- getRootBranch0
   p <- Path.fromAbsoluteSplit <$> resolveSplitCli' src -- ex: the (parent,hqsegment) of `List.map` - `List`
   let -- all metadata (type+value) associated with name `src`
       allMd =
@@ -2604,12 +2608,11 @@ propagatePatchNoSync ::
 propagatePatchNoSync patch scopePath = Cli.scopeWith do
   Cli.time "propagate"
   Env {codebase} <- ask
-  r <- view Command.root <$> Cli.getLoopState
-  let nroot = Branch.toNames (Branch.head r)
+  rootBranch0 <- getRootBranch0
   stepAtNoSync'
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
-      Propagate.propagateAndApply codebase nroot patch
+      Propagate.propagateAndApply codebase (Branch.toNames rootBranch0) patch
     )
 
 -- Returns True if the operation changed the namespace, False otherwise.
@@ -2620,13 +2623,12 @@ propagatePatch ::
   Cli r Bool
 propagatePatch inputDescription patch scopePath = do
   Env {codebase} <- ask
-  r <- view Command.root <$> Cli.getLoopState
-  let nroot = Branch.toNames (Branch.head r)
+  rootBranch0 <- getRootBranch0
   stepAt'
     (inputDescription <> " (applying patch)")
     Branch.CompressHistory
     ( Path.unabsolute scopePath,
-      Propagate.propagateAndApply codebase nroot patch
+      Propagate.propagateAndApply codebase (Branch.toNames rootBranch0) patch
     )
 
 -- | Create the args needed for showTodoOutput and call it
@@ -2845,8 +2847,7 @@ loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
 getHQTerms :: HQ.HashQualified Name -> Cli r (Set Referent)
 getHQTerms = \case
   HQ.NameOnly n -> do
-    loopState <- Cli.getLoopState
-    let root0 = Branch.head (loopState ^. Command.root)
+    root0 <- getRootBranch0
     currentPath' <- getCurrentPath
     -- absolute-ify the name, then lookup in deepTerms of root
     let path =
@@ -2937,9 +2938,7 @@ stepManyAtNoSync' ::
   f (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
   Cli r Bool
 stepManyAtNoSync' strat actions = do
-  origRoot <- do
-    loopState <- Cli.getLoopState
-    pure (loopState ^. Command.root)
+  origRoot <- getRootBranch
   newRoot <- Branch.stepManyAtM strat actions origRoot
   Cli.modifyLoopState (set Command.root newRoot)
   pure (origRoot /= newRoot)
@@ -2969,15 +2968,15 @@ stepManyAtMNoSync ::
   f (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Cli r ()
 stepManyAtMNoSync strat actions = do
-  loopState <- Cli.getLoopState
-  newRoot <- liftIO $ Branch.stepManyAtM strat actions (loopState ^. Command.root)
+  oldRoot <- getRootBranch
+  newRoot <- liftIO (Branch.stepManyAtM strat actions oldRoot)
   Cli.modifyLoopState (set Command.root newRoot)
 
 -- | Sync the in-memory root branch.
 syncRoot :: Command.InputDescription -> Cli r ()
 syncRoot description = do
-  loopState <- Cli.getLoopState
-  updateRoot (loopState ^. Command.root) description
+  rootBranch <- getRootBranch
+  updateRoot rootBranch description
 
 updateRoot :: Branch IO -> Command.InputDescription -> Cli r ()
 updateRoot new reason =
@@ -3344,8 +3343,7 @@ makeShadowedPrintNamesFromLabeled deps shadowing =
 
 makePrintNamesFromLabeled' :: Set LabeledDependency -> Cli r NamesWithHistory
 makePrintNamesFromLabeled' deps = do
-  loopState <- Cli.getLoopState
-  let root' = loopState ^. Command.root
+  root' <- getRootBranch
   curPath <- getCurrentPath
   (_missing, rawHistoricalNames) <-
     liftIO $
@@ -3370,8 +3368,7 @@ getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
 -- I'd enforce it with finer-grained types if we had them.
 findHistoricalHQs :: Set (HQ.HashQualified Name) -> Cli r Names
 findHistoricalHQs lexedHQs0 = do
-  loopState <- Cli.getLoopState
-  let root' = loopState ^. Command.root
+  root' <- getRootBranch
   curPath <- getCurrentPath
   let -- omg this nightmare name-to-path parsing code is littered everywhere.
       -- We need to refactor so that the absolute-ness of a name isn't represented
@@ -3419,8 +3416,7 @@ currentPathNames = do
 -- implementation detail of basicParseNames and basicPrettyPrintNames
 basicNames' :: (Path -> Backend.NameScoping) -> Cli r (Names, Names)
 basicNames' nameScoping = do
-  loopState <- Cli.getLoopState
-  let root' = loopState ^. Command.root
+  root' <- getRootBranch
   currentPath' <- getCurrentPath
   let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
   pure (parse, pretty)
@@ -3530,12 +3526,11 @@ diffHelper before after =
   Cli.scopeWith do
     Cli.time "diffHelper"
     Env {codebase} <- ask
-    loopState <- Cli.getLoopState
-    let currentRoot = view Command.root loopState
+    rootBranch <- getRootBranch
     currentPath <- getCurrentPath
     hqLength <- liftIO (Codebase.hashLength codebase)
     diff <- liftIO (BranchDiff.diff0 before after)
-    let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
+    let (_parseNames, prettyNames0, _local) = Backend.namesForBranch rootBranch (Backend.AllNames $ Path.unabsolute currentPath)
     ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
     liftIO do
       fmap (ppe,) do
@@ -3569,8 +3564,7 @@ declOrBuiltin codebase r = case r of
 hqNameQuery :: [HQ.HashQualified Name] -> Cli r QueryResult
 hqNameQuery query = do
   Env {codebase} <- ask
-  loopState <- Cli.getLoopState
-  let root' = loopState ^. Command.root
+  root' <- getRootBranch
   currentPath <- getCurrentPath
   hqLength <- liftIO (Codebase.hashLength codebase)
   let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
