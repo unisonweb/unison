@@ -415,8 +415,7 @@ assertNoPatchAt path = do
 loop :: Either Event Input -> Cli r ()
 loop e = do
   currentPath' <- getCurrentPath
-  let currentPath'' = Path.unabsolute currentPath'
-      resolveSplit' :: (Path', a) -> (Path, a)
+  let resolveSplit' :: (Path', a) -> (Path, a)
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolveToAbsolute :: Path' -> Path.Absolute
       resolveToAbsolute = Path.resolve currentPath'
@@ -424,8 +423,8 @@ loop e = do
       getBasicPrettyPrintNames :: Cli r Names
       getBasicPrettyPrintNames = do
         rootBranch <- getRootBranch
-        currentPath' <- getCurrentPath
-        pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath')))
+        currentPath <- getCurrentPath
+        pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath)))
 
       withFile ::
         AmbientAbilities Symbol ->
@@ -440,7 +439,8 @@ loop e = do
               _ -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
         rootBranch <- getRootBranch
-        let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') rootBranch
+        currentPath <- getCurrentPath
+        let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
         Cli.modifyLoopState \loopState ->
           loopState
             & Command.latestFile .~ Just (Text.unpack sourceName, False)
@@ -456,8 +456,11 @@ loop e = do
                   | Result.CompilerBug (Result.TypecheckerBug bug) <-
                       toList notes
                 ]
-          when (not $ null tes) . Cli.respond $ TypeErrors currentPath' text ppe tes
-          when (not $ null cbs) . Cli.respond $ CompilerBugs text ppe cbs
+          when (not (null tes)) do
+            currentPath <- getCurrentPath
+            Cli.respond (TypeErrors currentPath text ppe tes)
+          when (not (null cbs)) do
+            Cli.respond (CompilerBugs text ppe cbs)
           Cli.returnEarlyWithoutOutput
 
       loadUnisonFile :: Text -> Text -> Cli r ()
@@ -675,7 +678,8 @@ loop e = do
               )
             -- Apply the modified patch to the current path
             -- since we might be able to propagate further.
-            void $ propagatePatch inputDescription patch' currentPath'
+            currentPath <- getCurrentPath
+            void $ propagatePatch inputDescription patch' currentPath
             Cli.respond Success
           previewResponse sourceName sr uf = do
             names <- displayNames uf
@@ -811,17 +815,12 @@ loop e = do
                 (False, True) -> Cli.respond . NamespaceEmpty $ (absAfter Nel.:| [])
                 (False, False) -> do
                   (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
-                  Cli.respondNumbered $
-                    ShowDiffNamespace
-                      (resolveToAbsolute <$> before)
-                      (resolveToAbsolute <$> after)
-                      ppe
-                      diff
+                  Cli.respondNumbered (ShowDiffNamespace absBefore absAfter ppe diff)
             CreatePullRequestI baseRepo headRepo -> handleCreatePullRequest baseRepo headRepo
             LoadPullRequestI baseRepo headRepo dest0 -> do
               assertNoBranchAtPath' dest0
               Env {codebase} <- ask
-              let desta = resolveToAbsolute dest0
+              desta <- resolvePath' dest0
               let dest = Path.unabsolute desta
               let getBranch = \case
                     ReadRemoteNamespaceGit repo ->
@@ -1189,14 +1188,14 @@ loop e = do
                   BranchUtil.makeAddTermName (resolveSplit' copyrightHolderPath) (d copyrightHolderRef) mempty,
                   BranchUtil.makeAddTermName (resolveSplit' guidPath) (d guidRef) mempty
                 ]
+              currentPath <- getCurrentPath
               finalBranch <- getCurrentBranch0
-              -- print some output
               (ppe, diff) <- diffHelper (Branch.head initialBranch) finalBranch
               Cli.respondNumbered $
                 ShowDiffAfterCreateAuthor
                   authorNameSegment
                   (Path.unsplit' base)
-                  currentPath'
+                  currentPath
                   ppe
                   diff
               where
@@ -1281,15 +1280,15 @@ loop e = do
               sbhLength <- liftIO (Codebase.branchHashLength codebase)
               rootBranch <- getRootBranch
 
-              let pathArgAbs = resolveToAbsolute pathArg
-                  ppe =
-                    Backend.basicSuffixifiedNames
-                      sbhLength
-                      rootBranch
-                      (Backend.AllNames $ Path.fromPath' pathArg)
+              pathArgAbs <- resolvePath' pathArg
               entries <- liftIO (Backend.findShallow codebase pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               Cli.modifyLoopState (set Command.numberedArgs (fmap entryToHQString entries))
+              let ppe =
+                    Backend.basicSuffixifiedNames
+                      sbhLength
+                      rootBranch
+                      (Backend.AllNames (Path.unabsolute pathArgAbs))
               Cli.respond $ ListShallow ppe entries
               where
                 entryToHQString :: ShallowListEntry v Ann -> String
@@ -1449,10 +1448,11 @@ loop e = do
               let vars = Set.map Name.toVar requestedNames
               uf <- expectLatestTypecheckedFile
               Env {codebase} <- ask
+              currentPath <- getCurrentPath
               currentNames <- Branch.toNames <$> getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
-              stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
+              stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath, doSlurpAdds adds uf)
               liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
@@ -1475,12 +1475,14 @@ loop e = do
               previewResponse sourceName sr uf
             TodoI patchPath branchPath' -> do
               patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
-              doShowTodoOutput patch $ resolveToAbsolute branchPath'
+              branchPath <- resolvePath' branchPath'
+              doShowTodoOutput patch branchPath
             TestI testInput -> handleTest testInput
-            PropagatePatchI patchPath scopePath -> do
+            PropagatePatchI patchPath scopePath' -> do
               patch <- getPatchAt patchPath
-              updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
-              when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath)
+              scopePath <- resolvePath' scopePath'
+              updated <- propagatePatch inputDescription patch scopePath
+              when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath')
             ExecuteI main args -> do
               Env {runtime} <- ask
               unisonFile <- do
@@ -1572,7 +1574,8 @@ loop e = do
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names0
-              _ <- updateAtM inputDescription (currentPath' `snoc` "builtin") \destb ->
+              currentPath <- getCurrentPath
+              _ <- updateAtM inputDescription (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             MergeIOBuiltinsI -> do
@@ -1595,7 +1598,8 @@ loop e = do
                     Builtin.names0
                       <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
-              _ <- updateAtM inputDescription (currentPath' `snoc` "builtin") \destb ->
+              currentPath <- getCurrentPath
+              _ <- updateAtM inputDescription (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             ListEditsI maybePath -> do
@@ -1679,7 +1683,7 @@ loop e = do
                 Cli.modifyLoopState (set Command.numberedArgs (fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)))
                 Cli.respond $ ListDependencies hqLength ld names missing
             NamespaceDependenciesI namespacePath' -> do
-              path <- maybe (pure currentPath') resolvePath' namespacePath'
+              path <- maybe getCurrentPath resolvePath' namespacePath'
               getMaybeBranchAt path >>= \case
                 Nothing -> Cli.respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
