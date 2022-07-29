@@ -76,6 +76,9 @@ its location on the command line.
 This codebase uses symlinks as a workaround for some inconveniences in the `here` package. Support for symlinks in Windows is relatively new, and isn't enabled by default. As a result, your cloned copy of the code probably won't build.
 
 First you'll need to enable "Developer Mode" in your Windows settings.
+
+	See https://consumer.huawei.com/en/support/content/en-us15594140/
+
 Then you'll need to enable symlink support in your `git` configuration, e.g.
 
     `git config core.symlinks true`
