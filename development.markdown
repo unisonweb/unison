@@ -73,7 +73,7 @@ its location on the command line.
 
 ### I get an error about unison/sql/something
 
-This codebase uses symlinks as a workaround for some inconveniences in the `here` package. Support for symlinks in Windows is relatively new, and isn't enabled by default. As a result, your cloned copy of the code probably won't work.
+This codebase uses symlinks as a workaround for some inconveniences in the `here` package. Support for symlinks in Windows is relatively new, and isn't enabled by default. As a result, your cloned copy of the code probably won't build.
 
 First you'll need to enable "Developer Mode" in your Windows settings.
 Then you'll need to enable symlink support in your `git` configuration, e.g.
