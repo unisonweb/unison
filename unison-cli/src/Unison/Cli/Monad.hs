@@ -1,8 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 
 -- | The main CLI monad.
---
--- TODO export list, docs
 module Unison.Cli.Monad
   ( -- * Cli monad
     Cli,
@@ -78,11 +76,6 @@ import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.UnisonFile as UF
 
-data ReturnType a
-  = Success a
-  | HaltStep
-  | HaltRepl
-
 -- | The main command-line app monad.
 --
 -- * It is a reader monad: get the 'Env' environment with 'ask'.
@@ -108,7 +101,16 @@ newtype Cli r a = Cli {unCli :: Env -> (a -> IO (ReturnType r)) -> IO (ReturnTyp
     )
     via ReaderT Env (ContT (ReturnType r) IO)
 
+-- | What a Cli action returns: a value, an instruction to continue processing input, or an instruction to stop
+-- processing input.
+data ReturnType a
+  = Success a
+  | Continue
+  | HaltRepl
+
 -- | The command-line app monad environment.
+--
+-- Get the environment with 'ask'.
 data Env = Env
   { authHTTPClient :: AuthenticatedHttpClient,
     codebase :: Codebase IO Symbol Ann,
@@ -131,6 +133,8 @@ data Env = Env
   deriving stock (Generic)
 
 -- | The command-line app monad mutable state.
+--
+-- Get the state with 'getLoopState', put it with 'putLoopState', or modify it with 'modifyLoopState'.
 --
 -- There's an additional pseudo @"currentPath"@ field lens, for convenience.
 data LoopState = LoopState
@@ -199,7 +203,7 @@ putLoopState newSt = do
   Env {loopStateRef} <- ask
   liftIO (writeIORef loopStateRef newSt)
 
--- | Modify the loop state.
+-- | Modify the loop state (not thread-safe).
 modifyLoopState :: (LoopState -> LoopState) -> Cli r ()
 modifyLoopState f = do
   Env {loopStateRef} <- ask
@@ -236,7 +240,7 @@ returnEarly x = do
 -- | Variant of 'returnEarly' that doesn't take a final output message.
 returnEarlyWithoutOutput :: Cli r a
 returnEarlyWithoutOutput =
-  short HaltStep
+  short Continue
 
 -- | Stop processing inputs from the user.
 haltRepl :: Cli r a
@@ -269,7 +273,7 @@ newBlock :: Cli x x -> Cli r x
 newBlock (Cli ma) = Cli \env k -> do
   ma env (\x -> pure (Success x)) >>= \case
     Success x -> k x
-    HaltStep -> pure HaltStep
+    Continue -> pure Continue
     HaltRepl -> pure HaltRepl
 
 -- | Time an action.

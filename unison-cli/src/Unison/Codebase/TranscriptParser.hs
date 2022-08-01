@@ -470,7 +470,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
         input <- awaitInput
         Cli.runCli env (HandleInput.loop input) >>= \case
           Cli.Success () -> loop
-          Cli.HaltStep -> loop
+          Cli.Continue -> loop
           Cli.HaltRepl -> do
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))

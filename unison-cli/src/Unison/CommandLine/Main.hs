@@ -208,7 +208,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
         input <- awaitInput
         Cli.runCli env (HandleInput.loop input) >>= \case
           Cli.Success () -> loop0
-          Cli.HaltStep -> loop0
+          Cli.Continue -> loop0
           Cli.HaltRepl -> pure ()
 
   (onInterrupt, waitForInterrupt) <- buildInterruptHandler
