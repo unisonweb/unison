@@ -37,7 +37,7 @@ where
 
 import Control.Applicative (liftA2)
 import Data.Bifunctor (bimap, first)
-import Data.Bits (shiftL, (.|.))
+import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
 import Data.List (partition)
 import qualified Data.Map.Strict as M
@@ -1407,7 +1407,7 @@ sectionTypes (Match _ br) = branchTypes br
 sectionTypes _ = []
 
 instrTypes :: Instr -> [Word64]
-instrTypes (Pack _ w _) = [w]
+instrTypes (Pack _ w _) = [w `shiftR` 16]
 instrTypes _ = []
 
 branchDeps :: Branch -> [Word64]
