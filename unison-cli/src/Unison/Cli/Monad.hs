@@ -98,7 +98,7 @@ data ReturnType a
 --
 -- * It is an IO monad: you can do IO things, but throwing synchronous exceptions is discouraged. Use the built-in
 -- short-circuiting mechanism instead.
-newtype Cli r a = Cli {unCli :: (a -> Env -> IO (ReturnType r)) -> Env -> IO (ReturnType r)}
+newtype Cli r a = Cli {unCli :: Env -> (a -> IO (ReturnType r)) -> IO (ReturnType r)}
   deriving
     ( Functor,
       Applicative,
@@ -106,7 +106,7 @@ newtype Cli r a = Cli {unCli :: (a -> Env -> IO (ReturnType r)) -> Env -> IO (Re
       MonadIO,
       MonadReader Env
     )
-    via ContT (ReturnType r) (ReaderT Env IO)
+    via ReaderT Env (ContT (ReturnType r) IO)
 
 -- | The command-line app monad environment.
 data Env = Env
@@ -185,7 +185,7 @@ loopState0 b p =
 -- | Run a @Cli@ action down to @IO@.
 runCli :: Env -> Cli a a -> IO (ReturnType a)
 runCli env (Cli action) =
-  action (\x _ -> pure (Success x)) env
+  action env (\x -> pure (Success x))
 
 -- | Get the loop state.
 getLoopState :: Cli r LoopState
@@ -214,10 +214,10 @@ data LoadSourceResult
 -- | Lift an action of type @IO (Either e a)@, given a continuation for @e@.
 ioE :: IO (Either e a) -> (e -> Cli r a) -> Cli r a
 ioE action errK =
-  Cli \k env ->
+  Cli \env k ->
     action >>= \case
-      Left err -> unCli (errK err) k env
-      Right value -> k value env
+      Left err -> unCli (errK err) env k
+      Right value -> k value
 
 short :: ReturnType r -> Cli r a
 short r = Cli \_k _env -> pure r
@@ -252,23 +252,23 @@ haltRepl = short HaltRepl
 --
 -- Delimit the scope of acquired resources with 'newBlock'.
 with :: (forall x. (a -> IO x) -> IO x) -> Cli r a
-with resourceK = Cli \k env -> resourceK (\resource -> k resource env)
+with resourceK = Cli \_ -> resourceK
 
 -- | A variant of 'with' for the variant of bracketing function that may return a Left rather than call the provided
 -- continuation.
 withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (e -> Cli r a) -> Cli r a
 withE resourceK errK =
-  Cli \k env ->
-    resourceK (\resource -> k resource env) >>= \case
-      Left err -> unCli (errK err) k env
+  Cli \env k ->
+    resourceK k >>= \case
+      Left err -> unCli (errK err) env k
       Right val -> pure val
 
 -- | Run the given action in a new block, which delimits the scope of any 'succeedWith', 'with'/'withE', and 'time'
 -- calls contained within.
 newBlock :: Cli x x -> Cli r x
-newBlock (Cli ma) = Cli \k env -> do
-  ma (\x _ -> pure (Success x)) env >>= \case
-    Success x -> k x env
+newBlock (Cli ma) = Cli \env k -> do
+  ma env (\x -> pure (Success x)) >>= \case
+    Success x -> k x
     HaltStep -> pure HaltStep
     HaltRepl -> pure HaltRepl
 
@@ -288,10 +288,10 @@ newBlock (Cli ma) = Cli \k env -> do
 time :: String -> Cli r ()
 time label =
   if Debug.shouldDebug Debug.Timing
-    then Cli \k env -> do
+    then Cli \_ k -> do
       systemStart <- getSystemTime
       cpuPicoStart <- getCPUTime
-      r <- k () env
+      r <- k ()
       cpuPicoEnd <- getCPUTime
       systemEnd <- getSystemTime
       let systemDiff =
