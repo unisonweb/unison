@@ -1,9 +1,56 @@
--- TODO export list, document
-module Unison.Cli.MonadUtils where
+-- | This module contains miscellaneous helper utils for rote actions in the Cli monad, like getting resolving a
+-- relative path to an absolute path, per the current path.
+module Unison.Cli.MonadUtils
+  ( -- * Paths
+    getCurrentPath,
+    resolvePath',
+    resolveSplit',
+
+    -- * Branches
+
+    -- ** Resolving branch identifiers
+    resolveAbsBranchId,
+    resolveShortBranchHash,
+
+    -- ** Getting branches
+    getRootBranch,
+    getRootBranch0,
+    getCurrentBranch,
+    getCurrentBranch0,
+    getBranchAt,
+    getBranch0At,
+    getMaybeBranchAt,
+    expectBranchAtPath',
+    assertNoBranchAtPath',
+
+    -- * Terms
+    getTermsAt,
+
+    -- * Types
+    getTypesAt,
+
+    -- * Patches
+
+    -- ** Default patch
+    defaultPatchNameSegment,
+    defaultPatchPath,
+
+    -- ** Getting patches
+    getPatchAt,
+    getMaybePatchAt,
+    expectPatchAt,
+    assertNoPatchAt,
+
+    -- * Latest touched Unison file
+    getLatestFile,
+    expectLatestFile,
+    getLatestTypecheckedFile,
+    expectLatestTypecheckedFile,
+  )
+where
 
 import Control.Lens
 import Control.Monad.Reader (ask)
-import Data.Configurator ()
 import qualified Data.Set as Set
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -13,8 +60,8 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.Command as Command
-import Unison.Codebase.Editor.Input
-import Unison.Codebase.Editor.Output
+import qualified Unison.Codebase.Editor.Input as Input
+import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
 import Unison.Codebase.Path (Path' (..))
@@ -30,29 +77,6 @@ import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Util.Set as Set
-
-------------------------------------------------------------------------------------------------------------------------
--- Latest (typechecked) unison file utils
-
-getLatestFile :: Cli r (Maybe (FilePath, Bool))
-getLatestFile = do
-  loopState <- Cli.getLoopState
-  pure (loopState ^. #latestFile)
-
-expectLatestFile :: Cli r (FilePath, Bool)
-expectLatestFile = do
-  getLatestFile & onNothingM (Cli.returnEarly NoUnisonFile)
-
--- | Get the latest typechecked unison file.
-getLatestTypecheckedFile :: Cli r (Maybe (TypecheckedUnisonFile Symbol Ann))
-getLatestTypecheckedFile = do
-  loopState <- Cli.getLoopState
-  pure (loopState ^. #latestTypecheckedFile)
-
--- | Get the latest typechecked unison file, or return early if there isn't one.
-expectLatestTypecheckedFile :: Cli r (TypecheckedUnisonFile Symbol Ann)
-expectLatestTypecheckedFile =
-  getLatestTypecheckedFile & onNothingM (Cli.returnEarly NoUnisonFile)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting paths, path resolution, etc.
@@ -79,7 +103,7 @@ resolveSplit' =
 
 -- | Resolve an @AbsBranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
 -- branches by path are OK - the empty branch will be returned).
-resolveAbsBranchId :: AbsBranchId -> Cli r (Branch IO)
+resolveAbsBranchId :: Input.AbsBranchId -> Cli r (Branch IO)
 resolveAbsBranchId = \case
   Left hash -> resolveShortBranchHash hash
   Right path -> getBranchAt path
@@ -96,8 +120,8 @@ resolveShortBranchHash hash = do
       Set.asSingleton hashSet & onNothing do
         Cli.returnEarly
           if Set.null hashSet
-            then NoBranchWithHash hash
-            else BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet)
+            then Output.NoBranchWithHash hash
+            else Output.BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet)
     branch <- liftIO (Codebase.getBranchForHash codebase h)
     pure (fromMaybe Branch.empty branch)
 
@@ -131,6 +155,11 @@ getBranchAt :: Path.Absolute -> Cli r (Branch IO)
 getBranchAt path =
   getMaybeBranchAt path <&> fromMaybe Branch.empty
 
+-- | Get the branch0 at an absolute path.
+getBranch0At :: Path.Absolute -> Cli r (Branch0 IO)
+getBranch0At path =
+  Branch.head <$> getBranchAt path
+
 -- | Get the maybe-branch at an absolute path.
 getMaybeBranchAt :: Path.Absolute -> Cli r (Maybe (Branch IO))
 getMaybeBranchAt path = do
@@ -141,7 +170,7 @@ getMaybeBranchAt path = do
 expectBranchAtPath' :: Path' -> Cli r (Branch IO)
 expectBranchAtPath' path0 = do
   path <- resolvePath' path0
-  getMaybeBranchAt path & onNothingM (Cli.returnEarly (BranchNotFound path0))
+  getMaybeBranchAt path & onNothingM (Cli.returnEarly (Output.BranchNotFound path0))
 
 -- | Assert that there's "no branch" at an absolute or relative path, or return early if there is one, where "no branch"
 -- means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
@@ -151,12 +180,7 @@ assertNoBranchAtPath' path0 = do
   path <- resolvePath' path0
   whenJustM (getMaybeBranchAt path) \branch ->
     when (not (Branch.isEmpty0 (Branch.head branch))) do
-      Cli.returnEarly (BranchAlreadyExists path0)
-
--- | Get the branch0 at an absolute path.
-getBranch0At :: Path.Absolute -> Cli r (Branch0 IO)
-getBranch0At path =
-  Branch.head <$> getBranchAt path
+      Cli.returnEarly (Output.BranchAlreadyExists path0)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting terms
@@ -200,9 +224,32 @@ getMaybePatchAt path0 = do
 -- | Get the patch at a path, or return early if there's no such patch.
 expectPatchAt :: Path.Split' -> Cli r Patch
 expectPatchAt path =
-  getMaybePatchAt path & onNothingM (Cli.returnEarly (PatchNotFound path))
+  getMaybePatchAt path & onNothingM (Cli.returnEarly (Output.PatchNotFound path))
 
 -- | Assert that there's no patch at a path, or return early if there is one.
 assertNoPatchAt :: Path.Split' -> Cli r ()
 assertNoPatchAt path = do
-  whenJustM (getMaybePatchAt path) \_ -> Cli.returnEarly (PatchAlreadyExists path)
+  whenJustM (getMaybePatchAt path) \_ -> Cli.returnEarly (Output.PatchAlreadyExists path)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Latest (typechecked) unison file utils
+
+getLatestFile :: Cli r (Maybe (FilePath, Bool))
+getLatestFile = do
+  loopState <- Cli.getLoopState
+  pure (loopState ^. #latestFile)
+
+expectLatestFile :: Cli r (FilePath, Bool)
+expectLatestFile = do
+  getLatestFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
+
+-- | Get the latest typechecked unison file.
+getLatestTypecheckedFile :: Cli r (Maybe (TypecheckedUnisonFile Symbol Ann))
+getLatestTypecheckedFile = do
+  loopState <- Cli.getLoopState
+  pure (loopState ^. #latestTypecheckedFile)
+
+-- | Get the latest typechecked unison file, or return early if there isn't one.
+expectLatestTypecheckedFile :: Cli r (TypecheckedUnisonFile Symbol Ann)
+expectLatestTypecheckedFile =
+  getLatestTypecheckedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
