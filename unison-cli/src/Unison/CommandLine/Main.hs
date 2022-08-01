@@ -27,7 +27,6 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Editor.Command as Command
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
@@ -121,7 +120,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
   initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
   pageOutput <- newIORef True
   cancelFileSystemWatch <- watchFileSystem eventQueue dir
-  loopStateRef <- newIORef (Command.loopState0 root initialPath)
+  loopStateRef <- newIORef (Cli.loopState0 root initialPath)
   let patternMap :: Map String InputPattern
       patternMap =
         Map.fromList $
@@ -185,7 +184,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
   authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
   let env =
-        Command.Env
+        Cli.Env
           { authHTTPClient,
             codebase,
             config,

@@ -21,7 +21,6 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
-import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch (..))
@@ -267,7 +266,7 @@ propagate patch b = case validatePatch patch of
           [] -> Referent.toString r
           n : _ -> show n
 
-    Env {codebase} <- ask
+    Cli.Env {codebase} <- ask
     initialDirty <- computeDirty (liftIO . Codebase.dependents codebase) patch (Names.contains names0)
 
     let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
@@ -495,7 +494,7 @@ propagate patch b = case validatePatch patch of
 
     unhashTermComponent' :: Hash -> Cli r (Map Symbol (Reference.Id, Term Symbol Ann, Type Symbol Ann))
     unhashTermComponent' h = do
-      Env {codebase} <- ask
+      Cli.Env {codebase} <- ask
       liftIO (Codebase.getTermComponentWithTypes codebase h) <&> foldMap \termsWithTypes ->
         unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
       where
@@ -540,9 +539,12 @@ propagate patch b = case validatePatch patch of
             $ runIdentity (Result.toMaybe typecheckResult)
               >>= hush
 
-typecheckFile :: [Type Symbol Ann] -> UF.UnisonFile Symbol Ann -> Cli r (TypecheckingResult Symbol)
+typecheckFile ::
+  [Type Symbol Ann] ->
+  UF.UnisonFile Symbol Ann ->
+  Cli r (Result.Result (Seq (Result.Note Symbol Ann)) (Either Names (UF.TypecheckedUnisonFile Symbol Ann)))
 typecheckFile ambient file = do
-  Env {codebase} <- ask
+  Cli.Env {codebase} <- ask
   typeLookup <- liftIO (Codebase.typeLookupForDependencies codebase (UF.dependencies file))
   pure . fmap Right $ synthesizeFile' ambient (typeLookup <> Builtin.typeLookup) file
 

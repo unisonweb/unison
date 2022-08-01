@@ -45,7 +45,6 @@ import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Editor.Command as Command
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import qualified Unison.Codebase.Editor.Output as Output
@@ -243,7 +242,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             AuthN.newTokenProvider credMan
           Just accessToken ->
             \_codeserverID -> pure $ Right accessToken
-  loopStateRef <- newIORef (Command.loopState0 root initialPath)
+  loopStateRef <- newIORef (Cli.loopState0 root initialPath)
   seedRef <- newIORef (0 :: Int)
   inputQueue <- Q.newIO
   cmdQueue <- Q.newIO
@@ -448,7 +447,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
   authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
   let env =
-        Command.Env
+        Cli.Env
           { authHTTPClient = authenticatedHTTPClient,
             codebase,
             config = fromMaybe Configurator.empty config,

@@ -35,7 +35,6 @@ import Unison.Auth.Types
   )
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
-import Unison.Codebase.Editor.Command (Env (..))
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Debug as Debug
 import Unison.Prelude
@@ -49,7 +48,7 @@ ucmOAuthClientID = "ucm"
 -- and runs through an authentication flow if not.
 ensureAuthenticatedWithCodeserver :: CodeserverURI -> Cli r ()
 ensureAuthenticatedWithCodeserver codeserverURI = do
-  Env {credentialManager} <- ask
+  Cli.Env {credentialManager} <- ask
   getCredentials credentialManager (codeserverIdFromCodeserverURI codeserverURI) >>= \case
     Right _ -> pure ()
     Left _ -> authLogin codeserverURI
@@ -58,7 +57,7 @@ ensureAuthenticatedWithCodeserver codeserverURI = do
 -- credential manager.
 authLogin :: CodeserverURI -> Cli r ()
 authLogin host = do
-  Env {credentialManager} <- ask
+  Cli.Env {credentialManager} <- ask
   httpClient <- liftIO HTTP.getGlobalManager
   let discoveryURI = discoveryURIForCodeserver host
   doc@(DiscoveryDoc {authorizationEndpoint, tokenEndpoint}) <-

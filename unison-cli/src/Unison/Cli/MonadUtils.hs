@@ -1,7 +1,10 @@
 -- | This module contains miscellaneous helper utils for rote actions in the Cli monad, like getting resolving a
 -- relative path to an absolute path, per the current path.
 module Unison.Cli.MonadUtils
-  ( -- * Paths
+  ( -- * @.unisonConfig@ things
+    getConfig,
+
+    -- * Paths
     getCurrentPath,
     resolvePath',
     resolveSplit',
@@ -51,6 +54,8 @@ where
 
 import Control.Lens
 import Control.Monad.Reader (ask)
+import qualified Data.Configurator as Configurator
+import qualified Data.Configurator.Types as Configurator
 import qualified Data.Set as Set
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -59,7 +64,6 @@ import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import qualified Unison.Codebase.Causal as Causal
-import Unison.Codebase.Editor.Command as Command
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Patch (Patch (..))
@@ -77,6 +81,15 @@ import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Util.Set as Set
+
+------------------------------------------------------------------------------------------------------------------------
+-- .unisonConfig things
+
+-- | Lookup a config value by key.
+getConfig :: Configurator.Configured a => Text -> Cli r (Maybe a)
+getConfig key = do
+  Cli.Env {config} <- ask
+  liftIO (Configurator.lookup config key)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting paths, path resolution, etc.
@@ -113,7 +126,7 @@ resolveShortBranchHash :: ShortBranchHash -> Cli r (Branch IO)
 resolveShortBranchHash hash = do
   Cli.newBlock do
     Cli.time "resolveShortBranchHash"
-    Env {codebase} <- ask
+    Cli.Env {codebase} <- ask
     hashSet <- liftIO (Codebase.branchHashesByPrefix codebase hash)
     len <- liftIO (Codebase.branchHashLength codebase)
     h <-

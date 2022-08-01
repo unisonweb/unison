@@ -33,7 +33,6 @@ library
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Codebase.Editor.AuthorInfo
-      Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleInput
       Unison.Codebase.Editor.HandleInput.AuthLogin
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
