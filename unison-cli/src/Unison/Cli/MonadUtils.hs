@@ -1,5 +1,5 @@
--- | This module contains miscellaneous helper utils for rote actions in the Cli monad, like getting resolving a
--- relative path to an absolute path, per the current path.
+-- | This module contains miscellaneous helper utils for rote actions in the Cli monad, like resolving a relative path 
+-- to an absolute path, per the current path.
 module Unison.Cli.MonadUtils
   ( -- * @.unisonConfig@ things
     getConfig,

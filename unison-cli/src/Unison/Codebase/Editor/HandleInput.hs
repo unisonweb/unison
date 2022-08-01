@@ -168,7 +168,6 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Find as Find
 import Unison.Util.List (uniqueBy)
-import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
@@ -202,11 +201,7 @@ currentPrettyPrintEnvDecl scoping = do
 
 loop :: Either Event Input -> Cli r ()
 loop e = do
-  currentPath' <- Cli.getCurrentPath
-  let resolveToAbsolute :: Path' -> Path.Absolute
-      resolveToAbsolute = Path.resolve currentPath'
-
-      getBasicPrettyPrintNames :: Cli r Names
+  let getBasicPrettyPrintNames :: Cli r Names
       getBasicPrettyPrintNames = do
         rootBranch <- Cli.getRootBranch
         currentPath <- Cli.getCurrentPath
@@ -303,15 +298,15 @@ loop e = do
                     if isTerm
                       then Set.fromList $ SR.termName <$> termResults hits
                       else Set.fromList $ SR.typeName <$> typeResults hits
-                go :: Reference -> Cli r ()
-                go fr = do
+                go :: Text -> Reference -> Cli r ()
+                go description fr = do
                   let termPatch = over Patch.termEdits (R.deleteDom fr) patch
                       typePatch = over Patch.typeEdits (R.deleteDom fr) patch
                   (patchPath'', patchName) <- Cli.resolveSplit' patchPath'
                   -- Save the modified patch
                   stepAtM
                     Branch.CompressHistory
-                    inputDescription
+                    description
                     ( Path.unabsolute patchPath'',
                       Branch.modifyPatches
                         patchName
@@ -321,150 +316,21 @@ loop e = do
                   Cli.respond Success
             when (not (Set.null misses)) do
               Cli.respond (SearchTermsNotFound (Set.toList misses))
-            traverse_ go (if isTerm then tmRefs else tpRefs)
-          inputDescription :: Text
-          inputDescription = case input of
-            ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
-            MergeLocalBranchI src dest mode -> case mode of
-              Branch.RegularMerge -> "merge " <> p' src <> " " <> p' dest
-              Branch.SquashMerge -> "merge.squash " <> p' src <> " " <> p' dest
-            ResetRootI src -> "reset-root " <> hp' src
-            AliasTermI src dest -> "alias.term " <> hhqs' src <> " " <> ps' dest
-            AliasTypeI src dest -> "alias.type " <> hhqs' src <> " " <> ps' dest
-            AliasManyI srcs dest ->
-              "alias.many " <> intercalateMap " " hqs srcs <> " " <> p' dest
-            MoveTermI src dest -> "move.term " <> hqs' src <> " " <> ps' dest
-            MoveTypeI src dest -> "move.type " <> hqs' src <> " " <> ps' dest
-            MoveBranchI src dest -> "move.namespace " <> ops' src <> " " <> ps' dest
-            MovePatchI src dest -> "move.patch " <> ps' src <> " " <> ps' dest
-            CopyPatchI src dest -> "copy.patch " <> ps' src <> " " <> ps' dest
-            DeleteI thing -> "delete " <> hqs' thing
-            DeleteTermI def -> "delete.term " <> hqs' def
-            DeleteTypeI def -> "delete.type " <> hqs' def
-            DeleteBranchI Try opath -> "delete.namespace " <> ops' opath
-            DeleteBranchI Force opath -> "delete.namespace.force " <> ops' opath
-            DeletePatchI path -> "delete.patch " <> ps' path
-            ReplaceI src target p ->
-              "replace " <> HQ.toText src <> " "
-                <> HQ.toText target
-                <> " "
-                <> opatch p
-            ResolveTermNameI path -> "resolve.termName " <> hqs' path
-            ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
-            AddI _selection -> "add"
-            UpdateI p _selection ->
-              "update"
-                <> ( case p of
-                       NoPatch -> ".nopatch"
-                       DefaultPatch -> " " <> ps' Cli.defaultPatchPath
-                       UsePatch p -> " " <> ps' p
-                   )
-            PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
-            UndoI {} -> "undo"
-            ApiI -> "api"
-            UiI -> "ui"
-            DocsToHtmlI path dir -> "docs.to-html " <> Path.toText' path <> " " <> Text.pack dir
-            ExecuteI s args -> "execute " <> (Text.unwords . fmap Text.pack $ (s : args))
-            IOTestI hq -> "io.test " <> HQ.toText hq
-            LinkI md defs ->
-              "link " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
-            UnlinkI md defs ->
-              "unlink " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
-            UpdateBuiltinsI -> "builtins.update"
-            MergeBuiltinsI -> "builtins.merge"
-            MergeIOBuiltinsI -> "builtins.mergeio"
-            MakeStandaloneI out nm ->
-              "compile " <> Text.pack out <> " " <> HQ.toText nm
-            PullRemoteBranchI orepo dest _syncMode pullMode _ ->
-              ( Text.pack . InputPattern.patternName $
-                  case pullMode of
-                    PullWithoutHistory -> InputPatterns.pullWithoutHistory
-                    PullWithHistory -> InputPatterns.pull
-              )
-                <> " "
-                -- todo: show the actual config-loaded namespace
-                <> maybe
-                  "(remote namespace from .unisonConfig)"
-                  printNamespace
-                  orepo
-                <> " "
-                <> p' dest
-            CreateMessage {} -> wat
-            LoadI {} -> wat
-            PreviewAddI {} -> wat
-            PreviewUpdateI {} -> wat
-            CreateAuthorI (NameSegment id) name -> "create.author " <> id <> " " <> name
-            CreatePullRequestI {} -> wat
-            LoadPullRequestI base head dest ->
-              "pr.load "
-                <> printNamespace base
-                <> " "
-                <> printNamespace head
-                <> " "
-                <> p' dest
-            PushRemoteBranchI {} -> wat
-            PreviewMergeLocalBranchI {} -> wat
-            DiffNamespaceI {} -> wat
-            SwitchBranchI {} -> wat
-            UpI {} -> wat
-            PopBranchI {} -> wat
-            NamesI {} -> wat
-            TodoI {} -> wat
-            ListEditsI {} -> wat
-            ListDependenciesI {} -> wat
-            ListDependentsI {} -> wat
-            NamespaceDependenciesI {} -> wat
-            HistoryI {} -> wat
-            TestI {} -> wat
-            LinksI {} -> wat
-            FindI {} -> wat
-            FindShallowI {} -> wat
-            FindPatchI {} -> wat
-            ShowDefinitionI {} -> wat
-            DisplayI {} -> wat
-            DocsI {} -> wat
-            ShowDefinitionByPrefixI {} -> wat
-            ShowReflogI {} -> wat
-            DebugNumberedArgsI {} -> wat
-            DebugTypecheckedUnisonFileI {} -> wat
-            DebugDumpNamespacesI {} -> wat
-            DebugDumpNamespaceSimpleI {} -> wat
-            DebugClearWatchI {} -> wat
-            DebugDoctorI {} -> wat
-            QuitI {} -> wat
-            DeprecateTermI {} -> undefined
-            DeprecateTypeI {} -> undefined
-            GistI {} -> wat
-            AuthLoginI {} -> wat
-            RemoveTermReplacementI src p ->
-              "delete.term-replacement" <> HQ.toText src <> " " <> opatch p
-            RemoveTypeReplacementI src p ->
-              "delete.type-replacement" <> HQ.toText src <> " " <> opatch p
-            VersionI -> "version"
-            where
-              hp' = either (Text.pack . show) p'
-              p' = Text.pack . show . resolveToAbsolute
-              ops' = maybe "." ps'
-              opatch = ps' . fromMaybe Cli.defaultPatchPath
-              wat = error $ show input ++ " is not expected to alter the branch"
-              hhqs' (Left sh) = SH.toText sh
-              hhqs' (Right x) = hqs' x
-              hqs' (p, hq) =
-                Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
-              hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
-              ps' = p' . Path.unsplit'
+            description <- inputDescription input
+            traverse_ (go description) (if isTerm then tmRefs else tpRefs)
           saveAndApplyPatch :: Path -> NameSegment -> Patch -> Cli r ()
           saveAndApplyPatch patchPath'' patchName patch' = do
+            description <- inputDescription input
             stepAtM
               Branch.CompressHistory
-              (inputDescription <> " (1/2)")
+              (description <> " (1/2)")
               ( patchPath'',
                 Branch.modifyPatches patchName (const patch')
               )
             -- Apply the modified patch to the current path
             -- since we might be able to propagate further.
             currentPath <- Cli.getCurrentPath
-            void $ propagatePatch inputDescription patch' currentPath
+            void $ propagatePatch description patch' currentPath
             Cli.respond Success
           previewResponse sourceName sr uf = do
             names <- displayNames uf
@@ -495,7 +361,8 @@ loop e = do
                 let makeDeleteTermNames = map (BranchUtil.makeDeleteTermName resolvedPath) . Set.toList $ terms
                 let makeDeleteTypeNames = map (BranchUtil.makeDeleteTypeName resolvedPath) . Set.toList $ types
                 before <- Cli.getRootBranch0
-                stepManyAt inputDescription Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
+                description <- inputDescription input
+                stepManyAt description Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
                 after <- Cli.getRootBranch0
                 (ppe, diff) <- diffHelper before after
                 Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
@@ -559,7 +426,8 @@ loop e = do
                 case src0 of
                   Left hash -> Cli.resolveShortBranchHash hash
                   Right path' -> Cli.expectBranchAtPath' path'
-              updateRoot newRoot inputDescription
+              description <- inputDescription input
+              updateRoot newRoot description
               Cli.respond Success
             ForkLocalBranchI src0 dest0 -> do
               srcb <-
@@ -567,14 +435,16 @@ loop e = do
                   Left hash -> Cli.resolveShortBranchHash hash
                   Right path' -> Cli.expectBranchAtPath' path'
               Cli.assertNoBranchAtPath' dest0
+              description <- inputDescription input
               dest <- Cli.resolvePath' dest0
-              ok <- updateAtM inputDescription dest (const $ pure srcb)
+              ok <- updateAtM description dest (const $ pure srcb)
               Cli.respond if ok then Success else BranchEmpty src0
             MergeLocalBranchI src0 dest0 mergeMode -> do
+              description <- inputDescription input
               srcb <- Cli.expectBranchAtPath' src0
               dest <- Cli.resolvePath' dest0
               let err = Just $ MergeAlreadyUpToDate src0 dest0
-              mergeBranchAndPropagateDefaultPatch mergeMode inputDescription err srcb (Just dest0) dest
+              mergeBranchAndPropagateDefaultPatch mergeMode description err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
               Cli.Env {codebase} <- ask
               srcb <- Cli.expectBranchAtPath' src0
@@ -602,6 +472,7 @@ loop e = do
             LoadPullRequestI baseRepo headRepo dest0 -> do
               Cli.assertNoBranchAtPath' dest0
               Cli.Env {codebase} <- ask
+              description <- inputDescription input
               desta <- Cli.resolvePath' dest0
               let dest = Path.unabsolute desta
               let getBranch = \case
@@ -615,7 +486,7 @@ loop e = do
                 mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
                 squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
                 stepManyAt
-                  inputDescription
+                  description
                   Branch.AllowRewritingHistory
                   [ BranchUtil.makeSetBranch (dest, "base") baseb,
                     BranchUtil.makeSetBranch (dest, "head") headb,
@@ -628,61 +499,66 @@ loop e = do
                   squashed = snoc dest0 "squashed"
               Cli.respond $ LoadPullRequest baseRepo headRepo base head merged squashed
               loadPropagateDiffDefaultPatch
-                inputDescription
+                description
                 (Just merged)
                 (snoc desta "merged")
 
             -- move the Command.root to a sub-branch
             MoveBranchI Nothing dest' -> do
+              description <- inputDescription input
               rootBranch <- Cli.getRootBranch
               dest <- Cli.resolveSplit' dest'
               -- Overwrite history at destination.
               stepManyAt
-                inputDescription
+                description
                 Branch.AllowRewritingHistory
                 [ (Path.empty, const Branch.empty0),
                   BranchUtil.makeSetBranch (Path.convert dest) rootBranch
                 ]
               Cli.respond Success
             MoveBranchI (Just src') dest' -> do
+              description <- inputDescription input
               src <- Cli.resolveSplit' src'
               dest <- Cli.resolveSplit' dest'
               srcBranch <- Cli.expectBranchAtPath' (Path.unsplit' src')
               Cli.assertNoBranchAtPath' (Path.unsplit' dest')
               -- allow rewriting history to ensure we move the branch's history too.
               stepManyAt
-                inputDescription
+                description
                 Branch.AllowRewritingHistory
                 [ BranchUtil.makeDeleteBranch (Path.convert src),
                   BranchUtil.makeSetBranch (Path.convert dest) srcBranch
                 ]
               Cli.respond Success -- could give rando stats about new defns
             MovePatchI src' dest' -> do
+              description <- inputDescription input
               p <- Cli.expectPatchAt src'
               Cli.assertNoPatchAt dest'
               src <- Cli.resolveSplit' src'
               dest <- Cli.resolveSplit' dest'
               stepManyAt
-                inputDescription
+                description
                 Branch.CompressHistory
                 [ BranchUtil.makeDeletePatch (Path.convert src),
                   BranchUtil.makeReplacePatch (Path.convert dest) p
                 ]
               Cli.respond Success
             CopyPatchI src dest' -> do
+              description <- inputDescription input
               p <- Cli.expectPatchAt src
               Cli.assertNoPatchAt dest'
               dest <- Cli.resolveSplit' dest'
               stepAt
-                inputDescription
+                description
                 Branch.CompressHistory
                 (BranchUtil.makeReplacePatch (Path.convert dest) p)
               Cli.respond Success
             DeletePatchI src' -> do
               _ <- Cli.expectPatchAt src'
+              description <- inputDescription input
               src <- Cli.resolveSplit' src'
               stepAt
-                inputDescription
+                description
                 Branch.CompressHistory
                 (BranchUtil.makeDeletePatch (Path.convert src))
               Cli.respond Success
@@ -690,14 +566,16 @@ loop e = do
               hasConfirmed <- confirmedCommand input
               if hasConfirmed || insistence == Force
                 then do
+                  description <- inputDescription input
                   stepAt
-                    inputDescription
+                    description
                     Branch.CompressHistory -- Wipe out all definitions, but keep root branch history.
                     (Path.empty, const Branch.empty0)
                   Cli.respond DeletedEverything
                 else Cli.respond DeleteEverythingConfirmation
             DeleteBranchI insistence (Just p) -> do
               branch <- Cli.expectBranchAtPath' (Path.unsplit' p)
+              description <- inputDescription input
               absPath <- Cli.resolveSplit' p
               let toDelete =
                     Names.prefix0
@@ -716,7 +594,7 @@ loop e = do
                     ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                     Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
                     Cli.returnEarlyWithoutOutput
-              stepAt inputDescription Branch.CompressHistory $
+              stepAt description Branch.CompressHistory $
                 BranchUtil.makeDeleteBranch (Path.convert absPath)
               afterDelete
             SwitchBranchI maybePath' -> do
@@ -773,7 +651,8 @@ loop e = do
                     if Branch.isOne rootBranch
                       then CantUndoPastStart
                       else CantUndoPastMerge
-              updateRoot prev inputDescription
+              description <- inputDescription input
+              updateRoot prev description
               (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
               Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
             UiI -> do
@@ -808,6 +687,7 @@ loop e = do
               destTerms <- Cli.getTermsAt (Path.convert dest)
               when (not (Set.null destTerms)) do
                 Cli.returnEarly (TermAlreadyExists dest' destTerms)
+              description <- inputDescription input
               srcMetadata <-
                 case src of
                   Left _ -> pure Metadata.empty
@@ -815,7 +695,7 @@ loop e = do
                     root0 <- Cli.getRootBranch0
                     pure (BranchUtil.getTermMetadataAt (Path.convert path, ()) srcTerm root0)
               stepAt
-                inputDescription
+                description
                 Branch.CompressHistory
                 (BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata)
               Cli.respond Success
@@ -839,7 +719,9 @@ loop e = do
                       pure (DeleteNameAmbiguous hqLength name Set.empty srcTypes)
               dest <- Cli.resolveSplit' dest'
               destTypes <- Cli.getTypesAt (Path.convert dest)
-              when (not (Set.null destTypes)) (Cli.returnEarly (TypeAlreadyExists dest' destTypes))
+              when (not (Set.null destTypes)) do
+                Cli.returnEarly (TypeAlreadyExists dest' destTypes)
+              description <- inputDescription input
               srcMetadata <-
                 case src of
                   Left _ -> pure Metadata.empty
@@ -847,7 +729,7 @@ loop e = do
                     root0 <- Cli.getRootBranch0
                     pure (BranchUtil.getTypeMetadataAt (Path.convert path, ()) srcType root0)
               stepAt
-                inputDescription
+                description
                 Branch.CompressHistory
                 (BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata)
               Cli.respond Success
@@ -859,8 +741,9 @@ loop e = do
               currentBranch0 <- Cli.getCurrentBranch0
               destAbs <- Cli.resolvePath' dest'
               old <- Cli.getBranch0At destAbs
+              description <- inputDescription input
               let (unknown, actions) = foldl' (go root0 currentBranch0 destAbs) mempty srcs
-              stepManyAt inputDescription Branch.CompressHistory actions
+              stepManyAt description Branch.CompressHistory actions
               new <- Cli.getBranch0At destAbs
               (ppe, diff) <- diffHelper old new
               Cli.respondNumbered (ShowDiffAfterModifyBranch dest' destAbs ppe diff)
@@ -931,11 +814,13 @@ loop e = do
                       go r = (r, NamesWithHistory.typeName hqLength r printNames)
               Cli.respond $ ListNames global hqLength (toList types') (toList terms')
             LinkI mdValue srcs -> do
+              description <- inputDescription input
               manageLinks False srcs [mdValue] Metadata.insert
-              syncRoot inputDescription
+              syncRoot description
             UnlinkI mdValue srcs -> do
+              description <- inputDescription input
               manageLinks False srcs [mdValue] Metadata.delete
-              syncRoot inputDescription
+              syncRoot description
 
             -- > links List.map (.Docs .English)
             -- > links List.map -- give me all the
@@ -965,14 +850,14 @@ loop e = do
                 author@(authorRef, _, _)
                 copyrightHolder@(copyrightHolderRef, _, _) <-
                 AuthorInfo.createAuthorInfo Ann.External authorFullName
-
+              description <- inputDescription input
               -- add the new definitions to the codebase and to the namespace
               traverse_ (liftIO . uncurry3 (Codebase.putTerm codebase)) [guid, author, copyrightHolder]
               authorPath <- Cli.resolveSplit' authorPath'
               copyrightHolderPath <- Cli.resolveSplit' (base |> "copyrightHolders" |> authorNameSegment)
               guidPath <- Cli.resolveSplit' (authorPath' |> "guid")
               stepManyAt
-                inputDescription
+                description
                 Branch.CompressHistory
                 [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef) mempty,
                   BranchUtil.makeAddTermName (Path.convert copyrightHolderPath) (d copyrightHolderRef) mempty,
@@ -1008,12 +893,13 @@ loop e = do
               destTerms <- Cli.getTermsAt (Path.convert dest)
               when (not (Set.null destTerms)) do
                 Cli.returnEarly (TermAlreadyExists dest' destTerms)
+              description <- inputDescription input
               let p = Path.convert src
               srcMetadata <- do
                 root0 <- Cli.getRootBranch0
                 pure (BranchUtil.getTermMetadataAt p srcTerm root0)
               stepManyAt
-                inputDescription
+                description
                 Branch.CompressHistory
                 [ -- Mitchell: throwing away any hash-qualification here seems wrong!
                   BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
@@ -1035,12 +921,13 @@ loop e = do
               destTypes <- Cli.getTypesAt (Path.convert dest)
               when (not (Set.null destTypes)) do
                 Cli.returnEarly (TypeAlreadyExists dest' destTypes)
+              description <- inputDescription input
               let p = Path.convert src
               srcMetadata <- do
                 root0 <- Cli.getRootBranch0
                 pure (BranchUtil.getTypeMetadataAt p srcType root0)
               stepManyAt
-                inputDescription
+                description
                 Branch.CompressHistory
                 [ -- Mitchell: throwing away any hash-qualification here seems wrong!
                   BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
@@ -1100,6 +987,7 @@ loop e = do
                     pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             ResolveTypeNameI path' -> do
+              description <- inputDescription input
               path <- Cli.resolveSplit' path'
               ty <- do
                 types <- Cli.getTypesAt path
@@ -1111,7 +999,7 @@ loop e = do
                       hqLength <- liftIO (Codebase.hashLength codebase)
                       Cli.returnEarly (DeleteNameAmbiguous hqLength path' Set.empty types)
               stepAt
-                inputDescription
+                description
                 Branch.CompressHistory
                 -- Mitchell: throwing away HQ seems wrong
                 (BranchUtil.makeDeleteTypeName (Path.convert (over _2 HQ'.toName path)) ty)
@@ -1128,13 +1016,14 @@ loop e = do
                         Cli.Env {codebase} <- ask
                         hqLength <- liftIO (Codebase.hashLength codebase)
                         Cli.returnEarly (DeleteNameAmbiguous hqLength path' terms Set.empty)
+              description <- inputDescription input
               terms <- Cli.getTermsAt path
               terms
                 & Set.delete term
                 & Set.toList
                 -- Mitchell: throwing away HQ seems wrong
                 & map (BranchUtil.makeDeleteTermName (Path.convert (over _2 HQ'.toName path)))
-                & stepManyAt inputDescription Branch.CompressHistory
+                & stepManyAt description Branch.CompressHistory
             ReplaceI from to patchPath -> do
               Cli.Env {codebase} <- ask
               hqLength <- liftIO (Codebase.hashLength codebase)
@@ -1235,6 +1124,7 @@ loop e = do
                   Cli.LoadSuccess contents -> pure contents
               loadUnisonFile (Text.pack path) contents
             AddI requestedNames -> do
+              description <- inputDescription input
               let vars = Set.map Name.toVar requestedNames
               uf <- Cli.expectLatestTypecheckedFile
               Cli.Env {codebase} <- ask
@@ -1247,7 +1137,7 @@ loop e = do
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
               addDefaultMetadata adds
-              syncRoot inputDescription
+              syncRoot description
             PreviewAddI requestedNames -> do
               (sourceName, _) <- Cli.expectLatestFile
               uf <- Cli.expectLatestTypecheckedFile
@@ -1269,9 +1159,10 @@ loop e = do
               doShowTodoOutput patch branchPath
             TestI testInput -> handleTest testInput
             PropagatePatchI patchPath scopePath' -> do
+              description <- inputDescription input
               patch <- Cli.getPatchAt patchPath
               scopePath <- Cli.resolvePath' scopePath'
-              updated <- propagatePatch inputDescription patch scopePath
+              updated <- propagatePatch description patch scopePath
               when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath')
             ExecuteI main args -> do
               Cli.Env {runtime} <- ask
@@ -1352,6 +1243,7 @@ loop e = do
 
             MergeBuiltinsI -> do
               Cli.Env {codebase} <- ask
+              description <- inputDescription input
               -- these were added once, but maybe they've changed and need to be
               -- added again.
               let uf =
@@ -1365,11 +1257,12 @@ loop e = do
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names0
               currentPath <- Cli.getCurrentPath
-              _ <- updateAtM inputDescription (currentPath `snoc` "builtin") \destb ->
+              _ <- updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             MergeIOBuiltinsI -> do
               Cli.Env {codebase} <- ask
+              description <- inputDescription input
               -- these were added once, but maybe they've changed and need to be
               -- added again.
               let uf =
@@ -1384,12 +1277,10 @@ loop e = do
 
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
-              let names0 =
-                    Builtin.names0
-                      <> UF.typecheckedToNames IOSource.typecheckedFile'
+              let names0 = Builtin.names0 <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               currentPath <- Cli.getCurrentPath
-              _ <- updateAtM inputDescription (currentPath `snoc` "builtin") \destb ->
+              _ <- updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             ListEditsI maybePath -> do
@@ -1409,6 +1300,7 @@ loop e = do
                   Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
                     Cli.returnEarly (Output.GitError err)
                 ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
+              description <- inputDescription input
               let unchangedMsg = PullAlreadyUpToDate ns path
               destAbs <- Cli.resolvePath' path
               let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
@@ -1417,12 +1309,12 @@ loop e = do
                   destBranch <- Cli.getBranch0At destAbs
                   if Branch.isEmpty0 destBranch
                     then do
-                      void $ updateAtM inputDescription destAbs (const $ pure remoteBranch)
+                      void $ updateAtM description destAbs (const $ pure remoteBranch)
                       Cli.respond $ MergeOverEmpty path
                     else
                       mergeBranchAndPropagateDefaultPatch
                         Branch.RegularMerge
-                        inputDescription
+                        description
                         (Just unchangedMsg)
                         remoteBranch
                         printDiffPath
@@ -1430,7 +1322,7 @@ loop e = do
                 Input.PullWithoutHistory -> do
                   didUpdate <-
                     updateAtM
-                      inputDescription
+                      description
                       destAbs
                       (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
                   Cli.respond
@@ -1567,6 +1459,212 @@ loop e = do
   case e of
     Right input -> Cli.modifyLoopState (set #lastInput (Just input))
     _ -> pure ()
+
+inputDescription :: Input -> Cli r Text
+inputDescription input =
+  case input of
+    ForkLocalBranchI src0 dest0 -> do
+      src <- hp' src0
+      dest <- p' dest0
+      pure ("fork " <> src <> " " <> dest)
+    MergeLocalBranchI src0 dest0 mode -> do
+      src <- p' src0
+      dest <- p' dest0
+      let command =
+            case mode of
+              Branch.RegularMerge -> "merge"
+              Branch.SquashMerge -> "merge.squash"
+      pure (command <> " " <> src <> " " <> dest)
+    ResetRootI src0 -> do
+      src <- hp' src0
+      pure ("reset-root " <> src)
+    AliasTermI src0 dest0 -> do
+      src <- hhqs' src0
+      dest <- ps' dest0
+      pure ("alias.term " <> src <> " " <> dest)
+    AliasTypeI src0 dest0 -> do
+      src <- hhqs' src0
+      dest <- ps' dest0
+      pure ("alias.type " <> src <> " " <> dest)
+    AliasManyI srcs0 dest0 -> do
+      srcs <- traverse hqs srcs0
+      dest <- p' dest0
+      pure ("alias.many " <> Text.intercalate " " srcs <> " " <> dest)
+    MoveTermI src0 dest0 -> do
+      src <- hqs' src0
+      dest <- ps' dest0
+      pure ("move.term " <> src <> " " <> dest)
+    MoveTypeI src0 dest0 -> do
+      src <- hqs' src0
+      dest <- ps' dest0
+      pure ("move.type " <> src <> " " <> dest)
+    MoveBranchI src0 dest0 -> do
+      src <- ops' src0
+      dest <- ps' dest0
+      pure ("move.namespace " <> src <> " " <> dest)
+    MovePatchI src0 dest0 -> do
+      src <- ps' src0
+      dest <- ps' dest0
+      pure ("move.patch " <> src <> " " <> dest)
+    CopyPatchI src0 dest0 -> do
+      src <- ps' src0
+      dest <- ps' dest0
+      pure ("copy.patch " <> src <> " " <> dest)
+    DeleteI thing0 -> do
+      thing <- hqs' thing0
+      pure ("delete " <> thing)
+    DeleteTermI def0 -> do
+      def <- hqs' def0
+      pure ("delete.term " <> def)
+    DeleteTypeI def0 -> do
+      def <- hqs' def0
+      pure ("delete.type " <> def)
+    DeleteBranchI Try opath0 -> do
+      opath <- ops' opath0
+      pure ("delete.namespace " <> opath)
+    DeleteBranchI Force opath0 -> do
+      opath <- ops' opath0
+      pure ("delete.namespace.force " <> opath)
+    DeletePatchI path0 -> do
+      path <- ps' path0
+      pure ("delete.patch " <> path)
+    ReplaceI src target p0 -> do
+      p <- opatch p0
+      pure $
+        "replace "
+          <> HQ.toText src
+          <> " "
+          <> HQ.toText target
+          <> " "
+          <> p
+    ResolveTermNameI path0 -> do
+      path <- hqs' path0
+      pure ("resolve.termName " <> path)
+    ResolveTypeNameI path0 -> do
+      path <- hqs' path0
+      pure ("resolve.typeName " <> path)
+    AddI _selection -> pure "add"
+    UpdateI p0 _selection -> do
+      p <-
+        case p0 of
+          NoPatch -> pure ".nopatch"
+          DefaultPatch -> (" " <>) <$> ps' Cli.defaultPatchPath
+          UsePatch p0 -> (" " <>) <$> ps' p0
+      pure ("update" <> p)
+    PropagatePatchI p0 scope0 -> do
+      p <- ps' p0
+      scope <- p' scope0
+      pure ("patch " <> p <> " " <> scope)
+    UndoI {} -> pure "undo"
+    ExecuteI s args -> pure ("execute " <> Text.unwords (fmap Text.pack (s : args)))
+    IOTestI hq -> pure ("io.test " <> HQ.toText hq)
+    LinkI md defs0 -> do
+      defs <- traverse hqs' defs0
+      pure ("link " <> HQ.toText md <> " " <> Text.intercalate " " defs)
+    UnlinkI md defs0 -> do
+      defs <- traverse hqs' defs0
+      pure ("unlink " <> HQ.toText md <> " " <> Text.intercalate " " defs)
+    UpdateBuiltinsI -> pure "builtins.update"
+    MergeBuiltinsI -> pure "builtins.merge"
+    MergeIOBuiltinsI -> pure "builtins.mergeio"
+    MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
+    PullRemoteBranchI orepo dest0 _syncMode pullMode _ -> do
+      dest <- p' dest0
+      let command =
+            Text.pack . InputPattern.patternName $
+              case pullMode of
+                PullWithoutHistory -> InputPatterns.pullWithoutHistory
+                PullWithHistory -> InputPatterns.pull
+      pure $
+        command
+          <> " "
+          -- todo: show the actual config-loaded namespace
+          <> maybe
+            "(remote namespace from .unisonConfig)"
+            printNamespace
+            orepo
+          <> " "
+          <> dest
+    CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
+    LoadPullRequestI base head dest0 -> do
+      dest <- p' dest0
+      pure $
+        "pr.load "
+          <> printNamespace base
+          <> " "
+          <> printNamespace head
+          <> " "
+          <> dest
+    RemoveTermReplacementI src p0 -> do
+      p <- opatch p0
+      pure ("delete.term-replacement" <> HQ.toText src <> " " <> p)
+    RemoveTypeReplacementI src p0 -> do
+      p <- opatch p0
+      pure ("delete.type-replacement" <> HQ.toText src <> " " <> p)
+    --
+    ApiI -> wat
+    AuthLoginI {} -> wat
+    CreateMessage {} -> wat
+    CreatePullRequestI {} -> wat
+    DebugClearWatchI {} -> wat
+    DebugDoctorI {} -> wat
+    DebugDumpNamespaceSimpleI {} -> wat
+    DebugDumpNamespacesI {} -> wat
+    DebugNumberedArgsI {} -> wat
+    DebugTypecheckedUnisonFileI {} -> wat
+    DeprecateTermI {} -> wat
+    DeprecateTypeI {} -> wat
+    DiffNamespaceI {} -> wat
+    DisplayI {} -> wat
+    DocsI {} -> wat
+    DocsToHtmlI {} -> wat
+    FindI {} -> wat
+    FindPatchI {} -> wat
+    FindShallowI {} -> wat
+    GistI {} -> wat
+    HistoryI {} -> wat
+    LinksI {} -> wat
+    ListDependenciesI {} -> wat
+    ListDependentsI {} -> wat
+    ListEditsI {} -> wat
+    LoadI {} -> wat
+    NamesI {} -> wat
+    NamespaceDependenciesI {} -> wat
+    PopBranchI {} -> wat
+    PreviewAddI {} -> wat
+    PreviewMergeLocalBranchI {} -> wat
+    PreviewUpdateI {} -> wat
+    PushRemoteBranchI {} -> wat
+    QuitI {} -> wat
+    ShowDefinitionByPrefixI {} -> wat
+    ShowDefinitionI {} -> wat
+    ShowReflogI {} -> wat
+    SwitchBranchI {} -> wat
+    TestI {} -> wat
+    TodoI {} -> wat
+    UiI -> wat
+    UpI {} -> wat
+    VersionI -> wat
+  where
+    hp' :: Either SBH.ShortBranchHash Path' -> Cli r Text
+    hp' = either (pure . Text.pack . show) p'
+    p' :: Path' -> Cli r Text
+    p' = fmap tShow . Cli.resolvePath'
+    ops' :: Maybe Path.Split' -> Cli r Text
+    ops' = maybe (pure ".") ps'
+    opatch :: Maybe Path.Split' -> Cli r Text
+    opatch = ps' . fromMaybe Cli.defaultPatchPath
+    wat = error $ show input ++ " is not expected to alter the branch"
+    hhqs' :: Either SH.ShortHash Path.HQSplit' -> Cli r Text
+    hhqs' = \case
+      Left sh -> pure (SH.toText sh)
+      Right x -> hqs' x
+    hqs' :: Path.HQSplit' -> Cli r Text
+    hqs' (p0, hq) = do
+      p <- if Path.isRoot' p0 then pure mempty else p' p0
+      pure (p <> "." <> tShow hq)
+    hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
+    ps' = p' . Path.unsplit'
 
 handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Cli r ()
 handleCreatePullRequest baseRepo0 headRepo0 = do
