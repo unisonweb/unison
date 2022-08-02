@@ -101,7 +101,7 @@ authURI authEndpoint redirectURI state challenge =
     & addQueryParam "state" state
     & addQueryParam "redirect_uri" (BSC.pack redirectURI)
     & addQueryParam "response_type" "code"
-    & addQueryParam "scope" "openid cloud"
+    & addQueryParam "scope" "openid cloud sync"
     & addQueryParam "client_id" ucmOAuthClientID
     & addQueryParam "code_challenge" challenge
     & addQueryParam "code_challenge_method" "S256"
