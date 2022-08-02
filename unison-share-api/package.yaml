@@ -21,6 +21,7 @@ dependencies:
   - extra
   - filepath
   - fuzzyfind
+  - generic-lens
   - http-media
   - http-types
   - jose
@@ -28,6 +29,9 @@ dependencies:
   - lens
   - lucid
   - memory
+  - msgpack-binary
+  - msgpack-types
+  - monad-validate
   - mtl
   - mwc-random
   - nonempty-containers

@@ -60,6 +60,9 @@ extra-deps:
 # lts 18.28 provides 0.3.2.1 but we need at least 0.3.3
 - terminal-size-0.3.3
 - haskeline-0.8.1.3
+- msgpack-binary-0.0.16@sha256:ff25964e5d340731a213afc70d65d8dd799513ab50035fb755752391659ff912,2707
+- msgpack-types-0.3.2@sha256:32d4682a9ef3f454a336183ef918f266c25caf50a2d645e9ccae435d95afab62,2175
+- msgpack-arbitrary-0.1.3@sha256:1699fdb03a96b2d98603a69554a11060307f9b88dd6ca18afce4786d46a45070,1781
 
 ghc-options:
  # All packages

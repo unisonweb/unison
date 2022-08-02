@@ -78,6 +78,7 @@ library
     , extra
     , filepath
     , fuzzyfind
+    , generic-lens
     , http-media
     , http-types
     , jose
@@ -85,6 +86,9 @@ library
     , lens
     , lucid
     , memory
+    , monad-validate
+    , msgpack-binary
+    , msgpack-types
     , mtl
     , mwc-random
     , nonempty-containers

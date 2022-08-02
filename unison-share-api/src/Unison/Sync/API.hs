@@ -4,6 +4,7 @@ module Unison.Sync.API (API, api) where
 
 import Data.Proxy
 import Servant.API
+import Unison.Server.Types (MessagePackCT)
 import Unison.Sync.Types
 
 api :: Proxy API
@@ -29,8 +30,8 @@ type UpdatePathEndpoint =
     :> Post '[JSON] UpdatePathResponse
 
 type DownloadEntitiesEndpoint =
-  ReqBody '[JSON, MessagePackCT] DownloadEntitiesRequest
-    :> Post '[JSON, MessagePackCT] DownloadEntitiesResponse
+  ReqBody '[MessagePackCT, JSON] DownloadEntitiesRequest
+    :> Post '[MessagePackCT, JSON] DownloadEntitiesResponse
 
 type UploadEntitiesEndpoint =
   ReqBody '[JSON] UploadEntitiesRequest

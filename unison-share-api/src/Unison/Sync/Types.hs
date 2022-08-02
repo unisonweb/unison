@@ -1,4 +1,6 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RecordWildCards #-}
 -- Name shadowing is really helpful for writing some custom traversals
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
@@ -70,21 +72,25 @@ module Unison.Sync.Types
   )
 where
 
-import Control.Lens (both, folding, ix, traverseOf, (^?))
+import Control.Lens hiding ((.=))
+import Control.Monad.Validate
 import qualified Crypto.JWT as Jose
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.Bifoldable
-import Data.Bifunctor
 import Data.Bitraversable
 import Data.ByteArray.Encoding (Base (Base64), convertFromBase, convertToBase)
+import Data.Generics.Sum
 import qualified Data.HashMap.Strict as HashMap
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NEList
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.Strict as Map
+import Data.MessagePack as MsgPack
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
+import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Servant.Auth.JWT
@@ -109,6 +115,10 @@ instance FromJSON Base64Bytes where
 
 newtype RepoName = RepoName {unRepoName :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
+
+instance MessagePack RepoName where
+  fromObjectWith config obj = RepoName <$> fromObjectWith config obj
+  toObject config = toObject config . unRepoName
 
 data Path = Path
   { -- This is a nonempty list, where we require the first segment to be the repo name / user name / whatever,
@@ -142,6 +152,10 @@ instance FromJSON Path where
 
 newtype HashJWT = HashJWT {unHashJWT :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
+
+instance MessagePack HashJWT where
+  fromObjectWith config obj = HashJWT <$> fromObjectWith config obj
+  toObject config = toObject config . unHashJWT
 
 -- | Grab the hash out of a hash JWT.
 --
@@ -668,9 +682,64 @@ instance FromJSON DownloadEntitiesRequest where
     hashes <- obj .: "hashes"
     pure DownloadEntitiesRequest {..}
 
+instance MessagePack DownloadEntitiesRequest where
+  toObject config (DownloadEntitiesRequest repoName hashes) =
+    toObject config $
+      MsgPack.Assoc
+        [ ("repo_name" :: String, toObject config repoName),
+          ("hashes", toObject config $ toList hashes)
+        ]
+
+  fromObjectWith :: forall m. (MonadValidate MsgPack.DecodeError m) => Config -> MsgPack.Object -> m DownloadEntitiesRequest
+  fromObjectWith config obj = do
+    repoName <- atKey "repo_name" obj
+    hashesList <- atKey "hashes" obj
+    hashes <- case NEList.nonEmpty $ hashesList of
+      Nothing -> refute ""
+      Just hashes -> pure $ NESet.fromList hashes
+    pure $ DownloadEntitiesRequest {..}
+    where
+      atKey :: MessagePack a => Text -> MsgPack.Object -> m a
+      atKey key obj = do
+        v <- orFail (fromString $ "Expected key " <> Text.unpack key) $ lookupOf (_Ctor @"ObjectMap" . traversed) (MsgPack.ObjectStr key) obj
+        fromObjectWith config v
+      orFail msg Nothing = refute msg
+      orFail _msg (Just a) = pure a
+
 data DownloadEntitiesResponse
   = DownloadEntitiesSuccess (NEMap Hash32 (Entity Text Hash32 HashJWT))
   | DownloadEntitiesNoReadPermission RepoName
+
+instance MessagePack DownloadEntitiesResponse where
+  toObject config = \case
+    DownloadEntitiesSuccess entities ->
+      toObject config $
+        MsgPack.Assoc
+          [ ("type" :: String, ObjectStr "success"),
+            ("payload", toObject config entities)
+          ]
+    DownloadEntitiesNoReadPermission repoName ->
+      toObject config $
+        MsgPack.Assoc
+          [ ("type" :: String, ObjectStr "no_read_permission"),
+            ("payload", toObject config repoName)
+          ]
+
+  fromObjectWith :: forall m. (MonadValidate MsgPack.DecodeError m) => Config -> MsgPack.Object -> m DownloadEntitiesResponse
+  fromObjectWith config obj = do
+    atKey "type" obj >>= \case
+      "success" -> do
+        DownloadEntitiesSuccess <$> atKey "payload" obj
+      "no_read_permission" -> do
+        DownloadEntitiesNoReadPermission <$> atKey "payload" obj
+      txt -> refute $ "Unknown DownloadEntitiesResponse type: " <> txt
+    where
+      atKey :: MessagePack a => Text -> MsgPack.Object -> m a
+      atKey key obj = do
+        v <- orFail (fromString $ "Expected key " <> Text.unpack key) $ lookupOf (_Ctor @"ObjectMap" . traversed) (MsgPack.ObjectStr key) obj
+        fromObjectWith config v
+      orFail msg Nothing = refute msg
+      orFail _msg (Just a) = pure a
 
 -- data DownloadEntities = DownloadEntities
 --   { entities :: NEMap Hash (Entity Text Hash HashJWT)
