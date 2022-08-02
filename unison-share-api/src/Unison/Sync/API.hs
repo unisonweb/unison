@@ -29,8 +29,8 @@ type UpdatePathEndpoint =
     :> Post '[JSON] UpdatePathResponse
 
 type DownloadEntitiesEndpoint =
-  ReqBody '[JSON] DownloadEntitiesRequest
-    :> Post '[JSON] DownloadEntitiesResponse
+  ReqBody '[JSON, MessagePackCT] DownloadEntitiesRequest
+    :> Post '[JSON, MessagePackCT] DownloadEntitiesResponse
 
 type UploadEntitiesEndpoint =
   ReqBody '[JSON] UploadEntitiesRequest

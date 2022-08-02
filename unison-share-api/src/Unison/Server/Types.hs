@@ -197,3 +197,11 @@ branchToUnisonHash b =
 v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
 v2CausalBranchToUnisonHash b =
   ("#" <>) . Hash.base32Hex . V2.unCausalHash $ V2Causal.causalHash b
+
+-- | Message Pack Content Type
+data MessagePackCT
+
+instance Accept MessagePackCT where
+  contentType _ct = "application" // "msgpack"
+
+instance MimeRender MessagePackCT MessagePack where
