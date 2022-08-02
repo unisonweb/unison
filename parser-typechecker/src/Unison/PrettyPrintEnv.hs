@@ -57,7 +57,8 @@ instance Show PrettyPrintEnv where
   show _ = "PrettyPrintEnv"
 
 -- | Attempts to find a name in primary ppe, falls back to backup ppe only if no names are
--- found.
+-- found. Typically one can use this to shadow global or absolute names with names that are
+-- within the current path.
 addFallback :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
 addFallback primary fallback =
   PrettyPrintEnv
@@ -74,18 +75,21 @@ addFallback primary fallback =
               else primaryNames
     )
 
--- | Finds names from both PPEs.
+-- | Finds names from both PPEs, if left unbiased the name from the left ppe is preferred.
 --
 -- This is distinct from `addFallback` with respect to biasing;
 -- A bias applied to a union might select a name in the right half of the union.
 -- Whereas, a bias applied to the result of `addFallback` will bias within the available names
 -- inside the left PPE and will only search in the fallback if there aren't ANY names in the
 -- primary ppe.
+--
+-- If you don't know the difference, it's likely you want 'addFallback' where you add global
+-- names as a fallback for local names.
 union :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
 union e1 e2 =
   PrettyPrintEnv
-    (\r -> termNames e1 r <|> termNames e2 r)
-    (\r -> typeNames e1 r <|> typeNames e2 r)
+    (\r -> termNames e1 r ++ termNames e2 r)
+    (\r -> typeNames e1 r ++ typeNames e2 r)
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int

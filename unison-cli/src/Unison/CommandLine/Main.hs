@@ -31,9 +31,9 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Command (LoadSourceResult (..))
+import qualified Unison.Codebase.Editor.Command as Command
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
-import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
@@ -45,6 +45,7 @@ import qualified Unison.CommandLine.InputPattern as IP
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import qualified Unison.CommandLine.Welcome as Welcome
+import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -130,11 +131,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
     numberedArgsRef <- newIORef []
     pageOutput <- newIORef True
     cancelFileSystemWatch <- watchFileSystem eventQueue dir
-    cancelWatchBranchUpdates <-
-      watchBranchUpdates
-        (readIORef rootRef)
-        eventQueue
-        codebase
     let patternMap :: Map String InputPattern
         patternMap =
           Map.fromList $
@@ -160,7 +156,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                     return $ LoadSuccess contents
                in catch go handle
             else return InvalidSourceNameError
-    let notify :: Output Symbol -> IO ()
+    let notify :: Output -> IO ()
         notify =
           notifyUser dir
             >=> ( \o ->
@@ -175,7 +171,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
           Runtime.terminate sbRuntime
           cancelConfig
           cancelFileSystemWatch
-          cancelWatchBranchUpdates
         awaitInput :: IO (Either Event Input)
         awaitInput = do
           -- use up buffered input before consulting external events
@@ -193,37 +188,36 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                   pure x
     (onInterrupt, waitForInterrupt) <- buildInterruptHandler
     withInterruptHandler onInterrupt $ do
-      let loop :: LoopState.LoopState Symbol -> IO ()
+      let loop :: Command.LoopState -> IO ()
           loop state = do
-            writeIORef pathRef (view LoopState.currentPath state)
+            writeIORef rootRef (Command._lastSavedRoot state)
+            writeIORef pathRef (view Command.currentPath state)
             credMan <- newCredentialManager
             let tokenProvider = AuthN.newTokenProvider credMan
             authorizedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
             let env =
-                  LoopState.Env
-                    { LoopState.authHTTPClient = authorizedHTTPClient,
-                      LoopState.codebase = codebase,
-                      LoopState.credentialManager = credMan
+                  Command.Env
+                    { authHTTPClient = authorizedHTTPClient,
+                      codebase,
+                      config,
+                      credentialManager = credMan,
+                      loadSource = loadSourceFile,
+                      generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
+                      notify,
+                      notifyNumbered = \o ->
+                        let (p, args) = notifyNumbered o
+                         in putPrettyNonempty p $> args,
+                      runtime,
+                      sandboxedRuntime = sbRuntime,
+                      serverBaseUrl,
+                      ucmVersion
                     }
-            let free = LoopState.runAction env state HandleInput.loop
             let handleCommand =
                   HandleCommand.commandLine
-                    config
+                    env
+                    state
                     awaitInput
-                    (writeIORef rootRef)
-                    runtime
-                    sbRuntime
-                    notify
-                    ( \o ->
-                        let (p, args) = notifyNumbered o
-                         in putPrettyNonempty p $> args
-                    )
-                    loadSourceFile
-                    codebase
-                    serverBaseUrl
-                    ucmVersion
-                    (const Random.getSystemDRG)
-                    free
+                    HandleInput.loop
             UnliftIO.race waitForInterrupt (try handleCommand) >>= \case
               -- SIGINT
               Left () -> do
@@ -238,12 +232,12 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                 case o of
                   Nothing -> pure ()
                   Just () -> do
-                    writeIORef numberedArgsRef (LoopState._numberedArgs state')
+                    writeIORef numberedArgsRef (Command._numberedArgs state')
                     loop state'
 
       -- Run the main program loop, always run cleanup,
       -- If an exception occurred, print it before exiting.
-      loop (LoopState.loopState0 root initialPath)
+      loop (Command.loopState0 root initialPath)
         `finally` cleanup
   where
     printException :: SomeException -> IO ()

@@ -45,9 +45,9 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Command (LoadSourceResult (..))
+import qualified Unison.Codebase.Editor.Command as Command
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
-import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
@@ -59,6 +59,7 @@ import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Welcome (asciiartUnison)
+import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -194,11 +195,12 @@ withTranscriptRunner ucmVersion configFile action = do
     withRuntime action =
       UnliftIO.bracket
         (liftIO $ RTI.startRuntime False RTI.Persistent ucmVersion)
-        (liftIO . Runtime.terminate) $ \runtime ->
-        UnliftIO.bracket
-          (liftIO $ RTI.startRuntime True RTI.Persistent ucmVersion)
-          (liftIO . Runtime.terminate)
-          (action runtime)
+        (liftIO . Runtime.terminate)
+        $ \runtime ->
+          UnliftIO.bracket
+            (liftIO $ RTI.startRuntime True RTI.Persistent ucmVersion)
+            (liftIO . Runtime.terminate)
+            (action runtime)
     withConfig :: forall a. ((Maybe Config -> m a) -> m a)
     withConfig action = do
       case configFile of
@@ -385,7 +387,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               let f = LoadSuccess <$> readUtf8 (Text.unpack name)
                in f <|> pure InvalidSourceNameError
 
-        print :: Output.Output Symbol -> IO ()
+        print :: Output.Output -> IO ()
         print o = do
           msg <- notifyUser dir o
           errOk <- readIORef allowErrors
@@ -396,7 +398,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               then writeIORef hasErrors True
               else dieWithMsg rendered
 
-        printNumbered :: Output.NumberedOutput Symbol -> IO Output.NumberedArgs
+        printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
         printNumbered o = do
           let (msg, numberedArgs) = notifyNumbered o
           errOk <- readIORef allowErrors
@@ -447,40 +449,41 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                 ]
 
     authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
+    seedRef <- newIORef (0::Int)
     let loop state = do
-          writeIORef pathRef (view LoopState.currentPath state)
+          writeIORef pathRef (view Command.currentPath state)
           let env =
-                LoopState.Env
-                  { LoopState.authHTTPClient = authenticatedHTTPClient,
-                    LoopState.codebase = codebase,
-                    LoopState.credentialManager = credMan
+                Command.Env
+                  { authHTTPClient = authenticatedHTTPClient,
+                    codebase,
+                    config = fromMaybe Configurator.empty config,
+                    credentialManager = credMan,
+                    generateUniqueName = do
+                      i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
+                      pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
+                    loadSource = loadPreviousUnisonBlock,
+                    notify = print,
+                    notifyNumbered = printNumbered,
+                    runtime,
+                    sandboxedRuntime = sbRuntime,
+                    serverBaseUrl = Nothing,
+                    ucmVersion
                   }
-          let free = LoopState.runAction env state $ HandleInput.loop
-              rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
           (o, state') <-
             HandleCommand.commandLine
-              (fromMaybe Configurator.empty config)
+              env
+              state
               awaitInput
-              (const $ pure ())
-              runtime
-              sbRuntime
-              print
-              printNumbered
-              loadPreviousUnisonBlock
-              codebase
-              Nothing
-              ucmVersion
-              rng
-              free
+              HandleInput.loop
           case o of
             Nothing -> do
               texts <- readIORef out
               pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
             Just () -> do
-              writeIORef numberedArgsRef (LoopState._numberedArgs state')
-              writeIORef rootBranchRef (LoopState._root state')
+              writeIORef numberedArgsRef (Command._numberedArgs state')
+              writeIORef rootBranchRef (Command._root state')
               loop state'
-    loop (LoopState.loopState0 root initialPath)
+    loop (Command.loopState0 root initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do
