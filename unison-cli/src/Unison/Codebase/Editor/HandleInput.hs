@@ -903,7 +903,7 @@ loop e = do
                 Branch.CompressHistory
                 [ -- Mitchell: throwing away any hash-qualification here seems wrong!
                   BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
-                  BranchUtil.makeAddTermName (over _2 HQ'.toName p) srcTerm srcMetadata
+                  BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata
                 ]
               Cli.respond Success
             MoveTypeI src' dest' -> do
@@ -931,7 +931,7 @@ loop e = do
                 Branch.CompressHistory
                 [ -- Mitchell: throwing away any hash-qualification here seems wrong!
                   BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
-                  BranchUtil.makeAddTypeName (over _2 HQ'.toName p) srcType srcMetadata
+                  BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata
                 ]
               Cli.respond Success
             DeleteI hq -> delete Cli.getTermsAt Cli.getTypesAt hq
@@ -2895,7 +2895,7 @@ stepManyAtNoSync' strat actions = do
   Cli.modifyLoopState (set #root newRoot)
   pure (origRoot /= newRoot)
 
--- Like stepManyAt, but doesn't update the Command.root
+-- Like stepManyAt, but doesn't update the last saved root
 stepManyAtNoSync ::
   Foldable f =>
   Branch.UpdateStrategy ->
