@@ -4,6 +4,7 @@ module Unison.Util.MessagePack.Orphans where
 
 import Control.Monad.Validate
 import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NEList
 import qualified Data.Map.NonEmpty as NEMap
 import Data.MessagePack
 import qualified Data.Set as Set
@@ -19,12 +20,19 @@ instance (Ord a, MessagePack a) => MessagePack (NESet.NESet a) where
       [] -> refute "Expected non-empty set"
       (x : xs) -> pure $ NESet.fromList (x :| xs)
 
+instance (MessagePack a) => MessagePack (NEList.NonEmpty a) where
+  toObject config = toObject config . toList
+  fromObjectWith config obj = do
+    fromObjectWith config obj >>= \case
+      [] -> refute "Expected non-empty list"
+      (x : xs) -> pure (x :| xs)
+
 instance (Ord a, MessagePack a) => MessagePack (Set a) where
   toObject config = toObject config . toList
   fromObjectWith config obj = Set.fromList <$> fromObjectWith config obj
 
 instance (Ord k, MessagePack k, MessagePack v) => MessagePack (NEMap.NEMap k v) where
-  toObject config = toObject config . toList
+  toObject config = toObject config . NEMap.toList
   fromObjectWith config obj = do
     fromObjectWith config obj >>= \case
       [] -> refute "Expected non-empty map"

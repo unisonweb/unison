@@ -38,8 +38,3 @@ atKey key obj = do
 orFail :: MonadValidate e m => e -> Maybe a -> m a
 orFail msg Nothing = refute msg
 orFail _msg (Just a) = pure a
-
--- (+>) :: MessagePack a => (Config -> Assoc [(Text, Object)]) -> (Text, a) -> (Config -> Assoc [(Text, Object)])
--- (+>) l (k, v) config = do
---   let (Assoc as) = l config
---   Assoc ((k, toObject config v) : as)
