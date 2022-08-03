@@ -11,16 +11,12 @@ module Unison.Server.Types where
 
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LZ
-import qualified Data.List as List
-import Data.MessagePack
-import qualified Data.MessagePack as MsgPack
 import Data.OpenApi
   ( ToParamSchema (..),
     ToSchema (..),
   )
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
-import qualified Network.HTTP.Media.MediaType as MediaType
 import Servant
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
@@ -194,16 +190,3 @@ branchToUnisonHash b =
 v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
 v2CausalBranchToUnisonHash b =
   ("#" <>) . Hash.base32Hex . V2.unCausalHash $ V2Causal.causalHash b
-
--- | Message Pack Content Type
-data MessagePackCT
-
-instance Accept MessagePackCT where
-  contentType _ct = "application" MediaType.// "msgpack"
-
-instance MessagePack a => MimeRender MessagePackCT a where
-  mimeRender _ct = MsgPack.pack
-
-instance MessagePack a => MimeUnrender MessagePackCT a where
-  mimeUnrender _ct =
-    mapLeft (List.intercalate ", " . MsgPack.errorMessages) . MsgPack.unpackEither

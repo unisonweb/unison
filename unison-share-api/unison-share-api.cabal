@@ -37,6 +37,8 @@ library
       Unison.Sync.Common
       Unison.Sync.Types
       Unison.Util.Find
+      Unison.Util.MessagePack
+      Unison.Util.MessagePack.Orphans
   hs-source-dirs:
       src
   default-extensions:

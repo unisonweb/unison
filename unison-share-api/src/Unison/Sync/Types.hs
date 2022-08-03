@@ -73,6 +73,7 @@ module Unison.Sync.Types
 where
 
 import Control.Lens hiding ((.=))
+import Control.Monad.Reader
 import Control.Monad.Validate
 import qualified Crypto.JWT as Jose
 import Data.Aeson
@@ -81,7 +82,6 @@ import qualified Data.Aeson.Types as Aeson
 import Data.Bifoldable
 import Data.Bitraversable
 import Data.ByteArray.Encoding (Base (Base64), convertFromBase, convertToBase)
-import Data.Generics.Sum
 import qualified Data.HashMap.Strict as HashMap
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NEList
@@ -97,6 +97,8 @@ import Servant.Auth.JWT
 import U.Util.Hash32 (Hash32)
 import U.Util.Hash32.Orphans.Aeson ()
 import Unison.Prelude
+import Unison.Util.MessagePack
+import Unison.Util.MessagePack.Orphans ()
 import qualified Unison.Util.Set as Set
 import qualified Web.JWT as JWT
 
@@ -255,6 +257,26 @@ data Entity text noSyncHash hash
   | C (Causal hash)
   deriving stock (Show, Eq, Ord)
 
+instance (Ord hash, MessagePack text, MessagePack noSyncHash, MessagePack hash) => MessagePack (Entity text noSyncHash hash) where
+  toObject config = \case
+    TC a -> toObject config (1 :: Int, a)
+    DC a -> toObject config (2 :: Int, a)
+    P a -> toObject config (3 :: Int, a)
+    PD a -> toObject config (4 :: Int, a)
+    N a -> toObject config (5 :: Int, a)
+    ND a -> toObject config (6 :: Int, a)
+    C a -> toObject config (7 :: Int, a)
+  fromObjectWith config obj = do
+    fromObjectWith config obj >>= \case
+      (1 :: Int, a) -> TC <$> fromObjectWith config a
+      (2, a) -> DC <$> fromObjectWith config a
+      (3, a) -> P <$> fromObjectWith config a
+      (4, a) -> PD <$> fromObjectWith config a
+      (5, a) -> N <$> fromObjectWith config a
+      (6, a) -> ND <$> fromObjectWith config a
+      (7, a) -> C <$> fromObjectWith config a
+      (unknown, _) -> refute $ "Unknown Entity type: " <> fromString (show unknown)
+
 instance (ToJSON text, ToJSON noSyncHash, ToJSON hash) => ToJSON (Entity text noSyncHash hash) where
   toJSON = \case
     TC tc -> go TermComponentType tc
@@ -316,6 +338,11 @@ entityDependencies = \case
 data TermComponent text hash = TermComponent [(LocalIds text hash, ByteString)]
   deriving stock (Show, Eq, Ord)
 
+instance (MessagePack text, MessagePack hash) => MessagePack (TermComponent text hash) where
+  toObject config (TermComponent ids) = toObject config $ Assoc [("terms" :: Text, ids)]
+  fromObjectWith config obj = flip runReaderT config do
+    TermComponent <$> atKey "terms" obj
+
 instance Bifoldable TermComponent where
   bifoldMap = bifoldMapDefault
 
@@ -365,6 +392,11 @@ decodeComponentPiece = Aeson.withObject "Component Piece" \obj -> do
 data DeclComponent text hash = DeclComponent [(LocalIds text hash, ByteString)]
   deriving stock (Show, Eq, Ord)
 
+instance (MessagePack text, MessagePack hash) => MessagePack (DeclComponent text hash) where
+  toObject config (DeclComponent ids) = toObject config $ Assoc [("decls" :: Text, ids)]
+  fromObjectWith config obj = flip runReaderT config do
+    DeclComponent <$> atKey "decls" obj
+
 instance Bifoldable DeclComponent where
   bifoldMap = bifoldMapDefault
 
@@ -392,6 +424,14 @@ data LocalIds text hash = LocalIds
     hashes :: [hash]
   }
   deriving stock (Show, Eq, Ord)
+
+instance (MessagePack text, MessagePack hash) => MessagePack (LocalIds text hash) where
+  toObject config (LocalIds {texts, hashes}) =
+    toObject config $ Assoc [("texts" :: Text, toObject config texts), ("hashes", toObject config hashes)]
+  fromObjectWith config obj = flip runReaderT config do
+    texts <- atKey "texts" obj
+    hashes <- atKey "hashes" obj
+    pure $ LocalIds {..}
 
 instance Bifoldable LocalIds where
   bifoldMap = bifoldMapDefault
@@ -424,6 +464,22 @@ data Patch text oldHash newHash = Patch
   }
   deriving stock (Show, Eq, Ord)
 
+instance (MessagePack text, MessagePack oldHash, MessagePack newHash) => MessagePack (Patch text oldHash newHash) where
+  toObject config Patch {textLookup, oldHashLookup, newHashLookup, bytes} =
+    toObject config $
+      Assoc
+        [ ("text_lookup" :: Text, toObject config textLookup),
+          ("optional_hash_lookup", toObject config oldHashLookup),
+          ("hash_lookup", toObject config newHashLookup),
+          ("bytes", toObject config bytes)
+        ]
+  fromObjectWith config obj = flip runReaderT config do
+    textLookup <- atKey "text_lookup" obj
+    oldHashLookup <- atKey "optional_hash_lookup" obj
+    newHashLookup <- atKey "hash_lookup" obj
+    bytes <- atKey "bytes" obj
+    pure $ Patch {..}
+
 instance (ToJSON text, ToJSON oldHash, ToJSON newHash) => ToJSON (Patch text oldHash newHash) where
   toJSON (Patch textLookup oldHashLookup newHashLookup bytes) =
     object
@@ -454,6 +510,24 @@ data PatchDiff text oldHash hash = PatchDiff
     bytes :: ByteString
   }
   deriving stock (Eq, Ord, Show)
+
+instance (MessagePack text, MessagePack oldHash, MessagePack newHash) => MessagePack (PatchDiff text oldHash newHash) where
+  toObject config PatchDiff {parent, textLookup, oldHashLookup, newHashLookup, bytes} =
+    toObject config $
+      Assoc
+        [ ("parent" :: Text, toObject config parent),
+          ("text_lookup" :: Text, toObject config textLookup),
+          ("optional_hash_lookup", toObject config oldHashLookup),
+          ("hash_lookup", toObject config newHashLookup),
+          ("bytes", toObject config bytes)
+        ]
+  fromObjectWith config obj = flip runReaderT config do
+    parent <- atKey "parent" obj
+    textLookup <- atKey "text_lookup" obj
+    oldHashLookup <- atKey "optional_hash_lookup" obj
+    newHashLookup <- atKey "hash_lookup" obj
+    bytes <- atKey "bytes" obj
+    pure $ PatchDiff {..}
 
 instance (ToJSON text, ToJSON oldHash, ToJSON hash) => ToJSON (PatchDiff text oldHash hash) where
   toJSON (PatchDiff parent textLookup oldHashLookup newHashLookup bytes) =
@@ -488,6 +562,24 @@ data Namespace text hash = Namespace
     bytes :: ByteString
   }
   deriving stock (Eq, Ord, Show)
+
+instance (MessagePack text, MessagePack hash) => MessagePack (Namespace text hash) where
+  toObject config Namespace {textLookup, defnLookup, patchLookup, childLookup, bytes} =
+    toObject config $
+      Assoc
+        [ ("text_lookup" :: Text, toObject config textLookup),
+          ("defn_lookup", toObject config defnLookup),
+          ("patch_lookup", toObject config patchLookup),
+          ("child_lookup", toObject config childLookup),
+          ("bytes", toObject config bytes)
+        ]
+  fromObjectWith config obj = flip runReaderT config do
+    textLookup <- atKey "text_lookup" obj
+    defnLookup <- atKey "defn_lookup" obj
+    patchLookup <- atKey "patch_lookup" obj
+    childLookup <- atKey "child_lookup" obj
+    bytes <- atKey "bytes" obj
+    pure $ Namespace {..}
 
 instance Bifoldable Namespace where
   bifoldMap = bifoldMapDefault
@@ -533,6 +625,26 @@ data NamespaceDiff text hash = NamespaceDiff
   }
   deriving stock (Eq, Ord, Show)
 
+instance (MessagePack text, MessagePack hash) => MessagePack (NamespaceDiff text hash) where
+  toObject config NamespaceDiff {parent, textLookup, defnLookup, patchLookup, childLookup, bytes} =
+    toObject config $
+      Assoc
+        [ ("parent" :: Text, toObject config parent),
+          ("text_lookup" :: Text, toObject config textLookup),
+          ("defn_lookup", toObject config defnLookup),
+          ("patch_lookup", toObject config patchLookup),
+          ("child_lookup", toObject config childLookup),
+          ("bytes", toObject config bytes)
+        ]
+  fromObjectWith config obj = flip runReaderT config do
+    parent <- atKey "parent" obj
+    textLookup <- atKey "text_lookup" obj
+    defnLookup <- atKey "defn_lookup" obj
+    patchLookup <- atKey "patch_lookup" obj
+    childLookup <- atKey "child_lookup" obj
+    bytes <- atKey "bytes" obj
+    pure $ NamespaceDiff {..}
+
 instance (ToJSON text, ToJSON hash) => ToJSON (NamespaceDiff text hash) where
   toJSON (NamespaceDiff parent textLookup defnLookup patchLookup childLookup bytes) =
     object
@@ -569,6 +681,18 @@ data Causal hash = Causal
     parents :: Set hash
   }
   deriving stock (Eq, Ord, Show)
+
+instance (Ord hash, MessagePack hash) => MessagePack (Causal hash) where
+  toObject config Causal {namespaceHash, parents} =
+    toObject config $
+      Assoc
+        [ ("namespace_hash" :: Text, toObject config namespaceHash),
+          ("parents" :: Text, toObject config parents)
+        ]
+  fromObjectWith config obj = flip runReaderT config do
+    namespaceHash <- atKey "namespace_hash" obj
+    parents <- atKey "parents" obj
+    pure $ Causal {..}
 
 causalHashes_ :: (Applicative m, Ord hash') => (hash -> m hash') -> Causal hash -> m (Causal hash')
 causalHashes_ f (Causal {..}) = do
@@ -691,20 +815,13 @@ instance MessagePack DownloadEntitiesRequest where
         ]
 
   fromObjectWith :: forall m. (MonadValidate MsgPack.DecodeError m) => Config -> MsgPack.Object -> m DownloadEntitiesRequest
-  fromObjectWith config obj = do
+  fromObjectWith config obj = flip runReaderT config do
     repoName <- atKey "repo_name" obj
     hashesList <- atKey "hashes" obj
     hashes <- case NEList.nonEmpty $ hashesList of
-      Nothing -> refute ""
+      Nothing -> refute "Expected non-empty hashes set"
       Just hashes -> pure $ NESet.fromList hashes
     pure $ DownloadEntitiesRequest {..}
-    where
-      atKey :: MessagePack a => Text -> MsgPack.Object -> m a
-      atKey key obj = do
-        v <- orFail (fromString $ "Expected key " <> Text.unpack key) $ lookupOf (_Ctor @"ObjectMap" . traversed) (MsgPack.ObjectStr key) obj
-        fromObjectWith config v
-      orFail msg Nothing = refute msg
-      orFail _msg (Just a) = pure a
 
 data DownloadEntitiesResponse
   = DownloadEntitiesSuccess (NEMap Hash32 (Entity Text Hash32 HashJWT))
@@ -713,38 +830,16 @@ data DownloadEntitiesResponse
 instance MessagePack DownloadEntitiesResponse where
   toObject config = \case
     DownloadEntitiesSuccess entities ->
-      toObject config $
-        MsgPack.Assoc
-          [ ("type" :: String, ObjectStr "success"),
-            ("payload", toObject config entities)
-          ]
+      toObject config $ (1 :: Int, entities)
     DownloadEntitiesNoReadPermission repoName ->
-      toObject config $
-        MsgPack.Assoc
-          [ ("type" :: String, ObjectStr "no_read_permission"),
-            ("payload", toObject config repoName)
-          ]
+      toObject config $ (2 :: Int, repoName)
 
   fromObjectWith :: forall m. (MonadValidate MsgPack.DecodeError m) => Config -> MsgPack.Object -> m DownloadEntitiesResponse
   fromObjectWith config obj = do
-    atKey "type" obj >>= \case
-      "success" -> do
-        DownloadEntitiesSuccess <$> atKey "payload" obj
-      "no_read_permission" -> do
-        DownloadEntitiesNoReadPermission <$> atKey "payload" obj
-      txt -> refute $ "Unknown DownloadEntitiesResponse type: " <> txt
-    where
-      atKey :: MessagePack a => Text -> MsgPack.Object -> m a
-      atKey key obj = do
-        v <- orFail (fromString $ "Expected key " <> Text.unpack key) $ lookupOf (_Ctor @"ObjectMap" . traversed) (MsgPack.ObjectStr key) obj
-        fromObjectWith config v
-      orFail msg Nothing = refute msg
-      orFail _msg (Just a) = pure a
-
--- data DownloadEntities = DownloadEntities
---   { entities :: NEMap Hash (Entity Text Hash HashJWT)
---   }
---   deriving stock (Show, Eq, Ord)
+    fromObjectWith config obj >>= \case
+      (1 :: Int, objEntities) -> DownloadEntitiesSuccess <$> fromObjectWith config objEntities
+      (2, objRepoName) -> DownloadEntitiesNoReadPermission <$> fromObjectWith config objRepoName
+      (unknown, _) -> refute $ "Unknown DownloadEntitiesResponse type: " <> fromString (show unknown)
 
 instance ToJSON DownloadEntitiesResponse where
   toJSON = \case

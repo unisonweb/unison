@@ -4,8 +4,8 @@ module Unison.Sync.API (API, api) where
 
 import Data.Proxy
 import Servant.API
-import Unison.Server.Types (MessagePackCT)
 import Unison.Sync.Types
+import Unison.Util.MessagePack (MessagePackCT)
 
 api :: Proxy API
 api = Proxy
