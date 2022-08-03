@@ -698,6 +698,8 @@ mkRow sv (MatchCase (normalizeSeqP -> p0) g0 (AbsN' vs b)) =
     g = case g0 of
       Just (AbsN' us g)
         | us == vs -> Just g
+        | length us == length vs ->
+            Just $ renames (Map.fromList (zip us vs)) g
         | otherwise ->
             internalBug "mkRow: guard variables do not match body"
       Nothing -> Nothing
