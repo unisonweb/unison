@@ -230,7 +230,97 @@ CREATE INDEX dependents_by_dependency ON dependents_index (
 CREATE INDEX dependencies_by_dependent ON dependents_index (
   dependent_object_id,
   dependent_component_index
+);
+
+-- RELATIONAL NAMESPACES STUFF
+
+-- * TODO add indexes
+
+CREATE TABLE namespace (
+  id INTEGER PRIMARY KEY NOT NULL,
+  value_hash_id INTEGER UNIQUE NOT NULL REFERENCES hash(id)
+);
+
+CREATE TABLE namespace_child (
+  namespace_id INTEGER NOT NULL REFERENCES namespace(id),
+  -- Should we just embed the text directly?
+  child_name INTEGER NOT NULL REFERENCES text(id),
+  child_causal_hash INTEGER NOT NULL references causal(self_hash_id)
+);
+
+CREATE TABLE namespace_term (
+  namespace_id INTEGER NOT NULL REFERENCES namespace(id),
+  term_name INTEGER NOT NULL REFERENCES text(id),
+
+  term_builtin INTEGER NULL REFERENCES text(id),
+  term_object_id INTEGER NULL REFERENCES object(id),
+  term_component_index INTEGER NULL,
+  term_constructor_index INTEGER NULL
+);
+
+CREATE TABLE namespace_type (
+  namespace_id INTEGER NOT NULL REFERENCES namespace(id),
+  type_name INTEGER NOT NULL REFERENCES text(id),
+
+  type_builtin INTEGER NULL REFERENCES text(id),
+  type_object_id INTEGER NULL REFERENCES object(id),
+  type_component_index INTEGER NULL
+);
+
+CREATE TABLE namespace_patch (
+  namespace_id INTEGER NOT NULL REFERENCES namespace(id),
+  patch_id INTEGER NOT NULL REFERENCES object(id)
+);
+
+CREATE TABLE namespace_term_metadata (
+  namespace_id INTEGER NOT NULL REFERENCES namespace(id),
+
+  term_name INTEGER NOT NULL REFERENCES text(id),
+
+  term_builtin INTEGER NULL REFERENCES text(id),
+  term_object_id INTEGER NULL REFERENCES object(id),
+  term_component_index INTEGER NULL,
+  term_constructor_index INTEGER NULL
+
+  metadata_builtin INTEGER NULL REFERENCES text(id),
+  metadata_object_id INTEGER NULL REFERENCES object(id),
+  metadata_component_index INTEGER NULL,
+
+  -- We don't appear to currently allow tagging constructors as metadata,
+  -- Why not?
+  /* metadata_constructor_index INTEGER NULL */
+
+  -- Do we store this info here? Or should we store the types of all definitions
+  -- in a shared table and just join?
+  metadata_type_builtin INTEGER NULL REFERENCES text(id),
+  metadata_type_object_id INTEGER NULL REFERENCES object(id),
+  metadata_type_component_index INTEGER NULL
+);
+
+CREATE TABLE namespace_type_metadata (
+  namespace_id INTEGER NOT NULL REFERENCES namespace(id),
+
+  type_name INTEGER NOT NULL REFERENCES text(id),
+
+  type_builtin INTEGER NULL REFERENCES text(id),
+  type_object_id INTEGER NULL REFERENCES object(id),
+  type_component_index INTEGER NULL,
+
+  metadata_builtin INTEGER NULL REFERENCES text(id),
+  metadata_object_id INTEGER NULL REFERENCES object(id),
+  metadata_component_index INTEGER NULL,
+
+  -- We don't appear to currently allow tagging constructors as metadata,
+  -- Why not?
+  /* metadata_constructor_index INTEGER NULL */
+
+  -- Do we store this info here? Or should we store the types of all definitions
+  -- in a shared table and just join?
+  metadata_type_builtin INTEGER NULL REFERENCES text(id),
+  metadata_type_object_id INTEGER NULL REFERENCES object(id),
+  metadata_type_component_index INTEGER NULL
 )
+
 -- Semicolon intentionally omitted, for the same reason
 -- semicolons in comments will blow up codebase initialization.
 -- (oops, almost used a semicolon at the end of that last phrase!)
@@ -239,3 +329,5 @@ CREATE INDEX dependencies_by_dependent ON dependents_index (
 -- by splitting on semicolons.  It doesn't know to ignore comments,
 -- though I guess that wouldn't be hard to implement.  Should have
 -- done it from the start.
+
+
