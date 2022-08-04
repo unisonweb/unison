@@ -55,7 +55,7 @@ testLift s = case cs of !_ -> ok
     cs =
       emitCombs (RN (const 0) (const 0)) 0
         . superNormalize
-        . fst
+        . (\(ll,_,_) -> ll)
         . lamLift
         $ tm s
 
