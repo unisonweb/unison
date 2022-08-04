@@ -42,7 +42,7 @@ import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Unison.Codebase.SqliteCodebase.Branch.Cache (newTransactionBranchCache)
+import Unison.Codebase.SqliteCodebase.Branch.Cache (TransactionBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -344,10 +344,11 @@ tryFlushDeclBuffer termBuffer declBuffer =
 
 getRootBranch ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  TransactionBranchCache ->
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   TVar (Maybe (Sqlite.DataVersion, Branch Transaction)) ->
   Transaction (Branch Transaction)
-getRootBranch doGetDeclType rootBranchCache =
+getRootBranch branchCache doGetDeclType rootBranchCache =
   Sqlite.unsafeIO (readTVarIO rootBranchCache) >>= \case
     Nothing -> forceReload
     Just (v, b) -> do
@@ -366,17 +367,17 @@ getRootBranch doGetDeclType rootBranchCache =
   where
     forceReload :: Transaction (Branch Transaction)
     forceReload = do
-      branch1 <- uncachedLoadRootBranch doGetDeclType
+      branch1 <- uncachedLoadRootBranch branchCache doGetDeclType
       ver <- Sqlite.getDataVersion
       Sqlite.unsafeIO (atomically (writeTVar rootBranchCache (Just (ver, branch1))))
       pure branch1
 
 uncachedLoadRootBranch ::
+  TransactionBranchCache ->
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   Transaction (Branch Transaction)
-uncachedLoadRootBranch getDeclType = do
+uncachedLoadRootBranch branchCache getDeclType = do
   causal2 <- Ops.expectRootCausal
-  branchCache <- newTransactionBranchCache
   Cv.causalbranch2to1 branchCache getDeclType causal2
 
 getRootBranchExists :: Transaction Bool
@@ -394,11 +395,11 @@ putRootBranch rootBranchCache branch1 = do
 -- to one that returns Maybe.
 getBranchForHash ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  TransactionBranchCache ->
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   Branch.CausalHash ->
   Transaction (Maybe (Branch Transaction))
-getBranchForHash doGetDeclType h = do
-  branchCache <- newTransactionBranchCache
+getBranchForHash branchCache doGetDeclType h = do
   Ops.loadCausalBranchByCausalHash (Cv.causalHash1to2 h) >>= \case
     Nothing -> pure Nothing
     Just causal2 -> do
