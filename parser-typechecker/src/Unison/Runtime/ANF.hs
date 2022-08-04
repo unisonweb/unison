@@ -353,16 +353,18 @@ float ::
   Term v a ->
   (Term v a, [(Reference, Term v a)], [(Reference, Term v a)])
 float tm = case runState go0 (Set.empty, [], []) of
-  (bd, (_, ctx, dcmp)) -> let
-      m = hashTermComponentsWithoutTypes . Map.fromList $ fmap deannotate <$> ctx
-      trips = Map.toList m
-      f (v, (id, tm)) = ((v, id), (v, idtm), (id, tm))
-        where idtm = ref (ABT.annotation tm) (DerivedId id)
-      (subvs, subs, tops) = unzip3 $ map f trips
-      subm = Map.fromList subvs
-    in ( letRec' True [] . ABT.substs subs . deannotate $ bd
-       , fmap (first DerivedId) tops
-       , dcmp <&> \(v, tm) -> (DerivedId $ subm Map.! v, tm))
+  (bd, (_, ctx, dcmp)) ->
+    let m = hashTermComponentsWithoutTypes . Map.fromList $ fmap deannotate <$> ctx
+        trips = Map.toList m
+        f (v, (id, tm)) = ((v, id), (v, idtm), (id, tm))
+          where
+            idtm = ref (ABT.annotation tm) (DerivedId id)
+        (subvs, subs, tops) = unzip3 $ map f trips
+        subm = Map.fromList subvs
+     in ( letRec' True [] . ABT.substs subs . deannotate $ bd,
+          fmap (first DerivedId) tops,
+          dcmp <&> \(v, tm) -> (DerivedId $ subm Map.! v, tm)
+        )
   where
     go0 = fromMaybe (go tm) (floater True go tm)
     go = ABT.visit $ floater False go
@@ -1729,7 +1731,7 @@ prettyBranches ind bs = case bs of
             s
             (mapToList $ snd <$> m)
       )
-      (prettyCase ind (prettyReq (0::Int) (0::Int)) df id)
+      (prettyCase ind (prettyReq (0 :: Int) (0 :: Int)) df id)
       (Map.toList bs)
   MatchSum bs ->
     foldr

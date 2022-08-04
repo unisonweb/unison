@@ -1,7 +1,7 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE BlockArguments #-}
 
 module Unison.Test.MCode where
 
@@ -10,9 +10,9 @@ import qualified Data.Map.Strict as Map
 import EasyTest
 import Unison.Reference (Reference (Builtin))
 import Unison.Runtime.ANF
-  ( lamLift,
+  ( SuperGroup (..),
+    lamLift,
     superNormalize,
-    SuperGroup (..),
   )
 import Unison.Runtime.MCode
   ( Args (..),
@@ -22,8 +22,8 @@ import Unison.Runtime.MCode
   )
 import Unison.Runtime.Machine
   ( CCache (..),
-    baseCCache,
     apply0,
+    baseCCache,
     cacheAdd,
   )
 import Unison.Runtime.Pattern
@@ -41,12 +41,14 @@ modifyTVarTest :: TVar a -> (a -> a) -> Test ()
 modifyTVarTest v f = io . atomically $ modifyTVar v f
 
 testEval0 :: [(Reference, SuperGroup Symbol)] -> SuperGroup Symbol -> Test ()
-testEval0 env main = ok << io do
-  cc <- baseCCache False
-  cacheAdd ((mainRef,main):env) cc
-  rtm <- readTVarIO (refTm cc)
-  apply0 Nothing cc Nothing (rtm Map.! mainRef)
-  where (<<) = flip (>>)
+testEval0 env main =
+  ok << io do
+    cc <- baseCCache False
+    cacheAdd ((mainRef, main) : env) cc
+    rtm <- readTVarIO (refTm cc)
+    apply0 Nothing cc Nothing (rtm Map.! mainRef)
+  where
+    (<<) = flip (>>)
 
 asrt :: Section
 asrt =

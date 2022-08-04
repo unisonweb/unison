@@ -273,7 +273,7 @@ backrefLifted ::
   Map.Map Reference (Map.Map Word64 (Term Symbol))
 backrefLifted ref (Tm.Ann' tm _) dcmp = backrefLifted ref tm dcmp
 backrefLifted ref tm dcmp =
-  Map.fromList . (fmap.fmap) (Map.singleton 0) $ (ref,tm):dcmp
+  Map.fromList . (fmap . fmap) (Map.singleton 0) $ (ref, tm) : dcmp
 
 intermediateTerms ::
   HasCallStack =>
@@ -284,7 +284,7 @@ intermediateTerms ::
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerms ppe ctx rtms =
-  foldMap (\(ref,tm) -> intermediateTerm ppe ref ctx tm) rtms
+  foldMap (\(ref, tm) -> intermediateTerm ppe ref ctx tm) rtms
 
 intermediateTerm ::
   HasCallStack =>
@@ -292,11 +292,11 @@ intermediateTerm ::
   Reference ->
   EvalCtx ->
   Term Symbol ->
-  ( Map.Map Reference (SuperGroup Symbol)
-  , Map.Map Reference (Map.Map Word64 (Term Symbol))
+  ( Map.Map Reference (SuperGroup Symbol),
+    Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerm ppe ref ctx tm =
-  (first.fmap)
+  (first . fmap)
     ( superNormalize
         . splitPatterns (dspec ctx)
         . addDefaultCases tmName
@@ -308,8 +308,9 @@ intermediateTerm ppe ref ctx tm =
     $ tm
   where
     memorize (ll, ctx, dcmp) =
-      ( Map.fromList $ (ref,ll):ctx
-      , backrefLifted ref tm dcmp)
+      ( Map.fromList $ (ref, ll) : ctx,
+        backrefLifted ref tm dcmp
+      )
     tmName = HQ.toString . termName ppe $ RF.Ref ref
 
 prepareEvaluation ::
