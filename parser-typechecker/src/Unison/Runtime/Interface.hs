@@ -274,16 +274,6 @@ backrefLifted ::
 backrefLifted ref (Tm.Ann' tm _) dcmp = backrefLifted ref tm dcmp
 backrefLifted ref tm dcmp =
   Map.fromList . (fmap.fmap) (Map.singleton 0) $ (ref,tm):dcmp
--- backrefLifted tm@(Tm.LetRecNamed' bs _) dcmp =
---   Map.fromList . ((0, tm) :) $
---     [ (ix, dc)
---       | ix <- ixs
---       | (v, _) <- reverse bs,
---         dc <- maybeToList $ Prelude.lookup v dcmp
---     ]
---   where
---     ixs = fmap (`shiftL` 16) [1 ..]
--- backrefLifted tm _ = Map.singleton 0 tm
 
 intermediateTerms ::
   HasCallStack =>

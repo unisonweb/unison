@@ -48,28 +48,6 @@ testEval0 env main = ok << io do
   apply0 Nothing cc Nothing (rtm Map.! mainRef)
   where (<<) = flip (>>)
 
-  -- modifyTVarTest (combs cc) (env <>)
-  -- modifyTVarTest (combRefs cc) ((dummyRef <$ env) <>)
-  -- ok
-
--- resolve :: Map Reference Word64 -> Reference -> Word64
--- resolve m r
---   | Builtin "todo" <- r = bit 64
---   | Just i <- Map.lookup r m = i
---   | otherwise = error $ "resolve: " ++ show r
-
--- cenv :: EnumMap Word64 Combs
--- cenv =
---   fmap
---     (emitComb numbering 0 mempty . (0,))
---     numberedTermLookup
-
--- env :: Combs -> EnumMap Word64 Combs
--- env m =
---   mapInsert (bit 24) m
---     . mapInsert (bit 64) (mapSingleton 0 $ Lam 0 1 2 1 asrt)
---     $ cenv
-
 asrt :: Section
 asrt =
   Ins (Unpack Nothing 0) $
