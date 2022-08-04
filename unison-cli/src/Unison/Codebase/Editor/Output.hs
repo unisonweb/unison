@@ -181,6 +181,7 @@ data Output
       PPE.PrettyPrintEnv
       [(Symbol, Term Symbol ())]
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
+  | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult Symbol) (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
@@ -292,6 +293,7 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  RunResult {} -> False
   Success {} -> False
   PrintMessage {} -> False
   CouldntLoadBranch {} -> True

@@ -646,8 +646,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -656,6 +656,7 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
+
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -991,6 +992,7 @@ notifyUser dir o = case o of
               if null bindings
                 then prettyWatches
                 else prettyBindings <> "\n" <> prettyWatches
+  RunResult ppe term -> pure (TermPrinter.pretty ppe term)
   DisplayConflicts termNamespace typeNamespace ->
     pure $
       P.sepNonEmpty
@@ -2358,7 +2360,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where

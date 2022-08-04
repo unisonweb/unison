@@ -1183,7 +1183,16 @@ loop e = do
                   RunMainSuccess unisonFile -> pure unisonFile
               ppe <- executePPE unisonFile
               -- TODO
-              _ <- evalUnisonFile False ppe unisonFile args
+              evalUnisonFile False ppe unisonFile args >>= \case
+                Left e -> respond $ EvaluationFailure e
+                Right (_, xs) -> do
+                  mainRes :: Term Symbol () <-
+                    let bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) = (watchKind, term1)
+                     in case lookup "main" (map bonk (Map.toList xs)) of
+                          Nothing -> error "what"
+                          Just x -> pure x
+                  lastRunResult .= Just mainRes
+                  respond (RunResult ppe mainRes)
               pure ()
             MakeStandaloneI output main -> do
               Cli.Env {codebase, runtime} <- ask

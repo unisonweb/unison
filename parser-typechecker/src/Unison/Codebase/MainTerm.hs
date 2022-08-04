@@ -43,6 +43,7 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
       let refs = NamesWithHistory.lookupHQTerm hq (NamesWithHistory.NamesWithHistory parseNames mempty)
       let a = Parser.Ann.External
       case toList refs of
+        [] -> pure (NotFound mainName)
         [Referent.Ref ref] -> do
           typ <- loadTypeOfTerm ref
           case typ of
@@ -53,7 +54,7 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
                   return (Success hq tm typ)
                 else pure (BadType mainName $ Just typ)
             _ -> pure (BadType mainName Nothing)
-        _ -> pure (NotFound mainName)
+        _ -> pure (error "multiple matching refs") -- TODO: make a real exception
 
 -- '{io2.IO, Exception} ()
 builtinMain :: Var v => a -> Type.Type v a
