@@ -42,7 +42,7 @@ import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Unison.Codebase.SqliteCodebase.Branch.Cache (TransactionBranchCache)
+import Unison.Codebase.SqliteCodebase.Branch.Cache (BranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -344,7 +344,7 @@ tryFlushDeclBuffer termBuffer declBuffer =
 
 getRootBranch ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  TransactionBranchCache ->
+  BranchCache Sqlite.Transaction ->
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   TVar (Maybe (Sqlite.DataVersion, Branch Transaction)) ->
   Transaction (Branch Transaction)
@@ -373,7 +373,7 @@ getRootBranch branchCache doGetDeclType rootBranchCache =
       pure branch1
 
 uncachedLoadRootBranch ::
-  TransactionBranchCache ->
+  BranchCache Sqlite.Transaction ->
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   Transaction (Branch Transaction)
 uncachedLoadRootBranch branchCache getDeclType = do
@@ -395,7 +395,7 @@ putRootBranch rootBranchCache branch1 = do
 -- to one that returns Maybe.
 getBranchForHash ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  TransactionBranchCache ->
+  BranchCache Sqlite.Transaction ->
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   Branch.CausalHash ->
   Transaction (Maybe (Branch Transaction))

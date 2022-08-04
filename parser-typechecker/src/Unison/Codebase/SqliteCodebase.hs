@@ -58,7 +58,7 @@ import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Unison.Codebase.SqliteCodebase.Branch.Cache (newTransactionBranchCache)
+import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
@@ -197,7 +197,7 @@ sqliteCodebase debugName root localOrRemote action = do
   typeOfTermCache <- Cache.semispaceCache 8192
   declCache <- Cache.semispaceCache 1024
   rootBranchCache <- newTVarIO Nothing
-  branchCache <- newTransactionBranchCache
+  branchCache <- newBranchCache
   getDeclType <- CodebaseOps.mkGetDeclType
   -- The v1 codebase interface has operations to read and write individual definitions
   -- whereas the v2 codebase writes them as complete components.  These two fields buffer
