@@ -42,6 +42,7 @@ import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.SqliteCodebase.Branch.Cache (newTransactionBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -375,7 +376,8 @@ uncachedLoadRootBranch ::
   Transaction (Branch Transaction)
 uncachedLoadRootBranch getDeclType = do
   causal2 <- Ops.expectRootCausal
-  Cv.causalbranch2to1 getDeclType causal2
+  branchCache <- newTransactionBranchCache
+  Cv.causalbranch2to1 branchCache getDeclType causal2
 
 getRootBranchExists :: Transaction Bool
 getRootBranchExists =
@@ -396,10 +398,11 @@ getBranchForHash ::
   Branch.CausalHash ->
   Transaction (Maybe (Branch Transaction))
 getBranchForHash doGetDeclType h = do
+  branchCache <- newTransactionBranchCache
   Ops.loadCausalBranchByCausalHash (Cv.causalHash1to2 h) >>= \case
     Nothing -> pure Nothing
     Just causal2 -> do
-      branch1 <- Cv.causalbranch2to1 doGetDeclType causal2
+      branch1 <- Cv.causalbranch2to1 branchCache doGetDeclType causal2
       pure (Just branch1)
 
 putBranch :: Branch Transaction -> Transaction ()
