@@ -186,7 +186,6 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
 import Witherable (wither)
-import System.Mem (performGC)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -207,8 +206,6 @@ currentPrettyPrintEnvDecl scoping = do
 
 loop :: Either Event Input -> Action ()
 loop e = do
-  liftIO $ putStrLn "Running GC"
-  liftIO $ performGC
   uf <- use Command.latestTypecheckedFile
   root' <- use Command.root
   currentPath' <- use Command.currentPath
