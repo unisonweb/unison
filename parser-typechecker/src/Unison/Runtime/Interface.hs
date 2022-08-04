@@ -271,6 +271,7 @@ backrefLifted ::
   Term Symbol ->
   [(Reference, Term Symbol)] ->
   Map.Map Reference (Map.Map Word64 (Term Symbol))
+backrefLifted ref (Tm.Ann' tm _) dcmp = backrefLifted ref tm dcmp
 backrefLifted ref tm dcmp =
   Map.fromList . (fmap.fmap) (Map.singleton 0) $ (ref,tm):dcmp
 -- backrefLifted tm@(Tm.LetRecNamed' bs _) dcmp =
@@ -318,7 +319,7 @@ intermediateTerm ppe ref ctx tm =
   where
     memorize (ll, ctx, dcmp) =
       ( Map.fromList $ (ref,ll):ctx
-      , backrefLifted ref ll dcmp)
+      , backrefLifted ref tm dcmp)
     tmName = HQ.toString . termName ppe $ RF.Ref ref
 
 prepareEvaluation ::
