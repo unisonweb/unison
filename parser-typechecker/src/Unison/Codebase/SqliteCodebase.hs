@@ -58,6 +58,7 @@ import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
@@ -196,6 +197,7 @@ sqliteCodebase debugName root localOrRemote action = do
   typeOfTermCache <- Cache.semispaceCache 8192
   declCache <- Cache.semispaceCache 1024
   rootBranchCache <- newTVarIO Nothing
+  branchCache <- newBranchCache
   getDeclType <- CodebaseOps.mkGetDeclType
   -- The v1 codebase interface has operations to read and write individual definitions
   -- whereas the v2 codebase writes them as complete components.  These two fields buffer
@@ -275,7 +277,7 @@ sqliteCodebase debugName root localOrRemote action = do
 
             getRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> m (Branch m)
             getRootBranch rootBranchCache =
-              Branch.transform runTransaction <$> runTransaction (CodebaseOps.getRootBranch getDeclType rootBranchCache)
+              Branch.transform runTransaction <$> runTransaction (CodebaseOps.getRootBranch branchCache getDeclType rootBranchCache)
 
             getRootBranchExists :: m Bool
             getRootBranchExists =
@@ -292,7 +294,7 @@ sqliteCodebase debugName root localOrRemote action = do
             -- to one that returns Maybe.
             getBranchForHash :: Branch.CausalHash -> m (Maybe (Branch m))
             getBranchForHash h =
-              fmap (Branch.transform runTransaction) <$> runTransaction (CodebaseOps.getBranchForHash getDeclType h)
+              fmap (Branch.transform runTransaction) <$> runTransaction (CodebaseOps.getBranchForHash branchCache getDeclType h)
 
             putBranch :: Branch m -> m ()
             putBranch branch =
