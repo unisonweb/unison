@@ -38,7 +38,7 @@ module Unison.Typechecker.Context
   )
 where
 
-import Control.Lens (over, _2)
+import Control.Lens (over, _2, view)
 import qualified Control.Monad.Fail as MonadFail
 import Control.Monad.State
   ( MonadState,
@@ -54,7 +54,7 @@ import Data.Bifunctor
     second,
   )
 import qualified Data.Foldable as Foldable
-import Data.Functor.Compose (Compose (..))
+import Data.Function (on)
 import Data.List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
@@ -65,7 +65,8 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference
+  (ConstructorReference, GConstructorReference (..), reference_)
 import Unison.DataDeclaration
   ( DataDeclaration,
     EffectDeclaration,
@@ -1259,13 +1260,14 @@ getEffect ref = do
 
 requestType ::
   Var v => Ord loc => [Pattern loc] -> M v loc (Maybe [Type v loc])
-requestType ps = getCompose . fmap fold $ traverse single ps
+requestType ps =
+  traverse (traverse getEffect . nubBy ((==) `on` view reference_)) $
+    Foldable.foldlM (\acc p -> (++ acc) <$> single p) [] ps
   where
     single (Pattern.As _ p) = single p
-    single Pattern.EffectPure {} = Compose . pure . Just $ []
-    single (Pattern.EffectBind _ ref _ _) =
-      Compose $ Just . pure <$> getEffect ref
-    single _ = Compose $ pure Nothing
+    single Pattern.EffectPure {} = Just []
+    single (Pattern.EffectBind _ ref _ _) = Just [ref]
+    single _ = Nothing
 
 checkCase ::
   forall v loc.
