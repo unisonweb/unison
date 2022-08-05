@@ -22,6 +22,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker as Typechecker
 import Unison.Var (Var)
+import qualified Unison.Var as Var
 
 data MainTerm v
   = NotAFunctionName String
@@ -48,7 +49,7 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
           typ <- loadTypeOfTerm ref
           case typ of
             Just typ ->
-              if Typechecker.isSubtype typ mainType
+              if Typechecker.fitsScheme typ mainType
                 then do
                   let tm = DD.forceTerm a a (Term.ref a ref)
                   return (Success hq tm typ)
@@ -58,9 +59,21 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
 
 -- '{io2.IO, Exception} ()
 builtinMain :: Var v => a -> Type.Type v a
-builtinMain a = Type.arrow a (Type.ref a DD.unitRef) io
+builtinMain = polyMain
+
+-- user provided type: '{IO, Exception} x
+
+-- '{ io2.IO, Exception } ex
+polyMain :: Var v => a -> Type.Type v a
+polyMain a =
+  let x = Var.named "x"
+   in Type.forall a x (builtinMain' a (Type.var a x))
+
+-- '{io2.IO, Exception} res
+builtinMain' :: Var v => a -> Type.Type v a -> Type.Type v a
+builtinMain' a res = Type.arrow a (Type.ref a DD.unitRef) io
   where
-    io = Type.effect a [Type.builtinIO a, DD.exceptionType a] (Type.ref a DD.unitRef)
+    io = Type.effect a [Type.builtinIO a, DD.exceptionType a] res
 
 -- [Result]
 resultArr :: Ord v => a -> Type.Type v a

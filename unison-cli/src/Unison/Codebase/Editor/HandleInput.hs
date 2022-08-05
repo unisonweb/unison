@@ -1169,7 +1169,7 @@ loop e = do
             ExecuteI main args -> do
               Cli.Env {runtime} <- ask
               unisonFile <- do
-                let mainType = Runtime.mainType runtime
+                let mainType = MainTerm.polyMain External
                 unisonFile0 <- Cli.getLatestTypecheckedFile
                 addRunMain main unisonFile0 >>= \case
                   NoTermWithThatName -> do
@@ -1207,7 +1207,7 @@ loop e = do
                   <$> traverse (\r -> fmap (r,) <$> liftIO (loadTypeOfTerm codebase r)) resolved
               case filtered of
                 [(Referent.Ref ref, ty)]
-                  | Typechecker.isSubtype ty mainType -> do
+                  | Typechecker.fitsScheme ty mainType -> do
                       let codeLookup = () <$ Codebase.toCodeLookup codebase
                       whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
                         Cli.returnEarly (EvaluationFailure err)
@@ -3396,7 +3396,7 @@ addRunMain mainName = \case
         pure $
           let v2 = Var.freshIn (Set.fromList [v]) v
               a = ABT.annotation tm
-           in if Typechecker.isSubtype ty mainType
+           in if Typechecker.fitsScheme ty mainType
                 then
                   RunMainSuccess $
                     let runMain = DD.forceTerm a a (Term.var a v)

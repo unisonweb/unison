@@ -102,9 +102,19 @@ synthesize env t =
 
 isSubtype :: Var v => Type v loc -> Type v loc -> Bool
 isSubtype t1 t2 =
-  case Context.isSubtype (tvar $ void t1) (tvar $ void t2) of
-    Left bug -> error $ "compiler bug encountered: " ++ show bug
-    Right b -> b
+  handleCompilerBug (Context.isSubtype (tvar $ void t1) (tvar $ void t2))
+  where
+    tvar = TypeVar.liftType
+
+handleCompilerBug :: Var v => Either (Context.CompilerBug v ()) a -> a
+handleCompilerBug = \case
+  Left bug -> error $ "compiler bug encountered: " ++ show bug
+  Right b -> b
+
+-- | Similar to 'isSubtype' but treats @t2@ as a scheme where the
+-- outermost variables are existential rather than universal.
+fitsScheme :: Var v => Type v loc -> Type v loc -> Bool
+fitsScheme t1 t2 = handleCompilerBug (Context.fitsScheme (tvar $ void t1) (tvar $ void t2))
   where
     tvar = TypeVar.liftType
 
