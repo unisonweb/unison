@@ -20,9 +20,9 @@ where
 import Control.Concurrent.STM as STM
 import Control.Exception (catch, try)
 import Control.Monad
-import Data.Bifunctor (bimap, first, second)
+import Data.Bifunctor (bimap, first)
 import Data.Binary.Get (runGetOrFail)
-import Data.Bits (shiftL)
+-- import Data.Bits (shiftL)
 import qualified Data.ByteString.Lazy as BL
 import Data.Bytes.Get (MonadGet)
 import Data.Bytes.Put (MonadPut, runPutL)
@@ -58,7 +58,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.LabeledDependency as RF
 import Unison.Parser.Ann (Ann (External))
-import Unison.Prelude (maybeToList, reportBug)
+import Unison.Prelude (reportBug)
 import Unison.PrettyPrintEnv
 import Unison.Reference (Reference)
 import qualified Unison.Reference as RF
@@ -260,40 +260,31 @@ loadDeps cl ppe ctx tyrs tmrs = do
   rtms <-
     traverse (\r -> (,) r <$> resolveTermRef cl r) $
       Prelude.filter q tmrs
-  let (rgrp, rbkr) = intermediateTerms ppe ctx rtms
+  let (rgrp0, rbkr) = intermediateTerms ppe ctx rtms
+      rgrp = Map.toList rgrp0
       tyAdd = Set.fromList $ fst <$> tyrs
   backrefAdd rbkr ctx
     <$ cacheAdd0 tyAdd rgrp (expandSandbox sand rgrp) cc
 
 backrefLifted ::
+  Reference ->
   Term Symbol ->
-  [(Symbol, Term Symbol)] ->
-  Map.Map Word64 (Term Symbol)
-backrefLifted tm@(Tm.LetRecNamed' bs _) dcmp =
-  Map.fromList . ((0, tm) :) $
-    [ (ix, dc)
-      | ix <- ixs
-      | (v, _) <- reverse bs,
-        dc <- maybeToList $ Prelude.lookup v dcmp
-    ]
-  where
-    ixs = fmap (`shiftL` 16) [1 ..]
-backrefLifted tm _ = Map.singleton 0 tm
+  [(Reference, Term Symbol)] ->
+  Map.Map Reference (Map.Map Word64 (Term Symbol))
+backrefLifted ref (Tm.Ann' tm _) dcmp = backrefLifted ref tm dcmp
+backrefLifted ref tm dcmp =
+  Map.fromList . (fmap . fmap) (Map.singleton 0) $ (ref, tm) : dcmp
 
 intermediateTerms ::
   HasCallStack =>
   PrettyPrintEnv ->
   EvalCtx ->
   [(Reference, Term Symbol)] ->
-  ( [(Reference, SuperGroup Symbol)],
+  ( Map.Map Reference (SuperGroup Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerms ppe ctx rtms =
-  ((fmap . second) fst rint, Map.fromList $ (fmap . second) snd rint)
-  where
-    rint =
-      rtms <&> \(ref, tm) ->
-        (ref, intermediateTerm ppe ref ctx tm)
+  foldMap (\(ref, tm) -> intermediateTerm ppe ref ctx tm) rtms
 
 intermediateTerm ::
   HasCallStack =>
@@ -301,9 +292,11 @@ intermediateTerm ::
   Reference ->
   EvalCtx ->
   Term Symbol ->
-  (SuperGroup Symbol, Map.Map Word64 (Term Symbol))
+  ( Map.Map Reference (SuperGroup Symbol),
+    Map.Map Reference (Map.Map Word64 (Term Symbol))
+  )
 intermediateTerm ppe ref ctx tm =
-  first
+  (first . fmap)
     ( superNormalize
         . splitPatterns (dspec ctx)
         . addDefaultCases tmName
@@ -314,7 +307,10 @@ intermediateTerm ppe ref ctx tm =
     . inlineAlias
     $ tm
   where
-    memorize (ll, dcmp) = (ll, backrefLifted ll dcmp)
+    memorize (ll, ctx, dcmp) =
+      ( Map.fromList $ (ref, ll) : ctx,
+        backrefLifted ref tm dcmp
+      )
     tmName = HQ.toString . termName ppe $ RF.Ref ref
 
 prepareEvaluation ::
@@ -341,7 +337,8 @@ prepareEvaluation ppe tm ctx = do
       | rmn <- RF.DerivedId $ Hashing.hashClosedTerm tm =
           (rmn, [(rmn, tm)])
 
-    (rgrp, rbkr) = intermediateTerms ppe ctx rtms
+    (rgrp0, rbkr) = intermediateTerms ppe ctx rtms
+    rgrp = Map.toList rgrp0
 
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
