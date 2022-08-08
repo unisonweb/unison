@@ -2905,8 +2905,8 @@ getHQTerms = \case
             & Path.fromName'
             & Path.resolve currentPath'
             & Path.unabsolute
-            & Path.toName
-    pure $ fromMaybe mempty $ (R.lookupRan <$> path <*> pure (Branch.deepTerms root0))
+            & Path.unsafeToName
+    pure $ R.lookupRan path (Branch.deepTerms root0)
   HQ.HashOnly sh -> hashOnly sh
   HQ.HashQualified _ sh -> hashOnly sh
   where

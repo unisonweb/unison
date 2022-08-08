@@ -836,8 +836,7 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
   -- `trunk` over those in other releases.
   let biases =
         mapMaybe HQ.toName query
-          & foldMap (\name -> [name, Name.makeAbsolute . Name.fromSegments $ NonEmpty.appendr (Path.toList path) (Name.segments name)])
-  Debug.debugM Debug.Sync "Biases" biases
+          & foldMap (\name -> [name])
   let ppe = PPED.biasTo biases unbiasedPPE
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)

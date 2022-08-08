@@ -22,7 +22,6 @@ import Data.Ord (Down (Down))
 import Data.Semigroup (Max (Max))
 import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.ConstructorType as CT
-import qualified Unison.Debug as Debug
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -131,15 +130,11 @@ biasTo targets PrettyPrintEnv {termNames, typeNames} =
     { termNames = \r ->
         r
           & termNames
-          & Debug.debug Debug.Sync "pre-biased"
-          & prioritizeBias targets
-          & Debug.debug Debug.Sync "post-biased",
+          & prioritizeBias targets,
       typeNames = \r ->
         r
           & typeNames
-          & Debug.debug Debug.Sync "pre-biased"
           & prioritizeBias targets
-          & Debug.debug Debug.Sync "post-biased"
     }
 
 -- | Prefer names which share a common prefix with any provided target.
