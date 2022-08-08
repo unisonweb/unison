@@ -31,7 +31,6 @@ module Unison.CommandLine
     -- * Other
     parseInput,
     prompt,
-    watchBranchUpdates,
     watchConfig,
     watchFileSystem,
   )
@@ -48,16 +47,11 @@ import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 import Data.ListLike (ListLike)
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified System.Console.Haskeline as Line
 import System.FilePath (takeFileName)
 import Text.Regex.TDFA ((=~))
-import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0)
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Watch as Watch
@@ -100,28 +94,6 @@ watchFileSystem q dir = do
     (filePath, text) <- watcher
     atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
   pure (cancel >> killThread t)
-
-watchBranchUpdates :: IO (Branch.Branch IO) -> TQueue Event -> Codebase IO v a -> IO (IO ())
-watchBranchUpdates currentRoot q codebase = do
-  (cancelExternalBranchUpdates, externalBranchUpdates) <-
-    Codebase.rootBranchUpdates codebase
-  thread <- forkIO . forever $ do
-    updatedBranches <- externalBranchUpdates
-    currentRoot <- currentRoot
-    -- Since there's some lag between when branch files are written and when
-    -- the OS generates a file watch event, we skip branch update events
-    -- that are causally before the current root.
-    --
-    -- NB: Sadly, since the file watching API doesn't have a way to silence
-    -- the events from a specific individual write, this is ultimately a
-    -- heuristic. If a fairly recent head gets deposited at just the right
-    -- time, it would get ignored by this logic. This seems unavoidable.
-    let maxDepth = 20 -- if it's further back than this, consider it new
-    let isNew b = not <$> Causal.beforeHash maxDepth b (Branch._history currentRoot)
-    notBefore <- filterM isNew (toList updatedBranches)
-    when (length notBefore > 0) $
-      atomically . Q.enqueue q . IncomingRootBranch $ Set.fromList notBefore
-  pure (cancelExternalBranchUpdates >> killThread thread)
 
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
