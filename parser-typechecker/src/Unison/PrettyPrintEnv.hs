@@ -38,7 +38,7 @@ import qualified Unison.Referent as Referent
 data PrettyPrintEnv = PrettyPrintEnv
   { -- names for terms, constructors, and requests; e.g. [(original name, relativized and/or suffixified pretty name)]
     termNames :: Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)],
-    -- names for types; e.g. [(original name, relativized and/or suffixified pretty name)]
+    -- names for types; e.g. [(original name, possibly suffixified name)]
     typeNames :: Reference -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
   }
 
