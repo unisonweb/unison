@@ -6,7 +6,7 @@ where
 import Compat (withInterruptHandler)
 import qualified Control.Concurrent.Async as Async
 import Control.Concurrent.STM (atomically)
-import Control.Exception (catch, finally)
+import Control.Exception (catch, finally, mask)
 import Control.Lens ((^.))
 import Control.Monad.Catch (MonadMask)
 import qualified Crypto.Random as Random
@@ -120,15 +120,13 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
   initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
   pageOutput <- newIORef True
   cancelFileSystemWatch <- watchFileSystem eventQueue dir
-  loopStateRef <- newIORef (Cli.loopState0 root initialPath)
   let patternMap :: Map String InputPattern
       patternMap =
         Map.fromList $
           validInputs
             >>= (\p -> (patternName p, p) : ((,p) <$> aliases p))
-  let getInput :: IO Input
-      getInput = do
-        loopState <- readIORef loopStateRef
+  let getInput :: Cli.LoopState -> IO Input
+      getInput loopState = do
         getUserInput
           patternMap
           codebase
@@ -164,14 +162,14 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
         Runtime.terminate sbRuntime
         cancelConfig
         cancelFileSystemWatch
-      awaitInput :: IO (Either Event Input)
-      awaitInput = do
+      awaitInput :: Cli.LoopState -> IO (Either Event Input)
+      awaitInput loopState = do
         -- use up buffered input before consulting external events
         readIORef initialInputsRef >>= \case
           h : t -> writeIORef initialInputsRef t >> pure h
           [] ->
             -- Race the user input and file watch.
-            Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
+            Async.race (atomically $ Q.peek eventQueue) (getInput loopState) >>= \case
               Left _ -> do
                 let e = Left <$> atomically (Q.dequeue eventQueue)
                 writeIORef pageOutput False
@@ -190,7 +188,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
             config,
             credentialManager,
             loadSource = loadSourceFile,
-            loopStateRef,
             generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
             notify,
             notifyNumbered = \o ->
@@ -202,32 +199,31 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
             ucmVersion
           }
 
-  -- Handle inputs until @HaltRepl@ (or until an exception)
-  let loop0 :: IO ()
-      loop0 = do
-        input <- awaitInput
-        Cli.runCli env (HandleInput.loop input) >>= \case
-          Cli.Success () -> loop0
-          Cli.Continue -> loop0
-          Cli.HaltRepl -> pure ()
-
   (onInterrupt, waitForInterrupt) <- buildInterruptHandler
 
-  -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
-  let loop :: IO ()
-      loop =
-        UnliftIO.race waitForInterrupt (UnliftIO.tryAny loop0) >>= \case
-          -- SIGINT
-          Left () -> do
-            hPutStrLn stderr "\nAborted."
-            loop
-          -- Exception during command execution
-          Right (Left e) -> do
-            Text.Lazy.hPutStrLn stderr ("Encountered exception:\n" <> pShow e)
-            loop
-          Right (Right ()) -> pure ()
+  mask \restore -> do
+    -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
+    let loop0 :: Cli.LoopState -> IO ()
+        loop0 s0 = do
+          let step = do
+                input <- awaitInput s0
+                Cli.runCli env s0 (HandleInput.loop input)
+          UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step)) >>= \case
+            -- SIGINT
+            Left () -> do
+              hPutStrLn stderr "\nAborted."
+              loop0 s0
+            -- Exception during command execution
+            Right (Left e) -> do
+              Text.Lazy.hPutStrLn stderr ("Encountered exception:\n" <> pShow e)
+              loop0 s0
+            Right (Right (result, s1)) ->
+              case result of
+                Cli.Success () -> loop0 s1
+                Cli.Continue -> loop0 s1
+                Cli.HaltRepl -> pure ()
 
-  withInterruptHandler onInterrupt (loop `finally` cleanup)
+    withInterruptHandler onInterrupt (loop0 (Cli.loopState0 root initialPath) `finally` cleanup)
 
 -- | Installs a posix interrupt handler for catching SIGINT.
 -- This replaces GHC's default sigint handler which throws a UserInterrupt async exception

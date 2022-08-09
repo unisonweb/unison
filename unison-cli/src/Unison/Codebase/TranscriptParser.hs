@@ -242,7 +242,6 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             AuthN.newTokenProvider credMan
           Just accessToken ->
             \_codeserverID -> pure $ Right accessToken
-  loopStateRef <- newIORef (Cli.loopState0 root initialPath)
   seedRef <- newIORef (0 :: Int)
   inputQueue <- Q.newIO
   cmdQueue <- Q.newIO
@@ -288,8 +287,8 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                 output . (<> "\n") . BL.unpack $ prettyBytes
               Left err -> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err)
 
-      awaitInput :: IO (Either Event Input)
-      awaitInput = do
+      awaitInput :: Cli.LoopState -> IO (Either Event Input)
+      awaitInput loopState = do
         cmd <- atomically (Q.tryDequeue cmdQueue)
         case cmd of
           -- end of ucm block
@@ -300,22 +299,21 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             -- rather than hitting the cache.
             writeIORef unisonFiles Map.empty
             dieUnexpectedSuccess
-            awaitInput
+            awaitInput loopState
           -- ucm command to run
           Just (Just ucmLine) -> do
             case ucmLine of
               p@(UcmComment {}) -> do
                 output ("\n" <> show p)
-                awaitInput
+                awaitInput loopState
               p@(UcmCommand path lineTxt) -> do
-                loopState <- readIORef loopStateRef
                 let curPath = loopState ^. #currentPath
                 if curPath /= path
                   then do
                     atomically $ Q.undequeue cmdQueue (Just p)
                     pure $ Right (SwitchBranchI $ Just (Path.absoluteToPath' path))
                   else case words . Text.unpack $ lineTxt of
-                    [] -> awaitInput
+                    [] -> awaitInput loopState
                     args -> do
                       output ("\n" <> show p <> "\n")
                       let currentRoot = Branch.head (loopState ^. #root)
@@ -342,10 +340,10 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                 case s of
                   Unfenced _ -> do
                     output $ show s
-                    awaitInput
+                    awaitInput loopState
                   UnprocessedFence _ _ -> do
                     output $ show s
-                    awaitInput
+                    awaitInput loopState
                   Unison hide errOk filename txt -> do
                     writeIORef hidden hide
                     outputEcho $ show s
@@ -358,7 +356,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                     output "```api\n"
                     for_ apiRequests apiRequest
                     output "```"
-                    awaitInput
+                    awaitInput loopState
                   Ucm hide errOk cmds -> do
                     writeIORef hidden hide
                     writeIORef allowErrors errOk
@@ -366,7 +364,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                     output "```ucm"
                     traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                     atomically . Q.enqueue cmdQueue $ Nothing
-                    awaitInput
+                    awaitInput loopState
 
       loadPreviousUnisonBlock name = do
         ufs <- readIORef unisonFiles
@@ -456,7 +454,6 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
               i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
               pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
             loadSource = loadPreviousUnisonBlock,
-            loopStateRef,
             notify = print,
             notifyNumbered = printNumbered,
             runtime,
@@ -465,17 +462,17 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             ucmVersion
           }
 
-  let loop :: IO Text
-      loop = do
-        input <- awaitInput
-        Cli.runCli env (HandleInput.loop input) >>= \case
-          Cli.Success () -> loop
-          Cli.Continue -> loop
-          Cli.HaltRepl -> do
+  let loop :: Cli.LoopState -> IO Text
+      loop s0 = do
+        input <- awaitInput s0
+        Cli.runCli env s0 (HandleInput.loop input) >>= \case
+          (Cli.Success (), s1) -> loop s1
+          (Cli.Continue, s1) -> loop s1
+          (Cli.HaltRepl, _) -> do
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
 
-  loop
+  loop (Cli.loopState0 root initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do

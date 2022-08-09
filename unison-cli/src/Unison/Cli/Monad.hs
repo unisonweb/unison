@@ -10,12 +10,9 @@ module Unison.Cli.Monad
     -- * Envronment
     Env (..),
 
-    -- * Mutable state
+    -- * Immutable state
     LoopState (..),
     loopState0,
-    getLoopState,
-    putLoopState,
-    modifyLoopState,
 
     -- * Lifting IO actions
     ioE,
@@ -45,12 +42,12 @@ module Unison.Cli.Monad
   )
 where
 
-import Control.Lens (lens, set)
+import Control.Lens (lens, (.=))
 import Control.Monad.Reader (MonadReader (..), ReaderT (ReaderT))
+import Control.Monad.State.Strict (MonadState, StateT (StateT))
 import Control.Monad.Trans.Cont
 import qualified Data.Configurator.Types as Configurator
 import Data.Generics.Labels ()
-import Data.IORef
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
@@ -78,28 +75,33 @@ import qualified Unison.UnisonFile as UF
 
 -- | The main command-line app monad.
 --
--- * It is a reader monad: get the 'Env' environment with 'ask'.
+-- * It is a reader monad of 'Env'.
 --
--- * It is a state monad (kind of): get the 'LoopState' with 'getLoopState', and put it with 'putLoopState'. The state
--- is stored in an @IORef@, so state changes are visible across threads, and persist even when an exception is raised.
+-- * It is a state monad of 'LoopState'.
 --
--- * It is a short-circuiting monad: like the IO monad (due to exceptions), a @Cli@ computation can short-circuit with
--- success or failure.
+-- * It is a short-circuiting monad: a @Cli@ computation can short-circuit with success or failure.
 --
 -- * It is a resource monad: resources can be acquired with straight-line syntax, and will be released at the end of
 -- do-block.
 --
 -- * It is an IO monad: you can do IO things, but throwing synchronous exceptions is discouraged. Use the built-in
 -- short-circuiting mechanism instead.
-newtype Cli r a = Cli {unCli :: Env -> (a -> IO (ReturnType r)) -> IO (ReturnType r)}
+newtype Cli r a = Cli
+  { unCli ::
+      Env ->
+      (a -> LoopState -> IO (ReturnType r, LoopState)) ->
+      LoopState ->
+      IO (ReturnType r, LoopState)
+  }
   deriving
     ( Functor,
       Applicative,
       Monad,
       MonadIO,
-      MonadReader Env
+      MonadReader Env,
+      MonadState LoopState
     )
-    via ReaderT Env (ContT (ReturnType r) IO)
+    via ReaderT Env (ContT (ReturnType r) (StateT LoopState IO))
 
 -- | What a Cli action returns: a value, an instruction to continue processing input, or an instruction to stop
 -- processing input.
@@ -120,7 +122,6 @@ data Env = Env
     generateUniqueName :: IO Parser.UniqueName,
     -- | How to load source code.
     loadSource :: Text -> IO LoadSourceResult,
-    loopStateRef :: IORef LoopState,
     -- | What to do with output for the user.
     notify :: Output -> IO (),
     -- | What to do with numbered output for the user.
@@ -133,8 +134,6 @@ data Env = Env
   deriving stock (Generic)
 
 -- | The command-line app monad mutable state.
---
--- Get the state with 'getLoopState', put it with 'putLoopState', or modify it with 'modifyLoopState'.
 --
 -- There's an additional pseudo @"currentPath"@ field lens, for convenience.
 data LoopState = LoopState
@@ -187,27 +186,9 @@ loopState0 b p =
     }
 
 -- | Run a @Cli@ action down to @IO@.
-runCli :: Env -> Cli a a -> IO (ReturnType a)
-runCli env (Cli action) =
-  action env (\x -> pure (Success x))
-
--- | Get the loop state.
-getLoopState :: Cli r LoopState
-getLoopState = do
-  Env {loopStateRef} <- ask
-  liftIO (readIORef loopStateRef)
-
--- | Put the loop state.
-putLoopState :: LoopState -> Cli r ()
-putLoopState newSt = do
-  Env {loopStateRef} <- ask
-  liftIO (writeIORef loopStateRef newSt)
-
--- | Modify the loop state (not thread-safe).
-modifyLoopState :: (LoopState -> LoopState) -> Cli r ()
-modifyLoopState f = do
-  Env {loopStateRef} <- ask
-  liftIO (modifyIORef' loopStateRef f)
+runCli :: Env -> LoopState -> Cli a a -> IO (ReturnType a, LoopState)
+runCli env s0 (Cli action) =
+  action env (\x s1 -> pure (Success x, s1)) s0
 
 -- | The result of calling 'loadSource'.
 data LoadSourceResult
@@ -218,13 +199,12 @@ data LoadSourceResult
 -- | Lift an action of type @IO (Either e a)@, given a continuation for @e@.
 ioE :: IO (Either e a) -> (e -> Cli r a) -> Cli r a
 ioE action errK =
-  Cli \env k ->
-    action >>= \case
-      Left err -> unCli (errK err) env k
-      Right value -> k value
+  liftIO action >>= \case
+    Left err -> errK err
+    Right value -> pure value
 
 short :: ReturnType r -> Cli r a
-short r = Cli \_k _env -> pure r
+short r = Cli \_env _k s -> pure (r, s)
 
 -- | Short-circuit with a value. Returns @r@ to the nearest enclosing
 -- 'newBlock' (or 'runCli' if there is no enclosing 'newBlock').
@@ -256,25 +236,25 @@ haltRepl = short HaltRepl
 --
 -- Delimit the scope of acquired resources with 'newBlock'.
 with :: (forall x. (a -> IO x) -> IO x) -> Cli r a
-with resourceK = Cli \_ -> resourceK
+with resourceK = Cli \_env k s -> resourceK \a -> k a s
 
 -- | A variant of 'with' for the variant of bracketing function that may return a Left rather than call the provided
 -- continuation.
 withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (e -> Cli r a) -> Cli r a
 withE resourceK errK =
-  Cli \env k ->
-    resourceK k >>= \case
-      Left err -> unCli (errK err) env k
+  Cli \env k s ->
+    resourceK (\a -> k a s) >>= \case
+      Left err -> unCli (errK err) env k s
       Right val -> pure val
 
 -- | Run the given action in a new block, which delimits the scope of any 'succeedWith', 'with'/'withE', and 'time'
 -- calls contained within.
 newBlock :: Cli x x -> Cli r x
-newBlock (Cli ma) = Cli \env k -> do
-  ma env (\x -> pure (Success x)) >>= \case
-    Success x -> k x
-    Continue -> pure Continue
-    HaltRepl -> pure HaltRepl
+newBlock ma = Cli \env k s0 -> do
+  runCli env s0 ma >>= \case
+    (Success x, s1) -> k x s1
+    (Continue, s1) -> pure (Continue, s1)
+    (HaltRepl, s1) -> pure (HaltRepl, s1)
 
 -- | Time an action.
 --
@@ -292,10 +272,10 @@ newBlock (Cli ma) = Cli \env k -> do
 time :: String -> Cli r ()
 time label =
   if Debug.shouldDebug Debug.Timing
-    then Cli \_ k -> do
+    then Cli \_ k s -> do
       systemStart <- getSystemTime
       cpuPicoStart <- getCPUTime
-      r <- k ()
+      r <- k () s
       cpuPicoEnd <- getCPUTime
       systemEnd <- getSystemTime
       let systemDiff =
@@ -340,10 +320,7 @@ respond output = do
 
 respondNumbered :: NumberedOutput -> Cli r ()
 respondNumbered output = do
-  Env {loopStateRef, notifyNumbered} <- ask
+  Env {notifyNumbered} <- ask
   args <- liftIO (notifyNumbered output)
   unless (null args) do
-    liftIO do
-      atomicModifyIORef' loopStateRef \loopState ->
-        let !numberedArgs = toList args
-         in (set #numberedArgs numberedArgs loopState, ())
+    #numberedArgs .= args

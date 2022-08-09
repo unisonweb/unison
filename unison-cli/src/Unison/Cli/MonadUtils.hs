@@ -97,8 +97,7 @@ getConfig key = do
 -- | Get the current path.
 getCurrentPath :: Cli r Path.Absolute
 getCurrentPath = do
-  loopState <- Cli.getLoopState
-  pure (loopState ^. #currentPath)
+  use #currentPath
 
 -- | Resolve a @Path'@ to a @Path.Absolute@, per the current path.
 resolvePath' :: Path' -> Cli r Path.Absolute
@@ -144,8 +143,7 @@ resolveShortBranchHash hash = do
 -- | Get the root branch.
 getRootBranch :: Cli r (Branch IO)
 getRootBranch = do
-  loopState <- Cli.getLoopState
-  pure (loopState ^. #root)
+  use #root
 
 -- | Get the root branch0.
 getRootBranch0 :: Cli r (Branch0 IO)
@@ -249,8 +247,7 @@ assertNoPatchAt path = do
 
 getLatestFile :: Cli r (Maybe (FilePath, Bool))
 getLatestFile = do
-  loopState <- Cli.getLoopState
-  pure (loopState ^. #latestFile)
+  use #latestFile
 
 expectLatestFile :: Cli r (FilePath, Bool)
 expectLatestFile = do
@@ -259,8 +256,7 @@ expectLatestFile = do
 -- | Get the latest typechecked unison file.
 getLatestTypecheckedFile :: Cli r (Maybe (TypecheckedUnisonFile Symbol Ann))
 getLatestTypecheckedFile = do
-  loopState <- Cli.getLoopState
-  pure (loopState ^. #latestTypecheckedFile)
+  use #latestTypecheckedFile
 
 -- | Get the latest typechecked unison file, or return early if there isn't one.
 expectLatestTypecheckedFile :: Cli r (TypecheckedUnisonFile Symbol Ann)
