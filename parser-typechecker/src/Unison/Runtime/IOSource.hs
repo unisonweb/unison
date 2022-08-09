@@ -355,7 +355,7 @@ doc2FormatConsoleRef = termNamed "syntax.docFormatConsole"
 
 pattern AnsiColorRef <- ((== ansiColorRef) -> True)
 
-[ ansiColorBlackId,
+(ansiColorBlackId,
   ansiColorRedId,
   ansiColorGreenId,
   ansiColorYellowId,
@@ -370,28 +370,27 @@ pattern AnsiColorRef <- ((== ansiColorRef) -> True)
   ansiColorBrightBlueId,
   ansiColorBrightMagentaId,
   ansiColorBrightCyanId,
-  ansiColorBrightWhiteId
-  ] =
-    map
-      ct
-      [ "Black",
-        "Red",
-        "Green",
-        "Yellow",
-        "Blue",
-        "Magenta",
-        "Cyan",
-        "White",
-        "BrightBlack",
-        "BrightRed",
-        "BrightGreen",
-        "BrightYellow",
-        "BrightBlue",
-        "BrightMagenta",
-        "BrightCyan",
-        "BrightWhite"
-      ]
+  ansiColorBrightWhiteId)
+  =
+  ( ct "Black",
+    ct "Red",
+    ct "Green",
+    ct "Yellow",
+    ct "Blue",
+    ct "Magenta",
+    ct "Cyan",
+    ct "White",
+    ct "BrightBlack",
+    ct "BrightRed",
+    ct "BrightGreen",
+    ct "BrightYellow",
+    ct "BrightBlue",
+    ct "BrightMagenta",
+    ct "BrightCyan",
+    ct "BrightWhite"
+  )
     where
+      ct :: Text -> DD.ConstructorId
       ct n = constructorNamed ansiColorRef ("ANSI.Color." <> n)
 
 pattern AnsiColorBlack <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBlackId -> True))

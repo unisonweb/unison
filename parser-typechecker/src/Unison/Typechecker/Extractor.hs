@@ -324,14 +324,14 @@ instance Functor (SubseqExtractor' n) where
   fmap = liftM
 
 instance Applicative (SubseqExtractor' n) where
-  pure = return
+  pure a = SubseqExtractor' $ \_ -> [Pure a]
   (<*>) = ap
 
 instance MonadFail (SubseqExtractor' n) where
   fail _ = mzero
 
 instance Monad (SubseqExtractor' n) where
-  return a = SubseqExtractor' $ \_ -> [Pure a]
+  return = pure
   xa >>= f = SubseqExtractor' $ \note ->
     let as = runSubseq xa note
      in do

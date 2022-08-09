@@ -80,10 +80,13 @@ bindReferences keepFree ns t =
    in List.validate ok rs <&> \es -> bindExternal es t
 
 -- some smart patterns
+pattern Ref' :: Reference -> ABT.Term F v a
 pattern Ref' r <- ABT.Tm' (Ref r)
 
+pattern ForallsNamed' :: [v] -> Type v a -> Type v a
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 
+pattern ForallNamed' :: v -> ABT.Term F v a -> ABT.Term F v a
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 
 unForalls :: Type v a -> Maybe ([v], Type v a)

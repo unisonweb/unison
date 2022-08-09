@@ -14,6 +14,8 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import Unison.WatchKind (WatchKind)
+import qualified Unison.Type as Type
+import qualified Unison.ABT as ABT
 
 data UnisonFile v a = UnisonFileId
   { dataDeclarationsId :: Map v (Reference.Id, DataDeclaration v a),
@@ -23,6 +25,11 @@ data UnisonFile v a = UnisonFileId
   }
   deriving (Show)
 
+pattern UnisonFile :: Map v (Reference.Reference, DataDeclaration v a)
+                      -> Map v (Reference.Reference, EffectDeclaration v a)
+                      -> [(v, Term v a)]
+                      -> Map WatchKind [(v, Term v a)]
+                      -> UnisonFile v a
 pattern UnisonFile ds es tms ws <-
   UnisonFileId
     (fmap (first Reference.DerivedId) -> ds)
@@ -45,6 +52,16 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
 
 {-# COMPLETE TypecheckedUnisonFile #-}
 
+pattern TypecheckedUnisonFile :: Map v (Reference.Reference, DataDeclaration v a)
+                              -> Map v (Reference.Reference, EffectDeclaration v a)
+                              -> [[(v, Term v a, Type v a)]]
+                              -> [(WatchKind, [(v, Term v a, Type v a)])]
+                              -> Map
+                                  v
+                                  (Reference.Reference, Maybe WatchKind,
+                                    ABT.Term (Term.F v a a) v a,
+                                    ABT.Term Type.F v a)
+                              -> TypecheckedUnisonFile v a
 pattern TypecheckedUnisonFile ds es tlcs wcs hts <-
   TypecheckedUnisonFileId
     (fmap (first Reference.DerivedId) -> ds)

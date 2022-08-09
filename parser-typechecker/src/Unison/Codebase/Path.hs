@@ -252,6 +252,7 @@ toName = Name.unsafeFromText . toText
 toName' :: Path' -> Name
 toName' = Name.unsafeFromText . toText'
 
+pattern Empty :: Path
 pattern Empty = Path Seq.Empty
 
 empty :: Path

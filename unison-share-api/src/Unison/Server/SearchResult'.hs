@@ -39,8 +39,18 @@ data TypeResult' v a
       (Set (HQ'.HashQualified Name))
   deriving (Eq, Show)
 
+pattern Tm :: HQ.HashQualified Name
+           -> Maybe (Type v a)
+           -> Referent
+           -> Set (HQ'.HashQualified Name)
+           -> SearchResult' v a
 pattern Tm n t r as = Tm' (TermResult' n t r as)
 
+pattern Tp :: HQ.HashQualified Name
+              -> DisplayObject () (Decl v a)
+              -> Reference
+              -> Set (HQ'.HashQualified Name)
+              -> SearchResult' v a
 pattern Tp n t r as = Tp' (TypeResult' n t r as)
 
 tmReferent :: SearchResult' v a -> Maybe Referent

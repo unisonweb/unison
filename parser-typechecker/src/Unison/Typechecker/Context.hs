@@ -98,8 +98,10 @@ type RedundantTypeAnnotation = Bool
 
 type Wanted v loc = [(Maybe (Term v loc), Type v loc)]
 
+pattern Universal :: v -> Element v loc
 pattern Universal v = Var (TypeVar.Universal v)
 
+pattern Existential :: B.Blank loc -> v -> Element v loc
 pattern Existential b v <- Var (TypeVar.Existential b v)
 
 existential :: v -> Element v loc
@@ -628,7 +630,7 @@ wellformedType c t = case t of
     -- Extend this `Context` with a single variable, guaranteed fresh
     extendUniversal ctx =
       let v = Var.freshIn (usedVars ctx) (Var.named "var")
-          Right ctx' = extend' (Universal v) ctx
+          ctx' = fromRight (error "wellformedType: Expected Right") $ extend' (Universal v) ctx
        in (v, ctx')
 
 -- | Return the `Info` associated with the last element of the context, or the zero `Info`.
@@ -995,7 +997,9 @@ wantRequest ::
   Term v loc ->
   Type v loc ->
   (Type v loc, Wanted v loc)
-wantRequest loc ~(Type.Effect'' es t) = (t, fmap (Just loc,) es)
+wantRequest loc ty =
+  let ~(es, t) = Type.unEffect0 ty
+   in (t, fmap (Just loc,) es)
 
 -- | This is the main worker for type synthesis. It was factored out
 -- of the `synthesize` function. It handles the various actual

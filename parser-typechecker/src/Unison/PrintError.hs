@@ -64,18 +64,25 @@ import qualified Unison.Var as Var
 
 type Env = PPE.PrettyPrintEnv
 
+pattern Code :: Color
 pattern Code = Color.Blue
 
+pattern Type1 :: Color
 pattern Type1 = Color.HiBlue
 
+pattern Type2 :: Color
 pattern Type2 = Color.Green
 
+pattern ErrorSite :: Color
 pattern ErrorSite = Color.HiRed
 
+pattern TypeKeyword :: Color
 pattern TypeKeyword = Color.Yellow
 
+pattern AbilityKeyword :: Color
 pattern AbilityKeyword = Color.Green
 
+pattern Identifier :: Color
 pattern Identifier = Color.Bold
 
 defaultWidth :: Pr.Width
@@ -1085,6 +1092,7 @@ _printArrowsAtPos s line column =
    in source
 
 -- Wow, epic view pattern for picking out a lexer error
+pattern LexerError :: [L.Token L.Lexeme] -> L.Err -> Maybe (P.ErrorItem (L.Token L.Lexeme))
 pattern LexerError ts e <- Just (P.Tokens (firstLexerError -> Just (ts, e)))
 
 firstLexerError :: Foldable t => t (L.Token L.Lexeme) -> Maybe ([L.Token L.Lexeme], L.Err)

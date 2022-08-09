@@ -217,22 +217,30 @@ extraMap p (Term fvs a sub) = Term fvs a (go p sub)
       Abs v r -> Abs v (extraMap p r)
       Tm x -> Tm (fmap (extraMap p) (p x))
 
+pattern Var' :: v -> Term f v a
 pattern Var' v <- Term _ _ (Var v)
 
+pattern Cycle' :: [v] -> f (Term f v a) -> Term f v a
 pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs (Tm' t)))
 
+pattern Abs'' :: v -> Term f v a -> Term f v a
 pattern Abs'' v body <- Term _ _ (Abs v body)
 
+pattern Abs' :: (Foldable f, Functor f, Var v) => Subst f v a -> Term f v a
 pattern Abs' subst <- (unabs1 -> Just subst)
 
+pattern AbsN' :: [v] -> Term f v a -> Term f v a
 pattern AbsN' vs body <- (unabs -> (vs, body))
 
 {-# COMPLETE AbsN' #-}
 
+pattern Tm' :: f (Term f v a) -> Term f v a
 pattern Tm' f <- Term _ _ (Tm f)
 
+pattern CycleA' :: a -> [(a, v)] -> Term f v a -> Term f v a
 pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
 
+pattern AbsNA' :: [(a, v)] -> Term f v a -> Term f v a
 pattern AbsNA' avs body <- (unabsA -> (avs, body))
 
 {-# COMPLETE Var', Cycle', Abs'', Tm' #-}

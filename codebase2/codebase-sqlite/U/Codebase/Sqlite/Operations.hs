@@ -169,6 +169,7 @@ import Unison.Prelude
 import Unison.Sqlite
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
+import qualified Data.Maybe as Maybe
 
 -- * Error handling
 
@@ -671,7 +672,7 @@ lookup_ stateLens writerLens mk t = do
     Just t' -> pure t'
 
 c2sTerm :: C.Term Symbol -> C.Term.Type Symbol -> Transaction (LocalIds, S.Term.Term, S.Term.Type)
-c2sTerm tm tp = c2xTerm Q.saveText Q.expectObjectIdForPrimaryHash tm (Just tp) <&> \(w, tm, Just tp) -> (w, tm, tp)
+c2sTerm tm tp = c2xTerm Q.saveText Q.expectObjectIdForPrimaryHash tm (Just tp) <&> \(w, tm, mayTp) -> (w, tm, Maybe.fromJust mayTp)
 
 -- *** Watch expressions
 
