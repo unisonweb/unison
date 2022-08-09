@@ -124,13 +124,13 @@ unforall' :: Type v a -> ([v], Type v a)
 unforall' (ForallsNamed' vs t) = (vs, t)
 unforall' t = ([], t)
 
-toReference :: (ABT.Var v, Show v) => Type v a -> Reference
+toReference :: (Ord v, Show v) => Type v a -> Reference
 toReference (Ref' r) = r
 -- a bit of normalization - any unused type parameters aren't part of the hash
 toReference (ForallNamed' v body) | not (Set.member v (ABT.freeVars body)) = toReference body
 toReference t = Reference.Derived (ABT.hash t) 0
 
-toReferenceMentions :: (ABT.Var v, Show v) => Type v a -> Set Reference
+toReferenceMentions :: (Ord v, Show v) => Type v a -> Set Reference
 toReferenceMentions ty =
   let (vs, _) = unforall' ty
       gen ty = generalize (Set.toList (freeVars ty)) $ generalize vs ty

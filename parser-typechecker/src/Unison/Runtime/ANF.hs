@@ -87,6 +87,7 @@ import qualified Unison.ABT.Normalized as ABTN
 import Unison.Blank (nameb)
 import qualified Unison.Builtin.Decls as Ty
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
 import qualified Unison.Pattern as P
 import Unison.Prelude hiding (Text)
@@ -346,17 +347,27 @@ floater top rec tm@(LamsNamed' vs bd)
     a = ABT.annotation tm
 floater _ _ _ = Nothing
 
-float :: (Var v, Monoid a) => Term v a -> (Term v a, [(v, Term v a)])
+float ::
+  Var v =>
+  Monoid a =>
+  Term v a ->
+  (Term v a, [(Reference, Term v a)], [(Reference, Term v a)])
 float tm = case runState go0 (Set.empty, [], []) of
-  (bd, (_, ctx, dcmp)) -> (deannotate $ letRec' True ctx bd, dcmp)
+  (bd, (_, ctx, dcmp)) ->
+    let m = hashTermComponentsWithoutTypes . Map.fromList $ fmap deannotate <$> ctx
+        trips = Map.toList m
+        f (v, (id, tm)) = ((v, id), (v, idtm), (id, tm))
+          where
+            idtm = ref (ABT.annotation tm) (DerivedId id)
+        (subvs, subs, tops) = unzip3 $ map f trips
+        subm = Map.fromList subvs
+     in ( letRec' True [] . ABT.substs subs . deannotate $ bd,
+          fmap (first DerivedId) tops,
+          dcmp <&> \(v, tm) -> (DerivedId $ subm Map.! v, tm)
+        )
   where
     go0 = fromMaybe (go tm) (floater True go tm)
     go = ABT.visit $ floater False go
-
--- tm | LetRecNamedTop' _ vbs e <- tm0
---    , (pre, rec, post) <- reduceCycle vbs
---    = let1' False pre . letRec' False rec . let1' False post $ e
---    | otherwise = tm0
 
 unAnn :: Term v a -> Term v a
 unAnn (Ann' tm _) = tm
@@ -382,7 +393,11 @@ deannotate = ABT.visitPure $ \case
   Ann' c _ -> Just $ deannotate c
   _ -> Nothing
 
-lamLift :: (Var v, Monoid a) => Term v a -> (Term v a, [(v, Term v a)])
+lamLift ::
+  Var v =>
+  Monoid a =>
+  Term v a ->
+  (Term v a, [(Reference, Term v a)], [(Reference, Term v a)])
 lamLift = float . close Set.empty
 
 saturate ::
@@ -1081,7 +1096,7 @@ data Value
 
 data Cont
   = KE
-  | Mark [Reference] (Map Reference Value) Cont
+  | Mark Word64 Word64 [Reference] (Map Reference Value) Cont
   | Push Word64 Word64 Word64 Word64 GroupRef Cont
   deriving (Show)
 
@@ -1522,7 +1537,7 @@ valueLinks f (BLit l) = litLinks f l
 contLinks :: Monoid a => (Bool -> Reference -> a) -> Cont -> a
 contLinks f (Push _ _ _ _ (GR cr _) k) =
   f False cr <> contLinks f k
-contLinks f (Mark ps de k) =
+contLinks f (Mark _ _ ps de k) =
   foldMap (f True) ps
     <> Map.foldMapWithKey (\k c -> f True k <> valueLinks f c) de
     <> contLinks f k
@@ -1781,7 +1796,7 @@ prettyBranches ind bs = case bs of
             s
             (mapToList $ snd <$> m)
       )
-      (prettyCase ind (prettyReq (0::Int) (0::Int)) df id)
+      (prettyCase ind (prettyReq (0 :: Int) (0 :: Int)) df id)
       (Map.toList bs)
   MatchSum bs ->
     foldr

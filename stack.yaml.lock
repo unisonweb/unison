@@ -38,6 +38,19 @@ packages:
   original:
     url: https://github.com/unisonweb/monad-validate/archive/5b181b7c57d6e2c975c533b0a0072e9aeb15fb99.tar.gz
 - completed:
+    size: 15840
+    subdir: ki
+    url: https://github.com/awkward-squad/ki/archive/563e96238dfe392dccf68d93953c8f30fd53bec8.tar.gz
+    name: ki
+    version: 1.0.0
+    sha256: a45eb3dbe7333c108aef4afce7f763c7661919b09641ef9d241c7ca4a78bf735
+    pantry-tree:
+      size: 704
+      sha256: c63220c438c076818e09061b117c56055e154f6abb66ea9bc44a3900fcabd654
+  original:
+    subdir: ki
+    url: https://github.com/awkward-squad/ki/archive/563e96238dfe392dccf68d93953c8f30fd53bec8.tar.gz
+- completed:
     hackage: guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
     pantry-tree:
       size: 364
@@ -80,6 +93,13 @@ packages:
   original:
     hackage: NanoID-3.1.0@sha256:9118ab00e8650b5a56a10c90295d357eb77a8057a598b7e56dfedc9c6d53c77d,1524
 - completed:
+    hackage: direct-sqlite-2.3.27@sha256:94207d3018da3bda84bc6ce00d2c0236ced7edb37afbd726ed2a0bfa236e149b,3771
+    pantry-tree:
+      size: 770
+      sha256: c7f5afe70db567e2cf9f3119b49f4b402705e6bd08ed8ba98747a64a8a0bef41
+  original:
+    hackage: direct-sqlite-2.3.27
+- completed:
     hackage: recover-rtti-0.4.0.0@sha256:2ce1e031ec0e34d736fa45f0149bbd55026f614939dc90ffd14a9c5d24093ff4,4423
     pantry-tree:
       size: 2410
@@ -100,6 +120,20 @@ packages:
       sha256: 8372e84e9c710097f4f80f2016ca15a5a0cd7884b8ac5ce70f26b3110f4401bd
   original:
     hackage: http-client-0.7.11
+- completed:
+    hackage: terminal-size-0.3.3@sha256:bd5f02333982bc8d6017db257b2a0b91870a295b4a37142a0c0525d8f533a48f,1255
+    pantry-tree:
+      size: 580
+      sha256: 2a9669ed392657d34ec2e180ddac68c9ef657e54bf4b5fbc9b9efaa7b1d341be
+  original:
+    hackage: terminal-size-0.3.3
+- completed:
+    hackage: haskeline-0.8.1.3@sha256:a1ecc7bcaa959ecd751b2eec1c5466aa2db6697471d7e35ea8f1803faad8e985,6011
+    pantry-tree:
+      size: 2955
+      sha256: 90969690d0f9b49bdd6f02e5dd6ab005851f70c5778eff40043ce00cba655eaa
+  original:
+    hackage: haskeline-0.8.1.3
 snapshots:
 - completed:
     size: 611629

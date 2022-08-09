@@ -11,6 +11,7 @@ module Unison.Referent
     fold,
     toReference,
     toReferenceId,
+    toTermReference,
     fromTermReference,
     fromTermReferenceId,
     fromText,
@@ -34,7 +35,7 @@ import Unison.ConstructorType (ConstructorType)
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude hiding (fold)
-import Unison.Reference (Reference, TermReference)
+import Unison.Reference (Reference, TermReference, TermReferenceId)
 import qualified Unison.Reference as R
 import qualified Unison.Reference as Reference
 import Unison.Referent' (Referent' (..), reference_, toReference')
@@ -101,11 +102,16 @@ toReference = toReference'
 toReferenceId :: Referent -> Maybe Reference.Id
 toReferenceId = Reference.toId . toReference
 
+toTermReference :: Referent -> Maybe TermReference
+toTermReference = \case
+  Con' _ _ -> Nothing
+  Ref' reference -> Just reference
+
 -- | Inject a Term Reference into a Referent
-fromTermReference :: Reference -> Referent
+fromTermReference :: TermReference -> Referent
 fromTermReference r = Ref r
 
-fromTermReferenceId :: Reference.Id -> Referent
+fromTermReferenceId :: TermReferenceId -> Referent
 fromTermReferenceId = fromTermReference . Reference.fromId
 
 isPrefixOf :: ShortHash -> Referent -> Bool

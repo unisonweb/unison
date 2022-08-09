@@ -20,9 +20,9 @@ where
 import Control.Concurrent.STM as STM
 import Control.Exception (catch, try)
 import Control.Monad
-import Data.Bifunctor (bimap, first, second)
+import Data.Bifunctor (bimap, first)
 import Data.Binary.Get (runGetOrFail)
-import Data.Bits (shiftL)
+-- import Data.Bits (shiftL)
 import qualified Data.ByteString.Lazy as BL
 import Data.Bytes.Get (MonadGet)
 import Data.Bytes.Put (MonadPut, runPutL)
@@ -58,8 +58,9 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.LabeledDependency as RF
 import Unison.Parser.Ann (Ann (External))
-import Unison.Prelude (maybeToList, reportBug)
+import Unison.Prelude (reportBug)
 import Unison.PrettyPrintEnv
+import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as RF
 import qualified Unison.Referent as RF (pattern Ref)
@@ -126,8 +127,8 @@ cacheContext =
     $ Map.keys builtinTermNumbering
       <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
 
-baseContext :: IO EvalCtx
-baseContext = cacheContext <$> baseCCache
+baseContext :: Bool -> IO EvalCtx
+baseContext sandboxed = cacheContext <$> baseCCache sandboxed
 
 resolveTermRef ::
   CodeLookup Symbol IO () ->
@@ -260,40 +261,31 @@ loadDeps cl ppe ctx tyrs tmrs = do
   rtms <-
     traverse (\r -> (,) r <$> resolveTermRef cl r) $
       Prelude.filter q tmrs
-  let (rgrp, rbkr) = intermediateTerms ppe ctx rtms
+  let (rgrp0, rbkr) = intermediateTerms ppe ctx rtms
+      rgrp = Map.toList rgrp0
       tyAdd = Set.fromList $ fst <$> tyrs
   backrefAdd rbkr ctx
     <$ cacheAdd0 tyAdd rgrp (expandSandbox sand rgrp) cc
 
 backrefLifted ::
+  Reference ->
   Term Symbol ->
-  [(Symbol, Term Symbol)] ->
-  Map.Map Word64 (Term Symbol)
-backrefLifted tm@(Tm.LetRecNamed' bs _) dcmp =
-  Map.fromList . ((0, tm) :) $
-    [ (ix, dc)
-      | ix <- ixs
-      | (v, _) <- reverse bs,
-        dc <- maybeToList $ Prelude.lookup v dcmp
-    ]
-  where
-    ixs = fmap (`shiftL` 16) [1 ..]
-backrefLifted tm _ = Map.singleton 0 tm
+  [(Reference, Term Symbol)] ->
+  Map.Map Reference (Map.Map Word64 (Term Symbol))
+backrefLifted ref (Tm.Ann' tm _) dcmp = backrefLifted ref tm dcmp
+backrefLifted ref tm dcmp =
+  Map.fromList . (fmap . fmap) (Map.singleton 0) $ (ref, tm) : dcmp
 
 intermediateTerms ::
   HasCallStack =>
   PrettyPrintEnv ->
   EvalCtx ->
   [(Reference, Term Symbol)] ->
-  ( [(Reference, SuperGroup Symbol)],
+  ( Map.Map Reference (SuperGroup Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerms ppe ctx rtms =
-  ((fmap . second) fst rint, Map.fromList $ (fmap . second) snd rint)
-  where
-    rint =
-      rtms <&> \(ref, tm) ->
-        (ref, intermediateTerm ppe ref ctx tm)
+  foldMap (\(ref, tm) -> intermediateTerm ppe ref ctx tm) rtms
 
 intermediateTerm ::
   HasCallStack =>
@@ -301,9 +293,11 @@ intermediateTerm ::
   Reference ->
   EvalCtx ->
   Term Symbol ->
-  (SuperGroup Symbol, Map.Map Word64 (Term Symbol))
+  ( Map.Map Reference (SuperGroup Symbol),
+    Map.Map Reference (Map.Map Word64 (Term Symbol))
+  )
 intermediateTerm ppe ref ctx tm =
-  first
+  (first . fmap)
     ( superNormalize
         . splitPatterns (dspec ctx)
         . addDefaultCases tmName
@@ -314,7 +308,10 @@ intermediateTerm ppe ref ctx tm =
     . inlineAlias
     $ tm
   where
-    memorize (ll, dcmp) = (ll, backrefLifted ll dcmp)
+    memorize (ll, ctx, dcmp) =
+      ( Map.fromList $ (ref, ll) : ctx,
+        backrefLifted ref tm dcmp
+      )
     tmName = HQ.toString . termName ppe $ RF.Ref ref
 
 prepareEvaluation ::
@@ -337,11 +334,12 @@ prepareEvaluation ppe tm ctx = do
             $ Map.fromList bs,
         mn <- Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0,
         rmn <- RF.DerivedId $ Hashing.hashClosedTerm mn =
-        (rmn, (rmn, mn) : Map.elems hcs)
+          (rmn, (rmn, mn) : Map.elems hcs)
       | rmn <- RF.DerivedId $ Hashing.hashClosedTerm tm =
-        (rmn, [(rmn, tm)])
+          (rmn, [(rmn, tm)])
 
-    (rgrp, rbkr) = intermediateTerms ppe ctx rtms
+    (rgrp0, rbkr) = intermediateTerms ppe ctx rtms
+    rgrp = Map.toList rgrp0
 
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
@@ -402,55 +400,55 @@ executeMainComb init cc =
     handler (BU nm c) = do
       crs <- readTVarIO (combRefs cc)
       let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
-      pure . either id (bugMsg mempty nm) $ decom c
+      pure . either id (bugMsg PPE.empty nm) $ decom c
 
 bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
 bugMsg ppe name tm
   | name == "blank expression" =
-    P.callout icon . P.lines $
-      [ P.wrap
-          ( "I encountered a" <> P.red (P.text name)
-              <> "with the following name/message:"
-          ),
-        "",
-        P.indentN 2 $ pretty ppe tm,
-        "",
-        sorryMsg
-      ]
+      P.callout icon . P.lines $
+        [ P.wrap
+            ( "I encountered a" <> P.red (P.text name)
+                <> "with the following name/message:"
+            ),
+          "",
+          P.indentN 2 $ pretty ppe tm,
+          "",
+          sorryMsg
+        ]
   | "pattern match failure" `isPrefixOf` name =
-    P.callout icon . P.lines $
-      [ P.wrap
-          ( "I've encountered a" <> P.red (P.text name)
-              <> "while scrutinizing:"
-          ),
-        "",
-        P.indentN 2 $ pretty ppe tm,
-        "",
-        "This happens when calling a function that doesn't handle all \
-        \possible inputs",
-        sorryMsg
-      ]
+      P.callout icon . P.lines $
+        [ P.wrap
+            ( "I've encountered a" <> P.red (P.text name)
+                <> "while scrutinizing:"
+            ),
+          "",
+          P.indentN 2 $ pretty ppe tm,
+          "",
+          "This happens when calling a function that doesn't handle all \
+          \possible inputs",
+          sorryMsg
+        ]
   | name == "builtin.raise" =
-    P.callout icon . P.lines $
-      [ P.wrap ("The program halted with an unhandled exception:"),
-        "",
-        P.indentN 2 $ pretty ppe tm
-      ]
+      P.callout icon . P.lines $
+        [ P.wrap ("The program halted with an unhandled exception:"),
+          "",
+          P.indentN 2 $ pretty ppe tm
+        ]
   | name == "builtin.bug",
     RF.TupleTerm' [Tm.Text' msg, x] <- tm,
     "pattern match failure" `isPrefixOf` msg =
-    P.callout icon . P.lines $
-      [ P.wrap
-          ( "I've encountered a" <> P.red (P.text msg)
-              <> "while scrutinizing:"
-          ),
-        "",
-        P.indentN 2 $ pretty ppe x,
-        "",
-        "This happens when calling a function that doesn't handle all \
-        \possible inputs",
-        sorryMsg
-      ]
+      P.callout icon . P.lines $
+        [ P.wrap
+            ( "I've encountered a" <> P.red (P.text msg)
+                <> "while scrutinizing:"
+            ),
+          "",
+          P.indentN 2 $ pretty ppe x,
+          "",
+          "This happens when calling a function that doesn't handle all \
+          \possible inputs",
+          sorryMsg
+        ]
 bugMsg ppe name tm =
   P.callout icon . P.lines $
     [ P.wrap
@@ -496,9 +494,9 @@ data RuntimeHost
   = OneOff
   | Persistent
 
-startRuntime :: RuntimeHost -> Text -> IO (Runtime Symbol)
-startRuntime runtimeHost version = do
-  ctxVar <- newIORef =<< baseContext
+startRuntime :: Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
+startRuntime sandboxed runtimeHost version = do
+  ctxVar <- newIORef =<< baseContext sandboxed
   (activeThreads, cleanupThreads) <- case runtimeHost of
     -- Don't bother tracking open threads when running standalone, they'll all be cleaned up
     -- when the process itself exits.
@@ -587,7 +585,7 @@ getStoredCache =
 
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
-  CCache builtinForeigns uglyTrace
+  CCache builtinForeigns False uglyTrace
     <$> newTVarIO (cs <> combs)
     <*> newTVarIO (crs <> builtinTermBackref)
     <*> newTVarIO (trs <> builtinTypeBackref)
@@ -617,7 +615,7 @@ traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init
     go acc w
       | hasKey w acc = pure acc
       | Just co <- EC.lookup w src =
-        foldlM go (mapInsert w co acc) (foldMap combDeps co)
+          foldlM go (mapInsert w co acc) (foldMap combDeps co)
       | otherwise = die $ "traceNeeded: unknown combinator: " ++ show w
 
 buildSCache ::

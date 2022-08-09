@@ -284,10 +284,6 @@ to actual show that the serialization works.
     tests   : '{IO} [Result]
     zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
 
-.> display fDeps
-
-  [termLink f]
-
 .> io.test tests
 
     New test results:

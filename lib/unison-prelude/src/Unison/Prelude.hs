@@ -7,10 +7,13 @@ module Unison.Prelude
     uncurry4,
     reportBug,
     tShow,
+    wundefined,
 
     -- * @Maybe@ control flow
     onNothing,
     whenNothing,
+    whenJust,
+    whenJustM,
     eitherToMaybe,
     maybeToEither,
 
@@ -76,6 +79,14 @@ onNothing m may = maybe m pure may
 -- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
 whenNothing :: Applicative m => Maybe a -> m a -> m a
 whenNothing may m = maybe m pure may
+
+whenJust :: Applicative m => Maybe a -> (a -> m ()) -> m ()
+whenJust mx f =
+  maybe (pure ()) f mx
+
+whenJustM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
+whenJustM mx f = do
+  mx >>= maybe (pure ()) f
 
 whenLeft :: Applicative m => Either a b -> (a -> m b) -> m b
 whenLeft = \case
@@ -155,3 +166,7 @@ reportBug bugId msg =
       "on the issue to let the team know you encountered it, and you can add",
       "any additional details you know of to the issue."
     ]
+
+{-# WARNING wundefined "You left this wundefined." #-}
+wundefined :: HasCallStack => a
+wundefined = undefined

@@ -6,6 +6,7 @@ module Unison.Debug
     whenDebug,
     debugLog,
     debugLogM,
+    shouldDebug,
     DebugFlag (..),
   )
 where
@@ -20,12 +21,15 @@ import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO.Environment (lookupEnv)
 
 data DebugFlag
-  = Git
-  | Sqlite
+  = Auth
   | Codebase
-  | Auth
-  | Migration
+  | Git
   | Integrity
+  | Migration
+  | Sqlite
+  | Sync
+  | -- | Timing how long things take
+    Timing
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -37,12 +41,14 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
   Just s -> Set.fromList $ do
     w <- (Text.splitOn "," . Text.pack $ s)
     case Text.toUpper . Text.strip $ w of
-      "GIT" -> pure Git
-      "SQLITE" -> pure Sqlite
-      "CODEBASE" -> pure Codebase
       "AUTH" -> pure Auth
-      "MIGRATION" -> pure Migration
+      "CODEBASE" -> pure Codebase
+      "GIT" -> pure Git
       "INTEGRITY" -> pure Integrity
+      "MIGRATION" -> pure Migration
+      "SQLITE" -> pure Sqlite
+      "SYNC" -> pure Sync
+      "TIMING" -> pure Timing
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -70,6 +76,14 @@ debugIntegrity :: Bool
 debugIntegrity = Integrity `Set.member` debugFlags
 {-# NOINLINE debugIntegrity #-}
 
+debugSync :: Bool
+debugSync = Sync `Set.member` debugFlags
+{-# NOINLINE debugSync #-}
+
+debugTiming :: Bool
+debugTiming = Timing `Set.member` debugFlags
+{-# NOINLINE debugTiming #-}
+
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
 --
@@ -79,7 +93,7 @@ debugIntegrity = Integrity `Set.member` debugFlags
 debug :: Show a => DebugFlag -> String -> a -> a
 debug flag msg a =
   if shouldDebug flag
-    then pTrace (msg <> ":\n") $ pTraceShowId a
+    then pTraceShowId (pTrace (msg <> ":\n") a)
     else a
 
 -- | Use for selective debug logging in monadic contexts.
@@ -89,19 +103,19 @@ debug flag msg a =
 --   ...
 debugM :: (Show a, Monad m) => DebugFlag -> String -> a -> m ()
 debugM flag msg a =
-  when (shouldDebug flag) $ do
+  whenDebug flag do
     pTraceM (msg <> ":\n")
     pTraceShowM a
 
 debugLog :: DebugFlag -> String -> a -> a
 debugLog flag msg =
-  if (shouldDebug flag)
+  if shouldDebug flag
     then pTrace msg
     else id
 
 debugLogM :: (Monad m) => DebugFlag -> String -> m ()
 debugLogM flag msg =
-  when (shouldDebug flag) $ pTraceM msg
+  whenDebug flag $ pTraceM msg
 
 -- | A 'when' block which is triggered if the given flag is being debugged.
 whenDebug :: Monad m => DebugFlag -> m () -> m ()
@@ -110,9 +124,11 @@ whenDebug flag action = do
 
 shouldDebug :: DebugFlag -> Bool
 shouldDebug = \case
-  Git -> debugGit
-  Sqlite -> debugSqlite
-  Codebase -> debugCodebase
   Auth -> debugAuth
-  Migration -> debugMigration
+  Codebase -> debugCodebase
+  Git -> debugGit
   Integrity -> debugIntegrity
+  Migration -> debugMigration
+  Sqlite -> debugSqlite
+  Sync -> debugSync
+  Timing -> debugTiming

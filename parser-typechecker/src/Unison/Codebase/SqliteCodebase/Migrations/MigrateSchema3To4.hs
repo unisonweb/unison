@@ -12,7 +12,6 @@ import Data.Semigroup
 import qualified Data.Set as Set
 import Data.Set.Lens (setOf)
 import Data.String.Here.Uninterpolated (here)
-import qualified U.Codebase.HashTags as H
 import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as DBBranch
 import qualified U.Codebase.Sqlite.DbId as DB
@@ -230,7 +229,7 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
     liftT $ replaceBranch objId remappedBranch
   correctNamespaceHash <- liftT $ Helpers.dbBranchHash remappedBranch
   liftT . debugLog $ "Correct namespace hash: " <> show correctNamespaceHash
-  correctNamespaceHashId <- liftT $ Q.saveBranchHash (H.BranchHash correctNamespaceHash)
+  correctNamespaceHashId <- liftT $ Q.saveBranchHash correctNamespaceHash
 
   when (correctNamespaceHashId == possiblyIncorrectNamespaceHashId) $ do
     -- If the existing hash for this namespace was already correct, we don't need to
@@ -251,17 +250,17 @@ rehashAndCanonicalizeNamespace causalHashId possiblyIncorrectNamespaceHashId obj
     -- that one.
     Just canonicalObjectId
       | canonicalObjectId /= objId -> do
-        -- Found an existing but different object with this hash, so the current object is a duplicate and
-        -- needs to be deleted.
-        liftT . debugLog $ "Mapping objID: " <> show objId <> " to canonical: " <> show canonicalObjectId
-        liftT . debugLog $ "Unilaterally deleting: " <> show objId
-        -- Remove possible foreign-key references before deleting the objects themselves
-        liftT $ Sqlite.execute deleteHashObjectsByObjectId (Sqlite.Only objId)
-        liftT $ Sqlite.execute deleteObjectById (Sqlite.Only objId)
-        pure canonicalObjectId
+          -- Found an existing but different object with this hash, so the current object is a duplicate and
+          -- needs to be deleted.
+          liftT . debugLog $ "Mapping objID: " <> show objId <> " to canonical: " <> show canonicalObjectId
+          liftT . debugLog $ "Unilaterally deleting: " <> show objId
+          -- Remove possible foreign-key references before deleting the objects themselves
+          liftT $ Sqlite.execute deleteHashObjectsByObjectId (Sqlite.Only objId)
+          liftT $ Sqlite.execute deleteObjectById (Sqlite.Only objId)
+          pure canonicalObjectId
       | otherwise -> do
-        -- This should be impossible.
-        error $ "We proved that the new hash is different from the existing one, but somehow found the same object for each hash. Please report this as a bug." <> show (objId, canonicalObjectId)
+          -- This should be impossible.
+          error $ "We proved that the new hash is different from the existing one, but somehow found the same object for each hash. Please report this as a bug." <> show (objId, canonicalObjectId)
     Nothing -> do
       -- There's no existing canonical object, this object BECOMES the canonical one by
       -- reassigning its primary hash.

@@ -17,10 +17,8 @@ source-repository head
 library
   exposed-modules:
       U.Util.Alternative
-      U.Util.Base32Hex
       U.Util.Cache
       U.Util.Components
-      U.Util.Hash
       U.Util.Lens
       U.Util.Monoid
       U.Util.String
@@ -56,6 +54,7 @@ library
     , safe
     , text
     , time
+    , unison-prelude
     , unison-util-relation
     , unliftio
     , vector
@@ -96,7 +95,9 @@ benchmark bench
     , sandi
     , text
     , time
+    , unison-prelude
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
     , vector

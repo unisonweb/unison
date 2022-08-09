@@ -4,18 +4,20 @@ module U.Codebase.Sqlite.Operations
     loadRootCausalHash,
     expectRootCausalHash,
     expectRootCausal,
+    loadCausalHashAtPath,
+    expectCausalHashAtPath,
     saveBranch,
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
 
     -- * terms
-    saveTermComponent,
+    Q.saveTermComponent,
     loadTermComponent,
     loadTermByReference,
     loadTypeOfTermByTermReference,
 
     -- * decls
-    saveDeclComponent,
+    Q.saveDeclComponent,
     loadDeclComponent,
     loadDeclByReference,
     expectDeclTypeById,
@@ -53,22 +55,25 @@ module U.Codebase.Sqlite.Operations
     dependentsOfComponent,
 
     -- ** type index
-    addTypeToIndexForTerm,
+    Q.addTypeToIndexForTerm,
     termsHavingType,
 
     -- ** type mentions index
-    addTypeMentionsToIndexForTerm,
+    Q.addTypeMentionsToIndexForTerm,
     termsMentioningType,
 
     -- ** name lookup index
     rebuildNameIndex,
-    rootBranchNames,
+    rootNamesByPath,
+    NamesByPath (..),
 
     -- * low-level stuff
     expectDbBranch,
+    saveDbBranch,
+    saveDbBranchUnderHashId,
     expectDbPatch,
-    saveBranchObject,
     saveDbPatch,
+    expectDbBranchByCausalHashId,
 
     -- * somewhat unexpectedly unused definitions
     c2sReferenceId,
@@ -76,31 +81,23 @@ module U.Codebase.Sqlite.Operations
     diffPatch,
     decodeTermElementWithType,
     loadTermWithTypeByReference,
-    s2cTermWithType,
+    Q.s2cTermWithType,
+    Q.s2cDecl,
     declReferencesByPrefix,
     branchHashesByPrefix,
     derivedDependencies,
   )
 where
 
-import Control.Lens (Lens')
-import qualified Control.Lens as Lens
 import qualified Control.Monad.Extra as Monad
-import Control.Monad.State (MonadState, evalStateT)
-import Control.Monad.Writer (MonadWriter, runWriterT)
-import qualified Control.Monad.Writer as Writer
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
-import Data.Bytes.Get (runGetS)
-import qualified Data.Bytes.Get as Get
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
-import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3, (***))
-import qualified Data.Vector as Vector
 import qualified U.Codebase.Branch as C.Branch
 import qualified U.Codebase.Causal as C
 import U.Codebase.Decl (ConstructorId)
@@ -115,7 +112,6 @@ import U.Codebase.ShortHash (ShortBranchHash (ShortBranchHash))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
 import qualified U.Codebase.Sqlite.Branch.Diff as S.BranchDiff
-import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)
 import qualified U.Codebase.Sqlite.Branch.Format as S
 import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as S
@@ -123,17 +119,15 @@ import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
+import U.Codebase.Sqlite.Decode
+import U.Codebase.Sqlite.HashHandle (HashHandle (..))
 import U.Codebase.Sqlite.LocalIds
-  ( LocalDefnId (..),
-    LocalIds,
-    LocalIds' (..),
-    LocalTextId (..),
+  ( LocalIds,
     WatchLocalIds,
   )
-import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.LocalizeObject as LocalizeObject
 import qualified U.Codebase.Sqlite.NamedRef as S
-import qualified U.Codebase.Sqlite.ObjectType as OT
+import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import qualified U.Codebase.Sqlite.Patch.Diff as S
 import qualified U.Codebase.Sqlite.Patch.Format as S
 import qualified U.Codebase.Sqlite.Patch.Format as S.Patch.Format
@@ -154,51 +148,34 @@ import qualified U.Codebase.Term as C
 import qualified U.Codebase.Term as C.Term
 import qualified U.Codebase.TermEdit as C
 import qualified U.Codebase.TermEdit as C.TermEdit
-import qualified U.Codebase.Type as C.Type
 import qualified U.Codebase.TypeEdit as C
 import qualified U.Codebase.TypeEdit as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)
-import qualified U.Core.ABT as ABT
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as H
-import qualified U.Util.Lens as Lens
-import U.Util.Serialization (Get)
+import qualified U.Util.Hash32 as Hash32
 import qualified U.Util.Serialization as S
-import qualified U.Util.Term as TermUtil
 import Unison.Prelude
 import Unison.Sqlite
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
-import qualified Data.Maybe as Maybe
 
 -- * Error handling
 
 debug :: Bool
 debug = False
 
-data DecodeError = DecodeError
-  { decoder :: Text, -- the name of the decoder
-    err :: String -- the error message
-  }
-  deriving stock (Show)
-  deriving anyclass (SqliteExceptionReason)
-
 newtype NeedTypeForBuiltinMetadata
   = NeedTypeForBuiltinMetadata Text
   deriving stock (Show)
   deriving anyclass (SqliteExceptionReason)
-
-getFromBytesOr :: Text -> Get a -> ByteString -> Either DecodeError a
-getFromBytesOr decoder get bs = case runGetS get bs of
-  Left err -> Left (DecodeError decoder err)
-  Right a -> Right a
 
 -- * Database lookups
 
 objectExistsForHash :: H.Hash -> Transaction Bool
 objectExistsForHash h =
   isJust <$> runMaybeT do
-    id <- MaybeT . Q.loadHashId . H.toBase32Hex $ h
+    id <- MaybeT . Q.loadHashId . Hash32.fromHash $ h
     MaybeT $ Q.loadObjectIdForAnyHashId id
 
 expectValueHashByCausalHashId :: Db.CausalHashId -> Transaction BranchHash
@@ -214,6 +191,40 @@ loadRootCausalHash :: Transaction (Maybe CausalHash)
 loadRootCausalHash =
   runMaybeT $
     lift . Q.expectCausalHash =<< MaybeT Q.loadNamespaceRoot
+
+-- | Load the causal hash at the given path from the root.
+--
+-- FIXME should we move some Path type here?
+loadCausalHashAtPath :: [Text] -> Transaction (Maybe CausalHash)
+loadCausalHashAtPath =
+  let go :: Db.CausalHashId -> [Text] -> MaybeT Transaction CausalHash
+      go hashId = \case
+        [] -> lift (Q.expectCausalHash hashId)
+        t : ts -> do
+          tid <- MaybeT (Q.loadTextId t)
+          S.Branch {children} <- MaybeT (loadDbBranchByCausalHashId hashId)
+          (_, hashId') <- MaybeT (pure (Map.lookup tid children))
+          go hashId' ts
+   in \path -> do
+        hashId <- Q.expectNamespaceRoot
+        runMaybeT (go hashId path)
+
+-- | Expect the causal hash at the given path from the root.
+--
+-- FIXME should we move some Path type here?
+expectCausalHashAtPath :: [Text] -> Transaction CausalHash
+expectCausalHashAtPath =
+  let go :: Db.CausalHashId -> [Text] -> Transaction CausalHash
+      go hashId = \case
+        [] -> Q.expectCausalHash hashId
+        t : ts -> do
+          tid <- Q.expectTextId t
+          S.Branch {children} <- expectDbBranchByCausalHashId hashId
+          let (_, hashId') = children Map.! tid
+          go hashId' ts
+   in \path -> do
+        hashId <- Q.expectNamespaceRoot
+        go hashId path
 
 -- * Reference transformations
 
@@ -282,12 +293,8 @@ h2cReferent = bitraverse h2cReference h2cReference
 
 -- ** convert and save references
 
--- | Save the text and hash parts of a Reference to the database and substitute their ids.
-saveReferenceH :: C.Reference -> Transaction S.ReferenceH
-saveReferenceH = bitraverse Q.saveText Q.saveHashHash
-
 saveReferentH :: C.Referent -> Transaction S.ReferentH
-saveReferentH = bitraverse saveReferenceH saveReferenceH
+saveReferentH = bitraverse Q.saveReferenceH Q.saveReferenceH
 
 -- ** Edits transformations
 
@@ -318,7 +325,7 @@ c2sPatch :: C.Branch.Patch -> Transaction S.Patch
 c2sPatch (C.Branch.Patch termEdits typeEdits) =
   S.Patch
     <$> Map.bitraverse saveReferentH (Set.traverse c2sTermEdit) termEdits
-    <*> Map.bitraverse saveReferenceH (Set.traverse c2sTypeEdit) typeEdits
+    <*> Map.bitraverse Q.saveReferenceH (Set.traverse c2sTypeEdit) typeEdits
   where
     c2sTermEdit = \case
       C.TermEdit.Replace r t -> S.TermEdit.Replace <$> c2sReferent r <*> pure (c2sTyping t)
@@ -346,37 +353,6 @@ diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
         (Ord k, Ord a) => Map.WhenMatched Identity k (Set a) (Set a) (Set a)
     addDiffSet = Map.zipWithMatched (const Set.difference)
     removeDiffSet = Map.zipWithMatched (const (flip Set.difference))
-
--- * Deserialization helpers
-
-decodeBranchFormat :: ByteString -> Either DecodeError S.BranchFormat.BranchFormat
-decodeBranchFormat = getFromBytesOr "getBranchFormat" S.getBranchFormat
-
-decodePatchFormat :: ByteString -> Either DecodeError S.Patch.Format.PatchFormat
-decodePatchFormat = getFromBytesOr "getPatchFormat" S.getPatchFormat
-
-decodeTermFormat :: ByteString -> Either DecodeError S.Term.TermFormat
-decodeTermFormat = getFromBytesOr "getTermFormat" S.getTermFormat
-
-decodeComponentLengthOnly :: ByteString -> Either DecodeError Word64
-decodeComponentLengthOnly = getFromBytesOr "lengthFramedArray" (Get.skip 1 >> S.lengthFramedArray)
-
-decodeTermElementWithType :: C.Reference.Pos -> ByteString -> Either DecodeError (LocalIds, S.Term.Term, S.Term.Type)
-decodeTermElementWithType i = getFromBytesOr ("lookupTermElement" <> tShow i) (S.lookupTermElement i)
-
-decodeTermElementDiscardingTerm :: C.Reference.Pos -> ByteString -> Either DecodeError (LocalIds, S.Term.Type)
-decodeTermElementDiscardingTerm i =
-  getFromBytesOr ("lookupTermElementDiscardingTerm " <> tShow i) (S.lookupTermElementDiscardingTerm i)
-
-decodeTermElementDiscardingType :: C.Reference.Pos -> ByteString -> Either DecodeError (LocalIds, S.Term.Term)
-decodeTermElementDiscardingType i =
-  getFromBytesOr ("lookupTermElementDiscardingType " <> tShow i) (S.lookupTermElementDiscardingType i)
-
-decodeDeclFormat :: ByteString -> Either DecodeError S.Decl.DeclFormat
-decodeDeclFormat = getFromBytesOr "getDeclFormat" S.getDeclFormat
-
-decodeDeclElement :: Word64 -> ByteString -> Either DecodeError (LocalIds, S.Decl.Decl Symbol)
-decodeDeclElement i = getFromBytesOr ("lookupDeclElement " <> tShow i) (S.lookupDeclElement i)
 
 getCycleLen :: H.Hash -> Transaction (Maybe Word64)
 getCycleLen h = do
@@ -410,163 +386,14 @@ loadTermComponent :: H.Hash -> MaybeT Transaction [(C.Term Symbol, C.Term.Type S
 loadTermComponent h = do
   oid <- MaybeT (Q.loadObjectIdForAnyHash h)
   S.Term.Term (S.Term.LocallyIndexedComponent elements) <- MaybeT (Q.loadTermObject oid decodeTermFormat)
-  lift . traverse (uncurry3 s2cTermWithType) $ Foldable.toList elements
-
-saveTermComponent :: H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> Transaction Db.ObjectId
-saveTermComponent h terms = do
-  when debug . traceM $ "Operations.saveTermComponent " ++ show h
-  sTermElements <- traverse (uncurry c2sTerm) terms
-  hashId <- Q.saveHashHash h
-  let li = S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements
-      bytes = S.putBytes S.putTermFormat $ S.Term.Term li
-  oId <- Q.saveObject hashId OT.TermComponent bytes
-  -- populate dependents index
-  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sTermElements `zip` [0 ..])
-      unlocalizeRefs :: ((LocalIds, S.Term.Term, S.Term.Type), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
-      unlocalizeRefs ((LocalIds tIds oIds, tm, tp), i) =
-        let self = C.Reference.Id oId i
-            dependencies :: Set S.Reference =
-              let (tmRefs, tpRefs, tmLinks, tpLinks) = TermUtil.dependencies tm
-                  tpRefs' = Foldable.toList $ C.Type.dependencies tp
-                  getTermSRef :: S.Term.TermRef -> S.Reference
-                  getTermSRef = \case
-                    C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
-                    C.Reference.Derived Nothing i -> C.Reference.Derived oId i -- index self-references
-                    C.Reference.Derived (Just h) i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
-                  getTypeSRef :: S.Term.TypeRef -> S.Reference
-                  getTypeSRef = \case
-                    C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
-                    C.Reference.Derived h i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
-                  getSTypeLink = getTypeSRef
-                  getSTermLink :: S.Term.TermLink -> S.Reference
-                  getSTermLink = \case
-                    C.Referent.Con ref _conId -> getTypeSRef ref
-                    C.Referent.Ref ref -> getTermSRef ref
-               in Set.fromList $
-                    map getTermSRef tmRefs
-                      ++ map getSTermLink tmLinks
-                      ++ map getTypeSRef (tpRefs ++ tpRefs')
-                      ++ map getSTypeLink tpLinks
-         in Set.map (,self) dependencies
-  traverse_ (uncurry Q.addToDependentsIndex) dependencies
-
-  pure oId
-
--- | implementation detail of c2{s,w}Term
---  The Type is optional, because we don't store them for watch expression results.
-c2xTerm :: forall m t d. Monad m => (Text -> m t) -> (H.Hash -> m d) -> C.Term Symbol -> Maybe (C.Term.Type Symbol) -> m (LocalIds' t d, S.Term.Term, Maybe (S.Term.Type))
-c2xTerm saveText saveDefn tm tp =
-  done =<< (runWriterT . flip evalStateT mempty) do
-    sterm <- ABT.transformM go tm
-    stype <- traverse (ABT.transformM goType) tp
-    pure (sterm, stype)
-  where
-    go :: forall m a. (MonadWriter (Seq Text, Seq H.Hash) m, MonadState (Map Text LocalTextId, Map H.Hash LocalDefnId) m) => C.Term.F Symbol a -> m (S.Term.F a)
-    go = \case
-      C.Term.Int n -> pure $ C.Term.Int n
-      C.Term.Nat n -> pure $ C.Term.Nat n
-      C.Term.Float n -> pure $ C.Term.Float n
-      C.Term.Boolean b -> pure $ C.Term.Boolean b
-      C.Term.Text t -> C.Term.Text <$> lookupText t
-      C.Term.Char ch -> pure $ C.Term.Char ch
-      C.Term.Ref r ->
-        C.Term.Ref <$> bitraverse lookupText (traverse lookupDefn) r
-      C.Term.Constructor typeRef cid ->
-        C.Term.Constructor
-          <$> bitraverse lookupText lookupDefn typeRef
-          <*> pure cid
-      C.Term.Request typeRef cid ->
-        C.Term.Request <$> bitraverse lookupText lookupDefn typeRef <*> pure cid
-      C.Term.Handle a a2 -> pure $ C.Term.Handle a a2
-      C.Term.App a a2 -> pure $ C.Term.App a a2
-      C.Term.Ann a typ -> C.Term.Ann a <$> ABT.transformM goType typ
-      C.Term.List as -> pure $ C.Term.List as
-      C.Term.If c t f -> pure $ C.Term.If c t f
-      C.Term.And a a2 -> pure $ C.Term.And a a2
-      C.Term.Or a a2 -> pure $ C.Term.Or a a2
-      C.Term.Lam a -> pure $ C.Term.Lam a
-      C.Term.LetRec bs a -> pure $ C.Term.LetRec bs a
-      C.Term.Let a a2 -> pure $ C.Term.Let a a2
-      C.Term.Match a cs -> C.Term.Match a <$> traverse goCase cs
-      C.Term.TermLink r ->
-        C.Term.TermLink
-          <$> bitraverse
-            (bitraverse lookupText (traverse lookupDefn))
-            (bitraverse lookupText lookupDefn)
-            r
-      C.Term.TypeLink r ->
-        C.Term.TypeLink <$> bitraverse lookupText lookupDefn r
-    goType ::
-      forall m a.
-      (MonadWriter (Seq Text, Seq H.Hash) m, MonadState (Map Text LocalTextId, Map H.Hash LocalDefnId) m) =>
-      C.Type.FT a ->
-      m (S.Term.FT a)
-    goType = \case
-      C.Type.Ref r -> C.Type.Ref <$> bitraverse lookupText lookupDefn r
-      C.Type.Arrow i o -> pure $ C.Type.Arrow i o
-      C.Type.Ann a k -> pure $ C.Type.Ann a k
-      C.Type.App f a -> pure $ C.Type.App f a
-      C.Type.Effect e a -> pure $ C.Type.Effect e a
-      C.Type.Effects es -> pure $ C.Type.Effects es
-      C.Type.Forall a -> pure $ C.Type.Forall a
-      C.Type.IntroOuter a -> pure $ C.Type.IntroOuter a
-    goCase ::
-      forall m w s a.
-      ( MonadState s m,
-        MonadWriter w m,
-        Lens.Field1' s (Map Text LocalTextId),
-        Lens.Field1' w (Seq Text),
-        Lens.Field2' s (Map H.Hash LocalDefnId),
-        Lens.Field2' w (Seq H.Hash)
-      ) =>
-      C.Term.MatchCase Text C.Term.TypeRef a ->
-      m (C.Term.MatchCase LocalTextId S.Term.TypeRef a)
-    goCase = \case
-      C.Term.MatchCase pat guard body ->
-        C.Term.MatchCase <$> goPat pat <*> pure guard <*> pure body
-    goPat ::
-      forall m s w.
-      ( MonadState s m,
-        MonadWriter w m,
-        Lens.Field1' s (Map Text LocalTextId),
-        Lens.Field1' w (Seq Text),
-        Lens.Field2' s (Map H.Hash LocalDefnId),
-        Lens.Field2' w (Seq H.Hash)
-      ) =>
-      C.Term.Pattern Text C.Term.TypeRef ->
-      m (C.Term.Pattern LocalTextId S.Term.TypeRef)
-    goPat = \case
-      C.Term.PUnbound -> pure $ C.Term.PUnbound
-      C.Term.PVar -> pure $ C.Term.PVar
-      C.Term.PBoolean b -> pure $ C.Term.PBoolean b
-      C.Term.PInt i -> pure $ C.Term.PInt i
-      C.Term.PNat n -> pure $ C.Term.PNat n
-      C.Term.PFloat d -> pure $ C.Term.PFloat d
-      C.Term.PText t -> C.Term.PText <$> lookupText t
-      C.Term.PChar c -> pure $ C.Term.PChar c
-      C.Term.PConstructor r i ps -> C.Term.PConstructor <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat ps
-      C.Term.PAs p -> C.Term.PAs <$> goPat p
-      C.Term.PEffectPure p -> C.Term.PEffectPure <$> goPat p
-      C.Term.PEffectBind r i bindings k -> C.Term.PEffectBind <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat bindings <*> goPat k
-      C.Term.PSequenceLiteral ps -> C.Term.PSequenceLiteral <$> traverse goPat ps
-      C.Term.PSequenceOp l op r -> C.Term.PSequenceOp <$> goPat l <*> pure op <*> goPat r
-
-    done :: ((S.Term.Term, Maybe S.Term.Type), (Seq Text, Seq H.Hash)) -> m (LocalIds' t d, S.Term.Term, Maybe S.Term.Type)
-    done ((tm, tp), (localTextValues, localDefnValues)) = do
-      textIds <- traverse saveText localTextValues
-      defnIds <- traverse saveDefn localDefnValues
-      let ids =
-            LocalIds
-              (Vector.fromList (Foldable.toList textIds))
-              (Vector.fromList (Foldable.toList defnIds))
-      pure (ids, void tm, void <$> tp)
+  lift . traverse (uncurry3 Q.s2cTermWithType) $ Foldable.toList elements
 
 loadTermWithTypeByReference :: C.Reference.Id -> MaybeT Transaction (C.Term Symbol, C.Term.Type Symbol)
 loadTermWithTypeByReference (C.Reference.Id h i) = do
   oid <- MaybeT (Q.loadObjectIdForPrimaryHash h)
   -- retrieve and deserialize the blob
   (localIds, term, typ) <- MaybeT (Q.loadTermObject oid (decodeTermElementWithType i))
-  lift (s2cTermWithType localIds term typ)
+  lift (Q.s2cTermWithType localIds term typ)
 
 loadTermByReference :: C.Reference.Id -> MaybeT Transaction (C.Term Symbol)
 loadTermByReference r@(C.Reference.Id h i) = do
@@ -584,95 +411,15 @@ loadTypeOfTermByTermReference id@(C.Reference.Id h i) = do
   (localIds, typ) <- MaybeT (Q.loadTermObject oid (decodeTermElementDiscardingTerm i))
   lift (s2cTypeOfTerm localIds typ)
 
-s2cTermWithType :: LocalIds -> S.Term.Term -> S.Term.Type -> Transaction (C.Term Symbol, C.Term.Type Symbol)
-s2cTermWithType ids tm tp = do
-  (substText, substHash) <- localIdsToLookups Q.expectText Q.expectPrimaryHashByObjectId ids
-  pure (x2cTerm substText substHash tm, x2cTType substText substHash tp)
-
 s2cTerm :: LocalIds -> S.Term.Term -> Transaction (C.Term Symbol)
 s2cTerm ids tm = do
-  (substText, substHash) <- localIdsToLookups Q.expectText Q.expectPrimaryHashByObjectId ids
-  pure $ x2cTerm substText substHash tm
+  (substText, substHash) <- Q.localIdsToLookups Q.expectText Q.expectPrimaryHashByObjectId ids
+  pure $ Q.x2cTerm substText substHash tm
 
 s2cTypeOfTerm :: LocalIds -> S.Term.Type -> Transaction (C.Term.Type Symbol)
 s2cTypeOfTerm ids tp = do
-  (substText, substHash) <- localIdsToLookups Q.expectText Q.expectPrimaryHashByObjectId ids
-  pure $ x2cTType substText substHash tp
-
--- | implementation detail of {s,w}2c*Term* & s2cDecl
-localIdsToLookups :: Monad m => (t -> m Text) -> (d -> m H.Hash) -> LocalIds' t d -> m (LocalTextId -> Text, LocalDefnId -> H.Hash)
-localIdsToLookups loadText loadHash localIds = do
-  texts <- traverse loadText $ LocalIds.textLookup localIds
-  hashes <- traverse loadHash $ LocalIds.defnLookup localIds
-  let substText (LocalTextId w) = texts Vector.! fromIntegral w
-      substHash (LocalDefnId w) = hashes Vector.! fromIntegral w
-  pure (substText, substHash)
-
-localIdsToTypeRefLookup :: LocalIds -> Transaction (S.Decl.TypeRef -> C.Decl.TypeRef)
-localIdsToTypeRefLookup localIds = do
-  (substText, substHash) <- localIdsToLookups Q.expectText Q.expectPrimaryHashByObjectId localIds
-  pure $ bimap substText (fmap substHash)
-
--- | implementation detail of {s,w}2c*Term*
-x2cTerm :: (LocalTextId -> Text) -> (LocalDefnId -> H.Hash) -> S.Term.Term -> C.Term Symbol
-x2cTerm substText substHash =
-  -- substitute the text and hashes back into the term
-  C.Term.extraMap substText substTermRef substTypeRef substTermLink substTypeLink id
-  where
-    substTermRef = bimap substText (fmap substHash)
-    substTypeRef = bimap substText substHash
-    substTermLink = bimap substTermRef substTypeRef
-    substTypeLink = substTypeRef
-
--- | implementation detail of {s,w}2c*Term*
-x2cTType :: (LocalTextId -> Text) -> (LocalDefnId -> H.Hash) -> S.Term.Type -> C.Term.Type Symbol
-x2cTType substText substHash = C.Type.rmap (bimap substText substHash)
-
-lookupText ::
-  forall m s w t.
-  ( MonadState s m,
-    MonadWriter w m,
-    Lens.Field1' s (Map t LocalTextId),
-    Lens.Field1' w (Seq t),
-    Ord t
-  ) =>
-  t ->
-  m LocalTextId
-lookupText = lookup_ Lens._1 Lens._1 LocalTextId
-
-lookupDefn ::
-  forall m s w d.
-  ( MonadState s m,
-    MonadWriter w m,
-    Lens.Field2' s (Map d LocalDefnId),
-    Lens.Field2' w (Seq d),
-    Ord d
-  ) =>
-  d ->
-  m LocalDefnId
-lookupDefn = lookup_ Lens._2 Lens._2 LocalDefnId
-
--- | shared implementation of lookupTextHelper and lookupDefnHelper
---  Look up a value in the LUT, or append it.
-lookup_ ::
-  (MonadState s m, MonadWriter w m, Ord t) =>
-  Lens' s (Map t t') ->
-  Lens' w (Seq t) ->
-  (Word64 -> t') ->
-  t ->
-  m t'
-lookup_ stateLens writerLens mk t = do
-  map <- Lens.use stateLens
-  case Map.lookup t map of
-    Nothing -> do
-      let id = mk . fromIntegral $ Map.size map
-      stateLens Lens.%= Map.insert t id
-      Writer.tell $ Lens.set writerLens (Seq.singleton t) mempty
-      pure id
-    Just t' -> pure t'
-
-c2sTerm :: C.Term Symbol -> C.Term.Type Symbol -> Transaction (LocalIds, S.Term.Term, S.Term.Type)
-c2sTerm tm tp = c2xTerm Q.saveText Q.expectObjectIdForPrimaryHash tm (Just tp) <&> \(w, tm, mayTp) -> (w, tm, Maybe.fromJust mayTp)
+  (substText, substHash) <- Q.localIdsToLookups Q.expectText Q.expectPrimaryHashByObjectId ids
+  pure $ Q.x2cTType substText substHash tp
 
 -- *** Watch expressions
 
@@ -683,7 +430,7 @@ listWatches k = Q.loadWatchesByWatchKind k >>= traverse h2cReferenceId
 loadWatch :: WatchKind -> C.Reference.Id -> MaybeT Transaction (C.Term Symbol)
 loadWatch k r = do
   r' <- C.Reference.idH (lift . Q.saveHashHash) r
-  S.Term.WatchResult wlids t <- MaybeT (Q.loadWatch k r' (getFromBytesOr "getWatchResultFormat" S.getWatchResultFormat))
+  S.Term.WatchResult wlids t <- MaybeT (Q.loadWatch k r' decodeWatchResultFormat)
   lift (w2cTerm wlids t)
 
 saveWatch :: WatchKind -> C.Reference.Id -> C.Term Symbol -> Transaction ()
@@ -697,12 +444,12 @@ clearWatches :: Transaction ()
 clearWatches = Q.clearWatches
 
 c2wTerm :: C.Term Symbol -> Transaction (WatchLocalIds, S.Term.Term)
-c2wTerm tm = c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)
+c2wTerm tm = Q.c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)
 
 w2cTerm :: WatchLocalIds -> S.Term.Term -> Transaction (C.Term Symbol)
 w2cTerm ids tm = do
-  (substText, substHash) <- localIdsToLookups Q.expectText Q.expectHash ids
-  pure $ x2cTerm substText substHash tm
+  (substText, substHash) <- Q.localIdsToLookups Q.expectText Q.expectHash ids
+  pure $ Q.x2cTerm substText substHash tm
 
 -- ** Saving & loading type decls
 
@@ -710,80 +457,14 @@ loadDeclComponent :: H.Hash -> MaybeT Transaction [C.Decl Symbol]
 loadDeclComponent h = do
   oid <- MaybeT (Q.loadObjectIdForAnyHash h)
   S.Decl.Decl (S.Decl.LocallyIndexedComponent elements) <- MaybeT (Q.loadDeclObject oid decodeDeclFormat)
-  lift . traverse (uncurry s2cDecl) $ Foldable.toList elements
-
-saveDeclComponent :: H.Hash -> [C.Decl Symbol] -> Transaction Db.ObjectId
-saveDeclComponent h decls = do
-  when debug . traceM $ "Operations.saveDeclComponent " ++ show h
-  sDeclElements <- traverse (c2sDecl Q.saveText Q.expectObjectIdForPrimaryHash) decls
-  hashId <- Q.saveHashHash h
-  let li = S.Decl.LocallyIndexedComponent $ Vector.fromList sDeclElements
-      bytes = S.putBytes S.putDeclFormat $ S.Decl.Decl li
-  oId <- Q.saveObject hashId OT.DeclComponent bytes
-  -- populate dependents index
-  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sDeclElements `zip` [0 ..])
-      unlocalizeRefs :: ((LocalIds, S.Decl.Decl Symbol), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
-      unlocalizeRefs ((LocalIds tIds oIds, decl), i) =
-        let self = C.Reference.Id oId i
-            dependencies :: Set S.Decl.TypeRef = C.Decl.dependencies decl
-            getSRef :: C.Reference.Reference' LocalTextId (Maybe LocalDefnId) -> S.Reference.Reference
-            getSRef = \case
-              C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
-              C.Reference.Derived Nothing i -> C.Reference.Derived oId i -- index self-references
-              C.Reference.Derived (Just h) i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
-         in Set.map ((,self) . getSRef) dependencies
-  traverse_ (uncurry Q.addToDependentsIndex) dependencies
-
-  pure oId
-
-c2sDecl ::
-  forall m t d.
-  Monad m =>
-  (Text -> m t) ->
-  (H.Hash -> m d) ->
-  C.Decl Symbol ->
-  m (LocalIds' t d, S.Decl.Decl Symbol)
-c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
-  done =<< (runWriterT . flip evalStateT mempty) do
-    cts' <- traverse (ABT.transformM goType) cts
-    pure (C.Decl.DataDeclaration dt m b cts')
-  where
-    goType ::
-      forall m a.
-      (MonadWriter (Seq Text, Seq H.Hash) m, MonadState (Map Text LocalTextId, Map H.Hash LocalDefnId) m) =>
-      C.Type.FD a ->
-      m (S.Decl.F a)
-    goType = \case
-      C.Type.Ref r -> C.Type.Ref <$> bitraverse lookupText (traverse lookupDefn) r
-      C.Type.Arrow i o -> pure $ C.Type.Arrow i o
-      C.Type.Ann a k -> pure $ C.Type.Ann a k
-      C.Type.App f a -> pure $ C.Type.App f a
-      C.Type.Effect e a -> pure $ C.Type.Effect e a
-      C.Type.Effects es -> pure $ C.Type.Effects es
-      C.Type.Forall a -> pure $ C.Type.Forall a
-      C.Type.IntroOuter a -> pure $ C.Type.IntroOuter a
-    done :: (S.Decl.Decl Symbol, (Seq Text, Seq H.Hash)) -> m (LocalIds' t d, S.Decl.Decl Symbol)
-    done (decl, (localTextValues, localDefnValues)) = do
-      textIds <- traverse saveText localTextValues
-      defnIds <- traverse saveDefn localDefnValues
-      let ids =
-            LocalIds
-              (Vector.fromList (Foldable.toList textIds))
-              (Vector.fromList (Foldable.toList defnIds))
-      pure (ids, decl)
-
--- | Unlocalize a decl.
-s2cDecl :: LocalIds -> S.Decl.Decl Symbol -> Transaction (C.Decl Symbol)
-s2cDecl ids (C.Decl.DataDeclaration dt m b ct) = do
-  substTypeRef <- localIdsToTypeRefLookup ids
-  pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct))
+  lift . traverse (uncurry Q.s2cDecl) $ Foldable.toList elements
 
 loadDeclByReference :: C.Reference.Id -> MaybeT Transaction (C.Decl Symbol)
 loadDeclByReference r@(C.Reference.Id h i) = do
   when debug . traceM $ "loadDeclByReference " ++ show r
   oid <- MaybeT (Q.loadObjectIdForPrimaryHash h)
   (localIds, decl) <- MaybeT (Q.loadDeclObject oid (decodeDeclElement i))
-  lift (s2cDecl localIds decl)
+  lift (Q.s2cDecl localIds decl)
 
 expectDeclByReference :: C.Reference.Id -> Transaction (C.Decl Symbol)
 expectDeclByReference r@(C.Reference.Id h i) = do
@@ -791,7 +472,7 @@ expectDeclByReference r@(C.Reference.Id h i) = do
   -- retrieve the blob
   Q.expectObjectIdForPrimaryHash h
     >>= (\oid -> Q.expectDeclObject oid (decodeDeclElement i))
-    >>= uncurry s2cDecl
+    >>= uncurry Q.s2cDecl
 
 -- * Branch transformation
 
@@ -885,10 +566,13 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           boId <- Q.expectBranchObjectIdByCausalHashId chId
           expectBranch boId
 
-saveRootBranch :: C.Branch.CausalBranch Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
-saveRootBranch c = do
+saveRootBranch ::
+  HashHandle ->
+  C.Branch.CausalBranch Transaction ->
+  Transaction (Db.BranchObjectId, Db.CausalHashId)
+saveRootBranch hh c = do
   when debug $ traceM $ "Operations.saveRootBranch " ++ show (C.causalHash c)
-  (boId, chId) <- saveBranch c
+  (boId, chId) <- saveBranch hh c
   Q.setNamespaceRoot chId
   pure (boId, chId)
 
@@ -931,16 +615,18 @@ saveRootBranch c = do
 -- References, but also values
 -- Shallow - Hash? representation of the database relationships
 
-saveBranch :: C.Branch.CausalBranch Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
-saveBranch (C.Causal hc he parents me) = do
+saveBranch ::
+  HashHandle ->
+  C.Branch.CausalBranch Transaction ->
+  Transaction (Db.BranchObjectId, Db.CausalHashId)
+saveBranch hh (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
 
   (chId, bhId) <- flip Monad.fromMaybeM (Q.loadCausalByCausalHash hc) do
     -- if not exist, create these
     chId <- Q.saveCausalHash hc
     bhId <- Q.saveBranchHash he
-    Q.saveCausal chId bhId
-    -- save the link between child and parents
+
     parentCausalHashIds <-
       -- so try to save each parent (recursively) before continuing to save hc
       for (Map.toList parents) $ \(parentHash, mcausal) ->
@@ -948,14 +634,14 @@ saveBranch (C.Causal hc he parents me) = do
         -- by checking if there are causal parents associated with hc
         (flip Monad.fromMaybeM)
           (Q.loadCausalHashIdByCausalHash parentHash)
-          (mcausal >>= fmap snd . saveBranch)
-    unless (null parentCausalHashIds) $
-      Q.saveCausalParents chId parentCausalHashIds
+          (mcausal >>= fmap snd . saveBranch hh)
+
+    -- Save these CausalHashIds to the causal_parents table,
+    Q.saveCausal hh chId bhId parentCausalHashIds
     pure (chId, bhId)
   boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByCausalHashId chId) do
     branch <- c2sBranch =<< me
-    let (li, lBranch) = LocalizeObject.localizeBranch branch
-    saveBranchObject bhId li lBranch
+    saveDbBranchUnderHashId hh bhId branch
   pure (boId, chId)
   where
     c2sBranch :: C.Branch.Branch Transaction -> Transaction S.DbBranch
@@ -964,7 +650,7 @@ saveBranch (C.Causal hc he parents me) = do
         <$> Map.bitraverse saveNameSegment (Map.bitraverse c2sReferent c2sMetadata) terms
         <*> Map.bitraverse saveNameSegment (Map.bitraverse c2sReference c2sMetadata) types
         <*> Map.bitraverse saveNameSegment savePatchObjectId patches
-        <*> Map.bitraverse saveNameSegment saveBranch children
+        <*> Map.bitraverse saveNameSegment (saveBranch hh) children
 
     saveNameSegment :: C.Branch.NameSegment -> Transaction Db.TextId
     saveNameSegment = Q.saveText . C.Branch.unNameSegment
@@ -980,14 +666,7 @@ saveBranch (C.Causal hc he parents me) = do
         Just patchOID -> pure patchOID
         Nothing -> do
           patch <- mp
-          savePatch h patch
-
-saveBranchObject :: Db.BranchHashId -> BranchLocalIds -> S.Branch.Full.LocalBranch -> Transaction Db.BranchObjectId
-saveBranchObject id@(Db.unBranchHashId -> hashId) li lBranch = do
-  when debug $ traceM $ "saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show li ++ "\n\tlBranch = " ++ show lBranch
-  let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full li lBranch
-  oId <- Q.saveObject hashId OT.Namespace bytes
-  pure $ Db.BranchObjectId oId
+          savePatch hh h patch
 
 expectRootCausal :: Transaction (C.Branch.CausalBranch Transaction)
 expectRootCausal = Q.expectNamespaceRoot >>= expectCausalBranchByCausalHashId
@@ -1017,6 +696,19 @@ expectBranchByCausalHashId :: Db.CausalHashId -> Transaction (C.Branch.Branch Tr
 expectBranchByCausalHashId id = do
   boId <- Q.expectBranchObjectIdByCausalHashId id
   expectBranch boId
+
+-- | Load a branch value given its causal hash id.
+loadDbBranchByCausalHashId :: Db.CausalHashId -> Transaction (Maybe S.DbBranch)
+loadDbBranchByCausalHashId causalHashId =
+  Q.loadBranchObjectIdByCausalHashId causalHashId >>= \case
+    Nothing -> pure Nothing
+    Just branchObjectId -> Just <$> expectDbBranch branchObjectId
+
+-- | Expect a branch value given its causal hash id.
+expectDbBranchByCausalHashId :: Db.CausalHashId -> Transaction S.DbBranch
+expectDbBranchByCausalHashId causalHashId = do
+  branchObjectId <- Q.expectBranchObjectIdByCausalHashId causalHashId
+  expectDbBranch branchObjectId
 
 expectDbBranch :: Db.BranchObjectId -> Transaction S.DbBranch
 expectDbBranch id =
@@ -1124,6 +816,36 @@ expectDbBranch id =
             let (Set.fromList -> adds, Set.fromList -> removes) = S.BranchDiff.addsRemoves md'
              in Just . S.MetadataSet.Inline $ (Set.union adds $ Set.difference md removes)
 
+-- | Save a 'S.DbBranch', given its hash (which the caller is expected to produce from the branch).
+--
+-- Note: long-standing question: should this package depend on the hashing package? (If so, we would only need to take
+-- the DbBranch, and hash internally).
+saveDbBranch ::
+  HashHandle ->
+  BranchHash ->
+  S.DbBranch ->
+  Transaction Db.BranchObjectId
+saveDbBranch hh hash branch = do
+  hashId <- Q.saveBranchHash hash
+  saveDbBranchUnderHashId hh hashId branch
+
+-- | Variant of 'saveDbBranch' that might be preferred by callers that already have a hash id, not a hash.
+saveDbBranchUnderHashId ::
+  HashHandle ->
+  Db.BranchHashId ->
+  S.DbBranch ->
+  Transaction Db.BranchObjectId
+saveDbBranchUnderHashId hh id@(Db.unBranchHashId -> hashId) branch = do
+  let (localBranchIds, localBranch) = LocalizeObject.localizeBranch branch
+  when debug $
+    traceM $
+      "saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show localBranchIds
+        ++ "\n\tlBranch = "
+        ++ show localBranch
+  let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full localBranchIds localBranch
+  oId <- Q.saveObject hh hashId ObjectType.Namespace bytes
+  pure $ Db.BranchObjectId oId
+
 expectBranch :: Db.BranchObjectId -> Transaction (C.Branch.Branch Transaction)
 expectBranch id =
   expectDbBranch id >>= s2cBranch
@@ -1146,16 +868,24 @@ expectDbPatch patchId =
         S.Patch.Format.Full li f -> pure (S.Patch.Format.applyPatchDiffs (S.Patch.Format.localPatchToPatch li f) ds)
         S.Patch.Format.Diff ref' li' d' -> doDiff ref' (S.Patch.Format.localPatchDiffToPatchDiff li' d' : ds)
 
-savePatch :: PatchHash -> C.Branch.Patch -> Transaction Db.PatchObjectId
-savePatch h c = do
+savePatch ::
+  HashHandle ->
+  PatchHash ->
+  C.Branch.Patch ->
+  Transaction Db.PatchObjectId
+savePatch hh h c = do
   (li, lPatch) <- LocalizeObject.localizePatch <$> c2sPatch c
-  saveDbPatch h (S.Patch.Format.Full li lPatch)
+  saveDbPatch hh h (S.Patch.Format.Full li lPatch)
 
-saveDbPatch :: PatchHash -> S.PatchFormat -> Transaction Db.PatchObjectId
-saveDbPatch hash patch = do
+saveDbPatch ::
+  HashHandle ->
+  PatchHash ->
+  S.PatchFormat ->
+  Transaction Db.PatchObjectId
+saveDbPatch hh hash patch = do
   hashId <- Q.saveHashHash (unPatchHash hash)
   let bytes = S.putBytes S.putPatchFormat patch
-  Db.PatchObjectId <$> Q.saveObject hashId OT.Patch bytes
+  Db.PatchObjectId <$> Q.saveObject hh hashId ObjectType.Patch bytes
 
 s2cPatch :: S.Patch -> Transaction C.Branch.Patch
 s2cPatch (S.Patch termEdits typeEdits) =
@@ -1205,19 +935,10 @@ termsMentioningType cTypeRef =
       set <- traverse s2cReferentId sIds
       pure (Set.fromList set)
 
-addTypeToIndexForTerm :: S.Referent.Id -> C.Reference -> Transaction ()
-addTypeToIndexForTerm sTermId cTypeRef = do
-  sTypeRef <- saveReferenceH cTypeRef
-  Q.addToTypeIndex sTypeRef sTermId
-
-addTypeMentionsToIndexForTerm :: S.Referent.Id -> Set C.Reference -> Transaction ()
-addTypeMentionsToIndexForTerm sTermId cTypeMentionRefs = do
-  traverse_ (flip Q.addToTypeMentionsIndex sTermId <=< saveReferenceH) cTypeMentionRefs
-
 -- something kind of funny here.  first, we don't need to enumerate all the reference pos if we're just picking one
 -- second, it would be nice if we could leave these as S.References a little longer
 -- so that we remember how to blow up if they're missing
-componentReferencesByPrefix :: OT.ObjectType -> Text -> Maybe C.Reference.Pos -> Transaction [S.Reference.Id]
+componentReferencesByPrefix :: ObjectType.ObjectType -> Text -> Maybe C.Reference.Pos -> Transaction [S.Reference.Id]
 componentReferencesByPrefix ot b32prefix pos = do
   oIds :: [Db.ObjectId] <- Q.objectIdByBase32Prefix ot b32prefix
   let test = maybe (const True) (==) pos
@@ -1226,12 +947,12 @@ componentReferencesByPrefix ot b32prefix pos = do
 
 termReferencesByPrefix :: Text -> Maybe Word64 -> Transaction [C.Reference.Id]
 termReferencesByPrefix t w =
-  componentReferencesByPrefix OT.TermComponent t w
+  componentReferencesByPrefix ObjectType.TermComponent t w
     >>= traverse (C.Reference.idH Q.expectPrimaryHashByObjectId)
 
 declReferencesByPrefix :: Text -> Maybe Word64 -> Transaction [C.Reference.Id]
 declReferencesByPrefix t w =
-  componentReferencesByPrefix OT.DeclComponent t w
+  componentReferencesByPrefix ObjectType.DeclComponent t w
     >>= traverse (C.Reference.idH Q.expectPrimaryHashByObjectId)
 
 termReferentsByPrefix :: Text -> Maybe Word64 -> Transaction [C.Referent.Id]
@@ -1246,7 +967,7 @@ declReferentsByPrefix ::
   Maybe ConstructorId ->
   Transaction [(H.Hash, C.Reference.Pos, C.DeclType, [C.Decl.ConstructorId])]
 declReferentsByPrefix b32prefix pos cid = do
-  componentReferencesByPrefix OT.DeclComponent b32prefix pos
+  componentReferencesByPrefix ObjectType.DeclComponent b32prefix pos
     >>= traverse (loadConstructors cid)
   where
     loadConstructors ::
@@ -1256,15 +977,16 @@ declReferentsByPrefix b32prefix pos cid = do
     loadConstructors cid rid@(C.Reference.Id oId pos) = do
       (dt, ctorCount) <- getDeclCtorCount rid
       h <- Q.expectPrimaryHashByObjectId oId
-      let test :: ConstructorId -> Bool
-          test = maybe (const True) (==) cid
-          cids = [cid | cid <- [0 :: ConstructorId .. ctorCount - 1], test cid]
+      let cids =
+            case cid of
+              Nothing -> take ctorCount [0::ConstructorId ..]
+              Just cid -> if fromIntegral cid < ctorCount then [cid] else []
       pure (h, pos, dt, cids)
-    getDeclCtorCount :: S.Reference.Id -> Transaction (C.Decl.DeclType, ConstructorId)
+    getDeclCtorCount :: S.Reference.Id -> Transaction (C.Decl.DeclType, Int)
     getDeclCtorCount id@(C.Reference.Id r i) = do
       when debug $ traceM $ "getDeclCtorCount " ++ show id
       (_localIds, decl) <- Q.expectDeclObject r (decodeDeclElement i)
-      pure (C.Decl.declType decl, fromIntegral $ length (C.Decl.constructorTypes decl))
+      pure (C.Decl.declType decl, length (C.Decl.constructorTypes decl))
 
 branchHashesByPrefix :: ShortBranchHash -> Transaction (Set BranchHash)
 branchHashesByPrefix (ShortBranchHash b32prefix) = do
@@ -1310,9 +1032,28 @@ rebuildNameIndex termNames typeNames = do
   Q.insertTermNames ((fmap (c2sTextReferent *** fmap c2sConstructorType) <$> termNames))
   Q.insertTypeNames ((fmap c2sTextReference <$> typeNames))
 
+data NamesByPath = NamesByPath
+  { termNamesInPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
+    termNamesExternalToPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
+    typeNamesInPath :: [S.NamedRef C.Reference],
+    typeNamesExternalToPath :: [S.NamedRef C.Reference]
+  }
+
 -- | Get all the term and type names for the root namespace from the lookup table.
-rootBranchNames :: Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
-rootBranchNames = do
-  termNames <- Q.rootTermNames
-  typeNames <- Q.rootTypeNames
-  pure (fmap (bimap s2cTextReferent (fmap s2cConstructorType)) <$> termNames, fmap s2cTextReference <$> typeNames)
+rootNamesByPath ::
+  -- | A relative namespace string, e.g. Just "base.List"
+  Maybe Text ->
+  Transaction NamesByPath
+rootNamesByPath path = do
+  (termNamesInPath, termNamesExternalToPath) <- Q.rootTermNamesByPath path
+  (typeNamesInPath, typeNamesExternalToPath) <- Q.rootTypeNamesByPath path
+  pure $
+    NamesByPath
+      { termNamesInPath = convertTerms <$> termNamesInPath,
+        termNamesExternalToPath = convertTerms <$> termNamesExternalToPath,
+        typeNamesInPath = convertTypes <$> typeNamesInPath,
+        typeNamesExternalToPath = convertTypes <$> typeNamesExternalToPath
+      }
+  where
+    convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
+    convertTypes = fmap s2cTextReference

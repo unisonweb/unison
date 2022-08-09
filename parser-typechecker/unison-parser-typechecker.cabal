@@ -63,6 +63,7 @@ library
       Unison.Codebase.Serialization
       Unison.Codebase.ShortBranchHash
       Unison.Codebase.SqliteCodebase
+      Unison.Codebase.SqliteCodebase.Branch.Cache
       Unison.Codebase.SqliteCodebase.Branch.Dependencies
       Unison.Codebase.SqliteCodebase.Conversions
       Unison.Codebase.SqliteCodebase.GitError
@@ -72,6 +73,7 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
@@ -118,6 +120,7 @@ library
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector
+      Unison.Share.Types
       Unison.TermParser
       Unison.TermPrinter
       Unison.Typechecker
@@ -147,6 +150,7 @@ library
       Unison.Util.Rope
       Unison.Util.Star3
       Unison.Util.Text
+      Unison.Util.Text.Pattern
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
   hs-source-dirs:
@@ -162,6 +166,7 @@ library
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
@@ -228,6 +233,7 @@ library
     , natural-transformation
     , network
     , network-simple
+    , network-uri
     , nonempty-containers
     , open-browser
     , openapi3
@@ -245,6 +251,7 @@ library
     , safe-exceptions
     , semialign
     , servant
+    , servant-client
     , servant-docs
     , servant-openapi3
     , servant-server
@@ -263,6 +270,7 @@ library
     , unicode-show
     , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-codebase-sync
     , unison-core
     , unison-core1
@@ -271,6 +279,7 @@ library
     , unison-pretty-printer
     , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unison-util-serialization
     , unliftio
@@ -335,6 +344,7 @@ test-suite parser-typechecker-tests
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
@@ -350,37 +360,122 @@ test-suite parser-typechecker-tests
       ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
-      async
+      ListLike
+    , NanoID
+    , aeson
+    , ansi-terminal
+    , async
     , base
+    , base16 >=0.2.1.0
+    , base64-bytestring
+    , basement
+    , binary
+    , bytes
     , bytestring
+    , bytestring-to-vector
+    , cereal
+    , clock
     , code-page
-    , containers
+    , configurator
+    , containers >=0.6.3
+    , cryptonite
+    , data-default
+    , data-memocombinators
+    , deepseq
     , directory
     , easytest
+    , either
     , errors
     , exceptions
     , extra
     , filemanip
     , filepath
+    , fingertree
+    , fsnotify
+    , fuzzyfind
+    , generic-lens
+    , generic-monoid
+    , hashable
+    , hashtables
     , haskeline
     , here
+    , http-client
+    , http-media
+    , http-types
     , lens
+    , lucid
     , megaparsec
+    , memory
+    , mmorph
+    , monad-validate
     , mtl
+    , mutable-containers
+    , mwc-random
+    , natural-transformation
+    , network
+    , network-simple
+    , network-uri
+    , nonempty-containers
+    , open-browser
+    , openapi3
+    , optparse-applicative >=0.16.1.0
+    , pem
+    , prelude-extras
+    , pretty-simple
+    , primitive
+    , process
+    , random >=1.2.0
     , raw-strings-qq
+    , regex-base
+    , regex-tdfa
+    , safe
+    , safe-exceptions
+    , semialign
+    , servant
+    , servant-client
+    , servant-docs
+    , servant-openapi3
+    , servant-server
     , shellmet
     , split
     , stm
+    , strings
+    , tagged
     , temporary
+    , terminal-size
     , text
+    , text-short
+    , these
+    , time
+    , tls
     , transformers
+    , unicode-show
+    , unison-codebase
+    , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
+    , unison-codebase-sync
+    , unison-core
     , unison-core1
+    , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
+    , unison-util-serialization
     , unliftio
+    , uri-encode
+    , utf8-string
+    , vector
+    , wai
+    , warp
+    , x509
+    , x509-store
+    , x509-system
+    , yaml
+    , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010

@@ -11,10 +11,11 @@ module Main where
 import ArgParse
   ( CodebasePathOption (..),
     Command (Init, Launch, PrintVersion, Run, Transcript),
-    GlobalOptions (GlobalOptions, codebasePathOption),
+    GlobalOptions (GlobalOptions, codebasePathOption, exitOption),
     IsHeadless (Headless, WithCLI),
     RunSource (..),
     ShouldDownloadBase (..),
+    ShouldExit (DoNotExit, Exit),
     ShouldForkCodebase (..),
     ShouldSaveCodebase (..),
     UsageRenderer,
@@ -50,7 +51,7 @@ import Text.Pretty.Simple (pHPrint)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Editor.Input as Input
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadShareRemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import Unison.Codebase.Execute (execute)
 import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResult (..), SpecifiedCodebase (..))
@@ -87,7 +88,7 @@ main = withCP65001 do
     progName <- getProgName
     -- hSetBuffering stdout NoBuffering -- cool
     (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack Version.gitDescribeWithDate)
-    let GlobalOptions {codebasePathOption = mCodePathOption} = globalOptions
+    let GlobalOptions {codebasePathOption = mCodePathOption, exitOption = exitOption} = globalOptions
     let mcodepath = fmap codebasePathOptionToPath mCodePathOption
 
     currentDir <- getCurrentDirectory
@@ -114,31 +115,34 @@ main = withCP65001 do
             )
       Run (RunFromSymbol mainName) args -> do
         getCodebaseOrExit mCodePathOption \(_, _, theCodebase) -> do
-          runtime <- RTI.startRuntime RTI.OneOff Version.gitDescribeWithDate
+          runtime <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
           withArgs args $ execute theCodebase runtime mainName
       Run (RunFromFile file mainName) args
         | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
         | otherwise -> do
-          e <- safeReadUtf8 file
-          case e of
-            Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
-            Right contents -> do
-              getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-                rt <- RTI.startRuntime RTI.OneOff Version.gitDescribeWithDate
-                let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
+            e <- safeReadUtf8 file
+            case e of
+              Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
+              Right contents -> do
+                getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+                  rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
+                  sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
+                  let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
           Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
           Right contents -> do
             getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-              rt <- RTI.startRuntime RTI.OneOff Version.gitDescribeWithDate
+              rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
+              sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
               let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
               launch
                 currentDir
                 config
                 rt
+                sbrt
                 theCodebase
                 [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
                 Nothing
@@ -209,29 +213,33 @@ main = withCP65001 do
         runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
       Launch isHeadless codebaseServerOpts downloadBase -> do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-          runtime <- RTI.startRuntime RTI.Persistent Version.gitDescribeWithDate
-          Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts runtime theCodebase $ \baseUrl -> do
-            case isHeadless of
-              Headless -> do
-                PT.putPrettyLn $
-                  P.lines
-                    [ "I've started the Codebase API server at",
-                      P.string $ Server.urlFor Server.Api baseUrl,
-                      "and the Codebase UI at",
-                      P.string $ Server.urlFor Server.UI baseUrl
-                    ]
+          runtime <- RTI.startRuntime False RTI.Persistent Version.gitDescribeWithDate
+          sbRuntime <- RTI.startRuntime True RTI.Persistent Version.gitDescribeWithDate
+          Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
+            case exitOption of
+              DoNotExit -> do
+                case isHeadless of
+                  Headless -> do
+                    PT.putPrettyLn $
+                      P.lines
+                        [ "I've started the Codebase API server at",
+                          P.string $ Server.urlFor Server.Api baseUrl,
+                          "and the Codebase UI at",
+                          P.string $ Server.urlFor Server.UI baseUrl
+                        ]
 
-                PT.putPrettyLn $
-                  P.string "Running the codebase manager headless with "
-                    <> P.shown GHC.Conc.numCapabilities
-                    <> " "
-                    <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
-                    <> "."
-                mvar <- newEmptyMVar
-                takeMVar mvar
-              WithCLI -> do
-                PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
+                    PT.putPrettyLn $
+                      P.string "Running the codebase manager headless with "
+                        <> P.shown GHC.Conc.numCapabilities
+                        <> " "
+                        <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
+                        <> "."
+                    mvar <- newEmptyMVar
+                    takeMVar mvar
+                  WithCLI -> do
+                    PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+                    launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) downloadBase initRes
+              Exit -> do Exit.exitSuccess
 
 -- | Set user agent and configure TLS on global http client.
 -- Note that the authorized http client is distinct from the global http client.
@@ -372,13 +380,14 @@ launch ::
   FilePath ->
   (Config, IO ()) ->
   Rt.Runtime Symbol ->
+  Rt.Runtime Symbol ->
   Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
   Maybe Server.BaseUrl ->
   ShouldDownloadBase ->
   InitResult ->
   IO ()
-launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initResult =
+launch dir config runtime sbRuntime codebase inputs serverBaseUrl shouldDownloadBase initResult =
   let downloadBase = case defaultBaseLib of
         Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
         _ -> Welcome.DontDownloadBase
@@ -395,6 +404,7 @@ launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initR
         config
         inputs
         runtime
+        sbRuntime
         codebase
         serverBaseUrl
         ucmVersion
@@ -418,7 +428,7 @@ isFlag f arg = arg == f || arg == "-" ++ f || arg == "--" ++ f
 getConfigFilePath :: Maybe FilePath -> IO FilePath
 getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseDir mcodepath
 
-defaultBaseLib :: Maybe ReadRemoteNamespace
+defaultBaseLib :: Maybe ReadShareRemoteNamespace
 defaultBaseLib =
   rightMay $
     runParser VP.defaultBaseLib "version" gitRef

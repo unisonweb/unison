@@ -37,7 +37,7 @@ where
 
 import Control.Applicative (liftA2)
 import Data.Bifunctor (bimap, first)
-import Data.Bits (shiftL, (.|.))
+import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
 import Data.List (partition)
 import qualified Data.Map.Strict as M
@@ -1398,7 +1398,9 @@ sectionDeps :: Section -> [Word64]
 sectionDeps (App _ (Env w _) _) = [w]
 sectionDeps (Call _ w _) = [w]
 sectionDeps (Match _ br) = branchDeps br
-sectionDeps (Ins _ s) = sectionDeps s
+sectionDeps (Ins i s)
+  | Name (Env w _) _ <- i = w : sectionDeps s
+  | otherwise = sectionDeps s
 sectionDeps (Let s (CIx _ w _)) = w : sectionDeps s
 sectionDeps _ = []
 
@@ -1409,7 +1411,7 @@ sectionTypes (Match _ br) = branchTypes br
 sectionTypes _ = []
 
 instrTypes :: Instr -> [Word64]
-instrTypes (Pack _ w _) = [w]
+instrTypes (Pack _ w _) = [w `shiftR` 16]
 instrTypes _ = []
 
 branchDeps :: Branch -> [Word64]

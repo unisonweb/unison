@@ -9,11 +9,15 @@ Create and push the tag to github. This will trigger the build. To determine the
 
 ```
 git fetch
-git checkout series/M2
-git merge origin/trunk
+git checkout origin/trunk
+git tag -a dev/$RELEASE_NAME -m "dev release"
+git checkout series/$SERIES # substitute whatever previous release
+git merge dev/$RELEASE_NAME
 git tag -a release/$RELEASE_NAME -m "release"
+# optional: stack clean && stack build --fast, and try out the resulting executable, 
+# checking stuff like that base downloads properly for a new codebase, etc.
 git push origin release/$RELEASE_NAME
-git push origin series/M2
+git push origin series/$SERIES
 ```
 
 __2__
@@ -40,7 +44,7 @@ Cut a release of base. @runarorama does this usually.
 
 
 ```
-.> pull git@github.com:unisonweb/base basedev.release
+.> pull git(git@github.com:unisonweb/base) basedev.release
 .> cd .basedev.release
 .basedev.release> delete.namespace releases._latest
 .basedev.release> squash trunk releases._<ReleaseName>
@@ -50,7 +54,7 @@ Edit `releases._<ReleaseName>.README` to include `Release: <ReleaseName>`.
 
 ```
 .basedev.release> fork releases._<ReleaseName> releases._latest
-.basedev.release> push git@github.com:unisonweb/base
+.basedev.release> push git(git@github.com:unisonweb/base)
 ```
 
 __6__
@@ -64,7 +68,7 @@ Build a new version of Unison Share by following these instructions: https://git
 
 __8__
 
-Update homebrew. 
+Update homebrew.
 
 ```
 git clone git@github.com/unisonweb/homebrew-unison.git
@@ -80,11 +84,11 @@ curl -sSL https://github.com/unisonweb/unison/releases/download/release%2FM2h/uc
 
 __9__
 
-[In the docs site repository](https://github.com/unisonweb/unisonweb-org/pulls), find a branch with the matching release name (if one exists), merge it into the master branch, then merge master into the production branch. Confirm with @rlmark.
+Give go ahead to @rlmark and @hojberg to deploy new version of website with blog post, updated install instructions, etc.
 
 __10__
 
-Bug @pchiusano to update [the Slack post](https://unisonlanguage.slack.com/files/TLL09QC85/FMT7TDDDY?origin_team=TLL09QC85) which provides install instructions for people coming from [the quickstart guide](https://www.unisonweb.org/docs/quickstart/).
+Smoke test of the new release. Try `brew upgrade unison-language`, launch it, launch `ui`.
 
 __11__
 
@@ -96,7 +100,7 @@ Release announcement template (be sure to update the release urls) -
 
 We've just released a new version of Unison, $RELEASE_NAME, release notes here (link to the issue). Install/upgrade instructions in the thread.
 
-Mac upgrade is just `brew upgrade unison-language`. 
+Mac upgrade is just `brew upgrade unison-language`.
 
 A fresh install via:
 

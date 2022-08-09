@@ -15,6 +15,7 @@ module Unison.Runtime.Builtin
     builtinTermBackref,
     builtinTypeBackref,
     builtinForeigns,
+    sandboxedForeigns,
     numberedTermLookup,
     Sandbox (..),
     baseSandboxInfo,
@@ -29,11 +30,15 @@ import Control.Concurrent as SYS
 import Control.Concurrent.MVar as SYS
 import qualified Control.Concurrent.STM as STM
 import Control.DeepSeq (NFData)
+import Control.Exception (evaluate)
 import qualified Control.Exception.Safe as Exception
 import Control.Monad.Catch (MonadCatch)
+import qualified Control.Monad.Primitive as PA
+import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
 import qualified Crypto.Hash as Hash
 import qualified Crypto.MAC.HMAC as HMAC
+import Data.Bits (shiftL, shiftR, (.|.))
 import qualified Data.ByteArray as BA
 import Data.ByteString (hGet, hGetSome, hPut)
 import qualified Data.ByteString.Lazy as L
@@ -46,6 +51,7 @@ import Data.IORef as SYS
   )
 import qualified Data.Map as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
+import qualified Data.Primitive as PA
 import Data.Set (insert)
 import qualified Data.Set as Set
 import qualified Data.Text
@@ -121,6 +127,7 @@ import Unison.Reference
 import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Serialize as ANF
+import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
   ( Foreign (Wrap),
     HashAlgorithm (..),
@@ -134,7 +141,9 @@ import Unison.Symbol
 import qualified Unison.Type as Ty
 import qualified Unison.Util.Bytes as Bytes
 import Unison.Util.EnumContainers as EC
+import Unison.Util.Text (Text)
 import qualified Unison.Util.Text as Util.Text
+import qualified Unison.Util.Text.Pattern as TPat
 import Unison.Var
 
 type Failure = F.Failure Closure
@@ -168,6 +177,11 @@ fresh4 = (v1, v2, v3, v4)
   where
     [v1, v2, v3, v4] = freshes 4
 
+fresh5 :: Var v => (v, v, v, v, v)
+fresh5 = (v1, v2, v3, v4, v5)
+  where
+    [v1, v2, v3, v4, v5] = freshes 5
+
 fresh6 :: Var v => (v, v, v, v, v, v)
 fresh6 = (v1, v2, v3, v4, v5, v6)
   where
@@ -183,10 +197,25 @@ fresh8 = (v1, v2, v3, v4, v5, v6, v7, v8)
   where
     [v1, v2, v3, v4, v5, v6, v7, v8] = freshes 8
 
+fresh9 :: Var v => (v, v, v, v, v, v, v, v, v)
+fresh9 = (v1, v2, v3, v4, v5, v6, v7, v8, v9)
+  where
+    [v1, v2, v3, v4, v5, v6, v7, v8, v9] = freshes 9
+
+fresh10 :: Var v => (v, v, v, v, v, v, v, v, v, v)
+fresh10 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10)
+  where
+    [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10] = freshes 10
+
 fresh11 :: Var v => (v, v, v, v, v, v, v, v, v, v, v)
 fresh11 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11)
   where
     [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11] = freshes 11
+
+fresh13 :: Var v => (v, v, v, v, v, v, v, v, v, v, v, v, v)
+fresh13 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13)
+  where
+    [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13] = freshes 13
 
 fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
@@ -1087,6 +1116,22 @@ inBxNat arg1 arg2 nat result cont instr =
     . unbox arg2 Ty.natRef nat
     $ TLetD result UN (TFOp instr [arg1, nat]) cont
 
+inBxNatNat ::
+  Var v => v -> v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxNatNat arg1 arg2 arg3 nat1 nat2 result cont instr =
+  ([BX, BX, BX],)
+    . TAbss [arg1, arg2, arg3]
+    . unbox arg2 Ty.natRef nat1
+    . unbox arg3 Ty.natRef nat2
+    $ TLetD result UN (TFOp instr [arg1, nat1, nat2]) cont
+
+inBxNatBx :: Var v => v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxNatBx arg1 arg2 arg3 nat result cont instr =
+  ([BX, BX, BX],)
+    . TAbss [arg1, arg2, arg3]
+    . unbox arg2 Ty.natRef nat
+    $ TLetD result UN (TFOp instr [arg1, nat, arg3]) cont
+
 -- a -> IOMode -> ...
 inBxIomr :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxIomr arg1 arg2 fm result cont instr =
@@ -1114,8 +1159,8 @@ outMaybe maybe result =
         (1, ([BX], TAbs maybe $ some maybe))
       ]
 
-outMaybeTup :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
-outMaybeTup a b n u bp p result =
+outMaybeNTup :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
+outMaybeNTup a b n u bp p result =
   TMatch result . MatchSum $
     mapFromList
       [ (0, ([], none)),
@@ -1127,6 +1172,22 @@ outMaybeTup a b n u bp p result =
               . TLetD n BX (TCon Ty.natRef 0 [a])
               . TLetD p BX (TCon Ty.pairRef 0 [n, bp])
               $ some p
+          )
+        )
+      ]
+
+outMaybeTup :: Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outMaybeTup a b u bp ap result =
+  TMatch result . MatchSum $
+    mapFromList
+      [ (0, ([], none)),
+        ( 1,
+          ( [BX, BX],
+            TAbss [a, b]
+              . TLetD u BX (TCon Ty.unitRef 0 [])
+              . TLetD bp BX (TCon Ty.pairRef 0 [b, u])
+              . TLetD ap BX (TCon Ty.pairRef 0 [a, bp])
+              $ some ap
           )
         )
       ]
@@ -1160,6 +1221,41 @@ outIoFailNat stack1 stack2 stack3 fail nat result =
             . TLetD nat BX (TCon Ty.natRef 0 [stack3])
             $ right nat
         )
+      ]
+
+exnCase :: Var v => v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
+exnCase stack1 stack2 stack3 fail =
+  (0,) . ([BX, BX, BX],)
+    . TAbss [stack1, stack2, stack3]
+    . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, stack3])
+    $ TReq Ty.exceptionRef 1 [fail]
+
+outIoExnNat :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
+outIoExnNat stack1 stack2 stack3 fail result =
+  TMatch result . MatchSum $
+    mapFromList
+      [ exnCase stack1 stack2 stack3 fail,
+        ( 1,
+          ([UN],)
+            . TAbs stack1
+            $ TCon Ty.natRef 0 [stack1]
+        )
+      ]
+
+outIoExnUnit :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
+outIoExnUnit stack1 stack2 stack3 fail result =
+  TMatch result . MatchSum $
+    mapFromList
+      [ exnCase stack1 stack2 stack3 fail,
+        (1, ([], TCon Ty.unitRef 0 []))
+      ]
+
+outIoExnBox :: Var v => v -> v -> v -> v -> v -> ANormal v
+outIoExnBox stack1 stack2 stack3 fail result =
+  TMatch result . MatchSum $
+    mapFromList
+      [ exnCase stack1 stack2 stack3 fail,
+        (1, ([BX], TAbs stack1 $ TVar stack1))
       ]
 
 outIoFailBox :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
@@ -1324,6 +1420,8 @@ boxBoxTo0 instr =
   where
     (arg1, arg2) = fresh2
 
+-- a -> b -> Option c
+
 -- a -> Bool
 boxToBool :: ForeignOp
 boxToBool =
@@ -1331,6 +1429,13 @@ boxToBool =
     boolift result
   where
     (arg, result) = fresh2
+
+-- a -> b -> Bool
+boxBoxToBool :: ForeignOp
+boxBoxToBool =
+  inBxBx arg1 arg2 result $ boolift result
+  where
+    (arg1, arg2, result) = fresh3
 
 -- Nat -> c
 -- Works for an type that's packed into a word, just
@@ -1345,6 +1450,17 @@ wordDirect wordType instr =
   where
     (b1, ub1) = fresh2
 
+-- Nat -> Nat -> c
+wordWordDirect :: Reference -> Reference -> ForeignOp
+wordWordDirect word1 word2 instr =
+  ([BX, BX],)
+    . TAbss [b1, b2]
+    . unbox b1 word1 ub1
+    . unbox b2 word2 ub2
+    $ TFOp instr [ub1, ub2]
+  where
+    (b1, b2, ub1, ub2) = fresh4
+
 -- Nat -> a -> c
 -- Works for an type that's packed into a word, just
 -- pass `wordBoxDirect Ty.natRef`, `wordBoxDirect Ty.floatRef`
@@ -1357,6 +1473,17 @@ wordBoxDirect wordType instr =
     $ TFOp instr [ub1, b2]
   where
     (b1, b2, ub1) = fresh3
+
+-- a -> Nat -> c
+-- works for any second argument type that is packed into a word
+boxWordDirect :: Reference -> ForeignOp
+boxWordDirect wordType instr =
+  ([BX, BX],)
+    . TAbss [b1, b2]
+    . unbox b2 wordType ub2
+    $ TFOp instr [b1, ub2]
+  where
+    (b1, b2, ub2) = fresh3
 
 -- a -> b -> c
 boxBoxDirect :: ForeignOp
@@ -1407,12 +1534,19 @@ boxToMaybeBox =
   where
     (arg, maybe, result) = fresh3
 
--- a -> Maybe b
-boxToMaybeTup :: ForeignOp
-boxToMaybeTup =
-  inBx arg result $ outMaybeTup a b c u bp p result
+-- a -> Maybe (Nat, b)
+boxToMaybeNTup :: ForeignOp
+boxToMaybeNTup =
+  inBx arg result $ outMaybeNTup a b c u bp p result
   where
     (arg, a, b, c, u, bp, p, result) = fresh8
+
+-- a -> b -> Maybe (c, d)
+boxBoxToMaybeTup :: ForeignOp
+boxBoxToMaybeTup =
+  inBxBx arg1 arg2 result $ outMaybeTup a b u bp ap result
+  where
+    (arg1, arg2, a, b, u, bp, ap, result) = fresh8
 
 -- a -> Either Failure Bool
 boxToEFBool :: ForeignOp
@@ -1470,6 +1604,32 @@ boxBoxToEFBox =
   where
     (arg1, arg2, result, stack1, stack2, fail) = fresh6
 
+-- Nat -> a
+-- Nat only
+natToBox :: ForeignOp
+natToBox = wordDirect Ty.natRef
+
+-- Nat -> Nat -> a
+-- Nat only
+natNatToBox :: ForeignOp
+natNatToBox = wordWordDirect Ty.natRef Ty.natRef
+
+-- Nat -> Nat -> a -> b
+natNatBoxToBox :: ForeignOp
+natNatBoxToBox instr =
+  ([BX, BX, BX],)
+    . TAbss [a1, a2, a3]
+    . unbox a1 Ty.natRef ua1
+    . unbox a2 Ty.natRef ua2
+    $ TFOp instr [ua1, ua2, a3]
+  where
+    (a1, a2, a3, ua1, ua2) = fresh5
+
+-- a -> Nat -> c
+-- Nat only
+boxNatToBox :: ForeignOp
+boxNatToBox = boxWordDirect Ty.natRef
+
 -- a -> Nat -> Either Failure b
 boxNatToEFBox :: ForeignOp
 boxNatToEFBox =
@@ -1477,6 +1637,59 @@ boxNatToEFBox =
     outIoFail stack1 stack2 fail result
   where
     (arg1, arg2, nat, stack1, stack2, fail, result) = fresh7
+
+-- a -> Nat ->{Exception} b
+boxNatToExnBox :: ForeignOp
+boxNatToExnBox =
+  inBxNat arg1 arg2 nat result $
+    outIoExnBox stack1 stack2 stack3 fail result
+  where
+    (arg1, arg2, nat, stack1, stack2, stack3, fail, result) = fresh8
+
+-- a -> Nat -> b ->{Exception} ()
+boxNatBoxToExnUnit :: ForeignOp
+boxNatBoxToExnUnit =
+  inBxNatBx arg1 arg2 arg3 nat result $
+    outIoExnUnit stack1 stack2 stack3 fail result
+  where
+    (arg1, arg2, arg3, nat, stack1, stack2, stack3, fail, result) = fresh9
+
+-- a -> Nat ->{Exception} Nat
+boxNatToExnNat :: ForeignOp
+boxNatToExnNat =
+  inBxNat arg1 arg2 nat result $
+    outIoExnNat stack1 stack2 stack3 fail result
+  where
+    (arg1, arg2, nat, stack1, stack2, stack3, fail, result) = fresh8
+
+-- a -> Nat -> Nat ->{Exception} ()
+boxNatNatToExnUnit :: ForeignOp
+boxNatNatToExnUnit =
+  inBxNatNat arg1 arg2 arg3 nat1 nat2 result $
+    outIoExnUnit stack1 stack2 stack3 fail result
+  where
+    (arg1, arg2, arg3, nat1, nat2, result, stack1, stack2, stack3, fail) = fresh10
+
+-- a -> Nat -> Nat ->{Exception} b
+boxNatNatToExnBox :: ForeignOp
+boxNatNatToExnBox =
+  inBxNatNat arg1 arg2 arg3 nat1 nat2 result $
+    outIoExnBox stack1 stack2 stack3 fail result
+  where
+    (arg1, arg2, arg3, nat1, nat2, result, stack1, stack2, stack3, fail) = fresh10
+
+-- a -> Nat -> b -> Nat -> Nat ->{Exception} ()
+boxNatBoxNatNatToExnUnit :: ForeignOp
+boxNatBoxNatNatToExnUnit instr =
+  ([BX, BX, BX, BX, BX],)
+    . TAbss [a0, a1, a2, a3, a4]
+    . unbox a1 Ty.natRef ua1
+    . unbox a3 Ty.natRef ua3
+    . unbox a4 Ty.natRef ua4
+    . TLetD result UN (TFOp instr [a0, ua1, a2, ua3, ua4])
+    $ outIoExnUnit stack1 stack2 stack3 fail result
+  where
+    (a0, a1, a2, a3, a4, ua1, ua3, ua4, result, stack1, stack2, stack3, fail) = fresh13
 
 -- Nat -> Either Failure b
 -- natToEFBox :: ForeignOp
@@ -1697,7 +1910,7 @@ builtinLookup =
       ++ foreignWrappers
 
 type FDecl v =
-  State (Word64, [(Data.Text.Text, (Sandbox, SuperNormal v))], EnumMap Word64 (Data.Text.Text, ForeignFunc))
+  ReaderT Bool (State (Word64, [(Data.Text.Text, (Sandbox, SuperNormal v))], EnumMap Word64 (Data.Text.Text, ForeignFunc)))
 
 -- Data type to determine whether a builtin should be tracked for
 -- sandboxing. Untracked means that it can be freely used, and Tracked
@@ -1706,15 +1919,26 @@ type FDecl v =
 data Sandbox = Tracked | Untracked
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
+bomb :: Data.Text.Text -> a -> IO r
+bomb name _ = die $ "attempted to use sandboxed operation: " ++ Data.Text.unpack name
+
 declareForeign ::
   Sandbox ->
   Data.Text.Text ->
   ForeignOp ->
   ForeignFunc ->
   FDecl Symbol ()
-declareForeign sand name op func =
-  modify $ \(w, cs, fs) ->
-    (w + 1, (name, (sand, uncurry Lambda (op w))) : cs, mapInsert w (name, func) fs)
+declareForeign sand name op func0 = do
+  sanitize <- ask
+  modify $ \(w, codes, funcs) ->
+    let func
+          | sanitize,
+            Tracked <- sand,
+            FF r w _ <- func0 =
+              FF r w (bomb name)
+          | otherwise = func0
+        code = (name, (sand, uncurry Lambda (op w)))
+     in (w + 1, code : codes, mapInsert w (name, func) funcs)
 
 mkForeignIOF ::
   (ForeignConvention a, ForeignConvention r) =>
@@ -1730,6 +1954,9 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
 
 unitValue :: Closure
 unitValue = Closure.Enum Ty.unitRef 0
+
+natValue :: Word64 -> Closure
+natValue w = Closure.DataU1 Ty.natRef 0 (fromIntegral w)
 
 mkForeignTls ::
   forall a r.
@@ -1997,6 +2224,15 @@ declareForeigns = do
   declareForeign Untracked "Text.repeat" (wordBoxDirect Ty.natRef) . mkForeign $
     \(n :: Word64, txt :: Util.Text.Text) -> pure (Util.Text.replicate (fromIntegral n) txt)
 
+  declareForeign Untracked "Text.reverse" boxDirect . mkForeign $
+    pure . Util.Text.reverse
+
+  declareForeign Untracked "Text.toUppercase" boxDirect . mkForeign $
+    pure . Util.Text.toUppercase
+
+  declareForeign Untracked "Text.toLowercase" boxDirect . mkForeign $
+    pure . Util.Text.toLowercase
+
   declareForeign Untracked "Text.toUtf8" boxDirect . mkForeign $
     pure . Util.Text.toUtf8
 
@@ -2056,7 +2292,7 @@ declareForeigns = do
     \() -> unsafeSTMToIO STM.retry :: IO Closure
 
   -- Scope and Ref stuff
-  declareForeign Tracked "Scope.ref" boxDirect
+  declareForeign Untracked "Scope.ref" boxDirect
     . mkForeign
     $ \(c :: Closure) -> newIORef c
 
@@ -2064,10 +2300,10 @@ declareForeigns = do
     . mkForeign
     $ \(c :: Closure) -> newIORef c
 
-  declareForeign Tracked "Ref.read" boxDirect . mkForeign $
+  declareForeign Untracked "Ref.read" boxDirect . mkForeign $
     \(r :: IORef Closure) -> readIORef r
 
-  declareForeign Tracked "Ref.write" boxBoxTo0 . mkForeign $
+  declareForeign Untracked "Ref.write" boxBoxTo0 . mkForeign $
     \(r :: IORef Closure, c :: Closure) -> writeIORef r c
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
@@ -2149,6 +2385,7 @@ declareForeigns = do
   declareHashAlgorithm "Sha3_256" Hash.SHA3_256
   declareHashAlgorithm "Sha2_512" Hash.SHA512
   declareHashAlgorithm "Sha2_256" Hash.SHA256
+  declareHashAlgorithm "Sha1" Hash.SHA1
   declareHashAlgorithm "Blake2b_512" Hash.Blake2b_512
   declareHashAlgorithm "Blake2b_256" Hash.Blake2b_256
   declareHashAlgorithm "Blake2s_256" Hash.Blake2s_256
@@ -2215,12 +2452,12 @@ declareForeigns = do
   declareForeign Untracked "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64UrlUnpadded
 
-  declareForeign Untracked "Bytes.decodeNat64be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64be
-  declareForeign Untracked "Bytes.decodeNat64le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64le
-  declareForeign Untracked "Bytes.decodeNat32be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32be
-  declareForeign Untracked "Bytes.decodeNat32le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32le
-  declareForeign Untracked "Bytes.decodeNat16be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16be
-  declareForeign Untracked "Bytes.decodeNat16le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16le
+  declareForeign Untracked "Bytes.decodeNat64be" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat64be
+  declareForeign Untracked "Bytes.decodeNat64le" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat64le
+  declareForeign Untracked "Bytes.decodeNat32be" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat32be
+  declareForeign Untracked "Bytes.decodeNat32le" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat32le
+  declareForeign Untracked "Bytes.decodeNat16be" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat16be
+  declareForeign Untracked "Bytes.decodeNat16le" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat16le
 
   declareForeign Untracked "Bytes.encodeNat64be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64be
   declareForeign Untracked "Bytes.encodeNat64le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64le
@@ -2228,6 +2465,521 @@ declareForeigns = do
   declareForeign Untracked "Bytes.encodeNat32le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32le
   declareForeign Untracked "Bytes.encodeNat16be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16be
   declareForeign Untracked "Bytes.encodeNat16le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16le
+
+  declareForeign Untracked "MutableArray.copyTo!" boxNatBoxNatNatToExnUnit
+    . mkForeign
+    $ \(dst, doff, src, soff, l) ->
+      let name = "MutableArray.copyTo!"
+       in if l == 0
+            then pure (Right ())
+            else
+              checkBounds name (PA.sizeofMutableArray dst) (doff + l - 1) $
+                checkBounds name (PA.sizeofMutableArray src) (soff + l - 1) $
+                  Right
+                    <$> PA.copyMutableArray @IO @Closure
+                      dst
+                      (fromIntegral doff)
+                      src
+                      (fromIntegral soff)
+                      (fromIntegral l)
+
+  declareForeign Untracked "MutableByteArray.copyTo!" boxNatBoxNatNatToExnUnit
+    . mkForeign
+    $ \(dst, doff, src, soff, l) ->
+      let name = "MutableByteArray.copyTo!"
+       in if l == 0
+            then pure (Right ())
+            else
+              checkBoundsPrim name (PA.sizeofMutableByteArray dst) (doff + l) 0 $
+                checkBoundsPrim name (PA.sizeofMutableByteArray src) (soff + l) 0 $
+                  Right
+                    <$> PA.copyMutableByteArray @IO
+                      dst
+                      (fromIntegral doff)
+                      src
+                      (fromIntegral soff)
+                      (fromIntegral l)
+
+  declareForeign Untracked "ImmutableArray.copyTo!" boxNatBoxNatNatToExnUnit
+    . mkForeign
+    $ \(dst, doff, src, soff, l) ->
+      let name = "ImmutableArray.copyTo!"
+       in if l == 0
+            then pure (Right ())
+            else
+              checkBounds name (PA.sizeofMutableArray dst) (doff + l - 1) $
+                checkBounds name (PA.sizeofArray src) (soff + l - 1) $
+                  Right
+                    <$> PA.copyArray @IO @Closure
+                      dst
+                      (fromIntegral doff)
+                      src
+                      (fromIntegral soff)
+                      (fromIntegral l)
+
+  declareForeign Untracked "ImmutableArray.size" boxToNat . mkForeign $
+    pure . fromIntegral @Int @Word64 . PA.sizeofArray @Closure
+  declareForeign Untracked "MutableArray.size" boxToNat . mkForeign $
+    pure . fromIntegral @Int @Word64 . PA.sizeofMutableArray @PA.RealWorld @Closure
+  declareForeign Untracked "ImmutableByteArray.size" boxToNat . mkForeign $
+    pure . fromIntegral @Int @Word64 . PA.sizeofByteArray
+  declareForeign Untracked "MutableByteArray.size" boxToNat . mkForeign $
+    pure . fromIntegral @Int @Word64 . PA.sizeofMutableByteArray @PA.RealWorld
+
+  declareForeign Untracked "ImmutableByteArray.copyTo!" boxNatBoxNatNatToExnUnit
+    . mkForeign
+    $ \(dst, doff, src, soff, l) ->
+      let name = "ImmutableByteArray.copyTo!"
+       in if l == 0
+            then pure (Right ())
+            else
+              checkBoundsPrim name (PA.sizeofMutableByteArray dst) (doff + l) 0 $
+                checkBoundsPrim name (PA.sizeofByteArray src) (soff + l) 0 $
+                  Right
+                    <$> PA.copyByteArray @IO
+                      dst
+                      (fromIntegral doff)
+                      src
+                      (fromIntegral soff)
+                      (fromIntegral l)
+
+  declareForeign Untracked "MutableArray.read" boxNatToExnBox
+    . mkForeign
+    $ checkedRead "MutableArray.read"
+  declareForeign Untracked "MutableByteArray.read8" boxNatToExnNat
+    . mkForeign
+    $ checkedRead8 "MutableByteArray.read8"
+  declareForeign Untracked "MutableByteArray.read16be" boxNatToExnNat
+    . mkForeign
+    $ checkedRead16 "MutableByteArray.read16be"
+  declareForeign Untracked "MutableByteArray.read24be" boxNatToExnNat
+    . mkForeign
+    $ checkedRead24 "MutableByteArray.read24be"
+  declareForeign Untracked "MutableByteArray.read32be" boxNatToExnNat
+    . mkForeign
+    $ checkedRead32 "MutableByteArray.read32be"
+  declareForeign Untracked "MutableByteArray.read40be" boxNatToExnNat
+    . mkForeign
+    $ checkedRead40 "MutableByteArray.read40be"
+  declareForeign Untracked "MutableByteArray.read64be" boxNatToExnNat
+    . mkForeign
+    $ checkedRead64 "MutableByteArray.read64be"
+
+  declareForeign Untracked "MutableArray.write" boxNatBoxToExnUnit
+    . mkForeign
+    $ checkedWrite "MutableArray.write"
+  declareForeign Untracked "MutableByteArray.write8" boxNatNatToExnUnit
+    . mkForeign
+    $ checkedWrite8 "MutableByteArray.write8"
+  declareForeign Untracked "MutableByteArray.write16be" boxNatNatToExnUnit
+    . mkForeign
+    $ checkedWrite16 "MutableByteArray.write16be"
+  declareForeign Untracked "MutableByteArray.write32be" boxNatNatToExnUnit
+    . mkForeign
+    $ checkedWrite32 "MutableByteArray.write32be"
+  declareForeign Untracked "MutableByteArray.write64be" boxNatNatToExnUnit
+    . mkForeign
+    $ checkedWrite64 "MutableByteArray.write64be"
+
+  declareForeign Untracked "ImmutableArray.read" boxNatToExnBox
+    . mkForeign
+    $ checkedIndex "ImmutableArray.read"
+  declareForeign Untracked "ImmutableByteArray.read8" boxNatToExnNat
+    . mkForeign
+    $ checkedIndex8 "ImmutableByteArray.read8"
+  declareForeign Untracked "ImmutableByteArray.read16be" boxNatToExnNat
+    . mkForeign
+    $ checkedIndex16 "ImmutableByteArray.read16be"
+  declareForeign Untracked "ImmutableByteArray.read24be" boxNatToExnNat
+    . mkForeign
+    $ checkedIndex24 "ImmutableByteArray.read24be"
+  declareForeign Untracked "ImmutableByteArray.read32be" boxNatToExnNat
+    . mkForeign
+    $ checkedIndex32 "ImmutableByteArray.read32be"
+  declareForeign Untracked "ImmutableByteArray.read40be" boxNatToExnNat
+    . mkForeign
+    $ checkedIndex40 "ImmutableByteArray.read40be"
+  declareForeign Untracked "ImmutableByteArray.read64be" boxNatToExnNat
+    . mkForeign
+    $ checkedIndex64 "ImmutableByteArray.read64be"
+
+  declareForeign Untracked "MutableByteArray.freeze!" boxDirect . mkForeign $
+    PA.unsafeFreezeByteArray
+  declareForeign Untracked "MutableArray.freeze!" boxDirect . mkForeign $
+    PA.unsafeFreezeArray @IO @Closure
+
+  declareForeign Untracked "MutableByteArray.freeze" boxNatNatToExnBox . mkForeign $
+    \(src, off, len) ->
+      if len == 0
+        then fmap Right . PA.unsafeFreezeByteArray =<< PA.newByteArray 0
+        else
+          checkBoundsPrim
+            "MutableByteArray.freeze"
+            (PA.sizeofMutableByteArray src)
+            (off + len)
+            0
+            $ Right <$> PA.freezeByteArray src (fromIntegral off) (fromIntegral len)
+
+  declareForeign Untracked "MutableArray.freeze" boxNatNatToExnBox . mkForeign $
+    \(src, off, len) ->
+      if len == 0
+        then fmap Right . PA.unsafeFreezeArray =<< PA.newArray 0 Closure.BlackHole
+        else
+          checkBounds
+            "MutableArray.freeze"
+            (PA.sizeofMutableArray src)
+            (off + len - 1)
+            $ Right <$> PA.freezeArray src (fromIntegral off) (fromIntegral len)
+
+  declareForeign Untracked "MutableByteArray.length" boxToNat . mkForeign $
+    pure . PA.sizeofMutableByteArray @PA.RealWorld
+
+  declareForeign Untracked "ImmutableByteArray.length" boxToNat . mkForeign $
+    pure . PA.sizeofByteArray
+
+  declareForeign Tracked "IO.array" natToBox . mkForeign $
+    \n -> PA.newArray n Closure.BlackHole
+  declareForeign Tracked "IO.arrayOf" boxNatToBox . mkForeign $
+    \(v :: Closure, n) -> PA.newArray n v
+  declareForeign Tracked "IO.bytearray" natToBox . mkForeign $ PA.newByteArray
+  declareForeign Tracked "IO.bytearrayOf" natNatToBox
+    . mkForeign
+    $ \(init, sz) -> do
+      arr <- PA.newByteArray sz
+      PA.fillByteArray arr 0 sz init
+      pure arr
+
+  declareForeign Untracked "Scope.array" natToBox . mkForeign $
+    \n -> PA.newArray n Closure.BlackHole
+  declareForeign Untracked "Scope.arrayOf" boxNatToBox . mkForeign $
+    \(v :: Closure, n) -> PA.newArray n v
+  declareForeign Untracked "Scope.bytearray" natToBox . mkForeign $ PA.newByteArray
+  declareForeign Untracked "Scope.bytearrayOf" natNatToBox
+    . mkForeign
+    $ \(sz, init) -> do
+      arr <- PA.newByteArray sz
+      PA.fillByteArray arr 0 sz init
+      pure arr
+
+  declareForeign Untracked "Text.patterns.literal" boxDirect . mkForeign $
+    \txt -> evaluate . TPat.cpattern $ TPat.Literal txt
+  declareForeign Untracked "Text.patterns.digit" direct . mkForeign $
+    let v = TPat.cpattern TPat.Digit in \() -> pure v
+  declareForeign Untracked "Text.patterns.letter" direct . mkForeign $
+    let v = TPat.cpattern TPat.Letter in \() -> pure v
+  declareForeign Untracked "Text.patterns.space" direct . mkForeign $
+    let v = TPat.cpattern TPat.Space in \() -> pure v
+  declareForeign Untracked "Text.patterns.punctuation" direct . mkForeign $
+    let v = TPat.cpattern TPat.Punctuation in \() -> pure v
+  declareForeign Untracked "Text.patterns.anyChar" direct . mkForeign $
+    let v = TPat.cpattern TPat.AnyChar in \() -> pure v
+  declareForeign Untracked "Text.patterns.eof" direct . mkForeign $
+    let v = TPat.cpattern TPat.Eof in \() -> pure v
+  let ccd = wordWordDirect Ty.charRef Ty.charRef
+  declareForeign Untracked "Text.patterns.charRange" ccd . mkForeign $
+    \(beg, end) -> evaluate . TPat.cpattern $ TPat.CharRange beg end
+  declareForeign Untracked "Text.patterns.notCharRange" ccd . mkForeign $
+    \(beg, end) -> evaluate . TPat.cpattern $ TPat.NotCharRange beg end
+  declareForeign Untracked "Text.patterns.charIn" boxDirect . mkForeign $ \ccs -> do
+    cs <- for ccs $ \case
+      Closure.DataU1 _ _ i -> pure (toEnum i)
+      _ -> die "Text.patterns.charIn: non-character closure"
+    evaluate . TPat.cpattern $ TPat.CharIn cs
+  declareForeign Untracked "Text.patterns.notCharIn" boxDirect . mkForeign $ \ccs -> do
+    cs <- for ccs $ \case
+      Closure.DataU1 _ _ i -> pure (toEnum i)
+      _ -> die "Text.patterns.notCharIn: non-character closure"
+    evaluate . TPat.cpattern $ TPat.NotCharIn cs
+  declareForeign Untracked "Pattern.many" boxDirect . mkForeign $
+    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many p
+  declareForeign Untracked "Pattern.capture" boxDirect . mkForeign $
+    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Capture p
+  declareForeign Untracked "Pattern.join" boxDirect . mkForeign $ \ps ->
+    evaluate . TPat.cpattern . TPat.Join $ map (\(TPat.CP p _) -> p) ps
+  declareForeign Untracked "Pattern.or" boxBoxDirect . mkForeign $
+    \(TPat.CP l _, TPat.CP r _) -> evaluate . TPat.cpattern $ TPat.Or l r
+  declareForeign Untracked "Pattern.replicate" natNatBoxToBox . mkForeign $
+    \(m0 :: Word64, n0 :: Word64, TPat.CP p _) ->
+      let m = fromIntegral m0; n = fromIntegral n0
+       in evaluate . TPat.cpattern $ TPat.Replicate m n p
+
+  declareForeign Untracked "Pattern.run" boxBoxToMaybeTup . mkForeign $
+    \(TPat.CP _ matcher, input :: Text) -> pure $ matcher input
+
+  declareForeign Untracked "Pattern.isMatch" boxBoxToBool . mkForeign $
+    \(TPat.CP _ matcher, input :: Text) -> pure . isJust $ matcher input
+
+type RW = PA.PrimState IO
+
+checkedRead ::
+  Text -> (PA.MutableArray RW Closure, Word64) -> IO (Either Failure Closure)
+checkedRead name (arr, w) =
+  checkBounds
+    name
+    (PA.sizeofMutableArray arr)
+    w
+    (Right <$> PA.readArray arr (fromIntegral w))
+
+checkedWrite ::
+  Text -> (PA.MutableArray RW Closure, Word64, Closure) -> IO (Either Failure ())
+checkedWrite name (arr, w, v) =
+  checkBounds
+    name
+    (PA.sizeofMutableArray arr)
+    w
+    (Right <$> PA.writeArray arr (fromIntegral w) v)
+
+checkedIndex ::
+  Text -> (PA.Array Closure, Word64) -> IO (Either Failure Closure)
+checkedIndex name (arr, w) =
+  checkBounds
+    name
+    (PA.sizeofArray arr)
+    w
+    (Right <$> PA.indexArrayM arr (fromIntegral w))
+
+checkedRead8 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead8 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 1 $
+    (Right . fromIntegral) <$> PA.readByteArray @Word8 arr j
+  where
+    j = fromIntegral i
+
+checkedRead16 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead16 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 2 $
+    mk16
+      <$> PA.readByteArray @Word8 arr j
+      <*> PA.readByteArray @Word8 arr (j + 1)
+  where
+    j = fromIntegral i
+
+checkedRead24 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead24 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 3 $
+    mk24
+      <$> PA.readByteArray @Word8 arr j
+      <*> PA.readByteArray @Word8 arr (j + 1)
+      <*> PA.readByteArray @Word8 arr (j + 2)
+  where
+    j = fromIntegral i
+
+checkedRead32 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead32 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 4 $
+    mk32
+      <$> PA.readByteArray @Word8 arr j
+      <*> PA.readByteArray @Word8 arr (j + 1)
+      <*> PA.readByteArray @Word8 arr (j + 2)
+      <*> PA.readByteArray @Word8 arr (j + 3)
+  where
+    j = fromIntegral i
+
+checkedRead40 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead40 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 6 $
+    mk40
+      <$> PA.readByteArray @Word8 arr j
+      <*> PA.readByteArray @Word8 arr (j + 1)
+      <*> PA.readByteArray @Word8 arr (j + 2)
+      <*> PA.readByteArray @Word8 arr (j + 3)
+      <*> PA.readByteArray @Word8 arr (j + 4)
+  where
+    j = fromIntegral i
+
+checkedRead64 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead64 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $
+    mk64
+      <$> PA.readByteArray @Word8 arr j
+      <*> PA.readByteArray @Word8 arr (j + 1)
+      <*> PA.readByteArray @Word8 arr (j + 2)
+      <*> PA.readByteArray @Word8 arr (j + 3)
+      <*> PA.readByteArray @Word8 arr (j + 4)
+      <*> PA.readByteArray @Word8 arr (j + 5)
+      <*> PA.readByteArray @Word8 arr (j + 6)
+      <*> PA.readByteArray @Word8 arr (j + 7)
+  where
+    j = fromIntegral i
+
+mk16 :: Word8 -> Word8 -> Either Failure Word64
+mk16 b0 b1 = Right $ (fromIntegral b0 `shiftL` 8) .|. (fromIntegral b1)
+
+mk24 :: Word8 -> Word8 -> Word8 -> Either Failure Word64
+mk24 b0 b1 b2 =
+  Right $
+    (fromIntegral b0 `shiftL` 16)
+      .|. (fromIntegral b1 `shiftL` 8)
+      .|. (fromIntegral b2)
+
+mk32 :: Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
+mk32 b0 b1 b2 b3 =
+  Right $
+    (fromIntegral b0 `shiftL` 24)
+      .|. (fromIntegral b1 `shiftL` 16)
+      .|. (fromIntegral b2 `shiftL` 8)
+      .|. (fromIntegral b3)
+
+mk40 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
+mk40 b0 b1 b2 b3 b4 =
+  Right $
+    (fromIntegral b0 `shiftL` 32)
+      .|. (fromIntegral b1 `shiftL` 24)
+      .|. (fromIntegral b2 `shiftL` 16)
+      .|. (fromIntegral b3 `shiftL` 8)
+      .|. (fromIntegral b4)
+
+mk64 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
+mk64 b0 b1 b2 b3 b4 b5 b6 b7 =
+  Right $
+    (fromIntegral b0 `shiftL` 56)
+      .|. (fromIntegral b1 `shiftL` 48)
+      .|. (fromIntegral b2 `shiftL` 40)
+      .|. (fromIntegral b3 `shiftL` 32)
+      .|. (fromIntegral b4 `shiftL` 24)
+      .|. (fromIntegral b5 `shiftL` 16)
+      .|. (fromIntegral b6 `shiftL` 8)
+      .|. (fromIntegral b7)
+
+checkedWrite8 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite8 name (arr, i, v) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 1 $ do
+    PA.writeByteArray arr j (fromIntegral v :: Word8)
+    pure (Right ())
+  where
+    j = fromIntegral i
+
+checkedWrite16 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite16 name (arr, i, v) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 2 $ do
+    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 8 :: Word8)
+    PA.writeByteArray arr (j + 1) (fromIntegral v :: Word8)
+    pure (Right ())
+  where
+    j = fromIntegral i
+
+checkedWrite32 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite32 name (arr, i, v) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 4 $ do
+    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 24 :: Word8)
+    PA.writeByteArray arr (j + 1) (fromIntegral $ v `shiftR` 16 :: Word8)
+    PA.writeByteArray arr (j + 2) (fromIntegral $ v `shiftR` 8 :: Word8)
+    PA.writeByteArray arr (j + 3) (fromIntegral v :: Word8)
+    pure (Right ())
+  where
+    j = fromIntegral i
+
+checkedWrite64 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite64 name (arr, i, v) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $ do
+    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 56 :: Word8)
+    PA.writeByteArray arr (j + 1) (fromIntegral $ v `shiftR` 48 :: Word8)
+    PA.writeByteArray arr (j + 2) (fromIntegral $ v `shiftR` 40 :: Word8)
+    PA.writeByteArray arr (j + 3) (fromIntegral $ v `shiftR` 32 :: Word8)
+    PA.writeByteArray arr (j + 4) (fromIntegral $ v `shiftR` 24 :: Word8)
+    PA.writeByteArray arr (j + 5) (fromIntegral $ v `shiftR` 16 :: Word8)
+    PA.writeByteArray arr (j + 6) (fromIntegral $ v `shiftR` 8 :: Word8)
+    PA.writeByteArray arr (j + 7) (fromIntegral v :: Word8)
+    pure (Right ())
+  where
+    j = fromIntegral i
+
+-- index single byte
+checkedIndex8 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex8 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 1 . pure $
+    let j = fromIntegral i
+     in Right . fromIntegral $ PA.indexByteArray @Word8 arr j
+
+-- index 16 big-endian
+checkedIndex16 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex16 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 2 . pure $
+    let j = fromIntegral i
+     in mk16 (PA.indexByteArray arr j) (PA.indexByteArray arr (j + 1))
+
+-- index 32 big-endian
+checkedIndex24 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex24 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 3 . pure $
+    let j = fromIntegral i
+     in mk24
+          (PA.indexByteArray arr j)
+          (PA.indexByteArray arr (j + 1))
+          (PA.indexByteArray arr (j + 2))
+
+-- index 32 big-endian
+checkedIndex32 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex32 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 4 . pure $
+    let j = fromIntegral i
+     in mk32
+          (PA.indexByteArray arr j)
+          (PA.indexByteArray arr (j + 1))
+          (PA.indexByteArray arr (j + 2))
+          (PA.indexByteArray arr (j + 3))
+
+-- index 40 big-endian
+checkedIndex40 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex40 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 5 . pure $
+    let j = fromIntegral i
+     in mk40
+          (PA.indexByteArray arr j)
+          (PA.indexByteArray arr (j + 1))
+          (PA.indexByteArray arr (j + 2))
+          (PA.indexByteArray arr (j + 3))
+          (PA.indexByteArray arr (j + 4))
+
+-- index 64 big-endian
+checkedIndex64 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex64 name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 8 . pure $
+    let j = fromIntegral i
+     in mk64
+          (PA.indexByteArray arr j)
+          (PA.indexByteArray arr (j + 1))
+          (PA.indexByteArray arr (j + 2))
+          (PA.indexByteArray arr (j + 3))
+          (PA.indexByteArray arr (j + 4))
+          (PA.indexByteArray arr (j + 5))
+          (PA.indexByteArray arr (j + 6))
+          (PA.indexByteArray arr (j + 7))
+
+checkBounds :: Text -> Int -> Word64 -> IO (Either Failure b) -> IO (Either Failure b)
+checkBounds name l w act
+  | w < fromIntegral l = act
+  | otherwise = pure $ Left err
+  where
+    msg = name <> ": array index out of bounds"
+    err = Failure Ty.arrayFailureRef msg (natValue w)
+
+-- Performs a bounds check on a byte array. Strategy is as follows:
+--
+--   isz = signed array size-in-bytes
+--   off = unsigned byte offset into the array
+--   esz = unsigned number of bytes to be read
+--
+--   1. Turn the signed size-in-bytes of the array unsigned
+--   2. Add the offset to the to-be-read number to get the maximum size needed
+--   3. Check that the actual array size is at least as big as the needed size
+--   4. Check that the offset is less than the size
+--
+-- Step 4 ensures that step 3 has not overflowed. Since an actual array size can
+-- only be 63 bits (since it is signed), the only way for 3 to overflow is if
+-- the offset is larger than a possible array size, since it would need to be
+-- 2^64-k, where k is the small (<=8) number of bytes to be read.
+checkBoundsPrim ::
+  Text -> Int -> Word64 -> Word64 -> IO (Either Failure b) -> IO (Either Failure b)
+checkBoundsPrim name isz off esz act
+  | w > bsz || off > bsz = pure $ Left err
+  | otherwise = act
+  where
+    msg = name <> ": array index out of bounds"
+    err = Failure Ty.arrayFailureRef msg (natValue off)
+
+    bsz = fromIntegral isz
+    w = off + esz
 
 hostPreference :: Maybe Util.Text.Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny
@@ -2242,11 +2994,12 @@ typeReferences = zip rs [1 ..]
         ++ [DerivedId i | (_, i, _) <- Ty.builtinEffectDecls]
 
 foreignDeclResults ::
-  (Word64, [(Data.Text.Text, (Sandbox, SuperNormal Symbol))], EnumMap Word64 (Data.Text.Text, ForeignFunc))
-foreignDeclResults = execState declareForeigns (0, [], mempty)
+  Bool -> (Word64, [(Data.Text.Text, (Sandbox, SuperNormal Symbol))], EnumMap Word64 (Data.Text.Text, ForeignFunc))
+foreignDeclResults sanitize =
+  execState (runReaderT declareForeigns sanitize) (0, [], mempty)
 
 foreignWrappers :: [(Data.Text.Text, (Sandbox, SuperNormal Symbol))]
-foreignWrappers | (_, l, _) <- foreignDeclResults = reverse l
+foreignWrappers | (_, l, _) <- foreignDeclResults False = reverse l
 
 numberedTermLookup :: EnumMap Word64 (SuperNormal Symbol)
 numberedTermLookup =
@@ -2269,10 +3022,13 @@ builtinTypeBackref = mapFromList $ swap <$> typeReferences
     swap (x, y) = (y, x)
 
 builtinForeigns :: EnumMap Word64 ForeignFunc
-builtinForeigns | (_, _, m) <- foreignDeclResults = snd <$> m
+builtinForeigns | (_, _, m) <- foreignDeclResults False = snd <$> m
+
+sandboxedForeigns :: EnumMap Word64 ForeignFunc
+sandboxedForeigns | (_, _, m) <- foreignDeclResults True = snd <$> m
 
 builtinForeignNames :: EnumMap Word64 Data.Text.Text
-builtinForeignNames | (_, _, m) <- foreignDeclResults = fst <$> m
+builtinForeignNames | (_, _, m) <- foreignDeclResults False = fst <$> m
 
 -- Bootstrapping for sandbox check. The eventual map will be one with
 -- associations `r -> s` where `s` is all the 'sensitive' base

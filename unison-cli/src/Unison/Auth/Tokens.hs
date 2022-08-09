@@ -1,8 +1,16 @@
 module Unison.Auth.Tokens where
 
+import Control.Monad.Except
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client.TLS as HTTP
+import qualified Network.HTTP.Types as Network
+import Network.URI (URI)
 import Unison.Auth.CredentialManager
+import Unison.Auth.Discovery (fetchDiscoveryDoc)
 import Unison.Auth.Types
 import Unison.CommandLine.InputPattern (patternName)
 import qualified Unison.CommandLine.InputPatterns as IP
@@ -29,17 +37,43 @@ type TokenProvider = CodeserverId -> IO (Either CredentialFailure AccessToken)
 -- | Creates a 'TokenProvider' using the given 'CredentialManager'
 newTokenProvider :: CredentialManager -> TokenProvider
 newTokenProvider manager host = UnliftIO.try @_ @CredentialFailure $ do
-  tokens@(Tokens {accessToken}) <- throwEitherM $ getTokens manager host
-  expired <- isExpired accessToken
+  CodeserverCredentials {tokens, discoveryURI} <- throwEitherM $ getCredentials manager host
+  let Tokens {accessToken = currentAccessToken} = tokens
+  expired <- isExpired currentAccessToken
   if expired
     then do
-      newTokens@(Tokens {accessToken = newAccessToken}) <- throwEitherM $ refreshTokens manager host tokens
-      saveTokens manager host newTokens
+      newTokens@(Tokens {accessToken = newAccessToken}) <- throwEitherM $ performTokenRefresh discoveryURI tokens
+      saveCredentials manager host (codeserverCredentials discoveryURI newTokens)
       pure $ newAccessToken
-    else pure accessToken
+    else pure currentAccessToken
 
 -- | Don't yet support automatically refreshing tokens.
-refreshTokens :: MonadIO m => CredentialManager -> CodeserverId -> Tokens -> m (Either CredentialFailure Tokens)
-refreshTokens _manager _host _tokens =
-  -- Refreshing tokens is currently unsupported.
-  pure (Left (RefreshFailure . Text.pack $ "Unable to refresh authentication, please run " <> patternName IP.authLogin <> " and try again."))
+--
+-- Specification: https://datatracker.ietf.org/doc/html/rfc6749#section-6
+performTokenRefresh :: MonadIO m => URI -> Tokens -> m (Either CredentialFailure Tokens)
+performTokenRefresh discoveryURI (Tokens {refreshToken = currentRefreshToken}) = runExceptT $
+  case currentRefreshToken of
+    Nothing ->
+      throwError $ (RefreshFailure . Text.pack $ "Unable to refresh authentication, please run " <> patternName IP.authLogin <> " and try again.")
+    Just rt -> do
+      DiscoveryDoc {tokenEndpoint} <- ExceptT $ fetchDiscoveryDoc discoveryURI
+      req <- liftIO $ HTTP.requestFromURI tokenEndpoint
+      let addFormData =
+            HTTP.urlEncodedBody
+              [ ("grant_type", "refresh_token"),
+                ("refresh_token", BSC.pack . Text.unpack $ rt)
+              ]
+      let fullReq = addFormData $ req {HTTP.method = "POST", HTTP.requestHeaders = [("Accept", "application/json")]}
+      unauthenticatedHttpClient <- liftIO $ HTTP.getGlobalManager
+      resp <- liftIO $ HTTP.httpLbs fullReq unauthenticatedHttpClient
+      newTokens <- case HTTP.responseStatus resp of
+        status
+          | status < Network.status300 -> do
+            let respBytes = HTTP.responseBody resp
+            case Aeson.eitherDecode @Tokens respBytes of
+              Left err -> throwError (InvalidTokenResponse tokenEndpoint (Text.pack err))
+              Right a -> pure a
+          | otherwise -> throwError $ (InvalidTokenResponse tokenEndpoint $ "Received " <> tShow status <> " response from token endpoint")
+      -- According to the spec, servers may or may not update the refresh token itself.
+      -- If updated we need to replace it, if not updated we keep the existing one.
+      pure $ newTokens {refreshToken = refreshToken newTokens <|> currentRefreshToken}

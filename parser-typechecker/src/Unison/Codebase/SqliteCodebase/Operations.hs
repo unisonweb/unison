@@ -7,31 +7,42 @@
 -- are unified with non-sqlite operations in the Codebase interface, like 'appendReflog'.
 module Unison.Codebase.SqliteCodebase.Operations where
 
+import Control.Lens (ifor)
 import Data.Bifunctor (Bifunctor (bimap), second)
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NEList
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
 import qualified U.Codebase.Sqlite.NamedRef as S
 import qualified U.Codebase.Sqlite.ObjectType as OT
+import U.Codebase.Sqlite.Operations (NamesByPath (..))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.V2.Decl (saveDeclComponent)
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
+import U.Codebase.Sqlite.V2.Term (saveTermComponent)
+import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as V1Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.SqliteCodebase.Branch.Cache (BranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -55,6 +66,7 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import Unison.Sqlite (Transaction)
 import qualified Unison.Sqlite as Sqlite
+import qualified Unison.Sqlite.Transaction as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -264,23 +276,16 @@ tryFlushTermBuffer termBuffer =
   let loop h =
         tryFlushBuffer
           termBuffer
-          ( \h2 component -> do
-              oId <-
-                Ops.saveTermComponent h2 $
-                  fmap (bimap (Cv.term1to2 h) Cv.ttype1to2) component
-              addTermComponentTypeIndex oId (fmap snd component)
+          ( \h2 component ->
+              void $
+                saveTermComponent
+                  Nothing
+                  h2
+                  (fmap (bimap (Cv.term1to2 h) Cv.ttype1to2) component)
           )
           loop
           h
    in loop
-
-addTermComponentTypeIndex :: ObjectId -> [Type Symbol Ann] -> Transaction ()
-addTermComponentTypeIndex oId types = for_ (types `zip` [0 ..]) \(tp, i) -> do
-  let self = C.Referent.RefId (C.Reference.Id oId i)
-      typeForIndexing = Hashing.typeToReference tp
-      typeMentionsForIndexing = Hashing.typeToReferenceMentions tp
-  Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
-  Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
 
 addDeclComponentTypeIndex :: ObjectId -> [[Type Symbol Ann]] -> Transaction ()
 addDeclComponentTypeIndex oId ctorss =
@@ -326,10 +331,12 @@ tryFlushDeclBuffer termBuffer declBuffer =
   let loop h =
         tryFlushBuffer
           declBuffer
-          ( \h2 component -> do
-              oId <- Ops.saveDeclComponent h2 $ fmap (Cv.decl1to2 h) component
-              addDeclComponentTypeIndex oId $
-                fmap (map snd . Decl.constructors . Decl.asDataDecl) component
+          ( \h2 component ->
+              void $
+                saveDeclComponent
+                  Nothing
+                  h2
+                  (fmap (Cv.decl1to2 h) component)
           )
           (\h -> tryFlushTermBuffer termBuffer h >> loop h)
           h
@@ -337,10 +344,11 @@ tryFlushDeclBuffer termBuffer declBuffer =
 
 getRootBranch ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  BranchCache Sqlite.Transaction ->
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   TVar (Maybe (Sqlite.DataVersion, Branch Transaction)) ->
   Transaction (Branch Transaction)
-getRootBranch doGetDeclType rootBranchCache =
+getRootBranch branchCache doGetDeclType rootBranchCache =
   Sqlite.unsafeIO (readTVarIO rootBranchCache) >>= \case
     Nothing -> forceReload
     Just (v, b) -> do
@@ -359,11 +367,18 @@ getRootBranch doGetDeclType rootBranchCache =
   where
     forceReload :: Transaction (Branch Transaction)
     forceReload = do
-      causal2 <- Ops.expectRootCausal
-      branch1 <- Cv.causalbranch2to1 doGetDeclType causal2
+      branch1 <- uncachedLoadRootBranch branchCache doGetDeclType
       ver <- Sqlite.getDataVersion
       Sqlite.unsafeIO (atomically (writeTVar rootBranchCache (Just (ver, branch1))))
       pure branch1
+
+uncachedLoadRootBranch ::
+  BranchCache Sqlite.Transaction ->
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  Transaction (Branch Transaction)
+uncachedLoadRootBranch branchCache getDeclType = do
+  causal2 <- Ops.expectRootCausal
+  Cv.causalbranch2to1 branchCache getDeclType causal2
 
 getRootBranchExists :: Transaction Bool
 getRootBranchExists =
@@ -373,26 +388,27 @@ putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Transaction)) -> Branch
 putRootBranch rootBranchCache branch1 = do
   -- todo: check to see if root namespace hash has been externally modified
   -- and do something (merge?) it if necessary. But for now, we just overwrite it.
-  void (Ops.saveRootBranch (Cv.causalbranch1to2 branch1))
+  void (Ops.saveRootBranch v2HashHandle (Cv.causalbranch1to2 branch1))
   Sqlite.unsafeIO (atomically $ modifyTVar' rootBranchCache (fmap . second $ const branch1))
 
 -- if this blows up on cromulent hashes, then switch from `hashToHashId`
 -- to one that returns Maybe.
 getBranchForHash ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  BranchCache Sqlite.Transaction ->
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   Branch.CausalHash ->
   Transaction (Maybe (Branch Transaction))
-getBranchForHash doGetDeclType h = do
+getBranchForHash branchCache doGetDeclType h = do
   Ops.loadCausalBranchByCausalHash (Cv.causalHash1to2 h) >>= \case
     Nothing -> pure Nothing
     Just causal2 -> do
-      branch1 <- Cv.causalbranch2to1 doGetDeclType causal2
+      branch1 <- Cv.causalbranch2to1 branchCache doGetDeclType causal2
       pure (Just branch1)
 
 putBranch :: Branch Transaction -> Transaction ()
 putBranch =
-  void . Ops.saveBranch . Cv.causalbranch1to2
+  void . Ops.saveBranch v2HashHandle . Cv.causalbranch1to2
 
 isCausalHash :: Branch.CausalHash -> Transaction Bool
 isCausalHash (Causal.CausalHash h) =
@@ -409,7 +425,7 @@ getPatch h =
 
 putPatch :: Branch.EditHash -> Patch -> Transaction ()
 putPatch h p =
-  void $ Ops.savePatch (Cv.patchHash1to2 h) (Cv.patch1to2 p)
+  void $ Ops.savePatch v2HashHandle (Cv.patchHash1to2 h) (Cv.patch1to2 p)
 
 patchExists :: Branch.EditHash -> Transaction Bool
 patchExists h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h)
@@ -541,29 +557,28 @@ namesAtPath ::
   Path ->
   Transaction ScopedNames
 namesAtPath path = do
-  (termNames, typeNames) <- Ops.rootBranchNames
+  let namespace = if path == Path.empty then Nothing else Just $ tShow path
+  NamesByPath {termNamesInPath, termNamesExternalToPath, typeNamesInPath, typeNamesExternalToPath} <- Ops.rootNamesByPath namespace
+  let termsInPath = convertTerms termNamesInPath
+  let typesInPath = convertTypes typeNamesInPath
+  let termsOutsidePath = convertTerms termNamesExternalToPath
+  let typesOutsidePath = convertTypes typeNamesExternalToPath
   let allTerms :: [(Name, Referent.Referent)]
-      allTerms =
-        termNames <&> \(S.NamedRef {reversedSegments, ref = (ref, ct)}) ->
-          let v1ref = runIdentity $ Cv.referent2to1 (const . pure . Cv.constructorType2to1 . fromMaybe (error "Required constructor type for constructor but it was null") $ ct) ref
-           in (Name.fromReverseSegments (coerce reversedSegments), v1ref)
+      allTerms = termsInPath <> termsOutsidePath
   let allTypes :: [(Name, Reference.Reference)]
-      allTypes =
-        typeNames <&> \(S.NamedRef {reversedSegments, ref}) ->
-          (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
+      allTypes = typesInPath <> typesOutsidePath
   let rootTerms = Rel.fromList allTerms
   let rootTypes = Rel.fromList allTypes
-  let absoluteRootNames = Names {terms = rootTerms, types = rootTypes}
-  let (relativeScopedNames, absoluteExternalNames) =
+  let absoluteRootNames = Names.makeAbsolute $ Names {terms = rootTerms, types = rootTypes}
+  let absoluteExternalNames = Names.makeAbsolute $ Names {terms = Rel.fromList termsOutsidePath, types = Rel.fromList typesOutsidePath}
+  let relativeScopedNames =
         case path of
-          Path.Empty -> (absoluteRootNames, mempty)
+          Path.Empty -> (Names.makeRelative $ absoluteRootNames)
           p ->
             let reversedPathSegments = reverse . Path.toList $ p
-                (relativeTerms, externalTerms) = foldMap (partitionByPathPrefix reversedPathSegments) allTerms
-                (relativeTypes, externalTypes) = foldMap (partitionByPathPrefix reversedPathSegments) allTypes
-             in ( Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes},
-                  Names {terms = Rel.fromList externalTerms, types = Rel.fromList externalTypes}
-                )
+                relativeTerms = stripPathPrefix reversedPathSegments <$> termsInPath
+                relativeTypes = stripPathPrefix reversedPathSegments <$> typesInPath
+             in (Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes})
   pure $
     ScopedNames
       { absoluteExternalNames,
@@ -571,34 +586,95 @@ namesAtPath path = do
         absoluteRootNames
       }
   where
+    convertTypes names =
+      names <&> \(S.NamedRef {reversedSegments, ref}) ->
+        (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
+    convertTerms names =
+      names <&> \(S.NamedRef {reversedSegments, ref = (ref, ct)}) ->
+        let v1ref = runIdentity $ Cv.referent2to1 (const . pure . Cv.constructorType2to1 . fromMaybe (error "Required constructor type for constructor but it was null") $ ct) ref
+         in (Name.fromReverseSegments (coerce reversedSegments), v1ref)
+
     -- If the given prefix matches the given name, the prefix is stripped and it's collected
     -- on the left, otherwise it's left as-is and collected on the right.
-    -- >>> partitionByPathPrefix ["b", "a"] ("a.b.c", ())
-    -- ([(c,())],[])
-    --
-    -- >>> partitionByPathPrefix ["y", "x"] ("a.b.c", ())
-    -- ([],[(a.b.c,())])
-    partitionByPathPrefix :: [NameSegment] -> (Name, r) -> ([(Name, r)], [(Name, r)])
-    partitionByPathPrefix reversedPathSegments (n, ref) =
+    -- >>> stripPathPrefix ["b", "a"] ("a.b.c", ())
+    -- ([(c,())])
+    stripPathPrefix :: [NameSegment] -> (Name, r) -> (Name, r)
+    stripPathPrefix reversedPathSegments (n, ref) =
       case Name.stripReversedPrefix n reversedPathSegments of
-        Nothing -> (mempty, [(n, ref)])
-        Just stripped -> ([(Name.makeRelative stripped, ref)], mempty)
+        Nothing -> error $ "Expected name to be in namespace" <> show (n, reverse reversedPathSegments)
+        Just stripped -> (Name.makeRelative stripped, ref)
 
-saveRootNamesIndex :: Names -> Transaction ()
-saveRootNamesIndex Names {Names.terms, Names.types} = do
-  let termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))]
-      termNames = Rel.toList terms <&> \(name, ref) -> S.NamedRef {reversedSegments = nameSegments name, ref = splitReferent ref}
-  let typeNames :: [(S.NamedRef C.Reference.Reference)]
-      typeNames =
-        Rel.toList types
-          <&> ( \(name, ref) ->
-                  S.NamedRef {reversedSegments = nameSegments name, ref = Cv.reference1to2 ref}
-              )
-  Ops.rebuildNameIndex termNames typeNames
+-- | Update the root namespace names index which is used by the share server for serving api
+-- requests.
+--
+-- This version should be used if you've already got the root Branch pre-loaded, otherwise
+-- it's faster to use 'updateNameLookupIndexFromV2Branch'
+updateNameLookupIndexFromV1Branch :: Branch Transaction -> Sqlite.Transaction ()
+updateNameLookupIndexFromV1Branch root = do
+  saveRootNamesIndexV1 (V1Branch.toNames . Branch.head $ root)
   where
-    nameSegments :: Name -> NonEmpty Text
-    nameSegments = coerce @(NonEmpty NameSegment) @(NonEmpty Text) . Name.reverseSegments
-    splitReferent :: Referent.Referent -> (C.Referent.Referent, Maybe C.Referent.ConstructorType)
-    splitReferent referent = case referent of
-      Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
-      Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))
+    saveRootNamesIndexV1 :: Names -> Transaction ()
+    saveRootNamesIndexV1 Names {Names.terms, Names.types} = do
+      let termNames :: [(S.NamedRef (C.Referent.Referent, Maybe C.Referent.ConstructorType))]
+          termNames = Rel.toList terms <&> \(name, ref) -> S.NamedRef {reversedSegments = nameSegments name, ref = splitReferent ref}
+      let typeNames :: [(S.NamedRef C.Reference.Reference)]
+          typeNames =
+            Rel.toList types
+              <&> ( \(name, ref) ->
+                      S.NamedRef {reversedSegments = nameSegments name, ref = Cv.reference1to2 ref}
+                  )
+      Ops.rebuildNameIndex termNames typeNames
+      where
+        nameSegments :: Name -> NonEmpty Text
+        nameSegments = coerce @(NonEmpty NameSegment) @(NonEmpty Text) . Name.reverseSegments
+        splitReferent :: Referent.Referent -> (C.Referent.Referent, Maybe C.Referent.ConstructorType)
+        splitReferent referent = case referent of
+          Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
+          Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))
+
+-- | Update the root namespace names index which is used by the share server for serving api
+-- requests.
+--
+-- This version should be used if you don't already have the root Branch pre-loaded,
+-- If you do, use 'updateNameLookupIndexFromV2Branch' instead.
+updateNameLookupIndexFromV2Root :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
+updateNameLookupIndexFromV2Root getDeclType = do
+  rootHash <- Ops.expectRootCausalHash
+  causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
+  (termNameMap, typeNameMap) <- nameMapsFromV2Branch [] causalBranch
+  let expandedTermNames = Map.toList termNameMap >>= (\(name, refs) -> (name,) <$> Set.toList refs)
+  termNameList <- do
+    for expandedTermNames \(name, ref) -> do
+      refWithCT <- addReferentCT ref
+      pure S.NamedRef {S.reversedSegments = coerce name, S.ref = refWithCT}
+  let typeNameList = do
+        (name, refs) <- Map.toList typeNameMap
+        ref <- Set.toList refs
+        pure $ S.NamedRef {S.reversedSegments = coerce name, S.ref = ref}
+  Ops.rebuildNameIndex termNameList typeNameList
+  where
+    addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
+    addReferentCT referent = case referent of
+      C.Referent.Ref {} -> pure (referent, Nothing)
+      C.Referent.Con ref _conId -> do
+        ct <- getDeclType ref
+        pure (referent, Just $ Cv.constructorType1to2 ct)
+
+    -- Traverse a v2 branch
+    -- Collects two maps, one with all term names and one with all type names.
+    -- Note that unlike the `Name` type in `unison-core1`, this list of name segments is
+    -- in reverse order, e.g. `["map", "List", "base"]`
+    nameMapsFromV2Branch :: Monad m => [V2Branch.NameSegment] -> V2Branch.CausalBranch m -> m (Map (NonEmpty V2Branch.NameSegment) (Set C.Referent.Referent), Map (NonEmpty V2Branch.NameSegment) (Set C.Reference.Reference))
+    nameMapsFromV2Branch reversedNamePrefix cb = do
+      b <- V2Causal.value cb
+      let (shallowTermNames, shallowTypeNames) = (Map.keysSet <$> V2Branch.terms b, Map.keysSet <$> V2Branch.types b)
+      (prefixedChildTerms, prefixedChildTypes) <-
+        fold <$> (ifor (V2Branch.children b) $ \nameSegment cb -> (nameMapsFromV2Branch (nameSegment : reversedNamePrefix) cb))
+      pure (Map.mapKeys (NEList.:| reversedNamePrefix) shallowTermNames <> prefixedChildTerms, Map.mapKeys (NEList.:| reversedNamePrefix) shallowTypeNames <> prefixedChildTypes)
+
+mkGetDeclType :: MonadIO m => m (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType)
+mkGetDeclType = do
+  declTypeCache <- Cache.semispaceCache 2048
+  pure $ \ref -> do
+    conn <- Sqlite.unsafeGetConnection
+    Sqlite.unsafeIO $ Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (getDeclType ref) conn) ref

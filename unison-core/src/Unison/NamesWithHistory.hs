@@ -2,8 +2,7 @@
 
 module Unison.NamesWithHistory where
 
-import Control.Lens (view, _4)
-import Data.List.Extra (nubOrd, sort)
+import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Unison.ConstructorReference (ConstructorReference)
@@ -249,32 +248,6 @@ termName length r NamesWithHistory {..} =
   where
     hq n = HQ'.take length (HQ'.fromNamedReferent n r)
     isConflicted n = R.manyDom n (Names.terms currentNames)
-
-suffixedTypeName :: Int -> Reference -> NamesWithHistory -> [HQ'.HashQualified Name]
-suffixedTermName :: Int -> Referent -> NamesWithHistory -> [HQ'.HashQualified Name]
-(suffixedTermName, suffixedTypeName) =
-  ( suffixedName termName (Names.terms . currentNames) HQ'.fromNamedReferent,
-    suffixedName typeName (Names.types . currentNames) HQ'.fromNamedReference
-  )
-  where
-    suffixedName fallback getRel hq' length r ns@(getRel -> rel) =
-      if R.memberRan r rel
-        then go $ toList (R.lookupRan r rel)
-        else sort $ Set.toList (fallback length r ns)
-      where
-        -- Orders names, using these criteria, in this order:
-        -- 1. NameOnly comes before HashQualified,
-        -- 2. Shorter names (in terms of segment count) come before longer ones
-        -- 3. If same on attributes 1 and 2, compare alphabetically
-        go :: [Name] -> [HQ'.HashQualified Name]
-        go fqns = map (view _4) . sort $ map f fqns
-          where
-            f fqn =
-              let n' = Name.shortestUniqueSuffix fqn r rel
-                  isHQ'd = R.manyDom fqn rel -- it is conflicted
-                  hq n = HQ'.take length (hq' n r)
-                  hqn = if isHQ'd then hq n' else HQ'.fromName n'
-               in (isHQ'd, Name.countSegments fqn, Name.isAbsolute n', hqn)
 
 -- Set HashQualified -> Branch m -> Action' m v Names
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names

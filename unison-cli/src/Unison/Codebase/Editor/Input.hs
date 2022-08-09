@@ -1,6 +1,8 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
     GistInput (..),
+    PushRemoteBranchInput (..),
+    TestInput (..),
     Event (..),
     OutputLocation (..),
     PatchPath,
@@ -11,6 +13,7 @@ module Unison.Codebase.Editor.Input
     Insistence (..),
     PullMode (..),
     OptionalPatch (..),
+    FindScope (..),
     IsGlobal,
   )
 where
@@ -81,7 +84,7 @@ data Input
   | PreviewMergeLocalBranchI Path' Path'
   | DiffNamespaceI BranchId BranchId -- old new
   | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode PullMode Verbosity
-  | PushRemoteBranchI (Maybe WriteRemotePath) Path' PushBehavior SyncMode
+  | PushRemoteBranchI PushRemoteBranchInput
   | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
   | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
   | ResetRootI (Either ShortBranchHash Path')
@@ -144,10 +147,10 @@ data Input
     IOTestI (HQ.HashQualified Name)
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
-  | TestI Bool Bool -- TestI showSuccesses showFailures
-  -- metadata
-  -- `link metadata definitions` (adds metadata to all of `definitions`)
-  | LinkI (HQ.HashQualified Name) [Path.HQSplit']
+  | TestI TestInput
+  | -- metadata
+    -- `link metadata definitions` (adds metadata to all of `definitions`)
+    LinkI (HQ.HashQualified Name) [Path.HQSplit']
   | -- `unlink metadata definitions` (removes metadata from all of `definitions`)
     UnlinkI (HQ.HashQualified Name) [Path.HQSplit']
   | -- links from <type>
@@ -158,7 +161,7 @@ data Input
   | -- Display docs for provided terms. If list is empty, prompt a fuzzy search.
     DocsI [Path.HQSplit']
   | -- other
-    FindI Bool IsGlobal [String] -- FindI isVerbose global query
+    FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
   | FindPatchI
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.
@@ -188,9 +191,28 @@ data Input
   | VersionI
   deriving (Eq, Show)
 
--- | @"gist repo"@ pushes the contents of the current namespace to @repo@.
+-- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
 data GistInput = GistInput
-  { repo :: WriteRepo
+  { repo :: WriteGitRepo
+  }
+  deriving stock (Eq, Show)
+
+data PushRemoteBranchInput = PushRemoteBranchInput
+  { -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
+    localPath :: Path',
+    -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
+    maybeRemoteRepo :: Maybe WriteRemotePath,
+    -- | The push behavior (whether the remote branch is required to be empty or non-empty).
+    pushBehavior :: PushBehavior,
+    syncMode :: SyncMode
+  }
+  deriving stock (Eq, Show)
+
+data TestInput = TestInput
+  { -- | Should we run tests in the `lib` namespace?
+    includeLibNamespace :: Bool,
+    showFailures :: Bool,
+    showSuccesses :: Bool
   }
   deriving stock (Eq, Show)
 
@@ -201,3 +223,9 @@ data OutputLocation
   | FileLocation FilePath
   -- ClipboardLocation
   deriving (Eq, Show)
+
+data FindScope
+  = Local
+  | LocalAndDeps
+  | Global
+  deriving stock (Eq, Show)

@@ -76,7 +76,7 @@ pattern Derived h i = DerivedId (Id h i)
 _DerivedId :: Prism' Reference Id
 _DerivedId = _Ctor @"DerivedId"
 
--- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
+-- | @Pos@ is a position into a cycle, as cycles are hashed together.
 data Id = Id H.Hash Pos deriving (Eq, Ord)
 
 -- | A term reference.

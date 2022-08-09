@@ -1,5 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
-
 module U.Util.Base32Hex
   ( Base32Hex (UnsafeFromText),
     fromByteString,
@@ -10,13 +8,11 @@ module U.Util.Base32Hex
   )
 where
 
-import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base32.Hex as Base32.Hex
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Unison.Prelude
 
 newtype Base32Hex = UnsafeFromText Text
   deriving (Eq, Ord, Show)

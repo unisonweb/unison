@@ -42,6 +42,7 @@ module Unison.Name
     searchByRankedSuffix,
     suffixFrom,
     shortestUniqueSuffix,
+    commonPrefix,
     toString,
     toText,
     toVar,
@@ -531,6 +532,36 @@ shortestUniqueSuffix fqn r rel =
         rs :: Set r
         rs =
           R.searchDom (compareSuffix suffix) rel
+
+-- | Returns the common prefix of two names as segments
+--
+-- Note: the returned segments are NOT reversed.
+--
+-- >>> commonPrefix "a.b.x" "a.b.y"
+-- [a,b]
+--
+-- >>> commonPrefix "x.y.z" "a.b.c"
+-- []
+--
+-- >>> commonPrefix "a.b.c" "a.b.c.d.e"
+-- [a,b,c]
+--
+-- Must have equivalent positions or no there's no common prefix
+-- >>> commonPrefix ".a.b.c" "a.b.c.d.e"
+-- []
+--
+-- Prefix matches are performed at the *segment* level:
+-- >>> commonPrefix "a.bears" "a.beats"
+-- [a]
+commonPrefix :: Name -> Name -> [NameSegment]
+commonPrefix x@(Name p1 _) y@(Name p2 _)
+  | p1 /= p2 = []
+  | otherwise =
+    commonPrefix' (toList $ segments x) (toList $ segments y)
+  where
+    commonPrefix' (a : as) (b : bs)
+      | a == b = a : commonPrefix' as bs
+    commonPrefix' _ _ = []
 
 -- | Unsafely parse a name from a string literal.
 --

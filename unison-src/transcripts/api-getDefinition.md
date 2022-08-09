@@ -23,6 +23,6 @@ GET /api/getDefinition?names=x&relativeTo=nested
 -- Should find definitions by hash, names should be relative
 GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
 
--- Should find definitions by hash, using global names if no names in specified path.
+-- Should filter out any definitions which aren't in the provided namespace even if the hash matches.
 GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
 ```

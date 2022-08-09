@@ -1,6 +1,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
 
+-- | Description: Converts V1 types to the V2 hashing types
 module Unison.Hashing.V2.Convert
   ( ResolutionResult,
     hashBranch0,
@@ -130,8 +131,8 @@ m2hTerm = ABT.transformM \case
   Memory.Term.If c t f -> pure (Hashing.Term.If c t f)
   Memory.Term.Or p q -> pure (Hashing.Term.Or p q)
   Memory.Term.Lam a -> pure (Hashing.Term.Lam a)
-  Memory.Term.LetRec isTop bs body -> pure (Hashing.Term.LetRec isTop bs body)
-  Memory.Term.Let isTop b body -> pure (Hashing.Term.Let isTop b body)
+  Memory.Term.LetRec _isTop bs body -> pure (Hashing.Term.LetRec bs body)
+  Memory.Term.Let _isTop b body -> pure (Hashing.Term.Let b body)
   Memory.Term.Match scr cases -> pure (Hashing.Term.Match scr (fmap m2hMatchCase cases))
   Memory.Term.TermLink r -> Hashing.Term.TermLink <$> m2hReferent r
   Memory.Term.TypeLink r -> pure (Hashing.Term.TypeLink (m2hReference r))
@@ -191,8 +192,8 @@ h2mTerm getCT = ABT.transform \case
   Hashing.Term.And p q -> Memory.Term.And p q
   Hashing.Term.Or p q -> Memory.Term.Or p q
   Hashing.Term.Lam a -> Memory.Term.Lam a
-  Hashing.Term.LetRec isTop bs body -> Memory.Term.LetRec isTop bs body
-  Hashing.Term.Let isTop b body -> Memory.Term.Let isTop b body
+  Hashing.Term.LetRec bs body -> Memory.Term.LetRec False bs body
+  Hashing.Term.Let b body -> Memory.Term.Let False b body
   Hashing.Term.Match scr cases -> Memory.Term.Match scr (h2mMatchCase <$> cases)
   Hashing.Term.TermLink r -> Memory.Term.TermLink (h2mReferent getCT r)
   Hashing.Term.TypeLink r -> Memory.Term.TypeLink (h2mReference r)

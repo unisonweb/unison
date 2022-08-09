@@ -25,6 +25,7 @@ module Unison.Sqlite.Connection
     queryMaybeCol,
     queryOneRow,
     queryOneCol,
+    queryManyListRow,
 
     -- **** With checks
     queryListRowCheck,
@@ -49,6 +50,9 @@ module Unison.Sqlite.Connection
     queryMaybeColCheck_,
     queryOneRowCheck_,
     queryOneColCheck_,
+
+    -- * Rows modified
+    rowsModified,
 
     -- * Vacuum (into)
     vacuum,
@@ -115,6 +119,7 @@ openConnection name file = do
   conn0 <- Sqlite.open file `catch` rethrowAsSqliteConnectException name file
   let conn = Connection {conn = conn0, file, name}
   execute_ conn "PRAGMA foreign_keys = ON"
+  execute_ conn "PRAGMA busy_timeout = 1000"
   pure conn
 
 -- Close a connection opened with 'openConnection'.
@@ -185,6 +190,31 @@ executeMany conn@(Connection _ _ conn0) s = \case
             params = Just params,
             sql = s
           }
+
+-- | Run a query many times using a prepared statement.
+queryManyListRow :: forall q r. (Sqlite.ToRow q, Sqlite.FromRow r) => Connection -> Sql -> [q] -> IO [[r]]
+queryManyListRow conn@(Connection _ _ conn0) s params = case params of
+  [] -> pure []
+  _ -> handle handler do
+    logQuery s (Just params) Nothing
+    Sqlite.withStatement conn0 (coerce s) \stmt -> do
+      for params \p ->
+        Sqlite.withBind stmt p $ exhaustQuery stmt
+  where
+    handler :: Sqlite.SQLError -> IO a
+    handler exception =
+      throwSqliteQueryException
+        SqliteQueryExceptionInfo
+          { connection = conn,
+            exception = SomeSqliteExceptionReason exception,
+            params = Just params,
+            sql = s
+          }
+    exhaustQuery :: Sqlite.Statement -> IO [r]
+    exhaustQuery stmt = do
+      Sqlite.nextRow stmt >>= \case
+        Just a -> (a :) <$> exhaustQuery stmt
+        Nothing -> pure []
 
 -- Without results, without parameters
 
@@ -471,6 +501,12 @@ queryOneColCheck_ ::
   IO r
 queryOneColCheck_ conn s check =
   queryOneRowCheck_ conn s (coerce @(a -> Either e r) @(Sqlite.Only a -> Either e r) check)
+
+-- Rows modified
+
+rowsModified :: Connection -> IO Int
+rowsModified (Connection _ _ conn) =
+  Sqlite.changes conn
 
 -- Vacuum
 

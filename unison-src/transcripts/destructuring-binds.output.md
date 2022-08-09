@@ -91,11 +91,20 @@ ex4 =
 
 ```ucm
 
-  I'm not sure what a means at line 2, columns 12-13
+  I couldn't find any definitions matching the name a inside the namespace .
   
       2 |   (a,b) = (a Nat.+ b, 19)
   
-  Whatever it is, it has a type that conforms to Nat.
+  Some common causes of this error include:
+    * Your current namespace is too deep to contain the
+      definition in its subtree
+    * The definition is part of a library which hasn't been
+      added to this project
+  
+  To add a library to this project use the command: `fork <.path.to.lib> .lib.<libname>`
+  
+  Whatever it is, its type should conform to Nat.
+  
   
 
 ```

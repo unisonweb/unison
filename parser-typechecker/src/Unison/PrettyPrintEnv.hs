@@ -4,14 +4,22 @@ module Unison.PrettyPrintEnv
   ( PrettyPrintEnv (..),
     patterns,
     patternName,
+    terms,
+    types,
     termName,
     typeName,
+    biasTo,
     labeledRefName,
     -- | Exported only for cases where the codebase's configured hash length is unavailable.
     todoHashLength,
+    addFallback,
+    union,
+    empty,
   )
 where
 
+import Data.Ord (Down (Down))
+import Data.Semigroup (Max (Max))
 import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.ConstructorType as CT
 import Unison.HashQualified (HashQualified)
@@ -20,17 +28,24 @@ import qualified Unison.HashQualified' as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
-import Unison.Prelude
+import qualified Unison.Name as Name
+import Unison.Prelude hiding (empty)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 
 data PrettyPrintEnv = PrettyPrintEnv
-  { -- names for terms, constructors, and requests
-    terms :: Referent -> Maybe (HQ'.HashQualified Name),
-    -- names for types
-    types :: Reference -> Maybe (HQ'.HashQualified Name)
+  { -- names for terms, constructors, and requests; e.g. [(original name, relativized and/or suffixified pretty name)]
+    termNames :: Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)],
+    -- names for types; e.g. [(original name, possibly suffixified name)]
+    typeNames :: Reference -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
   }
+
+terms :: PrettyPrintEnv -> Referent -> Maybe (HQ'.HashQualified Name)
+terms ppe = fmap snd . listToMaybe . termNames ppe
+
+types :: PrettyPrintEnv -> Reference -> Maybe (HQ'.HashQualified Name)
+types ppe = fmap snd . listToMaybe . typeNames ppe
 
 patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
 patterns ppe r =
@@ -40,12 +55,40 @@ patterns ppe r =
 instance Show PrettyPrintEnv where
   show _ = "PrettyPrintEnv"
 
--- Left-biased union of environments
-unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
-unionLeft e1 e2 =
+-- | Attempts to find a name in primary ppe, falls back to backup ppe only if no names are
+-- found. Typically one can use this to shadow global or absolute names with names that are
+-- within the current path.
+addFallback :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
+addFallback primary fallback =
   PrettyPrintEnv
-    (\r -> terms e1 r <|> terms e2 r)
-    (\r -> types e1 r <|> types e2 r)
+    ( \r ->
+        let primaryNames = termNames primary r
+         in if null primaryNames
+              then termNames fallback r
+              else primaryNames
+    )
+    ( \r ->
+        let primaryNames = typeNames primary r
+         in if null primaryNames
+              then typeNames fallback r
+              else primaryNames
+    )
+
+-- | Finds names from both PPEs, if left unbiased the name from the left ppe is preferred.
+--
+-- This is distinct from `addFallback` with respect to biasing;
+-- A bias applied to a union might select a name in the right half of the union.
+-- Whereas, a bias applied to the result of `addFallback` will bias within the available names
+-- inside the left PPE and will only search in the fallback if there aren't ANY names in the
+-- primary ppe.
+--
+-- If you don't know the difference, it's likely you want 'addFallback' where you add global
+-- names as a fallback for local names.
+union :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
+union e1 e2 =
+  PrettyPrintEnv
+    (\r -> termNames e1 r ++ termNames e2 r)
+    (\r -> typeNames e1 r ++ typeNames e2 r)
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
@@ -75,8 +118,42 @@ patternName env r =
     Just name -> HQ'.toHQ name
     Nothing -> HQ.take todoHashLength $ HQ.fromPattern r
 
-instance Monoid PrettyPrintEnv where
-  mempty = PrettyPrintEnv (const Nothing) (const Nothing)
+empty :: PrettyPrintEnv
+empty = PrettyPrintEnv mempty mempty
 
-instance Semigroup PrettyPrintEnv where
-  (<>) = unionLeft
+-- | Prefer names which share a common prefix with any provided target.
+--
+-- Results are sorted according to the longest common prefix found against ANY target.
+biasTo :: [Name] -> PrettyPrintEnv -> PrettyPrintEnv
+biasTo targets PrettyPrintEnv {termNames, typeNames} =
+  PrettyPrintEnv
+    { termNames = \r ->
+        r
+          & termNames
+          & prioritizeBias targets,
+      typeNames = \r ->
+        r
+          & typeNames
+          & prioritizeBias targets
+    }
+
+-- | Prefer names which share a common prefix with any provided target.
+--
+-- Results are sorted according to the longest common prefix found against ANY target.
+--
+-- >>> prioritizeBias ["a.b", "x"] [(HQ'.unsafeFromText "q", ()), (HQ'.unsafeFromText "x.y", ()), (HQ'.unsafeFromText "a.b.c", ())]
+-- [(a.b.c,()),(x.y,()),(q,())]
+--
+-- Sort is stable if there are no common prefixes
+-- >>> prioritizeBias ["not-applicable"] [(HQ'.unsafeFromText "q", ()), (HQ'.unsafeFromText "a.b.c", ()), (HQ'.unsafeFromText "x", ())]
+-- [(q,()),(a.b.c,()),(x,())]
+prioritizeBias :: [Name] -> [(HQ'.HashQualified Name, a)] -> [(HQ'.HashQualified Name, a)]
+prioritizeBias targets =
+  sortOn \(fqn, _) ->
+    targets
+      & foldMap
+        ( \target ->
+            Just (Max (length $ Name.commonPrefix target (HQ'.toName fqn)))
+        )
+      & fromMaybe 0
+      & Down -- Sort large common prefixes highest

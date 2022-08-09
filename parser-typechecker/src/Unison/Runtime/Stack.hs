@@ -17,6 +17,7 @@ module Unison.Runtime.Stack
     Off,
     SZ,
     FP,
+    frameDataSize,
     marshalToForeign,
     unull,
     bnull,
@@ -74,6 +75,8 @@ data K
     CB Callback
   | -- mark continuation with a prompt
     Mark
+      !Int -- pending unboxed args
+      !Int -- pending boxed args
       !(EnumSet Word64)
       !(EnumMap Word64 Closure)
       !K
@@ -100,7 +103,8 @@ data Closure
   | DataB2 !Reference !Word64 !Closure !Closure
   | DataUB !Reference !Word64 !Int !Closure
   | DataG !Reference !Word64 !(Seg 'UN) !(Seg 'BX)
-  | Captured !K {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
+  | -- code cont, u/b arg size, u/b data stacks
+    Captured !K !Int !Int {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
   | Foreign !Foreign
   | BlackHole
   deriving (Show, Eq, Ord)
@@ -133,6 +137,14 @@ formData r t [] [x, y] = DataB2 r t x y
 formData r t [i] [x] = DataUB r t i x
 formData r t us bs = DataG r t (useg us) (L.fromList $ reverse bs)
 
+frameDataSize :: K -> (Int, Int)
+frameDataSize = go 0 0
+  where
+    go usz bsz KE = (usz, bsz)
+    go usz bsz (CB _) = (usz, bsz)
+    go usz bsz (Mark ua ba _ _ k) = go (usz + ua) (bsz + ba) k
+    go usz bsz (Push uf bf ua ba _ k) = go (usz + uf + ua) (bsz + bf + ba) k
+
 pattern DataC :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
 pattern DataC rf ct us bs <-
   (splitData -> Just (rf, ct, us, bs))
@@ -145,11 +157,11 @@ pattern PApV ic us bs <-
   where
     PApV ic us bs = PAp ic (useg us) (L.fromList bs)
 
-pattern CapV :: K -> [Int] -> [Closure] -> Closure
-pattern CapV k us bs <-
-  Captured k (ints -> us) (L.toList -> bs)
+pattern CapV :: K -> Int -> Int -> [Int] -> [Closure] -> Closure
+pattern CapV k ua ba us bs <-
+  Captured k ua ba (ints -> us) (L.toList -> bs)
   where
-    CapV k us bs = Captured k (useg us) (L.fromList bs)
+    CapV k ua ba us bs = Captured k ua ba (useg us) (L.fromList bs)
 
 {-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole #-}
 
@@ -257,16 +269,16 @@ bargOnto stk sp cop cp0 (ArgR i l) = do
   copyMutableArray cop (cp0 + 1) stk (sp - i - l + 1) l
   pure $ cp0 + l
 
-data Dump = A | F Int | S
+data Dump = A | F Int Int | S
 
 dumpAP :: Int -> Int -> Int -> Dump -> Int
-dumpAP _ fp sz d@(F _) = dumpFP fp sz d
+dumpAP _ fp sz d@(F _ a) = dumpFP fp sz d - a
 dumpAP ap _ _ _ = ap
 
 dumpFP :: Int -> Int -> Dump -> Int
 dumpFP fp _ S = fp
 dumpFP fp sz A = fp + sz
-dumpFP fp sz (F n) = fp + sz - n
+dumpFP fp sz (F n _) = fp + sz - n
 
 -- closure augmentation mode
 -- instruction, kontinuation, call
@@ -288,12 +300,14 @@ class MEM (b :: Mem) where
   duplicate :: Stack b -> IO (Stack b)
   discardFrame :: Stack b -> IO (Stack b)
   saveFrame :: Stack b -> IO (Stack b, SZ, SZ)
+  saveArgs :: Stack b -> IO (Stack b, SZ)
   restoreFrame :: Stack b -> SZ -> SZ -> IO (Stack b)
   prepareArgs :: Stack b -> Args' -> IO (Stack b)
   acceptArgs :: Stack b -> Int -> IO (Stack b)
   frameArgs :: Stack b -> IO (Stack b)
   augSeg :: Augment -> Stack b -> Seg b -> Maybe Args' -> IO (Seg b)
   dumpSeg :: Stack b -> Seg b -> Dump -> IO (Stack b)
+  adjustArgs :: Stack b -> SZ -> IO (Stack b)
   fsize :: Stack b -> SZ
   asize :: Stack b -> SZ
 
@@ -365,6 +379,9 @@ instance MEM 'UN where
   saveFrame (US ap fp sp stk) = pure (US sp sp sp stk, sp - fp, fp - ap)
   {-# INLINE saveFrame #-}
 
+  saveArgs (US ap fp sp stk) = pure (US fp fp sp stk, fp - ap)
+  {-# INLINE saveArgs #-}
+
   restoreFrame (US _ fp0 sp stk) fsz asz = pure $ US ap fp sp stk
     where
       fp = fp0 - fsz
@@ -416,6 +433,9 @@ instance MEM 'UN where
       fp' = dumpFP fp sz mode
       ap' = dumpAP ap fp sz mode
   {-# INLINE dumpSeg #-}
+
+  adjustArgs (US ap fp sp stk) sz = pure $ US (ap - sz) fp sp stk
+  {-# INLINE adjustArgs #-}
 
   fsize (US _ fp sp _) = sp - fp
   {-# INLINE fsize #-}
@@ -503,9 +523,10 @@ instance Show K where
     where
       go _ KE = "]"
       go _ (CB _) = "]"
-      go com (Push uf bf ua ba _ k) =
-        com ++ show (uf, bf, ua, ba) ++ go "," k
-      go com (Mark ps _ k) = com ++ "M" ++ show ps ++ go "," k
+      go com (Push uf bf ua ba ci k) =
+        com ++ show (uf, bf, ua, ba, ci) ++ go "," k
+      go com (Mark ua ba ps _ k) =
+        com ++ "M " ++ show ua ++ " " ++ show ba ++ " " ++ show ps ++ go "," k
 
 instance MEM 'BX where
   data Stack 'BX = BS
@@ -570,6 +591,9 @@ instance MEM 'BX where
   saveFrame (BS ap fp sp stk) = pure (BS sp sp sp stk, sp - fp, fp - ap)
   {-# INLINE saveFrame #-}
 
+  saveArgs (BS ap fp sp stk) = pure (BS fp fp sp stk, fp - ap)
+  {-# INLINE saveArgs #-}
+
   restoreFrame (BS _ fp0 sp stk) fsz asz = pure $ BS ap fp sp stk
     where
       fp = fp0 - fsz
@@ -619,6 +643,9 @@ instance MEM 'BX where
       ap' = dumpAP ap fp sz mode
   {-# INLINE dumpSeg #-}
 
+  adjustArgs (BS ap fp sp stk) sz = pure $ BS (ap - sz) fp sp stk
+  {-# INLINE adjustArgs #-}
+
   fsize (BS _ fp sp _) = sp - fp
   {-# INLINE fsize #-}
 
@@ -656,7 +683,7 @@ closureTermRefs f (DataB2 _ _ c1 c2) =
   closureTermRefs f c1 <> closureTermRefs f c2
 closureTermRefs f (DataUB _ _ _ c) =
   closureTermRefs f c
-closureTermRefs f (Captured k _ cs) =
+closureTermRefs f (Captured k _ _ _ cs) =
   contTermRefs f k <> foldMap (closureTermRefs f) cs
 closureTermRefs f (Foreign fo)
   | Just (cs :: Seq Closure) <- maybeUnwrapForeign Ty.listRef fo =
@@ -664,7 +691,7 @@ closureTermRefs f (Foreign fo)
 closureTermRefs _ _ = mempty
 
 contTermRefs :: Monoid m => (Reference -> m) -> K -> m
-contTermRefs f (Mark _ m k) =
+contTermRefs f (Mark _ _ _ m k) =
   foldMap (closureTermRefs f) m <> contTermRefs f k
 contTermRefs f (Push _ _ _ _ (CIx r _ _) k) =
   f r <> contTermRefs f k

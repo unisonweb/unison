@@ -67,10 +67,10 @@ data F typeVar typeAnn patternAnn a
   | Lam a
   | -- Note: let rec blocks have an outer ABT.Cycle which introduces as many
     -- variables as there are bindings
-    LetRec IsTop [a] a
+    LetRec [a] a
   | -- Note: first parameter is the binding, second is the expression which may refer
     -- to this let bound variable. Constructed as `Let b (abs v e)`
-    Let IsTop a a
+    Let a a
   | -- Pattern matching / eliminating data types, example:
     --  case x of
     --    Just n -> rhs1
@@ -85,8 +85,6 @@ data F typeVar typeAnn patternAnn a
   | TermLink Referent
   | TypeLink Reference
   deriving (Foldable, Functor, Generic, Generic1, Traversable)
-
-type IsTop = Bool
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type Term v a = Term2 v a a v a
@@ -187,10 +185,10 @@ instance Var v => Hashable1 (F v a p) where
                 Lam a -> [tag 6, hashed (hash a)]
                 -- note: we use `hashCycle` to ensure result is independent of
                 -- let binding order
-                LetRec _ as a -> case hashCycle as of
+                LetRec as a -> case hashCycle as of
                   (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
                 -- here, order is significant, so don't use hashCycle
-                Let _ b a -> [tag 8, hashed $ hash b, hashed $ hash a]
+                Let b a -> [tag 8, hashed $ hash b, hashed $ hash a]
                 If b t f ->
                   [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
                 Request r n -> [tag 10, accumulateToken r, varint n]

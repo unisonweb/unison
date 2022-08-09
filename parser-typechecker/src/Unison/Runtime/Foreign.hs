@@ -21,6 +21,7 @@ where
 import Control.Concurrent (MVar, ThreadId)
 import qualified Crypto.Hash as Hash
 import Data.IORef (IORef)
+import Data.Primitive (ByteArray, MutableArray, MutableByteArray)
 import Data.Tagged (Tagged (..))
 import qualified Data.X509 as X509
 import Network.Socket (Socket)
@@ -34,6 +35,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Type as Ty
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Text (Text)
+import Unison.Util.Text.Pattern (CPattern)
 import Unsafe.Coerce
 
 data Foreign where
@@ -70,6 +72,10 @@ ref2eq r
   -- Ditto
   | r == Ty.refRef = Just $ promote ((==) @(IORef ()))
   | r == Ty.threadIdRef = Just $ promote ((==) @ThreadId)
+  | r == Ty.marrayRef = Just $ promote ((==) @(MutableArray () ()))
+  | r == Ty.mbytearrayRef = Just $ promote ((==) @(MutableByteArray ()))
+  | r == Ty.ibytearrayRef = Just $ promote ((==) @ByteArray)
+  | r == Ty.patternRef = Just $ promote ((==) @CPattern)
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
@@ -79,6 +85,8 @@ ref2cmp r
   | r == Ty.typeLinkRef = Just $ promote tylCmp
   | r == Ty.bytesRef = Just $ promote (compare @Bytes)
   | r == Ty.threadIdRef = Just $ promote (compare @ThreadId)
+  | r == Ty.ibytearrayRef = Just $ promote (compare @ByteArray)
+  | r == Ty.patternRef = Just $ promote (compare @CPattern)
   | otherwise = Nothing
 
 instance Eq Foreign where
@@ -110,6 +118,7 @@ maybeUnwrapForeign :: Reference -> Foreign -> Maybe a
 maybeUnwrapForeign rt (Wrap r e)
   | rt == r = Just (unsafeCoerce e)
   | otherwise = Nothing
+{-# NOINLINE maybeUnwrapForeign #-}
 
 class BuiltinForeign f where
   foreignRef :: Tagged f Reference
@@ -152,6 +161,9 @@ newtype Tls = Tls TLS.Context
 data Failure a = Failure Reference Text a
 
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
+
+instance BuiltinForeign CPattern where
+  foreignRef = Tagged Ty.patternRef
 
 wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
 wrapBuiltin x = Wrap r x

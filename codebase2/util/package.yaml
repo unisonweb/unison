@@ -16,6 +16,7 @@ benchmarks:
       - criterion
       - sandi
       - unison-util
+      - unison-util-base32hex
     main: Main.hs
     source-dirs: bench
 
@@ -31,6 +32,7 @@ dependencies:
   - safe
   - text
   - time
+  - unison-prelude
   - unison-util-relation
   - unliftio
   - vector
