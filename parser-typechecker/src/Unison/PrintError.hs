@@ -1280,7 +1280,7 @@ renderParseErrors s = \case
     go' (P.ErrorFail s) =
       ("The parser failed with this message:\n" <> fromString s, [])
     go' (P.ErrorIndentation ordering indent1 indent2) =
-      let ranges = [] -- TODO: determine the location
+      let ranges = [] -- TODO: determine the source location from the offset position, which is the token offset maybe?
        in ( mconcat
               [ "The parser was confused by the indentation.\n",
                 "It was expecting the reference level (",
@@ -1586,7 +1586,8 @@ renderParseErrors s = \case
       where
         missing = Set.null referents
     go (Parser.ResolutionFailures failures) =
-      -- TODO: We should likely output separate diagnostics for each failure.
+      -- TODO: We should likely output separate error messages, one for each resolution
+      -- failure. This would involve adding a separate codepath for LSP error messages.
       let ranges = catMaybes (rangeForAnnotated . Names.getAnnotation <$> failures)
        in (Pr.border 2 . prettyResolutionFailures s $ failures, ranges)
     go (Parser.MissingTypeModifier keyword name) =
