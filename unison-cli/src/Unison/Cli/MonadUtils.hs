@@ -1,4 +1,4 @@
--- | This module contains miscellaneous helper utils for rote actions in the Cli monad, like resolving a relative path 
+-- | This module contains miscellaneous helper utils for rote actions in the Cli monad, like resolving a relative path
 -- to an absolute path, per the current path.
 module Unison.Cli.MonadUtils
   ( -- * @.unisonConfig@ things
@@ -123,8 +123,7 @@ resolveAbsBranchId = \case
 -- | Resolve a @ShortBranchHash@ to the corresponding @Branch IO@, or fail if no such branch hash is found.
 resolveShortBranchHash :: ShortBranchHash -> Cli r (Branch IO)
 resolveShortBranchHash hash = do
-  Cli.newBlock do
-    Cli.time "resolveShortBranchHash"
+  Cli.time "resolveShortBranchHash" do
     Cli.Env {codebase} <- ask
     hashSet <- liftIO (Codebase.branchHashesByPrefix codebase hash)
     len <- liftIO (Codebase.branchHashLength codebase)

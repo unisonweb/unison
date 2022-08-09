@@ -421,15 +421,15 @@ loop e = do
                         (Just new)
                         (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
                         rest
-            ResetRootI src0 -> do
-              Cli.time "reset-root"
-              newRoot <-
-                case src0 of
-                  Left hash -> Cli.resolveShortBranchHash hash
-                  Right path' -> Cli.expectBranchAtPath' path'
-              description <- inputDescription input
-              updateRoot newRoot description
-              Cli.respond Success
+            ResetRootI src0 ->
+              Cli.time "reset-root" do
+                newRoot <-
+                  case src0 of
+                    Left hash -> Cli.resolveShortBranchHash hash
+                    Right path' -> Cli.expectBranchAtPath' path'
+                description <- inputDescription input
+                updateRoot newRoot description
+                Cli.respond Success
             ForkLocalBranchI src0 dest0 -> do
               srcb <-
                 case src0 of
@@ -1811,13 +1811,9 @@ handleGist (GistInput repo) =
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli r ()
 handlePushRemoteBranch PushRemoteBranchInput {maybeRemoteRepo = mayRepo, localPath = path, pushBehavior, syncMode} =
-  Cli.newBlock do
-    Cli.time "handlePushRemoteBranch"
+  Cli.time "handlePushRemoteBranch" do
     repo <- mayRepo & onNothing (resolveConfiguredUrl Push path)
-    push repo
-  where
-    push repo =
-      doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
+    doPushRemoteBranch (NormalPush repo pushBehavior) path syncMode
 
 -- | Either perform a "normal" push (updating a remote path), which takes a 'PushBehavior' (to control whether creating
 -- a new namespace is allowed), or perform a "gisty" push, which doesn't update any paths (and also is currently only
@@ -2275,9 +2271,7 @@ handleUpdate input optionalPatch requestedNames = do
 addDefaultMetadata :: SlurpComponent Symbol -> Cli r ()
 addDefaultMetadata adds =
   when (not (SC.isEmpty adds)) do
-    Cli.newBlock do
-      Cli.time "add-default-metadata"
-
+    Cli.time "add-default-metadata" do
       currentPath' <- Cli.getCurrentPath
 
       let addedVs = Set.toList $ SC.types adds <> SC.terms adds
@@ -2570,8 +2564,7 @@ propagatePatchNoSync ::
   Path.Absolute ->
   Cli r Bool
 propagatePatchNoSync patch scopePath =
-  Cli.newBlock do
-    Cli.time "propagatePatch"
+  Cli.time "propagatePatch" do
     stepAtNoSync' Branch.CompressHistory (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
 -- Returns True if the operation changed the namespace, False otherwise.
@@ -2581,8 +2574,7 @@ propagatePatch ::
   Path.Absolute ->
   Cli r Bool
 propagatePatch inputDescription patch scopePath = do
-  Cli.newBlock do
-    Cli.time "propagatePatch"
+  Cli.time "propagatePatch" do
     stepAt'
       (inputDescription <> " (applying patch)")
       Branch.CompressHistory
@@ -2767,8 +2759,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
   where
     mergeBranch :: Cli r Bool
     mergeBranch =
-      Cli.newBlock do
-        Cli.time "mergeBranch"
+      Cli.time "mergeBranch" do
         Cli.Env {codebase} <- ask
         destb <- Cli.getBranchAt dest
         merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
@@ -2784,8 +2775,7 @@ loadPropagateDiffDefaultPatch ::
   Path.Absolute ->
   Cli r ()
 loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
-  Cli.newBlock do
-    Cli.time "loadPropagateDiffDefaultPatch"
+  Cli.time "loadPropagateDiffDefaultPatch" do
     original <- Cli.getBranch0At dest
     patch <- liftIO $ Branch.getPatch Cli.defaultPatchNameSegment original
     patchDidChange <- propagatePatch inputDescription patch dest
@@ -2933,8 +2923,7 @@ syncRoot description = do
 
 updateRoot :: Branch IO -> Text -> Cli r ()
 updateRoot new reason =
-  Cli.newBlock do
-    Cli.time "updateRoot"
+  Cli.time "updateRoot" do
     Cli.Env {codebase} <- ask
     loopState <- State.get
     let old = loopState ^. #lastSavedRoot
@@ -3460,8 +3449,7 @@ diffHelper ::
   Branch0 IO ->
   Cli r (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
 diffHelper before after =
-  Cli.newBlock do
-    Cli.time "diffHelper"
+  Cli.time "diffHelper" do
     Cli.Env {codebase} <- ask
     rootBranch <- Cli.getRootBranch
     currentPath <- Cli.getCurrentPath
@@ -3548,8 +3536,7 @@ typecheck ::
   (Text, [L.Token L.Lexeme]) ->
   Cli r (Result.Result (Seq (Result.Note Symbol Ann)) (Either Names (UF.TypecheckedUnisonFile Symbol Ann)))
 typecheck ambient names sourceName source =
-  Cli.newBlock do
-    Cli.time "typecheck"
+  Cli.time "typecheck" do
     Cli.Env {codebase, generateUniqueName} <- ask
     uniqueName <- liftIO generateUniqueName
     (liftIO . Result.getResult) $

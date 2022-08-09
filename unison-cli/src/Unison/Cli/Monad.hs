@@ -296,25 +296,13 @@ newBlock action =
     runCli env s action >>= feed k
 
 -- | Time an action.
---
--- Use 'newBlock' to scope what is timed. The following example times the execution of @foo2 >> foo3@
---
--- @
--- foo0
--- r <- newBlock do
---   foo1
---   time "barbaz"
---   foo2
---   foo3
--- foo4
--- @
-time :: String -> Cli r ()
-time label =
+time :: String -> Cli r a -> Cli r a
+time label action =
   if Debug.shouldDebug Debug.Timing
-    then Cli \_ k s -> do
+    then Cli \env k s -> do
       systemStart <- getSystemTime
       cpuPicoStart <- getCPUTime
-      r <- k () s
+      r <- unCli action env k s
       cpuPicoEnd <- getCPUTime
       systemEnd <- getSystemTime
       let systemDiff =
@@ -323,7 +311,7 @@ time label =
       let cpuDiff = picosToNanos (cpuPicoEnd - cpuPicoStart)
       printf "%s: %s (cpu), %s (system)\n" label (renderNanos cpuDiff) (renderNanos systemDiff)
       pure r
-    else pure ()
+    else action
   where
     diffTimeToNanos :: DiffTime -> Double
     diffTimeToNanos =
