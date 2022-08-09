@@ -35,7 +35,7 @@ intersection c1 c2 = SlurpComponent {types = types', terms = terms', ctors = cto
     terms' = terms c1 `Set.intersection` terms c2
     ctors' = ctors c1 `Set.intersection` ctors c2
 
-instance Ord v => Semigroup (SlurpComponent v) where (<>) = mappend
+instance Ord v => Semigroup (SlurpComponent v) where
   c1 <> c2 =
     SlurpComponent
       { types = types c1 <> types c2,
