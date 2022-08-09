@@ -115,7 +115,7 @@ import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPED
 import Unison.PrettyTerminal
   ( clearCurrentLine,
     putPretty',
@@ -1316,7 +1316,7 @@ notifyUser dir o = case o of
       ]
     where
       name :: Name
-      name = Path.toName' (HQ'.toName (Path.unsplitHQ' p))
+      name = Path.unsafeToName' (HQ'.toName (Path.unsplitHQ' p))
       qualifyTerm :: Referent -> Pretty
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
       qualifyType :: Reference -> Pretty
@@ -1848,14 +1848,14 @@ formatMissingStuff terms types =
 displayDefinitions' ::
   Var v =>
   Ord a1 =>
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
   Pretty
 displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
     ppeBody r = PPE.declarationPPE ppe0 r
-    ppeDecl = PPE.unsuffixifiedPPE ppe0
+    ppeDecl = PPED.unsuffixifiedPPE ppe0
     prettyTerms =
       map go . Map.toList
       -- sort by name
@@ -1917,7 +1917,7 @@ displayDefinitions ::
   Var v =>
   Ord a1 =>
   Maybe FilePath ->
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
   IO Pretty
@@ -1960,8 +1960,8 @@ displayDefinitions outputLoc ppe types terms =
     code =
       P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
       where
-        ppeBody r = PPE.declarationPPE ppe r
-        ppeDecl = PPE.unsuffixifiedPPE ppe
+        ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE ppe r
+        ppeDecl = PPED.unsuffixifiedPPE ppe
         prettyTerms =
           map go . Map.toList $
             -- sort by name
@@ -1975,13 +1975,13 @@ displayDefinitions outputLoc ppe types terms =
             BuiltinObject typ ->
               P.hang
                 ("builtin " <> prettyHashQualified n <> " :")
-                (TypePrinter.prettySyntax (ppeBody r) typ)
-            UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
+                (TypePrinter.prettySyntax (ppeBody n r) typ)
+            UserObject tm -> TermPrinter.prettyBinding (ppeBody n r) n tm
         go2 ((n, r), dt) =
           case dt of
             MissingObject r -> missing n r
             BuiltinObject _ -> builtin n
-            UserObject decl -> DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe r) r n decl
+            UserObject decl -> DeclPrinter.prettyDecl (PPED.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPEDecl ppe r) r n decl
         builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
         missing n r =
           P.wrap
@@ -2227,14 +2227,14 @@ runNumbered m =
   let (a, (_, args)) = State.runState m (0, mempty)
    in (a, Foldable.toList args)
 
-todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
+todoOutput :: Var v => PPED.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
 todoOutput ppe todo = runNumbered do
   conflicts <- todoConflicts
   edits <- todoEdits
   pure (conflicts <> edits)
   where
-    ppeu = PPE.unsuffixifiedPPE ppe
-    ppes = PPE.suffixifiedPPE ppe
+    ppeu = PPED.unsuffixifiedPPE ppe
+    ppes = PPED.suffixifiedPPE ppe
     (frontierTerms, frontierTypes) = TO.todoFrontier todo
     (dirtyTerms, dirtyTypes) = TO.todoFrontierDependents todo
     corruptTerms =
@@ -3036,10 +3036,10 @@ isTestOk tm = case tm of
 -- | Get the list of numbered args corresponding to an endangerment map, which is used by a
 -- few outputs. See 'endangeredDependentsTable'.
 numberedArgsForEndangerments ::
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map LabeledDependency (NESet LabeledDependency) ->
   NumberedArgs
-numberedArgsForEndangerments (PPE.unsuffixifiedPPE -> ppe) m =
+numberedArgsForEndangerments (PPED.unsuffixifiedPPE -> ppe) m =
   m
     & Map.elems
     & concatMap toList
@@ -3047,7 +3047,7 @@ numberedArgsForEndangerments (PPE.unsuffixifiedPPE -> ppe) m =
 
 -- | Format and render all dependents which are endangered by references going extinct.
 endangeredDependentsTable ::
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map LabeledDependency (NESet LabeledDependency) ->
   P.Pretty P.ColorText
 endangeredDependentsTable ppeDecl m =
@@ -3072,8 +3072,8 @@ endangeredDependentsTable ppeDecl m =
               xs
        in numbered
     spacer = ("", "")
-    suffixifiedEnv = (PPE.suffixifiedPPE ppeDecl)
-    fqnEnv = (PPE.unsuffixifiedPPE ppeDecl)
+    suffixifiedEnv = (PPED.suffixifiedPPE ppeDecl)
+    fqnEnv = (PPED.unsuffixifiedPPE ppeDecl)
     prettyLabeled ppe = \case
       LD.TermReferent ref -> prettyTermName ppe ref
       LD.TypeReference ref -> prettyTypeName ppe ref

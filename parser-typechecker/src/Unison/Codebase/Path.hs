@@ -43,6 +43,8 @@ module Unison.Codebase.Path
     toList,
     toName,
     toName',
+    unsafeToName,
+    unsafeToName',
     toPath',
     toText,
     toText',
@@ -207,11 +209,11 @@ splitFromName :: Name -> Maybe Split
 splitFromName = unsnoc . fromName
 
 -- | what is this? —AI
-unprefixName :: Absolute -> Name -> Name
+unprefixName :: Absolute -> Name -> Maybe Name
 unprefixName prefix = toName . unprefix prefix . fromName'
 
 prefixName :: Absolute -> Name -> Name
-prefixName p = toName . prefix p . fromName'
+prefixName p n = fromMaybe n . toName . prefix p . fromName' $ n
 
 singleton :: NameSegment -> Path
 singleton n = fromList [n]
@@ -251,12 +253,24 @@ fromName' n = case take 1 (Name.toString n) of
     path = fromName n
     seq = toSeq path
 
-toName :: Path -> Name
-toName = Name.unsafeFromText . toText
+unsafeToName :: Path -> Name
+unsafeToName = Name.unsafeFromText . toText
 
 -- | Convert a Path' to a Name
-toName' :: Path' -> Name
-toName' = Name.unsafeFromText . toText'
+unsafeToName' :: Path' -> Name
+unsafeToName' = Name.unsafeFromText . toText'
+
+toName :: Path -> Maybe Name
+toName = \case
+  Path Seq.Empty -> Nothing
+  (Path (p Seq.:<| ps)) ->
+    Just $ Name.fromSegments (p List.NonEmpty.:| Foldable.toList ps)
+
+-- | Convert a Path' to a Name
+toName' :: Path' -> Maybe Name
+toName' = \case
+  AbsolutePath' p -> Name.makeAbsolute <$> toName (unabsolute p)
+  RelativePath' p -> Name.makeRelative <$> toName (unrelative p)
 
 pattern Empty = Path Seq.Empty
 
@@ -397,10 +411,6 @@ instance Convert [NameSegment] Path where convert = fromList
 instance Convert Path [NameSegment] where convert = toList
 
 instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ
-
-instance Convert Path Name where convert = toName
-
-instance Convert Path' Name where convert = toName'
 
 instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
 

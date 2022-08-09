@@ -1396,7 +1396,9 @@ sectionDeps :: Section -> [Word64]
 sectionDeps (App _ (Env w _) _) = [w]
 sectionDeps (Call _ w _) = [w]
 sectionDeps (Match _ br) = branchDeps br
-sectionDeps (Ins _ s) = sectionDeps s
+sectionDeps (Ins i s)
+  | Name (Env w _) _ <- i = w : sectionDeps s
+  | otherwise = sectionDeps s
 sectionDeps (Let s (CIx _ w _)) = w : sectionDeps s
 sectionDeps _ = []
 

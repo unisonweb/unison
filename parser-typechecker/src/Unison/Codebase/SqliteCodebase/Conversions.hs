@@ -3,11 +3,9 @@
 module Unison.Codebase.SqliteCodebase.Conversions where
 
 import Data.Bifunctor (Bifunctor (bimap))
-import Data.Foldable (Foldable (foldl', toList))
-import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Text (Text, pack, unpack)
+import Data.Text (pack, unpack)
 import qualified U.Codebase.Branch as V2.Branch
 import qualified U.Codebase.Causal as V2
 import qualified U.Codebase.Decl as V2.Decl
@@ -33,6 +31,7 @@ import qualified Unison.Codebase.Causal.Type as V1.Causal
 import qualified Unison.Codebase.Metadata as V1.Metadata
 import qualified Unison.Codebase.Patch as V1
 import qualified Unison.Codebase.ShortBranchHash as V1
+import Unison.Codebase.SqliteCodebase.Branch.Cache
 import qualified Unison.Codebase.TermEdit as V1.TermEdit
 import qualified Unison.Codebase.TypeEdit as V1.TypeEdit
 import qualified Unison.ConstructorReference as V1 (GConstructorReference (..))
@@ -45,6 +44,7 @@ import qualified Unison.NameSegment as V1
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Pattern as V1.Pattern
+import Unison.Prelude
 import qualified Unison.Reference as V1
 import qualified Unison.Reference as V1.Reference
 import qualified Unison.Referent as V1
@@ -397,24 +397,31 @@ type1to2' convertRef =
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
 
 -- | forces loading v1 branches even if they may not exist
-causalbranch2to1 :: Monad m => (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.Branch m)
-causalbranch2to1 lookupCT = fmap V1.Branch.Branch . causalbranch2to1' lookupCT
+causalbranch2to1 :: Monad m => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.Branch m)
+causalbranch2to1 branchCache lookupCT cb = do
+  let ch = V2.causalHash cb
+  lookupCachedBranch branchCache ch >>= \case
+    Just b -> pure b
+    Nothing -> do
+      b <- V1.Branch.Branch <$> causalbranch2to1' branchCache lookupCT cb
+      insertCachedBranch branchCache ch b
+      pure b
 
-causalbranch2to1' :: Monad m => (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.UnwrappedBranch m)
-causalbranch2to1' lookupCT (V2.Causal hc eh (Map.toList -> parents) me) = do
+causalbranch2to1' :: Monad m => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.UnwrappedBranch m)
+causalbranch2to1' branchCache lookupCT (V2.Causal hc eh (Map.toList -> parents) me) = do
   let currentHash = causalHash2to1 hc
       branchHash = branchHash2to1 eh
   case parents of
-    [] -> V1.Causal.UnsafeOne currentHash branchHash <$> (me >>= branch2to1 lookupCT)
+    [] -> V1.Causal.UnsafeOne currentHash branchHash <$> (me >>= branch2to1 branchCache lookupCT)
     [(hp, mp)] -> do
       let parentHash = causalHash2to1 hp
       V1.Causal.UnsafeCons currentHash branchHash
-        <$> (me >>= branch2to1 lookupCT)
-        <*> pure (parentHash, causalbranch2to1' lookupCT =<< mp)
+        <$> (me >>= branch2to1 branchCache lookupCT)
+        <*> pure (parentHash, causalbranch2to1' branchCache lookupCT =<< mp)
     merge -> do
-      let tailsList = map (bimap causalHash2to1 (causalbranch2to1' lookupCT =<<)) merge
+      let tailsList = map (bimap causalHash2to1 (causalbranch2to1' branchCache lookupCT =<<)) merge
       e <- me
-      V1.Causal.UnsafeMerge currentHash branchHash <$> branch2to1 lookupCT e <*> pure (Map.fromList tailsList)
+      V1.Causal.UnsafeMerge currentHash branchHash <$> branch2to1 branchCache lookupCT e <*> pure (Map.fromList tailsList)
 
 causalbranch1to2 :: forall m. Monad m => V1.Branch.Branch m -> V2.Branch.CausalBranch m
 causalbranch1to2 (V1.Branch.Branch c) =
@@ -528,13 +535,14 @@ namesegment1to2 (V1.NameSegment t) = V2.Branch.NameSegment t
 
 branch2to1 ::
   Monad m =>
+  BranchCache m ->
   (V2.Reference -> m CT.ConstructorType) ->
   V2.Branch.Branch m ->
   m (V1.Branch.Branch0 m)
-branch2to1 lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children) = do
+branch2to1 branchCache lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children) = do
   v1terms <- toStar reference2to1 <$> Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (referent2to1 lookupCT) id) v2terms
   v1types <- toStar reference2to1 <$> Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (pure . reference2to1) id) v2types
-  v1children <- Map.bitraverse (pure . namesegment2to1) (causalbranch2to1 lookupCT) v2children
+  v1children <- Map.bitraverse (pure . namesegment2to1) (causalbranch2to1 branchCache lookupCT) v2children
   pure $ V1.Branch.branch0 v1terms v1types v1children v1patches
   where
     v1patches = Map.bimap namesegment2to1 (bimap edithash2to1 (fmap patch2to1)) v2patches

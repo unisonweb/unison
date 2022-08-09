@@ -38,7 +38,7 @@ module Unison.Typechecker.Context
   )
 where
 
-import Control.Lens (over, _2)
+import Control.Lens (over, _2, view)
 import qualified Control.Monad.Fail as MonadFail
 import Control.Monad.State
   ( MonadState,
@@ -54,7 +54,7 @@ import Data.Bifunctor
     second,
   )
 import qualified Data.Foldable as Foldable
-import Data.Functor.Compose (Compose (..))
+import Data.Function (on)
 import Data.List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
@@ -65,7 +65,8 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference
+  (ConstructorReference, GConstructorReference (..), reference_)
 import Unison.DataDeclaration
   ( DataDeclaration,
     EffectDeclaration,
@@ -85,6 +86,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.TypeVar as TypeVar
 import Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.PrettyPrintEnv as PPE
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -1258,13 +1260,14 @@ getEffect ref = do
 
 requestType ::
   Var v => Ord loc => [Pattern loc] -> M v loc (Maybe [Type v loc])
-requestType ps = getCompose . fmap fold $ traverse single ps
+requestType ps =
+  traverse (traverse getEffect . nubBy ((==) `on` view reference_)) $
+    Foldable.foldlM (\acc p -> (++ acc) <$> single p) [] ps
   where
     single (Pattern.As _ p) = single p
-    single Pattern.EffectPure {} = Compose . pure . Just $ []
-    single (Pattern.EffectBind _ ref _ _) =
-      Compose $ Just . pure <$> getEffect ref
-    single _ = Compose $ pure Nothing
+    single Pattern.EffectPure {} = Just []
+    single (Pattern.EffectBind _ ref _ _) = Just [ref]
+    single _ = Nothing
 
 checkCase ::
   forall v loc.
@@ -2986,10 +2989,10 @@ instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of
     TypeVar.Universal x -> "@" <> show x
     e -> show e
-  show (Solved _ v t) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing mempty (Type.getPolytype t)
+  show (Solved _ v t) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing PPE.empty (Type.getPolytype t)
   show (Ann v t) =
     Text.unpack (Var.name v) ++ " : "
-      ++ TP.prettyStr Nothing mempty t
+      ++ TP.prettyStr Nothing PPE.empty t
   show (Marker v) = "|" ++ Text.unpack (Var.name v) ++ "|"
 
 instance (Ord loc, Var v) => Show (Context v loc) where
@@ -2998,8 +3001,8 @@ instance (Ord loc, Var v) => Show (Context v loc) where
       showElem _ctx (Var v) = case v of
         TypeVar.Universal x -> "@" <> show x
         e -> show e
-      showElem ctx (Solved _ v (Type.Monotype t)) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing mempty (apply ctx t)
-      showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing mempty (apply ctx t)
+      showElem ctx (Solved _ v (Type.Monotype t)) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
+      showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
       showElem _ (Marker v) = "|" ++ Text.unpack (Var.name v) ++ "|"
 
 instance Monad f => Monad (MT v loc f) where

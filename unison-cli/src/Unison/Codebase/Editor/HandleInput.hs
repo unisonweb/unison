@@ -133,7 +133,7 @@ import Unison.Position (Position (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import Unison.Reference (Reference (..), TermReference)
 import qualified Unison.Reference as Reference
@@ -181,6 +181,7 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
 import Witherable (wither)
+import qualified Unison.PrettyPrintEnvDecl as PPED
 
 prettyPrintEnvDecl :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = do
@@ -350,7 +351,7 @@ loop e = do
             -- Mitchell: stripping hash seems wrong here...
             resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq')
             rootNames <- Branch.toNames <$> Cli.getRootBranch0
-            let name = Path.toName (Path.unsplit resolvedPath)
+            let name = Path.unsafeToName (Path.unsplit resolvedPath)
                 toRel :: Ord ref => Set ref -> R.Relation Name ref
                 toRel = R.fromList . fmap (name,) . toList
                 -- these names are relative to the root
@@ -579,7 +580,7 @@ loop e = do
               absPath <- Cli.resolveSplit' p
               let toDelete =
                     Names.prefix0
-                      (Path.toName (Path.unsplit (Path.convert absPath)))
+                      (Path.unsafeToName (Path.unsplit (Path.convert absPath)))
                       (Branch.toNames (Branch.head branch))
               afterDelete <- do
                 rootNames <- Branch.toNames <$> Cli.getRootBranch0
@@ -795,7 +796,7 @@ loop e = do
                         (Just as1, Just as2) -> (missingSrcs, actions ++ as1 ++ as2)
 
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
-                fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
+                fixupOutput = fmap Path.unsafeToName . HQ'.toHQ . Path.unsplitHQ
             NamesI global thing -> do
               Cli.Env {codebase} <- ask
               hqLength <- liftIO (Codebase.hashLength codebase)
@@ -829,7 +830,8 @@ loop e = do
             LinksI src mdTypeStr -> do
               (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
               Cli.modifyLoopState (set #numberedArgs (fmap (HQ.toString . view _1) out))
-              Cli.respond $ ListOfLinks ppe out
+              let biasedPPE = (PPE.biasTo (maybeToList . Path.toName' . HQ'.toName $ Path.unsplitHQ' src) ppe)
+              Cli.respond $ ListOfLinks biasedPPE out
             DocsI srcs -> do
               root0 <- Cli.getRootBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
@@ -951,7 +953,7 @@ loop e = do
             FindPatchI -> do
               branch <- Cli.getCurrentBranch0
               let patches =
-                    [ Path.toName $ Path.snoc p seg
+                    [ Path.unsafeToName $ Path.snoc p seg
                       | (p, b) <- Branch.toList0 branch,
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
@@ -2011,7 +2013,9 @@ handleShowDefinition outputLoc inputQuery = do
     liftIO (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
-    let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root'
+    let ppe =
+          PPED.biasTo (mapMaybe HQ.toName inputQuery) $
+            Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root'
     Cli.respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   -- We set latestFile to be programmatically generated, if we
@@ -2676,7 +2680,7 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
     Nothing -> []
     Just b -> SR.fromNames . Names.prefix0 n $ names0
       where
-        lastName = Path.toName (Path.singleton last)
+        lastName = Name.fromSegment last
         subnames =
           Branch.toNames . Branch.head $
             Branch.getAt' (Path.singleton last) b
@@ -2808,7 +2812,7 @@ getHQTerms = \case
             & Path.fromName'
             & Path.resolve currentPath'
             & Path.unabsolute
-            & Path.toName
+            & Path.unsafeToName
     pure $ R.lookupRan path (Branch.deepTerms root0)
   HQ.HashOnly sh -> hashOnly sh
   HQ.HashQualified _ sh -> hashOnly sh
@@ -2985,6 +2989,7 @@ displayI ::
   HQ.HashQualified Name ->
   Cli r ()
 displayI prettyPrintNames outputLoc hq = do
+  let bias = maybeToList $ HQ.toName hq
   latestTypecheckedFile <- Cli.getLatestTypecheckedFile
   case addWatch (HQ.toString hq) latestTypecheckedFile of
     Nothing -> do
@@ -2998,10 +3003,10 @@ displayI prettyPrintNames outputLoc hq = do
               else TermAmbiguous hq results
       let tm = Term.fromReferent External ref
       pped <- prettyPrintEnvDecl parseNames
-      tm <- evalUnisonTerm True (PPE.suffixifiedPPE pped) True tm
+      tm <- evalUnisonTerm True (PPE.biasTo bias $ PPE.suffixifiedPPE pped) True tm
       doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
-      ppe <- executePPE unisonFile
+      ppe <- PPE.biasTo bias <$> executePPE unisonFile
       (_, watches) <- evalUnisonFile True ppe unisonFile []
       (_, _, _, _, tm, _) <-
         Map.lookup toDisplay watches & onNothing (error $ "Evaluation dropped a watch expression: " <> HQ.toString hq)
@@ -3020,7 +3025,7 @@ docsI srcLoc prettyPrintNames src =
     hq :: HQ.HashQualified Name
     hq =
       let hq' :: HQ'.HashQualified Name
-          hq' = Name.convert @Path.Path' @Name <$> Name.convert src
+          hq' = Path.unsafeToName' <$> Name.convert src
        in Name.convert hq'
 
     dotDoc :: HQ.HashQualified Name
@@ -3061,9 +3066,9 @@ docsI srcLoc prettyPrintNames src =
       case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
         s
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
-          | Set.size s == 0 -> Cli.respond $ ListOfLinks mempty []
+          | Set.size s == 0 -> Cli.respond $ ListOfLinks PPE.empty []
           -- todo: return a list of links here too
-          | otherwise -> Cli.respond $ ListOfLinks mempty []
+          | otherwise -> Cli.respond $ ListOfLinks PPE.empty []
 
 filterBySlurpResult ::
   Ord v =>
@@ -3206,11 +3211,12 @@ loadDisplayInfo refs = do
 fixupNamesRelative :: Path.Absolute -> Names -> Names
 fixupNamesRelative currentPath' = Names.map fixName
   where
-    prefix = Path.toName (Path.unabsolute currentPath')
     fixName n =
       if currentPath' == Path.absoluteEmpty
         then n
-        else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
+        else fromMaybe (Name.makeAbsolute n) do
+          prefix <- Path.toName (Path.unabsolute currentPath')
+          Name.stripNamePrefix prefix n
 
 makeHistoricalParsingNames :: Set (HQ.HashQualified Name) -> Cli r NamesWithHistory
 makeHistoricalParsingNames lexedHQs = do
@@ -3321,9 +3327,10 @@ findHistoricalHQs lexedHQs0 = do
         '.' : t@(_ : _) -> Name.unsafeFromString t
         -- something in current path
         _ ->
-          if Path.isRoot curPath
-            then n
-            else Name.joinDot (Path.toName . Path.unabsolute $ curPath) n
+          case curPath of
+            p@(_:>_) -> Name.joinDot (Path.unsafeToName . Path.unabsolute $ p) n
+            _ -> n
+
 
       lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
   (_missing, rawHistoricalNames) <- liftIO $ Branch.findHistoricalHQs lexedHQs root'
