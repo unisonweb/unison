@@ -89,8 +89,7 @@ authLogin host = do
                     [("LOCATION", BSC.pack $ show @URI nextURI)]
                     "Authorization successful. You may close this page and return to UCM."
   tokens <-
-    Cli.newBlock do
-      port <- Cli.with (Warp.withApplication (pure $ authTransferServer codeHandler))
+    Cli.with (Warp.withApplication (pure $ authTransferServer codeHandler)) \port -> do
       let redirectURI = "http://localhost:" <> show port <> "/redirect"
       liftIO (putMVar redirectURIVar redirectURI)
       let authorizationKickoff = authURI authorizationEndpoint redirectURI state challenge
@@ -170,10 +169,10 @@ exchangeCode httpClient tokenEndpoint code verifier redirectURI = liftIO $ do
   case HTTP.responseStatus resp of
     status
       | status < status300 -> do
-        let respBytes = HTTP.responseBody resp
-        pure $ case Aeson.eitherDecode @Tokens respBytes of
-          Left err -> Left (InvalidTokenResponse tokenEndpoint (Text.pack err))
-          Right a -> Right a
+          let respBytes = HTTP.responseBody resp
+          pure $ case Aeson.eitherDecode @Tokens respBytes of
+            Left err -> Left (InvalidTokenResponse tokenEndpoint (Text.pack err))
+            Right a -> Right a
       | otherwise -> pure $ Left (InvalidTokenResponse tokenEndpoint $ "Received " <> tShow status <> " response from token endpoint")
 
 -- authenticateCodeserverCli :: CodeserverURI -> Cli r ()

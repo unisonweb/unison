@@ -18,7 +18,10 @@ module Unison.Cli.Monad
     ioE,
 
     -- * Acquiring resources
+    acquire,
+    acquireE,
     with,
+    with_,
     withE,
 
     -- * Scoping actions
@@ -190,6 +193,12 @@ runCli :: Env -> LoopState -> Cli a a -> IO (ReturnType a, LoopState)
 runCli env s0 (Cli action) =
   action env (\x s1 -> pure (Success x, s1)) s0
 
+feed :: (a -> LoopState -> IO (ReturnType b, LoopState)) -> (ReturnType a, LoopState) -> IO (ReturnType b, LoopState)
+feed k = \case
+  (Success x, s) -> k x s
+  (Continue, s) -> pure (Continue, s)
+  (HaltRepl, s) -> pure (HaltRepl, s)
+
 -- | The result of calling 'loadSource'.
 data LoadSourceResult
   = InvalidSourceNameError
@@ -231,30 +240,60 @@ haltRepl = short HaltRepl
 -- Useful for resource acquisition:
 --
 -- @
--- resource <- with (bracket acquire close)
+-- resource <- acquire (bracket create destroy)
+-- ...
 -- @
 --
--- Delimit the scope of acquired resources with 'newBlock'.
-with :: (forall x. (a -> IO x) -> IO x) -> Cli r a
-with resourceK = Cli \_env k s -> resourceK \a -> k a s
+-- The resource is kept alive for the remainder of the computation. To release it earlier, either delimit its lifetime
+-- with 'newBlock', or use 'with' instead.
+acquire :: (forall x. (a -> IO x) -> IO x) -> Cli r a
+acquire resourceK =
+  Cli \_ k s ->
+    resourceK \a -> k a s
 
--- | A variant of 'with' for the variant of bracketing function that may return a Left rather than call the provided
+-- | A variant of 'acquire' for the variant of bracketing function that may return a Left rather than call the provided
 -- continuation.
-withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (e -> Cli r a) -> Cli r a
-withE resourceK errK =
+acquireE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (e -> Cli r a) -> Cli r a
+acquireE resourceK errK =
   Cli \env k s ->
     resourceK (\a -> k a s) >>= \case
       Left err -> unCli (errK err) env k s
-      Right val -> pure val
+      Right value -> pure value
+
+-- | Wrap a continuation with 'Cli'.
+--
+-- Useful for resource acquisition:
+--
+-- @
+-- with (bracket create destroy) \resource ->
+--   ...
+-- @
+with :: (forall x. (a -> IO x) -> IO x) -> (a -> Cli b b) -> Cli r b
+with resourceK action =
+  Cli \env k s ->
+    resourceK (\a -> runCli env s (action a)) >>= feed k
+
+-- | A variant of 'with' for actions that don't acquire a resource (like 'Control.Exception.bracket_').
+with_ :: (forall x. IO x -> IO x) -> Cli a a -> Cli r a
+with_ resourceK action =
+  Cli \env k s ->
+    resourceK (runCli env s action) >>= feed k
+
+-- | A variant of 'with' for the variant of bracketing function that may return a Left rather than call the provided
+-- continuation.
+withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (Either e a -> Cli b b) -> Cli r b
+withE resourceK action =
+  Cli \env k s ->
+    resourceK (\a -> runCli env s (action (Right a))) >>= \case
+      Left err -> runCli env s (action (Left err)) >>= feed k
+      Right result -> feed k result
 
 -- | Run the given action in a new block, which delimits the scope of any 'succeedWith', 'with'/'withE', and 'time'
 -- calls contained within.
-newBlock :: Cli x x -> Cli r x
-newBlock ma = Cli \env k s0 -> do
-  runCli env s0 ma >>= \case
-    (Success x, s1) -> k x s1
-    (Continue, s1) -> pure (Continue, s1)
-    (HaltRepl, s1) -> pure (HaltRepl, s1)
+newBlock :: Cli a a -> Cli r a
+newBlock action =
+  Cli \env k s ->
+    runCli env s action >>= feed k
 
 -- | Time an action.
 --

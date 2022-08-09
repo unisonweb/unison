@@ -1676,16 +1676,15 @@ handleCreatePullRequest baseRepo0 headRepo0 = do
   let getBranch :: ReadRemoteNamespace -> Cli r (Branch IO)
       getBranch = \case
         ReadRemoteNamespaceGit repo -> do
-          Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \err ->
+          Cli.acquireE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \err ->
             Cli.returnEarly (Output.GitError err)
         ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
 
-  (ppe, diff) <-
-    Cli.newBlock do
-      baseBranch <- getBranch baseRepo0
-      headBranch <- getBranch headRepo0
-      merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
-      diffHelper (Branch.head baseBranch) (Branch.head merged)
+  (ppe, diff) <- do
+    baseBranch <- getBranch baseRepo0
+    headBranch <- getBranch headRepo0
+    merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
+    diffHelper (Branch.head baseBranch) (Branch.head merged)
   Cli.respondNumbered (ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff)
 
 handleFindI ::
@@ -3596,8 +3595,7 @@ evalUnisonFile sandbox ppe unisonFile args = do
         maybeTerm <- Codebase.lookupWatchCache codebase ref
         pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
 
-  Cli.newBlock do
-    Cli.with (\k -> withArgs args (k ()))
+  Cli.with_ (withArgs args) do
     rs@(_, map) <-
       Cli.ioE (Runtime.evaluateWatches (Codebase.toCodeLookup codebase) ppe watchCache theRuntime unisonFile) \err -> do
         Cli.returnEarly (EvaluationFailure err)
