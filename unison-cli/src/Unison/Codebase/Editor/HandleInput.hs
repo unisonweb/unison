@@ -608,7 +608,7 @@ loop = do
                     then respond $ BranchNotFound path'
                     else tryUpdateDest srcb dest0
             MergeLocalBranchI src0 dest0 mergeMode -> do
-              let [src, dest] = resolveToAbsolute <$> [src0, dest0]
+              let (src, dest) = (resolveToAbsolute src0, resolveToAbsolute dest0)
               srcb <- getAt src
               if Branch.isEmpty srcb
                 then branchNotFound src0
@@ -616,7 +616,7 @@ loop = do
                   let err = Just $ MergeAlreadyUpToDate src0 dest0
                   mergeBranchAndPropagateDefaultPatch mergeMode inputDescription err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
-              let [src, dest] = resolveToAbsolute <$> [src0, dest0]
+              let (src, dest) = (resolveToAbsolute src0, resolveToAbsolute dest0)
               srcb <- getAt src
               if Branch.isEmpty srcb
                 then branchNotFound src0

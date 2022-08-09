@@ -370,7 +370,9 @@ propagate rootNames patch b = case validatePatch patch of
                     )
                   seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
                   writeTypes =
-                    traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
+                    traverse_ \case
+                      (Reference.DerivedId id, tp) -> eval $ PutDecl id tp
+                      _ -> error "propagate: Expected DerivedId"
                   !newCtorMappings =
                     let r = propagateCtorMapping componentMap hashedComponents'
                      in if debugMode then traceShow ("constructorMappings: " :: Text, r) r else r
@@ -427,10 +429,9 @@ propagate rootNames patch b = case validatePatch patch of
                         newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
                       toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
                       writeTerms =
-                        traverse_
-                          ( \(Reference.DerivedId id, (tm, tp)) ->
-                              eval $ PutTerm id tm tp
-                          )
+                        traverse_ \case
+                          (Reference.DerivedId id, (tm, tp)) -> eval $ PutTerm id tm tp
+                          _ -> error "propagate: Expected DerivedId"
                   writeTerms
                     [(r, (tm, ty)) | (_old, r, tm, _oldTy, ty) <- joinedStuff]
                   pure

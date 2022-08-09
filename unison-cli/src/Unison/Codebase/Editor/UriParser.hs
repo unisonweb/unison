@@ -4,7 +4,7 @@ module Unison.Codebase.Editor.UriParser (repoPath, writeRepo, writeRepoPath) whe
 
 import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Sequence as Seq
-import Data.Text as Text
+import qualified Data.Text as Text
 import Data.Void
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as C
