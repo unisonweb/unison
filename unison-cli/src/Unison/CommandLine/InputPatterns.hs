@@ -8,11 +8,13 @@ import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
 import Data.List (intercalate, isPrefixOf)
 import qualified Data.List as List
-import Data.List.Extra (nubOrdOn)
+import Data.List.Extra (nubOrdOn, splitOn)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
 import qualified Data.Set as Set
+import Data.Set.NonEmpty (NESet)
+import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
@@ -55,6 +57,7 @@ import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names as Names
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
+import qualified Unison.Util.Find as Fuzzy
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
@@ -2438,14 +2441,15 @@ pathCompletor filterQuery getNames query _code b p =
             then map ("." <>) (toList (getNames b0root))
             else []
 
--- | A completer for namespace paths.
+-- | A prefix-based completer.
 --
+-- Finds names of the selected completion types.
 -- Completes one segment at a time.
 --
 -- Given a codebase with these terms:
 --
 -- @@
--- .base.List.map
+-- .base.List.map.doc
 -- .base.List
 -- .bar.foo
 -- @@
@@ -2463,18 +2467,21 @@ pathCompletor filterQuery getNames query _code b p =
 --
 -- .> cd base.List.<Tab>
 -- base.List.|map
-prefixCompletions ::
+--
+-- TODO: Why doesn't this work with just '.' ?
+completeWithinNamespace ::
   forall m v a.
   Monad m =>
+  (String -> [String] -> [Completion]) ->
   -- | The types of completions to return
-  Set CompletionType ->
+  NESet CompletionType ->
   -- | The portion of this are that the user has already typed.
   String ->
   Codebase m v a ->
   Branch.Branch m ->
   Path.Absolute ->
   m [Completion]
-prefixCompletions compTypes query codebase _root currentPath = do
+completeWithinNamespace mkCompletions compTypes query codebase _root currentPath = do
   let fullQueryPath = (Path.fromText' (Text.pack query))
       (queryPathPrefix, querySuffix) = case Lens.unsnoc fullQueryPath of
         Nothing ->
@@ -2486,7 +2493,6 @@ prefixCompletions compTypes query codebase _root currentPath = do
       absQueryPath = Path.resolve currentPath queryPathPrefix
   Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
     Nothing -> do
-      -- pTraceShowM ("No branch found at" :: Text, absQueryPath)
       pure []
     Just cb -> do
       b <- V2Causal.value cb
@@ -2495,11 +2501,9 @@ prefixCompletions compTypes query codebase _root currentPath = do
             if List.isSuffixOf "." query
               then []
               else
-                namesInBranch b -- queryPathPrefix querySuffix b
+                namesInBranch b
                   & filter (coerce Text.isPrefixOf querySuffix)
-                  <&> \match ->
-                    let completion = queryPathPrefix Lens.:> NameSegment.NameSegment match
-                     in prettyCompletionWithQueryPrefix False query (Text.unpack . Path.toText' $ completion)
+                  <&> \match -> Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match
       childSuggestions <- do
         case Map.lookup (Cv.namesegment1to2 querySuffix) (V2Branch.children b) of
           Nothing -> pure []
@@ -2507,21 +2511,49 @@ prefixCompletions compTypes query codebase _root currentPath = do
             childBranch <- V2Causal.value childCausal
             namesInBranch childBranch
               & fmap
-                ( \match ->
-                    let completion = queryPathPrefix Lens.:> querySuffix Lens.:> NameSegment.NameSegment match
-                     in prettyCompletionWithQueryPrefix False query (Text.unpack . Path.toText' $ completion)
+                ( \match -> Text.unpack . Path.toText' $ queryPathPrefix Lens.:> querySuffix Lens.:> NameSegment.NameSegment match
                 )
               & pure
-      pure $ currentBranchSuggestions <> childSuggestions
+      pure . mkCompletions query $ currentBranchSuggestions <> childSuggestions
   where
     namesInBranch :: V2Branch.Branch m -> [Text]
     namesInBranch b =
       V2Branch.unNameSegment
-        <$> ( Monoid.whenM (Set.member NamespaceCompletion compTypes) (Map.keys $ V2Branch.children b)
-                <> Monoid.whenM (Set.member TermCompletion compTypes) (Map.keys $ V2Branch.terms b)
-                <> Monoid.whenM (Set.member TypeCompletion compTypes) (Map.keys $ V2Branch.types b)
-                <> Monoid.whenM (Set.member PatchCompletion compTypes) (Map.keys $ V2Branch.patches b)
+        <$> ( Monoid.whenM (NESet.member NamespaceCompletion compTypes) (Map.keys $ V2Branch.children b)
+                <> Monoid.whenM (NESet.member TermCompletion compTypes) (Map.keys $ V2Branch.terms b)
+                <> Monoid.whenM (NESet.member TypeCompletion compTypes) (Map.keys $ V2Branch.types b)
+                <> Monoid.whenM (NESet.member PatchCompletion compTypes) (Map.keys $ V2Branch.patches b)
             )
+
+prefixCompleter :: String -> [String] -> [Completion]
+prefixCompleter query completions =
+  completions
+    & filter (List.isPrefixOf query)
+    & fmap (prettyCompletionWithQueryPrefix False query)
+
+fuzzyCompleter :: String -> [String] -> [Completion]
+fuzzyCompleter query fullCompletions =
+  let (queryPrefix, querySuffix) = case (Lens.unsnoc . splitOn "." $ query) of
+        Nothing -> ("", query)
+        Just (prefix, querySeg) -> (intercalate "." prefix, querySeg)
+      searchItems :: [(String, String)]
+      searchItems =
+        fullCompletions
+          -- Assert that the path prefix matches before we bother with fuzzy search.
+          & filter (List.isPrefixOf queryPrefix)
+          & fmap
+            ( \compl -> case (Lens.unsnoc . splitOn "." $ compl) of
+                Nothing -> (compl, compl)
+                Just (_, segment) -> (compl, segment)
+            )
+   in Fuzzy.simpleFuzzyFinder querySuffix searchItems snd
+        <&> \((fullCompletion, _suffix), pretty) -> prettyCompletion False (fullCompletion, pretty)
+
+-- fuzzyComplete fuzzyQuery completion =
+
+-- -- fuzzyComplete absQuery@('.' : _) ss = completeWithinQueryNamespace absQuery ss
+-- fuzzyComplete fuzzyQuery ss =
+--   fixupCompletion fuzzyQuery (prettyCompletion False <$> Find.simpleFuzzyFinder fuzzyQuery ss id)
 
 namespacePathCompletor ::
   forall m v a.
@@ -2533,7 +2565,7 @@ namespacePathCompletor ::
   Path.Absolute ->
   m [Completion]
 namespacePathCompletor =
-  prefixCompletions (Set.singleton NamespaceCompletion)
+  completeWithinNamespace prefixCompleter (NESet.singleton NamespaceCompletion)
 
 namespaceArg :: ArgumentType
 namespaceArg =
