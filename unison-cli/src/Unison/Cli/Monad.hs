@@ -288,8 +288,8 @@ withE resourceK action =
       Left err -> runCli env s (action (Left err)) >>= feed k
       Right result -> feed k result
 
--- | Run the given action in a new block, which delimits the scope of any 'succeedWith', 'with'/'withE', and 'time'
--- calls contained within.
+-- | Run the given action in a new block, which delimits the scope of all 'returnWith', 'acquire', and 'acquireE' calls
+-- contained within.
 newBlock :: Cli a a -> Cli r a
 newBlock action =
   Cli \env k s ->
