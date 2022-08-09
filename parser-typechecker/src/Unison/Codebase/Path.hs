@@ -21,7 +21,10 @@ module Unison.Codebase.Path
     singleton,
     Unison.Codebase.Path.uncons,
     empty,
+    isAbsolute,
+    isRelative,
     absoluteEmpty,
+    relativeEmpty,
     relativeEmpty',
     currentPath,
     prefix,
@@ -47,7 +50,9 @@ module Unison.Codebase.Path
     fromName',
     fromPath',
     fromText,
+    fromText',
     toAbsoluteSplit,
+    toSplit',
     toList,
     toName,
     toName',
@@ -109,6 +114,14 @@ newtype Relative = Relative {unrelative :: Path} deriving (Eq, Ord)
 
 newtype Path' = Path' {unPath' :: Either Absolute Relative}
   deriving (Eq, Ord)
+
+isAbsolute :: Path' -> Bool
+isAbsolute (AbsolutePath' _) = True
+isAbsolute _ = False
+
+isRelative :: Path' -> Bool
+isRelative (RelativePath' _) = True
+isRelative _ = False
 
 isCurrentPath :: Path' -> Bool
 isCurrentPath p = p == currentPath
@@ -173,6 +186,9 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
   Left (unabsolute -> abs) -> abs
   Right (unrelative -> rel) -> Path $ prefix <> toSeq rel
 
+toSplit' :: Path' -> Maybe (Path', NameSegment)
+toSplit' = Lens.unsnoc
+
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (resolve a p, s)
 
@@ -181,6 +197,9 @@ fromAbsoluteSplit (Absolute p, a) = (p, a)
 
 absoluteEmpty :: Absolute
 absoluteEmpty = Absolute empty
+
+relativeEmpty :: Relative
+relativeEmpty = Relative empty
 
 relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
@@ -288,6 +307,25 @@ fromText = \case
   "" -> empty
   t -> fromList $ NameSegment <$> NameSegment.segments' t
 
+-- | Construct a Path' from a text
+--
+-- >>> fromText' "a.b.c"
+-- a.b.c
+--
+-- >>> fromText' ".a.b.c"
+-- .a.b.c
+--
+-- >>> show $ fromText' ""
+-- ""
+fromText' :: Text -> Path'
+fromText' txt =
+  case Text.uncons txt of
+    Nothing -> relativeEmpty'
+    Just ('.', p) ->
+      Path' (Left . Absolute $ fromText p)
+    Just _ ->
+      Path' (Right . Relative $ fromText txt)
+
 toText' :: Path' -> Text
 toText' = \case
   Path' (Left (Absolute path)) -> Text.cons '.' (toText path)
@@ -309,6 +347,18 @@ instance Cons Path Path NameSegment NameSegment where
         Path (hd :<| tl) -> Right (hd, Path tl)
         _ -> Left p
 
+instance Cons Path' Path' NameSegment NameSegment where
+  _Cons = prism (uncurry cons) uncons
+    where
+      cons :: NameSegment -> Path' -> Path'
+      cons ns (AbsolutePath' p) = AbsolutePath' (ns :< p)
+      cons ns (RelativePath' p) = RelativePath' (ns :< p)
+      uncons :: Path' -> Either Path' (NameSegment, Path')
+      uncons p = case p of
+        AbsolutePath' (ns :< tl) -> Right (ns, AbsolutePath' tl)
+        RelativePath' (ns :< tl) -> Right (ns, RelativePath' tl)
+        _ -> Left p
+
 instance Snoc Relative Relative NameSegment NameSegment where
   _Snoc = prism (uncurry snocRelative) $ \case
     Relative (Lens.unsnoc -> Just (s, a)) -> Right (Relative s, a)
@@ -316,6 +366,26 @@ instance Snoc Relative Relative NameSegment NameSegment where
     where
       snocRelative :: Relative -> NameSegment -> Relative
       snocRelative r n = Relative . (`Lens.snoc` n) $ unrelative r
+
+instance Cons Relative Relative NameSegment NameSegment where
+  _Cons = prism (uncurry cons) uncons
+    where
+      cons :: NameSegment -> Relative -> Relative
+      cons ns (Relative p) = Relative (ns :< p)
+      uncons :: Relative -> Either Relative (NameSegment, Relative)
+      uncons p = case p of
+        Relative (ns :< tl) -> Right (ns, Relative tl)
+        _ -> Left p
+
+instance Cons Absolute Absolute NameSegment NameSegment where
+  _Cons = prism (uncurry cons) uncons
+    where
+      cons :: NameSegment -> Absolute -> Absolute
+      cons ns (Absolute p) = Absolute (ns :< p)
+      uncons :: Absolute -> Either Absolute (NameSegment, Absolute)
+      uncons p = case p of
+        Absolute (ns :< tl) -> Right (ns, Absolute tl)
+        _ -> Left p
 
 instance Snoc Absolute Absolute NameSegment NameSegment where
   _Snoc = prism (uncurry snocAbsolute) $ \case

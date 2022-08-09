@@ -3,9 +3,12 @@
 -}
 module Unison.CommandLine.InputPatterns where
 
+import qualified Control.Lens as Lens
 import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
+import qualified Data.Foldable as Foldable
 import Data.List (intercalate, isPrefixOf)
+import qualified Data.List as List
 import Data.List.Extra (nubOrdOn)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
@@ -16,7 +19,10 @@ import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified System.Console.Haskeline.Completion as Completion
 import qualified Text.Megaparsec as P
+import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Causal as V2Causal
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
@@ -30,6 +36,7 @@ import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.PushBehavior as PushBehavior
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
@@ -44,7 +51,7 @@ import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NameSegment (NameSegment (NameSegment))
+import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names as Names
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
@@ -2314,7 +2321,7 @@ exactDefinitionOrPathArg =
         allCompletors
           [ termCompletor exactComplete,
             typeCompletor exactComplete,
-            pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
+            namespacePathCompletor
           ],
       globTargets = Set.fromList [Globbing.Term, Globbing.Type, Globbing.Namespace]
     }
@@ -2408,7 +2415,6 @@ bothCompletors c1 c2 q code b currentPath = do
     . nubOrdOn Completion.display
     $ suggestions1 ++ suggestions2
 
--- | A completer for namespace paths.
 pathCompletor ::
   Applicative f =>
   -- | Turns a query and list of possible completions into a 'Completion'.
@@ -2432,29 +2438,119 @@ pathCompletor filterQuery getNames query _code b p =
             then map ("." <>) (toList (getNames b0root))
             else []
 
+-- | A completer for namespace paths.
+--
+-- Completes one segment at a time.
+--
+-- Given a codebase with these terms:
+--
+-- @@
+-- .base.List.map
+-- .base.List
+-- .bar.foo
+-- @@
+--
+-- We expect:
+--
+-- @@
+-- .> cd ba<Tab>
+-- ba|r
+-- ba|se
+--
+-- .> cd base<Tab>
+-- base
+-- base|.List
+--
+-- .> cd base.List.<Tab>
+-- base.List.|map
+namespacePathCompletor ::
+  forall m v a.
+  Monad m =>
+  -- | The portion of this are that the user has already typed.
+  String ->
+  Codebase m v a ->
+  Branch.Branch m ->
+  Path.Absolute ->
+  m [Completion]
+namespacePathCompletor query codebase _root currentPath = do
+  let fullQueryPath = (Path.fromText' (Text.pack query))
+      (queryPathPrefix, querySuffix) = case Lens.unsnoc fullQueryPath of
+        Nothing ->
+          if Path.isAbsolute fullQueryPath
+            then (Path.AbsolutePath' Path.absoluteEmpty, "")
+            else (Path.RelativePath' Path.relativeEmpty, "")
+        Just split -> split
+  -- pTraceShowM ("fullQueryPath" :: Text, fullQueryPath)
+  -- pTraceShowM ("queryPathPrefix" :: Text, queryPathPrefix)
+  -- pTraceShowM ("querySuffix" :: Text, querySuffix)
+  let absQueryPath :: Path.Absolute
+      absQueryPath = Path.resolve currentPath queryPathPrefix
+  -- pTraceShowM ("absQueryPath" :: Text, absQueryPath)
+  Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
+    Nothing -> do
+      -- pTraceShowM ("No branch found at" :: Text, absQueryPath)
+      pure []
+    Just cb -> do
+      b <- V2Causal.value cb
+      let currentBranchSuggestions =
+            if List.isSuffixOf "." query
+              then []
+              else completionsForBranch queryPathPrefix querySuffix b
+      -- pTraceShowM ("Current branch suggestions" :: Text, currentBranchSuggestions)
+      childSuggestions <- do
+        case Map.lookup (Cv.namesegment1to2 querySuffix) (V2Branch.children b) of
+          Nothing -> pure []
+          Just childCausal -> do
+            childBranch <- V2Causal.value childCausal
+            childBranch
+              & V2Branch.children
+              & Map.keys
+              & Foldable.toList
+              & fmap
+                ( \childNamespace ->
+                    let completion = queryPathPrefix Lens.:> querySuffix Lens.:> Cv.namesegment2to1 childNamespace
+                     in prettyCompletionWithQueryPrefix False query (Text.unpack . Path.toText' $ completion)
+                )
+              & pure
+      -- pTraceShowM ("Child branch suggestions" :: Text, querySuffix, childSuggestions)
+      pure $ currentBranchSuggestions <> childSuggestions
+  where
+    -- namesInBranch :: V2Branch.Branch m -> m [Text]
+    -- namesInBranch b = _
+    completionsForBranch :: Path.Path' -> NameSegment.NameSegment -> V2Branch.Branch m -> [Completion]
+    completionsForBranch queryPathPrefix querySuffix b =
+      let matchingSegments :: [V2Branch.NameSegment]
+          matchingSegments =
+            V2Branch.children b
+              & Map.keys
+              & filter (coerce Text.isPrefixOf querySuffix)
+          completions =
+            matchingSegments
+              & fmap
+                ( \match ->
+                    let completion = queryPathPrefix Lens.:> Cv.namesegment2to1 match
+                     in prettyCompletionWithQueryPrefix False query (Text.unpack . Path.toText' $ completion)
+                )
+       in completions
+
 namespaceArg :: ArgumentType
 namespaceArg =
   ArgumentType
     { typeName = "namespace",
-      suggestions = pathCompletor completeWithinQueryNamespace (Set.fromList . allSubNamespaces),
+      suggestions = namespacePathCompletor,
       globTargets = Set.fromList [Globbing.Namespace]
     }
 
--- | Recursively collects all names of namespaces which are children of the branch.
-allSubNamespaces :: Branch.Branch0 m -> [Text]
-allSubNamespaces b =
-  flip Map.foldMapWithKey (Branch.nonEmptyChildren b) $
-    \(NameSegment k) (Branch.head -> b') ->
-      (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
+-- | Names of child branches of the branch, only gives options for one 'layer' deeper at a time.
+childNamespaceNames :: Branch.Branch0 m -> [Text]
+childNamespaceNames b = NameSegment.toText <$> Map.keys (Branch.nonEmptyChildren b)
 
 newNameArg :: ArgumentType
 newNameArg =
   ArgumentType
     { typeName = "new-name",
       suggestions =
-        pathCompletor
-          prefixIncomplete
-          (Set.map ((<> ".") . Path.toText) . Branch.deepPaths),
+        namespacePathCompletor,
       globTargets = mempty
     }
 

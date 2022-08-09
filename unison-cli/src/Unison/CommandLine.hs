@@ -25,6 +25,7 @@ module Unison.CommandLine
     fuzzyCompleteHashQualified,
     prefixIncomplete,
     prettyCompletion,
+    prettyCompletionWithQueryPrefix,
     fixupCompletion,
     completeWithinQueryNamespace,
 
