@@ -17,10 +17,3 @@ data PrettyPrintEnvDecl = PrettyPrintEnvDecl
     suffixifiedPPE :: PrettyPrintEnv
   }
   deriving (Show)
-
-instance Semigroup PrettyPrintEnvDecl where
-  PrettyPrintEnvDecl unSuff1 suff1 <> PrettyPrintEnvDecl unSuff2 suff2 =
-    PrettyPrintEnvDecl (unSuff1 <> unSuff2) (suff1 <> suff2)
-
-instance Monoid PrettyPrintEnvDecl where
-  mempty = PrettyPrintEnvDecl mempty mempty
