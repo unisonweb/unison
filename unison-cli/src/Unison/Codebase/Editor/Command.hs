@@ -65,7 +65,6 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Lexer as L
-import Unison.Names (Names)
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -96,7 +95,7 @@ data LoadSourceResult
 type TypecheckingResult v =
   Result
     (Seq (Note v Ann))
-    (Either Names (UF.TypecheckedUnisonFile v Ann))
+    (Either (UF.UnisonFile v Ann) (UF.TypecheckedUnisonFile v Ann))
 
 data Command a where
   AskEnv :: Command Env

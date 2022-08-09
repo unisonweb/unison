@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -21,7 +22,7 @@ data ResolutionError ref
 data ResolutionFailure var annotation
   = TypeResolutionFailure var annotation (ResolutionError Reference)
   | TermResolutionFailure var annotation (ResolutionError Referent)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 getAnnotation :: ResolutionFailure v a -> a
 getAnnotation = \case
