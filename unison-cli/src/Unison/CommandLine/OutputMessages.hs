@@ -1390,7 +1390,9 @@ notifyUser dir o = case o of
                   )
                 ],
           "",
-          P.numberedList . fmap renderEntry $ entries
+          P.numberedList . fmap renderEntry $ entries,
+          "",
+          tip $ "Use " <> IP.makeExample IP.diffNamespace ["1", "7"] <> " to compare namespaces between two points in history."
         ]
     where
       renderEntry :: Output.ReflogEntry -> Pretty
