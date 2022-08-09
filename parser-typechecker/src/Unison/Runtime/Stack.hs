@@ -50,6 +50,7 @@ import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Sequence (Seq)
 import Data.Word
+import qualified Data.Kind as Kind
 import GHC.Exts as L (IsList (..))
 import GHC.Stack (HasCallStack)
 import Unison.Reference (Reference)
@@ -272,9 +273,9 @@ dumpFP fp sz (F n) = fp + sz - n
 data Augment = I | K | C
 
 class MEM (b :: Mem) where
-  data Stack b :: *
-  type Elem b :: *
-  type Seg b :: *
+  data Stack b :: Kind.Type
+  type Elem b :: Kind.Type
+  type Seg b :: Kind.Type
   alloc :: IO (Stack b)
   peek :: Stack b -> IO (Elem b)
   peekOff :: Stack b -> Off -> IO (Elem b)

@@ -496,7 +496,9 @@ freshVar = state $ \(fw, vs, rn) ->
    in (v, (fw + 1, vs, rn))
 
 useVar :: PPM v v
-useVar = state $ \(avoid, v : vs, rn) -> (v, (avoid, vs, rn))
+useVar = state $ \case
+  (avoid, v : vs, rn) -> (v, (avoid, vs, rn))
+  _ -> error "useVar: Expected multiple vars"
 
 renameTo :: Var v => v -> v -> PPM v ()
 renameTo to from =
