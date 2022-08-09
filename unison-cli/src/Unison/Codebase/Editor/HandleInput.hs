@@ -134,6 +134,7 @@ import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
+import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import Unison.Reference (Reference (..), TermReference)
 import qualified Unison.Reference as Reference
@@ -181,7 +182,6 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
 import Witherable (wither)
-import qualified Unison.PrettyPrintEnvDecl as PPED
 
 prettyPrintEnvDecl :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = do
@@ -1200,9 +1200,9 @@ loop e = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType -> do
-                    let codeLookup = () <$ Codebase.toCodeLookup codebase
-                    whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
-                      Cli.returnEarly (EvaluationFailure err)
+                      let codeLookup = () <$ Codebase.toCodeLookup codebase
+                      whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
+                        Cli.returnEarly (EvaluationFailure err)
                   | otherwise -> Cli.returnEarly (BadMainFunction smain ty ppe [mainType])
                 _ -> Cli.returnEarly (NoMainFunction smain ppe [mainType])
             IOTestI main -> do
@@ -2722,10 +2722,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2742,10 +2742,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -3328,9 +3328,8 @@ findHistoricalHQs lexedHQs0 = do
         -- something in current path
         _ ->
           case curPath of
-            p@(_:>_) -> Name.joinDot (Path.unsafeToName . Path.unabsolute $ p) n
+            p@(_ :> _) -> Name.joinDot (Path.unsafeToName . Path.unabsolute $ p) n
             _ -> n
-
 
       lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
   (_missing, rawHistoricalNames) <- liftIO $ Branch.findHistoricalHQs lexedHQs root'
