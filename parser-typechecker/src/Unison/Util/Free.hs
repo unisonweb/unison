@@ -60,7 +60,7 @@ instance Functor (Free f) where
   fmap = liftM
 
 instance Monad (Free f) where
-  return = Pure
+  return = pure
   Pure a >>= f = f a
   Bind fx f >>= g = Bind fx (f >=> g)
 
