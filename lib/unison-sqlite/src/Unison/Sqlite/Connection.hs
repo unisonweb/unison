@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-} -- pTrace
+
 module Unison.Sqlite.Connection
   ( -- * Connection management
     Connection (..),
