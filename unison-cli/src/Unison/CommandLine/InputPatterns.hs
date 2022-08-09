@@ -6,7 +6,6 @@ module Unison.CommandLine.InputPatterns where
 import qualified Control.Lens as Lens
 import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
-import qualified Data.Foldable as Foldable
 import Data.List (intercalate, isPrefixOf)
 import qualified Data.List as List
 import Data.List.Extra (nubOrdOn)
@@ -21,6 +20,7 @@ import qualified System.Console.Haskeline.Completion as Completion
 import qualified Text.Megaparsec as P
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import qualified U.Util.Monoid as Monoid
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
@@ -2463,6 +2463,66 @@ pathCompletor filterQuery getNames query _code b p =
 --
 -- .> cd base.List.<Tab>
 -- base.List.|map
+prefixCompletions ::
+  forall m v a.
+  Monad m =>
+  -- | The types of completions to return
+  Set CompletionType ->
+  -- | The portion of this are that the user has already typed.
+  String ->
+  Codebase m v a ->
+  Branch.Branch m ->
+  Path.Absolute ->
+  m [Completion]
+prefixCompletions compTypes query codebase _root currentPath = do
+  let fullQueryPath = (Path.fromText' (Text.pack query))
+      (queryPathPrefix, querySuffix) = case Lens.unsnoc fullQueryPath of
+        Nothing ->
+          if Path.isAbsolute fullQueryPath
+            then (Path.AbsolutePath' Path.absoluteEmpty, "")
+            else (Path.RelativePath' Path.relativeEmpty, "")
+        Just split -> split
+  let absQueryPath :: Path.Absolute
+      absQueryPath = Path.resolve currentPath queryPathPrefix
+  Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
+    Nothing -> do
+      -- pTraceShowM ("No branch found at" :: Text, absQueryPath)
+      pure []
+    Just cb -> do
+      b <- V2Causal.value cb
+      let currentBranchSuggestions =
+            -- If the query ends in a `.` we only care about the children of the query branch.
+            if List.isSuffixOf "." query
+              then []
+              else
+                namesInBranch b -- queryPathPrefix querySuffix b
+                  & filter (coerce Text.isPrefixOf querySuffix)
+                  <&> \match ->
+                    let completion = queryPathPrefix Lens.:> NameSegment.NameSegment match
+                     in prettyCompletionWithQueryPrefix False query (Text.unpack . Path.toText' $ completion)
+      childSuggestions <- do
+        case Map.lookup (Cv.namesegment1to2 querySuffix) (V2Branch.children b) of
+          Nothing -> pure []
+          Just childCausal -> do
+            childBranch <- V2Causal.value childCausal
+            namesInBranch childBranch
+              & fmap
+                ( \match ->
+                    let completion = queryPathPrefix Lens.:> querySuffix Lens.:> NameSegment.NameSegment match
+                     in prettyCompletionWithQueryPrefix False query (Text.unpack . Path.toText' $ completion)
+                )
+              & pure
+      pure $ currentBranchSuggestions <> childSuggestions
+  where
+    namesInBranch :: V2Branch.Branch m -> [Text]
+    namesInBranch b =
+      V2Branch.unNameSegment
+        <$> ( Monoid.whenM (Set.member NamespaceCompletion compTypes) (Map.keys $ V2Branch.children b)
+                <> Monoid.whenM (Set.member TermCompletion compTypes) (Map.keys $ V2Branch.terms b)
+                <> Monoid.whenM (Set.member TypeCompletion compTypes) (Map.keys $ V2Branch.types b)
+                <> Monoid.whenM (Set.member PatchCompletion compTypes) (Map.keys $ V2Branch.patches b)
+            )
+
 namespacePathCompletor ::
   forall m v a.
   Monad m =>
@@ -2472,66 +2532,8 @@ namespacePathCompletor ::
   Branch.Branch m ->
   Path.Absolute ->
   m [Completion]
-namespacePathCompletor query codebase _root currentPath = do
-  let fullQueryPath = (Path.fromText' (Text.pack query))
-      (queryPathPrefix, querySuffix) = case Lens.unsnoc fullQueryPath of
-        Nothing ->
-          if Path.isAbsolute fullQueryPath
-            then (Path.AbsolutePath' Path.absoluteEmpty, "")
-            else (Path.RelativePath' Path.relativeEmpty, "")
-        Just split -> split
-  -- pTraceShowM ("fullQueryPath" :: Text, fullQueryPath)
-  -- pTraceShowM ("queryPathPrefix" :: Text, queryPathPrefix)
-  -- pTraceShowM ("querySuffix" :: Text, querySuffix)
-  let absQueryPath :: Path.Absolute
-      absQueryPath = Path.resolve currentPath queryPathPrefix
-  -- pTraceShowM ("absQueryPath" :: Text, absQueryPath)
-  Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
-    Nothing -> do
-      -- pTraceShowM ("No branch found at" :: Text, absQueryPath)
-      pure []
-    Just cb -> do
-      b <- V2Causal.value cb
-      let currentBranchSuggestions =
-            if List.isSuffixOf "." query
-              then []
-              else completionsForBranch queryPathPrefix querySuffix b
-      -- pTraceShowM ("Current branch suggestions" :: Text, currentBranchSuggestions)
-      childSuggestions <- do
-        case Map.lookup (Cv.namesegment1to2 querySuffix) (V2Branch.children b) of
-          Nothing -> pure []
-          Just childCausal -> do
-            childBranch <- V2Causal.value childCausal
-            childBranch
-              & V2Branch.children
-              & Map.keys
-              & Foldable.toList
-              & fmap
-                ( \childNamespace ->
-                    let completion = queryPathPrefix Lens.:> querySuffix Lens.:> Cv.namesegment2to1 childNamespace
-                     in prettyCompletionWithQueryPrefix False query (Text.unpack . Path.toText' $ completion)
-                )
-              & pure
-      -- pTraceShowM ("Child branch suggestions" :: Text, querySuffix, childSuggestions)
-      pure $ currentBranchSuggestions <> childSuggestions
-  where
-    -- namesInBranch :: V2Branch.Branch m -> m [Text]
-    -- namesInBranch b = _
-    completionsForBranch :: Path.Path' -> NameSegment.NameSegment -> V2Branch.Branch m -> [Completion]
-    completionsForBranch queryPathPrefix querySuffix b =
-      let matchingSegments :: [V2Branch.NameSegment]
-          matchingSegments =
-            V2Branch.children b
-              & Map.keys
-              & filter (coerce Text.isPrefixOf querySuffix)
-          completions =
-            matchingSegments
-              & fmap
-                ( \match ->
-                    let completion = queryPathPrefix Lens.:> Cv.namesegment2to1 match
-                     in prettyCompletionWithQueryPrefix False query (Text.unpack . Path.toText' $ completion)
-                )
-       in completions
+namespacePathCompletor =
+  prefixCompletions (Set.singleton NamespaceCompletion)
 
 namespaceArg :: ArgumentType
 namespaceArg =
@@ -2636,3 +2638,10 @@ showErrorItem :: P.ErrorItem (P.Token Text) -> String
 showErrorItem (P.Tokens ts) = P.showTokens (Proxy @Text) ts
 showErrorItem (P.Label label) = NE.toList label
 showErrorItem P.EndOfInput = "end of input"
+
+data CompletionType
+  = NamespaceCompletion
+  | TermCompletion
+  | TypeCompletion
+  | PatchCompletion
+  deriving (Show, Eq, Ord)
