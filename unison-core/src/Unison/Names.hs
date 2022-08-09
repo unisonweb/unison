@@ -86,12 +86,12 @@ data Names = Names
   }
   deriving (Eq, Ord)
 
-instance Semigroup (Names) where (<>) = mappend
+instance Semigroup (Names) where 
+  Names e1 t1 <> Names e2 t2 =
+    Names (e1 <> e2) (t1 <> t2)
 
 instance Monoid (Names) where
   mempty = Names mempty mempty
-  Names e1 t1 `mappend` Names e2 t2 =
-    Names (e1 <> e2) (t1 <> t2)
 
 instance Show (Names) where
   show (Names terms types) =

@@ -69,12 +69,12 @@ data ParsingEnv = ParsingEnv
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)
 
-instance Semigroup UniqueName where (<>) = mappend
+instance Semigroup UniqueName where
+  UniqueName f <> UniqueName g =
+    UniqueName $ \pos len -> f pos len <|> g pos len
 
 instance Monoid UniqueName where
   mempty = UniqueName (\_ _ -> Nothing)
-  mappend (UniqueName f) (UniqueName g) =
-    UniqueName $ \pos len -> f pos len <|> g pos len
 
 uniqueBase32Namegen :: forall gen. Random.DRG gen => gen -> UniqueName
 uniqueBase32Namegen rng =

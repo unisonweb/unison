@@ -358,7 +358,6 @@ instance MonadPlus (SubseqExtractor' n) where
 
 instance Monoid (SubseqExtractor' n a) where
   mempty = mzero
-  mappend = mplus
 
 instance Semigroup (SubseqExtractor' n a) where
-  (<>) = mappend
+  (<>) = mplus

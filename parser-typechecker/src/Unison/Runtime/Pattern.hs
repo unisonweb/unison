@@ -69,7 +69,6 @@ instance Semigroup PType where
 
 instance Monoid PType where
   mempty = Unknown
-  mappend = (<>)
 
 type Ctx v = Map v PType
 

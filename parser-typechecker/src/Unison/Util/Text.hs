@@ -99,11 +99,11 @@ instance Eq Chunk where (Chunk n a) == (Chunk n2 a2) = n == n2 && a == a2
 
 instance Ord Chunk where (Chunk _ a) `compare` (Chunk _ a2) = compare a a2
 
-instance Semigroup Chunk where (<>) = mappend
+instance Semigroup Chunk where
+  l <> r = Chunk (R.size l + R.size r) (chunkToText l <> chunkToText r)
 
 instance Monoid Chunk where
   mempty = Chunk 0 mempty
-  mappend l r = Chunk (R.size l + R.size r) (chunkToText l <> chunkToText r)
 
 instance R.Sized Chunk where size (Chunk n _) = n
 

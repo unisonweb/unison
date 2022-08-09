@@ -188,12 +188,11 @@ delete a b c Relation3 {..} =
        in if r' == mempty then Nothing else Just r'
 
 instance (Ord a, Ord b, Ord c) => Semigroup (Relation3 a b c) where
-  (<>) = mappend
-
-instance (Ord a, Ord b, Ord c) => Monoid (Relation3 a b c) where
-  mempty = Relation3 mempty mempty mempty
-  s1 `mappend` s2 = Relation3 d1' d2' d3'
+  s1 <> s2 = Relation3 d1' d2' d3'
     where
       d1' = Map.unionWith (<>) (d1 s1) (d1 s2)
       d2' = Map.unionWith (<>) (d2 s1) (d2 s2)
       d3' = Map.unionWith (<>) (d3 s1) (d3 s2)
+
+instance (Ord a, Ord b, Ord c) => Monoid (Relation3 a b c) where
+  mempty = Relation3 mempty mempty mempty

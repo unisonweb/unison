@@ -176,13 +176,12 @@ insertAll ::
 insertAll f r = foldl' (\r x -> uncurry4 insert x r) r f
 
 instance (Ord a, Ord b, Ord c, Ord d) => Semigroup (Relation4 a b c d) where
-  (<>) = mappend
-
-instance (Ord a, Ord b, Ord c, Ord d) => Monoid (Relation4 a b c d) where
-  mempty = Relation4 mempty mempty mempty mempty
-  s1 `mappend` s2 = Relation4 d1' d2' d3' d4'
+  s1 <> s2 = Relation4 d1' d2' d3' d4'
     where
       d1' = Map.unionWith (<>) (d1 s1) (d1 s2)
       d2' = Map.unionWith (<>) (d2 s1) (d2 s2)
       d3' = Map.unionWith (<>) (d3 s1) (d3 s2)
       d4' = Map.unionWith (<>) (d4 s1) (d4 s2)
+
+instance (Ord a, Ord b, Ord c, Ord d) => Monoid (Relation4 a b c d) where
+  mempty = Relation4 mempty mempty mempty mempty

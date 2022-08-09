@@ -77,7 +77,6 @@ patternName env r =
 
 instance Monoid PrettyPrintEnv where
   mempty = PrettyPrintEnv (const Nothing) (const Nothing)
-  mappend = unionLeft
 
 instance Semigroup PrettyPrintEnv where
-  (<>) = mappend
+  (<>) = unionLeft
