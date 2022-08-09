@@ -25,7 +25,7 @@ module Unison.Cli.Monad
     newBlock,
 
     -- * Short-circuiting
-    returnWith,
+    label,
     returnEarly,
     returnEarlyWithoutOutput,
     haltRepl,
@@ -206,10 +206,19 @@ ioE action errK =
 short :: ReturnType r -> Cli r a
 short r = Cli \_env _k s -> pure (r, s)
 
--- | Short-circuit with a value. Returns @r@ to the nearest enclosing
--- 'newBlock' (or 'runCli' if there is no enclosing 'newBlock').
-returnWith :: r -> Cli r a
-returnWith = short . Success
+-- | Create a "label" that can be jumped to (this is @callCC@, renamed).
+--
+-- @
+-- x <-
+--   label \goto -> do
+--     ...
+--     goto y -- this binds value y to variable x above
+--     ... -- we never get here
+-- @
+label :: ((forall b. a -> Cli r b) -> Cli r a) -> Cli r a
+label f =
+  Cli \env k s0 ->
+    unCli (f (\a -> Cli \_ _ s1 -> k a s1)) env k s0
 
 -- | Short-circuit the processing of the current input.
 returnEarly :: Output -> Cli r a
