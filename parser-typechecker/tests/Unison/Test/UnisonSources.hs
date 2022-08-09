@@ -139,7 +139,7 @@ resultTest rt uf filepath = do
           either report pure
             =<< evaluateWatches
               Builtin.codeLookup
-              mempty
+              PPE.empty
               (const $ pure Nothing)
               rt
               uf

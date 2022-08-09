@@ -569,11 +569,11 @@ namesAtPath path = do
       allTypes = typesInPath <> typesOutsidePath
   let rootTerms = Rel.fromList allTerms
   let rootTypes = Rel.fromList allTypes
-  let absoluteRootNames = Names {terms = rootTerms, types = rootTypes}
-  let absoluteExternalNames = Names {terms = Rel.fromList termsOutsidePath, types = Rel.fromList typesOutsidePath}
+  let absoluteRootNames = Names.makeAbsolute $ Names {terms = rootTerms, types = rootTypes}
+  let absoluteExternalNames = Names.makeAbsolute $ Names {terms = Rel.fromList termsOutsidePath, types = Rel.fromList typesOutsidePath}
   let relativeScopedNames =
         case path of
-          Path.Empty -> (absoluteRootNames)
+          Path.Empty -> (Names.makeRelative $ absoluteRootNames)
           p ->
             let reversedPathSegments = reverse . Path.toList $ p
                 relativeTerms = stripPathPrefix reversedPathSegments <$> termsInPath

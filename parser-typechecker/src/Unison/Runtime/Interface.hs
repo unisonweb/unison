@@ -60,6 +60,7 @@ import qualified Unison.LabeledDependency as RF
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude (reportBug)
 import Unison.PrettyPrintEnv
+import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as RF
 import qualified Unison.Referent as RF (pattern Ref)
@@ -399,7 +400,7 @@ executeMainComb init cc =
     handler (BU nm c) = do
       crs <- readTVarIO (combRefs cc)
       let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
-      pure . either id (bugMsg mempty nm) $ decom c
+      pure . either id (bugMsg PPE.empty nm) $ decom c
 
 bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
 bugMsg ppe name tm

@@ -137,7 +137,7 @@ import Unison.Position (Position (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import Unison.Reference (Reference (..))
 import qualified Unison.Reference as Reference
@@ -190,13 +190,13 @@ import Witherable (wither)
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
 
-prettyPrintEnvDecl :: NamesWithHistory -> Action PPE.PrettyPrintEnvDecl
+prettyPrintEnvDecl :: NamesWithHistory -> Action PPED.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = do
   codebase <- Command.askCodebase
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Action PPED.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl scoping = do
   codebase <- Command.askCodebase
   root' <- use Command.root
@@ -292,7 +292,7 @@ loop e = do
           let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
           names <- unsafeTime "displayNames" $ displayNames unisonFile
           pped <- prettyPrintEnvDecl names
-          let ppe = PPE.suffixifiedPPE pped
+          let ppe = PPED.suffixifiedPPE pped
           unsafeTime "typechecked.respond" $ respond $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
             (bindings, e) <- unsafeTime "evaluate" $ ExceptT (evalUnisonFile False ppe unisonFile [])
@@ -531,7 +531,7 @@ loop e = do
             success
           previewResponse sourceName sr uf = do
             names <- displayNames uf
-            ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+            ppe <- PPED.suffixifiedPPE <$> prettyPrintEnvDecl names
             respond $ Typechecked (Text.pack sourceName) ppe sr uf
 
           delete ::
@@ -549,7 +549,7 @@ loop e = do
               resolvedPath = resolveSplit' (HQ'.toName <$> hq)
               goMany tms tys = do
                 let rootNames = Branch.toNames root0
-                    name = Path.toName (Path.unsplit resolvedPath)
+                    name = Path.unsafeToName (Path.unsplit resolvedPath)
                     toRel :: Ord ref => Set ref -> R.Relation Name ref
                     toRel = R.fromList . fmap (name,) . toList
                     -- these names are relative to the root
@@ -741,8 +741,8 @@ loop e = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                      -- Branch exists and isn't empty, print an error
-                      throwError (BranchAlreadyExists (Path.unsplit' dest))
+                    -- Branch exists and isn't empty, print an error
+                    throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -820,7 +820,7 @@ loop e = do
                   let rootNames = Branch.toNames root0
                       toDelete =
                         Names.prefix0
-                          (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
+                          (Path.unsafeToName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
                           (Branch.toNames b0)
                   getEndangeredDependents (liftIO . Codebase.dependents codebase) toDelete rootNames
             SwitchBranchI maybePath' -> do
@@ -1002,7 +1002,7 @@ loop e = do
                         (Just as1, Just as2) -> (missingSrcs, actions ++ as1 ++ as2)
 
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
-                fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
+                fixupOutput = fmap Path.unsafeToName . HQ'.toHQ . Path.unsplitHQ
             NamesI global thing -> do
               ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
               let ns = NamesWithHistory ns0 mempty
@@ -1032,7 +1032,7 @@ loop e = do
               (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
               lift do
                 Command.numberedArgs .= fmap (HQ.toString . view _1) out
-                respond $ ListOfLinks ppe out
+                respond $ ListOfLinks (PPE.biasTo (maybeToList . Path.toName' . HQ'.toName $ Path.unsplitHQ' src) ppe) out
             DocsI srcs -> do
               srcs' <- case srcs of
                 [] ->
@@ -1124,7 +1124,7 @@ loop e = do
             ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
             FindPatchI -> do
               let patches =
-                    [ Path.toName $ Path.snoc p seg
+                    [ Path.unsafeToName $ Path.snoc p seg
                       | (p, b) <- Branch.toList0 currentBranch0,
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
@@ -1298,7 +1298,7 @@ loop e = do
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
                   ppe <- prettyPrintEnvDecl =<< displayNames uf
-                  respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+                  respond $ SlurpOutput input (PPED.suffixifiedPPE ppe) sr
                   addDefaultMetadata adds
                   syncRoot
             PreviewAddI requestedNames -> case (latestFile', uf) of
@@ -1356,13 +1356,13 @@ loop e = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType -> do
-                      runtime <- Command.askRuntime
-                      codebase <- Command.askCodebase
-                      liftIO (Runtime.compileTo runtime (() <$ Codebase.toCodeLookup codebase) ppe ref (output <> ".uc")) >>= \case
-                        Just err -> respond $ EvaluationFailure err
-                        Nothing -> pure ()
+                    runtime <- Command.askRuntime
+                    codebase <- Command.askCodebase
+                    liftIO (Runtime.compileTo runtime (() <$ Codebase.toCodeLookup codebase) ppe ref (output <> ".uc")) >>= \case
+                      Just err -> respond $ EvaluationFailure err
+                      Nothing -> pure ()
                   | otherwise ->
-                      respond $ BadMainFunction smain ty ppe [mainType]
+                    respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               runtime <- Command.askRuntime
@@ -1537,7 +1537,7 @@ loop e = do
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+                  ppe <- PPED.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> use Command.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
@@ -1784,7 +1784,7 @@ handleDependents hq = do
            in LD.fold tp tm ld
         -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
         -- unambiguous name.
-        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+        ppe <- PPED.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
         let results :: [(Reference, Maybe Name)]
             results =
               -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
@@ -2016,7 +2016,7 @@ handleShowDefinition outputLoc inputQuery = do
     liftIO (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
-    let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root'
+    let ppe = PPED.biasTo (mapMaybe HQ.toName inputQuery) $ Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root'
     respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (respond (SearchTermsNotFound misses))
   -- We set latestFile to be programmatically generated, if we
@@ -2274,7 +2274,7 @@ handleUpdate input optionalPatch requestedNames = do
           )
         liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
       ppe <- prettyPrintEnvDecl =<< displayNames uf
-      respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+      respond $ SlurpOutput input (PPED.suffixifiedPPE ppe) sr
       -- propagatePatch prints TodoOutput
       for_ patchOps $ \case
         (updatedPatch, _, _) -> void $ propagatePatchNoSync updatedPatch currentPath'
@@ -2533,7 +2533,7 @@ doDisplay outputLoc names tm = do
       useCache = True
       evalTerm tm =
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
-          evalUnisonTerm True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
+          evalUnisonTerm True (PPED.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) $ liftIO (Codebase.getTerm codebase r)
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
@@ -2595,10 +2595,10 @@ getLinks' src selection0 = do
         Set.map LD.termRef allRefs
           <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
   ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
-  let ppeDecl = PPE.unsuffixifiedPPE ppe
+  let ppeDecl = PPED.unsuffixifiedPPE ppe
   let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
   let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
-  pure (PPE.suffixifiedPPE ppe, out)
+  pure (PPED.suffixifiedPPE ppe, out)
 
 resolveShortBranchHash ::
   ShortBranchHash -> ExceptT Output (Action) (Branch IO)
@@ -2660,7 +2660,7 @@ doShowTodoOutput patch scopePath = do
 showTodoOutput ::
   -- | Action that fetches the pretty print env. It's expensive because it
   -- involves looking up historical names, so only call it if necessary.
-  Action PPE.PrettyPrintEnvDecl ->
+  Action PPED.PrettyPrintEnvDecl ->
   Patch ->
   Names ->
   Action ()
@@ -2734,7 +2734,7 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
     Nothing -> []
     Just b -> SR.fromNames . Names.prefix0 n $ names0
       where
-        lastName = Path.toName (Path.singleton last)
+        lastName = (Name.fromSegment last)
         subnames =
           Branch.toNames . Branch.head $
             Branch.getAt' (Path.singleton last) b
@@ -2776,10 +2776,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2796,10 +2796,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                pair qn
+              pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
+              Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -2905,7 +2905,7 @@ getHQTerms = \case
             & Path.fromName'
             & Path.resolve currentPath'
             & Path.unabsolute
-            & Path.toName
+            & Path.unsafeToName
     pure $ R.lookupRan path (Branch.deepTerms root0)
   HQ.HashOnly sh -> hashOnly sh
   HQ.HashQualified _ sh -> hashOnly sh
@@ -3098,6 +3098,7 @@ displayI ::
   HQ.HashQualified Name ->
   Action ()
 displayI prettyPrintNames outputLoc hq = do
+  let bias = maybeToList $ HQ.toName hq
   uf <- use Command.latestTypecheckedFile >>= addWatch (HQ.toString hq)
   case uf of
     Nothing -> do
@@ -3112,12 +3113,12 @@ displayI prettyPrintNames outputLoc hq = do
             do
               let tm = Term.fromReferent External $ Set.findMin results
               pped <- prettyPrintEnvDecl parseNames
-              tm <- evalUnisonTerm True (PPE.suffixifiedPPE pped) True tm
+              tm <- evalUnisonTerm True (PPE.biasTo bias $ PPED.suffixifiedPPE pped) True tm
               case tm of
                 Left e -> respond (EvaluationFailure e)
                 Right tm -> doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
-      ppe <- executePPE unisonFile
+      ppe <- PPE.biasTo bias <$> executePPE unisonFile
       unlessError' EvaluationFailure do
         evalResult <- ExceptT (evalUnisonFile True ppe unisonFile [])
         case Command.lookupEvalResult toDisplay evalResult of
@@ -3142,7 +3143,7 @@ docsI srcLoc prettyPrintNames src = do
     hq :: HQ.HashQualified Name
     hq =
       let hq' :: HQ'.HashQualified Name
-          hq' = Name.convert @Path.Path' @Name <$> Name.convert src
+          hq' = Path.unsafeToName' <$> Name.convert src
        in Name.convert hq'
 
     dotDoc :: HQ.HashQualified Name
@@ -3181,9 +3182,9 @@ docsI srcLoc prettyPrintNames src = do
       case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
         s
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
-          | Set.size s == 0 -> respond $ ListOfLinks mempty []
+          | Set.size s == 0 -> respond $ ListOfLinks PPE.empty []
           | otherwise -> -- todo: return a list of links here too
-              respond $ ListOfLinks mempty []
+            respond $ ListOfLinks PPE.empty []
 
 filterBySlurpResult ::
   Ord v =>
@@ -3325,11 +3326,12 @@ loadDisplayInfo refs = do
 fixupNamesRelative :: Path.Absolute -> Names -> Names
 fixupNamesRelative currentPath' = Names.map fixName
   where
-    prefix = Path.toName (Path.unabsolute currentPath')
     fixName n =
       if currentPath' == Path.absoluteEmpty
         then n
-        else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
+        else fromMaybe (Name.makeAbsolute n) do
+          prefix <- Path.toName (Path.unabsolute currentPath')
+          Name.stripNamePrefix prefix n
 
 makeHistoricalParsingNames ::
   Set (HQ.HashQualified Name) -> Action NamesWithHistory
@@ -3453,7 +3455,7 @@ findHistoricalHQs lexedHQs0 = do
         _ ->
           if Path.isRoot curPath
             then n
-            else Name.joinDot (Path.toName . Path.unabsolute $ curPath) n
+            else Name.joinDot (Path.unsafeToName . Path.unabsolute $ curPath) n
 
       lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
   (_missing, rawHistoricalNames) <- liftIO $ Branch.findHistoricalHQs lexedHQs root'
@@ -3604,7 +3606,7 @@ diffHelper before after = unsafeTime "HandleInput.diffHelper" do
   hqLength <- liftIO (Codebase.hashLength codebase)
   diff <- liftIO (BranchDiff.diff0 before after)
   let (_parseNames, prettyNames0, _local) = Backend.namesForBranch currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
+  ppe <- PPED.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
   liftIO do
     fmap (ppe,) do
       OBranchDiff.toOutput
