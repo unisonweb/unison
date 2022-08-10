@@ -23,10 +23,8 @@ module Unison.Cli.Monad
     with_,
     withE,
 
-    -- * Scoping actions
-    newBlock,
-
     -- * Short-circuiting
+    label,
     returnEarly,
     returnEarlyWithoutOutput,
     haltRepl,
@@ -200,10 +198,10 @@ feed k = \case
   (Continue, s) -> pure (Continue, s)
   (HaltRepl, s) -> pure (HaltRepl, s)
 
-feedE :: (a -> LoopState -> IO (ReturnType r, LoopState)) -> (ReturnType (Either r a), LoopState) -> IO (ReturnType r, LoopState)
+feedE :: (a -> LoopState -> IO (ReturnType r, LoopState)) -> (ReturnType (R r a), LoopState) -> IO (ReturnType r, LoopState)
 feedE k = feed \era s -> case era of
-  Left r -> pure (Success r, s)
-  Right a -> k a s
+  GoL r -> pure (Success r, s)
+  GoR a -> k a s
 
 -- | The result of calling 'loadSource'.
 data LoadSourceResult
@@ -241,42 +239,52 @@ haltRepl = short HaltRepl
 -- Useful for resource acquisition:
 --
 -- @
--- with (bracket create destroy) \resource ->
+-- with (bracket create destroy) \\resource ->
 --   ...
 -- @
-with :: (forall x. (a -> IO x) -> IO x) -> (a -> Cli (Either r b) b) -> Cli r b
+with :: (forall x. (a -> IO x) -> IO x) -> (a -> Cli (R r b) b) -> Cli r b
 with resourceK action =
   Cli \env k s ->
-    resourceK (runCli Right env s . action) >>= feedE k
+    resourceK (runCli GoR env s . action) >>= feedE k
 
 -- | A variant of 'with' for actions that don't acquire a resource (like 'Control.Exception.bracket_').
-with_ :: (forall x. IO x -> IO x) -> Cli (Either r a) a -> Cli r a
+with_ :: (forall x. IO x -> IO x) -> Cli (R r a) a -> Cli r a
 with_ resourceK action =
   Cli \env k s ->
-    resourceK (runCli Right env s action) >>= feedE k
+    resourceK (runCli GoR env s action) >>= feedE k
 
 -- | A variant of 'with' for the variant of bracketing function that may return a Left rather than call the provided
 -- continuation.
-withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (Either e a -> Cli (Either r b) b) -> Cli r b
+withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (Either e a -> Cli (R r b) b) -> Cli r b
 withE resourceK action =
   Cli \env k s ->
-    resourceK (\a -> runCli Right env s (action (Right a))) >>= \case
-      Left err -> runCli Right env s (action (Left err)) >>= feedE k
+    resourceK (\a -> runCli GoR env s (action (Right a))) >>= \case
+      Left err -> runCli GoR env s (action (Left err)) >>= feedE k
       Right result -> feedE k result
 
--- | Run the given action in a new block, which delimits the scope of
--- all 'acquire', and 'acquireE' calls contained within.
-newBlock :: forall r a. ((forall t b. BreadCrumbs (Either r a) t => a -> Cli t b) -> Cli (Either r a) a) -> Cli r a
-newBlock f = Cli \env k s0 -> do
+-- | Create a label that can be jumped to.
+--
+-- @
+-- x <- label \\j0 -> do
+--   ...
+--   label \\j1 -> do
+--     ...
+--     j0 someValue
+--     ... -- We don't get here
+--   ... -- We don't get here
+-- -- x is bound to someValue
+-- @
+label :: forall r a. ((forall t b. BreadCrumbs (R r a) t => a -> Cli t b) -> Cli (R r a) a) -> Cli r a
+label f = Cli \env k s0 -> do
   res <-
     unCli
       ( f
           ( \a -> Cli \_ _ s1 ->
-              pure (Success (produceCorrectReturnTypeForNestingLevel @(Either r a) (Right a)), s1)
+              pure (Success (produceCorrectReturnTypeForNestingLevel @(R r a) (GoR a)), s1)
           )
       )
       env
-      (\a s -> pure (Success (Right a), s))
+      (\a s -> pure (Success (GoR a), s))
       s0
   feedE k res
 
@@ -340,8 +348,12 @@ respondNumbered output = do
 class BreadCrumbs s t where
   produceCorrectReturnTypeForNestingLevel :: s -> t
 
-instance BreadCrumbs t (Either t x) where
-  produceCorrectReturnTypeForNestingLevel = Left
+instance BreadCrumbs t (R t x) where
+  produceCorrectReturnTypeForNestingLevel = GoL
 
-instance {-# OVERLAPPABLE #-} BreadCrumbs s t => BreadCrumbs s (Either t x) where
-  produceCorrectReturnTypeForNestingLevel = Left . produceCorrectReturnTypeForNestingLevel
+instance {-# OVERLAPPABLE #-} BreadCrumbs s t => BreadCrumbs s (R t x) where
+  produceCorrectReturnTypeForNestingLevel = GoL . produceCorrectReturnTypeForNestingLevel
+
+data R a b
+  = GoL a
+  | GoR b
