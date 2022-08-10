@@ -26,3 +26,20 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
 -- Should filter out any definitions which aren't in the provided namespace even if the hash matches.
 GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
 ```
+
+```unison
+doctest.thing.doc = {{ The correct docs for the thing }}
+doctest.thing = "A thing"
+doctest.otherstuff.thing.doc = {{ A doc for a different term with the same name }}
+doctest.otherstuff.thing = "A different thing"
+```
+
+```ucm
+.> add
+```
+
+Only docs for the term we request should be returned, even if there are other term docs with similar names.
+
+```api
+GET /api/getDefinition?names=thing&relativeTo=doctest
+```

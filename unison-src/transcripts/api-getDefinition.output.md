@@ -393,4 +393,153 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
     },
     "typeDefinitions": {}
 }
+``````unison
+doctest.thing.doc = {{ The correct docs for the thing }}
+doctest.thing = "A thing"
+doctest.otherstuff.thing.doc = {{ A doc for a different term with the same name }}
+doctest.otherstuff.thing = "A different thing"
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      doctest.otherstuff.thing     : Text
+      doctest.otherstuff.thing.doc : Doc2
+      doctest.thing                : Text
+      doctest.thing.doc            : Doc2
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    doctest.otherstuff.thing     : Text
+    doctest.otherstuff.thing.doc : Doc2
+    doctest.thing                : Text
+    doctest.thing.doc            : Doc2
+
+```
+Only docs for the term we request should be returned, even if there are other term docs with similar names.
+
+```api
+GET /api/getDefinition?names=thing&relativeTo=doctest
+{
+    "missingDefinitions": [],
+    "termDefinitions": {
+        "#jksc1s5kud95ro5ivngossullt2oavsd41s3u48bch67jf3gknru5j6hmjslonkd5sdqs8mr8k4rrnef8fodngbg4sm7u6au564ekjg": {
+            "bestTermName": "thing",
+            "defnTermTag": null,
+            "signature": [
+                {
+                    "annotation": {
+                        "contents": "##Text",
+                        "tag": "TypeReference"
+                    },
+                    "segment": "Text"
+                }
+            ],
+            "termDefinition": {
+                "contents": [
+                    {
+                        "annotation": {
+                            "contents": "thing",
+                            "tag": "HashQualifier"
+                        },
+                        "segment": "thing"
+                    },
+                    {
+                        "annotation": {
+                            "tag": "TypeAscriptionColon"
+                        },
+                        "segment": " :"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": {
+                            "contents": "##Text",
+                            "tag": "TypeReference"
+                        },
+                        "segment": "Text"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": "\n"
+                    },
+                    {
+                        "annotation": {
+                            "contents": "thing",
+                            "tag": "HashQualifier"
+                        },
+                        "segment": "thing"
+                    },
+                    {
+                        "annotation": {
+                            "tag": "BindingEquals"
+                        },
+                        "segment": " ="
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": {
+                            "tag": "TextLiteral"
+                        },
+                        "segment": "\"A thing\""
+                    }
+                ],
+                "tag": "UserObject"
+            },
+            "termDocs": [
+                [
+                    "thing.doc",
+                    "#t9qfdoiuskj4n9go8cftj1r83s43s3o7sppafm5vr0bq5feieb7ap0cie5ed2qsf9g3ig448vffhnajinq81pnnkila1jp2epa7f26o",
+                    {
+                        "contents": [
+                            {
+                                "contents": "The",
+                                "tag": "Word"
+                            },
+                            {
+                                "contents": "correct",
+                                "tag": "Word"
+                            },
+                            {
+                                "contents": "docs",
+                                "tag": "Word"
+                            },
+                            {
+                                "contents": "for",
+                                "tag": "Word"
+                            },
+                            {
+                                "contents": "the",
+                                "tag": "Word"
+                            },
+                            {
+                                "contents": "thing",
+                                "tag": "Word"
+                            }
+                        ],
+                        "tag": "Paragraph"
+                    }
+                ]
+            ],
+            "termNames": [
+                "thing"
+            ]
+        }
+    },
+    "typeDefinitions": {}
+}
 ```
