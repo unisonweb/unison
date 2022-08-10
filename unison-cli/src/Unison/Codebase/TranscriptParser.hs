@@ -465,7 +465,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
   let loop :: Cli.LoopState -> IO Text
       loop s0 = do
         input <- awaitInput s0
-        Cli.runCli env s0 (HandleInput.loop input) >>= \case
+        Cli.evalCli env s0 (HandleInput.loop input) >>= \case
           (Cli.Success (), s1) -> loop s1
           (Cli.Continue, s1) -> loop s1
           (Cli.HaltRepl, _) -> do

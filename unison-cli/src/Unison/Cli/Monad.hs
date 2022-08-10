@@ -6,6 +6,7 @@ module Unison.Cli.Monad
     Cli,
     ReturnType (..),
     runCli,
+    evalCli,
 
     -- * Envronment
     Env (..),
@@ -189,9 +190,12 @@ loopState0 b p =
     }
 
 -- | Run a @Cli@ action down to @IO@.
-runCli :: Env -> LoopState -> Cli a a -> IO (ReturnType a, LoopState)
-runCli env s0 (Cli action) =
-  action env (\x s1 -> pure (Success x, s1)) s0
+evalCli :: Env -> LoopState -> Cli a a -> IO (ReturnType a, LoopState)
+evalCli = runCli id
+
+runCli :: (a -> b) -> Env -> LoopState -> Cli b a -> IO (ReturnType b, LoopState)
+runCli f env s0 (Cli action) =
+  action env (\x s1 -> pure (Success (f x), s1)) s0
 
 feed :: (a -> LoopState -> IO (ReturnType b, LoopState)) -> (ReturnType a, LoopState) -> IO (ReturnType b, LoopState)
 feed k = \case
@@ -276,21 +280,21 @@ acquireE resourceK errK =
 with :: (forall x. (a -> IO x) -> IO x) -> (a -> Cli b b) -> Cli r b
 with resourceK action =
   Cli \env k s ->
-    resourceK (\a -> runCli env s (action a)) >>= feed k
+    resourceK (evalCli env s . action) >>= feed k
 
 -- | A variant of 'with' for actions that don't acquire a resource (like 'Control.Exception.bracket_').
 with_ :: (forall x. IO x -> IO x) -> Cli a a -> Cli r a
 with_ resourceK action =
   Cli \env k s ->
-    resourceK (runCli env s action) >>= feed k
+    resourceK (evalCli env s action) >>= feed k
 
 -- | A variant of 'with' for the variant of bracketing function that may return a Left rather than call the provided
 -- continuation.
 withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (Either e a -> Cli b b) -> Cli r b
 withE resourceK action =
   Cli \env k s ->
-    resourceK (\a -> runCli env s (action (Right a))) >>= \case
-      Left err -> runCli env s (action (Left err)) >>= feed k
+    resourceK (\a -> evalCli env s (action (Right a))) >>= \case
+      Left err -> evalCli env s (action (Left err)) >>= feed k
       Right result -> feed k result
 
 -- | Run the given action in a new block, which delimits the scope of all 'returnWith', 'acquire', and 'acquireE' calls
@@ -298,7 +302,7 @@ withE resourceK action =
 newBlock :: Cli a a -> Cli r a
 newBlock action =
   Cli \env k s ->
-    runCli env s action >>= feed k
+    evalCli env s action >>= feed k
 
 -- | Time an action.
 time :: String -> Cli r a -> Cli r a
