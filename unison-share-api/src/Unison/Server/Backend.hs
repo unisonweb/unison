@@ -865,7 +865,7 @@ prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase q
               Nothing -> mempty
               Just name ->
                 let docName = name :> "doc"
-                 in pTrace (show ("docName" :: Text, docName)) $ NamesWithHistory.lookupHQTerm (HQ.NameOnly docName) (NamesWithHistory.fromCurrentNames localNamesOnly)
+                 in pTrace (show ("docName" :: Text, docName)) $ Names.termsNamed localNamesOnly name
         pTraceShowM ("docRefs" :: Text, docRefs)
         let selfRef = Referent.Ref ref
         -- It's possible the user is loading a doc directly, in which case we should render it as a doc
