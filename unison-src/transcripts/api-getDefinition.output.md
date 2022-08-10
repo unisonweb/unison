@@ -5,27 +5,6 @@
 nested.names.x = 42
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      nested.names.x     : Nat
-      nested.names.x.doc : Doc2
-
-```
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    nested.names.x     : Nat
-    nested.names.x.doc : Doc2
-
-```
 ```api
 --  Should find names by suffix
 GET /api/getDefinition?names=x
@@ -100,21 +79,7 @@ GET /api/getDefinition?names=x
                 ],
                 "tag": "UserObject"
             },
-            "termDocs": [
-                [
-                    "doc",
-                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
-                    {
-                        "contents": [
-                            {
-                                "contents": "Documentation",
-                                "tag": "Word"
-                            }
-                        ],
-                        "tag": "Paragraph"
-                    }
-                ]
-            ],
+            "termDocs": [],
             "termNames": [
                 "nested.names.x"
             ]
@@ -195,21 +160,7 @@ GET /api/getDefinition?names=x&relativeTo=nested
                 ],
                 "tag": "UserObject"
             },
-            "termDocs": [
-                [
-                    "doc",
-                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
-                    {
-                        "contents": [
-                            {
-                                "contents": "Documentation",
-                                "tag": "Word"
-                            }
-                        ],
-                        "tag": "Paragraph"
-                    }
-                ]
-            ],
+            "termDocs": [],
             "termNames": [
                 "names.x"
             ]
@@ -290,21 +241,7 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
                 ],
                 "tag": "UserObject"
             },
-            "termDocs": [
-                [
-                    "doc",
-                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
-                    {
-                        "contents": [
-                            {
-                                "contents": "Documentation",
-                                "tag": "Word"
-                            }
-                        ],
-                        "tag": "Paragraph"
-                    }
-                ]
-            ],
+            "termDocs": [],
             "termNames": [
                 "names.x"
             ]
@@ -400,32 +337,7 @@ doctest.otherstuff.thing.doc = {{ A doc for a different term with the same name 
 doctest.otherstuff.thing = "A different thing"
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      doctest.otherstuff.thing     : Text
-      doctest.otherstuff.thing.doc : Doc2
-      doctest.thing                : Text
-      doctest.thing.doc            : Doc2
-
-```
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    doctest.otherstuff.thing     : Text
-    doctest.otherstuff.thing.doc : Doc2
-    doctest.thing                : Text
-    doctest.thing.doc            : Doc2
-
-```
-Only docs for the term we request should be returned, even if there are other term docs with similar names.
+Only docs for the term we request should be returned, even if there are other term docs with the same suffix.
 
 ```api
 GET /api/getDefinition?names=thing&relativeTo=doctest
@@ -500,6 +412,147 @@ GET /api/getDefinition?names=thing&relativeTo=doctest
                 ],
                 "tag": "UserObject"
             },
+            "termDocs": [],
+            "termNames": [
+                "thing"
+            ]
+        }
+    },
+    "typeDefinitions": {}
+}
+```If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
+
+```api
+GET /api/getDefinition?names=thing.doc&relativeTo=doctest
+{
+    "missingDefinitions": [],
+    "termDefinitions": {
+        "#t9qfdoiuskj4n9go8cftj1r83s43s3o7sppafm5vr0bq5feieb7ap0cie5ed2qsf9g3ig448vffhnajinq81pnnkila1jp2epa7f26o": {
+            "bestTermName": "thing.doc",
+            "defnTermTag": "Doc",
+            "signature": [
+                {
+                    "annotation": {
+                        "contents": "#ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0",
+                        "tag": "TypeReference"
+                    },
+                    "segment": "Doc2"
+                }
+            ],
+            "termDefinition": {
+                "contents": [
+                    {
+                        "annotation": {
+                            "contents": "thing.doc",
+                            "tag": "HashQualifier"
+                        },
+                        "segment": "thing.doc"
+                    },
+                    {
+                        "annotation": {
+                            "tag": "TypeAscriptionColon"
+                        },
+                        "segment": " :"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": {
+                            "contents": "#ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0",
+                            "tag": "TypeReference"
+                        },
+                        "segment": "Doc2"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": "\n"
+                    },
+                    {
+                        "annotation": {
+                            "contents": "thing.doc",
+                            "tag": "HashQualifier"
+                        },
+                        "segment": "thing.doc"
+                    },
+                    {
+                        "annotation": {
+                            "tag": "BindingEquals"
+                        },
+                        "segment": " ="
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": {
+                            "tag": "DocDelimiter"
+                        },
+                        "segment": "{{"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": null,
+                        "segment": "The"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": null,
+                        "segment": "correct"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": null,
+                        "segment": "docs"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": null,
+                        "segment": "for"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": null,
+                        "segment": "the"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": null,
+                        "segment": "thing"
+                    },
+                    {
+                        "annotation": null,
+                        "segment": " "
+                    },
+                    {
+                        "annotation": {
+                            "tag": "DocDelimiter"
+                        },
+                        "segment": "}}"
+                    }
+                ],
+                "tag": "UserObject"
+            },
             "termDocs": [
                 [
                     "thing.doc",
@@ -536,7 +589,7 @@ GET /api/getDefinition?names=thing&relativeTo=doctest
                 ]
             ],
             "termNames": [
-                "thing"
+                "thing.doc"
             ]
         }
     },
