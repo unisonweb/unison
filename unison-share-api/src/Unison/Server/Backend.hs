@@ -77,7 +77,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPED
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -810,21 +810,26 @@ mungeSyntaxText ::
   Functor g => g (UST.Element Reference) -> g Syntax.Element
 mungeSyntaxText = fmap Syntax.convertElement
 
-prettyDefinitionsBySuffixes ::
+-- |
+prettyDefinitionsForHQName ::
+  -- | The path representing the user's current perspective.
+  -- Searches will be limited to definitions within this path, and names will be relative to
+  -- this path.
   Path ->
+  -- | The root branch to use
   Maybe (Branch.CausalHash) ->
   Maybe Width ->
+  -- | Whether to suffixify bindings in the rendered syntax
   Suffixify ->
+  -- | Runtime used to evaluate docs. This should be sandboxed if run on the server.
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
+  -- | The name, hash, or both, of the definition to display.
   HQ.HashQualified Name ->
   Backend IO DefinitionDisplayResults
-prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase query = do
+prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase query = do
   hqLength <- lift $ Codebase.hashLength codebase
-  -- We might like to make sure that the user search terms get used as
-  -- the names in the pretty-printer, but the current implementation
-  -- doesn't.
-  (_parseNames, localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase root path
+  (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase root path
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our perspective but within the
   -- same tree;
@@ -833,14 +838,15 @@ prettyDefinitionsBySuffixes path root renderWidth suffixifyBindings rt codebase 
   -- `trunk` over those in other releases.
   let biases = maybeToList $ HQ.toName query
   let pped = PPED.biasTo biases unbiasedPPE
-  -- ppe which returns names fully qualified, that is, qualified to the current perspective,  not to the codebase root.
+  -- ppe which returns names fully qualified to the current perspective,  not to the codebase root.
   let fqnPPE :: PPE.PrettyPrintEnv
       fqnPPE = PPED.unsuffixifiedPPE pped
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   DefinitionResults terms types misses <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
   let width = mayDefaultWidth renderWidth
-      filterForDocs :: [Referent] -> IO [Reference]
+      -- Return only references which refer to docs.
+      filterForDocs :: [Referent] -> IO [TermReference]
       filterForDocs rs = do
         rts <- fmap join . for rs $ \case
           Referent.Ref r ->
@@ -942,7 +948,7 @@ renderDoc ::
   Width ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  Reference ->
+  TermReference ->
   IO (HashQualifiedName, UnisonHash, Doc.Doc)
 renderDoc ppe width rt codebase r = do
   let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE ppe) width (Referent.Ref r)
@@ -1078,7 +1084,7 @@ bestNameForType ppe width =
 -- - 'local' includes ONLY the names within the provided path
 -- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, Names, PPED.PrettyPrintEnvDecl)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, PPED.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.hashLength codebase
@@ -1099,7 +1105,7 @@ scopedNamesForBranchHash codebase mbh path = do
 
   let localPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
   let globalPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames parseNames)
-  pure (parseNames, localNames, mkPPE localPPE globalPPE)
+  pure (localNames, mkPPE localPPE globalPPE)
   where
     mkPPE :: PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl
     mkPPE primary addFallback =

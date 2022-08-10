@@ -122,7 +122,7 @@ serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
     let hqns = HQ.unsafeFromText <$> rawHqns
     hqns
       & foldMapM
-        ( Backend.prettyDefinitionsBySuffixes
+        ( Backend.prettyDefinitionsForHQName
             (fromMaybe Path.empty rel)
             root
             width
