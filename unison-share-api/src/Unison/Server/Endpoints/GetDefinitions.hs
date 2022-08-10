@@ -122,15 +122,13 @@ serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
     let hqns = HQ.unsafeFromText <$> rawHqns
     hqns
       & foldMapM
-        ( \hqn ->
-            Backend.prettyDefinitionsBySuffixes
-              (fromMaybe Path.empty rel)
-              root
-              width
-              (fromMaybe (Suffixify True) suff)
-              rt
-              codebase
-              hqn
+        ( Backend.prettyDefinitionsBySuffixes
+            (fromMaybe Path.empty rel)
+            root
+            width
+            (fromMaybe (Suffixify True) suff)
+            rt
+            codebase
         )
   where
     parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
