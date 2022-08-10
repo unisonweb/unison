@@ -29,7 +29,6 @@ module Unison.Cli.Monad
     newBlock,
 
     -- * Short-circuiting
-    returnWith,
     returnEarly,
     returnEarlyWithoutOutput,
     haltRepl,
@@ -223,11 +222,6 @@ ioE action errK =
 
 short :: ReturnType r -> Cli r a
 short r = Cli \_env _k s -> pure (r, s)
-
--- | Short-circuit with a value. Returns @r@ to the nearest enclosing
--- 'newBlock' (or 'runCli' if there is no enclosing 'newBlock').
-returnWith :: r -> Cli r a
-returnWith = short . Success
 
 -- | Short-circuit the processing of the current input.
 returnEarly :: Output -> Cli r a
