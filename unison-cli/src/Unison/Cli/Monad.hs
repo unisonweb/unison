@@ -6,7 +6,6 @@ module Unison.Cli.Monad
     Cli,
     ReturnType (..),
     runCli,
-    evalCli,
 
     -- * Envronment
     Env (..),
@@ -38,6 +37,8 @@ module Unison.Cli.Monad
 
     -- * Misc types
     LoadSourceResult (..),
+    Label,
+    R,
   )
 where
 
@@ -185,11 +186,11 @@ loopState0 b p =
     }
 
 -- | Run a @Cli@ action down to @IO@.
-evalCli :: Env -> LoopState -> Cli a a -> IO (ReturnType a, LoopState)
-evalCli = runCli id
+runCli :: Env -> LoopState -> Cli a a -> IO (ReturnType a, LoopState)
+runCli = runCli' id
 
-runCli :: (a -> b) -> Env -> LoopState -> Cli b a -> IO (ReturnType b, LoopState)
-runCli f env s0 (Cli action) =
+runCli' :: (a -> b) -> Env -> LoopState -> Cli b a -> IO (ReturnType b, LoopState)
+runCli' f env s0 (Cli action) =
   action env (\x s1 -> pure (Success (f x), s1)) s0
 
 feed :: (a -> LoopState -> IO (ReturnType b, LoopState)) -> (ReturnType a, LoopState) -> IO (ReturnType b, LoopState)
@@ -245,21 +246,21 @@ haltRepl = short HaltRepl
 with :: (forall x. (a -> IO x) -> IO x) -> (a -> Cli (R r b) b) -> Cli r b
 with resourceK action =
   Cli \env k s ->
-    resourceK (runCli GoR env s . action) >>= feedE k
+    resourceK (runCli' GoR env s . action) >>= feedE k
 
 -- | A variant of 'with' for actions that don't acquire a resource (like 'Control.Exception.bracket_').
 with_ :: (forall x. IO x -> IO x) -> Cli (R r a) a -> Cli r a
 with_ resourceK action =
   Cli \env k s ->
-    resourceK (runCli GoR env s action) >>= feedE k
+    resourceK (runCli' GoR env s action) >>= feedE k
 
 -- | A variant of 'with' for the variant of bracketing function that may return a Left rather than call the provided
 -- continuation.
 withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (Either e a -> Cli (R r b) b) -> Cli r b
 withE resourceK action =
   Cli \env k s ->
-    resourceK (\a -> runCli GoR env s (action (Right a))) >>= \case
-      Left err -> runCli GoR env s (action (Left err)) >>= feedE k
+    resourceK (\a -> runCli' GoR env s (action (Right a))) >>= \case
+      Left err -> runCli' GoR env s (action (Left err)) >>= feedE k
       Right result -> feedE k result
 
 -- | Create a label that can be jumped to.

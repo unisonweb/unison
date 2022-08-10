@@ -207,7 +207,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
         loop0 s0 = do
           let step = do
                 input <- awaitInput s0
-                Cli.evalCli env s0 (HandleInput.loop input)
+                Cli.runCli env s0 (HandleInput.loop input)
           UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step)) >>= \case
             -- SIGINT
             Left () -> do
