@@ -19,8 +19,6 @@ module Unison.Cli.Monad
     ioE,
 
     -- * Acquiring resources
-    acquire,
-    acquireE,
     with,
     with_,
     withE,
@@ -237,31 +235,6 @@ returnEarlyWithoutOutput =
 -- | Stop processing inputs from the user.
 haltRepl :: Cli r a
 haltRepl = short HaltRepl
-
--- | Wrap a continuation with 'Cli'.
---
--- Useful for resource acquisition:
---
--- @
--- resource <- acquire (bracket create destroy)
--- ...
--- @
---
--- The resource is kept alive for the remainder of the computation. To release it earlier, either delimit its lifetime
--- with 'newBlock', or use 'with' instead.
-acquire :: (forall x. (a -> IO x) -> IO x) -> Cli r a
-acquire resourceK =
-  Cli \_ k s ->
-    resourceK \a -> k a s
-
--- | A variant of 'acquire' for the variant of bracketing function that may return a Left rather than call the provided
--- continuation.
-acquireE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (e -> Cli r a) -> Cli r a
-acquireE resourceK errK =
-  Cli \env k s ->
-    resourceK (\a -> k a s) >>= \case
-      Left err -> unCli (errK err) env k s
-      Right value -> pure value
 
 -- | Wrap a continuation with 'Cli'.
 --

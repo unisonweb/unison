@@ -1672,16 +1672,15 @@ handleCreatePullRequest :: ReadRemoteNamespace -> ReadRemoteNamespace -> Cli r (
 handleCreatePullRequest baseRepo0 headRepo0 = do
   Cli.Env {codebase} <- ask
 
-  let getBranch :: ReadRemoteNamespace -> Cli r (Branch IO)
-      getBranch = \case
+  let withBranch :: ReadRemoteNamespace -> (forall x. (forall r. Branch IO -> Cli r x) -> Cli r x)
+      withBranch rrn k = case rrn of
         ReadRemoteNamespaceGit repo -> do
-          Cli.acquireE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \err ->
-            Cli.returnEarly (Output.GitError err)
-        ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
+          Cli.withE (Codebase.viewRemoteBranch codebase repo Git.RequireExistingBranch) \case
+            Left err -> Cli.returnEarly (Output.GitError err)
+            Right x -> k x
+        ReadRemoteNamespaceShare repo -> k =<< importRemoteShareBranch repo
 
-  (ppe, diff) <- do
-    baseBranch <- getBranch baseRepo0
-    headBranch <- getBranch headRepo0
+  (ppe, diff) <- withBranch baseRepo0 \baseBranch -> withBranch headRepo0 \headBranch -> do
     merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseBranch headBranch)
     diffHelper (Branch.head baseBranch) (Branch.head merged)
   Cli.respondNumbered (ShowDiffAfterCreatePR baseRepo0 headRepo0 ppe diff)
