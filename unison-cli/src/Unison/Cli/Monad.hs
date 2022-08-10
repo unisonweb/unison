@@ -274,7 +274,7 @@ withE resourceK action =
 --   ... -- We don't get here
 -- -- x is bound to someValue
 -- @
-label :: forall r a. ((forall t b. BreadCrumbs (R r a) t => a -> Cli t b) -> Cli (R r a) a) -> Cli r a
+label :: forall r a. ((forall t b. Label (R r a) t => a -> Cli t b) -> Cli (R r a) a) -> Cli r a
 label f = Cli \env k s0 -> do
   res <-
     unCli
@@ -345,13 +345,13 @@ respondNumbered output = do
   unless (null args) do
     #numberedArgs .= args
 
-class BreadCrumbs s t where
+class Label s t where
   produceCorrectReturnTypeForNestingLevel :: s -> t
 
-instance BreadCrumbs t (R t x) where
+instance Label t (R t x) where
   produceCorrectReturnTypeForNestingLevel = GoL
 
-instance {-# OVERLAPPABLE #-} BreadCrumbs s t => BreadCrumbs s (R t x) where
+instance {-# OVERLAPPABLE #-} Label s t => Label s (R t x) where
   produceCorrectReturnTypeForNestingLevel = GoL . produceCorrectReturnTypeForNestingLevel
 
 data R a b
