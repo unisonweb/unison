@@ -32,6 +32,7 @@ dependencies:
   - mwc-random
   - nonempty-containers
   - openapi3
+  - pretty-simple
   - regex-tdfa
   - servant
   - servant-docs

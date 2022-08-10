@@ -24,6 +24,7 @@ import qualified Data.Text.Encoding as TextE
 import Data.Text.Lazy (toStrict)
 import Data.Tuple.Extra (dupe)
 import qualified Data.Yaml as Yaml
+import Debug.Pretty.Simple (pTrace, pTraceShowM)
 import qualified Lucid
 import System.Directory
 import System.FilePath
@@ -858,13 +859,21 @@ prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase q
       -- you get both its source and its rendered form
       docResults :: Reference -> HQ.HashQualified Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults ref hqName = do
-        let docRefs = NamesWithHistory.lookupHQTerm hqName (NamesWithHistory.fromCurrentNames localNamesOnly)
+        pTraceShowM ("docs ref" :: Text, ref)
+        pTraceShowM ("docs hqName" :: Text, hqName)
+        let docRefs = case HQ.toName hqName of
+              Nothing -> mempty
+              Just name ->
+                let docName = name :> "doc"
+                 in pTrace (show ("docName" :: Text, docName)) $ NamesWithHistory.lookupHQTerm (HQ.NameOnly docName) (NamesWithHistory.fromCurrentNames localNamesOnly)
+        pTraceShowM ("docRefs" :: Text, docRefs)
         let selfRef = Referent.Ref ref
         -- It's possible the user is loading a doc directly, in which case we should render it as a doc
         -- too.
         let allPotentialDocRefs = Set.insert selfRef docRefs
         -- lookup the type of each, make sure it's a doc
         docs <- filterForDocs (toList allPotentialDocRefs)
+        pTraceShowM ("filtered docs" :: Text, docs)
         -- render all the docs
         traverse (renderDoc pped width rt codebase) docs
 
