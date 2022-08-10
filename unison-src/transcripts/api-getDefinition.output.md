@@ -79,7 +79,21 @@ GET /api/getDefinition?names=x
                 ],
                 "tag": "UserObject"
             },
-            "termDocs": [],
+            "termDocs": [
+                [
+                    "doc",
+                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
+                    {
+                        "contents": [
+                            {
+                                "contents": "Documentation",
+                                "tag": "Word"
+                            }
+                        ],
+                        "tag": "Paragraph"
+                    }
+                ]
+            ],
             "termNames": [
                 "nested.names.x"
             ]
@@ -160,7 +174,21 @@ GET /api/getDefinition?names=x&relativeTo=nested
                 ],
                 "tag": "UserObject"
             },
-            "termDocs": [],
+            "termDocs": [
+                [
+                    "doc",
+                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
+                    {
+                        "contents": [
+                            {
+                                "contents": "Documentation",
+                                "tag": "Word"
+                            }
+                        ],
+                        "tag": "Paragraph"
+                    }
+                ]
+            ],
             "termNames": [
                 "names.x"
             ]
@@ -241,7 +269,21 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
                 ],
                 "tag": "UserObject"
             },
-            "termDocs": [],
+            "termDocs": [
+                [
+                    "doc",
+                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
+                    {
+                        "contents": [
+                            {
+                                "contents": "Documentation",
+                                "tag": "Word"
+                            }
+                        ],
+                        "tag": "Paragraph"
+                    }
+                ]
+            ],
             "termNames": [
                 "names.x"
             ]
@@ -414,7 +456,41 @@ GET /api/getDefinition?names=thing&relativeTo=doctest
                 ],
                 "tag": "UserObject"
             },
-            "termDocs": [],
+            "termDocs": [
+                [
+                    "thing.doc",
+                    "#t9qfdoiuskj4n9go8cftj1r83s43s3o7sppafm5vr0bq5feieb7ap0cie5ed2qsf9g3ig448vffhnajinq81pnnkila1jp2epa7f26o",
+                    {
+                        "contents": [
+                            {
+                                "contents": "The",
+                                "tag": "Word"
+                            },
+                            {
+                                "contents": "correct",
+                                "tag": "Word"
+                            },
+                            {
+                                "contents": "docs",
+                                "tag": "Word"
+                            },
+                            {
+                                "contents": "for",
+                                "tag": "Word"
+                            },
+                            {
+                                "contents": "the",
+                                "tag": "Word"
+                            },
+                            {
+                                "contents": "thing",
+                                "tag": "Word"
+                            }
+                        ],
+                        "tag": "Paragraph"
+                    }
+                ]
+            ],
             "termNames": [
                 "thing",
                 "thingalias"
