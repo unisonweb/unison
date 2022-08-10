@@ -481,19 +481,18 @@ loop e = do
                       Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
                         Cli.returnEarly (Output.GitError err)
                     ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-              Cli.newBlock do
-                baseb <- getBranch baseRepo
-                headb <- getBranch headRepo
-                mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
-                squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
-                stepManyAt
-                  description
-                  Branch.AllowRewritingHistory
-                  [ BranchUtil.makeSetBranch (dest, "base") baseb,
-                    BranchUtil.makeSetBranch (dest, "head") headb,
-                    BranchUtil.makeSetBranch (dest, "merged") mergedb,
-                    BranchUtil.makeSetBranch (dest, "squashed") squashedb
-                  ]
+              baseb <- getBranch baseRepo
+              headb <- getBranch headRepo
+              mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
+              squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
+              stepManyAt
+                description
+                Branch.AllowRewritingHistory
+                [ BranchUtil.makeSetBranch (dest, "base") baseb,
+                  BranchUtil.makeSetBranch (dest, "head") headb,
+                  BranchUtil.makeSetBranch (dest, "merged") mergedb,
+                  BranchUtil.makeSetBranch (dest, "squashed") squashedb
+                ]
               let base = snoc dest0 "base"
                   head = snoc dest0 "head"
                   merged = snoc dest0 "merged"

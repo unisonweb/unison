@@ -271,32 +271,41 @@ acquireE resourceK errK =
 -- with (bracket create destroy) \resource ->
 --   ...
 -- @
-with :: (forall x. (a -> IO x) -> IO x) -> (a -> Cli b b) -> Cli r b
+with :: (forall x. (a -> IO x) -> IO x) -> (a -> Cli (Either r b) b) -> Cli r b
 with resourceK action =
   Cli \env k s ->
-    resourceK (evalCli env s . action) >>= feed k
+    resourceK (runCli Right env s . action) >>= feedE k
 
 -- | A variant of 'with' for actions that don't acquire a resource (like 'Control.Exception.bracket_').
-with_ :: (forall x. IO x -> IO x) -> Cli a a -> Cli r a
+with_ :: (forall x. IO x -> IO x) -> Cli (Either r a) a -> Cli r a
 with_ resourceK action =
   Cli \env k s ->
-    resourceK (evalCli env s action) >>= feed k
+    resourceK (runCli Right env s action) >>= feedE k
 
 -- | A variant of 'with' for the variant of bracketing function that may return a Left rather than call the provided
 -- continuation.
-withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (Either e a -> Cli b b) -> Cli r b
+withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (Either e a -> Cli (Either r b) b) -> Cli r b
 withE resourceK action =
   Cli \env k s ->
-    resourceK (\a -> evalCli env s (action (Right a))) >>= \case
-      Left err -> evalCli env s (action (Left err)) >>= feed k
-      Right result -> feed k result
+    resourceK (\a -> runCli Right env s (action (Right a))) >>= \case
+      Left err -> runCli Right env s (action (Left err)) >>= feedE k
+      Right result -> feedE k result
 
--- | Run the given action in a new block, which delimits the scope of all 'returnWith', 'acquire', and 'acquireE' calls
--- contained within.
-newBlock :: Cli a a -> Cli r a
-newBlock action =
-  Cli \env k s ->
-    evalCli env s action >>= feed k
+-- | Run the given action in a new block, which delimits the scope of
+-- all 'acquire', and 'acquireE' calls contained within.
+newBlock :: forall r a. ((forall t b. BreadCrumbs (Either r a) t => a -> Cli t b) -> Cli (Either r a) a) -> Cli r a
+newBlock f = Cli \env k s0 -> do
+  res <-
+    unCli
+      ( f
+          ( \a -> Cli \_ _ s1 ->
+              pure (Success (produceCorrectReturnTypeForNestingLevel @(Either r a) (Right a)), s1)
+          )
+      )
+      env
+      (\a s -> pure (Success (Right a), s))
+      s0
+  feedE k res
 
 -- | Time an action.
 time :: String -> Cli r a -> Cli r a
@@ -363,17 +372,3 @@ instance BreadCrumbs t (Either t x) where
 
 instance {-# OVERLAPPABLE #-} BreadCrumbs s t => BreadCrumbs s (Either t x) where
   produceCorrectReturnTypeForNestingLevel = Left . produceCorrectReturnTypeForNestingLevel
-
-newBlock2 :: forall r a. ((forall t b. BreadCrumbs (Either r a) t => a -> Cli t b) -> Cli (Either r a) a) -> Cli r a
-newBlock2 f = Cli \env k s0 -> do
-  res <-
-    unCli
-      ( f
-          ( \a -> Cli \_ _ s1 ->
-              pure (Success (produceCorrectReturnTypeForNestingLevel @(Either r a) (Right a)), s1)
-          )
-      )
-      env
-      (\a s -> pure (Success (Right a), s))
-      s0
-  feedE k res
