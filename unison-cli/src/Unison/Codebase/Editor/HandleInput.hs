@@ -230,8 +230,8 @@ loop e = do
             & #latestTypecheckedFile .~ Nothing
         MaybeT (WriterT (Identity (r, notes))) <- typecheck ambient parseNames sourceName lexed
         result <- r & onNothing (Cli.returnEarly (ParseErrors text [err | Result.Parsing err <- toList notes]))
-        result & onLeft \errNames -> do
-          ns <- makeShadowedPrintNamesFromHQ hqs errNames
+        result & onLeft \uf -> do
+          ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames uf)
           ppe <- suffixifiedPPE ns
           let tes = [err | Result.TypeError err <- toList notes]
               cbs =
@@ -3532,7 +3532,12 @@ typecheck ::
   NamesWithHistory ->
   Text ->
   (Text, [L.Token L.Lexeme]) ->
-  Cli r (Result.Result (Seq (Result.Note Symbol Ann)) (Either Names (UF.TypecheckedUnisonFile Symbol Ann)))
+  Cli
+    r
+    ( Result.Result
+        (Seq (Result.Note Symbol Ann))
+        (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann))
+    )
 typecheck ambient names sourceName source =
   Cli.time "typecheck" do
     Cli.Env {codebase, generateUniqueName} <- ask

@@ -18,7 +18,6 @@ import Data.Text (unpack)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import qualified Unison.Name as Name
-import Unison.Names (Names)
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import qualified Unison.Parser as Parser
@@ -74,14 +73,14 @@ parseAndSynthesizeFile ::
   ResultT
     (Seq (Note v Ann))
     m
-    (Either Names (UF.TypecheckedUnisonFile v Ann))
+    (Either (UF.UnisonFile v Ann) (UF.TypecheckedUnisonFile v Ann))
 parseAndSynthesizeFile ambient typeLookupf env filePath src = do
   when debug $ traceM "parseAndSynthesizeFile"
   uf <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) env
   let names0 = NamesWithHistory.currentNames (Parser.names env)
   (tm, tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
   let (Result notes' r) = synthesizeFile ambient typeLookup tdnrMap uf tm
-  tell notes' $> maybe (Left (UF.toNames uf)) Right r
+  tell notes' $> maybe (Left uf) Right r
 
 type TDNRMap v = Map Typechecker.Name [Typechecker.NamedReference v Ann]
 
@@ -221,7 +220,7 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
         resolve shortv loc replacement t = case t of
           Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
             | loc' == loc && Var.nameStr shortv == name ->
-                -- loc of replacement already chosen correctly by whatever made the
-                -- Decision
-                pure . pure $ replacement
+              -- loc of replacement already chosen correctly by whatever made the
+              -- Decision
+              pure . pure $ replacement
           _ -> Nothing

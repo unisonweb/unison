@@ -1,0 +1,23 @@
+        let parseNames = Backend.getCurrentParseNames (Backend.Within currentPath'') root'
+        Command.latestFile .= Just (Text.unpack sourceName, False)
+        Command.latestTypecheckedFile .= Nothing
+        MaybeT (WriterT (Identity (r, notes))) <-
+          unsafeTime "typechecking" (typecheck ambient parseNames sourceName lexed)
+        case r of
+          -- Parsing failed
+          Nothing ->
+            respond $
+              ParseErrors text [err | Result.Parsing err <- toList notes]
+          Just (Left uf) -> do
+            ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames uf)
+            ppe <- suffixifiedPPE ns
+            let tes = [err | Result.TypeError err <- toList notes]
+                cbs =
+                  [ bug
+                    | Result.CompilerBug (Result.TypecheckerBug bug) <-
+                        toList notes
+                  ]
+            when (not $ null tes) . respond $ TypeErrors currentPath' text ppe tes
+            when (not $ null cbs) . respond $ CompilerBugs text ppe cbs
+          Just (Right uf) -> k uf
+
