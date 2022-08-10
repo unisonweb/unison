@@ -199,6 +199,11 @@ feed k = \case
   (Continue, s) -> pure (Continue, s)
   (HaltRepl, s) -> pure (HaltRepl, s)
 
+feedE :: (a -> LoopState -> IO (ReturnType r, LoopState)) -> (ReturnType (Either r a), LoopState) -> IO (ReturnType r, LoopState)
+feedE k = feed \era s -> case era of
+  Left r -> pure (Success r, s)
+  Right a -> k a s
+
 -- | The result of calling 'loadSource'.
 data LoadSourceResult
   = InvalidSourceNameError
@@ -351,3 +356,26 @@ respondNumbered output = do
   args <- liftIO (notifyNumbered output)
   unless (null args) do
     #numberedArgs .= args
+
+class BreadCrumbs s t where
+  produceCorrectReturnTypeForNestingLevel :: s -> t
+
+instance BreadCrumbs t (Either t x) where
+  produceCorrectReturnTypeForNestingLevel = Left
+
+instance {-# OVERLAPPABLE #-} BreadCrumbs s t => BreadCrumbs s (Either t x) where
+  produceCorrectReturnTypeForNestingLevel = Left . produceCorrectReturnTypeForNestingLevel
+
+newBlock2 :: forall r a. ((forall t b. BreadCrumbs (Either r a) t => a -> Cli t b) -> Cli (Either r a) a) -> Cli r a
+newBlock2 f = Cli \env k s0 -> do
+  res <-
+    unCli
+      ( f
+          ( \a -> Cli \_ _ s1 ->
+              pure (Success (produceCorrectReturnTypeForNestingLevel @(Either r a) (Right a)), s1)
+          )
+      )
+      env
+      (\a s -> pure (Success (Right a), s))
+      s0
+  feedE k res
