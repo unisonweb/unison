@@ -24,7 +24,6 @@ import qualified Data.Text.Encoding as TextE
 import Data.Text.Lazy (toStrict)
 import Data.Tuple.Extra (dupe)
 import qualified Data.Yaml as Yaml
-import Debug.Pretty.Simple (pTrace, pTraceShowM)
 import qualified Lucid
 import System.Directory
 import System.FilePath
@@ -532,7 +531,7 @@ lsShallowBranch codebase b0 = do
         ( V2Branch.Branch m ->
           V2Branch.NameSegment ->
           Reference ->
-          (HQ'.HashQualified NameSegment)
+          HQ'.HashQualified NameSegment
         )
       hqType b ns r =
         let refs = Map.lookup ns . V2Branch.types $ b
@@ -636,7 +635,7 @@ getCurrentParseNames scope root =
 --           name cat.dog     becomes .cat.dog
 fixupNamesRelative :: Path.Absolute -> Names -> Names
 fixupNamesRelative root names =
-  case (Path.toName $ Path.unabsolute root) of
+  case Path.toName $ Path.unabsolute root of
     Nothing -> names
     Just prefix -> Names.map (fixName prefix) names
   where
@@ -650,7 +649,7 @@ fixupNamesRelative root names =
 -- Construct a 'Search' with 'makeTypeSearch' or 'makeTermSearch', and eliminate it with 'applySearch'.
 data Search r = Search
   { lookupNames :: r -> Set (HQ'.HashQualified Name),
-    lookupRelativeHQRefs' :: HQ'.HashQualified Name -> (Set r),
+    lookupRelativeHQRefs' :: HQ'.HashQualified Name -> Set r,
     makeResult :: HQ.HashQualified Name -> r -> Set (HQ'.HashQualified Name) -> SR.SearchResult,
     matchesNamedRef :: Name -> r -> HQ'.HashQualified Name -> Bool
   }
@@ -855,25 +854,19 @@ prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase q
           _ -> pure []
         pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
 
-      -- rs0 can be empty or the term fetched, so when viewing a doc term
-      -- you get both its source and its rendered form
       docResults :: Reference -> HQ.HashQualified Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults ref hqName = do
-        pTraceShowM ("docs ref" :: Text, ref)
-        pTraceShowM ("docs hqName" :: Text, hqName)
         let docRefs = case HQ.toName hqName of
               Nothing -> mempty
               Just name ->
                 let docName = name :> "doc"
-                 in pTrace (show ("docName" :: Text, docName)) $ Names.termsNamed localNamesOnly name
-        pTraceShowM ("docRefs" :: Text, docRefs)
+                 in Names.termsNamed localNamesOnly docName
         let selfRef = Referent.Ref ref
         -- It's possible the user is loading a doc directly, in which case we should render it as a doc
         -- too.
         let allPotentialDocRefs = Set.insert selfRef docRefs
         -- lookup the type of each, make sure it's a doc
         docs <- filterForDocs (toList allPotentialDocRefs)
-        pTraceShowM ("filtered docs" :: Text, docs)
         -- render all the docs
         traverse (renderDoc pped width rt codebase) docs
 
@@ -1093,7 +1086,7 @@ bestNameForType ppe width =
 -- - 'local' includes ONLY the names within the provided path
 -- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (Names, PPED.PrettyPrintEnvDecl)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (Names, PPED.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.hashLength codebase
@@ -1127,7 +1120,7 @@ scopedNamesForBranchHash codebase mbh path = do
       pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::
-  Monad m => Maybe (Branch.CausalHash) -> Codebase m v a -> Backend m (Branch m)
+  Monad m => Maybe Branch.CausalHash -> Codebase m v a -> Backend m (Branch m)
 resolveCausalHash h codebase = case h of
   Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do
