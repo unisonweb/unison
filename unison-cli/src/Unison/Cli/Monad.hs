@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DefaultSignatures #-}
 
 -- | The main CLI monad.
 module Unison.Cli.Monad
@@ -266,7 +267,7 @@ withE resourceK action =
 -- | Create a label that can be jumped to.
 --
 -- @
--- x <- label \\j0 -> do
+-- x \<- label \\j0 -\> do
 --   ...
 --   label \\j1 -> do
 --     ...
@@ -281,7 +282,7 @@ label f = Cli \env k s0 -> do
     unCli
       ( f
           ( \a -> Cli \_ _ s1 ->
-              pure (Success (produceCorrectReturnTypeForNestingLevel @(R r a) (GoR a)), s1)
+              pure (Success (wrap @(R r a) (GoR a)), s1)
           )
       )
       env
@@ -347,13 +348,17 @@ respondNumbered output = do
     #numberedArgs .= args
 
 class Label s t where
-  produceCorrectReturnTypeForNestingLevel :: s -> t
+  wrap :: s -> t
+  -- this default is only provided so that the haddocks don't show
+  -- 'wrap'
+  default wrap :: s ~ t => s -> t
+  wrap = id
 
 instance Label t (R t x) where
-  produceCorrectReturnTypeForNestingLevel = GoL
+  wrap = GoL
 
 instance {-# OVERLAPPABLE #-} Label s t => Label s (R t x) where
-  produceCorrectReturnTypeForNestingLevel = GoL . produceCorrectReturnTypeForNestingLevel
+  wrap = GoL . wrap
 
 data R a b
   = GoL a
