@@ -17,6 +17,7 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Void (Void)
+import Debug.Pretty.Simple (pTraceShowId)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified System.Console.Haskeline.Completion as Completion
 import qualified Text.Megaparsec as P
@@ -2329,15 +2330,13 @@ exactDefinitionOrPathArg =
       globTargets = Set.fromList [Globbing.Term, Globbing.Type, Globbing.Namespace]
     }
 
--- todo: improve this
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
-      suggestions =
-        bothCompletors
-          (termCompletor fuzzyComplete)
-          (typeCompletor fuzzyComplete),
+      -- Note: NamespaceCompletion is included so that you can dig your way down to any terms
+      -- which might be within.
+      suggestions = completeWithinNamespace fuzzyCompleter (NESet.fromList (TermCompletion NE.:| [TypeCompletion, NamespaceCompletion])),
       globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
@@ -2502,7 +2501,6 @@ completeWithinNamespace mkCompletions compTypes query codebase _root currentPath
               then []
               else
                 namesInBranch b
-                  & filter (coerce Text.isPrefixOf querySuffix)
                   <&> \match -> Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match
       childSuggestions <- do
         case Map.lookup (Cv.namesegment1to2 querySuffix) (V2Branch.children b) of
@@ -2546,14 +2544,10 @@ fuzzyCompleter query fullCompletions =
                 Nothing -> (compl, compl)
                 Just (_, segment) -> (compl, segment)
             )
-   in Fuzzy.simpleFuzzyFinder querySuffix searchItems snd
-        <&> \((fullCompletion, _suffix), pretty) -> prettyCompletion False (fullCompletion, pretty)
-
--- fuzzyComplete fuzzyQuery completion =
-
--- -- fuzzyComplete absQuery@('.' : _) ss = completeWithinQueryNamespace absQuery ss
--- fuzzyComplete fuzzyQuery ss =
---   fixupCompletion fuzzyQuery (prettyCompletion False <$> Find.simpleFuzzyFinder fuzzyQuery ss id)
+   in pTraceShowId (Fuzzy.simpleFuzzyFinder querySuffix searchItems snd)
+        & fmap (\((fullCompletion, _suffix), pretty) -> prettyCompletion False (fullCompletion, pretty))
+        & fixupCompletion query
+        & pTraceShowId
 
 namespacePathCompletor ::
   forall m v a.
