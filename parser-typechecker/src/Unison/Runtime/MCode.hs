@@ -901,12 +901,6 @@ emitFunction _ grpn rec ctx (FVar v) as
       App False (Env grpn j) as
   | otherwise = emitSectionVErr v
 emitFunction rns _ _ _ (FComb r) as
-  -- | False -- known saturated call
-  --   =
-  --     Call False n as
-  -- | False -- known unsaturated call
-  --   =
-  --     Ins (Name (Env n 0) as) $ Yield (BArg1 0)
   | otherwise -- slow path
     =
       App False (Env n 0) as

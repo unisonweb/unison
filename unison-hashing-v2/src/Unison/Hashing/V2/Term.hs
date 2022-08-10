@@ -174,6 +174,8 @@ instance Var v => Hashable1 (F v a p) where
                     B.Recorded (B.Resolve _ s) ->
                       [tag 2, Hashable.Text (Text.pack s)]
                 Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
+                Ref Reference.Derived {} ->
+                  error "handled above, but GHC can't figure this out"
                 App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
                 Ann a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
                 List as ->

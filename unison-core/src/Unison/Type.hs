@@ -141,7 +141,7 @@ pattern Effect'' es t <- (unEffect0 -> (es, t))
 pattern Effect0' :: Ord v => [Type v a] -> Type v a -> Type v a
 pattern Effect0' es t <- (unEffect0 -> (es, t))
 
-pattern Forall' :: forall {v} {a}. ABT.Var v => ABT.Subst F v a -> ABT.Term F v a
+pattern Forall' :: ABT.Var v => ABT.Subst F v a -> ABT.Term F v a
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
 
 pattern IntroOuter' :: ABT.Var v => ABT.Subst F v a -> ABT.Term F v a
@@ -150,10 +150,10 @@ pattern IntroOuter' subst <- ABT.Tm' (IntroOuter (ABT.Abs' subst))
 pattern IntroOuterNamed' :: v -> ABT.Term F v a -> ABT.Term F v a
 pattern IntroOuterNamed' v body <- ABT.Tm' (IntroOuter (ABT.out -> ABT.Abs v body))
 
-pattern ForallsNamed' :: forall {v} {a}. [v] -> Type v a -> Type v a
+pattern ForallsNamed' :: [v] -> Type v a -> Type v a
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 
-pattern ForallNamed' :: forall {v} {a}. v -> ABT.Term F v a -> ABT.Term F v a
+pattern ForallNamed' :: v -> ABT.Term F v a -> ABT.Term F v a
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 
 
