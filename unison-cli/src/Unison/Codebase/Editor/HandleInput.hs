@@ -202,13 +202,7 @@ currentPrettyPrintEnvDecl scoping = do
 
 loop :: Either Event Input -> Cli r ()
 loop e = do
-  let getBasicPrettyPrintNames :: Cli r Names
-      getBasicPrettyPrintNames = do
-        rootBranch <- Cli.getRootBranch
-        currentPath <- Cli.getCurrentPath
-        pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath)))
-
-      withFile ::
+  let withFile ::
         -- ambient abilities
         [Type Symbol Ann] ->
         Text ->
@@ -1140,6 +1134,26 @@ loop e = do
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
               addDefaultMetadata adds
               syncRoot description
+            SaveExecuteResultI resultName -> do
+              description <- inputDescription input
+              let resultVar = Name.toVar resultName
+              uf <-
+                Cli.getLatestTypecheckedFile >>= \case
+                  Nothing -> do
+                    undefined
+                  Just uf -> pure uf
+              -- is the var in the file
+              Cli.Env {codebase} <- ask
+              currentPath <- Cli.getCurrentPath
+              currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
+              let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
+              let adds = SlurpResult.adds sr
+              stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath, doSlurpAdds adds uf)
+              liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
+              ppe <- prettyPrintEnvDecl =<< displayNames uf
+              Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+              addDefaultMetadata adds
+              syncRoot description
             PreviewAddI requestedNames -> do
               (sourceName, _) <- Cli.expectLatestFile
               uf <- Cli.expectLatestTypecheckedFile
@@ -1167,33 +1181,19 @@ loop e = do
               updated <- propagatePatch description patch scopePath
               when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath')
             ExecuteI main args -> do
-              Cli.Env {runtime} <- ask
               unisonFile <- do
-                let mainType = MainTerm.polyMain External
-                unisonFile0 <- Cli.getLatestTypecheckedFile
-                addRunMain main unisonFile0 >>= \case
-                  NoTermWithThatName -> do
-                    basicPrettyPrintNames <- getBasicPrettyPrintNames
-                    ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-                    Cli.returnEarly $ NoMainFunction main ppe [mainType]
-                  TermHasBadType ty -> do
-                    basicPrettyPrintNames <- getBasicPrettyPrintNames
-                    ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-                    Cli.returnEarly $ BadMainFunction main ty ppe [mainType]
-                  RunMainSuccess unisonFile -> pure unisonFile
+                (sym, term, typ) <- getTerm main
+                undefined
               ppe <- executePPE unisonFile
               -- TODO
-              evalUnisonFile False ppe unisonFile args >>= \case
-                Left e -> respond $ EvaluationFailure e
-                Right (_, xs) -> do
-                  mainRes :: Term Symbol () <-
-                    let bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) = (watchKind, term1)
-                     in case lookup "main" (map bonk (Map.toList xs)) of
-                          Nothing -> error "what"
-                          Just x -> pure x
-                  lastRunResult .= Just mainRes
-                  respond (RunResult ppe mainRes)
-              pure ()
+              (_, xs) <- evalUnisonFile False ppe unisonFile args
+              mainRes :: Term Symbol () <-
+                let bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) = (watchKind, term1)
+                 in case lookup "main" (map bonk (Map.toList xs)) of
+                      Nothing -> error "what"
+                      Just x -> pure x
+              #lastRunResult .= Just mainRes
+              Cli.respond (RunResult ppe mainRes)
             MakeStandaloneI output main -> do
               Cli.Env {codebase, runtime} <- ask
               let mainType = Runtime.mainType runtime
@@ -1474,6 +1474,7 @@ loop e = do
 inputDescription :: Input -> Cli r Text
 inputDescription input =
   case input of
+    SaveExecuteResultI _str -> pure "save-execute-result"
     ForkLocalBranchI src0 dest0 -> do
       src <- hp' src0
       dest <- p' dest0
@@ -3329,6 +3330,11 @@ basicNames' nameScoping = do
   let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
   pure (parse, pretty)
 
+data GetTermResult
+  = GTR'NoTermWithThatName
+  | GTR'TermHasBadType (Type Symbol Ann)
+  | GTR'GetTermSuccess (Symbol, Term Symbol Ann, Type Symbol Ann)
+
 data AddRunMainResult v
   = NoTermWithThatName
   | TermHasBadType (Type v Ann)
@@ -3362,6 +3368,71 @@ addWatch watchName (Just uf) = do
             )
     _ -> addWatch watchName Nothing
 
+getTerm :: String -> Cli r (Symbol, Term Symbol Ann, Type Symbol Ann)
+getTerm main =
+  getTerm' main >>= \case
+    GTR'NoTermWithThatName -> do
+      mainType <- Runtime.mainType <$> view #runtime
+      basicPrettyPrintNames <- getBasicPrettyPrintNames
+      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+      Cli.returnEarly $ NoMainFunction main ppe [mainType]
+    GTR'TermHasBadType ty -> do
+      mainType <- Runtime.mainType <$> view #runtime
+      basicPrettyPrintNames <- getBasicPrettyPrintNames
+      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+      Cli.returnEarly $ BadMainFunction main ty ppe [mainType]
+    GTR'GetTermSuccess x -> pure x
+
+getTerm' :: String -> Cli r GetTermResult
+getTerm' mainName =
+  let getFromCodebase = do
+        Cli.Env {codebase, runtime} <- ask
+
+        parseNames <- basicParseNames
+        let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
+        mainToFile
+          <$> MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
+        where
+          mainToFile (MainTerm.NotAFunctionName _) = GTR'NoTermWithThatName
+          mainToFile (MainTerm.NotFound _) = GTR'NoTermWithThatName
+          mainToFile (MainTerm.BadType _ ty) = maybe GTR'NoTermWithThatName GTR'TermHasBadType ty
+          mainToFile (MainTerm.Success hq tm typ) =
+            GTR'GetTermSuccess $
+              let v = Var.named (HQ.toText hq)
+               in (v, tm, typ)
+      getFromFile uf = do
+        Cli.Env {runtime} <- ask
+        let components = join $ UF.topLevelComponents uf
+        let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
+        case mainComponent of
+          [(v, tm, ty)] -> case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
+            True ->
+              let runMain = DD.forceTerm a a (Term.var a v)
+                  v2 = Var.freshIn (Set.fromList [v]) v
+                  a = ABT.annotation tm
+               in pure (GTR'GetTermSuccess (v2, runMain, ty))
+            False -> pure (GTR'TermHasBadType ty)
+          _ -> getFromCodebase
+   in Cli.getLatestTypecheckedFile >>= \case
+        Nothing -> getFromCodebase
+        Just uf -> getFromFile uf
+
+createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli r (TypecheckedUnisonFile Symbol Ann)
+createWatcherFile v tm typ =
+  Cli.getLatestTypecheckedFile >>= \case
+    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [("main", [(v, tm, typ)])])
+    Just uf ->
+      let runMain = DD.forceTerm a a (Term.var a v)
+          v2 = Var.freshIn (Set.fromList [v]) v
+          a = ABT.annotation tm
+       in pure $
+            UF.typecheckedUnisonFile
+              (UF.dataDeclarationsId' uf)
+              (UF.effectDeclarationsId' uf)
+              (UF.topLevelComponents' uf)
+              -- what about main's component? we have dropped them if they existed.
+              [("main", [(v2, runMain, typ)])]
+
 -- Given a typechecked file with a main function called `mainName`
 -- of the type `'{IO} ()`, adds an extra binding which
 -- forces the `main` function.
@@ -3384,7 +3455,7 @@ addRunMain mainName = \case
       mainToFile (MainTerm.Success hq tm typ) =
         RunMainSuccess $
           let v = Var.named (HQ.toText hq)
-           in UF.typecheckedUnisonFile mempty mempty mempty [("main", [(v, tm, typ)])] -- mempty
+           in UF.typecheckedUnisonFile mempty mempty mempty [("main", [(v, tm, typ)])]
   Just uf -> do
     Cli.Env {runtime} <- ask
 
@@ -3404,7 +3475,8 @@ addRunMain mainName = \case
                           (UF.dataDeclarationsId' uf)
                           (UF.effectDeclarationsId' uf)
                           (UF.topLevelComponents' uf)
-                          (UF.watchComponents uf <> [("main", [(v2, runMain, mainType)])])
+                          -- what about main's component? we have dropped them if they existed.
+                          [("main", [(v2, runMain, mainType)])]
                 else TermHasBadType ty
       _ -> addRunMain mainName Nothing
 
@@ -3619,3 +3691,9 @@ evalUnisonTerm ::
 evalUnisonTerm sandbox ppe useCache tm =
   evalUnisonTermE sandbox ppe useCache tm & onLeftM \err ->
     Cli.returnEarly (EvaluationFailure err)
+
+getBasicPrettyPrintNames :: Cli r Names
+getBasicPrettyPrintNames = do
+  rootBranch <- Cli.getRootBranch
+  currentPath <- Cli.getCurrentPath
+  pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath)))

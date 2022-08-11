@@ -143,6 +143,8 @@ data Input
     HistoryI (Maybe Int) (Maybe Int) BranchId
   | -- execute an IO thunk with args
     ExecuteI String [String]
+  | -- save the result of a previous Execute
+    SaveExecuteResultI Name
   | -- execute an IO [Result]
     IOTestI (HQ.HashQualified Name)
   | -- make a standalone binary file

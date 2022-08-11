@@ -72,6 +72,7 @@ import Unison.Prelude
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
+import Unison.Term (Term)
 import qualified Unison.UnisonFile as UF
 
 -- | The main command-line app monad.
@@ -161,7 +162,8 @@ data LoopState = LoopState
     -- A 1-indexed list of strings that can be referenced by index at the
     -- CLI prompt.  e.g. Given ["Foo.bat", "Foo.cat"],
     -- `rename 2 Foo.foo` will rename `Foo.cat` to `Foo.foo`.
-    numberedArgs :: NumberedArgs
+    numberedArgs :: NumberedArgs,
+    lastRunResult :: Maybe (Term Symbol ())
   }
   deriving stock (Generic)
 
@@ -188,7 +190,8 @@ loopState0 b p =
       latestFile = Nothing,
       latestTypecheckedFile = Nothing,
       lastInput = Nothing,
-      numberedArgs = []
+      numberedArgs = [],
+      lastRunResult = Nothing
     }
 
 -- | Run a @Cli@ action down to @IO@.
