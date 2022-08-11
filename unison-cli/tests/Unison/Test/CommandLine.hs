@@ -22,10 +22,3 @@ test = scope "commandline" $ do
             expected = [(".base", False), (".base.List", False), (".bar", False)],
             options = [".base", ".base.List", ".bar", ".other", ".bx"]
           }
-    scope "fuzzySuffixSegmentCompletionFilter" $ do
-      testCompletion fuzzySuffixSegmentCompletionFilter $
-        CT
-          { query = ".base.map",
-            expected = [(".base.map", False), (".base.filterMap", False), (".mapMaybe", False)],
-            options = [".base.filter", ".base.map", ".base.filterMap", ".base.mapMaybe", ".map", ".other.base.map"]
-          }
