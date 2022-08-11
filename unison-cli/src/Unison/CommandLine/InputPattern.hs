@@ -2,7 +2,18 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.CommandLine.InputPattern where
+module Unison.CommandLine.InputPattern
+  ( InputPattern (..),
+    ArgumentType (..),
+    argType,
+    IsOptional (..),
+    Visibility (..),
+
+    -- * Currently Unused
+    minArgs,
+    maxArgs,
+  )
+where
 
 import Data.Set (Set)
 import qualified System.Console.Haskeline as Line
@@ -105,12 +116,3 @@ maxArgs ip@(fmap fst . argTypes -> args) = go args
           <> show (patternName ip)
           <> "): "
           <> show args
-
-noSuggestions ::
-  Monad m =>
-  String ->
-  Codebase m v a ->
-  Branch m ->
-  Path.Absolute ->
-  m [Line.Completion]
-noSuggestions _ _ _ _ = pure []

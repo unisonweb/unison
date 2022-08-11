@@ -3,29 +3,18 @@
 -}
 module Unison.CommandLine.InputPatterns where
 
-import qualified Control.Lens as Lens
 import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
 import Data.List (intercalate, isPrefixOf)
-import qualified Data.List as List
-import Data.List.Extra (nubOrdOn, splitOn)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
 import qualified Data.Set as Set
-import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Void (Void)
-import Debug.Pretty.Simple (pTraceShowId)
 import System.Console.Haskeline.Completion (Completion (Completion))
-import qualified System.Console.Haskeline.Completion as Completion
 import qualified Text.Megaparsec as P
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
-import qualified U.Util.Monoid as Monoid
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
@@ -39,11 +28,11 @@ import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
 import Unison.CommandLine
+import Unison.CommandLine.Completion
 import qualified Unison.CommandLine.Globbing as Globbing
 import Unison.CommandLine.InputPattern
   ( ArgumentType (..),
@@ -58,7 +47,6 @@ import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names as Names
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
-import qualified Unison.Util.Find as Fuzzy
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
@@ -166,7 +154,7 @@ load =
     "load"
     []
     I.Visible
-    [(Optional, noCompletions)]
+    [(Optional, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( makeExample' load,
             "parses, typechecks, and evaluates the most recent scratch file."
@@ -188,7 +176,7 @@ add =
     "add"
     []
     I.Visible
-    [(ZeroPlus, noCompletions)]
+    [(ZeroPlus, noCompletionsArg)]
     ( "`add` adds to the codebase all the definitions from the most recently "
         <> "typechecked file."
     )
@@ -200,7 +188,7 @@ previewAdd =
     "add.preview"
     []
     I.Visible
-    [(ZeroPlus, noCompletions)]
+    [(ZeroPlus, noCompletionsArg)]
     ( "`add.preview` previews additions to the codebase from the most recently "
         <> "typechecked file. This command only displays cached typechecking "
         <> "results. Use `load` to reparse & typecheck the file if the context "
@@ -214,7 +202,7 @@ updateNoPatch =
     "update.nopatch"
     ["un"]
     I.Visible
-    [(ZeroPlus, noCompletions)]
+    [(ZeroPlus, noCompletionsArg)]
     ( P.wrap
         ( makeExample' updateNoPatch
             <> "works like"
@@ -248,7 +236,7 @@ update =
     "update"
     []
     I.Visible
-    [(Optional, patchArg), (ZeroPlus, noCompletions)]
+    [(Optional, patchArg), (ZeroPlus, noCompletionsArg)]
     ( P.wrap
         ( makeExample' update
             <> "works like"
@@ -292,7 +280,7 @@ previewUpdate =
     "update.preview"
     []
     I.Visible
-    [(ZeroPlus, noCompletions)]
+    [(ZeroPlus, noCompletionsArg)]
     ( "`update.preview` previews updates to the codebase from the most "
         <> "recently typechecked file. This command only displays cached "
         <> "typechecking results. Use `load` to reparse & typecheck the file if "
@@ -377,7 +365,7 @@ displayTo =
     "display.to"
     []
     I.Visible
-    [(Required, noCompletions), (ZeroPlus, definitionQueryArg)]
+    [(Required, noCompletionsArg), (ZeroPlus, definitionQueryArg)]
     ( P.wrap $
         makeExample displayTo ["<filename>", "foo"]
           <> "prints a rendered version of the term `foo` to the given file."
@@ -459,7 +447,7 @@ find' cmd fscope =
     cmd
     []
     I.Visible
-    [(ZeroPlus, fuzzyDefinitionQueryArg)]
+    [(ZeroPlus, exactDefinitionOrPathArg)]
     ( P.wrapColumn2
         [ ("`find`", "lists all definitions in the current namespace."),
           ( "`find foo`",
@@ -508,7 +496,7 @@ findVerbose =
     "find.verbose"
     []
     I.Visible
-    [(ZeroPlus, fuzzyDefinitionQueryArg)]
+    [(ZeroPlus, exactDefinitionOrPathArg)]
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
@@ -520,7 +508,7 @@ findVerboseAll =
     "find.all.verbose"
     []
     I.Visible
-    [(ZeroPlus, fuzzyDefinitionQueryArg)]
+    [(ZeroPlus, exactDefinitionOrPathArg)]
     ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
         <> "and aliases in the results."
     )
@@ -1960,7 +1948,7 @@ debugDumpNamespace =
     "debug.dump-namespace"
     []
     I.Visible
-    [(Required, noCompletions)]
+    [(Required, noCompletionsArg)]
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespacesI)
 
@@ -1970,7 +1958,7 @@ debugDumpNamespaceSimple =
     "debug.dump-namespace-simple"
     []
     I.Visible
-    [(Required, noCompletions)]
+    [(Required, noCompletionsArg)]
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespaceSimpleI)
 
@@ -1980,7 +1968,7 @@ debugClearWatchCache =
     "debug.clear-cache"
     []
     I.Visible
-    [(Required, noCompletions)]
+    [(Required, noCompletionsArg)]
     "Clear the watch expression cache"
     (const $ Right Input.DebugClearWatchI)
 
@@ -2061,7 +2049,7 @@ execute =
     "run"
     []
     I.Visible
-    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
+    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( "`run mymain args...`",
             "Runs `!mymain`, where `mymain` is searched for in the most recent"
@@ -2102,7 +2090,7 @@ makeStandalone =
     "compile"
     ["compile.output"]
     I.Visible
-    [(Required, exactDefinitionTermQueryArg), (Required, noCompletions)]
+    [(Required, exactDefinitionTermQueryArg), (Required, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( "`compile main file`",
             "Outputs a stand alone file that can be directly loaded and"
@@ -2123,7 +2111,7 @@ createAuthor =
     "create.author"
     []
     I.Visible
-    [(Required, noCompletions), (Required, noCompletions)]
+    [(Required, noCompletionsArg), (Required, noCompletionsArg)]
     ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
         <> "creates"
         <> backtick "alicecoder"
@@ -2321,12 +2309,7 @@ exactDefinitionOrPathArg :: ArgumentType
 exactDefinitionOrPathArg =
   ArgumentType
     { typeName = "definition or path",
-      suggestions =
-        allCompletors
-          [ termCompletor exactComplete,
-            typeCompletor exactComplete,
-            namespacePathCompletor
-          ],
+      suggestions = prefixCompleteTermTypeOrNamespace,
       globTargets = Set.fromList [Globbing.Term, Globbing.Type, Globbing.Namespace]
     }
 
@@ -2334,14 +2317,12 @@ fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
-      -- Note: NamespaceCompletion is included so that you can dig your way down to any terms
-      -- which might be within.
-      suggestions = completeWithinNamespace fuzzyCompleter (NESet.fromList (TermCompletion NE.:| [TypeCompletion, NamespaceCompletion])),
+      suggestions = prefixCompleteTermTypeOrNamespace,
       globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
 definitionQueryArg :: ArgumentType
-definitionQueryArg = fuzzyDefinitionQueryArg {typeName = "definition query"}
+definitionQueryArg = exactDefinitionOrPathArg {typeName = "definition query"}
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
@@ -2394,29 +2375,6 @@ patchArg =
       globTargets = Set.fromList []
     }
 
-allCompletors ::
-  Monad m =>
-  ( [String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion]] ->
-    (String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion])
-  )
-allCompletors = foldl' bothCompletors I.noSuggestions
-
-bothCompletors ::
-  (Monad m) =>
-  (String -> t2 -> t3 -> t4 -> m [Completion]) ->
-  (String -> t2 -> t3 -> t4 -> m [Completion]) ->
-  String ->
-  t2 ->
-  t3 ->
-  t4 ->
-  m [Completion]
-bothCompletors c1 c2 q code b currentPath = do
-  suggestions1 <- c1 q code b currentPath
-  suggestions2 <- c2 q code b currentPath
-  pure . fixupCompletion q
-    . nubOrdOn Completion.display
-    $ suggestions1 ++ suggestions2
-
 pathCompletor ::
   Applicative f =>
   -- | Turns a query and list of possible completions into a 'Completion'.
@@ -2440,132 +2398,11 @@ pathCompletor filterQuery getNames query _code b p =
             then map ("." <>) (toList (getNames b0root))
             else []
 
--- | A prefix-based completer.
---
--- Finds names of the selected completion types.
--- Completes one segment at a time.
---
--- Given a codebase with these terms:
---
--- @@
--- .base.List.map.doc
--- .base.List
--- .bar.foo
--- @@
---
--- We expect:
---
--- @@
--- .> cd ba<Tab>
--- ba|r
--- ba|se
---
--- .> cd base<Tab>
--- base
--- base|.List
---
--- .> cd base.List.<Tab>
--- base.List.|map
---
--- TODO: Why doesn't this work with just '.' ?
-completeWithinNamespace ::
-  forall m v a.
-  Monad m =>
-  (String -> [String] -> [Completion]) ->
-  -- | The types of completions to return
-  NESet CompletionType ->
-  -- | The portion of this are that the user has already typed.
-  String ->
-  Codebase m v a ->
-  Branch.Branch m ->
-  Path.Absolute ->
-  m [Completion]
-completeWithinNamespace mkCompletions compTypes query codebase _root currentPath = do
-  let fullQueryPath = (Path.fromText' (Text.pack query))
-      (queryPathPrefix, querySuffix) = case Lens.unsnoc fullQueryPath of
-        Nothing ->
-          if Path.isAbsolute fullQueryPath
-            then (Path.AbsolutePath' Path.absoluteEmpty, "")
-            else (Path.RelativePath' Path.relativeEmpty, "")
-        Just split -> split
-  let absQueryPath :: Path.Absolute
-      absQueryPath = Path.resolve currentPath queryPathPrefix
-  Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
-    Nothing -> do
-      pure []
-    Just cb -> do
-      b <- V2Causal.value cb
-      let currentBranchSuggestions =
-            -- If the query ends in a `.` we only care about the children of the query branch.
-            if List.isSuffixOf "." query
-              then []
-              else
-                namesInBranch b
-                  <&> \match -> Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match
-      childSuggestions <- do
-        case Map.lookup (Cv.namesegment1to2 querySuffix) (V2Branch.children b) of
-          Nothing -> pure []
-          Just childCausal -> do
-            childBranch <- V2Causal.value childCausal
-            namesInBranch childBranch
-              & fmap
-                ( \match -> Text.unpack . Path.toText' $ queryPathPrefix Lens.:> querySuffix Lens.:> NameSegment.NameSegment match
-                )
-              & pure
-      pure . mkCompletions query $ currentBranchSuggestions <> childSuggestions
-  where
-    namesInBranch :: V2Branch.Branch m -> [Text]
-    namesInBranch b =
-      V2Branch.unNameSegment
-        <$> ( Monoid.whenM (NESet.member NamespaceCompletion compTypes) (Map.keys $ V2Branch.children b)
-                <> Monoid.whenM (NESet.member TermCompletion compTypes) (Map.keys $ V2Branch.terms b)
-                <> Monoid.whenM (NESet.member TypeCompletion compTypes) (Map.keys $ V2Branch.types b)
-                <> Monoid.whenM (NESet.member PatchCompletion compTypes) (Map.keys $ V2Branch.patches b)
-            )
-
-prefixCompleter :: String -> [String] -> [Completion]
-prefixCompleter query completions =
-  completions
-    & filter (List.isPrefixOf query)
-    & fmap (prettyCompletionWithQueryPrefix False query)
-
-fuzzyCompleter :: String -> [String] -> [Completion]
-fuzzyCompleter query fullCompletions =
-  let (queryPrefix, querySuffix) = case (Lens.unsnoc . splitOn "." $ query) of
-        Nothing -> ("", query)
-        Just (prefix, querySeg) -> (intercalate "." prefix, querySeg)
-      searchItems :: [(String, String)]
-      searchItems =
-        fullCompletions
-          -- Assert that the path prefix matches before we bother with fuzzy search.
-          & filter (List.isPrefixOf queryPrefix)
-          & fmap
-            ( \compl -> case (Lens.unsnoc . splitOn "." $ compl) of
-                Nothing -> (compl, compl)
-                Just (_, segment) -> (compl, segment)
-            )
-   in pTraceShowId (Fuzzy.simpleFuzzyFinder querySuffix searchItems snd)
-        & fmap (\((fullCompletion, _suffix), pretty) -> prettyCompletion False (fullCompletion, pretty))
-        & fixupCompletion query
-        & pTraceShowId
-
-namespacePathCompletor ::
-  forall m v a.
-  Monad m =>
-  -- | The portion of this are that the user has already typed.
-  String ->
-  Codebase m v a ->
-  Branch.Branch m ->
-  Path.Absolute ->
-  m [Completion]
-namespacePathCompletor =
-  completeWithinNamespace prefixCompleter (NESet.singleton NamespaceCompletion)
-
 namespaceArg :: ArgumentType
 namespaceArg =
   ArgumentType
     { typeName = "namespace",
-      suggestions = namespacePathCompletor,
+      suggestions = prefixCompleteNamespace,
       globTargets = Set.fromList [Globbing.Namespace]
     }
 
@@ -2578,15 +2415,15 @@ newNameArg =
   ArgumentType
     { typeName = "new-name",
       suggestions =
-        namespacePathCompletor,
+        prefixCompleteNamespace,
       globTargets = mempty
     }
 
-noCompletions :: ArgumentType
-noCompletions =
+noCompletionsArg :: ArgumentType
+noCompletionsArg =
   ArgumentType
     { typeName = "word",
-      suggestions = I.noSuggestions,
+      suggestions = noCompletions,
       globTargets = mempty
     }
 
@@ -2664,10 +2501,3 @@ showErrorItem :: P.ErrorItem (P.Token Text) -> String
 showErrorItem (P.Tokens ts) = P.showTokens (Proxy @Text) ts
 showErrorItem (P.Label label) = NE.toList label
 showErrorItem P.EndOfInput = "end of input"
-
-data CompletionType
-  = NamespaceCompletion
-  | TermCompletion
-  | TypeCompletion
-  | PatchCompletion
-  deriving (Show, Eq, Ord)
