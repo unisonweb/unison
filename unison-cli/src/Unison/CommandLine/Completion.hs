@@ -96,7 +96,12 @@ noCompletions _ _ _ _ = pure []
 -- base.List
 --
 -- .> cd base.List.<Tab>
--- base.List.|map
+-- base.List.map
+--
+-- If conflicted, or if there's a # in the query, we expand completions into short-hashes.
+-- This is also a convenient way to just see the shorthash for a given term.
+-- .> view base.List.map#<Tab>
+-- base.List.map#0q926sgnn6
 completeWithinNamespace ::
   forall m v a.
   Monad m =>
@@ -110,15 +115,16 @@ completeWithinNamespace ::
   Path.Absolute ->
   m [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace mkCompletions compTypes query codebase _root currentPath = do
+  shortHashLen <- Codebase.hashLength codebase
   Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
     Nothing -> do
       pure []
     Just cb -> do
       b <- V2Causal.value cb
       let currentBranchSuggestions =
-            namesInBranch b
+            namesInBranch shortHashLen b
               <&> \match -> Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match
-      childSuggestions <- getChildSuggestions b
+      childSuggestions <- getChildSuggestions shortHashLen b
       pure . mkCompletions query . nubOrd . List.sort $ currentBranchSuggestions <> childSuggestions
   where
     fullQueryPath :: Path.Path'
@@ -142,8 +148,8 @@ completeWithinNamespace mkCompletions compTypes query codebase _root currentPath
         | otherwise -> (p, Just segment)
     absQueryPath :: Path.Absolute
     absQueryPath = Path.resolve currentPath queryPathPrefix
-    getChildSuggestions :: V2Branch.Branch m -> m [String]
-    getChildSuggestions b = do
+    getChildSuggestions :: Int -> V2Branch.Branch m -> m [String]
+    getChildSuggestions shortHashLen b = do
       case querySuffix of
         Nothing -> pure []
         Just suffix -> do
@@ -151,25 +157,28 @@ completeWithinNamespace mkCompletions compTypes query codebase _root currentPath
             Nothing -> pure []
             Just childCausal -> do
               childBranch <- V2Causal.value childCausal
-              namesInBranch childBranch
+              namesInBranch shortHashLen childBranch
                 & fmap
                   ( \match -> Text.unpack . Path.toText' $ queryPathPrefix Lens.:> suffix Lens.:> NameSegment.NameSegment match
                   )
                 & pure
-    namesInBranch :: V2Branch.Branch m -> [Text]
-    namesInBranch b =
-      dotifyNamespaces (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.children b)
-        <> ( ( Monoid.whenM (NESet.member TermCompletion compTypes) (fmap HQ'.toText . hashQualifyCompletions hqFromNamedV2Referent $ V2Branch.terms b)
-                 <> Monoid.whenM (NESet.member TypeCompletion compTypes) (fmap HQ'.toText . hashQualifyCompletions hqFromNamedV2Reference $ V2Branch.types b)
-                 <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.patches b)
-             )
-           )
+    namesInBranch :: Int -> V2Branch.Branch m -> [Text]
+    namesInBranch hashLen b =
+      let textifyHQ :: (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [Text]
+          textifyHQ f xs =
+            xs
+              & hashQualifyCompletions f
+              & fmap (HQ'.toTextWith V2Branch.unNameSegment)
+       in dotifyNamespaces (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.children b)
+            <> Monoid.whenM (NESet.member TermCompletion compTypes) (textifyHQ (hqFromNamedV2Referent hashLen) $ V2Branch.terms b)
+            <> Monoid.whenM (NESet.member TypeCompletion compTypes) (textifyHQ (hqFromNamedV2Reference hashLen) $ V2Branch.types b)
+            <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.patches b)
 
     -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
-    hqFromNamedV2Referent :: (V2Branch.NameSegment -> Referent.Referent -> HQ'.HashQualified V2Branch.NameSegment)
-    hqFromNamedV2Referent n r = HQ'.HashQualified n (v2ReferentToShortHash r)
-    hqFromNamedV2Reference :: (V2Branch.NameSegment -> Reference.Reference -> HQ'.HashQualified V2Branch.NameSegment)
-    hqFromNamedV2Reference n r = HQ'.HashQualified n (v2ReferenceToShortHash r)
+    hqFromNamedV2Referent :: Int -> V2Branch.NameSegment -> Referent.Referent -> HQ'.HashQualified V2Branch.NameSegment
+    hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (SH.take hashLen $ v2ReferentToShortHash r)
+    hqFromNamedV2Reference :: Int -> V2Branch.NameSegment -> Reference.Reference -> HQ'.HashQualified V2Branch.NameSegment
+    hqFromNamedV2Reference hashLen n r = HQ'.HashQualified n (SH.take hashLen $ v2ReferenceToShortHash r)
     v2ReferentToShortHash :: Referent.Referent -> SH.ShortHash
     v2ReferentToShortHash = \case
       Referent.Ref r -> v2ReferenceToShortHash r
