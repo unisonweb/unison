@@ -4,7 +4,7 @@ module Unison.Test.CommandLine where
 
 import EasyTest
 import qualified System.Console.Haskeline as Line
-import Unison.CommandLine (completeWithinQueryNamespace)
+import Unison.CommandLine.Completion
 
 data CompletionTest = CT {query :: String, expected :: [(String, Bool)], options :: [String]}
 
@@ -15,26 +15,17 @@ testCompletion compl CT {..} =
 test :: Test ()
 test = scope "commandline" $ do
   scope "completion" $ do
-    scope "completeWithinQueryNamespace" $ do
-      scope "only completes up to a single namespace boundary" $ do
-        testCompletion completeWithinQueryNamespace $
-          CT
-            { query = ".ba",
-              expected = [(".base", False)],
-              options = [".base", ".base.List", ".base.Map"]
-            }
-      scope "completes into the next namespace if query is a complete namespace" $ do
-        testCompletion completeWithinQueryNamespace $
-          CT
-            { query = ".base",
-              expected = [(".base", True), (".base.List", False), (".base.Map", False)],
-              options = [".base", ".base.List", ".base.Map"]
-            }
-
-      scope "completes " $ do
-        testCompletion completeWithinQueryNamespace $
-          CT
-            { query = ".f",
-              expected = [(".function", False), (".facade", False), (".fellows", False)],
-              options = [".function", ".facade", ".fellows"]
-            }
+    scope "prefixCompletionFilter" $ do
+      testCompletion prefixCompletionFilter $
+        CT
+          { query = ".ba",
+            expected = [(".base", False), (".base.List", False), (".bar", False)],
+            options = [".base", ".base.List", ".bar", ".other", ".bx"]
+          }
+    scope "fuzzySuffixSegmentCompletionFilter" $ do
+      testCompletion fuzzySuffixSegmentCompletionFilter $
+        CT
+          { query = ".base.map",
+            expected = [(".base.map", False), (".base.filterMap", False), (".mapMaybe", False)],
+            options = [".base.filter", ".base.map", ".base.filterMap", ".base.mapMaybe", ".map", ".other.base.map"]
+          }

@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: e3307c66c00f5bf45548b61cb0aa78f2006c2df8b9ad9172c645f944688d6263
 
 name:           unison-codebase-sync
 version:        0.0.0
