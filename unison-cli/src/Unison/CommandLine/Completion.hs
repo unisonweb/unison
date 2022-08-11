@@ -37,6 +37,7 @@ import qualified Unison.Util.Find as Fuzzy
 import qualified Unison.Util.Pretty as P
 import Prelude hiding (readFile, writeFile)
 
+-- | Things which we may want to complete for.
 data CompletionType
   = NamespaceCompletion
   | TermCompletion
@@ -44,6 +45,7 @@ data CompletionType
   | PatchCompletion
   deriving (Show, Eq, Ord)
 
+-- | The empty completor.
 noCompletions ::
   Monad m =>
   String ->
@@ -153,6 +155,7 @@ completeWithinNamespace mkCompletions compTypes query codebase _root currentPath
                 <> Monoid.whenM (NESet.member PatchCompletion compTypes) (Map.keys $ V2Branch.patches b)
             )
 
+-- | Completes a namespace argument by prefix-matching against the query.
 prefixCompleteNamespace ::
   forall m v a.
   Monad m =>
@@ -163,6 +166,8 @@ prefixCompleteNamespace ::
   m [Line.Completion]
 prefixCompleteNamespace = completeWithinNamespace prefixCompletionFilter (NESet.singleton NamespaceCompletion)
 
+-- | Completes a term or type argument by prefix-matching against the query.
+-- Note that this will suggest namespaces as well so that the user can drill-down.
 prefixCompleteTermTypeOrNamespace ::
   forall m v a.
   Monad m =>
@@ -173,6 +178,7 @@ prefixCompleteTermTypeOrNamespace ::
   m [Line.Completion]
 prefixCompleteTermTypeOrNamespace = completeWithinNamespace prefixCompletionFilter (NESet.fromList (TermCompletion NE.:| [TypeCompletion, NamespaceCompletion]))
 
+-- | Filters results to only prefix matches on the provided query.
 prefixCompletionFilter :: String -> [String] -> [System.Console.Haskeline.Completion.Completion]
 prefixCompletionFilter query completions =
   completions
@@ -180,7 +186,25 @@ prefixCompletionFilter query completions =
     & fmap (prettyCompletionWithQueryPrefix False query)
 
 -- | Filters and sorts completions based on a fuzzy match over the final segment of the
--- query and the completions, e.g.:
+-- query and the completions,
+--
+-- E.g.:
+--
+-- If you have the following:
+--
+-- base.List.flatMap
+-- base.List.map
+-- base.List.groupMap
+-- base.List.filter
+--
+-- It will fuzzy match 'map' against all terms contained directly within 'base.List' (doesn't
+-- search children)
+-- .> base.List.map<Tab>
+-- base.List.*map*
+-- base.List.flat*Map*
+-- base.List.group*Map*
+--
+-- Given the query base.List.
 fuzzySuffixSegmentCompletionFilter :: String -> [String] -> [System.Console.Haskeline.Completion.Completion]
 fuzzySuffixSegmentCompletionFilter query fullCompletions =
   let (queryPrefix, querySuffix) = case (Lens.unsnoc . splitOn "." $ query) of
