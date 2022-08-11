@@ -30,15 +30,19 @@ import qualified System.Console.Haskeline as Line
 import System.Console.Haskeline.Completion (Completion)
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import qualified U.Codebase.Reference as Reference
+import qualified U.Codebase.Referent as Referent
 import qualified U.Util.Monoid as Monoid
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Unison.Hash as H
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
+import qualified Unison.ShortHash as SH
 import qualified Unison.Util.Find as Fuzzy
 import qualified Unison.Util.Pretty as P
 import Prelude hiding (readFile, writeFile)
@@ -155,11 +159,32 @@ completeWithinNamespace mkCompletions compTypes query codebase _root currentPath
     namesInBranch :: V2Branch.Branch m -> [Text]
     namesInBranch b =
       dotifyNamespaces (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.children b)
-        <> ( ( Monoid.whenM (NESet.member TermCompletion compTypes) (fmap HQ'.toText . hashQualifyCompletions HQ'.fromNamedReferent $ V2Branch.terms b)
-                 <> Monoid.whenM (NESet.member TypeCompletion compTypes) (fmap HQ'.toText . hashQualifyCompletions _ $ V2Branch.types b)
+        <> ( ( Monoid.whenM (NESet.member TermCompletion compTypes) (fmap HQ'.toText . hashQualifyCompletions hqFromNamedV2Referent $ V2Branch.terms b)
+                 <> Monoid.whenM (NESet.member TypeCompletion compTypes) (fmap HQ'.toText . hashQualifyCompletions hqFromNamedV2Reference $ V2Branch.types b)
                  <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.patches b)
              )
            )
+
+    -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
+    hqFromNamedV2Referent :: (V2Branch.NameSegment -> Referent.Referent -> HQ'.HashQualified V2Branch.NameSegment)
+    hqFromNamedV2Referent n r = HQ'.HashQualified n (v2ReferentToShortHash r)
+    hqFromNamedV2Reference :: (V2Branch.NameSegment -> Reference.Reference -> HQ'.HashQualified V2Branch.NameSegment)
+    hqFromNamedV2Reference n r = HQ'.HashQualified n (v2ReferenceToShortHash r)
+    v2ReferentToShortHash :: Referent.Referent -> SH.ShortHash
+    v2ReferentToShortHash = \case
+      Referent.Ref r -> v2ReferenceToShortHash r
+      Referent.Con r conId ->
+        case v2ReferenceToShortHash r of
+          SH.ShortHash h p _con -> SH.ShortHash h p (Just $ tShow conId)
+          sh@(SH.Builtin {}) -> sh
+
+    v2ReferenceToShortHash :: Reference.Reference -> SH.ShortHash
+    v2ReferenceToShortHash (Reference.ReferenceBuiltin b) = SH.Builtin b
+    v2ReferenceToShortHash (Reference.ReferenceDerived (Reference.Id h i)) = SH.ShortHash (H.base32Hex h) (showComponentPos i) Nothing
+    showComponentPos :: Reference.Pos -> Maybe Text
+    showComponentPos 0 = Nothing
+    showComponentPos n = Just (tShow n)
+
     hashQualifyCompletions :: forall r metadata. (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
     hashQualifyCompletions qualify defs = ifoldMap qualifyRefs defs
       where
