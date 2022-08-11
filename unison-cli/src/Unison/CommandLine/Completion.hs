@@ -10,7 +10,8 @@ module Unison.CommandLine.Completion
     prefixCompletePatch,
     noCompletions,
     prefixCompleteNamespace,
-    -- Currently unused
+    -- Exported for testing
+    prefixCompletionFilter,
     fuzzySuffixSegmentCompletionFilter,
   )
 where
