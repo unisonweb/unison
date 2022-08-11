@@ -112,7 +112,7 @@ completeWithinNamespace mkCompletions compTypes query codebase _root currentPath
             namesInBranch b
               <&> \match -> Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match
       childSuggestions <- getChildSuggestions b
-      pure . mkCompletions query . nubOrd $ currentBranchSuggestions <> childSuggestions
+      pure . mkCompletions query . nubOrd . List.sort $ currentBranchSuggestions <> childSuggestions
   where
     fullQueryPath :: Path.Path'
     fullQueryPath = Path.fromText' (Text.pack query)
