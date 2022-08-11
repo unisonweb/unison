@@ -12,15 +12,17 @@ module Unison.CommandLine.Completion
     prefixCompleteNamespace,
     -- Exported for testing
     prefixCompletionFilter,
-    fuzzySuffixSegmentCompletionFilter,
+    -- Unused for now, but may be useful later
+    prettyCompletion,
+    fixupCompletion,
   )
 where
 
 import Control.Lens (ifoldMap)
 import qualified Control.Lens as Lens
-import Data.List (intercalate, isPrefixOf)
+import Data.List (isPrefixOf)
 import qualified Data.List as List
-import Data.List.Extra (nubOrd, splitOn)
+import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Set.NonEmpty (NESet)
@@ -43,7 +45,6 @@ import qualified Unison.HashQualified' as HQ'
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.ShortHash as SH
-import qualified Unison.Util.Find as Fuzzy
 import qualified Unison.Util.Pretty as P
 import Prelude hiding (readFile, writeFile)
 
@@ -276,45 +277,6 @@ prefixCompletionFilter query completions =
   completions
     & filter (List.isPrefixOf query)
     & fmap (prettyCompletionWithQueryPrefix False query)
-
--- | Filters and sorts completions based on a fuzzy match over the final segment of the
--- query and the completions,
---
--- E.g.:
---
--- If you have the following:
---
--- base.List.flatMap
--- base.List.map
--- base.List.groupMap
--- base.List.filter
---
--- It will fuzzy match 'map' against all terms contained directly within 'base.List' (doesn't
--- search children)
--- .> base.List.map<Tab>
--- base.List.*map*
--- base.List.flat*Map*
--- base.List.group*Map*
---
--- Given the query base.List.
-fuzzySuffixSegmentCompletionFilter :: String -> [String] -> [System.Console.Haskeline.Completion.Completion]
-fuzzySuffixSegmentCompletionFilter query fullCompletions =
-  let (queryPrefix, querySuffix) = case (Lens.unsnoc . splitOn "." $ query) of
-        Nothing -> ("", query)
-        Just (prefix, querySeg) -> (intercalate "." prefix, querySeg)
-      searchItems :: [(String, String)]
-      searchItems =
-        fullCompletions
-          -- Assert that the path prefix matches before we bother with fuzzy search.
-          & filter (List.isPrefixOf queryPrefix)
-          & fmap
-            ( \compl -> case (Lens.unsnoc . splitOn "." $ compl) of
-                Nothing -> (compl, compl)
-                Just (_, segment) -> (compl, segment)
-            )
-   in Fuzzy.simpleFuzzyFinder querySuffix searchItems snd
-        & fmap (\((fullCompletion, _suffix), pretty) -> prettyCompletion False (fullCompletion, pretty))
-        & fixupCompletion query
 
 -- | Renders a completion option with the prefix matching the query greyed out.
 prettyCompletionWithQueryPrefix ::
