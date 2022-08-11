@@ -4,7 +4,10 @@
 module Unison.CommandLine.Completion
   ( -- * Completers
     exactComplete,
-    prefixCompleteTermTypeOrNamespace,
+    prefixCompleteTermOrType,
+    prefixCompleteTerm,
+    prefixCompleteType,
+    prefixCompletePatch,
     noCompletions,
     prefixCompleteNamespace,
     -- Currently unused
@@ -15,7 +18,7 @@ where
 import qualified Control.Lens as Lens
 import Data.List (intercalate, isPrefixOf)
 import qualified Data.List as List
-import Data.List.Extra (splitOn)
+import Data.List.Extra (nubOrd, splitOn)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Set.NonEmpty (NESet)
@@ -109,7 +112,7 @@ completeWithinNamespace mkCompletions compTypes query codebase _root currentPath
             namesInBranch b
               <&> \match -> Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match
       childSuggestions <- getChildSuggestions b
-      pure . mkCompletions query $ currentBranchSuggestions <> childSuggestions
+      pure . mkCompletions query . nubOrd $ currentBranchSuggestions <> childSuggestions
   where
     fullQueryPath :: Path.Path'
     fullQueryPath = Path.fromText' (Text.pack query)
@@ -148,12 +151,20 @@ completeWithinNamespace mkCompletions compTypes query codebase _root currentPath
                 & pure
     namesInBranch :: V2Branch.Branch m -> [Text]
     namesInBranch b =
-      V2Branch.unNameSegment
-        <$> ( Monoid.whenM (NESet.member NamespaceCompletion compTypes) (Map.keys $ V2Branch.children b)
-                <> Monoid.whenM (NESet.member TermCompletion compTypes) (Map.keys $ V2Branch.terms b)
-                <> Monoid.whenM (NESet.member TypeCompletion compTypes) (Map.keys $ V2Branch.types b)
-                <> Monoid.whenM (NESet.member PatchCompletion compTypes) (Map.keys $ V2Branch.patches b)
-            )
+      dotifyNamespaces (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.children b)
+        <> ( V2Branch.unNameSegment
+               <$> ( Monoid.whenM (NESet.member TermCompletion compTypes) (Map.keys $ V2Branch.terms b)
+                       <> Monoid.whenM (NESet.member TypeCompletion compTypes) (Map.keys $ V2Branch.types b)
+                       <> Monoid.whenM (NESet.member PatchCompletion compTypes) (Map.keys $ V2Branch.patches b)
+                   )
+           )
+    -- If we're not completing namespaces, then all namespace completions should automatically
+    -- drill-down by adding a trailing '.'
+    dotifyNamespaces :: [Text] -> [Text]
+    dotifyNamespaces namespaces =
+      if not (NESet.member NamespaceCompletion compTypes)
+        then fmap (<> ".") namespaces
+        else namespaces
 
 -- | Completes a namespace argument by prefix-matching against the query.
 prefixCompleteNamespace ::
@@ -167,8 +178,7 @@ prefixCompleteNamespace ::
 prefixCompleteNamespace = completeWithinNamespace prefixCompletionFilter (NESet.singleton NamespaceCompletion)
 
 -- | Completes a term or type argument by prefix-matching against the query.
--- Note that this will suggest namespaces as well so that the user can drill-down.
-prefixCompleteTermTypeOrNamespace ::
+prefixCompleteTermOrType ::
   forall m v a.
   Monad m =>
   String ->
@@ -176,7 +186,40 @@ prefixCompleteTermTypeOrNamespace ::
   Branch.Branch m -> -- Root Branch
   Path.Absolute -> -- Current path
   m [Line.Completion]
-prefixCompleteTermTypeOrNamespace = completeWithinNamespace prefixCompletionFilter (NESet.fromList (TermCompletion NE.:| [TypeCompletion, NamespaceCompletion]))
+prefixCompleteTermOrType = completeWithinNamespace prefixCompletionFilter (NESet.fromList (TermCompletion NE.:| [TypeCompletion]))
+
+-- | Completes a term argument by prefix-matching against the query.
+prefixCompleteTerm ::
+  forall m v a.
+  Monad m =>
+  String ->
+  Codebase m v a ->
+  Branch.Branch m -> -- Root Branch
+  Path.Absolute -> -- Current path
+  m [Line.Completion]
+prefixCompleteTerm = completeWithinNamespace prefixCompletionFilter (NESet.singleton TermCompletion)
+
+-- | Completes a term or type argument by prefix-matching against the query.
+prefixCompleteType ::
+  forall m v a.
+  Monad m =>
+  String ->
+  Codebase m v a ->
+  Branch.Branch m -> -- Root Branch
+  Path.Absolute -> -- Current path
+  m [Line.Completion]
+prefixCompleteType = completeWithinNamespace prefixCompletionFilter (NESet.singleton TypeCompletion)
+
+-- | Completes a patch argument by prefix-matching against the query.
+prefixCompletePatch ::
+  forall m v a.
+  Monad m =>
+  String ->
+  Codebase m v a ->
+  Branch.Branch m -> -- Root Branch
+  Path.Absolute -> -- Current path
+  m [Line.Completion]
+prefixCompletePatch = completeWithinNamespace prefixCompletionFilter (NESet.singleton PatchCompletion)
 
 -- | Filters results to only prefix matches on the provided query.
 prefixCompletionFilter :: String -> [String] -> [System.Console.Haskeline.Completion.Completion]

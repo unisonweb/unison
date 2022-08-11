@@ -5,7 +5,7 @@ module Unison.CommandLine.InputPatterns where
 
 import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
-import Data.List (intercalate, isPrefixOf)
+import Data.List (intercalate)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
@@ -14,10 +14,8 @@ import qualified Data.Text as Text
 import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified Text.Megaparsec as P
-import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Input (Input)
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
@@ -44,12 +42,10 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
-import qualified Unison.Names as Names
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.Relation as R
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -447,7 +443,7 @@ find' cmd fscope =
     cmd
     []
     I.Visible
-    [(ZeroPlus, exactDefinitionOrPathArg)]
+    [(ZeroPlus, exactDefinitionArg)]
     ( P.wrapColumn2
         [ ("`find`", "lists all definitions in the current namespace."),
           ( "`find foo`",
@@ -496,7 +492,7 @@ findVerbose =
     "find.verbose"
     []
     I.Visible
-    [(ZeroPlus, exactDefinitionOrPathArg)]
+    [(ZeroPlus, exactDefinitionArg)]
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
@@ -508,7 +504,7 @@ findVerboseAll =
     "find.all.verbose"
     []
     I.Visible
-    [(ZeroPlus, exactDefinitionOrPathArg)]
+    [(ZeroPlus, exactDefinitionArg)]
     ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
         <> "and aliases in the results."
     )
@@ -737,7 +733,7 @@ aliasMany =
     "alias.many"
     ["copy"]
     I.Visible
-    [(Required, definitionQueryArg), (OnePlus, exactDefinitionOrPathArg)]
+    [(Required, definitionQueryArg), (OnePlus, exactDefinitionArg)]
     ( P.group . P.lines $
         [ P.wrap $
             P.group (makeExample aliasMany ["<relative1>", "[relative2...]", "<namespace>"])
@@ -2305,11 +2301,11 @@ commandNameArg =
       globTargets = mempty
     }
 
-exactDefinitionOrPathArg :: ArgumentType
-exactDefinitionOrPathArg =
+exactDefinitionArg :: ArgumentType
+exactDefinitionArg =
   ArgumentType
-    { typeName = "definition or path",
-      suggestions = prefixCompleteTermTypeOrNamespace,
+    { typeName = "definition",
+      suggestions = prefixCompleteTermOrType,
       globTargets = Set.fromList [Globbing.Term, Globbing.Type, Globbing.Namespace]
     }
 
@@ -2317,18 +2313,18 @@ fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
-      suggestions = prefixCompleteTermTypeOrNamespace,
+      suggestions = prefixCompleteTermOrType,
       globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
 definitionQueryArg :: ArgumentType
-definitionQueryArg = exactDefinitionOrPathArg {typeName = "definition query"}
+definitionQueryArg = exactDefinitionArg {typeName = "definition query"}
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
   ArgumentType
     { typeName = "type definition query",
-      suggestions = typeCompletor exactComplete,
+      suggestions = prefixCompleteType,
       globTargets = Set.fromList [Globbing.Type]
     }
 
@@ -2336,67 +2332,17 @@ exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
   ArgumentType
     { typeName = "term definition query",
-      suggestions = termCompletor exactComplete,
+      suggestions = prefixCompleteTerm,
       globTargets = Set.fromList [Globbing.Term]
     }
-
-typeCompletor ::
-  Applicative m =>
-  (String -> [String] -> [Completion]) ->
-  String ->
-  Codebase m v a ->
-  Branch.Branch m ->
-  Path.Absolute ->
-  m [Completion]
-typeCompletor filterQuery = pathCompletor filterQuery go
-  where
-    go = Set.map HQ.toText . R.dom . Names.hashQualifyTypesRelation . Names.types . Branch.toNames
-
-termCompletor ::
-  Applicative m =>
-  (String -> [String] -> [Completion]) ->
-  String ->
-  Codebase m v a ->
-  Branch.Branch m ->
-  Path.Absolute ->
-  m [Completion]
-termCompletor filterQuery = pathCompletor filterQuery go
-  where
-    go = Set.map HQ.toText . R.dom . Names.hashQualifyTermsRelation . Names.terms . Branch.toNames
 
 patchArg :: ArgumentType
 patchArg =
   ArgumentType
     { typeName = "patch",
-      suggestions =
-        pathCompletor
-          exactComplete
-          (Set.map Name.toText . Map.keysSet . Branch.deepEdits),
+      suggestions = prefixCompletePatch,
       globTargets = Set.fromList []
     }
-
-pathCompletor ::
-  Applicative f =>
-  -- | Turns a query and list of possible completions into a 'Completion'.
-  (String -> [String] -> [Completion]) ->
-  -- | Construct completions given ucm's current branch context, or the root namespace if
-  -- the query is absolute.
-  (Branch.Branch0 m -> Set Text) ->
-  -- | The portion of this arg that the user has already typed.
-  String ->
-  codebase ->
-  Branch.Branch m ->
-  Path.Absolute ->
-  f [Completion]
-pathCompletor filterQuery getNames query _code b p =
-  let b0root = Branch.head b
-      b0local = Branch.getAt0 (Path.unabsolute p) b0root
-   in -- todo: if these sets are huge, maybe trim results
-      pure . filterQuery query . map Text.unpack $
-        toList (getNames b0local)
-          ++ if "." `isPrefixOf` query
-            then map ("." <>) (toList (getNames b0root))
-            else []
 
 namespaceArg :: ArgumentType
 namespaceArg =
