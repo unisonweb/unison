@@ -231,7 +231,6 @@ debugMode = False
 -- "dirty" means in need of update
 -- "frontier" means updated definitions responsible for the "dirty"
 propagate ::
-  -- of type `Referent -> Referent`
   Patch ->
   Branch0 IO ->
   Cli r (Edits Symbol)
