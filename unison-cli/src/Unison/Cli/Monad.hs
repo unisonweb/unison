@@ -87,6 +87,11 @@ import qualified Unison.UnisonFile as UF
 --
 -- * It is an IO monad: you can do IO things, but throwing synchronous exceptions is discouraged. Use the built-in
 -- short-circuiting mechanism instead.
+--
+-- The @r@ type variable is boilerplate. It starts out as @r@, and grows an new 'R' layer for each scoped action (e.g.
+-- 'with' / 'label'). For this reason, whenever you find yourself writing down an explicit type that has to carefully
+-- mention how many 'R' layers are inferred, you may prefer to use an @_@ (with @PartialTypeSignatures@) instead, as the
+-- precise type is not very meaningful useful to a reader.
 newtype Cli r a = Cli
   { unCli ::
       Env ->
