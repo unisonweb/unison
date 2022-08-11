@@ -79,6 +79,7 @@ module Unison.Sqlite.Connection
   )
 where
 
+import Control.Concurrent (threadDelay)
 import Data.Bifunctor (bimap)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
@@ -511,9 +512,20 @@ rowsModified (Connection _ _ conn) =
 -- Vacuum
 
 -- | @VACUUM@
+--
+-- This action automatically retries on @SQLITE_BUSY@, which is returned when there is an open transaction on the
+-- database.
 vacuum :: Connection -> IO ()
 vacuum conn =
-  execute_ conn "VACUUM"
+  loop
+  where
+    loop =
+      try (execute_ conn "VACUUM") >>= \case
+        Left SqliteBusyException -> do
+          threadDelay 100_000
+          loop
+        Left exception -> throwIO exception
+        Right () -> pure ()
 
 -- | @VACUUM INTO@
 vacuumInto :: Connection -> Text -> IO ()
