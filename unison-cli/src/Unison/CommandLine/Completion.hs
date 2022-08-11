@@ -15,6 +15,7 @@ module Unison.CommandLine.Completion
   )
 where
 
+import Control.Lens (ifoldMap)
 import qualified Control.Lens as Lens
 import Data.List (intercalate, isPrefixOf)
 import qualified Data.List as List
@@ -34,6 +35,7 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Unison.HashQualified' as HQ'
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.Util.Find as Fuzzy
@@ -152,12 +154,24 @@ completeWithinNamespace mkCompletions compTypes query codebase _root currentPath
     namesInBranch :: V2Branch.Branch m -> [Text]
     namesInBranch b =
       dotifyNamespaces (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.children b)
-        <> ( V2Branch.unNameSegment
-               <$> ( Monoid.whenM (NESet.member TermCompletion compTypes) (Map.keys $ V2Branch.terms b)
-                       <> Monoid.whenM (NESet.member TypeCompletion compTypes) (Map.keys $ V2Branch.types b)
-                       <> Monoid.whenM (NESet.member PatchCompletion compTypes) (Map.keys $ V2Branch.patches b)
-                   )
+        <> ( ( Monoid.whenM (NESet.member TermCompletion compTypes) (fmap HQ'.toText . hashQualifyCompletions HQ'.fromNamedReferent $ V2Branch.terms b)
+                 <> Monoid.whenM (NESet.member TypeCompletion compTypes) (fmap HQ'.toText . hashQualifyCompletions _ $ V2Branch.types b)
+                 <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.patches b)
+             )
            )
+    hashQualifyCompletions :: forall r metadata. (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
+    hashQualifyCompletions qualify defs = ifoldMap qualifyRefs defs
+      where
+        -- Qualify any conflicted definitions. If the query has a "#" in it, then qualify ALL
+        -- completions.
+        qualifyRefs :: V2Branch.NameSegment -> (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
+        qualifyRefs n refs
+          | (any (Text.isInfixOf "#" . NameSegment.toText) querySuffix) || length refs > 1 =
+              refs
+                & Map.keys
+                <&> qualify n
+          | otherwise = [HQ'.NameOnly n]
+
     -- If we're not completing namespaces, then all namespace completions should automatically
     -- drill-down by adding a trailing '.'
     dotifyNamespaces :: [Text] -> [Text]
