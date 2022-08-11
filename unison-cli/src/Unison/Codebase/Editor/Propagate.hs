@@ -239,7 +239,7 @@ propagate patch b = case validatePatch patch of
     Cli.respond PatchNeedsToBeConflictFree
     pure noEdits
   Just (initialTermEdits, initialTypeEdits) -> do
-    -- TODO: this can be removed once patches have term replacement
+    -- TODO: this can be removed once patches have term replacement of type `Referent -> Referent`
     rootNames <- Branch.toNames <$> Cli.getRootBranch0
 
     let entireBranch =
