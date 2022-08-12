@@ -273,8 +273,8 @@ loop e = do
           Nothing ->
             respond $
               ParseErrors text [err | Result.Parsing err <- toList notes]
-          Just (Left errNames) -> do
-            ns <- makeShadowedPrintNamesFromHQ hqs errNames
+          Just (Left uf) -> do
+            ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames uf)
             ppe <- suffixifiedPPE ns
             let tes = [err | Result.TypeError err <- toList notes]
                 cbs =
