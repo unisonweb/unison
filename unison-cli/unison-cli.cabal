@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.6.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 
@@ -28,12 +28,11 @@ library
       Unison.Auth.CredentialManager
       Unison.Auth.Discovery
       Unison.Auth.HTTPClient
-      Unison.Auth.OAuth
       Unison.Auth.Tokens
       Unison.Auth.Types
+      Unison.Cli.Monad
+      Unison.Cli.MonadUtils
       Unison.Codebase.Editor.AuthorInfo
-      Unison.Codebase.Editor.Command
-      Unison.Codebase.Editor.HandleCommand
       Unison.Codebase.Editor.HandleInput
       Unison.Codebase.Editor.HandleInput.AuthLogin
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
@@ -70,19 +69,24 @@ library
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -171,19 +175,24 @@ executable cli-integration-tests
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -273,19 +282,24 @@ executable transcripts
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -378,19 +392,24 @@ executable unison
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -488,19 +507,24 @@ test-suite cli-tests
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms

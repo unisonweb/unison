@@ -1,11 +1,4 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Unison.Codebase.Path
   ( Path (..),
@@ -41,7 +34,6 @@ module Unison.Codebase.Path
 
     -- * things that could be replaced with `Convert` instances
     absoluteToPath',
-    fromAbsoluteSplit,
     fromList,
     fromName,
     fromName',
@@ -58,6 +50,7 @@ module Unison.Codebase.Path
     toText',
     unsplit,
     unsplit',
+    unsplitAbsolute,
     unsplitHQ,
     unsplitHQ',
 
@@ -144,6 +137,10 @@ unsplit' (Path' (Right (Relative p)), seg) = Path' (Right (Relative (unsplit (p,
 unsplit :: Split -> Path
 unsplit (Path p, a) = Path (p :|> a)
 
+unsplitAbsolute :: (Absolute, NameSegment) -> Absolute
+unsplitAbsolute =
+  coerce unsplit
+
 unsplitHQ :: HQSplit -> HQ'.HashQualified Path
 unsplitHQ (p, a) = fmap (snoc p) a
 
@@ -178,15 +175,13 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (resolve a p, s)
 
-fromAbsoluteSplit :: (Absolute, a) -> (Path, a)
-fromAbsoluteSplit (Absolute p, a) = (p, a)
-
 absoluteEmpty :: Absolute
 absoluteEmpty = Absolute empty
 
 relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
 
+-- | Mitchell: this function is bogus, because an empty name segment is bogus
 toPath' :: Path -> Path'
 toPath' = \case
   Path (NameSegment "" :<| tail) -> Path' . Left . Absolute . Path $ tail
@@ -399,6 +394,10 @@ instance Resolve Absolute Path' Absolute where
   resolve _ (Path' (Left a)) = a
   resolve a (Path' (Right r)) = resolve a r
 
+instance Convert Absolute Path where convert = unabsolute
+
+instance Convert Absolute Path' where convert = absoluteToPath'
+
 instance Convert Absolute Text where convert = toText' . absoluteToPath'
 
 instance Convert Relative Text where convert = toText . unrelative
@@ -414,6 +413,14 @@ instance Convert Path [NameSegment] where convert = toList
 instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ
 
 instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
+
+instance Convert (path, NameSegment) (path, HQ'.HQSegment) where
+  convert (path, name) =
+    (path, HQ'.fromName name)
+
+instance Convert path0 path1 => Convert (path0, name) (path1, name) where
+  convert =
+    over _1 convert
 
 instance Parse Name HQSplit' where parse = hqSplitFromName'
 
