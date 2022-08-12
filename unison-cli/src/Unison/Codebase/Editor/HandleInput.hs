@@ -1183,7 +1183,7 @@ loop e = do
             ExecuteI main args -> do
               unisonFile <- do
                 (sym, term, typ) <- getTerm main
-                undefined
+                createWatcherFile sym term typ
               ppe <- executePPE unisonFile
               -- TODO
               (_, xs) <- evalUnisonFile False ppe unisonFile args
@@ -3331,14 +3331,9 @@ basicNames' nameScoping = do
   pure (parse, pretty)
 
 data GetTermResult
-  = GTR'NoTermWithThatName
-  | GTR'TermHasBadType (Type Symbol Ann)
-  | GTR'GetTermSuccess (Symbol, Term Symbol Ann, Type Symbol Ann)
-
-data AddRunMainResult v
   = NoTermWithThatName
-  | TermHasBadType (Type v Ann)
-  | RunMainSuccess (TypecheckedUnisonFile v Ann)
+  | TermHasBadType (Type Symbol Ann)
+  | GetTermSuccess (Symbol, Term Symbol Ann, Type Symbol Ann)
 
 -- Adds a watch expression of the given name to the file, if
 -- it would resolve to a TLD in the file. Returns the freshened
@@ -3371,17 +3366,17 @@ addWatch watchName (Just uf) = do
 getTerm :: String -> Cli r (Symbol, Term Symbol Ann, Type Symbol Ann)
 getTerm main =
   getTerm' main >>= \case
-    GTR'NoTermWithThatName -> do
+    NoTermWithThatName -> do
       mainType <- Runtime.mainType <$> view #runtime
       basicPrettyPrintNames <- getBasicPrettyPrintNames
       ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
       Cli.returnEarly $ NoMainFunction main ppe [mainType]
-    GTR'TermHasBadType ty -> do
+    TermHasBadType ty -> do
       mainType <- Runtime.mainType <$> view #runtime
       basicPrettyPrintNames <- getBasicPrettyPrintNames
       ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
       Cli.returnEarly $ BadMainFunction main ty ppe [mainType]
-    GTR'GetTermSuccess x -> pure x
+    GetTermSuccess x -> pure x
 
 getTerm' :: String -> Cli r GetTermResult
 getTerm' mainName =
@@ -3393,26 +3388,33 @@ getTerm' mainName =
         mainToFile
           <$> MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
         where
-          mainToFile (MainTerm.NotAFunctionName _) = GTR'NoTermWithThatName
-          mainToFile (MainTerm.NotFound _) = GTR'NoTermWithThatName
-          mainToFile (MainTerm.BadType _ ty) = maybe GTR'NoTermWithThatName GTR'TermHasBadType ty
+          mainToFile (MainTerm.NotAFunctionName _) = NoTermWithThatName
+          mainToFile (MainTerm.NotFound _) = NoTermWithThatName
+          mainToFile (MainTerm.BadType _ ty) = maybe NoTermWithThatName TermHasBadType ty
           mainToFile (MainTerm.Success hq tm typ) =
-            GTR'GetTermSuccess $
+            GetTermSuccess $
               let v = Var.named (HQ.toText hq)
                in (v, tm, typ)
       getFromFile uf = do
-        Cli.Env {runtime} <- ask
         let components = join $ UF.topLevelComponents uf
         let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
         case mainComponent of
-          [(v, tm, ty)] -> case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
-            True ->
+          [(v, tm, ty)] ->
+            checkType ty \otyp ->
               let runMain = DD.forceTerm a a (Term.var a v)
                   v2 = Var.freshIn (Set.fromList [v]) v
                   a = ABT.annotation tm
-               in pure (GTR'GetTermSuccess (v2, runMain, ty))
-            False -> pure (GTR'TermHasBadType ty)
+               in pure (GetTermSuccess (v2, runMain, otyp))
           _ -> getFromCodebase
+      checkType :: Type Symbol Ann -> (Type Symbol Ann -> Cli r GetTermResult) -> Cli r GetTermResult
+      checkType ty f = do
+        Cli.Env {runtime} <- ask
+        case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
+          True -> case ty of
+            Type.ForallsNamed' _ (Type.Arrow'' _ _ o) -> f o
+            Type.Arrow'' _ _ o -> f o
+            _ -> traceShow ty $ pure (TermHasBadType ty)
+          False -> pure (TermHasBadType ty)
    in Cli.getLatestTypecheckedFile >>= \case
         Nothing -> getFromCodebase
         Just uf -> getFromFile uf
@@ -3422,63 +3424,14 @@ createWatcherFile v tm typ =
   Cli.getLatestTypecheckedFile >>= \case
     Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [("main", [(v, tm, typ)])])
     Just uf ->
-      let runMain = DD.forceTerm a a (Term.var a v)
-          v2 = Var.freshIn (Set.fromList [v]) v
-          a = ABT.annotation tm
+      let v2 = Var.freshIn (Set.fromList [v]) v
        in pure $
             UF.typecheckedUnisonFile
               (UF.dataDeclarationsId' uf)
               (UF.effectDeclarationsId' uf)
               (UF.topLevelComponents' uf)
               -- what about main's component? we have dropped them if they existed.
-              [("main", [(v2, runMain, typ)])]
-
--- Given a typechecked file with a main function called `mainName`
--- of the type `'{IO} ()`, adds an extra binding which
--- forces the `main` function.
---
--- If that function doesn't exist in the typechecked file, the
--- codebase is consulted.
-addRunMain :: String -> Maybe (TypecheckedUnisonFile Symbol Ann) -> Cli r (AddRunMainResult Symbol)
-addRunMain mainName = \case
-  Nothing -> do
-    Cli.Env {codebase, runtime} <- ask
-
-    parseNames <- basicParseNames
-    let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
-    mainToFile
-      <$> MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
-    where
-      mainToFile (MainTerm.NotAFunctionName _) = NoTermWithThatName
-      mainToFile (MainTerm.NotFound _) = NoTermWithThatName
-      mainToFile (MainTerm.BadType _ ty) = maybe NoTermWithThatName TermHasBadType ty
-      mainToFile (MainTerm.Success hq tm typ) =
-        RunMainSuccess $
-          let v = Var.named (HQ.toText hq)
-           in UF.typecheckedUnisonFile mempty mempty mempty [("main", [(v, tm, typ)])]
-  Just uf -> do
-    Cli.Env {runtime} <- ask
-
-    let components = join $ UF.topLevelComponents uf
-    let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
-    let mainType = Runtime.mainType runtime
-    case mainComponent of
-      [(v, tm, ty)] ->
-        pure $
-          let v2 = Var.freshIn (Set.fromList [v]) v
-              a = ABT.annotation tm
-           in if Typechecker.fitsScheme ty mainType
-                then
-                  RunMainSuccess $
-                    let runMain = DD.forceTerm a a (Term.var a v)
-                     in UF.typecheckedUnisonFile
-                          (UF.dataDeclarationsId' uf)
-                          (UF.effectDeclarationsId' uf)
-                          (UF.topLevelComponents' uf)
-                          -- what about main's component? we have dropped them if they existed.
-                          [("main", [(v2, runMain, mainType)])]
-                else TermHasBadType ty
-      _ -> addRunMain mainName Nothing
+              [("main", [(v2, tm, typ)])]
 
 executePPE ::
   Var v =>
