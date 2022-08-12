@@ -158,8 +158,8 @@ evaluateTerm' codeLookup cache ppe rt tm = do
       pure $
         r <&> \(_, map) ->
           case Map.elems map of
-          [(_loc, _kind, _hash, _src, value, _isHit)] -> value
-          _ -> error "evaluateTerm': Pattern mismatch on watch results"
+            [(_loc, _kind, _hash, _src, value, _isHit)] -> value
+            _ -> error "evaluateTerm': Pattern mismatch on watch results"
 
 evaluateTerm ::
   (Var v, Monoid a) =>

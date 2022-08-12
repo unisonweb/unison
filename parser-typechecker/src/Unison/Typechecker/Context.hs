@@ -38,7 +38,7 @@ module Unison.Typechecker.Context
   )
 where
 
-import Control.Lens (over, _2, view)
+import Control.Lens (over, view, _2)
 import qualified Control.Monad.Fail as MonadFail
 import Control.Monad.State
   ( MonadState,
@@ -66,7 +66,10 @@ import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import Unison.ConstructorReference
-  (ConstructorReference, GConstructorReference (..), reference_)
+  ( ConstructorReference,
+    GConstructorReference (..),
+    reference_,
+  )
 import Unison.DataDeclaration
   ( DataDeclaration,
     EffectDeclaration,
@@ -76,6 +79,7 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
+import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Term as Term
@@ -86,7 +90,6 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.TypeVar as TypeVar
 import Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Unison.PrettyPrintEnv as PPE
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 

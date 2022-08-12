@@ -54,9 +54,9 @@ noYieldsError s ex = not $ yieldsError s ex
 
 yieldsError :: forall a. String -> ErrorExtractor Symbol Ann a -> Bool
 yieldsError s ex =
-   case Common.parseAndSynthesizeAsFile [] "> test" s of
-        Result notes (Just _) ->
-          let notes' :: [C.ErrorNote Symbol Ann]
-              notes' = [n | Result.TypeError n <- toList notes]
-           in any (isJust . Ex.extract ex) notes'
-        _ -> error "yieldsError: Failed to parse file"
+  case Common.parseAndSynthesizeAsFile [] "> test" s of
+    Result notes (Just _) ->
+      let notes' :: [C.ErrorNote Symbol Ann]
+          notes' = [n | Result.TypeError n <- toList notes]
+       in any (isJust . Ex.extract ex) notes'
+    _ -> error "yieldsError: Failed to parse file"

@@ -87,7 +87,7 @@ data Names = Names
   }
   deriving (Eq, Ord)
 
-instance Semigroup (Names) where 
+instance Semigroup (Names) where
   Names e1 t1 <> Names e2 t2 =
     Names (e1 <> e2) (t1 <> t2)
 

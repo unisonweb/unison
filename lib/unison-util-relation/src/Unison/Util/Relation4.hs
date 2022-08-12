@@ -84,7 +84,7 @@ restrict34d12 ::
   (c, d) ->
   Relation4 a b c d ->
   Relation a b
-restrict34d12 (c, d) Relation4{d3} =
+restrict34d12 (c, d) Relation4 {d3} =
   fromMaybe R.empty do
     abd <- Map.lookup c d3
     Map.lookup d (R3.d3 abd)

@@ -580,7 +580,7 @@ prettyPattern n c@(AmbientContext {imports = im}) p vs patt = case patt of
     case vs of
       (v : tail_vs) ->
         let (printed, eventual_tail) = prettyPattern n c 11 tail_vs pat
-        in (paren (p >= 11) $ ((fmt S.Var $ l $ Var.nameStr v) <> (fmt S.DelimiterChar $ l "@") <> printed), eventual_tail)
+         in (paren (p >= 11) $ ((fmt S.Var $ l $ Var.nameStr v) <> (fmt S.DelimiterChar $ l "@") <> printed), eventual_tail)
       _ -> error "prettyPattern: Expected at least one var"
   Pattern.EffectPure _ pat ->
     let (printed, eventual_tail) = prettyPattern n c (-1) vs pat
@@ -1398,9 +1398,11 @@ isBlock tm =
     LetBlock _ _ -> True
     _ -> False
 
-pattern LetBlock :: Ord v =>
-                    [(v, Term2 vt at ap v a)]
-                 -> Term2 vt at ap v a -> Term2 vt at ap v a
+pattern LetBlock ::
+  Ord v =>
+  [(v, Term2 vt at ap v a)] ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
 pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body))
 
 -- Collects nested let/let rec blocks into one minimally nested block.
@@ -1434,10 +1436,11 @@ unLetBlock t = rec t
                     Just (bindings ++ innerBindings, innerBody)
               _ -> Just (bindings, body)
 
-pattern LamsNamedMatch' :: Var v =>
-                          [v]
-                        -> [([Pattern ap], Maybe (Term2 vt at ap v a), Term2 vt at ap v a)]
-                        -> Term2 vt at ap v a
+pattern LamsNamedMatch' ::
+  Var v =>
+  [v] ->
+  [([Pattern ap], Maybe (Term2 vt at ap v a), Term2 vt at ap v a)] ->
+  Term2 vt at ap v a
 pattern LamsNamedMatch' vs branches <- (unLamsMatch' -> Just (vs, branches))
 
 -- This function is used to detect places where lambda case syntax can be used.

@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-deprecations #-} -- pTrace
+-- pTrace
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Unison.Debug
   ( debug,

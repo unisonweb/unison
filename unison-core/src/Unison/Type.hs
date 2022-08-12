@@ -156,7 +156,6 @@ pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 pattern ForallNamed' :: v -> ABT.Term F v a -> ABT.Term F v a
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 
-
 pattern Var' :: v -> ABT.Term f v a
 pattern Var' v <- ABT.Var' v
 
@@ -739,7 +738,7 @@ cleanupVars1 :: Var v => Type v a -> Type v a
 cleanupVars1 t | not Settings.cleanupTypes = t
 cleanupVars1 t =
   case cleanupVars [t] of
-    [t'] ->  t'
+    [t'] -> t'
     _ -> error "cleanupVars1: expected exactly one result"
 
 -- This removes duplicates and normalizes the order of ability lists

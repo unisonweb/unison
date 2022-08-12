@@ -3,7 +3,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wno-deprecations #-} -- pTrace
+-- pTrace
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Unison.Parser where
 

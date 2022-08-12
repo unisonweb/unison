@@ -179,7 +179,6 @@ import qualified Control.Monad.Writer as Writer
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (bitraverse)
 import Data.Bytes.Put (runPutS)
-import qualified Data.Maybe as Maybe
 import qualified Data.Foldable as Foldable
 import qualified Data.List.Extra as List
 import qualified Data.List.NonEmpty as List (NonEmpty)
@@ -187,6 +186,7 @@ import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.NonEmpty as NEMap
+import qualified Data.Maybe as Maybe
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
@@ -1927,8 +1927,9 @@ x2cTType :: (LocalTextId -> Text) -> (LocalDefnId -> Hash) -> S.Term.Type -> C.T
 x2cTType substText substHash = C.Type.rmap (bimap substText substHash)
 
 c2sTerm :: C.Term Symbol -> C.Term.Type Symbol -> Transaction (LocalIds, S.Term.Term, S.Term.Type)
-c2sTerm tm tp = c2xTerm saveText expectObjectIdForPrimaryHash tm (Just tp) <&>
-  \(w, tm, mayTp) -> (w, tm, Maybe.fromJust mayTp)
+c2sTerm tm tp =
+  c2xTerm saveText expectObjectIdForPrimaryHash tm (Just tp)
+    <&> \(w, tm, mayTp) -> (w, tm, Maybe.fromJust mayTp)
 
 addTypeToIndexForTerm :: S.Referent.Id -> C.Reference -> Transaction ()
 addTypeToIndexForTerm sTermId cTypeRef = do

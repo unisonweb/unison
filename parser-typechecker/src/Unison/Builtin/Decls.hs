@@ -7,6 +7,8 @@ module Unison.Builtin.Decls where
 import Control.Lens (over, _3)
 import Data.List (elemIndex, find)
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
+import Data.Sequence (Seq)
 import Data.Text (Text, unpack)
 import qualified Unison.ABT as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -30,8 +32,6 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
 import qualified Unison.Var as Var
-import Data.Sequence (Seq)
-import qualified Data.Maybe as Maybe
 
 lookupDeclRef :: Text -> Reference
 lookupDeclRef str
@@ -186,8 +186,8 @@ builtinDataDecls = rs1 ++ rs
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
     linkRef = case rs1 of
-                [(_, linkRef, _)] -> linkRef
-                _ -> error "builtinDataDecls: Expected a single linkRef"
+      [(_, linkRef, _)] -> linkRef
+      _ -> error "builtinDataDecls: Expected a single linkRef"
     v = Var.named
     var name = Type.var () (v name)
     arr = Type.arrow'
@@ -424,8 +424,9 @@ pattern OptionalRef <- (unOptionalRef -> True)
 pattern OptionalNone' :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern OptionalNone' <- Term.Constructor' (ConstructorReference OptionalRef ((==) noneId -> True))
 
-pattern OptionalSome' :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-                      -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
+pattern OptionalSome' ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern OptionalSome' d <- Term.App' (Term.Constructor' (ConstructorReference OptionalRef ((==) someId -> True))) d
 
 pattern TupleType' :: Var v => [Type v a] -> Type v a
@@ -466,27 +467,32 @@ unLeftTerm t = case t of
 pattern DocRef :: Reference
 pattern DocRef <- ((== docRef) -> True)
 
-pattern DocJoin :: Seq (ABT.Term (Term.F typeVar typeAnn patternAnn) v a)
-                -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
+pattern DocJoin ::
+  Seq (ABT.Term (Term.F typeVar typeAnn patternAnn) v a) ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocJoin segs <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocJoinId)) (Term.List' segs)
 
 pattern DocBlob :: Text -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocBlob txt <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocBlobId)) (Term.Text' txt)
 
-pattern DocLink :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-                -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
+pattern DocLink ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocLink link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocLinkId)) link
 
-pattern DocSource :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-                  -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
+pattern DocSource ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocSource link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocSourceId)) link
 
-pattern DocSignature :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-                     -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
+pattern DocSignature ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocSignature link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocSignatureId)) link
 
-pattern DocEvaluate :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-                    -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
+pattern DocEvaluate ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocEvaluate link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocEvaluateId)) link
 
 pattern Doc :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
@@ -519,12 +525,12 @@ pattern LinkTypeId <- ((== linkTypeId) -> True)
 pattern LinkRef :: Reference
 pattern LinkRef <- ((== linkRef) -> True)
 
-
 pattern LinkTerm :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern LinkTerm tm <- Term.App' (Term.Constructor' (ConstructorReference LinkRef LinkTermId)) tm
 
-pattern LinkType :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-                 -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
+pattern LinkType ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern LinkType ty <- Term.App' (Term.Constructor' (ConstructorReference LinkRef LinkTypeId)) ty
 
 unitType,

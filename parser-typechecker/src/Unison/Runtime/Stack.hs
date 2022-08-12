@@ -46,12 +46,12 @@ where
 import Control.Monad (when)
 import Control.Monad.Primitive
 import Data.Foldable as F (for_, toList)
+import qualified Data.Kind as Kind
 import Data.Primitive.Array
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Sequence (Seq)
 import Data.Word
-import qualified Data.Kind as Kind
 import GHC.Exts as L (IsList (..))
 import GHC.Stack (HasCallStack)
 import Unison.Reference (Reference)
