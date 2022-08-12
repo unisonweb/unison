@@ -177,8 +177,10 @@ library
       PatternSynonyms
       RankNTypes
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
       TypeApplications
+      TypeFamilies
       ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
@@ -355,8 +357,10 @@ test-suite parser-typechecker-tests
       PatternSynonyms
       RankNTypes
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
       TypeApplications
+      TypeFamilies
       ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
