@@ -396,49 +396,49 @@ renderTypeError e env src curPath = case e of
   AbilityCheckFailure {..}
     | [tv@(Type.Var' ev)] <- ambient,
       ev `Set.member` foldMap Type.freeVars requested ->
-      mconcat
-        [ "I tried to infer a cyclic ability.",
-          "\n\n",
-          "The expression ",
-          describeStyle ErrorSite,
-          " was inferred to require the ",
-          case length requested of
-            1 -> "ability: "
-            _ -> "abilities: ",
-          "\n\n    {",
-          commas (renderType' env) requested,
-          "}",
-          "\n\n",
-          "where `",
-          renderType' env tv,
-          "` is its overall abilities.",
-          "\n\n",
-          "I need a type signature to help figure this out.",
-          "\n\n",
-          annotatedAsErrorSite src abilityCheckFailureSite,
-          debugSummary note
-        ]
+        mconcat
+          [ "I tried to infer a cyclic ability.",
+            "\n\n",
+            "The expression ",
+            describeStyle ErrorSite,
+            " was inferred to require the ",
+            case length requested of
+              1 -> "ability: "
+              _ -> "abilities: ",
+            "\n\n    {",
+            commas (renderType' env) requested,
+            "}",
+            "\n\n",
+            "where `",
+            renderType' env tv,
+            "` is its overall abilities.",
+            "\n\n",
+            "I need a type signature to help figure this out.",
+            "\n\n",
+            annotatedAsErrorSite src abilityCheckFailureSite,
+            debugSummary note
+          ]
   AbilityCheckFailure {..}
     | C.InSubtype {} :<| _ <- C.path note ->
-      mconcat
-        [ "The expression ",
-          describeStyle ErrorSite,
-          "\n\n",
-          "              needs the abilities: {",
-          commas (renderType' env) requested,
-          "}\n",
-          "  but was assumed to only require: {",
-          commas (renderType' env) ambient,
-          "}",
-          "\n\n",
-          "This is likely a result of using an un-annotated ",
-          "function as an argument with concrete abilities. ",
-          "Try adding an annotation to the function definition whose ",
-          "body is red.",
-          "\n\n",
-          annotatedAsErrorSite src abilityCheckFailureSite,
-          debugSummary note
-        ]
+        mconcat
+          [ "The expression ",
+            describeStyle ErrorSite,
+            "\n\n",
+            "              needs the abilities: {",
+            commas (renderType' env) requested,
+            "}\n",
+            "  but was assumed to only require: {",
+            commas (renderType' env) ambient,
+            "}",
+            "\n\n",
+            "This is likely a result of using an un-annotated ",
+            "function as an argument with concrete abilities. ",
+            "Try adding an annotation to the function definition whose ",
+            "body is red.",
+            "\n\n",
+            annotatedAsErrorSite src abilityCheckFailureSite,
+            debugSummary note
+          ]
   AbilityCheckFailure {..} ->
     mconcat
       [ "The expression ",
@@ -465,6 +465,79 @@ renderTypeError e env src curPath = case e of
               <> "}",
         "\n\n",
         annotatedAsErrorSite src abilityCheckFailureSite,
+        debugSummary note
+      ]
+  AbilityEqFailure {..} ->
+    mconcat
+      [ "I could not solve an ability equation when checking the expression ",
+        describeStyle ErrorSite,
+        "\n\n",
+        Pr.wrap $
+          mconcat
+            [ "When trying to match ",
+              style Type1 $ renderType' env tlhs,
+              " with ",
+              style Type2 $ renderType' env trhs,
+              case (lhs, rhs) of
+                ([], _) ->
+                  mconcat
+                    [ "The right hand side contained extra abilities: ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
+                    ]
+                (_, []) ->
+                  mconcat
+                    [ "The left hand side contained extra abilities: ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
+                    ]
+                _ ->
+                  mconcat
+                    [ " I could not make ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
+                      " on the left compatible with ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
+                      " on the right."
+                    ]
+            ],
+        "\n\n",
+        annotatedAsErrorSite src abilityCheckFailureSite,
+        debugSummary note
+      ]
+  AbilityEqFailureFromAp {..} ->
+    mconcat
+      [ "I could not solve an ability equation when checking the application below.",
+        "\n\n",
+        Pr.wrap $
+          mconcat
+            [ "When trying to match ",
+              style Type1 $ renderType' env tlhs,
+              " with ",
+              style Type2 $ renderType' env trhs,
+              case (lhs, rhs) of
+                ([], _) ->
+                  mconcat
+                    [ "The right hand side contained extra abilities: ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
+                    ]
+                (_, []) ->
+                  mconcat
+                    [ "The left hand side contained extra abilities: ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
+                    ]
+                _ ->
+                  mconcat
+                    [ " I could not make ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
+                      " on the left compatible with ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
+                      " on the right."
+                    ]
+            ],
+        "\n\n",
+        showSourceMaybes
+          src
+          [ (,Type1) <$> rangeForAnnotated expectedSite,
+            (,Type2) <$> rangeForAnnotated mismatchSite
+          ],
         debugSummary note
       ]
   UnguardedLetRecCycle vs locs _ ->
@@ -741,6 +814,16 @@ renderTypeError e env src curPath = case e of
             commas (renderType' env) ambient,
             "} requested={",
             commas (renderType' env) requested,
+            "}\n",
+            renderContext env c
+          ]
+      C.AbilityEqFailure left right c ->
+        mconcat
+          [ "AbilityEqFailure: ",
+            "lhs={",
+            commas (renderType' env) left,
+            "} rhs={",
+            commas (renderType' env) right,
             "}\n",
             renderContext env c
           ]

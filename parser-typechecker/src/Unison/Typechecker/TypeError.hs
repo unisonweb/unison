@@ -65,6 +65,23 @@ data TypeError v loc
         abilityCheckFailureSite :: loc,
         note :: C.ErrorNote v loc
       }
+  | AbilityEqFailure
+      { lhs :: [C.Type v loc],
+        rhs :: [C.Type v loc],
+        tlhs :: C.Type v loc,
+        trhs :: C.Type v loc,
+        abilityCheckFailureSite :: loc,
+        note :: C.ErrorNote v loc
+      }
+  | AbilityEqFailureFromAp
+      { lhs :: [C.Type v loc],
+        rhs :: [C.Type v loc],
+        tlhs :: C.Type v loc,
+        trhs :: C.Type v loc,
+        expectedSite :: C.Term v loc,
+        mismatchSite :: C.Term v loc,
+        note :: C.ErrorNote v loc
+      }
   | UnguardedLetRecCycle
       { cycle :: [v],
         cycleLocs :: [loc],
@@ -124,6 +141,7 @@ allErrors =
       applyingNonFunction,
       generalMismatch,
       abilityCheckFailure,
+      abilityEqFailure,
       unguardedCycle,
       unknownType,
       unknownTerm,
@@ -141,6 +159,23 @@ abilityCheckFailure = do
   e <- Ex.innermostTerm
   n <- Ex.errorNote
   pure $ AbilityCheckFailure ambient requested (ABT.annotation e) n
+
+abilityEqFailure :: Ex.ErrorExtractor v a (TypeError v a)
+abilityEqFailure = do
+  (lhs, rhs, _ctx) <- Ex.abilityEqFailure
+  e <- Ex.innermostTerm
+  n <- Ex.errorNote
+  path <- Ex.path
+  (tlhs, trhs) : _ <- pure . mapMaybe p $ reverse path
+  let app = do
+        (_, f, _, _) <- Ex.unique Ex.inFunctionCall
+        pure $ AbilityEqFailureFromAp lhs rhs tlhs trhs f e n
+      plain = pure $ AbilityEqFailure lhs rhs tlhs trhs (ABT.annotation e) n
+  app <|> plain
+  where
+    p (C.InSubtype t1 t2) = Just (t1, t2)
+    p (C.InEquate t1 t2) = Just (t1, t2)
+    p _ = Nothing
 
 duplicateDefinitions :: Ex.ErrorExtractor v a (TypeError v a)
 duplicateDefinitions = do

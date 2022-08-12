@@ -173,6 +173,11 @@ inSubtype = asPathExtractor $ \case
   C.InEquate found expected -> Just (found, expected)
   _ -> Nothing
 
+inEquate :: SubseqExtractor v loc (C.Type v loc, C.Type v loc)
+inEquate = asPathExtractor $ \case
+  C.InEquate lhs rhs -> Just (lhs, rhs)
+  _ -> Nothing
+
 inCheck :: SubseqExtractor v loc (C.Term v loc, C.Type v loc)
 inCheck = asPathExtractor $ \case
   C.InCheck e t -> Just (e, t)
@@ -269,6 +274,13 @@ abilityCheckFailure ::
 abilityCheckFailure =
   cause >>= \case
     C.AbilityCheckFailure ambient requested ctx -> pure (ambient, requested, ctx)
+    _ -> mzero
+
+abilityEqFailure ::
+  ErrorExtractor v loc ([C.Type v loc], [C.Type v loc], C.Context v loc)
+abilityEqFailure =
+  cause >>= \case
+    C.AbilityEqFailure lhs rhs ctx -> pure (lhs, rhs, ctx)
     _ -> mzero
 
 effectConstructorWrongArgCount ::
