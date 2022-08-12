@@ -11,14 +11,19 @@ module Unison.Prelude
 
     -- * @Maybe@ control flow
     onNothing,
+    onNothingM,
     whenNothing,
+    whenNothingM,
     whenJust,
     whenJustM,
     eitherToMaybe,
     maybeToEither,
 
     -- * @Either@ control flow
+    onLeft,
+    onLeftM,
     whenLeft,
+    whenLeftM,
     throwEitherM,
     throwEitherMWith,
     throwExceptT,
@@ -76,9 +81,17 @@ import qualified UnliftIO
 onNothing :: Applicative m => m a -> Maybe a -> m a
 onNothing m may = maybe m pure may
 
+onNothingM :: Monad m => m a -> m (Maybe a) -> m a
+onNothingM =
+  flip whenNothingM
+
 -- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
 whenNothing :: Applicative m => Maybe a -> m a -> m a
 whenNothing may m = maybe m pure may
+
+whenNothingM :: Monad m => m (Maybe a) -> m a -> m a
+whenNothingM mx my =
+  mx >>= maybe my pure
 
 whenJust :: Applicative m => Maybe a -> (a -> m ()) -> m ()
 whenJust mx f =
@@ -88,10 +101,24 @@ whenJustM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
 whenJustM mx f = do
   mx >>= maybe (pure ()) f
 
+onLeft :: Applicative m => (a -> m b) -> Either a b -> m b
+onLeft =
+  flip whenLeft
+
+onLeftM :: Monad m => (a -> m b) -> m (Either a b) -> m b
+onLeftM =
+  flip whenLeftM
+
 whenLeft :: Applicative m => Either a b -> (a -> m b) -> m b
 whenLeft = \case
   Left a -> \f -> f a
   Right b -> \_ -> pure b
+
+whenLeftM :: Monad m => m (Either a b) -> (a -> m b) -> m b
+whenLeftM m f =
+  m >>= \case
+    Left x -> f x
+    Right y -> pure y
 
 throwExceptT :: (MonadIO m, Exception e) => ExceptT e m a -> m a
 throwExceptT = throwExceptTWith id
