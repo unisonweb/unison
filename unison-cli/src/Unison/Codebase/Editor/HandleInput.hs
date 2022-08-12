@@ -741,8 +741,8 @@ loop e = do
               case getAtSplit' dest of
                 Just existingDest
                   | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
-                    -- Branch exists and isn't empty, print an error
-                    throwError (BranchAlreadyExists (Path.unsplit' dest))
+                      -- Branch exists and isn't empty, print an error
+                      throwError (BranchAlreadyExists (Path.unsplit' dest))
                 _ -> pure ()
               -- allow rewriting history to ensure we move the branch's history too.
               lift $
@@ -1356,13 +1356,13 @@ loop e = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.isSubtype ty mainType -> do
-                    runtime <- Command.askRuntime
-                    codebase <- Command.askCodebase
-                    liftIO (Runtime.compileTo runtime (() <$ Codebase.toCodeLookup codebase) ppe ref (output <> ".uc")) >>= \case
-                      Just err -> respond $ EvaluationFailure err
-                      Nothing -> pure ()
+                      runtime <- Command.askRuntime
+                      codebase <- Command.askCodebase
+                      liftIO (Runtime.compileTo runtime (() <$ Codebase.toCodeLookup codebase) ppe ref (output <> ".uc")) >>= \case
+                        Just err -> respond $ EvaluationFailure err
+                        Nothing -> pure ()
                   | otherwise ->
-                    respond $ BadMainFunction smain ty ppe [mainType]
+                      respond $ BadMainFunction smain ty ppe [mainType]
                 _ -> respond $ NoMainFunction smain ppe [mainType]
             IOTestI main -> do
               runtime <- Command.askRuntime
@@ -2776,10 +2776,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2796,10 +2796,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -3184,7 +3184,7 @@ docsI srcLoc prettyPrintNames src = do
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> respond $ ListOfLinks PPE.empty []
           | otherwise -> -- todo: return a list of links here too
-            respond $ ListOfLinks PPE.empty []
+              respond $ ListOfLinks PPE.empty []
 
 filterBySlurpResult ::
   Ord v =>
@@ -3653,12 +3653,13 @@ fuzzySelectDefinition pos searchBranch0 = liftIO do
   let termsAndTypes =
         Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
           <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
-  let inputs :: [HQ.HashQualified Name]
-      inputs =
-        termsAndTypes
+  Fuzzy.fuzzySelect Fuzzy.defaultOptions HQ.toText $ \send -> do
+    traverse_
+      send
+      ( termsAndTypes
           & Set.toList
           & map (fmap (Name.setPosition pos))
-  Fuzzy.fuzzySelect Fuzzy.defaultOptions HQ.toText inputs
+      )
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
@@ -3668,16 +3669,13 @@ fuzzySelectNamespace pos searchBranch0 = liftIO do
       intoPath' = case pos of
         Relative -> Path' . Right . Path.Relative
         Absolute -> Path' . Left . Path.Absolute
-  let inputs :: [Path']
-      inputs =
-        searchBranch0
+  Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False} tShow $ \send -> do
+    traverse_ send $
+      ( searchBranch0
           & Branch.deepPaths
           & Set.toList
           & map intoPath'
-  Fuzzy.fuzzySelect
-    Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-    tShow
-    inputs
+      )
 
 -- | Get a branch from a BranchId, returning an empty one if missing, or failing with an
 -- appropriate error message if a hash cannot be found.

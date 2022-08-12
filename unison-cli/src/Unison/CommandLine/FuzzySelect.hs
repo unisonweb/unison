@@ -10,17 +10,19 @@ module Unison.CommandLine.FuzzySelect
 where
 
 import Control.Monad.Except (runExceptT, throwError)
+import qualified Data.IntMap as IntMap
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import GHC.IO.Handle (hDuplicateTo)
 import System.IO (BufferMode (NoBuffering), hPutStrLn, stderr)
 import Unison.Prelude
 import qualified UnliftIO
+import qualified UnliftIO.Async as Async
 import UnliftIO.Directory (findExecutable)
 import UnliftIO.Exception (bracket)
 import UnliftIO.IO (hGetBuffering, hSetBuffering, stdin)
 import qualified UnliftIO.Process as Proc
+import UnliftIO.STM
 
 -- | Fuzzy Selection options
 data Options = Options
@@ -55,8 +57,8 @@ optsToArgs opts =
 
 -- | Allows prompting the user to interactively fuzzy-select a result from a list of options, currently shells out to `fzf` under the hood.
 -- If fzf is missing, or an error (other than ctrl-c) occurred, returns Nothing.
-fuzzySelect :: forall a. Options -> (a -> Text) -> [a] -> IO (Maybe [a])
-fuzzySelect opts intoSearchText choices =
+fuzzySelect :: forall a. Options -> (a -> Text) -> ((a -> IO ()) -> IO ()) -> IO (Maybe [a])
+fuzzySelect opts intoSearchText streamHandler =
   UnliftIO.handleAny handleException
     . handleError
     . restoreBuffering
@@ -66,12 +68,11 @@ fuzzySelect opts intoSearchText choices =
         liftIO (findExecutable "fzf") >>= \case
           Nothing -> throwError "I couldn't find the `fzf` executable on your path, consider installing `fzf` to enable fuzzy searching."
           Just fzfPath -> pure fzfPath
+      numberedLinesVar <- newTVarIO (mempty, 0)
       let fzfArgs :: [String] =
             optsToArgs opts
-      let numberedChoices :: [(Int, a)] =
-            zip [0 ..] choices
-      let searchTexts :: [Text] =
-            (\(n, ch) -> tShow (n) <> " " <> intoSearchText ch) <$> numberedChoices
+      let mkSearchText :: Int -> a -> Text
+          mkSearchText n ch = tShow (n) <> " " <> intoSearchText ch
       let fzfProc :: Proc.CreateProcess =
             (Proc.proc fzfPath fzfArgs)
               { Proc.std_in = Proc.CreatePipe,
@@ -79,14 +80,20 @@ fuzzySelect opts intoSearchText choices =
                 Proc.delegate_ctlc = True
               }
       (Just stdin', Just stdout', _, procHandle) <- Proc.createProcess fzfProc
+      let emitInputRow a = do
+            n <- atomically $ do
+              (as, count) <- readTVar numberedLinesVar
+              writeTVar numberedLinesVar $! (IntMap.insert count a as, count + 1)
+              pure count
+            Text.hPutStrLn stdin' (mkSearchText n a)
       -- Generally no-buffering is helpful for highly interactive processes.
       hSetBuffering stdin NoBuffering
       hSetBuffering stdin' NoBuffering
       result <- liftIO . UnliftIO.tryAny $ do
-        -- Dump the search terms into fzf's stdin
-        traverse (Text.hPutStrLn stdin') searchTexts
+        -- Defer to the caller to stream input.
+        void $ Async.race (Proc.waitForProcess procHandle) (streamHandler emitInputRow)
         -- Wire up the interactive terminal to fzf now that the inputs have been loaded.
-        hDuplicateTo stdin stdin'
+        -- hDuplicateTo stdin stdin'
         void $ Proc.waitForProcess procHandle
         Text.lines <$> liftIO (Text.hGetContents stdout')
       -- Ignore any errors from fzf, or from trying to write to pipes which may have been
@@ -99,7 +106,8 @@ fuzzySelect opts intoSearchText choices =
             selections
               & mapMaybe (readMaybe @Int . Text.unpack . Text.takeWhile (/= ' '))
               & Set.fromList
-      pure $ mapMaybe (\(n, a) -> if n `Set.member` selectedNumbers then Just a else Nothing) numberedChoices
+      (as, _) <- readTVarIO numberedLinesVar
+      pure $ mapMaybe (\n -> IntMap.lookup n as) (toList selectedNumbers)
   where
     handleException :: SomeException -> IO (Maybe [a])
     handleException err = traceShowM err *> hPutStrLn stderr "Oops, something went wrong. No input selected." *> pure Nothing
