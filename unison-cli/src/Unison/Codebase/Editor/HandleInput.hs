@@ -832,12 +832,12 @@ loop e = do
               let biasedPPE = (PPE.biasTo (maybeToList . Path.toName' . HQ'.toName $ Path.unsplitHQ' src) ppe)
               Cli.respond $ ListOfLinks biasedPPE out
             DocsI srcs -> do
-              root0 <- Cli.getRootBranch0
+              currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
               srcs' <- case srcs of
                 [] -> do
                   defs <-
-                    fuzzySelectDefinition Absolute root0 & onNothingM do
+                    fuzzySelectDefinition Absolute currentBranch0 & onNothingM do
                       Cli.returnEarly (HelpMessage InputPatterns.docs)
                   -- HQ names should always parse as a valid split, so we just discard any
                   -- that don't to satisfy the type-checker.
@@ -940,11 +940,11 @@ loop e = do
             DeleteTypeI hq -> delete (const (pure Set.empty)) Cli.getTypesAt hq
             DeleteTermI hq -> delete Cli.getTermsAt (const (pure Set.empty)) hq
             DisplayI outputLoc names' -> do
-              root0 <- Cli.getRootBranch0
+              currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
               names <- case names' of
                 [] ->
-                  fuzzySelectDefinition Absolute root0 & onNothingM do
+                  fuzzySelectDefinition Absolute currentBranch0 & onNothingM do
                     Cli.returnEarly (HelpMessage InputPatterns.display)
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
@@ -1990,7 +1990,7 @@ handleShowDefinition outputLoc inputQuery = do
   query <-
     if null inputQuery
       then do
-        branch <- fuzzyBranch
+        branch <- Cli.getCurrentBranch0
         fuzzySelectDefinition Relative branch & onNothingM do
           Cli.returnEarly case outputLoc of
             ConsoleLocation -> HelpMessage InputPatterns.view
@@ -2016,15 +2016,6 @@ handleShowDefinition outputLoc inputQuery = do
   -- next update for that file (which will happen immediately)
   #latestFile .= ((,True) <$> outputPath)
   where
-    -- `view`: fuzzy find globally; `edit`: fuzzy find local to current branch
-    fuzzyBranch :: Cli r (Branch0 IO)
-    fuzzyBranch = do
-      case outputLoc of
-        ConsoleLocation {} -> Cli.getRootBranch0
-        -- fuzzy finding for 'edit's are local to the current branch
-        LatestFileLocation {} -> Cli.getCurrentBranch0
-        FileLocation {} -> Cli.getCurrentBranch0
-
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
       case outputLoc of
