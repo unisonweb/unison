@@ -2306,7 +2306,7 @@ exactDefinitionArg =
   ArgumentType
     { typeName = "definition",
       suggestions = prefixCompleteTermOrType,
-      globTargets = Set.fromList [Globbing.Term, Globbing.Type, Globbing.Namespace]
+      globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
 fuzzyDefinitionQueryArg :: ArgumentType
