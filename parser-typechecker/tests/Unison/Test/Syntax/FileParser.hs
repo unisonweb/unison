@@ -1,17 +1,17 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Test.FileParser where
+module Unison.Test.Syntax.FileParser where
 
 import Data.List (uncons)
 import Data.Set (elems)
 import EasyTest
 import qualified Text.Megaparsec.Error as MPE
-import Unison.FileParser (file)
-import qualified Unison.Parser as P
 import qualified Unison.Parser.Ann as P
 import Unison.Parsers (unsafeGetRightFrom, unsafeParseFileBuiltinsOnly)
 import Unison.Symbol (Symbol)
+import Unison.Syntax.FileParser (file)
+import qualified Unison.Syntax.Parser as P
 import qualified Unison.Test.Common as Common
 import Unison.UnisonFile (UnisonFile)
 import Unison.Var (Var)

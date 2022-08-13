@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Lexer
+module Unison.Syntax.Lexer
   ( Token (..),
     Line,
     Column,
