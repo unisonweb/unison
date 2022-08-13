@@ -8,10 +8,10 @@ import Control.Monad (join)
 import EasyTest
 import qualified Text.Megaparsec as P
 import Text.RawString.QQ
-import Unison.Syntax.Parser
 import qualified Unison.Parsers as Ps
 import Unison.PrintError (renderParseErrorAsANSI)
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Parser
 import qualified Unison.Syntax.TermParser as TP
 import qualified Unison.Test.Common as Common
 

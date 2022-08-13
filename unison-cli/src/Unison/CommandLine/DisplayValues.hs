@@ -15,8 +15,6 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Syntax.DeclPrinter as DP
-import qualified Unison.Syntax.NamePrinter as NP
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
@@ -28,11 +26,13 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.ShortHash as SH
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.DeclPrinter as DP
+import qualified Unison.Syntax.NamePrinter as NP
+import qualified Unison.Syntax.TermPrinter as TP
+import qualified Unison.Syntax.TypePrinter as TypePrinter
 import Unison.Term (Term)
 import qualified Unison.Term as Term
-import qualified Unison.Syntax.TermPrinter as TP
 import Unison.Type (Type)
-import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.SyntaxText as S
 import Unison.Var (Var)

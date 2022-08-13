@@ -23,11 +23,11 @@ import Data.List.Extra (stripPrefix)
 import qualified Data.Text as Text
 import Unison.Codebase.Path
 import qualified Unison.HashQualified' as HQ'
-import qualified Unison.Syntax.Lexer as Lexer
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude hiding (empty, toList)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Syntax.Lexer as Lexer
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative

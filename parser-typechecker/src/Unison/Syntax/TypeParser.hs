@@ -7,12 +7,12 @@ import qualified Data.Set as Set
 import qualified Text.Megaparsec as P
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.HashQualified as HQ
-import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Name as Name
 import qualified Unison.NamesWithHistory as Names
-import Unison.Syntax.Parser
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
+import qualified Unison.Syntax.Lexer as L
+import Unison.Syntax.Parser
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)

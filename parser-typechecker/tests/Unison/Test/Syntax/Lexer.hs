@@ -3,8 +3,8 @@
 module Unison.Test.Syntax.Lexer where
 
 import EasyTest
-import Unison.Syntax.Lexer
 import qualified Unison.ShortHash as ShortHash
+import Unison.Syntax.Lexer
 
 test :: Test ()
 test =

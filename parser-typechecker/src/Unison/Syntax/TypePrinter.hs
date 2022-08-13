@@ -19,13 +19,13 @@ import qualified Data.Map as Map
 import qualified Unison.Builtin.Decls as DD
 import Unison.HashQualified (HashQualified)
 import Unison.Name (Name)
-import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import Unison.PrettyPrintEnv.FQN (Imports, elideFQN)
 import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (Referent)
+import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Type
 import Unison.Util.ColorText (toPlain)
 import Unison.Util.Pretty (ColorText, Pretty, Width)

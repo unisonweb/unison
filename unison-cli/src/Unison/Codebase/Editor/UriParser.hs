@@ -29,10 +29,10 @@ import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
 import qualified Unison.Hash as Hash
-import qualified Unison.Syntax.Lexer
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
+import qualified Unison.Syntax.Lexer
 
 type P = P.Parsec Void Text.Text
 

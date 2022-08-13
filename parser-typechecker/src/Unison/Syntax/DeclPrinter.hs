@@ -18,7 +18,6 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PPE
@@ -26,9 +25,10 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.Reference (Reference (DerivedId))
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
+import Unison.Syntax.NamePrinter (styleHashQualified'')
+import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
-import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Typechecker as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TypeLookup

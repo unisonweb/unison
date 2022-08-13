@@ -23,10 +23,8 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
-import Unison.Syntax.Lexer (showEscapeChar, symbolyId)
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.Syntax.NamePrinter (styleHashQualified'')
 import qualified Unison.NameSegment as NameSegment
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
@@ -38,10 +36,12 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
+import Unison.Syntax.Lexer (showEscapeChar, symbolyId)
+import Unison.Syntax.NamePrinter (styleHashQualified'')
+import qualified Unison.Syntax.TypePrinter as TypePrinter
 import Unison.Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Util.Bytes as Bytes
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty (ColorText, Pretty, Width)

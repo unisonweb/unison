@@ -76,17 +76,17 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
+import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
+import qualified Unison.Syntax.TypePrinter as TP
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
-import qualified Unison.Syntax.TypePrinter as TP
 import Unison.Typechecker.Components (minimize')
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.TypeVar as TypeVar
 import Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Unison.PrettyPrintEnv as PPE
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
