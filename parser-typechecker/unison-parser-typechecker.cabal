@@ -312,19 +312,19 @@ test-suite parser-typechecker-tests
       Unison.Test.CodebaseInit
       Unison.Test.Common
       Unison.Test.DataDeclaration
-      Unison.Test.FileParser
-      Unison.Test.Lexer
       Unison.Test.MCode
       Unison.Test.Referent
+      Unison.Test.Syntax.FileParser
+      Unison.Test.Syntax.Lexer
+      Unison.Test.Syntax.TermParser
+      Unison.Test.Syntax.TermPrinter
+      Unison.Test.Syntax.TypePrinter
       Unison.Test.Term
-      Unison.Test.TermParser
-      Unison.Test.TermPrinter
       Unison.Test.Type
       Unison.Test.Typechecker
       Unison.Test.Typechecker.Components
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.TypeError
-      Unison.Test.TypePrinter
       Unison.Test.UnisonSources
       Unison.Test.Util.Bytes
       Unison.Test.Util.PinBoard

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Unison.Test.TermParser where
+module Unison.Test.Syntax.TermParser where
 
 import Control.Applicative
 import Control.Monad (join)

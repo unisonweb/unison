@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Test.FileParser where
+module Unison.Test.Syntax.FileParser where
 
 import Data.List (uncons)
 import Data.Set (elems)

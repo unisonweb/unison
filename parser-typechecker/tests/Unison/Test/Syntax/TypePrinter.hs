@@ -1,4 +1,4 @@
-module Unison.Test.TypePrinter where
+module Unison.Test.Syntax.TypePrinter where
 
 import qualified Data.Map as Map
 import EasyTest

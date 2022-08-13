@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Test.TermPrinter (test) where
+module Unison.Test.Syntax.TermPrinter (test) where
 
 import qualified Data.Text as Text
 import EasyTest

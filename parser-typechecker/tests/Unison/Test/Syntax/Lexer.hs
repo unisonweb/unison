@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Test.Lexer where
+module Unison.Test.Syntax.Lexer where
 
 import EasyTest
 import Unison.Syntax.Lexer
