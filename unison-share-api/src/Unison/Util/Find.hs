@@ -21,7 +21,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NamePrinter (prettyHashQualified)
+import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Prelude

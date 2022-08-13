@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.FileParser where
+module Unison.Syntax.FileParser where
 
 import Control.Lens
 import Control.Monad.Reader (asks, local)
@@ -13,20 +13,20 @@ import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Lexer as L
+import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Name as Name
 import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
-import Unison.Parser
+import Unison.Syntax.Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Term (Term)
 import qualified Unison.Term as Term
-import qualified Unison.TermParser as TermParser
+import qualified Unison.Syntax.TermParser as TermParser
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.TypeParser as TypeParser
+import qualified Unison.Syntax.TypeParser as TypeParser
 import Unison.UnisonFile (UnisonFile (..))
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Env as UF

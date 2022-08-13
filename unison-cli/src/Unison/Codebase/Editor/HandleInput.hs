@@ -116,7 +116,7 @@ import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
-import qualified Unison.Lexer as L
+import qualified Unison.Syntax.Lexer as L
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
@@ -125,7 +125,7 @@ import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import qualified Unison.NamesWithHistory as NamesWithHistory
-import qualified Unison.Parser as Parser
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Parsers as Parsers

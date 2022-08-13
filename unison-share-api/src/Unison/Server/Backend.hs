@@ -55,7 +55,7 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
@@ -64,7 +64,7 @@ import Unison.Name as Name
   ( unsafeFromText,
   )
 import qualified Unison.Name as Name
-import qualified Unison.NamePrinter as NP
+import qualified Unison.Syntax.NamePrinter as NP
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Names (Names (Names))
@@ -94,10 +94,10 @@ import Unison.ShortHash
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
-import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.Syntax.TermPrinter as TermPrinter
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.TypePrinter as TypePrinter
+import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Typechecker as Typechecker
 import Unison.Util.AnnotatedText (AnnotatedText)
 import Unison.Util.List (uniqueBy)

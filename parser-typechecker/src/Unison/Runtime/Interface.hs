@@ -100,7 +100,7 @@ import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
 import qualified Unison.Term as Tm
-import Unison.TermPrinter
+import Unison.Syntax.TermPrinter
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty as P
 import qualified Unison.Util.Text as UT

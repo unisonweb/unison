@@ -19,7 +19,7 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.DataDeclaration.ConstructorId as DD
 import Unison.FileParsers (parseAndSynthesizeFile)
 import qualified Unison.NamesWithHistory as Names
-import qualified Unison.Parser as Parser
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.Reference as R

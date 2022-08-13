@@ -13,7 +13,7 @@ import qualified Unison.PrettyPrintEnv.Names as PPE
 import Unison.Symbol (Symbol, symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
-import Unison.TermPrinter
+import Unison.Syntax.TermPrinter
 import Unison.Test.Common (t, tm)
 import qualified Unison.Test.Common as Common
 import qualified Unison.Type as Type

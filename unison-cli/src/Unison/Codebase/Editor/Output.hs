@@ -47,7 +47,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as Names
-import qualified Unison.Parser as Parser
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE

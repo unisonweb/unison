@@ -13,7 +13,7 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Runtime.ANF
 import Unison.Runtime.MCode
 import qualified Unison.Term as Tm
-import Unison.TermPrinter (pretty)
+import Unison.Syntax.TermPrinter (pretty)
 import Unison.Util.EnumContainers
 import Unison.Util.Pretty (toANSI)
 import Unison.Var (Var)

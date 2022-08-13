@@ -3,7 +3,7 @@
 module Unison.Test.Lexer where
 
 import EasyTest
-import Unison.Lexer
+import Unison.Syntax.Lexer
 import qualified Unison.ShortHash as ShortHash
 
 test :: Test ()

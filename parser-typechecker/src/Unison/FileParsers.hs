@@ -20,7 +20,7 @@ import qualified Unison.Blank as Blank
 import qualified Unison.Name as Name
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
-import qualified Unison.Parser as Parser
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parsers as Parsers
 import Unison.Prelude

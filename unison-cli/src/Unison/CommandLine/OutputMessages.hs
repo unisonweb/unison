@@ -86,14 +86,14 @@ import Unison.CommandLine.InputPatterns (makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NamePrinter
+import Unison.Syntax.NamePrinter
   ( prettyHashQualified,
     prettyHashQualified',
     prettyLabeledDependency,
@@ -141,9 +141,9 @@ import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Sync.Types as Share
 import Unison.Term (Term)
 import qualified Unison.Term as Term
-import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.Syntax.TermPrinter as TermPrinter
 import Unison.Type (Type)
-import qualified Unison.TypePrinter as TypePrinter
+import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.List as List
 import Unison.Util.Monoid (intercalateMap)

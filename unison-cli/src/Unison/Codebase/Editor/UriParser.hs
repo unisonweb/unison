@@ -29,7 +29,7 @@ import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
 import qualified Unison.Hash as Hash
-import qualified Unison.Lexer
+import qualified Unison.Syntax.Lexer
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
@@ -340,8 +340,8 @@ absolutePath = do
 nameSegment :: P NameSegment
 nameSegment =
   NameSegment . Text.pack
-    <$> ( (:) <$> P.satisfy Unison.Lexer.wordyIdStartChar
-            <*> P.many (P.satisfy Unison.Lexer.wordyIdChar)
+    <$> ( (:) <$> P.satisfy Unison.Syntax.Lexer.wordyIdStartChar
+            <*> P.many (P.satisfy Unison.Syntax.Lexer.wordyIdChar)
         )
 
 gitTreeishSuffix :: P Text

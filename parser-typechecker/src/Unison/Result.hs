@@ -14,7 +14,7 @@ import Control.Monad.Writer
   )
 import Unison.Name (Name)
 import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.Parser as Parser
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Prelude
 import Unison.Term (Term)
 import qualified Unison.Typechecker.Context as Context

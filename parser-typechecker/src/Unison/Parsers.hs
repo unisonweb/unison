@@ -2,9 +2,9 @@ module Unison.Parsers where
 
 import qualified Data.Text as Text
 import qualified Unison.Builtin as Builtin
-import qualified Unison.FileParser as FileParser
+import qualified Unison.Syntax.FileParser as FileParser
 import qualified Unison.NamesWithHistory as Names
-import qualified Unison.Parser as Parser
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrintError
@@ -13,9 +13,9 @@ import Unison.PrintError
   )
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
-import qualified Unison.TermParser as TermParser
+import qualified Unison.Syntax.TermParser as TermParser
 import Unison.Type (Type)
-import qualified Unison.TypeParser as TypeParser
+import qualified Unison.Syntax.TypeParser as TypeParser
 import Unison.UnisonFile (UnisonFile)
 import qualified Unison.Util.Pretty as Pr
 import Unison.Var (Var)

@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.TermPrinter where
+module Unison.Syntax.TermPrinter where
 
 import Control.Lens (unsnoc, (^.))
 import Control.Monad.State (evalState)
@@ -23,10 +23,10 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
-import Unison.Lexer (showEscapeChar, symbolyId)
+import Unison.Syntax.Lexer (showEscapeChar, symbolyId)
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NamePrinter (styleHashQualified'')
+import Unison.Syntax.NamePrinter (styleHashQualified'')
 import qualified Unison.NameSegment as NameSegment
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
@@ -41,7 +41,7 @@ import qualified Unison.Referent as Referent
 import Unison.Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.TypePrinter as TypePrinter
+import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Util.Bytes as Bytes
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty (ColorText, Pretty, Width)

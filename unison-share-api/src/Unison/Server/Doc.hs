@@ -31,8 +31,8 @@ import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import qualified Unison.Codebase.Editor.DisplayObject as DO
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.DeclPrinter as DeclPrinter
-import qualified Unison.NamePrinter as NP
+import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import Unison.Reference (Reference)
@@ -46,10 +46,10 @@ import qualified Unison.Server.Syntax as Syntax
 import qualified Unison.ShortHash as SH
 import Unison.Term (Term)
 import qualified Unison.Term as Term
-import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.Syntax.TermPrinter as TermPrinter
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.TypePrinter as TypePrinter
+import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Util.List as List
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.SyntaxText as S
