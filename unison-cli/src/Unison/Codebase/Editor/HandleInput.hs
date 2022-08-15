@@ -1177,11 +1177,10 @@ loop e = do
               when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath')
             ExecuteI main args -> do
               (unisonFile, mainResType) <- do
-                (sym, term, typ) <- getTerm main
+                (sym, term, typ, otyp) <- getTerm main
                 uf <- createWatcherFile sym term typ
-                pure (uf, typ)
+                pure (uf, otyp)
               ppe <- executePPE unisonFile
-              -- TODO
               (_, xs) <- evalUnisonFile False ppe unisonFile args
               mainRes :: Term Symbol () <-
                 let bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) = (watchKind, term1)
@@ -3337,7 +3336,7 @@ basicNames' nameScoping = do
 data GetTermResult
   = NoTermWithThatName
   | TermHasBadType (Type Symbol Ann)
-  | GetTermSuccess (Symbol, Term Symbol Ann, Type Symbol Ann)
+  | GetTermSuccess (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
 
 -- Adds a watch expression of the given name to the file, if
 -- it would resolve to a TLD in the file. Returns the freshened
@@ -3394,7 +3393,10 @@ addSavedTermToUnisonFile resultName = do
       Just x -> pure x
   pure (addTopLevelComponent [(resultSymbol, trm, typ)])
 
-getTerm :: String -> Cli r (Symbol, Term Symbol Ann, Type Symbol Ann)
+-- | Look up runnable term with the given name in the codebase or
+-- latest typechecked unison file. Return its symbol, term, type, and
+-- the type of the evaluated term.
+getTerm :: String -> Cli r (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
 getTerm main =
   getTerm' main >>= \case
     NoTermWithThatName -> do
@@ -3417,15 +3419,15 @@ getTerm' mainName =
         parseNames <- basicParseNames
         let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
         mainToFile
-          <$> MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
+          =<< MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
         where
-          mainToFile (MainTerm.NotAFunctionName _) = NoTermWithThatName
-          mainToFile (MainTerm.NotFound _) = NoTermWithThatName
-          mainToFile (MainTerm.BadType _ ty) = maybe NoTermWithThatName TermHasBadType ty
+          mainToFile (MainTerm.NotAFunctionName _) = pure NoTermWithThatName
+          mainToFile (MainTerm.NotFound _) = pure NoTermWithThatName
+          mainToFile (MainTerm.BadType _ ty) = pure $ maybe NoTermWithThatName TermHasBadType ty
           mainToFile (MainTerm.Success hq tm typ) =
-            GetTermSuccess $
-              let v = Var.named (HQ.toText hq)
-               in (v, tm, typ)
+            let v = Var.named (HQ.toText hq)
+             in checkType typ \otyp ->
+                  pure (GetTermSuccess (v, tm, typ, otyp))
       getFromFile uf = do
         let components = join $ UF.topLevelComponents uf
         let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
@@ -3435,7 +3437,7 @@ getTerm' mainName =
               let runMain = DD.forceTerm a a (Term.var a v)
                   v2 = Var.freshIn (Set.fromList [v]) v
                   a = ABT.annotation tm
-               in pure (GetTermSuccess (v2, runMain, otyp))
+               in pure (GetTermSuccess (v2, runMain, ty, otyp))
           _ -> getFromCodebase
       checkType :: Type Symbol Ann -> (Type Symbol Ann -> Cli r GetTermResult) -> Cli r GetTermResult
       checkType ty f = do
@@ -3450,6 +3452,8 @@ getTerm' mainName =
         Nothing -> getFromCodebase
         Just uf -> getFromFile uf
 
+-- | Produce a typechecked unison file where the given term is the
+-- only watcher, with the watch type set to 'magicMainWatcherString'.
 createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli r (TypecheckedUnisonFile Symbol Ann)
 createWatcherFile v tm typ =
   Cli.getLatestTypecheckedFile >>= \case

@@ -40,6 +40,8 @@ mytest _ = [Ok "Great"]
 ```ucm
 .> run main
 
+  ()
+
 .> add
 
   ⍟ I've added these definitions:

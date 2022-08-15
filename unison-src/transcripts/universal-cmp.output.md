@@ -35,6 +35,8 @@ threadEyeDeez _ =
 
 .> run threadEyeDeez
 
+  ()
+
 ```
 ```unison
 > typeLink A == typeLink A

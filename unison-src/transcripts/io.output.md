@@ -583,9 +583,15 @@ Test that they can be run with the right number of args.
 
 .> run runMeWithNoArgs
 
+  ()
+
 .> run runMeWithOneArg foo
 
+  ()
+
 .> run runMeWithTwoArgs foo bar
+
+  ()
 
 ```
 Calling our examples with the wrong number of args will error.
