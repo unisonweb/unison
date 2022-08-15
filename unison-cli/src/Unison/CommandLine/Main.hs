@@ -12,7 +12,6 @@ import Control.Monad.Catch (MonadMask)
 import qualified Crypto.Random as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
-import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.IO as Text.Lazy
 import qualified System.Console.Haskeline as Line
@@ -35,8 +34,7 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
-import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
-import Unison.CommandLine.InputPatterns (validInputs)
+import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import qualified Unison.CommandLine.Welcome as Welcome
 import Unison.Parser.Ann (Ann)
@@ -52,13 +50,12 @@ import qualified UnliftIO
 getUserInput ::
   forall m v a.
   (MonadIO m, MonadMask m) =>
-  Map String InputPattern ->
   Codebase m v a ->
   Branch m ->
   Path.Absolute ->
   [String] ->
   m Input
-getUserInput patterns codebase rootBranch currentPath numberedArgs =
+getUserInput codebase rootBranch currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
@@ -81,14 +78,14 @@ getUserInput patterns codebase rootBranch currentPath numberedArgs =
         Just l -> case words l of
           [] -> go
           ws ->
-            case parseInput (Branch.head rootBranch) currentPath numberedArgs patterns $ ws of
+            case parseInput (Branch.head rootBranch) currentPath numberedArgs IP.patternMap $ ws of
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
               Right i -> pure i
     settings :: Line.Settings m
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
-    tabComplete = haskelineTabComplete patterns codebase currentPath
+    tabComplete = haskelineTabComplete IP.patternMap codebase currentPath
 
 main ::
   FilePath ->
@@ -109,15 +106,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
   initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
   pageOutput <- newIORef True
   cancelFileSystemWatch <- watchFileSystem eventQueue dir
-  let patternMap :: Map String InputPattern
-      patternMap =
-        Map.fromList $
-          validInputs
-            >>= (\p -> (patternName p, p) : ((,p) <$> aliases p))
   let getInput :: Cli.LoopState -> IO Input
       getInput loopState = do
         getUserInput
-          patternMap
           codebase
           (loopState ^. #root)
           (loopState ^. #currentPath)

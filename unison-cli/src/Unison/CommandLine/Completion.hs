@@ -49,6 +49,7 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.Util.Pretty as P
 import Prelude hiding (readFile, writeFile)
 
+-- | A completion func for use with Haskeline
 haskelineTabComplete ::
   Monad m =>
   Map String IP.InputPattern ->

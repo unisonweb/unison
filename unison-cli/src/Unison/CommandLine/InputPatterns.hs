@@ -2297,10 +2297,17 @@ validInputs =
       debugDumpNamespaceSimple,
       debugClearWatchCache,
       debugDoctor,
+      debugTabCompletion,
       gist,
       authLogin,
       printVersion
     ]
+
+patternMap :: Map String InputPattern
+patternMap =
+  Map.fromList $
+    validInputs
+      >>= (\p -> (I.patternName p, p) : ((,p) <$> I.aliases p))
 
 visibleInputs :: [InputPattern]
 visibleInputs = filter ((== I.Visible) . I.visibility) validInputs
