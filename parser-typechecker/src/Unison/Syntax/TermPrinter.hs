@@ -261,7 +261,14 @@ pretty0
         | otherwise ->
             paren (p >= 11 || isBlock x && p >= 3) $
               fmt S.DelayForceChar (l "'")
-                <> PP.indentAfterNewline "  " (pretty0 n (ac 10 Normal im doc) x)
+                <> ( case x of
+                       Lets' _ _ -> id
+                       -- Add indentation below if we're opening parens with '(
+                       -- This is in case the contents are a long function application
+                       -- in which case the arguments should be indented.
+                       _ -> PP.indentAfterNewline "  "
+                   )
+                  (pretty0 n (ac 10 Normal im doc) x)
       List' xs ->
         PP.group $
           (fmt S.DelimiterChar $ l "[") <> optSpace
