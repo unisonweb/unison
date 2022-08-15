@@ -73,6 +73,7 @@ import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
+import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
 
 -- | The main command-line app monad.
@@ -163,7 +164,7 @@ data LoopState = LoopState
     -- CLI prompt.  e.g. Given ["Foo.bat", "Foo.cat"],
     -- `rename 2 Foo.foo` will rename `Foo.cat` to `Foo.foo`.
     numberedArgs :: NumberedArgs,
-    lastRunResult :: Maybe (Term Symbol ())
+    lastRunResult :: Maybe (Term Symbol Ann, Type Symbol Ann)
   }
   deriving stock (Generic)
 

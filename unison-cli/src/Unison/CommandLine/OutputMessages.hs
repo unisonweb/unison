@@ -536,6 +536,15 @@ prettyWriteRemotePath =
 
 notifyUser :: FilePath -> Output -> IO Pretty
 notifyUser dir o = case o of
+  NoLastRunResult ->
+    pure
+      . P.warnCallout
+      . P.wrap
+      $ "There is no previous evaluation to save."
+        <> "Use"
+        <> P.backticked "run"
+        <> "to evaluate something before attempting"
+        <> "to save it."
   Success -> pure $ P.bold "Done."
   PrintMessage pretty -> do
     pure pretty

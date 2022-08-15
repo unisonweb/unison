@@ -1137,12 +1137,7 @@ loop e = do
             SaveExecuteResultI resultName -> do
               description <- inputDescription input
               let resultVar = Name.toVar resultName
-              uf <-
-                Cli.getLatestTypecheckedFile >>= \case
-                  Nothing -> do
-                    undefined
-                  Just uf -> pure uf
-              -- is the var in the file
+              uf <- addSavedTermToUnisonFile resultVar
               Cli.Env {codebase} <- ask
               currentPath <- Cli.getCurrentPath
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
@@ -1181,9 +1176,10 @@ loop e = do
               updated <- propagatePatch description patch scopePath
               when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath')
             ExecuteI main args -> do
-              unisonFile <- do
+              (unisonFile, mainResType) <- do
                 (sym, term, typ) <- getTerm main
-                createWatcherFile sym term typ
+                uf <- createWatcherFile sym term typ
+                pure (uf, typ)
               ppe <- executePPE unisonFile
               -- TODO
               (_, xs) <- evalUnisonFile False ppe unisonFile args
@@ -1192,7 +1188,7 @@ loop e = do
                  in case lookup "main" (map bonk (Map.toList xs)) of
                       Nothing -> error "what"
                       Just x -> pure x
-              #lastRunResult .= Just mainRes
+              #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType)
               Cli.respond (RunResult ppe mainRes)
             MakeStandaloneI output main -> do
               Cli.Env {codebase, runtime} <- ask
@@ -3362,6 +3358,28 @@ addWatch watchName (Just uf) = do
                 (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, Term.var a v, ty)])])
             )
     _ -> addWatch watchName Nothing
+
+addSavedTermToUnisonFile :: Symbol -> Cli r (TypecheckedUnisonFile Symbol Ann)
+addSavedTermToUnisonFile resultName = do
+  addTopLevelComponent <-
+    Cli.getLatestTypecheckedFile <&> \ltcf tlc -> case ltcf of
+      Nothing -> do
+        UF.typecheckedUnisonFile
+          mempty
+          mempty
+          [tlc]
+          mempty
+      Just uf -> do
+        UF.typecheckedUnisonFile
+          (UF.dataDeclarationsId' uf)
+          (UF.effectDeclarationsId' uf)
+          (tlc : UF.topLevelComponents' uf)
+          (UF.watchComponents uf)
+  (trm, typ) <-
+    use #lastRunResult >>= \case
+      Nothing -> Cli.returnEarly NoLastRunResult
+      Just x -> pure x
+  pure (addTopLevelComponent [(resultName, trm, typ)])
 
 getTerm :: String -> Cli r (Symbol, Term Symbol Ann, Type Symbol Ann)
 getTerm main =

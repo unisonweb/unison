@@ -2066,6 +2066,24 @@ execute =
         _ -> Left $ showPatternHelp execute
     )
 
+saveExecuteResult :: InputPattern
+saveExecuteResult =
+  InputPattern
+    "save-run"
+    []
+    I.Visible
+    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
+    ( P.wrapColumn2
+        [ ( "`save-run result-var`",
+            "Saves the result of the previous run as result-var"
+          )
+        ]
+    )
+    ( \case
+        [w] -> pure $ Input.SaveExecuteResultI (Name.unsafeFromString w)
+        _ -> Left $ showPatternHelp saveExecuteResult
+    )
+
 ioTest :: InputPattern
 ioTest =
   InputPattern
@@ -2271,6 +2289,7 @@ validInputs =
       testAll,
       ioTest,
       execute,
+      saveExecuteResult,
       viewReflog,
       resetRoot,
       quit,
