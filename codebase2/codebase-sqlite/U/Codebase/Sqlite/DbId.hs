@@ -31,9 +31,17 @@ newtype PatchObjectId = PatchObjectId {unPatchObjectId :: ObjectId}
   deriving (Eq, Ord)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via ObjectId
 
+{-# DEPRECATED BranchObjectId "Use NamespaceId now" #-}
+
 newtype BranchObjectId = BranchObjectId {unBranchObjectId :: ObjectId}
   deriving (Eq, Ord)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via ObjectId
+
+-- | Distinct from the old 'BranchObjectId' in that NamespaceId is for new relational
+-- namespaces
+newtype NamespaceId = NamespaceId {unNamespaceId :: Word64}
+  deriving (Eq, Ord)
+  deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64
 
 newtype BranchHashId = BranchHashId {unBranchHashId :: HashId}
   deriving (Eq, Ord)

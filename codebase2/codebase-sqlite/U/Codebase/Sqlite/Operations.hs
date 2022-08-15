@@ -566,10 +566,100 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           boId <- Q.expectBranchObjectIdByCausalHashId chId
           expectBranch boId
 
+s2cNamespace :: S.DbNamespace -> Transaction (C.Branch.Branch Transaction)
+s2cNamespace (S.Branch.Full.Branch tms tps patches children) =
+  C.Branch.Branch
+    <$> doTerms tms
+    <*> doTypes tps
+    <*> doPatches patches
+    <*> doChildren children
+  where
+    loadMetadataType :: S.Reference -> Transaction C.Reference
+    loadMetadataType = \case
+      C.ReferenceBuiltin tId ->
+        Q.expectTextCheck tId (Left . NeedTypeForBuiltinMetadata)
+      C.ReferenceDerived id ->
+        typeReferenceForTerm id >>= h2cReference
+
+    loadTypesForMetadata :: Set S.Reference -> Transaction (Map C.Reference C.Reference)
+    loadTypesForMetadata rs =
+      Map.fromList
+        <$> traverse
+          (\r -> (,) <$> s2cReference r <*> loadMetadataType r)
+          (Foldable.toList rs)
+
+    doTerms ::
+      Map Db.TextId (Map S.Referent S.DbMetadataSet) ->
+      Transaction (Map C.Branch.NameSegment (Map C.Referent (Transaction C.Branch.MdValues)))
+    doTerms =
+      Map.bitraverse
+        (fmap C.Branch.NameSegment . Q.expectText)
+        ( Map.bitraverse s2cReferent \case
+            S.MetadataSet.Inline rs ->
+              pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
+        )
+    doTypes ::
+      Map Db.TextId (Map S.Reference S.DbMetadataSet) ->
+      Transaction (Map C.Branch.NameSegment (Map C.Reference (Transaction C.Branch.MdValues)))
+    doTypes =
+      Map.bitraverse
+        (fmap C.Branch.NameSegment . Q.expectText)
+        ( Map.bitraverse s2cReference \case
+            S.MetadataSet.Inline rs ->
+              pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
+        )
+    doPatches ::
+      Map Db.TextId Db.PatchObjectId ->
+      Transaction (Map C.Branch.NameSegment (PatchHash, Transaction C.Branch.Patch))
+    doPatches = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \patchId -> do
+      h <- PatchHash <$> (Q.expectPrimaryHashByObjectId . Db.unPatchObjectId) patchId
+      pure (h, expectPatch patchId)
+
+    doChildren ::
+      Map Db.TextId (Db.NamespaceId, Db.CausalHashId) ->
+      Transaction (Map C.Branch.NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
+    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \(boId, chId) ->
+      C.Causal <$> Q.expectCausalHash chId
+        <*> expectValueHashByCausalHashId chId
+        <*> headParents chId
+        <*> pure (expectBranch boId)
+      where
+        headParents ::
+          Db.CausalHashId ->
+          Transaction
+            ( Map
+                CausalHash
+                (Transaction (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
+            )
+        headParents chId = do
+          parentsChIds <- Q.loadCausalParents chId
+          fmap Map.fromList $ traverse pairParent parentsChIds
+        pairParent ::
+          Db.CausalHashId ->
+          Transaction
+            ( CausalHash,
+              Transaction (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction))
+            )
+        pairParent chId = do
+          h <- Q.expectCausalHash chId
+          pure (h, loadCausal chId)
+        loadCausal ::
+          Db.CausalHashId ->
+          Transaction (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction))
+        loadCausal chId = do
+          C.Causal <$> Q.expectCausalHash chId
+            <*> expectValueHashByCausalHashId chId
+            <*> headParents chId
+            <*> pure (loadValue chId)
+        loadValue :: Db.CausalHashId -> Transaction (C.Branch.Branch Transaction)
+        loadValue chId = do
+          boId <- Q.expectBranchObjectIdByCausalHashId chId
+          expectBranch boId
+
 saveRootBranch ::
   HashHandle ->
   C.Branch.CausalBranch Transaction ->
-  Transaction (Db.BranchObjectId, Db.CausalHashId)
+  Transaction (Db.NamespaceId, Db.CausalHashId)
 saveRootBranch hh c = do
   when debug $ traceM $ "Operations.saveRootBranch " ++ show (C.causalHash c)
   (boId, chId) <- saveBranch hh c
@@ -618,7 +708,7 @@ saveRootBranch hh c = do
 saveBranch ::
   HashHandle ->
   C.Branch.CausalBranch Transaction ->
-  Transaction (Db.BranchObjectId, Db.CausalHashId)
+  Transaction (Db.NamespaceId, Db.CausalHashId)
 saveBranch hh (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
 
@@ -848,6 +938,10 @@ saveDbBranchUnderHashId hh id@(Db.unBranchHashId -> hashId) branch = do
 
 expectBranch :: Db.BranchObjectId -> Transaction (C.Branch.Branch Transaction)
 expectBranch id =
+  expectDbBranch id >>= s2cBranch
+
+expectNamespace :: Db.NamespaceId -> Transaction (C.Branch.Branch Transaction)
+expectNamespace id =
   expectDbBranch id >>= s2cBranch
 
 -- * Patch transformation

@@ -69,6 +69,7 @@ getFromBytesOr decoder get bs = case runGetS get bs of
 ------------------------------------------------------------------------------------------------------------------------
 -- object.bytes
 
+{-# DEPRECATED decodeBranchFormat "load namespaces from sqlite relations instead. This is kept around for old migration code" #-}
 decodeBranchFormat :: ByteString -> Either DecodeError NamespaceFormat.BranchFormat
 decodeBranchFormat =
   getFromBytesOr "getBranchFormat" Serialization.getBranchFormat

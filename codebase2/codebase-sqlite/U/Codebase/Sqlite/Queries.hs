@@ -76,6 +76,8 @@ module U.Codebase.Sqlite.Queries
     expectCausalByCausalHash,
     loadBranchObjectIdByCausalHashId,
     expectBranchObjectIdByCausalHashId,
+    loadNamespaceIdByCausalHashId,
+    expectNamespaceIdByCausalHashId,
 
     -- ** causal_parent table
     saveCausalParents,
@@ -207,6 +209,7 @@ import U.Codebase.Sqlite.DbId
     CausalHashId (..),
     HashId (..),
     HashVersion,
+    NamespaceId,
     ObjectId (..),
     PatchObjectId (..),
     SchemaVersion,
@@ -990,9 +993,11 @@ isCausalHash = queryOneCol sql . Only where sql = [here|
     SELECT EXISTS (SELECT 1 FROM causal WHERE self_hash_id = ?)
   |]
 
+{-# DEPRECATED loadBranchObjectIdByCausalHashId "use new namespaceId version" #-}
 loadBranchObjectIdByCausalHashId :: CausalHashId -> Transaction (Maybe BranchObjectId)
 loadBranchObjectIdByCausalHashId id = queryMaybeCol loadBranchObjectIdByCausalHashIdSql (Only id)
 
+{-# DEPRECATED expectBranchObjectIdByCausalHashId "use new namespaceId version" #-}
 expectBranchObjectIdByCausalHashId :: CausalHashId -> Transaction BranchObjectId
 expectBranchObjectIdByCausalHashId id = queryOneCol loadBranchObjectIdByCausalHashIdSql (Only id)
 
@@ -1001,6 +1006,19 @@ loadBranchObjectIdByCausalHashIdSql =
   [here|
     SELECT object_id FROM hash_object
     INNER JOIN causal ON hash_id = causal.value_hash_id
+    WHERE causal.self_hash_id = ?
+  |]
+
+loadNamespaceIdByCausalHashId :: CausalHashId -> Transaction (Maybe NamespaceId)
+loadNamespaceIdByCausalHashId id = queryMaybeCol loadNamespaceIdByCausalHashIdSql (Only id)
+expectNamespaceIdByCausalHashId :: CausalHashId -> Transaction NamespaceId
+expectNamespaceIdByCausalHashId id = queryOneCol loadNamespaceIdByCausalHashIdSql (Only id)
+
+loadNamespaceIdByCausalHashIdSql :: Sql
+loadNamespaceIdByCausalHashIdSql =
+  [here|
+    SELECT namespace.id FROM namespace
+    JOIN causal ON namespace.value_hash_id = causal.value_hash_id
     WHERE causal.self_hash_id = ?
   |]
 
