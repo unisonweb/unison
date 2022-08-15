@@ -108,7 +108,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
       when ranMigrations do
         -- Vacuum once now that any migrations have taken place.
         putStrLn $ "Cleaning up..."
-        Sqlite.Connection.vacuum conn
+        _success <- Sqlite.Connection.vacuum conn
         putStrLn $ "🏁 Migration complete 🏁"
 
 -- | Copy the sqlite database to a new file with a unique name based on current time.
