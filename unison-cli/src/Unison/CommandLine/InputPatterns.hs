@@ -1090,7 +1090,8 @@ debugTabCompletion =
     I.Hidden
     [(ZeroPlus, noCompletionsArg)]
     ( P.lines
-        [ P.wrap $ "This command can be used to test and debug ucm's tab-completion within transcripts"
+        [ P.wrap $ "This command can be used to test and debug ucm's tab-completion within transcripts.",
+          P.wrap $ "Completions which are finished are prefixed with a *"
         ]
     )
     ( \inputs ->

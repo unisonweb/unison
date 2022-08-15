@@ -9,13 +9,11 @@ Test that tab completion works as expected.
 ```ucm
 .> debug.tab-complete vi
 
-  Finished completions are prefixed with a *
    view
    view.patch
 
 .> debug.tab-complete delete.
 
-  Finished completions are prefixed with a *
    delete.link
    delete.namespace
    delete.namespace.force
@@ -51,23 +49,14 @@ unique type subnamespace.AType = A | B
 
 ```
 ```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    unique type subnamespace.AType
-    othernamespace.someName    : ##Nat
-    subnamespace.someName      : ##Nat
-    subnamespace.someOtherName : ##Nat
-
+-- Should tab complete namespaces since they may contain terms/types
 .> debug.tab-complete view sub
 
-  Finished completions are prefixed with a *
    subnamespace.
 
+-- Should complete things from child namespaces of the current query
 .> debug.tab-complete view subnamespace
 
-  Finished completions are prefixed with a *
    subnamespace.
    subnamespace.AType
    subnamespace.AType.
@@ -76,21 +65,43 @@ unique type subnamespace.AType = A | B
 
 .> debug.tab-complete view subnamespace.
 
-  Finished completions are prefixed with a *
    subnamespace.AType
    subnamespace.AType.
    subnamespace.someName
    subnamespace.someOtherName
 
+-- Should prefix-filter by query suffix
 .> debug.tab-complete view subnamespace.some
 
-  Finished completions are prefixed with a *
    subnamespace.someName
    subnamespace.someOtherName
 
 .> debug.tab-complete view subnamespace.someOther
 
-  Finished completions are prefixed with a *
    subnamespace.someOtherName
+
+-- Should tab complete absolute names
+.othernamespace> debug.tab-complete view .subnamespace.some
+
+   .subnamespace.someName
+   .subnamespace.someOtherName
+
+```
+## Tab complete namespaces
+
+```ucm
+-- Should tab complete namespaces
+.> debug.tab-complete cd sub
+
+   subnamespace
+
+.> debug.tab-complete cd subnamespace
+
+   subnamespace
+   subnamespace.AType
+
+.> debug.tab-complete cd subnamespace.
+
+   subnamespace.AType
 
 ```
