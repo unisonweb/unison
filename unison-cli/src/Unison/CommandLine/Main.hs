@@ -40,9 +40,8 @@ import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.CommandLine
-import Unison.CommandLine.Completion (exactComplete)
-import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
-import qualified Unison.CommandLine.InputPattern as IP
+import Unison.CommandLine.Completion (haskelineTabComplete)
+import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import qualified Unison.CommandLine.Welcome as Welcome
@@ -95,18 +94,7 @@ getUserInput patterns codebase rootBranch currentPath numberedArgs =
               Right i -> pure i
     settings :: Line.Settings m
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
-    tabComplete :: Line.CompletionFunc m
-    tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
-      -- User hasn't finished a command name, complete from command names
-      if null prev
-        then pure . exactComplete word $ Map.keys patterns
-        else -- User has finished a command name; use completions for that command
-        case words $ reverse prev of
-          h : t -> fromMaybe (pure []) $ do
-            p <- Map.lookup h patterns
-            argType <- IP.argType p (length t)
-            pure $ suggestions argType word codebase rootBranch currentPath
-          _ -> pure []
+    tabComplete = haskelineTabComplete patterns codebase currentPath
 
 main ::
   FilePath ->
