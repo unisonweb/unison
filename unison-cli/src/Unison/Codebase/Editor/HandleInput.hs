@@ -3434,7 +3434,7 @@ getTerm' mainName =
           True -> case ty of
             Type.ForallsNamed' _ (Type.Arrow'' _ _ o) -> f o
             Type.Arrow'' _ _ o -> f o
-            _ -> traceShow ty $ pure (TermHasBadType ty)
+            _ -> pure (TermHasBadType ty)
           False -> pure (TermHasBadType ty)
    in Cli.getLatestTypecheckedFile >>= \case
         Nothing -> getFromCodebase
