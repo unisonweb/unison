@@ -164,7 +164,9 @@ data LoopState = LoopState
     -- CLI prompt.  e.g. Given ["Foo.bat", "Foo.cat"],
     -- `rename 2 Foo.foo` will rename `Foo.cat` to `Foo.foo`.
     numberedArgs :: NumberedArgs,
-    lastRunResult :: Maybe (Term Symbol Ann, Type Symbol Ann)
+    -- The result of the last run, along with a unison file that
+    -- captures the state of dependencies when the last run occurred
+    lastRunResult :: Maybe (Term Symbol Ann, Type Symbol Ann, UF.TypecheckedUnisonFile Symbol Ann)
   }
   deriving stock (Generic)
 

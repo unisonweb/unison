@@ -1190,7 +1190,7 @@ loop e = do
                               <> " with 'createWatcherFile', but it isn't here."
                           )
                       Just x -> pure x
-              #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType)
+              #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType, unisonFile)
               Cli.respond (RunResult ppe mainRes)
             MakeStandaloneI output main -> do
               Cli.Env {codebase, runtime} <- ask
@@ -3367,29 +3367,19 @@ addWatch watchName (Just uf) = do
 addSavedTermToUnisonFile :: Name -> Cli r (TypecheckedUnisonFile Symbol Ann)
 addSavedTermToUnisonFile resultName = do
   let resultSymbol = Name.toVar resultName
-  addTopLevelComponent <-
-    Cli.getLatestTypecheckedFile >>= \ltcf -> case ltcf of
-      Nothing -> do
-        pure \tlc ->
-          UF.typecheckedUnisonFile
-            mempty
-            mempty
-            [tlc]
-            mempty
-      Just uf -> do
-        case Map.lookup resultSymbol (UF.hashTermsId uf) of
-          Just _ -> Cli.returnEarly (SaveTermNameConflict resultName)
-          Nothing -> pure \tlc ->
-            UF.typecheckedUnisonFile
-              (UF.dataDeclarationsId' uf)
-              (UF.effectDeclarationsId' uf)
-              (tlc : UF.topLevelComponents' uf)
-              (UF.watchComponents uf)
-  (trm, typ) <-
+  (trm, typ, uf) <-
     use #lastRunResult >>= \case
       Nothing -> Cli.returnEarly NoLastRunResult
       Just x -> pure x
-  pure (addTopLevelComponent [(resultSymbol, trm, typ)])
+  case Map.lookup resultSymbol (UF.hashTermsId uf) of
+    Just _ -> Cli.returnEarly (SaveTermNameConflict resultName)
+    Nothing -> pure ()
+  pure $
+    UF.typecheckedUnisonFile
+      (UF.dataDeclarationsId' uf)
+      (UF.effectDeclarationsId' uf)
+      ([(resultSymbol, trm, typ)] : UF.topLevelComponents' uf)
+      (UF.watchComponents uf)
 
 -- | Look up runnable term with the given name in the codebase or
 -- latest typechecked unison file. Return its symbol, term, type, and

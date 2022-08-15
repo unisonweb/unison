@@ -1,5 +1,6 @@
 # add.run
 
+## happy path
 ```unison
 even : Nat -> Boolean
 even x = if x == 0 then true else odd (drop x 1)
@@ -57,5 +58,55 @@ is2even = '(even 2)
 
   foo.bar.baz : Boolean
   foo.bar.baz = true
+
+```
+## It continues to work if a dependency is changed
+
+```unison
+unique type Foo = Foo | Bar
+
+foo : 'Foo
+foo = 'Foo
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type Foo
+      foo : 'Foo
+
+```
+```ucm
+.> run foo
+
+  Foo
+
+```
+```unison
+unique type Foo = Foo | Bar | Baz
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type Foo
+
+```
+```ucm
+.> add.run result-foo
+
+.> view Foo
+
+  unique type Foo = Foo | Bar
 
 ```
