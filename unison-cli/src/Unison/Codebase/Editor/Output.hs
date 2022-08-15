@@ -19,6 +19,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import Network.URI (URI)
+import qualified System.Console.Haskeline as Completion
 import Unison.Auth.Types (CredentialFailure)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
@@ -256,6 +257,7 @@ data Output
   | CredentialFailureMsg CredentialFailure
   | PrintVersion Text
   | IntegrityCheck IntegrityResult
+  | DisplayDebugCompletions [Completion.Completion]
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -397,6 +399,7 @@ isFailure o = case o of
       IntegrityErrorDetected {} -> True
   ShareError {} -> True
   ViewOnShare {} -> False
+  DisplayDebugCompletions {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

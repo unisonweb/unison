@@ -1082,6 +1082,22 @@ pullExhaustive =
         _ -> Left (I.help pull)
     )
 
+debugTabCompletion :: InputPattern
+debugTabCompletion =
+  InputPattern
+    "debug.tab-complete"
+    []
+    I.Hidden
+    [(ZeroPlus, noCompletionsArg)]
+    ( P.lines
+        [ P.wrap $ "This command can be used to test and debug ucm's tab-completion within transcripts.",
+          P.wrap $ "Completions which are finished are prefixed with a *"
+        ]
+    )
+    ( \inputs ->
+        Right $ Input.DebugTabCompletionI inputs
+    )
+
 push :: InputPattern
 push =
   InputPattern
@@ -1562,7 +1578,7 @@ topicNameArg :: ArgumentType
 topicNameArg =
   ArgumentType
     { typeName = "topic",
-      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
+      suggestions = \q _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
       globTargets = mempty
     }
 
@@ -1570,7 +1586,7 @@ codebaseServerNameArg :: ArgumentType
 codebaseServerNameArg =
   ArgumentType
     { typeName = "codebase-server",
-      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
+      suggestions = \q _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
       globTargets = mempty
     }
 
@@ -2282,10 +2298,17 @@ validInputs =
       debugDumpNamespaceSimple,
       debugClearWatchCache,
       debugDoctor,
+      debugTabCompletion,
       gist,
       authLogin,
       printVersion
     ]
+
+patternMap :: Map String InputPattern
+patternMap =
+  Map.fromList $
+    validInputs
+      >>= (\p -> (I.patternName p, p) : ((,p) <$> I.aliases p))
 
 visibleInputs :: [InputPattern]
 visibleInputs = filter ((== I.Visible) . I.visibility) validInputs
@@ -2297,7 +2320,7 @@ commandNameArg :: ArgumentType
 commandNameArg =
   ArgumentType
     { typeName = "command",
-      suggestions = \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap)),
+      suggestions = \q _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap)),
       globTargets = mempty
     }
 
@@ -2380,7 +2403,7 @@ gitUrlArg =
     { typeName = "git-url",
       suggestions =
         let complete s = pure [Completion s s False]
-         in \input _ _ _ -> case input of
+         in \input _ _ -> case input of
               "gh" -> complete "git(https://github.com/"
               "gl" -> complete "git(https://gitlab.com/"
               "bb" -> complete "git(https://bitbucket.com/"
@@ -2398,7 +2421,7 @@ remoteNamespaceArg =
     { typeName = "remote-namespace",
       suggestions =
         let complete s = pure [Completion s s False]
-         in \input _ _ _ -> case input of
+         in \input _ _ -> case input of
               "gh" -> complete "git(https://github.com/"
               "gl" -> complete "git(https://gitlab.com/"
               "bb" -> complete "git(https://bitbucket.com/"

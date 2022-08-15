@@ -104,9 +104,11 @@ import qualified Unison.Codebase.TermEdit.Typing as TermEdit
 import Unison.Codebase.Type (GitPushBehavior (..))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
+import qualified Unison.CommandLine.Completion as Completion
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import qualified Unison.CommandLine.InputPattern as InputPattern
+import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.DataDeclaration as DD
@@ -116,7 +118,6 @@ import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
-import qualified Unison.Syntax.Lexer as L
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
@@ -125,7 +126,6 @@ import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import qualified Unison.NamesWithHistory as NamesWithHistory
-import qualified Unison.Syntax.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Parsers as Parsers
@@ -158,6 +158,8 @@ import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
+import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -1386,6 +1388,12 @@ loop e = do
                   effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
                   terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
+            DebugTabCompletionI inputs -> do
+              Cli.Env {codebase} <- ask
+              currentPath <- Cli.getCurrentPath
+              let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase currentPath
+              (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
+              Cli.respond (DisplayDebugCompletions completions)
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
@@ -1647,6 +1655,7 @@ inputDescription input =
     UiI -> wat
     UpI {} -> wat
     VersionI -> wat
+    DebugTabCompletionI _input -> wat
   where
     hp' :: Either SBH.ShortBranchHash Path' -> Cli r Text
     hp' = either (pure . Text.pack . show) p'

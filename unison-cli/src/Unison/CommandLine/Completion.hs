@@ -15,6 +15,7 @@ module Unison.CommandLine.Completion
     -- Unused for now, but may be useful later
     prettyCompletion,
     fixupCompletion,
+    haskelineTabComplete,
   )
 where
 
@@ -37,9 +38,9 @@ import qualified U.Codebase.Referent as Referent
 import qualified U.Util.Monoid as Monoid
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Hash as H
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.NameSegment as NameSegment
@@ -47,6 +48,25 @@ import Unison.Prelude
 import qualified Unison.ShortHash as SH
 import qualified Unison.Util.Pretty as P
 import Prelude hiding (readFile, writeFile)
+
+-- | A completion func for use with Haskeline
+haskelineTabComplete ::
+  Monad m =>
+  Map String IP.InputPattern ->
+  Codebase m v a ->
+  Path.Absolute ->
+  Line.CompletionFunc m
+haskelineTabComplete patterns codebase currentPath = Line.completeWordWithPrev Nothing " " $ \prev word ->
+  -- User hasn't finished a command name, complete from command names
+  if null prev
+    then pure . exactComplete word $ Map.keys patterns
+    else -- User has finished a command name; use completions for that command
+    case words $ reverse prev of
+      h : t -> fromMaybe (pure []) $ do
+        p <- Map.lookup h patterns
+        argType <- IP.argType p (length t)
+        pure $ IP.suggestions argType word codebase currentPath
+      _ -> pure []
 
 -- | Things which we may want to complete for.
 data CompletionType
@@ -61,10 +81,9 @@ noCompletions ::
   Monad m =>
   String ->
   Codebase m v a ->
-  Branch.Branch m ->
   Path.Absolute ->
   m [System.Console.Haskeline.Completion.Completion]
-noCompletions _ _ _ _ = pure []
+noCompletions _ _ _ = pure []
 
 -- |
 --
@@ -112,10 +131,9 @@ completeWithinNamespace ::
   -- | The portion of this are that the user has already typed.
   String ->
   Codebase m v a ->
-  Branch.Branch m ->
   Path.Absolute ->
   m [System.Console.Haskeline.Completion.Completion]
-completeWithinNamespace mkCompletions compTypes query codebase _root currentPath = do
+completeWithinNamespace mkCompletions compTypes query codebase currentPath = do
   shortHashLen <- Codebase.hashLength codebase
   Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
     Nothing -> do
@@ -222,7 +240,6 @@ prefixCompleteNamespace ::
   Monad m =>
   String ->
   Codebase m v a ->
-  Branch.Branch m -> -- Root Branch
   Path.Absolute -> -- Current path
   m [Line.Completion]
 prefixCompleteNamespace = completeWithinNamespace prefixCompletionFilter (NESet.singleton NamespaceCompletion)
@@ -233,7 +250,6 @@ prefixCompleteTermOrType ::
   Monad m =>
   String ->
   Codebase m v a ->
-  Branch.Branch m -> -- Root Branch
   Path.Absolute -> -- Current path
   m [Line.Completion]
 prefixCompleteTermOrType = completeWithinNamespace prefixCompletionFilter (NESet.fromList (TermCompletion NE.:| [TypeCompletion]))
@@ -244,7 +260,6 @@ prefixCompleteTerm ::
   Monad m =>
   String ->
   Codebase m v a ->
-  Branch.Branch m -> -- Root Branch
   Path.Absolute -> -- Current path
   m [Line.Completion]
 prefixCompleteTerm = completeWithinNamespace prefixCompletionFilter (NESet.singleton TermCompletion)
@@ -255,7 +270,6 @@ prefixCompleteType ::
   Monad m =>
   String ->
   Codebase m v a ->
-  Branch.Branch m -> -- Root Branch
   Path.Absolute -> -- Current path
   m [Line.Completion]
 prefixCompleteType = completeWithinNamespace prefixCompletionFilter (NESet.singleton TypeCompletion)
@@ -266,7 +280,6 @@ prefixCompletePatch ::
   Monad m =>
   String ->
   Codebase m v a ->
-  Branch.Branch m -> -- Root Branch
   Path.Absolute -> -- Current path
   m [Line.Completion]
 prefixCompletePatch = completeWithinNamespace prefixCompletionFilter (NESet.singleton PatchCompletion)
