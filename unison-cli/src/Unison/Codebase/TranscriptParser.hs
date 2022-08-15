@@ -19,7 +19,7 @@ module Unison.Codebase.TranscriptParser
 where
 
 import Control.Concurrent.STM (atomically)
-import Control.Lens (view)
+import Control.Lens ((^.))
 import qualified Crypto.Random as Random
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
@@ -41,12 +41,10 @@ import qualified Text.Megaparsec as P
 import qualified Unison.Auth.CredentialManager as AuthN
 import qualified Unison.Auth.HTTPClient as AuthN
 import qualified Unison.Auth.Tokens as AuthN
+import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Command (LoadSourceResult (..))
-import qualified Unison.Codebase.Editor.Command as Command
-import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import qualified Unison.Codebase.Editor.Output as Output
@@ -59,7 +57,6 @@ import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Welcome (asciiartUnison)
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -67,6 +64,7 @@ import qualified Unison.Runtime.Interface as RTI
 import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
@@ -235,255 +233,246 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
         ""
       ]
   root <- Codebase.getRootBranch codebase
-  do
-    mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
-    credMan <- AuthN.newCredentialManager
-    let tokenProvider :: AuthN.TokenProvider
-        tokenProvider =
-          case mayShareAccessToken of
-            Nothing -> do
-              AuthN.newTokenProvider credMan
-            Just accessToken ->
-              \_codeserverID -> pure $ Right accessToken
-    pathRef <- newIORef initialPath
-    rootBranchRef <- newIORef root
-    numberedArgsRef <- newIORef []
-    inputQueue <- Q.newIO
-    cmdQueue <- Q.newIO
-    unisonFiles <- newIORef Map.empty
-    out <- newIORef mempty
-    hidden <- newIORef Shown
-    allowErrors <- newIORef False
-    hasErrors <- newIORef False
-    mStanza <- newIORef Nothing
-    traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 :: Int ..])
-    let patternMap =
-          Map.fromList $
-            validInputs
-              >>= (\p -> (patternName p, p) : ((,p) <$> aliases p))
-    let output' :: Bool -> String -> IO ()
-        output' inputEcho msg = do
-          hide <- readIORef hidden
-          unless (hideOutput inputEcho hide) $ modifyIORef' out (\acc -> acc <> pure msg)
+  mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
+  credMan <- AuthN.newCredentialManager
+  let tokenProvider :: AuthN.TokenProvider
+      tokenProvider =
+        case mayShareAccessToken of
+          Nothing -> do
+            AuthN.newTokenProvider credMan
+          Just accessToken ->
+            \_codeserverID -> pure $ Right accessToken
+  seedRef <- newIORef (0 :: Int)
+  inputQueue <- Q.newIO
+  cmdQueue <- Q.newIO
+  unisonFiles <- newIORef Map.empty
+  out <- newIORef mempty
+  hidden <- newIORef Shown
+  allowErrors <- newIORef False
+  hasErrors <- newIORef False
+  mStanza <- newIORef Nothing
+  traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 :: Int ..])
+  let patternMap =
+        Map.fromList $
+          validInputs
+            >>= (\p -> (patternName p, p) : ((,p) <$> aliases p))
+  let output' :: Bool -> String -> IO ()
+      output' inputEcho msg = do
+        hide <- readIORef hidden
+        unless (hideOutput inputEcho hide) $ modifyIORef' out (\acc -> acc <> pure msg)
 
-        hideOutput :: Bool -> Hidden -> Bool
-        hideOutput inputEcho = \case
-          Shown -> False
-          HideOutput -> True && (not inputEcho)
-          HideAll -> True
+      hideOutput :: Bool -> Hidden -> Bool
+      hideOutput inputEcho = \case
+        Shown -> False
+        HideOutput -> True && (not inputEcho)
+        HideAll -> True
 
-        output, outputEcho :: (String -> IO ())
-        output = output' False
-        outputEcho = output' True
+      output, outputEcho :: (String -> IO ())
+      output = output' False
+      outputEcho = output' True
 
-        apiRequest :: APIRequest -> IO ()
-        apiRequest req = do
-          output (show req <> "\n")
-          case req of
-            (APIComment {}) -> pure ()
-            (GetRequest path) -> do
-              req <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
-                Left err -> dieWithMsg (show err)
-                Right req -> pure req
-              respBytes <- HTTP.httpLbs req httpManager
-              case Aeson.eitherDecode (HTTP.responseBody respBytes) of
-                Right (v :: Aeson.Value) -> do
-                  let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
-                  output . (<> "\n") . BL.unpack $ prettyBytes
-                Left err -> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err)
+      apiRequest :: APIRequest -> IO ()
+      apiRequest req = do
+        output (show req <> "\n")
+        case req of
+          (APIComment {}) -> pure ()
+          (GetRequest path) -> do
+            req <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
+              Left err -> dieWithMsg (show err)
+              Right req -> pure req
+            respBytes <- HTTP.httpLbs req httpManager
+            case Aeson.eitherDecode (HTTP.responseBody respBytes) of
+              Right (v :: Aeson.Value) -> do
+                let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
+                output . (<> "\n") . BL.unpack $ prettyBytes
+              Left err -> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err)
 
-        awaitInput :: IO (Either Event Input)
-        awaitInput = do
-          cmd <- atomically (Q.tryDequeue cmdQueue)
-          case cmd of
-            -- end of ucm block
-            Just Nothing -> do
-              output "\n```\n"
-              -- We clear the file cache after each `ucm` stanza, so
-              -- that `load` command can read the file written by `edit`
-              -- rather than hitting the cache.
-              writeIORef unisonFiles Map.empty
-              dieUnexpectedSuccess
-              awaitInput
-            -- ucm command to run
-            Just (Just ucmLine) -> do
-              case ucmLine of
-                p@(UcmComment {}) -> do
-                  output ("\n" <> show p)
-                  awaitInput
-                p@(UcmCommand path lineTxt) -> do
-                  curPath <- readIORef pathRef
-                  if curPath /= path
-                    then do
-                      atomically $ Q.undequeue cmdQueue (Just p)
-                      pure $ Right (SwitchBranchI $ Just (Path.absoluteToPath' path))
-                    else case words . Text.unpack $ lineTxt of
-                      [] -> awaitInput
-                      args -> do
-                        output ("\n" <> show p <> "\n")
-                        numberedArgs <- readIORef numberedArgsRef
-                        currentRoot <- Branch.head <$> readIORef rootBranchRef
-                        case parseInput currentRoot curPath numberedArgs patternMap args of
-                          -- invalid command is treated as a failure
-                          Left msg -> dieWithMsg $ Pretty.toPlain terminalWidth msg
-                          Right input -> pure $ Right input
-            Nothing -> do
-              dieUnexpectedSuccess
-              writeIORef hidden Shown
-              writeIORef allowErrors False
-              maybeStanza <- atomically (Q.tryDequeue inputQueue)
-              _ <- writeIORef mStanza maybeStanza
-              case maybeStanza of
-                Nothing -> do
-                  putStrLn ""
-                  pure $ Right QuitI
-                Just (s, idx) -> do
-                  putStr $
-                    "\r⚙️   Processing stanza " ++ show idx ++ " of "
-                      ++ show (length stanzas)
-                      ++ "."
-                  IO.hFlush IO.stdout
-                  case s of
-                    Unfenced _ -> do
-                      output $ show s
-                      awaitInput
-                    UnprocessedFence _ _ -> do
-                      output $ show s
-                      awaitInput
-                    Unison hide errOk filename txt -> do
-                      writeIORef hidden hide
-                      outputEcho $ show s
-                      writeIORef allowErrors errOk
-                      output "```ucm\n"
-                      atomically . Q.enqueue cmdQueue $ Nothing
-                      modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt)
-                      pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
-                    API apiRequests -> do
-                      output "```api\n"
-                      for_ apiRequests apiRequest
-                      output "```"
-                      awaitInput
-                    Ucm hide errOk cmds -> do
-                      writeIORef hidden hide
-                      writeIORef allowErrors errOk
-                      writeIORef hasErrors False
-                      output "```ucm"
-                      traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
-                      atomically . Q.enqueue cmdQueue $ Nothing
-                      awaitInput
+      awaitInput :: Cli.LoopState -> IO (Either Event Input)
+      awaitInput loopState = do
+        cmd <- atomically (Q.tryDequeue cmdQueue)
+        case cmd of
+          -- end of ucm block
+          Just Nothing -> do
+            output "\n```\n"
+            -- We clear the file cache after each `ucm` stanza, so
+            -- that `load` command can read the file written by `edit`
+            -- rather than hitting the cache.
+            writeIORef unisonFiles Map.empty
+            dieUnexpectedSuccess
+            awaitInput loopState
+          -- ucm command to run
+          Just (Just ucmLine) -> do
+            case ucmLine of
+              p@(UcmComment {}) -> do
+                output ("\n" <> show p)
+                awaitInput loopState
+              p@(UcmCommand path lineTxt) -> do
+                let curPath = loopState ^. #currentPath
+                if curPath /= path
+                  then do
+                    atomically $ Q.undequeue cmdQueue (Just p)
+                    pure $ Right (SwitchBranchI $ Just (Path.absoluteToPath' path))
+                  else case words . Text.unpack $ lineTxt of
+                    [] -> awaitInput loopState
+                    args -> do
+                      output ("\n" <> show p <> "\n")
+                      let currentRoot = Branch.head (loopState ^. #root)
+                      case parseInput currentRoot curPath (loopState ^. #numberedArgs) patternMap args of
+                        -- invalid command is treated as a failure
+                        Left msg -> dieWithMsg $ Pretty.toPlain terminalWidth msg
+                        Right input -> pure $ Right input
+          Nothing -> do
+            dieUnexpectedSuccess
+            writeIORef hidden Shown
+            writeIORef allowErrors False
+            maybeStanza <- atomically (Q.tryDequeue inputQueue)
+            _ <- writeIORef mStanza maybeStanza
+            case maybeStanza of
+              Nothing -> do
+                putStrLn ""
+                pure $ Right QuitI
+              Just (s, idx) -> do
+                putStr $
+                  "\r⚙️   Processing stanza " ++ show idx ++ " of "
+                    ++ show (length stanzas)
+                    ++ "."
+                IO.hFlush IO.stdout
+                case s of
+                  Unfenced _ -> do
+                    output $ show s
+                    awaitInput loopState
+                  UnprocessedFence _ _ -> do
+                    output $ show s
+                    awaitInput loopState
+                  Unison hide errOk filename txt -> do
+                    writeIORef hidden hide
+                    outputEcho $ show s
+                    writeIORef allowErrors errOk
+                    output "```ucm\n"
+                    atomically . Q.enqueue cmdQueue $ Nothing
+                    modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt)
+                    pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
+                  API apiRequests -> do
+                    output "```api\n"
+                    for_ apiRequests apiRequest
+                    output "```"
+                    awaitInput loopState
+                  Ucm hide errOk cmds -> do
+                    writeIORef hidden hide
+                    writeIORef allowErrors errOk
+                    writeIORef hasErrors False
+                    output "```ucm"
+                    traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
+                    atomically . Q.enqueue cmdQueue $ Nothing
+                    awaitInput loopState
 
-        loadPreviousUnisonBlock name = do
-          ufs <- readIORef unisonFiles
-          case Map.lookup name ufs of
-            Just uf ->
-              return (LoadSuccess uf)
-            Nothing ->
-              -- This lets transcripts use the `load` command, as in:
-              --
-              -- .> load someFile.u
-              --
-              -- Important for Unison syntax that can't be embedded in
-              -- transcripts (like docs, which use ``` in their syntax).
-              let f = LoadSuccess <$> readUtf8 (Text.unpack name)
-               in f <|> pure InvalidSourceNameError
+      loadPreviousUnisonBlock name = do
+        ufs <- readIORef unisonFiles
+        case Map.lookup name ufs of
+          Just uf ->
+            return (Cli.LoadSuccess uf)
+          Nothing ->
+            -- This lets transcripts use the `load` command, as in:
+            --
+            -- .> load someFile.u
+            --
+            -- Important for Unison syntax that can't be embedded in
+            -- transcripts (like docs, which use ``` in their syntax).
+            let f = Cli.LoadSuccess <$> readUtf8 (Text.unpack name)
+             in f <|> pure Cli.InvalidSourceNameError
 
-        print :: Output.Output -> IO ()
-        print o = do
-          msg <- notifyUser dir o
-          errOk <- readIORef allowErrors
-          let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
-          output rendered
-          when (Output.isFailure o) $
-            if errOk
-              then writeIORef hasErrors True
-              else dieWithMsg rendered
+      print :: Output.Output -> IO ()
+      print o = do
+        msg <- notifyUser dir o
+        errOk <- readIORef allowErrors
+        let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
+        output rendered
+        when (Output.isFailure o) $
+          if errOk
+            then writeIORef hasErrors True
+            else dieWithMsg rendered
 
-        printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
-        printNumbered o = do
-          let (msg, numberedArgs) = notifyNumbered o
-          errOk <- readIORef allowErrors
-          let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
-          output rendered
-          when (Output.isNumberedFailure o) $
-            if errOk
-              then writeIORef hasErrors True
-              else dieWithMsg rendered
-          pure numberedArgs
+      printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
+      printNumbered o = do
+        let (msg, numberedArgs) = notifyNumbered o
+        errOk <- readIORef allowErrors
+        let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
+        output rendered
+        when (Output.isNumberedFailure o) $
+          if errOk
+            then writeIORef hasErrors True
+            else dieWithMsg rendered
+        pure numberedArgs
 
-        -- Looks at the current stanza and decides if it is contained in the
-        -- output so far. Appends it if not.
-        appendFailingStanza :: IO ()
-        appendFailingStanza = do
-          stanzaOpt <- readIORef mStanza
-          currentOut <- readIORef out
-          let stnz = maybe "" show (fmap fst stanzaOpt :: Maybe Stanza)
-          unless (stnz `isSubsequenceOf` concat currentOut) $
-            modifyIORef' out (\acc -> acc <> pure stnz)
+      -- Looks at the current stanza and decides if it is contained in the
+      -- output so far. Appends it if not.
+      appendFailingStanza :: IO ()
+      appendFailingStanza = do
+        stanzaOpt <- readIORef mStanza
+        currentOut <- readIORef out
+        let stnz = maybe "" show (fmap fst stanzaOpt :: Maybe Stanza)
+        unless (stnz `isSubsequenceOf` concat currentOut) $
+          modifyIORef' out (\acc -> acc <> pure stnz)
 
-        -- output ``` and new lines then call transcriptFailure
-        dieWithMsg :: forall a. String -> IO a
-        dieWithMsg msg = do
+      -- output ``` and new lines then call transcriptFailure
+      dieWithMsg :: forall a. String -> IO a
+      dieWithMsg msg = do
+        output "\n```\n\n"
+        appendFailingStanza
+        transcriptFailure out $
+          Text.unlines
+            [ "\128721",
+              "",
+              "The transcript failed due to an error in the stanza above. The error is:",
+              "",
+              Text.pack msg
+            ]
+
+      dieUnexpectedSuccess :: IO ()
+      dieUnexpectedSuccess = do
+        errOk <- readIORef allowErrors
+        hasErr <- readIORef hasErrors
+        when (errOk && not hasErr) $ do
           output "\n```\n\n"
           appendFailingStanza
           transcriptFailure out $
             Text.unlines
               [ "\128721",
                 "",
-                "The transcript failed due to an error in the stanza above. The error is:",
-                "",
-                Text.pack msg
+                "The transcript was expecting an error in the stanza above, but did not encounter one."
               ]
 
-        dieUnexpectedSuccess :: IO ()
-        dieUnexpectedSuccess = do
-          errOk <- readIORef allowErrors
-          hasErr <- readIORef hasErrors
-          when (errOk && not hasErr) $ do
-            output "\n```\n\n"
-            appendFailingStanza
-            transcriptFailure out $
-              Text.unlines
-                [ "\128721",
-                  "",
-                  "The transcript was expecting an error in the stanza above, but did not encounter one."
-                ]
+  authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
-    authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
-    seedRef <- newIORef (0::Int)
-    let loop state = do
-          writeIORef pathRef (view Command.currentPath state)
-          let env =
-                Command.Env
-                  { authHTTPClient = authenticatedHTTPClient,
-                    codebase,
-                    config = fromMaybe Configurator.empty config,
-                    credentialManager = credMan,
-                    generateUniqueName = do
-                      i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
-                      pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
-                    loadSource = loadPreviousUnisonBlock,
-                    notify = print,
-                    notifyNumbered = printNumbered,
-                    runtime,
-                    sandboxedRuntime = sbRuntime,
-                    serverBaseUrl = Nothing,
-                    ucmVersion
-                  }
-          (o, state') <-
-            HandleCommand.commandLine
-              env
-              state
-              awaitInput
-              HandleInput.loop
-          case o of
-            Nothing -> do
-              texts <- readIORef out
-              pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
-            Just () -> do
-              writeIORef numberedArgsRef (Command._numberedArgs state')
-              writeIORef rootBranchRef (Command._root state')
-              loop state'
-    loop (Command.loopState0 root initialPath)
+  let env =
+        Cli.Env
+          { authHTTPClient = authenticatedHTTPClient,
+            codebase,
+            config = fromMaybe Configurator.empty config,
+            credentialManager = credMan,
+            generateUniqueName = do
+              i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
+              pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
+            loadSource = loadPreviousUnisonBlock,
+            notify = print,
+            notifyNumbered = printNumbered,
+            runtime,
+            sandboxedRuntime = sbRuntime,
+            serverBaseUrl = Nothing,
+            ucmVersion
+          }
+
+  let loop :: Cli.LoopState -> IO Text
+      loop s0 = do
+        input <- awaitInput s0
+        Cli.runCli env s0 (HandleInput.loop input) >>= \case
+          (Cli.Success (), s1) -> loop s1
+          (Cli.Continue, s1) -> loop s1
+          (Cli.HaltRepl, _) -> do
+            texts <- readIORef out
+            pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
+
+  loop (Cli.loopState0 root initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do
