@@ -57,34 +57,34 @@ unique type subnamespace.AType = A | B
 -- Should complete things from child namespaces of the current query
 .> debug.tab-complete view subnamespace
 
-   subnamespace.
-   subnamespace.AType
-   subnamespace.AType.
-   subnamespace.someName
-   subnamespace.someOtherName
+    subnamespace.
+  * subnamespace.AType
+    subnamespace.AType.
+  * subnamespace.someName
+  * subnamespace.someOtherName
 
 .> debug.tab-complete view subnamespace.
 
-   subnamespace.AType
-   subnamespace.AType.
-   subnamespace.someName
-   subnamespace.someOtherName
+  * subnamespace.AType
+    subnamespace.AType.
+  * subnamespace.someName
+  * subnamespace.someOtherName
 
 -- Should prefix-filter by query suffix
 .> debug.tab-complete view subnamespace.some
 
-   subnamespace.someName
-   subnamespace.someOtherName
+  * subnamespace.someName
+  * subnamespace.someOtherName
 
 .> debug.tab-complete view subnamespace.someOther
 
-   subnamespace.someOtherName
+  * subnamespace.someOtherName
 
 -- Should tab complete absolute names
 .othernamespace> debug.tab-complete view .subnamespace.some
 
-   .subnamespace.someName
-   .subnamespace.someOtherName
+  * .subnamespace.someName
+  * .subnamespace.someOtherName
 
 ```
 ## Tab complete namespaces
