@@ -85,13 +85,8 @@ library
       Unison.Codebase.Verbosity
       Unison.Codebase.Watch
       Unison.CodebasePath
-      Unison.DeclPrinter
-      Unison.FileParser
       Unison.FileParsers
       Unison.Hashing.V2.Convert
-      Unison.Lexer
-      Unison.NamePrinter
-      Unison.Parser
       Unison.Parser.Ann
       Unison.Parsers
       Unison.PrettyPrintEnv
@@ -121,8 +116,15 @@ library
       Unison.Runtime.Stack
       Unison.Runtime.Vector
       Unison.Share.Types
-      Unison.TermParser
-      Unison.TermPrinter
+      Unison.Syntax.DeclPrinter
+      Unison.Syntax.FileParser
+      Unison.Syntax.Lexer
+      Unison.Syntax.NamePrinter
+      Unison.Syntax.Parser
+      Unison.Syntax.TermParser
+      Unison.Syntax.TermPrinter
+      Unison.Syntax.TypeParser
+      Unison.Syntax.TypePrinter
       Unison.Typechecker
       Unison.Typechecker.Components
       Unison.Typechecker.Context
@@ -130,8 +132,6 @@ library
       Unison.Typechecker.TypeError
       Unison.Typechecker.TypeLookup
       Unison.Typechecker.TypeVar
-      Unison.TypeParser
-      Unison.TypePrinter
       Unison.UnisonFile
       Unison.UnisonFile.Env
       Unison.UnisonFile.Error
@@ -144,7 +144,6 @@ library
       Unison.Util.CyclicOrd
       Unison.Util.EnumContainers
       Unison.Util.Exception
-      Unison.Util.Free
       Unison.Util.Logger
       Unison.Util.PinBoard
       Unison.Util.Rope
@@ -177,8 +176,10 @@ library
       PatternSynonyms
       RankNTypes
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
       TypeApplications
+      TypeFamilies
       ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
@@ -311,19 +312,19 @@ test-suite parser-typechecker-tests
       Unison.Test.CodebaseInit
       Unison.Test.Common
       Unison.Test.DataDeclaration
-      Unison.Test.FileParser
-      Unison.Test.Lexer
       Unison.Test.MCode
       Unison.Test.Referent
+      Unison.Test.Syntax.FileParser
+      Unison.Test.Syntax.Lexer
+      Unison.Test.Syntax.TermParser
+      Unison.Test.Syntax.TermPrinter
+      Unison.Test.Syntax.TypePrinter
       Unison.Test.Term
-      Unison.Test.TermParser
-      Unison.Test.TermPrinter
       Unison.Test.Type
       Unison.Test.Typechecker
       Unison.Test.Typechecker.Components
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.TypeError
-      Unison.Test.TypePrinter
       Unison.Test.UnisonSources
       Unison.Test.Util.Bytes
       Unison.Test.Util.PinBoard
@@ -355,8 +356,10 @@ test-suite parser-typechecker-tests
       PatternSynonyms
       RankNTypes
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
       TypeApplications
+      TypeFamilies
       ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:

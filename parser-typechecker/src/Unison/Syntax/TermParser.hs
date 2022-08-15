@@ -5,7 +5,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
-module Unison.TermParser where
+module Unison.Syntax.TermParser where
 
 import Control.Monad.Reader (asks, local)
 import qualified Data.Char as Char
@@ -25,25 +25,25 @@ import qualified Unison.Builtin.Decls as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
-import qualified Unison.Lexer as L
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import qualified Unison.Names as Names
 import Unison.NamesWithHistory (NamesWithHistory)
 import qualified Unison.NamesWithHistory as NamesWithHistory
-import Unison.Parser hiding (seq)
-import qualified Unison.Parser as Parser (seq, uniqueName)
 import Unison.Parser.Ann (Ann)
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
+import qualified Unison.Syntax.Lexer as L
+import Unison.Syntax.Parser hiding (seq)
+import qualified Unison.Syntax.Parser as Parser (seq, uniqueName)
+import qualified Unison.Syntax.TypeParser as TypeParser
 import Unison.Term (IsTop, Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Typechecker.Components as Components
 import qualified Unison.Util.Bytes as Bytes
 import Unison.Util.List (intercalateMapWith, quenchRuns)

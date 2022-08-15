@@ -54,7 +54,7 @@ d = c + 10
     c : Nat
     d : Nat
 
-.a2> alias.term c aaaa.tooManySegments
+.a2> alias.term c long.name.but.shortest.suffixification
 
   Done.
 
@@ -379,7 +379,7 @@ d = c + 10
                                                          (Scope
                                                            s)
     164. ┌ c#gjmq673r1v                                : Nat
-    165. └ aaaa.tooManySegments                        : Nat
+    165. └ long.name.but.shortest.suffixification      : Nat
     166. builtin.Code.cache_                           : [( Term,
                                                          Code)]
                                                        ->{IO} [Term]
@@ -1347,7 +1347,9 @@ d = c + 10
        merge.
 
 ```
-At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2` namespace has an unconflicted definition for `c` and `d`, so those are preferred.
+At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized. 
+The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope, 
+`long.name.but.shortest.suffixification` is chosen because its suffixified version has the fewest segments.
 
 ```ucm
 .> view a b c d
@@ -1368,7 +1370,7 @@ At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2`
   a2.d : Nat
   a2.d =
     use Nat +
-    a2.c + 10
+    suffixification + 10
   
   a3.c#dcgdua2lj6 : Nat
   a3.c#dcgdua2lj6 = 2
@@ -1377,5 +1379,84 @@ At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2`
   a3.d#9ivhgvhthc =
     use Nat +
     c#dcgdua2lj6 + 10
+
+```
+## Name biasing
+
+```unison
+deeply.nested.term = 
+  a + 1
+
+deeply.nested.value = 10
+
+a = 10
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      a                   : Nat
+      deeply.nested.term  : Nat
+      deeply.nested.value : Nat
+
+```
+```ucm
+  ☝️  The namespace .biasing is empty.
+
+.biasing> add
+
+  ⍟ I've added these definitions:
+  
+    a                   : Nat
+    deeply.nested.term  : Nat
+    deeply.nested.value : Nat
+
+-- Despite being saved with name `a`, 
+-- the pretty printer should prefer the suffixified 'deeply.nested.value name' over the shallow 'a'.
+-- It's closer to the term being printed.
+.biasing> view deeply.nested.term
+
+  deeply.nested.term : Nat
+  deeply.nested.term =
+    use Nat +
+    value + 1
+
+```
+Add another term with `value` suffix to force longer suffixification of `deeply.nested.value`
+
+```unison
+other.value = 20
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      other.value : Nat
+
+```
+```ucm
+.biasing> add
+
+  ⍟ I've added these definitions:
+  
+    other.value : Nat
+
+-- nested.value should still be preferred even if the suffixification requires more segments than `a`
+.biasing> view deeply.nested.term
+
+  deeply.nested.term : Nat
+  deeply.nested.term =
+    use Nat +
+    nested.value + 1
 
 ```

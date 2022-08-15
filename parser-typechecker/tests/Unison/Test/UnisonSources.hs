@@ -15,7 +15,6 @@ import System.FilePath.Find (always, extension, find, (==?))
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime, evaluateWatches)
-import Unison.Names (Names)
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parsers as Parsers
@@ -31,6 +30,7 @@ import qualified Unison.Term as Term
 import Unison.Test.Common (parseAndSynthesizeAsFile, parsingEnv)
 import qualified Unison.Test.Common as Common
 import qualified Unison.UnisonFile as UF
+import qualified Unison.UnisonFile.Names as UF
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty (toPlain)
 
@@ -41,7 +41,7 @@ type TFile = UF.TypecheckedUnisonFile Symbol Ann
 type SynthResult =
   Result
     (Seq Note)
-    (Either Names TFile)
+    (Either (UF.UnisonFile Symbol Ann) TFile)
 
 type EitherResult = Either String TFile
 
@@ -98,15 +98,16 @@ decodeResult ::
   String -> SynthResult -> EitherResult --  String (UF.TypecheckedUnisonFile Symbol Ann)
 decodeResult source (Result notes Nothing) =
   Left $ showNotes source ppEnv notes
-decodeResult source (Result notes (Just (Left errNames))) =
-  Left $
-    showNotes
-      source
-      ( PPE.fromNames
-          Common.hqLength
-          (NamesWithHistory.shadowing errNames Builtin.names)
-      )
-      notes
+decodeResult source (Result notes (Just (Left uf))) =
+  let errNames = UF.toNames uf
+   in Left $
+        showNotes
+          source
+          ( PPE.fromNames
+              Common.hqLength
+              (NamesWithHistory.shadowing errNames Builtin.names)
+          )
+          notes
 decodeResult _source (Result _notes (Just (Right uf))) =
   Right uf
 
@@ -139,7 +140,7 @@ resultTest rt uf filepath = do
           either report pure
             =<< evaluateWatches
               Builtin.codeLookup
-              mempty
+              PPE.empty
               (const $ pure Nothing)
               rt
               uf

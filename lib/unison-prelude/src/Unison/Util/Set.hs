@@ -1,5 +1,6 @@
 module Unison.Util.Set
-  ( difference1,
+  ( asSingleton,
+    difference1,
     mapMaybe,
     symmetricDifference,
     Unison.Util.Set.traverse,
@@ -13,6 +14,11 @@ import qualified Data.Maybe as Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Unison.Util.Monoid (foldMapM)
+
+-- | Get the only member of a set, iff it's a singleton.
+asSingleton :: Set a -> Maybe a
+asSingleton xs =
+  if Set.size xs == 1 then Just (Set.findMin xs) else Nothing
 
 -- | Set difference, but return @Nothing@ if the difference is empty.
 difference1 :: Ord a => Set a -> Set a -> Maybe (Set a)
