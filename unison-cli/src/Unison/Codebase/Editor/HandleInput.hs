@@ -1145,8 +1145,6 @@ loop e = do
               let adds = SlurpResult.adds sr
               stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath, doSlurpAdds adds uf)
               liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
-              ppe <- prettyPrintEnvDecl =<< displayNames uf
-              Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
               addDefaultMetadata adds
               syncRoot description
             PreviewAddI requestedNames -> do
