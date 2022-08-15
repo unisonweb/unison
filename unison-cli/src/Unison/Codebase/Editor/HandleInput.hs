@@ -1185,8 +1185,13 @@ loop e = do
               (_, xs) <- evalUnisonFile False ppe unisonFile args
               mainRes :: Term Symbol () <-
                 let bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) = (watchKind, term1)
-                 in case lookup "main" (map bonk (Map.toList xs)) of
-                      Nothing -> error "what"
+                 in case lookup magicMainWatcherString (map bonk (Map.toList xs)) of
+                      Nothing ->
+                        error
+                          ( "impossible: we manually added the watcher "
+                              <> show magicMainWatcherString
+                              <> " with 'createWatcherFile', but it isn't here."
+                          )
                       Just x -> pure x
               #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType)
               Cli.respond (RunResult ppe mainRes)
@@ -1466,6 +1471,9 @@ loop e = do
   case e of
     Right input -> #lastInput .= Just input
     _ -> pure ()
+
+magicMainWatcherString :: String
+magicMainWatcherString = "main"
 
 inputDescription :: Input -> Cli r Text
 inputDescription input =
@@ -3440,7 +3448,7 @@ getTerm' mainName =
 createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli r (TypecheckedUnisonFile Symbol Ann)
 createWatcherFile v tm typ =
   Cli.getLatestTypecheckedFile >>= \case
-    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [("main", [(v, tm, typ)])])
+    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, tm, typ)])])
     Just uf ->
       let v2 = Var.freshIn (Set.fromList [v]) v
        in pure $
@@ -3449,7 +3457,7 @@ createWatcherFile v tm typ =
               (UF.effectDeclarationsId' uf)
               (UF.topLevelComponents' uf)
               -- what about main's component? we have dropped them if they existed.
-              [("main", [(v2, tm, typ)])]
+              [(magicMainWatcherString, [(v2, tm, typ)])]
 
 executePPE ::
   Var v =>
