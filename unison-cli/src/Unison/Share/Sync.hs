@@ -13,11 +13,9 @@ module Unison.Share.Sync
     CheckAndSetPushError (..),
     fastForwardPush,
     FastForwardPushError (..),
-    UploadProgressCallbacks (..),
 
     -- ** Pull
     pull,
-    DownloadProgressCallbacks (..),
     PullError (..),
   )
 where
@@ -98,9 +96,10 @@ checkAndSetPush ::
   Maybe Hash32 ->
   -- | The hash of our local causal to push.
   CausalHash ->
-  UploadProgressCallbacks ->
+  -- | Callback that's given a number of entities we just uploaded.
+  (Int -> IO ()) ->
   IO (Either (SyncError CheckAndSetPushError) ())
-checkAndSetPush httpClient unisonShareUrl connect path expectedHash causalHash callbacks = catchSyncErrors do
+checkAndSetPush httpClient unisonShareUrl connect path expectedHash causalHash uploadedCallback = catchSyncErrors do
   -- Maybe the server already has this causal; try just setting its remote path. Commonly, it will respond that it needs
   -- this causal (UpdatePathMissingDependencies).
   updatePath >>= \case
@@ -108,7 +107,7 @@ checkAndSetPush httpClient unisonShareUrl connect path expectedHash causalHash c
     Share.UpdatePathHashMismatch mismatch -> pure (Left (CheckAndSetPushErrorHashMismatch mismatch))
     Share.UpdatePathMissingDependencies (Share.NeedDependencies dependencies) -> do
       -- Upload the causal and all of its dependencies.
-      uploadEntities httpClient unisonShareUrl connect (Share.pathRepoName path) dependencies callbacks >>= \case
+      uploadEntities httpClient unisonShareUrl connect (Share.pathRepoName path) dependencies uploadedCallback >>= \case
         False -> pure (Left (CheckAndSetPushErrorNoWritePermission path))
         True ->
           -- After uploading the causal and all of its dependencies, try setting the remote path again.
@@ -152,9 +151,10 @@ fastForwardPush ::
   Share.Path ->
   -- | The hash of our local causal to push.
   CausalHash ->
-  UploadProgressCallbacks ->
+  -- | Callback that's given a number of entities we just uploaded.
+  (Int -> IO ()) ->
   IO (Either (SyncError FastForwardPushError) ())
-fastForwardPush httpClient unisonShareUrl connect path localHeadHash callbacks = catchSyncErrors do
+fastForwardPush httpClient unisonShareUrl connect path localHeadHash uploadedCallback = catchSyncErrors do
   getCausalHashByPath httpClient unisonShareUrl path >>= \case
     Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission path))
     Right Nothing -> pure (Left (FastForwardPushErrorNoHistory path))
@@ -205,7 +205,7 @@ fastForwardPush httpClient unisonShareUrl connect path localHeadHash callbacks =
         connect
         (Share.pathRepoName path)
         (NESet.singleton (causalHashToHash32 headHash))
-        callbacks
+        uploadedCallback
 
 -- Return a list (in oldest-to-newest order) of hashes along the causal spine that connects the given arguments,
 -- excluding the newest hash (second argument).
@@ -341,14 +341,6 @@ dagbfs goal children =
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
 
--- | Download progress callbacks.
-data DownloadProgressCallbacks = DownloadProgressCallbacks
-  { -- | Callback that's given a number of entities we just downloaded.
-    downloaded :: Int -> IO (),
-    -- | Callback that's given a number of entities we just realized we need to download later.
-    toDownload :: Int -> IO ()
-  }
-
 pull ::
   -- | The HTTP client to use for Unison Share requests.
   AuthenticatedHttpClient ->
@@ -358,9 +350,10 @@ pull ::
   (forall a. (Sqlite.Connection -> IO a) -> IO a) ->
   -- | The repo+path to pull from.
   Share.Path ->
-  DownloadProgressCallbacks ->
+  -- | Callback that's given a number of entities we just downloaded.
+  (Int -> IO ()) ->
   IO (Either (SyncError PullError) CausalHash)
-pull httpClient unisonShareUrl connect repoPath callbacks = catchSyncErrors do
+pull httpClient unisonShareUrl connect repoPath downloadedCallback = catchSyncErrors do
   getCausalHashByPath httpClient unisonShareUrl repoPath >>= \case
     Left err -> pure (Left (PullErrorGetCausalHashByPath err))
     -- There's nothing at the remote path, so there's no causal to pull.
@@ -373,14 +366,13 @@ pull httpClient unisonShareUrl connect repoPath callbacks = catchSyncErrors do
             Just Q.EntityInMainStorage -> pure Nothing
             Just Q.EntityInTempStorage -> pure (Just (NESet.singleton hash))
             Nothing -> do
-              toDownload callbacks 1
               Share.DownloadEntitiesSuccess entities <-
                 httpDownloadEntities
                   httpClient
                   unisonShareUrl
                   Share.DownloadEntitiesRequest {repoName, hashes = NESet.singleton hashJwt}
               tempEntities <- insertEntities conn entities
-              downloaded callbacks 1
+              downloadedCallback 1
               pure (NESet.nonEmptySet tempEntities)
       whenJust maybeTempEntities \tempEntities ->
         completeTempEntities
@@ -388,7 +380,7 @@ pull httpClient unisonShareUrl connect repoPath callbacks = catchSyncErrors do
           unisonShareUrl
           connect
           repoName
-          callbacks
+          downloadedCallback
           tempEntities
       -- Since we may have just inserted and then deleted many temp entities, we attempt to recover some disk space by
       -- vacuuming after each pull. If the vacuum fails due to another open transaction on this connection, that's ok,
@@ -427,10 +419,10 @@ completeTempEntities ::
   BaseUrl ->
   (forall a. (Sqlite.Connection -> IO a) -> IO a) ->
   Share.RepoName ->
-  DownloadProgressCallbacks ->
+  (Int -> IO ()) ->
   NESet Hash32 ->
   IO ()
-completeTempEntities httpClient unisonShareUrl connect repoName callbacks initialNewTempEntities = do
+completeTempEntities httpClient unisonShareUrl connect repoName downloadedCallback initialNewTempEntities = do
   -- The set of hashes we still need to download
   hashesVar <- newTVarIO Set.empty
 
@@ -518,7 +510,7 @@ completeTempEntities httpClient unisonShareUrl connect repoName callbacks initia
           httpClient
           unisonShareUrl
           Share.DownloadEntitiesRequest {repoName, hashes}
-      downloaded callbacks (NESet.size hashes)
+      downloadedCallback (NESet.size hashes)
       atomically do
         writeTQueue entitiesQueue (hashes, entities)
         recordNotWorking workerCount
@@ -574,15 +566,11 @@ completeTempEntities httpClient unisonShareUrl connect repoName callbacks initia
                   pure (Just newTempEntities)
           whenJust maybeNewTempEntities \newTempEntities -> do
             newElaboratedHashes <- Sqlite.runTransaction conn (elaborateHashes newTempEntities)
-            moreToDownload <-
-              atomically do
-                uninsertedHashes <- readTVar uninsertedHashesVar
-                hashes0 <- readTVar hashesVar
-                let !hashes1 = Set.union (Set.difference newElaboratedHashes uninsertedHashes) hashes0
-                writeTVar hashesVar hashes1
-                pure (Set.size hashes1 - Set.size hashes0)
-            toDownload callbacks moreToDownload
-            atomically (recordNotWorking workerCount)
+            atomically do
+              uninsertedHashes <- readTVar uninsertedHashesVar
+              hashes0 <- readTVar hashesVar
+              writeTVar hashesVar $! Set.union (Set.difference newElaboratedHashes uninsertedHashes) hashes0
+              recordNotWorking workerCount
 
 -- | Insert entities into the database, and return the subset that went into temp storage (`temp_entitiy`) rather than
 -- of main storage (`object` / `causal`) due to missing dependencies.
@@ -613,14 +601,6 @@ getCausalHashByPath httpClient unisonShareUrl repoPath =
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
 
--- | Upload progress callbacks.
-data UploadProgressCallbacks = UploadProgressCallbacks
-  { -- | Callback that's given a number of entities we just uploaded.
-    uploaded :: Int -> IO (),
-    -- | Callback that's given a number of entities we just realized we need to upload later.
-    toUpload :: Int -> IO ()
-  }
-
 data UploadDispatcherJob
   = UploadDispatcherReturnFailure
   | UploadDispatcherForkWorkerWhenAvailable (NESet Hash32)
@@ -638,9 +618,9 @@ uploadEntities ::
   (forall a. (Sqlite.Connection -> IO a) -> IO a) ->
   Share.RepoName ->
   NESet Hash32 ->
-  UploadProgressCallbacks ->
+  (Int -> IO ()) ->
   IO Bool
-uploadEntities httpClient unisonShareUrl connect repoName hashes0 callbacks = do
+uploadEntities httpClient unisonShareUrl connect repoName hashes0 uploadedCallback = do
   hashesVar <- newTVarIO (NESet.toSet hashes0)
   -- Semantically, this is the set of hashes we've uploaded so far, but we do delete from it when it's safe to, so it
   -- doesn't grow unbounded. It's used to filter out hashes that would be duplicate uploads: the server, when responding
@@ -650,8 +630,6 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 callbacks = do
   nextWorkerIdVar <- newTVarIO 0
   workersVar <- newTVarIO Set.empty
   workerFailedVar <- newEmptyTMVarIO
-
-  toUpload callbacks (NESet.size hashes0)
 
   Ki.scoped \scope ->
     dispatcher scope hashesVar dedupeVar nextWorkerIdVar workersVar workerFailedVar
@@ -735,8 +713,8 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 callbacks = do
       case result of
         Left () -> void (atomically (tryPutTMVar workerFailedVar ()))
         Right moreHashes -> do
-          uploaded callbacks (NESet.size hashes)
-          (maybeYoungestWorkerThatWasAlive, numNewHashes) <-
+          uploadedCallback (NESet.size hashes)
+          maybeYoungestWorkerThatWasAlive <-
             atomically do
               -- Record ourselves as "dead". The only work we have left to do is remove the hashes we just uploaded from
               -- the `dedupe` set, but whether or not we are "alive" is relevant only to:
@@ -751,17 +729,11 @@ uploadEntities httpClient unisonShareUrl connect repoName hashes0 callbacks = do
               -- Add more work (i.e. hashes to upload) to the work queue (really a work set), per the response we just
               -- got from the server. Remember to only add hashes that aren't in the `dedupe` set (see the comment on
               -- the dedupe set above for more info).
-              numNewHashes <-
-                if not (Set.null moreHashes)
-                  then do
-                    dedupe <- readTVar dedupeVar
-                    hashes0 <- readTVar hashesVar
-                    let !hashes1 = Set.union (Set.difference moreHashes dedupe) hashes0
-                    writeTVar hashesVar hashes1
-                    pure (Set.size hashes1 - Set.size hashes0)
-                  else pure 0
-              pure (Set.lookupMax workers, numNewHashes)
-          toUpload callbacks numNewHashes
+              when (not (Set.null moreHashes)) do
+                dedupe <- readTVar dedupeVar
+                hashes0 <- readTVar hashesVar
+                writeTVar hashesVar $! Set.union (Set.difference moreHashes dedupe) hashes0
+              pure (Set.lookupMax workers)
           -- Block until we are sure that the server does not have any uncommitted transactions that see a version of
           -- the database that does not include the entities we just uploaded. After that point, it's fine to remove the
           -- hashes of the entities we just uploaded from the `dedupe` set, because they will never be relevant for any

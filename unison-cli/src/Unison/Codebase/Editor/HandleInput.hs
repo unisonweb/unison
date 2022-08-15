@@ -116,7 +116,6 @@ import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
-import qualified Unison.Syntax.Lexer as L
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
@@ -125,7 +124,6 @@ import Unison.Names (Names (Names))
 import qualified Unison.Names as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import qualified Unison.NamesWithHistory as NamesWithHistory
-import qualified Unison.Syntax.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Parsers as Parsers
@@ -158,6 +156,8 @@ import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
+import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -1908,7 +1908,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
 
   let checkAndSetPush :: Maybe Hash32 -> IO (Either (Share.SyncError Share.CheckAndSetPushError) ())
       checkAndSetPush remoteHash =
-        withEntitiesUploadedProgressCallbacks \callbacks ->
+        withEntitiesUploadedProgressCallback \uploadedCallback ->
           if Just (Hash32.fromHash (unCausalHash localCausalHash)) == remoteHash
             then pure (Right ())
             else
@@ -1919,7 +1919,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
                 sharePath
                 remoteHash
                 localCausalHash
-                callbacks
+                uploadedCallback
 
   case behavior of
     PushBehavior.ForcePush -> do
@@ -1934,14 +1934,14 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
     PushBehavior.RequireNonEmpty -> do
       let push :: IO (Either (Share.SyncError Share.FastForwardPushError) ())
           push = do
-            withEntitiesUploadedProgressCallbacks \callbacks ->
+            withEntitiesUploadedProgressCallback \uploadedCallback ->
               Share.fastForwardPush
                 authHTTPClient
                 baseURL
                 (Codebase.withConnectionIO codebase)
                 sharePath
                 localCausalHash
-                callbacks
+                uploadedCallback
       Cli.ioE push (pushError ShareErrorFastForwardPush)
       Cli.respond (ViewOnShare remote)
   where
@@ -1949,31 +1949,22 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
     pathToSegments =
       coerce Path.toList
 
-    -- Provide the given action callbacks that display to the terminal.
-    withEntitiesUploadedProgressCallbacks :: (Share.UploadProgressCallbacks -> IO a) -> IO a
-    withEntitiesUploadedProgressCallbacks action = do
+    -- Provide the given action a callback that displays to the terminal.
+    withEntitiesUploadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
+    withEntitiesUploadedProgressCallback action = do
       entitiesUploadedVar <- newTVarIO 0
-      entitiesToUploadVar <- newTVarIO 0
       Console.Regions.displayConsoleRegions do
         Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
           Console.Regions.setConsoleRegion region do
             entitiesUploaded <- readTVar entitiesUploadedVar
-            entitiesToUpload <- readTVar entitiesToUploadVar
             pure $
               "\n  Uploaded "
                 <> tShow entitiesUploaded
-                <> "/"
-                <> tShow entitiesToUpload
                 <> " entities...\n\n"
-          result <- do
-            action
-              Share.UploadProgressCallbacks
-                { uploaded = \n -> atomically (modifyTVar' entitiesUploadedVar (+ n)),
-                  toUpload = \n -> atomically (modifyTVar' entitiesToUploadVar (+ n))
-                }
+          result <- action (\n -> atomically (modifyTVar' entitiesUploadedVar (+ n)))
           entitiesUploaded <- readTVarIO entitiesUploadedVar
           Console.Regions.finishConsoleRegion region $
-            "\n  Uploaded " <> tShow entitiesUploaded <> " entities.\n"
+            "\n  Uploaded " <> tShow entitiesUploaded <> " entities."
           pure result
 
     pushError :: (a -> Output.ShareError) -> Share.SyncError a -> Cli r b
@@ -2411,13 +2402,13 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   Cli.Env {authHTTPClient, codebase} <- ask
   let pull :: IO (Either (Share.SyncError Share.PullError) CausalHash)
       pull =
-        withEntitiesDownloadedProgressCallbacks \callbacks ->
+        withEntitiesDownloadedProgressCallback \downloadedCallback ->
           Share.pull
             authHTTPClient
             baseURL
             (Codebase.withConnectionIO codebase)
             shareFlavoredPath
-            callbacks
+            downloadedCallback
   causalHash <-
     Cli.ioE pull \err0 ->
       (Cli.returnEarly . Output.ShareError) case err0 of
@@ -2426,29 +2417,22 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
   liftIO (Codebase.getBranchForHash codebase (Cv.causalHash2to1 causalHash)) & onNothingM do
     error $ reportBug "E412939" "`pull` \"succeeded\", but I can't find the result in the codebase. (This is a bug.)"
   where
-    -- Provide the given action callbacks that display to the terminal.
-    withEntitiesDownloadedProgressCallbacks :: (Share.DownloadProgressCallbacks -> IO a) -> IO a
-    withEntitiesDownloadedProgressCallbacks action = do
+    -- Provide the given action a callback that display to the terminal.
+    withEntitiesDownloadedProgressCallback :: ((Int -> IO ()) -> IO a) -> IO a
+    withEntitiesDownloadedProgressCallback action = do
       entitiesDownloadedVar <- newTVarIO 0
-      entitiesToDownloadVar <- newTVarIO 0
       Console.Regions.displayConsoleRegions do
         Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
           Console.Regions.setConsoleRegion region do
             entitiesDownloaded <- readTVar entitiesDownloadedVar
-            entitiesToDownload <- readTVar entitiesToDownloadVar
             pure $
               "\n  Downloaded "
                 <> tShow entitiesDownloaded
-                <> "/"
-                <> tShow entitiesToDownload
                 <> " entities...\n\n"
-          result <- do
-            let downloaded n = atomically (modifyTVar' entitiesDownloadedVar (+ n))
-            let toDownload n = atomically (modifyTVar' entitiesToDownloadVar (+ n))
-            action Share.DownloadProgressCallbacks {downloaded, toDownload}
+          result <- action (\n -> atomically (modifyTVar' entitiesDownloadedVar (+ n)))
           entitiesDownloaded <- readTVarIO entitiesDownloadedVar
           Console.Regions.finishConsoleRegion region $
-            "\n  Downloaded " <> tShow entitiesDownloaded <> " entities.\n"
+            "\n  Downloaded " <> tShow entitiesDownloaded <> " entities."
           pure result
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
