@@ -536,6 +536,12 @@ prettyWriteRemotePath =
 
 notifyUser :: FilePath -> Output -> IO Pretty
 notifyUser dir o = case o of
+  SaveTermNameConflict name ->
+    pure
+      . P.warnCallout
+      . P.wrap
+      $ "Cannot save the last run result into" <> P.backticked (P.string (Name.toString name))
+        <> "because that name conflicts with a name in the scratch file."
   NoLastRunResult ->
     pure
       . P.warnCallout

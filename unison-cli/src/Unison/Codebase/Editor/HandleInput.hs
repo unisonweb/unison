@@ -1137,7 +1137,7 @@ loop e = do
             SaveExecuteResultI resultName -> do
               description <- inputDescription input
               let resultVar = Name.toVar resultName
-              uf <- addSavedTermToUnisonFile resultVar
+              uf <- addSavedTermToUnisonFile resultName
               Cli.Env {codebase} <- ask
               currentPath <- Cli.getCurrentPath
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
@@ -3367,27 +3367,32 @@ addWatch watchName (Just uf) = do
             )
     _ -> addWatch watchName Nothing
 
-addSavedTermToUnisonFile :: Symbol -> Cli r (TypecheckedUnisonFile Symbol Ann)
+addSavedTermToUnisonFile :: Name -> Cli r (TypecheckedUnisonFile Symbol Ann)
 addSavedTermToUnisonFile resultName = do
+  let resultSymbol = Name.toVar resultName
   addTopLevelComponent <-
-    Cli.getLatestTypecheckedFile <&> \ltcf tlc -> case ltcf of
+    Cli.getLatestTypecheckedFile >>= \ltcf -> case ltcf of
       Nothing -> do
-        UF.typecheckedUnisonFile
-          mempty
-          mempty
-          [tlc]
-          mempty
+        pure \tlc ->
+          UF.typecheckedUnisonFile
+            mempty
+            mempty
+            [tlc]
+            mempty
       Just uf -> do
-        UF.typecheckedUnisonFile
-          (UF.dataDeclarationsId' uf)
-          (UF.effectDeclarationsId' uf)
-          (tlc : UF.topLevelComponents' uf)
-          (UF.watchComponents uf)
+        case Map.lookup resultSymbol (UF.hashTermsId uf) of
+          Just _ -> Cli.returnEarly (SaveTermNameConflict resultName)
+          Nothing -> pure \tlc ->
+            UF.typecheckedUnisonFile
+              (UF.dataDeclarationsId' uf)
+              (UF.effectDeclarationsId' uf)
+              (tlc : UF.topLevelComponents' uf)
+              (UF.watchComponents uf)
   (trm, typ) <-
     use #lastRunResult >>= \case
       Nothing -> Cli.returnEarly NoLastRunResult
       Just x -> pure x
-  pure (addTopLevelComponent [(resultName, trm, typ)])
+  pure (addTopLevelComponent [(resultSymbol, trm, typ)])
 
 getTerm :: String -> Cli r (Symbol, Term Symbol Ann, Type Symbol Ann)
 getTerm main =

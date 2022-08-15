@@ -150,6 +150,7 @@ data Output
   | TermNotFound' ShortHash
   | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
   | NoLastRunResult
+  | SaveTermNameConflict Name
   | SearchTermsNotFound [HQ.HashQualified Name]
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
@@ -295,6 +296,7 @@ type SourceFileContents = Text
 isFailure :: Output -> Bool
 isFailure o = case o of
   NoLastRunResult {} -> True
+  SaveTermNameConflict {} -> True
   RunResult {} -> False
   Success {} -> False
   PrintMessage {} -> False

@@ -2069,15 +2069,12 @@ execute =
 saveExecuteResult :: InputPattern
 saveExecuteResult =
   InputPattern
-    "save-run"
+    "add.run"
     []
     I.Visible
-    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
-    ( P.wrapColumn2
-        [ ( "`save-run result-var`",
-            "Saves the result of the previous run as result-var"
-          )
-        ]
+    [(ZeroPlus, noCompletions)]
+    ( "`add.run name` adds to the codebase the result of the most recent `run` command"
+        <> "as `name`."
     )
     ( \case
         [w] -> pure $ Input.SaveExecuteResultI (Name.unsafeFromString w)
