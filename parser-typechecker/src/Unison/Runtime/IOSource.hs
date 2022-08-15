@@ -19,12 +19,12 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.DataDeclaration.ConstructorId as DD
 import Unison.FileParsers (parseAndSynthesizeFile)
 import qualified Unison.NamesWithHistory as Names
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.Reference as R
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Term as Term
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF

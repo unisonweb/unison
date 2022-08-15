@@ -6,7 +6,7 @@
 -- pTrace
 {-# OPTIONS_GHC -Wno-deprecations #-}
 
-module Unison.Parser where
+module Unison.Syntax.Parser where
 
 import Control.Monad.Reader.Class (asks)
 import qualified Crypto.Random as Random
@@ -27,7 +27,6 @@ import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashable as Hashable
-import qualified Unison.Lexer as L
 import Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.NamesWithHistory (NamesWithHistory)
@@ -49,6 +48,7 @@ import Unison.Prelude
   )
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
+import qualified Unison.Syntax.Lexer as L
 import Unison.Term (MatchCase (..))
 import qualified Unison.UnisonFile.Error as UF
 import Unison.Util.Bytes (Bytes)

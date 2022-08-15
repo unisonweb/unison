@@ -21,7 +21,6 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NamePrinter (prettyHashQualified)
 import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Prelude
@@ -30,6 +29,7 @@ import qualified Unison.Referent as Referent
 import Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.ShortHash as SH
+import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R

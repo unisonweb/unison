@@ -67,11 +67,11 @@ import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Debug as Debug
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.UnisonFile as UF
 
 -- | The main command-line app monad.
@@ -359,8 +359,7 @@ class Label s t where
   default wrap :: s ~ t => s -> t
   wrap = id
 
-instance Label t (R t x) where
-  wrap = GoL
+instance Label (R t x) (R t x)
 
 instance {-# OVERLAPPABLE #-} Label s t => Label s (R t x) where
   wrap = GoL . wrap

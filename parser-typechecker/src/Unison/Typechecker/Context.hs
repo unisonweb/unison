@@ -82,9 +82,9 @@ import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
+import qualified Unison.Syntax.TypePrinter as TP
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
-import qualified Unison.TypePrinter as TP
 import Unison.Typechecker.Components (minimize')
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.TypeVar as TypeVar

@@ -99,8 +99,8 @@ import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
+import Unison.Syntax.TermPrinter
 import qualified Unison.Term as Tm
-import Unison.TermPrinter
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty as P
 import qualified Unison.Util.Text as UT

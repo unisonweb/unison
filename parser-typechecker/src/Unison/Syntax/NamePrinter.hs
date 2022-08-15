@@ -1,4 +1,4 @@
-module Unison.NamePrinter where
+module Unison.Syntax.NamePrinter where
 
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
