@@ -359,8 +359,7 @@ class Label s t where
   default wrap :: s ~ t => s -> t
   wrap = id
 
-instance Label t (R t x) where
-  wrap = GoL
+instance Label (R t x) (R t x)
 
 instance {-# OVERLAPPABLE #-} Label s t => Label s (R t x) where
   wrap = GoL . wrap
