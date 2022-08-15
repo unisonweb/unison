@@ -55,12 +55,12 @@ typeOfTerm' tl r = case Map.lookup r (typeOfTerms tl) of
   Nothing -> Left r
   Just a -> Right a
 
-instance Semigroup (TypeLookup v a) where (<>) = mappend
+instance Semigroup (TypeLookup v a) where
+  TypeLookup a b c <> TypeLookup a2 b2 c2 =
+    TypeLookup (a <> a2) (b <> b2) (c <> c2)
 
 instance Monoid (TypeLookup v a) where
   mempty = TypeLookup mempty mempty mempty
-  mappend (TypeLookup a b c) (TypeLookup a2 b2 c2) =
-    TypeLookup (a <> a2) (b <> b2) (c <> c2)
 
 instance Functor (TypeLookup v) where
   fmap f tl =

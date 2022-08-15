@@ -747,7 +747,6 @@ bitraverse f g = fmap fromList . traverse (\(a, b) -> (,) <$> f a <*> g b) . toL
 
 instance (Ord a, Ord b) => Monoid (Relation a b) where
   mempty = empty
-  mappend = (<>)
 
 instance (Ord a, Ord b) => Semigroup (Relation a b) where
   (<>) = union

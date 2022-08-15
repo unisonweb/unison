@@ -215,7 +215,7 @@ parses = parseWith TP.term
 
 parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
-  case Ps.parse @ Symbol p s Common.parsingEnv of
+  case Ps.parse @Symbol p s Common.parsingEnv of
     Left e -> do
       note $ renderParseErrorAsANSI 60 s e
       crash $ renderParseErrorAsANSI 60 s e

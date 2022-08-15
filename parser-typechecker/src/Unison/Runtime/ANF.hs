@@ -475,6 +475,7 @@ data CTE v s
   | LZ v (Either Reference v) [v]
   deriving (Show)
 
+pattern ST1 :: Direction Word16 -> v -> Mem -> s -> CTE v s
 pattern ST1 d v m s = ST d [v] [m] s
 
 data ANormalF v e
@@ -596,56 +597,159 @@ matchLit (Text' t) = Just $ T (Util.Text.fromText t)
 matchLit (Char' c) = Just $ C c
 matchLit _ = Nothing
 
+pattern TLet ::
+  ABT.Var v =>
+  Direction Word16 ->
+  v ->
+  Mem ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern TLet d v m bn bo = ABTN.TTm (ALet d [m] bn (ABTN.TAbs v bo))
 
+pattern TLetD ::
+  ABT.Var v =>
+  v ->
+  Mem ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern TLetD v m bn bo = ABTN.TTm (ALet Direct [m] bn (ABTN.TAbs v bo))
 
+pattern TLets ::
+  ABT.Var v =>
+  Direction Word16 ->
+  [v] ->
+  [Mem] ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern TLets d vs ms bn bo = ABTN.TTm (ALet d ms bn (ABTN.TAbss vs bo))
 
+pattern TName ::
+  ABT.Var v =>
+  v ->
+  Either Reference v ->
+  [v] ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern TName v f as bo = ABTN.TTm (AName f as (ABTN.TAbs v bo))
 
+pattern Lit' :: Lit -> Term v a
 pattern Lit' l <- (matchLit -> Just l)
 
+pattern TLit ::
+  ABT.Var v =>
+  Lit ->
+  ABTN.Term ANormalF v
 pattern TLit l = ABTN.TTm (ALit l)
 
+pattern TApp ::
+  ABT.Var v =>
+  Func v ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TApp f args = ABTN.TTm (AApp f args)
 
+pattern AApv :: v -> [v] -> ANormalF v e
 pattern AApv v args = AApp (FVar v) args
 
+pattern TApv ::
+  ABT.Var v =>
+  v ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TApv v args = TApp (FVar v) args
 
+pattern ACom :: Reference -> [v] -> ANormalF v e
 pattern ACom r args = AApp (FComb r) args
 
+pattern TCom ::
+  ABT.Var v =>
+  Reference ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TCom r args = TApp (FComb r) args
 
+pattern ACon :: Reference -> CTag -> [v] -> ANormalF v e
 pattern ACon r t args = AApp (FCon r t) args
 
+pattern TCon ::
+  ABT.Var v =>
+  Reference ->
+  CTag ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TCon r t args = TApp (FCon r t) args
 
+pattern AKon :: v -> [v] -> ANormalF v e
 pattern AKon v args = AApp (FCont v) args
 
+pattern TKon ::
+  ABT.Var v =>
+  v ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TKon v args = TApp (FCont v) args
 
+pattern AReq :: Reference -> CTag -> [v] -> ANormalF v e
 pattern AReq r t args = AApp (FReq r t) args
 
+pattern TReq ::
+  ABT.Var v =>
+  Reference ->
+  CTag ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TReq r t args = TApp (FReq r t) args
 
+pattern APrm :: POp -> [v] -> ANormalF v e
 pattern APrm p args = AApp (FPrim (Left p)) args
 
+pattern TPrm ::
+  ABT.Var v =>
+  POp ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TPrm p args = TApp (FPrim (Left p)) args
 
+pattern AFOp :: FOp -> [v] -> ANormalF v e
 pattern AFOp p args = AApp (FPrim (Right p)) args
 
+pattern TFOp ::
+  ABT.Var v =>
+  FOp ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TFOp p args = TApp (FPrim (Right p)) args
 
+pattern THnd ::
+  ABT.Var v =>
+  [Reference] ->
+  v ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern THnd rs h b = ABTN.TTm (AHnd rs h b)
 
+pattern TShift ::
+  ABT.Var v =>
+  Reference ->
+  v ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern TShift i v e = ABTN.TTm (AShift i (ABTN.TAbs v e))
 
+pattern TMatch ::
+  ABT.Var v =>
+  v ->
+  Branched (ABTN.Term ANormalF v) ->
+  ABTN.Term ANormalF v
 pattern TMatch v cs = ABTN.TTm (AMatch v cs)
 
+pattern TFrc :: ABT.Var v => v -> ABTN.Term ANormalF v
 pattern TFrc v = ABTN.TTm (AFrc v)
 
+pattern TVar :: ABT.Var v => v -> ABTN.Term ANormalF v
 pattern TVar v = ABTN.TTm (AVar v)
 
 {-# COMPLETE TLet, TName, TVar, TApp, TFrc, TLit, THnd, TShift, TMatch #-}
@@ -683,6 +787,11 @@ unbinds (TLets d us ms bu (unbinds -> (ctx, bd))) =
 unbinds (TName u f as (unbinds -> (ctx, bd))) = (LZ u f as : ctx, bd)
 unbinds tm = ([], tm)
 
+pattern TBind ::
+  Var v =>
+  Cte v ->
+  ANormal v ->
+  ANormal v
 pattern TBind bn bd <-
   (unbind -> Just (bn, bd))
   where
@@ -709,6 +818,7 @@ data Branched e
   deriving (Show, Functor, Foldable, Traversable)
 
 -- Data cases expected to cover all constructors
+pattern MatchDataCover :: Reference -> EnumMap CTag ([Mem], e) -> Branched e
 pattern MatchDataCover r m = MatchData r m Nothing
 
 data BranchAccum v

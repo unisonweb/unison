@@ -139,7 +139,7 @@ instance Show Stanza where
     API apiRequests ->
       "```api\n"
         <> ( apiRequests
-               & fmap (\(GetRequest txt) -> Text.unpack txt)
+               & fmap show
                & unlines
            )
         <> "```\n"

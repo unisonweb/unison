@@ -272,6 +272,7 @@ toName' = \case
   AbsolutePath' p -> Name.makeAbsolute <$> toName (unabsolute p)
   RelativePath' p -> Name.makeRelative <$> toName (unrelative p)
 
+pattern Empty :: Path
 pattern Empty = Path Seq.Empty
 
 pattern AbsolutePath' :: Absolute -> Path'

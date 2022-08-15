@@ -41,6 +41,7 @@ data CompilerBug v loc
 result :: Result notes a -> Maybe a
 result (Result _ may) = may
 
+pattern Result :: w -> Maybe a -> MaybeT (WriterT w Identity) a
 pattern Result notes may = MaybeT (WriterT (Identity (may, notes)))
 
 {-# COMPLETE Result #-}

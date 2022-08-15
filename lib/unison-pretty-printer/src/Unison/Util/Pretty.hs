@@ -874,17 +874,17 @@ indentAfterNewline by = flatMap f
 instance IsString s => IsString (Pretty s) where
   fromString s = lit' (foldMap chDelta s) (fromString s)
 
-instance Semigroup (Pretty s) where (<>) = mappend
-
-instance Monoid (Pretty s) where
-  mempty = Pretty mempty Empty
-  mappend p1 p2 = Pretty (delta p1 <> delta p2)
+instance Semigroup (Pretty s) where
+  p1 <> p2 = Pretty (delta p1 <> delta p2)
     . Append
     $ case (out p1, out p2) of
       (Append ps1, Append ps2) -> ps1 <> ps2
       (Append ps1, _) -> ps1 <> pure p2
       (_, Append ps2) -> pure p1 <> ps2
       (_, _) -> pure p1 <> pure p2
+
+instance Monoid (Pretty s) where
+  mempty = Pretty mempty Empty
 
 data Delta
   = -- | The number of columns.
@@ -906,7 +906,6 @@ instance Semigroup Delta where
 
 instance Monoid Delta where
   mempty = SingleLine 0
-  mappend = (<>)
 
 maxCol :: Delta -> Width
 maxCol = \case

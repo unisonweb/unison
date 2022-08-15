@@ -35,16 +35,16 @@ intersection c1 c2 = SlurpComponent {types = types', terms = terms', ctors = cto
     terms' = terms c1 `Set.intersection` terms c2
     ctors' = ctors c1 `Set.intersection` ctors c2
 
-instance Ord v => Semigroup (SlurpComponent v) where (<>) = mappend
-
-instance Ord v => Monoid (SlurpComponent v) where
-  mempty = SlurpComponent {types = mempty, terms = mempty, ctors = mempty}
-  c1 `mappend` c2 =
+instance Ord v => Semigroup (SlurpComponent v) where
+  c1 <> c2 =
     SlurpComponent
       { types = types c1 <> types c2,
         terms = terms c1 <> terms c2,
         ctors = ctors c1 <> ctors c2
       }
+
+instance Ord v => Monoid (SlurpComponent v) where
+  mempty = SlurpComponent {types = mempty, terms = mempty, ctors = mempty}
 
 -- I'm calling this `closeWithDependencies` because it doesn't just compute
 -- the dependencies of the inputs, it mixes them together.  Make sure this

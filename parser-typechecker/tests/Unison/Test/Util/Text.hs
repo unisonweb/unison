@@ -38,7 +38,7 @@ test =
           t1 <- T.pack <$> replicateM n ch
           t2 <- T.pack <$> replicateM m ch
           t3 <- T.pack <$> replicateM o ch
-          let [t1s, t2s, t3s] = Text.fromText <$> [t1, t2, t3]
+          let (t1s, t2s, t3s) = (Text.fromText t1, Text.fromText t2, Text.fromText t3)
           scope "associativity" $ do
             -- note $ show (t1s, t2s, t3s)
             expect' $ t1s <> (t2s <> t3s) == (t1s <> t2s) <> t3s
