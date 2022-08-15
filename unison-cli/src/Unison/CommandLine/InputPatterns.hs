@@ -1082,6 +1082,21 @@ pullExhaustive =
         _ -> Left (I.help pull)
     )
 
+debugTabCompletion :: InputPattern
+debugTabCompletion =
+  InputPattern
+    "debug.tab-complete"
+    []
+    I.Hidden
+    [(ZeroPlus, noCompletions)]
+    ( P.lines
+        [ P.wrap $ "This command can be used to test and debug ucm's tab-completion within transcripts"
+        ]
+    )
+    ( \txt ->
+        Right $ Input.DebugTabCompletionI (words txt)
+    )
+
 push :: InputPattern
 push =
   InputPattern
