@@ -10,8 +10,6 @@ module Unison.CommandLine.Completion
     prefixCompletePatch,
     noCompletions,
     prefixCompleteNamespace,
-    -- Exported for testing
-    prefixCompletionFilter,
     -- Unused for now, but may be useful later
     prettyCompletion,
     fixupCompletion,
@@ -23,7 +21,7 @@ import Control.Lens (ifoldMap)
 import qualified Control.Lens as Lens
 import Data.List (isPrefixOf)
 import qualified Data.List as List
-import Data.List.Extra (nubOrd)
+import Data.List.Extra (nubOrdOn)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Set.NonEmpty (NESet)
@@ -31,6 +29,7 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import qualified System.Console.Haskeline as Line
 import System.Console.Haskeline.Completion (Completion)
+import qualified System.Console.Haskeline.Completion as Haskeline
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.Reference as Reference
@@ -125,7 +124,6 @@ noCompletions _ _ _ = pure []
 completeWithinNamespace ::
   forall m v a.
   Monad m =>
-  (String -> [String] -> [System.Console.Haskeline.Completion.Completion]) ->
   -- | The types of completions to return
   NESet CompletionType ->
   -- | The portion of this are that the user has already typed.
@@ -133,7 +131,7 @@ completeWithinNamespace ::
   Codebase m v a ->
   Path.Absolute ->
   m [System.Console.Haskeline.Completion.Completion]
-completeWithinNamespace mkCompletions compTypes query codebase currentPath = do
+completeWithinNamespace compTypes query codebase currentPath = do
   shortHashLen <- Codebase.hashLength codebase
   Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
     Nothing -> do
@@ -142,9 +140,12 @@ completeWithinNamespace mkCompletions compTypes query codebase currentPath = do
       b <- V2Causal.value cb
       let currentBranchSuggestions =
             namesInBranch shortHashLen b
-              <&> \match -> Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match
+              & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match))
+              & filter (\(_isFinished, match) -> List.isPrefixOf query match)
+              & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
+
       childSuggestions <- getChildSuggestions shortHashLen b
-      pure . mkCompletions query . nubOrd . List.sort $ currentBranchSuggestions <> childSuggestions
+      pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ currentBranchSuggestions <> childSuggestions
   where
     fullQueryPath :: Path.Path'
     fullQueryPath = Path.fromText' (Text.pack query)
@@ -167,7 +168,7 @@ completeWithinNamespace mkCompletions compTypes query codebase currentPath = do
         | otherwise -> (p, Just segment)
     absQueryPath :: Path.Absolute
     absQueryPath = Path.resolve currentPath queryPathPrefix
-    getChildSuggestions :: Int -> V2Branch.Branch m -> m [String]
+    getChildSuggestions :: Int -> V2Branch.Branch m -> m [Completion]
     getChildSuggestions shortHashLen b = do
       case querySuffix of
         Nothing -> pure []
@@ -178,20 +179,23 @@ completeWithinNamespace mkCompletions compTypes query codebase currentPath = do
               childBranch <- V2Causal.value childCausal
               namesInBranch shortHashLen childBranch
                 & fmap
-                  ( \match -> Text.unpack . Path.toText' $ queryPathPrefix Lens.:> suffix Lens.:> NameSegment.NameSegment match
+                  ( \(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> suffix Lens.:> NameSegment.NameSegment match)
                   )
+                & filter (\(_isFinished, match) -> List.isPrefixOf query match)
+                & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
                 & pure
-    namesInBranch :: Int -> V2Branch.Branch m -> [Text]
+    namesInBranch :: Int -> V2Branch.Branch m -> [(Bool, Text)]
     namesInBranch hashLen b =
-      let textifyHQ :: (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [Text]
+      let textifyHQ :: (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [(Bool, Text)]
           textifyHQ f xs =
             xs
               & hashQualifyCompletions f
               & fmap (HQ'.toTextWith V2Branch.unNameSegment)
-       in dotifyNamespaces (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.children b)
+              & fmap (True,)
+       in ((False,) <$> dotifyNamespaces (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.children b))
             <> Monoid.whenM (NESet.member TermCompletion compTypes) (textifyHQ (hqFromNamedV2Referent hashLen) $ V2Branch.terms b)
             <> Monoid.whenM (NESet.member TypeCompletion compTypes) (textifyHQ (hqFromNamedV2Reference hashLen) $ V2Branch.types b)
-            <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap V2Branch.unNameSegment . Map.keys $ V2Branch.patches b)
+            <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap ((True,) . V2Branch.unNameSegment) . Map.keys $ V2Branch.patches b)
 
     -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
     hqFromNamedV2Referent :: Int -> V2Branch.NameSegment -> Referent.Referent -> HQ'.HashQualified V2Branch.NameSegment
@@ -242,7 +246,7 @@ prefixCompleteNamespace ::
   Codebase m v a ->
   Path.Absolute -> -- Current path
   m [Line.Completion]
-prefixCompleteNamespace = completeWithinNamespace prefixCompletionFilter (NESet.singleton NamespaceCompletion)
+prefixCompleteNamespace = completeWithinNamespace (NESet.singleton NamespaceCompletion)
 
 -- | Completes a term or type argument by prefix-matching against the query.
 prefixCompleteTermOrType ::
@@ -252,7 +256,7 @@ prefixCompleteTermOrType ::
   Codebase m v a ->
   Path.Absolute -> -- Current path
   m [Line.Completion]
-prefixCompleteTermOrType = completeWithinNamespace prefixCompletionFilter (NESet.fromList (TermCompletion NE.:| [TypeCompletion]))
+prefixCompleteTermOrType = completeWithinNamespace (NESet.fromList (TermCompletion NE.:| [TypeCompletion]))
 
 -- | Completes a term argument by prefix-matching against the query.
 prefixCompleteTerm ::
@@ -262,7 +266,7 @@ prefixCompleteTerm ::
   Codebase m v a ->
   Path.Absolute -> -- Current path
   m [Line.Completion]
-prefixCompleteTerm = completeWithinNamespace prefixCompletionFilter (NESet.singleton TermCompletion)
+prefixCompleteTerm = completeWithinNamespace (NESet.singleton TermCompletion)
 
 -- | Completes a term or type argument by prefix-matching against the query.
 prefixCompleteType ::
@@ -272,7 +276,7 @@ prefixCompleteType ::
   Codebase m v a ->
   Path.Absolute -> -- Current path
   m [Line.Completion]
-prefixCompleteType = completeWithinNamespace prefixCompletionFilter (NESet.singleton TypeCompletion)
+prefixCompleteType = completeWithinNamespace (NESet.singleton TypeCompletion)
 
 -- | Completes a patch argument by prefix-matching against the query.
 prefixCompletePatch ::
@@ -282,14 +286,7 @@ prefixCompletePatch ::
   Codebase m v a ->
   Path.Absolute -> -- Current path
   m [Line.Completion]
-prefixCompletePatch = completeWithinNamespace prefixCompletionFilter (NESet.singleton PatchCompletion)
-
--- | Filters results to only prefix matches on the provided query.
-prefixCompletionFilter :: String -> [String] -> [System.Console.Haskeline.Completion.Completion]
-prefixCompletionFilter query completions =
-  completions
-    & filter (List.isPrefixOf query)
-    & fmap (prettyCompletionWithQueryPrefix False query)
+prefixCompletePatch = completeWithinNamespace (NESet.singleton PatchCompletion)
 
 -- | Renders a completion option with the prefix matching the query greyed out.
 prettyCompletionWithQueryPrefix ::
