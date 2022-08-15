@@ -390,6 +390,10 @@ pull httpClient unisonShareUrl connect repoPath callbacks = catchSyncErrors do
           repoName
           callbacks
           tempEntities
+      -- Since we may have just inserted and then deleted many temp entities, we attempt to recover some disk space by
+      -- vacuuming after each pull. If the vacuum fails due to another open transaction on this connection, that's ok,
+      -- we'll try vacuuming again next pull.
+      _success <- connect Sqlite.vacuum
       pure (Right (hash32ToCausalHash hash))
   where
     repoName = Share.pathRepoName repoPath
