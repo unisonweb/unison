@@ -57,15 +57,9 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
             _ -> pure (BadType mainName Nothing)
         _ -> pure (error "multiple matching refs") -- TODO: make a real exception
 
--- '{io2.IO, Exception} ()
+-- forall x. '{ io2.IO, Exception } x
 builtinMain :: Var v => a -> Type.Type v a
-builtinMain = polyMain
-
--- user provided type: '{IO, Exception} x
-
--- '{ io2.IO, Exception } ex
-polyMain :: Var v => a -> Type.Type v a
-polyMain a =
+builtinMain a =
   let x = Var.named "x"
    in Type.forall a x (builtinMain' a (Type.var a x))
 
