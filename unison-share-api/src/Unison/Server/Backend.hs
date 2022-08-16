@@ -459,62 +459,13 @@ typeEntryToNamedType (TypeEntry r name tag) =
       typeTag = tag
     }
 
--- | Find all definitions and children reachable from the given branch.
--- Note: this differs from 'lsShallowBranch' in that it takes a fully loaded 'Branch' object,
--- and thus can include definition counts for child namespaces.
-lsBranch ::
-  Monad m =>
-  Codebase m Symbol Ann ->
-  Branch m ->
-  m [ShallowListEntry Symbol Ann]
-lsBranch codebase b = do
-  hashLength <- Codebase.hashLength codebase
-  let hqTerm b0 ns r =
-        let refs = Star3.lookupD1 ns . Branch._terms $ b0
-         in case length refs of
-              1 -> HQ'.fromName ns
-              _ -> HQ'.take hashLength $ HQ'.fromNamedReferent ns r
-      hqType b0 ns r =
-        let refs = Star3.lookupD1 ns . Branch._types $ b0
-         in case length refs of
-              1 -> HQ'.fromName ns
-              _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
-      defnCount b =
-        (R.size . Branch.deepTerms $ Branch.head b)
-          + (R.size . Branch.deepTypes $ Branch.head b)
-      b0 = Branch.head b
-  termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
-    ShallowTermEntry <$> termListEntry codebase r (hqTerm b0 ns r)
-  typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0) $
-    \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
-  let branchEntries =
-        [ ShallowBranchEntry
-            ns
-            (Branch.headHash b)
-            (Just $ defnCount b)
-          | (ns, b) <- Map.toList $ Branch.nonEmptyChildren b0
-        ]
-      patchEntries =
-        [ ShallowPatchEntry ns
-          | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
-        ]
-  pure
-    . List.sortOn listEntryName
-    $ termEntries
-      ++ typeEntries
-      ++ branchEntries
-      ++ patchEntries
-
 -- | Find all definitions and children reachable from the given 'V2Branch.Branch',
--- Note: this differs from 'lsBranch' in that it takes a shallow v2 branch,
--- As a result, it omits definition counts from child-namespaces in its results,
--- but doesn't require loading the entire sub-tree to do so.
-lsShallowBranch ::
+lsBranch ::
   Monad m =>
   Codebase m Symbol Ann ->
   V2Branch.Branch m ->
   m [ShallowListEntry Symbol Ann]
-lsShallowBranch codebase b0 = do
+lsBranch codebase b0 = do
   hashLength <- Codebase.hashLength codebase
   let hqTerm ::
         ( V2Branch.Branch m ->
