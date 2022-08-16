@@ -6,8 +6,12 @@ module Unison.PrettyPrintEnv
     patternName,
     terms,
     types,
+    allTermNames,
+    allTypeNames,
     termName,
     typeName,
+    termNameOrHashOnly,
+    typeNameOrHashOnly,
     biasTo,
     labeledRefName,
     -- | Exported only for cases where the codebase's configured hash length is unavailable.
@@ -41,11 +45,23 @@ data PrettyPrintEnv = PrettyPrintEnv
     typeNames :: Reference -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
   }
 
+allTermNames :: PrettyPrintEnv -> Referent -> [HQ'.HashQualified Name]
+allTermNames ppe = fmap snd . termNames ppe
+
+allTypeNames :: PrettyPrintEnv -> Reference -> [HQ'.HashQualified Name]
+allTypeNames ppe = fmap snd . typeNames ppe
+
 terms :: PrettyPrintEnv -> Referent -> Maybe (HQ'.HashQualified Name)
 terms ppe = fmap snd . listToMaybe . termNames ppe
 
 types :: PrettyPrintEnv -> Reference -> Maybe (HQ'.HashQualified Name)
 types ppe = fmap snd . listToMaybe . typeNames ppe
+
+termNameOrHashOnly :: PrettyPrintEnv -> Referent -> HQ.HashQualified Name
+termNameOrHashOnly ppe r = maybe (HQ.fromReferent r) HQ'.toHQ $ terms ppe r
+
+typeNameOrHashOnly :: PrettyPrintEnv -> Reference -> HQ.HashQualified Name
+typeNameOrHashOnly ppe r = maybe (HQ.fromReference r) HQ'.toHQ $ types ppe r
 
 patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
 patterns ppe r =

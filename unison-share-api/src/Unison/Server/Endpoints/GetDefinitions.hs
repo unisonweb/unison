@@ -40,6 +40,7 @@ import Unison.Server.Types
     defaultWidth,
   )
 import Unison.Symbol (Symbol)
+import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty (Width)
 
 type DefinitionsAPI =
@@ -119,14 +120,16 @@ serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
       fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
     root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
     let hqns = HQ.unsafeFromText <$> rawHqns
-    Backend.prettyDefinitionsBySuffixes
-      (fromMaybe Path.empty rel)
-      root
-      width
-      (fromMaybe (Suffixify True) suff)
-      rt
-      codebase
-      hqns
+    hqns
+      & foldMapM
+        ( Backend.prettyDefinitionsForHQName
+            (fromMaybe Path.empty rel)
+            root
+            width
+            (fromMaybe (Suffixify True) suff)
+            rt
+            codebase
+        )
   where
     parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
     errFromEither f = either (throwError . f) pure

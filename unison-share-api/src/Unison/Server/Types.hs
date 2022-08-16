@@ -11,6 +11,7 @@ module Unison.Server.Types where
 
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LZ
+import qualified Data.Map as Map
 import Data.OpenApi
   ( ToParamSchema (..),
     ToSchema (..),
@@ -105,6 +106,13 @@ data DefinitionDisplayResults = DefinitionDisplayResults
     missingDefinitions :: [HashQualifiedName]
   }
   deriving (Eq, Show, Generic)
+
+instance Semigroup DefinitionDisplayResults where
+  DefinitionDisplayResults terms1 types1 missing1 <> DefinitionDisplayResults terms2 types2 missing2 =
+    DefinitionDisplayResults (terms1 `Map.union` terms2) (types1 `Map.union` types2) (missing1 ++ missing2)
+
+instance Monoid DefinitionDisplayResults where
+  mempty = DefinitionDisplayResults mempty mempty mempty
 
 data TermTag = Doc | Test
   deriving (Eq, Ord, Show, Generic)
