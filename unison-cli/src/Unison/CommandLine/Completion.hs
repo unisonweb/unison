@@ -19,6 +19,7 @@ where
 
 import Control.Lens (ifoldMap)
 import qualified Control.Lens as Lens
+import Control.Lens.Cons (unsnoc)
 import Data.List (isPrefixOf)
 import qualified Data.List as List
 import Data.List.Extra (nubOrdOn)
@@ -42,6 +43,7 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Hash as H
 import qualified Unison.HashQualified' as HQ'
+import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.ShortHash as SH
@@ -84,11 +86,7 @@ noCompletions ::
   m [System.Console.Haskeline.Completion.Completion]
 noCompletions _ _ _ = pure []
 
--- |
---
--- Finds names of the selected completion types in the current namespace.
--- The caller is responsible for filtering those names according to whatever strategy they
--- want, e.g. prefix matching, fuzzy finding, etc.
+-- | Finds names of the selected completion types within the path provided by the query.
 --
 -- Given a codebase with these terms:
 --
@@ -101,10 +99,7 @@ noCompletions _ _ _ = pure []
 -- We will return:
 --
 -- @@
--- -- Note how we return `base` even if it's not a prefix match, it's the caller's job to
--- filter however they like.
--- .> cd bar<Tab>
--- bar
+-- .> cd bas<Tab>
 -- base
 --
 -- .> cd base<Tab>
@@ -119,6 +114,7 @@ noCompletions _ _ _ = pure []
 --
 -- If conflicted, or if there's a # in the query, we expand completions into short-hashes.
 -- This is also a convenient way to just see the shorthash for a given term.
+--
 -- .> view base.List.map#<Tab>
 -- base.List.map#0q926sgnn6
 completeWithinNamespace ::
@@ -147,32 +143,16 @@ completeWithinNamespace compTypes query codebase currentPath = do
       childSuggestions <- getChildSuggestions shortHashLen b
       pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ currentBranchSuggestions <> childSuggestions
   where
-    fullQueryPath :: Path.Path'
-    fullQueryPath = Path.fromText' (Text.pack query)
     queryPathPrefix :: Path.Path'
-    -- The trailing segment of the query.
-    -- E.g.
-    -- .base.Li -> Just "Li"
-    -- .base. -> Nothing
-    -- .base -> Just "base"
-    querySuffix :: Maybe NameSegment.NameSegment
-    (queryPathPrefix, querySuffix) = case Lens.unsnoc fullQueryPath of
-      Nothing ->
-        if Path.isAbsolute fullQueryPath
-          then (Path.AbsolutePath' Path.absoluteEmpty, Nothing)
-          else (Path.RelativePath' Path.relativeEmpty, Nothing)
-      Just (p, segment)
-        -- The parser straight up ignores a trailing '.', so we correct for that here,
-        -- E.g. if the query was ".base." we only want to see *children* of '.base'
-        | List.isSuffixOf "." query -> (fullQueryPath, Nothing)
-        | otherwise -> (p, Just segment)
+    querySuffix :: NameSegment.NameSegment
+    (queryPathPrefix, querySuffix) = parseLaxPath'Query (Text.pack query)
     absQueryPath :: Path.Absolute
     absQueryPath = Path.resolve currentPath queryPathPrefix
     getChildSuggestions :: Int -> V2Branch.Branch m -> m [Completion]
     getChildSuggestions shortHashLen b = do
       case querySuffix of
-        Nothing -> pure []
-        Just suffix -> do
+        "" -> pure []
+        suffix -> do
           case Map.lookup (Cv.namesegment1to2 suffix) (V2Branch.children b) of
             Nothing -> pure []
             Just childCausal -> do
@@ -224,7 +204,7 @@ completeWithinNamespace compTypes query codebase currentPath = do
         -- completions.
         qualifyRefs :: V2Branch.NameSegment -> (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
         qualifyRefs n refs
-          | (any (Text.isInfixOf "#" . NameSegment.toText) querySuffix) || length refs > 1 =
+          | ((Text.isInfixOf "#" . NameSegment.toText) querySuffix) || length refs > 1 =
               refs
                 & Map.keys
                 <&> qualify n
@@ -237,6 +217,50 @@ completeWithinNamespace compTypes query codebase currentPath = do
       if not (NESet.member NamespaceCompletion compTypes)
         then fmap (<> ".") namespaces
         else namespaces
+
+-- | A path parser which which is more lax with respect to well formed paths,
+-- specifically we can determine a valid path prefix with a (possibly empty) suffix query.
+-- This is used in tab-completion where the difference between `.base` and `.base.` is
+-- relevant, but can't be detected when running something like 'Path.fromText''
+--
+-- >>> parseLaxPath'Query ".base."
+-- (.base,"")
+--
+-- >>> parseLaxPath'Query ".base"
+-- (.,"base")
+--
+-- >>> parseLaxPath'Query ".base.List"
+-- (.base,"List")
+--
+-- >>> parseLaxPath'Query ""
+-- (,"")
+--
+-- >>> parseLaxPath'Query "base"
+-- (,"base")
+--
+-- >>> parseLaxPath'Query "base."
+-- (base,"")
+--
+-- >>> parseLaxPath'Query "base.List"
+-- (base,"List")
+parseLaxPath'Query :: Text -> (Path.Path', NameSegment)
+parseLaxPath'Query txt =
+  case unsnoc (Text.splitOn "." txt) of
+    -- This case is impossible due to the behaviour of 'splitOn'
+    Nothing ->
+      (Path.relativeEmpty', NameSegment "")
+    -- ".base."
+    -- ".base.List"
+    Just ("" : pathPrefix, querySegment) -> (Path.AbsolutePath' . Path.Absolute . Path.fromList . fmap NameSegment $ pathPrefix, NameSegment querySegment)
+    -- ""
+    -- "base"
+    -- "base.List"
+    Just (pathPrefix, querySegment) ->
+      ( Path.RelativePath' . Path.Relative . Path.fromList . fmap NameSegment $ pathPrefix,
+        NameSegment querySegment
+      )
+
+-- (Path.RelativePath' (Path.Path ps), rest)
 
 -- | Completes a namespace argument by prefix-matching against the query.
 prefixCompleteNamespace ::
