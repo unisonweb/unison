@@ -163,9 +163,18 @@ runTransaction :: MonadIO m => Codebase m v a -> Sqlite.Transaction b -> m b
 runTransaction Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransaction conn action
 
-getShallowBranchFromRoot :: Monad m => Codebase m v a -> Path.Absolute -> m (Maybe (V2Branch.CausalBranch m))
-getShallowBranchFromRoot codebase p = do
-  getShallowRootBranch codebase >>= shallowBranchAtPath (Path.unabsolute p)
+getShallowBranchFromRoot ::
+  Monad m =>
+  Codebase m v a ->
+  -- Optional root branch, if Nothing use the codebase's root branch.
+  Maybe V2.CausalHash ->
+  Path.Absolute ->
+  m (Maybe (V2Branch.CausalBranch m))
+getShallowBranchFromRoot codebase mayRootHash p = do
+  rootBranch <- case mayRootHash of
+    Nothing -> getShallowRootBranch codebase
+    Just ch -> getShallowBranchForHash codebase ch
+  shallowBranchAtPath (Path.unabsolute p) rootBranch
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.

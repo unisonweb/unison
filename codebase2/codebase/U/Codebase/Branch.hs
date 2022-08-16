@@ -13,10 +13,11 @@ module U.Codebase.Branch
     childAt,
     hoist,
     hoistCausalBranch,
+    pattern Empty,
   )
 where
 
-import Control.Lens (AsEmpty (..), nearly)
+import Control.Lens (AsEmpty (..), nearly, pattern Empty)
 import qualified Data.Map as Map
 import U.Codebase.Causal (Causal)
 import qualified U.Codebase.Causal as Causal

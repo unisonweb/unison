@@ -131,7 +131,7 @@ serve codebase mayRoot mayOwner = projects
   where
     projects :: Backend m [ProjectListing]
     projects = do
-      root <- case mayRoot of
+      (root, shallowRoot) <- case mayRoot of
         Nothing -> lift (Codebase.getRootBranch codebase)
         Just sbh -> do
           h <- Backend.expandShortBranchHash codebase sbh

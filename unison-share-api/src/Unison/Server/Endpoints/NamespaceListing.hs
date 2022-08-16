@@ -25,17 +25,18 @@ import Servant.Docs
     ToSample (..),
   )
 import Servant.OpenApi ()
+import qualified U.Codebase.Branch as V2Causal
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SqliteCodebase.Conversions (causalHash2to1)
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -164,7 +165,7 @@ serve codebase maySBH mayRelativeTo mayNamespaceName = do
   mayRootHash <- traverse (Backend.expandShortBranchHash codebase) maySBH
   codebaseRootHash <- liftIO $ Codebase.getRootBranchHash codebase
 
-  --Relative and Listing Path resolution
+  -- Relative and Listing Path resolution
   --
   -- The full listing path is a combination of the relativeToPath (prefix) and the namespace path
   --
@@ -188,18 +189,14 @@ serve codebase maySBH mayRelativeTo mayNamespaceName = do
       serveFromIndex codebase mayRootHash path'
     (True, Just rh)
       | rh == causalHash2to1 codebaseRootHash ->
-        serveFromIndex codebase mayRootHash path'
+          serveFromIndex codebase mayRootHash path'
       | otherwise -> do
-        mayBranch <- liftIO $ Codebase.getBranchForHash codebase rh
-        branch <- maybe (throwError $ Backend.NoBranchForHash rh) pure mayBranch
-        serveFromBranch codebase path' branch
+          serveFromBranch codebase path' (Cv.causalHash1to2 rh)
     (False, Just rh) -> do
-      mayBranch <- liftIO $ Codebase.getBranchForHash codebase rh
-      branch <- maybe (throwError $ Backend.NoBranchForHash rh) pure mayBranch
-      serveFromBranch codebase path' branch
+      serveFromBranch codebase path' (Cv.causalHash1to2 rh)
     (False, Nothing) -> do
-      branch <- liftIO $ Codebase.getRootBranch codebase
-      serveFromBranch codebase path' branch
+      rh <- liftIO $ Codebase.getRootBranchHash codebase
+      serveFromBranch codebase path' rh
   where
     parsePath :: String -> Backend IO Path.Path'
     parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
@@ -208,17 +205,20 @@ serve codebase maySBH mayRelativeTo mayNamespaceName = do
 serveFromBranch ::
   Codebase IO Symbol Ann ->
   Path.Path' ->
-  Branch IO ->
+  V2Causal.CausalHash ->
   Backend.Backend IO NamespaceListing
-serveFromBranch codebase path' branch = do
-  let branchAtPath = Branch.getAt' (Path.fromPath' path') branch
+serveFromBranch codebase path' rootHash = do
+  let absPath = Path.Absolute . Path.fromPath' $ path'
   -- TODO: Currently the ppe is just used to render the types returned from the namespace
   -- listing, which are currently unused because we don't show types in the side-bar.
   -- If we ever show types on hover we need to build and use a proper PPE here, but it's not
   -- worth slowing down the request for this right now.
   let ppe = PPE.empty
   let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-  let listingHash = branchToUnisonHash branchAtPath
+  mayCausalAtPath <- liftIO $ Codebase.getShallowBranchFromRoot codebase (Just rootHash) absPath
+  mayBranchAtPath <- liftIO $ traverse V2Causal.value mayCausalAtPath
+  let branchAtPath = fromMaybe V2Causal.Empty mayBranchAtPath
+  let listingHash = maybe (branchToUnisonHash Branch.empty) v2CausalBranchToUnisonHash mayCausalAtPath
   listingEntries <- liftIO $ Backend.lsBranch codebase branchAtPath
   makeNamespaceListing ppe listingFQN listingHash listingEntries
 
@@ -237,7 +237,7 @@ serveFromIndex codebase mayRootHash path' = do
   let shallowPPE = PPE.empty
   let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
   let listingHash = v2CausalBranchToUnisonHash listingCausal
-  listingEntries <- lift (Backend.lsShallowBranch codebase listingBranch)
+  listingEntries <- lift (Backend.lsBranch codebase listingBranch)
   makeNamespaceListing shallowPPE listingFQN listingHash listingEntries
 
 makeNamespaceListing ::

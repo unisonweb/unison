@@ -28,6 +28,7 @@ import qualified Lucid
 import System.Directory
 import System.FilePath
 import qualified Text.FuzzyFind as FZF
+import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.HashTags as V2.Hash
@@ -106,7 +107,6 @@ import Unison.Util.Pretty (Width)
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Set as Set
-import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.SyntaxText as UST
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
@@ -305,18 +305,20 @@ fuzzyFind printNames query =
    in refine $ toFoundRef . over _2 Name.toText <$> fzfNames
 
 -- List the immediate children of a namespace
-findShallow ::
+lsAtPath ::
   Monad m =>
   Codebase m Symbol Ann ->
+  -- The root to follow the path from.
+  Maybe V2.CausalHash ->
+  -- Path from the root to the branch to 'ls'
   Path.Absolute ->
   m [ShallowListEntry Symbol Ann]
-findShallow codebase path' = do
-  let path = Path.unabsolute path'
-  root <- Codebase.getRootBranch codebase
-  let mayb = Branch.getAt path root
-  case mayb of
+lsAtPath codebase mayRoot absPath = do
+  Codebase.getShallowBranchFromRoot codebase mayRoot absPath >>= \case
     Nothing -> pure []
-    Just b -> lsBranch codebase b
+    Just cb -> do
+      b <- V2Causal.value cb
+      lsBranch codebase b
 
 findShallowReadmeInBranchAndRender ::
   Width ->
