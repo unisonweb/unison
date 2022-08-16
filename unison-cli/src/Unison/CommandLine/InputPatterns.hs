@@ -2304,6 +2304,7 @@ validInputs =
       printVersion
     ]
 
+-- | A map of all command patterns by pattern name or alias.
 patternMap :: Map String InputPattern
 patternMap =
   Map.fromList $

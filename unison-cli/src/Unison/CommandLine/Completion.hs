@@ -260,8 +260,6 @@ parseLaxPath'Query txt =
         NameSegment querySegment
       )
 
--- (Path.RelativePath' (Path.Path ps), rest)
-
 -- | Completes a namespace argument by prefix-matching against the query.
 prefixCompleteNamespace ::
   forall m v a.
