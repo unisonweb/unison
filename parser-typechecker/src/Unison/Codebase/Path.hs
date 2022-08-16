@@ -17,6 +17,7 @@ module Unison.Codebase.Path
     isAbsolute,
     isRelative,
     absoluteEmpty,
+    absoluteEmpty',
     relativeEmpty,
     relativeEmpty',
     currentPath,
@@ -199,6 +200,9 @@ relativeEmpty = Relative empty
 
 relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
+
+absoluteEmpty' :: Path'
+absoluteEmpty' = Path' (Left (Absolute empty))
 
 -- | Mitchell: this function is bogus, because an empty name segment is bogus
 toPath' :: Path -> Path'
