@@ -104,9 +104,11 @@ import qualified Unison.Codebase.TermEdit.Typing as TermEdit
 import Unison.Codebase.Type (GitPushBehavior (..))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
+import qualified Unison.CommandLine.Completion as Completion
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import qualified Unison.CommandLine.InputPattern as InputPattern
+import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.DataDeclaration as DD
@@ -1386,6 +1388,12 @@ loop e = do
                   effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
                   terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
+            DebugTabCompletionI inputs -> do
+              Cli.Env {codebase} <- ask
+              currentPath <- Cli.getCurrentPath
+              let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase currentPath
+              (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
+              Cli.respond (DisplayDebugCompletions completions)
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
@@ -1647,6 +1655,7 @@ inputDescription input =
     UiI -> wat
     UpI {} -> wat
     VersionI -> wat
+    DebugTabCompletionI _input -> wat
   where
     hp' :: Either SBH.ShortBranchHash Path' -> Cli r Text
     hp' = either (pure . Text.pack . show) p'
