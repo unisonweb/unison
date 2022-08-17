@@ -145,7 +145,6 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
-import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
@@ -303,7 +302,8 @@ toCodeLookup :: Monad m => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol 
 toCodeLookup c =
   CL.CodeLookup (getTerm c) (getTypeDeclaration c)
     <> Builtin.codeLookup
-    <> IOSource.codeLookupM
+
+-- <> IOSource.codeLookupM
 
 -- | Get the type of a term.
 --

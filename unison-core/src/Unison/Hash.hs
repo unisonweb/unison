@@ -7,6 +7,7 @@ module Unison.Hash
     base32Hex,
     fromBase32Hex,
     Hash.toByteString,
+    Hash.fromByteString,
     validBase32HexChars,
   )
 where

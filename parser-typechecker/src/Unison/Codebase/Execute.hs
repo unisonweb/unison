@@ -14,10 +14,12 @@ import System.Exit (die)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
+import qualified Unison.Codebase.Init as Init
 import Unison.Codebase.MainTerm (getMainTerm)
 import qualified Unison.Codebase.MainTerm as MainTerm
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
+import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -41,6 +43,7 @@ execute codebase runtime mainName =
       MainTerm.NotFound s -> die ("Not found: " ++ s)
       MainTerm.BadType s _ -> die (s ++ " is not of type '{IO} ()")
       MainTerm.Success _ tm _ -> do
-        let codeLookup = Codebase.toCodeLookup codebase
-            ppe = PPE.empty
-        void $ Runtime.evaluateTerm codeLookup ppe runtime tm
+        void . Init.withOpenCodebase SC.init "bundled" "./bundled" $ \bundledCodebase -> do
+          let codeLookup = Codebase.toCodeLookup codebase <> Codebase.toCodeLookup bundledCodebase
+              ppe = PPE.empty
+          void $ Runtime.evaluateTerm codeLookup ppe runtime tm

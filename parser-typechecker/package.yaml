@@ -92,6 +92,7 @@ dependencies:
   - strings
   - tagged
   - temporary
+  - template-haskell
   - terminal-size
   - text
   - text-short

@@ -40,6 +40,8 @@ module Unison.Reference
     toShortHash,
     idToHash,
     idToShortHash,
+    liftRef,
+    unliftRef,
   )
 where
 
@@ -129,7 +131,7 @@ readSuffix = \case
   pos
     | Text.all isDigit pos,
       Just pos' <- readMaybe (Text.unpack pos) ->
-      Right pos'
+        Right pos'
   t -> Left $ "Invalid reference suffix: " <> show t
 
 isPrefixOf :: ShortHash -> Reference -> Bool
@@ -215,3 +217,11 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
 instance Show Id where show = SH.toString . SH.take 5 . toShortHash . DerivedId
 
 instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
+
+liftRef :: Reference -> Either Text (ByteString, Pos)
+liftRef (Builtin txt) = Left txt
+liftRef (DerivedId (Id h i)) = Right (H.toByteString h, i)
+
+unliftRef :: Either Text (ByteString, Pos) -> Reference
+unliftRef (Left txt) = Builtin txt
+unliftRef (Right (h, i)) = DerivedId $ Id (H.fromByteString h) i
