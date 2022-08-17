@@ -1997,12 +1997,12 @@ handleShowDefinition outputLoc inputQuery = do
             ConsoleLocation -> HelpMessage InputPatterns.view
             _ -> HelpMessage InputPatterns.edit
       else pure inputQuery
+  root' <- Cli.getRootBranch
+  currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
   let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
   names <-
     if hasAbsoluteQuery
       then do
-        root' <- Cli.getRootBranch
-        currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
         let namingScope = Backend.AllNames currentPath'
         let parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root' namingScope
         pure parseNames
@@ -2016,7 +2016,8 @@ handleShowDefinition outputLoc inputQuery = do
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
     let ppe =
-          PPED.biasTo (mapMaybe HQ.toName inputQuery) $ PPE.fromNamesDecl hqLength names
+          PPED.biasTo (mapMaybe HQ.toName inputQuery) $
+            Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root'
     Cli.respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   -- We set latestFile to be programmatically generated, if we
