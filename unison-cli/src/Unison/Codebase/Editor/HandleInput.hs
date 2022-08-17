@@ -1189,7 +1189,7 @@ loop e = do
                               <> show magicMainWatcherString
                               <> " with 'createWatcherFile', but it isn't here."
                           )
-                      Just x -> pure x
+                      Just x -> pure (stripUnisonFileReferences unisonFile x)
               #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType, unisonFile)
               Cli.respond (RunResult ppe mainRes)
             MakeStandaloneI output main -> do
@@ -3673,3 +3673,24 @@ getBasicPrettyPrintNames = do
   rootBranch <- Cli.getRootBranch
   currentPath <- Cli.getCurrentPath
   pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath)))
+
+-- Hack alert
+--
+-- After we evaluate a term all vars are transformed into references,
+-- but we want to feed this result into 'slurpFile' which won't add
+-- dependencies that are referenced by hash. The hacky solution for
+-- now is to convert all references that match a variable defined
+-- within the unison file to variable references. This is hacky both
+-- because we needlessly flip-flopping between var and reference
+-- representations, and because we might unexpectedly add a term from
+-- the local file if it has the same hash as a term in the codebase.
+stripUnisonFileReferences :: TypecheckedUnisonFile Symbol a -> Term Symbol () -> Term Symbol ()
+stripUnisonFileReferences unisonFile term =
+  let refMap :: Map Reference.Id Symbol
+      refMap = Map.fromList . map (\(sym, (refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
+      termAlg :: Set v -> () -> Term.F Symbol () () (Term Symbol ()) -> Term Symbol ()
+      termAlg _ () = \case
+        Term.Ref ref
+          | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
+        x -> ABT.tm x
+   in ABT.cata (\_ _ x -> ABT.var x) (\_ _ x -> ABT.cycle x) (\_ _ v x -> ABT.abs v x) termAlg term
