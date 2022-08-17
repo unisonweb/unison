@@ -58,10 +58,6 @@ otherwise, the result is successfully persisted
 ```ucm
 .> add.run foo.bar.baz
 
-  ⍟ These new definitions are ok to `add`:
-  
-    foo.bar.baz : Boolean
-
 ```
 ```ucm
 .> view foo.bar.baz
@@ -102,11 +98,6 @@ main _ = y
   a b -> a Nat.+ b Nat.+ z 10
 
 .> add.run result
-
-  ⍟ These new definitions are ok to `add`:
-  
-    result : Nat -> Nat -> Nat
-    z      : Nat -> Nat
 
 ```
 ## It resolves references within the codebase
@@ -158,10 +149,6 @@ main _ x = inc x
 
 .> add.run natfoo
 
-  ⍟ These new definitions are ok to `add`:
-  
-    natfoo : Nat -> Nat
-
 .> view natfoo
 
   natfoo : Nat -> Nat
@@ -210,12 +197,9 @@ x = 50
       x : Nat
 
 ```
+this saves 2 to xres, rather than 100
 ```ucm
 .> add.run xres
-
-  ⍟ These new definitions are ok to `add`:
-  
-    xres : Nat
 
 .> view xres
 
