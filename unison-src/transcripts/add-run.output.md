@@ -1,6 +1,7 @@
 # add.run
 
-## happy path
+## Basic usage
+
 ```unison
 even : Nat -> Boolean
 even x = if x == 0 then true else odd (drop x 1)
@@ -25,6 +26,8 @@ is2even = '(even 2)
       odd     : Nat -> Boolean
 
 ```
+it errors if there isn't a previous run
+
 ```ucm
 .> add.run foo
 
@@ -40,6 +43,8 @@ is2even = '(even 2)
   true
 
 ```
+it errors if the desired result name conflicts with a name in the
+unison file
 ```ucm
 .> add.run is2even
 
@@ -49,8 +54,13 @@ is2even = '(even 2)
   name conflicts with a name in the scratch file.
 
 ```
+otherwise, the result is successfully persisted
 ```ucm
 .> add.run foo.bar.baz
+
+  ⍟ These new definitions are ok to `add`:
+  
+    foo.bar.baz : Boolean
 
 ```
 ```ucm
@@ -60,13 +70,17 @@ is2even = '(even 2)
   foo.bar.baz = true
 
 ```
-## It continues to work if a dependency is changed
+## It resolves references within the unison file
 
 ```unison
-unique type Foo = Foo | Bar
+z b = b Nat.+ 12
+y a b = a Nat.+ b Nat.+ z 10
 
-foo : 'Foo
-foo = 'Foo
+
+
+
+main : '{IO, Exception} (Nat -> Nat -> Nat)
+main _ = y
 ```
 
 ```ucm
@@ -77,18 +91,29 @@ foo = 'Foo
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
-      foo : 'Foo
+      main : '{IO, Exception} (Nat -> Nat -> Nat)
+      y    : Nat -> Nat -> Nat
+      z    : Nat -> Nat
 
 ```
 ```ucm
-.> run foo
+.> run main
 
-  Foo
+  a b -> a Nat.+ b Nat.+ z 10
+
+.> add.run result
+
+  ⍟ These new definitions are ok to `add`:
+  
+    result : Nat -> Nat -> Nat
+    z      : Nat -> Nat
 
 ```
+## It resolves references within the codebase
+
 ```unison
-unique type Foo = Foo | Bar | Baz
+inc : Nat -> Nat
+inc x = x + 1
 ```
 
 ```ucm
@@ -99,14 +124,102 @@ unique type Foo = Foo | Bar | Baz
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      inc : Nat -> Nat
 
 ```
 ```ucm
-.> add.run result-foo
+.> add inc
 
-.> view Foo
+  ⍟ I've added these definitions:
+  
+    inc : Nat -> Nat
 
-  unique type Foo = Foo | Bar
+```
+```unison
+main : '(Nat -> Nat)
+main _ x = inc x
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      main : '(Nat -> Nat)
+
+```
+```ucm
+.> run main
+
+  inc
+
+.> add.run natfoo
+
+  ⍟ These new definitions are ok to `add`:
+  
+    natfoo : Nat -> Nat
+
+.> view natfoo
+
+  natfoo : Nat -> Nat
+  natfoo = inc
+
+```
+## It captures scratch file dependencies at run time
+
+```unison
+x = 1
+y = x + x
+main = 'y
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      main : 'Nat
+      x    : Nat
+      y    : Nat
+
+```
+```ucm
+.> run main
+
+  2
+
+```
+```unison
+x = 50
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      x : Nat
+
+```
+```ucm
+.> add.run xres
+
+  ⍟ These new definitions are ok to `add`:
+  
+    xres : Nat
+
+.> view xres
+
+  xres : Nat
+  xres = 2
 
 ```
