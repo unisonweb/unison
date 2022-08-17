@@ -49,6 +49,7 @@ import Control.Lens (Prism')
 import Data.Char (isDigit)
 import Data.Generics.Sum (_Ctor)
 import qualified Data.Map as Map
+import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.Hash as H
@@ -218,10 +219,10 @@ instance Show Id where show = SH.toString . SH.take 5 . toShortHash . DerivedId
 
 instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 
-liftRef :: Reference -> Either Text (ByteString, Pos)
+liftRef :: Reference -> Either Text (Text, Pos)
 liftRef (Builtin txt) = Left txt
-liftRef (DerivedId (Id h i)) = Right (H.toByteString h, i)
+liftRef (DerivedId (Id h i)) = Right (H.base32Hex h, i)
 
-unliftRef :: Either Text (ByteString, Pos) -> Reference
+unliftRef :: Either Text (Text, Pos) -> Reference
 unliftRef (Left txt) = Builtin txt
-unliftRef (Right (h, i)) = DerivedId $ Id (H.fromByteString h) i
+unliftRef (Right (h, i)) = DerivedId $ Id (fromJust $ H.fromBase32Hex h) i
