@@ -37,9 +37,11 @@ module Unison.Codebase
     lca,
     beforeImpl,
     shallowBranchAtPath,
-    getShallowBranchForHash,
-    getShallowBranchFromRoot,
+    shallowCausalAtPath,
+    getShallowCausalForHash,
+    getShallowCausalFromRoot,
     getShallowRootBranch,
+    getShallowRootCausal,
 
     -- * Root branch
     getRootBranch,
@@ -163,36 +165,53 @@ runTransaction :: MonadIO m => Codebase m v a -> Sqlite.Transaction b -> m b
 runTransaction Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransaction conn action
 
-getShallowBranchFromRoot ::
+getShallowCausalFromRoot ::
   Monad m =>
   Codebase m v a ->
   -- Optional root branch, if Nothing use the codebase's root branch.
   Maybe V2.CausalHash ->
   Path.Absolute ->
   m (Maybe (V2Branch.CausalBranch m))
-getShallowBranchFromRoot codebase mayRootHash p = do
-  rootBranch <- case mayRootHash of
-    Nothing -> getShallowRootBranch codebase
-    Just ch -> getShallowBranchForHash codebase ch
-  shallowBranchAtPath (Path.unabsolute p) rootBranch
+getShallowCausalFromRoot codebase mayRootHash p = do
+  rootCausal <- case mayRootHash of
+    Nothing -> getShallowRootCausal codebase
+    Just ch -> getShallowCausalForHash codebase ch
+  shallowCausalAtPath (Path.unabsolute p) rootCausal
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
-getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
+getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
 getShallowRootBranch codebase = do
+  getShallowRootCausal codebase >>= V2Causal.value
+
+-- | Get the shallow representation of the root branches without loading the children or
+-- history.
+getShallowRootCausal :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
+getShallowRootCausal codebase = do
   hash <- getRootBranchHash codebase
-  getShallowBranchForHash codebase hash
+  getShallowCausalForHash codebase hash
 
 -- | Recursively descend into shallow branches following the given path.
-shallowBranchAtPath :: Monad m => Path -> V2Branch.CausalBranch m -> m (Maybe (V2Branch.CausalBranch m))
-shallowBranchAtPath path causal = do
+shallowCausalAtPath :: Monad m => Path -> V2Branch.CausalBranch m -> m (Maybe (V2Branch.CausalBranch m))
+shallowCausalAtPath path causal = do
   case path of
     Path.Empty -> pure (Just causal)
     (ns Path.:< p) -> do
       b <- V2Causal.value causal
       case (V2Branch.childAt (Cv.namesegment1to2 ns) b) of
         Nothing -> pure Nothing
-        Just childCausal -> shallowBranchAtPath p childCausal
+        Just childCausal -> shallowCausalAtPath p childCausal
+
+shallowBranchAtPath :: Monad m => Path -> V2Branch.Branch m -> m (Maybe (V2Branch.Branch m))
+shallowBranchAtPath path branch = do
+  case path of
+    Path.Empty -> pure (Just branch)
+    (ns Path.:< p) -> do
+      case (V2Branch.childAt (Cv.namesegment1to2 ns) branch) of
+        Nothing -> pure Nothing
+        Just childCausal -> do
+          b <- V2Causal.value childCausal
+          shallowBranchAtPath p b
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.CausalHash -> m (Maybe (Branch m))

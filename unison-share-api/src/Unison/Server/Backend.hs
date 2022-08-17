@@ -309,15 +309,17 @@ lsAtPath ::
   Monad m =>
   Codebase m Symbol Ann ->
   -- The root to follow the path from.
-  Maybe V2.CausalHash ->
+  Maybe (V2.Branch m) ->
   -- Path from the root to the branch to 'ls'
   Path.Absolute ->
   m [ShallowListEntry Symbol Ann]
 lsAtPath codebase mayRoot absPath = do
-  Codebase.getShallowBranchFromRoot codebase mayRoot absPath >>= \case
+  root <- case mayRoot of
+    Nothing -> Codebase.getShallowRootBranch codebase
+    Just r -> pure r
+  Codebase.shallowBranchAtPath (Path.unabsolute absPath) root >>= \case
     Nothing -> pure []
-    Just cb -> do
-      b <- V2Causal.value cb
+    Just b -> do
       lsBranch codebase b
 
 findShallowReadmeInBranchAndRender ::
@@ -462,6 +464,8 @@ typeEntryToNamedType (TypeEntry r name tag) =
     }
 
 -- | Find all definitions and children reachable from the given 'V2Branch.Branch',
+--
+-- TODO: Need to filter out empty child namespaces before this is usable!
 lsBranch ::
   Monad m =>
   Codebase m Symbol Ann ->
@@ -735,11 +739,11 @@ expandShortBranchHash codebase hash = do
 getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (V2Branch.CausalBranch m)
 getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
   shallowRoot <- case mayRootHash of
-    Nothing -> lift (Codebase.getShallowRootBranch codebase)
+    Nothing -> lift (Codebase.getShallowRootCausal codebase)
     Just h -> do
-      lift $ Codebase.getShallowBranchForHash codebase (Cv.causalHash1to2 h)
+      lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
   causal <-
-    (lift $ Codebase.shallowBranchAtPath path shallowRoot) >>= \case
+    (lift $ Codebase.shallowCausalAtPath path shallowRoot) >>= \case
       Nothing -> pure $ Cv.causalbranch1to2 (Branch.empty)
       Just lc -> pure lc
   pure causal

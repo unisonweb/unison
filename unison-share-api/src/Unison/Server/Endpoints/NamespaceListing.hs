@@ -215,7 +215,7 @@ serveFromBranch codebase path' rootHash = do
   -- worth slowing down the request for this right now.
   let ppe = PPE.empty
   let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-  mayCausalAtPath <- liftIO $ Codebase.getShallowBranchFromRoot codebase (Just rootHash) absPath
+  mayCausalAtPath <- liftIO $ Codebase.getShallowCausalFromRoot codebase (Just rootHash) absPath
   mayBranchAtPath <- liftIO $ traverse V2Causal.value mayCausalAtPath
   let branchAtPath = fromMaybe V2Causal.Empty mayBranchAtPath
   let listingHash = maybe (branchToUnisonHash Branch.empty) v2CausalBranchToUnisonHash mayCausalAtPath

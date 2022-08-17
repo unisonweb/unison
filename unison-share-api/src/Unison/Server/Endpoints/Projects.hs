@@ -24,14 +24,16 @@ import Servant.Docs
     ToParam (..),
     ToSample (..),
   )
+import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Causal as V2Causal
 import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -131,35 +133,31 @@ serve codebase mayRoot mayOwner = projects
   where
     projects :: Backend m [ProjectListing]
     projects = do
-      (root, shallowRoot) <- case mayRoot of
-        Nothing -> lift (Codebase.getRootBranch codebase)
+      shallowRootBranch <- case mayRoot of
+        Nothing -> lift (Codebase.getShallowRootBranch codebase)
         Just sbh -> do
           h <- Backend.expandShortBranchHash codebase sbh
-          mayBranch <- lift $ Codebase.getBranchForHash codebase h
-          whenNothing mayBranch (throwError $ Backend.CouldntLoadBranch h)
+          -- TODO: can this ever be missing?
+          causal <- lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
+          lift $ V2Causal.value causal
 
-      ownerEntries <- lift $ findShallow root
+      ownerEntries <- lift $ Backend.lsBranch codebase shallowRootBranch
       -- If an owner is provided, we only want projects belonging to them
       let owners =
             case mayOwner of
               Just o -> [o]
               Nothing -> mapMaybe entryToOwner ownerEntries
-      foldMapM (ownerToProjectListings root) owners
+      foldMapM (ownerToProjectListings shallowRootBranch) owners
 
-    ownerToProjectListings :: Branch.Branch m -> ProjectOwner -> Backend m [ProjectListing]
+    ownerToProjectListings :: V2Branch.Branch m -> ProjectOwner -> Backend m [ProjectListing]
     ownerToProjectListings root owner = do
       let (ProjectOwner ownerName) = owner
       ownerPath' <- (parsePath . Text.unpack) ownerName
       let path = Path.fromPath' ownerPath'
-      let ownerBranch = Branch.getAt' path root
-      entries <- lift $ findShallow ownerBranch
+      entries <- lift $ Backend.lsAtPath codebase (Just root) (Path.Absolute path)
       pure $ mapMaybe (backendListEntryToProjectListing owner) entries
 
     -- Minor helpers
-
-    findShallow :: Branch.Branch m -> m [Backend.ShallowListEntry Symbol Ann]
-    findShallow branch =
-      Backend.lsBranch codebase branch
 
     parsePath :: String -> Backend m Path.Path'
     parsePath p =
