@@ -25,6 +25,7 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
+import Debug.Pretty.Simple (pTraceShowM)
 import qualified System.Console.Regions as Console.Regions
 import System.Environment (withArgs)
 import qualified Text.Megaparsec as P
@@ -1997,16 +1998,18 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
             ConsoleLocation -> HelpMessage InputPatterns.view
             _ -> HelpMessage InputPatterns.edit
       else pure inputQuery
-  root' <- Cli.getRootBranch
+  root <- Cli.getRootBranch
+  let root0 = Branch.head root
   currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
   let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
   let globalNames =
         let namingScope = Backend.AllNames currentPath'
-            parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root' namingScope
+            parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root namingScope
          in parseNames
   names <- case (hasAbsoluteQuery, showDefinitionScope) of
     (True, _) -> pure globalNames
-    (_, ShowDefinitionGlobal) -> pure globalNames
+    (_, ShowDefinitionGlobal) ->
+      pure . NamesWithHistory.fromCurrentNames $ Branch.toNames root0
     (_, ShowDefinitionLocal) -> do
       currentBranch <- Cli.getCurrentBranch0
       let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
@@ -2014,11 +2017,12 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = Backend.makeNameSearch hqLength names
     liftIO (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
+  pTraceShowM ("terms:" :: String, terms)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
     let ppe =
           PPED.biasTo (mapMaybe HQ.toName inputQuery) $
-            Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root'
+            Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
     Cli.respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   -- We set latestFile to be programmatically generated, if we
