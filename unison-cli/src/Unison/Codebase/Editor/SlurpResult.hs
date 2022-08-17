@@ -1,9 +1,23 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Editor.SlurpResult where
+module Unison.Codebase.Editor.SlurpResult
+  ( -- * Slurp result
+    SlurpResult (..),
+    Aliases (..),
+
+    -- ** Predicates
+    isOk,
+    isAllDuplicates,
+    hasAddsOrUpdates,
+
+    -- ** Pretty-printing
+    pretty,
+
+    -- * Definion status
+    Status (..),
+    prettyStatus,
+  )
+where
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -84,15 +98,6 @@ data Status
   | ExtraDefinition
   | BlockedDependency
   deriving (Ord, Eq, Show)
-
-isFailure :: Status -> Bool
-isFailure s = case s of
-  TermExistingConstructorCollision -> True
-  ConstructorExistingTermCollision -> True
-  BlockedDependency -> True
-  Collision -> True
-  Conflicted -> True
-  _ -> False
 
 prettyStatus :: Status -> P.Pretty P.ColorText
 prettyStatus s = case s of
@@ -326,46 +331,3 @@ isAllDuplicates SlurpResult {..} =
     emptyIgnoringConstructors :: SlurpComponent v -> Bool
     emptyIgnoringConstructors SlurpComponent {types, terms} =
       null types && null terms
-
--- stack repl
---
--- λ> import Unison.Util.Pretty
--- λ> import Unison.Codebase.Editor.SlurpResult
--- λ> putStrLn $ toANSI 80 ex
-ex :: P.Pretty P.ColorText
-ex =
-  P.indentN 2 $
-    P.lines
-      [ "",
-        P.green "▣ I've added these definitions: ",
-        "",
-        P.indentN 2 . P.column2 $ [("a", "Nat"), ("map", "(a -> b) -> [a] -> [b]")],
-        "",
-        P.green "▣ I've updated these definitions: ",
-        "",
-        P.indentN 2 . P.column2 $ [("c", "Nat"), ("flatMap", "(a -> [b]) -> [a] -> [b]")],
-        "",
-        P.wrap $ P.red "x" <> P.bold "These definitions couldn't be added:",
-        "",
-        P.indentN 2 $
-          P.lines
-            [ P.column2
-                [ ( P.hiBlack
-                      "Reason for failure    Symbol ",
-                    P.hiBlack "Type"
-                  ),
-                  ("ctor/term collision   foo ", "Nat"),
-                  ("failed dependency     zoot ", "[a] -> [a] -> [a]"),
-                  ("term/ctor collision   unique type Foo ", "f x")
-                ],
-              "",
-              "Tip: use `help filestatus` to learn more."
-            ],
-        "",
-        "⊡ Ignoring previously added definitions: "
-          <> P.indentNAfterNewline
-            2
-            ( P.hiBlack (P.wrap $ P.sep " " ["zonk", "anotherOne", "List.wrangle", "oatbag", "blarg", "mcgee", P.group "ability Woot"])
-            ),
-        ""
-      ]
