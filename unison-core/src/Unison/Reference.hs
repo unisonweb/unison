@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -49,6 +50,7 @@ import Data.Generics.Sum (_Ctor)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Language.Haskell.TH.Syntax as TH
 import qualified Unison.Hash as H
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
@@ -66,7 +68,7 @@ data Reference
     -- and the `Size` is the number of elements in the component.
     -- Using an ugly name so no one tempted to use this
     DerivedId Id
-  deriving (Eq, Ord, Generic)
+  deriving (Eq, Ord, Generic, TH.Lift)
 
 pattern Derived :: H.Hash -> Pos -> Reference
 pattern Derived h i = DerivedId (Id h i)
@@ -77,7 +79,7 @@ _DerivedId :: Prism' Reference Id
 _DerivedId = _Ctor @"DerivedId"
 
 -- | @Pos@ is a position into a cycle, as cycles are hashed together.
-data Id = Id H.Hash Pos deriving (Eq, Ord)
+data Id = Id H.Hash Pos deriving (Eq, Ord, TH.Lift)
 
 -- | A term reference.
 type TermReference = Reference
@@ -129,7 +131,7 @@ readSuffix = \case
   pos
     | Text.all isDigit pos,
       Just pos' <- readMaybe (Text.unpack pos) ->
-      Right pos'
+        Right pos'
   t -> Left $ "Invalid reference suffix: " <> show t
 
 isPrefixOf :: ShortHash -> Reference -> Bool

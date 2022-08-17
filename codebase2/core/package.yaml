@@ -12,6 +12,7 @@ dependencies:
   - containers
   - vector
   - unison-util
+  - template-haskell
 
 default-extensions:
   - ApplicativeDo

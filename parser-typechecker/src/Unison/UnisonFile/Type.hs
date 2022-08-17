@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -7,6 +8,7 @@ module Unison.UnisonFile.Type where
 
 import Control.Lens
 import Data.Bifunctor (first)
+import qualified Language.Haskell.TH.Syntax as TH
 import qualified Unison.ABT as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.Prelude
@@ -50,6 +52,8 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
     hashTermsId :: Map v (Reference.Id, Maybe WatchKind, Term v a, Type v a)
   }
   deriving (Show)
+
+deriving instance (TH.Lift v, TH.Lift a) => TH.Lift (TypecheckedUnisonFile v a)
 
 {-# COMPLETE TypecheckedUnisonFile #-}
 

@@ -1,46 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module Unison.Runtime.IOSource
-  ( copyrightHolderRef,
-    authorRef,
-    guidRef,
-    isPropagatedValue,
-    isPropagatedReference,
-    codeLookupM,
-    pattern Doc2Word,
-    pattern Doc2Code,
-    pattern Doc2CodeBlock,
-    pattern Doc2Bold,
-    pattern Doc2Italic,
-    pattern Doc2Strikethrough,
-    pattern Doc2Style,
-    pattern Doc2Anchor,
-    pattern Doc2Blockquote,
-    pattern Doc2Blankline,
-    pattern Doc2Linebreak,
-    pattern Doc2SectionBreak,
-    pattern Doc2Tooltip,
-    pattern Doc2Aside,
-    pattern Doc2Callout,
-    pattern Doc2Table,
-    pattern Doc2Folded,
-    pattern Doc2Paragraph,
-    pattern Doc2BulletedList,
-    pattern Doc2NumberedList,
-    pattern Doc2Section,
-    pattern Doc2NamedLink,
-    pattern Doc2Image,
-    pattern Doc2Special,
-    pattern Doc2Join,
-    pattern Doc2UntitledSection,
-    pattern Doc2Column,
-    pattern Doc2Group,
-  )
-where
+module Unison.Runtime.IOSource where
 
 import Control.Lens (view, _1)
 import Control.Monad.Morph (hoist)

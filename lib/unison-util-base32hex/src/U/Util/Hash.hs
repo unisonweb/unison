@@ -1,6 +1,9 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module U.Util.Hash
   ( Hash (Hash, toShort),
@@ -15,15 +18,21 @@ module U.Util.Hash
 where
 
 import Data.ByteString (ByteString)
-import Data.ByteString.Short (ShortByteString, fromShort)
 import qualified Data.ByteString.Short as B.Short
+import Data.ByteString.Short.Internal hiding (toShort)
 import Data.Text (Text)
+import GHC.Exts
 import GHC.Generics (Generic)
+import qualified Language.Haskell.TH.Syntax as TH
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
 
 -- | Hash which uniquely identifies a Unison type or term
-newtype Hash = Hash {toShort :: ShortByteString} deriving (Eq, Ord, Generic)
+newtype Hash = Hash {toShort :: ShortByteString} deriving (Eq, Ord, Generic, TH.Lift)
+
+deriving instance TH.Lift ShortByteString
+
+deriving instance TH.Lift ByteArray#
 
 toBase32Hex :: Hash -> Base32Hex
 toBase32Hex = Base32Hex.fromByteString . toByteString

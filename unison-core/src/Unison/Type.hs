@@ -1,9 +1,11 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -16,6 +18,7 @@ import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
 import Data.Monoid (Any (..))
 import qualified Data.Set as Set
+import qualified Language.Haskell.TH.Syntax as TH
 import Prelude.Extras (Eq1 (..), Ord1 (..), Show1 (..))
 import qualified Unison.ABT as ABT
 import qualified Unison.Kind as K
@@ -42,6 +45,8 @@ data F a
   -- bound by outer type signatures, to support scoped type
   -- variables
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
+
+deriving instance (TH.Lift a) => TH.Lift (F a)
 
 instance Eq1 F where (==#) = (==)
 

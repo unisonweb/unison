@@ -299,11 +299,13 @@ typeLookupForDependencies codebase s = do
               Nothing -> pure mempty
     go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
 
-toCodeLookup :: Monad m => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
-toCodeLookup c =
-  CL.CodeLookup (getTerm c) (getTypeDeclaration c)
-    <> Builtin.codeLookup
-    <> IOSource.codeLookupM
+toCodeLookup :: Monad m => Codebase m Symbol Parser.Ann -> (CL.CodeLookup Symbol m Parser.Ann -> m r) -> m r
+toCodeLookup c action = do
+  let codeLookup =
+        CL.CodeLookup (getTerm c) (getTypeDeclaration c)
+          -- <> CL.CodeLookup (getTerm bundled) (getTypeDeclaration bundled)
+          <> IOSource.codeLookupM
+  action codeLookup
 
 -- | Get the type of a term.
 --

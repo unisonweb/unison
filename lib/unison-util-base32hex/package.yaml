@@ -15,6 +15,7 @@ dependencies:
   - containers
   - unison-prelude
   - text
+  - template-haskell
 
 ghc-options:
   -Wall

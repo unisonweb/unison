@@ -107,6 +107,7 @@ library
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Interface
       Unison.Runtime.IOSource
+      Unison.Runtime.IOSource.Lifted
       Unison.Runtime.Machine
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
@@ -260,6 +261,7 @@ library
     , stm
     , strings
     , tagged
+    , template-haskell
     , temporary
     , terminal-size
     , text
@@ -444,6 +446,7 @@ test-suite parser-typechecker-tests
     , stm
     , strings
     , tagged
+    , template-haskell
     , temporary
     , terminal-size
     , text

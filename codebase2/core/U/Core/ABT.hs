@@ -1,4 +1,5 @@
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
+{-# LANGUAGE DeriveLift #-}
 
 module U.Core.ABT where
 
@@ -9,6 +10,7 @@ import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import GHC.Generics (Generic)
+import qualified Language.Haskell.TH.Syntax as TH
 import U.Core.ABT.Var (Var (freshIn))
 import Prelude hiding (abs, cycle)
 
@@ -17,12 +19,14 @@ data ABT f v r
   | Cycle r
   | Abs v r
   | Tm (f r)
-  deriving (Show, Functor, Foldable, Traversable)
+  deriving (Show, Functor, Foldable, Traversable, TH.Lift)
 
 -- | At each level in the tree, we store the set of free variables and
 -- a value of type `a`. Variables are of type `v`.
 data Term f v a = Term {freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a)}
   deriving (Functor, Foldable, Generic, Traversable)
+
+deriving instance (forall x. TH.Lift (f x), TH.Lift (Set v), TH.Lift v, TH.Lift a) => TH.Lift (Term f v a)
 
 instance (Foldable f, Functor f, forall a. Eq a => Eq (f a), Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable

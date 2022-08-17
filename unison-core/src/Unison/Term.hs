@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -21,6 +22,7 @@ import qualified Data.Sequence as Sequence
 import qualified Data.Set as Set
 import qualified Data.Set.NonEmpty as NES
 import qualified Data.Text as Text
+import qualified Language.Haskell.TH.Syntax as TH
 import Prelude.Extras (Eq1 (..), Show1 (..))
 import Text.Show
 import qualified Unison.ABT as ABT
@@ -103,7 +105,7 @@ data F typeVar typeAnn patternAnn a
     Match a [MatchCase patternAnn a]
   | TermLink Referent
   | TypeLink Reference
-  deriving (Foldable, Functor, Generic, Generic1, Traversable)
+  deriving (Foldable, Functor, Generic, Generic1, Traversable, TH.Lift)
 
 _Ref :: Prism' (F tv ta pa a) Reference
 _Ref = _Ctor @"Ref"
