@@ -2002,27 +2002,28 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
   let root0 = Branch.head root
   currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
   let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
-  let globalNames =
-        let namingScope = Backend.AllNames currentPath'
-            parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root namingScope
-         in parseNames
-  names <- case (hasAbsoluteQuery, showDefinitionScope) of
-    (True, _) -> pure globalNames
-    (_, ShowDefinitionGlobal) ->
-      pure . NamesWithHistory.fromCurrentNames $ Branch.toNames root0
+  (names, unbiasedPPE) <- case (hasAbsoluteQuery, showDefinitionScope) of
+    (True, _) -> do
+      let namingScope = Backend.AllNames currentPath'
+      let parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root namingScope
+      let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
+      pure (parseNames, ppe)
+    (_, ShowDefinitionGlobal) -> do
+      let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
+      -- Use an absolutely qualified ppe for view.global
+      let ppe = PPE.fromNamesDecl hqLength names
+      pure (names, ppe)
     (_, ShowDefinitionLocal) -> do
       currentBranch <- Cli.getCurrentBranch0
       let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
-      pure currentNames
+      let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
+      pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = Backend.makeNameSearch hqLength names
     liftIO (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
-  pTraceShowM ("terms:" :: String, terms)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
-    let ppe =
-          PPED.biasTo (mapMaybe HQ.toName inputQuery) $
-            Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
+    let ppe = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE
     Cli.respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   -- We set latestFile to be programmatically generated, if we
