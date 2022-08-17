@@ -158,11 +158,9 @@ suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
   PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
 
--- implementation detail of parseNamesForBranch and prettyNamesForBranch
--- Returns (parseNames, prettyNames, localNames)
-namesForBranch :: Branch m -> NameScoping -> (Names, Names, Names)
-namesForBranch root scope =
-  (parseNames0, prettyPrintNames0, currentPathNames)
+-- | Returns all names within the provided path
+namesForBranch :: Codebase m -> Maybe CausalHash -> Path.Absolute -> Names
+namesForBranch root scope = currentPathNames
   where
     path :: Path
     includeAllNames :: Bool
@@ -174,19 +172,10 @@ namesForBranch root scope =
     absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
     currentBranch0 = Branch.head currentBranch
     currentPathNames = Branch.toNames currentBranch0
-    -- all names, but with local names in their relative form only, rather
-    -- than absolute; external names appear as absolute
-    currentAndExternalNames =
-      currentPathNames
-        `Names.unionLeft` Names.mapNames Name.makeAbsolute externalNames
       where
-        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
-        rootNames = Branch.toNames root0
         pathPrefixed = case Path.toName path of
           Nothing -> const mempty
           Just pathName -> Names.prefix0 pathName
-    -- parsing should respond to local and absolute names
-    parseNames0 = currentPathNames <> Monoid.whenM includeAllNames absoluteRootNames
     -- pretty-printing should use local names where available
     prettyPrintNames0 =
       if includeAllNames

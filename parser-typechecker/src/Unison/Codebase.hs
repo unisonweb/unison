@@ -140,6 +140,8 @@ import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Name (Name)
+import Unison.Names (Names)
 import qualified Unison.Parser.Ann as Parser
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -157,6 +159,25 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
+
+data EntityType
+  = TermEntity
+  | TypeEntity
+  | PatchEntity
+  | PathEntity
+  | PathEntity
+
+streamNamesForNamespace :: (Monoid r, MonadIO m) => Codebase m v a -> (Maybe V2.CausalHash) -> (Name -> m r) -> m r
+streamNamesForNamespace codebase mayCh callback = do
+  causal <- case mayCh of
+    Nothing -> getShallowRootBranch codebase
+    Just ch -> getShallowBranchForHash codebase ch
+  b <- V2Causal.value causal
+  streamNamesForShallowBranch b callback
+
+streamNamesForShallowBranch :: Monoid r => V2.Branch m -> (Name -> m r) -> m r
+streamNamesForShallowBranch (V2.Branch {}) callback = do
+  _
 
 -- | Run a transaction on a codebase.
 runTransaction :: MonadIO m => Codebase m v a -> Sqlite.Transaction b -> m b

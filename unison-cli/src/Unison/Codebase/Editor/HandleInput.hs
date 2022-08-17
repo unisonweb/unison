@@ -206,9 +206,8 @@ loop :: Either Event Input -> Cli r ()
 loop e = do
   let getBasicPrettyPrintNames :: Cli r Names
       getBasicPrettyPrintNames = do
-        rootBranch <- Cli.getRootBranch
         currentPath <- Cli.getCurrentPath
-        pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath)))
+        pure (Backend.prettyNamesForBranch (Backend.AllNames (Path.unabsolute currentPath)))
 
       withFile ::
         -- ambient abilities
