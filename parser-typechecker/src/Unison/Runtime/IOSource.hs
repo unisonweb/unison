@@ -4,7 +4,43 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module Unison.Runtime.IOSource where
+module Unison.Runtime.IOSource
+  ( copyrightHolderRef,
+    authorRef,
+    guidRef,
+    isPropagatedValue,
+    isPropagatedReference,
+    codeLookupM,
+    pattern Doc2Word,
+    pattern Doc2Code,
+    pattern Doc2CodeBlock,
+    pattern Doc2Bold,
+    pattern Doc2Italic,
+    pattern Doc2Strikethrough,
+    pattern Doc2Style,
+    pattern Doc2Anchor,
+    pattern Doc2Blockquote,
+    pattern Doc2Blankline,
+    pattern Doc2Linebreak,
+    pattern Doc2SectionBreak,
+    pattern Doc2Tooltip,
+    pattern Doc2Aside,
+    pattern Doc2Callout,
+    pattern Doc2Table,
+    pattern Doc2Folded,
+    pattern Doc2Paragraph,
+    pattern Doc2BulletedList,
+    pattern Doc2NumberedList,
+    pattern Doc2Section,
+    pattern Doc2NamedLink,
+    pattern Doc2Image,
+    pattern Doc2Special,
+    pattern Doc2Join,
+    pattern Doc2UntitledSection,
+    pattern Doc2Column,
+    pattern Doc2Group,
+  )
+where
 
 import Control.Lens (view, _1)
 import Control.Monad.Morph (hoist)
@@ -72,36 +108,36 @@ typeNamedId s =
 typeNamed :: String -> R.Reference
 typeNamed = R.DerivedId . typeNamedId
 
-abilityNamedId :: String -> R.Id
-abilityNamedId s =
-  case Map.lookup (Var.nameds s) (UF.effectDeclarationsId' typecheckedFile) of
-    Nothing -> error $ "No builtin ability called: " <> s
-    Just (r, _) -> r
+-- abilityNamedId :: String -> R.Id
+-- abilityNamedId s =
+--   case Map.lookup (Var.nameds s) (UF.effectDeclarationsId' typecheckedFile) of
+--     Nothing -> error $ "No builtin ability called: " <> s
+--     Just (r, _) -> r
 
-eitherReference,
-  optionReference,
-  isTestReference,
-  isPropagatedReference ::
-    R.Reference
-eitherReference = typeNamed "Either"
-optionReference = typeNamed "Optional"
-isTestReference = typeNamed "IsTest"
+-- eitherReference,
+--   optionReference,
+--   isTestReference,
+-- eitherReference = typeNamed "Either"
+-- optionReference = typeNamed "Optional"
+-- isTestReference = typeNamed "IsTest"
+
+-- isTest :: (R.Reference, R.Reference)
+-- isTest = (isTestReference, termNamed "metadata.isTest")
+
+-- isIOTest :: (R.Reference, R.Reference)
+-- isIOTest = (isTestReference, termNamed "metadata.isIOTest")
+
+isPropagatedReference :: R.Reference
 isPropagatedReference = typeNamed "IsPropagated"
-
-isTest :: (R.Reference, R.Reference)
-isTest = (isTestReference, termNamed "metadata.isTest")
-
-isIOTest :: (R.Reference, R.Reference)
-isIOTest = (isTestReference, termNamed "metadata.isIOTest")
 
 isPropagatedValue :: R.Reference
 isPropagatedValue = termNamed "metadata.isPropagated"
 
-eitherLeftId, eitherRightId, someId, noneId :: DD.ConstructorId
-eitherLeftId = constructorNamed eitherReference "Either.Left"
-eitherRightId = constructorNamed eitherReference "Either.Right"
-someId = constructorNamed optionReference "Optional.Some"
-noneId = constructorNamed optionReference "Optional.None"
+-- eitherLeftId, eitherRightId, someId, noneId :: DD.ConstructorId
+-- eitherLeftId = constructorNamed eitherReference "Either.Left"
+-- eitherRightId = constructorNamed eitherReference "Either.Right"
+-- someId = constructorNamed optionReference "Optional.Some"
+-- noneId = constructorNamed optionReference "Optional.None"
 
 authorRef, guidRef, copyrightHolderRef :: R.Reference
 authorRef = typeNamed "Author"
