@@ -29,27 +29,27 @@ Globbing as a prefix, infix, or suffix wildcard.
 ```ucm
 .> view convert?
 
-  .convertFromThing : ##Nat
-  .convertFromThing = 2
+  convertFromThing : ##Nat
+  convertFromThing = 2
   
-  .convertToThing : ##Nat
-  .convertToThing = 1
+  convertToThing : ##Nat
+  convertToThing = 1
 
 .> view convert?Thing
 
-  .convertFromThing : ##Nat
-  .convertFromThing = 2
+  convertFromThing : ##Nat
+  convertFromThing = 2
   
-  .convertToThing : ##Nat
-  .convertToThing = 1
+  convertToThing : ##Nat
+  convertToThing = 1
 
 .> view ?Thing
 
-  .convertFromThing : ##Nat
-  .convertFromThing = 2
+  convertFromThing : ##Nat
+  convertFromThing = 2
   
-  .convertToThing : ##Nat
-  .convertToThing = 1
+  convertToThing : ##Nat
+  convertToThing = 1
 
 ```
 Globbing can occur in any name segment.
@@ -57,19 +57,19 @@ Globbing can occur in any name segment.
 ```ucm
 .> view ?.toList
 
-  .nested.toList : ##Nat
-  .nested.toList = 4
+  nested.toList : ##Nat
+  nested.toList = 4
   
-  .othernest.toList : ##Nat
-  .othernest.toList = 6
+  othernest.toList : ##Nat
+  othernest.toList = 6
 
 .> view nested.to?
 
-  .nested.toList : ##Nat
-  .nested.toList = 4
+  nested.toList : ##Nat
+  nested.toList = 4
   
-  .nested.toMap : ##Nat
-  .nested.toMap = 5
+  nested.toMap : ##Nat
+  nested.toMap = 5
 
 ```
 You may have up to one glob per name segment.
@@ -77,17 +77,17 @@ You may have up to one glob per name segment.
 ```ucm
 .> view ?.to?
 
-  .nested.toList : ##Nat
-  .nested.toList = 4
+  nested.toList : ##Nat
+  nested.toList = 4
   
-  .nested.toMap : ##Nat
-  .nested.toMap = 5
+  nested.toMap : ##Nat
+  nested.toMap = 5
   
-  .othernest.toList : ##Nat
-  .othernest.toList = 6
+  othernest.toList : ##Nat
+  othernest.toList = 6
   
-  .othernest.toMap : ##Nat
-  .othernest.toMap = 7
+  othernest.toMap : ##Nat
+  othernest.toMap = 7
 
 ```
 Globbing only expands to the appropriate argument type.
@@ -98,8 +98,8 @@ This should expand to only the otherTerm.
 ```ucm
 .> view other?
 
-  .otherTerm : ##Nat
-  .otherTerm = 3
+  otherTerm : ##Nat
+  otherTerm = 3
 
 ```
 Globbing should work from within a namespace with both absolute and relative patterns.
@@ -115,10 +115,10 @@ Globbing should work from within a namespace with both absolute and relative pat
 
 .nested> view to?
 
-  .nested.toList : ##Nat
-  .nested.toList = 4
+  toList : ##Nat
+  toList = 4
   
-  .nested.toMap : ##Nat
-  .nested.toMap = 5
+  toMap : ##Nat
+  toMap = 5
 
 ```

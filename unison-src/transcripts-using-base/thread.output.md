@@ -152,26 +152,10 @@ testTwoThreads = 'let
 
     New test results:
   
-  ✗ testTwoThreads   
+  ◉ testTwoThreads   
   
-  🚫 1 test(s) failing
+  ✅ 1 test(s) passing
   
   Tip: Use view testTwoThreads to view the source of a test.
 
 ```
-
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-    New test results:
-  
-  ✗ testTwoThreads   
-  
-  🚫 1 test(s) failing
-  
-  Tip: Use view testTwoThreads to view the source of a test.
-

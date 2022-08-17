@@ -284,7 +284,7 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
   
     3 | test> Any.test1 = checks [(Any "hi" == Any "hi")]
     
-    🚫 FAILED Failed
+    ✅ Passed Passed
   
     4 | test> Any.test2 = checks [(not (Any "hi" == Any 42))]
     
@@ -349,68 +349,30 @@ Now that all the tests have been added to the codebase, let's view the test repo
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ Any.test2                Passed
-  ◉ Boolean.tests.andTable   Passed
-  ◉ Boolean.tests.notTable   Passed
-  ◉ Boolean.tests.orTable    Passed
-  ◉ Bytes.tests.at           Passed
-  ◉ Int.tests.arithmetic     Passed
-  ◉ Int.tests.bitTwiddling   Passed
-  ◉ Nat.tests.arithmetic     Passed
-  ◉ Nat.tests.bitTwiddling   Passed
-  ◉ Sandbox.test1            Passed
-  ◉ Sandbox.test2            Passed
-  ◉ Sandbox.test3            Passed
+  ◉ Any.test1                   Passed
+  ◉ Any.test2                   Passed
+  ◉ Boolean.tests.andTable      Passed
+  ◉ Boolean.tests.notTable      Passed
+  ◉ Boolean.tests.orTable       Passed
+  ◉ Bytes.tests.at              Passed
+  ◉ Bytes.tests.compression     Passed
+  ◉ Int.tests.arithmetic        Passed
+  ◉ Int.tests.bitTwiddling      Passed
+  ◉ Int.tests.conversions       Passed
+  ◉ Nat.tests.arithmetic        Passed
+  ◉ Nat.tests.bitTwiddling      Passed
+  ◉ Nat.tests.conversions       Passed
+  ◉ Sandbox.test1               Passed
+  ◉ Sandbox.test2               Passed
+  ◉ Sandbox.test3               Passed
+  ◉ Text.tests.alignment        Passed
+  ◉ Text.tests.literalsEq       Passed
+  ◉ Text.tests.patterns         Passed
+  ◉ Text.tests.repeat           Passed
+  ◉ Text.tests.takeDropAppend   Passed
   
-  ✗ Any.test1                   Failed
-  ✗ Bytes.tests.compression     Failed
-  ✗ Int.tests.conversions       Failed
-  ✗ Nat.tests.conversions       Failed
-  ✗ Text.tests.alignment        Failed
-  ✗ Text.tests.literalsEq       Failed
-  ✗ Text.tests.patterns         Failed
-  ✗ Text.tests.repeat           Failed
-  ✗ Text.tests.takeDropAppend   Failed
-  
-  🚫 9 test(s) failing, ✅ 12 test(s) passing
+  ✅ 21 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 
 ```
-
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  Cached test results (`help testcache` to learn more)
-  
-  ◉ Any.test2                Passed
-  ◉ Boolean.tests.andTable   Passed
-  ◉ Boolean.tests.notTable   Passed
-  ◉ Boolean.tests.orTable    Passed
-  ◉ Bytes.tests.at           Passed
-  ◉ Int.tests.arithmetic     Passed
-  ◉ Int.tests.bitTwiddling   Passed
-  ◉ Nat.tests.arithmetic     Passed
-  ◉ Nat.tests.bitTwiddling   Passed
-  ◉ Sandbox.test1            Passed
-  ◉ Sandbox.test2            Passed
-  ◉ Sandbox.test3            Passed
-  
-  ✗ Any.test1                   Failed
-  ✗ Bytes.tests.compression     Failed
-  ✗ Int.tests.conversions       Failed
-  ✗ Nat.tests.conversions       Failed
-  ✗ Text.tests.alignment        Failed
-  ✗ Text.tests.literalsEq       Failed
-  ✗ Text.tests.patterns         Failed
-  ✗ Text.tests.repeat           Failed
-  ✗ Text.tests.takeDropAppend   Failed
-  
-  🚫 9 test(s) failing, ✅ 12 test(s) passing
-  
-  Tip: Use view Any.test1 to view the source of a test.
-

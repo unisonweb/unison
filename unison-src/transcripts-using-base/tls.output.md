@@ -249,28 +249,31 @@ testCNReject _ =
 
     New test results:
   
-  ✗ testConnectSelfSigned   should have reaped what we've sown
+  ◉ testConnectSelfSigned   should have reaped what we've sown
   
-  🚫 1 test(s) failing
+  ✅ 1 test(s) passing
   
   Tip: Use view testConnectSelfSigned to view the source of a
        test.
 
-```
-
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
+.> io.test testCAReject
 
     New test results:
   
-  ✗ testConnectSelfSigned   should have reaped what we've sown
+  ◉ testCAReject   correctly rejected self-signed cert
   
-  🚫 1 test(s) failing
+  ✅ 1 test(s) passing
   
-  Tip: Use view testConnectSelfSigned to view the source of a
-       test.
+  Tip: Use view testCAReject to view the source of a test.
 
+.> io.test testCNReject
+
+    New test results:
+  
+  ◉ testCNReject   correctly rejected self-signed cert
+  
+  ✅ 1 test(s) passing
+  
+  Tip: Use view testCNReject to view the source of a test.
+
+```

@@ -45,7 +45,7 @@ Test that replace works with terms
 
 .scratch> view x
 
-  x : ##Nat
+  x : Nat
   x = 2
 
 ```
@@ -77,7 +77,7 @@ Test that replace works with types
 
 .scratch> view X
 
-  structural type X = One ##Nat ##Nat
+  structural type X = One Nat Nat
 
 ```
 Try with a type/term mismatch
