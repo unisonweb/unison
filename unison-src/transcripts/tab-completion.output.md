@@ -10,6 +10,7 @@ Test that tab completion works as expected.
 .> debug.tab-complete vi
 
    view
+   view.global
    view.patch
 
 .> debug.tab-complete delete.
