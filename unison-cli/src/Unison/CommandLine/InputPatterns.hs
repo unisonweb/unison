@@ -332,11 +332,27 @@ view =
     I.Visible
     [(ZeroPlus, definitionQueryArg)]
     ( P.lines
-        [ "`view foo` prints the definition of `foo`.",
+        [ "`view foo` prints definitions named `foo` within your current namespace.",
           "`view` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
         ]
     )
-    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
+    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
+        . traverse parseHashQualifiedName
+    )
+
+viewGlobal :: InputPattern
+viewGlobal =
+  InputPattern
+    "view.global"
+    []
+    I.Visible
+    [(ZeroPlus, definitionQueryArg)]
+    ( P.lines
+        [ "`view.global foo` prints definitions of `foo` within your codebase.",
+          "`view.global` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
+        ]
+    )
+    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionGlobal)
         . traverse parseHashQualifiedName
     )
 
@@ -429,13 +445,13 @@ viewByPrefix =
     )
 
 find :: InputPattern
-find = find' "find" Input.Local
+find = find' "find" Input.FindLocal
 
 findAll :: InputPattern
-findAll = find' "find.all" Input.LocalAndDeps
+findAll = find' "find.all" Input.FindLocalAndDeps
 
 findGlobal :: InputPattern
-findGlobal = find' "find.global" Input.Global
+findGlobal = find' "find.global" Input.FindGlobal
 
 find' :: String -> Input.FindScope -> InputPattern
 find' cmd fscope =
@@ -496,7 +512,7 @@ findVerbose =
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True Input.Local)
+    (pure . Input.FindI True Input.FindLocal)
 
 findVerboseAll :: InputPattern
 findVerboseAll =
@@ -508,7 +524,7 @@ findVerboseAll =
     ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True Input.LocalAndDeps)
+    (pure . Input.FindI True Input.FindLocalAndDeps)
 
 findPatch :: InputPattern
 findPatch =
@@ -1570,7 +1586,7 @@ edit =
           "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
         ]
     )
-    ( fmap (Input.ShowDefinitionI Input.LatestFileLocation)
+    ( fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
         . traverse parseHashQualifiedName
     )
 
@@ -2251,6 +2267,7 @@ validInputs =
       findVerbose,
       findVerboseAll,
       view,
+      viewGlobal,
       display,
       displayTo,
       api,

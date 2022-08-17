@@ -950,7 +950,7 @@ loop e = do
                     Cli.returnEarly (HelpMessage InputPatterns.display)
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
-            ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
+            ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
             FindPatchI -> do
               branch <- Cli.getCurrentBranch0
               let patches =
@@ -1709,18 +1709,18 @@ handleFindI isVerbose fscope ws input = do
       getNames findScope =
         let cp = Path.unabsolute currentPath'
             nameScope = case findScope of
-              Local -> Backend.Within cp
-              LocalAndDeps -> Backend.Within cp
-              Global -> Backend.AllNames cp
+              FindLocal -> Backend.Within cp
+              FindLocalAndDeps -> Backend.Within cp
+              FindGlobal -> Backend.AllNames cp
             scopeFilter = case findScope of
-              Local ->
+              FindLocal ->
                 let f n =
                       case Name.segments n of
                         "lib" Nel.:| _ : _ -> False
                         _ -> True
                  in Names.filter f
-              Global -> id
-              LocalAndDeps ->
+              FindGlobal -> id
+              FindLocalAndDeps ->
                 let f n =
                       case Name.segments n of
                         "lib" Nel.:| (_ : "lib" : _) -> False
@@ -1766,9 +1766,9 @@ handleFindI isVerbose fscope ws input = do
         Cli.respond $ ListOfDefinitions ppe isVerbose results'
   results <- getResults (getNames fscope)
   case (results, fscope) of
-    ([], Local) -> do
+    ([], FindLocal) -> do
       Cli.respond FindNoLocalMatches
-      respondResults =<< getResults (getNames LocalAndDeps)
+      respondResults =<< getResults (getNames FindLocalAndDeps)
     _ -> respondResults results
 
 handleDependents :: HQ.HashQualified Name -> Cli r ()
@@ -1983,8 +1983,8 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
         Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition :: OutputLocation -> [HQ.HashQualified Name] -> Cli r ()
-handleShowDefinition outputLoc inputQuery = do
+handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> [HQ.HashQualified Name] -> Cli r ()
+handleShowDefinition outputLoc showDefinitionScope inputQuery = do
   Cli.Env {codebase} <- ask
   hqLength <- liftIO (Codebase.hashLength codebase)
   -- If the query is empty, run a fuzzy search.
@@ -2000,16 +2000,17 @@ handleShowDefinition outputLoc inputQuery = do
   root' <- Cli.getRootBranch
   currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
   let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
-  names <-
-    if hasAbsoluteQuery
-      then do
+  let globalNames =
         let namingScope = Backend.AllNames currentPath'
-        let parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root' namingScope
-        pure parseNames
-      else do
-        currentBranch <- Cli.getCurrentBranch0
-        let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
-        pure currentNames
+            parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root' namingScope
+         in parseNames
+  names <- case (hasAbsoluteQuery, showDefinitionScope) of
+    (True, _) -> pure globalNames
+    (_, ShowDefinitionGlobal) -> pure globalNames
+    (_, ShowDefinitionLocal) -> do
+      currentBranch <- Cli.getCurrentBranch0
+      let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+      pure currentNames
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = Backend.makeNameSearch hqLength names
     liftIO (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
