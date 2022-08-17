@@ -86,6 +86,21 @@ vmap f (Term _ a out) = case out of
   Cycle r -> cycle a (vmap f r)
   Abs v body -> abs a (f v) (vmap f body)
 
+cata :: Functor f =>
+  (Set v -> a -> v -> x) ->
+  (Set v -> a -> x -> x) ->
+  (Set v -> a -> v -> x -> x) ->
+  (Set v -> a -> f x -> x) ->
+  Term f v a ->
+  x
+cata varAlg cycleAlg absAlg tmAlg =
+  let go (Term fvs a out) = case out of
+        Var x -> varAlg fvs a x
+        Cycle x -> cycleAlg fvs a (go x)
+        Abs arg body -> absAlg fvs a arg (go body)
+        Tm inner -> tmAlg fvs a (fmap go inner)
+  in go
+
 transform ::
   (Ord v, Foldable g, Functor g) =>
   (forall a. f a -> g a) ->

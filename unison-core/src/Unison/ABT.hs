@@ -36,6 +36,7 @@ module Unison.ABT
     rebuildUp',
     reannotateUp,
     rewriteDown,
+    cata,
     transform,
     transformM,
     foreachSubterm,
@@ -98,6 +99,7 @@ import qualified Data.Set as Set
 import U.Core.ABT
   ( ABT (..),
     Term (..),
+    cata,
     foreachSubterm,
     freshInBoth,
     rename,
