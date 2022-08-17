@@ -76,11 +76,7 @@ testMvars _ =
     New test results:
   
   ◉ testMvars   ma should not be empty
-  ◉ testMvars   should read what you sow
-  ◉ testMvars   should reap what you sow
   ◉ testMvars   ma should be empty
-  ◉ testMvars   swap returns old contents
-  ◉ testMvars   swap returns old contents
   ◉ testMvars   tryRead should succeed when not empty
   ◉ testMvars   tryPut should fail when not empty
   ◉ testMvars   tryTake should succeed when not empty
@@ -89,8 +85,42 @@ testMvars _ =
   ◉ testMvars   tryTake should fail when empty
   ◉ testMvars   tryRead should fail when empty
   
-  ✅ 13 test(s) passing
+  ✗ testMvars   should read what you sow
+  ✗ testMvars   should reap what you sow
+  ✗ testMvars   swap returns old contents
+  ✗ testMvars   swap returns old contents
+  
+  🚫 4 test(s) failing, ✅ 9 test(s) passing
   
   Tip: Use view testMvars to view the source of a test.
 
 ```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+    New test results:
+  
+  ◉ testMvars   ma should not be empty
+  ◉ testMvars   ma should be empty
+  ◉ testMvars   tryRead should succeed when not empty
+  ◉ testMvars   tryPut should fail when not empty
+  ◉ testMvars   tryTake should succeed when not empty
+  ◉ testMvars   tryTake should not succeed when empty
+  ◉ testMvars   ma2 should be empty
+  ◉ testMvars   tryTake should fail when empty
+  ◉ testMvars   tryRead should fail when empty
+  
+  ✗ testMvars   should read what you sow
+  ✗ testMvars   should reap what you sow
+  ✗ testMvars   swap returns old contents
+  ✗ testMvars   swap returns old contents
+  
+  🚫 4 test(s) failing, ✅ 9 test(s) passing
+  
+  Tip: Use view testMvars to view the source of a test.
+

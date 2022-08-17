@@ -290,143 +290,74 @@ test> blake2b_512.tests.ex3 =
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2b_512.tests.ex1   Passed
-  ◉ blake2b_512.tests.ex2   Passed
-  ◉ blake2b_512.tests.ex3   Passed
-  ◉ blake2s_256.tests.ex1   Passed
-  ◉ sha1.tests.ex1          Passed
-  ◉ sha1.tests.ex2          Passed
-  ◉ sha1.tests.ex3          Passed
-  ◉ sha1.tests.ex4          Passed
-  ◉ sha2_256.tests.ex1      Passed
-  ◉ sha2_256.tests.ex2      Passed
-  ◉ sha2_256.tests.ex3      Passed
-  ◉ sha2_256.tests.ex4      Passed
-  ◉ sha2_512.tests.ex1      Passed
-  ◉ sha2_512.tests.ex2      Passed
-  ◉ sha2_512.tests.ex3      Passed
-  ◉ sha2_512.tests.ex4      Passed
-  ◉ sha3_256.tests.ex1      Passed
-  ◉ sha3_256.tests.ex2      Passed
-  ◉ sha3_256.tests.ex3      Passed
-  ◉ sha3_256.tests.ex4      Passed
-  ◉ sha3_512.tests.ex1      Passed
-  ◉ sha3_512.tests.ex2      Passed
-  ◉ sha3_512.tests.ex3      Passed
-  ◉ sha3_512.tests.ex4      Passed
+  ✗ blake2b_512.tests.ex1   Failed
+  ✗ blake2b_512.tests.ex2   Failed
+  ✗ blake2b_512.tests.ex3   Failed
+  ✗ blake2s_256.tests.ex1   Failed
+  ✗ sha1.tests.ex1          Failed
+  ✗ sha1.tests.ex2          Failed
+  ✗ sha1.tests.ex3          Failed
+  ✗ sha1.tests.ex4          Failed
+  ✗ sha2_256.tests.ex1      Failed
+  ✗ sha2_256.tests.ex2      Failed
+  ✗ sha2_256.tests.ex3      Failed
+  ✗ sha2_256.tests.ex4      Failed
+  ✗ sha2_512.tests.ex1      Failed
+  ✗ sha2_512.tests.ex2      Failed
+  ✗ sha2_512.tests.ex3      Failed
+  ✗ sha2_512.tests.ex4      Failed
+  ✗ sha3_256.tests.ex1      Failed
+  ✗ sha3_256.tests.ex2      Failed
+  ✗ sha3_256.tests.ex3      Failed
+  ✗ sha3_256.tests.ex4      Failed
+  ✗ sha3_512.tests.ex1      Failed
+  ✗ sha3_512.tests.ex2      Failed
+  ✗ sha3_512.tests.ex3      Failed
+  ✗ sha3_512.tests.ex4      Failed
   
-  ✅ 24 test(s) passing
+  🚫 24 test(s) failing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.
 
 ```
-## HMAC tests
 
-These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231#section-4.3).
 
-```unison
-ex' alg secret msg expected = checks [hmacBytes alg (fromHex secret) (ascii msg) == fromHex expected]
 
-test> hmac_sha2_256.tests.ex1 =
-  ex' Sha2_256
-    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
-    "Hi There"
-    "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
-test> hmac_sha2_512.tests.ex1 =
-  ex' Sha2_512
-    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
-    "Hi There"
-    "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854"
+🛑
 
-test> hmac_sha2_256.tests.ex2 =
-  ex' Sha2_256
-    "4a656665"
-    "what do ya want for nothing?"
-    "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+The transcript failed due to an error in the stanza above. The error is:
 
-test> hmac_sha2_512.tests.ex2 =
-  ex' Sha2_512
-    "4a656665"
-    "what do ya want for nothing?"
-    "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"
-```
-
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      ex'                     : HashAlgorithm
-                                -> Text
-                                -> Text
-                                -> Text
-                                -> [Result]
-      hmac_sha2_256.tests.ex1 : [Result]
-      hmac_sha2_256.tests.ex2 : [Result]
-      hmac_sha2_512.tests.ex1 : [Result]
-      hmac_sha2_512.tests.ex2 : [Result]
-  
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-    4 |   ex' Sha2_256
-    
-    ✅ Passed Passed
-  
-    9 |   ex' Sha2_512
-    
-    ✅ Passed Passed
-  
-    15 |   ex' Sha2_256
-    
-    ✅ Passed Passed
-  
-    21 |   ex' Sha2_512
-    
-    ✅ Passed Passed
-
-```
-```ucm
-.> test
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2b_512.tests.ex1     Passed
-  ◉ blake2b_512.tests.ex2     Passed
-  ◉ blake2b_512.tests.ex3     Passed
-  ◉ blake2s_256.tests.ex1     Passed
-  ◉ hmac_sha2_256.tests.ex1   Passed
-  ◉ hmac_sha2_256.tests.ex2   Passed
-  ◉ hmac_sha2_512.tests.ex1   Passed
-  ◉ hmac_sha2_512.tests.ex2   Passed
-  ◉ sha1.tests.ex1            Passed
-  ◉ sha1.tests.ex2            Passed
-  ◉ sha1.tests.ex3            Passed
-  ◉ sha1.tests.ex4            Passed
-  ◉ sha2_256.tests.ex1        Passed
-  ◉ sha2_256.tests.ex2        Passed
-  ◉ sha2_256.tests.ex3        Passed
-  ◉ sha2_256.tests.ex4        Passed
-  ◉ sha2_512.tests.ex1        Passed
-  ◉ sha2_512.tests.ex2        Passed
-  ◉ sha2_512.tests.ex3        Passed
-  ◉ sha2_512.tests.ex4        Passed
-  ◉ sha3_256.tests.ex1        Passed
-  ◉ sha3_256.tests.ex2        Passed
-  ◉ sha3_256.tests.ex3        Passed
-  ◉ sha3_256.tests.ex4        Passed
-  ◉ sha3_512.tests.ex1        Passed
-  ◉ sha3_512.tests.ex2        Passed
-  ◉ sha3_512.tests.ex3        Passed
-  ◉ sha3_512.tests.ex4        Passed
+  ✗ blake2b_512.tests.ex1   Failed
+  ✗ blake2b_512.tests.ex2   Failed
+  ✗ blake2b_512.tests.ex3   Failed
+  ✗ blake2s_256.tests.ex1   Failed
+  ✗ sha1.tests.ex1          Failed
+  ✗ sha1.tests.ex2          Failed
+  ✗ sha1.tests.ex3          Failed
+  ✗ sha1.tests.ex4          Failed
+  ✗ sha2_256.tests.ex1      Failed
+  ✗ sha2_256.tests.ex2      Failed
+  ✗ sha2_256.tests.ex3      Failed
+  ✗ sha2_256.tests.ex4      Failed
+  ✗ sha2_512.tests.ex1      Failed
+  ✗ sha2_512.tests.ex2      Failed
+  ✗ sha2_512.tests.ex3      Failed
+  ✗ sha2_512.tests.ex4      Failed
+  ✗ sha3_256.tests.ex1      Failed
+  ✗ sha3_256.tests.ex2      Failed
+  ✗ sha3_256.tests.ex3      Failed
+  ✗ sha3_256.tests.ex4      Failed
+  ✗ sha3_512.tests.ex1      Failed
+  ✗ sha3_512.tests.ex2      Failed
+  ✗ sha3_512.tests.ex3      Failed
+  ✗ sha3_512.tests.ex4      Failed
   
-  ✅ 28 test(s) passing
+  🚫 24 test(s) failing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.
 
-```

@@ -295,141 +295,45 @@ to actual show that the serialization works.
   ◉ tests   (ident effect) passed
   ◉ tests   (ident zero) passed
   ◉ tests   (ident h) passed
-  ◉ tests   (ident text) passed
   ◉ tests   (ident int) passed
   ◉ tests   (ident float) passed
   ◉ tests   (ident termlink) passed
   ◉ tests   (ident bool) passed
-  ◉ tests   (ident bytes) passed
   
-  ✅ 13 test(s) passing
+  ✗ tests   (ident text) mismatch
+  ✗ tests   (ident bytes) mismatch
+  
+  🚫 2 test(s) failing, ✅ 11 test(s) passing
   
   Tip: Use view tests to view the source of a test.
 
-.> io.test badLoad
+```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
 
     New test results:
   
-  ◉ badLoad   serialized77
+  ◉ tests   (ext f) passed
+  ◉ tests   (ext h) passed
+  ◉ tests   (ident compound) passed
+  ◉ tests   (ident fib10) passed
+  ◉ tests   (ident effect) passed
+  ◉ tests   (ident zero) passed
+  ◉ tests   (ident h) passed
+  ◉ tests   (ident int) passed
+  ◉ tests   (ident float) passed
+  ◉ tests   (ident termlink) passed
+  ◉ tests   (ident bool) passed
   
-  ✅ 1 test(s) passing
+  ✗ tests   (ident text) mismatch
+  ✗ tests   (ident bytes) mismatch
   
-  Tip: Use view badLoad to view the source of a test.
-
-```
-```unison
-codeTests : '{io2.IO} [Result]
-codeTests =
-  '[ idempotence "idem f" (termLink f)
-   , idempotence "idem h" (termLink h)
-   , idempotence "idem rotate" (termLink rotate)
-   , idempotence "idem zapper" (termLink zapper)
-   , idempotence "idem showThree" (termLink showThree)
-   , idempotence "idem concatMap" (termLink concatMap)
-   , idempotence "idem big" (termLink bigFun)
-   , idempotence "idem extensionality" (termLink extensionality)
-   , idempotence "idem identicality" (termLink identicality)
-   ]
-```
-
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  🚫 2 test(s) failing, ✅ 11 test(s) passing
   
-    ⍟ These new definitions are ok to `add`:
-    
-      codeTests : '{IO} [Result]
+  Tip: Use view tests to view the source of a test.
 
-```
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    codeTests : '{IO} [Result]
-
-.> io.test codeTests
-
-    New test results:
-  
-  ◉ codeTests   (idem f) passed
-  ◉ codeTests   (idem h) passed
-  ◉ codeTests   (idem rotate) passed
-  ◉ codeTests   (idem zapper) passed
-  ◉ codeTests   (idem showThree) passed
-  ◉ codeTests   (idem concatMap) passed
-  ◉ codeTests   (idem big) passed
-  ◉ codeTests   (idem extensionality) passed
-  ◉ codeTests   (idem identicality) passed
-  
-  ✅ 9 test(s) passing
-  
-  Tip: Use view codeTests to view the source of a test.
-
-```
-```unison
-validateTest : Link.Term ->{IO} Result
-validateTest l = match Code.lookup l with
-  None -> Fail "Couldn't look up link"
-  Some co -> match Code.validate [(l, co)] with
-    Some f -> Fail "invalid code pre"
-    None -> match Code.deserialize (Code.serialize co) with
-      Left _ -> Fail "code failed deserialization"
-      Right co -> match Code.validate [(l, co)] with
-        Some f -> Fail "invalid code post"
-        None -> Ok "validated"
-
-vtests : '{IO} [Result]
-vtests _ =
-  List.map validateTest
-    [ termLink fib10
-    , termLink compose
-    , termLink List.all
-    , termLink hex
-    , termLink isDirectory
-    , termLink delay
-    , termLink printLine
-    , termLink isNone
-    ]
-```
-
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      validateTest : Link.Term ->{IO} Result
-      vtests       : '{IO} [Result]
-
-```
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    validateTest : Link.Term ->{IO} Result
-    vtests       : '{IO} [Result]
-
-.> io.test vtests
-
-    New test results:
-  
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  
-  ✅ 8 test(s) passing
-  
-  Tip: Use view vtests to view the source of a test.
-
-```

@@ -202,10 +202,26 @@ testTcpConnect = 'let
 
     New test results:
   
-  ◉ testTcpConnect   should have reaped what we've sown
+  ✗ testTcpConnect   should have reaped what we've sown
   
-  ✅ 1 test(s) passing
+  🚫 1 test(s) failing
   
   Tip: Use view testTcpConnect to view the source of a test.
 
 ```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+    New test results:
+  
+  ✗ testTcpConnect   should have reaped what we've sown
+  
+  🚫 1 test(s) failing
+  
+  Tip: Use view testTcpConnect to view the source of a test.
+

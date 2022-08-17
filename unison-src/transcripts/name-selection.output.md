@@ -27,8 +27,8 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 
 .a> view a
 
-  a : Nat
-  a = b + 1
+  a : ##Nat
+  a = ##Nat.+ b 1
 
 .> cd .
 
@@ -1421,10 +1421,8 @@ a = 10
 -- It's closer to the term being printed.
 .biasing> view deeply.nested.term
 
-  deeply.nested.term : Nat
-  deeply.nested.term =
-    use Nat +
-    value + 1
+  deeply.nested.term : ##Nat
+  deeply.nested.term = ##Nat.+ value 1
 
 ```
 Add another term with `value` suffix to force longer suffixification of `deeply.nested.value`
@@ -1454,9 +1452,7 @@ other.value = 20
 -- nested.value should still be preferred even if the suffixification requires more segments than `a`
 .biasing> view deeply.nested.term
 
-  deeply.nested.term : Nat
-  deeply.nested.term =
-    use Nat +
-    nested.value + 1
+  deeply.nested.term : ##Nat
+  deeply.nested.term = ##Nat.+ nested.value 1
 
 ```

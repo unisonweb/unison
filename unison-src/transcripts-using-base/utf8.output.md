@@ -99,7 +99,7 @@ test> greekTest = checkRoundTrip greek
 
     10 | test> greekTest = checkRoundTrip greek
     
-    ✅ Passed Passed
+    🚫 FAILED Got: ΑΒΓΔΕ Expected: ΑΒΓΔΕ
 
 ```
 If we try to decode an invalid set of bytes, we get back `Text` explaining the decoding error:

@@ -612,21 +612,17 @@ a = 555
 
 .nsw> view a b
 
-  a#mdl4vqtu00 : Nat
+  a#mdl4vqtu00 : ##Nat
   a#mdl4vqtu00 = 444
   
-  a#vrs8gtkl2t : Nat
+  a#vrs8gtkl2t : ##Nat
   a#vrs8gtkl2t = 555
   
-  b#aapqletas7 : Nat
-  b#aapqletas7 =
-    use Nat +
-    a#vrs8gtkl2t + 1
+  b#aapqletas7 : ##Nat
+  b#aapqletas7 = ##Nat.+ a#vrs8gtkl2t 1
   
-  b#unkqhuu66p : Nat
-  b#unkqhuu66p =
-    use Nat +
-    a#mdl4vqtu00 + 1
+  b#unkqhuu66p : ##Nat
+  b#unkqhuu66p = ##Nat.+ a#mdl4vqtu00 1
 
 ```
 ```unison
@@ -662,21 +658,17 @@ a = 777
 
 .nsw> view a b
 
-  a#mdl4vqtu00 : Nat
+  a#mdl4vqtu00 : ##Nat
   a#mdl4vqtu00 = 444
   
-  a#vrs8gtkl2t : Nat
+  a#vrs8gtkl2t : ##Nat
   a#vrs8gtkl2t = 555
   
-  b#aapqletas7 : Nat
-  b#aapqletas7 =
-    use Nat +
-    a#vrs8gtkl2t + 1
+  b#aapqletas7 : ##Nat
+  b#aapqletas7 = ##Nat.+ a#vrs8gtkl2t 1
   
-  b#unkqhuu66p : Nat
-  b#unkqhuu66p =
-    use Nat +
-    a#mdl4vqtu00 + 1
+  b#unkqhuu66p : ##Nat
+  b#unkqhuu66p = ##Nat.+ a#mdl4vqtu00 1
 
 ```
 ## Should be able to diff a namespace hash from history.
