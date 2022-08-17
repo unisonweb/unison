@@ -25,7 +25,6 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3)
-import Debug.Pretty.Simple (pTraceShowM)
 import qualified System.Console.Regions as Console.Regions
 import System.Environment (withArgs)
 import qualified Text.Megaparsec as P
