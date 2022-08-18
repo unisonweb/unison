@@ -2072,7 +2072,7 @@ saveExecuteResult =
     "add.run"
     []
     I.Visible
-    [(ZeroPlus, noCompletions)]
+    [(Required, newNameArg)]
     ( "`add.run name` adds to the codebase the result of the most recent `run` command"
         <> "as `name`."
     )
