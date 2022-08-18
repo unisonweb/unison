@@ -3688,9 +3688,12 @@ stripUnisonFileReferences :: TypecheckedUnisonFile Symbol a -> Term Symbol () ->
 stripUnisonFileReferences unisonFile term =
   let refMap :: Map Reference.Id Symbol
       refMap = Map.fromList . map (\(sym, (refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
-      termAlg :: Set v -> () -> Term.F Symbol () () (Term Symbol ()) -> Term Symbol ()
-      termAlg _ () = \case
-        Term.Ref ref
-          | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
-        x -> ABT.tm x
-   in ABT.cata (\_ _ x -> ABT.var x) (\_ _ x -> ABT.cycle x) (\_ _ v x -> ABT.abs v x) termAlg term
+      alg () = \case
+        ABT.Var x -> ABT.var x
+        ABT.Cycle x -> ABT.cycle x
+        ABT.Abs v x -> ABT.abs v x
+        ABT.Tm t -> case t of
+          Term.Ref ref
+            | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
+          x -> ABT.tm x
+   in ABT.cata alg term
