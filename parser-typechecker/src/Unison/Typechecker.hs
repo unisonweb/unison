@@ -49,6 +49,7 @@ data Notes v loc = Notes
     errors :: Seq (Context.ErrorNote v loc),
     infos :: Seq (Context.InfoNote v loc)
   }
+  deriving (Show)
 
 instance Semigroup (Notes v loc) where
   Notes bs es is <> Notes bs' es' is' = Notes (bs <> bs') (es <> es') (is <> is')

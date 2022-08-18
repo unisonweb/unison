@@ -30,6 +30,7 @@ import System.Environment (withArgs)
 import qualified Text.Megaparsec as P
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Sqlite.Operations as Ops
+import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
 import qualified U.Util.Hash32 as Hash32
 import qualified Unison.ABT as ABT
@@ -164,6 +165,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Type.Names as Type
 import qualified Unison.Typechecker as Typechecker
+import qualified Unison.Typechecker.TypeLookup as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
@@ -3431,10 +3433,7 @@ getTerm' mainName =
       checkType ty f = do
         Cli.Env {runtime} <- ask
         case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
-          True -> case ty of
-            Type.ForallsNamed' _ (Type.Arrow'' _ _ o) -> f o
-            Type.Arrow'' _ _ o -> f o
-            _ -> pure (TermHasBadType ty)
+          True -> f (synthesizeForce ty)
           False -> pure (TermHasBadType ty)
    in Cli.getLatestTypecheckedFile >>= \case
         Nothing -> getFromCodebase
@@ -3558,6 +3557,39 @@ fuzzySelectNamespace pos searchBranch0 = liftIO do
     Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
     tShow
     inputs
+
+-- | synthesize the type of forcing a term
+--
+-- precondition: @fitsScheme typeOfFunc Runtime.mainType@ is satisfied
+synthesizeForce :: Type Symbol Ann -> Type Symbol Ann
+synthesizeForce typeOfFunc = do
+  let term :: Term Symbol Ann
+      term = Term.ref External ref
+      ref = Reference.DerivedId (Reference.Id (Hash.fromByteString "deadbeef") 0)
+      env =
+        Typechecker.Env
+          { Typechecker._ambientAbilities = [DD.exceptionType External, Type.builtinIO External],
+            Typechecker._typeLookup = tl <> Builtin.typeLookup,
+            Typechecker._termsByShortname = Map.empty
+          }
+      tl =
+        TypeLookup.TypeLookup
+          { TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc,
+            TypeLookup.dataDecls = Map.empty,
+            TypeLookup.effectDecls = Map.empty
+          }
+  case Result.runResultT (Typechecker.synthesize env (DD.forceTerm External External term)) of
+    Identity (Nothing, notes) ->
+      error
+        ( unlines
+            [ "synthesizeForce fails although fitsScheme passed",
+              "Input Type:",
+              show typeOfFunc,
+              "Notes:",
+              show notes
+            ]
+        )
+    Identity (Just typ, _) -> typ
 
 typecheck ::
   [Type Symbol Ann] ->
