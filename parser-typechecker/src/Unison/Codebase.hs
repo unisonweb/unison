@@ -38,6 +38,7 @@ module Unison.Codebase
     beforeImpl,
     shallowBranchAtPath,
     getShallowBranchForHash,
+    getShallowBranchFromRoot,
     getShallowRootBranch,
 
     -- * Root branch
@@ -145,6 +146,7 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import qualified Unison.Runtime.IOSource as IOSource
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -155,12 +157,15 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
-import qualified Unison.Sqlite as Sqlite
 
 -- | Run a transaction on a codebase.
 runTransaction :: MonadIO m => Codebase m v a -> Sqlite.Transaction b -> m b
-runTransaction Codebase{withConnection} action =
+runTransaction Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransaction conn action
+
+getShallowBranchFromRoot :: Monad m => Codebase m v a -> Path.Absolute -> m (Maybe (V2Branch.CausalBranch m))
+getShallowBranchFromRoot codebase p = do
+  getShallowRootBranch codebase >>= shallowBranchAtPath (Path.unabsolute p)
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.

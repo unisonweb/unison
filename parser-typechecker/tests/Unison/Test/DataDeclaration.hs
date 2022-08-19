@@ -3,9 +3,9 @@
 
 module Unison.Test.DataDeclaration where
 
-import Data.Map (Map, (!))
+import Data.Bifunctor (second)
+import Data.Map ((!))
 import qualified Data.Map as Map
-import Data.Text.Encoding (encodeUtf8)
 import EasyTest
 import Text.RawString.QQ
 import qualified U.Util.Hash as Hash
@@ -14,6 +14,7 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers (unsafeParseFile)
+import Unison.Prelude
 import qualified Unison.Reference as R
 import Unison.Symbol (Symbol)
 import qualified Unison.Test.Common as Common
@@ -25,7 +26,7 @@ import qualified Unison.Var.RefNamed as Var
 test :: Test ()
 test =
   scope "datadeclaration" $
-    let Right hashes = Hashing.hashDataDecls . (snd <$>) . dataDeclarationsId $ file
+    let hashes = fromRight (error "Expected Right") $ Hashing.hashDataDecls . (snd <$>) . dataDeclarationsId $ file
         hashMap = Map.fromList $ fmap (\(a, b, _) -> (a, b)) hashes
         hashOf k = Map.lookup (Var.named k) hashMap
      in tests
@@ -113,7 +114,7 @@ unhashComponentTest =
           component = Map.singleton listRef (Right listDecl)
           component' :: Map R.Id (Symbol, Decl Symbol ())
           component' = DD.unhashComponent component
-          (listVar, Right listDecl') = component' ! listRef
+          (listVar, listDecl') = second (fromRight (error "Expected Right")) $ component' ! listRef
           listType' = var listVar
           constructors = Map.fromList $ DD.constructors listDecl'
           nilType' = constructors ! nil

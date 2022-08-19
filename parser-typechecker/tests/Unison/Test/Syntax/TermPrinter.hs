@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Test.TermPrinter (test) where
+module Unison.Test.Syntax.TermPrinter (test) where
 
 import qualified Data.Text as Text
 import EasyTest
@@ -11,9 +11,9 @@ import Unison.Parser.Ann (Ann (..))
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import Unison.Symbol (Symbol, symbol)
+import Unison.Syntax.TermPrinter
 import Unison.Term (Term)
 import qualified Unison.Term as Term
-import Unison.TermPrinter
 import Unison.Test.Common (t, tm)
 import qualified Unison.Test.Common as Common
 import qualified Unison.Type as Type

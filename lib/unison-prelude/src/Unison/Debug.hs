@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+-- pTrace
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Unison.Debug
   ( debug,
@@ -93,7 +95,7 @@ debugTiming = Timing `Set.member` debugFlags
 debug :: Show a => DebugFlag -> String -> a -> a
 debug flag msg a =
   if shouldDebug flag
-    then pTrace (msg <> ":\n") $ pTraceShowId a
+    then pTraceShowId (pTrace (msg <> ":\n") a)
     else a
 
 -- | Use for selective debug logging in monadic contexts.

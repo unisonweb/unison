@@ -18,7 +18,6 @@ startingLine _ = Nothing
 
 instance Monoid Ann where
   mempty = External
-  mappend = (<>)
 
 instance Semigroup Ann where
   Ann s1 _ <> Ann _ e2 = Ann s1 e2

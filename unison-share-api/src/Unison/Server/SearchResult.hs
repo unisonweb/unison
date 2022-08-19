@@ -28,8 +28,10 @@ data TypeResult = TypeResult
   }
   deriving (Eq, Ord, Show)
 
+pattern Tm' :: HashQualified Name -> Referent -> Set (HQ'.HashQualified Name) -> SearchResult
 pattern Tm' hq r as = Tm (TermResult hq r as)
 
+pattern Tp' :: HashQualified Name -> Reference -> Set (HQ'.HashQualified Name) -> SearchResult
 pattern Tp' hq r as = Tp (TypeResult hq r as)
 
 -- | Construct a term search result from a primary name, referent, and set of aliases.

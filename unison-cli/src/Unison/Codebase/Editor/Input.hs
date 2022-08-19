@@ -176,6 +176,7 @@ data Input
   | -- | List all external dependencies of a given namespace, or the current namespace if
     -- no path is provided.
     NamespaceDependenciesI (Maybe Path')
+  | DebugTabCompletionI [String] -- The raw arguments provided
   | DebugNumberedArgsI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI

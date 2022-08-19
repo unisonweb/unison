@@ -46,6 +46,7 @@ where
 import Control.Monad (when)
 import Control.Monad.Primitive
 import Data.Foldable as F (for_, toList)
+import qualified Data.Kind as Kind
 import Data.Primitive.Array
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
@@ -284,9 +285,9 @@ dumpFP fp sz (F n _) = fp + sz - n
 data Augment = I | K | C
 
 class MEM (b :: Mem) where
-  data Stack b :: *
-  type Elem b :: *
-  type Seg b :: *
+  data Stack b :: Kind.Type
+  type Elem b :: Kind.Type
+  type Seg b :: Kind.Type
   alloc :: IO (Stack b)
   peek :: Stack b -> IO (Elem b)
   peekOff :: Stack b -> Off -> IO (Elem b)

@@ -1,11 +1,4 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Unison.Codebase.Path
   ( Path (..),
@@ -21,7 +14,11 @@ module Unison.Codebase.Path
     singleton,
     Unison.Codebase.Path.uncons,
     empty,
+    isAbsolute,
+    isRelative,
     absoluteEmpty,
+    absoluteEmpty',
+    relativeEmpty,
     relativeEmpty',
     currentPath,
     prefix,
@@ -41,21 +38,25 @@ module Unison.Codebase.Path
 
     -- * things that could be replaced with `Convert` instances
     absoluteToPath',
-    fromAbsoluteSplit,
     fromList,
     fromName,
     fromName',
     fromPath',
     fromText,
+    fromText',
     toAbsoluteSplit,
+    toSplit',
     toList,
     toName,
     toName',
+    unsafeToName,
+    unsafeToName',
     toPath',
     toText,
     toText',
     unsplit,
     unsplit',
+    unsplitAbsolute,
     unsplitHQ,
     unsplitHQ',
 
@@ -110,6 +111,14 @@ newtype Relative = Relative {unrelative :: Path} deriving (Eq, Ord)
 newtype Path' = Path' {unPath' :: Either Absolute Relative}
   deriving (Eq, Ord)
 
+isAbsolute :: Path' -> Bool
+isAbsolute (AbsolutePath' _) = True
+isAbsolute _ = False
+
+isRelative :: Path' -> Bool
+isRelative (RelativePath' _) = True
+isRelative _ = False
+
 isCurrentPath :: Path' -> Bool
 isCurrentPath p = p == currentPath
 
@@ -142,6 +151,10 @@ unsplit' (Path' (Right (Relative p)), seg) = Path' (Right (Relative (unsplit (p,
 unsplit :: Split -> Path
 unsplit (Path p, a) = Path (p :|> a)
 
+unsplitAbsolute :: (Absolute, NameSegment) -> Absolute
+unsplitAbsolute =
+  coerce unsplit
+
 unsplitHQ :: HQSplit -> HQ'.HashQualified Path
 unsplitHQ (p, a) = fmap (snoc p) a
 
@@ -173,18 +186,25 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
   Left (unabsolute -> abs) -> abs
   Right (unrelative -> rel) -> Path $ prefix <> toSeq rel
 
+toSplit' :: Path' -> Maybe (Path', NameSegment)
+toSplit' = Lens.unsnoc
+
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (resolve a p, s)
-
-fromAbsoluteSplit :: (Absolute, a) -> (Path, a)
-fromAbsoluteSplit (Absolute p, a) = (p, a)
 
 absoluteEmpty :: Absolute
 absoluteEmpty = Absolute empty
 
+relativeEmpty :: Relative
+relativeEmpty = Relative empty
+
 relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
 
+absoluteEmpty' :: Path'
+absoluteEmpty' = Path' (Left (Absolute empty))
+
+-- | Mitchell: this function is bogus, because an empty name segment is bogus
 toPath' :: Path -> Path'
 toPath' = \case
   Path (NameSegment "" :<| tail) -> Path' . Left . Absolute . Path $ tail
@@ -212,11 +232,11 @@ splitFromName :: Name -> Maybe Split
 splitFromName = unsnoc . fromName
 
 -- | what is this? —AI
-unprefixName :: Absolute -> Name -> Name
+unprefixName :: Absolute -> Name -> Maybe Name
 unprefixName prefix = toName . unprefix prefix . fromName'
 
 prefixName :: Absolute -> Name -> Name
-prefixName p = toName . prefix p . fromName'
+prefixName p n = fromMaybe n . toName . prefix p . fromName' $ n
 
 singleton :: NameSegment -> Path
 singleton n = fromList [n]
@@ -256,13 +276,26 @@ fromName' n = case take 1 (Name.toString n) of
     path = fromName n
     seq = toSeq path
 
-toName :: Path -> Name
-toName = Name.unsafeFromText . toText
+unsafeToName :: Path -> Name
+unsafeToName = Name.unsafeFromText . toText
 
 -- | Convert a Path' to a Name
-toName' :: Path' -> Name
-toName' = Name.unsafeFromText . toText'
+unsafeToName' :: Path' -> Name
+unsafeToName' = Name.unsafeFromText . toText'
 
+toName :: Path -> Maybe Name
+toName = \case
+  Path Seq.Empty -> Nothing
+  (Path (p Seq.:<| ps)) ->
+    Just $ Name.fromSegments (p List.NonEmpty.:| Foldable.toList ps)
+
+-- | Convert a Path' to a Name
+toName' :: Path' -> Maybe Name
+toName' = \case
+  AbsolutePath' p -> Name.makeAbsolute <$> toName (unabsolute p)
+  RelativePath' p -> Name.makeRelative <$> toName (unrelative p)
+
+pattern Empty :: Path
 pattern Empty = Path Seq.Empty
 
 pattern AbsolutePath' :: Absolute -> Path'
@@ -288,6 +321,25 @@ fromText = \case
   "" -> empty
   t -> fromList $ NameSegment <$> NameSegment.segments' t
 
+-- | Construct a Path' from a text
+--
+-- >>> fromText' "a.b.c"
+-- a.b.c
+--
+-- >>> fromText' ".a.b.c"
+-- .a.b.c
+--
+-- >>> show $ fromText' ""
+-- ""
+fromText' :: Text -> Path'
+fromText' txt =
+  case Text.uncons txt of
+    Nothing -> relativeEmpty'
+    Just ('.', p) ->
+      Path' (Left . Absolute $ fromText p)
+    Just _ ->
+      Path' (Right . Relative $ fromText txt)
+
 toText' :: Path' -> Text
 toText' = \case
   Path' (Left (Absolute path)) -> Text.cons '.' (toText path)
@@ -309,6 +361,18 @@ instance Cons Path Path NameSegment NameSegment where
         Path (hd :<| tl) -> Right (hd, Path tl)
         _ -> Left p
 
+instance Cons Path' Path' NameSegment NameSegment where
+  _Cons = prism (uncurry cons) uncons
+    where
+      cons :: NameSegment -> Path' -> Path'
+      cons ns (AbsolutePath' p) = AbsolutePath' (ns :< p)
+      cons ns (RelativePath' p) = RelativePath' (ns :< p)
+      uncons :: Path' -> Either Path' (NameSegment, Path')
+      uncons p = case p of
+        AbsolutePath' (ns :< tl) -> Right (ns, AbsolutePath' tl)
+        RelativePath' (ns :< tl) -> Right (ns, RelativePath' tl)
+        _ -> Left p
+
 instance Snoc Relative Relative NameSegment NameSegment where
   _Snoc = prism (uncurry snocRelative) $ \case
     Relative (Lens.unsnoc -> Just (s, a)) -> Right (Relative s, a)
@@ -316,6 +380,26 @@ instance Snoc Relative Relative NameSegment NameSegment where
     where
       snocRelative :: Relative -> NameSegment -> Relative
       snocRelative r n = Relative . (`Lens.snoc` n) $ unrelative r
+
+instance Cons Relative Relative NameSegment NameSegment where
+  _Cons = prism (uncurry cons) uncons
+    where
+      cons :: NameSegment -> Relative -> Relative
+      cons ns (Relative p) = Relative (ns :< p)
+      uncons :: Relative -> Either Relative (NameSegment, Relative)
+      uncons p = case p of
+        Relative (ns :< tl) -> Right (ns, Relative tl)
+        _ -> Left p
+
+instance Cons Absolute Absolute NameSegment NameSegment where
+  _Cons = prism (uncurry cons) uncons
+    where
+      cons :: NameSegment -> Absolute -> Absolute
+      cons ns (Absolute p) = Absolute (ns :< p)
+      uncons :: Absolute -> Either Absolute (NameSegment, Absolute)
+      uncons p = case p of
+        Absolute (ns :< tl) -> Right (ns, Absolute tl)
+        _ -> Left p
 
 instance Snoc Absolute Absolute NameSegment NameSegment where
   _Snoc = prism (uncurry snocAbsolute) $ \case
@@ -385,6 +469,10 @@ instance Resolve Absolute Path' Absolute where
   resolve _ (Path' (Left a)) = a
   resolve a (Path' (Right r)) = resolve a r
 
+instance Convert Absolute Path where convert = unabsolute
+
+instance Convert Absolute Path' where convert = absoluteToPath'
+
 instance Convert Absolute Text where convert = toText' . absoluteToPath'
 
 instance Convert Relative Text where convert = toText . unrelative
@@ -399,11 +487,15 @@ instance Convert Path [NameSegment] where convert = toList
 
 instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ
 
-instance Convert Path Name where convert = toName
-
-instance Convert Path' Name where convert = toName'
-
 instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
+
+instance Convert (path, NameSegment) (path, HQ'.HQSegment) where
+  convert (path, name) =
+    (path, HQ'.fromName name)
+
+instance Convert path0 path1 => Convert (path0, name) (path1, name) where
+  convert =
+    over _1 convert
 
 instance Parse Name HQSplit' where parse = hqSplitFromName'
 

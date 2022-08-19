@@ -19,6 +19,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import Network.URI (URI)
+import qualified System.Console.Haskeline as Completion
 import Unison.Auth.Types (CredentialFailure)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
@@ -47,7 +48,6 @@ import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as Names
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -60,6 +60,7 @@ import Unison.Server.SearchResult' (SearchResult')
 import qualified Unison.Share.Sync.Types as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Typechecker.Context as Context
@@ -256,6 +257,7 @@ data Output
   | CredentialFailureMsg CredentialFailure
   | PrintVersion Text
   | IntegrityCheck IntegrityResult
+  | DisplayDebugCompletions [Completion.Completion]
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -397,6 +399,7 @@ isFailure o = case o of
       IntegrityErrorDetected {} -> True
   ShareError {} -> True
   ViewOnShare {} -> False
+  DisplayDebugCompletions {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

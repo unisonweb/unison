@@ -591,8 +591,10 @@ data Branch
   deriving (Show, Eq, Ord)
 
 -- Convenience patterns for matches used in the algorithms below.
+pattern MatchW :: Int -> Section -> EnumMap Word64 Section -> Section
 pattern MatchW i d cs = Match i (TestW d cs)
 
+pattern MatchT :: Int -> Section -> M.Map Text Section -> Section
 pattern MatchT i d cs = Match i (TestT d cs)
 
 -- Representation of the variable context available in the current
@@ -899,12 +901,6 @@ emitFunction _ grpn rec ctx (FVar v) as
       App False (Env grpn j) as
   | otherwise = emitSectionVErr v
 emitFunction rns _ _ _ (FComb r) as
-  | False -- known saturated call
-    =
-      Call False n as
-  | False -- known unsaturated call
-    =
-      Ins (Name (Env n 0) as) $ Yield (BArg1 0)
   | otherwise -- slow path
     =
       App False (Env n 0) as
@@ -918,12 +914,16 @@ emitFunction rns _ _ _ (FCon r t) as =
     rt = toEnum . fromIntegral $ dnum rns r
 emitFunction rns _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities
+  -- TODO ct is 16 bits, but a is 48 bits. This will be a problem if we have
+  -- more than 2^16 types.
   Ins (Lit (MI . fromIntegral $ rawTag e))
-    . Ins (Pack r a (reqArgs as))
+    . Ins (Pack r (packTags rt ct) (reqArgs as))
     . App True (Dyn a)
     $ BArg1 0
   where
     a = dnum rns r
+    rt = toEnum . fromIntegral $ a
+    ct = toEnum . fromIntegral $ a
 emitFunction _ _ _ ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
   | Nothing <- ctxResolve ctx k = emitFunctionVErr k
@@ -1396,7 +1396,9 @@ sectionDeps :: Section -> [Word64]
 sectionDeps (App _ (Env w _) _) = [w]
 sectionDeps (Call _ w _) = [w]
 sectionDeps (Match _ br) = branchDeps br
-sectionDeps (Ins _ s) = sectionDeps s
+sectionDeps (Ins i s)
+  | Name (Env w _) _ <- i = w : sectionDeps s
+  | otherwise = sectionDeps s
 sectionDeps (Let s (CIx _ w _)) = w : sectionDeps s
 sectionDeps _ = []
 

@@ -28,6 +28,7 @@ import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
 import qualified Network.URI.Encode as URI
 import qualified Servant.Client as Servant
+import qualified System.Console.Haskeline.Completion as Completion
 import System.Directory
   ( canonicalizePath,
     doesFileExist,
@@ -86,26 +87,12 @@ import Unison.CommandLine.InputPatterns (makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NamePrinter
-  ( prettyHashQualified,
-    prettyHashQualified',
-    prettyLabeledDependency,
-    prettyName,
-    prettyNamedReference,
-    prettyNamedReferent,
-    prettyReference,
-    prettyReferent,
-    prettyShortHash,
-    styleHashQualified,
-    styleHashQualified',
-  )
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Names (Names (..))
@@ -115,7 +102,7 @@ import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPED
 import Unison.PrettyTerminal
   ( clearCurrentLine,
     putPretty',
@@ -139,11 +126,25 @@ import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Sync.Types as Share
+import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import Unison.Syntax.NamePrinter
+  ( prettyHashQualified,
+    prettyHashQualified',
+    prettyLabeledDependency,
+    prettyName,
+    prettyNamedReference,
+    prettyNamedReferent,
+    prettyReference,
+    prettyReferent,
+    prettyShortHash,
+    styleHashQualified,
+    styleHashQualified',
+  )
+import qualified Unison.Syntax.TermPrinter as TermPrinter
+import qualified Unison.Syntax.TypePrinter as TypePrinter
 import Unison.Term (Term)
 import qualified Unison.Term as Term
-import qualified Unison.TermPrinter as TermPrinter
 import Unison.Type (Type)
-import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.List as List
 import Unison.Util.Monoid (intercalateMap)
@@ -646,8 +647,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -656,6 +657,7 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
+
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1316,7 +1318,7 @@ notifyUser dir o = case o of
       ]
     where
       name :: Name
-      name = Path.toName' (HQ'.toName (Path.unsplitHQ' p))
+      name = Path.unsafeToName' (HQ'.toName (Path.unsplitHQ' p))
       qualifyTerm :: Referent -> Pretty
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
       qualifyType :: Reference -> Pretty
@@ -1726,6 +1728,16 @@ notifyUser dir o = case o of
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
+  DisplayDebugCompletions completions ->
+    pure $
+      P.column2
+        ( completions <&> \comp ->
+            let isCompleteTxt =
+                  if Completion.isFinished comp
+                    then "*"
+                    else ""
+             in (isCompleteTxt, P.string (Completion.replacement comp))
+        )
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
@@ -1848,14 +1860,14 @@ formatMissingStuff terms types =
 displayDefinitions' ::
   Var v =>
   Ord a1 =>
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
   Pretty
 displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
     ppeBody r = PPE.declarationPPE ppe0 r
-    ppeDecl = PPE.unsuffixifiedPPE ppe0
+    ppeDecl = PPED.unsuffixifiedPPE ppe0
     prettyTerms =
       map go . Map.toList
       -- sort by name
@@ -1917,7 +1929,7 @@ displayDefinitions ::
   Var v =>
   Ord a1 =>
   Maybe FilePath ->
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
   IO Pretty
@@ -1960,8 +1972,8 @@ displayDefinitions outputLoc ppe types terms =
     code =
       P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
       where
-        ppeBody r = PPE.declarationPPE ppe r
-        ppeDecl = PPE.unsuffixifiedPPE ppe
+        ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE ppe r
+        ppeDecl = PPED.unsuffixifiedPPE ppe
         prettyTerms =
           map go . Map.toList $
             -- sort by name
@@ -1975,13 +1987,13 @@ displayDefinitions outputLoc ppe types terms =
             BuiltinObject typ ->
               P.hang
                 ("builtin " <> prettyHashQualified n <> " :")
-                (TypePrinter.prettySyntax (ppeBody r) typ)
-            UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
+                (TypePrinter.prettySyntax (ppeBody n r) typ)
+            UserObject tm -> TermPrinter.prettyBinding (ppeBody n r) n tm
         go2 ((n, r), dt) =
           case dt of
             MissingObject r -> missing n r
             BuiltinObject _ -> builtin n
-            UserObject decl -> DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe r) r n decl
+            UserObject decl -> DeclPrinter.prettyDecl (PPED.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPEDecl ppe r) r n decl
         builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
         missing n r =
           P.wrap
@@ -2227,14 +2239,14 @@ runNumbered m =
   let (a, (_, args)) = State.runState m (0, mempty)
    in (a, Foldable.toList args)
 
-todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
+todoOutput :: Var v => PPED.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
 todoOutput ppe todo = runNumbered do
   conflicts <- todoConflicts
   edits <- todoEdits
   pure (conflicts <> edits)
   where
-    ppeu = PPE.unsuffixifiedPPE ppe
-    ppes = PPE.suffixifiedPPE ppe
+    ppeu = PPED.unsuffixifiedPPE ppe
+    ppes = PPED.suffixifiedPPE ppe
     (frontierTerms, frontierTypes) = TO.todoFrontier todo
     (dirtyTerms, dirtyTypes) = TO.todoFrontierDependents todo
     corruptTerms =
@@ -2358,7 +2370,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
@@ -3036,10 +3048,10 @@ isTestOk tm = case tm of
 -- | Get the list of numbered args corresponding to an endangerment map, which is used by a
 -- few outputs. See 'endangeredDependentsTable'.
 numberedArgsForEndangerments ::
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map LabeledDependency (NESet LabeledDependency) ->
   NumberedArgs
-numberedArgsForEndangerments (PPE.unsuffixifiedPPE -> ppe) m =
+numberedArgsForEndangerments (PPED.unsuffixifiedPPE -> ppe) m =
   m
     & Map.elems
     & concatMap toList
@@ -3047,7 +3059,7 @@ numberedArgsForEndangerments (PPE.unsuffixifiedPPE -> ppe) m =
 
 -- | Format and render all dependents which are endangered by references going extinct.
 endangeredDependentsTable ::
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map LabeledDependency (NESet LabeledDependency) ->
   P.Pretty P.ColorText
 endangeredDependentsTable ppeDecl m =
@@ -3072,8 +3084,8 @@ endangeredDependentsTable ppeDecl m =
               xs
        in numbered
     spacer = ("", "")
-    suffixifiedEnv = (PPE.suffixifiedPPE ppeDecl)
-    fqnEnv = (PPE.unsuffixifiedPPE ppeDecl)
+    suffixifiedEnv = (PPED.suffixifiedPPE ppeDecl)
+    fqnEnv = (PPED.unsuffixifiedPPE ppeDecl)
     prettyLabeled ppe = \case
       LD.TermReferent ref -> prettyTermName ppe ref
       LD.TypeReference ref -> prettyTypeName ppe ref

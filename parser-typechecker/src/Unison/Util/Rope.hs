@@ -88,11 +88,8 @@ null r = size r == 0
 flatten :: Monoid a => Rope a -> a
 flatten = mconcat . toList
 
-instance (Sized a, Semigroup a) => Semigroup (Rope a) where (<>) = mappend
-
-instance (Sized a, Semigroup a) => Monoid (Rope a) where
-  mempty = Empty
-  mappend r1 r2 = case (r1, r2) of
+instance (Sized a, Semigroup a) => Semigroup (Rope a) where
+  r1 <> r2 = case (r1, r2) of
     (Empty, k) -> k
     (k, Empty) -> k
     (One a0, k2) -> cons' (size a0) a0 k2
@@ -101,6 +98,9 @@ instance (Sized a, Semigroup a) => Monoid (Rope a) where
       | sz1 * 2 >= sz2 && sz2 * 2 >= sz1 -> Two (sz1 + sz2) k1 k2
       | sz1 > sz2 -> appendL (size l1) l1 (r1 <> k2)
       | otherwise -> appendR (k1 <> l2) (size r2) r2
+
+instance (Sized a, Semigroup a) => Monoid (Rope a) where
+  mempty = Empty
 
 -- size-balanced append, leaving the left tree as is
 appendL :: Sized a => Int -> Rope a -> Rope a -> Rope a

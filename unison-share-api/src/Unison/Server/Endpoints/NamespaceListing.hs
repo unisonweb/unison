@@ -216,7 +216,7 @@ serveFromBranch codebase path' branch = do
   -- listing, which are currently unused because we don't show types in the side-bar.
   -- If we ever show types on hover we need to build and use a proper PPE here, but it's not
   -- worth slowing down the request for this right now.
-  let ppe = mempty
+  let ppe = PPE.empty
   let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
   let listingHash = branchToUnisonHash branchAtPath
   listingEntries <- liftIO $ Backend.lsBranch codebase branchAtPath
@@ -234,7 +234,7 @@ serveFromIndex codebase mayRootHash path' = do
   -- listing, which are currently unused because we don't show types in the side-bar.
   -- If we ever show types on hover we need to build and use a proper PPE here, but it's not
   -- shallowPPE <- liftIO $ Backend.shallowPPE codebase listingBranch
-  let shallowPPE = mempty
+  let shallowPPE = PPE.empty
   let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
   let listingHash = v2CausalBranchToUnisonHash listingCausal
   listingEntries <- lift (Backend.lsShallowBranch codebase listingBranch)

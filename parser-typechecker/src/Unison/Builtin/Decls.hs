@@ -7,6 +7,8 @@ module Unison.Builtin.Decls where
 import Control.Lens (over, _3)
 import Data.List (elemIndex, find)
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
+import Data.Sequence (Seq)
 import Data.Text (Text, unpack)
 import qualified Unison.ABT as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -102,48 +104,48 @@ constructorId ref name = do
 noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId, bufferModeNoBufferingId, bufferModeLineBufferingId, bufferModeBlockBufferingId, bufferModeSizedBlockBufferingId :: ConstructorId
 seqViewEmpty, seqViewElem :: ConstructorId
-Just noneId = constructorId optionalRef "Optional.None"
-Just someId = constructorId optionalRef "Optional.Some"
+noneId = Maybe.fromJust $ constructorId optionalRef "Optional.None"
+someId = Maybe.fromJust $ constructorId optionalRef "Optional.Some"
 
-Just isPropagatedConstructorId = constructorId isPropagatedRef "IsPropagated.IsPropagated"
+isPropagatedConstructorId = Maybe.fromJust $ constructorId isPropagatedRef "IsPropagated.IsPropagated"
 
-Just isTestConstructorId = constructorId isTestRef "IsTest.IsTest"
+isTestConstructorId = Maybe.fromJust $ constructorId isTestRef "IsTest.IsTest"
 
-Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
+okConstructorId = Maybe.fromJust $ constructorId testResultRef "Test.Result.Ok"
 
-Just failConstructorId = constructorId testResultRef "Test.Result.Fail"
+failConstructorId = Maybe.fromJust $ constructorId testResultRef "Test.Result.Fail"
 
-Just docBlobId = constructorId docRef "Doc.Blob"
+docBlobId = Maybe.fromJust $ constructorId docRef "Doc.Blob"
 
-Just docLinkId = constructorId docRef "Doc.Link"
+docLinkId = Maybe.fromJust $ constructorId docRef "Doc.Link"
 
-Just docSignatureId = constructorId docRef "Doc.Signature"
+docSignatureId = Maybe.fromJust $ constructorId docRef "Doc.Signature"
 
-Just docSourceId = constructorId docRef "Doc.Source"
+docSourceId = Maybe.fromJust $ constructorId docRef "Doc.Source"
 
-Just docEvaluateId = constructorId docRef "Doc.Evaluate"
+docEvaluateId = Maybe.fromJust $ constructorId docRef "Doc.Evaluate"
 
-Just docJoinId = constructorId docRef "Doc.Join"
+docJoinId = Maybe.fromJust $ constructorId docRef "Doc.Join"
 
-Just linkTermId = constructorId linkRef "Link.Term"
+linkTermId = Maybe.fromJust $ constructorId linkRef "Link.Term"
 
-Just linkTypeId = constructorId linkRef "Link.Type"
+linkTypeId = Maybe.fromJust $ constructorId linkRef "Link.Type"
 
-Just eitherRightId = constructorId eitherRef "Either.Right"
+eitherRightId = Maybe.fromJust $ constructorId eitherRef "Either.Right"
 
-Just eitherLeftId = constructorId eitherRef "Either.Left"
+eitherLeftId = Maybe.fromJust $ constructorId eitherRef "Either.Left"
 
-Just seqViewEmpty = constructorId seqViewRef "SeqView.VEmpty"
+seqViewEmpty = Maybe.fromJust $ constructorId seqViewRef "SeqView.VEmpty"
 
-Just seqViewElem = constructorId seqViewRef "SeqView.VElem"
+seqViewElem = Maybe.fromJust $ constructorId seqViewRef "SeqView.VElem"
 
-Just bufferModeNoBufferingId = constructorId bufferModeRef "io2.BufferMode.NoBuffering"
+bufferModeNoBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.BufferMode.NoBuffering"
 
-Just bufferModeLineBufferingId = constructorId bufferModeRef "io2.BufferMode.LineBuffering"
+bufferModeLineBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.BufferMode.LineBuffering"
 
-Just bufferModeBlockBufferingId = constructorId bufferModeRef "io2.BufferMode.BlockBuffering"
+bufferModeBlockBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.BufferMode.BlockBuffering"
 
-Just bufferModeSizedBlockBufferingId = constructorId bufferModeRef "io2.BufferMode.SizedBlockBuffering"
+bufferModeSizedBlockBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.BufferMode.SizedBlockBuffering"
 
 okConstructorReferent, failConstructorReferent :: Referent.Referent
 okConstructorReferent = Referent.Con (ConstructorReference testResultRef okConstructorId) CT.Data
@@ -183,7 +185,9 @@ builtinDataDecls = rs1 ++ rs
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
-    [(_, linkRef, _)] = rs1
+    linkRef = case rs1 of
+      [(_, linkRef, _)] -> linkRef
+      _ -> error "builtinDataDecls: Expected a single linkRef"
     v = Var.named
     var name = Type.var () (v name)
     arr = Type.arrow'
@@ -405,30 +409,45 @@ builtinEffectDecls =
         [ ((), v "Exception.raise", Type.forall () (v "x") (failureType () `arr` self (var "x")))
         ]
 
+pattern UnitRef :: Reference
 pattern UnitRef <- (unUnitRef -> True)
 
+pattern PairRef :: Reference
 pattern PairRef <- (unPairRef -> True)
 
+pattern EitherRef :: Reference
 pattern EitherRef <- ((==) eitherRef -> True)
 
+pattern OptionalRef :: Reference
 pattern OptionalRef <- (unOptionalRef -> True)
 
+pattern OptionalNone' :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern OptionalNone' <- Term.Constructor' (ConstructorReference OptionalRef ((==) noneId -> True))
 
+pattern OptionalSome' ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern OptionalSome' d <- Term.App' (Term.Constructor' (ConstructorReference OptionalRef ((==) someId -> True))) d
 
+pattern TupleType' :: Var v => [Type v a] -> Type v a
 pattern TupleType' ts <- (unTupleType -> Just ts)
 
+pattern TupleTerm' :: [Term2 vt at ap v a] -> Term2 vt at ap v a
 pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 
+pattern TuplePattern :: [Pattern.Pattern loc] -> Pattern.Pattern loc
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)
 
+pattern EitherLeft' :: Term2 vt at ap v a -> Term2 vt at ap v a
 pattern EitherLeft' tm <- (unLeftTerm -> Just tm)
 
+pattern EitherRight' :: Term2 vt at ap v a -> Term2 vt at ap v a
 pattern EitherRight' tm <- (unRightTerm -> Just tm)
 
+pattern EitherLeftId :: ConstructorId
 pattern EitherLeftId <- ((==) eitherLeftId -> True)
 
+pattern EitherRightId :: ConstructorId
 pattern EitherRightId <- ((==) eitherRightId -> True)
 
 unLeftTerm,
@@ -445,42 +464,73 @@ unLeftTerm t = case t of
   _ -> Nothing
 
 -- some pattern synonyms to make pattern matching on some of these constants more pleasant
+pattern DocRef :: Reference
 pattern DocRef <- ((== docRef) -> True)
 
+pattern DocJoin ::
+  Seq (ABT.Term (Term.F typeVar typeAnn patternAnn) v a) ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocJoin segs <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocJoinId)) (Term.List' segs)
 
+pattern DocBlob :: Text -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocBlob txt <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocBlobId)) (Term.Text' txt)
 
+pattern DocLink ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocLink link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocLinkId)) link
 
+pattern DocSource ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocSource link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocSourceId)) link
 
+pattern DocSignature ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocSignature link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocSignatureId)) link
 
+pattern DocEvaluate ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern DocEvaluate link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocEvaluateId)) link
 
+pattern Doc :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern Doc <- Term.App' (Term.Constructor' (ConstructorReference DocRef _)) _
 
+pattern DocSignatureId :: ConstructorId
 pattern DocSignatureId <- ((== docSignatureId) -> True)
 
+pattern DocBlobId :: ConstructorId
 pattern DocBlobId <- ((== docBlobId) -> True)
 
+pattern DocLinkId :: ConstructorId
 pattern DocLinkId <- ((== docLinkId) -> True)
 
+pattern DocSourceId :: ConstructorId
 pattern DocSourceId <- ((== docSourceId) -> True)
 
+pattern DocEvaluateId :: ConstructorId
 pattern DocEvaluateId <- ((== docEvaluateId) -> True)
 
+pattern DocJoinId :: ConstructorId
 pattern DocJoinId <- ((== docJoinId) -> True)
 
+pattern LinkTermId :: ConstructorId
 pattern LinkTermId <- ((== linkTermId) -> True)
 
+pattern LinkTypeId :: ConstructorId
 pattern LinkTypeId <- ((== linkTypeId) -> True)
 
+pattern LinkRef :: Reference
 pattern LinkRef <- ((== linkRef) -> True)
 
+pattern LinkTerm :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern LinkTerm tm <- Term.App' (Term.Constructor' (ConstructorReference LinkRef LinkTermId)) tm
 
+pattern LinkType ::
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern LinkType ty <- Term.App' (Term.Constructor' (ConstructorReference LinkRef LinkTypeId)) ty
 
 unitType,

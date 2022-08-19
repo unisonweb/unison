@@ -10,7 +10,7 @@ where
 
 import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Sequence as Seq
-import Data.Text as Text
+import qualified Data.Text as Text
 import Data.Void
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as C
@@ -29,10 +29,10 @@ import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
 import qualified Unison.Hash as Hash
-import qualified Unison.Lexer
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
+import qualified Unison.Syntax.Lexer
 
 type P = P.Parsec Void Text.Text
 
@@ -340,8 +340,8 @@ absolutePath = do
 nameSegment :: P NameSegment
 nameSegment =
   NameSegment . Text.pack
-    <$> ( (:) <$> P.satisfy Unison.Lexer.wordyIdStartChar
-            <*> P.many (P.satisfy Unison.Lexer.wordyIdChar)
+    <$> ( (:) <$> P.satisfy Unison.Syntax.Lexer.wordyIdStartChar
+            <*> P.many (P.satisfy Unison.Syntax.Lexer.wordyIdChar)
         )
 
 gitTreeishSuffix :: P Text

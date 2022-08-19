@@ -42,6 +42,7 @@ import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.SqliteCodebase.Branch.Cache (BranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -343,10 +344,11 @@ tryFlushDeclBuffer termBuffer declBuffer =
 
 getRootBranch ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  BranchCache Sqlite.Transaction ->
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   TVar (Maybe (Sqlite.DataVersion, Branch Transaction)) ->
   Transaction (Branch Transaction)
-getRootBranch doGetDeclType rootBranchCache =
+getRootBranch branchCache doGetDeclType rootBranchCache =
   Sqlite.unsafeIO (readTVarIO rootBranchCache) >>= \case
     Nothing -> forceReload
     Just (v, b) -> do
@@ -365,17 +367,18 @@ getRootBranch doGetDeclType rootBranchCache =
   where
     forceReload :: Transaction (Branch Transaction)
     forceReload = do
-      branch1 <- uncachedLoadRootBranch doGetDeclType
+      branch1 <- uncachedLoadRootBranch branchCache doGetDeclType
       ver <- Sqlite.getDataVersion
       Sqlite.unsafeIO (atomically (writeTVar rootBranchCache (Just (ver, branch1))))
       pure branch1
 
 uncachedLoadRootBranch ::
+  BranchCache Sqlite.Transaction ->
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   Transaction (Branch Transaction)
-uncachedLoadRootBranch getDeclType = do
+uncachedLoadRootBranch branchCache getDeclType = do
   causal2 <- Ops.expectRootCausal
-  Cv.causalbranch2to1 getDeclType causal2
+  Cv.causalbranch2to1 branchCache getDeclType causal2
 
 getRootBranchExists :: Transaction Bool
 getRootBranchExists =
@@ -392,14 +395,15 @@ putRootBranch rootBranchCache branch1 = do
 -- to one that returns Maybe.
 getBranchForHash ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  BranchCache Sqlite.Transaction ->
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   Branch.CausalHash ->
   Transaction (Maybe (Branch Transaction))
-getBranchForHash doGetDeclType h = do
+getBranchForHash branchCache doGetDeclType h = do
   Ops.loadCausalBranchByCausalHash (Cv.causalHash1to2 h) >>= \case
     Nothing -> pure Nothing
     Just causal2 -> do
-      branch1 <- Cv.causalbranch2to1 doGetDeclType causal2
+      branch1 <- Cv.causalbranch2to1 branchCache doGetDeclType causal2
       pure (Just branch1)
 
 putBranch :: Branch Transaction -> Transaction ()
@@ -565,11 +569,11 @@ namesAtPath path = do
       allTypes = typesInPath <> typesOutsidePath
   let rootTerms = Rel.fromList allTerms
   let rootTypes = Rel.fromList allTypes
-  let absoluteRootNames = Names {terms = rootTerms, types = rootTypes}
-  let absoluteExternalNames = Names {terms = Rel.fromList termsOutsidePath, types = Rel.fromList typesOutsidePath}
+  let absoluteRootNames = Names.makeAbsolute $ Names {terms = rootTerms, types = rootTypes}
+  let absoluteExternalNames = Names.makeAbsolute $ Names {terms = Rel.fromList termsOutsidePath, types = Rel.fromList typesOutsidePath}
   let relativeScopedNames =
         case path of
-          Path.Empty -> (absoluteRootNames)
+          Path.Empty -> (Names.makeRelative $ absoluteRootNames)
           p ->
             let reversedPathSegments = reverse . Path.toList $ p
                 relativeTerms = stripPathPrefix reversedPathSegments <$> termsInPath

@@ -184,14 +184,9 @@ generalMismatch = do
   n <- Ex.errorNote
   mismatchSite <- Ex.innermostTerm
   ((foundLeaf, expectedLeaf), (foundType, expectedType)) <- firstLastSubtype
-  let [ft, et, fl, el] =
-        Type.cleanups
-          [ sub foundType,
-            sub expectedType,
-            sub foundLeaf,
-            sub expectedLeaf
-          ]
-  pure $ Mismatch ft et fl el mismatchSite n
+  case Type.cleanups [sub foundType, sub expectedType, sub foundLeaf, sub expectedLeaf] of
+    [ft, et, fl, el] -> pure $ Mismatch ft et fl el mismatchSite n
+    _ -> error "generalMismatch: Mismatched type binding"
 
 and,
   or,
