@@ -5,7 +5,6 @@ where
 
 import Compat (withInterruptHandler)
 import qualified Control.Concurrent.Async as Async
-import Control.Concurrent.STM (atomically)
 import Control.Exception (catch, finally, mask)
 import Control.Lens ((^.))
 import Control.Monad.Catch (MonadMask)
@@ -14,6 +13,7 @@ import Data.Configurator.Types (Config)
 import Data.IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.IO as Text.Lazy
+import qualified Ki
 import qualified System.Console.Haskeline as Line
 import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
@@ -46,16 +46,17 @@ import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
+import UnliftIO.STM
 
 getUserInput ::
   forall m v a.
   (MonadIO m, MonadMask m) =>
   Codebase m v a ->
-  Branch m ->
+  IO (Branch m) ->
   Path.Absolute ->
   [String] ->
   m Input
-getUserInput codebase rootBranch currentPath numberedArgs =
+getUserInput codebase getRoot currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
@@ -77,8 +78,8 @@ getUserInput codebase rootBranch currentPath numberedArgs =
         Nothing -> pure QuitI
         Just l -> case words l of
           [] -> go
-          ws ->
-            case parseInput (Branch.head rootBranch) currentPath numberedArgs IP.patternMap $ ws of
+          ws -> do
+            liftIO (parseInput (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
@@ -99,8 +100,15 @@ main ::
   Maybe Server.BaseUrl ->
   UCMVersion ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion = do
-  root <- Codebase.getRootBranch codebase
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion = Ki.scoped \scope -> do
+  rootVar <- newEmptyTMVarIO
+  _ <- Ki.fork scope $ do
+    root <- Codebase.getRootBranch codebase
+    atomically $ putTMVar rootVar root
+    -- Start forcing the thunk in a background thread.
+    -- This might be overly aggressive, maybe we should just evaluate the top level but avoid
+    -- recursive "deep*" things.
+    void $ UnliftIO.evaluate root
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
   initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
@@ -110,7 +118,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
       getInput loopState = do
         getUserInput
           codebase
-          (loopState ^. #root)
+          (atomically . readTMVar $ loopState ^. #root)
           (loopState ^. #currentPath)
           (loopState ^. #numberedArgs)
   let loadSourceFile :: Text -> IO Cli.LoadSourceResult
@@ -203,7 +211,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                 Cli.Continue -> loop0 s1
                 Cli.HaltRepl -> pure ()
 
-    withInterruptHandler onInterrupt (loop0 (Cli.loopState0 root initialPath) `finally` cleanup)
+    withInterruptHandler onInterrupt (loop0 (Cli.loopState0 rootVar initialPath) `finally` cleanup)
 
 -- | Installs a posix interrupt handler for catching SIGINT.
 -- This replaces GHC's default sigint handler which throws a UserInterrupt async exception

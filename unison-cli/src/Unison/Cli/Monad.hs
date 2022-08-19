@@ -73,6 +73,7 @@ import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.UnisonFile as UF
+import UnliftIO.STM
 
 -- | The main command-line app monad.
 --
@@ -143,8 +144,8 @@ data Env = Env
 --
 -- There's an additional pseudo @"currentPath"@ field lens, for convenience.
 data LoopState = LoopState
-  { root :: Branch IO,
-    lastSavedRoot :: Branch IO,
+  { root :: TMVar (Branch IO),
+    lastSavedRoot :: TMVar (Branch IO),
     -- the current position in the namespace
     currentPathStack :: List.NonEmpty Path.Absolute,
     -- TBD
@@ -179,8 +180,8 @@ instance
       )
 
 -- | Create an initial loop state given a root branch and the current path.
-loopState0 :: Branch IO -> Path.Absolute -> LoopState
-loopState0 b p =
+loopState0 :: TMVar (Branch IO) -> Path.Absolute -> LoopState
+loopState0 b p = do
   LoopState
     { root = b,
       lastSavedRoot = b,

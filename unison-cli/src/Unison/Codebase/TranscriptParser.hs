@@ -18,7 +18,6 @@ module Unison.Codebase.TranscriptParser
   )
 where
 
-import Control.Concurrent.STM (atomically)
 import Control.Lens ((^.))
 import qualified Crypto.Random as Random
 import qualified Data.Aeson as Aeson
@@ -31,6 +30,7 @@ import Data.IORef
 import Data.List (isSubsequenceOf)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Ki
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (doesFileExist)
 import System.Environment (lookupEnv)
@@ -44,7 +44,7 @@ import qualified Unison.Auth.Tokens as AuthN
 import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Type as Branch
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import qualified Unison.Codebase.Editor.Output as Output
@@ -68,6 +68,7 @@ import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
+import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
 
 -- | Render transcript errors at a width of 65 chars.
@@ -222,7 +223,7 @@ run ::
   UCMVersion ->
   Text ->
   IO (Either TranscriptError Text)
-run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.try $ do
+run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.try $ Ki.scoped \scope -> do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   let initialPath = Path.absoluteEmpty
   putPrettyLn $
@@ -232,7 +233,10 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
         "Running the provided transcript file...",
         ""
       ]
-  root <- Codebase.getRootBranch codebase
+  rootVar <- newEmptyTMVarIO
+  void $ Ki.fork scope do
+    root <- Codebase.getRootBranch codebase
+    atomically $ putTMVar rootVar root
   mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
   credMan <- AuthN.newCredentialManager
   let tokenProvider :: AuthN.TokenProvider
@@ -316,8 +320,8 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                     [] -> awaitInput loopState
                     args -> do
                       output ("\n" <> show p <> "\n")
-                      let currentRoot = Branch.head (loopState ^. #root)
-                      case parseInput currentRoot curPath (loopState ^. #numberedArgs) patternMap args of
+                      let getRoot = fmap Branch.head . atomically $ readTMVar (loopState ^. #root)
+                      parseInput getRoot curPath (loopState ^. #numberedArgs) patternMap args >>= \case
                         -- invalid command is treated as a failure
                         Left msg -> dieWithMsg $ Pretty.toPlain terminalWidth msg
                         Right input -> pure $ Right input
@@ -472,7 +476,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
 
-  loop (Cli.loopState0 root initialPath)
+  loop (Cli.loopState0 rootVar initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do

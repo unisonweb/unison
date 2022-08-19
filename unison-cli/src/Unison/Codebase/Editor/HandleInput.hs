@@ -2811,8 +2811,7 @@ updateAtM ::
   (Branch IO -> Cli r (Branch IO)) ->
   Cli r Bool
 updateAtM reason (Path.Absolute p) f = do
-  loopState <- State.get
-  let b = loopState ^. #lastSavedRoot
+  b <- Cli.getLastSavedRoot
   b' <- Branch.modifyAtM p f b
   updateRoot b' reason
   pure $ b /= b'
@@ -2879,7 +2878,7 @@ stepManyAtNoSync' ::
 stepManyAtNoSync' strat actions = do
   origRoot <- Cli.getRootBranch
   newRoot <- Branch.stepManyAtM strat actions origRoot
-  #root .= newRoot
+  Cli.setRootBranch newRoot
   pure (origRoot /= newRoot)
 
 -- Like stepManyAt, but doesn't update the last saved root
@@ -2889,7 +2888,7 @@ stepManyAtNoSync ::
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
 stepManyAtNoSync strat actions =
-  #root %= Branch.stepManyAt strat actions
+  void $ Cli.modifyRootBranch $ Branch.stepManyAt strat actions
 
 stepManyAtM ::
   Foldable f =>
@@ -2909,7 +2908,7 @@ stepManyAtMNoSync ::
 stepManyAtMNoSync strat actions = do
   oldRoot <- Cli.getRootBranch
   newRoot <- liftIO (Branch.stepManyAtM strat actions oldRoot)
-  #root .= newRoot
+  Cli.setRootBranch newRoot
 
 -- | Sync the in-memory root branch.
 syncRoot :: Text -> Cli r ()
@@ -2921,13 +2920,13 @@ updateRoot :: Branch IO -> Text -> Cli r ()
 updateRoot new reason =
   Cli.time "updateRoot" do
     Cli.Env {codebase} <- ask
-    loopState <- State.get
-    let old = loopState ^. #lastSavedRoot
+    -- loopState <- State.get
+    old <- Cli.getLastSavedRoot
     when (old /= new) do
-      #root .= new
+      Cli.setRootBranch new
       liftIO (Codebase.putRootBranch codebase new)
       liftIO (Codebase.appendReflog codebase reason old new)
-      #lastSavedRoot .= new
+      Cli.setLastSavedRoot new
 
 -- | Goal: When deleting, we might be removing the last name of a given definition (i.e. the
 -- definition is going "extinct"). In this case we may wish to take some action or warn the
