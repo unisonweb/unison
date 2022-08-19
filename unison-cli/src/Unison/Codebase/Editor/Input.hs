@@ -14,6 +14,7 @@ module Unison.Codebase.Editor.Input
     PullMode (..),
     OptionalPatch (..),
     FindScope (..),
+    ShowDefinitionScope (..),
     IsGlobal,
   )
 where
@@ -165,7 +166,7 @@ data Input
   | FindShallowI Path'
   | FindPatchI
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.
-    ShowDefinitionI OutputLocation [HQ.HashQualified Name]
+    ShowDefinitionI OutputLocation ShowDefinitionScope [HQ.HashQualified Name]
   | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
   | ShowReflogI
   | UpdateBuiltinsI
@@ -226,7 +227,12 @@ data OutputLocation
   deriving (Eq, Show)
 
 data FindScope
-  = Local
-  | LocalAndDeps
-  | Global
+  = FindLocal
+  | FindLocalAndDeps
+  | FindGlobal
+  deriving stock (Eq, Show)
+
+data ShowDefinitionScope
+  = ShowDefinitionLocal
+  | ShowDefinitionGlobal
   deriving stock (Eq, Show)
