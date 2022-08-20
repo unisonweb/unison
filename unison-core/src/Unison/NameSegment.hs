@@ -2,6 +2,7 @@
 
 module Unison.NameSegment where
 
+import Control.DeepSeq (NFData)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.Builder as Text (Builder)
 import qualified Data.Text.Lazy.Builder as Text.Builder
@@ -9,7 +10,8 @@ import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 
 -- Represents the parts of a name between the `.`s
-newtype NameSegment = NameSegment {toText :: Text} deriving (Eq, Ord)
+newtype NameSegment = NameSegment {toText :: Text}
+  deriving newtype (Eq, Ord, NFData)
 
 instance Alphabetical NameSegment where
   compareAlphabetical n1 n2 = compareAlphabetical (toText n1) (toText n2)

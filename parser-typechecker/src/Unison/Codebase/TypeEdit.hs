@@ -1,9 +1,12 @@
 module Unison.Codebase.TypeEdit where
 
+import Control.DeepSeq (NFData)
+import GHC.Generics (Generic)
 import Unison.Reference (Reference)
 
 data TypeEdit = Replace Reference | Deprecate
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (NFData)
 
 references :: TypeEdit -> [Reference]
 references (Replace r) = [r]

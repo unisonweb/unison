@@ -2,6 +2,7 @@
 
 module Unison.Util.Star3 where
 
+import Control.DeepSeq (NFData)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Unison.Prelude
@@ -16,7 +17,8 @@ data Star3 fact d1 d2 d3 = Star3
     d2 :: Relation fact d2,
     d3 :: Relation fact d3
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (NFData)
 
 -- Produce the cross-product across all the dimensions
 toList ::

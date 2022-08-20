@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Unison.Codebase.Causal.Type
   ( Causal (..),
@@ -14,6 +15,7 @@ module Unison.Codebase.Causal.Type
   )
 where
 
+import Control.DeepSeq (NFData)
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
@@ -43,7 +45,7 @@ import Prelude hiding (head, read, tail)
 
 -- | Represents a hash of a causal containing values of the provided type.
 newtype CausalHash = CausalHash {unCausalHash :: Hash}
-  deriving newtype (Show)
+  deriving newtype (Show, NFData)
   deriving stock (Eq, Ord, Generic)
 
 instance (Show e) => Show (Causal m e) where
@@ -73,6 +75,9 @@ data Causal m e
         head :: e,
         tails :: Map CausalHash (m (Causal m e))
       }
+  deriving stock (Generic)
+
+deriving instance (NFData e, NFData (m (Causal m e))) => (NFData (Causal m e))
 
 pattern One :: CausalHash -> HashFor e -> e -> Causal m e
 pattern One h eh e <- UnsafeOne h eh e

@@ -75,6 +75,7 @@ module Unison.Codebase.Path
   )
 where
 
+import Control.DeepSeq (NFData)
 import Control.Lens hiding (cons, snoc, unsnoc, pattern Empty)
 import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
@@ -95,7 +96,7 @@ import Unison.Util.Monoid (intercalateMap)
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path {toSeq :: Seq NameSegment}
   deriving stock (Eq, Ord)
-  deriving newtype (Semigroup, Monoid)
+  deriving newtype (Semigroup, Monoid, NFData)
 
 -- | Meant for use mostly in doc-tests where it's
 -- sometimes convenient to specify paths as lists.

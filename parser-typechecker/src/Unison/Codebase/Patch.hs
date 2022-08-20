@@ -4,6 +4,7 @@
 
 module Unison.Codebase.Patch where
 
+import Control.DeepSeq (NFData)
 import Control.Lens hiding (children, cons, transform)
 import qualified Data.Set as Set
 import Unison.Codebase.TermEdit (TermEdit, Typing (Same))
@@ -23,6 +24,7 @@ data Patch = Patch
     _typeEdits :: Relation Reference TypeEdit
   }
   deriving (Eq, Ord, Show)
+  deriving (Generic, NFData)
 
 data PatchDiff = PatchDiff
   { _addedTermEdits :: Relation Reference TermEdit,

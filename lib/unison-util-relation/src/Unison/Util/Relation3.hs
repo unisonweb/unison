@@ -1,7 +1,10 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Util.Relation3 where
 
+import Control.DeepSeq (NFData)
 import Data.Function (on)
 import qualified Data.Map as Map
 import Data.Ord (comparing)
@@ -16,6 +19,8 @@ data Relation3 a b c = Relation3
     d2 :: Map b (Relation a c),
     d3 :: Map c (Relation a b)
   }
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 instance (Eq a, Eq b, Eq c) => Eq (Relation3 a b c) where
   (==) = (==) `on` d1

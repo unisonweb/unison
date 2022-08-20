@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -18,6 +19,7 @@ module Unison.Referent'
   )
 where
 
+import Control.DeepSeq (NFData)
 import Control.Lens (Lens, lens)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
@@ -35,7 +37,8 @@ import Unison.Prelude
 --
 -- When @Con'@ then @r@ is a type declaration.
 data Referent' r = Ref' r | Con' (GConstructorReference r) ConstructorType
-  deriving (Show, Eq, Ord, Functor, Generic)
+  deriving stock (Show, Eq, Ord, Functor, Generic)
+  deriving anyclass (NFData)
 
 -- | A lens onto the reference in a referent.
 reference_ :: Lens (Referent' r) (Referent' r') r r'

@@ -109,6 +109,15 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
     -- This might be overly aggressive, maybe we should just evaluate the top level but avoid
     -- recursive "deep*" things.
     void $ UnliftIO.evaluate root
+    putStrLn "start deep"
+    let root0 = Branch.head root
+    void $ UnliftIO.evaluate $ Branch._children root0
+    void $ UnliftIO.evaluate $ Branch._terms root0
+    void $ UnliftIO.evaluate $ Branch._types root0
+    void $ UnliftIO.evaluate $ Branch.deepTerms root0
+    void $ UnliftIO.evaluate $ Branch.deepTypes root0
+    void $ UnliftIO.evaluate $ Branch.deepPaths root0
+    putStrLn "done"
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
   initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs

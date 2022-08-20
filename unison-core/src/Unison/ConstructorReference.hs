@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 -- | The constructor reference type.
 module Unison.ConstructorReference
   ( GConstructorReference (..),
@@ -8,6 +10,7 @@ module Unison.ConstructorReference
   )
 where
 
+import Control.DeepSeq (NFData)
 import Control.Lens
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude
@@ -19,7 +22,8 @@ import qualified Unison.ShortHash as ShortHash
 -- | A reference to a constructor is represented by a reference to its type declaration, plus the ordinal constructor id.
 data GConstructorReference r
   = ConstructorReference !r !ConstructorId
-  deriving stock (Eq, Functor, Ord, Show)
+  deriving stock (Eq, Functor, Ord, Show, Generic)
+  deriving anyclass (NFData)
 
 type ConstructorReference = GConstructorReference TypeReference
 

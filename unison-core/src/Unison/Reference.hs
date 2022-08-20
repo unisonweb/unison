@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -43,6 +44,7 @@ module Unison.Reference
   )
 where
 
+import Control.DeepSeq (NFData)
 import Control.Lens (Prism')
 import Data.Char (isDigit)
 import Data.Generics.Sum (_Ctor)
@@ -67,6 +69,7 @@ data Reference
     -- Using an ugly name so no one tempted to use this
     DerivedId Id
   deriving (Eq, Ord, Generic)
+  deriving (NFData)
 
 pattern Derived :: H.Hash -> Pos -> Reference
 pattern Derived h i = DerivedId (Id h i)
@@ -77,7 +80,9 @@ _DerivedId :: Prism' Reference Id
 _DerivedId = _Ctor @"DerivedId"
 
 -- | @Pos@ is a position into a cycle, as cycles are hashed together.
-data Id = Id H.Hash Pos deriving (Eq, Ord)
+data Id = Id H.Hash Pos
+  deriving stock (Eq, Ord, Generic)
+  deriving anyclass (NFData)
 
 -- | A term reference.
 type TermReference = Reference

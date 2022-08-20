@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -14,6 +15,7 @@ module U.Util.Hash
   )
 where
 
+import Control.DeepSeq (NFData)
 import Data.ByteString (ByteString)
 import Data.ByteString.Short (ShortByteString, fromShort)
 import qualified Data.ByteString.Short as B.Short
@@ -23,7 +25,9 @@ import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
 
 -- | Hash which uniquely identifies a Unison type or term
-newtype Hash = Hash {toShort :: ShortByteString} deriving (Eq, Ord, Generic)
+newtype Hash = Hash {toShort :: ShortByteString}
+  deriving stock (Eq, Ord, Generic)
+  deriving anyclass (NFData)
 
 toBase32Hex :: Hash -> Base32Hex
 toBase32Hex = Base32Hex.fromByteString . toByteString
@@ -52,4 +56,4 @@ instance Show Hash where
 -- | A hash tagged with the type it's a hash of, useful for maintaining type safety
 -- guarantees.
 newtype HashFor t = HashFor {genericHash :: Hash}
-  deriving newtype (Show, Eq, Ord, Generic)
+  deriving newtype (Show, Eq, Ord, Generic, NFData)

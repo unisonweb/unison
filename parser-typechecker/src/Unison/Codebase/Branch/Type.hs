@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Unison.Codebase.Branch.Type
   ( NamespaceHash,
@@ -15,9 +16,11 @@ module Unison.Codebase.Branch.Type
   )
 where
 
+import Control.DeepSeq (NFData)
 import Control.Lens
 import Data.Map (Map)
 import Data.Set (Set)
+import GHC.Generics (Generic)
 import Unison.Codebase.Causal.Type (Causal, CausalHash)
 import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Metadata as Metadata
@@ -29,12 +32,15 @@ import Unison.NameSegment (NameSegment)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Util.Relation (Relation)
+import Unison.Util.Relation4 (Relation4)
 import Prelude hiding (head)
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
 newtype Branch m = Branch {_history :: UnwrappedBranch m}
-  deriving (Eq, Ord)
+  deriving stock (Eq, Ord, Generic)
+
+deriving newtype instance (NFData (m Patch), NFData (m (Causal m (Branch0 m)))) => (NFData (Branch m))
 
 type UnwrappedBranch m = Causal m (Branch0 m)
 
@@ -74,6 +80,9 @@ data Branch0 m = Branch0
     deepPaths :: Set Path,
     deepEdits :: Map Name EditHash
   }
+  deriving stock (Generic)
+
+deriving instance (NFData (m (Causal m (Branch0 m))), NFData (m Patch), NFData (Relation4 Referent Name Metadata.Type Metadata.Value)) => NFData (Branch0 m)
 
 instance Eq (Branch0 m) where
   a == b =

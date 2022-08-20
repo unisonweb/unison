@@ -13,6 +13,7 @@ dependencies:
   - base32
   - bytestring
   - containers
+  - deepseq
   - unison-prelude
   - text
 

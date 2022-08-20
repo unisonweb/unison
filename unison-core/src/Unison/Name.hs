@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Unison.Name
   ( Name,
     Convert (..),
@@ -56,6 +58,7 @@ module Unison.Name
   )
 where
 
+import Control.DeepSeq (NFData)
 import Control.Lens (mapped, over, _1, _2)
 import qualified Control.Lens as Lens
 import qualified Data.List as List
@@ -95,7 +98,8 @@ data Name
       Position
       -- the name segments in reverse order
       (List.NonEmpty NameSegment)
-  deriving stock (Eq)
+  deriving stock (Eq, Generic)
+  deriving anyclass (NFData)
 
 instance Alphabetical Name where
   compareAlphabetical n1 n2 =
