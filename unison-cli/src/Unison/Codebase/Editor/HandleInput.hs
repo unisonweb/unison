@@ -601,9 +601,9 @@ loop e = do
                 BranchUtil.makeDeleteBranch (Path.convert absPath)
               afterDelete
             SwitchBranchI maybePath' -> do
-              root0 <- Cli.getRootBranch0
               path' <-
                 maybePath' & onNothing do
+                  root0 <- Cli.getRootBranch0
                   fuzzySelectNamespace Absolute root0 >>= \case
                     -- Shouldn't be possible to get multiple paths here, we can just take
                     -- the first.
