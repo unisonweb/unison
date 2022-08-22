@@ -61,11 +61,11 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
 builtinMain :: Var v => a -> Type.Type v a
 builtinMain a =
   let result = Var.named "result"
-   in Type.forall a x (builtinMain' a (Type.var a x))
+   in Type.forall a result (builtinMainWithResultType a (Type.var a result))
 
 -- '{io2.IO, Exception} res
-builtinMain' :: Var v => a -> Type.Type v a -> Type.Type v a
-builtinMain' a res = Type.arrow a (Type.ref a DD.unitRef) io
+builtinMainWithResultType :: Var v => a -> Type.Type v a -> Type.Type v a
+builtinMainWithResultType a res = Type.arrow a (Type.ref a DD.unitRef) io
   where
     io = Type.effect a [Type.builtinIO a, DD.exceptionType a] res
 
