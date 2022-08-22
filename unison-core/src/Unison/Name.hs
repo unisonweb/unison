@@ -561,7 +561,7 @@ commonPrefix :: Name -> Name -> [NameSegment]
 commonPrefix x@(Name p1 _) y@(Name p2 _)
   | p1 /= p2 = []
   | otherwise =
-    commonPrefix' (toList $ segments x) (toList $ segments y)
+      commonPrefix' (toList $ segments x) (toList $ segments y)
   where
     commonPrefix' (a : as) (b : bs)
       | a == b = a : commonPrefix' as bs

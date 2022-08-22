@@ -134,7 +134,7 @@ readSuffix = \case
   pos
     | Text.all isDigit pos,
       Just pos' <- readMaybe (Text.unpack pos) ->
-      Right pos'
+        Right pos'
   t -> Left $ "Invalid reference suffix: " <> show t
 
 isPrefixOf :: ShortHash -> Reference -> Bool
