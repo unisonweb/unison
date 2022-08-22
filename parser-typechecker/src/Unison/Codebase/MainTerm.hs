@@ -60,7 +60,7 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
 -- forall x. '{ io2.IO, Exception } x
 builtinMain :: Var v => a -> Type.Type v a
 builtinMain a =
-  let x = Var.named "x"
+  let result = Var.named "result"
    in Type.forall a x (builtinMain' a (Type.var a x))
 
 -- '{io2.IO, Exception} res
