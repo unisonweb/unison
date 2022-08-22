@@ -58,6 +58,10 @@ otherwise, the result is successfully persisted
 ```ucm
 .> add.run foo.bar.baz
 
+  ⍟ I've added these definitions:
+  
+    foo.bar.baz : Boolean
+
 ```
 ```ucm
 .> view foo.bar.baz
@@ -98,6 +102,11 @@ main _ = y
   a b -> a Nat.+ b Nat.+ z 10
 
 .> add.run result
+
+  ⍟ I've added these definitions:
+  
+    result : Nat -> Nat -> Nat
+    z      : Nat -> Nat
 
 ```
 ## It resolves references within the codebase
@@ -148,6 +157,10 @@ main _ x = inc x
   inc
 
 .> add.run natfoo
+
+  ⍟ I've added these definitions:
+  
+    natfoo : Nat -> Nat
 
 .> view natfoo
 
@@ -200,6 +213,10 @@ x = 50
 this saves 2 to xres, rather than 100
 ```ucm
 .> add.run xres
+
+  ⍟ I've added these definitions:
+  
+    xres : Nat
 
 .> view xres
 
@@ -262,6 +279,10 @@ main = '5
   5
 
 .> add.run .an.absolute.name
+
+  ⍟ I've added these definitions:
+  
+    .an.absolute.name : Nat
 
 .> view .an.absolute.name
 
