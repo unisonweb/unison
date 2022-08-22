@@ -25,6 +25,7 @@ module Unison.Cli.MonadUtils
     getMaybeBranchAt,
     expectBranchAtPath',
     assertNoBranchAtPath',
+    branchExistsAtPath',
 
     -- ** Updating branches
     updateRoot,
@@ -191,11 +192,21 @@ expectBranchAtPath' path0 = do
 -- means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
 -- current terms/types etc).
 assertNoBranchAtPath' :: Path' -> Cli r ()
-assertNoBranchAtPath' path0 = do
-  path <- resolvePath' path0
-  whenJustM (getMaybeBranchAt path) \branch ->
-    when (not (Branch.isEmpty0 (Branch.head branch))) do
-      Cli.returnEarly (Output.BranchAlreadyExists path0)
+assertNoBranchAtPath' path' = do
+  whenM (branchExistsAtPath' path') do
+    Cli.returnEarly (Output.BranchAlreadyExists path')
+
+-- | Check if there's a branch at an absolute or relative path
+--
+-- "no branch" means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
+-- current terms/types etc).
+branchExistsAtPath' :: Path' -> Cli r Bool
+branchExistsAtPath' path' = do
+  path <- resolvePath' path'
+  getMaybeBranchAt path <&> \case
+    Nothing -> False
+    Just branch ->
+      not (Branch.isEmpty0 (Branch.head branch))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting terms

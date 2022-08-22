@@ -506,13 +506,17 @@ loop e = do
                 (Just merged)
                 (snoc desta "merged")
             MoveBranchI src' dest' -> do
-              when (isNothing src' || dest' == Path.relativeEmpty' || dest' == Path.absoluteEmpty') do
+              destBranchExists <- Cli.branchExistsAtPath' dest'
+              let isRootMove = (isNothing src' || dest' == Path.relativeEmpty' || dest' == Path.absoluteEmpty')
+              when isRootMove do
                 hasConfirmed <- confirmedCommand input
                 when (not hasConfirmed) $ do
                   Cli.returnEarly MoveRootBranchConfirmation
-
               description <- inputDescription input
               doMoveBranch description src' dest'
+              if (destBranchExists && not isRootMove)
+                then Cli.respond (MovedOverExistingBranch dest')
+                else Cli.respond Success
             MovePatchI src' dest' -> do
               description <- inputDescription input
               p <- Cli.expectPatchAt src'
@@ -1447,10 +1451,6 @@ loop e = do
               Cli.Env {ucmVersion} <- ask
               Cli.respond $ PrintVersion ucmVersion
 
-  case e of
-    Right input -> #lastInput .= Just input
-    _ -> pure ()
-
 inputDescription :: Input -> Cli r Text
 inputDescription input =
   case input of
@@ -1491,7 +1491,7 @@ inputDescription input =
       pure ("move.type " <> src <> " " <> dest)
     MoveBranchI src0 dest0 -> do
       src <- ops' src0
-      dest <- ps' dest0
+      dest <- p' dest0
       pure ("move.namespace " <> src <> " " <> dest)
     MovePatchI src0 dest0 -> do
       src <- ps' src0
