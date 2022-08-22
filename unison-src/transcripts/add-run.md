@@ -115,3 +115,15 @@ main = '5
 .> run main
 .> add.run xres
 ```
+
+## It works with absolute names
+
+```unison
+main = '5
+```
+
+```ucm
+.> run main
+.> add.run .an.absolute.name
+.> view .an.absolute.name
+```

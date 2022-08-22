@@ -239,3 +239,33 @@ main = '5
     Tip: Use `help filestatus` to learn more.
 
 ```
+## It works with absolute names
+
+```unison
+main = '5
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      main : 'Nat
+
+```
+```ucm
+.> run main
+
+  5
+
+.> add.run .an.absolute.name
+
+.> view .an.absolute.name
+
+  an.absolute.name : Nat
+  an.absolute.name = 5
+
+```
