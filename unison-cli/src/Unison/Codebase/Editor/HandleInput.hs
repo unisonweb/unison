@@ -1144,6 +1144,11 @@ loop e = do
               currentPath <- Cli.getCurrentPath
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
+              case Slurp.isOk sr of
+                False -> do
+                  ppe <- prettyPrintEnvDecl =<< displayNames uf
+                  Cli.returnEarly $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+                True -> pure ()
               let adds = SlurpResult.adds sr
               stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath, doSlurpAdds adds uf)
               liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf

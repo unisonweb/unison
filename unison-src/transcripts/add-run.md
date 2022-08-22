@@ -104,3 +104,14 @@ this saves 2 to xres, rather than 100
 .> add.run xres
 .> view xres
 ```
+
+## It fails with a message if add cannot complete cleanly
+
+```unison
+main = '5
+```
+
+```ucm:error
+.> run main
+.> add.run xres
+```

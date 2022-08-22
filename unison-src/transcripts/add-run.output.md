@@ -207,3 +207,35 @@ this saves 2 to xres, rather than 100
   xres = 2
 
 ```
+## It fails with a message if add cannot complete cleanly
+
+```unison
+main = '5
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      main : 'Nat
+
+```
+```ucm
+.> run main
+
+  5
+
+.> add.run xres
+
+  x These definitions would fail on `add` or `update`:
+  
+    Reason
+    needs update   xres   : Nat
+  
+    Tip: Use `help filestatus` to learn more.
+
+```
