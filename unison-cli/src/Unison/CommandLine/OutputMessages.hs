@@ -948,6 +948,7 @@ notifyUser dir o = case o of
     let isPast = case input of
           Input.AddI {} -> True
           Input.UpdateI {} -> True
+          Input.SaveExecuteResultI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s
   FindNoLocalMatches ->

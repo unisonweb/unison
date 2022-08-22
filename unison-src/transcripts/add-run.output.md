@@ -231,7 +231,7 @@ main = '5
 
 .> add.run xres
 
-  x These definitions would fail on `add` or `update`:
+  x These definitions failed:
   
     Reason
     needs update   xres   : Nat
