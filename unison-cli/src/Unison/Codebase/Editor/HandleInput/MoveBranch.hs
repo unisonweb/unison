@@ -9,11 +9,11 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 
-doMoveBranch :: Text -> Maybe Path.Split' -> Path.Split' -> Cli r ()
-doMoveBranch actionDescription maySrc dest = do
+doMoveBranch :: Text -> Maybe Path.Split' -> Path.Path' -> Cli r ()
+doMoveBranch actionDescription maySrc dest' = do
   case maySrc of
-    Nothing -> moveRoot (Path.unsplit' dest)
-    Just src -> moveNamespace (Path.unsplit' src) (Path.unsplit' dest)
+    Nothing -> moveRoot dest'
+    Just src -> moveNamespace (Path.unsplit' src) dest'
   where
     moveRoot dest' = do
       rootBranch <- Cli.getRootBranch

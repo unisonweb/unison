@@ -506,6 +506,11 @@ loop e = do
                 (Just merged)
                 (snoc desta "merged")
             MoveBranchI src' dest' -> do
+              when (isNothing src' || dest' == Path.relativeEmpty' || dest' == Path.absoluteEmpty') do
+                hasConfirmed <- confirmedCommand input
+                when (not hasConfirmed) $ do
+                  Cli.returnEarly MoveRootBranchConfirmation
+
               description <- inputDescription input
               doMoveBranch description src' dest'
             MovePatchI src' dest' -> do

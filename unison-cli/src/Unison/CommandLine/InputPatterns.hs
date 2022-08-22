@@ -932,11 +932,11 @@ renameBranch =
     "`move.namespace foo bar` renames the path `foo` to `bar`."
     ( \case
         [".", dest] -> first fromString $ do
-          dest <- Path.parseSplit' Path.definitionNameSegment dest
+          dest <- Path.parsePath' dest
           pure $ Input.MoveBranchI Nothing dest
         [src, dest] -> first fromString $ do
           src <- Path.parseSplit' Path.definitionNameSegment src
-          dest <- Path.parseSplit' Path.definitionNameSegment dest
+          dest <- Path.parsePath' dest
           pure $ Input.MoveBranchI (Just src) dest
         _ -> Left (I.help renameBranch)
     )

@@ -848,6 +848,11 @@ notifyUser dir o = case o of
   --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
   --   <> P.newline
   --   <> P.wrap "Please repeat the same command to confirm the deletion."
+  MoveRootBranchConfirmation ->
+    pure . P.warnCallout . P.lines $
+      [ "Moves which affect the root branch cannot be undone, are you sure?",
+        "Re-run the same command to proceed."
+      ]
   ListOfDefinitions ppe detailed results ->
     listOfDefinitions ppe detailed results
   ListOfLinks ppe results ->
