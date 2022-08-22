@@ -114,6 +114,20 @@ handleCompilerBug = \case
 
 -- | Similar to 'isSubtype' but treats @t2@ as a scheme where the
 -- outermost variables are existential rather than universal.
+--
+-- For example:
+-- @
+-- let
+--   lhs = Unison.Type.ref () (Unison.Builtin.Decls.unitRef)
+--   rhs = Unison.Type.forall () (Unison.Var.named "x") (Unison.Type.var () (Unison.Var.named "x"))
+-- in fitsScheme @Symbol lhs rhs
+-- @
+-- is @True@ although the lhs is not a subtype of the rhs.
+--
+-- 'fitsScheme' is used to check that runnable types are a subtype of
+-- @
+-- exists x. '{IO, Exception} x
+-- @
 fitsScheme :: Var v => Type v loc -> Type v loc -> Bool
 fitsScheme t1 t2 = handleCompilerBug (Context.fitsScheme (tvar $ void t1) (tvar $ void t2))
   where

@@ -2953,6 +2953,7 @@ isSubtype' type1 type2 = succeeds $ do
   appendContext (Var <$> vars)
   subtype type1 type2
 
+-- See documentation at 'Unison.Typechecker.fitsScheme'
 fitsScheme :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 fitsScheme type1 type2 = run Map.empty Map.empty $
   succeeds $ do
