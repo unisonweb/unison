@@ -74,3 +74,13 @@ foo.lib.qux = 4
   
 
 ```
+```ucm
+.> find.global nothere
+
+  😶
+  
+  No results. Check your spelling, or try using tab completion
+  to supply command arguments.
+  
+
+```

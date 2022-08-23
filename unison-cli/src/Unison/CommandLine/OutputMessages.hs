@@ -861,8 +861,8 @@ notifyUser dir o = case o of
         "",
         undoTip
       ]
-  ListOfDefinitions ppe detailed results ->
-    listOfDefinitions ppe detailed results
+  ListOfDefinitions fscope ppe detailed results ->
+    listOfDefinitions fscope ppe detailed results
   ListOfLinks ppe results ->
     listOfLinks ppe [(name, tm) | (name, _ref, tm) <- results]
   ListNames global len types terms ->
@@ -2337,9 +2337,9 @@ todoOutput ppe todo = runNumbered do
     unscore (_score, b, c) = (b, c)
 
 listOfDefinitions ::
-  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
-listOfDefinitions ppe detailed results =
-  pure $ listOfDefinitions' ppe detailed results
+  Var v => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
+listOfDefinitions fscope ppe detailed results =
+  pure $ listOfDefinitions' fscope ppe detailed results
 
 listOfLinks ::
   Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
@@ -2798,28 +2798,34 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
 
     leftNumsWidth = P.Width $ length (show menuSize) + length ("." :: String)
 
-noResults :: Pretty
-noResults =
+noResults :: Input.FindScope -> Pretty
+noResults fscope =
   P.callout "😶" $
-    P.lines
+    P.lines $
       [ P.wrap $
           "No results. Check your spelling, or try using tab completion "
             <> "to supply command arguments.",
-        "",
-        P.wrap $
-          IP.makeExample IP.findGlobal []
-            <> "can be used to search outside the current namespace."
+        ""
       ]
+        ++ case fscope of
+          Input.FindGlobal -> []
+          _ -> [suggestFindGlobal]
+  where
+    suggestFindGlobal =
+      P.wrap $
+        IP.makeExample IP.findGlobal []
+          <> "can be used to search outside the current namespace."
 
 listOfDefinitions' ::
   Var v =>
+  Input.FindScope ->
   PPE.PrettyPrintEnv -> -- for printing types of terms :-\
   E.ListDetailed ->
   [SR'.SearchResult' v a] ->
   Pretty
-listOfDefinitions' ppe detailed results =
+listOfDefinitions' fscope ppe detailed results =
   if null results
-    then noResults
+    then noResults fscope
     else
       P.lines
         . P.nonEmpty

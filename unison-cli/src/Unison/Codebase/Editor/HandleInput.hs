@@ -1736,7 +1736,7 @@ handleFindI isVerbose fscope ws input = do
           suffixifiedPPE
             =<< makePrintNamesFromLabeled'
               (foldMap SR'.labeledDependencies results')
-        Cli.respond $ ListOfDefinitions ppe isVerbose results'
+        Cli.respond $ ListOfDefinitions fscope ppe isVerbose results'
   results <- getResults (getNames fscope)
   case (results, fscope) of
     ([], FindLocal) -> do

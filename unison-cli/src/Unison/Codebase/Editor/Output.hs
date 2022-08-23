@@ -167,7 +167,7 @@ data Output
       [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
       [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
       -- list of all the definitions within this branch
-  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
+  | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
   | ListShallow PPE.PrettyPrintEnv [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
@@ -340,7 +340,7 @@ isFailure o = case o of
   DeletedEverything -> False
   ListNames _ _ tys tms -> null tms && null tys
   ListOfLinks _ ds -> null ds
-  ListOfDefinitions _ _ ds -> null ds
+  ListOfDefinitions _ _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors {} -> True
