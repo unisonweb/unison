@@ -109,7 +109,7 @@ data Input
   | -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     MoveTermI Path.HQSplit' Path.Split'
   | MoveTypeI Path.HQSplit' Path.Split'
-  | MoveBranchI (Maybe Path.Split') Path.Path'
+  | MoveBranchI Path.Path' Path.Path'
   | MovePatchI Path.Split' Path.Split'
   | CopyPatchI Path.Split' Path.Split'
   | -- delete = unname

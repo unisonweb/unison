@@ -931,13 +931,10 @@ renameBranch =
     [(Required, namespaceArg), (Required, newNameArg)]
     "`move.namespace foo bar` renames the path `foo` to `bar`."
     ( \case
-        [".", dest] -> first fromString $ do
-          dest <- Path.parsePath' dest
-          pure $ Input.MoveBranchI Nothing dest
         [src, dest] -> first fromString $ do
-          src <- Path.parseSplit' Path.definitionNameSegment src
+          src <- Path.parsePath' src
           dest <- Path.parsePath' dest
-          pure $ Input.MoveBranchI (Just src) dest
+          pure $ Input.MoveBranchI src dest
         _ -> Left (I.help renameBranch)
     )
 
