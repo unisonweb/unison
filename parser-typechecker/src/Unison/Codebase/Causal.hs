@@ -52,6 +52,7 @@ import Unison.Codebase.Causal.Type
     pattern Merge,
     pattern One,
   )
+import qualified Unison.Debug as Debug
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Hashing.V2.Hashable (HashFor (HashFor), Hashable)
 import Unison.Prelude
@@ -113,9 +114,15 @@ threeWayMerge' lca combine c1 c2 = do
   case theLCA of
     Nothing -> done <$> combine Nothing (head c1) (head c2)
     Just lca
-      | lca == c1 -> pure c2
-      | lca == c2 -> pure c1
-      | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
+      | lca == c1 -> do
+          Debug.debugLogM Debug.Merge "FF detected, selecting c2"
+          pure c2
+      | lca == c2 -> do
+          Debug.debugLogM Debug.Merge "FF detected, selecting c1"
+          pure c1
+      | otherwise -> do
+          Debug.debugLogM Debug.Merge $ "lca found: " <> show (currentHash lca) <> ", proceeding with three-way-merge"
+          done <$> combine (Just $ head lca) (head c1) (head c2)
   where
     done :: e -> Causal m e
     done newHead = fromList newHead [c1, c2]

@@ -26,10 +26,13 @@ import Unison.Codebase.Branch
   )
 import Unison.Codebase.Branch.BranchDiff (BranchDiff (BranchDiff))
 import qualified Unison.Codebase.Branch.BranchDiff as BDiff
+import qualified Unison.Codebase.Branch.Type as Branch
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Patch as Patch
+import qualified Unison.Debug as Debug
 import qualified Unison.Hashing.V2.Convert as H
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty)
 import Unison.Util.Map (unionWithM)
 import qualified Unison.Util.Relation as R
@@ -46,35 +49,55 @@ merge'' ::
   Branch m ->
   Branch m ->
   m (Branch m)
-merge'' _ _ b1 b2 | isEmpty b1 = pure b2
-merge'' _ mode b1 b2 | isEmpty b2 = case mode of
-  RegularMerge -> pure b1
-  SquashMerge -> pure $ cons (discardHistory0 (head b1)) b2
-merge'' lca mode (Branch x) (Branch y) =
+merge'' _ _ b1 b2 | isEmpty b1 = do
+  Debug.debugLogM Debug.Merge $ "Merging " <> show (Branch.headHash b1, Branch.headHash b2)
+  Debug.debugLogM Debug.Merge "b1 is empty, selecting b2"
+  pure b2
+merge'' _ mode b1 b2 | isEmpty b2 = do
+  Debug.debugLogM Debug.Merge $ "Merging " <> show (Branch.headHash b1, Branch.headHash b2)
+  case mode of
+    RegularMerge -> do
+      Debug.debugLogM Debug.Merge "b2 is empty, selecting b1"
+      pure b1
+    SquashMerge -> do
+      Debug.debugLogM Debug.Merge "b2 is empty, appending empty branch onto b1 due to squash merge"
+      pure $ cons (discardHistory0 (head b1)) b2
+merge'' lca mode b1@(Branch x) b2@(Branch y) = do
+  Debug.debugM Debug.Merge "Merge Type" mode
+  Debug.debugLogM Debug.Merge $ "Merging " <> show (Branch.headHash b1, Branch.headHash b2)
   Branch <$> case mode of
     RegularMerge -> Causal.threeWayMerge' lca' combine x y
     SquashMerge -> Causal.squashMerge' lca' (pure . discardHistory0) combine x y
   where
     lca' c1 c2 = fmap _history <$> lca (Branch c1) (Branch c2)
     combine :: Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m)
-    combine Nothing l r = merge0 lca mode l r
+    combine Nothing l r = do
+      Debug.debugLogM Debug.Merge "No lca found, running merge0"
+      merge0 lca mode l r
     combine (Just ca) l r = do
       dl <- BDiff.diff0 ca l
       dr <- BDiff.diff0 ca r
+      Debug.debugM Debug.Merge "Diff from lca b1" dl
+      Debug.debugM Debug.Merge "Diff from lca b2" dr
       head0 <- apply ca (dl <> dr)
       children <-
         Map.mergeA
           (Map.traverseMaybeMissing $ combineMissing ca)
           (Map.traverseMaybeMissing $ combineMissing ca)
-          (Map.zipWithAMatched $ const (merge'' lca mode))
+          ( Map.zipWithAMatched $ \k -> do
+              Debug.debugLogM Debug.Merge ("Merging children at: " <> show k)
+              merge'' lca mode
+          )
           (_children l)
           (_children r)
       pure $ branch0 (_terms head0) (_types head0) children (_edits head0)
 
+    combineMissing :: Branch0 m -> NameSegment -> Branch m -> m (Maybe (Branch m))
     combineMissing ca k cur =
       case Map.lookup k (_children ca) of
         Nothing -> pure $ Just cur
         Just old -> do
+          Debug.debugLogM Debug.Merge $ "namespace " <> show k <> " is missing on one side of the merge, diffing it against a common ancestor at that key"
           nw <- merge'' lca mode (cons empty0 old) cur
           if isEmpty0 $ head nw
             then pure Nothing

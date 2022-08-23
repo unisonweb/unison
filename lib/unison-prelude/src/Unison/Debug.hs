@@ -32,6 +32,7 @@ data DebugFlag
   | Sync
   | -- | Timing how long things take
     Timing
+  | Merge
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -51,6 +52,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "SQLITE" -> pure Sqlite
       "SYNC" -> pure Sync
       "TIMING" -> pure Timing
+      "MERGE" -> pure Merge
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -86,6 +88,10 @@ debugTiming :: Bool
 debugTiming = Timing `Set.member` debugFlags
 {-# NOINLINE debugTiming #-}
 
+debugMerge :: Bool
+debugMerge = Merge `Set.member` debugFlags
+{-# NOINLINE debugMerge #-}
+
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Git "The second number" 2)
 --
@@ -95,7 +101,7 @@ debugTiming = Timing `Set.member` debugFlags
 debug :: Show a => DebugFlag -> String -> a -> a
 debug flag msg a =
   if shouldDebug flag
-    then pTraceShowId (pTrace (msg <> ":\n") a)
+    then pTraceShowId (pTrace (show flag <> ": " <> msg <> ":\n") a)
     else a
 
 -- | Use for selective debug logging in monadic contexts.
@@ -106,18 +112,18 @@ debug flag msg a =
 debugM :: (Show a, Monad m) => DebugFlag -> String -> a -> m ()
 debugM flag msg a =
   whenDebug flag do
-    pTraceM (msg <> ":\n")
+    pTraceM (show flag <> ": " <> msg <> ":\n")
     pTraceShowM a
 
 debugLog :: DebugFlag -> String -> a -> a
 debugLog flag msg =
   if shouldDebug flag
-    then pTrace msg
+    then pTrace $ show flag <> ": " <> msg
     else id
 
 debugLogM :: (Monad m) => DebugFlag -> String -> m ()
 debugLogM flag msg =
-  whenDebug flag $ pTraceM msg
+  whenDebug flag $ pTraceM $ show flag <> ": " <> msg
 
 -- | A 'when' block which is triggered if the given flag is being debugged.
 whenDebug :: Monad m => DebugFlag -> m () -> m ()
@@ -134,3 +140,4 @@ shouldDebug = \case
   Sqlite -> debugSqlite
   Sync -> debugSync
   Timing -> debugTiming
+  Merge -> debugMerge
