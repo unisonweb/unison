@@ -22,7 +22,7 @@ doMoveBranch actionDescription hasConfirmed src' dest' = do
   let isRootMove = (Path.isRoot srcAbs || Path.isRoot destAbs)
   when (isRootMove && not hasConfirmed) do
     Cli.returnEarly MoveRootBranchConfirmation
-  srcBranch <- Cli.expectBranchAtPath' (Path.AbsolutePath' src)
+  srcBranch <- Cli.expectBranchAtPath' src'
   rootBranch <- Cli.getRootBranch
   let newRoot =
         rootBranch
