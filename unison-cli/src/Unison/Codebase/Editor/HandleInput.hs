@@ -506,19 +506,9 @@ loop e = do
                 (Just merged)
                 (snoc desta "merged")
             MoveBranchI src' dest' -> do
-              destBranchExists <- Cli.branchExistsAtPath' dest'
-              srcAbs <- Cli.resolvePath' src'
-              destAbs <- Cli.resolvePath' dest'
-              let isRootMove = (Path.isRoot srcAbs || Path.isRoot destAbs)
-              when isRootMove do
-                hasConfirmed <- confirmedCommand input
-                when (not hasConfirmed) $ do
-                  Cli.returnEarly MoveRootBranchConfirmation
+              hasConfirmed <- confirmedCommand input
               description <- inputDescription input
-              doMoveBranch description srcAbs destAbs
-              if (destBranchExists && not isRootMove)
-                then Cli.respond (MovedOverExistingBranch dest')
-                else Cli.respond Success
+              doMoveBranch description hasConfirmed src' dest'
             MovePatchI src' dest' -> do
               description <- inputDescription input
               p <- Cli.expectPatchAt src'
