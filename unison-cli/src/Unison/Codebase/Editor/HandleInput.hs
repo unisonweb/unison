@@ -488,6 +488,10 @@ loop e = do
               headb <- getBranch headRepo
               mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
               squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
+              root <- Cli.getRootBranch
+              let newRoot =
+                    root
+                      & Branch.modifyAt
               stepManyAt
                 description
                 Branch.AllowRewritingHistory
