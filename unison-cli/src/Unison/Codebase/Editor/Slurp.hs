@@ -130,8 +130,8 @@ slurpFile uf defsToConsider slurpOp unalteredCodebaseNames =
       -- 2. An in-file transitive dependency (within the file) of a var specified by the end-user.
       involvedVars :: Set (TaggedVar v)
       involvedVars = computeInvolvedVars uf defsToConsider varReferences
-      -- The set of names after removing any constructors which would removed by the requested
-      -- operation.
+      -- The set of names after removing any constructors which would
+      -- be removed by the requested operation.
       codebaseNames :: Names
       codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars slurpOp
       -- A mapping of every involved variable to its transitive dependencies.

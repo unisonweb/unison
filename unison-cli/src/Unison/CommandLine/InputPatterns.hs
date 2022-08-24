@@ -2090,6 +2090,21 @@ execute =
         _ -> Left $ showPatternHelp execute
     )
 
+saveExecuteResult :: InputPattern
+saveExecuteResult =
+  InputPattern
+    "add.run"
+    []
+    I.Visible
+    [(Required, newNameArg)]
+    ( "`add.run name` adds to the codebase the result of the most recent `run` command"
+        <> "as `name`."
+    )
+    ( \case
+        [w] -> pure $ Input.SaveExecuteResultI (Name.unsafeFromString w)
+        _ -> Left $ showPatternHelp saveExecuteResult
+    )
+
 ioTest :: InputPattern
 ioTest =
   InputPattern
@@ -2296,6 +2311,7 @@ validInputs =
       testAll,
       ioTest,
       execute,
+      saveExecuteResult,
       viewReflog,
       resetRoot,
       quit,
