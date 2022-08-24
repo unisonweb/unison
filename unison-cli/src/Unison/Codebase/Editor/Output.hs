@@ -158,6 +158,8 @@ data Output
     DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' Symbol Ann]))]
   | DeleteEverythingConfirmation
+  | MoveRootBranchConfirmation
+  | MovedOverExistingBranch Path'
   | DeletedEverything
   | ListNames
       IsGlobal
@@ -333,6 +335,8 @@ isFailure o = case o of
   SearchTermsNotFound ts -> not (null ts)
   DeleteBranchConfirmation {} -> False
   DeleteEverythingConfirmation -> False
+  MoveRootBranchConfirmation -> False
+  MovedOverExistingBranch {} -> False
   DeletedEverything -> False
   ListNames _ _ tys tms -> null tms && null tys
   ListOfLinks _ ds -> null ds

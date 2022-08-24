@@ -53,6 +53,7 @@ import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
+import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.Input
 import qualified Unison.Codebase.Editor.Input as Input
@@ -430,7 +431,7 @@ loop e = do
                     Left hash -> Cli.resolveShortBranchHash hash
                     Right path' -> Cli.expectBranchAtPath' path'
                 description <- inputDescription input
-                updateRoot newRoot description
+                Cli.updateRoot newRoot description
                 Cli.respond Success
             ForkLocalBranchI src0 dest0 -> do
               srcb <-
@@ -440,7 +441,7 @@ loop e = do
               Cli.assertNoBranchAtPath' dest0
               description <- inputDescription input
               dest <- Cli.resolvePath' dest0
-              ok <- updateAtM description dest (const $ pure srcb)
+              ok <- Cli.updateAtM description dest (const $ pure srcb)
               Cli.respond if ok then Success else BranchEmpty src0
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
@@ -504,34 +505,10 @@ loop e = do
                 description
                 (Just merged)
                 (snoc desta "merged")
-
-            -- move the Command.root to a sub-branch
-            MoveBranchI Nothing dest' -> do
+            MoveBranchI src' dest' -> do
+              hasConfirmed <- confirmedCommand input
               description <- inputDescription input
-              rootBranch <- Cli.getRootBranch
-              dest <- Cli.resolveSplit' dest'
-              -- Overwrite history at destination.
-              stepManyAt
-                description
-                Branch.AllowRewritingHistory
-                [ (Path.empty, const Branch.empty0),
-                  BranchUtil.makeSetBranch (Path.convert dest) rootBranch
-                ]
-              Cli.respond Success
-            MoveBranchI (Just src') dest' -> do
-              description <- inputDescription input
-              src <- Cli.resolveSplit' src'
-              dest <- Cli.resolveSplit' dest'
-              srcBranch <- Cli.expectBranchAtPath' (Path.unsplit' src')
-              Cli.assertNoBranchAtPath' (Path.unsplit' dest')
-              -- allow rewriting history to ensure we move the branch's history too.
-              stepManyAt
-                description
-                Branch.AllowRewritingHistory
-                [ BranchUtil.makeDeleteBranch (Path.convert src),
-                  BranchUtil.makeSetBranch (Path.convert dest) srcBranch
-                ]
-              Cli.respond Success -- could give rando stats about new defns
+              doMoveBranch description hasConfirmed src' dest'
             MovePatchI src' dest' -> do
               description <- inputDescription input
               p <- Cli.expectPatchAt src'
@@ -655,7 +632,7 @@ loop e = do
                       then CantUndoPastStart
                       else CantUndoPastMerge
               description <- inputDescription input
-              updateRoot prev description
+              Cli.updateRoot prev description
               (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
               Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
             UiI -> do
@@ -1261,7 +1238,7 @@ loop e = do
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names0
               currentPath <- Cli.getCurrentPath
-              _ <- updateAtM description (currentPath `snoc` "builtin") \destb ->
+              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             MergeIOBuiltinsI -> do
@@ -1284,7 +1261,7 @@ loop e = do
               let names0 = Builtin.names0 <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               currentPath <- Cli.getCurrentPath
-              _ <- updateAtM description (currentPath `snoc` "builtin") \destb ->
+              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             ListEditsI maybePath -> do
@@ -1313,7 +1290,7 @@ loop e = do
                   destBranch <- Cli.getBranch0At destAbs
                   if Branch.isEmpty0 destBranch
                     then do
-                      void $ updateAtM description destAbs (const $ pure remoteBranch)
+                      void $ Cli.updateAtM description destAbs (const $ pure remoteBranch)
                       Cli.respond $ MergeOverEmpty path
                     else
                       mergeBranchAndPropagateDefaultPatch
@@ -1325,7 +1302,7 @@ loop e = do
                         destAbs
                 Input.PullWithoutHistory -> do
                   didUpdate <-
-                    updateAtM
+                    Cli.updateAtM
                       description
                       destAbs
                       (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
@@ -1466,10 +1443,6 @@ loop e = do
               Cli.Env {ucmVersion} <- ask
               Cli.respond $ PrintVersion ucmVersion
 
-  case e of
-    Right input -> #lastInput .= Just input
-    _ -> pure ()
-
 inputDescription :: Input -> Cli r Text
 inputDescription input =
   case input of
@@ -1509,8 +1482,8 @@ inputDescription input =
       dest <- ps' dest0
       pure ("move.type " <> src <> " " <> dest)
     MoveBranchI src0 dest0 -> do
-      src <- ops' src0
-      dest <- ps' dest0
+      src <- p' src0
+      dest <- p' dest0
       pure ("move.namespace " <> src <> " " <> dest)
     MovePatchI src0 dest0 -> do
       src <- ps' src0
@@ -2759,7 +2732,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
         Cli.Env {codebase} <- ask
         destb <- Cli.getBranchAt dest
         merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
-        b <- updateAtM inputDescription dest (const $ pure merged)
+        b <- Cli.updateAtM inputDescription dest (const $ pure merged)
         for_ maybeDest0 \dest0 -> do
           (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
           Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
@@ -2802,20 +2775,6 @@ getHQTerms = \case
     hashOnly sh = do
       Cli.Env {codebase} <- ask
       liftIO (Backend.termReferentsByShortHash codebase sh)
-
--- Update a branch at the given path, returning `True` if
--- an update occurred and false otherwise
-updateAtM ::
-  Text ->
-  Path.Absolute ->
-  (Branch IO -> Cli r (Branch IO)) ->
-  Cli r Bool
-updateAtM reason (Path.Absolute p) f = do
-  loopState <- State.get
-  let b = loopState ^. #lastSavedRoot
-  b' <- Branch.modifyAtM p f b
-  updateRoot b' reason
-  pure $ b /= b'
 
 stepAt ::
   Text ->
@@ -2915,19 +2874,7 @@ stepManyAtMNoSync strat actions = do
 syncRoot :: Text -> Cli r ()
 syncRoot description = do
   rootBranch <- Cli.getRootBranch
-  updateRoot rootBranch description
-
-updateRoot :: Branch IO -> Text -> Cli r ()
-updateRoot new reason =
-  Cli.time "updateRoot" do
-    Cli.Env {codebase} <- ask
-    loopState <- State.get
-    let old = loopState ^. #lastSavedRoot
-    when (old /= new) do
-      #root .= new
-      liftIO (Codebase.putRootBranch codebase new)
-      liftIO (Codebase.appendReflog codebase reason old new)
-      #lastSavedRoot .= new
+  Cli.updateRoot rootBranch description
 
 -- | Goal: When deleting, we might be removing the last name of a given definition (i.e. the
 -- definition is going "extinct"). In this case we may wish to take some action or warn the

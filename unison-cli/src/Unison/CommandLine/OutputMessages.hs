@@ -424,12 +424,14 @@ notifyNumbered o = case o of
   ListEdits patch ppe -> showListEdits patch ppe
   where
     absPathToBranchId = Right
-    undoTip =
-      tip $
-        "You can use" <> IP.makeExample' IP.undo
-          <> "or"
-          <> IP.makeExample' IP.viewReflog
-          <> "to undo this change."
+
+undoTip :: P.Pretty P.ColorText
+undoTip =
+  tip $
+    "You can use" <> IP.makeExample' IP.undo
+      <> "or"
+      <> IP.makeExample' IP.viewReflog
+      <> "to undo this change."
 
 showListEdits :: Patch -> PPE.PrettyPrintEnv -> (P.Pretty P.ColorText, NumberedArgs)
 showListEdits patch ppe =
@@ -848,6 +850,17 @@ notifyUser dir o = case o of
   --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
   --   <> P.newline
   --   <> P.wrap "Please repeat the same command to confirm the deletion."
+  MoveRootBranchConfirmation ->
+    pure . P.warnCallout . P.lines $
+      [ "Moves which affect the root branch cannot be undone, are you sure?",
+        "Re-run the same command to proceed."
+      ]
+  MovedOverExistingBranch dest' ->
+    pure . P.warnCallout . P.lines $
+      [ P.wrap $ "A branch existed at the destination:" <> prettyPath' dest' <> "so I over-wrote it.",
+        "",
+        undoTip
+      ]
   ListOfDefinitions fscope ppe detailed results ->
     listOfDefinitions fscope ppe detailed results
   ListOfLinks ppe results ->
