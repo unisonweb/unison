@@ -2262,14 +2262,15 @@ addDefaultMetadata adds =
           resolveDefaultMetadata currentPath' >>= \case
             [] -> pure ()
             dm -> do
-              defaultMeta <-
-                traverse InputPatterns.parseHashQualifiedName dm & onLeft \err ->
-                  Cli.returnEarly $
+              traverse InputPatterns.parseHashQualifiedName dm & \case
+                Left err -> do
+                  Cli.respond $
                     ConfiguredMetadataParseError
                       (Path.absoluteToPath' currentPath')
                       (show dm)
                       err
-              manageLinks True addedNames defaultMeta Metadata.insert
+                Right defaultMeta -> do
+                  manageLinks True addedNames defaultMeta Metadata.insert
 
 resolveDefaultMetadata :: Path.Absolute -> Cli r [String]
 resolveDefaultMetadata path = do
