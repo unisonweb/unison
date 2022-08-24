@@ -19,6 +19,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import Network.URI (URI)
+import qualified System.Console.Haskeline as Completion
 import Unison.Auth.Types (CredentialFailure)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
@@ -159,6 +160,8 @@ data Output
     DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' Symbol Ann]))]
   | DeleteEverythingConfirmation
+  | MoveRootBranchConfirmation
+  | MovedOverExistingBranch Path'
   | DeletedEverything
   | ListNames
       IsGlobal
@@ -166,7 +169,7 @@ data Output
       [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
       [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
       -- list of all the definitions within this branch
-  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
+  | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
   | ListShallow PPE.PrettyPrintEnv [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
@@ -259,6 +262,7 @@ data Output
   | CredentialFailureMsg CredentialFailure
   | PrintVersion Text
   | IntegrityCheck IntegrityResult
+  | DisplayDebugCompletions [Completion.Completion]
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -337,10 +341,12 @@ isFailure o = case o of
   SearchTermsNotFound ts -> not (null ts)
   DeleteBranchConfirmation {} -> False
   DeleteEverythingConfirmation -> False
+  MoveRootBranchConfirmation -> False
+  MovedOverExistingBranch {} -> False
   DeletedEverything -> False
   ListNames _ _ tys tms -> null tms && null tys
   ListOfLinks _ ds -> null ds
-  ListOfDefinitions _ _ ds -> null ds
+  ListOfDefinitions _ _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors {} -> True
@@ -403,6 +409,7 @@ isFailure o = case o of
       IntegrityErrorDetected {} -> True
   ShareError {} -> True
   ViewOnShare {} -> False
+  DisplayDebugCompletions {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

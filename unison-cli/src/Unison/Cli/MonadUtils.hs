@@ -25,6 +25,12 @@ module Unison.Cli.MonadUtils
     getMaybeBranchAt,
     expectBranchAtPath',
     assertNoBranchAtPath',
+    branchExistsAtPath',
+
+    -- ** Updating branches
+    updateRoot,
+    updateAtM,
+    updateAt,
 
     -- * Terms
     getTermsAt,
@@ -54,6 +60,7 @@ where
 
 import Control.Lens
 import Control.Monad.Reader (ask)
+import Control.Monad.State
 import qualified Data.Configurator as Configurator
 import qualified Data.Configurator.Types as Configurator
 import qualified Data.Set as Set
@@ -186,11 +193,21 @@ expectBranchAtPath' path0 = do
 -- means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
 -- current terms/types etc).
 assertNoBranchAtPath' :: Path' -> Cli r ()
-assertNoBranchAtPath' path0 = do
-  path <- resolvePath' path0
-  whenJustM (getMaybeBranchAt path) \branch ->
-    when (not (Branch.isEmpty0 (Branch.head branch))) do
-      Cli.returnEarly (Output.BranchAlreadyExists path0)
+assertNoBranchAtPath' path' = do
+  whenM (branchExistsAtPath' path') do
+    Cli.returnEarly (Output.BranchAlreadyExists path')
+
+-- | Check if there's a branch at an absolute or relative path
+--
+-- "no branch" means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
+-- current terms/types etc).
+branchExistsAtPath' :: Path' -> Cli r Bool
+branchExistsAtPath' path' = do
+  path <- resolvePath' path'
+  getMaybeBranchAt path <&> \case
+    Nothing -> False
+    Just branch ->
+      not (Branch.isEmpty0 (Branch.head branch))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting terms
@@ -261,3 +278,39 @@ getLatestTypecheckedFile = do
 expectLatestTypecheckedFile :: Cli r (TypecheckedUnisonFile Symbol Ann)
 expectLatestTypecheckedFile =
   getLatestTypecheckedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
+
+-- | Update a branch at the given path, returning `True` if
+-- an update occurred and false otherwise
+updateAtM ::
+  Text ->
+  Path.Absolute ->
+  (Branch IO -> Cli r (Branch IO)) ->
+  Cli r Bool
+updateAtM reason (Path.Absolute p) f = do
+  loopState <- get
+  let b = loopState ^. #lastSavedRoot
+  b' <- Branch.modifyAtM p f b
+  updateRoot b' reason
+  pure $ b /= b'
+
+-- | Update a branch at the given path, returning `True` if
+-- an update occurred and false otherwise
+updateAt ::
+  Text ->
+  Path.Absolute ->
+  (Branch IO -> Branch IO) ->
+  Cli r Bool
+updateAt reason p f = do
+  updateAtM reason p (pure . f)
+
+updateRoot :: Branch IO -> Text -> Cli r ()
+updateRoot new reason =
+  Cli.time "updateRoot" do
+    Cli.Env {codebase} <- ask
+    loopState <- get
+    let old = loopState ^. #lastSavedRoot
+    when (old /= new) do
+      #root .= new
+      liftIO (Codebase.putRootBranch codebase new)
+      liftIO (Codebase.appendReflog codebase reason old new)
+      #lastSavedRoot .= new

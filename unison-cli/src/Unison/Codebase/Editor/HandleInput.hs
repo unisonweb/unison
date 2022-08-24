@@ -54,6 +54,7 @@ import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
+import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.Input
 import qualified Unison.Codebase.Editor.Input as Input
@@ -105,9 +106,11 @@ import qualified Unison.Codebase.TermEdit.Typing as TermEdit
 import Unison.Codebase.Type (GitPushBehavior (..))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
+import qualified Unison.CommandLine.Completion as Completion
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import qualified Unison.CommandLine.InputPattern as InputPattern
+import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.DataDeclaration as DD
@@ -424,7 +427,7 @@ loop e = do
                     Left hash -> Cli.resolveShortBranchHash hash
                     Right path' -> Cli.expectBranchAtPath' path'
                 description <- inputDescription input
-                updateRoot newRoot description
+                Cli.updateRoot newRoot description
                 Cli.respond Success
             ForkLocalBranchI src0 dest0 -> do
               srcb <-
@@ -434,7 +437,7 @@ loop e = do
               Cli.assertNoBranchAtPath' dest0
               description <- inputDescription input
               dest <- Cli.resolvePath' dest0
-              ok <- updateAtM description dest (const $ pure srcb)
+              ok <- Cli.updateAtM description dest (const $ pure srcb)
               Cli.respond if ok then Success else BranchEmpty src0
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
@@ -498,34 +501,10 @@ loop e = do
                 description
                 (Just merged)
                 (snoc desta "merged")
-
-            -- move the Command.root to a sub-branch
-            MoveBranchI Nothing dest' -> do
+            MoveBranchI src' dest' -> do
+              hasConfirmed <- confirmedCommand input
               description <- inputDescription input
-              rootBranch <- Cli.getRootBranch
-              dest <- Cli.resolveSplit' dest'
-              -- Overwrite history at destination.
-              stepManyAt
-                description
-                Branch.AllowRewritingHistory
-                [ (Path.empty, const Branch.empty0),
-                  BranchUtil.makeSetBranch (Path.convert dest) rootBranch
-                ]
-              Cli.respond Success
-            MoveBranchI (Just src') dest' -> do
-              description <- inputDescription input
-              src <- Cli.resolveSplit' src'
-              dest <- Cli.resolveSplit' dest'
-              srcBranch <- Cli.expectBranchAtPath' (Path.unsplit' src')
-              Cli.assertNoBranchAtPath' (Path.unsplit' dest')
-              -- allow rewriting history to ensure we move the branch's history too.
-              stepManyAt
-                description
-                Branch.AllowRewritingHistory
-                [ BranchUtil.makeDeleteBranch (Path.convert src),
-                  BranchUtil.makeSetBranch (Path.convert dest) srcBranch
-                ]
-              Cli.respond Success -- could give rando stats about new defns
+              doMoveBranch description hasConfirmed src' dest'
             MovePatchI src' dest' -> do
               description <- inputDescription input
               p <- Cli.expectPatchAt src'
@@ -649,7 +628,7 @@ loop e = do
                       then CantUndoPastStart
                       else CantUndoPastMerge
               description <- inputDescription input
-              updateRoot prev description
+              Cli.updateRoot prev description
               (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
               Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
             UiI -> do
@@ -944,7 +923,7 @@ loop e = do
                     Cli.returnEarly (HelpMessage InputPatterns.display)
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
-            ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
+            ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
             FindPatchI -> do
               branch <- Cli.getCurrentBranch0
               let patches =
@@ -1270,7 +1249,7 @@ loop e = do
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names0
               currentPath <- Cli.getCurrentPath
-              _ <- updateAtM description (currentPath `snoc` "builtin") \destb ->
+              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             MergeIOBuiltinsI -> do
@@ -1293,7 +1272,7 @@ loop e = do
               let names0 = Builtin.names0 <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               currentPath <- Cli.getCurrentPath
-              _ <- updateAtM description (currentPath `snoc` "builtin") \destb ->
+              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             ListEditsI maybePath -> do
@@ -1322,7 +1301,7 @@ loop e = do
                   destBranch <- Cli.getBranch0At destAbs
                   if Branch.isEmpty0 destBranch
                     then do
-                      void $ updateAtM description destAbs (const $ pure remoteBranch)
+                      void $ Cli.updateAtM description destAbs (const $ pure remoteBranch)
                       Cli.respond $ MergeOverEmpty path
                     else
                       mergeBranchAndPropagateDefaultPatch
@@ -1334,7 +1313,7 @@ loop e = do
                         destAbs
                 Input.PullWithoutHistory -> do
                   didUpdate <-
-                    updateAtM
+                    Cli.updateAtM
                       description
                       destAbs
                       (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
@@ -1397,6 +1376,12 @@ loop e = do
                   effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
                   terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
+            DebugTabCompletionI inputs -> do
+              Cli.Env {codebase} <- ask
+              currentPath <- Cli.getCurrentPath
+              let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase currentPath
+              (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
+              Cli.respond (DisplayDebugCompletions completions)
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
@@ -1469,10 +1454,6 @@ loop e = do
               Cli.Env {ucmVersion} <- ask
               Cli.respond $ PrintVersion ucmVersion
 
-  case e of
-    Right input -> #lastInput .= Just input
-    _ -> pure ()
-
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
 
@@ -1516,8 +1497,8 @@ inputDescription input =
       dest <- ps' dest0
       pure ("move.type " <> src <> " " <> dest)
     MoveBranchI src0 dest0 -> do
-      src <- ops' src0
-      dest <- ps' dest0
+      src <- p' src0
+      dest <- p' dest0
       pure ("move.namespace " <> src <> " " <> dest)
     MovePatchI src0 dest0 -> do
       src <- ps' src0
@@ -1662,6 +1643,7 @@ inputDescription input =
     UiI -> wat
     UpI {} -> wat
     VersionI -> wat
+    DebugTabCompletionI _input -> wat
   where
     hp' :: Either SBH.ShortBranchHash Path' -> Cli r Text
     hp' = either (pure . Text.pack . show) p'
@@ -1715,18 +1697,18 @@ handleFindI isVerbose fscope ws input = do
       getNames findScope =
         let cp = Path.unabsolute currentPath'
             nameScope = case findScope of
-              Local -> Backend.Within cp
-              LocalAndDeps -> Backend.Within cp
-              Global -> Backend.AllNames cp
+              FindLocal -> Backend.Within cp
+              FindLocalAndDeps -> Backend.Within cp
+              FindGlobal -> Backend.AllNames cp
             scopeFilter = case findScope of
-              Local ->
+              FindLocal ->
                 let f n =
                       case Name.segments n of
                         "lib" Nel.:| _ : _ -> False
                         _ -> True
                  in Names.filter f
-              Global -> id
-              LocalAndDeps ->
+              FindGlobal -> id
+              FindLocalAndDeps ->
                 let f n =
                       case Name.segments n of
                         "lib" Nel.:| (_ : "lib" : _) -> False
@@ -1769,12 +1751,12 @@ handleFindI isVerbose fscope ws input = do
           suffixifiedPPE
             =<< makePrintNamesFromLabeled'
               (foldMap SR'.labeledDependencies results')
-        Cli.respond $ ListOfDefinitions ppe isVerbose results'
+        Cli.respond $ ListOfDefinitions fscope ppe isVerbose results'
   results <- getResults (getNames fscope)
   case (results, fscope) of
-    ([], Local) -> do
+    ([], FindLocal) -> do
       Cli.respond FindNoLocalMatches
-      respondResults =<< getResults (getNames LocalAndDeps)
+      respondResults =<< getResults (getNames FindLocalAndDeps)
     _ -> respondResults results
 
 handleDependents :: HQ.HashQualified Name -> Cli r ()
@@ -1989,9 +1971,10 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
         Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition :: OutputLocation -> [HQ.HashQualified Name] -> Cli r ()
-handleShowDefinition outputLoc inputQuery = do
+handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> [HQ.HashQualified Name] -> Cli r ()
+handleShowDefinition outputLoc showDefinitionScope inputQuery = do
   Cli.Env {codebase} <- ask
+  hqLength <- liftIO (Codebase.hashLength codebase)
   -- If the query is empty, run a fuzzy search.
   query <-
     if null inputQuery
@@ -2002,19 +1985,32 @@ handleShowDefinition outputLoc inputQuery = do
             ConsoleLocation -> HelpMessage InputPatterns.view
             _ -> HelpMessage InputPatterns.edit
       else pure inputQuery
-  root' <- Cli.getRootBranch
+  root <- Cli.getRootBranch
+  let root0 = Branch.head root
   currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
-  hqLength <- liftIO (Codebase.hashLength codebase)
+  let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
+  (names, unbiasedPPE) <- case (hasAbsoluteQuery, showDefinitionScope) of
+    (True, _) -> do
+      let namingScope = Backend.AllNames currentPath'
+      let parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root namingScope
+      let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
+      pure (parseNames, ppe)
+    (_, ShowDefinitionGlobal) -> do
+      let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
+      -- Use an absolutely qualified ppe for view.global
+      let ppe = PPE.fromNamesDecl hqLength names
+      pure (names, ppe)
+    (_, ShowDefinitionLocal) -> do
+      currentBranch <- Cli.getCurrentBranch0
+      let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+      let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
+      pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
-    let namingScope = Backend.AllNames currentPath'
-    let parseNames = Backend.parseNamesForBranch root' namingScope
-    let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+    let nameSearch = Backend.makeNameSearch hqLength names
     liftIO (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
-    let ppe =
-          PPED.biasTo (mapMaybe HQ.toName inputQuery) $
-            Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root'
+    let ppe = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE
     Cli.respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   -- We set latestFile to be programmatically generated, if we
@@ -2751,7 +2747,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
         Cli.Env {codebase} <- ask
         destb <- Cli.getBranchAt dest
         merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
-        b <- updateAtM inputDescription dest (const $ pure merged)
+        b <- Cli.updateAtM inputDescription dest (const $ pure merged)
         for_ maybeDest0 \dest0 -> do
           (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
           Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
@@ -2794,20 +2790,6 @@ getHQTerms = \case
     hashOnly sh = do
       Cli.Env {codebase} <- ask
       liftIO (Backend.termReferentsByShortHash codebase sh)
-
--- Update a branch at the given path, returning `True` if
--- an update occurred and false otherwise
-updateAtM ::
-  Text ->
-  Path.Absolute ->
-  (Branch IO -> Cli r (Branch IO)) ->
-  Cli r Bool
-updateAtM reason (Path.Absolute p) f = do
-  loopState <- State.get
-  let b = loopState ^. #lastSavedRoot
-  b' <- Branch.modifyAtM p f b
-  updateRoot b' reason
-  pure $ b /= b'
 
 stepAt ::
   Text ->
@@ -2907,19 +2889,7 @@ stepManyAtMNoSync strat actions = do
 syncRoot :: Text -> Cli r ()
 syncRoot description = do
   rootBranch <- Cli.getRootBranch
-  updateRoot rootBranch description
-
-updateRoot :: Branch IO -> Text -> Cli r ()
-updateRoot new reason =
-  Cli.time "updateRoot" do
-    Cli.Env {codebase} <- ask
-    loopState <- State.get
-    let old = loopState ^. #lastSavedRoot
-    when (old /= new) do
-      #root .= new
-      liftIO (Codebase.putRootBranch codebase new)
-      liftIO (Codebase.appendReflog codebase reason old new)
-      #lastSavedRoot .= new
+  Cli.updateRoot rootBranch description
 
 -- | Goal: When deleting, we might be removing the last name of a given definition (i.e. the
 -- definition is going "extinct"). In this case we may wish to take some action or warn the

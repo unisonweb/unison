@@ -28,6 +28,7 @@ import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
 import qualified Network.URI.Encode as URI
 import qualified Servant.Client as Servant
+import qualified System.Console.Haskeline.Completion as Completion
 import System.Directory
   ( canonicalizePath,
     doesFileExist,
@@ -423,12 +424,14 @@ notifyNumbered o = case o of
   ListEdits patch ppe -> showListEdits patch ppe
   where
     absPathToBranchId = Right
-    undoTip =
-      tip $
-        "You can use" <> IP.makeExample' IP.undo
-          <> "or"
-          <> IP.makeExample' IP.viewReflog
-          <> "to undo this change."
+
+undoTip :: P.Pretty P.ColorText
+undoTip =
+  tip $
+    "You can use" <> IP.makeExample' IP.undo
+      <> "or"
+      <> IP.makeExample' IP.viewReflog
+      <> "to undo this change."
 
 showListEdits :: Patch -> PPE.PrettyPrintEnv -> (P.Pretty P.ColorText, NumberedArgs)
 showListEdits patch ppe =
@@ -862,8 +865,19 @@ notifyUser dir o = case o of
   --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
   --   <> P.newline
   --   <> P.wrap "Please repeat the same command to confirm the deletion."
-  ListOfDefinitions ppe detailed results ->
-    listOfDefinitions ppe detailed results
+  MoveRootBranchConfirmation ->
+    pure . P.warnCallout . P.lines $
+      [ "Moves which affect the root branch cannot be undone, are you sure?",
+        "Re-run the same command to proceed."
+      ]
+  MovedOverExistingBranch dest' ->
+    pure . P.warnCallout . P.lines $
+      [ P.wrap $ "A branch existed at the destination:" <> prettyPath' dest' <> "so I over-wrote it.",
+        "",
+        undoTip
+      ]
+  ListOfDefinitions fscope ppe detailed results ->
+    listOfDefinitions fscope ppe detailed results
   ListOfLinks ppe results ->
     listOfLinks ppe [(name, tm) | (name, _ref, tm) <- results]
   ListNames global len types terms ->
@@ -1744,6 +1758,16 @@ notifyUser dir o = case o of
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
+  DisplayDebugCompletions completions ->
+    pure $
+      P.column2
+        ( completions <&> \comp ->
+            let isCompleteTxt =
+                  if Completion.isFinished comp
+                    then "*"
+                    else ""
+             in (isCompleteTxt, P.string (Completion.replacement comp))
+        )
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
@@ -2330,9 +2354,9 @@ todoOutput ppe todo = runNumbered do
     unscore (_score, b, c) = (b, c)
 
 listOfDefinitions ::
-  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
-listOfDefinitions ppe detailed results =
-  pure $ listOfDefinitions' ppe detailed results
+  Var v => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
+listOfDefinitions fscope ppe detailed results =
+  pure $ listOfDefinitions' fscope ppe detailed results
 
 listOfLinks ::
   Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
@@ -2791,28 +2815,34 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
 
     leftNumsWidth = P.Width $ length (show menuSize) + length ("." :: String)
 
-noResults :: Pretty
-noResults =
+noResults :: Input.FindScope -> Pretty
+noResults fscope =
   P.callout "😶" $
-    P.lines
+    P.lines $
       [ P.wrap $
           "No results. Check your spelling, or try using tab completion "
             <> "to supply command arguments.",
-        "",
-        P.wrap $
-          IP.makeExample IP.findGlobal []
-            <> "can be used to search outside the current namespace."
+        ""
       ]
+        ++ case fscope of
+          Input.FindGlobal -> []
+          _ -> [suggestFindGlobal]
+  where
+    suggestFindGlobal =
+      P.wrap $
+        IP.makeExample IP.findGlobal []
+          <> "can be used to search outside the current namespace."
 
 listOfDefinitions' ::
   Var v =>
+  Input.FindScope ->
   PPE.PrettyPrintEnv -> -- for printing types of terms :-\
   E.ListDetailed ->
   [SR'.SearchResult' v a] ->
   Pretty
-listOfDefinitions' ppe detailed results =
+listOfDefinitions' fscope ppe detailed results =
   if null results
-    then noResults
+    then noResults fscope
     else
       P.lines
         . P.nonEmpty

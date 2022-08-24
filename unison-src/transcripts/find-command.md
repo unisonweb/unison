@@ -24,3 +24,7 @@ foo.lib.qux = 4
 ```ucm
 .> find qux
 ```
+
+```ucm:error
+.> find.global nothere
+```

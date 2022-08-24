@@ -14,7 +14,11 @@ module Unison.Codebase.Path
     singleton,
     Unison.Codebase.Path.uncons,
     empty,
+    isAbsolute,
+    isRelative,
     absoluteEmpty,
+    absoluteEmpty',
+    relativeEmpty,
     relativeEmpty',
     currentPath,
     prefix,
@@ -26,6 +30,9 @@ module Unison.Codebase.Path
     Split',
     HQSplit',
     ancestors,
+
+    -- * utilities
+    longestPathPrefix,
 
     -- * tests
     isCurrentPath,
@@ -39,7 +46,9 @@ module Unison.Codebase.Path
     fromName',
     fromPath',
     fromText,
+    fromText',
     toAbsoluteSplit,
+    toSplit',
     toList,
     toName,
     toName',
@@ -104,6 +113,14 @@ newtype Relative = Relative {unrelative :: Path} deriving (Eq, Ord)
 
 newtype Path' = Path' {unPath' :: Either Absolute Relative}
   deriving (Eq, Ord)
+
+isAbsolute :: Path' -> Bool
+isAbsolute (AbsolutePath' _) = True
+isAbsolute _ = False
+
+isRelative :: Path' -> Bool
+isRelative (RelativePath' _) = True
+isRelative _ = False
 
 isCurrentPath :: Path' -> Bool
 isCurrentPath p = p == currentPath
@@ -172,14 +189,42 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
   Left (unabsolute -> abs) -> abs
   Right (unrelative -> rel) -> Path $ prefix <> toSeq rel
 
+-- | Finds the longest shared path prefix of two paths.
+-- Returns (shared prefix, path to first location from shared prefix, path to second location from shared prefix)
+--
+-- >>> longestPathPrefix ("a" :< "b" :< "x" :< Empty) ("a" :< "b" :< "c" :< Empty)
+-- (a.b,x,c)
+--
+-- >>> longestPathPrefix Empty ("a" :< "b" :< "c" :< Empty)
+-- (,,a.b.c)
+longestPathPrefix :: Path -> Path -> (Path, Path, Path)
+longestPathPrefix a b =
+  case (Lens.uncons a, Lens.uncons b) of
+    (Nothing, _) -> (empty, a, b)
+    (_, Nothing) -> (empty, a, b)
+    (Just (x, xs), Just (y, ys))
+      | x == y ->
+          let (prefix, ra, rb) = longestPathPrefix xs ys
+           in (x :< prefix, ra, rb)
+      | otherwise -> (empty, a, b)
+
+toSplit' :: Path' -> Maybe (Path', NameSegment)
+toSplit' = Lens.unsnoc
+
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (resolve a p, s)
 
 absoluteEmpty :: Absolute
 absoluteEmpty = Absolute empty
 
+relativeEmpty :: Relative
+relativeEmpty = Relative empty
+
 relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
+
+absoluteEmpty' :: Path'
+absoluteEmpty' = Path' (Left (Absolute empty))
 
 -- | Mitchell: this function is bogus, because an empty name segment is bogus
 toPath' :: Path -> Path'
@@ -298,6 +343,25 @@ fromText = \case
   "" -> empty
   t -> fromList $ NameSegment <$> NameSegment.segments' t
 
+-- | Construct a Path' from a text
+--
+-- >>> fromText' "a.b.c"
+-- a.b.c
+--
+-- >>> fromText' ".a.b.c"
+-- .a.b.c
+--
+-- >>> show $ fromText' ""
+-- ""
+fromText' :: Text -> Path'
+fromText' txt =
+  case Text.uncons txt of
+    Nothing -> relativeEmpty'
+    Just ('.', p) ->
+      Path' (Left . Absolute $ fromText p)
+    Just _ ->
+      Path' (Right . Relative $ fromText txt)
+
 toText' :: Path' -> Text
 toText' = \case
   Path' (Left (Absolute path)) -> Text.cons '.' (toText path)
@@ -319,6 +383,18 @@ instance Cons Path Path NameSegment NameSegment where
         Path (hd :<| tl) -> Right (hd, Path tl)
         _ -> Left p
 
+instance Cons Path' Path' NameSegment NameSegment where
+  _Cons = prism (uncurry cons) uncons
+    where
+      cons :: NameSegment -> Path' -> Path'
+      cons ns (AbsolutePath' p) = AbsolutePath' (ns :< p)
+      cons ns (RelativePath' p) = RelativePath' (ns :< p)
+      uncons :: Path' -> Either Path' (NameSegment, Path')
+      uncons p = case p of
+        AbsolutePath' (ns :< tl) -> Right (ns, AbsolutePath' tl)
+        RelativePath' (ns :< tl) -> Right (ns, RelativePath' tl)
+        _ -> Left p
+
 instance Snoc Relative Relative NameSegment NameSegment where
   _Snoc = prism (uncurry snocRelative) $ \case
     Relative (Lens.unsnoc -> Just (s, a)) -> Right (Relative s, a)
@@ -326,6 +402,26 @@ instance Snoc Relative Relative NameSegment NameSegment where
     where
       snocRelative :: Relative -> NameSegment -> Relative
       snocRelative r n = Relative . (`Lens.snoc` n) $ unrelative r
+
+instance Cons Relative Relative NameSegment NameSegment where
+  _Cons = prism (uncurry cons) uncons
+    where
+      cons :: NameSegment -> Relative -> Relative
+      cons ns (Relative p) = Relative (ns :< p)
+      uncons :: Relative -> Either Relative (NameSegment, Relative)
+      uncons p = case p of
+        Relative (ns :< tl) -> Right (ns, Relative tl)
+        _ -> Left p
+
+instance Cons Absolute Absolute NameSegment NameSegment where
+  _Cons = prism (uncurry cons) uncons
+    where
+      cons :: NameSegment -> Absolute -> Absolute
+      cons ns (Absolute p) = Absolute (ns :< p)
+      uncons :: Absolute -> Either Absolute (NameSegment, Absolute)
+      uncons p = case p of
+        Absolute (ns :< tl) -> Right (ns, Absolute tl)
+        _ -> Left p
 
 instance Snoc Absolute Absolute NameSegment NameSegment where
   _Snoc = prism (uncurry snocAbsolute) $ \case
