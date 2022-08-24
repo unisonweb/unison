@@ -309,7 +309,6 @@ loop e = do
                   (patchPath'', patchName) <- Cli.resolveSplit' patchPath'
                   -- Save the modified patch
                   stepAtM
-                    Branch.CompressHistory
                     description
                     ( Path.unabsolute patchPath'',
                       Branch.modifyPatches
@@ -326,7 +325,6 @@ loop e = do
           saveAndApplyPatch patchPath'' patchName patch' = do
             description <- inputDescription input
             stepAtM
-              Branch.CompressHistory
               (description <> " (1/2)")
               ( patchPath'',
                 Branch.modifyPatches patchName (const patch')
@@ -366,7 +364,7 @@ loop e = do
                 let makeDeleteTypeNames = map (BranchUtil.makeDeleteTypeName resolvedPath) . Set.toList $ types
                 before <- Cli.getRootBranch0
                 description <- inputDescription input
-                stepManyAt description Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
+                stepManyAt description (makeDeleteTermNames ++ makeDeleteTypeNames)
                 after <- Cli.getRootBranch0
                 (ppe, diff) <- diffHelper before after
                 Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
@@ -517,7 +515,6 @@ loop e = do
               dest <- Cli.resolveSplit' dest'
               stepManyAt
                 description
-                Branch.CompressHistory
                 [ BranchUtil.makeDeletePatch (Path.convert src),
                   BranchUtil.makeReplacePatch (Path.convert dest) p
                 ]
@@ -529,7 +526,6 @@ loop e = do
               dest <- Cli.resolveSplit' dest'
               stepAt
                 description
-                Branch.CompressHistory
                 (BranchUtil.makeReplacePatch (Path.convert dest) p)
               Cli.respond Success
             DeletePatchI src' -> do
@@ -538,7 +534,6 @@ loop e = do
               src <- Cli.resolveSplit' src'
               stepAt
                 description
-                Branch.CompressHistory
                 (BranchUtil.makeDeletePatch (Path.convert src))
               Cli.respond Success
             DeleteBranchI insistence Nothing -> do
@@ -548,7 +543,6 @@ loop e = do
                   description <- inputDescription input
                   stepAt
                     description
-                    Branch.CompressHistory -- Wipe out all definitions, but keep root branch history.
                     (Path.empty, const Branch.empty0)
                   Cli.respond DeletedEverything
                 else Cli.respond DeleteEverythingConfirmation
@@ -574,7 +568,7 @@ loop e = do
                     ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                     Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
                     Cli.returnEarlyWithoutOutput
-              stepAt description Branch.CompressHistory $
+              stepAt description $
                 BranchUtil.makeDeleteBranch (Path.convert absPath)
               afterDelete
             SwitchBranchI maybePath' -> do
@@ -676,7 +670,6 @@ loop e = do
                     pure (BranchUtil.getTermMetadataAt (Path.convert path, ()) srcTerm root0)
               stepAt
                 description
-                Branch.CompressHistory
                 (BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata)
               Cli.respond Success
             AliasTypeI src' dest' -> do
@@ -710,7 +703,6 @@ loop e = do
                     pure (BranchUtil.getTypeMetadataAt (Path.convert path, ()) srcType root0)
               stepAt
                 description
-                Branch.CompressHistory
                 (BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata)
               Cli.respond Success
 
@@ -723,7 +715,7 @@ loop e = do
               old <- Cli.getBranch0At destAbs
               description <- inputDescription input
               let (unknown, actions) = foldl' (go root0 currentBranch0 destAbs) mempty srcs
-              stepManyAt description Branch.CompressHistory actions
+              stepManyAt description actions
               new <- Cli.getBranch0At destAbs
               (ppe, diff) <- diffHelper old new
               Cli.respondNumbered (ShowDiffAfterModifyBranch dest' destAbs ppe diff)
@@ -839,7 +831,6 @@ loop e = do
               guidPath <- Cli.resolveSplit' (authorPath' |> "guid")
               stepManyAt
                 description
-                Branch.CompressHistory
                 [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef) mempty,
                   BranchUtil.makeAddTermName (Path.convert copyrightHolderPath) (d copyrightHolderRef) mempty,
                   BranchUtil.makeAddTermName (Path.convert guidPath) (d guidRef) mempty
@@ -881,7 +872,6 @@ loop e = do
                 pure (BranchUtil.getTermMetadataAt p srcTerm root0)
               stepManyAt
                 description
-                Branch.CompressHistory
                 [ -- Mitchell: throwing away any hash-qualification here seems wrong!
                   BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
                   BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata
@@ -909,7 +899,6 @@ loop e = do
                 pure (BranchUtil.getTypeMetadataAt p srcType root0)
               stepManyAt
                 description
-                Branch.CompressHistory
                 [ -- Mitchell: throwing away any hash-qualification here seems wrong!
                   BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
                   BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata
@@ -981,7 +970,6 @@ loop e = do
                       Cli.returnEarly (DeleteNameAmbiguous hqLength path' Set.empty types)
               stepAt
                 description
-                Branch.CompressHistory
                 -- Mitchell: throwing away HQ seems wrong
                 (BranchUtil.makeDeleteTypeName (Path.convert (over _2 HQ'.toName path)) ty)
             ResolveTermNameI path' -> do
@@ -1004,7 +992,7 @@ loop e = do
                 & Set.toList
                 -- Mitchell: throwing away HQ seems wrong
                 & map (BranchUtil.makeDeleteTermName (Path.convert (over _2 HQ'.toName path)))
-                & stepManyAt description Branch.CompressHistory
+                & stepManyAt description
             ReplaceI from to patchPath -> do
               Cli.Env {codebase} <- ask
               hqLength <- liftIO (Codebase.hashLength codebase)
@@ -1113,7 +1101,7 @@ loop e = do
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
-              stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath, doSlurpAdds adds uf)
+              stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
               liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
@@ -2216,7 +2204,6 @@ handleUpdate input optionalPatch requestedNames = do
     -- take a look at the `updates` from the SlurpResult
     -- and make a patch diff to record a replacement from the old to new references
     stepManyAtMNoSync
-      Branch.CompressHistory
       ( [ ( Path.unabsolute currentPath',
             pure . doSlurpUpdates typeEdits termEdits termDeprecations
           ),
@@ -2316,7 +2303,7 @@ manageLinks silent srcs' metadataNames op = do
                   go types src = op (src, mdType, mdValue) types
            in over Branch.terms tmUpdates . over Branch.types tyUpdates
     let steps = map (\(path, _hq) -> (Path.unabsolute path, step)) srcs
-    stepManyAtNoSync Branch.CompressHistory steps
+    stepManyAtNoSync steps
   if silent
     then Cli.respond DefaultMetadataNotification
     else do
@@ -2534,7 +2521,7 @@ propagatePatchNoSync ::
   Cli r Bool
 propagatePatchNoSync patch scopePath =
   Cli.time "propagatePatch" do
-    stepAtNoSync' Branch.CompressHistory (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
+    stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch ::
@@ -2546,7 +2533,6 @@ propagatePatch inputDescription patch scopePath = do
   Cli.time "propagatePatch" do
     stepAt'
       (inputDescription <> " (applying patch)")
-      Branch.CompressHistory
       (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
 -- | Create the args needed for showTodoOutput and call it
@@ -2778,96 +2764,85 @@ getHQTerms = \case
 
 stepAt ::
   Text ->
-  Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepAt cause strat = stepManyAt @[] cause strat . pure
+stepAt cause = stepManyAt @[] cause . pure
 
 stepAt' ::
   Text ->
-  Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
   Cli r Bool
-stepAt' cause strat = stepManyAt' @[] cause strat . pure
+stepAt' cause = stepManyAt' @[] cause . pure
 
 stepAtNoSync' ::
-  Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
   Cli r Bool
-stepAtNoSync' strat = stepManyAtNoSync' @[] strat . pure
+stepAtNoSync' = stepManyAtNoSync' @[] . pure
 
 stepAtNoSync ::
-  Branch.UpdateStrategy ->
   (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepAtNoSync strat = stepManyAtNoSync @[] strat . pure
+stepAtNoSync = stepManyAtNoSync @[] . pure
 
 stepAtM ::
-  Branch.UpdateStrategy ->
   Text ->
   (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Cli r ()
-stepAtM cause strat = stepManyAtM @[] cause strat . pure
+stepAtM cause = stepManyAtM @[] cause . pure
 
 stepManyAt ::
   Foldable f =>
   Text ->
-  Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepManyAt reason strat actions = do
-  stepManyAtNoSync strat actions
+stepManyAt reason actions = do
+  stepManyAtNoSync actions
   syncRoot reason
 
 stepManyAt' ::
   Foldable f =>
   Text ->
-  Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
   Cli r Bool
-stepManyAt' reason strat actions = do
-  res <- stepManyAtNoSync' strat actions
+stepManyAt' reason actions = do
+  res <- stepManyAtNoSync' actions
   syncRoot reason
   pure res
 
 stepManyAtNoSync' ::
   Foldable f =>
-  Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
   Cli r Bool
-stepManyAtNoSync' strat actions = do
+stepManyAtNoSync' actions = do
   origRoot <- Cli.getRootBranch
-  newRoot <- Branch.stepManyAtM strat actions origRoot
+  newRoot <- Branch.stepManyAtM actions origRoot
   #root .= newRoot
   pure (origRoot /= newRoot)
 
 -- Like stepManyAt, but doesn't update the last saved root
 stepManyAtNoSync ::
   Foldable f =>
-  Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepManyAtNoSync strat actions =
-  #root %= Branch.stepManyAt strat actions
+stepManyAtNoSync actions =
+  #root %= Branch.stepManyAt actions
 
 stepManyAtM ::
   Foldable f =>
-  Branch.UpdateStrategy ->
   Text ->
   f (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Cli r ()
-stepManyAtM strat reason actions = do
-  stepManyAtMNoSync strat actions
+stepManyAtM reason actions = do
+  stepManyAtMNoSync actions
   syncRoot reason
 
 stepManyAtMNoSync ::
   Foldable f =>
-  Branch.UpdateStrategy ->
   f (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Cli r ()
-stepManyAtMNoSync strat actions = do
+stepManyAtMNoSync actions = do
   oldRoot <- Cli.getRootBranch
-  newRoot <- liftIO (Branch.stepManyAtM strat actions oldRoot)
+  newRoot <- liftIO (Branch.stepManyAtM actions oldRoot)
   #root .= newRoot
 
 -- | Sync the in-memory root branch.

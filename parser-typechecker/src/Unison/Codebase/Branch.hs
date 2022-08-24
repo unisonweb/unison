@@ -393,12 +393,11 @@ uncons (Branch b) = go <$> Causal.uncons b
 stepManyAt ::
   forall m f.
   (Monad m, Foldable f) =>
-  UpdateStrategy ->
   f (Path, Branch0 m -> Branch0 m) ->
   Branch m ->
   Branch m
-stepManyAt strat actions startBranch =
-  runIdentity $ stepManyAtM strat actionsIdentity startBranch
+stepManyAt actions startBranch =
+  runIdentity $ stepManyAtM actionsIdentity startBranch
   where
     actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
     actionsIdentity = coerce (toList actions)
@@ -427,20 +426,12 @@ data UpdateStrategy
 -- History is managed according to the 'UpdateStrategy'
 stepManyAtM ::
   (Monad m, Monad n, Foldable f) =>
-  UpdateStrategy ->
   f (Path, Branch0 m -> n (Branch0 m)) ->
   Branch m ->
   n (Branch m)
-stepManyAtM strat actions startBranch =
-  case strat of
-    AllowRewritingHistory -> steppedUpdates
-    CompressHistory -> squashedUpdates
-  where
-    steppedUpdates = do
-      stepM (batchUpdatesM actions) startBranch
-    squashedUpdates = do
-      updatedBranch <- startBranch & head_ %%~ batchUpdatesM actions
-      pure $ updatedBranch `consBranchSnapshot` startBranch
+stepManyAtM actions startBranch = do
+  updatedBranch <- startBranch & head_ %%~ batchUpdatesM actions
+  pure $ updatedBranch `consBranchSnapshot` startBranch
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere ::
