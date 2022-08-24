@@ -30,6 +30,7 @@ module Unison.Cli.MonadUtils
     -- ** Updating branches
     updateRoot,
     updateAtM,
+    updateAt,
 
     -- * Terms
     getTermsAt,
@@ -291,6 +292,16 @@ updateAtM reason (Path.Absolute p) f = do
   b' <- Branch.modifyAtM p f b
   updateRoot b' reason
   pure $ b /= b'
+
+-- | Update a branch at the given path, returning `True` if
+-- an update occurred and false otherwise
+updateAt ::
+  Text ->
+  Path.Absolute ->
+  (Branch IO -> Branch IO) ->
+  Cli r Bool
+updateAt reason p f = do
+  updateAtM reason p (pure . f)
 
 updateRoot :: Branch IO -> Text -> Cli r ()
 updateRoot new reason =
