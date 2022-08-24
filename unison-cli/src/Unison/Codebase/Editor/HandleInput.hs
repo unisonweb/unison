@@ -487,6 +487,7 @@ loop e = do
               headb <- getBranch headRepo
               mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
               squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
+              -- Perform all child updates in a single step.
               Cli.updateAt description destAbs $ Branch.step \destBranch0 ->
                 destBranch0 & Branch.children
                   %~ ( \childMap ->
