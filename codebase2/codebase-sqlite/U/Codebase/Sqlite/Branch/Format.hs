@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 module U.Codebase.Sqlite.Branch.Format
   ( BranchFormat (..),
     BranchLocalIds,

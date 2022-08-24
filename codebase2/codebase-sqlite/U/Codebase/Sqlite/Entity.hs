@@ -21,6 +21,7 @@ type SyncEntity =
 data SyncEntity' text hash defn patch branchh branch causal
   = TC (Term.SyncTermFormat' text defn)
   | DC (Decl.SyncDeclFormat' text defn)
+  | DeprecatedN (Namespace.SyncBranchFormat' branch text defn patch (branch, causal))
   | N (Namespace.SyncBranchFormat' branch text defn patch (branch, causal))
   | P (Patch.SyncPatchFormat' patch text hash defn)
   | C (Causal.SyncCausalFormat' causal branchh)
@@ -29,6 +30,7 @@ entityType :: SyncEntity' text hash defn patch branchh branch causal -> TempEnti
 entityType = \case
   TC _ -> TermComponentType
   DC _ -> DeclComponentType
+  DeprecatedN _ -> NamespaceType
   N _ -> NamespaceType
   P _ -> PatchType
   C _ -> CausalType

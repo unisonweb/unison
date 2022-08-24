@@ -237,8 +237,7 @@ CREATE INDEX dependencies_by_dependent ON dependents_index (
 -- * TODO add indexes
 
 CREATE TABLE namespace (
-  id INTEGER PRIMARY KEY NOT NULL,
-  value_hash_id INTEGER UNIQUE NOT NULL REFERENCES hash(id)
+  id INTEGER UNIQUE NOT NULL REFERENCES hash(id)
 );
 
 CREATE TABLE namespace_child (

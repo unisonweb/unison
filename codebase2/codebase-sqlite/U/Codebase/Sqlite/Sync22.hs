@@ -209,19 +209,20 @@ trySync hh runSrc runDest tCache hCache oCache cCache = \case
                     syncTypeIndex oId oId'
                     syncTypeMentionsIndex oId oId'
                     pure oId'
-          OT.Namespace -> case flip runGetS bytes S.decomposeBranchFormat of
-            Right (BL.SyncFull ids body) -> do
-              ids' <- syncBranchLocalIds ids
-              let bytes' = runPutS $ S.recomposeBranchFormat (BL.SyncFull ids' body)
-              oId' <- lift . runDest $ Q.saveObject hh hId' objType bytes'
-              pure oId'
-            Right (BL.SyncDiff boId ids body) -> do
-              boId' <- syncBranchObjectId boId
-              ids' <- syncBranchLocalIds ids
-              let bytes' = runPutS $ S.recomposeBranchFormat (BL.SyncDiff boId' ids' body)
-              oId' <- lift . runDest $ Q.saveObject hh hId' objType bytes'
-              pure oId'
-            Left s -> throwError $ DecodeError ErrBranchFormat bytes s
+          OT.Namespace ->
+            case flip runGetS bytes S.decomposeBranchFormat of
+              Right (BL.SyncFull ids body) -> do
+                ids' <- syncBranchLocalIds ids
+                let bytes' = runPutS $ S.recomposeBranchFormat (BL.SyncFull ids' body)
+                oId' <- lift . runDest $ Q.saveObject hh hId' objType bytes'
+                pure oId'
+              Right (BL.SyncDiff boId ids body) -> do
+                boId' <- syncBranchObjectId boId
+                ids' <- syncBranchLocalIds ids
+                let bytes' = runPutS $ S.recomposeBranchFormat (BL.SyncDiff boId' ids' body)
+                oId' <- lift . runDest $ Q.saveObject hh hId' objType bytes'
+                pure oId'
+              Left s -> throwError $ DecodeError ErrBranchFormat bytes s
           OT.Patch -> case flip runGetS bytes S.decomposePatchFormat of
             Right (PL.SyncFull ids body) -> do
               ids' <- syncPatchLocalIds ids

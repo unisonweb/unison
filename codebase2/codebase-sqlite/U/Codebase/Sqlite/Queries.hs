@@ -231,7 +231,7 @@ import U.Codebase.Sqlite.LocalIds
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import U.Codebase.Sqlite.NamedRef (NamedRef)
 import qualified U.Codebase.Sqlite.NamedRef as NamedRef
-import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
+import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, DeprecatedNamespace, Patch, TermComponent))
 import qualified U.Codebase.Sqlite.ObjectType as ObjectType
 import U.Codebase.Sqlite.Orphans ()
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
@@ -500,12 +500,12 @@ expectDeclObject oid =
 -- | Load a namespace object.
 loadNamespaceObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
 loadNamespaceObject oid =
-  loadObjectOfType oid Namespace
+  loadObjectOfType oid DeprecatedNamespace
 
 -- | Expect a namespace object.
 expectNamespaceObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectNamespaceObject oid =
-  expectObjectOfType oid Namespace
+  expectObjectOfType oid DeprecatedNamespace
 
 -- | Load a patch object.
 loadPatchObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
@@ -791,7 +791,7 @@ expectEntity hash = do
         case typ of
           TermComponent -> Entity.TC <$> decodeSyncTermFormat bytes
           DeclComponent -> Entity.DC <$> decodeSyncDeclFormat bytes
-          Namespace -> Entity.N <$> decodeSyncNamespaceFormat bytes
+          DeprecatedNamespace -> Entity.N <$> decodeSyncNamespaceFormat bytes
           Patch -> Entity.P <$> decodeSyncPatchFormat bytes
 
 -- | Read an entity out of temp storage.
@@ -1803,7 +1803,7 @@ saveSyncEntity hh hash entity = do
     Entity.N sbf -> do
       hashId <- saveHash hash
       let bytes = runPutS (Serialization.recomposeBranchFormat sbf)
-      Right <$> saveObject hh hashId ObjectType.Namespace bytes
+      Right <$> saveObject hh hashId ObjectType.DeprecatedNamespace bytes
     Entity.P spf -> do
       hashId <- saveHash hash
       let bytes = runPutS (Serialization.recomposePatchFormat spf)

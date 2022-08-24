@@ -14,7 +14,7 @@ import qualified Data.Set as Set
 import U.Codebase.Reference (Reference')
 import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Referent')
-import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, NamespaceId, ObjectId, PatchObjectId, TextId)
+import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
 import Unison.Prelude
 import qualified Unison.Util.Map as Map
@@ -44,7 +44,7 @@ type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHas
 
 {-# DEPRECATED DbBranch "Use NewDbBranch" #-}
 
-type DbNamespace = Branch' TextId ObjectId PatchObjectId (NamespaceId, CausalHashId)
+type DbNamespace = Branch' TextId ObjectId PatchObjectId CausalHashId
 
 type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
 

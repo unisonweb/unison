@@ -8,9 +8,12 @@ import Unison.Sqlite (FromField (..), SQLData (SQLInteger), ToField (..))
 data ObjectType
   = TermComponent -- 0
   | DeclComponent -- 1
-  | Namespace -- 2
+  -- Namespaces are no longer stored in the object table
+  | DeprecatedNamespace -- 2
   | Patch -- 3
   deriving (Eq, Ord, Show, Enum)
+
+{-# DEPRECATED DeprecatedNamespace "Namespaces are no longer kept in the object table" #-}
 
 instance ToField ObjectType where
   toField = SQLInteger . fromIntegral . fromEnum

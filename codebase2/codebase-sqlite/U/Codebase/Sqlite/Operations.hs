@@ -74,6 +74,7 @@ module U.Codebase.Sqlite.Operations
     expectDbPatch,
     saveDbPatch,
     expectDbBranchByCausalHashId,
+    expectNamespaceForCausalHashId,
 
     -- * somewhat unexpectedly unused definitions
     c2sReferenceId,
@@ -616,13 +617,9 @@ s2cNamespace (S.Branch.Full.Branch tms tps patches children) =
       pure (h, expectPatch patchId)
 
     doChildren ::
-      Map Db.TextId (Db.NamespaceId, Db.CausalHashId) ->
+      Map Db.TextId Db.CausalHashId ->
       Transaction (Map C.Branch.NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
-    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \(boId, chId) ->
-      C.Causal <$> Q.expectCausalHash chId
-        <*> expectValueHashByCausalHashId chId
-        <*> headParents chId
-        <*> pure (expectBranch boId)
+    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) loadCausal
       where
         headParents ::
           Db.CausalHashId ->
@@ -650,17 +647,13 @@ s2cNamespace (S.Branch.Full.Branch tms tps patches children) =
           C.Causal <$> Q.expectCausalHash chId
             <*> expectValueHashByCausalHashId chId
             <*> headParents chId
-            <*> pure (loadValue chId)
-        loadValue :: Db.CausalHashId -> Transaction (C.Branch.Branch Transaction)
-        loadValue chId = do
-          boId <- Q.expectBranchObjectIdByCausalHashId chId
-          expectBranch boId
+            <*> pure (expectNamespaceForCausalHashId chId)
 
-saveRootBranch ::
+saveRootNamespace ::
   HashHandle ->
   C.Branch.CausalBranch Transaction ->
-  Transaction (Db.NamespaceId, Db.CausalHashId)
-saveRootBranch hh c = do
+  Transaction Db.CausalHashId
+saveRootNamespace hh c = do
   when debug $ traceM $ "Operations.saveRootBranch " ++ show (C.causalHash c)
   (boId, chId) <- saveBranch hh c
   Q.setNamespaceRoot chId
@@ -741,6 +734,59 @@ saveBranch hh (C.Causal hc he parents me) = do
         <*> Map.bitraverse saveNameSegment (Map.bitraverse c2sReference c2sMetadata) types
         <*> Map.bitraverse saveNameSegment savePatchObjectId patches
         <*> Map.bitraverse saveNameSegment (saveBranch hh) children
+
+    saveNameSegment :: C.Branch.NameSegment -> Transaction Db.TextId
+    saveNameSegment = Q.saveText . C.Branch.unNameSegment
+
+    c2sMetadata :: Transaction C.Branch.MdValues -> Transaction S.Branch.Full.DbMetadataSet
+    c2sMetadata mm = do
+      C.Branch.MdValues m <- mm
+      S.Branch.Full.Inline <$> Set.traverse c2sReference (Map.keysSet m)
+
+    savePatchObjectId :: (PatchHash, Transaction C.Branch.Patch) -> Transaction Db.PatchObjectId
+    savePatchObjectId (h, mp) = do
+      Q.loadPatchObjectIdForPrimaryHash h >>= \case
+        Just patchOID -> pure patchOID
+        Nothing -> do
+          patch <- mp
+          savePatch hh h patch
+
+saveNamespace ::
+  HashHandle ->
+  C.Branch.CausalBranch Transaction ->
+  Transaction Db.CausalHashId
+saveNamespace hh (C.Causal hc he parents me) = do
+  when debug $ traceM $ "\nOperations.saveNamespace \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
+
+  (chId, bhId) <- flip Monad.fromMaybeM (Q.loadCausalByCausalHash hc) do
+    -- if not exist, create these
+    chId <- Q.saveCausalHash hc
+    bhId <- Q.saveBranchHash he
+
+    parentCausalHashIds <-
+      -- so try to save each parent (recursively) before continuing to save hc
+      for (Map.toList parents) $ \(parentHash, mcausal) ->
+        -- check if we can short circuit the parent before loading it,
+        -- by checking if there are causal parents associated with hc
+        (flip Monad.fromMaybeM)
+          (Q.loadCausalHashIdByCausalHash parentHash)
+          (mcausal >>= fmap snd . saveNamespace hh)
+
+    -- Save these CausalHashIds to the causal_parents table,
+    Q.saveCausal hh chId bhId parentCausalHashIds
+    pure (chId, bhId)
+  boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByCausalHashId chId) do
+    branch <- c2sNamespace =<< me
+    saveDbNamespaceUnderHashId hh bhId branch
+  pure (boId, chId)
+  where
+    c2sBranch :: C.Branch.Branch Transaction -> Transaction S.DbBranch
+    c2sBranch (C.Branch.Branch terms types patches children) =
+      S.Branch
+        <$> Map.bitraverse saveNameSegment (Map.bitraverse c2sReferent c2sMetadata) terms
+        <*> Map.bitraverse saveNameSegment (Map.bitraverse c2sReference c2sMetadata) types
+        <*> Map.bitraverse saveNameSegment savePatchObjectId patches
+        <*> Map.bitraverse saveNameSegment (saveNamespace hh) children
 
     saveNameSegment :: C.Branch.NameSegment -> Transaction Db.TextId
     saveNameSegment = Q.saveText . C.Branch.unNameSegment
@@ -933,16 +979,15 @@ saveDbBranchUnderHashId hh id@(Db.unBranchHashId -> hashId) branch = do
         ++ "\n\tlBranch = "
         ++ show localBranch
   let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full localBranchIds localBranch
-  oId <- Q.saveObject hh hashId ObjectType.Namespace bytes
+  oId <- Q.saveObject hh hashId ObjectType.DeprecatedNamespace bytes
   pure $ Db.BranchObjectId oId
 
 expectBranch :: Db.BranchObjectId -> Transaction (C.Branch.Branch Transaction)
 expectBranch id =
   expectDbBranch id >>= s2cBranch
 
-expectNamespace :: Db.NamespaceId -> Transaction (C.Branch.Branch Transaction)
-expectNamespace id =
-  expectDbBranch id >>= s2cBranch
+expectNamespaceForCausalHashId :: Db.CausalHashId -> Transaction (C.Branch.Branch Transaction)
+expectNamespaceForCausalHashId _chId = error "Implement me"
 
 -- * Patch transformation
 
@@ -1073,7 +1118,7 @@ declReferentsByPrefix b32prefix pos cid = do
       h <- Q.expectPrimaryHashByObjectId oId
       let cids =
             case cid of
-              Nothing -> take ctorCount [0::ConstructorId ..]
+              Nothing -> take ctorCount [0 :: ConstructorId ..]
               Just cid -> if fromIntegral cid < ctorCount then [cid] else []
       pure (h, pos, dt, cids)
     getDeclCtorCount :: S.Reference.Id -> Transaction (C.Decl.DeclType, Int)
