@@ -20,6 +20,10 @@ doMoveBranch actionDescription hasConfirmed src' dest' = do
   when (isRootMove && not hasConfirmed) do
     Cli.returnEarly MoveRootBranchConfirmation
   srcBranch <- Cli.expectBranchAtPath' src'
+
+  -- We want the move to appear as a single step in the root namespace, but we need to make
+  -- surgical changes in both the root and the destination, so we make our modifications at the shared parent of
+  -- those changes such that they appear as a single change in the root.
   let (changeRootPath, srcLoc, destLoc) = Path.longestPathPrefix (Path.unabsolute srcAbs) (Path.unabsolute destAbs)
   Cli.updateAt actionDescription (Path.Absolute changeRootPath) \changeRoot ->
     changeRoot
