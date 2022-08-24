@@ -477,8 +477,7 @@ loop e = do
               Cli.assertNoBranchAtPath' dest0
               Cli.Env {codebase} <- ask
               description <- inputDescription input
-              desta <- Cli.resolvePath' dest0
-              let dest = Path.unabsolute desta
+              destAbs <- Cli.resolvePath' dest0
               let getBranch = \case
                     ReadRemoteNamespaceGit repo ->
                       Cli.ioE (Codebase.importRemoteBranch codebase repo SyncMode.ShortCircuit Unmodified) \err ->
@@ -488,18 +487,14 @@ loop e = do
               headb <- getBranch headRepo
               mergedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge baseb headb)
               squashedb <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.SquashMerge headb baseb)
-              root <- Cli.getRootBranch
-              let newRoot =
-                    root
-                      & Branch.modifyAt
-              stepManyAt
-                description
-                Branch.AllowRewritingHistory
-                [ BranchUtil.makeSetBranch (dest, "base") baseb,
-                  BranchUtil.makeSetBranch (dest, "head") headb,
-                  BranchUtil.makeSetBranch (dest, "merged") mergedb,
-                  BranchUtil.makeSetBranch (dest, "squashed") squashedb
-                ]
+              Cli.updateAt description destAbs $ Branch.step \destBranch0 ->
+                destBranch0 & Branch.children
+                  %~ ( \childMap ->
+                         childMap & at "base" ?~ baseb
+                           & at "head" ?~ headb
+                           & at "merged" ?~ mergedb
+                           & at "squashed" ?~ squashedb
+                     )
               let base = snoc dest0 "base"
                   head = snoc dest0 "head"
                   merged = snoc dest0 "merged"
@@ -508,7 +503,7 @@ loop e = do
               loadPropagateDiffDefaultPatch
                 description
                 (Just merged)
-                (snoc desta "merged")
+                (snoc destAbs "merged")
             MoveBranchI src' dest' -> do
               hasConfirmed <- confirmedCommand input
               description <- inputDescription input
