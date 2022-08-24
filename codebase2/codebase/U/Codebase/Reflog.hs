@@ -2,20 +2,23 @@
 
 module U.Codebase.Reflog where
 
-import Data.Text (Text)
-import U.Codebase.HashTags (BranchHash)
+import Data.Bifoldable
+import Data.Bifunctor
+import Data.Bitraversable
+import Data.Time (UTCTime)
 
-data Entry = Entry {from :: BranchHash, to :: BranchHash, reason :: Text}
+data Entry causal text = Entry
+  { time :: UTCTime,
+    rootCausalHash :: causal,
+    reason :: text
+  }
 
--- fromText :: Text -> Maybe Entry
--- fromText t =
---   case Text.words t of
---     (Hash.fromBase32Hex -> Just old) : (Hash.fromBase32Hex -> Just new) : (Text.unwords -> reason) ->
---       Just $ Entry (Causal.RawHash old) (Causal.RawHash new) reason
---     _ -> Nothing
+instance Bifunctor Entry where
+  bimap = bimapDefault
 
--- toText :: Entry -> Text
--- toText (Entry old new reason) =
---   Text.unwords [ Hash.base32Hex . Causal.unRawHash $ old
---                , Hash.base32Hex . Causal.unRawHash $ new
---                , reason ]
+instance Bifoldable Entry where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable Entry where
+  bitraverse f g (Entry time rch reason) =
+    Entry time <$> f rch <*> g reason

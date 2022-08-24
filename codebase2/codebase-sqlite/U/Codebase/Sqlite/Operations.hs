@@ -67,6 +67,10 @@ module U.Codebase.Sqlite.Operations
     rootNamesByPath,
     NamesByPath (..),
 
+    -- * reflog
+    streamReflog,
+    appendReflog,
+
     -- * low-level stuff
     expectDbBranch,
     saveDbBranch,
@@ -108,6 +112,7 @@ import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C
 import qualified U.Codebase.Referent as C.Referent
+import qualified U.Codebase.Reflog as Reflog
 import U.Codebase.ShortHash (ShortBranchHash (ShortBranchHash))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
@@ -979,7 +984,7 @@ declReferentsByPrefix b32prefix pos cid = do
       h <- Q.expectPrimaryHashByObjectId oId
       let cids =
             case cid of
-              Nothing -> take ctorCount [0::ConstructorId ..]
+              Nothing -> take ctorCount [0 :: ConstructorId ..]
               Just cid -> if fromIntegral cid < ctorCount then [cid] else []
       pure (h, pos, dt, cids)
     getDeclCtorCount :: S.Reference.Id -> Transaction (C.Decl.DeclType, Int)
@@ -1057,3 +1062,17 @@ rootNamesByPath path = do
   where
     convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
     convertTypes = fmap s2cTextReference
+
+streamReflog :: (Transaction (Maybe (Reflog.Entry CausalHash Text)) -> Transaction r) -> Transaction r
+streamReflog handler = do
+  Q.streamReflog \getDbEntry -> do
+    let getEntry = do
+          getDbEntry >>= \case
+            Nothing -> pure Nothing
+            Just entry -> Just <$> bitraverse Q.expectCausalHash Q.expectText entry
+    handler getEntry
+
+appendReflog :: Reflog.Entry CausalHash Text -> Transaction ()
+appendReflog entry = do
+  dbEntry <- bitraverse Q.saveCausalHash Q.saveText entry
+  Q.appendReflog dbEntry

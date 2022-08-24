@@ -58,7 +58,6 @@ library
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
       Unison.Codebase.PushBehavior
-      Unison.Codebase.Reflog
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
       Unison.Codebase.ShortBranchHash

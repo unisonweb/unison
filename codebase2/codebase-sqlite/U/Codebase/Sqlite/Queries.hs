@@ -131,6 +131,10 @@ module U.Codebase.Sqlite.Queries
     rootTypeNamesByPath,
     getNamespaceDefinitionCount,
 
+    -- * Reflog
+    appendReflog,
+    streamReflog,
+
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
     garbageCollectWatchesWithoutObjects,
@@ -199,6 +203,7 @@ import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
+import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
 import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal
@@ -2136,3 +2141,21 @@ lookup_ stateLens writerLens mk t = do
       Writer.tell $ Lens.set writerLens (Seq.singleton t) mempty
       pure id
     Just t' -> pure t'
+
+appendReflog :: Reflog.Entry CausalHashId TextId -> Transaction ()
+appendReflog entry = execute sql entry
+  where
+    sql =
+      [here|
+    INSERT INTO reflog (time, root_causal_id, reason) VALUES (?, ?, ?)
+    |]
+
+streamReflog :: (Transaction (Maybe (Reflog.Entry CausalHashId TextId)) -> Transaction r) -> Transaction r
+streamReflog handler = queryStreamRow sql () handler
+  where
+    sql =
+      [here|
+    SELECT time, root_causal_id, reason
+      FROM reflog
+      ORDER BY time DESC
+    |]

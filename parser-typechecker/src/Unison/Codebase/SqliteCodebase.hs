@@ -56,7 +56,7 @@ import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Reflog as Reflog
+import qualified U.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD

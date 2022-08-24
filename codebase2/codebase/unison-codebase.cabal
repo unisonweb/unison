@@ -54,7 +54,9 @@ library
     , generic-lens
     , lens
     , mtl
+    , sqlite-simple
     , text
+    , time
     , unison-core
     , unison-prelude
     , unison-util

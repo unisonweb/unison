@@ -15,6 +15,7 @@ where
 
 import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Reference as V2
+import qualified U.Codebase.Reflog as Reflog
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Git as Git
@@ -23,7 +24,6 @@ import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.SyncMode (SyncMode)
@@ -135,13 +135,7 @@ data Codebase m v a = Codebase
     -- | Get the entire reflog.
     getReflog :: m [Reflog.Entry Branch.CausalHash],
     -- | @appendReflog reason before after@ appends a reflog entry.
-    --
-    -- FIXME: this could have type
-    --
-    -- @
-    -- appendReflog :: Reflog.Entry (Branch m) -> m ()
-    -- @
-    appendReflog :: Text -> Branch m -> Branch m -> m (),
+    appendReflog :: Reflog.Entry (Branch m) -> m (),
     -- | Get the set of user-defined terms-or-constructors that have the given type.
     termsOfTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.
