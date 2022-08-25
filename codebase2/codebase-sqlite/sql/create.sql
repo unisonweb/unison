@@ -230,19 +230,6 @@ CREATE INDEX dependents_by_dependency ON dependents_index (
 CREATE INDEX dependencies_by_dependent ON dependents_index (
   dependent_object_id,
   dependent_component_index
-);
-
-CREATE TABLE reflog (
-    -- Reminder that SQLITE doesn't have any actual 'time' type,
-    -- This column contains TEXT values formatted as ISO8601 strings
-    -- ("YYYY-MM-DD HH:MM:SS.SSS")
-    time TEXT NOT NULL,
-    root_causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
-    reason TEXT NOT NULL
-);
-
-CREATE INDEX reflog_time_desc ON reflog (
-  time DESC
 )
 
 -- Semicolon intentionally omitted, for the same reason

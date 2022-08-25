@@ -273,10 +273,15 @@ createSchema :: Transaction ()
 createSchema = do
   executeFile [hereFile|unison/sql/create.sql|]
   addTempEntityTables
+  addReflogTable
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
   executeFile [hereFile|unison/sql/001-temp-entity-tables.sql|]
+
+addReflogTable :: Transaction ()
+addReflogTable =
+  executeFile [hereFile|unison/sql/002-reflog-table.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =

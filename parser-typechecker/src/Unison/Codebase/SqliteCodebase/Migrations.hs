@@ -18,6 +18,7 @@ import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchem
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchema2To3)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchema3To4)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5 (migrateSchema4To5)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6)
 import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
 import Unison.Codebase.SqliteCodebase.Paths
 import Unison.Codebase.Type (LocalOrRemote (..))
@@ -44,6 +45,7 @@ migrations getDeclType termBuffer declBuffer =
       (3, migrateSchema2To3),
       (4, migrateSchema3To4),
       (5, migrateSchema4To5)
+      (6, migrateSchema5To6)
     ]
 
 -- | Migrates a codebase up to the most recent version known to ucm.

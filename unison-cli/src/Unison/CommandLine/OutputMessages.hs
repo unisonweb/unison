@@ -1402,28 +1402,25 @@ notifyUser dir o = case o of
   ShowReflog entries ->
     pure $
       P.lines
-        [ P.wrap $
-            "Here is a log of the root namespace hashes,"
-              <> "starting with the most recent,"
-              <> "along with the command that got us there."
-              <> "Try:",
-          "",
-          header,
-          P.column4Header
-            ""
-            P.numberedList
-            . fmap renderEntry
-            $ entries
+        [ header,
+          P.numberedColumnNHeader ["At", "Root Hash", "Action"] $ entries <&> renderEntry
         ]
     where
       header =
         case entries of
           (_head : prevHead : _) ->
             let e2 = head . tail $ entries
-             in ( P.indentN 2 . P.wrapColumn2 $
-                    [ ( IP.makeExample IP.forkLocal ["2", ".old"],
+             in
+            P.lines [P.wrap $
+              "Here is a log of the root namespace hashes,"
+              <> "starting with the most recent,"
+              <> "along with the command that got us there."
+              <> "Try:",
+          "",
+             ( P.indentN 2 . P.wrapColumn2 $
+               [ ( IP.makeExample IP.forkLocal ["2", ".old"],
                         ""
-                      ),
+                 ),
                       ( IP.makeExample IP.forkLocal [prettySBH . Reflog.rootCausalHash $ e2, ".old"],
                         "to make an old namespace accessible again,"
                       ),
@@ -1432,13 +1429,14 @@ notifyUser dir o = case o of
                         "to reset the root namespace and its history to that of the specified"
                           <> "namespace."
                       )
+               ]
+             ),
+                ""
                     ]
-                )
-                  <> P.newline
           _ -> mempty
-      renderEntry :: Reflog.Entry ShortBranchHash Text -> (Pretty, Pretty, Pretty)
-      renderEntry (Reflog.Entry {time, rootCausalHash, reason}) =
-        (P.green . P.string $ iso8601Show time, P.blue (prettySBH rootCausalHash), P.text reason)
+      renderEntry3Column :: Reflog.Entry ShortBranchHash Text -> [Pretty]
+      renderEntry3Column (Reflog.Entry {time, rootCausalHash, reason}) =
+        [P.green . P.string $ iso8601Show time, P.blue (prettySBH rootCausalHash), P.text reason]
   StartOfCurrentPathHistory ->
     pure $
       P.wrap "You're already at the very beginning! 🙂"
