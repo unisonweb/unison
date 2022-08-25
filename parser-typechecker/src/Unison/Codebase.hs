@@ -61,7 +61,7 @@ module Unison.Codebase
     clearWatches,
 
     -- * Reflog
-    streamReflog,
+    getReflog,
     appendReflog,
 
     -- * Unambiguous hash length

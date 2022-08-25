@@ -22,6 +22,7 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.Time.Format.ISO8601 (iso8601Show)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import qualified Network.HTTP.Types as Http
@@ -34,6 +35,7 @@ import System.Directory
     doesFileExist,
     getHomeDirectory,
   )
+import qualified U.Codebase.Reflog as Reflog
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
@@ -1406,29 +1408,37 @@ notifyUser dir o = case o of
               <> "along with the command that got us there."
               <> "Try:",
           "",
-          -- `head . tail` is safe: entries never has 1 entry, and [] is handled above
-          let e2 = head . tail $ entries
-           in P.indentN 2 . P.wrapColumn2 $
-                [ ( IP.makeExample IP.forkLocal ["2", ".old"],
-                    ""
-                  ),
-                  ( IP.makeExample IP.forkLocal [prettySBH . Output.hash $ e2, ".old"],
-                    "to make an old namespace accessible again,"
-                  ),
-                  (mempty, mempty),
-                  ( IP.makeExample IP.resetRoot [prettySBH . Output.hash $ e2],
-                    "to reset the root namespace and its history to that of the specified"
-                      <> "namespace."
-                  )
-                ],
-          "",
-          P.numberedList . fmap renderEntry $ entries
+          header,
+          P.column4Header
+            ""
+            P.numberedList
+            . fmap renderEntry
+            $ entries
         ]
     where
-      renderEntry :: Output.ReflogEntry -> Pretty
-      renderEntry (Output.ReflogEntry hash reason) =
-        P.wrap $
-          P.blue (prettySBH hash) <> " : " <> P.text reason
+      header =
+        case entries of
+          (_head : prevHead : _) ->
+            let e2 = head . tail $ entries
+             in ( P.indentN 2 . P.wrapColumn2 $
+                    [ ( IP.makeExample IP.forkLocal ["2", ".old"],
+                        ""
+                      ),
+                      ( IP.makeExample IP.forkLocal [prettySBH . Reflog.rootCausalHash $ e2, ".old"],
+                        "to make an old namespace accessible again,"
+                      ),
+                      (mempty, mempty),
+                      ( IP.makeExample IP.resetRoot [prettySBH . Reflog.rootCausalHash $ e2],
+                        "to reset the root namespace and its history to that of the specified"
+                          <> "namespace."
+                      )
+                    ]
+                )
+                  <> P.newline
+          _ -> mempty
+      renderEntry :: Reflog.Entry ShortBranchHash Text -> (Pretty, Pretty, Pretty)
+      renderEntry (Reflog.Entry {time, rootCausalHash, reason}) =
+        (P.green . P.string $ iso8601Show time, P.blue (prettySBH rootCausalHash), P.text reason)
   StartOfCurrentPathHistory ->
     pure $
       P.wrap "You're already at the very beginning! 🙂"

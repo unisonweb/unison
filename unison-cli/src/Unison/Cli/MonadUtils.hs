@@ -64,6 +64,8 @@ import Control.Monad.State
 import qualified Data.Configurator as Configurator
 import qualified Data.Configurator.Types as Configurator
 import qualified Data.Set as Set
+import Data.Time (getCurrentTime)
+import qualified U.Codebase.Reflog as Reflog
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Codebase as Codebase
@@ -79,6 +81,7 @@ import Unison.Codebase.Path (Path' (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann (..))
@@ -312,5 +315,7 @@ updateRoot new reason =
     when (old /= new) do
       #root .= new
       liftIO (Codebase.putRootBranch codebase new)
-      liftIO (Codebase.appendReflog codebase reason old new)
+      now <- liftIO $ getCurrentTime
+      let entry = Reflog.Entry now (Cv.causalHash1to2 $ Branch.headHash new) reason
+      liftIO (Codebase.appendReflog codebase entry)
       #lastSavedRoot .= new

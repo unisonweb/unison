@@ -357,11 +357,8 @@ sqliteCodebase debugName root localOrRemote action = do
             clearWatches =
               runTransaction CodebaseOps.clearWatches
 
-            streamReflog :: forall r. (m (Maybe (Reflog.Entry CausalHash Text)) -> Sqlite.Transaction r) -> m r
-            streamReflog handler =
-              runTransaction $ Ops.streamReflog \getEntry -> do
-                let entry' = runTransaction getEntry
-                handler entry'
+            getReflog :: Int -> m [Reflog.Entry CausalHash Text]
+            getReflog numEntries = runTransaction $ Ops.getReflog numEntries
 
             appendReflog :: Reflog.Entry CausalHash Text -> m ()
             appendReflog entry =
@@ -451,7 +448,7 @@ sqliteCodebase debugName root localOrRemote action = do
                   getWatch,
                   putWatch,
                   clearWatches,
-                  streamReflog,
+                  getReflog,
                   appendReflog,
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,

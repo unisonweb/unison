@@ -28,7 +28,8 @@ import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
 import System.Environment (withArgs)
 import qualified Text.Megaparsec as P
-import U.Codebase.HashTags (CausalHash (unCausalHash))
+import U.Codebase.HashTags (CausalHash (..))
+import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
@@ -95,7 +96,6 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.Reflog as Reflog
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -387,39 +387,10 @@ loop e = do
             ShowReflogI -> do
               Cli.Env {codebase} <- ask
               sbhLength <- liftIO (Codebase.branchHashLength codebase)
-              entries <- convertEntries sbhLength Nothing [] <$> liftIO (Codebase.getReflog codebase)
-              #numberedArgs .= (fmap (('#' :) . SBH.toString . Output.hash) entries)
+              entries <- liftIO (Codebase.getReflog codebase 500) <&> fmap (first $ SBH.fromHash sbhLength)
+              let numberedEntries = entries <&> \entry -> "#" <> SBH.toString entry
+              #numberedArgs .= numberedEntries
               Cli.respond $ ShowReflog entries
-              where
-                -- reverses & formats entries, adds synthetic entries when there is a
-                -- discontinuity in the reflog.
-                convertEntries ::
-                  Int ->
-                  Maybe Branch.CausalHash ->
-                  [Output.ReflogEntry] ->
-                  [Reflog.Entry Branch.CausalHash] ->
-                  [Output.ReflogEntry]
-                convertEntries _ _ acc [] = acc
-                convertEntries sbhLength Nothing acc entries@(Reflog.Entry old _ _ : _) =
-                  convertEntries
-                    sbhLength
-                    (Just old)
-                    (Output.ReflogEntry (SBH.fromHash sbhLength old) "(initial reflogged namespace)" : acc)
-                    entries
-                convertEntries sbhLength (Just lastHash) acc entries@(Reflog.Entry old new reason : rest) =
-                  if lastHash /= old
-                    then
-                      convertEntries
-                        sbhLength
-                        (Just old)
-                        (Output.ReflogEntry (SBH.fromHash sbhLength old) "(external change)" : acc)
-                        entries
-                    else
-                      convertEntries
-                        sbhLength
-                        (Just new)
-                        (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
-                        rest
             ResetRootI src0 ->
               Cli.time "reset-root" do
                 newRoot <-

@@ -132,8 +132,8 @@ data Codebase m v a = Codebase
     putWatch :: WK.WatchKind -> Reference.Id -> Term v a -> m (),
     -- | Delete all watches that were put by 'putWatch'.
     clearWatches :: m (),
-    -- | Streams reflog entries in chronological order, most recent first.
-    streamReflog :: forall r. (m (Maybe (Reflog.Entry V2.CausalHash Text)) -> Sqlite.Transaction r) -> m r,
+    -- | Gets the specified number of reflog entries in chronological order, most recent first.
+    getReflog :: Int -> m [Reflog.Entry V2.CausalHash Text],
     -- | Appends a reflog entry.
     appendReflog :: Reflog.Entry V2.CausalHash Text -> m (),
     -- | Get the set of user-defined terms-or-constructors that have the given type.

@@ -133,7 +133,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * Reflog
     appendReflog,
-    streamReflog,
+    getReflog,
 
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
@@ -2150,12 +2150,13 @@ appendReflog entry = execute sql entry
     INSERT INTO reflog (time, root_causal_id, reason) VALUES (?, ?, ?)
     |]
 
-streamReflog :: (Transaction (Maybe (Reflog.Entry CausalHashId TextId)) -> Transaction r) -> Transaction r
-streamReflog handler = queryStreamRow sql () handler
+getReflog :: Int -> Transaction [Reflog.Entry CausalHashId TextId]
+getReflog numEntries = queryListRow sql (Only numEntries)
   where
     sql =
       [here|
     SELECT time, root_causal_id, reason
       FROM reflog
       ORDER BY time DESC
+      LIMIT ?
     |]

@@ -68,7 +68,7 @@ module U.Codebase.Sqlite.Operations
     NamesByPath (..),
 
     -- * reflog
-    streamReflog,
+    getReflog,
     appendReflog,
 
     -- * low-level stuff
@@ -1063,14 +1063,10 @@ rootNamesByPath path = do
     convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
     convertTypes = fmap s2cTextReference
 
-streamReflog :: (Transaction (Maybe (Reflog.Entry CausalHash Text)) -> Transaction r) -> Transaction r
-streamReflog handler = do
-  Q.streamReflog \getDbEntry -> do
-    let getEntry = do
-          getDbEntry >>= \case
-            Nothing -> pure Nothing
-            Just entry -> Just <$> bitraverse Q.expectCausalHash Q.expectText entry
-    handler getEntry
+getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
+getReflog numEntries = do
+  entries <- Q.getReflog numEntries
+  traverse (bitraverse Q.expectCausalHash Q.expectText) entries
 
 appendReflog :: Reflog.Entry CausalHash Text -> Transaction ()
 appendReflog entry = do
