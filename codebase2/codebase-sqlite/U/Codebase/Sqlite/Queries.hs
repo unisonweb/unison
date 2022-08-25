@@ -155,6 +155,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * db misc
     addTempEntityTables,
+    addReflogTable,
     addTypeMentionsToIndexForTerm,
     addTypeToIndexForTerm,
     c2xTerm,
@@ -2147,7 +2148,7 @@ lookup_ stateLens writerLens mk t = do
       pure id
     Just t' -> pure t'
 
-appendReflog :: Reflog.Entry CausalHashId TextId -> Transaction ()
+appendReflog :: Reflog.Entry CausalHashId Text -> Transaction ()
 appendReflog entry = execute sql entry
   where
     sql =
@@ -2155,7 +2156,7 @@ appendReflog entry = execute sql entry
     INSERT INTO reflog (time, root_causal_id, reason) VALUES (?, ?, ?)
     |]
 
-getReflog :: Int -> Transaction [Reflog.Entry CausalHashId TextId]
+getReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
 getReflog numEntries = queryListRow sql (Only numEntries)
   where
     sql =

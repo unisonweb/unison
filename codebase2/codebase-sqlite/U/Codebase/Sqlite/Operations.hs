@@ -1066,9 +1066,9 @@ rootNamesByPath path = do
 getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
 getReflog numEntries = do
   entries <- Q.getReflog numEntries
-  traverse (bitraverse Q.expectCausalHash Q.expectText) entries
+  traverse (bitraverse Q.expectCausalHash pure) entries
 
 appendReflog :: Reflog.Entry CausalHash Text -> Transaction ()
 appendReflog entry = do
-  dbEntry <- bitraverse Q.saveCausalHash Q.saveText entry
+  dbEntry <- (bitraverse Q.saveCausalHash pure) entry
   Q.appendReflog dbEntry

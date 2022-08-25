@@ -66,9 +66,9 @@ instance FromField WatchKind where
       1 -> WatchKind.TestWatch
       tag -> error $ "Unknown WatchKind id " ++ show tag
 
-instance ToRow (Reflog.Entry CausalHashId TextId) where
-  toRow (Reflog.Entry {time, rootCausalHash, reason}) =
+instance ToRow (Reflog.Entry CausalHashId Text) where
+  toRow (Reflog.Entry time rootCausalHash reason) =
     toRow (time, rootCausalHash, reason)
 
-instance FromRow (Reflog.Entry CausalHashId TextId) where
+instance FromRow (Reflog.Entry CausalHashId Text) where
   fromRow = liftA3 Reflog.Entry field field field

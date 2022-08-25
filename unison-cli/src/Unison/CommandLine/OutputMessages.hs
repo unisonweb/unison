@@ -52,7 +52,6 @@ import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, Missi
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as E
-import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
 import Unison.Codebase.Editor.RemoteRepo
@@ -1403,36 +1402,35 @@ notifyUser dir o = case o of
     pure $
       P.lines
         [ header,
-          P.numberedColumnNHeader ["At", "Root Hash", "Action"] $ entries <&> renderEntry
+          P.numberedColumnNHeader ["At", "Root Hash", "Action"] $ entries <&> renderEntry3Column
         ]
     where
       header =
         case entries of
           (_head : prevHead : _) ->
-            let e2 = head . tail $ entries
-             in
-            P.lines [P.wrap $
-              "Here is a log of the root namespace hashes,"
-              <> "starting with the most recent,"
-              <> "along with the command that got us there."
-              <> "Try:",
-          "",
-             ( P.indentN 2 . P.wrapColumn2 $
-               [ ( IP.makeExample IP.forkLocal ["2", ".old"],
+            P.lines
+              [ P.wrap $
+                  "Here is a log of the root namespace hashes,"
+                    <> "starting with the most recent,"
+                    <> "along with the command that got us there."
+                    <> "Try:",
+                "",
+                ( P.indentN 2 . P.wrapColumn2 $
+                    [ ( IP.makeExample IP.forkLocal ["2", ".old"],
                         ""
-                 ),
-                      ( IP.makeExample IP.forkLocal [prettySBH . Reflog.rootCausalHash $ e2, ".old"],
+                      ),
+                      ( IP.makeExample IP.forkLocal [prettySBH . Reflog.rootCausalHash $ prevHead, ".old"],
                         "to make an old namespace accessible again,"
                       ),
                       (mempty, mempty),
-                      ( IP.makeExample IP.resetRoot [prettySBH . Reflog.rootCausalHash $ e2],
+                      ( IP.makeExample IP.resetRoot [prettySBH . Reflog.rootCausalHash $ prevHead],
                         "to reset the root namespace and its history to that of the specified"
                           <> "namespace."
                       )
-               ]
-             ),
-                ""
                     ]
+                ),
+                ""
+              ]
           _ -> mempty
       renderEntry3Column :: Reflog.Entry ShortBranchHash Text -> [Pretty]
       renderEntry3Column (Reflog.Entry {time, rootCausalHash, reason}) =

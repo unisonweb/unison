@@ -44,7 +44,7 @@ migrations getDeclType termBuffer declBuffer =
     [ (2, migrateSchema1To2 getDeclType termBuffer declBuffer),
       (3, migrateSchema2To3),
       (4, migrateSchema3To4),
-      (5, migrateSchema4To5)
+      (5, migrateSchema4To5),
       (6, migrateSchema5To6)
     ]
 
