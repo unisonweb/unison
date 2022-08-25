@@ -1,7 +1,6 @@
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6) where
 
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 import Data.Time (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import System.FilePath ((</>))
 import U.Codebase.HashTags (CausalHash (CausalHash))
@@ -36,9 +35,7 @@ migrateCurrentReflog codebasePath = do
 oldReflogEntries :: CodebasePath -> UTCTime -> IO [Reflog.Entry CausalHash Text]
 oldReflogEntries codebasePath now =
   ( do
-      putStrLn $ reflogPath
       contents <- readUtf8 reflogPath
-      Text.putStrLn $ contents
       let lines = Text.lines contents
       let entries = mapMaybe parseEntry (zip [0 ..] $ reverse lines)
       pure entries

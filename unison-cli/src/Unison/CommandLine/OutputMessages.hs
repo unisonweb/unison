@@ -3155,12 +3155,12 @@ prettyHumanReadableTime now time =
           minutesAgo = \f -> (++ " minutes" ++ dir f),
           oneHourAgo = \f -> "an hour" ++ dir f,
           aboutHoursAgo = \f x -> "about " ++ x ++ " hours" ++ dir f,
-          at = \_ -> ("at " ++),
+          at = \_ t -> t,
           daysAgo = \f -> (++ " days" ++ dir f),
           weekAgo = \f -> (++ " week" ++ dir f),
           weeksAgo = \f -> (++ " weeks" ++ dir f),
           onYear = \dt -> dt,
-          dayOfWeekFmt = "%A, %l:%M%p",
+          dayOfWeekFmt = "%A, %-l:%M%p",
           thisYearFmt = "%b %e",
           prevYearFmt = "%b %e, %Y"
         }
