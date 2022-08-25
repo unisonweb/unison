@@ -805,6 +805,22 @@ fork'comp =
   where
     (act, unit, lz) = fresh3
 
+try'eval :: SuperNormal Symbol
+try'eval =
+  Lambda [BX]
+    . TAbs act
+    . TLetD unit BX (TCon Ty.unitRef 0 [])
+    . TName lz (Right act) [unit]
+    . TLetD ta UN (TPrm TFRC [lz])
+    . TMatch ta
+    . MatchSum
+    $ mapFromList
+      [ exnCase lnk msg xtra fail,
+        (1, ([BX], TAbs r $ some r))
+      ]
+  where
+    (act, unit, lz, ta, lnk, msg, xtra, fail, r) = fresh9
+
 bug :: Util.Text.Text -> SuperNormal Symbol
 bug name =
   unop0 1 $ \[x, n] ->
@@ -1905,7 +1921,8 @@ builtinLookup =
         ("Any.unsafeExtract", (Untracked, any'extract)),
         ("Link.Term.toText", (Untracked, term'link'to'text)),
         ("STM.atomically", (Tracked, stm'atomic)),
-        ("validateSandboxed", (Untracked, check'sandbox))
+        ("validateSandboxed", (Untracked, check'sandbox)),
+        ("IO.tryEval", (Tracked, try'eval))
       ]
       ++ foreignWrappers
 
