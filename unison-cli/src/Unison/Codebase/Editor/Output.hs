@@ -153,6 +153,7 @@ data Output
   | NoLastRunResult
   | SaveTermNameConflict Name
   | SearchTermsNotFound [HQ.HashQualified Name]
+  | SearchTermsNotFound' Bool [HQ.HashQualified Name] [HQ.HashQualified Name]
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
@@ -339,6 +340,7 @@ isFailure o = case o of
   TermNotFound' {} -> True
   TypeTermMismatch {} -> True
   SearchTermsNotFound ts -> not (null ts)
+  SearchTermsNotFound' _ misses otherHits -> not (null misses && null otherHits)
   DeleteBranchConfirmation {} -> False
   DeleteEverythingConfirmation -> False
   MoveRootBranchConfirmation -> False
