@@ -1244,7 +1244,7 @@ exnCase stack1 stack2 stack3 fail =
   (0,) . ([BX, BX, BX],)
     . TAbss [stack1, stack2, stack3]
     . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, stack3])
-    $ TReq Ty.exceptionRef 1 [fail]
+    $ TReq Ty.exceptionRef 0 [fail]
 
 outIoExnNat :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
 outIoExnNat stack1 stack2 stack3 fail result =
