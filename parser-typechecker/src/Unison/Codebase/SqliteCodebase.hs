@@ -21,20 +21,18 @@ import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Data.Text.IO as TextIO
 import qualified System.Console.ANSI as ANSI
-import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
 import qualified U.Codebase.Branch as V2Branch
 import U.Codebase.HashTags (CausalHash (CausalHash))
+import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import qualified U.Codebase.Sync as Sync
 import qualified U.Util.Cache as Cache
-import qualified U.Util.Hash as H2
 import U.Util.Timing (time)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
@@ -56,7 +54,6 @@ import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import qualified U.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
@@ -83,7 +80,7 @@ import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as UF
-import UnliftIO (UnliftIO (..), catchIO, finally, throwIO, try)
+import UnliftIO (UnliftIO (..), finally, throwIO, try)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.Exception (catch)
 import UnliftIO.STM
@@ -360,31 +357,15 @@ sqliteCodebase debugName root localOrRemote action = do
             clearWatches =
               runTransaction CodebaseOps.clearWatches
 
-            getReflog :: m [Reflog.Entry Branch.CausalHash]
-            getReflog =
-              liftIO $
-                ( do
-                    contents <- TextIO.readFile (reflogPath root)
-                    let lines = Text.lines contents
-                    let entries = parseEntry <$> lines
-                    pure entries
-                )
-                  `catchIO` const (pure [])
-              where
-                parseEntry t = fromMaybe (err t) (Reflog.fromText t)
-                err t =
-                  error $
-                    "I couldn't understand this line in " ++ reflogPath root ++ "\n\n"
-                      ++ Text.unpack t
+            streamReflog :: forall r. (m (Maybe (Reflog.Entry CausalHash Text)) -> Sqlite.Transaction r) -> m r
+            streamReflog handler =
+              runTransaction $ Ops.streamReflog \getEntry -> do
+                let entry' = runTransaction getEntry
+                handler entry'
 
-            appendReflog :: Text -> Branch m -> Branch m -> m ()
-            appendReflog reason old new =
-              liftIO $ TextIO.appendFile (reflogPath root) (t <> "\n")
-              where
-                t = Reflog.toText $ Reflog.Entry (Branch.headHash old) (Branch.headHash new) reason
-
-            reflogPath :: CodebasePath -> FilePath
-            reflogPath root = root </> "reflog"
+            appendReflog :: Reflog.Entry CausalHash Text -> m ()
+            appendReflog entry =
+              runTransaction $ Ops.appendReflog entry
 
             termsOfTypeImpl :: Reference -> m (Set Referent.Id)
             termsOfTypeImpl r =
@@ -470,7 +451,7 @@ sqliteCodebase debugName root localOrRemote action = do
                   getWatch,
                   putWatch,
                   clearWatches,
-                  getReflog,
+                  streamReflog,
                   appendReflog,
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,

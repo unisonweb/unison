@@ -132,10 +132,10 @@ data Codebase m v a = Codebase
     putWatch :: WK.WatchKind -> Reference.Id -> Term v a -> m (),
     -- | Delete all watches that were put by 'putWatch'.
     clearWatches :: m (),
-    -- | Get the entire reflog.
-    getReflog :: m [Reflog.Entry Branch.CausalHash],
-    -- | @appendReflog reason before after@ appends a reflog entry.
-    appendReflog :: Reflog.Entry (Branch m) -> m (),
+    -- | Streams reflog entries in chronological order, most recent first.
+    streamReflog :: forall r. (m (Maybe (Reflog.Entry V2.CausalHash Text)) -> Sqlite.Transaction r) -> m r,
+    -- | Appends a reflog entry.
+    appendReflog :: Reflog.Entry V2.CausalHash Text -> m (),
     -- | Get the set of user-defined terms-or-constructors that have the given type.
     termsOfTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.
