@@ -39,6 +39,7 @@ module Unison.Util.Pretty
     column3M,
     column3UnzippedM,
     column3sep,
+    column3Header,
     commas,
     commented,
     oxfordCommas,
@@ -78,6 +79,7 @@ module Unison.Util.Pretty
     numbered,
     numberedColumn2,
     numberedColumn2Header,
+    numberedColumnNHeader,
     numberedList,
     orElse,
     orElses,
@@ -145,6 +147,7 @@ where
 import Data.Bifunctor (second)
 import Data.Char (isSpace)
 import Data.List (intersperse)
+import qualified Data.List as List
 import qualified Data.ListLike as LL
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
@@ -547,6 +550,14 @@ numberedColumn2Header ::
   Pretty s
 numberedColumn2Header num ps = numberedHeader (maybe mempty num) (align $ toList ps)
 
+numberedColumnNHeader ::
+  [Pretty ColorText] ->
+  [[Pretty ColorText]] ->
+  Pretty ColorText
+numberedColumnNHeader headers rows =
+  let numbers = "" : (hiBlack . shown <$> [1 :: Int ..])
+   in columnNHeader ("" : headers) (zipWith (:) numbers rows)
+
 -- Opinionated `numbered` that uses bold numbers in front
 numberedList :: Foldable f => f (Pretty ColorText) -> Pretty ColorText
 numberedList = numbered (\i -> hiBlack . fromString $ show i <> ".")
@@ -629,6 +640,10 @@ column3 ::
   Pretty s
 column3 = column3sep ""
 
+column3Header ::
+  Pretty ColorText -> Pretty ColorText -> Pretty ColorText -> [(Pretty ColorText, Pretty ColorText, Pretty ColorText)] -> Pretty ColorText
+column3Header left middle right = column3sep "  " . ((hiBlack left, hiBlack middle, hiBlack right) :)
+
 column3M ::
   (LL.ListLike s Char, IsString s, Monad m) =>
   [m (Pretty s, Pretty s, Pretty s)] ->
@@ -672,6 +687,26 @@ column3sep sep rows =
   let bc = align [(b, sep <> c) | (_, b, c) <- rows]
       abc = group <$> align [(a, sep <> bc) | ((a, _, _), bc) <- rows `zip` bc]
    in lines abc
+
+-- | Creates an aligned table with an arbitrary number of columns.
+-- Number of columns is based on the first row;
+-- crashes if not all rows have enough columns.
+columnNSep ::
+  (LL.ListLike s Char, IsString s) => Pretty s -> [[Pretty s]] -> Pretty s
+columnNSep _sep [] = mempty
+columnNSep sep rows =
+  -- Groups up columns
+  -- converts [[A1, B1, C1], [A2, B2, C2]] -> [[C1, C2], [B1, B2], [A1, A2]]
+  case reverse $ List.transpose rows of
+    [] -> mempty
+    (lastCol : restCols) ->
+      let go formatted prevCol = align (zip prevCol ((sep <>) <$> formatted))
+       in List.foldl' go lastCol restCols
+            & fmap group
+            & lines
+
+columnNHeader :: [Pretty ColorText] -> [[Pretty ColorText]] -> Pretty ColorText
+columnNHeader headers rows = columnNSep "  " $ (fmap (fmap CT.hiBlack) headers : rows)
 
 wrapColumn2 ::
   (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
