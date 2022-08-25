@@ -22,7 +22,8 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.Time.Format.ISO8601 (iso8601Show)
+import Data.Time (UTCTime, getCurrentTime)
+import Data.Time.Format.Human (humanReadableTime')
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import qualified Network.HTTP.Types as Http
@@ -1398,11 +1399,12 @@ notifyUser dir o = case o of
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
   ShowReflog [] -> pure . P.warnCallout $ "The reflog appears to be empty!"
-  ShowReflog entries ->
+  ShowReflog entries -> do
+    now <- getCurrentTime
     pure $
       P.lines
         [ header,
-          P.numberedColumnNHeader ["At", "Root Hash", "Action"] $ entries <&> renderEntry3Column
+          P.numberedColumnNHeader ["When", "Action", "Root Hash"] $ entries <&> renderEntry3Column now
         ]
     where
       header =
@@ -1432,9 +1434,9 @@ notifyUser dir o = case o of
                 ""
               ]
           _ -> mempty
-      renderEntry3Column :: Reflog.Entry ShortBranchHash Text -> [Pretty]
-      renderEntry3Column (Reflog.Entry {time, rootCausalHash, reason}) =
-        [P.green . P.string $ iso8601Show time, P.blue (prettySBH rootCausalHash), P.text reason]
+      renderEntry3Column :: UTCTime -> Reflog.Entry ShortBranchHash Text -> [Pretty]
+      renderEntry3Column now (Reflog.Entry {time, rootCausalHash, reason}) =
+        [P.green . P.string $ humanReadableTime' now time, P.text reason, P.blue (prettySBH rootCausalHash)]
   StartOfCurrentPathHistory ->
     pure $
       P.wrap "You're already at the very beginning! 🙂"

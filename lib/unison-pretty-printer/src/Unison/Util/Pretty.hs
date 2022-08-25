@@ -555,7 +555,7 @@ numberedColumnNHeader ::
   [[Pretty ColorText]] ->
   Pretty ColorText
 numberedColumnNHeader headers rows =
-  let numbers = "" : (hiBlack . shown <$> [1 :: Int ..])
+  let numbers = ([1 :: Int ..] <&> \n -> hiBlack (shown n <> "."))
    in columnNHeader ("" : headers) (zipWith (:) numbers rows)
 
 -- Opinionated `numbered` that uses bold numbers in front
