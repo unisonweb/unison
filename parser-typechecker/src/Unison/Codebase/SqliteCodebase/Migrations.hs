@@ -20,7 +20,7 @@ import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchem
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5 (migrateSchema4To5)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6)
 import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
-import Unison.Codebase.SqliteCodebase.Paths
+import Unison.Codebase.SqliteCodebase.Paths (backupCodebasePath, codebasePath)
 import Unison.Codebase.Type (LocalOrRemote (..))
 import qualified Unison.ConstructorType as CT
 import Unison.Hash (Hash)
@@ -38,14 +38,15 @@ migrations ::
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   TVar (Map Hash Ops2.TermBufferEntry) ->
   TVar (Map Hash Ops2.DeclBufferEntry) ->
+  CodebasePath ->
   Map SchemaVersion (Sqlite.Transaction ())
-migrations getDeclType termBuffer declBuffer =
+migrations getDeclType termBuffer declBuffer rootCodebasePath =
   Map.fromList
     [ (2, migrateSchema1To2 getDeclType termBuffer declBuffer),
       (3, migrateSchema2To3),
       (4, migrateSchema3To4),
       (5, migrateSchema4To5),
-      (6, migrateSchema5To6)
+      (6, migrateSchema5To6 rootCodebasePath)
     ]
 
 -- | Migrates a codebase up to the most recent version known to ucm.
@@ -67,7 +68,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
       ranMigrations <-
         Sqlite.runWriteTransaction conn \run -> do
           schemaVersion <- run Q.schemaVersion
-          let migs = migrations getDeclType termBuffer declBuffer
+          let migs = migrations getDeclType termBuffer declBuffer root
           -- The highest schema that this ucm knows how to migrate to.
           let currentSchemaVersion = fst . head $ Map.toDescList migs
           when (schemaVersion > currentSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral schemaVersion)

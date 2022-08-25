@@ -5,7 +5,7 @@
 
 module Unison.CommandLine.OutputMessages where
 
-import Control.Lens
+import Control.Lens hiding (at)
 import Control.Monad.State
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.Trans.Writer.CPS
@@ -23,7 +23,7 @@ import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time (UTCTime, getCurrentTime)
-import Data.Time.Format.Human (humanReadableTime')
+import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import qualified Network.HTTP.Types as Http
@@ -1436,7 +1436,7 @@ notifyUser dir o = case o of
           _ -> mempty
       renderEntry3Column :: UTCTime -> Reflog.Entry ShortBranchHash Text -> [Pretty]
       renderEntry3Column now (Reflog.Entry {time, rootCausalHash, reason}) =
-        [P.green . P.string $ humanReadableTime' now time, P.text reason, P.blue (prettySBH rootCausalHash)]
+        [prettyHumanReadableTime now time, P.text reason, P.blue (prettySBH rootCausalHash)]
   StartOfCurrentPathHistory ->
     pure $
       P.wrap "You're already at the very beginning! 🙂"
@@ -3142,3 +3142,28 @@ endangeredDependentsTable ppeDecl m =
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
 displayBranchHash :: Branch.CausalHash -> String
 displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . Causal.unCausalHash
+
+prettyHumanReadableTime :: UTCTime -> UTCTime -> Pretty
+prettyHumanReadableTime now time =
+  P.green . P.string $ humanReadableTimeI18N' terseTimeLocale now time
+  where
+    terseTimeLocale =
+      defaultHumanTimeLocale
+        { justNow = "now",
+          secondsAgo = \f -> (++ " secs" ++ dir f),
+          oneMinuteAgo = \f -> "a min" ++ dir f,
+          minutesAgo = \f -> (++ " minutes" ++ dir f),
+          oneHourAgo = \f -> "an hour" ++ dir f,
+          aboutHoursAgo = \f x -> "about " ++ x ++ " hours" ++ dir f,
+          at = \_ -> ("at " ++),
+          daysAgo = \f -> (++ " days" ++ dir f),
+          weekAgo = \f -> (++ " week" ++ dir f),
+          weeksAgo = \f -> (++ " weeks" ++ dir f),
+          onYear = \dt -> dt,
+          dayOfWeekFmt = "%A, %l:%M%p",
+          thisYearFmt = "%b %e",
+          prevYearFmt = "%b %e, %Y"
+        }
+
+    dir True = " from now"
+    dir False = " ago"
