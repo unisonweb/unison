@@ -469,8 +469,15 @@ renderTypeError e env src curPath = case e of
       ]
   AbilityEqFailure {..} ->
     mconcat
-      [ "I could not solve an ability equation when checking the expression ",
+      [ "I found an ability mismatch when checking the expression ",
         describeStyle ErrorSite,
+        "\n\n",
+        showSourceMaybes
+          src
+          [ (,Type1) <$> rangeForAnnotated tlhs,
+            (,Type2) <$> rangeForAnnotated trhs,
+            (,ErrorSite) <$> rangeForAnnotated abilityCheckFailureSite
+          ],
         "\n\n",
         Pr.wrap $
           mconcat
@@ -481,12 +488,12 @@ renderTypeError e env src curPath = case e of
               case (lhs, rhs) of
                 ([], _) ->
                   mconcat
-                    [ "The right hand side contained extra abilities: ",
+                    [ "the right hand side contained extra abilities: ",
                       style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
                     ]
                 (_, []) ->
                   mconcat
-                    [ "The left hand side contained extra abilities: ",
+                    [ "the left hand side contained extra abilities: ",
                       style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
                     ]
                 _ ->
@@ -499,45 +506,45 @@ renderTypeError e env src curPath = case e of
                     ]
             ],
         "\n\n",
-        annotatedAsErrorSite src abilityCheckFailureSite,
         debugSummary note
       ]
   AbilityEqFailureFromAp {..} ->
     mconcat
-      [ "I could not solve an ability equation when checking the application below.",
-        "\n\n",
-        Pr.wrap $
-          mconcat
-            [ "When trying to match ",
-              style Type1 $ renderType' env tlhs,
-              " with ",
-              style Type2 $ renderType' env trhs,
-              case (lhs, rhs) of
-                ([], _) ->
-                  mconcat
-                    [ "The right hand side contained extra abilities: ",
-                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
-                    ]
-                (_, []) ->
-                  mconcat
-                    [ "The left hand side contained extra abilities: ",
-                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
-                    ]
-                _ ->
-                  mconcat
-                    [ " I could not make ",
-                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
-                      " on the left compatible with ",
-                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
-                      " on the right."
-                    ]
-            ],
+      [ "I found an ability mismatch when checking the application",
         "\n\n",
         showSourceMaybes
           src
           [ (,Type1) <$> rangeForAnnotated expectedSite,
             (,Type2) <$> rangeForAnnotated mismatchSite
           ],
+        "\n\n",
+        Pr.wrap $
+          mconcat
+            [ "When trying to match ",
+              style Type1 $ renderType' env tlhs,
+              " with ",
+              style Type2 $ renderType' env trhs,
+              case (lhs, rhs) of
+                ([], _) ->
+                  mconcat
+                    [ "the right hand side contained extra abilities: ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
+                    ]
+                (_, []) ->
+                  mconcat
+                    [ "the left hand side contained extra abilities: ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
+                    ]
+                _ ->
+                  mconcat
+                    [ " I could not make ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
+                      " on the left compatible with ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
+                      " on the right."
+                    ]
+            ],
+        "\n\n",
         debugSummary note
       ]
   UnguardedLetRecCycle vs locs _ ->
