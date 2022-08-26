@@ -15,11 +15,13 @@ import Control.Monad.Writer (WriterT (..))
 import Data.Bifunctor (first, second)
 import Data.Configurator ()
 import qualified Data.Foldable as Foldable
+import qualified Data.Foldable.Extra as Foldable
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
 import Data.Sequence (Seq (..))
+import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
@@ -2376,24 +2378,17 @@ resolveMetadata name = do
 resolveConfiguredUrl :: PushPull -> Path' -> Cli r WriteRemotePath
 resolveConfiguredUrl pushPull destPath' = do
   destPath <- Cli.resolvePath' destPath'
-  let remoteMappingConfigKey = remoteMappingKey destPath
-  Cli.getConfig remoteMappingConfigKey >>= \case
-    Nothing -> do
-      let gitUrlConfigKey = gitUrlKey destPath
-      -- Fall back to deprecated GitUrl key
-      Cli.getConfig gitUrlConfigKey >>= \case
-        Just url ->
-          (WriteRemotePathGit <$> P.parse UriParser.deprecatedWriteGitRemotePath (Text.unpack gitUrlConfigKey) url) & onLeft \err ->
-            Cli.returnEarly (ConfiguredRemoteMappingParseError pushPull destPath url (show err))
-        Nothing -> Cli.returnEarly (NoConfiguredRemoteMapping pushPull destPath)
-    Just url -> do
-      P.parse UriParser.writeRemotePath (Text.unpack remoteMappingConfigKey) url & onLeft \err ->
-        Cli.returnEarly (ConfiguredRemoteMappingParseError pushPull destPath url (show err))
+  whenNothingM (remoteMappingForPath pushPull destPath) do
+    let gitUrlConfigKey = gitUrlKey destPath
+    -- Fall back to deprecated GitUrl key
+    Cli.getConfig gitUrlConfigKey >>= \case
+      Just url ->
+        (WriteRemotePathGit <$> P.parse UriParser.deprecatedWriteGitRemotePath (Text.unpack gitUrlConfigKey) url) & onLeft \err ->
+          Cli.returnEarly (ConfiguredRemoteMappingParseError pushPull destPath url (show err))
+      Nothing -> Cli.returnEarly (NoConfiguredRemoteMapping pushPull destPath)
   where
     gitUrlKey :: Path.Absolute -> Text
     gitUrlKey = configKey "GitUrl"
-    remoteMappingKey :: Path.Absolute -> Text
-    remoteMappingKey = configKey "RemoteMapping"
 
 configKey :: Text -> Path.Absolute -> Text
 configKey k p =
@@ -2402,6 +2397,53 @@ configKey k p =
       :<| fmap
         NameSegment.toText
         (Path.toSeq $ Path.unabsolute p)
+
+-- | Tries to look up a remote mapping for a given path.
+-- Will also resolve paths relative to any mapping which is configured for a parent of that
+-- path.
+--
+-- E.g.
+--
+-- A config which maps:
+--
+-- .myshare.foo -> .me.public.foo
+--
+-- Will resolve the following local paths into share paths like so:
+--
+-- .myshare.foo -> .me.public.foo
+-- .myshare.foo.bar -> .me.public.foo.bar
+-- .myshare.foo.bar.baz -> .me.public.foo.bar.baz
+-- .myshare -> <Nothing>
+remoteMappingForPath :: PushPull -> Path.Absolute -> Cli r (Maybe WriteRemotePath)
+remoteMappingForPath pushPull dest = do
+  pathPrefixes dest & Foldable.firstJustM \(prefix, suffix) -> do
+    let remoteMappingConfigKey = remoteMappingKey prefix
+    Cli.getConfig remoteMappingConfigKey >>= \case
+      Just url -> do
+        let parseResult = P.parse UriParser.writeRemotePath (Text.unpack remoteMappingConfigKey) url
+         in case parseResult of
+              Left err -> Cli.returnEarly (ConfiguredRemoteMappingParseError pushPull dest url (show err))
+              Right wrp -> do
+                let remote = wrp & RemoteRepo.remotePath_ %~ \p -> Path.resolve p suffix
+                 in pure $ Just remote
+      Nothing -> pure Nothing
+  where
+    -- Produces a list of path prefixes and suffixes, from longest prefix to shortest
+    --
+    -- E.g.
+    --
+    -- >>> pathPrefixes ("a" :< "b" :< Path.absoluteEmpty)
+    -- fromList [(.a.b,),(.a,b),(.,a.b)]
+    pathPrefixes :: Path.Absolute -> Seq (Path.Absolute, Path.Path)
+    pathPrefixes p =
+      Path.unabsolute p
+        & Path.toSeq
+        & \seq ->
+          Seq.zip (Seq.inits seq) (Seq.tails seq)
+            & Seq.reverse
+            <&> bimap (Path.Absolute . Path.Path) (Path.Path)
+    remoteMappingKey :: Path.Absolute -> Text
+    remoteMappingKey = configKey "RemoteMapping"
 
 importRemoteShareBranch :: ReadShareRemoteNamespace -> Cli r (Branch IO)
 importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
