@@ -1404,7 +1404,9 @@ notifyUser dir o = case o of
     pure $
       P.lines
         [ header,
-          P.numberedColumnNHeader ["When", "Action", "Root Hash"] $ entries <&> renderEntry3Column now
+          P.numberedColumnNHeader ["When", "Action", "Root Hash"] $ entries <&> renderEntry3Column now,
+          "",
+          tip $ "Use " <> IP.makeExample IP.diffNamespace ["1", "7"] <> " to compare namespaces between two points in history."
         ]
     where
       header =

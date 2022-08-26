@@ -59,17 +59,20 @@ y = 2
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #tpbeffu5sn .old`   to make an old namespace
+    `fork #2a4hnm3mcj .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #tpbeffu5sn`  to reset the root namespace and
+    `reset-root #2a4hnm3mcj`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
        When   Action           Root Hash
-  1.   now    add              #dki4d2cqnk
-  2.   now    add              #tpbeffu5sn
-  3.   now    builtins.merge   #1a0f7cshrd
+  1.   now    add              #5fihla47kl
+  2.   now    add              #2a4hnm3mcj
+  3.   now    builtins.merge   #43lqh9lfp3
+  
+  Tip: Use `diff.namespace 1 7` to compare namespaces between
+       two points in history.
 
 ```
 If we `reset-root` to its previous value, `y` disappears.
