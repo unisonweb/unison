@@ -66,10 +66,10 @@ y = 2
                               its history to that of the
                               specified namespace.
   
-  1. #dki4d2cqnk : add
-  2. #tpbeffu5sn : add
-  3. #1a0f7cshrd : builtins.merge
-  4. #sg60bvjo91 : (initial reflogged namespace)
+       When   Action           Root Hash
+  1.   now    add              #dki4d2cqnk
+  2.   now    add              #tpbeffu5sn
+  3.   now    builtins.merge   #1a0f7cshrd
 
 ```
 If we `reset-root` to its previous value, `y` disappears.
