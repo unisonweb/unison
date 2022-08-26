@@ -773,23 +773,36 @@ loop e = do
 
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
                 fixupOutput = fmap Path.unsafeToName . HQ'.toHQ . Path.unsplitHQ
-            NamesI global thing -> do
+            NamesI global query -> do
               Cli.Env {codebase} <- ask
+              currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
               hqLength <- liftIO (Codebase.hashLength codebase)
-              basicPrettyPrintNames <- getBasicPrettyPrintNames
-              ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
-              let ns = NamesWithHistory ns0 mempty
-                  terms = NamesWithHistory.lookupHQTerm thing ns
-                  types = NamesWithHistory.lookupHQType thing ns
-                  printNames = NamesWithHistory basicPrettyPrintNames mempty
+              root <- Cli.getRootBranch
+              (names, pped) <-
+                if global || any Name.isAbsolute query
+                  then do
+                    let root0 = Branch.head root
+                    let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
+                    -- Use an absolutely qualified ppe for view.global
+                    let pped = PPE.fromNamesDecl hqLength names
+                    pure (names, pped)
+                  else do
+                    currentBranch <- Cli.getCurrentBranch0
+                    let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+                    let pped = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
+                    pure (currentNames, pped)
+
+              let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
+                  terms = NamesWithHistory.lookupHQTerm query names
+                  types = NamesWithHistory.lookupHQType query names
                   terms' :: Set (Referent, Set (HQ'.HashQualified Name))
                   terms' = Set.map go terms
                     where
-                      go r = (r, NamesWithHistory.termName hqLength r printNames)
+                      go r = (r, Set.fromList $ PPE.allTermNames unsuffixifiedPPE r)
                   types' :: Set (Reference, Set (HQ'.HashQualified Name))
                   types' = Set.map go types
                     where
-                      go r = (r, NamesWithHistory.typeName hqLength r printNames)
+                      go r = (r, Set.fromList $ PPE.allTypeNames unsuffixifiedPPE r)
               Cli.respond $ ListNames global hqLength (toList types') (toList terms')
             LinkI mdValue srcs -> do
               description <- inputDescription input
