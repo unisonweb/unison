@@ -85,6 +85,12 @@ tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
 
 tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 
+runtimeFailureRef, arithmeticFailureRef, miscFailureRef, stmFailureRef :: Reference
+runtimeFailureRef = lookupDeclRef "io2.RuntimeFailure"
+arithmeticFailureRef = lookupDeclRef "io2.ArithmeticFailure"
+miscFailureRef = lookupDeclRef "io2.MiscFailure"
+stmFailureRef = lookupDeclRef "io2.STMFailure"
+
 fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
 fileModeRef = lookupDeclRef "io2.FileMode"
 filePathRef = lookupDeclRef "io2.FilePath"
@@ -181,7 +187,11 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.Failure", failure),
           (v "io2.TlsFailure", tlsFailure),
           (v "io2.IOFailure", ioFailure),
-          (v "io2.ArrayFailure", arrayFailure)
+          (v "io2.ArrayFailure", arrayFailure),
+          (v "io2.RuntimeFailure", runtimeFailure),
+          (v "io2.ArithmeticFailure", arithmeticFailure),
+          (v "io2.MiscFailure", miscFailure),
+          (v "io2.STMFailure", stmFailure)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
@@ -328,6 +338,34 @@ builtinDataDecls = rs1 ++ rs
     arrayFailure =
       DataDeclaration
         (Unique "8e877b3a45a3029904dbca9cbd8dda0ec0d147d67bd5b89027a90632c9e927fb")
+        ()
+        []
+        []
+
+    runtimeFailure =
+      DataDeclaration
+        (Unique "1061ebd9e1b8f99fafecdf02966898fd19151cc14759a7f192e12c5071fb8986")
+        ()
+        []
+        []
+
+    arithmeticFailure =
+      DataDeclaration
+        (Unique "57eebfd5958d4b07c460293760f241d3e14285740bca78e2149d166e951efc07")
+        ()
+        []
+        []
+
+    miscFailure =
+      DataDeclaration
+        (Unique "4bd8b3a187c5426d17c30f19efd2851fe6dcfceb302b1dec5df6dfb4214841d9")
+        ()
+        []
+        []
+
+    stmFailure =
+      DataDeclaration
+        (Unique "0dd9991d6c88424007bfa0b6e55a5211d1a9b6f473ed542dad3b6ecaf94c6941")
         ()
         []
         []

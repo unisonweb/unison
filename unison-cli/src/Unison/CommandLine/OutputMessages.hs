@@ -539,6 +539,21 @@ prettyWriteRemotePath =
 
 notifyUser :: FilePath -> Output -> IO Pretty
 notifyUser dir o = case o of
+  SaveTermNameConflict name ->
+    pure
+      . P.warnCallout
+      . P.wrap
+      $ "Cannot save the last run result into" <> P.backticked (P.string (Name.toString name))
+        <> "because that name conflicts with a name in the scratch file."
+  NoLastRunResult ->
+    pure
+      . P.warnCallout
+      . P.wrap
+      $ "There is no previous evaluation to save."
+        <> "Use"
+        <> P.backticked "run"
+        <> "to evaluate something before attempting"
+        <> "to save it."
   Success -> pure $ P.bold "Done."
   PrintMessage pretty -> do
     pure pretty
@@ -772,7 +787,7 @@ notifyUser dir o = case o of
           "",
           P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
           "",
-          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string "run") <> "it it needs to have the type:",
+          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string "run") <> "it needs be a subtype of:",
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
@@ -947,6 +962,7 @@ notifyUser dir o = case o of
     let isPast = case input of
           Input.AddI {} -> True
           Input.UpdateI {} -> True
+          Input.SaveExecuteResultI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s
   FindNoLocalMatches ->
@@ -1006,6 +1022,7 @@ notifyUser dir o = case o of
               if null bindings
                 then prettyWatches
                 else prettyBindings <> "\n" <> prettyWatches
+  RunResult ppe term -> pure (TermPrinter.pretty ppe term)
   DisplayConflicts termNamespace typeNamespace ->
     pure $
       P.sepNonEmpty

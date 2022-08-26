@@ -22,6 +22,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker as Typechecker
 import Unison.Var (Var)
+import qualified Unison.Var as Var
 
 data MainTerm v
   = NotAFunctionName String
@@ -43,23 +44,30 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
       let refs = NamesWithHistory.lookupHQTerm hq (NamesWithHistory.NamesWithHistory parseNames mempty)
       let a = Parser.Ann.External
       case toList refs of
+        [] -> pure (NotFound mainName)
         [Referent.Ref ref] -> do
           typ <- loadTypeOfTerm ref
           case typ of
             Just typ ->
-              if Typechecker.isSubtype typ mainType
+              if Typechecker.fitsScheme typ mainType
                 then do
                   let tm = DD.forceTerm a a (Term.ref a ref)
                   return (Success hq tm typ)
                 else pure (BadType mainName $ Just typ)
             _ -> pure (BadType mainName Nothing)
-        _ -> pure (NotFound mainName)
+        _ -> pure (error "multiple matching refs") -- TODO: make a real exception
 
--- '{io2.IO, Exception} ()
+-- forall x. '{ io2.IO, Exception } x
 builtinMain :: Var v => a -> Type.Type v a
-builtinMain a = Type.arrow a (Type.ref a DD.unitRef) io
+builtinMain a =
+  let result = Var.named "result"
+   in Type.forall a result (builtinMainWithResultType a (Type.var a result))
+
+-- '{io2.IO, Exception} res
+builtinMainWithResultType :: Var v => a -> Type.Type v a -> Type.Type v a
+builtinMainWithResultType a res = Type.arrow a (Type.ref a DD.unitRef) io
   where
-    io = Type.effect a [Type.builtinIO a, DD.exceptionType a] (Type.ref a DD.unitRef)
+    io = Type.effect a [Type.builtinIO a, DD.exceptionType a] res
 
 -- [Result]
 resultArr :: Ord v => a -> Type.Type v a

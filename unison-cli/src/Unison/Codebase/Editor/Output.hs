@@ -150,6 +150,8 @@ data Output
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
   | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
+  | NoLastRunResult
+  | SaveTermNameConflict Name
   | SearchTermsNotFound [HQ.HashQualified Name]
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
@@ -184,6 +186,7 @@ data Output
       PPE.PrettyPrintEnv
       [(Symbol, Term Symbol ())]
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
+  | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult Symbol) (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
@@ -296,6 +299,9 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  NoLastRunResult {} -> True
+  SaveTermNameConflict {} -> True
+  RunResult {} -> False
   Success {} -> False
   PrintMessage {} -> False
   CouldntLoadBranch {} -> True
