@@ -36,4 +36,3 @@ dependencies:
   - unison-util-base32hex
   - unison-prelude
   - time
-  - sqlite-simple

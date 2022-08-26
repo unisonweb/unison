@@ -688,9 +688,8 @@ column3sep sep rows =
       abc = group <$> align [(a, sep <> bc) | ((a, _, _), bc) <- rows `zip` bc]
    in lines abc
 
--- | Creates an aligned table with an arbitrary number of columns.
--- Number of columns is based on the first row;
--- crashes if not all rows have enough columns.
+-- | Creates an aligned table with an arbitrary number of columns separated by `sep`
+-- Ensure all rows have the same number of columns or the alignment may be off.
 columnNSep ::
   (LL.ListLike s Char, IsString s) => Pretty s -> [[Pretty s]] -> Pretty s
 columnNSep _sep [] = mempty
@@ -705,6 +704,8 @@ columnNSep sep rows =
             & fmap group
             & lines
 
+-- | Creates an aligned table with an arbitrary number of columns and column headers.
+-- Ensure all rows have the same number of columns or the alignment may be off.
 columnNHeader :: [Pretty ColorText] -> [[Pretty ColorText]] -> Pretty ColorText
 columnNHeader headers rows = columnNSep "  " $ (fmap (fmap CT.hiBlack) headers : rows)
 
