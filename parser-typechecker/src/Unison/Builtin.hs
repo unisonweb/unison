@@ -788,6 +788,10 @@ ioBuiltins =
     ),
     ( "IO.bytearrayOf",
       nat --> nat --> io (mbytearrayt (Type.effects () [Type.builtinIO ()]))
+    ),
+    ( "IO.tryEval",
+      forall1 "a" $ \a ->
+        (unit --> io a) --> Type.effect () [Type.builtinIO (), DD.exceptionType ()] a
     )
   ]
 
