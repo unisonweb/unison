@@ -315,7 +315,7 @@ loop e = do
                   -- Say something
                   Cli.respond Success
             when (Set.null hits) do
-              Cli.respond (SearchTermsNotFound' isTerm misses (Set.toList opHits))
+              Cli.respond (SearchTermsNotFoundDetailed isTerm misses (Set.toList opHits))
             description <- inputDescription input
             traverse_ (go description) (if isTerm then tmRefs else tpRefs)
           saveAndApplyPatch :: Path -> NameSegment -> Patch -> Cli r ()

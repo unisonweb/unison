@@ -745,7 +745,7 @@ notifyUser dir o = case o of
       P.warnCallout "The following names were not found in the codebase. Check your spelling."
         <> P.newline
         <> (P.syntaxToColor $ P.indent "  " (P.lines (prettyHashQualified <$> hqs)))
-  SearchTermsNotFound' wasTerm hqMisses otherHits ->
+  SearchTermsNotFoundDetailed wasTerm hqMisses otherHits ->
     pure (missMsg <> hitMsg)
     where
       typeOrTermMsg =

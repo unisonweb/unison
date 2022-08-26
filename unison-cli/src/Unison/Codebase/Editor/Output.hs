@@ -153,7 +153,17 @@ data Output
   | NoLastRunResult
   | SaveTermNameConflict Name
   | SearchTermsNotFound [HQ.HashQualified Name]
-  | SearchTermsNotFound' Bool [HQ.HashQualified Name] [HQ.HashQualified Name]
+  | -- Like 'SearchTermsNotFound' but additionally contains term hits
+    -- if we are searching for types or type hits if we are searching
+    -- for terms. This additional info is used to provide an enhanced
+    -- error message.
+    SearchTermsNotFoundDetailed
+      Bool
+      -- ^ @True@ if we are searching for a term, @False@ if we are searching for a type
+      [HQ.HashQualified Name]
+      -- ^ Misses (search terms that returned no hits for terms or types)
+      [HQ.HashQualified Name]
+      -- ^ Hits for types if we are searching for terms or terms if we are searching for types
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
@@ -340,7 +350,7 @@ isFailure o = case o of
   TermNotFound' {} -> True
   TypeTermMismatch {} -> True
   SearchTermsNotFound ts -> not (null ts)
-  SearchTermsNotFound' _ misses otherHits -> not (null misses && null otherHits)
+  SearchTermsNotFoundDetailed _ misses otherHits -> not (null misses && null otherHits)
   DeleteBranchConfirmation {} -> False
   DeleteEverythingConfirmation -> False
   MoveRootBranchConfirmation -> False
