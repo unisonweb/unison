@@ -70,6 +70,9 @@ y = 2
   2. #2a4hnm3mcj : add
   3. #43lqh9lfp3 : builtins.merge
   4. #sg60bvjo91 : (initial reflogged namespace)
+  
+  Tip: Use `diff.namespace 1 7` to compare namespaces between
+       two points in history.
 
 ```
 If we `reset-root` to its previous value, `y` disappears.
