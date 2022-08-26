@@ -30,6 +30,7 @@ import System.Environment (withArgs)
 import qualified Text.Megaparsec as P
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Sqlite.Operations as Ops
+import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
 import qualified U.Util.Hash32 as Hash32
 import qualified Unison.ABT as ABT
@@ -53,6 +54,7 @@ import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin, ensureAuthenticatedWithCodeserver)
+import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.Input
 import qualified Unison.Codebase.Editor.Input as Input
@@ -166,6 +168,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Type.Names as Type
 import qualified Unison.Typechecker as Typechecker
+import qualified Unison.Typechecker.TypeLookup as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
@@ -204,13 +207,7 @@ currentPrettyPrintEnvDecl scoping = do
 
 loop :: Either Event Input -> Cli r ()
 loop e = do
-  let getBasicPrettyPrintNames :: Cli r Names
-      getBasicPrettyPrintNames = do
-        rootBranch <- Cli.getRootBranch
-        currentPath <- Cli.getCurrentPath
-        pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath)))
-
-      withFile ::
+  let withFile ::
         -- ambient abilities
         [Type Symbol Ann] ->
         Text ->
@@ -430,7 +427,7 @@ loop e = do
                     Left hash -> Cli.resolveShortBranchHash hash
                     Right path' -> Cli.expectBranchAtPath' path'
                 description <- inputDescription input
-                updateRoot newRoot description
+                Cli.updateRoot newRoot description
                 Cli.respond Success
             ForkLocalBranchI src0 dest0 -> do
               srcb <-
@@ -440,7 +437,7 @@ loop e = do
               Cli.assertNoBranchAtPath' dest0
               description <- inputDescription input
               dest <- Cli.resolvePath' dest0
-              ok <- updateAtM description dest (const $ pure srcb)
+              ok <- Cli.updateAtM description dest (const $ pure srcb)
               Cli.respond if ok then Success else BranchEmpty src0
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
@@ -504,34 +501,10 @@ loop e = do
                 description
                 (Just merged)
                 (snoc desta "merged")
-
-            -- move the Command.root to a sub-branch
-            MoveBranchI Nothing dest' -> do
+            MoveBranchI src' dest' -> do
+              hasConfirmed <- confirmedCommand input
               description <- inputDescription input
-              rootBranch <- Cli.getRootBranch
-              dest <- Cli.resolveSplit' dest'
-              -- Overwrite history at destination.
-              stepManyAt
-                description
-                Branch.AllowRewritingHistory
-                [ (Path.empty, const Branch.empty0),
-                  BranchUtil.makeSetBranch (Path.convert dest) rootBranch
-                ]
-              Cli.respond Success
-            MoveBranchI (Just src') dest' -> do
-              description <- inputDescription input
-              src <- Cli.resolveSplit' src'
-              dest <- Cli.resolveSplit' dest'
-              srcBranch <- Cli.expectBranchAtPath' (Path.unsplit' src')
-              Cli.assertNoBranchAtPath' (Path.unsplit' dest')
-              -- allow rewriting history to ensure we move the branch's history too.
-              stepManyAt
-                description
-                Branch.AllowRewritingHistory
-                [ BranchUtil.makeDeleteBranch (Path.convert src),
-                  BranchUtil.makeSetBranch (Path.convert dest) srcBranch
-                ]
-              Cli.respond Success -- could give rando stats about new defns
+              doMoveBranch description hasConfirmed src' dest'
             MovePatchI src' dest' -> do
               description <- inputDescription input
               p <- Cli.expectPatchAt src'
@@ -655,7 +628,7 @@ loop e = do
                       then CantUndoPastStart
                       else CantUndoPastMerge
               description <- inputDescription input
-              updateRoot prev description
+              Cli.updateRoot prev description
               (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
               Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
             UiI -> do
@@ -1142,6 +1115,21 @@ loop e = do
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
               addDefaultMetadata adds
               syncRoot description
+            SaveExecuteResultI resultName -> do
+              description <- inputDescription input
+              let resultVar = Name.toVar resultName
+              uf <- addSavedTermToUnisonFile resultName
+              Cli.Env {codebase} <- ask
+              currentPath <- Cli.getCurrentPath
+              currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
+              let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
+              let adds = SlurpResult.adds sr
+              stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath, doSlurpAdds adds uf)
+              liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
+              ppe <- prettyPrintEnvDecl =<< displayNames uf
+              Cli.returnEarly $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+              addDefaultMetadata adds
+              syncRoot description
             PreviewAddI requestedNames -> do
               (sourceName, _) <- Cli.expectLatestFile
               uf <- Cli.expectLatestTypecheckedFile
@@ -1169,24 +1157,24 @@ loop e = do
               updated <- propagatePatch description patch scopePath
               when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath')
             ExecuteI main args -> do
-              Cli.Env {runtime} <- ask
-              unisonFile <- do
-                let mainType = Runtime.mainType runtime
-                unisonFile0 <- Cli.getLatestTypecheckedFile
-                addRunMain main unisonFile0 >>= \case
-                  NoTermWithThatName -> do
-                    basicPrettyPrintNames <- getBasicPrettyPrintNames
-                    ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-                    Cli.returnEarly $ NoMainFunction main ppe [mainType]
-                  TermHasBadType ty -> do
-                    basicPrettyPrintNames <- getBasicPrettyPrintNames
-                    ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-                    Cli.returnEarly $ BadMainFunction main ty ppe [mainType]
-                  RunMainSuccess unisonFile -> pure unisonFile
+              (unisonFile, mainResType) <- do
+                (sym, term, typ, otyp) <- getTerm main
+                uf <- createWatcherFile sym term typ
+                pure (uf, otyp)
               ppe <- executePPE unisonFile
-              -- TODO
-              _ <- evalUnisonFile False ppe unisonFile args
-              pure ()
+              (_, xs) <- evalUnisonFile False ppe unisonFile args
+              mainRes :: Term Symbol () <-
+                let bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) = (watchKind, term1)
+                 in case lookup magicMainWatcherString (map bonk (Map.toList xs)) of
+                      Nothing ->
+                        error
+                          ( "impossible: we manually added the watcher "
+                              <> show magicMainWatcherString
+                              <> " with 'createWatcherFile', but it isn't here."
+                          )
+                      Just x -> pure (stripUnisonFileReferences unisonFile x)
+              #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType, unisonFile)
+              Cli.respond (RunResult ppe mainRes)
             MakeStandaloneI output main -> do
               Cli.Env {codebase, runtime} <- ask
               let mainType = Runtime.mainType runtime
@@ -1200,7 +1188,7 @@ loop e = do
                   <$> traverse (\r -> fmap (r,) <$> liftIO (loadTypeOfTerm codebase r)) resolved
               case filtered of
                 [(Referent.Ref ref, ty)]
-                  | Typechecker.isSubtype ty mainType -> do
+                  | Typechecker.fitsScheme ty mainType -> do
                       let codeLookup = () <$ Codebase.toCodeLookup codebase
                       whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
                         Cli.returnEarly (EvaluationFailure err)
@@ -1261,7 +1249,7 @@ loop e = do
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names0
               currentPath <- Cli.getCurrentPath
-              _ <- updateAtM description (currentPath `snoc` "builtin") \destb ->
+              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             MergeIOBuiltinsI -> do
@@ -1284,7 +1272,7 @@ loop e = do
               let names0 = Builtin.names0 <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               currentPath <- Cli.getCurrentPath
-              _ <- updateAtM description (currentPath `snoc` "builtin") \destb ->
+              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             ListEditsI maybePath -> do
@@ -1313,7 +1301,7 @@ loop e = do
                   destBranch <- Cli.getBranch0At destAbs
                   if Branch.isEmpty0 destBranch
                     then do
-                      void $ updateAtM description destAbs (const $ pure remoteBranch)
+                      void $ Cli.updateAtM description destAbs (const $ pure remoteBranch)
                       Cli.respond $ MergeOverEmpty path
                     else
                       mergeBranchAndPropagateDefaultPatch
@@ -1325,7 +1313,7 @@ loop e = do
                         destAbs
                 Input.PullWithoutHistory -> do
                   didUpdate <-
-                    updateAtM
+                    Cli.updateAtM
                       description
                       destAbs
                       (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
@@ -1466,13 +1454,13 @@ loop e = do
               Cli.Env {ucmVersion} <- ask
               Cli.respond $ PrintVersion ucmVersion
 
-  case e of
-    Right input -> #lastInput .= Just input
-    _ -> pure ()
+magicMainWatcherString :: String
+magicMainWatcherString = "main"
 
 inputDescription :: Input -> Cli r Text
 inputDescription input =
   case input of
+    SaveExecuteResultI _str -> pure "save-execute-result"
     ForkLocalBranchI src0 dest0 -> do
       src <- hp' src0
       dest <- p' dest0
@@ -1509,8 +1497,8 @@ inputDescription input =
       dest <- ps' dest0
       pure ("move.type " <> src <> " " <> dest)
     MoveBranchI src0 dest0 -> do
-      src <- ops' src0
-      dest <- ps' dest0
+      src <- p' src0
+      dest <- p' dest0
       pure ("move.namespace " <> src <> " " <> dest)
     MovePatchI src0 dest0 -> do
       src <- ps' src0
@@ -1763,7 +1751,7 @@ handleFindI isVerbose fscope ws input = do
           suffixifiedPPE
             =<< makePrintNamesFromLabeled'
               (foldMap SR'.labeledDependencies results')
-        Cli.respond $ ListOfDefinitions ppe isVerbose results'
+        Cli.respond $ ListOfDefinitions fscope ppe isVerbose results'
   results <- getResults (getNames fscope)
   case (results, fscope) of
     ([], FindLocal) -> do
@@ -2759,7 +2747,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
         Cli.Env {codebase} <- ask
         destb <- Cli.getBranchAt dest
         merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
-        b <- updateAtM inputDescription dest (const $ pure merged)
+        b <- Cli.updateAtM inputDescription dest (const $ pure merged)
         for_ maybeDest0 \dest0 -> do
           (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
           Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
@@ -2802,20 +2790,6 @@ getHQTerms = \case
     hashOnly sh = do
       Cli.Env {codebase} <- ask
       liftIO (Backend.termReferentsByShortHash codebase sh)
-
--- Update a branch at the given path, returning `True` if
--- an update occurred and false otherwise
-updateAtM ::
-  Text ->
-  Path.Absolute ->
-  (Branch IO -> Cli r (Branch IO)) ->
-  Cli r Bool
-updateAtM reason (Path.Absolute p) f = do
-  loopState <- State.get
-  let b = loopState ^. #lastSavedRoot
-  b' <- Branch.modifyAtM p f b
-  updateRoot b' reason
-  pure $ b /= b'
 
 stepAt ::
   Text ->
@@ -2915,19 +2889,7 @@ stepManyAtMNoSync strat actions = do
 syncRoot :: Text -> Cli r ()
 syncRoot description = do
   rootBranch <- Cli.getRootBranch
-  updateRoot rootBranch description
-
-updateRoot :: Branch IO -> Text -> Cli r ()
-updateRoot new reason =
-  Cli.time "updateRoot" do
-    Cli.Env {codebase} <- ask
-    loopState <- State.get
-    let old = loopState ^. #lastSavedRoot
-    when (old /= new) do
-      #root .= new
-      liftIO (Codebase.putRootBranch codebase new)
-      liftIO (Codebase.appendReflog codebase reason old new)
-      #lastSavedRoot .= new
+  Cli.updateRoot rootBranch description
 
 -- | Goal: When deleting, we might be removing the last name of a given definition (i.e. the
 -- definition is going "extinct"). In this case we may wish to take some action or warn the
@@ -3343,10 +3305,10 @@ basicNames' nameScoping = do
   let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
   pure (parse, pretty)
 
-data AddRunMainResult v
+data GetTermResult
   = NoTermWithThatName
-  | TermHasBadType (Type v Ann)
-  | RunMainSuccess (TypecheckedUnisonFile v Ann)
+  | TermHasBadType (Type Symbol Ann)
+  | GetTermSuccess (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
 
 -- Adds a watch expression of the given name to the file, if
 -- it would resolve to a TLD in the file. Returns the freshened
@@ -3376,51 +3338,94 @@ addWatch watchName (Just uf) = do
             )
     _ -> addWatch watchName Nothing
 
--- Given a typechecked file with a main function called `mainName`
--- of the type `'{IO} ()`, adds an extra binding which
--- forces the `main` function.
---
--- If that function doesn't exist in the typechecked file, the
--- codebase is consulted.
-addRunMain :: String -> Maybe (TypecheckedUnisonFile Symbol Ann) -> Cli r (AddRunMainResult Symbol)
-addRunMain mainName = \case
-  Nothing -> do
-    Cli.Env {codebase, runtime} <- ask
+addSavedTermToUnisonFile :: Name -> Cli r (TypecheckedUnisonFile Symbol Ann)
+addSavedTermToUnisonFile resultName = do
+  let resultSymbol = Name.toVar resultName
+  (trm, typ, uf) <-
+    use #lastRunResult >>= \case
+      Nothing -> Cli.returnEarly NoLastRunResult
+      Just x -> pure x
+  case Map.lookup resultSymbol (UF.hashTermsId uf) of
+    Just _ -> Cli.returnEarly (SaveTermNameConflict resultName)
+    Nothing -> pure ()
+  pure $
+    UF.typecheckedUnisonFile
+      (UF.dataDeclarationsId' uf)
+      (UF.effectDeclarationsId' uf)
+      ([(resultSymbol, trm, typ)] : UF.topLevelComponents' uf)
+      (UF.watchComponents uf)
 
-    parseNames <- basicParseNames
-    let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
-    mainToFile
-      <$> MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
-    where
-      mainToFile (MainTerm.NotAFunctionName _) = NoTermWithThatName
-      mainToFile (MainTerm.NotFound _) = NoTermWithThatName
-      mainToFile (MainTerm.BadType _ ty) = maybe NoTermWithThatName TermHasBadType ty
-      mainToFile (MainTerm.Success hq tm typ) =
-        RunMainSuccess $
-          let v = Var.named (HQ.toText hq)
-           in UF.typecheckedUnisonFile mempty mempty mempty [("main", [(v, tm, typ)])] -- mempty
-  Just uf -> do
-    Cli.Env {runtime} <- ask
+-- | Look up runnable term with the given name in the codebase or
+-- latest typechecked unison file. Return its symbol, term, type, and
+-- the type of the evaluated term.
+getTerm :: String -> Cli r (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
+getTerm main =
+  getTerm' main >>= \case
+    NoTermWithThatName -> do
+      mainType <- Runtime.mainType <$> view #runtime
+      basicPrettyPrintNames <- getBasicPrettyPrintNames
+      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+      Cli.returnEarly $ NoMainFunction main ppe [mainType]
+    TermHasBadType ty -> do
+      mainType <- Runtime.mainType <$> view #runtime
+      basicPrettyPrintNames <- getBasicPrettyPrintNames
+      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+      Cli.returnEarly $ BadMainFunction main ty ppe [mainType]
+    GetTermSuccess x -> pure x
 
-    let components = join $ UF.topLevelComponents uf
-    let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
-    let mainType = Runtime.mainType runtime
-    case mainComponent of
-      [(v, tm, ty)] ->
-        pure $
-          let v2 = Var.freshIn (Set.fromList [v]) v
-              a = ABT.annotation tm
-           in if Typechecker.isSubtype ty mainType
-                then
-                  RunMainSuccess $
-                    let runMain = DD.forceTerm a a (Term.var a v)
-                     in UF.typecheckedUnisonFile
-                          (UF.dataDeclarationsId' uf)
-                          (UF.effectDeclarationsId' uf)
-                          (UF.topLevelComponents' uf)
-                          (UF.watchComponents uf <> [("main", [(v2, runMain, mainType)])])
-                else TermHasBadType ty
-      _ -> addRunMain mainName Nothing
+getTerm' :: String -> Cli r GetTermResult
+getTerm' mainName =
+  let getFromCodebase = do
+        Cli.Env {codebase, runtime} <- ask
+
+        parseNames <- basicParseNames
+        let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
+        mainToFile
+          =<< MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
+        where
+          mainToFile (MainTerm.NotAFunctionName _) = pure NoTermWithThatName
+          mainToFile (MainTerm.NotFound _) = pure NoTermWithThatName
+          mainToFile (MainTerm.BadType _ ty) = pure $ maybe NoTermWithThatName TermHasBadType ty
+          mainToFile (MainTerm.Success hq tm typ) =
+            let v = Var.named (HQ.toText hq)
+             in checkType typ \otyp ->
+                  pure (GetTermSuccess (v, tm, typ, otyp))
+      getFromFile uf = do
+        let components = join $ UF.topLevelComponents uf
+        let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
+        case mainComponent of
+          [(v, tm, ty)] ->
+            checkType ty \otyp ->
+              let runMain = DD.forceTerm a a (Term.var a v)
+                  v2 = Var.freshIn (Set.fromList [v]) v
+                  a = ABT.annotation tm
+               in pure (GetTermSuccess (v2, runMain, ty, otyp))
+          _ -> getFromCodebase
+      checkType :: Type Symbol Ann -> (Type Symbol Ann -> Cli r GetTermResult) -> Cli r GetTermResult
+      checkType ty f = do
+        Cli.Env {runtime} <- ask
+        case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
+          True -> f (synthesizeForce ty)
+          False -> pure (TermHasBadType ty)
+   in Cli.getLatestTypecheckedFile >>= \case
+        Nothing -> getFromCodebase
+        Just uf -> getFromFile uf
+
+-- | Produce a typechecked unison file where the given term is the
+-- only watcher, with the watch type set to 'magicMainWatcherString'.
+createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli r (TypecheckedUnisonFile Symbol Ann)
+createWatcherFile v tm typ =
+  Cli.getLatestTypecheckedFile >>= \case
+    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, tm, typ)])])
+    Just uf ->
+      let v2 = Var.freshIn (Set.fromList [v]) v
+       in pure $
+            UF.typecheckedUnisonFile
+              (UF.dataDeclarationsId' uf)
+              (UF.effectDeclarationsId' uf)
+              (UF.topLevelComponents' uf)
+              -- what about main's component? we have dropped them if they existed.
+              [(magicMainWatcherString, [(v2, tm, typ)])]
 
 executePPE ::
   Var v =>
@@ -3524,6 +3529,39 @@ fuzzySelectNamespace pos searchBranch0 = liftIO do
     Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
     tShow
     inputs
+
+-- | synthesize the type of forcing a term
+--
+-- precondition: @fitsScheme typeOfFunc Runtime.mainType@ is satisfied
+synthesizeForce :: Type Symbol Ann -> Type Symbol Ann
+synthesizeForce typeOfFunc = do
+  let term :: Term Symbol Ann
+      term = Term.ref External ref
+      ref = Reference.DerivedId (Reference.Id (Hash.fromByteString "deadbeef") 0)
+      env =
+        Typechecker.Env
+          { Typechecker._ambientAbilities = [DD.exceptionType External, Type.builtinIO External],
+            Typechecker._typeLookup = tl <> Builtin.typeLookup,
+            Typechecker._termsByShortname = Map.empty
+          }
+      tl =
+        TypeLookup.TypeLookup
+          { TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc,
+            TypeLookup.dataDecls = Map.empty,
+            TypeLookup.effectDecls = Map.empty
+          }
+  case Result.runResultT (Typechecker.synthesize env (DD.forceTerm External External term)) of
+    Identity (Nothing, notes) ->
+      error
+        ( unlines
+            [ "synthesizeForce fails although fitsScheme passed",
+              "Input Type:",
+              show typeOfFunc,
+              "Notes:",
+              show notes
+            ]
+        )
+    Identity (Just typ, _) -> typ
 
 typecheck ::
   [Type Symbol Ann] ->
@@ -3633,3 +3671,33 @@ evalUnisonTerm ::
 evalUnisonTerm sandbox ppe useCache tm =
   evalUnisonTermE sandbox ppe useCache tm & onLeftM \err ->
     Cli.returnEarly (EvaluationFailure err)
+
+getBasicPrettyPrintNames :: Cli r Names
+getBasicPrettyPrintNames = do
+  rootBranch <- Cli.getRootBranch
+  currentPath <- Cli.getCurrentPath
+  pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath)))
+
+-- Hack alert
+--
+-- After we evaluate a term all vars are transformed into references,
+-- but we want to feed this result into 'slurpFile' which won't add
+-- dependencies that are referenced by hash. The hacky solution for
+-- now is to convert all references that match a variable defined
+-- within the unison file to variable references. This is hacky both
+-- because we needlessly flip-flopping between var and reference
+-- representations, and because we might unexpectedly add a term from
+-- the local file if it has the same hash as a term in the codebase.
+stripUnisonFileReferences :: TypecheckedUnisonFile Symbol a -> Term Symbol () -> Term Symbol ()
+stripUnisonFileReferences unisonFile term =
+  let refMap :: Map Reference.Id Symbol
+      refMap = Map.fromList . map (\(sym, (refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
+      alg () = \case
+        ABT.Var x -> ABT.var x
+        ABT.Cycle x -> ABT.cycle x
+        ABT.Abs v x -> ABT.abs v x
+        ABT.Tm t -> case t of
+          Term.Ref ref
+            | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
+          x -> ABT.tm x
+   in ABT.cata alg term

@@ -31,6 +31,9 @@ module Unison.Codebase.Path
     HQSplit',
     ancestors,
 
+    -- * utilities
+    longestPathPrefix,
+
     -- * tests
     isCurrentPath,
     isRoot,
@@ -185,6 +188,25 @@ prefix :: Absolute -> Path' -> Path
 prefix (Absolute (Path prefix)) (Path' p) = case p of
   Left (unabsolute -> abs) -> abs
   Right (unrelative -> rel) -> Path $ prefix <> toSeq rel
+
+-- | Finds the longest shared path prefix of two paths.
+-- Returns (shared prefix, path to first location from shared prefix, path to second location from shared prefix)
+--
+-- >>> longestPathPrefix ("a" :< "b" :< "x" :< Empty) ("a" :< "b" :< "c" :< Empty)
+-- (a.b,x,c)
+--
+-- >>> longestPathPrefix Empty ("a" :< "b" :< "c" :< Empty)
+-- (,,a.b.c)
+longestPathPrefix :: Path -> Path -> (Path, Path, Path)
+longestPathPrefix a b =
+  case (Lens.uncons a, Lens.uncons b) of
+    (Nothing, _) -> (empty, a, b)
+    (_, Nothing) -> (empty, a, b)
+    (Just (x, xs), Just (y, ys))
+      | x == y ->
+          let (prefix, ra, rb) = longestPathPrefix xs ys
+           in (x :< prefix, ra, rb)
+      | otherwise -> (empty, a, b)
 
 toSplit' :: Path' -> Maybe (Path', NameSegment)
 toSplit' = Lens.unsnoc

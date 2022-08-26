@@ -109,7 +109,7 @@ data Input
   | -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     MoveTermI Path.HQSplit' Path.Split'
   | MoveTypeI Path.HQSplit' Path.Split'
-  | MoveBranchI (Maybe Path.Split') Path.Split'
+  | MoveBranchI Path.Path' Path.Path'
   | MovePatchI Path.Split' Path.Split'
   | CopyPatchI Path.Split' Path.Split'
   | -- delete = unname
@@ -144,6 +144,8 @@ data Input
     HistoryI (Maybe Int) (Maybe Int) BranchId
   | -- execute an IO thunk with args
     ExecuteI String [String]
+  | -- save the result of a previous Execute
+    SaveExecuteResultI Name
   | -- execute an IO [Result]
     IOTestI (HQ.HashQualified Name)
   | -- make a standalone binary file

@@ -1952,7 +1952,7 @@ declareForeign sand name op func0 = do
           | sanitize,
             Tracked <- sand,
             FF r w _ <- func0 =
-              FF r w (bomb name)
+            FF r w (bomb name)
           | otherwise = func0
         code = (name, (sand, uncurry Lambda (op w)))
      in (w + 1, code : codes, mapInsert w (name, func) funcs)
@@ -2071,12 +2071,12 @@ declareForeigns = do
   declareForeign Tracked "Clock.internals.threadCPUTime.v1" unitToEFBox $
     mkForeignIOF $ \() -> getTime ThreadCPUTime
 
-  declareForeign Untracked "Clock.internals.sec.v1" boxToInt $
+  declareForeign Tracked "Clock.internals.sec.v1" boxToInt $
     mkForeign (\n -> pure (fromIntegral $ sec n :: Word64))
 
   -- A TimeSpec that comes from getTime never has negative nanos,
   -- so we can safely cast to Nat
-  declareForeign Untracked "Clock.internals.nsec.v1" boxToNat $
+  declareForeign Tracked "Clock.internals.nsec.v1" boxToNat $
     mkForeign (\n -> pure (fromIntegral $ nsec n :: Word64))
 
   declareForeign Tracked "IO.getTempDirectory.impl.v3" unitToEFBox $

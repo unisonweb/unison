@@ -27,6 +27,7 @@ module Unison.Typechecker.Context
     apply,
     isEqual,
     isSubtype,
+    fitsScheme,
     isRedundant,
     Suggestion (..),
     SuggestionMatch (..),
@@ -2951,6 +2952,16 @@ isSubtype' type1 type2 = succeeds $ do
   reserveAll (TypeVar.underlying <$> vars)
   appendContext (Var <$> vars)
   subtype type1 type2
+
+-- See documentation at 'Unison.Typechecker.fitsScheme'
+fitsScheme :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
+fitsScheme type1 type2 = run Map.empty Map.empty $
+  succeeds $ do
+    let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
+    reserveAll (TypeVar.underlying <$> vars)
+    appendContext (Var <$> vars)
+    type2 <- ungeneralize type2
+    subtype type1 type2
 
 -- `isRedundant userType inferredType` returns `True` if the `userType`
 -- is equal "up to inferred abilities" to `inferredType`.
