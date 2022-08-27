@@ -291,15 +291,15 @@ loop e = do
           doRemoveReplacement from patchPath isTerm = do
             let patchPath' = fromMaybe Cli.defaultPatchPath patchPath
             patch <- Cli.getPatchAt patchPath'
-            QueryResult misses' hits <- hqNameQuery [from]
-            let tpRefs = Set.fromList $ typeReferences hits
-                tmRefs = Set.fromList $ termReferences hits
-                misses =
-                  Set.difference
-                    (Set.fromList misses')
-                    if isTerm
-                      then Set.fromList $ SR.termName <$> termResults hits
-                      else Set.fromList $ SR.typeName <$> typeResults hits
+            QueryResult misses allHits <- hqNameQuery [from]
+            let tpRefs = Set.fromList $ typeReferences allHits
+                tmRefs = Set.fromList $ termReferences allHits
+                (hits, opHits) =
+                  let tmResults = Set.fromList $ SR.termName <$> termResults allHits
+                      tpResults = Set.fromList $ SR.typeName <$> typeResults allHits
+                   in case isTerm of
+                        True -> (tmResults, tpResults)
+                        False -> (tpResults, tmResults)
                 go :: Text -> Reference -> Cli r ()
                 go description fr = do
                   let termPatch = over Patch.termEdits (R.deleteDom fr) patch
@@ -316,8 +316,8 @@ loop e = do
                     )
                   -- Say something
                   Cli.respond Success
-            when (not (Set.null misses)) do
-              Cli.respond (SearchTermsNotFound (Set.toList misses))
+            when (Set.null hits) do
+              Cli.respond (SearchTermsNotFoundDetailed isTerm misses (Set.toList opHits))
             description <- inputDescription input
             traverse_ (go description) (if isTerm then tmRefs else tpRefs)
           saveAndApplyPatch :: Path -> NameSegment -> Patch -> Cli r ()
