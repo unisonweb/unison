@@ -2153,7 +2153,7 @@ appendReflog entry = execute sql entry
   where
     sql =
       [here|
-    INSERT INTO reflog (time, root_causal_id, reason) VALUES (?, ?, ?)
+    INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason) VALUES (?, ?, ?, ?)
     |]
 
 getReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
@@ -2161,7 +2161,7 @@ getReflog numEntries = queryListRow sql (Only numEntries)
   where
     sql =
       [here|
-    SELECT time, root_causal_id, reason
+    SELECT time, from_root_causal_id, to_root_causal_id, reason
       FROM reflog
       ORDER BY time DESC
       LIMIT ?
