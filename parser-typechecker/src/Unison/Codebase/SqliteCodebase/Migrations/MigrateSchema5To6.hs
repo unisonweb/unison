@@ -24,16 +24,20 @@ migrateSchema5To6 codebasePath = do
 migrateCurrentReflog :: CodebasePath -> Sqlite.Transaction ()
 migrateCurrentReflog codebasePath = do
   now <- Sqlite.unsafeIO $ getCurrentTime
-  oldEntries <- Sqlite.unsafeIO $ oldReflogEntries codebasePath now
+  oldEntries <- Sqlite.unsafeIO $ oldReflogEntries reflogPath now
   for_ oldEntries \oldEntry -> do
     -- There's no guarantee these causals actually exist in the DB,
     -- so we check first to avoid triggering a bad foreign key constraint.
     haveFrom <- isJust <$> Q.loadCausalByCausalHash (Reflog.fromRootCausalHash oldEntry)
     haveTo <- isJust <$> Q.loadCausalByCausalHash (Reflog.toRootCausalHash oldEntry)
     when (haveFrom && haveTo) $ Ops.appendReflog oldEntry
+  Sqlite.unsafeIO . putStrLn $ "I migrated old reflog entries from " <> reflogPath <> " into the codebase, you may delete that file now if you like."
+  where
+    reflogPath :: FilePath
+    reflogPath = codebasePath </> "reflog"
 
 oldReflogEntries :: CodebasePath -> UTCTime -> IO [Reflog.Entry CausalHash Text]
-oldReflogEntries codebasePath now =
+oldReflogEntries reflogPath now =
   ( do
       contents <- readUtf8 reflogPath
       let lines = Text.lines contents
@@ -42,9 +46,6 @@ oldReflogEntries codebasePath now =
   )
     `catchIO` const (pure [])
   where
-    reflogPath :: FilePath
-    reflogPath = codebasePath </> "reflog"
-
     parseEntry :: (Integer, Text) -> Maybe (Reflog.Entry CausalHash Text)
     parseEntry (n, txt) =
       -- We offset existing entries by a number of seconds corresponding to their position in
