@@ -27,7 +27,7 @@ hoverHandler m respond =
     identifier <- MaybeT $ identifierAtPosition p
     cb <- asks codebase
     rt <- asks runtime
-    results <- MaybeT . fmap eitherToMaybe $ (lspBackend $ Backend.prettyDefinitionsBySuffixes Path.empty Nothing Nothing (Backend.Suffixify True) rt cb [HQ.unsafeFromText identifier])
+    results <- MaybeT . fmap eitherToMaybe $ (lspBackend $ Backend.prettyDefinitionsForHQName Path.empty Nothing Nothing (Backend.Suffixify True) rt cb (HQ.unsafeFromText identifier))
     let termResults = formatTermDefinition <$> toList (Backend.termDefinitions results)
     let typeResults = formatTypeDefinition <$> toList (Backend.typeDefinitions results)
     let markup = Text.intercalate "\n\n---\n\n" $ termResults <> typeResults

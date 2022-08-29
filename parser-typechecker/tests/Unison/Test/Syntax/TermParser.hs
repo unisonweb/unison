@@ -1,18 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Unison.Test.TermParser where
+module Unison.Test.Syntax.TermParser where
 
 import Control.Applicative
 import Control.Monad (join)
 import EasyTest
 import qualified Text.Megaparsec as P
 import Text.RawString.QQ
-import Unison.Parser
 import qualified Unison.Parsers as Ps
 import Unison.PrintError (renderParseErrorAsANSI)
 import Unison.Symbol (Symbol)
-import qualified Unison.TermParser as TP
+import Unison.Syntax.Parser
+import qualified Unison.Syntax.TermParser as TP
 import qualified Unison.Test.Common as Common
 
 test1 :: Test ()
@@ -215,7 +215,7 @@ parses = parseWith TP.term
 
 parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
-  case Ps.parse @ Symbol p s Common.parsingEnv of
+  case Ps.parse @Symbol p s Common.parsingEnv of
     Left e -> do
       note $ renderParseErrorAsANSI 60 s e
       crash $ renderParseErrorAsANSI 60 s e

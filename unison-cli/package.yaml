@@ -80,6 +80,7 @@ dependencies:
   - witherable
   - wai
   - warp
+  - witherable
 
 library:
   source-dirs: src
@@ -158,19 +159,24 @@ default-extensions:
   - ApplicativeDo
   - BangPatterns
   - BlockArguments
+  - DeriveAnyClass
   - DeriveFunctor
   - DeriveFoldable
   - DeriveTraversable
   - DeriveGeneric
   - DerivingStrategies
+  - DerivingVia
   - DoAndIfThenElse
   - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
+  - GADTs
   - GeneralizedNewtypeDeriving
+  - InstanceSigs
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - NumericUnderscores
   - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms

@@ -1,8 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..)) where
+module Unison.PrettyPrintEnvDecl
+  ( PrettyPrintEnvDecl (..),
+    biasTo,
+    empty,
+  )
+where
 
+import Unison.Name (Name)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
+import qualified Unison.PrettyPrintEnv as PPE
 
 -- A pair of PrettyPrintEnvs:
 --   - suffixifiedPPE uses the shortest unique suffix
@@ -18,9 +25,13 @@ data PrettyPrintEnvDecl = PrettyPrintEnvDecl
   }
   deriving (Show)
 
-instance Semigroup PrettyPrintEnvDecl where
-  PrettyPrintEnvDecl unSuff1 suff1 <> PrettyPrintEnvDecl unSuff2 suff2 =
-    PrettyPrintEnvDecl (unSuff1 <> unSuff2) (suff1 <> suff2)
+-- | Lifts 'biasTo' over a PrettyPrintEnvDecl
+biasTo :: [Name] -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
+biasTo targets PrettyPrintEnvDecl {unsuffixifiedPPE, suffixifiedPPE} =
+  PrettyPrintEnvDecl
+    { unsuffixifiedPPE = PPE.biasTo targets unsuffixifiedPPE,
+      suffixifiedPPE = PPE.biasTo targets suffixifiedPPE
+    }
 
-instance Monoid PrettyPrintEnvDecl where
-  mempty = PrettyPrintEnvDecl mempty mempty
+empty :: PrettyPrintEnvDecl
+empty = PrettyPrintEnvDecl PPE.empty PPE.empty

@@ -32,6 +32,7 @@ import Unison.LSP.UCMWorker (ucmWorker)
 import qualified Unison.LSP.VFS as VFS
 import Unison.Parser.Ann
 import Unison.Prelude
+import qualified Unison.PrettyPrintEnvDecl as PPED
 import Unison.Symbol
 import UnliftIO
 
@@ -95,7 +96,7 @@ lspDoInitialize vfsVar codebase runtime scope ucmState lspContext _initMsg = do
   -- things to be generated before serving requests.
   checkedFilesVar <- newTVarIO mempty
   dirtyFilesVar <- newTVarIO mempty
-  ppeCacheVar <- newTVarIO mempty
+  ppeCacheVar <- newTVarIO PPED.empty
   parseNamesCacheVar <- newTVarIO mempty
   currentPathCacheVar <- newTVarIO Path.absoluteEmpty
   let env = Env {ppeCache = readTVarIO ppeCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, ..}
@@ -135,6 +136,7 @@ lspInterpretHandler :: Env -> Lsp <~> IO
 lspInterpretHandler env@(Env {lspContext}) =
   Iso toIO fromIO
   where
+    toIO :: forall a. Lsp a -> IO a
     toIO (Lsp m) = flip runReaderT lspContext . unLspT . flip runReaderT env $ m
     fromIO m = liftIO m
 

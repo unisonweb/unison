@@ -11,7 +11,6 @@ module Unison.Codebase.SqliteCodebase
   )
 where
 
-import qualified Control.Concurrent
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad
 import Data.Bifunctor (Bifunctor (bimap))
@@ -59,6 +58,7 @@ import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
@@ -197,6 +197,7 @@ sqliteCodebase debugName root localOrRemote action = do
   typeOfTermCache <- Cache.semispaceCache 8192
   declCache <- Cache.semispaceCache 1024
   rootBranchCache <- newTVarIO Nothing
+  branchCache <- newBranchCache
   getDeclType <- CodebaseOps.mkGetDeclType
   -- The v1 codebase interface has operations to read and write individual definitions
   -- whereas the v2 codebase writes them as complete components.  These two fields buffer
@@ -276,7 +277,7 @@ sqliteCodebase debugName root localOrRemote action = do
 
             getRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> m (Branch m)
             getRootBranch rootBranchCache =
-              Branch.transform runTransaction <$> runTransaction (CodebaseOps.getRootBranch getDeclType rootBranchCache)
+              Branch.transform runTransaction <$> runTransaction (CodebaseOps.getRootBranch branchCache getDeclType rootBranchCache)
 
             getRootBranchExists :: m Bool
             getRootBranchExists =
@@ -289,50 +290,11 @@ sqliteCodebase debugName root localOrRemote action = do
                   runTransaction do
                     CodebaseOps.putRootBranch rootBranchCache (Branch.transform (Sqlite.unsafeIO . runInIO) branch1)
 
-            rootBranchUpdates :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, a)) -> m (IO (), IO (Set Branch.CausalHash))
-            rootBranchUpdates _rootBranchCache = do
-              -- branchHeadChanges      <- TQueue.newIO
-              -- (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
-              -- watcher1               <-
-              --   liftIO . forkIO
-              --   $ forever
-              --   $ do
-              --       -- void ignores the name and time of the changed file,
-              --       -- and assume 'unison.sqlite3' has changed
-              --       (filename, time) <- watcher
-              --       traceM $ "SqliteCodebase.watcher " ++ show (filename, time)
-              --       readTVarIO rootBranchCache >>= \case
-              --         Nothing -> pure ()
-              --         Just (v, _) -> do
-              --           -- this use of `conn` in a separate thread may be problematic.
-              --           -- hopefully sqlite will produce an obvious error message if it is.
-              --           v' <- runDB conn Ops.dataVersion
-              --           if v /= v' then
-              --             atomically
-              --               . TQueue.enqueue branchHeadChanges =<< runDB conn Ops.loadRootCausalHash
-              --           else pure ()
-
-              --       -- case hashFromFilePath filePath of
-              --       --   Nothing -> failWith $ CantParseBranchHead filePath
-              --       --   Just h ->
-              --       --     atomically . TQueue.enqueue branchHeadChanges $ Branch.CausalHash h
-              -- -- smooth out intermediate queue
-              -- pure
-              --   ( cancelWatch >> killThread watcher1
-              --   , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
-              --   )
-              pure (cleanup, liftIO newRootsDiscovered)
-              where
-                newRootsDiscovered = do
-                  Control.Concurrent.threadDelay maxBound -- hold off on returning
-                  pure mempty -- returning nothing
-                cleanup = pure ()
-
             -- if this blows up on cromulent hashes, then switch from `hashToHashId`
             -- to one that returns Maybe.
             getBranchForHash :: Branch.CausalHash -> m (Maybe (Branch m))
             getBranchForHash h =
-              fmap (Branch.transform runTransaction) <$> runTransaction (CodebaseOps.getBranchForHash getDeclType h)
+              fmap (Branch.transform runTransaction) <$> runTransaction (CodebaseOps.getBranchForHash branchCache getDeclType h)
 
             putBranch :: Branch m -> m ()
             putBranch branch =
@@ -491,7 +453,6 @@ sqliteCodebase debugName root localOrRemote action = do
                   getRootBranchHash,
                   getRootBranchExists,
                   putRootBranch = putRootBranch rootBranchCache,
-                  rootBranchUpdates = rootBranchUpdates rootBranchCache,
                   getShallowBranchForHash,
                   getBranchForHashImpl = getBranchForHash,
                   putBranch,

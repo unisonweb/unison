@@ -977,15 +977,16 @@ declReferentsByPrefix b32prefix pos cid = do
     loadConstructors cid rid@(C.Reference.Id oId pos) = do
       (dt, ctorCount) <- getDeclCtorCount rid
       h <- Q.expectPrimaryHashByObjectId oId
-      let test :: ConstructorId -> Bool
-          test = maybe (const True) (==) cid
-          cids = [cid | cid <- [0 :: ConstructorId .. ctorCount - 1], test cid]
+      let cids =
+            case cid of
+              Nothing -> take ctorCount [0 :: ConstructorId ..]
+              Just cid -> if fromIntegral cid < ctorCount then [cid] else []
       pure (h, pos, dt, cids)
-    getDeclCtorCount :: S.Reference.Id -> Transaction (C.Decl.DeclType, ConstructorId)
+    getDeclCtorCount :: S.Reference.Id -> Transaction (C.Decl.DeclType, Int)
     getDeclCtorCount id@(C.Reference.Id r i) = do
       when debug $ traceM $ "getDeclCtorCount " ++ show id
       (_localIds, decl) <- Q.expectDeclObject r (decodeDeclElement i)
-      pure (C.Decl.declType decl, fromIntegral $ length (C.Decl.constructorTypes decl))
+      pure (C.Decl.declType decl, length (C.Decl.constructorTypes decl))
 
 branchHashesByPrefix :: ShortBranchHash -> Transaction (Set BranchHash)
 branchHashesByPrefix (ShortBranchHash b32prefix) = do

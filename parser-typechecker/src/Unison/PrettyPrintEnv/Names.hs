@@ -2,22 +2,61 @@
 
 module Unison.PrettyPrintEnv.Names (fromNames, fromSuffixNames) where
 
+import Data.Bifunctor (second)
+import qualified Data.Set as Set
 import qualified Unison.HashQualified' as HQ'
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import qualified Unison.Names as Names
 import Unison.NamesWithHistory (NamesWithHistory)
-import qualified Unison.NamesWithHistory as Names
+import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
-import Unison.Util.List (safeHead)
+import qualified Unison.Util.Relation as Rel
 
 fromNames :: Int -> NamesWithHistory -> PrettyPrintEnv
 fromNames len names = PrettyPrintEnv terms' types'
   where
-    terms' r = shortestName (Names.termName len r names)
-    types' r = shortestName (Names.typeName len r names)
-    shortestName ns = safeHead $ HQ'.sortByLength (toList ns)
+    terms' r =
+      NamesWithHistory.termName len r names
+        & Set.toList
+        & fmap (\n -> (n, n))
+        & prioritize
+    types' r =
+      NamesWithHistory.typeName len r names
+        & Set.toList
+        & fmap (\n -> (n, n))
+        & prioritize
+
+-- | Sort the names for a given ref by the following factors (in priority order):
+--
+-- 1. Prefer Relative Names to Absolute Names
+-- 2. Prefer names that aren't hash qualified to those that are
+-- 3. Prefer names which have fewer segments in their suffixified form (if applicable)
+-- 4. Prefer names which have fewer segments in their fully-qualified form
+prioritize :: [(HQ'.HashQualified Name, HQ'.HashQualified Name)] -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
+prioritize =
+  sortOn \case
+    (fqn, HQ'.NameOnly name) -> (Name.isAbsolute name, Nothing, Name.countSegments name, Name.countSegments (HQ'.toName fqn))
+    (fqn, HQ'.HashQualified name hash) -> (Name.isAbsolute name, Just hash, Name.countSegments name, Name.countSegments (HQ'.toName fqn))
 
 fromSuffixNames :: Int -> NamesWithHistory -> PrettyPrintEnv
 fromSuffixNames len names = PrettyPrintEnv terms' types'
   where
-    terms' r = safeHead $ Names.suffixedTermName len r names
-    types' r = safeHead $ Names.suffixedTypeName len r names
+    terms' r =
+      NamesWithHistory.termName len r names
+        & Set.toList
+        & fmap (\n -> (n, n))
+        & shortestUniqueSuffixes r (Names.terms $ NamesWithHistory.currentNames names)
+        & prioritize
+    types' r =
+      NamesWithHistory.typeName len r names
+        & Set.toList
+        & fmap (\n -> (n, n))
+        & shortestUniqueSuffixes r (Names.types $ NamesWithHistory.currentNames names)
+        & prioritize
+
+-- | Reduce the provided names to their minimal unique suffix within the scope of the given
+-- relation.
+shortestUniqueSuffixes :: Ord ref => ref -> Rel.Relation Name ref -> [(a, HQ'.HashQualified Name)] -> [(a, HQ'.HashQualified Name)]
+shortestUniqueSuffixes ref rel names = names <&> second (fmap (\name -> Name.shortestUniqueSuffix name ref rel))

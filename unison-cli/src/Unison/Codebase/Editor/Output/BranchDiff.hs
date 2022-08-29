@@ -44,7 +44,6 @@ instance Semigroup (MetadataDiff tm) where
 
 instance Monoid (MetadataDiff tm) where
   mempty = MetadataDiff mempty mempty
-  mappend = (<>)
 
 data BranchDiffOutput v a = BranchDiffOutput
   { updatedTypes :: [UpdateTypeDisplay v a],

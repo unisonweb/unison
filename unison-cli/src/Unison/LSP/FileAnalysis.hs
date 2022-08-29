@@ -9,15 +9,16 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens (HasUri (uri))
-import Unison.Codebase.Editor.HandleCommand (typecheckCommand)
+import Unison.Codebase.Editor.HandleInput (typecheckHelper)
 import qualified Unison.Debug as Debug
 import Unison.LSP.Diagnostics
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
-import qualified Unison.Lexer as L
 import Unison.Prelude
 import qualified Unison.Result as Result
+import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.UnisonFile as UF
 import UnliftIO
 import Witherable (forMaybe)
@@ -32,8 +33,8 @@ analyseFile doc = runMaybeT $ do
   let lexedSource = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   cb <- asks codebase
-  drg <- liftIO Random.getSystemDRG
-  r <- (liftIO $ typecheckCommand cb ambientAbilities parseNames sourceName lexedSource drg)
+  let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
+  r <- (liftIO $ typecheckHelper cb generateUniqueName ambientAbilities parseNames sourceName lexedSource)
   let Result.Result notes mayResult = r
   case mayResult of
     Nothing -> pure $ FileAnalysis {parsedFile = Nothing, typecheckedFile = Nothing, ..}

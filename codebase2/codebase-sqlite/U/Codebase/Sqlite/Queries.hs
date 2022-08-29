@@ -186,6 +186,7 @@ import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
 import Data.Map.NonEmpty (NEMap)
 import qualified Data.Map.NonEmpty as NEMap
+import qualified Data.Maybe as Maybe
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
@@ -1926,7 +1927,9 @@ x2cTType :: (LocalTextId -> Text) -> (LocalDefnId -> Hash) -> S.Term.Type -> C.T
 x2cTType substText substHash = C.Type.rmap (bimap substText substHash)
 
 c2sTerm :: C.Term Symbol -> C.Term.Type Symbol -> Transaction (LocalIds, S.Term.Term, S.Term.Type)
-c2sTerm tm tp = c2xTerm saveText expectObjectIdForPrimaryHash tm (Just tp) <&> \(w, tm, Just tp) -> (w, tm, tp)
+c2sTerm tm tp =
+  c2xTerm saveText expectObjectIdForPrimaryHash tm (Just tp)
+    <&> \(w, tm, mayTp) -> (w, tm, Maybe.fromJust mayTp)
 
 addTypeToIndexForTerm :: S.Referent.Id -> C.Reference -> Transaction ()
 addTypeToIndexForTerm sTermId cTypeRef = do

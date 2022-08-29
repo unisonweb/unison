@@ -19,12 +19,12 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.DataDeclaration.ConstructorId as DD
 import Unison.FileParsers (parseAndSynthesizeFile)
 import qualified Unison.NamesWithHistory as Names
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.Reference as R
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Term as Term
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
@@ -355,7 +355,7 @@ doc2FormatConsoleRef = termNamed "syntax.docFormatConsole"
 
 pattern AnsiColorRef <- ((== ansiColorRef) -> True)
 
-[ ansiColorBlackId,
+( ansiColorBlackId,
   ansiColorRedId,
   ansiColorGreenId,
   ansiColorYellowId,
@@ -371,27 +371,26 @@ pattern AnsiColorRef <- ((== ansiColorRef) -> True)
   ansiColorBrightMagentaId,
   ansiColorBrightCyanId,
   ansiColorBrightWhiteId
-  ] =
-    map
-      ct
-      [ "Black",
-        "Red",
-        "Green",
-        "Yellow",
-        "Blue",
-        "Magenta",
-        "Cyan",
-        "White",
-        "BrightBlack",
-        "BrightRed",
-        "BrightGreen",
-        "BrightYellow",
-        "BrightBlue",
-        "BrightMagenta",
-        "BrightCyan",
-        "BrightWhite"
-      ]
+  ) =
+    ( ct "Black",
+      ct "Red",
+      ct "Green",
+      ct "Yellow",
+      ct "Blue",
+      ct "Magenta",
+      ct "Cyan",
+      ct "White",
+      ct "BrightBlack",
+      ct "BrightRed",
+      ct "BrightGreen",
+      ct "BrightYellow",
+      ct "BrightBlue",
+      ct "BrightMagenta",
+      ct "BrightCyan",
+      ct "BrightWhite"
+    )
     where
+      ct :: Text -> DD.ConstructorId
       ct n = constructorNamed ansiColorRef ("ANSI.Color." <> n)
 
 pattern AnsiColorBlack <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBlackId -> True))

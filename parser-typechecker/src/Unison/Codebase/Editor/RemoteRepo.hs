@@ -1,8 +1,12 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Editor.RemoteRepo where
 
+import Control.Lens (Lens')
+import qualified Control.Lens as Lens
 import qualified Data.Text as Text
 import qualified U.Util.Monoid as Monoid
 import Unison.Codebase.Path (Path)
@@ -129,6 +133,17 @@ data WriteRemotePath
   = WriteRemotePathGit WriteGitRemotePath
   | WriteRemotePathShare WriteShareRemotePath
   deriving stock (Eq, Show)
+
+-- | A lens which focuses the path of a remote path.
+remotePath_ :: Lens' WriteRemotePath Path
+remotePath_ = Lens.lens getter setter
+  where
+    getter = \case
+      WriteRemotePathGit (WriteGitRemotePath _ path) -> path
+      WriteRemotePathShare (WriteShareRemotePath _ _ path) -> path
+    setter remote path = case remote of
+      WriteRemotePathGit (WriteGitRemotePath repo _) -> WriteRemotePathGit $ WriteGitRemotePath repo path
+      WriteRemotePathShare (WriteShareRemotePath server repo _) -> WriteRemotePathShare $ WriteShareRemotePath server repo path
 
 data WriteGitRemotePath = WriteGitRemotePath
   { repo :: WriteGitRepo,

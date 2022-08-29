@@ -7,7 +7,6 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Debug as Debug
 import Unison.LSP.Types
 import qualified Unison.LSP.Types as LSP
-import qualified Unison.Lexer as Lex
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
@@ -17,6 +16,7 @@ import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Lexer as Lex
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
 import qualified Unison.Util.Pretty as Pretty
@@ -84,6 +84,11 @@ noteRanges = \case
       TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
       TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
       TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
+      TypeError.AbilityEqFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
+      TypeError.AbilityEqFailureFromAp {expectedSite, mismatchSite} -> do
+        let locs = [ABT.annotation expectedSite, ABT.annotation mismatchSite]
+        (r, rs) <- withNeighbours (locs >>= aToR)
+        pure (r, ("mismatch",) <$> rs)
       TypeError.UnguardedLetRecCycle {cycleLocs} -> do
         let ranges :: [Range]
             ranges = cycleLocs >>= aToR

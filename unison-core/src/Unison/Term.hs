@@ -469,77 +469,165 @@ generalizeTypeSignatures = go Set.empty
 
 -- nicer pattern syntax
 
+pattern Var' :: v -> ABT.Term f v a
 pattern Var' v <- ABT.Var' v
 
+pattern Cycle' :: [v] -> f (ABT.Term f v a) -> ABT.Term f v a
 pattern Cycle' xs t <- ABT.Cycle' xs t
 
+pattern Abs' ::
+  (Foldable f, Functor f, ABT.Var v) =>
+  ABT.Subst f v a ->
+  ABT.Term f v a
 pattern Abs' subst <- ABT.Abs' subst
 
+pattern Int' :: Int64 -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Int' n <- (ABT.out -> ABT.Tm (Int n))
 
+pattern Nat' :: Word64 -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Nat' n <- (ABT.out -> ABT.Tm (Nat n))
 
+pattern Float' :: Double -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Float' n <- (ABT.out -> ABT.Tm (Float n))
 
+pattern Boolean' :: Bool -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Boolean' b <- (ABT.out -> ABT.Tm (Boolean b))
 
+pattern Text' :: Text -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Text' s <- (ABT.out -> ABT.Tm (Text s))
 
+pattern Char' :: Char -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Char' c <- (ABT.out -> ABT.Tm (Char c))
 
+pattern Blank' :: B.Blank typeAnn -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Blank' b <- (ABT.out -> ABT.Tm (Blank b))
 
+pattern Ref' :: Reference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 
+pattern TermLink' :: Referent -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern TermLink' r <- (ABT.out -> ABT.Tm (TermLink r))
 
+pattern TypeLink' :: Reference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern TypeLink' r <- (ABT.out -> ABT.Tm (TypeLink r))
 
+pattern Builtin' :: Text -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
 
+pattern App' ::
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 
+pattern Match' ::
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  [ MatchCase
+      patternAnn
+      (ABT.Term (F typeVar typeAnn patternAnn) v a)
+  ] ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branches))
 
+pattern Constructor' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Constructor' ref <- (ABT.out -> ABT.Tm (Constructor ref))
 
+pattern Request' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Request' ref <- (ABT.out -> ABT.Tm (Request ref))
 
+pattern RequestOrCtor' :: ConstructorReference -> Term2 vt at ap v a
 pattern RequestOrCtor' ref <- (unReqOrCtor -> Just ref)
 
+pattern If' ::
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern If' cond t f <- (ABT.out -> ABT.Tm (If cond t f))
 
+pattern And' ::
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
 
+pattern Or' ::
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
 
+pattern Handle' ::
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 
+pattern Apps' :: Term2 vt at ap v a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
 pattern Apps' f args <- (unApps -> Just (f, args))
 
 -- begin pretty-printer helper patterns
+pattern Ands' :: [Term2 vt at ap v a] -> Term2 vt at ap v a -> Term2 vt at ap v a
 pattern Ands' ands lastArg <- (unAnds -> Just (ands, lastArg))
 
+pattern Ors' :: [Term2 vt at ap v a] -> Term2 vt at ap v a -> Term2 vt at ap v a
 pattern Ors' ors lastArg <- (unOrs -> Just (ors, lastArg))
 
+pattern AppsPred' ::
+  Term2 vt at ap v a ->
+  [Term2 vt at ap v a] ->
+  (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
 pattern AppsPred' f args <- (unAppsPred -> Just (f, args))
+
+pattern BinaryApp' ::
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
+
+pattern BinaryApps' ::
+  [(Term2 vt at ap v a, Term2 vt at ap v a)] ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
 
 pattern BinaryApp' f arg1 arg2 <- (unBinaryApp -> Just (f, arg1, arg2))
 
 pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
 
+pattern BinaryAppsPred' ::
+  [(Term2 vt at ap v a, Term2 vt at ap v a)] ->
+  Term2 vt at ap v a ->
+  (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
 
+pattern OverappliedBinaryAppPred' ::
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a ->
+  [Term2 vt at ap v a] ->
+  (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
 pattern OverappliedBinaryAppPred' f arg1 arg2 rest <-
   (unOverappliedBinaryAppPred -> Just (f, arg1, arg2, rest))
 
 -- end pretty-printer helper patterns
+pattern Ann' ::
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  Type typeVar typeAnn ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 
+pattern List' ::
+  Seq (ABT.Term (F typeVar typeAnn patternAnn) v a) ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern List' xs <- (ABT.out -> ABT.Tm (List xs))
 
+pattern Lam' ::
+  ABT.Var v =>
+  ABT.Subst (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 
+pattern Delay' :: Ord v => Term2 vt at ap v a -> Term2 vt at ap v a
 pattern Delay' body <- (unDelay -> Just body)
 
 unDelay :: Ord v => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
@@ -549,36 +637,101 @@ unDelay tm = case ABT.out tm of
         Just body
   _ -> Nothing
 
+pattern LamNamed' ::
+  v ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 
+pattern LamsNamed' :: [v] -> Term2 vt at ap v a -> Term2 vt at ap v a
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 
+pattern LamsNamedOpt' :: [v] -> Term2 vt at ap v a -> Term2 vt at ap v a
 pattern LamsNamedOpt' vs body <- (unLamsOpt' -> Just (vs, body))
 
+pattern LamsNamedPred' :: [v] -> Term2 vt at ap v a -> (Term2 vt at ap v a, v -> Bool)
 pattern LamsNamedPred' vs body <- (unLamsPred' -> Just (vs, body))
 
+pattern LamsNamedOrDelay' ::
+  Var v =>
+  [v] ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
 pattern LamsNamedOrDelay' vs body <- (unLamsUntilDelay' -> Just (vs, body))
 
+pattern Let1' ::
+  Var v =>
+  Term' vt v a ->
+  ABT.Subst (F vt a a) v a ->
+  Term' vt v a
 pattern Let1' b subst <- (unLet1 -> Just (_, b, subst))
 
+pattern Let1Top' ::
+  Var v =>
+  IsTop ->
+  Term' vt v a ->
+  ABT.Subst (F vt a a) v a ->
+  Term' vt v a
 pattern Let1Top' top b subst <- (unLet1 -> Just (top, b, subst))
 
+pattern Let1Named' ::
+  v ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Let1Named' v b e <- (ABT.Tm' (Let _ b (ABT.out -> ABT.Abs v e)))
 
+pattern Let1NamedTop' ::
+  IsTop ->
+  v ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Let1NamedTop' top v b e <- (ABT.Tm' (Let top b (ABT.out -> ABT.Abs v e)))
 
+pattern Lets' ::
+  [(IsTop, v, Term2 vt at ap v a)] ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
 pattern Lets' bs e <- (unLet -> Just (bs, e))
 
+pattern LetRecNamed' ::
+  [(v, Term2 vt at ap v a)] ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
 pattern LetRecNamed' bs e <- (unLetRecNamed -> Just (_, bs, e))
 
+pattern LetRecNamedTop' ::
+  IsTop ->
+  [(v, Term2 vt at ap v a)] ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
 pattern LetRecNamedTop' top bs e <- (unLetRecNamed -> Just (top, bs, e))
 
+pattern LetRec' ::
+  (Monad m, Var v) =>
+  ((v -> m v) -> m ([(v, Term2 vt at ap v a)], Term2 vt at ap v a)) ->
+  Term2 vt at ap v a
 pattern LetRec' subst <- (unLetRec -> Just (_, subst))
 
+pattern LetRecTop' ::
+  (Monad m, Var v) =>
+  IsTop ->
+  ( (v -> m v) ->
+    m ([(v, Term2 vt at ap v a)], Term2 vt at ap v a)
+  ) ->
+  Term2 vt at ap v a
 pattern LetRecTop' top subst <- (unLetRec -> Just (top, subst))
 
+pattern LetRecNamedAnnotated' :: a -> [((a, v), Term' vt v a)] -> Term' vt v a -> Term' vt v a
 pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (_, ann, bs, e))
 
+pattern LetRecNamedAnnotatedTop' ::
+  IsTop ->
+  a ->
+  [((a, v), Term' vt v a)] ->
+  Term' vt v a ->
+  Term' vt v a
 pattern LetRecNamedAnnotatedTop' top ann bs e <-
   (unLetRecNamedAnnotated -> Just (top, ann, bs, e))
 
@@ -596,6 +749,7 @@ var' = var () . Var.named
 ref :: Ord v => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
+pattern Referent' :: Referent -> Term2 vt at ap v a
 pattern Referent' r <- (unReferent -> Just r)
 
 unReferent :: Term2 vt at ap v a -> Maybe Referent

@@ -3,8 +3,10 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
+-- pTrace
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
-module Unison.Parser where
+module Unison.Syntax.Parser where
 
 import Control.Monad.Reader.Class (asks)
 import qualified Crypto.Random as Random
@@ -25,7 +27,6 @@ import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashable as Hashable
-import qualified Unison.Lexer as L
 import Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.NamesWithHistory (NamesWithHistory)
@@ -47,6 +48,7 @@ import Unison.Prelude
   )
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
+import qualified Unison.Syntax.Lexer as L
 import Unison.Term (MatchCase (..))
 import qualified Unison.UnisonFile.Error as UF
 import Unison.Util.Bytes (Bytes)
@@ -69,12 +71,12 @@ data ParsingEnv = ParsingEnv
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)
 
-instance Semigroup UniqueName where (<>) = mappend
+instance Semigroup UniqueName where
+  UniqueName f <> UniqueName g =
+    UniqueName $ \pos len -> f pos len <|> g pos len
 
 instance Monoid UniqueName where
   mempty = UniqueName (\_ _ -> Nothing)
-  mappend (UniqueName f) (UniqueName g) =
-    UniqueName $ \pos len -> f pos len <|> g pos len
 
 uniqueBase32Namegen :: forall gen. Random.DRG gen => gen -> UniqueName
 uniqueBase32Namegen rng =

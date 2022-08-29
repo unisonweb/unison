@@ -169,6 +169,8 @@ default-extensions:
   - PatternSynonyms
   - RankNTypes
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
+  - TypeFamilies
   - ViewPatterns

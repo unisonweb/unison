@@ -28,15 +28,14 @@ library
       Unison.Auth.CredentialManager
       Unison.Auth.Discovery
       Unison.Auth.HTTPClient
-      Unison.Auth.OAuth
       Unison.Auth.Tokens
       Unison.Auth.Types
+      Unison.Cli.Monad
+      Unison.Cli.MonadUtils
       Unison.Codebase.Editor.AuthorInfo
-      Unison.Codebase.Editor.Command
-      Unison.Codebase.Editor.HandleCommand
       Unison.Codebase.Editor.HandleInput
       Unison.Codebase.Editor.HandleInput.AuthLogin
-      Unison.Codebase.Editor.HandleInput.LoopState
+      Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
@@ -53,6 +52,7 @@ library
       Unison.Codebase.Editor.VersionParser
       Unison.Codebase.TranscriptParser
       Unison.CommandLine
+      Unison.CommandLine.Completion
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect
       Unison.CommandLine.Globbing
@@ -82,19 +82,24 @@ library
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -191,19 +196,24 @@ executable cli-integration-tests
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -301,19 +311,24 @@ executable transcripts
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -414,19 +429,24 @@ executable unison
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
@@ -521,7 +541,6 @@ test-suite cli-tests
   main-is: Main.hs
   other-modules:
       Unison.Test.ClearCache
-      Unison.Test.CommandLine
       Unison.Test.GitSync
       Unison.Test.Ucm
       Unison.Test.UriParser
@@ -532,19 +551,24 @@ test-suite cli-tests
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
       DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms

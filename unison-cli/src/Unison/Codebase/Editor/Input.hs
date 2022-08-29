@@ -14,6 +14,7 @@ module Unison.Codebase.Editor.Input
     PullMode (..),
     OptionalPatch (..),
     FindScope (..),
+    ShowDefinitionScope (..),
     IsGlobal,
   )
 where
@@ -108,7 +109,7 @@ data Input
   | -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     MoveTermI Path.HQSplit' Path.Split'
   | MoveTypeI Path.HQSplit' Path.Split'
-  | MoveBranchI (Maybe Path.Split') Path.Split'
+  | MoveBranchI Path.Path' Path.Path'
   | MovePatchI Path.Split' Path.Split'
   | CopyPatchI Path.Split' Path.Split'
   | -- delete = unname
@@ -143,6 +144,8 @@ data Input
     HistoryI (Maybe Int) (Maybe Int) BranchId
   | -- execute an IO thunk with args
     ExecuteI String [String]
+  | -- save the result of a previous Execute
+    SaveExecuteResultI Name
   | -- execute an IO [Result]
     IOTestI (HQ.HashQualified Name)
   | -- make a standalone binary file
@@ -165,7 +168,7 @@ data Input
   | FindShallowI Path'
   | FindPatchI
   | -- Show provided definitions. If list is empty, prompt a fuzzy search.
-    ShowDefinitionI OutputLocation [HQ.HashQualified Name]
+    ShowDefinitionI OutputLocation ShowDefinitionScope [HQ.HashQualified Name]
   | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
   | ShowReflogI
   | UpdateBuiltinsI
@@ -176,6 +179,7 @@ data Input
   | -- | List all external dependencies of a given namespace, or the current namespace if
     -- no path is provided.
     NamespaceDependenciesI (Maybe Path')
+  | DebugTabCompletionI [String] -- The raw arguments provided
   | DebugNumberedArgsI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI
@@ -225,7 +229,12 @@ data OutputLocation
   deriving (Eq, Show)
 
 data FindScope
-  = Local
-  | LocalAndDeps
-  | Global
+  = FindLocal
+  | FindLocalAndDeps
+  | FindGlobal
+  deriving stock (Eq, Show)
+
+data ShowDefinitionScope
+  = ShowDefinitionLocal
+  | ShowDefinitionGlobal
   deriving stock (Eq, Show)
