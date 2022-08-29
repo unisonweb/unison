@@ -20,11 +20,11 @@ somewhere.y = 2
   
     ⍟ These new definitions are ok to `add`:
     
-      some.otherplace.x : Nat
-      some.otherplace.y : Nat
-      some.place.x      : Nat
-      somewhere.y       : Nat
-      somewhere.z       : Nat
+      some.otherplace.x : ##Nat
+      some.otherplace.y : ##Nat
+      some.place.x      : ##Nat
+      somewhere.y       : ##Nat
+      somewhere.z       : ##Nat
 
 ```
 ```ucm
@@ -32,11 +32,11 @@ somewhere.y = 2
 
   ⍟ I've added these definitions:
   
-    some.otherplace.x : Nat
-    some.otherplace.y : Nat
-    some.place.x      : Nat
-    somewhere.y       : Nat
-    somewhere.z       : Nat
+    some.otherplace.x : ##Nat
+    some.otherplace.y : ##Nat
+    some.place.x      : ##Nat
+    somewhere.y       : ##Nat
+    somewhere.z       : ##Nat
 
 ```
 `names` searches relative to the current path.
