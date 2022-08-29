@@ -391,7 +391,7 @@ loop e = do
               sbhLength <- liftIO (Codebase.branchHashLength codebase)
               let numEntriesToShow = 500
               entries <- liftIO (Codebase.getReflog codebase numEntriesToShow) <&> fmap (first $ SBH.fromHash sbhLength)
-              let numberedEntries = entries <&> \entry -> "#" <> SBH.toString (Reflog.rootCausalHash entry)
+              let numberedEntries = entries <&> \entry -> "#" <> SBH.toString (Reflog.toRootCausalHash entry)
               #numberedArgs .= numberedEntries
               Cli.respond $ ShowReflog entries
             ResetRootI src0 ->

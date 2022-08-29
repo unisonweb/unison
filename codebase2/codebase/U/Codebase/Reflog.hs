@@ -9,7 +9,8 @@ import Data.Time (UTCTime)
 
 data Entry causal text = Entry
   { time :: UTCTime,
-    rootCausalHash :: causal,
+    fromRootCausalHash :: causal,
+    toRootCausalHash :: causal,
     reason :: text
   }
 
@@ -20,5 +21,5 @@ instance Bifoldable Entry where
   bifoldMap = bifoldMapDefault
 
 instance Bitraversable Entry where
-  bitraverse f g (Entry time rch reason) =
-    Entry time <$> f rch <*> g reason
+  bitraverse f g (Entry time fch tch reason) =
+    Entry time <$> f fch <*> f tch <*> g reason

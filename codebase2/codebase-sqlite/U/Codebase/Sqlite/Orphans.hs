@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module U.Codebase.Sqlite.Orphans where
@@ -67,8 +68,13 @@ instance FromField WatchKind where
       tag -> error $ "Unknown WatchKind id " ++ show tag
 
 instance ToRow (Reflog.Entry CausalHashId Text) where
-  toRow (Reflog.Entry time rootCausalHash reason) =
-    toRow (time, rootCausalHash, reason)
+  toRow (Reflog.Entry time fromRootCausalHash toRootCausalHash reason) =
+    toRow (time, fromRootCausalHash, toRootCausalHash, reason)
 
 instance FromRow (Reflog.Entry CausalHashId Text) where
-  fromRow = liftA3 Reflog.Entry field field field
+  fromRow = do
+    time <- field
+    fromRootCausalHash <- field
+    toRootCausalHash <- field
+    reason <- field
+    pure $ Reflog.Entry {..}

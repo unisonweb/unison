@@ -21,6 +21,7 @@ import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Time (getCurrentTime)
 import qualified System.Console.ANSI as ANSI
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
@@ -280,12 +281,17 @@ sqliteCodebase debugName root localOrRemote action = do
             getRootBranchExists =
               runTransaction CodebaseOps.getRootBranchExists
 
-            putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> Branch m -> m ()
-            putRootBranch rootBranchCache branch1 = do
+            putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> Text -> Branch m -> m ()
+            putRootBranch rootBranchCache reason branch1 = do
+              now <- liftIO getCurrentTime
               withRunInIO \runInIO -> do
                 runInIO do
                   runTransaction do
+                    let emptyCausalHash = Cv.causalHash1to2 $ Branch.headHash Branch.empty
+                    fromRootCausalHash <- fromMaybe emptyCausalHash <$> Ops.loadRootCausalHash
+                    let toRootCausalHash = Cv.causalHash1to2 $ Branch.headHash branch1
                     CodebaseOps.putRootBranch rootBranchCache (Branch.transform (Sqlite.unsafeIO . runInIO) branch1)
+                    Ops.appendReflog (Reflog.Entry {time = now, fromRootCausalHash, toRootCausalHash, reason})
 
             -- if this blows up on cromulent hashes, then switch from `hashToHashId`
             -- to one that returns Maybe.
@@ -359,10 +365,6 @@ sqliteCodebase debugName root localOrRemote action = do
 
             getReflog :: Int -> m [Reflog.Entry CausalHash Text]
             getReflog numEntries = runTransaction $ Ops.getReflog numEntries
-
-            appendReflog :: Reflog.Entry CausalHash Text -> m ()
-            appendReflog entry =
-              runTransaction $ Ops.appendReflog entry
 
             termsOfTypeImpl :: Reference -> m (Set Referent.Id)
             termsOfTypeImpl r =
@@ -449,7 +451,6 @@ sqliteCodebase debugName root localOrRemote action = do
                   putWatch,
                   clearWatches,
                   getReflog,
-                  appendReflog,
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
                   hashLength,

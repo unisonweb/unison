@@ -85,7 +85,10 @@ data Codebase m v a = Codebase
     -- | Get whether the root branch exists.
     getRootBranchExists :: m Bool,
     -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
-    putRootBranch :: Branch m -> m (),
+    putRootBranch ::
+      Text -> -- Reason for the change, will be recorded in the reflog
+      Branch m ->
+      m (),
     getShallowBranchForHash :: V2.CausalHash -> m (V2.CausalBranch m),
     getBranchForHashImpl :: Branch.CausalHash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
@@ -134,8 +137,6 @@ data Codebase m v a = Codebase
     clearWatches :: m (),
     -- | Gets the specified number of reflog entries in chronological order, most recent first.
     getReflog :: Int -> m [Reflog.Entry V2.CausalHash Text],
-    -- | Appends a reflog entry.
-    appendReflog :: Reflog.Entry V2.CausalHash Text -> m (),
     -- | Get the set of user-defined terms-or-constructors that have the given type.
     termsOfTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.

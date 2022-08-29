@@ -1423,11 +1423,11 @@ notifyUser dir o = case o of
                     [ ( IP.makeExample IP.forkLocal ["2", ".old"],
                         ""
                       ),
-                      ( IP.makeExample IP.forkLocal [prettySBH . Reflog.rootCausalHash $ prevHead, ".old"],
+                      ( IP.makeExample IP.forkLocal [prettySBH . Reflog.toRootCausalHash $ prevHead, ".old"],
                         "to make an old namespace accessible again,"
                       ),
                       (mempty, mempty),
-                      ( IP.makeExample IP.resetRoot [prettySBH . Reflog.rootCausalHash $ prevHead],
+                      ( IP.makeExample IP.resetRoot [prettySBH . Reflog.toRootCausalHash $ prevHead],
                         "to reset the root namespace and its history to that of the specified"
                           <> "namespace."
                       )
@@ -1437,8 +1437,8 @@ notifyUser dir o = case o of
               ]
           _ -> mempty
       renderEntry3Column :: UTCTime -> Reflog.Entry ShortBranchHash Text -> [Pretty]
-      renderEntry3Column now (Reflog.Entry {time, rootCausalHash, reason}) =
-        [prettyHumanReadableTime now time, P.text reason, P.blue (prettySBH rootCausalHash)]
+      renderEntry3Column now (Reflog.Entry {time, toRootCausalHash, reason}) =
+        [prettyHumanReadableTime now time, P.text reason, P.blue (prettySBH toRootCausalHash)]
   StartOfCurrentPathHistory ->
     pure $
       P.wrap "You're already at the very beginning! 🙂"

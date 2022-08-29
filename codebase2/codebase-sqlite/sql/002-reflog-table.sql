@@ -3,7 +3,8 @@ CREATE TABLE reflog (
     -- This column contains TEXT values formatted as ISO8601 strings
     -- ("YYYY-MM-DD HH:MM:SS.SSS")
     time TEXT NOT NULL,
-    root_causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
+    from_root_causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
+    to_root_causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
     reason TEXT NOT NULL
 );
 

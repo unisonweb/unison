@@ -28,9 +28,9 @@ migrateCurrentReflog codebasePath = do
   for_ oldEntries \oldEntry -> do
     -- There's no guarantee these causals actually exist in the DB,
     -- so we check first to avoid triggering a bad foreign key constraint.
-    Q.loadCausalByCausalHash (Reflog.rootCausalHash oldEntry) >>= \case
-      Nothing -> pure ()
-      Just _ -> Ops.appendReflog oldEntry
+    haveFrom <- isJust <$> Q.loadCausalByCausalHash (Reflog.fromRootCausalHash oldEntry)
+    haveTo <- isJust <$> Q.loadCausalByCausalHash (Reflog.toRootCausalHash oldEntry)
+    when (haveFrom && haveTo) $ Ops.appendReflog oldEntry
 
 oldReflogEntries :: CodebasePath -> UTCTime -> IO [Reflog.Entry CausalHash Text]
 oldReflogEntries codebasePath now =
@@ -52,6 +52,12 @@ oldReflogEntries codebasePath now =
       -- least puts them in the correct order chronologically.
       let offsetTime = addUTCTime (fromInteger @NominalDiffTime n) now
        in case Text.words txt of
-            _oldRoot : (Hash.fromBase32Hex -> Just new) : (Text.unwords -> reason) ->
-              Just $ Reflog.Entry offsetTime (CausalHash new) reason
+            (Hash.fromBase32Hex -> Just old) : (Hash.fromBase32Hex -> Just new) : (Text.unwords -> reason) ->
+              Just $
+                Reflog.Entry
+                  { time = offsetTime,
+                    fromRootCausalHash = CausalHash old,
+                    toRootCausalHash = CausalHash new,
+                    reason
+                  }
             _ -> Nothing
