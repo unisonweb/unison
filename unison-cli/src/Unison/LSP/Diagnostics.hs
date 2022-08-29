@@ -2,10 +2,10 @@ module Unison.LSP.Diagnostics where
 
 import Language.LSP.Types
 import Unison.LSP.Types
-import qualified Unison.Lexer as Lex
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
+import qualified Unison.Syntax.Lexer as Lex
 import qualified Unison.Util.Range as Range
 
 annToRange :: Ann -> Maybe Range

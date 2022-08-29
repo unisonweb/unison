@@ -196,3 +196,91 @@ unique[bb] type bar = Foo | Bar
   This patch is empty.
 
 ```
+we get an error when attempting to delete something that is neither a type nor a term
+```ucm
+.> view.patch
+
+  This patch is empty.
+
+.> delete.type-replacement not-here
+
+  ⚠️
+  
+  The following names were not found in the codebase. Check your spelling.
+    not-here
+
+.> view.patch
+
+  This patch is empty.
+
+```
+When attempting to delete a type/term that doesn't exist, but a term/type exists
+with that name, alert the user.
+```unison
+baz = 0
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      baz : ##Nat
+
+```
+```ucm
+.> add baz
+
+  ⍟ I've added these definitions:
+  
+    baz : ##Nat
+
+.> delete.type-replacement baz
+
+  ⚠️
+  
+  I was expecting the following names to be types, though I found terms instead.
+    .baz
+
+.> view.patch
+
+  This patch is empty.
+
+```
+```unison
+unique type qux = Qux
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type qux
+
+```
+```ucm
+.> add qux
+
+  ⍟ I've added these definitions:
+  
+    unique type qux
+
+.> delete.term-replacement qux
+
+  ⚠️
+  
+  I was expecting the following names to be terms, though I found types instead.
+    .qux
+
+.> view.patch
+
+  This patch is empty.
+
+```

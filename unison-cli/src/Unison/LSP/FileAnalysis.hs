@@ -22,7 +22,7 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Editor.HandleCommand (typecheckCommand)
+import Unison.Codebase.Editor.HandleInput (typecheckHelper)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
@@ -36,7 +36,6 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import qualified Unison.LSP.Types as LSP
 import qualified Unison.LSP.VFS as VFS
-import qualified Unison.Lexer as L
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
@@ -49,7 +48,9 @@ import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.TypePrinter as TypePrinter
+import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Parser as Parser
+import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
 import qualified Unison.UnisonFile as UF
@@ -70,8 +71,8 @@ checkFile doc = runMaybeT $ do
   let lexedSource@(srcText, _) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   cb <- asks codebase
-  drg <- liftIO Random.getSystemDRG
-  r <- (liftIO $ typecheckCommand cb ambientAbilities parseNames sourceName lexedSource drg)
+  let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
+  r <- (liftIO $ typecheckHelper cb generateUniqueName ambientAbilities parseNames sourceName lexedSource)
   let Result.Result notes mayResult = r
   let (parsedFile, typecheckedFile) = case mayResult of
         Nothing -> (Nothing, Nothing)
@@ -130,6 +131,11 @@ analyseNotes fileUri ppe src notes = do
             TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
             TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
             TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
+            TypeError.AbilityEqFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
+            TypeError.AbilityEqFailureFromAp {expectedSite, mismatchSite} -> do
+              let locs = [ABT.annotation expectedSite, ABT.annotation mismatchSite]
+              (r, rs) <- withNeighbours (locs >>= aToR)
+              pure (r, ("mismatch",) <$> rs)
             TypeError.UnguardedLetRecCycle {cycleLocs} -> do
               let ranges :: [Range]
                   ranges = cycleLocs >>= aToR
@@ -277,5 +283,5 @@ ppeForFile fileUri = do
       hl <- asks codebase >>= liftIO . Codebase.hashLength
       let fileNames = UF.typecheckedToNames tf
       let filePPE = PPE.fromSuffixNames hl (NamesWithHistory.fromCurrentNames fileNames)
-      pure (filePPE <> ppe)
+      pure (filePPE `PPE.addFallback` ppe)
     _ -> pure ppe

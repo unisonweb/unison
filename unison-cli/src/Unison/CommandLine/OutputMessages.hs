@@ -28,6 +28,7 @@ import qualified Network.HTTP.Types as Http
 import Network.URI (URI)
 import qualified Network.URI.Encode as URI
 import qualified Servant.Client as Servant
+import qualified System.Console.Haskeline.Completion as Completion
 import System.Directory
   ( canonicalizePath,
     doesFileExist,
@@ -86,26 +87,12 @@ import Unison.CommandLine.InputPatterns (makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NamePrinter
-  ( prettyHashQualified,
-    prettyHashQualified',
-    prettyLabeledDependency,
-    prettyName,
-    prettyNamedReference,
-    prettyNamedReferent,
-    prettyReference,
-    prettyReferent,
-    prettyShortHash,
-    styleHashQualified,
-    styleHashQualified',
-  )
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Names (Names (..))
@@ -115,7 +102,7 @@ import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPED
 import Unison.PrettyTerminal
   ( clearCurrentLine,
     putPretty',
@@ -139,11 +126,25 @@ import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Sync.Types as Share
+import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import Unison.Syntax.NamePrinter
+  ( prettyHashQualified,
+    prettyHashQualified',
+    prettyLabeledDependency,
+    prettyName,
+    prettyNamedReference,
+    prettyNamedReferent,
+    prettyReference,
+    prettyReferent,
+    prettyShortHash,
+    styleHashQualified,
+    styleHashQualified',
+  )
+import qualified Unison.Syntax.TermPrinter as TermPrinter
+import qualified Unison.Syntax.TypePrinter as TypePrinter
 import Unison.Term (Term)
 import qualified Unison.Term as Term
-import qualified Unison.TermPrinter as TermPrinter
 import Unison.Type (Type)
-import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.List as List
 import Unison.Util.Monoid (intercalateMap)
@@ -165,7 +166,7 @@ shortenDirectory dir = do
 renderFileName :: FilePath -> IO Pretty
 renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 
-notifyNumbered :: Var v => NumberedOutput v -> (Pretty, NumberedArgs)
+notifyNumbered :: NumberedOutput -> (Pretty, NumberedArgs)
 notifyNumbered o = case o of
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
     showDiffNamespace ShowNumbers ppe oldPrefix newPrefix diffOutput
@@ -423,12 +424,14 @@ notifyNumbered o = case o of
   ListEdits patch ppe -> showListEdits patch ppe
   where
     absPathToBranchId = Right
-    undoTip =
-      tip $
-        "You can use" <> IP.makeExample' IP.undo
-          <> "or"
-          <> IP.makeExample' IP.viewReflog
-          <> "to undo this change."
+
+undoTip :: P.Pretty P.ColorText
+undoTip =
+  tip $
+    "You can use" <> IP.makeExample' IP.undo
+      <> "or"
+      <> IP.makeExample' IP.viewReflog
+      <> "to undo this change."
 
 showListEdits :: Patch -> PPE.PrettyPrintEnv -> (P.Pretty P.ColorText, NumberedArgs)
 showListEdits patch ppe =
@@ -534,8 +537,23 @@ prettyWriteRemotePath :: WriteRemotePath -> Pretty
 prettyWriteRemotePath =
   P.group . P.blue . P.text . RemoteRepo.printWriteRemotePath
 
-notifyUser :: forall v. Var v => FilePath -> Output v -> IO Pretty
+notifyUser :: FilePath -> Output -> IO Pretty
 notifyUser dir o = case o of
+  SaveTermNameConflict name ->
+    pure
+      . P.warnCallout
+      . P.wrap
+      $ "Cannot save the last run result into" <> P.backticked (P.string (Name.toString name))
+        <> "because that name conflicts with a name in the scratch file."
+  NoLastRunResult ->
+    pure
+      . P.warnCallout
+      . P.wrap
+      $ "There is no previous evaluation to save."
+        <> "Use"
+        <> P.backticked "run"
+        <> "to evaluate something before attempting"
+        <> "to save it."
   Success -> pure $ P.bold "Done."
   PrintMessage pretty -> do
     pure pretty
@@ -646,8 +664,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -656,6 +674,7 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
+
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -726,6 +745,25 @@ notifyUser dir o = case o of
       P.warnCallout "The following names were not found in the codebase. Check your spelling."
         <> P.newline
         <> (P.syntaxToColor $ P.indent "  " (P.lines (prettyHashQualified <$> hqs)))
+  SearchTermsNotFoundDetailed wasTerm hqMisses otherHits ->
+    pure (missMsg <> hitMsg)
+    where
+      typeOrTermMsg =
+        if wasTerm
+          then "I was expecting the following names to be terms, though I found types instead."
+          else "I was expecting the following names to be types, though I found terms instead."
+      missMsg = case null hqMisses of
+        True -> mempty
+        False ->
+          P.warnCallout "The following names were not found in the codebase. Check your spelling."
+            <> P.newline
+            <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> hqMisses)))
+      hitMsg = case null otherHits of
+        True -> mempty
+        False ->
+          P.warnCallout typeOrTermMsg
+            <> P.newline
+            <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> otherHits)))
   PatchNotFound _ ->
     pure . P.warnCallout $ "I don't know about that patch."
   NameNotFound _ ->
@@ -768,7 +806,7 @@ notifyUser dir o = case o of
           "",
           P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
           "",
-          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string "run") <> "it it needs to have the type:",
+          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string "run") <> "it needs be a subtype of:",
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
@@ -846,8 +884,19 @@ notifyUser dir o = case o of
   --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
   --   <> P.newline
   --   <> P.wrap "Please repeat the same command to confirm the deletion."
-  ListOfDefinitions ppe detailed results ->
-    listOfDefinitions ppe detailed results
+  MoveRootBranchConfirmation ->
+    pure . P.warnCallout . P.lines $
+      [ "Moves which affect the root branch cannot be undone, are you sure?",
+        "Re-run the same command to proceed."
+      ]
+  MovedOverExistingBranch dest' ->
+    pure . P.warnCallout . P.lines $
+      [ P.wrap $ "A branch existed at the destination:" <> prettyPath' dest' <> "so I over-wrote it.",
+        "",
+        undoTip
+      ]
+  ListOfDefinitions fscope ppe detailed results ->
+    listOfDefinitions fscope ppe detailed results
   ListOfLinks ppe results ->
     listOfLinks ppe [(name, tm) | (name, _ref, tm) <- results]
   ListNames global len types terms ->
@@ -899,12 +948,12 @@ notifyUser dir o = case o of
         then P.lit "nothing to show"
         else numberedEntries entries
     where
-      numberedEntries :: [ShallowListEntry v a] -> Pretty
+      numberedEntries :: Var v => [ShallowListEntry v a] -> Pretty
       numberedEntries entries =
         (P.column3 . fmap f) ([(1 :: Integer) ..] `zip` fmap formatEntry entries)
         where
           f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
-      formatEntry :: ShallowListEntry v a -> (Pretty, Pretty)
+      formatEntry :: Var v => ShallowListEntry v a -> (Pretty, Pretty)
       formatEntry = \case
         ShallowTermEntry (TermEntry _r hq ot _) ->
           ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq,
@@ -932,6 +981,7 @@ notifyUser dir o = case o of
     let isPast = case input of
           Input.AddI {} -> True
           Input.UpdateI {} -> True
+          Input.SaveExecuteResultI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s
   FindNoLocalMatches ->
@@ -991,6 +1041,7 @@ notifyUser dir o = case o of
               if null bindings
                 then prettyWatches
                 else prettyBindings <> "\n" <> prettyWatches
+  RunResult ppe term -> pure (TermPrinter.pretty ppe term)
   DisplayConflicts termNamespace typeNamespace ->
     pure $
       P.sepNonEmpty
@@ -1316,7 +1367,7 @@ notifyUser dir o = case o of
       ]
     where
       name :: Name
-      name = Path.toName' (HQ'.toName (Path.unsplitHQ' p))
+      name = Path.unsafeToName' (HQ'.toName (Path.unsplitHQ' p))
       qualifyTerm :: Referent -> Pretty
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
       qualifyType :: Reference -> Pretty
@@ -1390,7 +1441,9 @@ notifyUser dir o = case o of
                   )
                 ],
           "",
-          P.numberedList . fmap renderEntry $ entries
+          P.numberedList . fmap renderEntry $ entries,
+          "",
+          tip $ "Use " <> IP.makeExample IP.diffNamespace ["1", "7"] <> " to compare namespaces between two points in history."
         ]
     where
       renderEntry :: Output.ReflogEntry -> Pretty
@@ -1726,6 +1779,16 @@ notifyUser dir o = case o of
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
+  DisplayDebugCompletions completions ->
+    pure $
+      P.column2
+        ( completions <&> \comp ->
+            let isCompleteTxt =
+                  if Completion.isFinished comp
+                    then "*"
+                    else ""
+             in (isCompleteTxt, P.string (Completion.replacement comp))
+        )
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =
@@ -1848,14 +1911,14 @@ formatMissingStuff terms types =
 displayDefinitions' ::
   Var v =>
   Ord a1 =>
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
   Pretty
 displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
     ppeBody r = PPE.declarationPPE ppe0 r
-    ppeDecl = PPE.unsuffixifiedPPE ppe0
+    ppeDecl = PPED.unsuffixifiedPPE ppe0
     prettyTerms =
       map go . Map.toList
       -- sort by name
@@ -1917,7 +1980,7 @@ displayDefinitions ::
   Var v =>
   Ord a1 =>
   Maybe FilePath ->
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
   IO Pretty
@@ -1960,8 +2023,8 @@ displayDefinitions outputLoc ppe types terms =
     code =
       P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
       where
-        ppeBody r = PPE.declarationPPE ppe r
-        ppeDecl = PPE.unsuffixifiedPPE ppe
+        ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE ppe r
+        ppeDecl = PPED.unsuffixifiedPPE ppe
         prettyTerms =
           map go . Map.toList $
             -- sort by name
@@ -1975,13 +2038,13 @@ displayDefinitions outputLoc ppe types terms =
             BuiltinObject typ ->
               P.hang
                 ("builtin " <> prettyHashQualified n <> " :")
-                (TypePrinter.prettySyntax (ppeBody r) typ)
-            UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
+                (TypePrinter.prettySyntax (ppeBody n r) typ)
+            UserObject tm -> TermPrinter.prettyBinding (ppeBody n r) n tm
         go2 ((n, r), dt) =
           case dt of
             MissingObject r -> missing n r
             BuiltinObject _ -> builtin n
-            UserObject decl -> DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe r) r n decl
+            UserObject decl -> DeclPrinter.prettyDecl (PPED.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPEDecl ppe r) r n decl
         builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
         missing n r =
           P.wrap
@@ -2227,14 +2290,14 @@ runNumbered m =
   let (a, (_, args)) = State.runState m (0, mempty)
    in (a, Foldable.toList args)
 
-todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
+todoOutput :: Var v => PPED.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
 todoOutput ppe todo = runNumbered do
   conflicts <- todoConflicts
   edits <- todoEdits
   pure (conflicts <> edits)
   where
-    ppeu = PPE.unsuffixifiedPPE ppe
-    ppes = PPE.suffixifiedPPE ppe
+    ppeu = PPED.unsuffixifiedPPE ppe
+    ppes = PPED.suffixifiedPPE ppe
     (frontierTerms, frontierTypes) = TO.todoFrontier todo
     (dirtyTerms, dirtyTypes) = TO.todoFrontierDependents todo
     corruptTerms =
@@ -2312,9 +2375,9 @@ todoOutput ppe todo = runNumbered do
     unscore (_score, b, c) = (b, c)
 
 listOfDefinitions ::
-  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
-listOfDefinitions ppe detailed results =
-  pure $ listOfDefinitions' ppe detailed results
+  Var v => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
+listOfDefinitions fscope ppe detailed results =
+  pure $ listOfDefinitions' fscope ppe detailed results
 
 listOfLinks ::
   Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
@@ -2358,7 +2421,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
@@ -2773,28 +2836,34 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
 
     leftNumsWidth = P.Width $ length (show menuSize) + length ("." :: String)
 
-noResults :: Pretty
-noResults =
+noResults :: Input.FindScope -> Pretty
+noResults fscope =
   P.callout "😶" $
-    P.lines
+    P.lines $
       [ P.wrap $
           "No results. Check your spelling, or try using tab completion "
             <> "to supply command arguments.",
-        "",
-        P.wrap $
-          IP.makeExample IP.findGlobal []
-            <> "can be used to search outside the current namespace."
+        ""
       ]
+        ++ case fscope of
+          Input.FindGlobal -> []
+          _ -> [suggestFindGlobal]
+  where
+    suggestFindGlobal =
+      P.wrap $
+        IP.makeExample IP.findGlobal []
+          <> "can be used to search outside the current namespace."
 
 listOfDefinitions' ::
   Var v =>
+  Input.FindScope ->
   PPE.PrettyPrintEnv -> -- for printing types of terms :-\
   E.ListDetailed ->
   [SR'.SearchResult' v a] ->
   Pretty
-listOfDefinitions' ppe detailed results =
+listOfDefinitions' fscope ppe detailed results =
   if null results
-    then noResults
+    then noResults fscope
     else
       P.lines
         . P.nonEmpty
@@ -3036,10 +3105,10 @@ isTestOk tm = case tm of
 -- | Get the list of numbered args corresponding to an endangerment map, which is used by a
 -- few outputs. See 'endangeredDependentsTable'.
 numberedArgsForEndangerments ::
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map LabeledDependency (NESet LabeledDependency) ->
   NumberedArgs
-numberedArgsForEndangerments (PPE.unsuffixifiedPPE -> ppe) m =
+numberedArgsForEndangerments (PPED.unsuffixifiedPPE -> ppe) m =
   m
     & Map.elems
     & concatMap toList
@@ -3047,7 +3116,7 @@ numberedArgsForEndangerments (PPE.unsuffixifiedPPE -> ppe) m =
 
 -- | Format and render all dependents which are endangered by references going extinct.
 endangeredDependentsTable ::
-  PPE.PrettyPrintEnvDecl ->
+  PPED.PrettyPrintEnvDecl ->
   Map LabeledDependency (NESet LabeledDependency) ->
   P.Pretty P.ColorText
 endangeredDependentsTable ppeDecl m =
@@ -3072,8 +3141,8 @@ endangeredDependentsTable ppeDecl m =
               xs
        in numbered
     spacer = ("", "")
-    suffixifiedEnv = (PPE.suffixifiedPPE ppeDecl)
-    fqnEnv = (PPE.unsuffixifiedPPE ppeDecl)
+    suffixifiedEnv = (PPED.suffixifiedPPE ppeDecl)
+    fqnEnv = (PPED.unsuffixifiedPPE ppeDecl)
     prettyLabeled ppe = \case
       LD.TermReferent ref -> prettyTermName ppe ref
       LD.TypeReference ref -> prettyTypeName ppe ref

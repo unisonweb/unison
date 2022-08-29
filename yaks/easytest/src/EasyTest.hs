@@ -421,9 +421,7 @@ instance MonadReader Env Test where
   reader f = Test (Just <$> reader f)
 
 instance Monad Test where
-  return a = Test $ do
-    allow <- asks (null . allow)
-    pure $ if allow then Just a else Nothing
+  return = pure
   Test a >>= f = Test $ do
     a <- a
     case a of
@@ -444,7 +442,9 @@ instance Functor Test where
   fmap = liftM
 
 instance Applicative Test where
-  pure = return
+  pure a = Test $ do
+    allow <- asks (null . allow)
+    pure $ if allow then Just a else Nothing
   (<*>) = ap
 
 instance MonadIO Test where

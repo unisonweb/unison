@@ -36,6 +36,8 @@ module Unison.ABT
     rebuildUp',
     reannotateUp,
     rewriteDown,
+    cata,
+    para,
     transform,
     transformM,
     foreachSubterm,
@@ -98,8 +100,10 @@ import qualified Data.Set as Set
 import U.Core.ABT
   ( ABT (..),
     Term (..),
+    cata,
     foreachSubterm,
     freshInBoth,
+    para,
     rename,
     subst',
     substInheritAnnotation,
@@ -108,8 +112,8 @@ import U.Core.ABT
     transform,
     transformM,
     unabs,
-    visit',
     visit,
+    visit',
     visitPure,
     vmap,
     pattern AbsN',
@@ -210,14 +214,19 @@ extraMap p (Term fvs a sub) = Term fvs a (go p sub)
       Abs v r -> Abs v (extraMap p r)
       Tm x -> Tm (fmap (extraMap p) (p x))
 
+pattern Cycle' :: [v] -> f (Term f v a) -> Term f v a
 pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs (Tm' t)))
 
+pattern Abs'' :: v -> Term f v a -> Term f v a
 pattern Abs'' v body <- Term _ _ (Abs v body)
 
+pattern Abs' :: (Foldable f, Functor f, Var v) => Subst f v a -> Term f v a
 pattern Abs' subst <- (unabs1 -> Just subst)
 
+pattern CycleA' :: a -> [(a, v)] -> Term f v a -> Term f v a
 pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
 
+pattern AbsNA' :: [(a, v)] -> Term f v a -> Term f v a
 pattern AbsNA' avs body <- (unabsA -> (avs, body))
 
 {-# COMPLETE Var', Cycle', Abs'', Tm' #-}

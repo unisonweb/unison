@@ -1,3 +1,6 @@
+-- pTrace
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 module Unison.Sqlite.Connection
   ( -- * Connection management
     Connection (..),
@@ -510,10 +513,14 @@ rowsModified (Connection _ _ conn) =
 
 -- Vacuum
 
--- | @VACUUM@
-vacuum :: Connection -> IO ()
+-- | @VACUUM@, and return whether or not the vacuum succeeded. A vacuum fails if the connection has any open
+-- transactions.
+vacuum :: Connection -> IO Bool
 vacuum conn =
-  execute_ conn "VACUUM"
+  try (execute_ conn "VACUUM") >>= \case
+    Left SqliteBusyException -> pure False
+    Left exception -> throwIO exception
+    Right () -> pure True
 
 -- | @VACUUM INTO@
 vacuumInto :: Connection -> Text -> IO ()

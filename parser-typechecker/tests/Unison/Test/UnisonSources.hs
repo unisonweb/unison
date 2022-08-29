@@ -140,14 +140,14 @@ resultTest rt uf filepath = do
           either report pure
             =<< evaluateWatches
               Builtin.codeLookup
-              mempty
+              PPE.empty
               (const $ pure Nothing)
               rt
               uf
       case term of
         Right tm -> do
           -- compare the the watch expression from the .u with the expr in .ur
-          let [watchResult] = view _5 <$> Map.elems watches
+          let watchResult = head (view _5 <$> Map.elems watches)
               tm' = Term.letRec' False bindings watchResult
           -- note . show $ tm'
           -- note . show $ Term.amap (const ()) tm

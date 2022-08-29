@@ -14,8 +14,8 @@ import Control.Monad.Writer
   )
 import Unison.Name (Name)
 import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.Parser as Parser
 import Unison.Prelude
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import qualified Unison.Typechecker.Context as Context
 
@@ -41,6 +41,7 @@ data CompilerBug v loc
 result :: Result notes a -> Maybe a
 result (Result _ may) = may
 
+pattern Result :: w -> Maybe a -> MaybeT (WriterT w Identity) a
 pattern Result notes may = MaybeT (WriterT (Identity (may, notes)))
 
 {-# COMPLETE Result #-}

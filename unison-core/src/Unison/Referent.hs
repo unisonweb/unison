@@ -87,8 +87,10 @@ ctorTypeText :: CT.ConstructorType -> Text
 ctorTypeText CT.Effect = EffectCtor
 ctorTypeText CT.Data = DataCtor
 
+pattern EffectCtor :: (Eq a, IsString a) => a
 pattern EffectCtor = "a"
 
+pattern DataCtor :: (Eq a, IsString a) => a
 pattern DataCtor = "d"
 
 toString :: Referent -> String

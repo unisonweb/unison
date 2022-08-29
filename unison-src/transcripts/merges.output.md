@@ -121,13 +121,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #kitgg6v3v9
+  ⊙ 1. #2dg3vf2jbr
   
     - Deletes:
     
       feature1.y
   
-  ⊙ 2. #ib51mi2got
+  ⊙ 2. #t2bqmul3de
   
     + Adds / updates:
     
@@ -138,26 +138,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ 3. #sdu80efbon
+  ⊙ 3. #t832967oic
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ 4. #jpl72mj9k8
+  ⊙ 4. #tsopq6cnku
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ 5. #b4mnqs7ovb
+  ⊙ 5. #t1ol5sarm3
   
     + Adds / updates:
     
       x
   
-  □ 6. #69vnfq66g3 (start of history)
+  □ 6. #a0cc9et3ck (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
@@ -245,8 +245,8 @@ master.frobnicate n = n + 1
 
 .> view master.y
 
-  feature2.y : Text
-  feature2.y = "updated y"
+  master.y : Text
+  master.y = "updated y"
 
 .> view master.frobnicate
 
@@ -293,13 +293,13 @@ And notice that `y` has the most recent value, and that `z` and `frobnicate` bot
 ```ucm
 .> view master.y
 
-  feature2.y : Text
-  feature2.y = "updated y"
+  master.y : Text
+  master.y = "updated y"
 
 .> view master.z
 
-  feature2.z : Nat
-  feature2.z = 99
+  master.z : Nat
+  master.z = 99
 
 .> view master.frobnicate
 

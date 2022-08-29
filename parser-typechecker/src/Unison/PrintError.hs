@@ -26,15 +26,11 @@ import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import Unison.Kind (Kind)
 import qualified Unison.Kind as Kind
-import qualified Unison.Lexer as L
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NamePrinter (prettyHashQualified0)
 import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
-import Unison.Parser (Annotated, ann)
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -44,8 +40,12 @@ import Unison.Referent (Referent, pattern Ref)
 import Unison.Result (Note (..))
 import qualified Unison.Result as Result
 import qualified Unison.Settings as Settings
+import qualified Unison.Syntax.Lexer as L
+import Unison.Syntax.NamePrinter (prettyHashQualified0)
+import Unison.Syntax.Parser (Annotated, ann)
+import qualified Unison.Syntax.Parser as Parser
+import qualified Unison.Syntax.TermPrinter as TermPrinter
 import qualified Unison.Term as Term
-import qualified Unison.TermPrinter as TermPrinter
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context as C
@@ -65,18 +65,25 @@ import qualified Unison.Var as Var
 
 type Env = PPE.PrettyPrintEnv
 
+pattern Code :: Color
 pattern Code = Color.Blue
 
+pattern Type1 :: Color
 pattern Type1 = Color.HiBlue
 
+pattern Type2 :: Color
 pattern Type2 = Color.Green
 
+pattern ErrorSite :: Color
 pattern ErrorSite = Color.HiRed
 
+pattern TypeKeyword :: Color
 pattern TypeKeyword = Color.Yellow
 
+pattern AbilityKeyword :: Color
 pattern AbilityKeyword = Color.Green
 
+pattern Identifier :: Color
 pattern Identifier = Color.Bold
 
 defaultWidth :: Pr.Width
@@ -396,49 +403,49 @@ renderTypeError e env src curPath = case e of
   AbilityCheckFailure {..}
     | [tv@(Type.Var' ev)] <- ambient,
       ev `Set.member` foldMap Type.freeVars requested ->
-      mconcat
-        [ "I tried to infer a cyclic ability.",
-          "\n\n",
-          "The expression ",
-          describeStyle ErrorSite,
-          " was inferred to require the ",
-          case length requested of
-            1 -> "ability: "
-            _ -> "abilities: ",
-          "\n\n    {",
-          commas (renderType' env) requested,
-          "}",
-          "\n\n",
-          "where `",
-          renderType' env tv,
-          "` is its overall abilities.",
-          "\n\n",
-          "I need a type signature to help figure this out.",
-          "\n\n",
-          annotatedAsErrorSite src abilityCheckFailureSite,
-          debugSummary note
-        ]
+        mconcat
+          [ "I tried to infer a cyclic ability.",
+            "\n\n",
+            "The expression ",
+            describeStyle ErrorSite,
+            " was inferred to require the ",
+            case length requested of
+              1 -> "ability: "
+              _ -> "abilities: ",
+            "\n\n    {",
+            commas (renderType' env) requested,
+            "}",
+            "\n\n",
+            "where `",
+            renderType' env tv,
+            "` is its overall abilities.",
+            "\n\n",
+            "I need a type signature to help figure this out.",
+            "\n\n",
+            annotatedAsErrorSite src abilityCheckFailureSite,
+            debugSummary note
+          ]
   AbilityCheckFailure {..}
     | C.InSubtype {} :<| _ <- C.path note ->
-      mconcat
-        [ "The expression ",
-          describeStyle ErrorSite,
-          "\n\n",
-          "              needs the abilities: {",
-          commas (renderType' env) requested,
-          "}\n",
-          "  but was assumed to only require: {",
-          commas (renderType' env) ambient,
-          "}",
-          "\n\n",
-          "This is likely a result of using an un-annotated ",
-          "function as an argument with concrete abilities. ",
-          "Try adding an annotation to the function definition whose ",
-          "body is red.",
-          "\n\n",
-          annotatedAsErrorSite src abilityCheckFailureSite,
-          debugSummary note
-        ]
+        mconcat
+          [ "The expression ",
+            describeStyle ErrorSite,
+            "\n\n",
+            "              needs the abilities: {",
+            commas (renderType' env) requested,
+            "}\n",
+            "  but was assumed to only require: {",
+            commas (renderType' env) ambient,
+            "}",
+            "\n\n",
+            "This is likely a result of using an un-annotated ",
+            "function as an argument with concrete abilities. ",
+            "Try adding an annotation to the function definition whose ",
+            "body is red.",
+            "\n\n",
+            annotatedAsErrorSite src abilityCheckFailureSite,
+            debugSummary note
+          ]
   AbilityCheckFailure {..} ->
     mconcat
       [ "The expression ",
@@ -465,6 +472,86 @@ renderTypeError e env src curPath = case e of
               <> "}",
         "\n\n",
         annotatedAsErrorSite src abilityCheckFailureSite,
+        debugSummary note
+      ]
+  AbilityEqFailure {..} ->
+    mconcat
+      [ "I found an ability mismatch when checking the expression ",
+        describeStyle ErrorSite,
+        "\n\n",
+        showSourceMaybes
+          src
+          [ (,Type1) <$> rangeForAnnotated tlhs,
+            (,Type2) <$> rangeForAnnotated trhs,
+            (,ErrorSite) <$> rangeForAnnotated abilityCheckFailureSite
+          ],
+        "\n\n",
+        Pr.wrap $
+          mconcat
+            [ "When trying to match ",
+              style Type1 $ renderType' env tlhs,
+              " with ",
+              style Type2 $ renderType' env trhs,
+              case (lhs, rhs) of
+                ([], _) ->
+                  mconcat
+                    [ "the right hand side contained extra abilities: ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
+                    ]
+                (_, []) ->
+                  mconcat
+                    [ "the left hand side contained extra abilities: ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
+                    ]
+                _ ->
+                  mconcat
+                    [ " I could not make ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
+                      " on the left compatible with ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
+                      " on the right."
+                    ]
+            ],
+        "\n\n",
+        debugSummary note
+      ]
+  AbilityEqFailureFromAp {..} ->
+    mconcat
+      [ "I found an ability mismatch when checking the application",
+        "\n\n",
+        showSourceMaybes
+          src
+          [ (,Type1) <$> rangeForAnnotated expectedSite,
+            (,Type2) <$> rangeForAnnotated mismatchSite
+          ],
+        "\n\n",
+        Pr.wrap $
+          mconcat
+            [ "When trying to match ",
+              style Type1 $ renderType' env tlhs,
+              " with ",
+              style Type2 $ renderType' env trhs,
+              case (lhs, rhs) of
+                ([], _) ->
+                  mconcat
+                    [ "the right hand side contained extra abilities: ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
+                    ]
+                (_, []) ->
+                  mconcat
+                    [ "the left hand side contained extra abilities: ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
+                    ]
+                _ ->
+                  mconcat
+                    [ " I could not make ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
+                      " on the left compatible with ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
+                      " on the right."
+                    ]
+            ],
+        "\n\n",
         debugSummary note
       ]
   UnguardedLetRecCycle vs locs _ ->
@@ -741,6 +828,16 @@ renderTypeError e env src curPath = case e of
             commas (renderType' env) ambient,
             "} requested={",
             commas (renderType' env) requested,
+            "}\n",
+            renderContext env c
+          ]
+      C.AbilityEqFailure left right c ->
+        mconcat
+          [ "AbilityEqFailure: ",
+            "lhs={",
+            commas (renderType' env) left,
+            "} rhs={",
+            commas (renderType' env) right,
             "}\n",
             renderContext env c
           ]
@@ -1103,6 +1200,7 @@ _printArrowsAtPos s line column =
    in source
 
 -- Wow, epic view pattern for picking out a lexer error
+pattern LexerError :: [L.Token L.Lexeme] -> L.Err -> Maybe (P.ErrorItem (L.Token L.Lexeme))
 pattern LexerError ts e <- Just (P.Tokens (firstLexerError -> Just (ts, e)))
 
 firstLexerError :: Foldable t => t (L.Token L.Lexeme) -> Maybe ([L.Token L.Lexeme], L.Err)
@@ -1280,7 +1378,7 @@ renderParseErrors s = \case
     go' (P.ErrorFail s) =
       ("The parser failed with this message:\n" <> fromString s, [])
     go' (P.ErrorIndentation ordering indent1 indent2) =
-      let ranges = [] -- TODO: determine the location
+      let ranges = [] -- TODO: determine the source location from the offset position, which is the token offset maybe?
        in ( mconcat
               [ "The parser was confused by the indentation.\n",
                 "It was expecting the reference level (",
@@ -1586,7 +1684,8 @@ renderParseErrors s = \case
       where
         missing = Set.null referents
     go (Parser.ResolutionFailures failures) =
-      -- TODO: We should likely output separate diagnostics for each failure.
+      -- TODO: We should likely output separate error messages, one for each resolution
+      -- failure. This would involve adding a separate codepath for LSP error messages.
       let ranges = catMaybes (rangeForAnnotated . Names.getAnnotation <$> failures)
        in (Pr.border 2 . prettyResolutionFailures s $ failures, ranges)
     go (Parser.MissingTypeModifier keyword name) =
@@ -1700,11 +1799,11 @@ intLiteralSyntaxTip ::
 intLiteralSyntaxTip term expectedType = case (term, expectedType) of
   (Term.Nat' n, Type.Ref' r)
     | r == Type.intRef ->
-      "\nTip: Use the syntax "
-        <> style Type2 ("+" <> show n)
-        <> " to produce an "
-        <> style Type2 "Int"
-        <> "."
+        "\nTip: Use the syntax "
+          <> style Type2 ("+" <> show n)
+          <> " to produce an "
+          <> style Type2 "Int"
+          <> "."
   _ -> ""
 
 -- | Pretty prints resolution failure annotations, including a table of disambiguation

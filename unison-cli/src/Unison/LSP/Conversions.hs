@@ -3,7 +3,7 @@ module Unison.LSP.Conversions where
 import qualified Data.IntervalMap.Interval as Interval
 import Language.LSP.Types
 import Unison.LSP.Orphans ()
-import qualified Unison.Lexer as Lex
+import qualified Unison.Syntax.Lexer as Lex
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Util.Range as Range

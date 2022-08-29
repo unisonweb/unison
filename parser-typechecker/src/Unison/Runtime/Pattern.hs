@@ -69,7 +69,6 @@ instance Semigroup PType where
 
 instance Monoid PType where
   mempty = Unknown
-  mappend = (<>)
 
 type Ctx v = Map v PType
 
@@ -497,7 +496,9 @@ freshVar = state $ \(fw, vs, rn) ->
    in (v, (fw + 1, vs, rn))
 
 useVar :: PPM v v
-useVar = state $ \(avoid, v : vs, rn) -> (v, (avoid, vs, rn))
+useVar = state $ \case
+  (avoid, v : vs, rn) -> (v, (avoid, vs, rn))
+  _ -> error "useVar: Expected multiple vars"
 
 renameTo :: Var v => v -> v -> PPM v ()
 renameTo to from =
@@ -698,6 +699,8 @@ mkRow sv (MatchCase (normalizeSeqP -> p0) g0 (AbsN' vs b)) =
     g = case g0 of
       Just (AbsN' us g)
         | us == vs -> Just g
+        | length us == length vs ->
+            Just $ renames (Map.fromList (zip us vs)) g
         | otherwise ->
             internalBug "mkRow: guard variables do not match body"
       Nothing -> Nothing

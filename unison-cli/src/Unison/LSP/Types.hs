@@ -17,7 +17,6 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Language.LSP.VFS
 import Unison.Codebase
-import Unison.Codebase.Editor.Command (LexedSource)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.LSP.Orphans ()
@@ -28,6 +27,7 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Result (Note)
 import qualified Unison.Server.Backend as Backend
 import Unison.Symbol
+import qualified Unison.Syntax.Lexer as Lexer
 import qualified Unison.UnisonFile as UF
 import UnliftIO
 
@@ -67,6 +67,8 @@ data Env = Env
 
 -- | A monotonically increasing file version tracked by the lsp client.
 type FileVersion = Int32
+
+type LexedSource = (Text, [Lexer.Token Lexer.Lexeme])
 
 data FileAnalysis = FileAnalysis
   { fileUri :: Uri,

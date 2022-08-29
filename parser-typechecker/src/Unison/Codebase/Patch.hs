@@ -127,7 +127,6 @@ instance Semigroup Patch where
       (_typeEdits a <> _typeEdits b)
 
 instance Monoid Patch where
-  mappend = (<>)
   mempty = Patch mempty mempty
 
 instance Semigroup PatchDiff where
@@ -140,5 +139,4 @@ instance Semigroup PatchDiff where
       }
 
 instance Monoid PatchDiff where
-  mappend = (<>)
   mempty = PatchDiff mempty mempty mempty mempty

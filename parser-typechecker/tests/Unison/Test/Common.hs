@@ -15,13 +15,16 @@ import qualified Text.Megaparsec.Error as MPE
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
+import Unison.Names (Names)
 import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import Unison.PrintError (prettyParseError)
 import Unison.Result (Note, Result)
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Parser as Parser
+import qualified Unison.Syntax.TermParser as TermParser
+import qualified Unison.Syntax.TypeParser as TypeParser
 import qualified Unison.Term as Term
-import qualified Unison.TermParser as TermParser
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)

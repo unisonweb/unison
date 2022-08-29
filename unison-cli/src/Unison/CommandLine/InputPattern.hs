@@ -2,12 +2,22 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.CommandLine.InputPattern where
+module Unison.CommandLine.InputPattern
+  ( InputPattern (..),
+    ArgumentType (..),
+    argType,
+    IsOptional (..),
+    Visibility (..),
+
+    -- * Currently Unused
+    minArgs,
+    maxArgs,
+  )
+where
 
 import Data.Set (Set)
 import qualified System.Console.Haskeline as Line
 import Unison.Codebase (Codebase)
-import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Path as Path
 import qualified Unison.CommandLine.Globbing as Globbing
@@ -43,7 +53,6 @@ data ArgumentType = ArgumentType
       Monad m =>
       String ->
       Codebase m v a ->
-      Branch m -> -- Root Branch
       Path.Absolute -> -- Current path
       m [Line.Completion],
     -- | Select which targets glob patterns may expand into for this argument.
@@ -105,12 +114,3 @@ maxArgs ip@(fmap fst . argTypes -> args) = go args
           <> show (patternName ip)
           <> "): "
           <> show args
-
-noSuggestions ::
-  Monad m =>
-  String ->
-  Codebase m v a ->
-  Branch m ->
-  Path.Absolute ->
-  m [Line.Completion]
-noSuggestions _ _ _ _ = pure []

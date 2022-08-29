@@ -5,8 +5,7 @@ module Unison.CommandLine.InputPatterns where
 
 import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
-import Data.List (intercalate, isPrefixOf)
-import Data.List.Extra (nubOrdOn)
+import Data.List (intercalate)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
@@ -14,12 +13,9 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
-import qualified System.Console.Haskeline.Completion as Completion
 import qualified Text.Megaparsec as P
-import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Input (Input)
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
@@ -34,6 +30,7 @@ import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
 import Unison.CommandLine
+import Unison.CommandLine.Completion
 import qualified Unison.CommandLine.Globbing as Globbing
 import Unison.CommandLine.InputPattern
   ( ArgumentType (..),
@@ -44,13 +41,11 @@ import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.Names as Names
+import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.Relation as R
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -155,7 +150,7 @@ load =
     "load"
     []
     I.Visible
-    [(Optional, noCompletions)]
+    [(Optional, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( makeExample' load,
             "parses, typechecks, and evaluates the most recent scratch file."
@@ -177,7 +172,7 @@ add =
     "add"
     []
     I.Visible
-    [(ZeroPlus, noCompletions)]
+    [(ZeroPlus, noCompletionsArg)]
     ( "`add` adds to the codebase all the definitions from the most recently "
         <> "typechecked file."
     )
@@ -189,7 +184,7 @@ previewAdd =
     "add.preview"
     []
     I.Visible
-    [(ZeroPlus, noCompletions)]
+    [(ZeroPlus, noCompletionsArg)]
     ( "`add.preview` previews additions to the codebase from the most recently "
         <> "typechecked file. This command only displays cached typechecking "
         <> "results. Use `load` to reparse & typecheck the file if the context "
@@ -203,7 +198,7 @@ updateNoPatch =
     "update.nopatch"
     ["un"]
     I.Visible
-    [(ZeroPlus, noCompletions)]
+    [(ZeroPlus, noCompletionsArg)]
     ( P.wrap
         ( makeExample' updateNoPatch
             <> "works like"
@@ -237,7 +232,7 @@ update =
     "update"
     []
     I.Visible
-    [(Optional, patchArg), (ZeroPlus, noCompletions)]
+    [(Optional, patchArg), (ZeroPlus, noCompletionsArg)]
     ( P.wrap
         ( makeExample' update
             <> "works like"
@@ -281,7 +276,7 @@ previewUpdate =
     "update.preview"
     []
     I.Visible
-    [(ZeroPlus, noCompletions)]
+    [(ZeroPlus, noCompletionsArg)]
     ( "`update.preview` previews updates to the codebase from the most "
         <> "recently typechecked file. This command only displays cached "
         <> "typechecking results. Use `load` to reparse & typecheck the file if "
@@ -337,11 +332,27 @@ view =
     I.Visible
     [(ZeroPlus, definitionQueryArg)]
     ( P.lines
-        [ "`view foo` prints the definition of `foo`.",
+        [ "`view foo` prints definitions named `foo` within your current namespace.",
           "`view` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
         ]
     )
-    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
+    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
+        . traverse parseHashQualifiedName
+    )
+
+viewGlobal :: InputPattern
+viewGlobal =
+  InputPattern
+    "view.global"
+    []
+    I.Visible
+    [(ZeroPlus, definitionQueryArg)]
+    ( P.lines
+        [ "`view.global foo` prints definitions of `foo` within your codebase.",
+          "`view.global` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
+        ]
+    )
+    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionGlobal)
         . traverse parseHashQualifiedName
     )
 
@@ -366,7 +377,7 @@ displayTo =
     "display.to"
     []
     I.Visible
-    [(Required, noCompletions), (ZeroPlus, definitionQueryArg)]
+    [(Required, noCompletionsArg), (ZeroPlus, definitionQueryArg)]
     ( P.wrap $
         makeExample displayTo ["<filename>", "foo"]
           <> "prints a rendered version of the term `foo` to the given file."
@@ -434,13 +445,13 @@ viewByPrefix =
     )
 
 find :: InputPattern
-find = find' "find" Input.Local
+find = find' "find" Input.FindLocal
 
 findAll :: InputPattern
-findAll = find' "find.all" Input.LocalAndDeps
+findAll = find' "find.all" Input.FindLocalAndDeps
 
 findGlobal :: InputPattern
-findGlobal = find' "find.global" Input.Global
+findGlobal = find' "find.global" Input.FindGlobal
 
 find' :: String -> Input.FindScope -> InputPattern
 find' cmd fscope =
@@ -448,7 +459,7 @@ find' cmd fscope =
     cmd
     []
     I.Visible
-    [(ZeroPlus, fuzzyDefinitionQueryArg)]
+    [(ZeroPlus, exactDefinitionArg)]
     ( P.wrapColumn2
         [ ("`find`", "lists all definitions in the current namespace."),
           ( "`find foo`",
@@ -497,11 +508,11 @@ findVerbose =
     "find.verbose"
     []
     I.Visible
-    [(ZeroPlus, fuzzyDefinitionQueryArg)]
+    [(ZeroPlus, exactDefinitionArg)]
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True Input.Local)
+    (pure . Input.FindI True Input.FindLocal)
 
 findVerboseAll :: InputPattern
 findVerboseAll =
@@ -509,11 +520,11 @@ findVerboseAll =
     "find.all.verbose"
     []
     I.Visible
-    [(ZeroPlus, fuzzyDefinitionQueryArg)]
+    [(ZeroPlus, exactDefinitionArg)]
     ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True Input.LocalAndDeps)
+    (pure . Input.FindI True Input.FindLocalAndDeps)
 
 findPatch :: InputPattern
 findPatch =
@@ -738,7 +749,7 @@ aliasMany =
     "alias.many"
     ["copy"]
     I.Visible
-    [(Required, definitionQueryArg), (OnePlus, exactDefinitionOrPathArg)]
+    [(Required, definitionQueryArg), (OnePlus, exactDefinitionArg)]
     ( P.group . P.lines $
         [ P.wrap $
             P.group (makeExample aliasMany ["<relative1>", "[relative2...]", "<namespace>"])
@@ -920,13 +931,10 @@ renameBranch =
     [(Required, namespaceArg), (Required, newNameArg)]
     "`move.namespace foo bar` renames the path `foo` to `bar`."
     ( \case
-        [".", dest] -> first fromString $ do
-          dest <- Path.parseSplit' Path.definitionNameSegment dest
-          pure $ Input.MoveBranchI Nothing dest
         [src, dest] -> first fromString $ do
-          src <- Path.parseSplit' Path.definitionNameSegment src
-          dest <- Path.parseSplit' Path.definitionNameSegment dest
-          pure $ Input.MoveBranchI (Just src) dest
+          src <- Path.parsePath' src
+          dest <- Path.parsePath' dest
+          pure $ Input.MoveBranchI src dest
         _ -> Left (I.help renameBranch)
     )
 
@@ -1085,6 +1093,22 @@ pullExhaustive =
           p <- first fromString $ Path.parsePath' path
           Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Default
         _ -> Left (I.help pull)
+    )
+
+debugTabCompletion :: InputPattern
+debugTabCompletion =
+  InputPattern
+    "debug.tab-complete"
+    []
+    I.Hidden
+    [(ZeroPlus, noCompletionsArg)]
+    ( P.lines
+        [ P.wrap $ "This command can be used to test and debug ucm's tab-completion within transcripts.",
+          P.wrap $ "Completions which are finished are prefixed with a *"
+        ]
+    )
+    ( \inputs ->
+        Right $ Input.DebugTabCompletionI inputs
     )
 
 push :: InputPattern
@@ -1559,7 +1583,7 @@ edit =
           "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
         ]
     )
-    ( fmap (Input.ShowDefinitionI Input.LatestFileLocation)
+    ( fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
         . traverse parseHashQualifiedName
     )
 
@@ -1567,7 +1591,7 @@ topicNameArg :: ArgumentType
 topicNameArg =
   ArgumentType
     { typeName = "topic",
-      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
+      suggestions = \q _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
       globTargets = mempty
     }
 
@@ -1575,7 +1599,7 @@ codebaseServerNameArg :: ArgumentType
 codebaseServerNameArg =
   ArgumentType
     { typeName = "codebase-server",
-      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
+      suggestions = \q _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
       globTargets = mempty
     }
 
@@ -1949,7 +1973,7 @@ debugDumpNamespace =
     "debug.dump-namespace"
     []
     I.Visible
-    [(Required, noCompletions)]
+    [(Required, noCompletionsArg)]
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespacesI)
 
@@ -1959,7 +1983,7 @@ debugDumpNamespaceSimple =
     "debug.dump-namespace-simple"
     []
     I.Visible
-    [(Required, noCompletions)]
+    [(Required, noCompletionsArg)]
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespaceSimpleI)
 
@@ -1969,7 +1993,7 @@ debugClearWatchCache =
     "debug.clear-cache"
     []
     I.Visible
-    [(Required, noCompletions)]
+    [(Required, noCompletionsArg)]
     "Clear the watch expression cache"
     (const $ Right Input.DebugClearWatchI)
 
@@ -2050,7 +2074,7 @@ execute =
     "run"
     []
     I.Visible
-    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
+    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( "`run mymain args...`",
             "Runs `!mymain`, where `mymain` is searched for in the most recent"
@@ -2064,6 +2088,21 @@ execute =
         [w] -> pure $ Input.ExecuteI w []
         (w : ws) -> pure $ Input.ExecuteI w ws
         _ -> Left $ showPatternHelp execute
+    )
+
+saveExecuteResult :: InputPattern
+saveExecuteResult =
+  InputPattern
+    "add.run"
+    []
+    I.Visible
+    [(Required, newNameArg)]
+    ( "`add.run name` adds to the codebase the result of the most recent `run` command"
+        <> "as `name`."
+    )
+    ( \case
+        [w] -> pure $ Input.SaveExecuteResultI (Name.unsafeFromString w)
+        _ -> Left $ showPatternHelp saveExecuteResult
     )
 
 ioTest :: InputPattern
@@ -2091,7 +2130,7 @@ makeStandalone =
     "compile"
     ["compile.output"]
     I.Visible
-    [(Required, exactDefinitionTermQueryArg), (Required, noCompletions)]
+    [(Required, exactDefinitionTermQueryArg), (Required, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( "`compile main file`",
             "Outputs a stand alone file that can be directly loaded and"
@@ -2112,7 +2151,7 @@ createAuthor =
     "create.author"
     []
     I.Visible
-    [(Required, noCompletions), (Required, noCompletions)]
+    [(Required, noCompletionsArg), (Required, noCompletionsArg)]
     ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
         <> "creates"
         <> backtick "alicecoder"
@@ -2240,6 +2279,7 @@ validInputs =
       findVerbose,
       findVerboseAll,
       view,
+      viewGlobal,
       display,
       displayTo,
       api,
@@ -2271,6 +2311,7 @@ validInputs =
       testAll,
       ioTest,
       execute,
+      saveExecuteResult,
       viewReflog,
       resetRoot,
       quit,
@@ -2287,10 +2328,18 @@ validInputs =
       debugDumpNamespaceSimple,
       debugClearWatchCache,
       debugDoctor,
+      debugTabCompletion,
       gist,
       authLogin,
       printVersion
     ]
+
+-- | A map of all command patterns by pattern name or alias.
+patternMap :: Map String InputPattern
+patternMap =
+  Map.fromList $
+    validInputs
+      >>= (\p -> (I.patternName p, p) : ((,p) <$> I.aliases p))
 
 visibleInputs :: [InputPattern]
 visibleInputs = filter ((== I.Visible) . I.visibility) validInputs
@@ -2302,43 +2351,34 @@ commandNameArg :: ArgumentType
 commandNameArg =
   ArgumentType
     { typeName = "command",
-      suggestions = \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap)),
+      suggestions = \q _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap)),
       globTargets = mempty
     }
 
-exactDefinitionOrPathArg :: ArgumentType
-exactDefinitionOrPathArg =
+exactDefinitionArg :: ArgumentType
+exactDefinitionArg =
   ArgumentType
-    { typeName = "definition or path",
-      suggestions =
-        allCompletors
-          [ termCompletor exactComplete,
-            typeCompletor exactComplete,
-            pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
-          ],
-      globTargets = Set.fromList [Globbing.Term, Globbing.Type, Globbing.Namespace]
+    { typeName = "definition",
+      suggestions = prefixCompleteTermOrType,
+      globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
--- todo: improve this
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
-      suggestions =
-        bothCompletors
-          (termCompletor fuzzyComplete)
-          (typeCompletor fuzzyComplete),
+      suggestions = prefixCompleteTermOrType,
       globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
 definitionQueryArg :: ArgumentType
-definitionQueryArg = fuzzyDefinitionQueryArg {typeName = "definition query"}
+definitionQueryArg = exactDefinitionArg {typeName = "definition query"}
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
   ArgumentType
     { typeName = "type definition query",
-      suggestions = typeCompletor exactComplete,
+      suggestions = prefixCompleteType,
       globTargets = Set.fromList [Globbing.Type]
     }
 
@@ -2346,123 +2386,44 @@ exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
   ArgumentType
     { typeName = "term definition query",
-      suggestions = termCompletor exactComplete,
+      suggestions = prefixCompleteTerm,
       globTargets = Set.fromList [Globbing.Term]
     }
-
-typeCompletor ::
-  Applicative m =>
-  (String -> [String] -> [Completion]) ->
-  String ->
-  Codebase m v a ->
-  Branch.Branch m ->
-  Path.Absolute ->
-  m [Completion]
-typeCompletor filterQuery = pathCompletor filterQuery go
-  where
-    go = Set.map HQ.toText . R.dom . Names.hashQualifyTypesRelation . Names.types . Branch.toNames
-
-termCompletor ::
-  Applicative m =>
-  (String -> [String] -> [Completion]) ->
-  String ->
-  Codebase m v a ->
-  Branch.Branch m ->
-  Path.Absolute ->
-  m [Completion]
-termCompletor filterQuery = pathCompletor filterQuery go
-  where
-    go = Set.map HQ.toText . R.dom . Names.hashQualifyTermsRelation . Names.terms . Branch.toNames
 
 patchArg :: ArgumentType
 patchArg =
   ArgumentType
     { typeName = "patch",
-      suggestions =
-        pathCompletor
-          exactComplete
-          (Set.map Name.toText . Map.keysSet . Branch.deepEdits),
+      suggestions = prefixCompletePatch,
       globTargets = Set.fromList []
     }
-
-allCompletors ::
-  Monad m =>
-  ( [String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion]] ->
-    (String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion])
-  )
-allCompletors = foldl' bothCompletors I.noSuggestions
-
-bothCompletors ::
-  (Monad m) =>
-  (String -> t2 -> t3 -> t4 -> m [Completion]) ->
-  (String -> t2 -> t3 -> t4 -> m [Completion]) ->
-  String ->
-  t2 ->
-  t3 ->
-  t4 ->
-  m [Completion]
-bothCompletors c1 c2 q code b currentPath = do
-  suggestions1 <- c1 q code b currentPath
-  suggestions2 <- c2 q code b currentPath
-  pure . fixupCompletion q
-    . nubOrdOn Completion.display
-    $ suggestions1 ++ suggestions2
-
--- | A completer for namespace paths.
-pathCompletor ::
-  Applicative f =>
-  -- | Turns a query and list of possible completions into a 'Completion'.
-  (String -> [String] -> [Completion]) ->
-  -- | Construct completions given ucm's current branch context, or the root namespace if
-  -- the query is absolute.
-  (Branch.Branch0 m -> Set Text) ->
-  -- | The portion of this arg that the user has already typed.
-  String ->
-  codebase ->
-  Branch.Branch m ->
-  Path.Absolute ->
-  f [Completion]
-pathCompletor filterQuery getNames query _code b p =
-  let b0root = Branch.head b
-      b0local = Branch.getAt0 (Path.unabsolute p) b0root
-   in -- todo: if these sets are huge, maybe trim results
-      pure . filterQuery query . map Text.unpack $
-        toList (getNames b0local)
-          ++ if "." `isPrefixOf` query
-            then map ("." <>) (toList (getNames b0root))
-            else []
 
 namespaceArg :: ArgumentType
 namespaceArg =
   ArgumentType
     { typeName = "namespace",
-      suggestions = pathCompletor completeWithinQueryNamespace (Set.fromList . allSubNamespaces),
+      suggestions = prefixCompleteNamespace,
       globTargets = Set.fromList [Globbing.Namespace]
     }
 
--- | Recursively collects all names of namespaces which are children of the branch.
-allSubNamespaces :: Branch.Branch0 m -> [Text]
-allSubNamespaces b =
-  flip Map.foldMapWithKey (Branch.nonEmptyChildren b) $
-    \(NameSegment k) (Branch.head -> b') ->
-      (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
+-- | Names of child branches of the branch, only gives options for one 'layer' deeper at a time.
+childNamespaceNames :: Branch.Branch0 m -> [Text]
+childNamespaceNames b = NameSegment.toText <$> Map.keys (Branch.nonEmptyChildren b)
 
 newNameArg :: ArgumentType
 newNameArg =
   ArgumentType
     { typeName = "new-name",
       suggestions =
-        pathCompletor
-          prefixIncomplete
-          (Set.map ((<> ".") . Path.toText) . Branch.deepPaths),
+        prefixCompleteNamespace,
       globTargets = mempty
     }
 
-noCompletions :: ArgumentType
-noCompletions =
+noCompletionsArg :: ArgumentType
+noCompletionsArg =
   ArgumentType
     { typeName = "word",
-      suggestions = I.noSuggestions,
+      suggestions = noCompletions,
       globTargets = mempty
     }
 
@@ -2473,7 +2434,7 @@ gitUrlArg =
     { typeName = "git-url",
       suggestions =
         let complete s = pure [Completion s s False]
-         in \input _ _ _ -> case input of
+         in \input _ _ -> case input of
               "gh" -> complete "git(https://github.com/"
               "gl" -> complete "git(https://gitlab.com/"
               "bb" -> complete "git(https://bitbucket.com/"
@@ -2491,7 +2452,7 @@ remoteNamespaceArg =
     { typeName = "remote-namespace",
       suggestions =
         let complete s = pure [Completion s s False]
-         in \input _ _ _ -> case input of
+         in \input _ _ -> case input of
               "gh" -> complete "git(https://github.com/"
               "gl" -> complete "git(https://gitlab.com/"
               "bb" -> complete "git(https://bitbucket.com/"

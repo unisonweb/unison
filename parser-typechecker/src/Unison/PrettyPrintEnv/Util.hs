@@ -3,6 +3,7 @@
 module Unison.PrettyPrintEnv.Util (declarationPPE, declarationPPEDecl) where
 
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
+import qualified Unison.PrettyPrintEnv as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (suffixifiedPPE, unsuffixifiedPPE))
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -22,12 +23,12 @@ declarationPPE ppe ref = PrettyPrintEnv tm ty
     hash Reference.Builtin {} = Nothing
     hash (Reference.Derived h _) = Just h
     tm r0@(Referent.Ref r)
-      | hash r == rootH = terms (unsuffixifiedPPE ppe) r0
-      | otherwise = terms (suffixifiedPPE ppe) r0
-    tm r = terms (suffixifiedPPE ppe) r
+      | hash r == rootH = PPE.termNames (unsuffixifiedPPE ppe) r0
+      | otherwise = PPE.termNames (suffixifiedPPE ppe) r0
+    tm r = PPE.termNames (suffixifiedPPE ppe) r
     ty r
-      | hash r == rootH = types (unsuffixifiedPPE ppe) r
-      | otherwise = types (suffixifiedPPE ppe) r
+      | hash r == rootH = PPE.typeNames (unsuffixifiedPPE ppe) r
+      | otherwise = PPE.typeNames (suffixifiedPPE ppe) r
 
 -- The suffixed names uses the fully-qualified name for `r`
 declarationPPEDecl :: PrettyPrintEnvDecl -> Reference -> PrettyPrintEnvDecl
