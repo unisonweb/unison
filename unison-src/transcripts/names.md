@@ -1,9 +1,5 @@
 # `names` command
 
-```ucm:hide
-.> builtins.mergeio
-```
-
 Example uses of the `names` command and output
 
 ```unison
