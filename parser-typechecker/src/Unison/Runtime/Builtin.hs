@@ -816,7 +816,7 @@ try'eval =
     . MatchSum
     $ mapFromList
       [ exnCase lnk msg xtra fail,
-        (1, ([BX], TAbs r $ some r))
+        (1, ([BX], TAbs r (TVar r)))
       ]
   where
     (act, unit, lz, ta, lnk, msg, xtra, fail, r) = fresh9
