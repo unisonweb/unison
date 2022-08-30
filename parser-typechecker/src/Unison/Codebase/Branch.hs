@@ -41,6 +41,7 @@ module Unison.Codebase.Branch
     nonEmptyChildren,
     deepEdits',
     toList0,
+    namespaceStats,
 
     -- * step
     stepManyAt,
@@ -88,6 +89,7 @@ import qualified Data.Map as Map
 import qualified Data.Semialign as Align
 import qualified Data.Set as Set
 import Data.These (These (..))
+import U.Codebase.Branch (NamespaceStats (..))
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
@@ -167,6 +169,14 @@ nonEmptyChildren b =
   b
     & _children
     & Map.filter (not . isEmpty0 . head)
+
+namespaceStats :: Branch0 m -> NamespaceStats
+namespaceStats Branch0 {deepTerms, deepTypes, deepEdits} =
+  NamespaceStats
+    { numContainedTerms = Relation.size deepTerms,
+      numContainedTypes = Relation.size deepTypes,
+      numContainedPatches = Map.size deepEdits
+    }
 
 -- creates a Branch0 from the primary fields and derives the others.
 branch0 ::
@@ -616,13 +626,13 @@ addTypeName r new md =
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b
   | Star3.memberD1 (r, n) (view terms b) =
-    over terms (Star3.deletePrimaryD1 (r, n)) b
+      over terms (Star3.deletePrimaryD1 (r, n)) b
 deleteTermName _ _ b = b
 
 deleteTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b
   | Star3.memberD1 (r, n) (view types b) =
-    over types (Star3.deletePrimaryD1 (r, n)) b
+      over types (Star3.deletePrimaryD1 (r, n)) b
 deleteTypeName _ _ b = b
 
 lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))

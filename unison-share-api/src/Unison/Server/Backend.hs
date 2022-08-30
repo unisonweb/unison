@@ -28,6 +28,7 @@ import qualified Lucid
 import System.Directory
 import System.FilePath
 import qualified Text.FuzzyFind as FZF
+import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.HashTags as V2.Hash
@@ -116,9 +117,7 @@ type SyntaxText = UST.SyntaxText' Reference
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
   | ShallowTypeEntry TypeEntry
-  | -- The integer here represents the number of children.
-    -- it may be omitted depending on the context the query is run in.
-    ShallowBranchEntry NameSegment Branch.CausalHash (Maybe Int)
+  | ShallowBranchEntry NameSegment Branch.CausalHash NamespaceStats
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
@@ -479,25 +478,19 @@ lsBranch codebase b = do
          in case length refs of
               1 -> HQ'.fromName ns
               _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
-      defnCount b =
-        (R.size . Branch.deepTerms $ Branch.head b)
-          + (R.size . Branch.deepTypes $ Branch.head b)
       b0 = Branch.head b
   termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
     ShallowTermEntry <$> termListEntry codebase r (hqTerm b0 ns r)
   typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0) $
     \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
-  let branchEntries =
-        [ ShallowBranchEntry
-            ns
-            (Branch.headHash b)
-            (Just $ defnCount b)
-          | (ns, b) <- Map.toList $ Branch.nonEmptyChildren b0
-        ]
-      patchEntries =
-        [ ShallowPatchEntry ns
-          | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
-        ]
+  let branchEntries :: [ShallowListEntry Symbol Ann] = do
+        (ns, childB) <- Map.toList $ Branch.nonEmptyChildren b0
+        let stats = Branch.namespaceStats $ Branch.head childB
+        guard $ V2Branch.hasDefinitions stats
+        pure $ ShallowBranchEntry ns (Branch.headHash b) stats
+      patchEntries :: [ShallowListEntry Symbol Ann] = do
+        (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
+        pure $ ShallowPatchEntry ns
   pure
     . List.sortOn listEntryName
     $ termEntries
@@ -510,7 +503,7 @@ lsBranch codebase b = do
 -- As a result, it omits definition counts from child-namespaces in its results,
 -- but doesn't require loading the entire sub-tree to do so.
 lsShallowBranch ::
-  Monad m =>
+  (MonadIO m) =>
   Codebase m Symbol Ann ->
   V2Branch.Branch m ->
   m [ShallowListEntry Symbol Ann]
@@ -549,17 +542,17 @@ lsShallowBranch codebase b0 = do
   typeEntries <- for (flattenRefs $ V2Branch.types b0) \(r, ns) -> do
     let v1Ref = Cv.reference2to1 r
     ShallowTypeEntry <$> typeListEntry codebase v1Ref (hqType b0 ns v1Ref)
-  let branchEntries =
-        [ ShallowBranchEntry (Cv.namesegment2to1 ns) (Cv.causalHash2to1 . V2Causal.causalHash $ h) Nothing
-          | (ns, h) <- Map.toList $ V2Branch.children b0
-        ]
-      patchEntries =
-        [ ShallowPatchEntry (Cv.namesegment2to1 ns)
-          | (ns, _h) <- Map.toList $ V2Branch.patches b0
-        ]
-  pure
-    . List.sortOn listEntryName
-    $ termEntries
+  childrenWithStats <- Codebase.runTransaction codebase (V2Branch.childStats b0)
+  let branchEntries :: [ShallowListEntry Symbol Ann] = do
+        -- List
+        (ns, (h, stats)) <- Map.toList $ childrenWithStats
+        guard $ V2Branch.hasDefinitions stats
+        pure $ ShallowBranchEntry (Cv.namesegment2to1 ns) (Cv.causalHash2to1 . V2Causal.causalHash $ h) stats
+      patchEntries :: [ShallowListEntry Symbol Ann] = do
+        (ns, _h) <- Map.toList $ V2Branch.patches b0
+        pure $ ShallowPatchEntry (Cv.namesegment2to1 ns)
+  pure . List.sortOn listEntryName $
+    termEntries
       ++ typeEntries
       ++ branchEntries
       ++ patchEntries

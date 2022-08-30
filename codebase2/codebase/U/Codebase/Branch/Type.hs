@@ -11,6 +11,7 @@ module U.Codebase.Branch.Type
     NameSegment (..),
     CausalHash,
     NamespaceStats (..),
+    hasDefinitions,
     childAt,
     hoist,
     hoistCausalBranch,
@@ -76,7 +77,12 @@ data NamespaceStats = NamespaceStats
     numContainedTypes :: Int,
     numContainedPatches :: Int
   }
-  deriving (Show)
+  deriving (Show, Eq, Ord)
+
+-- | Whether the provided stats indicate the presence of any definitions in the namespace.
+hasDefinitions :: NamespaceStats -> Bool
+hasDefinitions (NamespaceStats numTerms numTypes _numPatches) =
+  numTerms + numTypes > 0
 
 childAt :: NameSegment -> Branch m -> Maybe (CausalBranch m)
 childAt ns (Branch {children}) = Map.lookup ns children
