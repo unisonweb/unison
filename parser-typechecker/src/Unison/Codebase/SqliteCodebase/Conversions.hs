@@ -425,7 +425,7 @@ causalbranch2to1' branchCache lookupCT (V2.Causal hc eh (Map.toList -> parents) 
 
 causalbranch1to2 :: forall m. Monad m => V1.Branch.Branch m -> V2.Branch.CausalBranch m
 causalbranch1to2 (V1.Branch.Branch c) =
-  causal1to2 causalHash1to2 branchHash1to2 (pure . branch1to2) c
+  causal1to2 causalHash1to2 branchHash1to2 branch1to2 c
   where
     causal1to2 :: forall m h2c h2e e e2. (Monad m, Ord h2c) => (V1.Causal.CausalHash -> h2c) -> (V1.HashFor e -> h2e) -> (e -> m e2) -> V1.Causal.Causal m e -> V2.Causal m h2c h2e e2
     causal1to2 h1to2 eh1to2 e1to2 = \case
@@ -433,13 +433,15 @@ causalbranch1to2 (V1.Branch.Branch c) =
       V1.Causal.Cons hc eh e (ht, mt) -> V2.Causal (h1to2 hc) (eh1to2 eh) (Map.singleton (h1to2 ht) (causal1to2 h1to2 eh1to2 e1to2 <$> mt)) (e1to2 e)
       V1.Causal.Merge hc eh e parents -> V2.Causal (h1to2 hc) (eh1to2 eh) (Map.bimap h1to2 (causal1to2 h1to2 eh1to2 e1to2 <$>) parents) (e1to2 e)
 
-    branch1to2 :: forall m. Monad m => V1.Branch.Branch0 m -> V2.Branch.Branch m
+    -- todo: this could be a pure function
+    branch1to2 :: forall m. Monad m => V1.Branch.Branch0 m -> m (V2.Branch.Branch m)
     branch1to2 b =
-      V2.Branch.Branch
-        (doTerms (V1.Branch._terms b))
-        (doTypes (V1.Branch._types b))
-        (doPatches (V1.Branch._edits b))
-        (doChildren (V1.Branch._children b))
+      pure $
+        V2.Branch.Branch
+          (doTerms (V1.Branch._terms b))
+          (doTypes (V1.Branch._types b))
+          (doPatches (V1.Branch._edits b))
+          (doChildren (V1.Branch._children b))
       where
         -- is there a more readable way to structure these that's also linear?
         doTerms :: V1.Branch.Star V1.Referent.Referent V1.NameSegment -> Map V2.Branch.NameSegment (Map V2.Referent.Referent (m V2.Branch.MdValues))
@@ -473,17 +475,8 @@ causalbranch1to2 (V1.Branch.Branch c) =
         doPatches :: Map V1.NameSegment (V1.Branch.EditHash, m V1.Patch) -> Map V2.Branch.NameSegment (V2.PatchHash, m V2.Branch.Patch)
         doPatches = Map.bimap namesegment1to2 (bimap edithash1to2 (fmap patch1to2))
 
-        doChildren :: Map V1.NameSegment (V1.Branch.Branch m) -> Map V2.Branch.NameSegment (V2.Branch.CausalBranch m, V2.Branch.NamespaceStats)
-        doChildren = Map.bimap namesegment1to2 (\cb -> (causalbranch1to2 cb, namespaceStatsFromV1Branch cb))
-
-        namespaceStatsFromV1Branch :: V1.Branch.Branch m -> V2.Branch.NamespaceStats
-        namespaceStatsFromV1Branch b =
-          let b0 = V1.Branch.head b
-           in V2.Branch.NamespaceStats
-                { numContainedTerms = Relation.size . V1.Branch.deepTerms $ b0,
-                  numContainedTypes = Relation.size . V1.Branch.deepTypes $ b0,
-                  numContainedPatches = Map.size . V1.Branch.deepEdits $ b0
-                }
+        doChildren :: Map V1.NameSegment (V1.Branch.Branch m) -> Map V2.Branch.NameSegment (V2.Branch.CausalBranch m)
+        doChildren = Map.bimap namesegment1to2 causalbranch1to2
 
 patch2to1 :: V2.Branch.Patch -> V1.Patch
 patch2to1 (V2.Branch.Patch v2termedits v2typeedits) =
@@ -549,7 +542,7 @@ branch2to1 ::
 branch2to1 branchCache lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children) = do
   v1terms <- toStar reference2to1 <$> Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (referent2to1 lookupCT) id) v2terms
   v1types <- toStar reference2to1 <$> Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (pure . reference2to1) id) v2types
-  v1children <- Map.bitraverse (pure . namesegment2to1) (causalbranch2to1 branchCache lookupCT . fst) v2children
+  v1children <- Map.bitraverse (pure . namesegment2to1) (causalbranch2to1 branchCache lookupCT) v2children
   pure $ V1.Branch.branch0 v1terms v1types v1children v1patches
   where
     v1patches = Map.bimap namesegment2to1 (bimap edithash2to1 (fmap patch2to1)) v2patches

@@ -4,7 +4,7 @@
 module U.Codebase.Sqlite.Orphans where
 
 import Control.Applicative
-import U.Codebase.Branch (NamespaceStats (..))
+import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.WatchKind (WatchKind)

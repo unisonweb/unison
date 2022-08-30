@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module U.Codebase.Branch
+module U.Codebase.Branch.Type
   ( Branch (..),
     CausalBranch,
     Patch (..),
@@ -11,8 +11,6 @@ module U.Codebase.Branch
     NameSegment (..),
     CausalHash,
     NamespaceStats (..),
-    namespaceStatistics,
-    nonEmptyChildren,
     childAt,
     hoist,
     hoistCausalBranch,
@@ -20,7 +18,6 @@ module U.Codebase.Branch
 where
 
 import Control.Lens hiding (children)
-import Data.Bifunctor (first)
 import qualified Data.Map as Map
 import U.Codebase.Causal (Causal)
 import qualified U.Codebase.Causal as Causal
@@ -47,7 +44,7 @@ data Branch m = Branch
   { terms :: Map NameSegment (Map Referent (m MdValues)),
     types :: Map NameSegment (Map Reference (m MdValues)),
     patches :: Map NameSegment (PatchHash, m Patch),
-    children :: Map NameSegment (CausalBranch m, NamespaceStats)
+    children :: Map NameSegment (CausalBranch m)
   }
 
 instance AsEmpty (Branch m) where
@@ -71,16 +68,6 @@ instance Show (Branch m) where
       ++ ", children = "
       ++ show (Map.keys (children b))
 
-nonEmptyChildren :: Branch m -> Map NameSegment (CausalBranch m)
-nonEmptyChildren Branch {children} =
-  children & mapMaybe \(cb, ns) ->
-    if nonZeroStats ns
-      then Just cb
-      else Nothing
-  where
-    nonZeroStats (NamespaceStats numContainedTerms numContainedTypes _numContainedPatches) =
-      numContainedTerms + numContainedTypes > 0
-
 -- | Useful statistics about a namespace.
 -- All contained statistics should be 'static', i.e. they can be computed when a branch is
 -- first saved, and won't change unless the branch hash also changes.
@@ -91,27 +78,8 @@ data NamespaceStats = NamespaceStats
   }
   deriving (Show)
 
--- | Compute statistics from a branch by summarizing the branch contents and the statistics of
--- its children.
-namespaceStatistics :: Branch m -> NamespaceStats
-namespaceStatistics Branch {terms, types, patches, children} =
-  NamespaceStats
-    { numContainedTerms =
-        let childTermCount = sumOf (folded . _2 . to numContainedTerms) children
-            termCount = lengthOf (folded . folded) terms
-         in childTermCount + termCount,
-      numContainedTypes =
-        let childTypeCount = sumOf (folded . _2 . to numContainedTypes) children
-            typeCount = lengthOf (folded . folded) types
-         in childTypeCount + typeCount,
-      numContainedPatches =
-        let childPatchCount = sumOf (folded . _2 . to numContainedPatches) children
-            patchCount = Map.size patches
-         in childPatchCount + patchCount
-    }
-
 childAt :: NameSegment -> Branch m -> Maybe (CausalBranch m)
-childAt ns (Branch {children}) = fst <$> Map.lookup ns children
+childAt ns (Branch {children}) = Map.lookup ns children
 
 hoist :: Functor n => (forall x. m x -> n x) -> Branch m -> Branch n
 hoist f Branch {..} =
@@ -120,7 +88,7 @@ hoist f Branch {..} =
       types = (fmap . fmap) f types,
       patches = (fmap . fmap) f patches,
       children =
-        fmap (first (fmap (hoist f) . Causal.hoist f)) children
+        fmap (fmap (hoist f) . Causal.hoist f) children
     }
 
 hoistCausalBranch :: Functor n => (forall x. m x -> n x) -> CausalBranch m -> CausalBranch n

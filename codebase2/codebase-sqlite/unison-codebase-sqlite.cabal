@@ -20,6 +20,7 @@ source-repository head
 
 library
   exposed-modules:
+      U.Codebase.Branch
       U.Codebase.Sqlite.Branch.Diff
       U.Codebase.Sqlite.Branch.Format
       U.Codebase.Sqlite.Branch.Full

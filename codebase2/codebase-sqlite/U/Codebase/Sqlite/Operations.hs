@@ -9,6 +9,7 @@ module U.Codebase.Sqlite.Operations
     saveBranch,
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
+    expectNamespaceStatsByHash,
 
     -- * terms
     Q.saveTermComponent,
@@ -89,8 +90,8 @@ module U.Codebase.Sqlite.Operations
   )
 where
 
+import Control.Lens hiding (children)
 import qualified Control.Monad.Extra as Monad
-import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
@@ -98,7 +99,7 @@ import qualified Data.Map.Merge.Lazy as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3, (***))
-import qualified U.Codebase.Branch as C.Branch
+import qualified U.Codebase.Branch.Type as C.Branch
 import qualified U.Codebase.Causal as C
 import U.Codebase.Decl (ConstructorId)
 import qualified U.Codebase.Decl as C
@@ -527,16 +528,14 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
 
     doChildren ::
       Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) ->
-      Transaction (Map C.Branch.NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction), C.Branch.NamespaceStats))
+      Transaction (Map C.Branch.NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
     doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \(boId, chId) -> do
       causalHash <- Q.expectCausalHash chId
       valueHash <- expectValueHashByCausalHashId chId
       parents <- headParents chId
       let value = expectBranch boId
       let causal = C.Causal {causalHash, valueHash, parents, value}
-      bhId <- Q.saveBranchHash valueHash
-      stats <- Q.expectNamespaceStatsByHashId bhId
-      pure (causal, stats)
+      pure causal
       where
         headParents ::
           Db.CausalHashId ->
@@ -646,7 +645,8 @@ saveBranch hh (C.Causal hc he parents me) = do
   boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByCausalHashId chId) do
     branch <- me
     dbBranch <- c2sBranch branch
-    boId <- saveDbBranchUnderHashId hh bhId (C.Branch.namespaceStatistics branch) dbBranch
+    stats <- computeNamespaceStatistics branch
+    boId <- saveDbBranchUnderHashId hh bhId stats dbBranch
     pure boId
   pure (boId, chId)
   where
@@ -656,7 +656,7 @@ saveBranch hh (C.Causal hc he parents me) = do
         <$> Map.bitraverse saveNameSegment (Map.bitraverse c2sReferent c2sMetadata) terms
         <*> Map.bitraverse saveNameSegment (Map.bitraverse c2sReference c2sMetadata) types
         <*> Map.bitraverse saveNameSegment savePatchObjectId patches
-        <*> Map.bitraverse saveNameSegment (saveBranch hh) (fmap fst children)
+        <*> Map.bitraverse saveNameSegment (saveBranch hh) children
 
     saveNameSegment :: C.Branch.NameSegment -> Transaction Db.TextId
     saveNameSegment = Q.saveText . C.Branch.unNameSegment
@@ -1066,3 +1066,29 @@ rootNamesByPath path = do
   where
     convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
     convertTypes = fmap s2cTextReference
+
+expectNamespaceStatsByHash :: BranchHash -> Transaction C.Branch.NamespaceStats
+expectNamespaceStatsByHash bh = do
+  bhId <- Q.saveBranchHash bh
+  Q.expectNamespaceStatsByHashId bhId
+
+-- | Compute statistics from a branch by summarizing the branch contents and the statistics of
+-- its children.
+computeNamespaceStatistics :: C.Branch.Branch m -> Transaction C.Branch.NamespaceStats
+computeNamespaceStatistics C.Branch.Branch {terms, types, patches, children} = do
+  childStats <- for children (expectNamespaceStatsByHash . C.valueHash)
+  pure $
+    C.Branch.NamespaceStats
+      { numContainedTerms =
+          let childTermCount = sumOf (folded . to C.Branch.numContainedTerms) childStats
+              termCount = lengthOf (folded . folded) terms
+           in childTermCount + termCount,
+        numContainedTypes =
+          let childTypeCount = sumOf (folded . to C.Branch.numContainedTypes) childStats
+              typeCount = lengthOf (folded . folded) types
+           in childTypeCount + typeCount,
+        numContainedPatches =
+          let childPatchCount = sumOf (folded . to C.Branch.numContainedPatches) childStats
+              patchCount = Map.size patches
+           in childPatchCount + patchCount
+      }

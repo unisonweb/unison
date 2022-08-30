@@ -196,7 +196,7 @@ import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
-import U.Codebase.Branch (NamespaceStats (..))
+import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
