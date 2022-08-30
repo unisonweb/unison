@@ -51,7 +51,7 @@ oldReflogEntries reflogPath now =
       -- We offset existing entries by a number of seconds corresponding to their position in
       -- the current file; we can't reclaim timestamps for old reflog entries, but this at
       -- least puts them in the correct order chronologically.
-      let offsetTime = addUTCTime (fromInteger @NominalDiffTime n) now
+      let offsetTime = addUTCTime (negate $ fromInteger @NominalDiffTime n) now
        in case Text.words txt of
             (Hash.fromBase32Hex -> Just old) : (Hash.fromBase32Hex -> Just new) : (Text.unwords -> reason) ->
               Just $
