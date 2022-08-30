@@ -527,12 +527,16 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
 
     doChildren ::
       Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) ->
-      Transaction (Map C.Branch.NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
-    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \(boId, chId) ->
-      C.Causal <$> Q.expectCausalHash chId
-        <*> expectValueHashByCausalHashId chId
-        <*> headParents chId
-        <*> pure (expectBranch boId)
+      Transaction (Map C.Branch.NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction), C.Branch.NamespaceStats))
+    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \(boId, chId) -> do
+      causalHash <- Q.expectCausalHash chId
+      valueHash <- expectValueHashByCausalHashId chId
+      parents <- headParents chId
+      let value = expectBranch boId
+      let causal = C.Causal {causalHash, valueHash, parents, value}
+      bhId <- Q.saveBranchHash valueHash
+      stats <- Q.expectNamespaceStatsByHashId bhId
+      pure (causal, stats)
       where
         headParents ::
           Db.CausalHashId ->
@@ -640,8 +644,10 @@ saveBranch hh (C.Causal hc he parents me) = do
     Q.saveCausal hh chId bhId parentCausalHashIds
     pure (chId, bhId)
   boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByCausalHashId chId) do
-    branch <- c2sBranch =<< me
-    saveDbBranchUnderHashId hh bhId branch
+    branch <- me
+    dbBranch <- c2sBranch branch
+    boId <- saveDbBranchUnderHashId hh bhId (C.Branch.namespaceStatistics branch) dbBranch
+    pure boId
   pure (boId, chId)
   where
     c2sBranch :: C.Branch.Branch Transaction -> Transaction S.DbBranch
@@ -650,7 +656,7 @@ saveBranch hh (C.Causal hc he parents me) = do
         <$> Map.bitraverse saveNameSegment (Map.bitraverse c2sReferent c2sMetadata) terms
         <*> Map.bitraverse saveNameSegment (Map.bitraverse c2sReference c2sMetadata) types
         <*> Map.bitraverse saveNameSegment savePatchObjectId patches
-        <*> Map.bitraverse saveNameSegment (saveBranch hh) children
+        <*> Map.bitraverse saveNameSegment (saveBranch hh) (fmap fst children)
 
     saveNameSegment :: C.Branch.NameSegment -> Transaction Db.TextId
     saveNameSegment = Q.saveText . C.Branch.unNameSegment
@@ -823,27 +829,30 @@ expectDbBranch id =
 saveDbBranch ::
   HashHandle ->
   BranchHash ->
+  C.Branch.NamespaceStats ->
   S.DbBranch ->
   Transaction Db.BranchObjectId
-saveDbBranch hh hash branch = do
+saveDbBranch hh hash stats branch = do
   hashId <- Q.saveBranchHash hash
-  saveDbBranchUnderHashId hh hashId branch
+  saveDbBranchUnderHashId hh hashId stats branch
 
 -- | Variant of 'saveDbBranch' that might be preferred by callers that already have a hash id, not a hash.
 saveDbBranchUnderHashId ::
   HashHandle ->
   Db.BranchHashId ->
+  C.Branch.NamespaceStats ->
   S.DbBranch ->
   Transaction Db.BranchObjectId
-saveDbBranchUnderHashId hh id@(Db.unBranchHashId -> hashId) branch = do
+saveDbBranchUnderHashId hh bhId@(Db.unBranchHashId -> hashId) stats branch = do
   let (localBranchIds, localBranch) = LocalizeObject.localizeBranch branch
   when debug $
     traceM $
-      "saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show localBranchIds
+      "saveBranchObject\n\tid = " ++ show bhId ++ "\n\tli = " ++ show localBranchIds
         ++ "\n\tlBranch = "
         ++ show localBranch
   let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full localBranchIds localBranch
   oId <- Q.saveObject hh hashId ObjectType.Namespace bytes
+  Q.saveNamespaceStats bhId stats
   pure $ Db.BranchObjectId oId
 
 expectBranch :: Db.BranchObjectId -> Transaction (C.Branch.Branch Transaction)
@@ -979,7 +988,7 @@ declReferentsByPrefix b32prefix pos cid = do
       h <- Q.expectPrimaryHashByObjectId oId
       let cids =
             case cid of
-              Nothing -> take ctorCount [0::ConstructorId ..]
+              Nothing -> take ctorCount [0 :: ConstructorId ..]
               Just cid -> if fromIntegral cid < ctorCount then [cid] else []
       pure (h, pos, dt, cids)
     getDeclCtorCount :: S.Reference.Id -> Transaction (C.Decl.DeclType, Int)

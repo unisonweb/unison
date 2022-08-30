@@ -1,8 +1,10 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module U.Codebase.Sqlite.Orphans where
 
 import Control.Applicative
+import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.WatchKind (WatchKind)
@@ -63,3 +65,14 @@ instance FromField WatchKind where
       0 -> WatchKind.RegularWatch
       1 -> WatchKind.TestWatch
       tag -> error $ "Unknown WatchKind id " ++ show tag
+
+instance ToRow NamespaceStats where
+  toRow (NamespaceStats {numContainedTerms, numContainedTypes, numContainedPatches}) =
+    toRow (numContainedTerms, numContainedTypes, numContainedPatches)
+
+instance FromRow NamespaceStats where
+  fromRow = do
+    numContainedTerms <- field
+    numContainedTypes <- field
+    numContainedPatches <- field
+    pure $ NamespaceStats {..}

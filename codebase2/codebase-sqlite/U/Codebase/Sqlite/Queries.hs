@@ -63,6 +63,10 @@ module U.Codebase.Sqlite.Queries
     setNamespaceRoot,
     expectNamespaceRoot,
 
+    -- * namespace_statistics table
+    saveNamespaceStats,
+    expectNamespaceStatsByHashId,
+
     -- * causals
 
     -- ** causal table
@@ -192,6 +196,7 @@ import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
@@ -2136,3 +2141,24 @@ lookup_ stateLens writerLens mk t = do
       Writer.tell $ Lens.set writerLens (Seq.singleton t) mempty
       pure id
     Just t' -> pure t'
+
+-- | Save statistics about a given branch.
+saveNamespaceStats :: BranchHashId -> NamespaceStats -> Transaction ()
+saveNamespaceStats bhId stats = do
+  execute sql (Only bhId :. stats)
+  where
+    sql =
+      [here|
+        INSERT INTO namespace_statistics (namespace_hash_id, num_contained_terms, num_contained_types, num_contained_patches)
+          VALUES (?, ?, ?, ?)
+      |]
+
+expectNamespaceStatsByHashId :: BranchHashId -> Transaction NamespaceStats
+expectNamespaceStatsByHashId bhId = do
+  queryOneRow sql (Only bhId)
+  where
+    sql =
+      [here|
+          SELECT version
+          FROM schema_version
+        |]
