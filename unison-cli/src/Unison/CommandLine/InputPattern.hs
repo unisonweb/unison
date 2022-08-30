@@ -15,12 +15,12 @@ module Unison.CommandLine.InputPattern
   )
 where
 
-import Data.Set (Set)
 import qualified System.Console.Haskeline as Line
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Path as Path
 import qualified Unison.CommandLine.Globbing as Globbing
+import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 
@@ -50,7 +50,7 @@ data ArgumentType = ArgumentType
     -- | Generate completion suggestions for this argument type
     suggestions ::
       forall m v a.
-      Monad m =>
+      MonadIO m =>
       String ->
       Codebase m v a ->
       Path.Absolute -> -- Current path
