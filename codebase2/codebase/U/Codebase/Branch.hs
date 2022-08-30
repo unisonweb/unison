@@ -12,6 +12,7 @@ module U.Codebase.Branch
     CausalHash,
     NamespaceStats (..),
     namespaceStatistics,
+    nonEmptyChildren,
     childAt,
     hoist,
     hoistCausalBranch,
@@ -69,6 +70,16 @@ instance Show (Branch m) where
       ++ show (fmap fst (patches b))
       ++ ", children = "
       ++ show (Map.keys (children b))
+
+nonEmptyChildren :: Branch m -> Map NameSegment (CausalBranch m)
+nonEmptyChildren Branch {children} =
+  children & mapMaybe \(cb, ns) ->
+    if nonZeroStats ns
+      then Just cb
+      else Nothing
+  where
+    nonZeroStats (NamespaceStats numContainedTerms numContainedTypes _numContainedPatches) =
+      numContainedTerms + numContainedTypes > 0
 
 -- | Useful statistics about a namespace.
 -- All contained statistics should be 'static', i.e. they can be computed when a branch is
