@@ -79,6 +79,13 @@ data NamespaceStats = NamespaceStats
   }
   deriving (Show, Eq, Ord)
 
+instance Semigroup NamespaceStats where
+  NamespaceStats a1 b1 c1 <> NamespaceStats a2 b2 c2 =
+    NamespaceStats (a1 + a2) (b1 + b2) (c1 + c2)
+
+instance Monoid NamespaceStats where
+  mempty = NamespaceStats 0 0 0
+
 -- | Whether the provided stats indicate the presence of any definitions in the namespace.
 hasDefinitions :: NamespaceStats -> Bool
 hasDefinitions (NamespaceStats numTerms numTypes _numPatches) =
