@@ -336,13 +336,12 @@ data SlurpingSummary v = SlurpingSummary
     updates :: !(SlurpComponent v),
     termCtorColl :: !(SlurpComponent v),
     ctorTermColl :: !(SlurpComponent v),
-    blocked :: !(SlurpComponent v),
-    conflicts :: !(SlurpComponent v)
+    blocked :: !(SlurpComponent v)
   }
 
-instance (Ord v) => Semigroup (SlurpingSummary v) where
-  SlurpingSummary a b c d e f g
-    <> SlurpingSummary a' b' c' d' e' f' g' =
+instance Ord v => Semigroup (SlurpingSummary v) where
+  SlurpingSummary a b c d e f
+    <> SlurpingSummary a' b' c' d' e' f' =
       SlurpingSummary
         (a <> a')
         (b <> b')
@@ -350,10 +349,9 @@ instance (Ord v) => Semigroup (SlurpingSummary v) where
         (d <> d')
         (e <> e')
         (f <> f')
-        (g <> g')
 
-instance (Ord v) => Monoid (SlurpingSummary v) where
-  mempty = SlurpingSummary mempty mempty mempty mempty mempty mempty mempty
+instance Ord v => Monoid (SlurpingSummary v) where
+  mempty = SlurpingSummary mempty mempty mempty mempty mempty mempty
 
 -- | Convert a 'VarsByStatus' mapping into a 'SR.SlurpResult'
 toSlurpResult ::
@@ -382,7 +380,6 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatu
       SR.adds = adds,
       SR.duplicates = duplicates,
       SR.collisions = if op == AddOp then updates else mempty,
-      SR.conflicts = conflicts,
       SR.updates = if op /= AddOp then updates else mempty,
       SR.termExistingConstructorCollisions =
         let SlurpComponent {types, terms, ctors} = termCtorColl
@@ -395,7 +392,7 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatu
       SR.defsWithBlockedDependencies = blocked
     }
   where
-    SlurpingSummary {adds, duplicates, updates, termCtorColl, ctorTermColl, blocked, conflicts} =
+    SlurpingSummary {adds, duplicates, updates, termCtorColl, ctorTermColl, blocked} =
       ifoldMap summarize1 selfStatuses
 
     -- Compute a singleton summary for a single definition, per its own status and the most severe status of its

@@ -61,9 +61,6 @@ data SlurpResult v = SlurpResult
     -- in the branch with a different definition.
     -- I.e. an update is required but we're performing an add.
     collisions :: SlurpComponent v,
-    -- Not added to codebase due to the name existing
-    -- in the branch with a conflict (two or more definitions).
-    conflicts :: SlurpComponent v,
     -- Names that already exist in the branch, but whose definitions
     -- in `originalFile` are treated as updates.
     updates :: SlurpComponent v,
@@ -92,7 +89,6 @@ data Status
   | Update
   | Duplicate
   | Collision
-  | Conflicted
   | TermExistingConstructorCollision
   | ConstructorExistingTermCollision
   | ExtraDefinition
@@ -104,7 +100,6 @@ prettyStatus s = case s of
   Add -> "added"
   Update -> "updated"
   Collision -> "needs update"
-  Conflicted -> "conflicted"
   Duplicate -> "duplicate"
   TermExistingConstructorCollision -> "term/ctor collision"
   ConstructorExistingTermCollision -> "ctor/term collision"
@@ -241,11 +236,8 @@ pretty isPast ppe sr =
                 )
             typeMsgs =
               P.column2 $
-                (typeLineFor Conflicted <$> toList (types (conflicts sr)))
-                  ++ (typeLineFor Collision <$> toList (types (collisions sr)))
-                  ++ ( typeLineFor BlockedDependency
-                         <$> toList (types (defsWithBlockedDependencies sr))
-                     )
+                (typeLineFor Collision <$> toList (types (collisions sr)))
+                  ++ (typeLineFor BlockedDependency <$> toList (types (defsWithBlockedDependencies sr)))
             termLineFor status v = case Map.lookup v tms of
               Just (_ref, _wk, _tm, ty) ->
                 ( prettyStatus status,
@@ -255,8 +247,7 @@ pretty isPast ppe sr =
               Nothing -> (prettyStatus status, P.text (Var.name v), "")
             termMsgs =
               P.column3sep "  " $
-                (termLineFor Conflicted <$> toList (terms (conflicts sr)))
-                  ++ (termLineFor Collision <$> toList (terms (collisions sr)))
+                (termLineFor Collision <$> toList (terms (collisions sr)))
                   ++ ( termLineFor TermExistingConstructorCollision
                          <$> toList (termExistingConstructorCollisions sr)
                      )
@@ -310,7 +301,6 @@ pretty isPast ppe sr =
 isOk :: Ord v => SlurpResult v -> Bool
 isOk SlurpResult {..} =
   SC.isEmpty collisions
-    && SC.isEmpty conflicts
     && Set.null termExistingConstructorCollisions
     && Set.null constructorExistingTermCollisions
     && SC.isEmpty defsWithBlockedDependencies
@@ -321,7 +311,6 @@ isAllDuplicates SlurpResult {..} =
     && emptyIgnoringConstructors updates
     && emptyIgnoringConstructors extraDefinitions
     && SC.isEmpty collisions
-    && SC.isEmpty conflicts
     && Map.null typeAlias
     && Map.null termAlias
     && Set.null termExistingConstructorCollisions
