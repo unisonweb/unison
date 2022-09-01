@@ -15,10 +15,11 @@ module U.Codebase.Branch.Type
     childAt,
     hoist,
     hoistCausalBranch,
+    pattern Empty,
   )
 where
 
-import Control.Lens hiding (children)
+import Control.Lens (AsEmpty (..), nearly, pattern Empty)
 import qualified Data.Map as Map
 import U.Codebase.Causal (Causal)
 import qualified U.Codebase.Causal as Causal

@@ -129,7 +129,7 @@ completeWithinNamespace ::
   m [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace compTypes query codebase currentPath = do
   shortHashLen <- Codebase.hashLength codebase
-  Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
+  Codebase.getShallowCausalFromRoot codebase Nothing absQueryPath >>= \case
     Nothing -> do
       pure []
     Just cb -> do
