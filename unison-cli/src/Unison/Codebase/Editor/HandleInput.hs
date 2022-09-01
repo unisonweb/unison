@@ -765,23 +765,36 @@ loop e = do
 
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
                 fixupOutput = fmap Path.unsafeToName . HQ'.toHQ . Path.unsplitHQ
-            NamesI global thing -> do
+            NamesI global query -> do
               Cli.Env {codebase} <- ask
+              currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
               hqLength <- liftIO (Codebase.hashLength codebase)
-              basicPrettyPrintNames <- getBasicPrettyPrintNames
-              ns0 <- if global then pure basicPrettyPrintNames else basicParseNames
-              let ns = NamesWithHistory ns0 mempty
-                  terms = NamesWithHistory.lookupHQTerm thing ns
-                  types = NamesWithHistory.lookupHQType thing ns
-                  printNames = NamesWithHistory basicPrettyPrintNames mempty
+              root <- Cli.getRootBranch
+              (names, pped) <-
+                if global || any Name.isAbsolute query
+                  then do
+                    let root0 = Branch.head root
+                    let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
+                    -- Use an absolutely qualified ppe for view.global
+                    let pped = PPE.fromNamesDecl hqLength names
+                    pure (names, pped)
+                  else do
+                    currentBranch <- Cli.getCurrentBranch0
+                    let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+                    let pped = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
+                    pure (currentNames, pped)
+
+              let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
+                  terms = NamesWithHistory.lookupHQTerm query names
+                  types = NamesWithHistory.lookupHQType query names
                   terms' :: Set (Referent, Set (HQ'.HashQualified Name))
                   terms' = Set.map go terms
                     where
-                      go r = (r, NamesWithHistory.termName hqLength r printNames)
+                      go r = (r, Set.fromList $ PPE.allTermNames unsuffixifiedPPE r)
                   types' :: Set (Reference, Set (HQ'.HashQualified Name))
                   types' = Set.map go types
                     where
-                      go r = (r, NamesWithHistory.typeName hqLength r printNames)
+                      go r = (r, Set.fromList $ PPE.allTypeNames unsuffixifiedPPE r)
               Cli.respond $ ListNames global hqLength (toList types') (toList terms')
             LinkI mdValue srcs -> do
               description <- inputDescription input
@@ -2266,14 +2279,15 @@ addDefaultMetadata adds =
           resolveDefaultMetadata currentPath' >>= \case
             [] -> pure ()
             dm -> do
-              defaultMeta <-
-                traverse InputPatterns.parseHashQualifiedName dm & onLeft \err ->
-                  Cli.returnEarly $
+              traverse InputPatterns.parseHashQualifiedName dm & \case
+                Left err -> do
+                  Cli.respond $
                     ConfiguredMetadataParseError
                       (Path.absoluteToPath' currentPath')
                       (show dm)
                       err
-              manageLinks True addedNames defaultMeta Metadata.insert
+                Right defaultMeta -> do
+                  manageLinks True addedNames defaultMeta Metadata.insert
 
 resolveDefaultMetadata :: Path.Absolute -> Cli r [String]
 resolveDefaultMetadata path = do
@@ -2310,17 +2324,19 @@ manageLinks silent srcs' metadataNames op = do
   srcs <- traverse Cli.resolveSplit' srcs'
   srcle <- Monoid.foldMapM Cli.getTermsAt srcs
   srclt <- Monoid.foldMapM Cli.getTypesAt srcs
-  for_ metadatas \(mdType, mdValue) -> do
-    let step =
-          let tmUpdates terms = foldl' go terms srcle
-                where
-                  go terms src = op (src, mdType, mdValue) terms
-              tyUpdates types = foldl' go types srclt
-                where
-                  go types src = op (src, mdType, mdValue) types
-           in over Branch.terms tmUpdates . over Branch.types tyUpdates
-    let steps = map (\(path, _hq) -> (Path.unabsolute path, step)) srcs
-    stepManyAtNoSync steps
+  for_ metadatas \case
+    Left errOutput -> Cli.respond errOutput
+    Right (mdType, mdValue) -> do
+      let step =
+            let tmUpdates terms = foldl' go terms srcle
+                  where
+                    go terms src = op (src, mdType, mdValue) terms
+                tyUpdates types = foldl' go types srclt
+                  where
+                    go types src = op (src, mdType, mdValue) types
+             in over Branch.terms tmUpdates . over Branch.types tyUpdates
+      let steps = map (\(path, _hq) -> (Path.unabsolute path, step)) srcs
+      stepManyAtNoSync steps
   if silent
     then Cli.respond DefaultMetadataNotification
     else do
@@ -2337,7 +2353,7 @@ manageLinks silent srcs' metadataNames op = do
               diff
 
 -- | Resolve a metadata name to its type/value, or return early if no such metadata is found.
-resolveMetadata :: HQ.HashQualified Name -> Cli r (Metadata.Type, Metadata.Value)
+resolveMetadata :: HQ.HashQualified Name -> Cli r (Either Output (Metadata.Type, Metadata.Value))
 resolveMetadata name = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
@@ -2354,10 +2370,10 @@ resolveMetadata name = do
       Just (Referent.Ref ref) -> pure ref
       -- FIXME: we want a different error message if the given name is associated with a data constructor (`Con`).
       _ -> Cli.returnEarly (MetadataAmbiguous name ppe (Set.toList terms))
-  ty <-
-    liftIO (Codebase.getTypeOfTerm codebase ref) & onNothingM do
-      Cli.returnEarly (MetadataMissingType ppe (Referent.Ref ref))
-  pure (Hashing.typeToReference ty, ref)
+  liftIO (Codebase.getTypeOfTerm codebase ref) >>= \case
+    Just ty -> pure $ Right (Hashing.typeToReference ty, ref)
+    Nothing ->
+      pure (Left (MetadataMissingType ppe (Referent.Ref ref)))
 
 -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
 -- otherwise, tries to load a value from .unisonConfig, and complains

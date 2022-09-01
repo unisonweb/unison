@@ -214,7 +214,7 @@ uargOnto stk sp cop cp0 (ArgN v) = do
         | i < 0 = return ()
         | otherwise = do
             (x :: Int) <- readByteArray stk (sp - indexPrimArray v i)
-            writeByteArray buf (sz - 1 - i) x
+            writeByteArray buf (boff - i) x
             loop $ i - 1
   loop $ sz - 1
   when overwrite $
@@ -224,6 +224,7 @@ uargOnto stk sp cop cp0 (ArgN v) = do
     cp = cp0 + sz
     sz = sizeofPrimArray v
     overwrite = sameMutableByteArray stk cop
+    boff | overwrite = sz - 1 | otherwise = cp0 + sz
 uargOnto stk sp cop cp0 (ArgR i l) = do
   moveByteArray cop cbp stk sbp (bytes l)
   pure $ cp0 + l
@@ -255,9 +256,10 @@ bargOnto stk sp cop cp0 (ArgN v) = do
         | i < 0 = return ()
         | otherwise = do
             x <- readArray stk $ sp - indexPrimArray v i
-            writeArray buf (sz - 1 - i) x
+            writeArray buf (boff - i) x
             loop $ i - 1
   loop $ sz - 1
+
   when overwrite $
     copyMutableArray cop (cp0 + 1) buf 0 sz
   pure cp
@@ -265,6 +267,7 @@ bargOnto stk sp cop cp0 (ArgN v) = do
     cp = cp0 + sz
     sz = sizeofPrimArray v
     overwrite = stk == cop
+    boff | overwrite = sz - 1 | otherwise = cp0 + sz
 bargOnto stk sp cop cp0 (ArgR i l) = do
   copyMutableArray cop (cp0 + 1) stk (sp - i - l + 1) l
   pure $ cp0 + l
