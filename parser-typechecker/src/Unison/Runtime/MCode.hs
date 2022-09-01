@@ -491,6 +491,8 @@ data Instr
     Atomically !Int
   | -- Build a sequence consisting of a variable number of arguments
     Seq !Args
+  | -- Force a delayed expression, catching any runtime exceptions involved
+    TryForce !Int
   deriving (Show, Eq, Ord)
 
 data Section
@@ -1181,6 +1183,9 @@ emitPOp ANF.PRNT = \case
 emitPOp ANF.INFO = \case
   ZArgs -> Info "debug"
   _ -> internalBug "info takes no arguments"
+emitPOp ANF.TFRC = \case
+  BArg1 i -> TryForce i
+  _ -> internalBug "tryEval takes exactly one boxed argument"
 
 -- handled in emitSection because Die is not an instruction
 

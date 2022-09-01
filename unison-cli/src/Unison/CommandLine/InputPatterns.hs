@@ -931,13 +931,10 @@ renameBranch =
     [(Required, namespaceArg), (Required, newNameArg)]
     "`move.namespace foo bar` renames the path `foo` to `bar`."
     ( \case
-        [".", dest] -> first fromString $ do
-          dest <- Path.parseSplit' Path.definitionNameSegment dest
-          pure $ Input.MoveBranchI Nothing dest
         [src, dest] -> first fromString $ do
-          src <- Path.parseSplit' Path.definitionNameSegment src
-          dest <- Path.parseSplit' Path.definitionNameSegment dest
-          pure $ Input.MoveBranchI (Just src) dest
+          src <- Path.parsePath' src
+          dest <- Path.parsePath' dest
+          pure $ Input.MoveBranchI src dest
         _ -> Left (I.help renameBranch)
     )
 
@@ -2093,6 +2090,21 @@ execute =
         _ -> Left $ showPatternHelp execute
     )
 
+saveExecuteResult :: InputPattern
+saveExecuteResult =
+  InputPattern
+    "add.run"
+    []
+    I.Visible
+    [(Required, newNameArg)]
+    ( "`add.run name` adds to the codebase the result of the most recent `run` command"
+        <> "as `name`."
+    )
+    ( \case
+        [w] -> pure $ Input.SaveExecuteResultI (Name.unsafeFromString w)
+        _ -> Left $ showPatternHelp saveExecuteResult
+    )
+
 ioTest :: InputPattern
 ioTest =
   InputPattern
@@ -2299,6 +2311,7 @@ validInputs =
       testAll,
       ioTest,
       execute,
+      saveExecuteResult,
       viewReflog,
       resetRoot,
       quit,

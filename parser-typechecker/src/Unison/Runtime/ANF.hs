@@ -1083,6 +1083,7 @@ data POp
   | TRCE
   | -- STM
     ATOM
+  | TFRC -- try force
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 type ANormal = ABTN.Term ANormalF

@@ -18,7 +18,8 @@ module Unison.Codebase.TranscriptParser
   )
 where
 
-import Control.Lens ((^.))
+import Control.Concurrent.STM (atomically)
+import Control.Lens ((?~), (^.))
 import qualified Crypto.Random as Random
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
@@ -470,8 +471,16 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
       loop s0 = do
         input <- awaitInput s0
         Cli.runCli env s0 (HandleInput.loop input) >>= \case
-          (Cli.Success (), s1) -> loop s1
-          (Cli.Continue, s1) -> loop s1
+          (Cli.Success (), s1) -> do
+            let sNext = case input of
+                  Left _ -> s1
+                  Right inp -> s1 & #lastInput ?~ inp
+            loop sNext
+          (Cli.Continue, s1) -> do
+            let sNext = case input of
+                  Left _ -> s1
+                  Right inp -> s1 & #lastInput ?~ inp
+            loop sNext
           (Cli.HaltRepl, _) -> do
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))

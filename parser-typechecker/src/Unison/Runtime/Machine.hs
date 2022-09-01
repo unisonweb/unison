@@ -228,6 +228,9 @@ jump0 !callback !env !activeThreads !clo = do
   where
     k0 = CB (Hook callback)
 
+unitValue :: Closure
+unitValue = Enum Rf.unitRef unitTag
+
 lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
 
@@ -444,7 +447,47 @@ exec !env !denv !activeThreads !ustk !bstk !k (Atomically i)
       bstk <- bump bstk
       atomicEval env activeThreads (poke bstk) c
       pure (denv, ustk, bstk, k)
+exec !env !denv !activeThreads !ustk !bstk !k (TryForce i)
+  | sandboxed env = die $ "attempted to use sandboxed operation: tryForce"
+  | otherwise = do
+      c <- peekOff bstk i
+      ustk <- bump ustk
+      bstk <- bump bstk
+      ev <- Control.Exception.try $ nestEval env activeThreads (poke bstk) c
+      bstk <- encodeExn ustk bstk ev
+      pure (denv, ustk, bstk, k)
 {-# INLINE exec #-}
+
+encodeExn ::
+  Stack 'UN ->
+  Stack 'BX ->
+  Either SomeException () ->
+  IO (Stack 'BX)
+encodeExn ustk bstk (Right _) = bstk <$ poke ustk 1
+encodeExn ustk bstk (Left exn) = do
+  bstk <- bumpn bstk 2
+  poke ustk 0
+  poke bstk $ Foreign (Wrap Rf.typeLinkRef link)
+  pokeOffBi bstk 1 msg
+  bstk <$ pokeOff bstk 2 extra
+  where
+    disp e = Util.Text.pack $ show e
+    (link, msg, extra)
+      | Just (ioe :: IOException) <- fromException exn =
+          (Rf.ioFailureRef, disp ioe, unitValue)
+      | Just re <- fromException exn = case re of
+          PE _stk msg ->
+            (Rf.runtimeFailureRef, Util.Text.pack $ toPlainUnbroken msg, unitValue)
+          BU tx cl -> (Rf.runtimeFailureRef, Util.Text.fromText tx, cl)
+      | Just (ae :: ArithException) <- fromException exn =
+          (Rf.arithmeticFailureRef, disp ae, unitValue)
+      | Just (nae :: NestedAtomically) <- fromException exn =
+          (Rf.stmFailureRef, disp nae, unitValue)
+      | Just (be :: BlockedIndefinitelyOnSTM) <- fromException exn =
+          (Rf.stmFailureRef, disp be, unitValue)
+      | Just (be :: BlockedIndefinitelyOnMVar) <- fromException exn =
+          (Rf.ioFailureRef, disp be, unitValue)
+      | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
 
 eval ::
   CCache ->
@@ -515,12 +558,15 @@ forkEval env activeThreads clo =
           UnliftIO.atomicModifyIORef' activeThreads (\ids -> (Set.delete myThreadId ids, ()))
 {-# INLINE forkEval #-}
 
+nestEval :: CCache -> ActiveThreads -> (Closure -> IO ()) -> Closure -> IO ()
+nestEval env activeThreads write clo = apply1 readBack env activeThreads clo
+  where
+    readBack _ bstk = peek bstk >>= write
+{-# INLINE nestEval #-}
+
 atomicEval :: CCache -> ActiveThreads -> (Closure -> IO ()) -> Closure -> IO ()
 atomicEval env activeThreads write clo =
-  atomically . unsafeIOToSTM $ apply1 readBack env activeThreads clo
-  where
-    readBack :: Stack 'UN -> Stack 'BX -> IO ()
-    readBack _ bstk = peek bstk >>= write
+  atomically . unsafeIOToSTM $ nestEval env activeThreads write clo
 {-# INLINE atomicEval #-}
 
 -- fast path application

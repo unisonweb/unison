@@ -27,6 +27,7 @@ module Unison.Typechecker.Context
     apply,
     isEqual,
     isSubtype,
+    fitsScheme,
     isRedundant,
     Suggestion (..),
     SuggestionMatch (..),
@@ -359,6 +360,7 @@ data Cause v loc
   | UnknownSymbol loc v
   | UnknownTerm loc v [Suggestion v loc] (Type v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
+  | AbilityEqFailure [Type v loc] [Type v loc] (Context v loc)
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount ConstructorReference
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   -- Type of ctor, number of arguments we got
@@ -2708,7 +2710,7 @@ equateAbilities ls rs =
             | [] <- com, null ls, null crs -> for_ vrs defaultAbility
             | [] <- com, Just pl <- mlSlack, null cls -> refine False [pl] [rs]
             | [] <- com, Just pr <- mrSlack, null crs -> refine False [pr] [ls]
-            | otherwise -> getContext >>= failWith . AbilityCheckFailure ls rs
+            | otherwise -> getContext >>= failWith . AbilityEqFailure ls rs
   where
     refine common lbvs ess = do
       cv <- traverse freshenVar cn
@@ -2951,6 +2953,16 @@ isSubtype' type1 type2 = succeeds $ do
   reserveAll (TypeVar.underlying <$> vars)
   appendContext (Var <$> vars)
   subtype type1 type2
+
+-- See documentation at 'Unison.Typechecker.fitsScheme'
+fitsScheme :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
+fitsScheme type1 type2 = run Map.empty Map.empty $
+  succeeds $ do
+    let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
+    reserveAll (TypeVar.underlying <$> vars)
+    appendContext (Var <$> vars)
+    type2 <- ungeneralize type2
+    subtype type1 type2
 
 -- `isRedundant userType inferredType` returns `True` if the `userType`
 -- is equal "up to inferred abilities" to `inferredType`.

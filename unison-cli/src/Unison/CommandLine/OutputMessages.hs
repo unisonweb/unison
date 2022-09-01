@@ -424,12 +424,14 @@ notifyNumbered o = case o of
   ListEdits patch ppe -> showListEdits patch ppe
   where
     absPathToBranchId = Right
-    undoTip =
-      tip $
-        "You can use" <> IP.makeExample' IP.undo
-          <> "or"
-          <> IP.makeExample' IP.viewReflog
-          <> "to undo this change."
+
+undoTip :: P.Pretty P.ColorText
+undoTip =
+  tip $
+    "You can use" <> IP.makeExample' IP.undo
+      <> "or"
+      <> IP.makeExample' IP.viewReflog
+      <> "to undo this change."
 
 showListEdits :: Patch -> PPE.PrettyPrintEnv -> (P.Pretty P.ColorText, NumberedArgs)
 showListEdits patch ppe =
@@ -537,6 +539,21 @@ prettyWriteRemotePath =
 
 notifyUser :: FilePath -> Output -> IO Pretty
 notifyUser dir o = case o of
+  SaveTermNameConflict name ->
+    pure
+      . P.warnCallout
+      . P.wrap
+      $ "Cannot save the last run result into" <> P.backticked (P.string (Name.toString name))
+        <> "because that name conflicts with a name in the scratch file."
+  NoLastRunResult ->
+    pure
+      . P.warnCallout
+      . P.wrap
+      $ "There is no previous evaluation to save."
+        <> "Use"
+        <> P.backticked "run"
+        <> "to evaluate something before attempting"
+        <> "to save it."
   Success -> pure $ P.bold "Done."
   PrintMessage pretty -> do
     pure pretty
@@ -728,6 +745,25 @@ notifyUser dir o = case o of
       P.warnCallout "The following names were not found in the codebase. Check your spelling."
         <> P.newline
         <> (P.syntaxToColor $ P.indent "  " (P.lines (prettyHashQualified <$> hqs)))
+  SearchTermsNotFoundDetailed wasTerm hqMisses otherHits ->
+    pure (missMsg <> hitMsg)
+    where
+      typeOrTermMsg =
+        if wasTerm
+          then "I was expecting the following names to be terms, though I found types instead."
+          else "I was expecting the following names to be types, though I found terms instead."
+      missMsg = case null hqMisses of
+        True -> mempty
+        False ->
+          P.warnCallout "The following names were not found in the codebase. Check your spelling."
+            <> P.newline
+            <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> hqMisses)))
+      hitMsg = case null otherHits of
+        True -> mempty
+        False ->
+          P.warnCallout typeOrTermMsg
+            <> P.newline
+            <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> otherHits)))
   PatchNotFound _ ->
     pure . P.warnCallout $ "I don't know about that patch."
   NameNotFound _ ->
@@ -770,7 +806,7 @@ notifyUser dir o = case o of
           "",
           P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
           "",
-          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string "run") <> "it it needs to have the type:",
+          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string "run") <> "it needs be a subtype of:",
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
@@ -848,8 +884,19 @@ notifyUser dir o = case o of
   --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
   --   <> P.newline
   --   <> P.wrap "Please repeat the same command to confirm the deletion."
-  ListOfDefinitions ppe detailed results ->
-    listOfDefinitions ppe detailed results
+  MoveRootBranchConfirmation ->
+    pure . P.warnCallout . P.lines $
+      [ "Moves which affect the root branch cannot be undone, are you sure?",
+        "Re-run the same command to proceed."
+      ]
+  MovedOverExistingBranch dest' ->
+    pure . P.warnCallout . P.lines $
+      [ P.wrap $ "A branch existed at the destination:" <> prettyPath' dest' <> "so I over-wrote it.",
+        "",
+        undoTip
+      ]
+  ListOfDefinitions fscope ppe detailed results ->
+    listOfDefinitions fscope ppe detailed results
   ListOfLinks ppe results ->
     listOfLinks ppe [(name, tm) | (name, _ref, tm) <- results]
   ListNames global len types terms ->
@@ -872,7 +919,7 @@ notifyUser dir o = case o of
           then mempty
           else (tip $ "Use " <> IP.makeExample (IP.names True) [] <> " to see more results.")
       formatTerms tms =
-        P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms)
+        P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : List.intersperse "" (go <$> tms)
         where
           go (ref, hqs) =
             P.column2
@@ -880,7 +927,7 @@ notifyUser dir o = case o of
                 ("Names: ", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
               ]
       formatTypes types =
-        P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : (go <$> types)
+        P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : List.intersperse "" (go <$> types)
         where
           go (ref, hqs) =
             P.column2
@@ -934,6 +981,7 @@ notifyUser dir o = case o of
     let isPast = case input of
           Input.AddI {} -> True
           Input.UpdateI {} -> True
+          Input.SaveExecuteResultI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s
   FindNoLocalMatches ->
@@ -993,6 +1041,7 @@ notifyUser dir o = case o of
               if null bindings
                 then prettyWatches
                 else prettyBindings <> "\n" <> prettyWatches
+  RunResult ppe term -> pure (TermPrinter.pretty ppe term)
   DisplayConflicts termNamespace typeNamespace ->
     pure $
       P.sepNonEmpty
@@ -1392,7 +1441,9 @@ notifyUser dir o = case o of
                   )
                 ],
           "",
-          P.numberedList . fmap renderEntry $ entries
+          P.numberedList . fmap renderEntry $ entries,
+          "",
+          tip $ "Use " <> IP.makeExample IP.diffNamespace ["1", "7"] <> " to compare namespaces between two points in history."
         ]
     where
       renderEntry :: Output.ReflogEntry -> Pretty
@@ -2324,9 +2375,9 @@ todoOutput ppe todo = runNumbered do
     unscore (_score, b, c) = (b, c)
 
 listOfDefinitions ::
-  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
-listOfDefinitions ppe detailed results =
-  pure $ listOfDefinitions' ppe detailed results
+  Var v => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
+listOfDefinitions fscope ppe detailed results =
+  pure $ listOfDefinitions' fscope ppe detailed results
 
 listOfLinks ::
   Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
@@ -2785,28 +2836,34 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
 
     leftNumsWidth = P.Width $ length (show menuSize) + length ("." :: String)
 
-noResults :: Pretty
-noResults =
+noResults :: Input.FindScope -> Pretty
+noResults fscope =
   P.callout "😶" $
-    P.lines
+    P.lines $
       [ P.wrap $
           "No results. Check your spelling, or try using tab completion "
             <> "to supply command arguments.",
-        "",
-        P.wrap $
-          IP.makeExample IP.findGlobal []
-            <> "can be used to search outside the current namespace."
+        ""
       ]
+        ++ case fscope of
+          Input.FindGlobal -> []
+          _ -> [suggestFindGlobal]
+  where
+    suggestFindGlobal =
+      P.wrap $
+        IP.makeExample IP.findGlobal []
+          <> "can be used to search outside the current namespace."
 
 listOfDefinitions' ::
   Var v =>
+  Input.FindScope ->
   PPE.PrettyPrintEnv -> -- for printing types of terms :-\
   E.ListDetailed ->
   [SR'.SearchResult' v a] ->
   Pretty
-listOfDefinitions' ppe detailed results =
+listOfDefinitions' fscope ppe detailed results =
   if null results
-    then noResults
+    then noResults fscope
     else
       P.lines
         . P.nonEmpty

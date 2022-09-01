@@ -150,7 +150,20 @@ data Output
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
   | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
+  | NoLastRunResult
+  | SaveTermNameConflict Name
   | SearchTermsNotFound [HQ.HashQualified Name]
+  | -- Like 'SearchTermsNotFound' but additionally contains term hits
+    -- if we are searching for types or type hits if we are searching
+    -- for terms. This additional info is used to provide an enhanced
+    -- error message.
+    SearchTermsNotFoundDetailed
+      Bool
+      -- ^ @True@ if we are searching for a term, @False@ if we are searching for a type
+      [HQ.HashQualified Name]
+      -- ^ Misses (search terms that returned no hits for terms or types)
+      [HQ.HashQualified Name]
+      -- ^ Hits for types if we are searching for terms or terms if we are searching for types
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
@@ -158,6 +171,8 @@ data Output
     DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' Symbol Ann]))]
   | DeleteEverythingConfirmation
+  | MoveRootBranchConfirmation
+  | MovedOverExistingBranch Path'
   | DeletedEverything
   | ListNames
       IsGlobal
@@ -165,7 +180,7 @@ data Output
       [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
       [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
       -- list of all the definitions within this branch
-  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
+  | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
   | ListShallow PPE.PrettyPrintEnv [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
@@ -182,6 +197,7 @@ data Output
       PPE.PrettyPrintEnv
       [(Symbol, Term Symbol ())]
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
+  | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult Symbol) (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
@@ -294,6 +310,9 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  NoLastRunResult {} -> True
+  SaveTermNameConflict {} -> True
+  RunResult {} -> False
   Success {} -> False
   PrintMessage {} -> False
   CouldntLoadBranch {} -> True
@@ -331,12 +350,15 @@ isFailure o = case o of
   TermNotFound' {} -> True
   TypeTermMismatch {} -> True
   SearchTermsNotFound ts -> not (null ts)
+  SearchTermsNotFoundDetailed _ misses otherHits -> not (null misses && null otherHits)
   DeleteBranchConfirmation {} -> False
   DeleteEverythingConfirmation -> False
+  MoveRootBranchConfirmation -> False
+  MovedOverExistingBranch {} -> False
   DeletedEverything -> False
   ListNames _ _ tys tms -> null tms && null tys
   ListOfLinks _ ds -> null ds
-  ListOfDefinitions _ _ ds -> null ds
+  ListOfDefinitions _ _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors {} -> True

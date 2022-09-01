@@ -70,3 +70,4 @@ The format for this list: name, GitHub handle
 * Travis Staton (@tstat)
 * Dan Freeman (@dfreeman)
 * Emil Hotkowski (@emilhotkowski)
+* Jesse Looney (@jesselooney)

@@ -72,6 +72,8 @@ import Unison.Prelude
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
+import Unison.Term (Term)
+import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
 import UnliftIO.STM
 
@@ -162,7 +164,10 @@ data LoopState = LoopState
     -- A 1-indexed list of strings that can be referenced by index at the
     -- CLI prompt.  e.g. Given ["Foo.bat", "Foo.cat"],
     -- `rename 2 Foo.foo` will rename `Foo.cat` to `Foo.foo`.
-    numberedArgs :: NumberedArgs
+    numberedArgs :: NumberedArgs,
+    -- The result of the last run, along with a unison file that
+    -- captures the state of dependencies when the last run occurred
+    lastRunResult :: Maybe (Term Symbol Ann, Type Symbol Ann, UF.TypecheckedUnisonFile Symbol Ann)
   }
   deriving stock (Generic)
 
@@ -189,7 +194,8 @@ loopState0 b p = do
       latestFile = Nothing,
       latestTypecheckedFile = Nothing,
       lastInput = Nothing,
-      numberedArgs = []
+      numberedArgs = [],
+      lastRunResult = Nothing
     }
 
 -- | Run a @Cli@ action down to @IO@.

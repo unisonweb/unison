@@ -474,6 +474,86 @@ renderTypeError e env src curPath = case e of
         annotatedAsErrorSite src abilityCheckFailureSite,
         debugSummary note
       ]
+  AbilityEqFailure {..} ->
+    mconcat
+      [ "I found an ability mismatch when checking the expression ",
+        describeStyle ErrorSite,
+        "\n\n",
+        showSourceMaybes
+          src
+          [ (,Type1) <$> rangeForAnnotated tlhs,
+            (,Type2) <$> rangeForAnnotated trhs,
+            (,ErrorSite) <$> rangeForAnnotated abilityCheckFailureSite
+          ],
+        "\n\n",
+        Pr.wrap $
+          mconcat
+            [ "When trying to match ",
+              style Type1 $ renderType' env tlhs,
+              " with ",
+              style Type2 $ renderType' env trhs,
+              case (lhs, rhs) of
+                ([], _) ->
+                  mconcat
+                    [ "the right hand side contained extra abilities: ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
+                    ]
+                (_, []) ->
+                  mconcat
+                    [ "the left hand side contained extra abilities: ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
+                    ]
+                _ ->
+                  mconcat
+                    [ " I could not make ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
+                      " on the left compatible with ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
+                      " on the right."
+                    ]
+            ],
+        "\n\n",
+        debugSummary note
+      ]
+  AbilityEqFailureFromAp {..} ->
+    mconcat
+      [ "I found an ability mismatch when checking the application",
+        "\n\n",
+        showSourceMaybes
+          src
+          [ (,Type1) <$> rangeForAnnotated expectedSite,
+            (,Type2) <$> rangeForAnnotated mismatchSite
+          ],
+        "\n\n",
+        Pr.wrap $
+          mconcat
+            [ "When trying to match ",
+              style Type1 $ renderType' env tlhs,
+              " with ",
+              style Type2 $ renderType' env trhs,
+              case (lhs, rhs) of
+                ([], _) ->
+                  mconcat
+                    [ "the right hand side contained extra abilities: ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
+                    ]
+                (_, []) ->
+                  mconcat
+                    [ "the left hand side contained extra abilities: ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
+                    ]
+                _ ->
+                  mconcat
+                    [ " I could not make ",
+                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
+                      " on the left compatible with ",
+                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
+                      " on the right."
+                    ]
+            ],
+        "\n\n",
+        debugSummary note
+      ]
   UnguardedLetRecCycle vs locs _ ->
     mconcat
       [ "These definitions depend on each other cyclically but aren't guarded ",
@@ -748,6 +828,16 @@ renderTypeError e env src curPath = case e of
             commas (renderType' env) ambient,
             "} requested={",
             commas (renderType' env) requested,
+            "}\n",
+            renderContext env c
+          ]
+      C.AbilityEqFailure left right c ->
+        mconcat
+          [ "AbilityEqFailure: ",
+            "lhs={",
+            commas (renderType' env) left,
+            "} rhs={",
+            commas (renderType' env) right,
             "}\n",
             renderContext env c
           ]

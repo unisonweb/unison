@@ -6,7 +6,7 @@ where
 import Compat (withInterruptHandler)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (catch, finally, mask)
-import Control.Lens ((^.))
+import Control.Lens ((?~), (^.))
 import Control.Monad.Catch (MonadMask)
 import qualified Crypto.Random as Random
 import Data.Configurator.Types (Config)
@@ -195,7 +195,11 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
         loop0 s0 = do
           let step = do
                 input <- awaitInput s0
-                Cli.runCli env s0 (HandleInput.loop input)
+                (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                let sNext = case input of
+                      Left _ -> resultState
+                      Right inp -> resultState & #lastInput ?~ inp
+                pure (result, sNext)
           UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step)) >>= \case
             -- SIGINT
             Left () -> do
