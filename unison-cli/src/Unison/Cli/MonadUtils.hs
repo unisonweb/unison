@@ -321,7 +321,7 @@ updateAtM ::
   (Branch IO -> Cli r (Branch IO)) ->
   Cli r Bool
 updateAtM reason (Path.Absolute p) f = do
-  b <- Cli.getLastSavedRoot
+  b <- getLastSavedRoot
   b' <- Branch.modifyAtM p f b
   updateRoot b' reason
   pure $ b /= b'
@@ -340,9 +340,9 @@ updateRoot :: Branch IO -> Text -> Cli r ()
 updateRoot new reason =
   Cli.time "updateRoot" do
     Cli.Env {codebase} <- ask
-    old <- Cli.getLastSavedRoot
+    old <- getLastSavedRoot
     when (old /= new) do
-      Cli.setRootBranch new
+      setRootBranch new
       liftIO (Codebase.putRootBranch codebase new)
       liftIO (Codebase.appendReflog codebase reason old new)
-      Cli.setLastSavedRoot new
+      setLastSavedRoot new

@@ -2896,7 +2896,7 @@ stepManyAtNoSync ::
   Foldable f =>
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepManyAtNoSync strat actions =
+stepManyAtNoSync actions =
   void $ Cli.modifyRootBranch $ Branch.stepManyAt actions
 
 stepManyAtM ::
