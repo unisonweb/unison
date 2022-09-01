@@ -1403,7 +1403,7 @@ notifyUser dir o = case o of
     pure $
       P.lines
         [ header,
-          P.numberedColumnNHeader ["When", "Action", "Root Hash"] $ entries <&> renderEntry3Column now,
+          P.numberedColumnNHeader ["When", "Root Hash", "Action"] $ entries <&> renderEntry3Column now,
           "",
           tip $ "Use " <> IP.makeExample IP.diffNamespace ["1", "7"] <> " to compare namespaces between two points in history."
         ]
@@ -1437,7 +1437,11 @@ notifyUser dir o = case o of
           _ -> mempty
       renderEntry3Column :: UTCTime -> (Maybe UTCTime, SBH.ShortBranchHash, Text) -> [Pretty]
       renderEntry3Column now (mayTime, sbh, reason) =
-        [maybe "" (prettyHumanReadableTime now) mayTime, P.text reason, P.blue (prettySBH sbh)]
+        [maybe "" (prettyHumanReadableTime now) mayTime, P.blue (prettySBH sbh), P.text $ truncateReason reason]
+      truncateReason :: Text -> Text
+      truncateReason txt = case Text.splitAt 60 txt of
+        (short, "") -> short
+        (short, _) -> short <> "..."
   StartOfCurrentPathHistory ->
     pure $
       P.wrap "You're already at the very beginning! 🙂"
@@ -3153,7 +3157,7 @@ prettyHumanReadableTime now time =
         { justNow = "now",
           secondsAgo = \f -> (++ " secs" ++ dir f),
           oneMinuteAgo = \f -> "a min" ++ dir f,
-          minutesAgo = \f -> (++ " minutes" ++ dir f),
+          minutesAgo = \f -> (++ " mins" ++ dir f),
           oneHourAgo = \f -> "an hour" ++ dir f,
           aboutHoursAgo = \f x -> "about " ++ x ++ " hours" ++ dir f,
           at = \_ t -> t,

@@ -404,7 +404,7 @@ loop e = do
                 expandEntries ([], Just expectedHash, moreEntriesToLoad) =
                   if moreEntriesToLoad
                     then Nothing
-                    else Just ((Nothing, expectedHash, "The history starts here"), ([], Nothing, moreEntriesToLoad))
+                    else Just ((Nothing, expectedHash, "history starts here"), ([], Nothing, moreEntriesToLoad))
                 expandEntries ([], Nothing, _moreEntriesToLoad) = Nothing
                 expandEntries (entries@(Reflog.Entry {time, fromRootCausalHash, toRootCausalHash, reason} : rest), mayExpectedHash, moreEntriesToLoad) =
                   Just $
