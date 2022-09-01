@@ -26,6 +26,7 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
+import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
 import System.Environment (withArgs)
@@ -391,9 +392,30 @@ loop e = do
               sbhLength <- liftIO (Codebase.branchHashLength codebase)
               let numEntriesToShow = 500
               entries <- liftIO (Codebase.getReflog codebase numEntriesToShow) <&> fmap (first $ SBH.fromHash sbhLength)
-              let numberedEntries = entries <&> \entry -> "#" <> SBH.toString (Reflog.toRootCausalHash entry)
+              let moreEntriesToLoad = length entries == numEntriesToShow
+              let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
+              let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SBH.toString hash
               #numberedArgs .= numberedEntries
-              Cli.respond $ ShowReflog entries
+              Cli.respond $ ShowReflog expandedEntries
+              where
+                expandEntries ::
+                  ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool) ->
+                  Maybe ((Maybe UTCTime, SBH.ShortBranchHash, Text), ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool))
+                expandEntries ([], Just expectedHash, moreEntriesToLoad) =
+                  if moreEntriesToLoad
+                    then Nothing
+                    else Just ((Nothing, expectedHash, "The history starts here"), ([], Nothing, moreEntriesToLoad))
+                expandEntries ([], Nothing, _moreEntriesToLoad) = Nothing
+                expandEntries (entries@(Reflog.Entry {time, fromRootCausalHash, toRootCausalHash, reason} : rest), mayExpectedHash, moreEntriesToLoad) =
+                  Just $
+                    case mayExpectedHash of
+                      Just expectedHash
+                        | expectedHash == toRootCausalHash -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
+                        -- Historical discontinuity, insert a synthetic entry
+                        | otherwise -> ((Nothing, toRootCausalHash, "(external change)"), (entries, Nothing, moreEntriesToLoad))
+                      -- No expectation, either because this is the most recent entry or
+                      -- because we're recovering from a discontinuity
+                      Nothing -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
             ResetRootI src0 ->
               Cli.time "reset-root" do
                 newRoot <-

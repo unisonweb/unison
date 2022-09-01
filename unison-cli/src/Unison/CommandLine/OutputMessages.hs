@@ -36,7 +36,6 @@ import System.Directory
     doesFileExist,
     getHomeDirectory,
   )
-import qualified U.Codebase.Reflog as Reflog
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
@@ -1398,7 +1397,7 @@ notifyUser dir o = case o of
         <> "contradictory entries."
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
-  ShowReflog [] -> pure . P.warnCallout $ "The reflog appears to be empty!"
+  ShowReflog [] -> pure . P.warnCallout $ "The reflog is empty"
   ShowReflog entries -> do
     now <- getCurrentTime
     pure $
@@ -1411,7 +1410,7 @@ notifyUser dir o = case o of
     where
       header =
         case entries of
-          (_head : prevHead : _) ->
+          (_head : (_, prevSBH, _) : _) ->
             P.lines
               [ P.wrap $
                   "Here is a log of the root namespace hashes,"
@@ -1423,11 +1422,11 @@ notifyUser dir o = case o of
                     [ ( IP.makeExample IP.forkLocal ["2", ".old"],
                         ""
                       ),
-                      ( IP.makeExample IP.forkLocal [prettySBH . Reflog.toRootCausalHash $ prevHead, ".old"],
+                      ( IP.makeExample IP.forkLocal [prettySBH prevSBH, ".old"],
                         "to make an old namespace accessible again,"
                       ),
                       (mempty, mempty),
-                      ( IP.makeExample IP.resetRoot [prettySBH . Reflog.toRootCausalHash $ prevHead],
+                      ( IP.makeExample IP.resetRoot [prettySBH prevSBH],
                         "to reset the root namespace and its history to that of the specified"
                           <> "namespace."
                       )
@@ -1436,9 +1435,9 @@ notifyUser dir o = case o of
                 ""
               ]
           _ -> mempty
-      renderEntry3Column :: UTCTime -> Reflog.Entry ShortBranchHash Text -> [Pretty]
-      renderEntry3Column now (Reflog.Entry {time, toRootCausalHash, reason}) =
-        [prettyHumanReadableTime now time, P.text reason, P.blue (prettySBH toRootCausalHash)]
+      renderEntry3Column :: UTCTime -> (Maybe UTCTime, SBH.ShortBranchHash, Text) -> [Pretty]
+      renderEntry3Column now (mayTime, sbh, reason) =
+        [maybe "" (prettyHumanReadableTime now) mayTime, P.text reason, P.blue (prettySBH sbh)]
   StartOfCurrentPathHistory ->
     pure $
       P.wrap "You're already at the very beginning! 🙂"
