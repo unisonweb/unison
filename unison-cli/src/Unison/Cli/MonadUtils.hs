@@ -68,6 +68,8 @@ import Control.Monad.State
 import qualified Data.Configurator as Configurator
 import qualified Data.Configurator.Types as Configurator
 import qualified Data.Set as Set
+import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Causal as Causal
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Codebase as Codebase
@@ -237,11 +239,15 @@ assertNoBranchAtPath' path' = do
 -- current terms/types etc).
 branchExistsAtPath' :: Path' -> Cli r Bool
 branchExistsAtPath' path' = do
-  path <- resolvePath' path'
-  getMaybeBranchAt path <&> \case
-    Nothing -> False
-    Just branch ->
-      not (Branch.isEmpty0 (Branch.head branch))
+  absPath <- resolvePath' path'
+  Cli.Env {codebase} <- ask
+  liftIO $
+    Codebase.getShallowCausalFromRoot codebase Nothing absPath >>= \case
+      Nothing -> do
+        pure False
+      Just cb -> liftIO $ do
+        v2Branch <- Causal.value cb
+        not <$> (Codebase.runTransaction codebase $ V2Branch.isEmpty v2Branch)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting terms

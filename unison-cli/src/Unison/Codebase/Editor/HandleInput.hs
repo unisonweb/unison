@@ -578,9 +578,9 @@ loop e = do
                     Just (p : _) -> pure p
                     _ -> Cli.returnEarly (HelpMessage InputPatterns.cd)
               path <- Cli.resolvePath' path'
+              branchExists <- Cli.branchExistsAtPath' path'
+              when (not branchExists) (Cli.respond $ CreatedNewBranch path)
               #currentPathStack %= Nel.cons path
-              branch' <- Cli.getBranch0At path
-              when (Branch.isEmpty0 branch') (Cli.respond $ CreatedNewBranch path)
             UpI -> do
               path0 <- Cli.getCurrentPath
               whenJust (unsnoc path0) \(path, _) ->
