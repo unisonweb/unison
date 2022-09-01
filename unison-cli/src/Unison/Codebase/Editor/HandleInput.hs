@@ -187,6 +187,7 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
 
 prettyPrintEnvDecl :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
@@ -938,19 +939,21 @@ loop e = do
               #numberedArgs .= fmap Name.toString patches
             FindShallowI pathArg -> do
               Cli.Env {codebase} <- ask
-              sbhLength <- liftIO (Codebase.branchHashLength codebase)
-              rootBranch <- Cli.getRootBranch
 
               pathArgAbs <- Cli.resolvePath' pathArg
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               #numberedArgs .= fmap entryToHQString entries
-              let ppe =
-                    Backend.basicSuffixifiedNames
-                      sbhLength
-                      rootBranch
-                      (Backend.AllNames (Path.unabsolute pathArgAbs))
-              Cli.respond $ ListShallow ppe entries
+              getRoot <- atomically . STM.readTMVar <$> use #root
+              let buildPPE = do
+                    sbhLength <- liftIO (Codebase.branchHashLength codebase)
+                    rootBranch <- getRoot
+                    pure $
+                      Backend.basicSuffixifiedNames
+                        sbhLength
+                        rootBranch
+                        (Backend.AllNames (Path.unabsolute pathArgAbs))
+              Cli.respond $ ListShallow buildPPE entries
               where
                 entryToHQString :: ShallowListEntry v Ann -> String
                 entryToHQString e =
