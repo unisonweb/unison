@@ -569,9 +569,9 @@ loop e = do
                 BranchUtil.makeDeleteBranch (Path.convert absPath)
               afterDelete
             SwitchBranchI maybePath' -> do
-              root0 <- Cli.getRootBranch0
               path' <-
                 maybePath' & onNothing do
+                  root0 <- Cli.getRootBranch0
                   fuzzySelectNamespace Absolute root0 >>= \case
                     -- Shouldn't be possible to get multiple paths here, we can just take
                     -- the first.
@@ -2888,7 +2888,7 @@ stepManyAtNoSync' ::
 stepManyAtNoSync' actions = do
   origRoot <- Cli.getRootBranch
   newRoot <- Branch.stepManyAtM actions origRoot
-  #root .= newRoot
+  Cli.setRootBranch newRoot
   pure (origRoot /= newRoot)
 
 -- Like stepManyAt, but doesn't update the last saved root
@@ -2896,8 +2896,8 @@ stepManyAtNoSync ::
   Foldable f =>
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
-stepManyAtNoSync actions =
-  #root %= Branch.stepManyAt actions
+stepManyAtNoSync strat actions =
+  void $ Cli.modifyRootBranch $ Branch.stepManyAt actions
 
 stepManyAtM ::
   Foldable f =>
@@ -2915,7 +2915,7 @@ stepManyAtMNoSync ::
 stepManyAtMNoSync actions = do
   oldRoot <- Cli.getRootBranch
   newRoot <- liftIO (Branch.stepManyAtM actions oldRoot)
-  #root .= newRoot
+  Cli.setRootBranch newRoot
 
 -- | Sync the in-memory root branch.
 syncRoot :: Text -> Cli r ()

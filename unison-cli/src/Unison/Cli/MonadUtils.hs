@@ -15,13 +15,17 @@ module Unison.Cli.MonadUtils
     resolveAbsBranchId,
     resolveShortBranchHash,
 
-    -- ** Getting branches
+    -- ** Getting/setting branches
     getRootBranch,
+    setRootBranch,
+    modifyRootBranch,
     getRootBranch0,
     getCurrentBranch,
     getCurrentBranch0,
     getBranchAt,
     getBranch0At,
+    getLastSavedRoot,
+    setLastSavedRoot,
     getMaybeBranchAt,
     expectBranchAtPath',
     assertNoBranchAtPath',
@@ -88,6 +92,7 @@ import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Util.Set as Set
+import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------
 -- .unisonConfig things
@@ -144,17 +149,33 @@ resolveShortBranchHash hash = do
     pure (fromMaybe Branch.empty branch)
 
 ------------------------------------------------------------------------------------------------------------------------
--- Getting branches
+-- Getting/Setting branches
 
 -- | Get the root branch.
 getRootBranch :: Cli r (Branch IO)
 getRootBranch = do
-  use #root
+  use #root >>= atomically . readTMVar
 
 -- | Get the root branch0.
 getRootBranch0 :: Cli r (Branch0 IO)
 getRootBranch0 =
   Branch.head <$> getRootBranch
+
+-- | Set a new root branch.
+-- Note: This does _not_ update the codebase, the caller is responsible for that.
+setRootBranch :: Branch IO -> Cli r ()
+setRootBranch b = do
+  void $ modifyRootBranch (const b)
+
+-- | Get the root branch.
+modifyRootBranch :: (Branch IO -> Branch IO) -> Cli r (Branch IO)
+modifyRootBranch f = do
+  rootVar <- use #root
+  atomically do
+    root <- takeTMVar rootVar
+    let newRoot = f root
+    putTMVar rootVar newRoot
+    pure newRoot
 
 -- | Get the current branch.
 getCurrentBranch :: Cli r (Branch IO)
@@ -166,6 +187,19 @@ getCurrentBranch = do
 getCurrentBranch0 :: Cli r (Branch0 IO)
 getCurrentBranch0 = do
   Branch.head <$> getCurrentBranch
+
+-- | Get the last saved root.
+getLastSavedRoot :: Cli r (Branch IO)
+getLastSavedRoot = do
+  use #lastSavedRoot >>= atomically . readTMVar
+
+-- | Set a new root branch.
+-- Note: This does _not_ update the codebase, the caller is responsible for that.
+setLastSavedRoot :: Branch IO -> Cli r ()
+setLastSavedRoot b = do
+  lastRootVar <- use #lastSavedRoot
+  _ <- liftIO . atomically $ swapTMVar lastRootVar b
+  pure ()
 
 -- | Get the branch at an absolute path.
 getBranchAt :: Path.Absolute -> Cli r (Branch IO)
@@ -279,7 +313,7 @@ expectLatestTypecheckedFile :: Cli r (TypecheckedUnisonFile Symbol Ann)
 expectLatestTypecheckedFile =
   getLatestTypecheckedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
 
--- | Update a branch at the given path, returning `True` if
+-- Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM ::
   Text ->
@@ -287,8 +321,7 @@ updateAtM ::
   (Branch IO -> Cli r (Branch IO)) ->
   Cli r Bool
 updateAtM reason (Path.Absolute p) f = do
-  loopState <- get
-  let b = loopState ^. #lastSavedRoot
+  b <- Cli.getLastSavedRoot
   b' <- Branch.modifyAtM p f b
   updateRoot b' reason
   pure $ b /= b'
@@ -307,10 +340,9 @@ updateRoot :: Branch IO -> Text -> Cli r ()
 updateRoot new reason =
   Cli.time "updateRoot" do
     Cli.Env {codebase} <- ask
-    loopState <- get
-    let old = loopState ^. #lastSavedRoot
+    old <- Cli.getLastSavedRoot
     when (old /= new) do
-      #root .= new
+      Cli.setRootBranch new
       liftIO (Codebase.putRootBranch codebase new)
       liftIO (Codebase.appendReflog codebase reason old new)
-      #lastSavedRoot .= new
+      Cli.setLastSavedRoot new
