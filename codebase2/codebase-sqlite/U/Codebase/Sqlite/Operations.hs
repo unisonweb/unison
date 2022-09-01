@@ -11,6 +11,7 @@ module U.Codebase.Sqlite.Operations
     expectBranchByBranchHashId,
     expectCausalBranchByCausalHash,
     expectNamespaceStatsByHash,
+    expectNamespaceStatsByHashId,
 
     -- * terms
     Q.saveTermComponent,

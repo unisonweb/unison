@@ -275,6 +275,7 @@ createSchema :: Transaction ()
 createSchema = do
   executeFile [hereFile|unison/sql/create.sql|]
   addTempEntityTables
+  addNamespaceStatsTables
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
