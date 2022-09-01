@@ -80,7 +80,6 @@ module U.Codebase.Sqlite.Queries
     expectCausalByCausalHash,
     loadBranchObjectIdByCausalHashId,
     expectBranchObjectIdByCausalHashId,
-    expectBranchObjectIdByBranchHashId,
 
     -- ** causal_parent table
     saveCausalParents,
@@ -595,16 +594,6 @@ expectObjectIdForHash32 hash = do
 expectBranchObjectIdForHash32 :: Hash32 -> Transaction BranchObjectId
 expectBranchObjectIdForHash32 =
   fmap BranchObjectId . expectObjectIdForHash32
-
-expectBranchObjectIdByBranchHashId :: BranchHashId -> Transaction BranchObjectId
-expectBranchObjectIdByBranchHashId bhId =
-  queryOneCol sql (Only bhId)
-    where
-      sql = [here|
-        SELECT object_id
-        FROM hash_object
-        WHERE hash_id = ?
-        |]
 
 expectPatchObjectIdForHash32 :: Hash32 -> Transaction PatchObjectId
 expectPatchObjectIdForHash32 =

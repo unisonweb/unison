@@ -487,7 +487,7 @@ lsBranch codebase b = do
         (ns, childB) <- Map.toList $ Branch.nonEmptyChildren b0
         let stats = Branch.namespaceStats $ Branch.head childB
         guard $ V2Branch.hasDefinitions stats
-        pure $ ShallowBranchEntry ns (Branch.headHash b) stats
+        pure $ ShallowBranchEntry ns (Branch.headHash childB) stats
       patchEntries :: [ShallowListEntry Symbol Ann] = do
         (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
         pure $ ShallowPatchEntry ns
@@ -544,7 +544,6 @@ lsShallowBranch codebase b0 = do
     ShallowTypeEntry <$> typeListEntry codebase v1Ref (hqType b0 ns v1Ref)
   childrenWithStats <- Codebase.runTransaction codebase (V2Branch.childStats b0)
   let branchEntries :: [ShallowListEntry Symbol Ann] = do
-        -- List
         (ns, (h, stats)) <- Map.toList $ childrenWithStats
         guard $ V2Branch.hasDefinitions stats
         pure $ ShallowBranchEntry (Cv.namesegment2to1 ns) (Cv.causalHash2to1 . V2Causal.causalHash $ h) stats

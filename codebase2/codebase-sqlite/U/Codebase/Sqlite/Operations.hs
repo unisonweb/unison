@@ -709,7 +709,7 @@ expectBranchByCausalHashId id = do
 
 expectBranchByBranchHashId :: Db.BranchHashId -> Transaction (C.Branch.Branch Transaction)
 expectBranchByBranchHashId bhId = do
-  boId <- Q.expectBranchObjectIdByBranchHashId bhId
+  boId <- Db.BranchObjectId <$> Q.expectObjectIdForPrimaryHashId (Db.unBranchHashId bhId)
   expectBranch boId
 
 -- | Load a branch value given its causal hash id.
@@ -1088,32 +1088,11 @@ expectNamespaceStatsByHash bh = do
 expectNamespaceStatsByHashId :: Db.BranchHashId -> Transaction C.Branch.NamespaceStats
 expectNamespaceStatsByHashId bhId = do
   Q.loadNamespaceStatsByHashId bhId `whenNothingM` do
-    boId <- Q.expectBranchObjectIdByBranchHashId bhId
+    boId <- Db.BranchObjectId <$> Q.expectObjectIdForPrimaryHashId (Db.unBranchHashId bhId)
     dbBranch <- expectDbBranch boId
     stats <- namespaceStatsForDbBranch dbBranch
     Q.saveNamespaceStats bhId stats
     pure stats
-
--- -- | Compute statistics from a branch by summarizing the branch contents and the statistics of
--- -- its children.
--- namespaceStatsForBranch :: C.Branch.Branch m -> Transaction C.Branch.NamespaceStats
--- namespaceStatsForBranch C.Branch.Branch {terms, types, patches, children} = do
---   childStats <- for children (expectNamespaceStatsByHash . C.valueHash)
---   pure $
---     C.Branch.NamespaceStats
---       { numContainedTerms =
---           let childTermCount = sumOf (folded . to C.Branch.numContainedTerms) childStats
---               termCount = lengthOf (folded . folded) terms
---            in childTermCount + termCount,
---         numContainedTypes =
---           let childTypeCount = sumOf (folded . to C.Branch.numContainedTypes) childStats
---               typeCount = lengthOf (folded . folded) types
---            in childTypeCount + typeCount,
---         numContainedPatches =
---           let childPatchCount = sumOf (folded . to C.Branch.numContainedPatches) childStats
---               patchCount = Map.size patches
---            in childPatchCount + patchCount
---       }
 
 namespaceStatsForDbBranch :: S.DbBranch -> Transaction NamespaceStats
 namespaceStatsForDbBranch S.Branch {terms, types, patches, children} = do
