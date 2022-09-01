@@ -920,7 +920,7 @@ notifyUser dir o = case o of
           then mempty
           else (tip $ "Use " <> IP.makeExample (IP.names True) [] <> " to see more results.")
       formatTerms tms =
-        P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms)
+        P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : List.intersperse "" (go <$> tms)
         where
           go (ref, hqs) =
             P.column2
@@ -928,7 +928,7 @@ notifyUser dir o = case o of
                 ("Names: ", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
               ]
       formatTypes types =
-        P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : (go <$> types)
+        P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : List.intersperse "" (go <$> types)
         where
           go (ref, hqs) =
             P.column2
