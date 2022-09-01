@@ -968,7 +968,7 @@ notifyUser dir o = case o of
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/",
             case catMaybes [formatCount "term" numContainedTerms, formatCount "type" numContainedTypes] of
               [] -> ""
-              counts -> "(" <> intercalateMap ", " id counts <> ")"
+              counts -> P.hiBlack $ "(" <> intercalateMap ", " id counts <> ")"
           )
         ShallowPatchEntry ns ->
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns,

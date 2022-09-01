@@ -2175,6 +2175,7 @@ expectNamespaceStatsByHashId bhId = do
   where
     sql =
       [here|
-          SELECT version
-          FROM schema_version
+          SELECT num_contained_terms, num_contained_types, num_contained_patches
+          FROM namespace_statistics
+          WHERE namespace_hash_id = ?
         |]
