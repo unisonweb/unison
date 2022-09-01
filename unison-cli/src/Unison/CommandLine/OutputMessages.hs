@@ -745,6 +745,25 @@ notifyUser dir o = case o of
       P.warnCallout "The following names were not found in the codebase. Check your spelling."
         <> P.newline
         <> (P.syntaxToColor $ P.indent "  " (P.lines (prettyHashQualified <$> hqs)))
+  SearchTermsNotFoundDetailed wasTerm hqMisses otherHits ->
+    pure (missMsg <> hitMsg)
+    where
+      typeOrTermMsg =
+        if wasTerm
+          then "I was expecting the following names to be terms, though I found types instead."
+          else "I was expecting the following names to be types, though I found terms instead."
+      missMsg = case null hqMisses of
+        True -> mempty
+        False ->
+          P.warnCallout "The following names were not found in the codebase. Check your spelling."
+            <> P.newline
+            <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> hqMisses)))
+      hitMsg = case null otherHits of
+        True -> mempty
+        False ->
+          P.warnCallout typeOrTermMsg
+            <> P.newline
+            <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> otherHits)))
   PatchNotFound _ ->
     pure . P.warnCallout $ "I don't know about that patch."
   NameNotFound _ ->
@@ -1422,7 +1441,9 @@ notifyUser dir o = case o of
                   )
                 ],
           "",
-          P.numberedList . fmap renderEntry $ entries
+          P.numberedList . fmap renderEntry $ entries,
+          "",
+          tip $ "Use " <> IP.makeExample IP.diffNamespace ["1", "7"] <> " to compare namespaces between two points in history."
         ]
     where
       renderEntry :: Output.ReflogEntry -> Pretty

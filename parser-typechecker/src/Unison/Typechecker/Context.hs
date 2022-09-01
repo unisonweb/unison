@@ -360,6 +360,7 @@ data Cause v loc
   | UnknownSymbol loc v
   | UnknownTerm loc v [Suggestion v loc] (Type v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
+  | AbilityEqFailure [Type v loc] [Type v loc] (Context v loc)
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount ConstructorReference
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   -- Type of ctor, number of arguments we got
@@ -2709,7 +2710,7 @@ equateAbilities ls rs =
             | [] <- com, null ls, null crs -> for_ vrs defaultAbility
             | [] <- com, Just pl <- mlSlack, null cls -> refine False [pl] [rs]
             | [] <- com, Just pr <- mrSlack, null crs -> refine False [pr] [ls]
-            | otherwise -> getContext >>= failWith . AbilityCheckFailure ls rs
+            | otherwise -> getContext >>= failWith . AbilityEqFailure ls rs
   where
     refine common lbvs ess = do
       cv <- traverse freshenVar cn
