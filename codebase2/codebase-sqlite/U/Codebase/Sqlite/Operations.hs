@@ -533,13 +533,11 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
     doChildren ::
       Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) ->
       Transaction (Map C.Branch.NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
-    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \(boId, chId) -> do
-      causalHash <- Q.expectCausalHash chId
-      valueHash <- expectValueHashByCausalHashId chId
-      parents <- headParents chId
-      let value = expectBranch boId
-      let causal = C.Causal {causalHash, valueHash, parents, value}
-      pure causal
+    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \(boId, chId) ->
+      C.Causal <$> Q.expectCausalHash chId
+        <*> expectValueHashByCausalHashId chId
+        <*> headParents chId
+        <*> pure (expectBranch boId)
       where
         headParents ::
           Db.CausalHashId ->
