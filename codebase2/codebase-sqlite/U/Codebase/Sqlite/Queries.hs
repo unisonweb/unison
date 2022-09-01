@@ -65,7 +65,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * namespace_statistics table
     saveNamespaceStats,
-    expectNamespaceStatsByHashId,
+    loadNamespaceStatsByHashId,
 
     -- * causals
 
@@ -2169,9 +2169,11 @@ saveNamespaceStats bhId stats = do
           VALUES (?, ?, ?, ?)
       |]
 
-expectNamespaceStatsByHashId :: BranchHashId -> Transaction NamespaceStats
-expectNamespaceStatsByHashId bhId = do
-  queryOneRow sql (Only bhId)
+-- | Looks up statistics for a given branch, there's no guarantee that we have
+-- computed and saved stats for any given branch.
+loadNamespaceStatsByHashId :: BranchHashId -> Transaction (Maybe NamespaceStats)
+loadNamespaceStatsByHashId bhId = do
+  queryMaybeRow sql (Only bhId)
   where
     sql =
       [here|

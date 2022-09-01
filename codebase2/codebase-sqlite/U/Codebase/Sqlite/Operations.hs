@@ -76,6 +76,7 @@ module U.Codebase.Sqlite.Operations
     expectDbPatch,
     saveDbPatch,
     expectDbBranchByCausalHashId,
+    namespaceStatsForDbBranch,
 
     -- * somewhat unexpectedly unused definitions
     c2sReferenceId,
@@ -100,6 +101,7 @@ import qualified Data.Map.Merge.Lazy as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3, (***))
+import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Branch.Type as C.Branch
 import qualified U.Codebase.Causal as C
 import U.Codebase.Decl (ConstructorId)
@@ -646,7 +648,7 @@ saveBranch hh (C.Causal hc he parents me) = do
   boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByCausalHashId chId) do
     branch <- me
     dbBranch <- c2sBranch branch
-    stats <- computeNamespaceStatistics branch
+    stats <- namespaceStatsForDbBranch dbBranch
     boId <- saveDbBranchUnderHashId hh bhId stats dbBranch
     pure boId
   pure (boId, chId)
@@ -1073,28 +1075,62 @@ rootNamesByPath path = do
     convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
     convertTypes = fmap s2cTextReference
 
+-- | Looks up statistics for a given branch, if none exist, we compute them and save them
+-- then return them.
 expectNamespaceStatsByHash :: BranchHash -> Transaction C.Branch.NamespaceStats
 expectNamespaceStatsByHash bh = do
   bhId <- Q.saveBranchHash bh
-  Q.expectNamespaceStatsByHashId bhId
+  expectNamespaceStatsByHashId bhId
 
--- | Compute statistics from a branch by summarizing the branch contents and the statistics of
--- its children.
-computeNamespaceStatistics :: C.Branch.Branch m -> Transaction C.Branch.NamespaceStats
-computeNamespaceStatistics C.Branch.Branch {terms, types, patches, children} = do
-  childStats <- for children (expectNamespaceStatsByHash . C.valueHash)
+-- | Looks up statistics for a given branch, if none exist, we compute them and save them
+-- then return them.
+expectNamespaceStatsByHashId :: Db.BranchHashId -> Transaction C.Branch.NamespaceStats
+expectNamespaceStatsByHashId bhId = do
+  Q.loadNamespaceStatsByHashId bhId `whenNothingM` do
+    boId <- Q.expectBranchObjectIdByBranchHashId bhId
+    dbBranch <- expectDbBranch boId
+    stats <- namespaceStatsForDbBranch dbBranch
+    Q.saveNamespaceStats bhId stats
+    pure stats
+
+-- -- | Compute statistics from a branch by summarizing the branch contents and the statistics of
+-- -- its children.
+-- namespaceStatsForBranch :: C.Branch.Branch m -> Transaction C.Branch.NamespaceStats
+-- namespaceStatsForBranch C.Branch.Branch {terms, types, patches, children} = do
+--   childStats <- for children (expectNamespaceStatsByHash . C.valueHash)
+--   pure $
+--     C.Branch.NamespaceStats
+--       { numContainedTerms =
+--           let childTermCount = sumOf (folded . to C.Branch.numContainedTerms) childStats
+--               termCount = lengthOf (folded . folded) terms
+--            in childTermCount + termCount,
+--         numContainedTypes =
+--           let childTypeCount = sumOf (folded . to C.Branch.numContainedTypes) childStats
+--               typeCount = lengthOf (folded . folded) types
+--            in childTypeCount + typeCount,
+--         numContainedPatches =
+--           let childPatchCount = sumOf (folded . to C.Branch.numContainedPatches) childStats
+--               patchCount = Map.size patches
+--            in childPatchCount + patchCount
+--       }
+
+namespaceStatsForDbBranch :: S.DbBranch -> Transaction NamespaceStats
+namespaceStatsForDbBranch S.Branch {terms, types, patches, children} = do
+  childStats <- for children \(_boId, chId) -> do
+    bhId <- Q.expectCausalValueHashId chId
+    expectNamespaceStatsByHashId bhId
   pure $
-    C.Branch.NamespaceStats
+    NamespaceStats
       { numContainedTerms =
-          let childTermCount = sumOf (folded . to C.Branch.numContainedTerms) childStats
+          let childTermCount = sumOf (folded . to numContainedTerms) childStats
               termCount = lengthOf (folded . folded) terms
            in childTermCount + termCount,
         numContainedTypes =
-          let childTypeCount = sumOf (folded . to C.Branch.numContainedTypes) childStats
+          let childTypeCount = sumOf (folded . to numContainedTypes) childStats
               typeCount = lengthOf (folded . folded) types
            in childTypeCount + typeCount,
         numContainedPatches =
-          let childPatchCount = sumOf (folded . to C.Branch.numContainedPatches) childStats
+          let childPatchCount = sumOf (folded . to numContainedPatches) childStats
               patchCount = Map.size patches
            in childPatchCount + patchCount
       }

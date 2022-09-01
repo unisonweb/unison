@@ -338,7 +338,7 @@ migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
 
   newHash <- lift . lift $ Hashing.dbBranchHash newBranch
   newHashId <- lift . lift $ Q.saveBranchHash (coerce Cv.hash1to2 newHash)
-  stats <- lift . lift $ statsForDbBranch newBranch
+  stats <- lift . lift $ Ops.namespaceStatsForDbBranch newBranch
   newObjectId <- lift . lift $ Ops.saveDbBranchUnderHashId v2HashHandle newHashId stats newBranch
   field @"objLookup"
     %= Map.insert
@@ -349,27 +349,6 @@ migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
         oldHash
       )
   pure Sync.Done
-  where
-    statsForDbBranch :: S.DbBranch -> Sqlite.Transaction NamespaceStats
-    statsForDbBranch S.Branch {terms, types, patches, children} = do
-      childStats <- for children \(_boId, chId) -> do
-        bhId <- Q.expectCausalValueHashId chId
-        Q.expectNamespaceStatsByHashId bhId
-      pure $
-        NamespaceStats
-          { numContainedTerms =
-              let childTermCount = sumOf (folded . to numContainedTerms) childStats
-                  termCount = lengthOf (folded . folded) terms
-               in childTermCount + termCount,
-            numContainedTypes =
-              let childTypeCount = sumOf (folded . to numContainedTypes) childStats
-                  typeCount = lengthOf (folded . folded) types
-               in childTypeCount + typeCount,
-            numContainedPatches =
-              let childPatchCount = sumOf (folded . to numContainedPatches) childStats
-                  patchCount = Map.size patches
-               in childPatchCount + patchCount
-          }
 
 migratePatch :: Old PatchObjectId -> StateT MigrationState Sqlite.Transaction (Sync.TrySyncResult Entity)
 migratePatch oldObjectId = fmap (either id id) . runExceptT $ do
