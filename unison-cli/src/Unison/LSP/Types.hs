@@ -1,10 +1,11 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Unison.LSP.Types where
 
-import Colog.Core
+import Colog.Core hiding (Lens')
 import Control.Lens hiding (List)
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -62,6 +63,8 @@ data Env = Env
     -- typecheck.
     checkedFilesVar :: TVar (Map Uri FileAnalysis),
     dirtyFilesVar :: TVar (Set Uri),
+    -- A map  of request IDs to an action which kills that request.
+    cancellationMapVar :: TVar (Map SomeLspId (IO ())),
     scope :: Ki.Scope
   }
 
@@ -140,3 +143,31 @@ includeEdits uri replacement ranges rca =
             _changeAnnotations = Nothing
           }
    in rca & codeAction . edit ?~ workspaceEdit
+
+-- -- | The existentials in the lsp-types ids are annoying to work with, so we use this instead.
+-- type RequestId = Either Int32 Text
+
+-- -- | The built-in "LspId m" type is annoying to work with due to existentials.
+-- -- This type and classes simplify things.
+-- class HasReqId p where
+--   reqId :: Lens' p RequestId
+
+-- -- instance {-# OVERLAPPING #-} HasReqId CancelParams where
+-- --   reqId = lens getter setter
+-- --     where
+-- --       getter (CancelParams (IdInt n)) = Left (fromIntegral n)
+-- --       getter (CancelParams (IdString s)) = Right s
+-- --       setter _ (Left n) = CancelParams (IdInt (fromIntegral n))
+-- --       setter _ (Right s) = CancelParams (IdString s)
+
+-- instance {-# OVERLAPPABLE #-} HasId p (LspId m) => HasReqId p where
+--   reqId = lens getter setter
+--     where
+--       getter p =
+--         case p ^. LSP.id of
+--           IdInt n -> Left n
+--           IdString txt -> Right txt
+--       setter p (Left n) = p & LSP.id .~ IdInt n
+--       setter p (Right txt) = p & LSP.id .~ IdString txt
+
+-- lspIdToReqId :: LspId m ->

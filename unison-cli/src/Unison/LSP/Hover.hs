@@ -3,6 +3,7 @@
 
 module Unison.LSP.Hover where
 
+import Control.Concurrent (threadDelay)
 import Control.Lens hiding (List)
 import Control.Monad.Reader
 import qualified Data.Text as Text
@@ -23,6 +24,7 @@ import qualified Unison.Server.Types as Backend
 hoverHandler :: RequestMessage 'TextDocumentHover -> (Either ResponseError (ResponseResult 'TextDocumentHover) -> Lsp ()) -> Lsp ()
 hoverHandler m respond =
   respond . Right =<< runMaybeT do
+    liftIO $ threadDelay 3000000
     let p = (m ^. params)
     identifier <- MaybeT $ identifierAtPosition p
     cb <- asks codebase

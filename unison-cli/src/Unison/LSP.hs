@@ -25,11 +25,13 @@ import Unison.Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
+import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
 import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
+import qualified Unison.LSP.HandlerUtils as Handlers
 import Unison.LSP.Hover (hoverHandler)
-import Unison.LSP.NotificationHandlers as Notifications
+import qualified Unison.LSP.NotificationHandlers as Notifications
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
@@ -104,6 +106,7 @@ lspDoInitialize vfsVar codebase runtime scope ucmState lspContext _initMsg = do
   ppeCacheVar <- newTVarIO PPED.empty
   parseNamesCacheVar <- newTVarIO mempty
   currentPathCacheVar <- newTVarIO Path.absoluteEmpty
+  cancellationMapVar <- newTVarIO mempty
   let env = Env {ppeCache = readTVarIO ppeCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
@@ -122,9 +125,27 @@ lspStaticHandlers =
 lspRequestHandlers :: SMethodMap (ClientMessageHandler Lsp 'Request)
 lspRequestHandlers =
   mempty
-    & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
-    & SMM.insert STextDocumentCodeAction (ClientMessageHandler codeActionHandler)
-    & SMM.insert STextDocumentFoldingRange (ClientMessageHandler foldingRangeRequest)
+    & SMM.insert STextDocumentHover (mkHandler hoverHandler)
+    & SMM.insert STextDocumentCodeAction (mkHandler codeActionHandler)
+    & SMM.insert STextDocumentFoldingRange (mkHandler foldingRangeRequest)
+  where
+    defaultTimeout = 10_000 -- 10s
+    mkHandler ::
+      forall m.
+      (Show (RequestMessage m), Show (ResponseMessage m), Show (ResponseResult m)) =>
+      ( ( RequestMessage m ->
+          (Either ResponseError (ResponseResult m) -> Lsp ()) ->
+          Lsp ()
+        ) ->
+        ClientMessageHandler Lsp 'Request m
+      )
+    mkHandler h =
+      h
+        & Handlers.withCancellation (Just defaultTimeout)
+        & Handlers.withDebugging
+        & ClientMessageHandler
+
+-- & ClientMessageHandler
 
 -- & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
 -- & SMM.insert SCodeLensResolve (ClientMessageHandler codeLensResolveHandler)
@@ -137,6 +158,7 @@ lspNotificationHandlers =
     & SMM.insert STextDocumentDidClose (ClientMessageHandler VFS.lspCloseFile)
     & SMM.insert STextDocumentDidChange (ClientMessageHandler VFS.lspChangeFile)
     & SMM.insert SInitialized (ClientMessageHandler Notifications.initializedHandler)
+    & SMM.insert SCancelRequest (ClientMessageHandler $ Notifications.withDebugging cancelRequestHandler)
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO

@@ -62,6 +62,7 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
       Unison.LSP
+      Unison.LSP.CancelRequest
       Unison.LSP.CodeAction
       Unison.LSP.CodeLens
       Unison.LSP.Completion
@@ -69,6 +70,7 @@ library
       Unison.LSP.Diagnostics
       Unison.LSP.FileAnalysis
       Unison.LSP.FoldingRange
+      Unison.LSP.HandlerUtils
       Unison.LSP.Hover
       Unison.LSP.NotificationHandlers
       Unison.LSP.Orphans
