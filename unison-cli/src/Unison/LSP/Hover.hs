@@ -24,7 +24,6 @@ import qualified Unison.Server.Types as Backend
 hoverHandler :: RequestMessage 'TextDocumentHover -> (Either ResponseError (ResponseResult 'TextDocumentHover) -> Lsp ()) -> Lsp ()
 hoverHandler m respond =
   respond . Right =<< runMaybeT do
-    liftIO $ threadDelay 3000000
     let p = (m ^. params)
     identifier <- MaybeT $ identifierAtPosition p
     cb <- asks codebase
