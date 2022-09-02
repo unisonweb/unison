@@ -8,7 +8,6 @@ module Unison.Codebase.Editor.Output
     HistoryTail (..),
     TestReportStats (..),
     UndoFailureReason (..),
-    ReflogEntry (..),
     ShareError (..),
     isFailure,
     isNumberedFailure,
@@ -18,6 +17,7 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
+import Data.Time (UTCTime)
 import Network.URI (URI)
 import qualified System.Console.Haskeline as Completion
 import Unison.Auth.Types (CredentialFailure)
@@ -37,6 +37,7 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.InputPattern as Input
 import Unison.DataDeclaration (Decl)
@@ -235,7 +236,7 @@ data Output
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)
   | StartOfCurrentPathHistory
-  | ShowReflog [ReflogEntry]
+  | ShowReflog [(Maybe UTCTime, SBH.ShortBranchHash, Text)]
   | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | PullSuccessful ReadRemoteNamespace Path'
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
@@ -281,9 +282,6 @@ data ShareError
   | ShareErrorPull Sync.PullError
   | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
   | ShareErrorTransport Sync.CodeserverTransportError
-
-data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
-  deriving (Show)
 
 data HistoryTail
   = EndOfLog Branch.CausalHash

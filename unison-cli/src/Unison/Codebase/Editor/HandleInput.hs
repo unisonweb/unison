@@ -26,11 +26,13 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
+import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
 import System.Environment (withArgs)
 import qualified Text.Megaparsec as P
-import U.Codebase.HashTags (CausalHash (unCausalHash))
+import U.Codebase.HashTags (CausalHash (..))
+import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
@@ -97,7 +99,6 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.Reflog as Reflog
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -387,39 +388,32 @@ loop e = do
             ShowReflogI -> do
               Cli.Env {codebase} <- ask
               sbhLength <- liftIO (Codebase.branchHashLength codebase)
-              entries <- convertEntries sbhLength Nothing [] <$> liftIO (Codebase.getReflog codebase)
-              #numberedArgs .= (fmap (('#' :) . SBH.toString . Output.hash) entries)
-              Cli.respond $ ShowReflog entries
+              let numEntriesToShow = 500
+              entries <- liftIO (Codebase.getReflog codebase numEntriesToShow) <&> fmap (first $ SBH.fromHash sbhLength)
+              let moreEntriesToLoad = length entries == numEntriesToShow
+              let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
+              let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SBH.toString hash
+              #numberedArgs .= numberedEntries
+              Cli.respond $ ShowReflog expandedEntries
               where
-                -- reverses & formats entries, adds synthetic entries when there is a
-                -- discontinuity in the reflog.
-                convertEntries ::
-                  Int ->
-                  Maybe Branch.CausalHash ->
-                  [Output.ReflogEntry] ->
-                  [Reflog.Entry Branch.CausalHash] ->
-                  [Output.ReflogEntry]
-                convertEntries _ _ acc [] = acc
-                convertEntries sbhLength Nothing acc entries@(Reflog.Entry old _ _ : _) =
-                  convertEntries
-                    sbhLength
-                    (Just old)
-                    (Output.ReflogEntry (SBH.fromHash sbhLength old) "(initial reflogged namespace)" : acc)
-                    entries
-                convertEntries sbhLength (Just lastHash) acc entries@(Reflog.Entry old new reason : rest) =
-                  if lastHash /= old
-                    then
-                      convertEntries
-                        sbhLength
-                        (Just old)
-                        (Output.ReflogEntry (SBH.fromHash sbhLength old) "(external change)" : acc)
-                        entries
-                    else
-                      convertEntries
-                        sbhLength
-                        (Just new)
-                        (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
-                        rest
+                expandEntries ::
+                  ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool) ->
+                  Maybe ((Maybe UTCTime, SBH.ShortBranchHash, Text), ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool))
+                expandEntries ([], Just expectedHash, moreEntriesToLoad) =
+                  if moreEntriesToLoad
+                    then Nothing
+                    else Just ((Nothing, expectedHash, "history starts here"), ([], Nothing, moreEntriesToLoad))
+                expandEntries ([], Nothing, _moreEntriesToLoad) = Nothing
+                expandEntries (entries@(Reflog.Entry {time, fromRootCausalHash, toRootCausalHash, reason} : rest), mayExpectedHash, moreEntriesToLoad) =
+                  Just $
+                    case mayExpectedHash of
+                      Just expectedHash
+                        | expectedHash == toRootCausalHash -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
+                        -- Historical discontinuity, insert a synthetic entry
+                        | otherwise -> ((Nothing, toRootCausalHash, "(external change)"), (entries, Nothing, moreEntriesToLoad))
+                      -- No expectation, either because this is the most recent entry or
+                      -- because we're recovering from a discontinuity
+                      Nothing -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
             ResetRootI src0 ->
               Cli.time "reset-root" do
                 newRoot <-
