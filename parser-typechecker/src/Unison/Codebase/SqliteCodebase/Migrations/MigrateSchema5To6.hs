@@ -31,7 +31,7 @@ migrateCurrentReflog codebasePath = do
     haveFrom <- isJust <$> Q.loadCausalByCausalHash (Reflog.fromRootCausalHash oldEntry)
     haveTo <- isJust <$> Q.loadCausalByCausalHash (Reflog.toRootCausalHash oldEntry)
     when (haveFrom && haveTo) $ Ops.appendReflog oldEntry
-  Sqlite.unsafeIO . putStrLn $ "I migrated old reflog entries from " <> reflogPath <> " into the codebase, you may delete that file now if you like."
+  Sqlite.unsafeIO . putStrLn $ "I migrated old reflog entries from " <> reflogPath <> " into the codebase; you may delete that file now if you like."
   where
     reflogPath :: FilePath
     reflogPath = codebasePath </> "reflog"
