@@ -53,7 +53,9 @@ library
     , containers
     , generic-lens
     , lens
+    , list-transformer
     , mtl
+    , streaming
     , text
     , time
     , unison-core

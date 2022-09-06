@@ -43,7 +43,6 @@ import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
-import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
@@ -380,36 +379,43 @@ resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testR
 termListEntry ::
   Monad m =>
   Codebase m Symbol Ann ->
-  Branch.Branch0 m ->
+  V2Branch.Branch m ->
   Referent ->
   HQ'.HQSegment ->
   m (TermEntry Symbol Ann)
-termListEntry codebase b0 r n = do
+termListEntry codebase branch r hqn = do
   ot <- loadReferentType codebase r
-  let tag = getTermTag b0 r ot
-  pure $ TermEntry r n ot tag
+  tag <- getTermTag branch (HQ'.toName hqn) r ot
+  pure $ TermEntry r hqn ot tag
 
 getTermTag ::
   Monad m =>
   Var v =>
-  Branch.Branch0 m ->
+  V2Branch.Branch m ->
+  NameSegment ->
   Referent ->
   Maybe (Type v Ann) ->
-  TermTag
-getTermTag b0 r sig =
+  m TermTag
+getTermTag branch ns r sig = do
   -- A term is a doc if its type conforms to the `Doc` type.
   let isDoc = case sig of
         Just t ->
           Typechecker.isSubtype t (Type.ref mempty Decls.docRef)
             || Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
         Nothing -> False
-      -- A term is a test if it has a link of type `IsTest`.
-      isTest =
-        Metadata.hasMetadataWithType' r Decls.isTestRef $ Branch.deepTermMetadata b0
-   in if
-          | isDoc -> Doc
-          | isTest -> Test
-          | otherwise -> Plain
+  -- A term is a test if it has a link of type `IsTest`.
+  isTest <-
+    not . null
+      <$> V2Branch.termMetadataMatchingType
+        branch
+        (coerce @NameSegment @V2Branch.NameSegment ns)
+        (Just $ Cv.referent1to2 r)
+        (Cv.reference1to2 Decls.isTestRef)
+  pure $
+    if
+        | isDoc -> Doc
+        | isTest -> Test
+        | otherwise -> Plain
 
 getTypeTag ::
   Monad m =>
@@ -511,7 +517,7 @@ lsBranch codebase b = do
           + (R.size . Branch.deepTypes $ Branch.head b)
       b0 = Branch.head b
   termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
-    ShallowTermEntry <$> termListEntry codebase b0 r (hqTerm b0 ns r)
+    ShallowTermEntry <$> termListEntry codebase (error "TODO: this whole function can be deleted after namespace stats are merged" b0) r (hqTerm b0 ns r)
   typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0) $
     \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
   let branchEntries =
@@ -855,6 +861,7 @@ prettyDefinitionsForHQName ::
   HQ.HashQualified Name ->
   Backend IO DefinitionDisplayResults
 prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase query = do
+  shallowRoot <- resolveCausalHashV2 codebase (fmap Cv.causalHash1to2 root)
   hqLength <- lift $ Codebase.hashLength codebase
   (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase root path
   -- Bias towards both relative and absolute path to queries,
@@ -909,13 +916,14 @@ prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase q
         ts <- lift (Codebase.getTypeOfTerm codebase r)
         let hqTermName = PPE.termNameOrHashOnly fqnPPE referent
         let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref r)
+        -- TODO: Should probably move the metadata lookup to a v2 lookupMetadataForHQSplit
+        -- in Codebase.hs
+        termCausal <- (lift $ Codebase.shallowBranchAtPath path shallowRoot) `whenNothingM` throwError (BadNamespace "Internal error: invalid path encountered when loading term definitions" (show path))
+        termBranch <- lift $ V2Causal.value termCausal
         tag <-
           lift
             ( termEntryTag
-                <$> termListEntry
-                  codebase
-                  referent
-                  (HQ'.NameOnly (NameSegment bn))
+                <$> termListEntry codebase termBranch referent (HQ'.NameOnly (NameSegment bn))
             )
         docs <- lift (docResults r hqTermName)
         mk docs ts bn tag
@@ -1153,6 +1161,12 @@ resolveCausalHash h codebase = case h of
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
     whenNothing mayBranch (throwError $ NoBranchForHash bhash)
+
+resolveCausalHashV2 ::
+  Monad m => Codebase m v a -> Maybe V2Branch.CausalHash -> Backend m (V2Branch.CausalBranch m)
+resolveCausalHashV2 codebase h = case h of
+  Nothing -> lift $ Codebase.getShallowRootBranch codebase
+  Just ch -> lift $ Codebase.getShallowBranchForHash codebase ch
 
 resolveRootBranchHash ::
   Monad m => Maybe ShortBranchHash -> Codebase m v a -> Backend m (Branch m)

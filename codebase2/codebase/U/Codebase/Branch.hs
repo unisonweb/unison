@@ -13,10 +13,12 @@ module U.Codebase.Branch
     childAt,
     hoist,
     hoistCausalBranch,
+    termMetadataMatchingType,
+    typeMetadataMatchingType,
   )
 where
 
-import Control.Lens (AsEmpty (..), nearly)
+import Control.Lens hiding (children)
 import qualified Data.Map as Map
 import U.Codebase.Causal (Causal)
 import qualified U.Codebase.Causal as Causal
@@ -33,7 +35,7 @@ type MetadataType = Reference
 
 type MetadataValue = Reference
 
-data MdValues = MdValues (Map MetadataValue MetadataType) deriving (Eq, Ord, Show)
+newtype MdValues = MdValues (Map MetadataValue MetadataType) deriving (Eq, Ord, Show)
 
 type CausalBranch m = Causal m CausalHash BranchHash (Branch m)
 
@@ -84,3 +86,32 @@ hoistCausalBranch f cb =
   cb
     & Causal.hoist f
     & fmap (hoist f)
+
+-- | Returns all the metadata value references that are attached to a term with the provided name in the
+-- provided branch which are of the specified metadata type.
+--
+-- If only name is specified, metadata will be returned for all terms at that name.
+termMetadataMatchingType :: Monad m => Branch m -> NameSegment -> Maybe Referent -> MetadataType -> m [MetadataValue]
+termMetadataMatchingType Branch {terms} = metadataMatchingTypeHelper terms
+
+-- | Returns all the metadata value references that are attached to a type with the provided name in the
+-- provided branch which are of the specified metadata type.
+--
+-- If only name is specified, metadata will be returned for all types at that name.
+typeMetadataMatchingType :: Monad m => Branch m -> NameSegment -> Maybe Reference -> MetadataType -> m [MetadataValue]
+typeMetadataMatchingType Branch {types} = metadataMatchingTypeHelper types
+
+metadataMatchingTypeHelper :: (Monad m, Ord ref) => Map NameSegment (Map ref (m MdValues)) -> NameSegment -> Maybe ref -> MetadataType -> m [MetadataValue]
+metadataMatchingTypeHelper t ns mayQualifier desiredType = do
+  case Map.lookup ns t of
+    Nothing -> pure []
+    Just allRefsAtName -> do
+      refsToConsider <- case mayQualifier of
+        Nothing -> sequenceA $ Map.elems allRefsAtName
+        Just qualifier -> sequenceA . maybeToList $ Map.lookup qualifier allRefsAtName
+      pure $
+        refsToConsider & foldMap \(MdValues termMetadata) ->
+          termMetadata
+            & Map.toList
+            & filter ((== desiredType) . snd)
+            & fmap fst

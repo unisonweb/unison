@@ -36,3 +36,5 @@ dependencies:
   - unison-util-base32hex
   - unison-prelude
   - time
+  - list-transformer
+  - streaming
