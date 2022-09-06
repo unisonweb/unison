@@ -67,6 +67,8 @@ data DefnStatus
 --
 -- For example, if any transitive dependency of a defnition requires an `update`, then so does the definition itself,
 -- even if it's new (and thus ok to `add`).
+--
+-- Note: these must be defined in descending severity order, per @mostSevereDepStatus@!
 data DepStatus
   = -- | Part of a term/ctor or ctor/term collision: neither `add` nor `update` ok
     DepCollision
@@ -202,25 +204,19 @@ computeSelfStatuses vars varReferences codebaseNames =
             LD.TypeReference _typeRef ->
               case Set.toList existingTypesAtName of
                 [] -> New
-                [r]
-                  | LD.typeRef r == ld -> Duplicated
-                  | otherwise -> Updated
+                [r] | LD.typeRef r == ld -> Duplicated
                 _ -> Updated
             LD.TermReference {} ->
               case Set.toList existingTermsOrCtorsAtName of
                 [] -> New
                 rs | any Referent.isConstructor rs -> TermCtorCollision
-                [r]
-                  | LD.referent r == ld -> Duplicated
-                  | otherwise -> Updated
+                [r] | LD.referent r == ld -> Duplicated
                 _ -> Updated
             LD.ConReference {} ->
               case Set.toList existingTermsOrCtorsAtName of
                 [] -> New
                 rs | any (not . Referent.isConstructor) rs -> CtorTermCollision
-                [r]
-                  | LD.referent r == ld -> Duplicated
-                  | otherwise -> Updated
+                [r] | LD.referent r == ld -> Duplicated
                 _ -> Updated
 
 computeDepStatuses :: Ord k => Map k (Set k) -> Map k DefnStatus -> Map k DepStatus
