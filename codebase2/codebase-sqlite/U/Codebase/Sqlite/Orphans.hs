@@ -7,6 +7,8 @@ import Control.Applicative
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
+import qualified U.Codebase.Reflog as Reflog
+import U.Codebase.Sqlite.DbId
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WatchKind
 import U.Util.Base32Hex
@@ -76,3 +78,15 @@ instance FromRow NamespaceStats where
     numContainedTypes <- field
     numContainedPatches <- field
     pure $ NamespaceStats {..}
+
+instance ToRow (Reflog.Entry CausalHashId Text) where
+  toRow (Reflog.Entry time fromRootCausalHash toRootCausalHash reason) =
+    toRow (time, fromRootCausalHash, toRootCausalHash, reason)
+
+instance FromRow (Reflog.Entry CausalHashId Text) where
+  fromRow = do
+    time <- field
+    fromRootCausalHash <- field
+    toRootCausalHash <- field
+    reason <- field
+    pure $ Reflog.Entry {..}

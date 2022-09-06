@@ -66,10 +66,11 @@ y = 2
                               its history to that of the
                               specified namespace.
   
-  1. #5fihla47kl : add
-  2. #2a4hnm3mcj : add
-  3. #43lqh9lfp3 : builtins.merge
-  4. #sg60bvjo91 : (initial reflogged namespace)
+       When   Root Hash     Action
+  1.   now    #5fihla47kl   add
+  2.   now    #2a4hnm3mcj   add
+  3.   now    #43lqh9lfp3   builtins.merge
+  4.          #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
        two points in history.

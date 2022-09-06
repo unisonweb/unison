@@ -231,6 +231,7 @@ CREATE INDEX dependencies_by_dependent ON dependents_index (
   dependent_object_id,
   dependent_component_index
 )
+
 -- Semicolon intentionally omitted, for the same reason
 -- semicolons in comments will blow up codebase initialization.
 -- (oops, almost used a semicolon at the end of that last phrase!)

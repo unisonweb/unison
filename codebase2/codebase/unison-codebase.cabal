@@ -55,6 +55,7 @@ library
     , lens
     , mtl
     , text
+    , time
     , unison-core
     , unison-prelude
     , unison-util

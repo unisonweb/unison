@@ -311,6 +311,5 @@ updateRoot new reason =
     let old = loopState ^. #lastSavedRoot
     when (old /= new) do
       #root .= new
-      liftIO (Codebase.putRootBranch codebase new)
-      liftIO (Codebase.appendReflog codebase reason old new)
+      liftIO (Codebase.putRootBranch codebase reason new)
       #lastSavedRoot .= new
