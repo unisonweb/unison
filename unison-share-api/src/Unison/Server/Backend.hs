@@ -43,6 +43,7 @@ import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
+import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
@@ -254,7 +255,7 @@ data TermEntry v a = TermEntry
   { termEntryReferent :: Referent,
     termEntryName :: HQ'.HQSegment,
     termEntryType :: Maybe (Type v a),
-    termEntryTag :: Maybe TermTag
+    termEntryTag :: TermTag
   }
   deriving (Eq, Ord, Show, Generic)
 
@@ -379,18 +380,51 @@ resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testR
 termListEntry ::
   Monad m =>
   Codebase m Symbol Ann ->
+  Branch.Branch0 m ->
   Referent ->
   HQ'.HQSegment ->
   m (TermEntry Symbol Ann)
-termListEntry codebase r n = do
+termListEntry codebase b0 r n = do
   ot <- loadReferentType codebase r
-  let tag =
-        if
-            | isDoc' ot -> Just Doc
-            | isTestResultList ot -> Just Test
-            | otherwise -> Nothing
-
+  let tag = getTermTag b0 r ot
   pure $ TermEntry r n ot tag
+
+getTermTag ::
+  Monad m =>
+  Var v =>
+  Branch.Branch0 m ->
+  Referent ->
+  Maybe (Type v Ann) ->
+  TermTag
+getTermTag b0 r sig =
+  -- A term is a doc if its type conforms to the `Doc` type.
+  let isDoc = case sig of
+        Just t ->
+          Typechecker.isSubtype t (Type.ref mempty Decls.docRef)
+            || Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
+        Nothing -> False
+      -- A term is a test if it has a link of type `IsTest`.
+      isTest =
+        Metadata.hasMetadataWithType' r Decls.isTestRef $ Branch.deepTermMetadata b0
+   in if
+          | isDoc -> Doc
+          | isTest -> Test
+          | otherwise -> Plain
+
+getTypeTag ::
+  Monad m =>
+  Var v =>
+  Codebase m v Ann ->
+  Reference ->
+  m TypeTag
+getTypeTag codebase r = do
+  case Reference.toId r of
+    Just r -> do
+      decl <- Codebase.getTypeDeclaration codebase r
+      pure $ case decl of
+        Just (Left _) -> Ability
+        _ -> Data
+    _ -> pure (if Set.member r Type.builtinAbilities then Ability else Data)
 
 typeListEntry ::
   Monad m =>
@@ -400,14 +434,7 @@ typeListEntry ::
   HQ'.HQSegment ->
   m TypeEntry
 typeListEntry codebase r n = do
-  -- The tag indicates whether the type is a data declaration or an ability.
-  tag <- case Reference.toId r of
-    Just r -> do
-      decl <- Codebase.getTypeDeclaration codebase r
-      pure $ case decl of
-        Just (Left _) -> Ability
-        _ -> Data
-    _ -> pure (if Set.member r Type.builtinAbilities then Ability else Data)
+  tag <- getTypeTag codebase r
   pure $ TypeEntry r n tag
 
 typeDeclHeader ::
@@ -484,7 +511,7 @@ lsBranch codebase b = do
           + (R.size . Branch.deepTypes $ Branch.head b)
       b0 = Branch.head b
   termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
-    ShallowTermEntry <$> termListEntry codebase r (hqTerm b0 ns r)
+    ShallowTermEntry <$> termListEntry codebase b0 r (hqTerm b0 ns r)
   typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0) $
     \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
   let branchEntries =
@@ -545,7 +572,7 @@ lsShallowBranch codebase b0 = do
         pure (r, ns)
   termEntries <- for (flattenRefs $ V2Branch.terms b0) $ \(r, ns) -> do
     v1Ref <- Cv.referent2to1 (Codebase.getDeclType codebase) r
-    ShallowTermEntry <$> termListEntry codebase v1Ref (hqTerm b0 ns v1Ref)
+    ShallowTermEntry <$> termListEntry codebase b0 v1Ref (hqTerm b0 ns v1Ref)
   typeEntries <- for (flattenRefs $ V2Branch.types b0) \(r, ns) -> do
     let v1Ref = Cv.reference2to1 r
     ShallowTypeEntry <$> typeListEntry codebase v1Ref (hqType b0 ns v1Ref)
@@ -917,7 +944,7 @@ prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase q
         let hqTypeName = PPE.typeNameOrHashOnly fqnPPE r
         let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
         tag <-
-          Just . typeEntryTag
+          typeEntryTag
             <$> typeListEntry
               codebase
               r

@@ -84,7 +84,7 @@ newtype Suffixify = Suffixify {suffixified :: Bool}
 data TermDefinition = TermDefinition
   { termNames :: [HashQualifiedName],
     bestTermName :: HashQualifiedName,
-    defnTermTag :: Maybe TermTag,
+    defnTermTag :: TermTag,
     termDefinition :: DisplayObject SyntaxText SyntaxText,
     signature :: SyntaxText,
     termDocs :: [(HashQualifiedName, UnisonHash, Doc)]
@@ -94,7 +94,7 @@ data TermDefinition = TermDefinition
 data TypeDefinition = TypeDefinition
   { typeNames :: [HashQualifiedName],
     bestTypeName :: HashQualifiedName,
-    defnTypeTag :: Maybe TypeTag,
+    defnTypeTag :: TypeTag,
     typeDefinition :: DisplayObject SyntaxText SyntaxText,
     typeDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   }
@@ -114,7 +114,7 @@ instance Semigroup DefinitionDisplayResults where
 instance Monoid DefinitionDisplayResults where
   mempty = DefinitionDisplayResults mempty mempty mempty
 
-data TermTag = Doc | Test
+data TermTag = Doc | Test | Plain
   deriving (Eq, Ord, Show, Generic)
 
 data TypeTag = Ability | Data
@@ -144,7 +144,7 @@ data NamedTerm = NamedTerm
   { termName :: HashQualifiedName,
     termHash :: UnisonHash,
     termType :: Maybe SyntaxText,
-    termTag :: Maybe TermTag
+    termTag :: TermTag
   }
   deriving (Eq, Generic, Show)
 

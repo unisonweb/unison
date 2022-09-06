@@ -121,6 +121,7 @@ type UnisonAPI =
     :<|> Projects.ProjectsAPI
     :<|> DefinitionsAPI
     :<|> FuzzyFindAPI
+    :<|> DefinitionSummaryAPI
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
