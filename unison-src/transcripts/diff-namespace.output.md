@@ -629,56 +629,6 @@ a = 555
     a#mdl4vqtu00 + 1
 
 ```
-```unison
-a = 777
-```
-
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    x These definitions would fail on `add` or `update`:
-    
-      Reason
-      conflicted   a   : Nat
-    
-      Tip: Use `help filestatus` to learn more.
-
-```
-```ucm
-.nsw> update
-
-  x These definitions failed:
-  
-    Reason
-    conflicted   a   : Nat
-  
-    Tip: Use `help filestatus` to learn more.
-
-  I tried to auto-apply the patch, but couldn't because it
-  contained contradictory entries.
-
-.nsw> view a b
-
-  a#mdl4vqtu00 : Nat
-  a#mdl4vqtu00 = 444
-  
-  a#vrs8gtkl2t : Nat
-  a#vrs8gtkl2t = 555
-  
-  b#aapqletas7 : Nat
-  b#aapqletas7 =
-    use Nat +
-    a#vrs8gtkl2t + 1
-  
-  b#unkqhuu66p : Nat
-  b#unkqhuu66p =
-    use Nat +
-    a#mdl4vqtu00 + 1
-
-```
 ## Should be able to diff a namespace hash from history.
 
 ```unison

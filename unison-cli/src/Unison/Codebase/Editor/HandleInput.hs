@@ -141,7 +141,7 @@ import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
-import Unison.Reference (Reference (..), TermReference)
+import Unison.Reference (Reference (..), TermReference, TypeReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -2133,44 +2133,36 @@ handleUpdate input optionalPatch requestedNames = do
       fileNames :: Names
       fileNames = UF.typecheckedToNames uf
       -- todo: display some error if typeEdits or termEdits itself contains a loop
-      typeEdits :: Map Name (Reference, Reference)
-      typeEdits = Map.fromList $ map f (toList $ SC.types (updates sr))
-        where
-          f v = case ( toList (Names.typesNamed slurpCheckNames n),
-                       toList (Names.typesNamed fileNames n)
-                     ) of
-            ([old], [new]) -> (n, (old, new))
-            actual ->
-              error $
-                "Expected unique matches for var \""
-                  ++ Var.nameStr v
-                  ++ "\" but got: "
-                  ++ show actual
-            where
-              n = Name.unsafeFromVar v
+      typeEdits :: [(Name, Reference, Reference)]
+      typeEdits = do
+        v <- Set.toList (SC.types (updates sr))
+        let n = Name.unsafeFromVar v
+        let oldRefs0 = Names.typesNamed slurpCheckNames n
+        let newRefs = Names.typesNamed fileNames n
+        case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
+          Nothing -> error (reportBug "E722145" ("bad (old,new) names: " ++ show (oldRefs0, newRefs)))
+          Just (oldRefs, newRef) -> do
+            oldRef <- Foldable.toList oldRefs
+            [(n, oldRef, newRef)]
       hashTerms :: Map Reference (Type Symbol Ann)
       hashTerms = Map.fromList (toList hashTerms0)
         where
           hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
-      termEdits :: Map Name (Reference, Reference)
-      termEdits = Map.fromList $ map g (toList $ SC.terms (updates sr))
-        where
-          g v = case ( toList (Names.refTermsNamed slurpCheckNames n),
-                       toList (Names.refTermsNamed fileNames n)
-                     ) of
-            ([old], [new]) -> (n, (old, new))
-            actual ->
-              error $
-                "Expected unique matches for var \""
-                  ++ Var.nameStr v
-                  ++ "\" but got: "
-                  ++ show actual
-            where
-              n = Name.unsafeFromVar v
+      termEdits :: [(Name, Reference, Reference)]
+      termEdits = do
+        v <- Set.toList (SC.terms (updates sr))
+        let n = Name.unsafeFromVar v
+        let oldRefs0 = Names.refTermsNamed slurpCheckNames n
+        let newRefs = Names.refTermsNamed fileNames n
+        case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
+          Nothing -> error (reportBug "E936103" ("bad (old,new) names: " ++ show (oldRefs0, newRefs)))
+          Just (oldRefs, newRef) -> do
+            oldRef <- Foldable.toList oldRefs
+            [(n, oldRef, newRef)]
       termDeprecations :: [(Name, Referent)]
       termDeprecations =
         [ (n, r)
-          | (oldTypeRef, _) <- Map.elems typeEdits,
+          | (_, oldTypeRef, _) <- typeEdits,
             (n, r) <- Names.constructorsForType oldTypeRef slurpCheckNames
         ]
   patchOps <- for patchPath \patchPath -> do
@@ -2191,7 +2183,7 @@ handleUpdate input optionalPatch requestedNames = do
             fromOld =
               [ (r, r') | (r, TermEdit.Replace r' _) <- R.toList . Patch._termEdits $ old, Set.member r' newLHS
               ]
-        neededTypes = collectOldForTyping (toList termEdits) ye'ol'Patch
+        neededTypes = collectOldForTyping (map (\(_, old, new) -> (old, new)) termEdits) ye'ol'Patch
 
     allTypes :: Map Reference (Type v Ann) <-
       fmap Map.fromList . for (toList neededTypes) $ \r ->
@@ -2217,8 +2209,8 @@ handleUpdate input optionalPatch requestedNames = do
         updatePatch p = foldl' step2 p' termEdits
           where
             p' = foldl' step1 p typeEdits
-            step1 p (r, r') = Patch.updateType r (TypeEdit.Replace r') p
-            step2 p (r, r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
+            step1 p (_, r, r') = Patch.updateType r (TypeEdit.Replace r') p
+            step2 p (_, r, r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
         (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
         updatePatches :: Monad m => Branch0 m -> m (Branch0 m)
         updatePatches = Branch.modifyPatches seg updatePatch
@@ -3115,15 +3107,15 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
 
 doSlurpUpdates ::
   Monad m =>
-  Map Name (Reference, Reference) ->
-  Map Name (Reference, Reference) ->
+  [(Name, TypeReference, TypeReference)] ->
+  [(Name, TermReference, TermReference)] ->
   [(Name, Referent)] ->
   (Branch0 m -> Branch0 m)
 doSlurpUpdates typeEdits termEdits deprecated b0 =
   Branch.batchUpdates (typeActions <> termActions <> deprecateActions) b0
   where
-    typeActions = join . map doType . Map.toList $ typeEdits
-    termActions = join . map doTerm . Map.toList $ termEdits
+    typeActions = join . map doType $ typeEdits
+    termActions = join . map doTerm $ termEdits
     deprecateActions = join . map doDeprecate $ deprecated
       where
         doDeprecate (n, r) = case Path.splitFromName n of
@@ -3133,10 +3125,8 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
     -- we copy over the metadata on the old thing
     -- todo: if the thing being updated, m, is metadata for something x in b0
     -- update x's md to reference `m`
-    doType,
-      doTerm ::
-        (Name, (Reference, Reference)) -> [(Path, Branch0 m -> Branch0 m)]
-    doType (n, (old, new)) = case Path.splitFromName n of
+    doType :: (Name, TypeReference, TypeReference) -> [(Path, Branch0 m -> Branch0 m)]
+    doType (n, old, new) = case Path.splitFromName n of
       Nothing -> errorEmptyVar
       Just split ->
         [ BranchUtil.makeDeleteTypeName split old,
@@ -3144,7 +3134,8 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
         ]
         where
           oldMd = BranchUtil.getTypeMetadataAt split old b0
-    doTerm (n, (old, new)) = case Path.splitFromName n of
+    doTerm :: (Name, TermReference, TermReference) -> [(Path, Branch0 m -> Branch0 m)]
+    doTerm (n, old, new) = case Path.splitFromName n of
       Nothing -> errorEmptyVar
       Just split ->
         [ BranchUtil.makeDeleteTermName split (Referent.Ref old),
