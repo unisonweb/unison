@@ -22,7 +22,7 @@ import ArgParse
     parseCLIArgs,
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
-import Control.Concurrent (forkIO, newEmptyMVar, takeMVar)
+import Control.Concurrent (newEmptyMVar, takeMVar)
 import Control.Concurrent.Async (withAsync)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
@@ -37,6 +37,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.IO as Text
 import GHC.Conc (setUncaughtExceptionHandler)
 import qualified GHC.Conc
+import qualified Ki
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
@@ -82,13 +83,13 @@ import UnliftIO.Directory (getHomeDirectory)
 import qualified Version
 
 main :: IO ()
-main = withCP65001 do
+main = withCP65001 . Ki.scoped $ \scope -> do
   -- Replace the default exception handler with one that pretty-prints.
   setUncaughtExceptionHandler (pHPrint stderr)
 
   interruptHandler <- defaultInterruptHandler
   withInterruptHandler interruptHandler $ do
-    forkIO initHTTPClient
+    void $ Ki.fork scope initHTTPClient
     progName <- getProgName
     -- hSetBuffering stdout NoBuffering -- cool
     (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack Version.gitDescribeWithDate)
@@ -227,31 +228,31 @@ main = withCP65001 do
           let ucmState :: STM (Branch IO, Path.Absolute)
               ucmState = readTVar ucmStateVar >>= maybe retry pure
           sbRuntime <- RTI.startRuntime True RTI.Persistent Version.gitDescribeWithDate
-          withAsync (LSP.spawnLsp theCodebase runtime ucmState) $ \_ -> do
-            Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
-              case exitOption of
-                DoNotExit -> do
-                  case isHeadless of
-                    Headless -> do
-                      PT.putPrettyLn $
-                        P.lines
-                          [ "I've started the Codebase API server at",
-                            P.string $ Server.urlFor Server.Api baseUrl,
-                            "and the Codebase UI at",
-                            P.string $ Server.urlFor Server.UI baseUrl
-                          ]
-                      PT.putPrettyLn $
-                        P.string "Running the codebase manager headless with "
-                          <> P.shown GHC.Conc.numCapabilities
-                          <> " "
-                          <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
-                          <> "."
-                      mvar <- newEmptyMVar
-                      takeMVar mvar
-                    WithCLI -> do
-                      PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                      launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) downloadBase initRes notifyOnUcmChanges
-                Exit -> do Exit.exitSuccess
+          Ki.fork scope $ LSP.spawnLsp theCodebase runtime ucmState
+          Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
+            case exitOption of
+              DoNotExit -> do
+                case isHeadless of
+                  Headless -> do
+                    PT.putPrettyLn $
+                      P.lines
+                        [ "I've started the Codebase API server at",
+                          P.string $ Server.urlFor Server.Api baseUrl,
+                          "and the Codebase UI at",
+                          P.string $ Server.urlFor Server.UI baseUrl
+                        ]
+                    PT.putPrettyLn $
+                      P.string "Running the codebase manager headless with "
+                        <> P.shown GHC.Conc.numCapabilities
+                        <> " "
+                        <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
+                        <> "."
+                    mvar <- newEmptyMVar
+                    takeMVar mvar
+                  WithCLI -> do
+                    PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+                    launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) downloadBase initRes notifyOnUcmChanges
+              Exit -> do Exit.exitSuccess
 
 -- | Set user agent and configure TLS on global http client.
 -- Note that the authorized http client is distinct from the global http client.
