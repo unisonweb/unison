@@ -2594,25 +2594,10 @@ propagatePatch inputDescription patch scopePath = do
       (inputDescription <> " (applying patch)")
       (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
--- | Create the args needed for showTodoOutput and call it
+-- | Show todo output if there are any conflicts or edits.
 doShowTodoOutput :: Patch -> Path.Absolute -> Cli r ()
 doShowTodoOutput patch scopePath = do
   names0 <- Branch.toNames <$> Cli.getBranch0At scopePath
-  -- only needs the local references to check for obsolete defs
-  let getPpe = do
-        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-        prettyPrintEnvDecl names
-  showTodoOutput getPpe patch names0
-
--- | Show todo output if there are any conflicts or edits.
-showTodoOutput ::
-  -- | Action that fetches the pretty print env. It's expensive because it
-  -- involves looking up historical names, so only call it if necessary.
-  Cli r PPE.PrettyPrintEnvDecl ->
-  Patch ->
-  Names ->
-  Cli r ()
-showTodoOutput getPpe patch names0 = do
   todo <- checkTodo patch names0
   if TO.noConflicts todo && TO.noEdits todo
     then Cli.respond NoConflictsOrEdits
@@ -2621,7 +2606,10 @@ showTodoOutput getPpe patch names0 = do
         .= ( Text.unpack . Reference.toText . view _2
                <$> fst (TO.todoFrontierDependents todo)
            )
-      ppe <- getPpe
+      -- only needs the local references to check for obsolete defs
+      ppe <- do
+        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        prettyPrintEnvDecl names
       Cli.respondNumbered $ TodoOutput ppe todo
 
 checkTodo :: Patch -> Names -> Cli r (TO.TodoOutput Symbol Ann)
