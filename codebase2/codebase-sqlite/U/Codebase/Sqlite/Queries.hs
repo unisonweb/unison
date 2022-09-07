@@ -95,6 +95,7 @@ module U.Codebase.Sqlite.Queries
 
     -- ** dependents index
     addToDependentsIndex,
+    DependentsSelector (..),
     getDependentsForDependency,
     getDependentsForDependencyComponent,
     getDependenciesForDependent,
@@ -1277,10 +1278,26 @@ addToDependentsIndex dependency dependent = execute sql (dependency :. dependent
     ON CONFLICT DO NOTHING
   |]
 
--- | Get non-self, user-defined dependents of a dependency.
-getDependentsForDependency :: Reference.Reference -> Transaction [Reference.Id]
-getDependentsForDependency dependency =
-  filter isNotSelfReference <$> queryListRow sql dependency
+-- | Which dependents should be returned?
+--
+-- * /IncludeAllDependents/. Include all dependents, including references from one's own component-mates, and references
+-- from oneself (e.g. those in recursive functions)
+-- * /ExcludeOwnReference/. Include all dependents, including references from one's own component-mates, but excluding
+-- actual self references (e.g. those in recursive functions).
+-- * /ExcludeOwnComponent/. Include all dependents outside of one's own component.
+data DependentsSelector
+  = IncludeAllDependents
+  | ExcludeOwnReference
+  | ExcludeOwnComponent
+
+-- | Get dependents of a dependency.
+getDependentsForDependency :: DependentsSelector -> Reference.Reference -> Transaction [Reference.Id]
+getDependentsForDependency selector dependency = do
+  dependents <- queryListRow sql dependency
+  pure case selector of
+    IncludeAllDependents -> dependents
+    ExcludeOwnReference -> filter isNotSelfReference dependents
+    ExcludeOwnComponent -> filter isNotReferenceFromOwnComponent dependents
   where
     sql =
       [here|
@@ -1291,11 +1308,17 @@ getDependentsForDependency dependency =
           AND dependency_component_index IS ?
       |]
 
+    isNotReferenceFromOwnComponent :: Reference.Id -> Bool
+    isNotReferenceFromOwnComponent =
+      case dependency of
+        ReferenceBuiltin _ -> const True
+        ReferenceDerived (C.Reference.Id oid0 _pos0) -> \(C.Reference.Id oid1 _pos1) -> oid0 /= oid1
+
     isNotSelfReference :: Reference.Id -> Bool
     isNotSelfReference =
       case dependency of
         ReferenceBuiltin _ -> const True
-        ReferenceDerived (C.Reference.Id oid0 _pos0) -> \(C.Reference.Id oid1 _pos1) -> oid0 /= oid1
+        ReferenceDerived ref -> (ref /=)
 
 getDependentsForDependencyComponent :: ObjectId -> Transaction [Reference.Id]
 getDependentsForDependencyComponent dependency =
