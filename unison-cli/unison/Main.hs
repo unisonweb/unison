@@ -23,7 +23,6 @@ import ArgParse
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, takeMVar)
-import Control.Concurrent.Async (withAsync)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
