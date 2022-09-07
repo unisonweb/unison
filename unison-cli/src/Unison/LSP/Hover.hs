@@ -3,7 +3,6 @@
 
 module Unison.LSP.Hover where
 
-import Control.Concurrent (threadDelay)
 import Control.Lens hiding (List)
 import Control.Monad.Reader
 import qualified Data.Text as Text
