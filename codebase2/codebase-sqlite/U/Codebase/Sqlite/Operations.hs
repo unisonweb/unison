@@ -1009,9 +1009,8 @@ causalHashesByPrefix (ShortBranchHash b32prefix) = do
 dependents :: C.Reference -> Transaction (Set C.Reference.Id)
 dependents r = do
   r' <- c2sReference r
-  sIds :: [S.Reference.Id] <- Q.getDependentsForDependency Q.ExcludeOwnComponent r'
-  cIds <- traverse s2cReferenceId sIds
-  pure $ Set.fromList cIds
+  sIds <- Q.getDependentsForDependency Q.ExcludeOwnComponent r'
+  Set.traverse s2cReferenceId sIds
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)

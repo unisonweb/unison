@@ -1291,13 +1291,14 @@ data DependentsSelector
   | ExcludeOwnComponent
 
 -- | Get dependents of a dependency.
-getDependentsForDependency :: DependentsSelector -> Reference.Reference -> Transaction [Reference.Id]
+getDependentsForDependency :: DependentsSelector -> Reference.Reference -> Transaction (Set Reference.Id)
 getDependentsForDependency selector dependency = do
   dependents <- queryListRow sql dependency
-  pure case selector of
-    IncludeAllDependents -> dependents
-    ExcludeOwnReference -> filter isNotSelfReference dependents
-    ExcludeOwnComponent -> filter isNotReferenceFromOwnComponent dependents
+  pure . Set.fromList $
+    case selector of
+      IncludeAllDependents -> dependents
+      ExcludeOwnReference -> filter isNotSelfReference dependents
+      ExcludeOwnComponent -> filter isNotReferenceFromOwnComponent dependents
   where
     sql =
       [here|
