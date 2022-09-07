@@ -1282,12 +1282,12 @@ addToDependentsIndex dependency dependent = execute sql (dependency :. dependent
 --
 -- * /IncludeAllDependents/. Include all dependents, including references from one's own component-mates, and references
 -- from oneself (e.g. those in recursive functions)
--- * /ExcludeOwnReference/. Include all dependents, including references from one's own component-mates, but excluding
+-- * /ExcludeSelf/. Include all dependents, including references from one's own component-mates, but excluding
 -- actual self references (e.g. those in recursive functions).
 -- * /ExcludeOwnComponent/. Include all dependents outside of one's own component.
 data DependentsSelector
   = IncludeAllDependents
-  | ExcludeOwnReference
+  | ExcludeSelf
   | ExcludeOwnComponent
 
 -- | Get dependents of a dependency.
@@ -1297,7 +1297,7 @@ getDependentsForDependency selector dependency = do
   pure . Set.fromList $
     case selector of
       IncludeAllDependents -> dependents
-      ExcludeOwnReference -> filter isNotSelfReference dependents
+      ExcludeSelf -> filter isNotSelfReference dependents
       ExcludeOwnComponent -> filter isNotReferenceFromOwnComponent dependents
   where
     sql =
