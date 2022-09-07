@@ -131,3 +131,89 @@ structural type MyType = MyType Int
        to resolve the conflicts.
 
 ```
+## An update to one element of a cycle, but not the other
+
+```ucm
+  ☝️  The namespace .cycle is empty.
+
+.cycle> builtins.mergeio
+
+  Done.
+
+```
+```unison
+even = cases
+  0 -> true
+  n -> odd (drop 1 n)
+
+odd = cases
+  0 -> false
+  n -> even (drop 1 n)
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      even : Nat -> Boolean
+      odd  : Nat -> Boolean
+
+```
+```ucm
+.cycle> add
+
+  ⍟ I've added these definitions:
+  
+    even : Nat -> Boolean
+    odd  : Nat -> Boolean
+
+```
+```unison
+even = 17
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      even : Nat
+
+```
+```ucm
+.cycle> update
+
+  ⍟ I've updated these names to your new definition:
+  
+    even : Nat
+
+.cycle> view odd
+
+  odd : Nat -> Boolean
+  odd = cases
+    0 -> false
+    n -> #kkohl7ba1e (Nat.drop 1 n)
+
+.cycle> view.patch patch
+
+  Edited Terms: 1. even#kkohl7ba1e -> 2. even
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
+
+.cycle> todo
+
+  ✅
+  
+  No conflicts or edits in progress.
+
+```

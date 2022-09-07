@@ -73,3 +73,34 @@ structural type MyType = MyType Int
 .mergeA> merge .mergeB
 .mergeA> todo
 ```
+
+## An update to one element of a cycle, but not the other
+
+```ucm
+.cycle> builtins.mergeio
+```
+
+```unison
+even = cases
+  0 -> true
+  n -> odd (drop 1 n)
+
+odd = cases
+  0 -> false
+  n -> even (drop 1 n)
+```
+
+```ucm
+.cycle> add
+```
+
+```unison
+even = 17
+```
+
+```ucm
+.cycle> update
+.cycle> view odd
+.cycle> view.patch patch
+.cycle> todo
+```
