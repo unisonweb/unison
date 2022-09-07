@@ -2617,36 +2617,32 @@ doShowTodoOutput patch scopePath = do
 
 checkTodo :: Patch -> Names -> Cli r (TO.TodoOutput Symbol Ann)
 checkTodo patch names0 = do
-  Cli.Env {codebase} <- ask
   let shouldUpdate = Names.contains names0
-  f <- Propagate.computeFrontier (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent) patch shouldUpdate
+  f <- Propagate.computeFrontier patch shouldUpdate
   let dirty = R.dom f
       frontier = R.ran f
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
   (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
-  -- todo: something more intelligent here?
-  let scoreFn = const 1
-  remainingTransitive <-
-    frontierTransitiveDependents (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent) names0 frontier
-  let scoredDirtyTerms =
-        List.sortOn (view _1) [(scoreFn r, r, t) | (r, t) <- dirtyTerms]
-      scoredDirtyTypes =
-        List.sortOn (view _1) [(scoreFn r, r, t) | (r, t) <- dirtyTypes]
+  remainingTransitive <- frontierTransitiveDependents frontier
   pure $
     TO.TodoOutput
       (Set.size remainingTransitive)
       (frontierTerms, frontierTypes)
-      (scoredDirtyTerms, scoredDirtyTypes)
+      (score dirtyTerms, score dirtyTypes)
       (Names.conflicts names0)
       (Patch.conflicts patch)
   where
-    frontierTransitiveDependents ::
-      Monad m => (Reference -> m (Set Reference)) -> Names -> Set Reference -> m (Set Reference)
-    frontierTransitiveDependents dependents names0 rs = do
-      let branchDependents r = Set.filter (Names.contains names0) <$> dependents r
-      tdeps <- transitiveClosure branchDependents rs
+    frontierTransitiveDependents :: Set Reference -> Cli r (Set Reference)
+    frontierTransitiveDependents rs = do
+      Cli.Env {codebase} <- ask
+      let branchDependents r =
+            Set.filter (Names.contains names0) <$> Codebase.dependents codebase Queries.ExcludeOwnComponent r
+      tdeps <- liftIO (transitiveClosure branchDependents rs)
       -- we don't want the frontier in the result
       pure $ tdeps `Set.difference` rs
+    -- todo: something more intelligent here?
+    score :: [(a, b)] -> [(TO.Score, a, b)]
+    score = map (\(x, y) -> (1, x, y))
 
 confirmedCommand :: Input -> Cli r Bool
 confirmedCommand i = do

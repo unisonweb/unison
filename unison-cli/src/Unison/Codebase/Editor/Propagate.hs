@@ -680,7 +680,6 @@ applyPropagate patch Edits {..} = do
 --
 -- Note: computeDirty a b c = R.dom <$> computeFrontier a b c
 computeDirty ::
-  forall m.
   Monad m =>
   (Reference -> m (Set Reference)) -> -- eg Codebase.dependents codebase
   Patch ->
@@ -705,26 +704,22 @@ computeDirty getDependents patch shouldUpdate =
 --
 -- The range of this relation is the frontier, and the domain is
 -- the set of dirty references.
-computeFrontier ::
-  forall m.
-  Monad m =>
-  (Reference -> m (Set Reference)) -> -- eg Codebase.dependents codebase
-  Patch ->
-  (Reference -> Bool) ->
-  m (R.Relation Reference Reference)
-computeFrontier getDependents patch shouldUpdate = do
+computeFrontier :: Patch -> (Reference -> Bool) -> Cli r (R.Relation Reference Reference)
+computeFrontier patch shouldUpdate = do
+  Cli.Env {codebase} <- ask
   -- (r,r2) ∈ dependsOn if r depends on r2
-  dependsOn <- foldM addDependents R.empty edited
+  dependsOn <- liftIO (foldM (addDependents codebase) R.empty edited)
   -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
   pure $ R.filterDom (not . flip Set.member edited) dependsOn
   where
     edited :: Set Reference
     edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
     addDependents ::
+      Codebase IO Symbol Ann ->
       R.Relation Reference Reference ->
       Reference ->
-      m (R.Relation Reference Reference)
-    addDependents dependents ref =
+      IO (R.Relation Reference Reference)
+    addDependents codebase dependents ref =
       (\ds -> R.insertManyDom ds ref dependents)
         . Set.filter shouldUpdate
-        <$> getDependents ref
+        <$> Codebase.dependents codebase Queries.ExcludeOwnComponent ref
