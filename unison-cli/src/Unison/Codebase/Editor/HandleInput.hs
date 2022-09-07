@@ -34,6 +34,7 @@ import qualified Text.Megaparsec as P
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
+import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
 import qualified U.Util.Hash32 as Hash32
@@ -1769,9 +1770,11 @@ handleDependents hq = do
   for_ lds \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
-      let tp r = liftIO (Codebase.dependents codebase r)
-          tm (Referent.Ref r) = liftIO (Codebase.dependents codebase r)
-          tm (Referent.Con (ConstructorReference r _cid) _ct) = liftIO (Codebase.dependents codebase r)
+      let tp r = liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+          tm = \case
+            Referent.Ref r -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+            Referent.Con (ConstructorReference r _cid) _ct ->
+              liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
        in LD.fold tp tm ld
     -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
     -- unambiguous name.
@@ -2616,7 +2619,7 @@ checkTodo :: Patch -> Names -> Cli r (TO.TodoOutput Symbol Ann)
 checkTodo patch names0 = do
   Cli.Env {codebase} <- ask
   let shouldUpdate = Names.contains names0
-  f <- Propagate.computeFrontier (liftIO . Codebase.dependents codebase) patch shouldUpdate
+  f <- Propagate.computeFrontier (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent) patch shouldUpdate
   let dirty = R.dom f
       frontier = R.ran f
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
@@ -2624,7 +2627,7 @@ checkTodo patch names0 = do
   -- todo: something more intelligent here?
   let scoreFn = const 1
   remainingTransitive <-
-    frontierTransitiveDependents (liftIO . Codebase.dependents codebase) names0 frontier
+    frontierTransitiveDependents (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent) names0 frontier
   let scoredDirtyTerms =
         List.sortOn (view _1) [(scoreFn r, r, t) | (r, t) <- dirtyTerms]
       scoredDirtyTypes =
@@ -2919,7 +2922,7 @@ getEndangeredDependents namesToDelete rootNames = do
       accumulateDependents :: LabeledDependency -> IO (Map LabeledDependency (Set LabeledDependency))
       accumulateDependents ld =
         let ref = LD.fold id Referent.toReference ld
-         in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents codebase ref
+         in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents codebase Queries.ExcludeOwnComponent ref
   -- All dependents of extinct, including terms which might themselves be in the process of being deleted.
   allDependentsOfExtinct :: Map LabeledDependency (Set LabeledDependency) <-
     liftIO (Map.unionsWith (<>) <$> for (Set.toList extinct) accumulateDependents)

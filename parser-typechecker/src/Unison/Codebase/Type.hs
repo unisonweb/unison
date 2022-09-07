@@ -16,6 +16,7 @@ where
 import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Reference as V2
 import qualified U.Codebase.Reflog as Reflog
+import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Git as Git
@@ -108,7 +109,7 @@ data Codebase m v a = Codebase
     patchExists :: Branch.EditHash -> m Bool,
     -- | Get the set of user-defined terms and type declarations that depend on the given term, type declaration, or
     -- builtin type.
-    dependentsImpl :: Reference -> m (Set Reference.Id),
+    dependentsImpl :: Queries.DependentsSelector -> Reference -> m (Set Reference.Id),
     dependentsOfComponentImpl :: Hash -> m (Set Reference.Id),
     -- | Copy a branch and all of its dependencies from the given codebase into this one.
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),

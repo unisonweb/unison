@@ -1006,10 +1006,10 @@ causalHashesByPrefix (ShortBranchHash b32prefix) = do
   pure $ Set.fromList . map CausalHash $ hashes
 
 -- | returns a list of known definitions referencing `r`
-dependents :: C.Reference -> Transaction (Set C.Reference.Id)
-dependents r = do
+dependents :: Q.DependentsSelector -> C.Reference -> Transaction (Set C.Reference.Id)
+dependents selector r = do
   r' <- c2sReference r
-  sIds <- Q.getDependentsForDependency Q.ExcludeOwnComponent r'
+  sIds <- Q.getDependentsForDependency selector r'
   Set.traverse s2cReferenceId sIds
 
 -- | returns a list of known definitions referencing `h`

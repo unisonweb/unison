@@ -112,6 +112,7 @@ import qualified Data.Set as Set
 import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import qualified U.Codebase.Sqlite.Queries as Queries
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Terms as Builtin
@@ -339,11 +340,11 @@ componentReferencesForReference c = \case
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.
-dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
-dependents c r =
+dependents :: Functor m => Codebase m v a -> Queries.DependentsSelector -> Reference -> m (Set Reference)
+dependents c selector r =
   Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
-    <$> dependentsImpl c r
+    <$> dependentsImpl c selector r
 
 dependentsOfComponent :: Functor f => Codebase f v a -> Hash -> f (Set Reference)
 dependentsOfComponent c h =

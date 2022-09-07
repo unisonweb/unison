@@ -12,6 +12,7 @@ import Control.Monad.Reader (ask)
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified Unison.Builtin as Builtin
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -266,7 +267,11 @@ propagate patch b = case validatePatch patch of
           n : _ -> show n
 
     Cli.Env {codebase} <- ask
-    initialDirty <- computeDirty (liftIO . Codebase.dependents codebase) patch (Names.contains names0)
+    initialDirty <-
+      computeDirty
+        (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
+        patch
+        (Names.contains names0)
 
     let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
     -- TODO: once patches can directly contain constructor replacements, this
@@ -314,7 +319,7 @@ propagate patch b = case validatePatch patch of
                     (Just edits', seen') -> do
                       -- plan to update the dependents of this component too
                       dependents <- case r of
-                        Reference.Builtin {} -> liftIO (Codebase.dependents codebase r)
+                        Reference.Builtin {} -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
                         Reference.Derived h _i -> liftIO (Codebase.dependentsOfComponent codebase h)
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
@@ -459,11 +464,11 @@ propagate patch b = case validatePatch patch of
     sortDependentsGraph codebase dependencies restrictTo = do
       closure <-
         transitiveClosure
-          (fmap (Set.intersection restrictTo) . liftIO . Codebase.dependents codebase)
+          (fmap (Set.intersection restrictTo) . liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
           dependencies
       dependents <-
         traverse
-          (\r -> (r,) <$> (liftIO . Codebase.dependents codebase) r)
+          (\r -> (r,) <$> (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent) r)
           (toList closure)
       let graphEdges = [(r, r, toList deps) | (r, deps) <- toList dependents]
           (graph, getReference, _) = Graph.graphFromEdges graphEdges
