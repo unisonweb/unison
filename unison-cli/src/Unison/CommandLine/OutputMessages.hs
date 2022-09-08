@@ -36,6 +36,7 @@ import System.Directory
     doesFileExist,
     getHomeDirectory,
   )
+import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
@@ -964,17 +965,20 @@ notifyUser dir o = case o of
           ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq,
             isBuiltin r
           )
-        ShallowBranchEntry ns _ count ->
+        ShallowBranchEntry ns _ (NamespaceStats {numContainedTerms, numContainedTypes}) ->
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/",
-            case count of
-              Nothing -> "(namespace)"
-              Just 1 -> P.lit "(1 definition)"
-              Just n -> P.lit "(" <> P.shown n <> P.lit " definitions)"
+            case catMaybes [formatCount "term" numContainedTerms, formatCount "type" numContainedTypes] of
+              [] -> ""
+              counts -> P.hiBlack $ "(" <> intercalateMap ", " id counts <> ")"
           )
         ShallowPatchEntry ns ->
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns,
             P.lit "(patch)"
           )
+      formatCount :: Pretty -> Int -> Maybe Pretty
+      formatCount _thing 0 = Nothing
+      formatCount thing 1 = Just $ "1 " <> thing
+      formatCount thing n = Just $ P.shown n <> " " <> thing <> "s"
       isBuiltin = \case
         Reference.Builtin {} -> P.lit "(builtin type)"
         Reference.DerivedId {} -> P.lit "(type)"

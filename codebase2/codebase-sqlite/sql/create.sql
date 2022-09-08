@@ -3,7 +3,7 @@
 CREATE TABLE schema_version (
   version INTEGER NOT NULL
 );
-INSERT INTO schema_version (version) VALUES (6);
+INSERT INTO schema_version (version) VALUES (7);
 
 -- actually stores the 512-byte hashes
 CREATE TABLE hash (
