@@ -79,6 +79,8 @@ library:
   when:
     - condition: '!os(windows)'
       dependencies: unix
+    - condition: 'os(windows)'
+      dependencies: Win32
     - condition: false
       other-modules: Paths_unison_cli
 
@@ -102,9 +104,6 @@ executables:
     when:
       - condition: false
         other-modules: Paths_unison_cli
-
-      - condition: 'os(windows)'
-        dependencies: Win32
 
     source-dirs: unison
     main: Main.hs
