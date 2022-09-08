@@ -31,7 +31,6 @@ import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
-import qualified U.Codebase.Referent as V2
 import qualified U.Codebase.Referent as V2Referent
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
@@ -234,25 +233,25 @@ shallowNames codebase b = do
 loadReferentType ::
   Applicative m =>
   Codebase m Symbol Ann ->
-  V2.Referent ->
+  Referent ->
   m (Maybe (Type Symbol Ann))
 loadReferentType codebase = \case
-  V2.Ref r -> Codebase.getTypeOfTerm codebase (Cv.reference2to1 r)
-  V2.Con r conId -> getTypeOfConstructor (Cv.reference2to1 r) conId
+  Referent.Ref r -> Codebase.getTypeOfTerm codebase r
+  Referent.Con r _ -> getTypeOfConstructor r
   where
     -- Mitchell wonders: why was this definition copied from Unison.Codebase?
-    getTypeOfConstructor (Reference.DerivedId r) cid = do
+    getTypeOfConstructor (ConstructorReference (Reference.DerivedId r) cid) = do
       maybeDecl <- Codebase.getTypeDeclaration codebase r
       pure $ case maybeDecl of
         Nothing -> Nothing
         Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-    getTypeOfConstructor r _ =
+    getTypeOfConstructor r =
       error $
         "Don't know how to getTypeOfConstructor "
           ++ show r
 
 data TermEntry v a = TermEntry
-  { termEntryReferent :: V2.Referent,
+  { termEntryReferent :: V2Referent.Referent,
     termEntryName :: HQ'.HQSegment,
     termEntryType :: Maybe (Type v a),
     termEntryTag :: TermTag
@@ -342,14 +341,14 @@ findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
         k <- Map.keys term
         case k of
           -- This shouldn't ever happen unless someone puts a non-doc as their readme.
-          V2.Con {} -> empty
-          V2.Ref ref -> pure $ Cv.reference2to1 ref
+          V2Referent.Con {} -> empty
+          V2Referent.Ref ref -> pure $ Cv.reference2to1 ref
         where
           termsMap = V2Branch.terms namespaceBranch
    in liftIO $ do
         traverse (renderReadme ppe) readme
 
-isDoc :: Monad m => Codebase m Symbol Ann -> V2.Referent -> m Bool
+isDoc :: Monad m => Codebase m Symbol Ann -> Referent.Referent -> m Bool
 isDoc codebase ref = do
   ot <- loadReferentType codebase ref
   pure $ isDoc' ot
@@ -381,22 +380,22 @@ termListEntry ::
   Monad m =>
   Codebase m Symbol Ann ->
   V2Branch.Branch m ->
-  V2.Referent ->
-  ExactName NameSegment V2.Referent ->
+  ExactName NameSegment V2Referent.Referent ->
   m (TermEntry Symbol Ann)
-termListEntry codebase branch r exactName = do
+termListEntry codebase branch exactName@(ExactName _name ref) = do
   hashLen <- Codebase.hashLength codebase
-  let hqn = exactToHQ' (second (SH.take hashLen . V2Referent.toShortHash) exactName)
-  ot <- loadReferentType codebase r
+  let hqn = exactToHQ' (second (SH.take hashLen . Cv.referent2toshorthash1) exactName)
+  v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
+  ot <- loadReferentType codebase v1Referent
   tag <- getTermTag codebase branch (first Name.fromSegment exactName) ot
-  pure $ TermEntry r hqn ot tag
+  pure $ TermEntry ref hqn ot tag
 
 getTermTag ::
   (Monad m, Var v) =>
   Codebase m v a ->
   V2Branch.Branch m ->
   -- | Name, must be relative to the branch
-  ExactName Name V2.Referent ->
+  ExactName Name V2Referent.Referent ->
   Maybe (Type v Ann) ->
   m TermTag
 getTermTag codebase branch (ExactName n r) sig = do
@@ -482,7 +481,7 @@ termEntryToNamedTerm ::
 termEntryToNamedTerm ppe typeWidth (TermEntry r name mayType tag) =
   NamedTerm
     { termName = HQ'.toText name,
-      termHash = Referent.toText r,
+      termHash = SH.toText $ Cv.referent2toshorthash1 r,
       termType = formatType ppe (mayDefaultWidth typeWidth) <$> mayType,
       termTag = tag
     }
@@ -512,7 +511,7 @@ lsBranch codebase b = do
               _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
       b0 = Branch.head b
   termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
-    ShallowTermEntry <$> termListEntry codebase (error "TODO: this whole function can be deleted after namespace stats are merged" b0) r (ExactName ns r)
+    ShallowTermEntry <$> termListEntry codebase (error "TODO: this whole function can be deleted after namespace stats are merged" b0) (ExactName ns (Cv.referent1to2 r))
   typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0) $
     \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
   let branchEntries :: [ShallowListEntry Symbol Ann] = do
@@ -558,8 +557,7 @@ lsShallowBranch codebase b0 = do
         r <- Map.keys refs
         pure (r, ns)
   termEntries <- for (flattenRefs $ V2Branch.terms b0) $ \(r, ns) -> do
-    v1Ref <- Cv.referent2to1 (Codebase.getDeclType codebase) r
-    ShallowTermEntry <$> termListEntry codebase b0 v1Ref (ExactName (coerce @V2Branch.NameSegment ns) v1Ref)
+    ShallowTermEntry <$> termListEntry codebase b0 (ExactName (coerce @V2Branch.NameSegment ns) r)
   typeEntries <- for (flattenRefs $ V2Branch.types b0) \(r, ns) -> do
     let v1Ref = Cv.reference2to1 r
     ShallowTypeEntry <$> typeListEntry codebase v1Ref (hqType b0 ns v1Ref)
@@ -900,7 +898,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         tag <-
           lift
             ( termEntryTag
-                <$> termListEntry codebase termBranch referent (ExactName (NameSegment bn) referent)
+                <$> termListEntry codebase termBranch (ExactName (NameSegment bn) (Cv.referent1to2 referent))
             )
         docs <- lift (docResults r hqTermName)
         mk docs ts bn tag

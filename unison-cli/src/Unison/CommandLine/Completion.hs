@@ -188,21 +188,6 @@ completeWithinNamespace compTypes query codebase currentPath = do
     hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (SH.take hashLen $ v2ReferentToShortHash r)
     hqFromNamedV2Reference :: Int -> V2Branch.NameSegment -> Reference.Reference -> HQ'.HashQualified V2Branch.NameSegment
     hqFromNamedV2Reference hashLen n r = HQ'.HashQualified n (SH.take hashLen $ v2ReferenceToShortHash r)
-    v2ReferentToShortHash :: Referent.Referent -> SH.ShortHash
-    v2ReferentToShortHash = \case
-      Referent.Ref r -> v2ReferenceToShortHash r
-      Referent.Con r conId ->
-        case v2ReferenceToShortHash r of
-          SH.ShortHash h p _con -> SH.ShortHash h p (Just $ tShow conId)
-          sh@(SH.Builtin {}) -> sh
-
-    v2ReferenceToShortHash :: Reference.Reference -> SH.ShortHash
-    v2ReferenceToShortHash (Reference.ReferenceBuiltin b) = SH.Builtin b
-    v2ReferenceToShortHash (Reference.ReferenceDerived (Reference.Id h i)) = SH.ShortHash (H.base32Hex h) (showComponentPos i) Nothing
-    showComponentPos :: Reference.Pos -> Maybe Text
-    showComponentPos 0 = Nothing
-    showComponentPos n = Just (tShow n)
-
     hashQualifyCompletions :: forall r metadata. (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
     hashQualifyCompletions qualify defs = ifoldMap qualifyRefs defs
       where

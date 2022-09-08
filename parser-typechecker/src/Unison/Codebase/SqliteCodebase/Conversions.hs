@@ -49,6 +49,7 @@ import qualified Unison.Reference as V1
 import qualified Unison.Reference as V1.Reference
 import qualified Unison.Referent as V1
 import qualified Unison.Referent as V1.Referent
+import qualified Unison.ShortHash as V1.ShortHash
 import qualified Unison.Symbol as V1
 import qualified Unison.Term as V1.Term
 import qualified Unison.Type as V1.Type
@@ -559,3 +560,20 @@ branch2to1 branchCache lookupCT (V2.Branch.Branch v2terms v2types v2patches v2ch
               vals :: Relation.Relation ref (V1.Metadata.Type, V1.Metadata.Value) =
                 Relation.insertManyRan ref (fmap (\(v, t) -> (mdref2to1 t, mdref2to1 v)) (Map.toList mdvals)) mempty
            in star <> V1.Star3.Star3 facts names types vals
+
+referent2toshorthash1 :: V2.Referent -> V1.ShortHash.ShortHash
+referent2toshorthash1 =
+  \case
+    V2.Referent.Ref r -> reference2toshorthash1 r
+    V2.Referent.Con r conId ->
+      case reference2toshorthash1 r of
+        V1.ShortHash.ShortHash h p _con -> V1.ShortHash.ShortHash h p (Just $ tShow conId)
+        sh@(V1.ShortHash.Builtin {}) -> sh
+
+reference2toshorthash1 :: V2.Reference.Reference -> V1.ShortHash.ShortHash
+reference2toshorthash1 (V2.Reference.ReferenceBuiltin b) = V1.ShortHash.Builtin b
+reference2toshorthash1 (V2.Reference.ReferenceDerived (V2.Reference.Id h i)) = V1.ShortHash.ShortHash (base32Hex h) (showComponentPos i) Nothing
+  where
+    showComponentPos :: V2.Reference.Pos -> Maybe Text
+    showComponentPos 0 = Nothing
+    showComponentPos n = Just (tShow n)
