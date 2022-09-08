@@ -11,6 +11,7 @@ module Unison.Codebase
     unsafeGetTypeOfTermById,
     isTerm,
     putTerm,
+    termMetadata,
 
     -- ** Referents (sorta-termlike)
     getTypeOfReferent,
@@ -112,6 +113,7 @@ import qualified Data.Set as Set
 import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import qualified U.Codebase.Referent as V2
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Terms as Builtin
@@ -139,6 +141,7 @@ import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Parser.Ann as Parser
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -201,6 +204,27 @@ getBranchForHash codebase h =
    in do
         rootBranch <- getRootBranch codebase
         maybe (getBranchForHashImpl codebase h) (pure . Just) (find rootBranch)
+
+-- | Get the metadata attached to the term at a given name within a given root branch.
+termMetadata ::
+  Monad m =>
+  Codebase m v a ->
+  -- | The branch to search inside. Use the current root if 'Nothing'.
+  Maybe (V2Branch.CausalBranch m) ->
+  Split ->
+  -- | There may be multiple terms at the given name. You can specify a Referent to
+  -- disambiguate if desired.
+  Maybe V2.Referent ->
+  m [V2Branch.MdValues]
+termMetadata codebase mayRoot (path, nameSeg) ref = do
+  root <- whenNothing mayRoot (getShallowRootBranch codebase)
+  shallowBranchAtPath path root >>= \case
+    Nothing -> pure []
+    Just cb -> do
+      b <- V2Causal.value cb
+      V2Branch.termMetadata b (coerce @NameSegment.NameSegment nameSeg) ref
+
+-- typeMetadata
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
 lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))

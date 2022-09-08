@@ -1177,6 +1177,15 @@ resolveRootBranchHash mayRoot codebase = case mayRoot of
     h <- expandShortBranchHash codebase sbh
     resolveCausalHash (Just h) codebase
 
+resolveRootBranchHashV2 ::
+  Monad m => Codebase m v a -> Maybe ShortBranchHash -> Backend m (V2Branch.CausalBranch m)
+resolveRootBranchHashV2 codebase mayRoot = case mayRoot of
+  Nothing ->
+    lift (Codebase.getShallowRootBranch codebase)
+  Just sbh -> do
+    h <- Cv.causalHash1to2 <$> expandShortBranchHash codebase sbh
+    resolveCausalHashV2 codebase (Just h)
+
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
 data IncludeCycles
   = IncludeCycles

@@ -12,7 +12,7 @@ import Data.Aeson
 import Data.OpenApi (ToSchema)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Servant (Capture, QueryParam, throwError, (:>))
+import Servant (Capture, QueryParam, throwError, (:>), type (:<|>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
 import Unison.Codebase (Codebase)
@@ -35,6 +35,7 @@ import Unison.Server.Types
   ( APIGet,
     NamespaceFQN,
     TermTag (..),
+    TypeTag,
     UnisonHash,
     UnisonName,
     mayDefaultWidth,
@@ -42,6 +43,8 @@ import Unison.Server.Types
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 import qualified Unison.Util.Relation as Relation
+
+type DefinitionSummaryAPI = TermSummaryAPI :<|> TypeSummaryAPI
 
 type TermSummaryAPI =
   "definitions" :> "terms" :> "by_name" :> Capture "fqn" UnisonName :> "summary"
@@ -66,24 +69,24 @@ instance ToJSON TermSummary where
 
 deriving instance ToSchema TermSummary
 
-serve ::
+serveTermSummary ::
   Codebase IO Symbol Ann ->
   Name.Name ->
   Maybe ShortBranchHash ->
   Maybe NamespaceFQN ->
   Maybe Width ->
   Backend IO TermSummary
-serve codebase termName mayRoot namespaceName mayWidth = do
-  branch <- case namespaceName of
-    Nothing ->
-      Backend.resolveRootBranchHash mayRoot codebase
-    Just n -> do
-      namespacePath <- fqnToNamespacePath n
-      root <- Backend.resolveRootBranchHash mayRoot codebase
-      pure $ Branch.getAt' namespacePath root
+serveTermSummary codebase termName mayRoot namespaceName mayWidth = do
+  root <- Backend.resolveRootBranchHashV2 codebase mayRoot
+  -- branch <- case namespaceName of
+  --   Nothing ->
+  --     Backend.resolveRootBranchHash mayRoot codebase
+  --   Just n -> do
+  --     namespacePath <- fqnToNamespacePath n
+  --     root <- Backend.resolveRootBranchHash mayRoot codebase
+  --     pure $ Branch.getAt' namespacePath root
 
-  let branch0 = Branch.head branch
-  let rel = Branch.deepTerms branch0
+  -- let rel = Branch.deepTerms branch0
   -- TODO: Map exception of missing element in set to 404 - noSuchDefinition
   let termReferent = Set.elemAt 0 (Relation.lookupRan termName rel)
   let termReference = Referent.toReference termReferent
@@ -97,6 +100,7 @@ serve codebase termName mayRoot namespaceName mayWidth = do
       let ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.AllNames Path.empty)
       let formattedTermSig = Backend.formatSuffixedType (PrettyPrintEnvDecl ppe ppe) width typeSig
       let summary = mkSummary termReference formattedTermSig
+      termBranch <- Codebase.shallowBranchAtPath
       let tag = Backend.getTermTag branch0 termReferent sig
 
       pure $ TermSummary (Name.toText termName) hash summary tag
@@ -113,3 +117,23 @@ serve codebase termName mayRoot namespaceName mayWidth = do
       if Reference.isBuiltin reference
         then BuiltinObject termSig
         else UserObject termSig
+
+type TypeSummaryAPI =
+  "definitions" :> "types" :> "by_name" :> Capture "fqn" UnisonName :> "summary"
+    :> QueryParam "rootBranch" ShortBranchHash
+    :> QueryParam "relativeTo" NamespaceFQN
+    :> QueryParam "renderWidth" Width
+    :> APIGet TypeSummary
+
+data TypeSummary = TypeSummary
+  { fqn :: UnisonName,
+    hash :: UnisonHash,
+    summary :: DisplayObject SyntaxText SyntaxText,
+    tag :: TypeTag
+  }
+  deriving (Generic, Show)
+
+instance ToJSON TypeSummary where
+  toEncoding = genericToEncoding defaultOptions
+
+deriving instance ToSchema TypeSummary
