@@ -131,16 +131,94 @@ structural type MyType = MyType Int
        to resolve the conflicts.
 
 ```
-## An update to one element of a cycle, but not the other
+## A named value that appears on the LHS of a patch isn't shown
+
+```unison
+foo = 801
+```
 
 ```ucm
-  ☝️  The namespace .cycle is empty.
 
-.cycle> builtins.mergeio
-
-  Done.
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : Nat
 
 ```
+```ucm
+.lhs> add
+
+  ⍟ I've added these definitions:
+  
+    foo : Nat
+
+```
+```unison
+foo = 802
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      foo : Nat
+
+```
+```ucm
+.lhs> update
+
+  ⍟ I've updated these names to your new definition:
+  
+    foo : Nat
+
+```
+```unison
+oldfoo = 801
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      oldfoo : Nat
+
+```
+```ucm
+.lhs> add
+
+  ⍟ I've added these definitions:
+  
+    oldfoo : Nat
+
+.lhs> view.patch patch
+
+  Edited Terms: 1. oldfoo -> 2. foo
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
+
+.lhs> todo
+
+  ✅
+  
+  No conflicts or edits in progress.
+
+```
+## A type-preserving update to one element of a cycle, which doesn't (yet) propagate to the other
+
 ```unison
 even = cases
   0 -> true
@@ -164,7 +242,84 @@ odd = cases
 
 ```
 ```ucm
-.cycle> add
+.cycle1> add
+
+  ⍟ I've added these definitions:
+  
+    even : Nat -> Boolean
+    odd  : Nat -> Boolean
+
+```
+```unison
+even = cases
+  0 -> true
+  2 -> true
+  n -> odd (drop 1 n)
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      even : Nat -> Boolean
+
+```
+```ucm
+.cycle1> update
+
+  ⍟ I've updated these names to your new definition:
+  
+    even : Nat -> Boolean
+
+```
+```ucm
+.cycle1> todo
+
+  🚧
+  
+  The namespace has 2 transitive dependent(s) left to upgrade.
+  Your edit frontier is the dependents of these definitions:
+  
+    even#kkohl7ba1e : Nat -> Boolean
+  
+  I recommend working on them in the following order:
+  
+  1. odd : Nat -> Boolean
+  
+  
+
+```
+## A type-changing update to one element of a cycle, which doesn't propagate to the other
+
+```unison
+even = cases
+  0 -> true
+  n -> odd (drop 1 n)
+
+odd = cases
+  0 -> false
+  n -> even (drop 1 n)
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      even : Nat -> Boolean
+      odd  : Nat -> Boolean
+
+```
+```ucm
+.cycle2> add
 
   ⍟ I've added these definitions:
   
@@ -189,30 +344,15 @@ even = 17
 
 ```
 ```ucm
-.cycle> update
+.cycle2> update
 
   ⍟ I've updated these names to your new definition:
   
     even : Nat
 
-.cycle> view odd
-
-  odd : Nat -> Boolean
-  odd = cases
-    0 -> false
-    n -> #kkohl7ba1e (Nat.drop 1 n)
-
-.cycle> view.patch patch
-
-  Edited Terms: 1. even#kkohl7ba1e -> 2. even
-  
-  Tip: To remove entries from a patch, use
-       delete.term-replacement or delete.type-replacement, as
-       appropriate.
-
 ```
 ```ucm
-.cycle> todo
+.cycle2> todo
 
   🚧
   

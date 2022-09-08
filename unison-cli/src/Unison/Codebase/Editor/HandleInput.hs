@@ -2618,23 +2618,19 @@ doShowTodoOutput patch scopePath = do
 checkTodo :: Patch -> Names -> Cli r (TO.TodoOutput Symbol Ann)
 checkTodo patch names0 = do
   Cli.Env {codebase} <- ask
-  let shouldUpdate = Names.contains names0
-  let dependentsOf :: Reference -> IO (R.Relation Reference Reference)
-      dependentsOf ref = do
+  let -- Get the dependents of a reference which:
+      --   1. Don't appear on the LHS of this patch
+      --   2. Have a name in this namespace
+      getDependents :: Reference -> IO (Set Reference)
+      getDependents ref = do
         dependents <- Codebase.dependents codebase Queries.ExcludeSelf ref
-        pure (R.fromManyDom (Set.filter shouldUpdate dependents) ref)
+        pure (dependents & removeEditedThings & removeNamelessThings)
   -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
-  dependsOn <- liftIO (Monoid.foldMapM dependentsOf edited)
-  -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
-  let f = R.filterDom (flip Set.notMember edited) dependsOn
-  let dirty = R.dom f
-      frontier = R.ran f
-  (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
+  dependsOn <- liftIO (Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited)
+  let dirty = R.dom dependsOn
+  transitiveDirty <- liftIO (transitiveClosure getDependents dirty)
+  (frontierTerms, frontierTypes) <- loadDisplayInfo (R.ran dependsOn)
   (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
-  transitiveDirty <- do
-    let branchDependents r =
-          Set.filter shouldUpdate <$> Codebase.dependents codebase Queries.ExcludeSelf r
-    liftIO (transitiveClosure branchDependents dirty)
   pure $
     TO.TodoOutput
       (Set.size transitiveDirty)
@@ -2643,6 +2639,14 @@ checkTodo patch names0 = do
       (Names.conflicts names0)
       (Patch.conflicts patch)
   where
+    -- Remove from a all references that were edited, i.e. appear on the LHS of this patch.
+    removeEditedThings :: Set Reference -> Set Reference
+    removeEditedThings =
+      (`Set.difference` edited)
+    -- Remove all references that don't have a name in the given namespace
+    removeNamelessThings :: Set Reference -> Set Reference
+    removeNamelessThings =
+      Set.filter (Names.contains names0)
     -- todo: something more intelligent here?
     score :: [(a, b)] -> [(TO.Score, a, b)]
     score = map (\(x, y) -> (1, x, y))
