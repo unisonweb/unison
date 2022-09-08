@@ -11,6 +11,7 @@ import qualified UnliftIO
 #if defined(mingw32_HOST_OS)
 import qualified GHC.ConsoleHandler as WinSig
 import qualified System.Win32.Types as Win32
+import qualified System.Win32.Console as Win32
 import qualified Graphics.Win32.Misc as Win32
 #else
 import qualified System.Posix.Signals as Sig

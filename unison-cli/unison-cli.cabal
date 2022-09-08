@@ -166,6 +166,9 @@ library
   if !os(windows)
     build-depends:
         unix
+  if os(windows)
+    build-depends:
+        Win32
   default-language: Haskell2010
 
 executable cli-integration-tests
@@ -495,9 +498,6 @@ executable unison
     , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  if os(windows)
-    build-depends:
-        Win32
   default-language: Haskell2010
 
 test-suite cli-tests
