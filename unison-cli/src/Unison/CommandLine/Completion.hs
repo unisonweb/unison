@@ -41,7 +41,6 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.CommandLine.InputPattern as IP
-import qualified Unison.Hash as H
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
@@ -129,21 +128,17 @@ completeWithinNamespace ::
   m [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace compTypes query codebase currentPath = do
   shortHashLen <- Codebase.hashLength codebase
-  Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
-    Nothing -> do
-      pure []
-    Just cb -> do
-      b <- V2Causal.value cb
-      currentBranchSuggestions <- do
-        nib <- namesInBranch shortHashLen b
-        nib
-          & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match))
-          & filter (\(_isFinished, match) -> List.isPrefixOf query match)
-          & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
-          & pure
+  b <- Codebase.getShallowBranchAtPath codebase (Path.unabsolute absQueryPath) Nothing
+  currentBranchSuggestions <- do
+    nib <- namesInBranch shortHashLen b
+    nib
+      & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match))
+      & filter (\(_isFinished, match) -> List.isPrefixOf query match)
+      & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
+      & pure
 
-      childSuggestions <- getChildSuggestions shortHashLen b
-      pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ currentBranchSuggestions <> childSuggestions
+  childSuggestions <- getChildSuggestions shortHashLen b
+  pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ currentBranchSuggestions <> childSuggestions
   where
     queryPathPrefix :: Path.Path'
     querySuffix :: NameSegment.NameSegment
@@ -185,9 +180,9 @@ completeWithinNamespace compTypes query codebase currentPath = do
 
     -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
     hqFromNamedV2Referent :: Int -> V2Branch.NameSegment -> Referent.Referent -> HQ'.HashQualified V2Branch.NameSegment
-    hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (SH.take hashLen $ v2ReferentToShortHash r)
+    hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (SH.take hashLen $ Cv.referent2toshorthash1 r)
     hqFromNamedV2Reference :: Int -> V2Branch.NameSegment -> Reference.Reference -> HQ'.HashQualified V2Branch.NameSegment
-    hqFromNamedV2Reference hashLen n r = HQ'.HashQualified n (SH.take hashLen $ v2ReferenceToShortHash r)
+    hqFromNamedV2Reference hashLen n r = HQ'.HashQualified n (SH.take hashLen $ Cv.reference2toshorthash1 r)
     hashQualifyCompletions :: forall r metadata. (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
     hashQualifyCompletions qualify defs = ifoldMap qualifyRefs defs
       where
