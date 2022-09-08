@@ -384,18 +384,19 @@ termListEntry ::
   m (TermEntry Symbol Ann)
 termListEntry codebase branch r hqn = do
   ot <- loadReferentType codebase r
-  tag <- getTermTag branch (HQ'.toName hqn) r ot
+  tag <- getTermTag codebase branch (HQ'.toName hqn) r ot
   pure $ TermEntry r hqn ot tag
 
 getTermTag ::
-  Monad m =>
-  Var v =>
+  (Monad m, Var v) =>
+  Codebase m v a ->
   V2Branch.Branch m ->
   NameSegment ->
   Referent ->
   Maybe (Type v Ann) ->
   m TermTag
-getTermTag branch ns r sig = do
+getTermTag codebase branch ns r sig = do
+  meta <- Codebase.termMetadata codebase (Just branch) (Path.empty, ns) (Just $ Cv.referent1to2 r)
   -- A term is a doc if its type conforms to the `Doc` type.
   let isDoc = case sig of
         Just t ->
@@ -403,13 +404,11 @@ getTermTag branch ns r sig = do
             || Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
         Nothing -> False
   -- A term is a test if it has a link of type `IsTest`.
-  isTest <-
-    not . null
-      <$> V2Branch.termMetadataMatchingType
-        branch
-        (coerce @NameSegment @V2Branch.NameSegment ns)
-        (Just $ Cv.referent1to2 r)
-        (Cv.reference1to2 Decls.isTestRef)
+  let isTest = meta & any \mdValues -> List.elem (Cv.reference1to2 Decls.isTestRef) (Map.elems mdValues)
+  -- branch
+  -- (coerce @NameSegment @V2Branch.NameSegment ns)
+  -- (Just $ Cv.referent1to2 r)
+  -- (Cv.reference1to2 Decls.isTestRef)
   pure $
     if
         | isDoc -> Doc
@@ -807,11 +806,11 @@ expandShortBranchHash codebase hash = do
 getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (V2Branch.CausalBranch m)
 getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
   shallowRoot <- case mayRootHash of
-    Nothing -> lift (Codebase.getShallowRootBranch codebase)
+    Nothing -> lift (Codebase.getShallowRootCausal codebase)
     Just h -> do
-      lift $ Codebase.getShallowBranchForHash codebase (Cv.causalHash1to2 h)
+      lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
   causal <-
-    (lift $ Codebase.shallowBranchAtPath path shallowRoot) >>= \case
+    (lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)) >>= \case
       Nothing -> pure $ Cv.causalbranch1to2 (Branch.empty)
       Just lc -> pure lc
   pure causal
@@ -852,10 +851,10 @@ prettyDefinitionsForHQName ::
   -- | The name, hash, or both, of the definition to display.
   HQ.HashQualified Name ->
   Backend IO DefinitionDisplayResults
-prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase query = do
-  shallowRoot <- resolveCausalHashV2 codebase (fmap Cv.causalHash1to2 root)
+prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebase query = do
+  shallowRoot <- resolveCausalHashV2 codebase (fmap Cv.causalHash1to2 mayRoot)
   hqLength <- lift $ Codebase.hashLength codebase
-  (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase root path
+  (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase mayRoot path
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our perspective but within the
   -- same tree;
@@ -910,7 +909,7 @@ prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase q
         let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref r)
         -- TODO: Should probably move the metadata lookup to a v2 lookupMetadataForHQSplit
         -- in Codebase.hs
-        termCausal <- (lift $ Codebase.shallowBranchAtPath path shallowRoot) `whenNothingM` throwError (BadNamespace "Internal error: invalid path encountered when loading term definitions" (show path))
+        termCausal <- (lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)) `whenNothingM` throwError (BadNamespace "Internal error: invalid path encountered when loading term definitions" (show path))
         termBranch <- lift $ V2Causal.value termCausal
         tag <-
           lift
@@ -1157,8 +1156,8 @@ resolveCausalHash h codebase = case h of
 resolveCausalHashV2 ::
   Monad m => Codebase m v a -> Maybe V2Branch.CausalHash -> Backend m (V2Branch.CausalBranch m)
 resolveCausalHashV2 codebase h = case h of
-  Nothing -> lift $ Codebase.getShallowRootBranch codebase
-  Just ch -> lift $ Codebase.getShallowBranchForHash codebase ch
+  Nothing -> lift $ Codebase.getShallowRootCausal codebase
+  Just ch -> lift $ Codebase.getShallowCausalForHash codebase ch
 
 resolveRootBranchHash ::
   Monad m => Maybe ShortBranchHash -> Codebase m v a -> Backend m (Branch m)
@@ -1173,7 +1172,7 @@ resolveRootBranchHashV2 ::
   Monad m => Codebase m v a -> Maybe ShortBranchHash -> Backend m (V2Branch.CausalBranch m)
 resolveRootBranchHashV2 codebase mayRoot = case mayRoot of
   Nothing ->
-    lift (Codebase.getShallowRootBranch codebase)
+    lift (Codebase.getShallowRootCausal codebase)
   Just sbh -> do
     h <- Cv.causalHash1to2 <$> expandShortBranchHash codebase sbh
     resolveCausalHashV2 codebase (Just h)

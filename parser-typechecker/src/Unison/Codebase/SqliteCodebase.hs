@@ -269,8 +269,8 @@ sqliteCodebase debugName root localOrRemote action = do
             getRootBranchHash =
               runTransaction Ops.expectRootCausalHash
 
-            getShallowBranchForHash :: MonadIO m => V2Branch.CausalHash -> m (V2Branch.CausalBranch m)
-            getShallowBranchForHash bh =
+            getShallowCausalForHash :: MonadIO m => V2Branch.CausalHash -> m (V2Branch.CausalBranch m)
+            getShallowCausalForHash bh =
               V2Branch.hoistCausalBranch runTransaction <$> runTransaction (Ops.expectCausalBranchByCausalHash bh)
 
             getRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> m (Branch m)
@@ -433,7 +433,7 @@ sqliteCodebase debugName root localOrRemote action = do
                   getRootBranchHash,
                   getRootBranchExists,
                   putRootBranch = putRootBranch rootBranchCache,
-                  getShallowBranchForHash,
+                  getShallowCausalForHash,
                   getBranchForHashImpl = getBranchForHash,
                   putBranch,
                   branchExists = isCausalHash,

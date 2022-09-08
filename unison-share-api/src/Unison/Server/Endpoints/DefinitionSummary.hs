@@ -100,7 +100,7 @@ serveTermSummary codebase termName mayRoot namespaceName mayWidth = do
       let ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.AllNames Path.empty)
       let formattedTermSig = Backend.formatSuffixedType (PrettyPrintEnvDecl ppe ppe) width typeSig
       let summary = mkSummary termReference formattedTermSig
-      termBranch <- Codebase.shallowBranchAtPath
+      termBranch <- Codebase.getShallowCausalAtPath
       let tag = Backend.getTermTag branch0 termReferent sig
 
       pure $ TermSummary (Name.toText termName) hash summary tag
