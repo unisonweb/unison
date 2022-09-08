@@ -14,7 +14,7 @@ import Control.Error.Util (hush)
 import Control.Lens hiding ((??))
 import Control.Monad.Except
 import Control.Monad.Reader
-import Data.Bifunctor (first)
+import Data.Bifunctor (Bifunctor (..), first)
 import Data.Containers.ListUtils (nubOrdOn)
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -31,7 +31,6 @@ import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
-import qualified U.Codebase.HashTags as V2.Hash
 import qualified U.Codebase.Referent as V2
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
@@ -89,6 +88,7 @@ import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Server.Syntax as Syntax
 import Unison.Server.Types
 import Unison.ShortHash
+import qualified Unison.ShortHash as SH
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.NamePrinter as NP
@@ -141,6 +141,7 @@ data BackendError
   | NoBranchForHash Branch.CausalHash
   | CouldntLoadBranch Branch.CausalHash
   | MissingSignatureForTerm Reference
+  | NoSuchDefinition (HQ.HashQualified Name)
 
 data BackendEnv = BackendEnv
   { -- | Whether to use the sqlite name-lookup table to generate Names objects rather than building Names from the root branch.
@@ -380,23 +381,26 @@ termListEntry ::
   Codebase m Symbol Ann ->
   V2Branch.Branch m ->
   Referent ->
-  HQ'.HQSegment ->
+  ExactName NameSegment Referent ->
   m (TermEntry Symbol Ann)
-termListEntry codebase branch r hqn = do
+termListEntry codebase branch r exactName = do
+  hashLen <- Codebase.hashLength codebase
+  let hqn = exactToHQ' (second (SH.take hashLen . Referent.toShortHash) exactName)
   ot <- loadReferentType codebase r
-  tag <- getTermTag codebase branch (HQ'.toName hqn) r ot
+  tag <- getTermTag codebase branch (first Name.fromSegment exactName) ot
   pure $ TermEntry r hqn ot tag
 
 getTermTag ::
   (Monad m, Var v) =>
   Codebase m v a ->
   V2Branch.Branch m ->
-  NameSegment ->
-  Referent ->
+  -- | Name, must be relative to the branch
+  ExactName Name Referent ->
   Maybe (Type v Ann) ->
   m TermTag
-getTermTag codebase branch ns r sig = do
-  meta <- Codebase.termMetadata codebase (Just branch) (Path.empty, ns) (Just $ Cv.referent1to2 r)
+getTermTag codebase branch (ExactName n r) sig = do
+  let split = Path.splitFromName n
+  meta <- Codebase.termMetadata codebase (Just branch) split (Just $ Cv.referent1to2 r)
   -- A term is a doc if its type conforms to the `Doc` type.
   let isDoc = case sig of
         Just t ->
@@ -500,19 +504,14 @@ lsBranch ::
   m [ShallowListEntry Symbol Ann]
 lsBranch codebase b = do
   hashLength <- Codebase.hashLength codebase
-  let hqTerm b0 ns r =
-        let refs = Star3.lookupD1 ns . Branch._terms $ b0
-         in case length refs of
-              1 -> HQ'.fromName ns
-              _ -> HQ'.take hashLength $ HQ'.fromNamedReferent ns r
-      hqType b0 ns r =
+  let hqType b0 ns r =
         let refs = Star3.lookupD1 ns . Branch._types $ b0
          in case length refs of
               1 -> HQ'.fromName ns
               _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
       b0 = Branch.head b
   termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
-    ShallowTermEntry <$> termListEntry codebase (error "TODO: this whole function can be deleted after namespace stats are merged" b0) r (hqTerm b0 ns r)
+    ShallowTermEntry <$> termListEntry codebase (error "TODO: this whole function can be deleted after namespace stats are merged" b0) r (ExactName ns r)
   typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0) $
     \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
   let branchEntries :: [ShallowListEntry Symbol Ann] = do
@@ -541,18 +540,7 @@ lsShallowBranch ::
   m [ShallowListEntry Symbol Ann]
 lsShallowBranch codebase b0 = do
   hashLength <- Codebase.hashLength codebase
-  let hqTerm ::
-        ( V2Branch.Branch m ->
-          V2Branch.NameSegment ->
-          Referent ->
-          HQ'.HashQualified NameSegment
-        )
-      hqTerm b ns r =
-        let refs = Map.lookup ns . V2Branch.terms $ b
-         in case length refs of
-              1 -> HQ'.fromName (Cv.namesegment2to1 ns)
-              _ -> HQ'.take hashLength $ HQ'.fromNamedReferent (Cv.namesegment2to1 ns) r
-      hqType ::
+  let hqType ::
         ( V2Branch.Branch m ->
           V2Branch.NameSegment ->
           Reference ->
@@ -570,7 +558,7 @@ lsShallowBranch codebase b0 = do
         pure (r, ns)
   termEntries <- for (flattenRefs $ V2Branch.terms b0) $ \(r, ns) -> do
     v1Ref <- Cv.referent2to1 (Codebase.getDeclType codebase) r
-    ShallowTermEntry <$> termListEntry codebase b0 v1Ref (hqTerm b0 ns v1Ref)
+    ShallowTermEntry <$> termListEntry codebase b0 v1Ref (ExactName (coerce @V2Branch.NameSegment ns) v1Ref)
   typeEntries <- for (flattenRefs $ V2Branch.types b0) \(r, ns) -> do
     let v1Ref = Cv.reference2to1 r
     ShallowTypeEntry <$> typeListEntry codebase v1Ref (hqType b0 ns v1Ref)
@@ -809,10 +797,7 @@ getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
     Nothing -> lift (Codebase.getShallowRootCausal codebase)
     Just h -> do
       lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
-  causal <-
-    (lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)) >>= \case
-      Nothing -> pure $ Cv.causalbranch1to2 (Branch.empty)
-      Just lc -> pure lc
+  causal <- lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)
   pure causal
 
 formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
@@ -854,7 +839,7 @@ prettyDefinitionsForHQName ::
 prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebase query = do
   shallowRoot <- resolveCausalHashV2 codebase (fmap Cv.causalHash1to2 mayRoot)
   hqLength <- lift $ Codebase.hashLength codebase
-  (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase mayRoot path
+  (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our perspective but within the
   -- same tree;
@@ -909,12 +894,12 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref r)
         -- TODO: Should probably move the metadata lookup to a v2 lookupMetadataForHQSplit
         -- in Codebase.hs
-        termCausal <- (lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)) `whenNothingM` throwError (BadNamespace "Internal error: invalid path encountered when loading term definitions" (show path))
+        termCausal <- lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)
         termBranch <- lift $ V2Causal.value termCausal
         tag <-
           lift
             ( termEntryTag
-                <$> termListEntry codebase termBranch referent (HQ'.NameOnly (NameSegment bn))
+                <$> termListEntry codebase termBranch referent (ExactName (NameSegment bn) referent)
             )
         docs <- lift (docResults r hqTermName)
         mk docs ts bn tag
@@ -1112,7 +1097,7 @@ bestNameForType ppe width =
 -- - 'local' includes ONLY the names within the provided path
 -- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (Names, PPED.PrettyPrintEnvDecl)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (V2Branch.CausalBranch m) -> Path -> Backend m (Names, PPED.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.hashLength codebase
@@ -1123,12 +1108,14 @@ scopedNamesForBranchHash codebase mbh path = do
           rootBranch <- lift $ Codebase.getRootBranch codebase
           let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
           pure (parseNames, localNames)
-    Just bh -> do
+    Just rootCausal -> do
+      let ch = V2Causal.causalHash rootCausal
+      let v1CausalHash = Cv.causalHash2to1 ch
       rootHash <- lift $ Codebase.getRootBranchHash codebase
-      if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
+      if (ch == rootHash) && shouldUseNamesIndex
         then indexNames
         else do
-          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
+          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just v1CausalHash) codebase
           pure (parseNames, localNames)
 
   let localPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)

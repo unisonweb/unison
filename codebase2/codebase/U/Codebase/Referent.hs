@@ -47,6 +47,11 @@ _Ref = _Ctor @"Ref"
 _Con :: Prism (Referent' tmr tyr) (Referent' tmr tyr') (tyr, ConstructorId) (tyr', ConstructorId)
 _Con = _Ctor @"Con"
 
+toReference :: Referent -> Reference
+toReference = \case
+  Ref termRef -> termRef
+  Con typeRef _ -> typeRef
+
 type Id = Id' Hash Hash
 
 data Id' hTm hTp

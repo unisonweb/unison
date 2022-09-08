@@ -174,27 +174,27 @@ getShallowRootCausal codebase = do
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
-getShallowCausalAtPath :: Monad m => Codebase m v a -> Path -> Maybe (V2Branch.CausalBranch m) -> m (Maybe (V2Branch.CausalBranch m))
+getShallowCausalAtPath :: Monad m => Codebase m v a -> Path -> Maybe (V2Branch.CausalBranch m) -> m (V2Branch.CausalBranch m)
 getShallowCausalAtPath codebase path mayCausal = do
   causal <- whenNothing mayCausal (getShallowRootCausal codebase)
   case path of
-    Path.Empty -> pure (Just causal)
+    Path.Empty -> pure causal
     (ns Path.:< p) -> do
       b <- V2Causal.value causal
       case (V2Branch.childAt (Cv.namesegment1to2 ns) b) of
-        Nothing -> pure Nothing
+        Nothing -> pure (Cv.causalbranch1to2 Branch.empty)
         Just childCausal -> getShallowCausalAtPath codebase p (Just childCausal)
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
-getShallowBranchAtPath :: Monad m => Codebase m v a -> Path -> Maybe (V2Branch.Branch m) -> m (Maybe (V2Branch.Branch m))
+getShallowBranchAtPath :: Monad m => Codebase m v a -> Path -> Maybe (V2Branch.Branch m) -> m (V2Branch.Branch m)
 getShallowBranchAtPath codebase path mayBranch = do
   branch <- whenNothing mayBranch (getShallowRootCausal codebase >>= V2Causal.value)
   case path of
-    Path.Empty -> pure (Just branch)
+    Path.Empty -> pure branch
     (ns Path.:< p) -> do
       case (V2Branch.childAt (Cv.namesegment1to2 ns) branch) of
-        Nothing -> pure Nothing
+        Nothing -> pure V2Branch.empty
         Just childCausal -> do
           childBranch <- V2Causal.value childCausal
           getShallowBranchAtPath codebase p (Just childBranch)
@@ -229,10 +229,8 @@ termMetadata ::
   Maybe V2.Referent ->
   m [Map V2Branch.MetadataValue V2Branch.MetadataType]
 termMetadata codebase mayBranch (path, nameSeg) ref = do
-  getShallowBranchAtPath codebase path mayBranch >>= \case
-    Nothing -> pure []
-    Just b -> do
-      V2Branch.termMetadata b (coerce @NameSegment.NameSegment nameSeg) ref
+  b <- getShallowBranchAtPath codebase path mayBranch
+  V2Branch.termMetadata b (coerce @NameSegment.NameSegment nameSeg) ref
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
 lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))

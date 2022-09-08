@@ -1,8 +1,10 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Orphans where
 
+import Control.Lens
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Binary
@@ -11,6 +13,7 @@ import Data.OpenApi
 import Data.Proxy
 import qualified Data.Text as Text
 import Servant
+import Servant.Docs (DocCapture (DocCapture), ToCapture (..))
 import U.Codebase.HashTags
 import U.Util.Hash (Hash (..))
 import qualified U.Util.Hash as Hash
@@ -75,6 +78,24 @@ instance ToSchema Name where
 
 deriving anyclass instance ToParamSchema ShortBranchHash
 
+instance ToParamSchema Name where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "base.List.map"
+
+instance ToParamSchema Path.Path where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "base.List"
+
+instance ToParamSchema Path.Relative where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "base.List"
+
 deriving via Int instance FromHttpApiData Width
 
 deriving via Int instance ToHttpApiData Width
@@ -115,3 +136,8 @@ instance FromHttpApiData Path.Path' where
 instance ToHttpApiData Path.Path' where
   toUrlPiece = tShow
 
+instance ToCapture (Capture "fqn" Name) where
+  toCapture _ =
+    DocCapture
+      "fqn"
+      "The fully qualified name of a definition."

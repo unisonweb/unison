@@ -54,6 +54,10 @@ h_ f = \case
 idH :: Lens (Id' h) (Id' h') h h'
 idH = lens (\(Id h _w) -> h) (\(Id _h w) h -> Id h w)
 
+isBuiltin :: Reference -> Bool
+isBuiltin (ReferenceBuiltin _) = True
+isBuiltin _ = False
+
 instance Bifunctor Reference' where
   bimap f _ (ReferenceBuiltin t) = ReferenceBuiltin (f t)
   bimap _ g (ReferenceDerived id) = ReferenceDerived (g <$> id)

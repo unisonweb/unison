@@ -82,6 +82,7 @@ import Control.Lens hiding (cons, snoc, unsnoc, pattern Empty)
 import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
 import Data.List.Extra (dropPrefix)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Sequence (Seq ((:<|), (:|>)))
 import qualified Data.Sequence as Seq
@@ -250,8 +251,10 @@ ancestors (Absolute (Path segments)) = Absolute . Path <$> Seq.inits segments
 hqSplitFromName' :: Name -> Maybe HQSplit'
 hqSplitFromName' = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName'
 
-splitFromName :: Name -> Maybe Split
-splitFromName = unsnoc . fromName
+splitFromName :: Name -> Split
+splitFromName name =
+  case Name.reverseSegments name of
+    (seg :| pathSegments) -> (fromList pathSegments, seg)
 
 -- | what is this? —AI
 unprefixName :: Absolute -> Name -> Maybe Name
@@ -511,6 +514,8 @@ instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ
 
 instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
 
+instance Convert Name Split where convert = splitFromName
+
 instance Convert (path, NameSegment) (path, HQ'.HQSegment) where
   convert (path, name) =
     (path, HQ'.fromName name)
@@ -520,5 +525,3 @@ instance Convert path0 path1 => Convert (path0, name) (path1, name) where
     over _1 convert
 
 instance Parse Name HQSplit' where parse = hqSplitFromName'
-
-instance Parse Name Split where parse = splitFromName

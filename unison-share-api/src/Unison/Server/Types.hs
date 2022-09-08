@@ -10,13 +10,17 @@ module Unison.Server.Types where
 -- Types common to endpoints --
 
 import Data.Aeson
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bifunctor (Bifunctor (..))
+import Data.Bitraversable (Bitraversable (..))
 import qualified Data.ByteString.Lazy as LZ
 import qualified Data.Map as Map
 import Data.OpenApi
   ( ToParamSchema (..),
     ToSchema (..),
   )
-import qualified Data.Text.Lazy as Text
+import qualified Data.Text as Text
+import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant.API
   ( FromHttpApiData (..),
@@ -35,10 +39,14 @@ import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
   )
 import qualified Unison.Hash as Hash
+import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
+import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
+import Unison.ShortHash (ShortHash)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -58,6 +66,40 @@ type Size = Int
 type UnisonName = Text
 
 type UnisonHash = Text
+
+-- | A hash qualified name, unlike HashQualified, the hash is required
+data ExactName name ref = ExactName
+  { name :: name,
+    ref :: ref
+  }
+  deriving stock (Show, Eq, Ord)
+
+exactToHQ :: ExactName name ShortHash -> HQ.HashQualified name
+exactToHQ (ExactName {name, ref}) = HQ.HashQualified name ref
+
+exactToHQ' :: ExactName name ShortHash -> HQ'.HashQualified name
+exactToHQ' (ExactName {name, ref}) = HQ'.HashQualified name ref
+
+instance Bifunctor ExactName where
+  bimap l r (ExactName a b) = ExactName (l a) (r b)
+
+instance Bifoldable ExactName where
+  bifoldMap l r (ExactName a b) = l a <> r b
+
+instance Bitraversable ExactName where
+  bitraverse l r (ExactName a b) = ExactName <$> (l a) <*> (r b)
+
+instance FromHttpApiData (ExactName Name ShortHash) where
+  parseQueryParam txt =
+    -- # is special in URLs, so we use @ for hash qualification instead;
+    -- e.g. ".base.List.map@abc"
+    -- e.g. ".base.Nat@@Nat"
+    case HQ.fromText (Text.replace "@" "#" txt) of
+      Nothing -> Left "Invalid absolute name with Hash"
+      Just hq' -> case hq' of
+        HQ.NameOnly _ -> Left "A name and hash are required, but only a name was provided"
+        HQ.HashOnly _ -> Left "A name and hash are required, but only a hash was provided"
+        HQ.HashQualified name ref -> Right $ ExactName {name, ref}
 
 deriving via Bool instance FromHttpApiData Suffixify
 
@@ -178,13 +220,13 @@ deriving instance ToSchema TypeTag
 -- Helpers
 
 munge :: Text -> LZ.ByteString
-munge = Text.encodeUtf8 . Text.fromStrict
+munge = Text.encodeUtf8 . Text.Lazy.fromStrict
 
 mungeShow :: Show s => s -> LZ.ByteString
 mungeShow = mungeString . show
 
 mungeString :: String -> LZ.ByteString
-mungeString = Text.encodeUtf8 . Text.pack
+mungeString = Text.encodeUtf8 . Text.Lazy.pack
 
 defaultWidth :: Width
 defaultWidth = 80

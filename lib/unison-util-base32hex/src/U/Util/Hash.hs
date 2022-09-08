@@ -5,6 +5,7 @@
 module U.Util.Hash
   ( Hash (Hash, toShort),
     unsafeFromBase32HexText,
+    fromBase32HexText,
     fromBase32Hex,
     fromByteString,
     toBase32Hex,
@@ -39,6 +40,9 @@ fromBase32Hex = Hash . B.Short.toShort . Base32Hex.toByteString
 -- we'd prefer.
 unsafeFromBase32HexText :: Text -> Hash
 unsafeFromBase32HexText = fromBase32Hex . Base32Hex.UnsafeFromText
+
+fromBase32HexText :: Text -> Maybe Hash
+fromBase32HexText = fmap fromBase32Hex . Base32Hex.fromText
 
 toByteString :: Hash -> ByteString
 toByteString = fromShort . toShort
