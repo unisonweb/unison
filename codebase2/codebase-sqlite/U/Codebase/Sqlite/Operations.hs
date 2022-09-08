@@ -8,7 +8,6 @@ module U.Codebase.Sqlite.Operations
     expectCausalHashAtPath,
     saveBranch,
     loadCausalBranchByCausalHash,
-    expectBranchByBranchHashId,
     expectCausalBranchByCausalHash,
     expectNamespaceStatsByHash,
     expectNamespaceStatsByHashId,
@@ -70,6 +69,10 @@ module U.Codebase.Sqlite.Operations
     rootNamesByPath,
     NamesByPath (..),
 
+    -- * reflog
+    getReflog,
+    appendReflog,
+
     -- * low-level stuff
     expectDbBranch,
     saveDbBranch,
@@ -113,6 +116,7 @@ import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C
 import qualified U.Codebase.Referent as C.Referent
+import qualified U.Codebase.Reflog as Reflog
 import U.Codebase.ShortHash (ShortBranchHash (ShortBranchHash))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
@@ -533,13 +537,11 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
     doChildren ::
       Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) ->
       Transaction (Map C.Branch.NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
-    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \(boId, chId) -> do
-      causalHash <- Q.expectCausalHash chId
-      valueHash <- expectValueHashByCausalHashId chId
-      parents <- headParents chId
-      let value = expectBranch boId
-      let causal = C.Causal {causalHash, valueHash, parents, value}
-      pure causal
+    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . Q.expectText) \(boId, chId) ->
+      C.Causal <$> Q.expectCausalHash chId
+        <*> expectValueHashByCausalHashId chId
+        <*> headParents chId
+        <*> pure (expectBranch boId)
       where
         headParents ::
           Db.CausalHashId ->
@@ -705,11 +707,6 @@ expectCausalBranchByCausalHash hash = do
 expectBranchByCausalHashId :: Db.CausalHashId -> Transaction (C.Branch.Branch Transaction)
 expectBranchByCausalHashId id = do
   boId <- Q.expectBranchObjectIdByCausalHashId id
-  expectBranch boId
-
-expectBranchByBranchHashId :: Db.BranchHashId -> Transaction (C.Branch.Branch Transaction)
-expectBranchByBranchHashId bhId = do
-  boId <- Db.BranchObjectId <$> Q.expectObjectIdForPrimaryHashId (Db.unBranchHashId bhId)
   expectBranch boId
 
 -- | Load a branch value given its causal hash id.
@@ -1114,3 +1111,13 @@ namespaceStatsForDbBranch S.Branch {terms, types, patches, children} = do
               patchCount = Map.size patches
            in childPatchCount + patchCount
       }
+
+getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
+getReflog numEntries = do
+  entries <- Q.getReflog numEntries
+  traverse (bitraverse Q.expectCausalHash pure) entries
+
+appendReflog :: Reflog.Entry CausalHash Text -> Transaction ()
+appendReflog entry = do
+  dbEntry <- (bitraverse Q.saveCausalHash pure) entry
+  Q.appendReflog dbEntry

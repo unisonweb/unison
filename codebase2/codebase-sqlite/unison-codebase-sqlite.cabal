@@ -11,6 +11,7 @@ bug-reports:    https://github.com/unisonweb/unison/issues
 build-type:     Simple
 extra-source-files:
     sql/001-temp-entity-tables.sql
+    sql/002-reflog-table.sql
     sql/003-namespace-statistics.sql
     sql/create.sql
 

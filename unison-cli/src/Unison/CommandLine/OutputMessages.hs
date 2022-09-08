@@ -5,7 +5,7 @@
 
 module Unison.CommandLine.OutputMessages where
 
-import Control.Lens
+import Control.Lens hiding (at)
 import Control.Monad.State
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.Trans.Writer.CPS
@@ -22,6 +22,8 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.Time (UTCTime, getCurrentTime)
+import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import qualified Network.HTTP.Types as Http
@@ -51,7 +53,6 @@ import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, Missi
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as E
-import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
 import Unison.Codebase.Editor.RemoteRepo
@@ -1428,41 +1429,51 @@ notifyUser dir o = case o of
         <> "contradictory entries."
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
-  ShowReflog [] -> pure . P.warnCallout $ "The reflog appears to be empty!"
-  ShowReflog entries ->
+  ShowReflog [] -> pure . P.warnCallout $ "The reflog is empty"
+  ShowReflog entries -> do
+    now <- getCurrentTime
     pure $
       P.lines
-        [ P.wrap $
-            "Here is a log of the root namespace hashes,"
-              <> "starting with the most recent,"
-              <> "along with the command that got us there."
-              <> "Try:",
-          "",
-          -- `head . tail` is safe: entries never has 1 entry, and [] is handled above
-          let e2 = head . tail $ entries
-           in P.indentN 2 . P.wrapColumn2 $
-                [ ( IP.makeExample IP.forkLocal ["2", ".old"],
-                    ""
-                  ),
-                  ( IP.makeExample IP.forkLocal [prettySBH . Output.hash $ e2, ".old"],
-                    "to make an old namespace accessible again,"
-                  ),
-                  (mempty, mempty),
-                  ( IP.makeExample IP.resetRoot [prettySBH . Output.hash $ e2],
-                    "to reset the root namespace and its history to that of the specified"
-                      <> "namespace."
-                  )
-                ],
-          "",
-          P.numberedList . fmap renderEntry $ entries,
+        [ header,
+          P.numberedColumnNHeader ["When", "Root Hash", "Action"] $ entries <&> renderEntry3Column now,
           "",
           tip $ "Use " <> IP.makeExample IP.diffNamespace ["1", "7"] <> " to compare namespaces between two points in history."
         ]
     where
-      renderEntry :: Output.ReflogEntry -> Pretty
-      renderEntry (Output.ReflogEntry hash reason) =
-        P.wrap $
-          P.blue (prettySBH hash) <> " : " <> P.text reason
+      header =
+        case entries of
+          (_head : (_, prevSBH, _) : _) ->
+            P.lines
+              [ P.wrap $
+                  "Here is a log of the root namespace hashes,"
+                    <> "starting with the most recent,"
+                    <> "along with the command that got us there."
+                    <> "Try:",
+                "",
+                ( P.indentN 2 . P.wrapColumn2 $
+                    [ ( IP.makeExample IP.forkLocal ["2", ".old"],
+                        ""
+                      ),
+                      ( IP.makeExample IP.forkLocal [prettySBH prevSBH, ".old"],
+                        "to make an old namespace accessible again,"
+                      ),
+                      (mempty, mempty),
+                      ( IP.makeExample IP.resetRoot [prettySBH prevSBH],
+                        "to reset the root namespace and its history to that of the specified"
+                          <> "namespace."
+                      )
+                    ]
+                ),
+                ""
+              ]
+          _ -> mempty
+      renderEntry3Column :: UTCTime -> (Maybe UTCTime, SBH.ShortBranchHash, Text) -> [Pretty]
+      renderEntry3Column now (mayTime, sbh, reason) =
+        [maybe "" (prettyHumanReadableTime now) mayTime, P.blue (prettySBH sbh), P.text $ truncateReason reason]
+      truncateReason :: Text -> Text
+      truncateReason txt = case Text.splitAt 60 txt of
+        (short, "") -> short
+        (short, _) -> short <> "..."
   StartOfCurrentPathHistory ->
     pure $
       P.wrap "You're already at the very beginning! 🙂"
@@ -3168,3 +3179,28 @@ endangeredDependentsTable ppeDecl m =
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
 displayBranchHash :: Branch.CausalHash -> String
 displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . Causal.unCausalHash
+
+prettyHumanReadableTime :: UTCTime -> UTCTime -> Pretty
+prettyHumanReadableTime now time =
+  P.green . P.string $ humanReadableTimeI18N' terseTimeLocale now time
+  where
+    terseTimeLocale =
+      defaultHumanTimeLocale
+        { justNow = "now",
+          secondsAgo = \f -> (++ " secs" ++ dir f),
+          oneMinuteAgo = \f -> "a min" ++ dir f,
+          minutesAgo = \f -> (++ " mins" ++ dir f),
+          oneHourAgo = \f -> "an hour" ++ dir f,
+          aboutHoursAgo = \f x -> "about " ++ x ++ " hours" ++ dir f,
+          at = \_ t -> t,
+          daysAgo = \f -> (++ " days" ++ dir f),
+          weekAgo = \f -> (++ " week" ++ dir f),
+          weeksAgo = \f -> (++ " weeks" ++ dir f),
+          onYear = \dt -> dt,
+          dayOfWeekFmt = "%A, %-l:%M%p",
+          thisYearFmt = "%b %e",
+          prevYearFmt = "%b %e, %Y"
+        }
+
+    dir True = " from now"
+    dir False = " ago"

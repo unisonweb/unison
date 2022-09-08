@@ -349,6 +349,5 @@ updateRoot new reason =
     old <- getLastSavedRoot
     when (old /= new) do
       setRootBranch new
-      liftIO (Codebase.putRootBranch codebase new)
-      liftIO (Codebase.appendReflog codebase reason old new)
+      liftIO (Codebase.putRootBranch codebase reason new)
       setLastSavedRoot new

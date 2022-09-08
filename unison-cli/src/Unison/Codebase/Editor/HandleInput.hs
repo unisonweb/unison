@@ -26,11 +26,13 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
+import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
 import System.Environment (withArgs)
 import qualified Text.Megaparsec as P
-import U.Codebase.HashTags (CausalHash (unCausalHash))
+import U.Codebase.HashTags (CausalHash (..))
+import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
@@ -97,7 +99,6 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.Reflog as Reflog
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -140,7 +141,7 @@ import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
-import Unison.Reference (Reference (..), TermReference)
+import Unison.Reference (Reference (..), TermReference, TypeReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -387,39 +388,32 @@ loop e = do
             ShowReflogI -> do
               Cli.Env {codebase} <- ask
               sbhLength <- liftIO (Codebase.branchHashLength codebase)
-              entries <- convertEntries sbhLength Nothing [] <$> liftIO (Codebase.getReflog codebase)
-              #numberedArgs .= (fmap (('#' :) . SBH.toString . Output.hash) entries)
-              Cli.respond $ ShowReflog entries
+              let numEntriesToShow = 500
+              entries <- liftIO (Codebase.getReflog codebase numEntriesToShow) <&> fmap (first $ SBH.fromHash sbhLength)
+              let moreEntriesToLoad = length entries == numEntriesToShow
+              let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
+              let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SBH.toString hash
+              #numberedArgs .= numberedEntries
+              Cli.respond $ ShowReflog expandedEntries
               where
-                -- reverses & formats entries, adds synthetic entries when there is a
-                -- discontinuity in the reflog.
-                convertEntries ::
-                  Int ->
-                  Maybe Branch.CausalHash ->
-                  [Output.ReflogEntry] ->
-                  [Reflog.Entry Branch.CausalHash] ->
-                  [Output.ReflogEntry]
-                convertEntries _ _ acc [] = acc
-                convertEntries sbhLength Nothing acc entries@(Reflog.Entry old _ _ : _) =
-                  convertEntries
-                    sbhLength
-                    (Just old)
-                    (Output.ReflogEntry (SBH.fromHash sbhLength old) "(initial reflogged namespace)" : acc)
-                    entries
-                convertEntries sbhLength (Just lastHash) acc entries@(Reflog.Entry old new reason : rest) =
-                  if lastHash /= old
-                    then
-                      convertEntries
-                        sbhLength
-                        (Just old)
-                        (Output.ReflogEntry (SBH.fromHash sbhLength old) "(external change)" : acc)
-                        entries
-                    else
-                      convertEntries
-                        sbhLength
-                        (Just new)
-                        (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
-                        rest
+                expandEntries ::
+                  ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool) ->
+                  Maybe ((Maybe UTCTime, SBH.ShortBranchHash, Text), ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool))
+                expandEntries ([], Just expectedHash, moreEntriesToLoad) =
+                  if moreEntriesToLoad
+                    then Nothing
+                    else Just ((Nothing, expectedHash, "history starts here"), ([], Nothing, moreEntriesToLoad))
+                expandEntries ([], Nothing, _moreEntriesToLoad) = Nothing
+                expandEntries (entries@(Reflog.Entry {time, fromRootCausalHash, toRootCausalHash, reason} : rest), mayExpectedHash, moreEntriesToLoad) =
+                  Just $
+                    case mayExpectedHash of
+                      Just expectedHash
+                        | expectedHash == toRootCausalHash -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
+                        -- Historical discontinuity, insert a synthetic entry
+                        | otherwise -> ((Nothing, toRootCausalHash, "(external change)"), (entries, Nothing, moreEntriesToLoad))
+                      -- No expectation, either because this is the most recent entry or
+                      -- because we're recovering from a discontinuity
+                      Nothing -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
             ResetRootI src0 ->
               Cli.time "reset-root" do
                 newRoot <-
@@ -2141,44 +2135,36 @@ handleUpdate input optionalPatch requestedNames = do
       fileNames :: Names
       fileNames = UF.typecheckedToNames uf
       -- todo: display some error if typeEdits or termEdits itself contains a loop
-      typeEdits :: Map Name (Reference, Reference)
-      typeEdits = Map.fromList $ map f (toList $ SC.types (updates sr))
-        where
-          f v = case ( toList (Names.typesNamed slurpCheckNames n),
-                       toList (Names.typesNamed fileNames n)
-                     ) of
-            ([old], [new]) -> (n, (old, new))
-            actual ->
-              error $
-                "Expected unique matches for var \""
-                  ++ Var.nameStr v
-                  ++ "\" but got: "
-                  ++ show actual
-            where
-              n = Name.unsafeFromVar v
+      typeEdits :: [(Name, Reference, Reference)]
+      typeEdits = do
+        v <- Set.toList (SC.types (updates sr))
+        let n = Name.unsafeFromVar v
+        let oldRefs0 = Names.typesNamed slurpCheckNames n
+        let newRefs = Names.typesNamed fileNames n
+        case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
+          Nothing -> error (reportBug "E722145" ("bad (old,new) names: " ++ show (oldRefs0, newRefs)))
+          Just (oldRefs, newRef) -> do
+            oldRef <- Foldable.toList oldRefs
+            [(n, oldRef, newRef)]
       hashTerms :: Map Reference (Type Symbol Ann)
       hashTerms = Map.fromList (toList hashTerms0)
         where
           hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
-      termEdits :: Map Name (Reference, Reference)
-      termEdits = Map.fromList $ map g (toList $ SC.terms (updates sr))
-        where
-          g v = case ( toList (Names.refTermsNamed slurpCheckNames n),
-                       toList (Names.refTermsNamed fileNames n)
-                     ) of
-            ([old], [new]) -> (n, (old, new))
-            actual ->
-              error $
-                "Expected unique matches for var \""
-                  ++ Var.nameStr v
-                  ++ "\" but got: "
-                  ++ show actual
-            where
-              n = Name.unsafeFromVar v
+      termEdits :: [(Name, Reference, Reference)]
+      termEdits = do
+        v <- Set.toList (SC.terms (updates sr))
+        let n = Name.unsafeFromVar v
+        let oldRefs0 = Names.refTermsNamed slurpCheckNames n
+        let newRefs = Names.refTermsNamed fileNames n
+        case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
+          Nothing -> error (reportBug "E936103" ("bad (old,new) names: " ++ show (oldRefs0, newRefs)))
+          Just (oldRefs, newRef) -> do
+            oldRef <- Foldable.toList oldRefs
+            [(n, oldRef, newRef)]
       termDeprecations :: [(Name, Referent)]
       termDeprecations =
         [ (n, r)
-          | (oldTypeRef, _) <- Map.elems typeEdits,
+          | (_, oldTypeRef, _) <- typeEdits,
             (n, r) <- Names.constructorsForType oldTypeRef slurpCheckNames
         ]
   patchOps <- for patchPath \patchPath -> do
@@ -2199,7 +2185,7 @@ handleUpdate input optionalPatch requestedNames = do
             fromOld =
               [ (r, r') | (r, TermEdit.Replace r' _) <- R.toList . Patch._termEdits $ old, Set.member r' newLHS
               ]
-        neededTypes = collectOldForTyping (toList termEdits) ye'ol'Patch
+        neededTypes = collectOldForTyping (map (\(_, old, new) -> (old, new)) termEdits) ye'ol'Patch
 
     allTypes :: Map Reference (Type v Ann) <-
       fmap Map.fromList . for (toList neededTypes) $ \r ->
@@ -2225,8 +2211,8 @@ handleUpdate input optionalPatch requestedNames = do
         updatePatch p = foldl' step2 p' termEdits
           where
             p' = foldl' step1 p typeEdits
-            step1 p (r, r') = Patch.updateType r (TypeEdit.Replace r') p
-            step2 p (r, r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
+            step1 p (_, r, r') = Patch.updateType r (TypeEdit.Replace r') p
+            step2 p (_, r, r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
         (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
         updatePatches :: Monad m => Branch0 m -> m (Branch0 m)
         updatePatches = Branch.modifyPatches seg updatePatch
@@ -3123,15 +3109,15 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
 
 doSlurpUpdates ::
   Monad m =>
-  Map Name (Reference, Reference) ->
-  Map Name (Reference, Reference) ->
+  [(Name, TypeReference, TypeReference)] ->
+  [(Name, TermReference, TermReference)] ->
   [(Name, Referent)] ->
   (Branch0 m -> Branch0 m)
 doSlurpUpdates typeEdits termEdits deprecated b0 =
   Branch.batchUpdates (typeActions <> termActions <> deprecateActions) b0
   where
-    typeActions = join . map doType . Map.toList $ typeEdits
-    termActions = join . map doTerm . Map.toList $ termEdits
+    typeActions = join . map doType $ typeEdits
+    termActions = join . map doTerm $ termEdits
     deprecateActions = join . map doDeprecate $ deprecated
       where
         doDeprecate (n, r) = case Path.splitFromName n of
@@ -3141,10 +3127,8 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
     -- we copy over the metadata on the old thing
     -- todo: if the thing being updated, m, is metadata for something x in b0
     -- update x's md to reference `m`
-    doType,
-      doTerm ::
-        (Name, (Reference, Reference)) -> [(Path, Branch0 m -> Branch0 m)]
-    doType (n, (old, new)) = case Path.splitFromName n of
+    doType :: (Name, TypeReference, TypeReference) -> [(Path, Branch0 m -> Branch0 m)]
+    doType (n, old, new) = case Path.splitFromName n of
       Nothing -> errorEmptyVar
       Just split ->
         [ BranchUtil.makeDeleteTypeName split old,
@@ -3152,7 +3136,8 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
         ]
         where
           oldMd = BranchUtil.getTypeMetadataAt split old b0
-    doTerm (n, (old, new)) = case Path.splitFromName n of
+    doTerm :: (Name, TermReference, TermReference) -> [(Path, Branch0 m -> Branch0 m)]
+    doTerm (n, old, new) = case Path.splitFromName n of
       Nothing -> errorEmptyVar
       Just split ->
         [ BranchUtil.makeDeleteTermName split (Referent.Ref old),

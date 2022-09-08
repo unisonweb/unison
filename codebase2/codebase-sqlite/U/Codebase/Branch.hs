@@ -29,8 +29,8 @@ nonEmptyChildren branch = do
               else Nothing
         )
   where
-    nonZeroStats (NamespaceStats numContainedTerms numContainedTypes _numContainedPatches) =
-      numContainedTerms + numContainedTypes > 0
+    nonZeroStats (NamespaceStats numContainedTerms numContainedTypes numContainedPatches) =
+      numContainedTerms + numContainedTypes + numContainedPatches > 0
 
 childStats :: Branch m -> Transaction (Map NameSegment (CausalBranch m, NamespaceStats))
 childStats Branch {children} =

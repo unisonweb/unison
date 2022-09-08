@@ -135,6 +135,10 @@ module U.Codebase.Sqlite.Queries
     rootTypeNamesByPath,
     getNamespaceDefinitionCount,
 
+    -- * Reflog
+    appendReflog,
+    getReflog,
+
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
     garbageCollectWatchesWithoutObjects,
@@ -156,6 +160,7 @@ module U.Codebase.Sqlite.Queries
     -- * db misc
     addTempEntityTables,
     addNamespaceStatsTables,
+    addReflogTable,
     addTypeMentionsToIndexForTerm,
     addTypeToIndexForTerm,
     c2xTerm,
@@ -205,6 +210,7 @@ import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
+import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
 import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal
@@ -275,6 +281,7 @@ createSchema = do
   executeFile [hereFile|unison/sql/create.sql|]
   addTempEntityTables
   addNamespaceStatsTables
+  addReflogTable
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
@@ -283,6 +290,10 @@ addTempEntityTables =
 addNamespaceStatsTables :: Transaction ()
 addNamespaceStatsTables =
   executeFile [hereFile|unison/sql/003-namespace-statistics.sql|]
+
+addReflogTable :: Transaction ()
+addReflogTable =
+  executeFile [hereFile|unison/sql/002-reflog-table.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =
@@ -2171,3 +2182,22 @@ loadNamespaceStatsByHashId bhId = do
           FROM namespace_statistics
           WHERE namespace_hash_id = ?
         |]
+
+appendReflog :: Reflog.Entry CausalHashId Text -> Transaction ()
+appendReflog entry = execute sql entry
+  where
+    sql =
+      [here|
+    INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason) VALUES (?, ?, ?, ?)
+    |]
+
+getReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
+getReflog numEntries = queryListRow sql (Only numEntries)
+  where
+    sql =
+      [here|
+    SELECT time, from_root_causal_id, to_root_causal_id, reason
+      FROM reflog
+      ORDER BY time DESC
+      LIMIT ?
+    |]

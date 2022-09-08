@@ -64,7 +64,6 @@ module Unison.Codebase
 
     -- * Reflog
     getReflog,
-    appendReflog,
 
     -- * Unambiguous hash length
     hashLength,

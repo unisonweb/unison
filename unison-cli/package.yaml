@@ -27,6 +27,7 @@ dependencies:
   - exceptions
   - extra
   - filepath
+  - friendly-time
   - generic-lens
   - haskeline
   - http-client >= 0.7.6
