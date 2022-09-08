@@ -143,12 +143,12 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowTermEntry te ->
     TermObject $ Backend.termEntryToNamedTerm ppe typeWidth te
   Backend.ShallowTypeEntry te -> TypeObject $ Backend.typeEntryToNamedType te
-  Backend.ShallowBranchEntry name hash (NamespaceStats {numContainedTerms, numContainedTypes}) ->
+  Backend.ShallowBranchEntry name hash (NamespaceStats {numContainedTerms, numContainedTypes, numContainedPatches}) ->
     Subnamespace $
       NamedNamespace
         { namespaceName = NameSegment.toText name,
           namespaceHash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash),
-          namespaceSize = numContainedTerms + numContainedTypes
+          namespaceSize = numContainedTerms + numContainedTypes + numContainedPatches
         }
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name

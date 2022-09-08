@@ -8,7 +8,6 @@ module U.Codebase.Sqlite.Operations
     expectCausalHashAtPath,
     saveBranch,
     loadCausalBranchByCausalHash,
-    expectBranchByBranchHashId,
     expectCausalBranchByCausalHash,
     expectNamespaceStatsByHash,
     expectNamespaceStatsByHashId,
@@ -708,11 +707,6 @@ expectCausalBranchByCausalHash hash = do
 expectBranchByCausalHashId :: Db.CausalHashId -> Transaction (C.Branch.Branch Transaction)
 expectBranchByCausalHashId id = do
   boId <- Q.expectBranchObjectIdByCausalHashId id
-  expectBranch boId
-
-expectBranchByBranchHashId :: Db.BranchHashId -> Transaction (C.Branch.Branch Transaction)
-expectBranchByBranchHashId bhId = do
-  boId <- Db.BranchObjectId <$> Q.expectObjectIdForPrimaryHashId (Db.unBranchHashId bhId)
   expectBranch boId
 
 -- | Load a branch value given its causal hash id.
