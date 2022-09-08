@@ -80,7 +80,7 @@ library:
     - condition: '!os(windows)'
       dependencies: unix
     - condition: 'os(windows)'
-      dependencies: Win32
+      dependencies: Win32 >= 2.6.2.1
     - condition: false
       other-modules: Paths_unison_cli
 
