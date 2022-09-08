@@ -15,6 +15,8 @@ import Data.Generics.Sum (_Ctor)
 import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Reference (Reference, Reference')
 import qualified U.Codebase.Reference as Reference
+import U.Codebase.ShortHash (ShortHash)
+import qualified U.Codebase.ShortHash as SH
 import U.Util.Hash (Hash)
 import Unison.Prelude
 
@@ -88,3 +90,11 @@ instance Bitraversable Id' where
   bitraverse f g = \case
     RefId r -> RefId <$> traverse f r
     ConId r c -> flip ConId c <$> traverse g r
+
+toShortHash :: Referent -> ShortHash
+toShortHash = \case
+  Ref r -> Reference.toShortHash r
+  Con r conId ->
+    case Reference.toShortHash r of
+      SH.Builtin b -> SH.Builtin b
+      SH.ShortHash prefix cycle _cid -> SH.ShortHash prefix cycle (Just conId)

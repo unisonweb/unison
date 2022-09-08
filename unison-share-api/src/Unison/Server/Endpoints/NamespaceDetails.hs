@@ -19,12 +19,10 @@ import Servant.OpenApi ()
 import qualified U.Codebase.Causal as V2Causal
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as V1Branch
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Path.Parse (parsePath')
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
@@ -95,7 +93,7 @@ namespaceDetails runtime codebase namespaceName maySBH mayWidth =
    in do
         namespacePath <- fqnToPath namespaceName
         rootCausal <- Backend.resolveRootBranchHashV2 codebase maySBH
-        namespaceCausal <- fromMaybe (Cv.causalbranch1to2 (V1Branch.empty)) <$> (lift $ Codebase.getShallowCausalAtPath codebase namespacePath (Just rootCausal))
+        namespaceCausal <- lift $ Codebase.getShallowCausalAtPath codebase namespacePath (Just rootCausal)
         shallowBranch <- lift $ V2Causal.value namespaceCausal
         namespaceDetails <- do
           (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) namespacePath

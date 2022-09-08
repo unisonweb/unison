@@ -32,6 +32,7 @@ import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.Referent as V2
+import qualified U.Codebase.Referent as V2Referent
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -233,25 +234,25 @@ shallowNames codebase b = do
 loadReferentType ::
   Applicative m =>
   Codebase m Symbol Ann ->
-  Referent ->
+  V2.Referent ->
   m (Maybe (Type Symbol Ann))
 loadReferentType codebase = \case
-  Referent.Ref r -> Codebase.getTypeOfTerm codebase r
-  Referent.Con r _ -> getTypeOfConstructor r
+  V2.Ref r -> Codebase.getTypeOfTerm codebase (Cv.reference2to1 r)
+  V2.Con r conId -> getTypeOfConstructor (Cv.reference2to1 r) conId
   where
     -- Mitchell wonders: why was this definition copied from Unison.Codebase?
-    getTypeOfConstructor (ConstructorReference (Reference.DerivedId r) cid) = do
+    getTypeOfConstructor (Reference.DerivedId r) cid = do
       maybeDecl <- Codebase.getTypeDeclaration codebase r
       pure $ case maybeDecl of
         Nothing -> Nothing
         Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-    getTypeOfConstructor r =
+    getTypeOfConstructor r _ =
       error $
         "Don't know how to getTypeOfConstructor "
           ++ show r
 
 data TermEntry v a = TermEntry
-  { termEntryReferent :: Referent,
+  { termEntryReferent :: V2.Referent,
     termEntryName :: HQ'.HQSegment,
     termEntryType :: Maybe (Type v a),
     termEntryTag :: TermTag
@@ -348,7 +349,7 @@ findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
    in liftIO $ do
         traverse (renderReadme ppe) readme
 
-isDoc :: Monad m => Codebase m Symbol Ann -> Referent -> m Bool
+isDoc :: Monad m => Codebase m Symbol Ann -> V2.Referent -> m Bool
 isDoc codebase ref = do
   ot <- loadReferentType codebase ref
   pure $ isDoc' ot
@@ -380,12 +381,12 @@ termListEntry ::
   Monad m =>
   Codebase m Symbol Ann ->
   V2Branch.Branch m ->
-  Referent ->
-  ExactName NameSegment Referent ->
+  V2.Referent ->
+  ExactName NameSegment V2.Referent ->
   m (TermEntry Symbol Ann)
 termListEntry codebase branch r exactName = do
   hashLen <- Codebase.hashLength codebase
-  let hqn = exactToHQ' (second (SH.take hashLen . Referent.toShortHash) exactName)
+  let hqn = exactToHQ' (second (SH.take hashLen . V2Referent.toShortHash) exactName)
   ot <- loadReferentType codebase r
   tag <- getTermTag codebase branch (first Name.fromSegment exactName) ot
   pure $ TermEntry r hqn ot tag
@@ -395,12 +396,12 @@ getTermTag ::
   Codebase m v a ->
   V2Branch.Branch m ->
   -- | Name, must be relative to the branch
-  ExactName Name Referent ->
+  ExactName Name V2.Referent ->
   Maybe (Type v Ann) ->
   m TermTag
 getTermTag codebase branch (ExactName n r) sig = do
   let split = Path.splitFromName n
-  meta <- Codebase.termMetadata codebase (Just branch) split (Just $ Cv.referent1to2 r)
+  meta <- Codebase.termMetadata codebase (Just branch) split (Just r)
   -- A term is a doc if its type conforms to the `Doc` type.
   let isDoc = case sig of
         Just t ->

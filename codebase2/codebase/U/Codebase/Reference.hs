@@ -12,7 +12,10 @@ import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Text (Text)
 import Data.Word (Word64)
+import U.Codebase.ShortHash (ShortHash)
+import qualified U.Codebase.ShortHash as SH
 import U.Util.Hash (Hash)
+import qualified U.Util.Hash as Hash
 
 -- | This is the canonical representation of Reference
 type Reference = Reference' Text Hash
@@ -57,6 +60,11 @@ idH = lens (\(Id h _w) -> h) (\(Id _h w) h -> Id h w)
 isBuiltin :: Reference -> Bool
 isBuiltin (ReferenceBuiltin _) = True
 isBuiltin _ = False
+
+toShortHash :: Reference -> ShortHash
+toShortHash (ReferenceBuiltin b) = SH.Builtin b
+toShortHash (ReferenceDerived (Id h 0)) = SH.ShortHash (Hash.toBase32HexText h) Nothing Nothing
+toShortHash (ReferenceDerived (Id h i)) = SH.ShortHash (Hash.toBase32HexText h) (Just i) Nothing
 
 instance Bifunctor Reference' where
   bimap f _ (ReferenceBuiltin t) = ReferenceBuiltin (f t)
