@@ -210,10 +210,21 @@ even = 17
        delete.term-replacement or delete.type-replacement, as
        appropriate.
 
+```
+```ucm
 .cycle> todo
 
-  ✅
+  🚧
   
-  No conflicts or edits in progress.
+  The namespace has 1 transitive dependent(s) left to upgrade.
+  Your edit frontier is the dependents of these definitions:
+  
+    even#kkohl7ba1e : Nat -> Boolean
+  
+  I recommend working on them in the following order:
+  
+  1. odd : Nat -> Boolean
+  
+  
 
 ```

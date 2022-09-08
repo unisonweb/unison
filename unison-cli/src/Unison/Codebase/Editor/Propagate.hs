@@ -707,7 +707,7 @@ computeDirty getDependents patch shouldUpdate =
 computeFrontier :: Patch -> (Reference -> Bool) -> Cli r (R.Relation Reference Reference)
 computeFrontier patch shouldUpdate = do
   Cli.Env {codebase} <- ask
-  -- (r,r2) ∈ dependsOn if r depends on r2
+  -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
   dependsOn <- liftIO (foldMapM (dependentsOf codebase) edited)
   -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
   pure $ R.filterDom (flip Set.notMember edited) dependsOn
@@ -719,5 +719,5 @@ computeFrontier patch shouldUpdate = do
       Reference ->
       IO (R.Relation Reference Reference)
     dependentsOf codebase ref = do
-      dependents <- Codebase.dependents codebase Queries.ExcludeOwnComponent ref
+      dependents <- Codebase.dependents codebase Queries.ExcludeSelf ref
       pure (R.fromManyDom (Set.filter shouldUpdate dependents) ref)

@@ -102,5 +102,8 @@ even = 17
 .cycle> update
 .cycle> view odd
 .cycle> view.patch patch
+```
+
+```ucm:error
 .cycle> todo
 ```

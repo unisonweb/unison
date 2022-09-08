@@ -2617,29 +2617,25 @@ doShowTodoOutput patch scopePath = do
 
 checkTodo :: Patch -> Names -> Cli r (TO.TodoOutput Symbol Ann)
 checkTodo patch names0 = do
+  Cli.Env {codebase} <- ask
   let shouldUpdate = Names.contains names0
   f <- Propagate.computeFrontier patch shouldUpdate
   let dirty = R.dom f
       frontier = R.ran f
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
   (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
-  remainingTransitive <- frontierTransitiveDependents frontier
+  transitiveDirty <- do
+    let branchDependents r =
+          Set.filter shouldUpdate <$> Codebase.dependents codebase Queries.ExcludeSelf r
+    liftIO (transitiveClosure branchDependents dirty)
   pure $
     TO.TodoOutput
-      (Set.size remainingTransitive)
+      (Set.size transitiveDirty)
       (frontierTerms, frontierTypes)
       (score dirtyTerms, score dirtyTypes)
       (Names.conflicts names0)
       (Patch.conflicts patch)
   where
-    frontierTransitiveDependents :: Set Reference -> Cli r (Set Reference)
-    frontierTransitiveDependents rs = do
-      Cli.Env {codebase} <- ask
-      let branchDependents r =
-            Set.filter (Names.contains names0) <$> Codebase.dependents codebase Queries.ExcludeOwnComponent r
-      tdeps <- liftIO (transitiveClosure branchDependents rs)
-      -- we don't want the frontier in the result
-      pure $ tdeps `Set.difference` rs
     -- todo: something more intelligent here?
     score :: [(a, b)] -> [(TO.Score, a, b)]
     score = map (\(x, y) -> (1, x, y))
