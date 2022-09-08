@@ -2619,7 +2619,14 @@ checkTodo :: Patch -> Names -> Cli r (TO.TodoOutput Symbol Ann)
 checkTodo patch names0 = do
   Cli.Env {codebase} <- ask
   let shouldUpdate = Names.contains names0
-  f <- Propagate.computeFrontier patch shouldUpdate
+  let dependentsOf :: Reference -> IO (R.Relation Reference Reference)
+      dependentsOf ref = do
+        dependents <- Codebase.dependents codebase Queries.ExcludeSelf ref
+        pure (R.fromManyDom (Set.filter shouldUpdate dependents) ref)
+  -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
+  dependsOn <- liftIO (Monoid.foldMapM dependentsOf edited)
+  -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
+  let f = R.filterDom (flip Set.notMember edited) dependsOn
   let dirty = R.dom f
       frontier = R.ran f
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
@@ -2639,6 +2646,8 @@ checkTodo patch names0 = do
     -- todo: something more intelligent here?
     score :: [(a, b)] -> [(TO.Score, a, b)]
     score = map (\(x, y) -> (1, x, y))
+    edited :: Set Reference
+    edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
 
 confirmedCommand :: Input -> Cli r Bool
 confirmedCommand i = do

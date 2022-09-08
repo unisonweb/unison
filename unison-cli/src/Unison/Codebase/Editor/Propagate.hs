@@ -1,8 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Editor.Propagate
-  ( computeFrontier,
-    propagateAndApply,
+  ( propagateAndApply,
   )
 where
 
@@ -695,29 +694,3 @@ computeDirty getDependents patch shouldUpdate =
 
     edited :: Set Reference
     edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
-
--- (d, f) when d is "dirty" (needs update),
---             f is in the frontier (an edited dependency of d),
---         and d depends on f
--- a ⋖ b = a depends directly on b
--- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
---
--- The range of this relation is the frontier, and the domain is
--- the set of dirty references.
-computeFrontier :: Patch -> (Reference -> Bool) -> Cli r (R.Relation Reference Reference)
-computeFrontier patch shouldUpdate = do
-  Cli.Env {codebase} <- ask
-  -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
-  dependsOn <- liftIO (foldMapM (dependentsOf codebase) edited)
-  -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
-  pure $ R.filterDom (flip Set.notMember edited) dependsOn
-  where
-    edited :: Set Reference
-    edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
-    dependentsOf ::
-      Codebase IO Symbol Ann ->
-      Reference ->
-      IO (R.Relation Reference Reference)
-    dependentsOf codebase ref = do
-      dependents <- Codebase.dependents codebase Queries.ExcludeSelf ref
-      pure (R.fromManyDom (Set.filter shouldUpdate dependents) ref)
