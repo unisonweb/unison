@@ -26,6 +26,7 @@ import Data.Tuple.Extra ((***))
 import qualified Data.Zip as Zip
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
+import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Reference as UReference
@@ -337,7 +338,8 @@ migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
 
   newHash <- lift . lift $ Hashing.dbBranchHash newBranch
   newHashId <- lift . lift $ Q.saveBranchHash (coerce Cv.hash1to2 newHash)
-  newObjectId <- lift . lift $ Ops.saveDbBranchUnderHashId v2HashHandle newHashId newBranch
+  stats <- lift . lift $ Ops.namespaceStatsForDbBranch newBranch
+  newObjectId <- lift . lift $ Ops.saveDbBranchUnderHashId v2HashHandle newHashId stats newBranch
   field @"objLookup"
     %= Map.insert
       oldObjectId
@@ -871,5 +873,7 @@ saveV2EmptyBranch = do
   let branch = S.emptyBranch
   newHash <- Hashing.dbBranchHash branch
   newHashId <- Q.saveBranchHash (coerce Cv.hash1to2 newHash)
-  _ <- Ops.saveDbBranchUnderHashId v2HashHandle newHashId branch
+  -- Stats are empty for the empty branch.
+  let emptyStats = NamespaceStats 0 0 0
+  _ <- Ops.saveDbBranchUnderHashId v2HashHandle newHashId emptyStats branch
   pure (newHashId, newHash)

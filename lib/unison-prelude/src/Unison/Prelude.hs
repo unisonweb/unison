@@ -52,7 +52,7 @@ import Data.Functor.Identity as X
 import Data.Int as X
 import Data.List as X (foldl1', sortOn)
 import Data.Map as X (Map)
-import Data.Maybe as X (catMaybes, fromMaybe, isJust, isNothing, listToMaybe, mapMaybe, maybeToList)
+import Data.Maybe as X (catMaybes, fromMaybe, isJust, isNothing, listToMaybe, maybeToList)
 import Data.Sequence as X (Seq)
 import Data.Set as X (Set)
 import Data.String as X (IsString, fromString)
@@ -72,6 +72,7 @@ import qualified System.IO as IO
 import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import qualified UnliftIO
+import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
 
 -- | E.g.
 --
