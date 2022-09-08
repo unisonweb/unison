@@ -102,6 +102,10 @@ executables:
     when:
       - condition: false
         other-modules: Paths_unison_cli
+
+      - condition: 'os(windows)'
+        dependencies: Win32
+
     source-dirs: unison
     main: Main.hs
     ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path

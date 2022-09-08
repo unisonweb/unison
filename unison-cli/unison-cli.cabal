@@ -495,6 +495,9 @@ executable unison
     , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
+  if os(windows)
+    build-depends:
+        Win32
   default-language: Haskell2010
 
 test-suite cli-tests

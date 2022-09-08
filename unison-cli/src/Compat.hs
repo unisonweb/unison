@@ -10,9 +10,20 @@ import qualified UnliftIO
 
 #if defined(mingw32_HOST_OS)
 import qualified GHC.ConsoleHandler as WinSig
+import qualified System.Win32.Types as Win32
+import qualified Graphics.Win32.Misc as Win32
 #else
 import qualified System.Posix.Signals as Sig
 #endif
+
+-- | Windows only recently supports ANSI codes, and it needs to be explicitly enabled.
+initializeConsole :: IO ()
+initializeConsole = do
+#if defined(mingw32_HOST_OS)
+  stdoutHANDLE <- Win32.getStdHandle Win32.sTD_OUTPUT_HANDLE
+  Win32.setConsoleMode stdoutHANDLE Win32.eNABLE_VIRTUAL_TERMINAL_PROCESSING
+#endif
+  pure ()
 
 -- | Constructs a default interrupt handler which builds an interrupt handler which throws a
 -- UserInterrupt exception to the thread in which the setup was initially called.
