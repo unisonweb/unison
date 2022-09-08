@@ -110,8 +110,6 @@ deriving instance ToSchema n => ToSchema (HQ.HashQualified n)
 instance ToJSON ConstructorType where
   toEncoding = genericToEncoding defaultOptions
 
-deriving instance ToSchema ConstructorType
-
 instance FromHttpApiData Path.Relative where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
     Left s -> Left (Text.pack s)
@@ -136,8 +134,26 @@ instance FromHttpApiData Path.Path' where
 instance ToHttpApiData Path.Path' where
   toUrlPiece = tShow
 
+instance FromHttpApiData Path.Path where
+  parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
+    Left s -> Left (Text.pack s)
+    Right (Path.RelativePath' p) -> Right (Path.unrelative p)
+    Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
+
 instance ToCapture (Capture "fqn" Name) where
   toCapture _ =
     DocCapture
       "fqn"
       "The fully qualified name of a definition."
+
+instance ToCapture (Capture "namespace" Path.Path) where
+  toCapture _ =
+    DocCapture
+      "namespace"
+      "E.g. base.List"
+
+instance ToJSON Path.Path where
+  toJSON p = Aeson.String (tShow p)
+
+instance ToSchema Path.Path where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)

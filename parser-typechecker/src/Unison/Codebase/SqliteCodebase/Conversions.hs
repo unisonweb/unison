@@ -6,6 +6,7 @@ import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (pack, unpack)
+import qualified Data.Text as Text
 import qualified U.Codebase.Branch as V2.Branch
 import qualified U.Codebase.Causal as V2
 import qualified U.Codebase.Decl as V2.Decl
@@ -577,3 +578,15 @@ reference2toshorthash1 (V2.Reference.ReferenceDerived (V2.Reference.Id h i)) = V
     showComponentPos :: V2.Reference.Pos -> Maybe Text
     showComponentPos 0 = Nothing
     showComponentPos n = Just (tShow n)
+
+shorthash1toreferent2 :: V1.ShortHash.ShortHash -> Maybe V2.Referent.Referent
+shorthash1toreferent2 = \case
+  V1.ShortHash.Builtin b -> Just $ V2.Referent.Ref (V2.Reference.ReferenceBuiltin b)
+  V1.ShortHash.ShortHash prefix cycle mayConId -> do
+    h <- V2.Hash.fromBase32HexText prefix
+    ref <- case cycle of
+      Nothing -> Just (V2.Reference.Derived h 0)
+      Just i -> V2.Reference.Derived h <$> readMay (Text.unpack i)
+    case mayConId >>= readMaybe @V2.Decl.ConstructorId . Text.unpack of
+      Nothing -> Just $ V2.Referent.Ref ref
+      Just conId -> Just $ V2.Referent.Con ref conId

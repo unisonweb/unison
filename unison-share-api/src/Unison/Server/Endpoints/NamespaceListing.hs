@@ -13,7 +13,6 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Aeson
 import Data.OpenApi (ToSchema)
-import qualified Data.Text as Text
 import Servant
   ( QueryParam,
     (:>),
@@ -34,7 +33,6 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SqliteCodebase.Conversions (causalHash2to1)
 import qualified Unison.NameSegment as NameSegment
@@ -48,7 +46,6 @@ import Unison.Server.Types
     HashQualifiedName,
     NamedTerm (..),
     NamedType (..),
-    NamespaceFQN,
     UnisonHash,
     UnisonName,
     branchToUnisonHash,
@@ -60,8 +57,8 @@ import Unison.Var (Var)
 
 type NamespaceListingAPI =
   "list" :> QueryParam "rootBranch" ShortBranchHash
-    :> QueryParam "relativeTo" NamespaceFQN
-    :> QueryParam "namespace" NamespaceFQN
+    :> QueryParam "relativeTo" Path.Path
+    :> QueryParam "namespace" Path.Path
     :> APIGet NamespaceListing
 
 instance ToParam (QueryParam "namespace" Text) where
@@ -156,8 +153,8 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
 serve ::
   Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
-  Maybe NamespaceFQN ->
-  Maybe NamespaceFQN ->
+  Maybe Path.Path ->
+  Maybe Path.Path ->
   Backend.Backend IO NamespaceListing
 serve codebase maySBH mayRelativeTo mayNamespaceName = do
   useIndex <- asks Backend.useNamesIndex
@@ -177,10 +174,9 @@ serve codebase maySBH mayRelativeTo mayNamespaceName = do
   -- to look up the namespace listing and present shallow name, so that the
   -- definition "base.List.Nonempty.map", simple has the name "map"
   --
-  relativeToPath' <- (parsePath . Text.unpack) $ fromMaybe "." mayRelativeTo
-  namespacePath' <- (parsePath . Text.unpack) $ fromMaybe "." mayNamespaceName
-
-  let path = Path.fromPath' relativeToPath' <> Path.fromPath' namespacePath'
+  let relativeToPath = fromMaybe Path.empty mayRelativeTo
+  let namespacePath = fromMaybe Path.empty mayNamespaceName
+  let path = relativeToPath <> namespacePath
   let path' = Path.toPath' path
 
   case (useIndex, mayRootHash) of
@@ -200,10 +196,6 @@ serve codebase maySBH mayRelativeTo mayNamespaceName = do
     (False, Nothing) -> do
       branch <- liftIO $ Codebase.getRootBranch codebase
       serveFromBranch codebase path' branch
-  where
-    parsePath :: String -> Backend IO Path.Path'
-    parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
-    errFromEither f = either (throwError . f) pure
 
 serveFromBranch ::
   Codebase IO Symbol Ann ->

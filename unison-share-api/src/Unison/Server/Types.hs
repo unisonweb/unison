@@ -9,27 +9,34 @@ module Unison.Server.Types where
 
 -- Types common to endpoints --
 
+import Control.Lens
 import Data.Aeson
+import qualified Data.Aeson as Aeson
 import Data.Bifoldable (Bifoldable (..))
-import Data.Bifunctor (Bifunctor (..))
 import Data.Bitraversable (Bitraversable (..))
 import qualified Data.ByteString.Lazy as LZ
 import qualified Data.Map as Map
 import Data.OpenApi
-  ( ToParamSchema (..),
+  ( OpenApiType (..),
+    ToParamSchema (..),
     ToSchema (..),
   )
+import qualified Data.OpenApi.Lens as OpenApi
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant.API
-  ( FromHttpApiData (..),
+  ( Capture,
+    FromHttpApiData (..),
     Get,
     Header,
     Headers,
     JSON,
+    QueryParam,
     addHeader,
   )
+import Servant.Docs (DocCapture (..), DocQueryParam (..), ParamKind (..), ToParam)
+import qualified Servant.Docs as Docs
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.HashTags as V2
@@ -73,6 +80,26 @@ data ExactName name ref = ExactName
     ref :: ref
   }
   deriving stock (Show, Eq, Ord)
+
+instance ToParamSchema (ExactName Name ShortHash) where
+  toParamSchema _ =
+    mempty
+      & OpenApi.type_ ?~ OpenApiString
+      & OpenApi.example ?~ Aeson.String "base.List"
+
+instance ToParam (QueryParam "exact-name" (ExactName Name ShortHash)) where
+  toParam _ =
+    DocQueryParam
+      "exact-name"
+      []
+      "The fully qualified name of a namespace with a hash, denoted by a '@'. E.g. base.List.map@abc"
+      Normal
+
+instance Docs.ToCapture (Capture "fqn" (ExactName Name ShortHash)) where
+  toCapture _ =
+    DocCapture
+      "fqn"
+      "The fully qualified name of a namespace with a hash, denoted by a '@'. E.g. base.List.map@abc"
 
 exactToHQ :: ExactName name ShortHash -> HQ.HashQualified name
 exactToHQ (ExactName {name, ref}) = HQ.HashQualified name ref

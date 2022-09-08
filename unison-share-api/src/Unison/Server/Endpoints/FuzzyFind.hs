@@ -54,7 +54,7 @@ import Unison.Util.Pretty (Width)
 
 type FuzzyFindAPI =
   "find" :> QueryParam "rootBranch" SBH.ShortBranchHash
-    :> QueryParam "relativeTo" HashQualifiedName
+    :> QueryParam "relativeTo" Path.Path
     :> QueryParam "limit" Int
     :> QueryParam "renderWidth" Width
     :> QueryParam "query" String
@@ -132,13 +132,13 @@ serveFuzzyFind ::
   MonadIO m =>
   Codebase m Symbol Ann ->
   Maybe SBH.ShortBranchHash ->
-  Maybe Path.Relative ->
+  Maybe Path.Path ->
   Maybe Int ->
   Maybe Width ->
   Maybe String ->
   Backend.Backend m [(FZF.Alignment, FoundResult)]
 serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
-  let path = maybe Path.empty Path.unrelative relativeTo
+  let path = fromMaybe Path.empty relativeTo
   rootHash <- traverse (Backend.expandShortBranchHash codebase) mayRoot
   rootCausal <- Backend.resolveCausalHashV2 codebase (Cv.causalHash1to2 <$> rootHash)
   (localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) path
