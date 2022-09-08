@@ -10,6 +10,7 @@ import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.NameSegment as Name
 import Unison.Prelude
+import qualified Unison.Reference as Reference
 import Unison.Util.Monoid (intercalateMap)
 import Unison.WatchKind (WatchKind, pattern TestWatch)
 
@@ -51,6 +52,7 @@ rawName typ = case typ of
   Float -> "_float"
   Pattern -> "_pattern"
   Irrelevant -> "_irrelevant"
+  UnnamedReference ref -> Reference.idToText ref
   UnnamedWatch k guid -> fromString k <> "." <> guid
 
 name :: Var v => v -> Text
@@ -91,6 +93,9 @@ inferTypeConstructor = typed (Inference TypeConstructor)
 inferTypeConstructorArg = typed (Inference TypeConstructorArg)
 inferOther = typed (Inference Other)
 
+unnamedRef :: Var v => Reference.Id -> v
+unnamedRef ref = typed (UnnamedReference ref)
+
 unnamedTest :: Var v => Text -> v
 unnamedTest guid = typed (UnnamedWatch TestWatch guid)
 
@@ -103,6 +108,8 @@ data Type
     MissingResult
   | -- Variables invented for placeholder values inserted by user or by TDNR
     Blank
+  | -- | TODO document
+    UnnamedReference Reference.Id
   | -- An unnamed watch expression of the given kind, for instance:
     --
     --  test> Ok "oog"
