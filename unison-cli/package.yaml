@@ -21,7 +21,7 @@ dependencies:
   - configurator
   - containers >= 0.6.3
   - cryptonite
-  - directory = 1.3.8
+  - directory
   - either
   - errors
   - exceptions
@@ -80,7 +80,7 @@ library:
     - condition: '!os(windows)'
       dependencies: unix
     - condition: 'os(windows)'
-      dependencies: Win32 >= 2.13.3.0
+      dependencies: Win32 >= 2.9.0.0
     - condition: false
       other-modules: Paths_unison_cli
 

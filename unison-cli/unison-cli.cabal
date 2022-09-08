@@ -110,7 +110,7 @@ library
     , configurator
     , containers >=0.6.3
     , cryptonite
-    , directory ==1.3.8
+    , directory
     , either
     , errors
     , exceptions
@@ -166,9 +166,9 @@ library
   if !os(windows)
     build-depends:
         unix
-  if !os(windows)
+  if os(windows)
     build-depends:
-        Win32 >=2.13.3.0
+        Win32 >=2.9.0.0
   default-language: Haskell2010
 
 executable cli-integration-tests
@@ -223,7 +223,7 @@ executable cli-integration-tests
     , configurator
     , containers >=0.6.3
     , cryptonite
-    , directory ==1.3.8
+    , directory
     , easytest
     , either
     , errors
@@ -329,7 +329,7 @@ executable transcripts
     , configurator
     , containers >=0.6.3
     , cryptonite
-    , directory ==1.3.8
+    , directory
     , easytest
     , either
     , errors
@@ -440,7 +440,7 @@ executable unison
     , configurator
     , containers >=0.6.3
     , cryptonite
-    , directory ==1.3.8
+    , directory
     , either
     , errors
     , exceptions
@@ -555,7 +555,7 @@ test-suite cli-tests
     , configurator
     , containers >=0.6.3
     , cryptonite
-    , directory ==1.3.8
+    , directory
     , easytest
     , either
     , errors
