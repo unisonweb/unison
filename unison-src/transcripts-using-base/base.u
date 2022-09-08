@@ -353,8 +353,10 @@ saveTestCase name f i =
   dir = "unison-src/transcripts-using-base/serialized-cases/"
   sfile = dir ++ name ++ ".ser"
   ofile = dir ++ name ++ ".out"
+  hfile = dir ++ name ++ ".hash"
 
   output = f i
 
   saveSelfContained (f, i) sfile
   writeFile ofile (toUtf8 output)
+  writeFile hfile (crypto.hash Sha3_512 (f, i))
