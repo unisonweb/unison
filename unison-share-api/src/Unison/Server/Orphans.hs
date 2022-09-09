@@ -32,6 +32,7 @@ import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
+import qualified Unison.ShortHash as SH
 import Unison.Util.Pretty (Width (..))
 
 instance ToJSON Hash where
@@ -45,9 +46,10 @@ deriving via Hash instance ToJSON CausalHash
 deriving via Hash instance FromJSON CausalHash
 
 instance ToJSON ShortHash where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = Aeson.String . SH.toText
 
-instance ToJSONKey ShortHash
+instance ToJSONKey ShortHash where
+  toJSONKey = contramap SH.toText (toJSONKey @Text)
 
 deriving instance ToSchema ShortHash
 
