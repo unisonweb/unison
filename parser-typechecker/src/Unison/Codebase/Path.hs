@@ -251,10 +251,16 @@ ancestors (Absolute (Path segments)) = Absolute . Path <$> Seq.inits segments
 hqSplitFromName' :: Name -> Maybe HQSplit'
 hqSplitFromName' = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName'
 
+-- |
+-- >>> splitFromName "a.b.c"
+-- (a.b,c)
+--
+-- >>> splitFromName "foo"
+-- (,foo)
 splitFromName :: Name -> Split
 splitFromName name =
   case Name.reverseSegments name of
-    (seg :| pathSegments) -> (fromList pathSegments, seg)
+    (seg :| pathSegments) -> (fromList $ reverse pathSegments, seg)
 
 -- | what is this? —AI
 unprefixName :: Absolute -> Name -> Maybe Name
