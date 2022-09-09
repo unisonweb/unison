@@ -129,21 +129,17 @@ completeWithinNamespace ::
   m [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace compTypes query codebase currentPath = do
   shortHashLen <- Codebase.hashLength codebase
-  Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
-    Nothing -> do
-      pure []
-    Just cb -> do
-      b <- V2Causal.value cb
-      currentBranchSuggestions <- do
-        nib <- namesInBranch shortHashLen b
-        nib
-          & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match))
-          & filter (\(_isFinished, match) -> List.isPrefixOf query match)
-          & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
-          & pure
+  b <- Codebase.getShallowBranchAtPath codebase (Path.unabsolute absQueryPath) Nothing
+  currentBranchSuggestions <- do
+    nib <- namesInBranch shortHashLen b
+    nib
+      & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match))
+      & filter (\(_isFinished, match) -> List.isPrefixOf query match)
+      & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
+      & pure
 
-      childSuggestions <- getChildSuggestions shortHashLen b
-      pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ currentBranchSuggestions <> childSuggestions
+  childSuggestions <- getChildSuggestions shortHashLen b
+  pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ currentBranchSuggestions <> childSuggestions
   where
     queryPathPrefix :: Path.Path'
     querySuffix :: NameSegment.NameSegment

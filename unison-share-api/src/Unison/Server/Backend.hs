@@ -107,7 +107,6 @@ import Unison.Util.Pretty (Width)
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Set as Set
-import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.SyntaxText as UST
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
@@ -304,18 +303,17 @@ fuzzyFind printNames query =
    in refine $ toFoundRef . over _2 Name.toText <$> fzfNames
 
 -- List the immediate children of a namespace
-findShallow ::
-  Monad m =>
+lsAtPath ::
+  MonadIO m =>
   Codebase m Symbol Ann ->
+  -- The root to follow the path from.
+  Maybe (V2Branch.Branch m) ->
+  -- Path from the root to the branch to 'ls'
   Path.Absolute ->
   m [ShallowListEntry Symbol Ann]
-findShallow codebase path' = do
-  let path = Path.unabsolute path'
-  root <- Codebase.getRootBranch codebase
-  let mayb = Branch.getAt path root
-  case mayb of
-    Nothing -> pure []
-    Just b -> lsBranch codebase b
+lsAtPath codebase mayRootBranch absPath = do
+  b <- Codebase.getShallowBranchAtPath codebase (Path.unabsolute absPath) mayRootBranch
+  lsBranch codebase b
 
 findShallowReadmeInBranchAndRender ::
   Width ->
@@ -458,56 +456,13 @@ typeEntryToNamedType (TypeEntry r name tag) =
       typeTag = tag
     }
 
--- | Find all definitions and children reachable from the given branch.
--- Note: this differs from 'lsShallowBranch' in that it takes a fully loaded 'Branch' object,
--- and thus can include definition counts for child namespaces.
-lsBranch ::
-  Monad m =>
-  Codebase m Symbol Ann ->
-  Branch m ->
-  m [ShallowListEntry Symbol Ann]
-lsBranch codebase b = do
-  hashLength <- Codebase.hashLength codebase
-  let hqTerm b0 ns r =
-        let refs = Star3.lookupD1 ns . Branch._terms $ b0
-         in case length refs of
-              1 -> HQ'.fromName ns
-              _ -> HQ'.take hashLength $ HQ'.fromNamedReferent ns r
-      hqType b0 ns r =
-        let refs = Star3.lookupD1 ns . Branch._types $ b0
-         in case length refs of
-              1 -> HQ'.fromName ns
-              _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
-      b0 = Branch.head b
-  termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
-    ShallowTermEntry <$> termListEntry codebase r (hqTerm b0 ns r)
-  typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0) $
-    \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
-  let branchEntries :: [ShallowListEntry Symbol Ann] = do
-        (ns, childB) <- Map.toList $ Branch.nonEmptyChildren b0
-        let stats = Branch.namespaceStats $ Branch.head childB
-        guard $ V2Branch.hasDefinitions stats
-        pure $ ShallowBranchEntry ns (Branch.headHash childB) stats
-      patchEntries :: [ShallowListEntry Symbol Ann] = do
-        (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
-        pure $ ShallowPatchEntry ns
-  pure
-    . List.sortOn listEntryName
-    $ termEntries
-      ++ typeEntries
-      ++ branchEntries
-      ++ patchEntries
-
 -- | Find all definitions and children reachable from the given 'V2Branch.Branch',
--- Note: this differs from 'lsBranch' in that it takes a shallow v2 branch,
--- As a result, it omits definition counts from child-namespaces in its results,
--- but doesn't require loading the entire sub-tree to do so.
-lsShallowBranch ::
+lsBranch ::
   (MonadIO m) =>
   Codebase m Symbol Ann ->
   V2Branch.Branch m ->
   m [ShallowListEntry Symbol Ann]
-lsShallowBranch codebase b0 = do
+lsBranch codebase b0 = do
   hashLength <- Codebase.hashLength codebase
   let hqTerm ::
         ( V2Branch.Branch m ->
@@ -774,13 +729,10 @@ expandShortBranchHash codebase hash = do
 getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (V2Branch.CausalBranch m)
 getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
   shallowRoot <- case mayRootHash of
-    Nothing -> lift (Codebase.getShallowRootBranch codebase)
+    Nothing -> lift (Codebase.getShallowRootCausal codebase)
     Just h -> do
-      lift $ Codebase.getShallowBranchForHash codebase (Cv.causalHash1to2 h)
-  causal <-
-    (lift $ Codebase.shallowBranchAtPath path shallowRoot) >>= \case
-      Nothing -> pure $ Cv.causalbranch1to2 (Branch.empty)
-      Just lc -> pure lc
+      lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
+  causal <- lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)
   pure causal
 
 formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
