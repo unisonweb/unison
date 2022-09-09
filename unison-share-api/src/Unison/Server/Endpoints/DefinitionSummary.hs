@@ -77,7 +77,7 @@ serveTermSummary ::
   Maybe Width ->
   Backend IO TermSummary
 serveTermSummary codebase exactNameSH@(ExactName {name = termName, ref = shortHash}) mayRoot relativeTo mayWidth = do
-  exactNameRef@ExactName {ref} <-
+  exactNameRef@ExactName {ref = termReferent} <-
     exactNameSH & bitraverse pure \shortHash -> do
       matchingReferents <- lift $ Backend.termReferentsByShortHash codebase shortHash
       case NESet.nonEmptySet matchingReferents of
@@ -86,12 +86,12 @@ serveTermSummary codebase exactNameSH@(ExactName {name = termName, ref = shortHa
           | otherwise -> throwError $ Backend.AmbiguousHashForDefinition shortHash
         Nothing -> throwError $ Backend.NoSuchDefinition (exactToHQ exactNameSH)
   let relativeToPath = fromMaybe Path.empty relativeTo
-  let termReference = Referent.toReference ref
+  let termReference = Referent.toReference termReferent
   let v2ExactName = bimap id Cv.referent1to2 exactNameRef
   root <- Backend.resolveRootBranchHashV2 codebase mayRoot
   relativeToCausal <- lift $ Codebase.getShallowCausalAtPath codebase relativeToPath (Just root)
   relativeToBranch <- lift $ V2Causal.value relativeToCausal
-  sig <- lift (Codebase.getTypeOfTerm codebase termReference)
+  sig <- lift $ Backend.loadReferentType codebase termReferent
   case sig of
     Nothing ->
       throwError (Backend.MissingSignatureForTerm termReference)

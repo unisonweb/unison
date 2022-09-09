@@ -5,11 +5,14 @@ int = 42
 doc = {{ Hello }}
 test> mytest = [Test.Result.Ok "ok"]
 func x = x ++ "hello"
+
+structural type Thing = This Nat | That
 ```
 
 ## Term Summary APIs
 
 ```api
+--  term
 GET /api/definitions/terms/by_name/int@qkhkl0n238/summary
 {
     "fqn": "int",
@@ -28,6 +31,7 @@ GET /api/definitions/terms/by_name/int@qkhkl0n238/summary
     },
     "tag": "Plain"
 }
+--  doc
 GET /api/definitions/terms/by_name/doc@icfnhas71n/summary
 {
     "fqn": "doc",
@@ -46,6 +50,7 @@ GET /api/definitions/terms/by_name/doc@icfnhas71n/summary
     },
     "tag": "Doc"
 }
+--  test
 GET /api/definitions/terms/by_name/mytest@u17p9803hd/summary
 {
     "fqn": "mytest",
@@ -76,6 +81,7 @@ GET /api/definitions/terms/by_name/mytest@u17p9803hd/summary
     },
     "tag": "Test"
 }
+--  function
 GET /api/definitions/terms/by_name/func@6ee6j48hk3/summary
 {
     "fqn": "func",
@@ -109,6 +115,46 @@ GET /api/definitions/terms/by_name/func@6ee6j48hk3/summary
                     "tag": "TypeReference"
                 },
                 "segment": "Text"
+            }
+        ],
+        "tag": "UserObject"
+    },
+    "tag": "Plain"
+}
+--  constructor
+GET /api/definitions/terms/by_name/Thing.This@altimqs66j@0/summary
+{
+    "fqn": "Thing.This",
+    "hash": "#altimqs66j#0",
+    "summary": {
+        "contents": [
+            {
+                "annotation": {
+                    "contents": "##Nat",
+                    "tag": "TypeReference"
+                },
+                "segment": "Nat"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "#altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0",
+                    "tag": "TypeReference"
+                },
+                "segment": "Thing"
             }
         ],
         "tag": "UserObject"
