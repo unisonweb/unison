@@ -53,6 +53,7 @@ import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
+import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -444,14 +445,15 @@ getTermTag codebase branch (ExactName n r) sig = do
         Nothing -> False
   -- A term is a test if it has a link of type `IsTest`.
   let isTest = meta & any \mdValues -> List.elem (Cv.reference1to2 Decls.isTestRef) (Map.elems mdValues)
-  -- branch
-  -- (coerce @NameSegment @V2Branch.NameSegment ns)
-  -- (Just $ Cv.referent1to2 r)
-  -- (Cv.reference1to2 Decls.isTestRef)
+  constructorType <- case r of
+    V2Referent.Ref {} -> pure Nothing
+    V2Referent.Con ref _ -> Just <$> Codebase.getDeclType codebase ref
   pure $
     if
         | isDoc -> Doc
         | isTest -> Test
+        | Just CT.Effect <- constructorType -> Constructor Ability
+        | Just CT.Data <- constructorType -> Constructor Data
         | otherwise -> Plain
 
 getTypeTag ::

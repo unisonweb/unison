@@ -185,7 +185,7 @@ instance Semigroup DefinitionDisplayResults where
 instance Monoid DefinitionDisplayResults where
   mempty = DefinitionDisplayResults mempty mempty mempty
 
-data TermTag = Doc | Test | Plain
+data TermTag = Doc | Test | Plain | Constructor TypeTag
   deriving (Eq, Ord, Show, Generic)
 
 data TypeTag = Ability | Data
@@ -244,7 +244,13 @@ instance ToJSON NamedType where
 deriving instance ToSchema NamedType
 
 instance ToJSON TermTag where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = \case
+    Doc -> "doc"
+    Test -> "test"
+    Plain -> "plain"
+    Constructor tt -> case tt of
+      Ability -> "ability-constructor"
+      Data -> "data-constructor"
 
 deriving instance ToSchema TermTag
 
