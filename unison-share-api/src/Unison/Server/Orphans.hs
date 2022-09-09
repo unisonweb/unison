@@ -26,8 +26,10 @@ import Unison.Codebase.ShortBranchHash
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.Util.Pretty (Width (..))
@@ -102,11 +104,6 @@ deriving via Int instance ToHttpApiData Width
 
 deriving anyclass instance ToParamSchema Width
 
-instance ToJSON n => ToJSON (HQ.HashQualified n) where
-  toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema n => ToSchema (HQ.HashQualified n)
-
 instance ToJSON ConstructorType where
   toEncoding = genericToEncoding defaultOptions
 
@@ -157,3 +154,15 @@ instance ToJSON Path.Path where
 
 instance ToSchema Path.Path where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance Show n => ToJSON (HQ.HashQualified n) where
+  toJSON = Aeson.String . HQ.toText
+
+instance Show n => ToJSON (HQ'.HashQualified n) where
+  toJSON = Aeson.String . HQ'.toText
+
+deriving newtype instance ToSchema NameSegment
+
+deriving anyclass instance ToSchema n => ToSchema (HQ.HashQualified n)
+
+deriving anyclass instance ToSchema n => ToSchema (HQ'.HashQualified n)

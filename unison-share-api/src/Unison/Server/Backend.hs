@@ -122,8 +122,8 @@ data ShallowListEntry v a
 
 listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
-  ShallowTermEntry (TermEntry _ s _ _) -> HQ'.toText s
-  ShallowTypeEntry (TypeEntry _ s _) -> HQ'.toText s
+  ShallowTermEntry te -> termEntryDisplayName te
+  ShallowTypeEntry te -> typeEntryDisplayName te
   ShallowBranchEntry n _ _ -> NameSegment.toText n
   ShallowPatchEntry n -> NameSegment.toText n
 
@@ -251,18 +251,40 @@ loadReferentType codebase = \case
 
 data TermEntry v a = TermEntry
   { termEntryReferent :: V2Referent.Referent,
-    termEntryName :: HQ'.HQSegment,
+    termEntryHash :: ShortHash,
+    termEntryName :: NameSegment,
+    termEntryConflicted :: Bool,
     termEntryType :: Maybe (Type v a),
     termEntryTag :: TermTag
   }
   deriving (Eq, Ord, Show, Generic)
 
+termEntryDisplayName :: TermEntry v a -> Text
+termEntryDisplayName = HQ'.toText . termEntryHQName
+
+termEntryHQName :: TermEntry v a -> HQ'.HashQualified NameSegment
+termEntryHQName (TermEntry {termEntryName, termEntryConflicted, termEntryHash}) =
+  if termEntryConflicted
+    then HQ'.HashQualified termEntryName termEntryHash
+    else HQ'.NameOnly termEntryName
+
 data TypeEntry = TypeEntry
   { typeEntryReference :: Reference,
-    typeEntryName :: HQ'.HQSegment,
+    typeEntryHash :: ShortHash,
+    typeEntryName :: NameSegment,
+    typeEntryConflicted :: Bool,
     typeEntryTag :: TypeTag
   }
   deriving (Eq, Ord, Show, Generic)
+
+typeEntryDisplayName :: TypeEntry -> Text
+typeEntryDisplayName = HQ'.toText . typeEntryHQName
+
+typeEntryHQName :: TypeEntry -> HQ'.HashQualified NameSegment
+typeEntryHQName (TypeEntry {typeEntryName, typeEntryConflicted, typeEntryReference}) =
+  if typeEntryConflicted
+    then HQ'.HashQualified typeEntryName (Reference.toShortHash typeEntryReference)
+    else HQ'.NameOnly typeEntryName
 
 data FoundRef
   = FoundTermRef Referent
@@ -380,13 +402,27 @@ termListEntry ::
   V2Branch.Branch m ->
   ExactName NameSegment V2Referent.Referent ->
   m (TermEntry Symbol Ann)
-termListEntry codebase branch exactName@(ExactName _name ref) = do
-  hashLen <- Codebase.hashLength codebase
-  let hqn = exactToHQ' (second (SH.take hashLen . Cv.referent2toshorthash1) exactName)
+termListEntry codebase branch exactName@(ExactName nameSegment ref) = do
   v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
   ot <- loadReferentType codebase v1Referent
   tag <- getTermTag codebase branch (first Name.fromSegment exactName) ot
-  pure $ TermEntry ref hqn ot tag
+  hashLength <- Codebase.hashLength codebase
+  pure $
+    TermEntry
+      { termEntryReferent = ref,
+        termEntryName = nameSegment,
+        termEntryType = ot,
+        termEntryTag = tag,
+        termEntryConflicted = isConflicted,
+        termEntryHash = Cv.referent2toshorthash1 hashLength ref
+      }
+  where
+    isConflicted =
+      branch
+        & V2Branch.terms
+        & Map.lookup (coerce @NameSegment @V2Branch.NameSegment nameSegment)
+        & maybe 0 Map.size
+        & (> 1)
 
 getTermTag ::
   (Monad m, Var v) =>
@@ -436,12 +472,27 @@ typeListEntry ::
   Monad m =>
   Var v =>
   Codebase m v Ann ->
-  Reference ->
-  HQ'.HQSegment ->
+  V2Branch.Branch m ->
+  ExactName NameSegment Reference ->
   m TypeEntry
-typeListEntry codebase r n = do
-  tag <- getTypeTag codebase r
-  pure $ TypeEntry r n tag
+typeListEntry codebase b (ExactName nameSegment ref) = do
+  hashLength <- Codebase.hashLength codebase
+  tag <- getTypeTag codebase ref
+  pure $
+    TypeEntry
+      { typeEntryReference = ref,
+        typeEntryName = nameSegment,
+        typeEntryConflicted = isConflicted,
+        typeEntryTag = tag,
+        typeEntryHash = SH.take hashLength $ Reference.toShortHash ref
+      }
+  where
+    isConflicted =
+      b
+        & V2Branch.types
+        & Map.lookup (coerce @NameSegment @V2Branch.NameSegment nameSegment)
+        & maybe 0 Map.size
+        & (> 1)
 
 typeDeclHeader ::
   forall v m.
@@ -476,20 +527,20 @@ formatTypeName' ppe r =
 
 termEntryToNamedTerm ::
   Var v => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
-termEntryToNamedTerm ppe typeWidth (TermEntry r name mayType tag) =
+termEntryToNamedTerm ppe typeWidth te@(TermEntry {termEntryType = mayType, termEntryTag = tag, termEntryHash}) =
   NamedTerm
-    { termName = HQ'.toText name,
-      termHash = SH.toText $ Cv.referent2toshorthash1 r,
+    { termName = termEntryHQName te,
+      termHash = termEntryHash,
       termType = formatType ppe (mayDefaultWidth typeWidth) <$> mayType,
       termTag = tag
     }
 
 typeEntryToNamedType :: TypeEntry -> NamedType
-typeEntryToNamedType (TypeEntry r name tag) =
+typeEntryToNamedType te@(TypeEntry {typeEntryTag, typeEntryHash}) =
   NamedType
-    { typeName = HQ'.toText name,
-      typeHash = Reference.toText r,
-      typeTag = tag
+    { typeName = typeEntryHQName $ te,
+      typeHash = typeEntryHash,
+      typeTag = typeEntryTag
     }
 
 -- | Find all definitions and children reachable from the given 'V2Branch.Branch',
@@ -499,18 +550,6 @@ lsBranch ::
   V2Branch.Branch m ->
   m [ShallowListEntry Symbol Ann]
 lsBranch codebase b0 = do
-  hashLength <- Codebase.hashLength codebase
-  let hqType ::
-        ( V2Branch.Branch m ->
-          V2Branch.NameSegment ->
-          Reference ->
-          HQ'.HashQualified NameSegment
-        )
-      hqType b ns r =
-        let refs = Map.lookup ns . V2Branch.types $ b
-         in case length refs of
-              1 -> HQ'.fromName (Cv.namesegment2to1 ns)
-              _ -> HQ'.take hashLength $ HQ'.fromNamedReference (Cv.namesegment2to1 ns) r
   let flattenRefs :: Map V2Branch.NameSegment (Map ref v) -> [(ref, V2Branch.NameSegment)]
       flattenRefs m = do
         (ns, refs) <- Map.toList m
@@ -520,7 +559,7 @@ lsBranch codebase b0 = do
     ShallowTermEntry <$> termListEntry codebase b0 (ExactName (coerce @V2Branch.NameSegment ns) r)
   typeEntries <- for (flattenRefs $ V2Branch.types b0) \(r, ns) -> do
     let v1Ref = Cv.reference2to1 r
-    ShallowTypeEntry <$> typeListEntry codebase v1Ref (hqType b0 ns v1Ref)
+    ShallowTypeEntry <$> typeListEntry codebase b0 (ExactName (coerce @V2Branch.NameSegment ns) v1Ref)
   childrenWithStats <- Codebase.runTransaction codebase (V2Branch.childStats b0)
   let branchEntries :: [ShallowListEntry Symbol Ann] = do
         (ns, (h, stats)) <- Map.toList $ childrenWithStats
@@ -813,6 +852,8 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   DefinitionResults terms types misses <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
+  causalAtPath <- lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)
+  branchAtPath <- lift $ V2Causal.value causalAtPath
   let width = mayDefaultWidth renderWidth
       -- Return only references which refer to docs.
       filterForDocs :: [Referent] -> IO [TermReference]
@@ -851,14 +892,10 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         ts <- lift (Codebase.getTypeOfTerm codebase r)
         let hqTermName = PPE.termNameOrHashOnly fqnPPE referent
         let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref r)
-        -- TODO: Should probably move the metadata lookup to a v2 lookupMetadataForHQSplit
-        -- in Codebase.hs
-        termCausal <- lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)
-        termBranch <- lift $ V2Causal.value termCausal
         tag <-
           lift
             ( termEntryTag
-                <$> termListEntry codebase termBranch (ExactName (NameSegment bn) (Cv.referent1to2 referent))
+                <$> termListEntry codebase branchAtPath (ExactName (NameSegment bn) (Cv.referent1to2 referent))
             )
         docs <- lift (docResults r hqTermName)
         mk docs ts bn tag
@@ -888,10 +925,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
         tag <-
           typeEntryTag
-            <$> typeListEntry
-              codebase
-              r
-              (HQ'.NameOnly (NameSegment bn))
+            <$> typeListEntry codebase branchAtPath (ExactName (NameSegment bn) r)
         docs <- docResults r hqTypeName
         pure $
           TypeDefinition
@@ -1064,9 +1098,9 @@ scopedNamesForBranchHash codebase mbh path = do
     Nothing
       | shouldUseNamesIndex -> indexNames
       | otherwise -> do
-        rootBranch <- lift $ Codebase.getRootBranch codebase
-        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-        pure (parseNames, localNames)
+          rootBranch <- lift $ Codebase.getRootBranch codebase
+          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+          pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       let v1CausalHash = Cv.causalHash2to1 ch

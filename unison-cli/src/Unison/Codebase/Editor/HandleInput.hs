@@ -149,7 +149,7 @@ import qualified Unison.Result as Result
 import Unison.Runtime.IOSource (isTest)
 import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Runtime.IOSource as IOSource
-import Unison.Server.Backend (ShallowListEntry (..), TermEntry (..), TypeEntry (..))
+import Unison.Server.Backend (ShallowListEntry (..))
 import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Server.QueryResult
@@ -949,8 +949,8 @@ loop e = do
                 entryToHQString :: ShallowListEntry v Ann -> String
                 entryToHQString e =
                   fixup case e of
-                    ShallowTypeEntry (TypeEntry _ hq _) -> HQ'.toString hq
-                    ShallowTermEntry (TermEntry _ hq _ _) -> HQ'.toString hq
+                    ShallowTypeEntry te -> Text.unpack $ Backend.typeEntryDisplayName te
+                    ShallowTermEntry te -> Text.unpack $ Backend.termEntryDisplayName te
                     ShallowBranchEntry ns _ _ -> NameSegment.toString ns
                     ShallowPatchEntry ns -> NameSegment.toString ns
                   where

@@ -45,7 +45,6 @@ import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
-import qualified Unison.ShortHash as SH
 import qualified Unison.Util.Pretty as P
 import Prelude hiding (readFile, writeFile)
 
@@ -180,9 +179,9 @@ completeWithinNamespace compTypes query codebase currentPath = do
 
     -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
     hqFromNamedV2Referent :: Int -> V2Branch.NameSegment -> Referent.Referent -> HQ'.HashQualified V2Branch.NameSegment
-    hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (SH.take hashLen $ Cv.referent2toshorthash1 r)
+    hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (Cv.referent2toshorthash1 hashLen r)
     hqFromNamedV2Reference :: Int -> V2Branch.NameSegment -> Reference.Reference -> HQ'.HashQualified V2Branch.NameSegment
-    hqFromNamedV2Reference hashLen n r = HQ'.HashQualified n (SH.take hashLen $ Cv.reference2toshorthash1 r)
+    hqFromNamedV2Reference hashLen n r = HQ'.HashQualified n (Cv.reference2toshorthash1 hashLen r)
     hashQualifyCompletions :: forall r metadata. (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
     hashQualifyCompletions qualify defs = ifoldMap qualifyRefs defs
       where

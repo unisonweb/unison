@@ -9,7 +9,8 @@ module Unison.Server.Types where
 
 -- Types common to endpoints --
 
-import Control.Lens
+-- Types common to endpoints --
+import Control.Lens hiding ((.=))
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Bifoldable (Bifoldable (..))
@@ -49,6 +50,7 @@ import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
@@ -210,21 +212,28 @@ unisonRefToText = \case
   TermRef r -> r
 
 data NamedTerm = NamedTerm
-  { termName :: HashQualifiedName,
-    termHash :: UnisonHash,
+  { -- The name of the term, should be hash qualified if conflicted, otherwise name only.
+    termName :: HQ'.HashQualified NameSegment,
+    termHash :: ShortHash,
     termType :: Maybe SyntaxText,
     termTag :: TermTag
   }
   deriving (Eq, Generic, Show)
 
 instance ToJSON NamedTerm where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON (NamedTerm n h typ tag) =
+    Aeson.object
+      [ "termName" .= n,
+        "termHash" .= h,
+        "termType" .= typ,
+        "termTag" .= tag
+      ]
 
 deriving instance ToSchema NamedTerm
 
 data NamedType = NamedType
-  { typeName :: HashQualifiedName,
-    typeHash :: UnisonHash,
+  { typeName :: HQ'.HashQualified NameSegment,
+    typeHash :: ShortHash,
     typeTag :: TypeTag
   }
   deriving (Eq, Generic, Show)

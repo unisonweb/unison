@@ -562,18 +562,19 @@ branch2to1 branchCache lookupCT (V2.Branch.Branch v2terms v2types v2patches v2ch
                 Relation.insertManyRan ref (fmap (\(v, t) -> (mdref2to1 t, mdref2to1 v)) (Map.toList mdvals)) mempty
            in star <> V1.Star3.Star3 facts names types vals
 
-referent2toshorthash1 :: V2.Referent -> V1.ShortHash.ShortHash
-referent2toshorthash1 =
-  \case
-    V2.Referent.Ref r -> reference2toshorthash1 r
+referent2toshorthash1 :: Int -> V2.Referent -> V1.ShortHash.ShortHash
+referent2toshorthash1 hashLength ref =
+  V1.ShortHash.take hashLength $ case ref of
+    V2.Referent.Ref r -> reference2toshorthash1 hashLength r
     V2.Referent.Con r conId ->
-      case reference2toshorthash1 r of
+      case reference2toshorthash1 hashLength r of
         V1.ShortHash.ShortHash h p _con -> V1.ShortHash.ShortHash h p (Just $ tShow conId)
         sh@(V1.ShortHash.Builtin {}) -> sh
 
-reference2toshorthash1 :: V2.Reference.Reference -> V1.ShortHash.ShortHash
-reference2toshorthash1 (V2.Reference.ReferenceBuiltin b) = V1.ShortHash.Builtin b
-reference2toshorthash1 (V2.Reference.ReferenceDerived (V2.Reference.Id h i)) = V1.ShortHash.ShortHash (base32Hex h) (showComponentPos i) Nothing
+reference2toshorthash1 :: Int -> V2.Reference.Reference -> V1.ShortHash.ShortHash
+reference2toshorthash1 hashLength ref = V1.ShortHash.take hashLength $ case ref of
+  (V2.Reference.ReferenceBuiltin b) -> V1.ShortHash.Builtin b
+  (V2.Reference.ReferenceDerived (V2.Reference.Id h i)) -> V1.ShortHash.ShortHash (base32Hex h) (showComponentPos i) Nothing
   where
     showComponentPos :: V2.Reference.Pos -> Maybe Text
     showComponentPos 0 = Nothing

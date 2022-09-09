@@ -33,7 +33,6 @@ import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -156,7 +155,6 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
   lift (join <$> traverse (loadEntry relativeToBranch (PPE.suffixifiedPPE ppe)) alignments)
   where
     loadEntry relativeToBranch ppe (a, n, refs) = do
-      let hqn = HQ'.NameOnly . NameSegment $ n
       for refs $
         \case
           Backend.FoundTermRef r ->
@@ -170,7 +168,7 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
             )
               <$> Backend.termListEntry codebase relativeToBranch (ExactName (NameSegment n) (Cv.referent1to2 r))
           Backend.FoundTypeRef r -> do
-            te <- Backend.typeListEntry codebase r hqn
+            te <- Backend.typeListEntry codebase relativeToBranch (ExactName (NameSegment n) r)
             let namedType = Backend.typeEntryToNamedType te
             let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
             typeHeader <- Backend.typeDeclHeader codebase ppe r
