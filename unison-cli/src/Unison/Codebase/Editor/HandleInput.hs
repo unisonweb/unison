@@ -936,7 +936,7 @@ loop e = do
               rootBranch <- Cli.getRootBranch
 
               pathArgAbs <- Cli.resolvePath' pathArg
-              entries <- liftIO (Backend.findShallow codebase pathArgAbs)
+              entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               #numberedArgs .= fmap entryToHQString entries
               let ppe =

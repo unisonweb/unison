@@ -265,8 +265,8 @@ sqliteCodebase debugName root localOrRemote action = do
             putTypeDeclaration id decl =
               runTransaction (CodebaseOps.putTypeDeclaration termBuffer declBuffer id decl)
 
-            getRootBranchHash :: MonadIO m => m V2Branch.CausalHash
-            getRootBranchHash =
+            getRootCausalHash :: MonadIO m => m V2Branch.CausalHash
+            getRootCausalHash =
               runTransaction Ops.expectRootCausalHash
 
             getShallowCausalForHash :: MonadIO m => V2Branch.CausalHash -> m (V2Branch.CausalBranch m)
@@ -430,7 +430,7 @@ sqliteCodebase debugName root localOrRemote action = do
                   getDeclComponent,
                   getComponentLength = getCycleLength,
                   getRootBranch = getRootBranch rootBranchCache,
-                  getRootBranchHash,
+                  getRootCausalHash,
                   getRootBranchExists,
                   putRootBranch = putRootBranch rootBranchCache,
                   getShallowCausalForHash,

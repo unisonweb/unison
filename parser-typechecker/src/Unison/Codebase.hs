@@ -37,15 +37,17 @@ module Unison.Codebase
     branchHashesByPrefix,
     lca,
     beforeImpl,
+    getShallowBranchAtPath,
     getShallowCausalAtPath,
     getShallowCausalForHash,
+    getShallowCausalFromRoot,
+    getShallowRootBranch,
     getShallowRootCausal,
-    getShallowBranchAtPath,
 
     -- * Root branch
     getRootBranch,
     getRootBranchExists,
-    getRootBranchHash,
+    getRootCausalHash,
     putRootBranch,
     namesAtPath,
 
@@ -165,12 +167,31 @@ runTransaction :: MonadIO m => Codebase m v a -> Sqlite.Transaction b -> m b
 runTransaction Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransaction conn action
 
+getShallowCausalFromRoot ::
+  Monad m =>
+  Codebase m v a ->
+  -- Optional root branch, if Nothing use the codebase's root branch.
+  Maybe V2.CausalHash ->
+  Path.Path ->
+  m (V2Branch.CausalBranch m)
+getShallowCausalFromRoot codebase mayRootHash p = do
+  rootCausal <- case mayRootHash of
+    Nothing -> getShallowRootCausal codebase
+    Just ch -> getShallowCausalForHash codebase ch
+  getShallowCausalAtPath codebase p (Just rootCausal)
+
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
 getShallowRootCausal :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
 getShallowRootCausal codebase = do
-  hash <- getRootBranchHash codebase
+  hash <- getRootCausalHash codebase
   getShallowCausalForHash codebase hash
+
+-- | Get the shallow representation of the root branches without loading the children or
+-- history.
+getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
+getShallowRootBranch codebase = do
+  getShallowRootCausal codebase >>= V2Causal.value
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
