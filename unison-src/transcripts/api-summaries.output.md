@@ -29,7 +29,7 @@ GET /api/definitions/terms/by_name/int@qkhkl0n238/summary
         ],
         "tag": "UserObject"
     },
-    "tag": "Plain"
+    "tag": "plain"
 }
 --  doc
 GET /api/definitions/terms/by_name/doc@icfnhas71n/summary
@@ -48,7 +48,7 @@ GET /api/definitions/terms/by_name/doc@icfnhas71n/summary
         ],
         "tag": "UserObject"
     },
-    "tag": "Doc"
+    "tag": "doc"
 }
 --  test
 GET /api/definitions/terms/by_name/mytest@u17p9803hd/summary
@@ -79,7 +79,7 @@ GET /api/definitions/terms/by_name/mytest@u17p9803hd/summary
         ],
         "tag": "UserObject"
     },
-    "tag": "Test"
+    "tag": "test"
 }
 --  function
 GET /api/definitions/terms/by_name/func@6ee6j48hk3/summary
@@ -119,7 +119,7 @@ GET /api/definitions/terms/by_name/func@6ee6j48hk3/summary
         ],
         "tag": "UserObject"
     },
-    "tag": "Plain"
+    "tag": "plain"
 }
 --  constructor
 GET /api/definitions/terms/by_name/Thing.This@altimqs66j@0/summary
@@ -159,6 +159,6 @@ GET /api/definitions/terms/by_name/Thing.This@altimqs66j@0/summary
         ],
         "tag": "UserObject"
     },
-    "tag": "Plain"
+    "tag": "data-constructor"
 }
 ```
