@@ -1042,7 +1042,7 @@ scopedNamesForBranchHash codebase mbh path = do
           let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
           pure (parseNames, localNames)
     Just bh -> do
-      rootHash <- lift $ Codebase.getRootBranchHash codebase
+      rootHash <- lift $ Codebase.getRootCausalHash codebase
       if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
         then indexNames
         else do

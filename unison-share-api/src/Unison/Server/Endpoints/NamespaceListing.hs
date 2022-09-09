@@ -162,7 +162,7 @@ serve ::
 serve codebase maySBH mayRelativeTo mayNamespaceName = do
   useIndex <- asks Backend.useNamesIndex
   mayRootHash <- traverse (Backend.expandShortBranchHash codebase) maySBH
-  codebaseRootHash <- liftIO $ Codebase.getRootBranchHash codebase
+  codebaseRootHash <- liftIO $ Codebase.getRootCausalHash codebase
 
   -- Relative and Listing Path resolution
   --
@@ -194,7 +194,7 @@ serve codebase maySBH mayRelativeTo mayNamespaceName = do
     (False, Just rh) -> do
       serveFromBranch codebase path' (Cv.causalHash1to2 rh)
     (False, Nothing) -> do
-      rh <- liftIO $ Codebase.getRootBranchHash codebase
+      rh <- liftIO $ Codebase.getRootCausalHash codebase
       serveFromBranch codebase path' rh
   where
     parsePath :: String -> Backend IO Path.Path'

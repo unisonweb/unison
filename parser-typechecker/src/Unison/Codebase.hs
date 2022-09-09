@@ -46,7 +46,7 @@ module Unison.Codebase
     -- * Root branch
     getRootBranch,
     getRootBranchExists,
-    getRootBranchHash,
+    getRootCausalHash,
     putRootBranch,
     namesAtPath,
 
@@ -181,7 +181,7 @@ getShallowCausalFromRoot codebase mayRootHash p = do
 -- history.
 getShallowRootCausal :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
 getShallowRootCausal codebase = do
-  hash <- getRootBranchHash codebase
+  hash <- getRootCausalHash codebase
   getShallowCausalForHash codebase hash
 
 -- | Get the shallow representation of the root branches without loading the children or
