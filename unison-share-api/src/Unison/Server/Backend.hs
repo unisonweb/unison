@@ -137,6 +137,7 @@ data BackendError
       -- ^ namespace
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
+  | AmbiguousHashForDefinition ShortHash
   | NoBranchForHash Branch.CausalHash
   | CouldntLoadBranch Branch.CausalHash
   | MissingSignatureForTerm Reference

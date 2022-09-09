@@ -24,6 +24,7 @@ import Unison.Server.Types
     mungeShow,
     mungeString,
   )
+import qualified Unison.ShortHash as SH
 
 badHQN :: HashQualifiedName -> ServerError
 badHQN hqn =
@@ -49,6 +50,7 @@ backendError = \case
     ambiguousNamespace (SBH.toText sbh) (Set.map SBH.toText hashes)
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
   Backend.NoSuchDefinition hqName -> noSuchDefinition hqName
+  Backend.AmbiguousHashForDefinition shorthash -> ambiguousHashForDefinition shorthash
 
 badNamespace :: String -> String -> ServerError
 badNamespace err namespace =
@@ -100,4 +102,11 @@ noSuchDefinition hqName =
   err404
     { errBody =
         "Couldn't find a definition for " <> BSC.pack (show hqName)
+    }
+
+ambiguousHashForDefinition :: SH.ShortHash -> ServerError
+ambiguousHashForDefinition shorthash =
+  err400
+    { errBody =
+        "The hash prefix " <> BSC.pack (SH.toString shorthash) <> " is ambiguous"
     }
