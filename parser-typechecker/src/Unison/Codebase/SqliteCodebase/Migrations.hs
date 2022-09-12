@@ -19,6 +19,7 @@ import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3 (migrateSchem
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchema3To4)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5 (migrateSchema4To5)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7 (migrateSchema6To7)
 import qualified Unison.Codebase.SqliteCodebase.Operations as Ops2
 import Unison.Codebase.SqliteCodebase.Paths (backupCodebasePath, codebasePath)
 import Unison.Codebase.Type (LocalOrRemote (..))
@@ -46,7 +47,8 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       (3, migrateSchema2To3),
       (4, migrateSchema3To4),
       (5, migrateSchema4To5),
-      (6, migrateSchema5To6 rootCodebasePath)
+      (6, migrateSchema5To6 rootCodebasePath),
+      (7, migrateSchema6To7)
     ]
 
 -- | Migrates a codebase up to the most recent version known to ucm.
@@ -85,6 +87,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
           -- Hopefully we can remove this once we've got better methods of freezing migration
           -- code in time.
           when (schemaVersion < 5) $ run Q.addTempEntityTables
+          when (schemaVersion < 6) $ run Q.addNamespaceStatsTables
           for_ (Map.toAscList migrationsToRun) $ \(SchemaVersion v, migration) -> do
             putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
             run migration

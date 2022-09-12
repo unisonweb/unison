@@ -25,6 +25,7 @@ import Servant.Docs
     ToSample (..),
   )
 import Servant.OpenApi ()
+import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Util.Hash as Hash
 import Unison.Codebase (Codebase)
@@ -78,7 +79,7 @@ instance ToSample NamespaceListing where
         NamespaceListing
           "."
           "#gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
-          [Subnamespace $ NamedNamespace "base" "#19d1o9hi5n642t8jttg" (Just 237)]
+          [Subnamespace $ NamedNamespace "base" "#19d1o9hi5n642t8jttg" 237]
       )
     ]
 
@@ -109,8 +110,7 @@ deriving instance ToSchema NamespaceObject
 data NamedNamespace = NamedNamespace
   { namespaceName :: UnisonName,
     namespaceHash :: UnisonHash,
-    -- May not be provided on all server implementations.
-    namespaceSize :: Maybe Int
+    namespaceSize :: Int
   }
   deriving (Generic, Show)
 
@@ -143,12 +143,12 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowTermEntry te ->
     TermObject $ Backend.termEntryToNamedTerm ppe typeWidth te
   Backend.ShallowTypeEntry te -> TypeObject $ Backend.typeEntryToNamedType te
-  Backend.ShallowBranchEntry name hash size ->
+  Backend.ShallowBranchEntry name hash (NamespaceStats {numContainedTerms, numContainedTypes, numContainedPatches}) ->
     Subnamespace $
       NamedNamespace
         { namespaceName = NameSegment.toText name,
           namespaceHash = "#" <> Hash.toBase32HexText (Causal.unCausalHash hash),
-          namespaceSize = size
+          namespaceSize = numContainedTerms + numContainedTypes + numContainedPatches
         }
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name
@@ -164,7 +164,7 @@ serve codebase maySBH mayRelativeTo mayNamespaceName = do
   mayRootHash <- traverse (Backend.expandShortBranchHash codebase) maySBH
   codebaseRootHash <- liftIO $ Codebase.getRootBranchHash codebase
 
-  --Relative and Listing Path resolution
+  -- Relative and Listing Path resolution
   --
   -- The full listing path is a combination of the relativeToPath (prefix) and the namespace path
   --
@@ -188,11 +188,11 @@ serve codebase maySBH mayRelativeTo mayNamespaceName = do
       serveFromIndex codebase mayRootHash path'
     (True, Just rh)
       | rh == causalHash2to1 codebaseRootHash ->
-        serveFromIndex codebase mayRootHash path'
+          serveFromIndex codebase mayRootHash path'
       | otherwise -> do
-        mayBranch <- liftIO $ Codebase.getBranchForHash codebase rh
-        branch <- maybe (throwError $ Backend.NoBranchForHash rh) pure mayBranch
-        serveFromBranch codebase path' branch
+          mayBranch <- liftIO $ Codebase.getBranchForHash codebase rh
+          branch <- maybe (throwError $ Backend.NoBranchForHash rh) pure mayBranch
+          serveFromBranch codebase path' branch
     (False, Just rh) -> do
       mayBranch <- liftIO $ Codebase.getBranchForHash codebase rh
       branch <- maybe (throwError $ Backend.NoBranchForHash rh) pure mayBranch

@@ -74,6 +74,7 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral

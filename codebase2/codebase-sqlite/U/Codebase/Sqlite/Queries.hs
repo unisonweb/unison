@@ -63,6 +63,10 @@ module U.Codebase.Sqlite.Queries
     setNamespaceRoot,
     expectNamespaceRoot,
 
+    -- * namespace_statistics table
+    saveNamespaceStats,
+    loadNamespaceStatsByHashId,
+
     -- * causals
 
     -- ** causal table
@@ -155,6 +159,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * db misc
     addTempEntityTables,
+    addNamespaceStatsTables,
     addReflogTable,
     addTypeMentionsToIndexForTerm,
     addTypeToIndexForTerm,
@@ -197,6 +202,7 @@ import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
@@ -274,11 +280,16 @@ createSchema :: Transaction ()
 createSchema = do
   executeFile [hereFile|unison/sql/create.sql|]
   addTempEntityTables
+  addNamespaceStatsTables
   addReflogTable
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
   executeFile [hereFile|unison/sql/001-temp-entity-tables.sql|]
+
+addNamespaceStatsTables :: Transaction ()
+addNamespaceStatsTables =
+  executeFile [hereFile|unison/sql/003-namespace-statistics.sql|]
 
 addReflogTable :: Transaction ()
 addReflogTable =
@@ -2147,6 +2158,30 @@ lookup_ stateLens writerLens mk t = do
       Writer.tell $ Lens.set writerLens (Seq.singleton t) mempty
       pure id
     Just t' -> pure t'
+
+-- | Save statistics about a given branch.
+saveNamespaceStats :: BranchHashId -> NamespaceStats -> Transaction ()
+saveNamespaceStats bhId stats = do
+  execute sql (Only bhId :. stats)
+  where
+    sql =
+      [here|
+        INSERT INTO namespace_statistics (namespace_hash_id, num_contained_terms, num_contained_types, num_contained_patches)
+          VALUES (?, ?, ?, ?)
+      |]
+
+-- | Looks up statistics for a given branch, there's no guarantee that we have
+-- computed and saved stats for any given branch.
+loadNamespaceStatsByHashId :: BranchHashId -> Transaction (Maybe NamespaceStats)
+loadNamespaceStatsByHashId bhId = do
+  queryMaybeRow sql (Only bhId)
+  where
+    sql =
+      [here|
+          SELECT num_contained_terms, num_contained_types, num_contained_patches
+          FROM namespace_statistics
+          WHERE namespace_hash_id = ?
+        |]
 
 appendReflog :: Reflog.Entry CausalHashId Text -> Transaction ()
 appendReflog entry = execute sql entry
