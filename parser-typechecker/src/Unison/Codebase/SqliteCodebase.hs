@@ -8,6 +8,7 @@
 
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
+    MigrationStrategy (..),
   )
 where
 
@@ -50,6 +51,7 @@ import Unison.Codebase.Editor.RemoteRepo
     writeToReadGit,
   )
 import qualified Unison.Codebase.GitError as GitError
+import Unison.Codebase.Init (MigrationStrategy (..))
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
@@ -110,12 +112,13 @@ withOpenOrCreateCodebase ::
   Codebase.DebugName ->
   CodebasePath ->
   LocalOrRemote ->
+  MigrationStrategy ->
   ((CodebaseStatus, Codebase m Symbol Ann) -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
-withOpenOrCreateCodebase debugName codebasePath localOrRemote action = do
+withOpenOrCreateCodebase debugName codebasePath localOrRemote migrationStrategy action = do
   createCodebaseOrError debugName codebasePath (action' CreatedCodebase) >>= \case
     Left (Codebase1.CreateCodebaseAlreadyExists) -> do
-      sqliteCodebase debugName codebasePath localOrRemote (action' ExistingCodebase)
+      sqliteCodebase debugName codebasePath localOrRemote migrationStrategy (action' ExistingCodebase)
     Right r -> pure (Right r)
   where
     action' openOrCreate codebase = action (openOrCreate, codebase)
@@ -139,7 +142,7 @@ createCodebaseOrError debugName path action = do
           Q.createSchema
           void . Ops.saveRootBranch v2HashHandle $ Cv.causalbranch1to2 Branch.empty
 
-      sqliteCodebase debugName path Local action >>= \case
+      sqliteCodebase debugName path Local DontMigrate action >>= \case
         Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
         Right result -> pure (Right result)
 
@@ -150,12 +153,13 @@ withCodebaseOrError ::
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
+  MigrationStrategy ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
-withCodebaseOrError debugName dir action = do
+withCodebaseOrError debugName dir migrationStrategy action = do
   doesFileExist (makeCodebasePath dir) >>= \case
     False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
-    True -> sqliteCodebase debugName dir Local action
+    True -> sqliteCodebase debugName dir Local migrationStrategy action
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
@@ -181,14 +185,6 @@ withConnection ::
   m a
 withConnection name root action =
   Sqlite.withConnection name (makeCodebasePath root) action
-
-data MigrationStrategy
-  = -- | Perform a migration immediately if one is required.
-    MigrateAutomatically
-  | -- | Prompt the user that a migration is about to occur, continue after acknownledgment
-    MigrateAfterPrompt
-  | -- | Triggers an 'OpenCodebaseRequiresMigration' error instead of migrating
-    DontMigrate
 
 sqliteCodebase ::
   forall m r.
@@ -737,7 +733,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
   -- set up the cache dir
   throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
     newBranchOrErr <- throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
-      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote
+      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote MigrateAfterPrompt
       $ \(codebaseStatus, destCodebase) -> do
         currentRootBranch <-
           C.getRootBranchExists destCodebase >>= \case

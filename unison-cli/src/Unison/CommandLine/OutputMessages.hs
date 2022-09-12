@@ -75,11 +75,7 @@ import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.SqliteCodebase.GitError
-  ( GitSqliteCodebaseError
-      ( GitCouldntParseRootBranchHash,
-        NoDatabaseFile,
-        UnrecognizedSchemaVersion
-      ),
+  ( GitSqliteCodebaseError (..),
   )
 import qualified Unison.Codebase.TermEdit as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
@@ -1130,6 +1126,11 @@ notifyUser dir o = case o of
             <> prettyReadGitRepo repo
             <> "in the cache directory at"
             <> P.backticked' (P.string localPath) "."
+      CodebaseRequiresMigration (SchemaVersion fromSv) (SchemaVersion toSv) -> do
+        P.wrap $
+          "The specified codebase codebase is on version " <> P.shown fromSv
+            <> " but needs to be on version "
+            <> P.shown toSv
       UnrecognizedSchemaVersion repo localPath (SchemaVersion v) ->
         P.wrap $
           "I don't know how to interpret schema version " <> P.shown v
