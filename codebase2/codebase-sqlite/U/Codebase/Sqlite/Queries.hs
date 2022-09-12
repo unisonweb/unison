@@ -290,7 +290,7 @@ createSchema = do
   where
     insertSchemaVersionSql =
       [here|
-        INSERT INTO schema_version (version) VALUES (?);
+        INSERT INTO schema_version (version) VALUES (?)
       |]
 
 addTempEntityTables :: Transaction ()
