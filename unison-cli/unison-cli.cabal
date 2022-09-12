@@ -133,8 +133,8 @@ library
     , exceptions
     , extra
     , filepath
-    , fuzzyfind
     , friendly-time
+    , fuzzyfind
     , generic-lens
     , haskeline
     , here
@@ -254,8 +254,8 @@ executable cli-integration-tests
     , exceptions
     , extra
     , filepath
-    , fuzzyfind
     , friendly-time
+    , fuzzyfind
     , generic-lens
     , haskeline
     , here
@@ -370,8 +370,8 @@ executable transcripts
     , exceptions
     , extra
     , filepath
-    , fuzzyfind
     , friendly-time
+    , fuzzyfind
     , generic-lens
     , haskeline
     , here
@@ -490,8 +490,8 @@ executable unison
     , exceptions
     , extra
     , filepath
-    , fuzzyfind
     , friendly-time
+    , fuzzyfind
     , generic-lens
     , haskeline
     , here
@@ -616,8 +616,8 @@ test-suite cli-tests
     , exceptions
     , extra
     , filepath
-    , fuzzyfind
     , friendly-time
+    , fuzzyfind
     , generic-lens
     , haskeline
     , here

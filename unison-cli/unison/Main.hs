@@ -21,7 +21,7 @@ import ArgParse
     UsageRenderer,
     parseCLIArgs,
   )
-import Compat (defaultInterruptHandler, withInterruptHandler, onWindows)
+import Compat (defaultInterruptHandler, onWindows, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, takeMVar)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
@@ -124,16 +124,16 @@ main = withCP65001 . Ki.scoped $ \scope -> do
       Run (RunFromFile file mainName) args
         | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
         | otherwise -> do
-            e <- safeReadUtf8 file
-            case e of
-              Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
-              Right contents -> do
-                getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-                  rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
-                  sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
-                  let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                  let notifyOnUcmChanges _ = pure ()
-                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes notifyOnUcmChanges
+          e <- safeReadUtf8 file
+          case e of
+            Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
+            Right contents -> do
+              getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+                rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
+                sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
+                let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                let notifyOnUcmChanges _ = pure ()
+                launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes notifyOnUcmChanges
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
@@ -227,7 +227,12 @@ main = withCP65001 . Ki.scoped $ \scope -> do
           let ucmState :: STM (Branch IO, Path.Absolute)
               ucmState = readTVar ucmStateVar >>= maybe retry pure
           sbRuntime <- RTI.startRuntime True RTI.Persistent Version.gitDescribeWithDate
-          when (not onWindows) . Ki.fork scope $ LSP.spawnLsp theCodebase runtime ucmState
+          -- Unfortunately, the windows IO manager on GHC 8.* is prone to just hanging forever
+          -- when waiting for input on handles, so if we listen for LSP connections it will
+          -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
+          -- Windows when we move to GHC 9.*
+          -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
+          when (not onWindows) . void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime ucmState
           Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
             case exitOption of
               DoNotExit -> do
