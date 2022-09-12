@@ -1,6 +1,9 @@
 
 a |> f = f a
 
+uncurry f = cases (x, y) -> f x y
+snd = cases (_, y) -> y
+
 compose f g = a -> f (g a)
 compose2 f g = a -> b -> f (g a b)
 compose3 f g = a -> b -> c -> f (g a b c)
@@ -266,6 +269,9 @@ bSplit m k =
 bInsert : [(a,b)] -> a -> b -> [(a,b)]
 bInsert m k v = match bSplit m k with
   (pre, post) -> pre ++ [(k,v)] ++ post
+
+bSort : [(a,b)] -> [(a,b)]
+bSort = foldLeft (acc -> uncurry (bInsert acc)) []
 
 -- Finding transitive dependencies
 crawl found = cases

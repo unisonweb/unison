@@ -22,7 +22,7 @@ shuffle =
   
   pick []
 
-runTestCase : Text ->{Exception,IO} Test.Result
+runTestCase : Text ->{Exception,IO} (Text, Test.Result)
 runTestCase name =
   sfile = directory ++ name ++ ".ser"
   ofile = directory ++ name ++ ".out"
@@ -32,17 +32,19 @@ runTestCase name =
   o = fromUtf8 (readFile ofile)
   h = readFile hfile
 
-  if f i == o
-  then if crypto.hash Sha3_512 p == h
-       then Ok name
-       else Fail (name ++ " hash mismatch")
-  else Fail (name ++ " output mismatch")
+  result =
+    if f i == o
+    then if crypto.hash Sha3_512 p == h
+         then Ok name
+         else Fail (name ++ " hash mismatch")
+    else Fail (name ++ " output mismatch")
+  (name, result)
   
 serialTests : '{IO,Exception} [Test.Result]
 serialTests = do
   l = !availableCases
   cs = shuffle (toRepresentation !systemTimeMicroseconds) l
-  List.map runTestCase cs
+  List.map snd (bSort (List.map runTestCase cs))
 ```
 
 ```ucm
@@ -56,7 +58,7 @@ serialTests = do
       availableCases : '{IO, Exception} [Text]
       directory      : Text
       gen            : Nat -> Nat -> (Nat, Nat)
-      runTestCase    : Text ->{IO, Exception} Result
+      runTestCase    : Text ->{IO, Exception} (Text, Result)
       serialTests    : '{IO, Exception} [Result]
       shuffle        : Nat -> [a] -> [a]
 
@@ -69,7 +71,7 @@ serialTests = do
     availableCases : '{IO, Exception} [Text]
     directory      : Text
     gen            : Nat -> Nat -> (Nat, Nat)
-    runTestCase    : Text ->{IO, Exception} Result
+    runTestCase    : Text ->{IO, Exception} (Text, Result)
     serialTests    : '{IO, Exception} [Result]
     shuffle        : Nat -> [a] -> [a]
 
@@ -77,10 +79,10 @@ serialTests = do
 
     New test results:
   
-  ◉ serialTests   case-02
-  ◉ serialTests   case-03
   ◉ serialTests   case-00
   ◉ serialTests   case-01
+  ◉ serialTests   case-02
+  ◉ serialTests   case-03
   
   ✅ 4 test(s) passing
   
