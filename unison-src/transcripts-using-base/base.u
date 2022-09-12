@@ -271,6 +271,7 @@ bInsert m k v = match bSplit m k with
 crawl found = cases
   [] -> found
   ln +: rest
+    | Text.take 2 (Link.Term.toText ln) == "##" -> crawl found rest
     | bContains found ln -> crawl found rest
     | otherwise -> match Code.lookup ln with
       Some code ->
