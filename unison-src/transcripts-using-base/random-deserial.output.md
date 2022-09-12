@@ -77,10 +77,12 @@ serialTests = do
 
     New test results:
   
+  ◉ serialTests   case-02
+  ◉ serialTests   case-03
   ◉ serialTests   case-00
   ◉ serialTests   case-01
   
-  ✅ 2 test(s) passing
+  ✅ 4 test(s) passing
   
   Tip: Use view serialTests to view the source of a test.
 
