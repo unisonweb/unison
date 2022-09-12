@@ -366,4 +366,4 @@ saveTestCase name f i =
 
   saveSelfContained (f, i) sfile
   writeFile ofile (toUtf8 output)
-  writeFile hfile (crypto.hash Sha3_512 (f, i))
+  writeFile hfile (Bytes.toBase32 (crypto.hash Sha3_512 (f, i)))

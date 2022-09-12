@@ -34,7 +34,7 @@ runTestCase name =
 
   result =
     if f i == o
-    then if crypto.hash Sha3_512 p == h
+    then if toBase32 (crypto.hash Sha3_512 p) == h
          then Ok name
          else Fail (name ++ " hash mismatch")
     else Fail (name ++ " output mismatch")
