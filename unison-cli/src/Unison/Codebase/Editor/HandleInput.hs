@@ -306,7 +306,7 @@ loop e = do
                       typePatch = over Patch.typeEdits (R.deleteDom fr) patch
                   (patchPath'', patchName) <- Cli.resolveSplit' patchPath'
                   -- Save the modified patch
-                  stepAtM
+                  Cli.stepAtM
                     description
                     ( Path.unabsolute patchPath'',
                       Branch.modifyPatches
@@ -322,7 +322,7 @@ loop e = do
           saveAndApplyPatch :: Path -> NameSegment -> Patch -> Cli r ()
           saveAndApplyPatch patchPath'' patchName patch' = do
             description <- inputDescription input
-            stepAtM
+            Cli.stepAtM
               (description <> " (1/2)")
               ( patchPath'',
                 Branch.modifyPatches patchName (const patch')
@@ -362,7 +362,7 @@ loop e = do
                 let makeDeleteTypeNames = map (BranchUtil.makeDeleteTypeName resolvedPath) . Set.toList $ types
                 before <- Cli.getRootBranch0
                 description <- inputDescription input
-                stepManyAt description (makeDeleteTermNames ++ makeDeleteTypeNames)
+                Cli.stepManyAt description (makeDeleteTermNames ++ makeDeleteTypeNames)
                 after <- Cli.getRootBranch0
                 (ppe, diff) <- diffHelper before after
                 Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
@@ -504,7 +504,7 @@ loop e = do
               Cli.assertNoPatchAt dest'
               src <- Cli.resolveSplit' src'
               dest <- Cli.resolveSplit' dest'
-              stepManyAt
+              Cli.stepManyAt
                 description
                 [ BranchUtil.makeDeletePatch (Path.convert src),
                   BranchUtil.makeReplacePatch (Path.convert dest) p
@@ -515,7 +515,7 @@ loop e = do
               p <- Cli.expectPatchAt src
               Cli.assertNoPatchAt dest'
               dest <- Cli.resolveSplit' dest'
-              stepAt
+              Cli.stepAt
                 description
                 (BranchUtil.makeReplacePatch (Path.convert dest) p)
               Cli.respond Success
@@ -523,7 +523,7 @@ loop e = do
               _ <- Cli.expectPatchAt src'
               description <- inputDescription input
               src <- Cli.resolveSplit' src'
-              stepAt
+              Cli.stepAt
                 description
                 (BranchUtil.makeDeletePatch (Path.convert src))
               Cli.respond Success
@@ -532,7 +532,7 @@ loop e = do
               if hasConfirmed || insistence == Force
                 then do
                   description <- inputDescription input
-                  stepAt
+                  Cli.stepAt
                     description
                     (Path.empty, const Branch.empty0)
                   Cli.respond DeletedEverything
@@ -559,7 +559,7 @@ loop e = do
                     ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                     Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
                     Cli.returnEarlyWithoutOutput
-              stepAt description $
+              Cli.stepAt description $
                 BranchUtil.makeDeleteBranch (Path.convert absPath)
               afterDelete
             SwitchBranchI maybePath' -> do
@@ -659,7 +659,7 @@ loop e = do
                   Right (path, _) -> do
                     root0 <- Cli.getRootBranch0
                     pure (BranchUtil.getTermMetadataAt (Path.convert path, ()) srcTerm root0)
-              stepAt
+              Cli.stepAt
                 description
                 (BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata)
               Cli.respond Success
@@ -692,7 +692,7 @@ loop e = do
                   Right (path, _) -> do
                     root0 <- Cli.getRootBranch0
                     pure (BranchUtil.getTypeMetadataAt (Path.convert path, ()) srcType root0)
-              stepAt
+              Cli.stepAt
                 description
                 (BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata)
               Cli.respond Success
@@ -706,7 +706,7 @@ loop e = do
               old <- Cli.getBranch0At destAbs
               description <- inputDescription input
               let (unknown, actions) = foldl' (go root0 currentBranch0 destAbs) mempty srcs
-              stepManyAt description actions
+              Cli.stepManyAt description actions
               new <- Cli.getBranch0At destAbs
               (ppe, diff) <- diffHelper old new
               Cli.respondNumbered (ShowDiffAfterModifyBranch dest' destAbs ppe diff)
@@ -792,11 +792,11 @@ loop e = do
             LinkI mdValue srcs -> do
               description <- inputDescription input
               manageLinks False srcs [mdValue] Metadata.insert
-              syncRoot description
+              Cli.syncRoot description
             UnlinkI mdValue srcs -> do
               description <- inputDescription input
               manageLinks False srcs [mdValue] Metadata.delete
-              syncRoot description
+              Cli.syncRoot description
 
             -- > links List.map (.Docs .English)
             -- > links List.map -- give me all the
@@ -833,7 +833,7 @@ loop e = do
               authorPath <- Cli.resolveSplit' authorPath'
               copyrightHolderPath <- Cli.resolveSplit' (base |> "copyrightHolders" |> authorNameSegment)
               guidPath <- Cli.resolveSplit' (authorPath' |> "guid")
-              stepManyAt
+              Cli.stepManyAt
                 description
                 [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef) mempty,
                   BranchUtil.makeAddTermName (Path.convert copyrightHolderPath) (d copyrightHolderRef) mempty,
@@ -874,7 +874,7 @@ loop e = do
               srcMetadata <- do
                 root0 <- Cli.getRootBranch0
                 pure (BranchUtil.getTermMetadataAt p srcTerm root0)
-              stepManyAt
+              Cli.stepManyAt
                 description
                 [ -- Mitchell: throwing away any hash-qualification here seems wrong!
                   BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
@@ -901,7 +901,7 @@ loop e = do
               srcMetadata <- do
                 root0 <- Cli.getRootBranch0
                 pure (BranchUtil.getTypeMetadataAt p srcType root0)
-              stepManyAt
+              Cli.stepManyAt
                 description
                 [ -- Mitchell: throwing away any hash-qualification here seems wrong!
                   BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
@@ -972,7 +972,7 @@ loop e = do
                       Cli.Env {codebase} <- ask
                       hqLength <- liftIO (Codebase.hashLength codebase)
                       Cli.returnEarly (DeleteNameAmbiguous hqLength path' Set.empty types)
-              stepAt
+              Cli.stepAt
                 description
                 -- Mitchell: throwing away HQ seems wrong
                 (BranchUtil.makeDeleteTypeName (Path.convert (over _2 HQ'.toName path)) ty)
@@ -996,7 +996,7 @@ loop e = do
                 & Set.toList
                 -- Mitchell: throwing away HQ seems wrong
                 & map (BranchUtil.makeDeleteTermName (Path.convert (over _2 HQ'.toName path)))
-                & stepManyAt description
+                & Cli.stepManyAt description
             ReplaceI from to patchPath -> do
               Cli.Env {codebase} <- ask
               hqLength <- liftIO (Codebase.hashLength codebase)
@@ -1105,12 +1105,12 @@ loop e = do
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
-              stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
+              Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
               liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
               addDefaultMetadata adds
-              syncRoot description
+              Cli.syncRoot description
             SaveExecuteResultI resultName -> do
               description <- inputDescription input
               let resultVar = Name.toVar resultName
@@ -1120,12 +1120,12 @@ loop e = do
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
-              stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
+              Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
               liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               Cli.returnEarly $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
               addDefaultMetadata adds
-              syncRoot description
+              Cli.syncRoot description
             PreviewAddI requestedNames -> do
               (sourceName, _) <- Cli.expectLatestFile
               uf <- Cli.expectLatestTypecheckedFile
@@ -2218,7 +2218,7 @@ handleUpdate input optionalPatch requestedNames = do
   when (Slurp.hasAddsOrUpdates sr) $ do
     -- take a look at the `updates` from the SlurpResult
     -- and make a patch diff to record a replacement from the old to new references
-    stepManyAtMNoSync
+    Cli.stepManyAtMNoSync
       ( [ ( Path.unabsolute currentPath',
             pure . doSlurpUpdates typeEdits termEdits termDeprecations
           ),
@@ -2236,7 +2236,7 @@ handleUpdate input optionalPatch requestedNames = do
   whenJust patchOps \(updatedPatch, _, _) ->
     void $ propagatePatchNoSync updatedPatch currentPath'
   addDefaultMetadata addsAndUpdates
-  syncRoot case patchPath of
+  Cli.syncRoot case patchPath of
     Nothing -> "update.nopatch"
     Just p ->
       p & Path.unsplit'
@@ -2321,7 +2321,7 @@ manageLinks silent srcs' metadataNames op = do
                     go types src = op (src, mdType, mdValue) types
              in over Branch.terms tmUpdates . over Branch.types tyUpdates
       let steps = map (\(path, _hq) -> (Path.unabsolute path, step)) srcs
-      stepManyAtNoSync steps
+      Cli.stepManyAtNoSync steps
   if silent
     then Cli.respond DefaultMetadataNotification
     else do
@@ -2579,7 +2579,7 @@ propagatePatchNoSync ::
   Cli r Bool
 propagatePatchNoSync patch scopePath =
   Cli.time "propagatePatch" do
-    stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
+    Cli.stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch ::
@@ -2589,7 +2589,7 @@ propagatePatch ::
   Cli r Bool
 propagatePatch inputDescription patch scopePath = do
   Cli.time "propagatePatch" do
-    stepAt'
+    Cli.stepAt'
       (inputDescription <> " (applying patch)")
       (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
@@ -2819,95 +2819,6 @@ getHQTerms = \case
     hashOnly sh = do
       Cli.Env {codebase} <- ask
       liftIO (Backend.termReferentsByShortHash codebase sh)
-
-stepAt ::
-  Text ->
-  (Path, Branch0 IO -> Branch0 IO) ->
-  Cli r ()
-stepAt cause = stepManyAt @[] cause . pure
-
-stepAt' ::
-  Text ->
-  (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
-  Cli r Bool
-stepAt' cause = stepManyAt' @[] cause . pure
-
-stepAtNoSync' ::
-  (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
-  Cli r Bool
-stepAtNoSync' = stepManyAtNoSync' @[] . pure
-
-stepAtNoSync ::
-  (Path, Branch0 IO -> Branch0 IO) ->
-  Cli r ()
-stepAtNoSync = stepManyAtNoSync @[] . pure
-
-stepAtM ::
-  Text ->
-  (Path, Branch0 IO -> IO (Branch0 IO)) ->
-  Cli r ()
-stepAtM cause = stepManyAtM @[] cause . pure
-
-stepManyAt ::
-  Foldable f =>
-  Text ->
-  f (Path, Branch0 IO -> Branch0 IO) ->
-  Cli r ()
-stepManyAt reason actions = do
-  stepManyAtNoSync actions
-  syncRoot reason
-
-stepManyAt' ::
-  Foldable f =>
-  Text ->
-  f (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
-  Cli r Bool
-stepManyAt' reason actions = do
-  res <- stepManyAtNoSync' actions
-  syncRoot reason
-  pure res
-
-stepManyAtNoSync' ::
-  Foldable f =>
-  f (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
-  Cli r Bool
-stepManyAtNoSync' actions = do
-  origRoot <- Cli.getRootBranch
-  newRoot <- Branch.stepManyAtM actions origRoot
-  #root .= newRoot
-  pure (origRoot /= newRoot)
-
--- Like stepManyAt, but doesn't update the last saved root
-stepManyAtNoSync ::
-  Foldable f =>
-  f (Path, Branch0 IO -> Branch0 IO) ->
-  Cli r ()
-stepManyAtNoSync actions =
-  #root %= Branch.stepManyAt actions
-
-stepManyAtM ::
-  Foldable f =>
-  Text ->
-  f (Path, Branch0 IO -> IO (Branch0 IO)) ->
-  Cli r ()
-stepManyAtM reason actions = do
-  stepManyAtMNoSync actions
-  syncRoot reason
-
-stepManyAtMNoSync ::
-  Foldable f =>
-  f (Path, Branch0 IO -> IO (Branch0 IO)) ->
-  Cli r ()
-stepManyAtMNoSync actions = do
-  oldRoot <- Cli.getRootBranch
-  newRoot <- liftIO (Branch.stepManyAtM actions oldRoot)
-  #root .= newRoot
-
--- | Sync the in-memory root branch.
-syncRoot :: Text -> Cli r ()
-syncRoot description = do
-  rootBranch <- Cli.getRootBranch
-  Cli.updateRoot rootBranch description
 
 -- | Goal: When deleting, we might be removing the last name of a given definition (i.e. the
 -- definition is going "extinct"). In this case we may wish to take some action or warn the
