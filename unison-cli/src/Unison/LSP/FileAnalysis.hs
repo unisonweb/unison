@@ -21,7 +21,6 @@ import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.UnisonFile as UF
 import UnliftIO
-import Witherable (forMaybe)
 
 -- | Lex, parse, and typecheck a file.
 analyseFile :: HasUri d Uri => d -> Lsp (Maybe FileAnalysis)
