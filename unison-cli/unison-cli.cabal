@@ -62,7 +62,6 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
       Unison.LSP
-      Unison.LSP.CodeLens
       Unison.LSP.Completion
       Unison.LSP.Diagnostics
       Unison.LSP.FileAnalysis

@@ -120,7 +120,6 @@ lspRequestHandlers =
     & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
 
 -- & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
--- & SMM.insert SCodeLensResolve (ClientMessageHandler codeLensResolveHandler)
 
 -- | LSP notification handlers
 lspNotificationHandlers :: SMethodMap (ClientMessageHandler Lsp 'Notification)
