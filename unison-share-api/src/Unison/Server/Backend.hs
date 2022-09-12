@@ -408,7 +408,6 @@ termListEntry codebase branch exactName@(ExactName nameSegment ref) = do
   v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
   ot <- loadReferentType codebase v1Referent
   tag <- getTermTag codebase branch (first Name.fromSegment exactName) ot
-  hashLength <- Codebase.hashLength codebase
   pure $
     TermEntry
       { termEntryReferent = ref,
@@ -416,7 +415,7 @@ termListEntry codebase branch exactName@(ExactName nameSegment ref) = do
         termEntryType = ot,
         termEntryTag = tag,
         termEntryConflicted = isConflicted,
-        termEntryHash = Cv.referent2toshorthash1 hashLength ref
+        termEntryHash = Cv.referent2toshorthash1 Nothing ref
       }
   where
     isConflicted =

@@ -60,9 +60,9 @@ GET /api/find?query=http
             "contents": {
                 "bestFoundTermName": "y",
                 "namedTerm": {
-                    "termHash": "#emomp74i93",
+                    "termHash": "#emomp74i93h6ps0b5sukke0tci0ooba3f9jk21qm919a7act9u7asani84c0mqbdk4lcjrdvr9olpedp23p6df78r4trqlg0cciadc8",
                     "termName": "ross.httpClient.y",
-                    "termTag": "Plain",
+                    "termTag": "plain",
                     "termType": [
                         {
                             "annotation": {
@@ -101,9 +101,9 @@ GET /api/find?query=http
             "contents": {
                 "bestFoundTermName": "z",
                 "namedTerm": {
-                    "termHash": "#a84tg4er4k",
+                    "termHash": "#a84tg4er4kfl9k2p250vp2o1dsp5kmn9a7q8g2bo723qbtbf9sagrl28fa4q0j5f2cv4alsjik6rf487ss646qt95gbm3dd13k7e1fo",
                     "termName": "joey.httpServer.z",
-                    "termTag": "Plain",
+                    "termTag": "plain",
                     "termType": [
                         {
                             "annotation": {
@@ -146,9 +146,9 @@ GET /api/find?query=Server
             "contents": {
                 "bestFoundTermName": "z",
                 "namedTerm": {
-                    "termHash": "#a84tg4er4k",
+                    "termHash": "#a84tg4er4kfl9k2p250vp2o1dsp5kmn9a7q8g2bo723qbtbf9sagrl28fa4q0j5f2cv4alsjik6rf487ss646qt95gbm3dd13k7e1fo",
                     "termName": "joey.httpServer.z",
-                    "termTag": "Plain",
+                    "termTag": "plain",
                     "termType": [
                         {
                             "annotation": {
@@ -191,9 +191,9 @@ GET /api/find?query=lesys
             "contents": {
                 "bestFoundTermName": "x",
                 "namedTerm": {
-                    "termHash": "#qkhkl0n238",
+                    "termHash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
                     "termName": "rachel.filesystem.x",
-                    "termTag": "Plain",
+                    "termTag": "plain",
                     "termType": [
                         {
                             "annotation": {
@@ -232,9 +232,9 @@ GET /api/find?query=joey.http
             "contents": {
                 "bestFoundTermName": "z",
                 "namedTerm": {
-                    "termHash": "#a84tg4er4k",
+                    "termHash": "#a84tg4er4kfl9k2p250vp2o1dsp5kmn9a7q8g2bo723qbtbf9sagrl28fa4q0j5f2cv4alsjik6rf487ss646qt95gbm3dd13k7e1fo",
                     "termName": "joey.httpServer.z",
-                    "termTag": "Plain",
+                    "termTag": "plain",
                     "termType": [
                         {
                             "annotation": {

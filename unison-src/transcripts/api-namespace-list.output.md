@@ -36,9 +36,9 @@ GET /api/list?namespace=nested.names
     "namespaceListingChildren": [
         {
             "contents": {
-                "termHash": "#ddmmatmmiq",
+                "termHash": "#ddmmatmmiqsts2ku0i02kntd0s7rvcui4nn1cusio8thp9oqhbtilvcnhen52ibv43kr5q83f5er5q9h56s807k17tnelnrac7cch8o",
                 "termName": "readme",
-                "termTag": "Doc",
+                "termTag": "doc",
                 "termType": [
                     {
                         "annotation": {
@@ -53,9 +53,9 @@ GET /api/list?namespace=nested.names
         },
         {
             "contents": {
-                "termHash": "#qkhkl0n238",
+                "termHash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
                 "termName": "x",
-                "termTag": "Plain",
+                "termTag": "plain",
                 "termType": [
                     {
                         "annotation": {
@@ -85,9 +85,9 @@ GET /api/list?namespace=names&relativeTo=nested
     "namespaceListingChildren": [
         {
             "contents": {
-                "termHash": "#ddmmatmmiq",
+                "termHash": "#ddmmatmmiqsts2ku0i02kntd0s7rvcui4nn1cusio8thp9oqhbtilvcnhen52ibv43kr5q83f5er5q9h56s807k17tnelnrac7cch8o",
                 "termName": "readme",
-                "termTag": "Doc",
+                "termTag": "doc",
                 "termType": [
                     {
                         "annotation": {
@@ -102,9 +102,9 @@ GET /api/list?namespace=names&relativeTo=nested
         },
         {
             "contents": {
-                "termHash": "#qkhkl0n238",
+                "termHash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
                 "termName": "x",
-                "termTag": "Plain",
+                "termTag": "plain",
                 "termType": [
                     {
                         "annotation": {
