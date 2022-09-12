@@ -1,10 +1,16 @@
 # Definition Summary APIs
 
 ```unison
-int = 42
+nat : Nat
+nat = 42
+doc : Doc2
 doc = {{ Hello }}
 test> mytest = [Test.Result.Ok "ok"]
+func : Text -> Text
 func x = x ++ "hello"
+
+funcWithLongType : Text -> Text -> Text -> Text -> Text -> Text -> Text -> Text -> Text
+funcWithLongType a b c d e f g h = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h
 
 structural type Thing = This Nat | That
 ```
@@ -13,9 +19,9 @@ structural type Thing = This Nat | That
 
 ```api
 --  term
-GET /api/definitions/terms/by_name/int@qkhkl0n238/summary
+GET /api/definitions/terms/by_name/nat@qkhkl0n238/summary
 {
-    "fqn": "int",
+    "fqn": "nat",
     "hash": "#qkhkl0n238",
     "summary": {
         "contents": [
@@ -160,5 +166,379 @@ GET /api/definitions/terms/by_name/Thing.This@altimqs66j@0/summary
         "tag": "UserObject"
     },
     "tag": "data-constructor"
+}
+--  Long type signature
+GET /api/definitions/terms/by_name/funcWithLongType@ieskgcjjvu/summary
+{
+    "fqn": "funcWithLongType",
+    "hash": "#ieskgcjjvu",
+    "summary": {
+        "contents": [
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            }
+        ],
+        "tag": "UserObject"
+    },
+    "tag": "plain"
+}
+--  Long type signature with render width
+GET /api/definitions/terms/by_name/funcWithLongType@ieskgcjjvu/summary?renderWidth=20
+{
+    "fqn": "funcWithLongType",
+    "hash": "#ieskgcjjvu",
+    "summary": {
+        "contents": [
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": "\n"
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": "\n"
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": "\n"
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": "\n"
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": "\n"
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": "\n"
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": "\n"
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            },
+            {
+                "annotation": null,
+                "segment": "\n"
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Text",
+                    "tag": "TypeReference"
+                },
+                "segment": "Text"
+            }
+        ],
+        "tag": "UserObject"
+    },
+    "tag": "plain"
 }
 ```
