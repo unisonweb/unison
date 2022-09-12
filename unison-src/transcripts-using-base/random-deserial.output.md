@@ -16,7 +16,7 @@ shuffle : Nat -> [a] -> [a]
 shuffle =
   pick acc seed = cases
     l | lteq (List.size l) 1 -> acc ++ l
-      | otherwise -> match gen seed (Nat.drop (size l) 1) with
+      | otherwise -> match gen seed (size l) with
         (k, seed) -> match (take k l, drop k l) with
           (pre, x +: post) -> pick (acc :+ x) seed (pre ++ post)
   
@@ -78,8 +78,9 @@ serialTests = do
     New test results:
   
   ◉ serialTests   case-00
+  ◉ serialTests   case-01
   
-  ✅ 1 test(s) passing
+  ✅ 2 test(s) passing
   
   Tip: Use view serialTests to view the source of a test.
 
