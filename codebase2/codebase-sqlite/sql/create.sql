@@ -3,7 +3,7 @@
 CREATE TABLE schema_version (
   version INTEGER NOT NULL
 );
-INSERT INTO schema_version (version) VALUES (5);
+INSERT INTO schema_version (version) VALUES (6);
 
 -- actually stores the 512-byte hashes
 CREATE TABLE hash (
@@ -231,6 +231,7 @@ CREATE INDEX dependencies_by_dependent ON dependents_index (
   dependent_object_id,
   dependent_component_index
 )
+
 -- Semicolon intentionally omitted, for the same reason
 -- semicolons in comments will blow up codebase initialization.
 -- (oops, almost used a semicolon at the end of that last phrase!)

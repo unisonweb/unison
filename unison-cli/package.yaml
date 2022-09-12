@@ -28,6 +28,7 @@ dependencies:
   - extra
   - filepath
   - fuzzyfind
+  - friendly-time
   - generic-lens
   - haskeline
   - here

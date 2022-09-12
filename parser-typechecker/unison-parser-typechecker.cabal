@@ -58,7 +58,6 @@ library
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
       Unison.Codebase.PushBehavior
-      Unison.Codebase.Reflog
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
       Unison.Codebase.ShortBranchHash
@@ -74,6 +73,7 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral

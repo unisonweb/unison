@@ -67,6 +67,10 @@ module U.Codebase.Sqlite.Operations
     rootNamesByPath,
     NamesByPath (..),
 
+    -- * reflog
+    getReflog,
+    appendReflog,
+
     -- * low-level stuff
     expectDbBranch,
     saveDbBranch,
@@ -108,6 +112,7 @@ import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C
 import qualified U.Codebase.Referent as C.Referent
+import qualified U.Codebase.Reflog as Reflog
 import U.Codebase.ShortHash (ShortBranchHash (ShortBranchHash))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
@@ -1057,3 +1062,13 @@ rootNamesByPath path = do
   where
     convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
     convertTypes = fmap s2cTextReference
+
+getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
+getReflog numEntries = do
+  entries <- Q.getReflog numEntries
+  traverse (bitraverse Q.expectCausalHash pure) entries
+
+appendReflog :: Reflog.Entry CausalHash Text -> Transaction ()
+appendReflog entry = do
+  dbEntry <- (bitraverse Q.saveCausalHash pure) entry
+  Q.appendReflog dbEntry
