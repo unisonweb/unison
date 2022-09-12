@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module U.Codebase.Sqlite.Orphans where
@@ -5,6 +6,8 @@ module U.Codebase.Sqlite.Orphans where
 import Control.Applicative
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
+import qualified U.Codebase.Reflog as Reflog
+import U.Codebase.Sqlite.DbId
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WatchKind
 import U.Util.Base32Hex
@@ -63,3 +66,15 @@ instance FromField WatchKind where
       0 -> WatchKind.RegularWatch
       1 -> WatchKind.TestWatch
       tag -> error $ "Unknown WatchKind id " ++ show tag
+
+instance ToRow (Reflog.Entry CausalHashId Text) where
+  toRow (Reflog.Entry time fromRootCausalHash toRootCausalHash reason) =
+    toRow (time, fromRootCausalHash, toRootCausalHash, reason)
+
+instance FromRow (Reflog.Entry CausalHashId Text) where
+  fromRow = do
+    time <- field
+    fromRootCausalHash <- field
+    toRootCausalHash <- field
+    reason <- field
+    pure $ Reflog.Entry {..}

@@ -1652,12 +1652,6 @@ helpTopicsMap =
                   <> "update."
               ),
               blankline,
-              ( P.bold $ SR.prettyStatus SR.Conflicted,
-                "A definition with the same name as an existing definition."
-                  <> "Resolving the conflict and then trying an `update` again will"
-                  <> "turn this into a successful update."
-              ),
-              blankline,
               ( P.bold $ SR.prettyStatus SR.TermExistingConstructorCollision,
                 "A definition with the same name as an existing constructor for "
                   <> "some data type. Rename your definition or the data type before"

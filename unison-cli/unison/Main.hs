@@ -21,7 +21,7 @@ import ArgParse
     UsageRenderer,
     parseCLIArgs,
   )
-import Compat (defaultInterruptHandler, withInterruptHandler)
+import Compat (defaultInterruptHandler, withInterruptHandler, onWindows)
 import Control.Concurrent (newEmptyMVar, takeMVar)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
@@ -227,7 +227,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
           let ucmState :: STM (Branch IO, Path.Absolute)
               ucmState = readTVar ucmStateVar >>= maybe retry pure
           sbRuntime <- RTI.startRuntime True RTI.Persistent Version.gitDescribeWithDate
-          Ki.fork scope $ LSP.spawnLsp theCodebase runtime ucmState
+          when (not onWindows) . Ki.fork scope $ LSP.spawnLsp theCodebase runtime ucmState
           Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
             case exitOption of
               DoNotExit -> do
