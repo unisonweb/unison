@@ -209,3 +209,5 @@ gitErrorFromOpenCodebaseError path repo = \case
   OpenCodebaseDoesntExist -> NoDatabaseFile repo path
   OpenCodebaseUnknownSchemaVersion v ->
     UnrecognizedSchemaVersion repo path (fromIntegral v)
+  OpenCodebaseRequiresMigration fromSv toSv ->
+    CodebaseRequiresMigration fromSv toSv

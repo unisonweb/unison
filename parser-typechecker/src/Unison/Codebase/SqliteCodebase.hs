@@ -52,6 +52,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
+import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
@@ -60,7 +61,7 @@ import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
-import Unison.Codebase.SqliteCodebase.Migrations (ensureCodebaseIsUpToDate)
+import qualified Unison.Codebase.SqliteCodebase.Migrations as Migrations
 import qualified Unison.Codebase.SqliteCodebase.Operations as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Paths
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
@@ -181,6 +182,14 @@ withConnection ::
 withConnection name root action =
   Sqlite.withConnection name (makeCodebasePath root) action
 
+data MigrationStrategy
+  = -- | Perform a migration immediately if one is required.
+    MigrateAutomatically
+  | -- | Prompt the user that a migration is about to occur, continue after acknownledgment
+    MigrateAfterPrompt
+  | -- | Triggers an 'OpenCodebaseRequiresMigration' error instead of migrating
+    DontMigrate
+
 sqliteCodebase ::
   forall m r.
   MonadUnliftIO m =>
@@ -188,9 +197,10 @@ sqliteCodebase ::
   CodebasePath ->
   -- | When local, back up the existing codebase before migrating, in case there's a catastrophic bug in the migration.
   LocalOrRemote ->
+  MigrationStrategy ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
-sqliteCodebase debugName root localOrRemote action = do
+sqliteCodebase debugName root localOrRemote migrationStrategy action = do
   termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
   typeOfTermCache <- Cache.semispaceCache 8192
   declCache <- Cache.semispaceCache 1024
@@ -203,10 +213,19 @@ sqliteCodebase debugName root localOrRemote action = do
   termBuffer :: TVar (Map Hash CodebaseOps.TermBufferEntry) <- newTVarIO Map.empty
   declBuffer :: TVar (Map Hash CodebaseOps.DeclBufferEntry) <- newTVarIO Map.empty
 
-  -- Migrate if necessary.
-  result <-
-    withConn \conn ->
-      ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer conn
+  result <- withConn \conn -> do
+    Migrations.checkCodebaseIsUpToDate conn >>= \case
+      Migrations.CodebaseUpToDate -> pure $ Right ()
+      Migrations.CodebaseUnknownSchemaVersion sv -> pure $ Left (OpenCodebaseUnknownSchemaVersion sv)
+      Migrations.CodebaseRequiresMigration fromSv toSv ->
+        case migrationStrategy of
+          DontMigrate -> pure $ Left (OpenCodebaseRequiresMigration fromSv toSv)
+          MigrateAfterPrompt -> do
+            let shouldPrompt = True
+            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt conn
+          MigrateAutomatically -> do
+            let shouldPrompt = False
+            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt conn
 
   case result of
     Left err -> pure $ Left err
@@ -668,7 +687,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior act
           then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
           else throwIO exception
 
-      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote \codebase -> do
+      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote MigrateAfterPrompt \codebase -> do
         -- try to load the requested branch from it
         branch <- time "Git fetch (sbh)" $ case sbh of
           -- no sub-branch was specified, so use the root.

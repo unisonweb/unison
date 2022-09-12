@@ -105,6 +105,7 @@ module U.Codebase.Sqlite.Queries
     getDependencyIdsForDependent,
 
     -- ** migrations
+    currentSchemaVersion,
     countObjects,
     countCausals,
     countWatches,
@@ -276,12 +277,21 @@ import Unison.Sqlite
 
 -- * main squeeze
 
+currentSchemaVersion :: SchemaVersion
+currentSchemaVersion = 7
+
 createSchema :: Transaction ()
 createSchema = do
   executeFile [hereFile|unison/sql/create.sql|]
+  execute insertSchemaVersionSql (Only currentSchemaVersion)
   addTempEntityTables
   addNamespaceStatsTables
   addReflogTable
+  where
+    insertSchemaVersionSql =
+      [here|
+        INSERT INTO schema_version (version) VALUES (?);
+      |]
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
