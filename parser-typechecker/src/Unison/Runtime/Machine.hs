@@ -129,7 +129,7 @@ baseCCache sandboxed = do
 
     combs =
       mapWithKey
-        (\k v -> emitComb @Symbol rns k mempty (0, v))
+        (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
         numberedTermLookup
 
 info :: Show a => String -> a -> IO ()
@@ -1793,11 +1793,11 @@ codeValidate tml cc = do
       rty = ntys <> rty0
   ftm <- readTVarIO (freshTm cc)
   rtm0 <- readTVarIO (refTm cc)
-  let (rs, gs) = unzip tml
+  let rs = fst <$> tml
       rtm = rtm0 `M.withoutKeys` S.fromList rs
       rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
-      combinate (n, g) = evaluate $ emitCombs rns n g
-  (Nothing <$ traverse_ combinate (zip [ftm ..] gs))
+      combinate (n, (r, g)) = evaluate $ emitCombs rns r n g
+  (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
     `catch` \(CE cs perr) ->
       let msg = Util.Text.pack $ toPlainUnbroken perr
           extra = Foreign . Wrap Rf.textRef . Util.Text.pack $ show cs
@@ -1828,16 +1828,17 @@ cacheAdd0 ntys0 tml sands cc = atomically $ do
   have <- readTVar (intermed cc)
   let new = M.difference toAdd have
       sz = fromIntegral $ M.size new
-      (rs, gs) = unzip $ M.toList new
+      rgs = M.toList new
+      rs = fst <$> rgs
   int <- writeTVar (intermed cc) (have <> new)
   rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
   ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
   rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
   -- check for missing references
   let rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
-      combinate n g = (n, emitCombs rns n g)
+      combinate n (r, g) = (n, emitCombs rns r n g)
   nrs <- updateMap (mapFromList $ zip [ntm ..] rs) (combRefs cc)
-  ncs <- updateMap (mapFromList $ zipWith combinate [ntm ..] gs) (combs cc)
+  ncs <- updateMap (mapFromList $ zipWith combinate [ntm ..] rgs) (combs cc)
   nsn <- updateMap (M.fromList sands) (sandbox cc)
   pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()
   where
