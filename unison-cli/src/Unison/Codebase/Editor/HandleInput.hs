@@ -2130,7 +2130,7 @@ handleUpdate input optionalPatch requestedNames = do
       addsAndUpdates :: SlurpComponent Symbol
       addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
       fileNames :: Names
-      fileNames = UF.typecheckedToNames uf
+      fileNames = UF.typecheckedToNames (Slurp.originalFile sr)
       -- todo: display some error if typeEdits or termEdits itself contains a loop
       typeEdits :: [(Name, Reference, Reference)]
       typeEdits = do
@@ -2146,7 +2146,7 @@ handleUpdate input optionalPatch requestedNames = do
       hashTerms :: Map Reference (Type Symbol Ann)
       hashTerms = Map.fromList (toList hashTerms0)
         where
-          hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
+          hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms (Slurp.originalFile sr)
       termEdits :: [(Name, Reference, Reference)]
       termEdits = do
         v <- Set.toList (SC.terms (updates sr))
@@ -2223,15 +2223,15 @@ handleUpdate input optionalPatch requestedNames = do
             pure . doSlurpUpdates typeEdits termEdits termDeprecations
           ),
           ( Path.unabsolute currentPath',
-            pure . doSlurpAdds addsAndUpdates uf
+            pure . doSlurpAdds addsAndUpdates (Slurp.originalFile sr)
           )
         ]
           ++ case patchOps of
             Nothing -> []
             Just (_, update, p) -> [(Path.unabsolute p, update)]
       )
-    liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ uf
-  ppe <- prettyPrintEnvDecl =<< displayNames uf
+    liftIO . Codebase.addDefsToCodebase codebase . filterBySlurpResult sr $ Slurp.originalFile sr
+  ppe <- prettyPrintEnvDecl =<< displayNames (Slurp.originalFile sr)
   Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
   whenJust patchOps \(updatedPatch, _, _) ->
     void $ propagatePatchNoSync updatedPatch currentPath'
