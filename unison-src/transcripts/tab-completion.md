@@ -16,7 +16,8 @@ Test that tab completion works as expected.
 ```unison
 subnamespace.someName = 1
 subnamespace.someOtherName = 2
-othernamespace.someName = 3
+subnamespace2.thing = 3
+othernamespace.someName = 4
 
 unique type subnamespace.AType = A | B
 ```
@@ -28,9 +29,12 @@ unique type subnamespace.AType = A | B
 ```ucm
 -- Should tab complete namespaces since they may contain terms/types
 .> debug.tab-complete view sub
--- Should complete things from child namespaces of the current query
+-- Should not complete things from child namespaces of the current query if there are other completions at this level
 .> debug.tab-complete view subnamespace
+-- Should complete things from child namespaces of the current query if it's dot-suffixed
 .> debug.tab-complete view subnamespace.
+-- Should complete things from child namespaces of the current query if there are no more completions at this level.
+.> debug.tab-complete view subnamespace2
 -- Should prefix-filter by query suffix
 .> debug.tab-complete view subnamespace.some
 .> debug.tab-complete view subnamespace.someOther

@@ -59,7 +59,6 @@ import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Var as Var
 import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
-import Witherable (forMaybe)
 
 -- | Lex, parse, and typecheck a file.
 checkFile :: HasUri d Uri => d -> Lsp (Maybe FileAnalysis)

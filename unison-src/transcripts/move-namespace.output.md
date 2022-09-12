@@ -69,7 +69,7 @@ Should be able to move the namespace, including its types, terms, and sub-namesp
 .happy> ls b
 
   1. T       (type)
-  2. T/      (2 definitions)
+  2. T/      (2 terms)
   3. termInA (Nat)
 
 .happy> history b
@@ -267,7 +267,7 @@ I should be able to move the root into a sub-namespace
 
 .> ls
 
-  1. root/ (655 definitions)
+  1. root/ (577 terms, 78 types)
 
 .> history
 
@@ -282,10 +282,10 @@ I should be able to move the root into a sub-namespace
 ```ucm
 .> ls .root.at.path
 
-  1. builtin/  (649 definitions)
-  2. existing/ (1 definition)
-  3. happy/    (4 definitions)
-  4. history/  (1 definition)
+  1. builtin/  (572 terms, 77 types)
+  2. existing/ (1 term)
+  3. happy/    (3 terms, 1 type)
+  4. history/  (1 term)
 
 .> history .root.at.path
 
@@ -404,7 +404,7 @@ I should be able to move a sub namespace _over_ the root.
 
 .> ls
 
-  1. b/    (4 definitions)
+  1. b/    (3 terms, 1 type)
   2. patch (patch)
 
 .> history
