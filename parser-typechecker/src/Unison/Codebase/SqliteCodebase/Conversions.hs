@@ -561,6 +561,9 @@ branch2to1 branchCache lookupCT (V2.Branch.Branch v2terms v2types v2patches v2ch
                 Relation.insertManyRan ref (fmap (\(v, t) -> (mdref2to1 t, mdref2to1 v)) (Map.toList mdvals)) mempty
            in star <> V1.Star3.Star3 facts names types vals
 
+-- | Generates a v1 short hash from a v2 referent.
+-- Also shortens the hash to the provided length. If 'Nothing', it will include the full
+-- length hash.
 referent2toshorthash1 :: Maybe Int -> V2.Referent -> V1.ShortHash.ShortHash
 referent2toshorthash1 hashLength ref =
   maybe id V1.ShortHash.take hashLength $ case ref of
@@ -570,6 +573,9 @@ referent2toshorthash1 hashLength ref =
         V1.ShortHash.ShortHash h p _con -> V1.ShortHash.ShortHash h p (Just $ tShow conId)
         sh@(V1.ShortHash.Builtin {}) -> sh
 
+-- | Generates a v1 short hash from a v2 reference.
+-- Also shortens the hash to the provided length. If 'Nothing', it will include the full
+-- length hash.
 reference2toshorthash1 :: Maybe Int -> V2.Reference.Reference -> V1.ShortHash.ShortHash
 reference2toshorthash1 hashLength ref = maybe id V1.ShortHash.take hashLength $ case ref of
   (V2.Reference.ReferenceBuiltin b) -> V1.ShortHash.Builtin b

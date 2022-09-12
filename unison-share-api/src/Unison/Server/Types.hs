@@ -8,8 +8,6 @@
 module Unison.Server.Types where
 
 -- Types common to endpoints --
-
--- Types common to endpoints --
 import Control.Lens hiding ((.=))
 import Data.Aeson
 import qualified Data.Aeson as Aeson
