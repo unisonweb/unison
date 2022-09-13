@@ -44,6 +44,12 @@ extra-deps:
   commit: 563e96238dfe392dccf68d93953c8f30fd53bec8
   subdirs:
     - ki
+# This custom Haskeline alters ANSI rendering on Windows.
+# If changing the haskeline dependency, please ensure color renders properly in a
+# Windows terminal.
+# https://github.com/judah/haskeline/pull/126
+- github: judah/haskeline
+  commit: d6c2643b0d5c19be7e440615c6f84d603d4bc648
 - guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
 - prelude-extras-0.4.0.3@sha256:1c10b0123ea13a6423d74a8fcbaeb2d5249b472588abde418a36b47b7c4f48c8,1163
 - sandi-0.5@sha256:b278d072ca717706ea38f9bd646e023f7f2576a778fb43565b434f93638849aa,3010
@@ -63,7 +69,6 @@ extra-deps:
 - co-log-core-0.3.1.0
 # lts 18.28 provides 0.3.2.1 but we need at least 0.3.3
 - terminal-size-0.3.3
-- haskeline-0.8.1.3
 
 ghc-options:
  # All packages
