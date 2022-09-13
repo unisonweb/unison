@@ -21,7 +21,6 @@ import qualified Unison.Test.Common as Common
 import qualified Unison.Type as Type
 import Unison.UnisonFile (UnisonFile (..))
 import qualified Unison.Var as Var
-import qualified Unison.Var.RefNamed as Var
 
 test :: Test ()
 test =
@@ -94,10 +93,10 @@ unhashComponentTest =
           (-->) = Type.arrow ()
           h = Hash.fromByteString (encodeUtf8 "abcd")
           ref = R.Id h 0
-          a = Var.refIdNamed ref
+          a = Var.unnamedRef ref
           b = Var.named "b"
           nil = Var.named "Nil"
-          cons = Var.refIdNamed ref
+          cons = Var.unnamedRef ref
           listRef = ref
           listType = Type.refId () listRef
           listDecl =
