@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.HandleInput
   ( loop,
+    typecheckHelper,
   )
 where
 
@@ -138,7 +139,7 @@ import Unison.Position (Position (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
+import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo, empty)
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import Unison.Reference (Reference (..), TermReference, TypeReference)
@@ -3602,6 +3603,29 @@ typecheck ambient names sourceName source =
         (Parser.ParsingEnv uniqueName names)
         (Text.unpack sourceName)
         (fst source)
+
+typecheckHelper ::
+  MonadIO m =>
+  Codebase IO Symbol Ann -> IO Parser.UniqueName ->
+  [Type Symbol Ann] ->
+  NamesWithHistory ->
+  Text ->
+  (Text, [L.Token L.Lexeme]) ->
+    m
+    ( Result.Result
+        (Seq (Result.Note Symbol Ann))
+        (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann))
+    )
+typecheckHelper codebase generateUniqueName ambient names sourceName source = do
+    uniqueName <- liftIO generateUniqueName
+    (liftIO . Result.getResult) $
+      parseAndSynthesizeFile
+        ambient
+        (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+        (Parser.ParsingEnv uniqueName names)
+        (Text.unpack sourceName)
+        (fst source)
+
 
 -- | Evaluate all watched expressions in a UnisonFile and return
 -- their results, keyed by the name of the watch variable. The tuple returned

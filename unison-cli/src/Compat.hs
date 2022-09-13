@@ -14,6 +14,15 @@ import qualified GHC.ConsoleHandler as WinSig
 import qualified System.Posix.Signals as Sig
 #endif
 
+onWindows :: Bool
+onWindows = 
+#if defined(mingw32_HOST_OS)
+  True
+#else
+  False
+#endif
+
+
 -- | Constructs a default interrupt handler which builds an interrupt handler which throws a
 -- UserInterrupt exception to the thread in which the setup was initially called.
 defaultInterruptHandler :: IO (IO ())
