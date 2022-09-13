@@ -86,7 +86,7 @@ checkFile doc = runMaybeT $ do
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
-  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, testing = "hi!", ..}
+  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, ..}
   pure $ fileAnalysis
 
 fileAnalysisWorker :: Lsp ()
@@ -119,8 +119,6 @@ analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol 
 analyseNotes fileUri ppe src notes = do
   currentPath <- getCurrentPath
   flip foldMapM notes \note -> case note of
-    -- Result.TypeError (Context.ErrorNote {cause = Context.PatternArityMismatch loc _ _}) ->
-    --   ([], singleRange loc)
     Result.TypeError errNote@(Context.ErrorNote {cause}) -> do
       let typeErr = TypeError.typeErrorFromNote errNote
           ranges = case typeErr of
@@ -246,18 +244,18 @@ analyseNotes fileUri ppe src notes = do
     typeHoleReplacementCodeActions diags v typ
       | not (isUserBlank v) = pure []
       | otherwise = do
-        Env {codebase} <- ask
-        ppe <- PPE.suffixifiedPPE <$> globalPPE
-        let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
-        refs <- liftIO $ Codebase.termsOfType codebase cleanedTyp
-        forMaybe (toList refs) $ \ref -> runMaybeT $ do
-          hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
-          typ <- MaybeT . liftIO $ Codebase.getTypeOfReferent codebase ref
-          let prettyType = TypePrinter.prettyStr Nothing ppe typ
-          let txtName = HQ'.toText hqNameSuggestion
-          let ranges = (diags ^.. folded . range)
-          let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
-          pure $ includeEdits fileUri txtName ranges rca
+          Env {codebase} <- ask
+          ppe <- PPE.suffixifiedPPE <$> globalPPE
+          let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
+          refs <- liftIO $ Codebase.termsOfType codebase cleanedTyp
+          forMaybe (toList refs) $ \ref -> runMaybeT $ do
+            hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
+            typ <- MaybeT . liftIO $ Codebase.getTypeOfReferent codebase ref
+            let prettyType = TypePrinter.prettyStr Nothing ppe typ
+            let txtName = HQ'.toText hqNameSuggestion
+            let ranges = (diags ^.. folded . range)
+            let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
+            pure $ includeEdits fileUri txtName ranges rca
     isUserBlank :: Symbol -> Bool
     isUserBlank v = case Var.typeOf v of
       Var.User name -> Text.isPrefixOf "_" name
