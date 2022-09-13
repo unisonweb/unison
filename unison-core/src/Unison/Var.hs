@@ -108,7 +108,7 @@ data Type
     MissingResult
   | -- Variables invented for placeholder values inserted by user or by TDNR
     Blank
-  | -- | TODO document
+  | -- | An unnamed reference, created during unhashing a term/decl component.
     UnnamedReference Reference.Id
   | -- An unnamed watch expression of the given kind, for instance:
     --
