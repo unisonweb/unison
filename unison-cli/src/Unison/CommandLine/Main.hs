@@ -99,8 +99,9 @@ main ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
+  ((Branch IO, Path.Absolute) -> IO ()) ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion = Ki.scoped \scope -> do
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyChange = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   _ <- Ki.fork scope $ do
     root <- Codebase.getRootBranch codebase
@@ -193,6 +194,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
     -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
     let loop0 :: Cli.LoopState -> IO ()
         loop0 s0 = do
+          currentRoot <- atomically . readTMVar $ Cli.root s0
+          notifyChange (currentRoot, s0 ^. #currentPath)
           let step = do
                 input <- awaitInput s0
                 (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)

@@ -143,7 +143,11 @@ completeWithinNamespace compTypes query codebase currentPath = do
           & pure
 
       childSuggestions <- getChildSuggestions shortHashLen b
-      pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ currentBranchSuggestions <> childSuggestions
+      let allSuggestions =
+            currentBranchSuggestions
+              -- Only show child suggestions when the current branch isn't ambiguous
+              <> Monoid.whenM (length currentBranchSuggestions <= 1) childSuggestions
+      pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ allSuggestions
   where
     queryPathPrefix :: Path.Path'
     querySuffix :: NameSegment.NameSegment

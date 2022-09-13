@@ -220,7 +220,7 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
         resolve shortv loc replacement t = case t of
           Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
             | loc' == loc && Var.nameStr shortv == name ->
-              -- loc of replacement already chosen correctly by whatever made the
-              -- Decision
-              pure . pure $ replacement
+                -- loc of replacement already chosen correctly by whatever made the
+                -- Decision
+                pure . pure $ replacement
           _ -> Nothing
