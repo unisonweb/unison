@@ -9,6 +9,8 @@
 module Unison.Server.Endpoints.DefinitionSummary
   ( TermSummaryAPI,
     serveTermSummary,
+    TypeSummaryAPI,
+    serveTypeSummary,
   )
 where
 
@@ -39,6 +41,7 @@ import Unison.Server.Types
   ( APIGet,
     ExactName (..),
     TermTag (..),
+    TypeTag,
     exactToHQ,
     mayDefaultWidth,
   )
@@ -108,3 +111,55 @@ serveTermSummary codebase exactNameSH@(ExactName {name = termName, ref = shortHa
       if Reference.isBuiltin reference
         then BuiltinObject termSig
         else UserObject termSig
+
+type TypeSummaryAPI =
+  "definitions" :> "types" :> "qualified" :> Capture "fqn" (ExactName Name SH.ShortHash) :> "summary"
+    :> QueryParam "rootBranch" ShortBranchHash
+    :> QueryParam "relativeTo" Path.Path
+    :> QueryParam "renderWidth" Width
+    :> APIGet TypeSummary
+
+instance ToSample TypeSummary where
+  toSamples _ = noSamples
+
+data TypeSummary = TypeSummary
+  { fqn :: Name,
+    hash :: SH.ShortHash,
+    summary :: DisplayObject SyntaxText SyntaxText,
+    tag :: TypeTag
+  }
+  deriving (Generic, Show)
+
+instance ToJSON TypeSummary where
+  toEncoding = genericToEncoding defaultOptions
+
+deriving instance ToSchema TypeSummary
+
+serveTypeSummary ::
+  Codebase IO Symbol Ann ->
+  ExactName Name SH.ShortHash ->
+  Maybe ShortBranchHash ->
+  Maybe Path.Path ->
+  Maybe Width ->
+  Backend IO TypeSummary
+serveTypeSummary codebase exactNameSH@(ExactName {name, ref = shortHash}) _mayRoot _relativeTo mayWidth = do
+  let hqName = exactToHQ exactNameSH
+  typeReference <- do
+    matchingReferences <- lift $ Backend.typeReferencesByShortHash codebase shortHash
+    case NESet.nonEmptySet matchingReferences of
+      Just neSet
+        | NESet.size neSet == 1 -> pure $ NESet.findMin neSet
+        | otherwise -> throwError $ Backend.AmbiguousHashForDefinition shortHash
+      Nothing -> throwError $ Backend.NoSuchDefinition (exactToHQ exactNameSH)
+  tag <- lift $ Backend.getTypeTag codebase typeReference
+  displayDecl <- lift $ Backend.displayType codebase typeReference
+  let syntaxHeader = Backend.typeToSyntaxHeader width hqName displayDecl
+  pure $
+    TypeSummary
+      { fqn = name,
+        hash = shortHash,
+        summary = bimap Backend.mungeSyntaxText Backend.mungeSyntaxText syntaxHeader,
+        tag = tag
+      }
+  where
+    width = mayDefaultWidth mayWidth
