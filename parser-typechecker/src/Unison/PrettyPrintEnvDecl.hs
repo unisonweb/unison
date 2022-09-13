@@ -1,6 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..), biasTo) where
+module Unison.PrettyPrintEnvDecl
+  ( PrettyPrintEnvDecl (..),
+    biasTo,
+    empty,
+  )
+where
 
 import Unison.Name (Name)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
@@ -27,3 +32,6 @@ biasTo targets PrettyPrintEnvDecl {unsuffixifiedPPE, suffixifiedPPE} =
     { unsuffixifiedPPE = PPE.biasTo targets unsuffixifiedPPE,
       suffixifiedPPE = PPE.biasTo targets suffixifiedPPE
     }
+
+empty :: PrettyPrintEnvDecl
+empty = PrettyPrintEnvDecl PPE.empty PPE.empty

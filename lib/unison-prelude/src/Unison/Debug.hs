@@ -30,6 +30,8 @@ data DebugFlag
   | Migration
   | Sqlite
   | Sync
+  | -- Language server
+    LSP
   | -- | Timing how long things take
     Timing
   deriving (Eq, Ord, Show, Bounded, Enum)
@@ -50,6 +52,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "MIGRATION" -> pure Migration
       "SQLITE" -> pure Sqlite
       "SYNC" -> pure Sync
+      "LSP" -> pure LSP
       "TIMING" -> pure Timing
       _ -> empty
 {-# NOINLINE debugFlags #-}
@@ -81,6 +84,10 @@ debugIntegrity = Integrity `Set.member` debugFlags
 debugSync :: Bool
 debugSync = Sync `Set.member` debugFlags
 {-# NOINLINE debugSync #-}
+
+debugLSP :: Bool
+debugLSP = LSP `Set.member` debugFlags
+{-# NOINLINE debugLSP #-}
 
 debugTiming :: Bool
 debugTiming = Timing `Set.member` debugFlags
@@ -133,4 +140,5 @@ shouldDebug = \case
   Migration -> debugMigration
   Sqlite -> debugSqlite
   Sync -> debugSync
+  LSP -> debugLSP
   Timing -> debugTiming
