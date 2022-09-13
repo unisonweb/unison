@@ -18,6 +18,10 @@ funcWithLongType : Text -> Text -> Text -> Text -> Text -> Text -> Text -> Text 
 funcWithLongType a b c d e f g h = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h
 
 structural type Thing = This Nat | That
+structural type Maybe a = Nothing | Just a
+
+structural ability Stream s where
+  send : s -> ()
 ```
 
 ```ucm:hide
@@ -60,8 +64,11 @@ GET /api/definitions/terms/qualified/putBytesImpl@@IO.putBytes.impl.v3/summary
 -- data
 GET /api/definitions/types/qualified/Thing@altimqs66j/summary
 
+-- data with type args
+GET /api/definitions/types/qualified/Maybe@nirp5os0q6/summary
+
 -- ability
-GET /api/definitions/types/qualified/Thing@altimqs66j/summary
+GET /api/definitions/types/qualified/Stream@rfi1v9429f/summary
 
 -- builtin type
 GET /api/definitions/types/qualified/Nat@@Nat/summary
