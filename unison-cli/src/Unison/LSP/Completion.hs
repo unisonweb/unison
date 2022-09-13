@@ -11,6 +11,7 @@ import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import qualified Text.FuzzyFind as Fuzzy
+import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import Unison.Prelude
@@ -40,17 +41,17 @@ completionHandler m respond =
     resultToCompletion :: Range -> Text -> FZF.FoundResult -> CompletionItem
     resultToCompletion range prefix = \case
       FZF.FoundTermResult (FZF.FoundTerm {namedTerm = Backend.NamedTerm {termName, termType}}) -> do
-        (mkCompletionItem termName)
+        (mkCompletionItem (HQ'.toText termName))
           { _detail = (": " <>) . Text.pack . Server.toPlain <$> termType,
             _kind = Just CiVariable,
-            _insertText = Text.stripPrefix prefix termName,
-            _textEdit = Just $ CompletionEditText (TextEdit range termName)
+            _insertText = Text.stripPrefix prefix (HQ'.toText termName),
+            _textEdit = Just $ CompletionEditText (TextEdit range (HQ'.toText termName))
           }
       FZF.FoundTypeResult (FZF.FoundType {namedType = Backend.NamedType {typeName, typeTag}}) ->
         let (detail, kind) = case typeTag of
               Backend.Ability -> ("Ability", CiInterface)
               Backend.Data -> ("Data", CiClass)
-         in (mkCompletionItem typeName)
+         in (mkCompletionItem (HQ'.toText typeName))
               { _detail = Just detail,
                 _kind = Just kind
               }
