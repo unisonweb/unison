@@ -19,7 +19,7 @@ structural type Thing = This Nat | That
 
 ```api
 --  term
-GET /api/definitions/terms/by_name/nat@qkhkl0n238/summary
+GET /api/definitions/terms/qualified/nat@qkhkl0n238/summary
 {
     "fqn": "nat",
     "hash": "#qkhkl0n238",
@@ -38,7 +38,7 @@ GET /api/definitions/terms/by_name/nat@qkhkl0n238/summary
     "tag": "plain"
 }
 --  doc
-GET /api/definitions/terms/by_name/doc@icfnhas71n/summary
+GET /api/definitions/terms/qualified/doc@icfnhas71n/summary
 {
     "fqn": "doc",
     "hash": "#icfnhas71n",
@@ -57,7 +57,7 @@ GET /api/definitions/terms/by_name/doc@icfnhas71n/summary
     "tag": "doc"
 }
 --  test
-GET /api/definitions/terms/by_name/mytest@u17p9803hd/summary
+GET /api/definitions/terms/qualified/mytest@u17p9803hd/summary
 {
     "fqn": "mytest",
     "hash": "#u17p9803hd",
@@ -88,7 +88,7 @@ GET /api/definitions/terms/by_name/mytest@u17p9803hd/summary
     "tag": "test"
 }
 --  function
-GET /api/definitions/terms/by_name/func@6ee6j48hk3/summary
+GET /api/definitions/terms/qualified/func@6ee6j48hk3/summary
 {
     "fqn": "func",
     "hash": "#6ee6j48hk3",
@@ -128,7 +128,7 @@ GET /api/definitions/terms/by_name/func@6ee6j48hk3/summary
     "tag": "plain"
 }
 --  constructor
-GET /api/definitions/terms/by_name/Thing.This@altimqs66j@0/summary
+GET /api/definitions/terms/qualified/Thing.This@altimqs66j@0/summary
 {
     "fqn": "Thing.This",
     "hash": "#altimqs66j#0",
@@ -168,7 +168,7 @@ GET /api/definitions/terms/by_name/Thing.This@altimqs66j@0/summary
     "tag": "data-constructor"
 }
 --  Long type signature
-GET /api/definitions/terms/by_name/funcWithLongType@ieskgcjjvu/summary
+GET /api/definitions/terms/qualified/funcWithLongType@ieskgcjjvu/summary
 {
     "fqn": "funcWithLongType",
     "hash": "#ieskgcjjvu",
@@ -355,7 +355,7 @@ GET /api/definitions/terms/by_name/funcWithLongType@ieskgcjjvu/summary
     "tag": "plain"
 }
 --  Long type signature with render width
-GET /api/definitions/terms/by_name/funcWithLongType@ieskgcjjvu/summary?renderWidth=20
+GET /api/definitions/terms/qualified/funcWithLongType@ieskgcjjvu/summary?renderWidth=20
 {
     "fqn": "funcWithLongType",
     "hash": "#ieskgcjjvu",

@@ -47,7 +47,7 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 
 type TermSummaryAPI =
-  "definitions" :> "terms" :> "by_name" :> Capture "fqn" (ExactName Name SH.ShortHash) :> "summary"
+  "definitions" :> "terms" :> "qualified" :> Capture "fqn" (ExactName Name SH.ShortHash) :> "summary"
     :> QueryParam "rootBranch" ShortBranchHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "renderWidth" Width
