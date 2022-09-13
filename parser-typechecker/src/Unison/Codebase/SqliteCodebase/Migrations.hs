@@ -63,19 +63,15 @@ data CodebaseVersionStatus
       SchemaVersion
   deriving stock (Eq, Ord, Show)
 
-checkCodebaseIsUpToDate ::
-  MonadUnliftIO m =>
-  Sqlite.Connection ->
-  m CodebaseVersionStatus
-checkCodebaseIsUpToDate conn = do
-  Sqlite.runWriteTransaction conn \run -> do
-    schemaVersion <- run Q.schemaVersion
-    -- The highest schema that this ucm knows how to migrate to.
-    pure $
-      if
-          | schemaVersion == Q.currentSchemaVersion -> CodebaseUpToDate
-          | schemaVersion < Q.currentSchemaVersion -> CodebaseRequiresMigration schemaVersion Q.currentSchemaVersion
-          | otherwise -> CodebaseUnknownSchemaVersion schemaVersion
+checkCodebaseIsUpToDate :: Sqlite.Transaction CodebaseVersionStatus
+checkCodebaseIsUpToDate = do
+  schemaVersion <- Q.schemaVersion
+  -- The highest schema that this ucm knows how to migrate to.
+  pure $
+    if
+        | schemaVersion == Q.currentSchemaVersion -> CodebaseUpToDate
+        | schemaVersion < Q.currentSchemaVersion -> CodebaseRequiresMigration schemaVersion Q.currentSchemaVersion
+        | otherwise -> CodebaseUnknownSchemaVersion schemaVersion
 
 -- | Migrates a codebase up to the most recent version known to ucm.
 -- This is a No-op if it's up to date
@@ -151,6 +147,6 @@ backupCodebase root shouldPrompt = do
   copyFile (root </> codebasePath) (root </> backupPath)
   putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
   putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
-  when shouldPrompt $ do
+  when shouldPrompt do
     putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
     void $ liftIO getLine

@@ -210,7 +210,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
   declBuffer :: TVar (Map Hash CodebaseOps.DeclBufferEntry) <- newTVarIO Map.empty
 
   result <- withConn \conn -> do
-    Migrations.checkCodebaseIsUpToDate conn >>= \case
+    Sqlite.runTransaction conn Migrations.checkCodebaseIsUpToDate >>= \case
       Migrations.CodebaseUpToDate -> pure $ Right ()
       Migrations.CodebaseUnknownSchemaVersion sv -> pure $ Left (OpenCodebaseUnknownSchemaVersion sv)
       Migrations.CodebaseRequiresMigration fromSv toSv ->
