@@ -103,6 +103,7 @@ main ::
   IO ()
 main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyChange = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
+  initialRootCausalHash <- Codebase.getRootCausalHash codebase
   _ <- Ki.fork scope $ do
     root <- Codebase.getRootBranch codebase
     atomically $ putTMVar rootVar root
@@ -218,7 +219,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                 Cli.Continue -> loop0 s1
                 Cli.HaltRepl -> pure ()
 
-    withInterruptHandler onInterrupt (loop0 (Cli.loopState0 rootVar initialPath) `finally` cleanup)
+    withInterruptHandler onInterrupt (loop0 (Cli.loopState0 initialRootCausalHash rootVar initialPath) `finally` cleanup)
 
 -- | Installs a posix interrupt handler for catching SIGINT.
 -- This replaces GHC's default sigint handler which throws a UserInterrupt async exception

@@ -233,6 +233,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
         "Running the provided transcript file...",
         ""
       ]
+  initialRootCausalHash <- Codebase.getRootCausalHash codebase
   rootVar <- newEmptyTMVarIO
   void $ Ki.fork scope do
     root <- Codebase.getRootBranch codebase
@@ -484,7 +485,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
 
-  loop (Cli.loopState0 rootVar initialPath)
+  loop (Cli.loopState0 initialRootCausalHash rootVar initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do

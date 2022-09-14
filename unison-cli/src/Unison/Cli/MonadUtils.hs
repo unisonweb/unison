@@ -24,8 +24,8 @@ module Unison.Cli.MonadUtils
     getCurrentBranch0,
     getBranchAt,
     getBranch0At,
-    getLastSavedRoot,
-    setLastSavedRoot,
+    getLastSavedRootHash,
+    setLastSavedRootHash,
     getMaybeBranchAt,
     expectBranchAtPath',
     assertNoBranchAtPath',
@@ -85,6 +85,7 @@ import Unison.Codebase.Path (Path' (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann (..))
@@ -190,18 +191,16 @@ getCurrentBranch0 :: Cli r (Branch0 IO)
 getCurrentBranch0 = do
   Branch.head <$> getCurrentBranch
 
--- | Get the last saved root.
-getLastSavedRoot :: Cli r (Branch IO)
-getLastSavedRoot = do
-  use #lastSavedRoot >>= atomically . readTMVar
+-- | Get the last saved root hash.
+getLastSavedRootHash :: Cli r V2Branch.CausalHash
+getLastSavedRootHash = do
+  use #lastSavedRootHash
 
 -- | Set a new root branch.
 -- Note: This does _not_ update the codebase, the caller is responsible for that.
-setLastSavedRoot :: Branch IO -> Cli r ()
-setLastSavedRoot b = do
-  lastRootVar <- use #lastSavedRoot
-  _ <- liftIO . atomically $ swapTMVar lastRootVar b
-  pure ()
+setLastSavedRootHash :: V2Branch.CausalHash -> Cli r ()
+setLastSavedRootHash ch = do
+  #lastSavedRootHash .= ch
 
 -- | Get the branch at an absolute path.
 getBranchAt :: Path.Absolute -> Cli r (Branch IO)
@@ -324,7 +323,7 @@ updateAtM ::
   (Branch IO -> Cli r (Branch IO)) ->
   Cli r Bool
 updateAtM reason (Path.Absolute p) f = do
-  b <- getLastSavedRoot
+  b <- getRootBranch
   b' <- Branch.modifyAtM p f b
   updateRoot b' reason
   pure $ b /= b'
@@ -343,8 +342,9 @@ updateRoot :: Branch IO -> Text -> Cli r ()
 updateRoot new reason =
   Cli.time "updateRoot" do
     Cli.Env {codebase} <- ask
-    old <- getLastSavedRoot
-    when (old /= new) do
+    let newHash = Cv.causalHash1to2 $ Branch.headHash new
+    oldHash <- getLastSavedRootHash
+    when (oldHash /= newHash) do
       setRootBranch new
       liftIO (Codebase.putRootBranch codebase reason new)
-      setLastSavedRoot new
+      setLastSavedRootHash newHash
