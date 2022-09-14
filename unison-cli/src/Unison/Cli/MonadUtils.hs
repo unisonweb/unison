@@ -243,7 +243,8 @@ branchExistsAtPath' path' = do
   liftIO $ do
     causal <- Codebase.getShallowCausalFromRoot codebase Nothing (Path.unabsolute absPath)
     branch <- V2Causal.value causal
-    Codebase.runTransaction codebase $ V2Branch.isEmpty branch
+    isEmpty <- Codebase.runTransaction codebase $ V2Branch.isEmpty branch
+    pure (not isEmpty)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting terms
