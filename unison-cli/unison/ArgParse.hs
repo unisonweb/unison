@@ -20,6 +20,7 @@ import Options.Applicative
     Parser,
     ParserInfo,
     ParserPrefs,
+    ReadM,
     action,
     auto,
     columns,
@@ -47,10 +48,13 @@ import Options.Applicative
     strArgument,
     strOption,
   )
+import qualified Options.Applicative as OptParse
 import Options.Applicative.Help (bold, (<+>))
 import qualified Options.Applicative.Help.Pretty as P
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.PrettyTerminal as PT
 import Unison.Server.CodebaseServer (CodebaseServerOpts (..))
 import qualified Unison.Server.CodebaseServer as Server
@@ -98,7 +102,12 @@ data IsHeadless = Headless | WithCLI
 -- Note that this is not one-to-one with command-parsers since some are simple variants.
 -- E.g. run, run.file, run.pipe
 data Command
-  = Launch IsHeadless CodebaseServerOpts ShouldDownloadBase
+  = Launch
+      IsHeadless
+      CodebaseServerOpts
+      ShouldDownloadBase
+      -- Starting path
+      (Maybe Path.Absolute)
   | PrintVersion
   | -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
     Init
@@ -246,12 +255,14 @@ commandParser envOpts =
 globalOptionsParser :: Parser GlobalOptions
 globalOptionsParser = do
   -- ApplicativeDo
-  codebasePathOption <- codebasePathParser <|> codebaseCreateParser 
+  codebasePathOption <- codebasePathParser <|> codebaseCreateParser
   exitOption <- exitParser
 
-  pure GlobalOptions {codebasePathOption = codebasePathOption,
-    exitOption = exitOption
-  }
+  pure
+    GlobalOptions
+      { codebasePathOption = codebasePathOption,
+        exitOption = exitOption
+      }
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
 codebasePathParser = do
@@ -329,7 +340,8 @@ launchParser envOpts isHeadless = do
   -- ApplicativeDo
   codebaseServerOpts <- codebaseServerOptsParser envOpts
   downloadBase <- downloadBaseFlag
-  pure (Launch isHeadless codebaseServerOpts downloadBase)
+  startingPath <- startingPathOption
+  pure (Launch isHeadless codebaseServerOpts downloadBase startingPath)
 
 initParser :: Parser Command
 initParser = pure Init
@@ -369,6 +381,32 @@ downloadBaseFlag :: Parser ShouldDownloadBase
 downloadBaseFlag = flag ShouldDownloadBase ShouldNotDownloadBase (long "no-base" <> help downloadBaseHelp)
   where
     downloadBaseHelp = "if set, a new codebase will be created without downloading the base library, otherwise the new codebase will download base"
+
+startingPathOption :: Parser (Maybe Path.Absolute)
+startingPathOption =
+  let meta =
+        metavar ".path.in.codebase"
+          <> long "path"
+          <> short 'p'
+          <> help "Launch the UCM session at the provided path location."
+   in optional $ option readAbsolutePath meta
+
+readAbsolutePath :: ReadM Path.Absolute
+readAbsolutePath = do
+  readPath' >>= \case
+    Path.AbsolutePath' abs -> pure abs
+    Path.RelativePath' rel ->
+      OptParse.readerError $
+        "Expected an absolute path, but the path "
+          <> show rel
+          <> " was relative. Try adding a `.` prefix, e.g. `.path.to.project`"
+
+readPath' :: ReadM Path.Path'
+readPath' = do
+  strPath <- OptParse.str
+  case Path.parsePath' strPath of
+    Left err -> OptParse.readerError err
+    Right path' -> pure path'
 
 fileArgument :: String -> Parser FilePath
 fileArgument varName =

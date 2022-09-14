@@ -124,16 +124,16 @@ main = withCP65001 . Ki.scoped $ \scope -> do
       Run (RunFromFile file mainName) args
         | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
         | otherwise -> do
-          e <- safeReadUtf8 file
-          case e of
-            Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
-            Right contents -> do
-              getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-                rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
-                sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
-                let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                let notifyOnUcmChanges _ = pure ()
-                launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes notifyOnUcmChanges
+            e <- safeReadUtf8 file
+            case e of
+              Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
+              Right contents -> do
+                getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+                  rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
+                  sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
+                  let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                  let notifyOnUcmChanges _ = pure ()
+                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes notifyOnUcmChanges
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
@@ -218,7 +218,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                     ]
       Transcript shouldFork shouldSaveCodebase transcriptFiles ->
         runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
-      Launch isHeadless codebaseServerOpts downloadBase -> do
+      Launch isHeadless codebaseServerOpts downloadBase mayStartingPath -> do
         getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime False RTI.Persistent Version.gitDescribeWithDate
           ucmStateVar <- newTVarIO Nothing
