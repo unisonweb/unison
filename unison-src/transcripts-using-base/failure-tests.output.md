@@ -9,10 +9,7 @@ tested here.
 ```unison
 test1 : '{IO, Exception} [Result]
 test1 = do
-  dir = !getTempDirectory
-  f = openFile (dir ++ "/failure-test") Write
-  closeFile f
-  isFileEOF f
+  fromUtf8 0xsee
   [Ok "test1"]
 
 test2 : '{IO, Exception} [Result]
@@ -51,7 +48,7 @@ test2 = do
   
     Failure
       (typeLink IOFailure)
-      "/tmp/failure-test: hIsEOF: illegal operation (handle is closed)"
+      "Cannot decode byte '\\xee': Data.Text.Internal.Encoding.decodeUtf8: Invalid UTF-8 stream"
       (Any ())
 
 ```
