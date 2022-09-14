@@ -7,15 +7,18 @@ have an easy way to test the last at the moment, but the other two are
 tested here.
 
 ```unison
-test1 : '{IO, Exception} Boolean
+test1 : '{IO, Exception} [Result]
 test1 = do
-  f = openFile "/tmp/test" Write
+  dir = !getTempDirectory
+  f = openFile (dir ++ "/failure-test") Write
   closeFile f
   isFileEOF f
+  [Ok "test1"]
 
-test2 : '{IO, Exception} ()
+test2 : '{IO, Exception} [Result]
 test2 = do
   tryEval '(bug "whoa")
+  [Ok "test2"]
 ```
 
 ```ucm
@@ -26,8 +29,8 @@ test2 = do
   
     ⍟ These new definitions are ok to `add`:
     
-      test1 : '{IO, Exception} Boolean
-      test2 : '{IO, Exception} ()
+      test1 : '{IO, Exception} [Result]
+      test2 : '{IO, Exception} [Result]
 
 ```
 ```ucm
@@ -35,12 +38,12 @@ test2 = do
 
   ⍟ I've added these definitions:
   
-    test1 : '{IO, Exception} Boolean
-    test2 : '{IO, Exception} ()
+    test1 : '{IO, Exception} [Result]
+    test2 : '{IO, Exception} [Result]
 
 ```
 ```ucm
-.> run test1
+.> io.test test1
 
   💔💥
   
@@ -48,12 +51,12 @@ test2 = do
   
     Failure
       (typeLink IOFailure)
-      "/tmp/test: hIsEOF: illegal operation (handle is closed)"
+      "/tmp/failure-test: hIsEOF: illegal operation (handle is closed)"
       (Any ())
 
 ```
 ```ucm
-.> run test2
+.> io.test test2
 
   💔💥
   

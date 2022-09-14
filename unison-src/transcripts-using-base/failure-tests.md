@@ -11,15 +11,18 @@ tested here.
 ```
 
 ```unison
-test1 : '{IO, Exception} Boolean
+test1 : '{IO, Exception} [Result]
 test1 = do
-  f = openFile "/tmp/test" Write
+  dir = !getTempDirectory
+  f = openFile (dir ++ "/failure-test") Write
   closeFile f
   isFileEOF f
+  [Ok "test1"]
 
-test2 : '{IO, Exception} ()
+test2 : '{IO, Exception} [Result]
 test2 = do
   tryEval '(bug "whoa")
+  [Ok "test2"]
 ```
 
 ```ucm
@@ -27,9 +30,9 @@ test2 = do
 ```
 
 ```ucm:error
-.> run test1
+.> io.test test1
 ```
 
 ```ucm:error
-.> run test2
+.> io.test test2
 ```
