@@ -1477,12 +1477,12 @@ notifyUser dir o = case o of
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully updated" <> prettyPath' dest <> "from"
+        "✅ Successfully updated" <> prettyPath' dest <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "The destination" <> prettyPath' dest <> "was empty, and was replaced instead of merging."
+        "✅ Successfully pulled into newly created namespace " <> prettyPath' dest <> "."
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
