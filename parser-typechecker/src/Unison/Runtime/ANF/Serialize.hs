@@ -70,7 +70,7 @@ data LtTag
   | LMT
   | LYT
 
-data BLTag = TextT | ListT | TmLinkT | TyLinkT | BytesT
+data BLTag = TextT | ListT | TmLinkT | TyLinkT | BytesT | QuoteT | CodeT
 
 data VaTag = PartialT | DataT | ContT | BLitT
 
@@ -168,6 +168,8 @@ instance Tag BLTag where
     TmLinkT -> 2
     TyLinkT -> 3
     BytesT -> 4
+    QuoteT -> 5
+    CodeT -> 6
 
   word2tag = \case
     0 -> pure TextT
@@ -175,6 +177,8 @@ instance Tag BLTag where
     2 -> pure TmLinkT
     3 -> pure TyLinkT
     4 -> pure BytesT
+    5 -> pure QuoteT
+    6 -> pure CodeT
     t -> unknownTag "BLTag" t
 
 instance Tag VaTag where
@@ -389,7 +393,8 @@ putFunc fops ctx f = case f of
   FPrim (Right f)
     | Just nm <- EC.lookup f fops ->
         putTag FForeignT *> putText nm
-    | otherwise -> exn $ "putFUnc: unknown FOp: " ++ show f
+    | otherwise ->
+        exn $ "putFunc: could not serialize foreign operation: " ++ show f
 
 getFunc :: MonadGet m => Var v => [v] -> m (Func v)
 getFunc ctx =
@@ -572,6 +577,8 @@ putBLit (List s) = putTag ListT *> putFoldable putValue s
 putBLit (TmLink r) = putTag TmLinkT *> putReferent r
 putBLit (TyLink r) = putTag TyLinkT *> putReference r
 putBLit (Bytes b) = putTag BytesT *> putBytes b
+putBLit (Quote v) = putTag QuoteT *> putValue v
+putBLit (Code g) = putTag CodeT *> putGroup mempty g
 
 getBLit :: MonadGet m => Version -> m BLit
 getBLit v =
@@ -581,6 +588,8 @@ getBLit v =
     TmLinkT -> TmLink <$> getReferent
     TyLinkT -> TyLink <$> getReference
     BytesT -> Bytes <$> getBytes
+    QuoteT -> Quote <$> getValue v
+    CodeT -> Code <$> getGroup
 
 putRefs :: MonadPut m => [Reference] -> m ()
 putRefs rs = putFoldable putReference rs

@@ -1929,6 +1929,10 @@ reflectValue rty = goV
           pure (ANF.TmLink l)
       | Just l <- maybeUnwrapForeign Rf.typeLinkRef f =
           pure (ANF.TyLink l)
+      | Just v <- maybeUnwrapForeign Rf.valueRef f =
+          pure (ANF.Quote v)
+      | Just g <- maybeUnwrapForeign Rf.codeRef f =
+          pure (ANF.Code g)
       | otherwise = die $ err $ "foreign value: " <> (show f)
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
@@ -1999,6 +2003,8 @@ reifyValue0 (rty, rtm) = goV
     goL (ANF.TmLink r) = pure . Foreign $ Wrap Rf.termLinkRef r
     goL (ANF.TyLink r) = pure . Foreign $ Wrap Rf.typeLinkRef r
     goL (ANF.Bytes b) = pure . Foreign $ Wrap Rf.bytesRef b
+    goL (ANF.Quote v) = pure . Foreign $ Wrap Rf.valueRef v
+    goL (ANF.Code g) = pure . Foreign $ Wrap Rf.codeRef g
 
 -- Universal comparison functions
 

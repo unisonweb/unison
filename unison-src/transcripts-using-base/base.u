@@ -296,9 +296,8 @@ Value.transitiveDeps v = crawl [] (Value.dependencies v)
 saveSelfContained : a -> Text ->{IO, Exception} ()
 saveSelfContained x path =
   v = Value.value x
-  deps = List.map (cases (l,c) -> (l, Code.serialize c)) (Value.transitiveDeps v)
-  bv = Value.serialize v
-  cv = Value.value (deps, bv)
+  deps = Value.transitiveDeps v
+  cv = Value.value (deps, v)
   bs = Bytes.toBase32 (Value.serialize cv)
   writeFile path bs
 
@@ -326,7 +325,7 @@ fromB32 bs32 = match fromBase32 bs32 with
   Left msg -> fail ("base32 decoding failed: " ++ msg) bs32
   Right bs -> bs
 
-loadValueBytes : Bytes ->{Exception,IO} ([(Link.Term, Bytes)], Bytes)
+loadValueBytes : Bytes ->{Exception,IO} ([(Link.Term, Code)], Value)
 loadValueBytes bs = match Value.deserialize bs with
   Left err -> fail ("could not deserialize value: " ++ err) bs
   Right sv -> match Value.load sv with
@@ -346,14 +345,11 @@ cache deps = match cache_ deps with
 loadSelfContained : Text ->{IO, Exception} a
 loadSelfContained path =
   bs = fromB32 (readFile path)
-  (sdeps, bv) = loadValueBytes bs
-  deps = map (cases (l, bs) -> (l, loadCodeBytes bs)) sdeps
+  (deps, v) = loadValueBytes bs
   cache deps
-  match Value.deserialize bv with
-    Left err -> fail ("could not deserialize value: " ++ err) bv
-    Right sv -> match Value.load sv with
-      Left l -> fail "value missing deps" l
-      Right x -> x
+  match Value.load v with
+    Left l -> fail "value missing deps" l
+    Right x -> x
 
 saveTestCase : Text -> (a ->{} Text) -> a ->{IO,Exception} ()
 saveTestCase name f i =
