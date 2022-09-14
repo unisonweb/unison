@@ -16,6 +16,7 @@ module U.Codebase.Branch.Type
     hoist,
     hoistCausalBranch,
     pattern Empty,
+    U.Codebase.Branch.Type.empty,
   )
 where
 
@@ -54,6 +55,9 @@ instance AsEmpty (Branch m) where
     nearly
       (Branch mempty mempty mempty mempty)
       (\(Branch terms types patches children) -> null terms && null types && null patches && null children)
+
+empty :: Branch m
+empty = Empty
 
 data Patch = Patch
   { termEdits :: Map Referent (Set TermEdit),

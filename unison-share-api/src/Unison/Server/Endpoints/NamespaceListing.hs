@@ -52,7 +52,6 @@ import Unison.Server.Types
     NamespaceFQN,
     UnisonHash,
     UnisonName,
-    branchToUnisonHash,
     v2CausalBranchToUnisonHash,
   )
 import Unison.Symbol (Symbol)
@@ -163,7 +162,7 @@ serve ::
 serve codebase maySBH mayRelativeTo mayNamespaceName = do
   useIndex <- asks Backend.useNamesIndex
   mayRootHash <- traverse (Backend.expandShortBranchHash codebase) maySBH
-  codebaseRootHash <- liftIO $ Codebase.getRootBranchHash codebase
+  codebaseRootHash <- liftIO $ Codebase.getRootCausalHash codebase
 
   -- Relative and Listing Path resolution
   --
@@ -195,7 +194,7 @@ serve codebase maySBH mayRelativeTo mayNamespaceName = do
     (False, Just rh) -> do
       serveFromBranch codebase path' (Cv.causalHash1to2 rh)
     (False, Nothing) -> do
-      rh <- liftIO $ Codebase.getRootBranchHash codebase
+      rh <- liftIO $ Codebase.getRootCausalHash codebase
       serveFromBranch codebase path' rh
   where
     parsePath :: String -> Backend IO Path.Path'
@@ -215,10 +214,9 @@ serveFromBranch codebase path' rootHash = do
   -- worth slowing down the request for this right now.
   let ppe = PPE.empty
   let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-  mayCausalAtPath <- liftIO $ Codebase.getShallowCausalFromRoot codebase (Just rootHash) absPath
-  mayBranchAtPath <- liftIO $ traverse V2Causal.value mayCausalAtPath
-  let branchAtPath = fromMaybe V2Causal.Empty mayBranchAtPath
-  let listingHash = maybe (branchToUnisonHash Branch.empty) v2CausalBranchToUnisonHash mayCausalAtPath
+  causalAtPath <- liftIO $ Codebase.getShallowCausalFromRoot codebase (Just rootHash) (Path.unabsolute absPath)
+  let listingHash = v2CausalBranchToUnisonHash causalAtPath
+  branchAtPath <- liftIO $ V2Causal.value causalAtPath
   listingEntries <- liftIO $ Backend.lsBranch codebase branchAtPath
   makeNamespaceListing ppe listingFQN listingHash listingEntries
 

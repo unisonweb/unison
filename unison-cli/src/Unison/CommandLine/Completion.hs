@@ -129,25 +129,20 @@ completeWithinNamespace ::
   m [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace compTypes query codebase currentPath = do
   shortHashLen <- Codebase.hashLength codebase
-  Codebase.getShallowCausalFromRoot codebase Nothing absQueryPath >>= \case
-    Nothing -> do
-      pure []
-    Just cb -> do
-      b <- V2Causal.value cb
-      currentBranchSuggestions <- do
-        nib <- namesInBranch shortHashLen b
-        nib
-          & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match))
-          & filter (\(_isFinished, match) -> List.isPrefixOf query match)
-          & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
-          & pure
-
-      childSuggestions <- getChildSuggestions shortHashLen b
-      let allSuggestions =
-            currentBranchSuggestions
-              -- Only show child suggestions when the current branch isn't ambiguous
-              <> Monoid.whenM (length currentBranchSuggestions <= 1) childSuggestions
-      pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ allSuggestions
+  b <- Codebase.getShallowBranchAtPath codebase (Path.unabsolute absQueryPath) Nothing
+  currentBranchSuggestions <- do
+    nib <- namesInBranch shortHashLen b
+    nib
+      & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match))
+      & filter (\(_isFinished, match) -> List.isPrefixOf query match)
+      & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
+      & pure
+  childSuggestions <- getChildSuggestions shortHashLen b
+  let allSuggestions =
+        currentBranchSuggestions
+          -- Only show child suggestions when the current branch isn't ambiguous
+          <> Monoid.whenM (length currentBranchSuggestions <= 1) childSuggestions
+  pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ allSuggestions
   where
     queryPathPrefix :: Path.Path'
     querySuffix :: NameSegment.NameSegment
@@ -215,9 +210,9 @@ completeWithinNamespace compTypes query codebase currentPath = do
         qualifyRefs :: V2Branch.NameSegment -> (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
         qualifyRefs n refs
           | ((Text.isInfixOf "#" . NameSegment.toText) querySuffix) || length refs > 1 =
-              refs
-                & Map.keys
-                <&> qualify n
+            refs
+              & Map.keys
+              <&> qualify n
           | otherwise = [HQ'.NameOnly n]
 
     -- If we're not completing namespaces, then all namespace completions should automatically

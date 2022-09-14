@@ -29,7 +29,6 @@ import System.Directory
 import System.FilePath
 import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
-import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.HashTags as V2.Hash
@@ -308,18 +307,13 @@ lsAtPath ::
   MonadIO m =>
   Codebase m Symbol Ann ->
   -- The root to follow the path from.
-  Maybe (V2.Branch m) ->
+  Maybe (V2Branch.Branch m) ->
   -- Path from the root to the branch to 'ls'
   Path.Absolute ->
   m [ShallowListEntry Symbol Ann]
-lsAtPath codebase mayRoot absPath = do
-  root <- case mayRoot of
-    Nothing -> Codebase.getShallowRootBranch codebase
-    Just r -> pure r
-  Codebase.shallowBranchAtPath (Path.unabsolute absPath) root >>= \case
-    Nothing -> pure []
-    Just b -> do
-      lsBranch codebase b
+lsAtPath codebase mayRootBranch absPath = do
+  b <- Codebase.getShallowBranchAtPath codebase (Path.unabsolute absPath) mayRootBranch
+  lsBranch codebase b
 
 findShallowReadmeInBranchAndRender ::
   Width ->
@@ -738,10 +732,7 @@ getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
     Nothing -> lift (Codebase.getShallowRootCausal codebase)
     Just h -> do
       lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
-  causal <-
-    (lift $ Codebase.shallowCausalAtPath path shallowRoot) >>= \case
-      Nothing -> pure $ Cv.causalbranch1to2 (Branch.empty)
-      Just lc -> pure lc
+  causal <- lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)
   pure causal
 
 formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
@@ -1051,7 +1042,7 @@ scopedNamesForBranchHash codebase mbh path = do
         let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
         pure (parseNames, localNames)
     Just bh -> do
-      rootHash <- lift $ Codebase.getRootBranchHash codebase
+      rootHash <- lift $ Codebase.getRootCausalHash codebase
       if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
         then indexNames
         else do

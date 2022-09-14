@@ -79,7 +79,7 @@ data Codebase m v a = Codebase
     getDeclComponent :: Hash -> m (Maybe [Decl v a]),
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
     -- | Get the root branch Hash.
-    getRootBranchHash :: m V2.CausalHash,
+    getRootCausalHash :: m V2.CausalHash,
     -- | Get the root branch.
     getRootBranch :: m (Branch m),
     -- | Get whether the root branch exists.
@@ -209,3 +209,5 @@ gitErrorFromOpenCodebaseError path repo = \case
   OpenCodebaseDoesntExist -> NoDatabaseFile repo path
   OpenCodebaseUnknownSchemaVersion v ->
     UnrecognizedSchemaVersion repo path (fromIntegral v)
+  OpenCodebaseRequiresMigration fromSv toSv ->
+    CodebaseRequiresMigration fromSv toSv
