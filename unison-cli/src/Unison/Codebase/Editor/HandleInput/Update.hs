@@ -64,16 +64,14 @@ handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli r ()
 handleUpdate input optionalPatch requestedNames = do
   Cli.Env {codebase} <- ask
   currentPath' <- Cli.getCurrentPath
-  uf <- Cli.expectLatestTypecheckedFile
   let patchPath =
         case optionalPatch of
           NoPatch -> Nothing
           DefaultPatch -> Just Cli.defaultPatchPath
           UsePatch p -> Just p
   slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
-  let requestedVars = Set.map Name.toVar requestedNames
-  let sr = Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames
-      addsAndUpdates :: SlurpComponent Symbol
+  sr <- getSlurpResultForUpdate requestedNames
+  let addsAndUpdates :: SlurpComponent Symbol
       addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
       fileNames :: Names
       fileNames = UF.typecheckedToNames (Slurp.originalFile sr)
@@ -188,6 +186,13 @@ handleUpdate input optionalPatch requestedNames = do
       p & Path.unsplit'
         & Path.resolve @_ @_ @Path.Absolute currentPath'
         & tShow
+
+getSlurpResultForUpdate :: Set Name -> Cli r (SlurpResult Symbol)
+getSlurpResultForUpdate requestedNames = do
+  uf <- Cli.expectLatestTypecheckedFile
+  slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
+  let requestedVars = Set.map Name.toVar requestedNames
+  pure (Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames)
 
 -- updates the namespace for adding `slurp`
 doSlurpAdds ::
