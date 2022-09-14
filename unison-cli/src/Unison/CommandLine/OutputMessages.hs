@@ -1482,7 +1482,7 @@ notifyUser dir o = case o of
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "✅ Successfully pulled into newly created namespace " <> prettyPath' dest <> "."
+        "✅ Successfully pulled into newly created namespace " <> P.group (prettyPath' dest <> ".")
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
