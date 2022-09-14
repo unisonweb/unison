@@ -9,6 +9,8 @@ module U.Codebase.Sqlite.Operations
     saveBranch,
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
+    expectNamespaceStatsByHash,
+    expectNamespaceStatsByHashId,
 
     -- * terms
     Q.saveTermComponent,
@@ -67,6 +69,10 @@ module U.Codebase.Sqlite.Operations
     rootNamesByPath,
     NamesByPath (..),
 
+    -- * reflog
+    getReflog,
+    appendReflog,
+
     -- * low-level stuff
     expectDbBranch,
     saveDbBranch,
@@ -74,6 +80,7 @@ module U.Codebase.Sqlite.Operations
     expectDbPatch,
     saveDbPatch,
     expectDbBranchByCausalHashId,
+    namespaceStatsForDbBranch,
 
     -- * somewhat unexpectedly unused definitions
     c2sReferenceId,
@@ -89,8 +96,8 @@ module U.Codebase.Sqlite.Operations
   )
 where
 
+import Control.Lens hiding (children)
 import qualified Control.Monad.Extra as Monad
-import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
@@ -98,7 +105,8 @@ import qualified Data.Map.Merge.Lazy as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (uncurry3, (***))
-import qualified U.Codebase.Branch as C.Branch
+import U.Codebase.Branch.Type (NamespaceStats (..))
+import qualified U.Codebase.Branch.Type as C.Branch
 import qualified U.Codebase.Causal as C
 import U.Codebase.Decl (ConstructorId)
 import qualified U.Codebase.Decl as C
@@ -108,6 +116,7 @@ import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C
 import qualified U.Codebase.Referent as C.Referent
+import qualified U.Codebase.Reflog as Reflog
 import U.Codebase.ShortHash (ShortBranchHash (ShortBranchHash))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
@@ -640,8 +649,11 @@ saveBranch hh (C.Causal hc he parents me) = do
     Q.saveCausal hh chId bhId parentCausalHashIds
     pure (chId, bhId)
   boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByCausalHashId chId) do
-    branch <- c2sBranch =<< me
-    saveDbBranchUnderHashId hh bhId branch
+    branch <- me
+    dbBranch <- c2sBranch branch
+    stats <- namespaceStatsForDbBranch dbBranch
+    boId <- saveDbBranchUnderHashId hh bhId stats dbBranch
+    pure boId
   pure (boId, chId)
   where
     c2sBranch :: C.Branch.Branch Transaction -> Transaction S.DbBranch
@@ -823,27 +835,30 @@ expectDbBranch id =
 saveDbBranch ::
   HashHandle ->
   BranchHash ->
+  C.Branch.NamespaceStats ->
   S.DbBranch ->
   Transaction Db.BranchObjectId
-saveDbBranch hh hash branch = do
+saveDbBranch hh hash stats branch = do
   hashId <- Q.saveBranchHash hash
-  saveDbBranchUnderHashId hh hashId branch
+  saveDbBranchUnderHashId hh hashId stats branch
 
 -- | Variant of 'saveDbBranch' that might be preferred by callers that already have a hash id, not a hash.
 saveDbBranchUnderHashId ::
   HashHandle ->
   Db.BranchHashId ->
+  C.Branch.NamespaceStats ->
   S.DbBranch ->
   Transaction Db.BranchObjectId
-saveDbBranchUnderHashId hh id@(Db.unBranchHashId -> hashId) branch = do
+saveDbBranchUnderHashId hh bhId@(Db.unBranchHashId -> hashId) stats branch = do
   let (localBranchIds, localBranch) = LocalizeObject.localizeBranch branch
   when debug $
     traceM $
-      "saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show localBranchIds
+      "saveBranchObject\n\tid = " ++ show bhId ++ "\n\tli = " ++ show localBranchIds
         ++ "\n\tlBranch = "
         ++ show localBranch
   let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full localBranchIds localBranch
   oId <- Q.saveObject hh hashId ObjectType.Namespace bytes
+  Q.saveNamespaceStats bhId stats
   pure $ Db.BranchObjectId oId
 
 expectBranch :: Db.BranchObjectId -> Transaction (C.Branch.Branch Transaction)
@@ -979,7 +994,7 @@ declReferentsByPrefix b32prefix pos cid = do
       h <- Q.expectPrimaryHashByObjectId oId
       let cids =
             case cid of
-              Nothing -> take ctorCount [0::ConstructorId ..]
+              Nothing -> take ctorCount [0 :: ConstructorId ..]
               Just cid -> if fromIntegral cid < ctorCount then [cid] else []
       pure (h, pos, dt, cids)
     getDeclCtorCount :: S.Reference.Id -> Transaction (C.Decl.DeclType, Int)
@@ -1001,12 +1016,11 @@ causalHashesByPrefix (ShortBranchHash b32prefix) = do
   pure $ Set.fromList . map CausalHash $ hashes
 
 -- | returns a list of known definitions referencing `r`
-dependents :: C.Reference -> Transaction (Set C.Reference.Id)
-dependents r = do
+dependents :: Q.DependentsSelector -> C.Reference -> Transaction (Set C.Reference.Id)
+dependents selector r = do
   r' <- c2sReference r
-  sIds :: [S.Reference.Id] <- Q.getDependentsForDependency r'
-  cIds <- traverse s2cReferenceId sIds
-  pure $ Set.fromList cIds
+  sIds <- Q.getDependentsForDependency selector r'
+  Set.traverse s2cReferenceId sIds
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)
@@ -1057,3 +1071,52 @@ rootNamesByPath path = do
   where
     convertTerms = fmap (bimap s2cTextReferent (fmap s2cConstructorType))
     convertTypes = fmap s2cTextReference
+
+-- | Looks up statistics for a given branch, if none exist, we compute them and save them
+-- then return them.
+expectNamespaceStatsByHash :: BranchHash -> Transaction C.Branch.NamespaceStats
+expectNamespaceStatsByHash bh = do
+  bhId <- Q.saveBranchHash bh
+  expectNamespaceStatsByHashId bhId
+
+-- | Looks up statistics for a given branch, if none exist, we compute them and save them
+-- then return them.
+expectNamespaceStatsByHashId :: Db.BranchHashId -> Transaction C.Branch.NamespaceStats
+expectNamespaceStatsByHashId bhId = do
+  Q.loadNamespaceStatsByHashId bhId `whenNothingM` do
+    boId <- Db.BranchObjectId <$> Q.expectObjectIdForPrimaryHashId (Db.unBranchHashId bhId)
+    dbBranch <- expectDbBranch boId
+    stats <- namespaceStatsForDbBranch dbBranch
+    Q.saveNamespaceStats bhId stats
+    pure stats
+
+namespaceStatsForDbBranch :: S.DbBranch -> Transaction NamespaceStats
+namespaceStatsForDbBranch S.Branch {terms, types, patches, children} = do
+  childStats <- for children \(_boId, chId) -> do
+    bhId <- Q.expectCausalValueHashId chId
+    expectNamespaceStatsByHashId bhId
+  pure $
+    NamespaceStats
+      { numContainedTerms =
+          let childTermCount = sumOf (folded . to numContainedTerms) childStats
+              termCount = lengthOf (folded . folded) terms
+           in childTermCount + termCount,
+        numContainedTypes =
+          let childTypeCount = sumOf (folded . to numContainedTypes) childStats
+              typeCount = lengthOf (folded . folded) types
+           in childTypeCount + typeCount,
+        numContainedPatches =
+          let childPatchCount = sumOf (folded . to numContainedPatches) childStats
+              patchCount = Map.size patches
+           in childPatchCount + patchCount
+      }
+
+getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
+getReflog numEntries = do
+  entries <- Q.getReflog numEntries
+  traverse (bitraverse Q.expectCausalHash pure) entries
+
+appendReflog :: Reflog.Entry CausalHash Text -> Transaction ()
+appendReflog entry = do
+  dbEntry <- (bitraverse Q.saveCausalHash pure) entry
+  Q.appendReflog dbEntry

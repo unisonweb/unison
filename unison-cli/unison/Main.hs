@@ -21,8 +21,9 @@ import ArgParse
     UsageRenderer,
     parseCLIArgs,
   )
-import Compat (defaultInterruptHandler, withInterruptHandler)
-import Control.Concurrent (forkIO, newEmptyMVar, takeMVar)
+import Compat (defaultInterruptHandler, onWindows, withInterruptHandler)
+import Control.Concurrent (newEmptyMVar, takeMVar)
+import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
 import Data.Bifunctor
@@ -35,6 +36,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.IO as Text
 import GHC.Conc (setUncaughtExceptionHandler)
 import qualified GHC.Conc
+import qualified Ki
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
@@ -50,6 +52,7 @@ import Text.Megaparsec (runParser)
 import Text.Pretty.Simple (pHPrint)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
+import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (ReadShareRemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
@@ -65,6 +68,7 @@ import Unison.CommandLine (plural', watchConfig)
 import qualified Unison.CommandLine.Main as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import qualified Unison.CommandLine.Welcome as Welcome
+import qualified Unison.LSP as LSP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyTerminal as PT
@@ -78,13 +82,13 @@ import UnliftIO.Directory (getHomeDirectory)
 import qualified Version
 
 main :: IO ()
-main = withCP65001 do
+main = withCP65001 . Ki.scoped $ \scope -> do
   -- Replace the default exception handler with one that pretty-prints.
   setUncaughtExceptionHandler (pHPrint stderr)
 
   interruptHandler <- defaultInterruptHandler
   withInterruptHandler interruptHandler $ do
-    forkIO initHTTPClient
+    void $ Ki.fork scope initHTTPClient
     progName <- getProgName
     -- hSetBuffering stdout NoBuffering -- cool
     (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack Version.gitDescribeWithDate)
@@ -114,7 +118,7 @@ main = withCP65001 do
                 ]
             )
       Run (RunFromSymbol mainName) args -> do
-        getCodebaseOrExit mCodePathOption \(_, _, theCodebase) -> do
+        getCodebaseOrExit mCodePathOption SC.MigrateAutomatically \(_, _, theCodebase) -> do
           runtime <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
           withArgs args $ execute theCodebase runtime mainName
       Run (RunFromFile file mainName) args
@@ -124,20 +128,22 @@ main = withCP65001 do
             case e of
               Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
               Right contents -> do
-                getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+                getCodebaseOrExit mCodePathOption SC.MigrateAutomatically \(initRes, _, theCodebase) -> do
                   rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
                   sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
                   let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
+                  let notifyOnUcmChanges _ = pure ()
+                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes notifyOnUcmChanges
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
           Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
           Right contents -> do
-            getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+            getCodebaseOrExit mCodePathOption SC.MigrateAutomatically \(initRes, _, theCodebase) -> do
               rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
               sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
               let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
+              let notifyOnUcmChanges _ = pure ()
               launch
                 currentDir
                 config
@@ -148,6 +154,7 @@ main = withCP65001 do
                 Nothing
                 ShouldNotDownloadBase
                 initRes
+                notifyOnUcmChanges
       Run (RunCompiled file) args ->
         BL.readFile file >>= \bs ->
           try (evaluate $ RTI.decodeStandalone bs) >>= \case
@@ -212,9 +219,20 @@ main = withCP65001 do
       Transcript shouldFork shouldSaveCodebase transcriptFiles ->
         runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
       Launch isHeadless codebaseServerOpts downloadBase -> do
-        getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+        getCodebaseOrExit mCodePathOption SC.MigrateAfterPrompt \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime False RTI.Persistent Version.gitDescribeWithDate
+          ucmStateVar <- newTVarIO Nothing
+          let notifyOnUcmChanges :: (Branch IO, Path.Absolute) -> IO ()
+              notifyOnUcmChanges = atomically . writeTVar ucmStateVar . Just
+          let ucmState :: STM (Branch IO, Path.Absolute)
+              ucmState = readTVar ucmStateVar >>= maybe retry pure
           sbRuntime <- RTI.startRuntime True RTI.Persistent Version.gitDescribeWithDate
+          -- Unfortunately, the windows IO manager on GHC 8.* is prone to just hanging forever
+          -- when waiting for input on handles, so if we listen for LSP connections it will
+          -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
+          -- Windows when we move to GHC 9.*
+          -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
+          when (not onWindows) . void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime ucmState
           Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
             case exitOption of
               DoNotExit -> do
@@ -227,7 +245,6 @@ main = withCP65001 do
                           "and the Codebase UI at",
                           P.string $ Server.urlFor Server.UI baseUrl
                         ]
-
                     PT.putPrettyLn $
                       P.string "Running the codebase manager headless with "
                         <> P.shown GHC.Conc.numCapabilities
@@ -238,7 +255,7 @@ main = withCP65001 do
                     takeMVar mvar
                   WithCLI -> do
                     PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                    launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) downloadBase initRes
+                    launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) downloadBase initRes notifyOnUcmChanges
               Exit -> do Exit.exitSuccess
 
 -- | Set user agent and configure TLS on global http client.
@@ -260,7 +277,7 @@ prepareTranscriptDir shouldFork mCodePathOption = do
   case shouldFork of
     UseFork -> do
       -- A forked codebase does not need to Create a codebase, because it already exists
-      getCodebaseOrExit mCodePathOption $ const (pure ())
+      getCodebaseOrExit mCodePathOption SC.MigrateAutomatically $ const (pure ())
       path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
       PT.putPrettyLn $
         P.lines
@@ -284,7 +301,7 @@ runTranscripts' progName mcodepath transcriptDir markdownFiles = do
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
-  and <$> getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) \(_, codebasePath, theCodebase) -> do
+  and <$> getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) SC.MigrateAutomatically \(_, codebasePath, theCodebase) -> do
     TR.withTranscriptRunner Version.gitDescribeWithDate (Just configFilePath) $ \runTranscript -> do
       for markdownFiles $ \(MarkdownFile fileName) -> do
         transcriptSrc <- readUtf8 fileName
@@ -386,8 +403,9 @@ launch ::
   Maybe Server.BaseUrl ->
   ShouldDownloadBase ->
   InitResult ->
+  ((Branch IO, Path.Absolute) -> IO ()) ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl shouldDownloadBase initResult =
+launch dir config runtime sbRuntime codebase inputs serverBaseUrl shouldDownloadBase initResult notifyChange =
   let downloadBase = case defaultBaseLib of
         Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
         _ -> Welcome.DontDownloadBase
@@ -408,6 +426,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl shouldDownload
         codebase
         serverBaseUrl
         ucmVersion
+        notifyChange
 
 newtype MarkdownFile = MarkdownFile FilePath
 
@@ -435,11 +454,10 @@ defaultBaseLib =
   where
     (gitRef, _date) = Version.gitDescribe
 
--- (Unison.Codebase.Init.FinalizerAndCodebase IO Symbol Ann, InitResult IO Symbol Ann)
-getCodebaseOrExit :: Maybe CodebasePathOption -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
-getCodebaseOrExit codebasePathOption action = do
+getCodebaseOrExit :: Maybe CodebasePathOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
+getCodebaseOrExit codebasePathOption migrationStrategy action = do
   initOptions <- argsToCodebaseInitOptions codebasePathOption
-  result <- CodebaseInit.withOpenOrCreateCodebase SC.init "main" initOptions \case
+  result <- CodebaseInit.withOpenOrCreateCodebase SC.init "main" initOptions migrationStrategy \case
     cbInit@(CreatedCodebase, dir, _) -> do
       pDir <- prettyDir dir
       PT.putPrettyLn' ""
@@ -456,20 +474,29 @@ getCodebaseOrExit codebasePathOption action = do
             executableName <- P.text . Text.pack <$> getProgName
 
             case err of
-              InitErrorOpen OpenCodebaseDoesntExist ->
-                pure
-                  ( P.lines
-                      [ "No codebase exists in " <> pDir <> ".",
-                        "Run `" <> executableName <> " --codebase-create " <> P.string dir <> " to create one, then try again!"
-                      ]
-                  )
-              InitErrorOpen (OpenCodebaseUnknownSchemaVersion _) ->
-                pure
-                  ( P.lines
-                      [ "I can't read the codebase in " <> pDir <> " because it was constructed using a newer version of unison.",
-                        "Please upgrade your version of UCM."
-                      ]
-                  )
+              InitErrorOpen err ->
+                case err of
+                  OpenCodebaseDoesntExist ->
+                    pure
+                      ( P.lines
+                          [ "No codebase exists in " <> pDir <> ".",
+                            "Run `" <> executableName <> " --codebase-create " <> P.string dir <> " to create one, then try again!"
+                          ]
+                      )
+                  (OpenCodebaseUnknownSchemaVersion _) ->
+                    pure
+                      ( P.lines
+                          [ "I can't read the codebase in " <> pDir <> " because it was constructed using a newer version of unison.",
+                            "Please upgrade your version of UCM."
+                          ]
+                      )
+                  (OpenCodebaseRequiresMigration _ _) ->
+                    pure
+                      ( P.lines
+                          [ "The codebase is from an older version of UCM, it needs to be migrated before it can be used.",
+                            "You can migrate it by opening it in UCM, e.g. ucm -c mycodebase"
+                          ]
+                      )
               FoundV1Codebase ->
                 pure
                   ( P.lines

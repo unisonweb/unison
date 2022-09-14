@@ -198,6 +198,7 @@ contains needle haystack = if (size haystack) == 0 then false else
 isDirectory = compose reraise isDirectory.impl
 createTempDirectory = compose reraise createTempDirectory.impl
 directoryContents = compose reraise directoryContents.impl
+getTempDirectory = compose reraise getTempDirectory.impl
 removeDirectory = compose reraise removeDirectory.impl
 fileExists = compose reraise fileExists.impl
 renameDirectory = compose2 reraise renameDirectory.impl

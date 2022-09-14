@@ -3,6 +3,14 @@ The Unison language
 
 [![Build Status](https://travis-ci.org/unisonweb/unison.svg?branch=master)](https://travis-ci.org/unisonweb/unison)
 
+* [Overview](#overview)
+* [Building using Stack](#building-using-stack)
+* [Language Server Protocol (LSP)](#language-server-protocol-lsp)
+* [Codebase Server](#codebase-server)
+
+Overview
+--------
+
 [Unison](https://unisonweb.org) is a modern, statically-typed purely functional language with the ability to describe entire distributed systems using a single program. Here's an example of a distributed map-reduce implementation:
 
 ```Haskell
@@ -43,6 +51,11 @@ $ stack build --fast --test && stack exec unison
 To run the Unison Local UI while building from source, you can use the `/dev-ui-install.sh` script. It will download the latest release of [unison-local-ui](https://github.com/unisonweb/unison-local-ui) and put it in the expected location for the unison executable created by `stack build`. When you start unison, you'll see a url where Unison Local UI is running. 
 
 See [`development.markdown`](development.markdown) for a list of build commands you'll likely use during development.
+
+Language Server Protocol (LSP)
+------------------------------
+
+View Language Server setup instructions [here](docs/language-server.markdown).
 
 Codebase Server
 ---------------

@@ -61,6 +61,16 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.LSP
+      Unison.LSP.Completion
+      Unison.LSP.Diagnostics
+      Unison.LSP.FileAnalysis
+      Unison.LSP.Hover
+      Unison.LSP.NotificationHandlers
+      Unison.LSP.Orphans
+      Unison.LSP.Types
+      Unison.LSP.UCMWorker
+      Unison.LSP.VFS
       Unison.Share.Codeserver
       Unison.Share.Sync
       Unison.Share.Sync.Types
@@ -106,6 +116,7 @@ library
     , base
     , bytes
     , bytestring
+    , co-log-core
     , concurrent-output
     , configurator
     , containers >=0.6.3
@@ -116,8 +127,11 @@ library
     , exceptions
     , extra
     , filepath
+    , friendly-time
+    , fuzzyfind
     , generic-lens
     , haskeline
+    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -125,9 +139,13 @@ library
     , ki
     , lens
     , lock-file
+    , lsp
+    , lsp-types
     , megaparsec
     , memory
     , mtl
+    , network
+    , network-simple
     , network-uri
     , nonempty-containers
     , open-browser
@@ -139,6 +157,7 @@ library
     , servant-client
     , stm
     , text
+    , text-rope
     , these
     , time
     , transformers
@@ -214,6 +233,7 @@ executable cli-integration-tests
     , base
     , bytes
     , bytestring
+    , co-log-core
     , code-page
     , concurrent-output
     , configurator
@@ -226,8 +246,11 @@ executable cli-integration-tests
     , exceptions
     , extra
     , filepath
+    , friendly-time
+    , fuzzyfind
     , generic-lens
     , haskeline
+    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -235,9 +258,13 @@ executable cli-integration-tests
     , ki
     , lens
     , lock-file
+    , lsp
+    , lsp-types
     , megaparsec
     , memory
     , mtl
+    , network
+    , network-simple
     , network-uri
     , nonempty-containers
     , open-browser
@@ -251,6 +278,7 @@ executable cli-integration-tests
     , shellmet
     , stm
     , text
+    , text-rope
     , these
     , time
     , transformers
@@ -319,6 +347,7 @@ executable transcripts
     , base
     , bytes
     , bytestring
+    , co-log-core
     , code-page
     , concurrent-output
     , configurator
@@ -331,8 +360,11 @@ executable transcripts
     , exceptions
     , extra
     , filepath
+    , friendly-time
+    , fuzzyfind
     , generic-lens
     , haskeline
+    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -340,9 +372,13 @@ executable transcripts
     , ki
     , lens
     , lock-file
+    , lsp
+    , lsp-types
     , megaparsec
     , memory
     , mtl
+    , network
+    , network-simple
     , network-uri
     , nonempty-containers
     , open-browser
@@ -356,6 +392,7 @@ executable transcripts
     , shellmet
     , stm
     , text
+    , text-rope
     , these
     , time
     , transformers
@@ -429,6 +466,7 @@ executable unison
     , base
     , bytes
     , bytestring
+    , co-log-core
     , code-page
     , concurrent-output
     , configurator
@@ -440,8 +478,11 @@ executable unison
     , exceptions
     , extra
     , filepath
+    , friendly-time
+    , fuzzyfind
     , generic-lens
     , haskeline
+    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -449,9 +490,13 @@ executable unison
     , ki
     , lens
     , lock-file
+    , lsp
+    , lsp-types
     , megaparsec
     , memory
     , mtl
+    , network
+    , network-simple
     , network-uri
     , nonempty-containers
     , open-browser
@@ -467,6 +512,7 @@ executable unison
     , template-haskell
     , temporary
     , text
+    , text-rope
     , these
     , time
     , transformers
@@ -543,6 +589,7 @@ test-suite cli-tests
     , base
     , bytes
     , bytestring
+    , co-log-core
     , code-page
     , concurrent-output
     , configurator
@@ -555,6 +602,8 @@ test-suite cli-tests
     , exceptions
     , extra
     , filepath
+    , friendly-time
+    , fuzzyfind
     , generic-lens
     , haskeline
     , here
@@ -565,9 +614,13 @@ test-suite cli-tests
     , ki
     , lens
     , lock-file
+    , lsp
+    , lsp-types
     , megaparsec
     , memory
     , mtl
+    , network
+    , network-simple
     , network-uri
     , nonempty-containers
     , open-browser
@@ -581,6 +634,7 @@ test-suite cli-tests
     , stm
     , temporary
     , text
+    , text-rope
     , these
     , time
     , transformers

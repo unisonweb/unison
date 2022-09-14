@@ -27,8 +27,11 @@ dependencies:
   - exceptions
   - extra
   - filepath
+  - fuzzyfind
+  - friendly-time
   - generic-lens
   - haskeline
+  - here
   - http-client >= 0.7.6
   - http-client-tls
   - http-types
@@ -36,10 +39,15 @@ dependencies:
   - ki
   - lens
   - lock-file
+  - lsp
+  - lsp-types
   - megaparsec
   - memory
   - mtl
   - network-uri
+  - network-simple
+  - network
+  - co-log-core
   - uri-encode
   - nonempty-containers
   - open-browser
@@ -51,6 +59,7 @@ dependencies:
   - servant-client
   - stm
   - text
+  - text-rope
   - these
   - time
   - transformers
@@ -69,6 +78,7 @@ dependencies:
   - unison-util-relation
   - unliftio
   - vector
+  - witherable
   - wai
   - warp
   - witherable

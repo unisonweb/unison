@@ -1313,8 +1313,8 @@ createPullRequest =
             "example: "
               <> makeExampleNoBackticks
                 createPullRequest
-                [ "unison.base.main",
-                  "myself.prs.base._myFeature"
+                [ "unison.public.base.main",
+                  "myself.public.prs.base.myFeature"
                 ]
           ]
     )
@@ -1650,12 +1650,6 @@ helpTopicsMap =
                 "A definition with the same name as an existing definition. Doing"
                   <> "`update` instead of `add` will turn this failure into a successful"
                   <> "update."
-              ),
-              blankline,
-              ( P.bold $ SR.prettyStatus SR.Conflicted,
-                "A definition with the same name as an existing definition."
-                  <> "Resolving the conflict and then trying an `update` again will"
-                  <> "turn this into a successful update."
               ),
               blankline,
               ( P.bold $ SR.prettyStatus SR.TermExistingConstructorCollision,

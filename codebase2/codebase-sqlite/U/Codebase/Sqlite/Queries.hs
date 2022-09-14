@@ -63,6 +63,10 @@ module U.Codebase.Sqlite.Queries
     setNamespaceRoot,
     expectNamespaceRoot,
 
+    -- * namespace_statistics table
+    saveNamespaceStats,
+    loadNamespaceStatsByHashId,
+
     -- * causals
 
     -- ** causal table
@@ -95,12 +99,14 @@ module U.Codebase.Sqlite.Queries
 
     -- ** dependents index
     addToDependentsIndex,
+    DependentsSelector (..),
     getDependentsForDependency,
     getDependentsForDependencyComponent,
     getDependenciesForDependent,
     getDependencyIdsForDependent,
 
     -- ** migrations
+    currentSchemaVersion,
     countObjects,
     countCausals,
     countWatches,
@@ -131,6 +137,10 @@ module U.Codebase.Sqlite.Queries
     rootTypeNamesByPath,
     getNamespaceDefinitionCount,
 
+    -- * Reflog
+    appendReflog,
+    getReflog,
+
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
     garbageCollectWatchesWithoutObjects,
@@ -151,6 +161,8 @@ module U.Codebase.Sqlite.Queries
 
     -- * db misc
     addTempEntityTables,
+    addNamespaceStatsTables,
+    addReflogTable,
     addTypeMentionsToIndexForTerm,
     addTypeToIndexForTerm,
     c2xTerm,
@@ -192,6 +204,7 @@ import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here, hereFile)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import U.Codebase.Branch.Type (NamespaceStats (..))
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
@@ -199,6 +212,7 @@ import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
+import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
 import qualified U.Codebase.Sqlite.Causal as Causal
 import qualified U.Codebase.Sqlite.Causal as Sqlite.Causal
@@ -264,14 +278,33 @@ import Unison.Sqlite
 
 -- * main squeeze
 
+currentSchemaVersion :: SchemaVersion
+currentSchemaVersion = 7
+
 createSchema :: Transaction ()
 createSchema = do
   executeFile [hereFile|unison/sql/create.sql|]
+  execute insertSchemaVersionSql (Only currentSchemaVersion)
   addTempEntityTables
+  addNamespaceStatsTables
+  addReflogTable
+  where
+    insertSchemaVersionSql =
+      [here|
+        INSERT INTO schema_version (version) VALUES (?)
+      |]
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
   executeFile [hereFile|unison/sql/001-temp-entity-tables.sql|]
+
+addNamespaceStatsTables :: Transaction ()
+addNamespaceStatsTables =
+  executeFile [hereFile|unison/sql/003-namespace-statistics.sql|]
+
+addReflogTable :: Transaction ()
+addReflogTable =
+  executeFile [hereFile|unison/sql/002-reflog-table.sql|]
 
 executeFile :: String -> Transaction ()
 executeFile =
@@ -1266,10 +1299,27 @@ addToDependentsIndex dependency dependent = execute sql (dependency :. dependent
     ON CONFLICT DO NOTHING
   |]
 
--- | Get non-self, user-defined dependents of a dependency.
-getDependentsForDependency :: Reference.Reference -> Transaction [Reference.Id]
-getDependentsForDependency dependency =
-  filter isNotSelfReference <$> queryListRow sql dependency
+-- | Which dependents should be returned?
+--
+-- * /IncludeAllDependents/. Include all dependents, including references from one's own component-mates, and references
+-- from oneself (e.g. those in recursive functions)
+-- * /ExcludeSelf/. Include all dependents, including references from one's own component-mates, but excluding
+-- actual self references (e.g. those in recursive functions).
+-- * /ExcludeOwnComponent/. Include all dependents outside of one's own component.
+data DependentsSelector
+  = IncludeAllDependents
+  | ExcludeSelf
+  | ExcludeOwnComponent
+
+-- | Get dependents of a dependency.
+getDependentsForDependency :: DependentsSelector -> Reference.Reference -> Transaction (Set Reference.Id)
+getDependentsForDependency selector dependency = do
+  dependents <- queryListRow sql dependency
+  pure . Set.fromList $
+    case selector of
+      IncludeAllDependents -> dependents
+      ExcludeSelf -> filter isNotSelfReference dependents
+      ExcludeOwnComponent -> filter isNotReferenceFromOwnComponent dependents
   where
     sql =
       [here|
@@ -1280,11 +1330,17 @@ getDependentsForDependency dependency =
           AND dependency_component_index IS ?
       |]
 
+    isNotReferenceFromOwnComponent :: Reference.Id -> Bool
+    isNotReferenceFromOwnComponent =
+      case dependency of
+        ReferenceBuiltin _ -> const True
+        ReferenceDerived (C.Reference.Id oid0 _pos0) -> \(C.Reference.Id oid1 _pos1) -> oid0 /= oid1
+
     isNotSelfReference :: Reference.Id -> Bool
     isNotSelfReference =
       case dependency of
         ReferenceBuiltin _ -> const True
-        ReferenceDerived (C.Reference.Id oid0 _pos0) -> \(C.Reference.Id oid1 _pos1) -> oid0 /= oid1
+        ReferenceDerived ref -> (ref /=)
 
 getDependentsForDependencyComponent :: ObjectId -> Transaction [Reference.Id]
 getDependentsForDependencyComponent dependency =
@@ -2136,3 +2192,46 @@ lookup_ stateLens writerLens mk t = do
       Writer.tell $ Lens.set writerLens (Seq.singleton t) mempty
       pure id
     Just t' -> pure t'
+
+-- | Save statistics about a given branch.
+saveNamespaceStats :: BranchHashId -> NamespaceStats -> Transaction ()
+saveNamespaceStats bhId stats = do
+  execute sql (Only bhId :. stats)
+  where
+    sql =
+      [here|
+        INSERT INTO namespace_statistics (namespace_hash_id, num_contained_terms, num_contained_types, num_contained_patches)
+          VALUES (?, ?, ?, ?)
+      |]
+
+-- | Looks up statistics for a given branch, there's no guarantee that we have
+-- computed and saved stats for any given branch.
+loadNamespaceStatsByHashId :: BranchHashId -> Transaction (Maybe NamespaceStats)
+loadNamespaceStatsByHashId bhId = do
+  queryMaybeRow sql (Only bhId)
+  where
+    sql =
+      [here|
+          SELECT num_contained_terms, num_contained_types, num_contained_patches
+          FROM namespace_statistics
+          WHERE namespace_hash_id = ?
+        |]
+
+appendReflog :: Reflog.Entry CausalHashId Text -> Transaction ()
+appendReflog entry = execute sql entry
+  where
+    sql =
+      [here|
+    INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason) VALUES (?, ?, ?, ?)
+    |]
+
+getReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
+getReflog numEntries = queryListRow sql (Only numEntries)
+  where
+    sql =
+      [here|
+    SELECT time, from_root_causal_id, to_root_causal_id, reason
+      FROM reflog
+      ORDER BY time DESC
+      LIMIT ?
+    |]

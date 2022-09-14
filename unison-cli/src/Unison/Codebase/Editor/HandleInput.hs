@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.HandleInput
   ( loop,
+    typecheckHelper,
   )
 where
 
@@ -26,12 +27,15 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
+import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
 import System.Environment (withArgs)
 import qualified Text.Megaparsec as P
-import U.Codebase.HashTags (CausalHash (unCausalHash))
+import U.Codebase.HashTags (CausalHash (..))
+import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
+import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
 import qualified U.Util.Hash32 as Hash32
@@ -97,7 +101,6 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.PushBehavior as PushBehavior
-import qualified Unison.Codebase.Reflog as Reflog
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -137,10 +140,10 @@ import Unison.Position (Position (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
+import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo, empty)
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
-import Unison.Reference (Reference (..), TermReference)
+import Unison.Reference (Reference (..), TermReference, TypeReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -188,7 +191,6 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
-import Witherable (wither)
 
 prettyPrintEnvDecl :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = do
@@ -387,39 +389,32 @@ loop e = do
             ShowReflogI -> do
               Cli.Env {codebase} <- ask
               sbhLength <- liftIO (Codebase.branchHashLength codebase)
-              entries <- convertEntries sbhLength Nothing [] <$> liftIO (Codebase.getReflog codebase)
-              #numberedArgs .= (fmap (('#' :) . SBH.toString . Output.hash) entries)
-              Cli.respond $ ShowReflog entries
+              let numEntriesToShow = 500
+              entries <- liftIO (Codebase.getReflog codebase numEntriesToShow) <&> fmap (first $ SBH.fromHash sbhLength)
+              let moreEntriesToLoad = length entries == numEntriesToShow
+              let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
+              let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SBH.toString hash
+              #numberedArgs .= numberedEntries
+              Cli.respond $ ShowReflog expandedEntries
               where
-                -- reverses & formats entries, adds synthetic entries when there is a
-                -- discontinuity in the reflog.
-                convertEntries ::
-                  Int ->
-                  Maybe Branch.CausalHash ->
-                  [Output.ReflogEntry] ->
-                  [Reflog.Entry Branch.CausalHash] ->
-                  [Output.ReflogEntry]
-                convertEntries _ _ acc [] = acc
-                convertEntries sbhLength Nothing acc entries@(Reflog.Entry old _ _ : _) =
-                  convertEntries
-                    sbhLength
-                    (Just old)
-                    (Output.ReflogEntry (SBH.fromHash sbhLength old) "(initial reflogged namespace)" : acc)
-                    entries
-                convertEntries sbhLength (Just lastHash) acc entries@(Reflog.Entry old new reason : rest) =
-                  if lastHash /= old
-                    then
-                      convertEntries
-                        sbhLength
-                        (Just old)
-                        (Output.ReflogEntry (SBH.fromHash sbhLength old) "(external change)" : acc)
-                        entries
-                    else
-                      convertEntries
-                        sbhLength
-                        (Just new)
-                        (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
-                        rest
+                expandEntries ::
+                  ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool) ->
+                  Maybe ((Maybe UTCTime, SBH.ShortBranchHash, Text), ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool))
+                expandEntries ([], Just expectedHash, moreEntriesToLoad) =
+                  if moreEntriesToLoad
+                    then Nothing
+                    else Just ((Nothing, expectedHash, "history starts here"), ([], Nothing, moreEntriesToLoad))
+                expandEntries ([], Nothing, _moreEntriesToLoad) = Nothing
+                expandEntries (entries@(Reflog.Entry {time, fromRootCausalHash, toRootCausalHash, reason} : rest), mayExpectedHash, moreEntriesToLoad) =
+                  Just $
+                    case mayExpectedHash of
+                      Just expectedHash
+                        | expectedHash == toRootCausalHash -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
+                        -- Historical discontinuity, insert a synthetic entry
+                        | otherwise -> ((Nothing, toRootCausalHash, "(external change)"), (entries, Nothing, moreEntriesToLoad))
+                      -- No expectation, either because this is the most recent entry or
+                      -- because we're recovering from a discontinuity
+                      Nothing -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
             ResetRootI src0 ->
               Cli.time "reset-root" do
                 newRoot <-
@@ -943,7 +938,7 @@ loop e = do
               rootBranch <- Cli.getRootBranch
 
               pathArgAbs <- Cli.resolvePath' pathArg
-              entries <- liftIO (Backend.findShallow codebase pathArgAbs)
+              entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               #numberedArgs .= fmap entryToHQString entries
               let ppe =
@@ -1775,9 +1770,11 @@ handleDependents hq = do
   for_ lds \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
-      let tp r = liftIO (Codebase.dependents codebase r)
-          tm (Referent.Ref r) = liftIO (Codebase.dependents codebase r)
-          tm (Referent.Con (ConstructorReference r _cid) _ct) = liftIO (Codebase.dependents codebase r)
+      let tp r = liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+          tm = \case
+            Referent.Ref r -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+            Referent.Con (ConstructorReference r _cid) _ct ->
+              liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
        in LD.fold tp tm ld
     -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
     -- unambiguous name.
@@ -2139,44 +2136,36 @@ handleUpdate input optionalPatch requestedNames = do
       fileNames :: Names
       fileNames = UF.typecheckedToNames uf
       -- todo: display some error if typeEdits or termEdits itself contains a loop
-      typeEdits :: Map Name (Reference, Reference)
-      typeEdits = Map.fromList $ map f (toList $ SC.types (updates sr))
-        where
-          f v = case ( toList (Names.typesNamed slurpCheckNames n),
-                       toList (Names.typesNamed fileNames n)
-                     ) of
-            ([old], [new]) -> (n, (old, new))
-            actual ->
-              error $
-                "Expected unique matches for var \""
-                  ++ Var.nameStr v
-                  ++ "\" but got: "
-                  ++ show actual
-            where
-              n = Name.unsafeFromVar v
+      typeEdits :: [(Name, Reference, Reference)]
+      typeEdits = do
+        v <- Set.toList (SC.types (updates sr))
+        let n = Name.unsafeFromVar v
+        let oldRefs0 = Names.typesNamed slurpCheckNames n
+        let newRefs = Names.typesNamed fileNames n
+        case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
+          Nothing -> error (reportBug "E722145" ("bad (old,new) names: " ++ show (oldRefs0, newRefs)))
+          Just (oldRefs, newRef) -> do
+            oldRef <- Foldable.toList oldRefs
+            [(n, oldRef, newRef)]
       hashTerms :: Map Reference (Type Symbol Ann)
       hashTerms = Map.fromList (toList hashTerms0)
         where
           hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
-      termEdits :: Map Name (Reference, Reference)
-      termEdits = Map.fromList $ map g (toList $ SC.terms (updates sr))
-        where
-          g v = case ( toList (Names.refTermsNamed slurpCheckNames n),
-                       toList (Names.refTermsNamed fileNames n)
-                     ) of
-            ([old], [new]) -> (n, (old, new))
-            actual ->
-              error $
-                "Expected unique matches for var \""
-                  ++ Var.nameStr v
-                  ++ "\" but got: "
-                  ++ show actual
-            where
-              n = Name.unsafeFromVar v
+      termEdits :: [(Name, Reference, Reference)]
+      termEdits = do
+        v <- Set.toList (SC.terms (updates sr))
+        let n = Name.unsafeFromVar v
+        let oldRefs0 = Names.refTermsNamed slurpCheckNames n
+        let newRefs = Names.refTermsNamed fileNames n
+        case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
+          Nothing -> error (reportBug "E936103" ("bad (old,new) names: " ++ show (oldRefs0, newRefs)))
+          Just (oldRefs, newRef) -> do
+            oldRef <- Foldable.toList oldRefs
+            [(n, oldRef, newRef)]
       termDeprecations :: [(Name, Referent)]
       termDeprecations =
         [ (n, r)
-          | (oldTypeRef, _) <- Map.elems typeEdits,
+          | (_, oldTypeRef, _) <- typeEdits,
             (n, r) <- Names.constructorsForType oldTypeRef slurpCheckNames
         ]
   patchOps <- for patchPath \patchPath -> do
@@ -2197,7 +2186,7 @@ handleUpdate input optionalPatch requestedNames = do
             fromOld =
               [ (r, r') | (r, TermEdit.Replace r' _) <- R.toList . Patch._termEdits $ old, Set.member r' newLHS
               ]
-        neededTypes = collectOldForTyping (toList termEdits) ye'ol'Patch
+        neededTypes = collectOldForTyping (map (\(_, old, new) -> (old, new)) termEdits) ye'ol'Patch
 
     allTypes :: Map Reference (Type v Ann) <-
       fmap Map.fromList . for (toList neededTypes) $ \r ->
@@ -2223,8 +2212,8 @@ handleUpdate input optionalPatch requestedNames = do
         updatePatch p = foldl' step2 p' termEdits
           where
             p' = foldl' step1 p typeEdits
-            step1 p (r, r') = Patch.updateType r (TypeEdit.Replace r') p
-            step2 p (r, r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
+            step1 p (_, r, r') = Patch.updateType r (TypeEdit.Replace r') p
+            step2 p (_, r, r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
         (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
         updatePatches :: Monad m => Branch0 m -> m (Branch0 m)
         updatePatches = Branch.modifyPatches seg updatePatch
@@ -2608,25 +2597,10 @@ propagatePatch inputDescription patch scopePath = do
       (inputDescription <> " (applying patch)")
       (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
--- | Create the args needed for showTodoOutput and call it
+-- | Show todo output if there are any conflicts or edits.
 doShowTodoOutput :: Patch -> Path.Absolute -> Cli r ()
 doShowTodoOutput patch scopePath = do
   names0 <- Branch.toNames <$> Cli.getBranch0At scopePath
-  -- only needs the local references to check for obsolete defs
-  let getPpe = do
-        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-        prettyPrintEnvDecl names
-  showTodoOutput getPpe patch names0
-
--- | Show todo output if there are any conflicts or edits.
-showTodoOutput ::
-  -- | Action that fetches the pretty print env. It's expensive because it
-  -- involves looking up historical names, so only call it if necessary.
-  Cli r PPE.PrettyPrintEnvDecl ->
-  Patch ->
-  Names ->
-  Cli r ()
-showTodoOutput getPpe patch names0 = do
   todo <- checkTodo patch names0
   if TO.noConflicts todo && TO.noEdits todo
     then Cli.respond NoConflictsOrEdits
@@ -2635,41 +2609,49 @@ showTodoOutput getPpe patch names0 = do
         .= ( Text.unpack . Reference.toText . view _2
                <$> fst (TO.todoFrontierDependents todo)
            )
-      ppe <- getPpe
+      -- only needs the local references to check for obsolete defs
+      ppe <- do
+        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        prettyPrintEnvDecl names
       Cli.respondNumbered $ TodoOutput ppe todo
 
 checkTodo :: Patch -> Names -> Cli r (TO.TodoOutput Symbol Ann)
 checkTodo patch names0 = do
   Cli.Env {codebase} <- ask
-  let shouldUpdate = Names.contains names0
-  f <- Propagate.computeFrontier (liftIO . Codebase.dependents codebase) patch shouldUpdate
-  let dirty = R.dom f
-      frontier = R.ran f
-  (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
+  let -- Get the dependents of a reference which:
+      --   1. Don't appear on the LHS of this patch
+      --   2. Have a name in this namespace
+      getDependents :: Reference -> IO (Set Reference)
+      getDependents ref = do
+        dependents <- Codebase.dependents codebase Queries.ExcludeSelf ref
+        pure (dependents & removeEditedThings & removeNamelessThings)
+  -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
+  dependsOn <- liftIO (Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited)
+  let dirty = R.dom dependsOn
+  transitiveDirty <- liftIO (transitiveClosure getDependents dirty)
+  (frontierTerms, frontierTypes) <- loadDisplayInfo (R.ran dependsOn)
   (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
-  -- todo: something more intelligent here?
-  let scoreFn = const 1
-  remainingTransitive <-
-    frontierTransitiveDependents (liftIO . Codebase.dependents codebase) names0 frontier
-  let scoredDirtyTerms =
-        List.sortOn (view _1) [(scoreFn r, r, t) | (r, t) <- dirtyTerms]
-      scoredDirtyTypes =
-        List.sortOn (view _1) [(scoreFn r, r, t) | (r, t) <- dirtyTypes]
   pure $
     TO.TodoOutput
-      (Set.size remainingTransitive)
+      (Set.size transitiveDirty)
       (frontierTerms, frontierTypes)
-      (scoredDirtyTerms, scoredDirtyTypes)
+      (score dirtyTerms, score dirtyTypes)
       (Names.conflicts names0)
       (Patch.conflicts patch)
   where
-    frontierTransitiveDependents ::
-      Monad m => (Reference -> m (Set Reference)) -> Names -> Set Reference -> m (Set Reference)
-    frontierTransitiveDependents dependents names0 rs = do
-      let branchDependents r = Set.filter (Names.contains names0) <$> dependents r
-      tdeps <- transitiveClosure branchDependents rs
-      -- we don't want the frontier in the result
-      pure $ tdeps `Set.difference` rs
+    -- Remove from a all references that were edited, i.e. appear on the LHS of this patch.
+    removeEditedThings :: Set Reference -> Set Reference
+    removeEditedThings =
+      (`Set.difference` edited)
+    -- Remove all references that don't have a name in the given namespace
+    removeNamelessThings :: Set Reference -> Set Reference
+    removeNamelessThings =
+      Set.filter (Names.contains names0)
+    -- todo: something more intelligent here?
+    score :: [(a, b)] -> [(TO.Score, a, b)]
+    score = map (\(x, y) -> (1, x, y))
+    edited :: Set Reference
+    edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
 
 confirmedCommand :: Input -> Cli r Bool
 confirmedCommand i = do
@@ -2945,7 +2927,7 @@ getEndangeredDependents namesToDelete rootNames = do
       accumulateDependents :: LabeledDependency -> IO (Map LabeledDependency (Set LabeledDependency))
       accumulateDependents ld =
         let ref = LD.fold id Referent.toReference ld
-         in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents codebase ref
+         in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents codebase Queries.ExcludeOwnComponent ref
   -- All dependents of extinct, including terms which might themselves be in the process of being deleted.
   allDependentsOfExtinct :: Map LabeledDependency (Set LabeledDependency) <-
     liftIO (Map.unionsWith (<>) <$> for (Set.toList extinct) accumulateDependents)
@@ -3121,15 +3103,15 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
 
 doSlurpUpdates ::
   Monad m =>
-  Map Name (Reference, Reference) ->
-  Map Name (Reference, Reference) ->
+  [(Name, TypeReference, TypeReference)] ->
+  [(Name, TermReference, TermReference)] ->
   [(Name, Referent)] ->
   (Branch0 m -> Branch0 m)
 doSlurpUpdates typeEdits termEdits deprecated b0 =
   Branch.batchUpdates (typeActions <> termActions <> deprecateActions) b0
   where
-    typeActions = join . map doType . Map.toList $ typeEdits
-    termActions = join . map doTerm . Map.toList $ termEdits
+    typeActions = join . map doType $ typeEdits
+    termActions = join . map doTerm $ termEdits
     deprecateActions = join . map doDeprecate $ deprecated
       where
         doDeprecate (n, r) = case Path.splitFromName n of
@@ -3139,10 +3121,8 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
     -- we copy over the metadata on the old thing
     -- todo: if the thing being updated, m, is metadata for something x in b0
     -- update x's md to reference `m`
-    doType,
-      doTerm ::
-        (Name, (Reference, Reference)) -> [(Path, Branch0 m -> Branch0 m)]
-    doType (n, (old, new)) = case Path.splitFromName n of
+    doType :: (Name, TypeReference, TypeReference) -> [(Path, Branch0 m -> Branch0 m)]
+    doType (n, old, new) = case Path.splitFromName n of
       Nothing -> errorEmptyVar
       Just split ->
         [ BranchUtil.makeDeleteTypeName split old,
@@ -3150,7 +3130,8 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
         ]
         where
           oldMd = BranchUtil.getTypeMetadataAt split old b0
-    doTerm (n, (old, new)) = case Path.splitFromName n of
+    doTerm :: (Name, TermReference, TermReference) -> [(Path, Branch0 m -> Branch0 m)]
+    doTerm (n, old, new) = case Path.splitFromName n of
       Nothing -> errorEmptyVar
       Just split ->
         [ BranchUtil.makeDeleteTermName split (Referent.Ref old),
@@ -3618,6 +3599,29 @@ typecheck ambient names sourceName source =
         (Parser.ParsingEnv uniqueName names)
         (Text.unpack sourceName)
         (fst source)
+
+typecheckHelper ::
+  MonadIO m =>
+  Codebase IO Symbol Ann -> IO Parser.UniqueName ->
+  [Type Symbol Ann] ->
+  NamesWithHistory ->
+  Text ->
+  (Text, [L.Token L.Lexeme]) ->
+    m
+    ( Result.Result
+        (Seq (Result.Note Symbol Ann))
+        (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann))
+    )
+typecheckHelper codebase generateUniqueName ambient names sourceName source = do
+    uniqueName <- liftIO generateUniqueName
+    (liftIO . Result.getResult) $
+      parseAndSynthesizeFile
+        ambient
+        (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+        (Parser.ParsingEnv uniqueName names)
+        (Text.unpack sourceName)
+        (fst source)
+
 
 -- | Evaluate all watched expressions in a UnisonFile and return
 -- their results, keyed by the name of the watch variable. The tuple returned

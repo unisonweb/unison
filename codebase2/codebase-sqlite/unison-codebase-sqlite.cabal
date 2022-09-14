@@ -11,6 +11,8 @@ bug-reports:    https://github.com/unisonweb/unison/issues
 build-type:     Simple
 extra-source-files:
     sql/001-temp-entity-tables.sql
+    sql/002-reflog-table.sql
+    sql/003-namespace-statistics.sql
     sql/create.sql
 
 source-repository head
@@ -19,6 +21,7 @@ source-repository head
 
 library
   exposed-modules:
+      U.Codebase.Branch
       U.Codebase.Sqlite.Branch.Diff
       U.Codebase.Sqlite.Branch.Format
       U.Codebase.Sqlite.Branch.Full

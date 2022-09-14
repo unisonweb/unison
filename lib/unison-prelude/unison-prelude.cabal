@@ -52,4 +52,5 @@ library
     , transformers
     , unliftio
     , vector
+    , witherable
   default-language: Haskell2010

@@ -16,7 +16,7 @@ source-repository head
 
 library
   exposed-modules:
-      U.Codebase.Branch
+      U.Codebase.Branch.Type
       U.Codebase.Causal
       U.Codebase.Decl
       U.Codebase.HashTags
@@ -55,6 +55,7 @@ library
     , lens
     , mtl
     , text
+    , time
     , unison-core
     , unison-prelude
     , unison-util

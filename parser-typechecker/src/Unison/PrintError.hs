@@ -261,7 +261,7 @@ renderTypeError e env src curPath = case e of
               style ErrorSite "then",
               " clause."
             ]
-        VectorBody -> "The elements of a vector all need to have the same type."
+        ListBody -> "All the elements of a list need to have the same type."
         CaseBody ->
           mconcat
             [ "Each case of a ",

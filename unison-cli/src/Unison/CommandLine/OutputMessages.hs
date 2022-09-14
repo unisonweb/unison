@@ -5,7 +5,7 @@
 
 module Unison.CommandLine.OutputMessages where
 
-import Control.Lens
+import Control.Lens hiding (at)
 import Control.Monad.State
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.Trans.Writer.CPS
@@ -22,6 +22,8 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.Time (UTCTime, getCurrentTime)
+import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import qualified Network.HTTP.Types as Http
@@ -34,6 +36,7 @@ import System.Directory
     doesFileExist,
     getHomeDirectory,
   )
+import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
@@ -50,7 +53,6 @@ import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, Missi
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as E
-import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
 import Unison.Codebase.Editor.RemoteRepo
@@ -73,11 +75,7 @@ import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.SqliteCodebase.GitError
-  ( GitSqliteCodebaseError
-      ( GitCouldntParseRootBranchHash,
-        NoDatabaseFile,
-        UnrecognizedSchemaVersion
-      ),
+  ( GitSqliteCodebaseError (..),
   )
 import qualified Unison.Codebase.TermEdit as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
@@ -963,17 +961,20 @@ notifyUser dir o = case o of
           ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq,
             isBuiltin r
           )
-        ShallowBranchEntry ns _ count ->
+        ShallowBranchEntry ns _ (NamespaceStats {numContainedTerms, numContainedTypes}) ->
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/",
-            case count of
-              Nothing -> "(namespace)"
-              Just 1 -> P.lit "(1 definition)"
-              Just n -> P.lit "(" <> P.shown n <> P.lit " definitions)"
+            case catMaybes [formatCount "term" numContainedTerms, formatCount "type" numContainedTypes] of
+              [] -> ""
+              counts -> P.hiBlack $ "(" <> intercalateMap ", " id counts <> ")"
           )
         ShallowPatchEntry ns ->
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns,
             P.lit "(patch)"
           )
+      formatCount :: Pretty -> Int -> Maybe Pretty
+      formatCount _thing 0 = Nothing
+      formatCount thing 1 = Just $ "1 " <> thing
+      formatCount thing n = Just $ P.shown n <> " " <> thing <> "s"
       isBuiltin = \case
         Reference.Builtin {} -> P.lit "(builtin type)"
         Reference.DerivedId {} -> P.lit "(type)"
@@ -1125,6 +1126,11 @@ notifyUser dir o = case o of
             <> prettyReadGitRepo repo
             <> "in the cache directory at"
             <> P.backticked' (P.string localPath) "."
+      CodebaseRequiresMigration (SchemaVersion fromSv) (SchemaVersion toSv) -> do
+        P.wrap $
+          "The specified codebase codebase is on version " <> P.shown fromSv
+            <> " but needs to be on version "
+            <> P.shown toSv
       UnrecognizedSchemaVersion repo localPath (SchemaVersion v) ->
         P.wrap $
           "I don't know how to interpret schema version " <> P.shown v
@@ -1415,41 +1421,51 @@ notifyUser dir o = case o of
         <> "contradictory entries."
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
-  ShowReflog [] -> pure . P.warnCallout $ "The reflog appears to be empty!"
-  ShowReflog entries ->
+  ShowReflog [] -> pure . P.warnCallout $ "The reflog is empty"
+  ShowReflog entries -> do
+    now <- getCurrentTime
     pure $
       P.lines
-        [ P.wrap $
-            "Here is a log of the root namespace hashes,"
-              <> "starting with the most recent,"
-              <> "along with the command that got us there."
-              <> "Try:",
-          "",
-          -- `head . tail` is safe: entries never has 1 entry, and [] is handled above
-          let e2 = head . tail $ entries
-           in P.indentN 2 . P.wrapColumn2 $
-                [ ( IP.makeExample IP.forkLocal ["2", ".old"],
-                    ""
-                  ),
-                  ( IP.makeExample IP.forkLocal [prettySBH . Output.hash $ e2, ".old"],
-                    "to make an old namespace accessible again,"
-                  ),
-                  (mempty, mempty),
-                  ( IP.makeExample IP.resetRoot [prettySBH . Output.hash $ e2],
-                    "to reset the root namespace and its history to that of the specified"
-                      <> "namespace."
-                  )
-                ],
-          "",
-          P.numberedList . fmap renderEntry $ entries,
+        [ header,
+          P.numberedColumnNHeader ["When", "Root Hash", "Action"] $ entries <&> renderEntry3Column now,
           "",
           tip $ "Use " <> IP.makeExample IP.diffNamespace ["1", "7"] <> " to compare namespaces between two points in history."
         ]
     where
-      renderEntry :: Output.ReflogEntry -> Pretty
-      renderEntry (Output.ReflogEntry hash reason) =
-        P.wrap $
-          P.blue (prettySBH hash) <> " : " <> P.text reason
+      header =
+        case entries of
+          (_head : (_, prevSBH, _) : _) ->
+            P.lines
+              [ P.wrap $
+                  "Here is a log of the root namespace hashes,"
+                    <> "starting with the most recent,"
+                    <> "along with the command that got us there."
+                    <> "Try:",
+                "",
+                ( P.indentN 2 . P.wrapColumn2 $
+                    [ ( IP.makeExample IP.forkLocal ["2", ".old"],
+                        ""
+                      ),
+                      ( IP.makeExample IP.forkLocal [prettySBH prevSBH, ".old"],
+                        "to make an old namespace accessible again,"
+                      ),
+                      (mempty, mempty),
+                      ( IP.makeExample IP.resetRoot [prettySBH prevSBH],
+                        "to reset the root namespace and its history to that of the specified"
+                          <> "namespace."
+                      )
+                    ]
+                ),
+                ""
+              ]
+          _ -> mempty
+      renderEntry3Column :: UTCTime -> (Maybe UTCTime, SBH.ShortBranchHash, Text) -> [Pretty]
+      renderEntry3Column now (mayTime, sbh, reason) =
+        [maybe "" (prettyHumanReadableTime now) mayTime, P.blue (prettySBH sbh), P.text $ truncateReason reason]
+      truncateReason :: Text -> Text
+      truncateReason txt = case Text.splitAt 60 txt of
+        (short, "") -> short
+        (short, _) -> short <> "..."
   StartOfCurrentPathHistory ->
     pure $
       P.wrap "You're already at the very beginning! 🙂"
@@ -1461,12 +1477,12 @@ notifyUser dir o = case o of
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully updated" <> prettyPath' dest <> "from"
+        "✅ Successfully updated" <> prettyPath' dest <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "The destination" <> prettyPath' dest <> "was empty, and was replaced instead of merging."
+        "✅ Successfully pulled into newly created namespace " <> P.group (prettyPath' dest <> ".")
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
@@ -3155,3 +3171,28 @@ endangeredDependentsTable ppeDecl m =
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
 displayBranchHash :: Branch.CausalHash -> String
 displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . Causal.unCausalHash
+
+prettyHumanReadableTime :: UTCTime -> UTCTime -> Pretty
+prettyHumanReadableTime now time =
+  P.green . P.string $ humanReadableTimeI18N' terseTimeLocale now time
+  where
+    terseTimeLocale =
+      defaultHumanTimeLocale
+        { justNow = "now",
+          secondsAgo = \f -> (++ " secs" ++ dir f),
+          oneMinuteAgo = \f -> "a min" ++ dir f,
+          minutesAgo = \f -> (++ " mins" ++ dir f),
+          oneHourAgo = \f -> "an hour" ++ dir f,
+          aboutHoursAgo = \f x -> "about " ++ x ++ " hours" ++ dir f,
+          at = \_ t -> t,
+          daysAgo = \f -> (++ " days" ++ dir f),
+          weekAgo = \f -> (++ " week" ++ dir f),
+          weeksAgo = \f -> (++ " weeks" ++ dir f),
+          onYear = \dt -> dt,
+          dayOfWeekFmt = "%A, %-l:%M%p",
+          thisYearFmt = "%b %e",
+          prevYearFmt = "%b %e, %Y"
+        }
+
+    dir True = " from now"
+    dir False = " ago"

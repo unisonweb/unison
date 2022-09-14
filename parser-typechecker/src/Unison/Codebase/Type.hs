@@ -15,6 +15,8 @@ where
 
 import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Reference as V2
+import qualified U.Codebase.Reflog as Reflog
+import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Git as Git
@@ -23,7 +25,6 @@ import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.SyncMode (SyncMode)
@@ -79,14 +80,17 @@ data Codebase m v a = Codebase
     getDeclComponent :: Hash -> m (Maybe [Decl v a]),
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
     -- | Get the root branch Hash.
-    getRootBranchHash :: m V2.CausalHash,
+    getRootCausalHash :: m V2.CausalHash,
     -- | Get the root branch.
     getRootBranch :: m (Branch m),
     -- | Get whether the root branch exists.
     getRootBranchExists :: m Bool,
     -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
-    putRootBranch :: Branch m -> m (),
-    getShallowBranchForHash :: V2.CausalHash -> m (V2.CausalBranch m),
+    putRootBranch ::
+      Text -> -- Reason for the change, will be recorded in the reflog
+      Branch m ->
+      m (),
+    getShallowCausalForHash :: V2.CausalHash -> m (V2.CausalBranch m),
     getBranchForHashImpl :: Branch.CausalHash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
@@ -105,7 +109,7 @@ data Codebase m v a = Codebase
     patchExists :: Branch.EditHash -> m Bool,
     -- | Get the set of user-defined terms and type declarations that depend on the given term, type declaration, or
     -- builtin type.
-    dependentsImpl :: Reference -> m (Set Reference.Id),
+    dependentsImpl :: Queries.DependentsSelector -> Reference -> m (Set Reference.Id),
     dependentsOfComponentImpl :: Hash -> m (Set Reference.Id),
     -- | Copy a branch and all of its dependencies from the given codebase into this one.
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
@@ -132,16 +136,8 @@ data Codebase m v a = Codebase
     putWatch :: WK.WatchKind -> Reference.Id -> Term v a -> m (),
     -- | Delete all watches that were put by 'putWatch'.
     clearWatches :: m (),
-    -- | Get the entire reflog.
-    getReflog :: m [Reflog.Entry Branch.CausalHash],
-    -- | @appendReflog reason before after@ appends a reflog entry.
-    --
-    -- FIXME: this could have type
-    --
-    -- @
-    -- appendReflog :: Reflog.Entry (Branch m) -> m ()
-    -- @
-    appendReflog :: Text -> Branch m -> Branch m -> m (),
+    -- | Gets the specified number of reflog entries in chronological order, most recent first.
+    getReflog :: Int -> m [Reflog.Entry V2.CausalHash Text],
     -- | Get the set of user-defined terms-or-constructors that have the given type.
     termsOfTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.
@@ -214,3 +210,5 @@ gitErrorFromOpenCodebaseError path repo = \case
   OpenCodebaseDoesntExist -> NoDatabaseFile repo path
   OpenCodebaseUnknownSchemaVersion v ->
     UnrecognizedSchemaVersion repo path (fromIntegral v)
+  OpenCodebaseRequiresMigration fromSv toSv ->
+    CodebaseRequiresMigration fromSv toSv

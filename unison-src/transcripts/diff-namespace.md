@@ -143,14 +143,6 @@ a = 555
 .> diff.namespace nsx nsw
 .nsw> view a b
 ```
-```unison
-a = 777
-```
-
-```ucm:error
-.nsw> update
-.nsw> view a b
-```
 
 ## Should be able to diff a namespace hash from history.
 
