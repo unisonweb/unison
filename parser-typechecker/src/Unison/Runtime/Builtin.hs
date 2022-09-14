@@ -1014,16 +1014,11 @@ set'buffering instr =
         outIoFailUnit s1 s2 s3 u f r
     (handle, bmode, tag, n, w, s1, s2, s3, u, f, r) = fresh
 
-get'buffering'output :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
-get'buffering'output eitherResult stack1 stack2 resultTag failVar successVar =
+get'buffering'output :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> v -> ANormal v
+get'buffering'output eitherResult stack1 stack2 stack3 resultTag anyVar failVar successVar =
   TMatch eitherResult . MatchSum $
     mapFromList
-      [ ( 0,
-          ([BX, BX],)
-            . TAbss [stack1, stack2]
-            . TLetD failVar BX (TCon Ty.failureRef 0 [stack1, stack2])
-            $ left failVar
-        ),
+      [ failureCase stack1 stack2 stack3 anyVar failVar,
         ( 1,
           ([UN],)
             . TAbs resultTag
@@ -1051,9 +1046,9 @@ get'buffering'output eitherResult stack1 stack2 resultTag failVar successVar =
 get'buffering :: ForeignOp
 get'buffering =
   inBx arg1 eitherResult $
-    get'buffering'output eitherResult n n2 resultTag failVar successVar
+    get'buffering'output eitherResult n n2 n3 resultTag anyVar failVar successVar
   where
-    (arg1, eitherResult, n, n2, resultTag, failVar, successVar) = fresh
+    (arg1, eitherResult, n, n2, n3, resultTag, anyVar, failVar, successVar) = fresh
 
 crypto'hash :: ForeignOp
 crypto'hash instr =
