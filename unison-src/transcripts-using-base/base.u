@@ -275,6 +275,13 @@ bSort : [(a,b)] -> [(a,b)]
 bSort = foldLeft (acc -> uncurry (bInsert acc)) []
 
 -- Finding transitive dependencies
+
+-- main logic, given a sorted list of found dependencies and a list of
+-- dependencies to search, yields the sorted list of transitive
+-- dependencies
+--
+-- Leaves out builtins, since they shouldn't be necessary, and can't be
+-- transported/saved reliably.
 crawl found = cases
   [] -> found
   ln +: rest
