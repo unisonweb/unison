@@ -255,8 +255,9 @@ loop e = do
         unisonFile <- withFile [] sourceName (text, lexed)
         currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
         let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-        names <- displayNames unisonFile
-        pped <- prettyPrintEnvDecl names
+        let ufNames = UF.typecheckedToNames unisonFile
+        let names = ufNames `Names.unionLeftName` currentNames
+        pped <- prettyPrintEnvDecl (NamesWithHistory.fromCurrentNames names)
         let ppe = PPE.suffixifiedPPE pped
         Cli.respond $ Typechecked sourceName ppe sr unisonFile
         (bindings, e) <- evalUnisonFile False ppe unisonFile []
@@ -3595,26 +3596,26 @@ typecheck ambient names sourceName source =
 
 typecheckHelper ::
   MonadIO m =>
-  Codebase IO Symbol Ann -> IO Parser.UniqueName ->
+  Codebase IO Symbol Ann ->
+  IO Parser.UniqueName ->
   [Type Symbol Ann] ->
   NamesWithHistory ->
   Text ->
   (Text, [L.Token L.Lexeme]) ->
-    m
+  m
     ( Result.Result
         (Seq (Result.Note Symbol Ann))
         (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann))
     )
 typecheckHelper codebase generateUniqueName ambient names sourceName source = do
-    uniqueName <- liftIO generateUniqueName
-    (liftIO . Result.getResult) $
-      parseAndSynthesizeFile
-        ambient
-        (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
-        (Parser.ParsingEnv uniqueName names)
-        (Text.unpack sourceName)
-        (fst source)
-
+  uniqueName <- liftIO generateUniqueName
+  (liftIO . Result.getResult) $
+    parseAndSynthesizeFile
+      ambient
+      (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+      (Parser.ParsingEnv uniqueName names)
+      (Text.unpack sourceName)
+      (fst source)
 
 -- | Evaluate all watched expressions in a UnisonFile and return
 -- their results, keyed by the name of the watch variable. The tuple returned
