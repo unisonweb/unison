@@ -5,6 +5,7 @@
 -- | Provides Globbing for selecting types, terms and namespaces using wildcards.
 module Unison.CommandLine.Globbing
   ( expandGlobs,
+    containsGlob,
     TargetType (..),
   )
 where
@@ -118,6 +119,11 @@ expandGlobs targets rootBranch currentPath s = do
         | isAbsolute = (Path.Absolute . Path.unrelative) <$> paths
         | otherwise = Path.resolve currentPath <$> paths
   pure (Path.convert <$> relocatedPaths)
+
+containsGlob :: String -> Bool
+containsGlob s =
+  let (_, globPath) = globbedPathParser (Text.pack s)
+   in any Either.isRight $ globPath
 
 -- | Parses a single name segment into a GlobArg or a bare segment according to whether
 -- there's a glob.

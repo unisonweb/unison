@@ -939,20 +939,29 @@ notifyUser dir o = case o of
   --
   --   Term (with hash #asldfkjsdlfkjsdf): .util.frobnicate, foo, blarg.mcgee
   --   Types (with hash #hsdflkjsdfsldkfj): Optional, Maybe, foo
-  ListShallow ppe entries ->
+  ListShallow buildPPE entries -> do
+    let needPPE =
+          entries
+            & any \case
+              ShallowTermEntry {} -> True
+              _ -> False
+    ppe <-
+      if needPPE
+        then buildPPE
+        else pure PPE.empty
     -- todo: make a version of prettyNumberedResult to support 3-columns
     pure $
       if null entries
         then P.lit "nothing to show"
-        else numberedEntries entries
+        else numberedEntries ppe entries
     where
-      numberedEntries :: Var v => [ShallowListEntry v a] -> Pretty
-      numberedEntries entries =
-        (P.column3 . fmap f) ([(1 :: Integer) ..] `zip` fmap formatEntry entries)
+      numberedEntries :: Var v => PPE.PrettyPrintEnv -> [ShallowListEntry v a] -> Pretty
+      numberedEntries ppe entries =
+        (P.column3 . fmap f) ([(1 :: Integer) ..] `zip` fmap (formatEntry ppe) entries)
         where
           f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
-      formatEntry :: Var v => ShallowListEntry v a -> (Pretty, Pretty)
-      formatEntry = \case
+      formatEntry :: Var v => PPE.PrettyPrintEnv -> ShallowListEntry v a -> (Pretty, Pretty)
+      formatEntry ppe = \case
         ShallowTermEntry (TermEntry _r hq ot _) ->
           ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq,
             P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")"

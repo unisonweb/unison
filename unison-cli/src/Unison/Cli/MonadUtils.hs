@@ -15,13 +15,17 @@ module Unison.Cli.MonadUtils
     resolveAbsBranchId,
     resolveShortBranchHash,
 
-    -- ** Getting branches
+    -- ** Getting/setting branches
     getRootBranch,
+    setRootBranch,
+    modifyRootBranch,
     getRootBranch0,
     getCurrentBranch,
     getCurrentBranch0,
     getBranchAt,
     getBranch0At,
+    getLastSavedRootHash,
+    setLastSavedRootHash,
     getMaybeBranchAt,
     expectBranchAtPath',
     assertNoBranchAtPath',
@@ -64,6 +68,8 @@ import Control.Monad.State
 import qualified Data.Configurator as Configurator
 import qualified Data.Configurator.Types as Configurator
 import qualified Data.Set as Set
+import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Causal as V2Causal
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Codebase as Codebase
@@ -79,6 +85,7 @@ import Unison.Codebase.Path (Path' (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann (..))
@@ -88,6 +95,7 @@ import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Util.Set as Set
+import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------
 -- .unisonConfig things
@@ -144,17 +152,33 @@ resolveShortBranchHash hash = do
     pure (fromMaybe Branch.empty branch)
 
 ------------------------------------------------------------------------------------------------------------------------
--- Getting branches
+-- Getting/Setting branches
 
 -- | Get the root branch.
 getRootBranch :: Cli r (Branch IO)
 getRootBranch = do
-  use #root
+  use #root >>= atomically . readTMVar
 
 -- | Get the root branch0.
 getRootBranch0 :: Cli r (Branch0 IO)
 getRootBranch0 =
   Branch.head <$> getRootBranch
+
+-- | Set a new root branch.
+-- Note: This does _not_ update the codebase, the caller is responsible for that.
+setRootBranch :: Branch IO -> Cli r ()
+setRootBranch b = do
+  void $ modifyRootBranch (const b)
+
+-- | Get the root branch.
+modifyRootBranch :: (Branch IO -> Branch IO) -> Cli r (Branch IO)
+modifyRootBranch f = do
+  rootVar <- use #root
+  atomically do
+    root <- takeTMVar rootVar
+    let newRoot = f root
+    putTMVar rootVar newRoot
+    pure newRoot
 
 -- | Get the current branch.
 getCurrentBranch :: Cli r (Branch IO)
@@ -166,6 +190,17 @@ getCurrentBranch = do
 getCurrentBranch0 :: Cli r (Branch0 IO)
 getCurrentBranch0 = do
   Branch.head <$> getCurrentBranch
+
+-- | Get the last saved root hash.
+getLastSavedRootHash :: Cli r V2Branch.CausalHash
+getLastSavedRootHash = do
+  use #lastSavedRootHash
+
+-- | Set a new root branch.
+-- Note: This does _not_ update the codebase, the caller is responsible for that.
+setLastSavedRootHash :: V2Branch.CausalHash -> Cli r ()
+setLastSavedRootHash ch = do
+  #lastSavedRootHash .= ch
 
 -- | Get the branch at an absolute path.
 getBranchAt :: Path.Absolute -> Cli r (Branch IO)
@@ -203,11 +238,13 @@ assertNoBranchAtPath' path' = do
 -- current terms/types etc).
 branchExistsAtPath' :: Path' -> Cli r Bool
 branchExistsAtPath' path' = do
-  path <- resolvePath' path'
-  getMaybeBranchAt path <&> \case
-    Nothing -> False
-    Just branch ->
-      not (Branch.isEmpty0 (Branch.head branch))
+  absPath <- resolvePath' path'
+  Cli.Env {codebase} <- ask
+  liftIO $ do
+    causal <- Codebase.getShallowCausalFromRoot codebase Nothing (Path.unabsolute absPath)
+    branch <- V2Causal.value causal
+    isEmpty <- Codebase.runTransaction codebase $ V2Branch.isEmpty branch
+    pure (not isEmpty)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting terms
@@ -279,7 +316,7 @@ expectLatestTypecheckedFile :: Cli r (TypecheckedUnisonFile Symbol Ann)
 expectLatestTypecheckedFile =
   getLatestTypecheckedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
 
--- | Update a branch at the given path, returning `True` if
+-- Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM ::
   Text ->
@@ -287,8 +324,7 @@ updateAtM ::
   (Branch IO -> Cli r (Branch IO)) ->
   Cli r Bool
 updateAtM reason (Path.Absolute p) f = do
-  loopState <- get
-  let b = loopState ^. #lastSavedRoot
+  b <- getRootBranch
   b' <- Branch.modifyAtM p f b
   updateRoot b' reason
   pure $ b /= b'
@@ -307,9 +343,9 @@ updateRoot :: Branch IO -> Text -> Cli r ()
 updateRoot new reason =
   Cli.time "updateRoot" do
     Cli.Env {codebase} <- ask
-    loopState <- get
-    let old = loopState ^. #lastSavedRoot
-    when (old /= new) do
-      #root .= new
+    let newHash = Cv.causalHash1to2 $ Branch.headHash new
+    oldHash <- getLastSavedRootHash
+    when (oldHash /= newHash) do
+      setRootBranch new
       liftIO (Codebase.putRootBranch codebase reason new)
-      #lastSavedRoot .= new
+      setLastSavedRootHash newHash

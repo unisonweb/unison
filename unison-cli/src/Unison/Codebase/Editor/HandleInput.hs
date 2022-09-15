@@ -190,6 +190,7 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
 
 prettyPrintEnvDecl :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
@@ -565,18 +566,18 @@ loop e = do
                 BranchUtil.makeDeleteBranch (Path.convert absPath)
               afterDelete
             SwitchBranchI maybePath' -> do
-              root0 <- Cli.getRootBranch0
               path' <-
                 maybePath' & onNothing do
+                  root0 <- Cli.getRootBranch0
                   fuzzySelectNamespace Absolute root0 >>= \case
                     -- Shouldn't be possible to get multiple paths here, we can just take
                     -- the first.
                     Just (p : _) -> pure p
                     _ -> Cli.returnEarly (HelpMessage InputPatterns.cd)
               path <- Cli.resolvePath' path'
+              branchExists <- Cli.branchExistsAtPath' path'
+              when (not branchExists) (Cli.respond $ CreatedNewBranch path)
               #currentPathStack %= Nel.cons path
-              branch' <- Cli.getBranch0At path
-              when (Branch.isEmpty0 branch') (Cli.respond $ CreatedNewBranch path)
             UpI -> do
               path0 <- Cli.getCurrentPath
               whenJust (unsnoc path0) \(path, _) ->
@@ -934,19 +935,21 @@ loop e = do
               #numberedArgs .= fmap Name.toString patches
             FindShallowI pathArg -> do
               Cli.Env {codebase} <- ask
-              sbhLength <- liftIO (Codebase.branchHashLength codebase)
-              rootBranch <- Cli.getRootBranch
 
               pathArgAbs <- Cli.resolvePath' pathArg
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               #numberedArgs .= fmap entryToHQString entries
-              let ppe =
-                    Backend.basicSuffixifiedNames
-                      sbhLength
-                      rootBranch
-                      (Backend.AllNames (Path.unabsolute pathArgAbs))
-              Cli.respond $ ListShallow ppe entries
+              getRoot <- atomically . STM.readTMVar <$> use #root
+              let buildPPE = do
+                    sbhLength <- liftIO (Codebase.branchHashLength codebase)
+                    rootBranch <- getRoot
+                    pure $
+                      Backend.basicSuffixifiedNames
+                        sbhLength
+                        rootBranch
+                        (Backend.AllNames (Path.unabsolute pathArgAbs))
+              Cli.respond $ ListShallow buildPPE entries
               where
                 entryToHQString :: ShallowListEntry v Ann -> String
                 entryToHQString e =
@@ -2871,7 +2874,7 @@ stepManyAtNoSync' ::
 stepManyAtNoSync' actions = do
   origRoot <- Cli.getRootBranch
   newRoot <- Branch.stepManyAtM actions origRoot
-  #root .= newRoot
+  Cli.setRootBranch newRoot
   pure (origRoot /= newRoot)
 
 -- Like stepManyAt, but doesn't update the last saved root
@@ -2880,7 +2883,7 @@ stepManyAtNoSync ::
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli r ()
 stepManyAtNoSync actions =
-  #root %= Branch.stepManyAt actions
+  void $ Cli.modifyRootBranch $ Branch.stepManyAt actions
 
 stepManyAtM ::
   Foldable f =>
@@ -2898,7 +2901,7 @@ stepManyAtMNoSync ::
 stepManyAtMNoSync actions = do
   oldRoot <- Cli.getRootBranch
   newRoot <- liftIO (Branch.stepManyAtM actions oldRoot)
-  #root .= newRoot
+  Cli.setRootBranch newRoot
 
 -- | Sync the in-memory root branch.
 syncRoot :: Text -> Cli r ()

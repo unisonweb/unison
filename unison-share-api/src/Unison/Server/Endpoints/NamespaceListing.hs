@@ -188,9 +188,9 @@ serve codebase maySBH mayRelativeTo mayNamespaceName = do
       serveFromIndex codebase mayRootHash path'
     (True, Just rh)
       | rh == causalHash2to1 codebaseRootHash ->
-          serveFromIndex codebase mayRootHash path'
+        serveFromIndex codebase mayRootHash path'
       | otherwise -> do
-          serveFromBranch codebase path' (Cv.causalHash1to2 rh)
+        serveFromBranch codebase path' (Cv.causalHash1to2 rh)
     (False, Just rh) -> do
       serveFromBranch codebase path' (Cv.causalHash1to2 rh)
     (False, Nothing) -> do
