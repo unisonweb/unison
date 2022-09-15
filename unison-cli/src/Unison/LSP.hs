@@ -40,8 +40,8 @@ getLspPort :: IO String
 getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
 
 -- | Spawn an LSP server on the configured port.
-spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM (Branch IO, Path.Absolute) -> IO ()
-spawnLsp codebase runtime ucmState = withSocketsDo do
+spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM (Branch IO) -> STM (Path.Absolute) -> IO ()
+spawnLsp codebase runtime latestBranch latestPath = withSocketsDo do
   lspPort <- getLspPort
   TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
     sockHandle <- socketToHandle sock ReadWriteMode
@@ -50,7 +50,7 @@ spawnLsp codebase runtime ucmState = withSocketsDo do
       -- different un-saved state for the same file.
       initVFS $ \vfs -> do
         vfsVar <- newMVar vfs
-        void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope ucmState)
+        void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope latestBranch latestPath)
   where
     -- Where to send logs that occur before a client connects
     lspServerLogger = Colog.filterBySeverity Colog.Error Colog.getSeverity $ Colog.cmap (fmap tShow) (LogAction print)
@@ -62,13 +62,14 @@ serverDefinition ::
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
   Ki.Scope ->
-  STM (Branch IO, Path.Absolute) ->
+  STM (Branch IO) ->
+  STM (Path.Absolute) ->
   ServerDefinition Config
-serverDefinition vfsVar codebase runtime scope ucmState =
+serverDefinition vfsVar codebase runtime scope latestBranch latestPath =
   ServerDefinition
     { defaultConfig = lspDefaultConfig,
       onConfigurationChange = lspOnConfigurationChange,
-      doInitialize = lspDoInitialize vfsVar codebase runtime scope ucmState,
+      doInitialize = lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath,
       staticHandlers = lspStaticHandlers,
       interpretHandler = lspInterpretHandler,
       options = lspOptions
@@ -87,11 +88,12 @@ lspDoInitialize ::
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
   Ki.Scope ->
-  STM (Branch IO, Path.Absolute) ->
+  STM (Branch IO) ->
+  STM (Path.Absolute) ->
   LanguageContextEnv Config ->
   Message 'Initialize ->
   IO (Either ResponseError Env)
-lspDoInitialize vfsVar codebase runtime scope ucmState lspContext _initMsg = do
+lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext _initMsg = do
   -- TODO: some of these should probably be MVars so that we correctly wait for names and
   -- things to be generated before serving requests.
   checkedFilesVar <- newTVarIO mempty
@@ -102,7 +104,7 @@ lspDoInitialize vfsVar codebase runtime scope ucmState lspContext _initMsg = do
   let env = Env {ppeCache = readTVarIO ppeCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
-  Ki.fork scope (lspToIO $ ucmWorker ppeCacheVar parseNamesCacheVar ucmState)
+  Ki.fork scope (lspToIO $ ucmWorker ppeCacheVar parseNamesCacheVar latestBranch latestPath)
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically

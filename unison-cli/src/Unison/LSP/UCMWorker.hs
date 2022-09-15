@@ -14,10 +14,15 @@ import qualified Unison.Server.Backend as Backend
 import UnliftIO.STM
 
 -- | Watches for state changes in UCM and updates cached LSP state accordingly
-ucmWorker :: TVar PrettyPrintEnvDecl -> TVar NamesWithHistory -> STM (Branch IO, Path.Absolute) -> Lsp ()
-ucmWorker ppeVar parseNamesVar ucmState = do
+ucmWorker ::
+  TVar PrettyPrintEnvDecl ->
+  TVar NamesWithHistory ->
+  STM (Branch IO) ->
+  STM Path.Absolute ->
+  Lsp ()
+ucmWorker ppeVar parseNamesVar getLatestRoot getLatestPath = do
   Env {codebase} <- ask
-  let loop :: ((Branch IO, Path.Absolute) -> Lsp a)
+  let loop :: (Branch IO, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
         Debug.debugM Debug.LSP "LSP path: " currentPath
         let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) currentRoot
@@ -27,9 +32,10 @@ ucmWorker ppeVar parseNamesVar ucmState = do
           writeTVar parseNamesVar parseNames
           writeTVar ppeVar ppe
         latest <- atomically $ do
-          latest <- ucmState
-          guard $ (currentRoot, currentPath) /= latest
-          pure latest
+          latestRoot <- getLatestRoot
+          latestPath <- getLatestPath
+          guard $ (currentRoot /= latestRoot || currentPath /= latestPath)
+          pure (latestRoot, latestPath)
         VFS.markAllFilesDirty
         loop latest
 

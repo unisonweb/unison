@@ -99,18 +99,33 @@ main ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
-  ((Branch IO, Path.Absolute) -> IO ()) ->
+  (Branch IO -> STM ()) ->
+  (Path.Absolute -> STM ()) ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyChange = Ki.scoped \scope -> do
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.getRootCausalHash codebase
   _ <- Ki.fork scope $ do
     root <- Codebase.getRootBranch codebase
-    atomically $ putTMVar rootVar root
+    atomically $ do
+      -- Try putting the root, but if someone else as already written over the root, don't
+      -- overwrite it.
+      void $ tryPutTMVar rootVar root
     -- Start forcing the thunk in a background thread.
     -- This might be overly aggressive, maybe we should just evaluate the top level but avoid
     -- recursive "deep*" things.
     void $ UnliftIO.evaluate root
+  let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
+  Ki.fork_ scope $ do
+    let loop lastRoot = do
+          currentRoot <- atomically do
+            currentRoot <- readTMVar rootVar
+            let rootChange = Just currentRoot /= lastRoot
+            guard rootChange
+            when rootChange $ notifyBranchChange currentRoot
+            pure (Just currentRoot)
+          loop currentRoot
+    loop Nothing
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
   initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
@@ -195,8 +210,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
     -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
     let loop0 :: Cli.LoopState -> IO ()
         loop0 s0 = do
-          currentRoot <- atomically . readTMVar $ Cli.root s0
-          notifyChange (currentRoot, s0 ^. #currentPath)
           let step = do
                 input <- awaitInput s0
                 (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
@@ -213,13 +226,14 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
             Right (Left e) -> do
               Text.Lazy.hPutStrLn stderr ("Encountered exception:\n" <> pShow e)
               loop0 s0
-            Right (Right (result, s1)) ->
+            Right (Right (result, s1)) -> do
+              when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
               case result of
                 Cli.Success () -> loop0 s1
                 Cli.Continue -> loop0 s1
                 Cli.HaltRepl -> pure ()
 
-    withInterruptHandler onInterrupt (loop0 (Cli.loopState0 initialRootCausalHash rootVar initialPath) `finally` cleanup)
+    withInterruptHandler onInterrupt (loop0 initialState `finally` cleanup)
 
 -- | Installs a posix interrupt handler for catching SIGINT.
 -- This replaces GHC's default sigint handler which throws a UserInterrupt async exception
