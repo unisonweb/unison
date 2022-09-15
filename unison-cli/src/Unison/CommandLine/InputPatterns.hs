@@ -2103,13 +2103,12 @@ ioTest :: InputPattern
 ioTest =
   InputPattern
     "io.test"
-    []
+    ["test.io"]
     I.Visible
-    []
+    [(Required, exactDefinitionTermQueryArg)]
     ( P.wrapColumn2
         [ ( "`io.test mytest`",
-            "Runs `!mytest`, where `mytest` is searched for in the most recent"
-              <> "typechecked file, or in the codebase."
+            "Runs `!mytest`, where `mytest` is a test that requires the IO ability and has been added to the codebase."
           )
         ]
     )
