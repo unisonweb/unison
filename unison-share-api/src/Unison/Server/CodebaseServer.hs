@@ -88,7 +88,7 @@ import qualified Unison.Codebase.Runtime as Rt
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend (Backend, BackendEnv, runBackend)
-import Unison.Server.Endpoints.DefinitionSummary (TermSummaryAPI, serveTermSummary)
+import Unison.Server.Endpoints.DefinitionSummary (TermSummaryAPI, TypeSummaryAPI, serveTermSummary, serveTypeSummary)
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
@@ -123,6 +123,7 @@ type UnisonAPI =
     :<|> DefinitionsAPI
     :<|> FuzzyFindAPI
     :<|> TermSummaryAPI
+    :<|> TypeSummaryAPI
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -357,11 +358,12 @@ serveUnison ::
 serveUnison env codebase rt =
   hoistServer (Proxy @UnisonAPI) (backendHandler env) $
     (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase root rel name)
-      :<|> (\namespaceName mayRoot mayWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName mayRoot mayWidth)
+      :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName mayRoot renderWidth)
       :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase mayRoot mayOwner)
-      :<|> (\mayRoot relativePath rawHqns width suff -> setCacheControl <$> serveDefinitions rt codebase mayRoot relativePath rawHqns width suff)
-      :<|> (\mayRoot relativePath limit typeWidth query -> setCacheControl <$> serveFuzzyFind codebase mayRoot relativePath limit typeWidth query)
-      :<|> (\name mayRoot relativeTo typeWidth -> setCacheControl <$> serveTermSummary codebase name mayRoot relativeTo typeWidth)
+      :<|> (\mayRoot relativePath rawHqns renderWidth suff -> setCacheControl <$> serveDefinitions rt codebase mayRoot relativePath rawHqns renderWidth suff)
+      :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase mayRoot relativePath limit renderWidth query)
+      :<|> (\name mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase name mayRoot relativeTo renderWidth)
+      :<|> (\name mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase name mayRoot relativeTo renderWidth)
 
 backendHandler :: BackendEnv -> Backend IO a -> Handler a
 backendHandler env m =

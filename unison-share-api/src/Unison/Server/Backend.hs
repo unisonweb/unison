@@ -576,9 +576,8 @@ lsBranch codebase b0 = do
       ++ branchEntries
       ++ patchEntries
 
-termReferencesByShortHash ::
-  Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
-
+-- | Look up types in the codebase by short hash, and include builtins.
+typeReferencesByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
 typeReferencesByShortHash codebase sh = do
   fromCodebase <- Codebase.typeReferencesByPrefix codebase sh
   let fromBuiltins =
@@ -587,9 +586,7 @@ typeReferencesByShortHash codebase sh = do
           B.intrinsicTypeReferences
   pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
 
--- | Look up types in the codebase by short hash, and include builtins.
-typeReferencesByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
-
+termReferencesByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
 termReferencesByShortHash codebase sh = do
   fromCodebase <- Codebase.termReferencesByPrefix codebase sh
   let fromBuiltins =
@@ -1184,7 +1181,7 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
           (Codebase.componentReferencesForReference codebase)
           termRefsWithoutCycles
       DontIncludeCycles -> pure termRefsWithoutCycles
-    Map.foldMapM (\ref -> (ref,) <$> displayTerm ref) termRefs
+    Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) termRefs
   types <- do
     let typeRefsWithoutCycles = searchResultsToTypeRefs results
     typeRefs <- case includeCycles of
@@ -1193,7 +1190,7 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
           (Codebase.componentReferencesForReference codebase)
           typeRefsWithoutCycles
       DontIncludeCycles -> pure typeRefsWithoutCycles
-    Map.foldMapM (\ref -> (ref,) <$> displayType ref) typeRefs
+    Map.foldMapM (\ref -> (ref,) <$> displayType codebase ref) typeRefs
   pure (DefinitionResults terms types misses)
   where
     searchResultsToTermRefs :: [SR.SearchResult] -> Set Reference
@@ -1208,26 +1205,28 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
           SR.Tm' _ (Referent.Con r _) _ -> Just (r ^. ConstructorReference.reference_)
           SR.Tp' _ r _ -> Just r
           _ -> Nothing
-    displayTerm :: Reference -> m (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
-    displayTerm = \case
-      ref@(Reference.Builtin _) -> do
-        pure case Map.lookup ref B.termRefTypes of
-          -- This would be better as a `MissingBuiltin` constructor; `MissingObject` is kind of being
-          -- misused here. Is `MissingObject` even possible anymore?
-          Nothing -> MissingObject $ Reference.toShortHash ref
-          Just typ -> BuiltinObject (mempty <$ typ)
-      Reference.DerivedId rid -> do
-        (term, ty) <- Codebase.unsafeGetTermWithType codebase rid
-        pure case term of
-          Term.Ann' _ _ -> UserObject term
-          -- manually annotate if necessary
-          _ -> UserObject (Term.ann (ABT.annotation term) term ty)
-    displayType :: Reference -> m (DisplayObject () (DD.Decl Symbol Ann))
-    displayType = \case
-      Reference.Builtin _ -> pure (BuiltinObject ())
-      Reference.DerivedId rid -> do
-        decl <- Codebase.unsafeGetTypeDeclaration codebase rid
-        pure (UserObject decl)
+
+displayTerm :: Monad m => Codebase m Symbol Ann -> Reference -> m (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+displayTerm codebase = \case
+  ref@(Reference.Builtin _) -> do
+    pure case Map.lookup ref B.termRefTypes of
+      -- This would be better as a `MissingBuiltin` constructor; `MissingObject` is kind of being
+      -- misused here. Is `MissingObject` even possible anymore?
+      Nothing -> MissingObject $ Reference.toShortHash ref
+      Just typ -> BuiltinObject (mempty <$ typ)
+  Reference.DerivedId rid -> do
+    (term, ty) <- Codebase.unsafeGetTermWithType codebase rid
+    pure case term of
+      Term.Ann' _ _ -> UserObject term
+      -- manually annotate if necessary
+      _ -> UserObject (Term.ann (ABT.annotation term) term ty)
+
+displayType :: Monad m => Codebase m Symbol Ann -> Reference -> m (DisplayObject () (DD.Decl Symbol Ann))
+displayType codebase = \case
+  Reference.Builtin _ -> pure (BuiltinObject ())
+  Reference.DerivedId rid -> do
+    decl <- Codebase.unsafeGetTypeDeclaration codebase rid
+    pure (UserObject decl)
 
 termsToSyntax ::
   Var v =>
@@ -1285,6 +1284,30 @@ typesToSyntax suff width ppe0 types =
       UserObject d ->
         UserObject . Pretty.render width $
           DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 r) r n d
+
+-- | Renders a type to its decl header, e.g.
+--
+-- Effect:
+--
+-- unique ability Stream s
+--
+-- Data:
+--
+-- structural type Maybe a
+typeToSyntaxHeader ::
+  Width ->
+  HQ.HashQualified Name ->
+  (DisplayObject () (DD.Decl Symbol Ann)) ->
+  (DisplayObject SyntaxText SyntaxText)
+typeToSyntaxHeader width hqName obj =
+  case obj of
+    BuiltinObject _ ->
+      let syntaxName = Pretty.renderUnbroken . NP.styleHashQualified id $ hqName
+       in BuiltinObject syntaxName
+    MissingObject sh -> MissingObject sh
+    UserObject d ->
+      UserObject . Pretty.render width $
+        DeclPrinter.prettyDeclHeader hqName d
 
 loadSearchResults ::
   Applicative m =>

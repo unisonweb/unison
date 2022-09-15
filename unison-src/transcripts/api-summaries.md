@@ -18,10 +18,16 @@ funcWithLongType : Text -> Text -> Text -> Text -> Text -> Text -> Text -> Text 
 funcWithLongType a b c d e f g h = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h
 
 structural type Thing = This Nat | That
+structural type Maybe a = Nothing | Just a
+
+structural ability Stream s where
+  send : s -> ()
 ```
 
 ```ucm:hide
 .> add
+.> alias.type ##Nat Nat
+.> alias.term ##IO.putBytes.impl.v3 putBytesImpl
 ```
 
 ## Term Summary APIs
@@ -42,10 +48,30 @@ GET /api/definitions/terms/qualified/func@6ee6j48hk3/summary
 -- constructor
 GET /api/definitions/terms/qualified/Thing.This@altimqs66j@0/summary
 
-
 -- Long type signature
 GET /api/definitions/terms/qualified/funcWithLongType@ieskgcjjvu/summary
 
 -- Long type signature with render width
 GET /api/definitions/terms/qualified/funcWithLongType@ieskgcjjvu/summary?renderWidth=20
+
+-- Builtin Term
+GET /api/definitions/terms/qualified/putBytesImpl@@IO.putBytes.impl.v3/summary
 ```
+
+## Type Summary APIs
+
+```api
+-- data
+GET /api/definitions/types/qualified/Thing@altimqs66j/summary
+
+-- data with type args
+GET /api/definitions/types/qualified/Maybe@nirp5os0q6/summary
+
+-- ability
+GET /api/definitions/types/qualified/Stream@rfi1v9429f/summary
+
+-- builtin type
+GET /api/definitions/types/qualified/Nat@@Nat/summary
+```
+
+

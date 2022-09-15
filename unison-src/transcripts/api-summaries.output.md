@@ -13,6 +13,10 @@ funcWithLongType : Text -> Text -> Text -> Text -> Text -> Text -> Text -> Text 
 funcWithLongType a b c d e f g h = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h
 
 structural type Thing = This Nat | That
+structural type Maybe a = Nothing | Just a
+
+structural ability Stream s where
+  send : s -> ()
 ```
 
 ## Term Summary APIs
@@ -540,5 +544,289 @@ GET /api/definitions/terms/qualified/funcWithLongType@ieskgcjjvu/summary?renderW
         "tag": "UserObject"
     },
     "tag": "plain"
+}
+--  Builtin Term
+GET /api/definitions/terms/qualified/putBytesImpl@@IO.putBytes.impl.v3/summary
+{
+    "fqn": "putBytesImpl",
+    "hash": "##IO.putBytes.impl.v3",
+    "summary": {
+        "contents": [
+            {
+                "annotation": {
+                    "contents": "##Handle",
+                    "tag": "TypeReference"
+                },
+                "segment": "Handle"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "##Bytes",
+                    "tag": "TypeReference"
+                },
+                "segment": "Bytes"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "TypeOperator"
+                },
+                "segment": "->"
+            },
+            {
+                "annotation": {
+                    "tag": "AbilityBraces"
+                },
+                "segment": "{"
+            },
+            {
+                "annotation": {
+                    "contents": "##IO",
+                    "tag": "TypeReference"
+                },
+                "segment": "IO"
+            },
+            {
+                "annotation": {
+                    "tag": "AbilityBraces"
+                },
+                "segment": "}"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "#0o7mf021foma9acqdaibmlh1jidlijq08uf7f5se9tssttqs546pfunjpk6s31mqoq8s2o1natede8hkk6he45l95fibglidikt44v8",
+                    "tag": "TypeReference"
+                },
+                "segment": "Either"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "#r29dja8j9dmjjp45trccchaata8eo1h6d6haar1eai74pq1jt4m7u3ldhlq79f7phfo57eq4bau39vqotl2h63k7ff1m5sj5o9ajuf8",
+                    "tag": "TypeReference"
+                },
+                "segment": "Failure"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": null,
+                "segment": "("
+            },
+            {
+                "annotation": null,
+                "segment": ")"
+            }
+        ],
+        "tag": "BuiltinObject"
+    },
+    "tag": "plain"
+}
+```## Type Summary APIs
+
+```api
+--  data
+GET /api/definitions/types/qualified/Thing@altimqs66j/summary
+{
+    "fqn": "Thing",
+    "hash": "#altimqs66j",
+    "summary": {
+        "contents": [
+            {
+                "annotation": {
+                    "tag": "DataTypeModifier"
+                },
+                "segment": "structural"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "DataTypeKeyword"
+                },
+                "segment": "type"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "Thing#altimqs66j",
+                    "tag": "HashQualifier"
+                },
+                "segment": "Thing"
+            },
+            {
+                "annotation": {
+                    "contents": "Thing#altimqs66j",
+                    "tag": "HashQualifier"
+                },
+                "segment": "#altimqs66j"
+            }
+        ],
+        "tag": "UserObject"
+    },
+    "tag": "Data"
+}
+--  data with type args
+GET /api/definitions/types/qualified/Maybe@nirp5os0q6/summary
+{
+    "fqn": "Maybe",
+    "hash": "#nirp5os0q6",
+    "summary": {
+        "contents": [
+            {
+                "annotation": {
+                    "tag": "DataTypeModifier"
+                },
+                "segment": "structural"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "DataTypeKeyword"
+                },
+                "segment": "type"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "Maybe#nirp5os0q6",
+                    "tag": "HashQualifier"
+                },
+                "segment": "Maybe"
+            },
+            {
+                "annotation": {
+                    "contents": "Maybe#nirp5os0q6",
+                    "tag": "HashQualifier"
+                },
+                "segment": "#nirp5os0q6"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "DataTypeParams"
+                },
+                "segment": "a"
+            }
+        ],
+        "tag": "UserObject"
+    },
+    "tag": "Data"
+}
+--  ability
+GET /api/definitions/types/qualified/Stream@rfi1v9429f/summary
+{
+    "fqn": "Stream",
+    "hash": "#rfi1v9429f",
+    "summary": {
+        "contents": [
+            {
+                "annotation": {
+                    "tag": "DataTypeModifier"
+                },
+                "segment": "structural"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "DataTypeKeyword"
+                },
+                "segment": "ability"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "contents": "Stream#rfi1v9429f",
+                    "tag": "HashQualifier"
+                },
+                "segment": "Stream"
+            },
+            {
+                "annotation": {
+                    "contents": "Stream#rfi1v9429f",
+                    "tag": "HashQualifier"
+                },
+                "segment": "#rfi1v9429f"
+            },
+            {
+                "annotation": null,
+                "segment": " "
+            },
+            {
+                "annotation": {
+                    "tag": "DataTypeParams"
+                },
+                "segment": "s"
+            }
+        ],
+        "tag": "UserObject"
+    },
+    "tag": "Ability"
+}
+--  builtin type
+GET /api/definitions/types/qualified/Nat@@Nat/summary
+{
+    "fqn": "Nat",
+    "hash": "##Nat",
+    "summary": {
+        "contents": [
+            {
+                "annotation": null,
+                "segment": "Nat"
+            },
+            {
+                "annotation": null,
+                "segment": "##Nat"
+            }
+        ],
+        "tag": "BuiltinObject"
+    },
+    "tag": "Data"
 }
 ```
