@@ -14,7 +14,7 @@ import Control.Error.Util (hush)
 import Control.Lens hiding ((??))
 import Control.Monad.Except
 import Control.Monad.Reader
-import Data.Bifunctor (first)
+import Data.Bifunctor (Bifunctor (..), first)
 import Data.Containers.ListUtils (nubOrdOn)
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -31,8 +31,7 @@ import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
-import qualified U.Codebase.HashTags as V2.Hash
-import qualified U.Codebase.Referent as V2
+import qualified U.Codebase.Referent as V2Referent
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -54,6 +53,7 @@ import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
+import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -89,6 +89,7 @@ import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Server.Syntax as Syntax
 import Unison.Server.Types
 import Unison.ShortHash
+import qualified Unison.ShortHash as SH
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.NamePrinter as NP
@@ -122,8 +123,8 @@ data ShallowListEntry v a
 
 listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
-  ShallowTermEntry (TermEntry _ s _ _) -> HQ'.toText s
-  ShallowTypeEntry (TypeEntry _ s _) -> HQ'.toText s
+  ShallowTermEntry te -> termEntryDisplayName te
+  ShallowTypeEntry te -> typeEntryDisplayName te
   ShallowBranchEntry n _ _ -> NameSegment.toText n
   ShallowPatchEntry n -> NameSegment.toText n
 
@@ -137,9 +138,11 @@ data BackendError
       -- ^ namespace
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
+  | AmbiguousHashForDefinition ShortHash
   | NoBranchForHash Branch.CausalHash
   | CouldntLoadBranch Branch.CausalHash
   | MissingSignatureForTerm Reference
+  | NoSuchDefinition (HQ.HashQualified Name)
 
 data BackendEnv = BackendEnv
   { -- | Whether to use the sqlite name-lookup table to generate Names objects rather than building Names from the root branch.
@@ -249,19 +252,41 @@ loadReferentType codebase = \case
           ++ show r
 
 data TermEntry v a = TermEntry
-  { termEntryReferent :: Referent,
-    termEntryName :: HQ'.HQSegment,
+  { termEntryReferent :: V2Referent.Referent,
+    termEntryHash :: ShortHash,
+    termEntryName :: NameSegment,
+    termEntryConflicted :: Bool,
     termEntryType :: Maybe (Type v a),
-    termEntryTag :: Maybe TermTag
+    termEntryTag :: TermTag
   }
   deriving (Eq, Ord, Show, Generic)
 
+termEntryDisplayName :: TermEntry v a -> Text
+termEntryDisplayName = HQ'.toText . termEntryHQName
+
+termEntryHQName :: TermEntry v a -> HQ'.HashQualified NameSegment
+termEntryHQName (TermEntry {termEntryName, termEntryConflicted, termEntryHash}) =
+  if termEntryConflicted
+    then HQ'.HashQualified termEntryName termEntryHash
+    else HQ'.NameOnly termEntryName
+
 data TypeEntry = TypeEntry
   { typeEntryReference :: Reference,
-    typeEntryName :: HQ'.HQSegment,
+    typeEntryHash :: ShortHash,
+    typeEntryName :: NameSegment,
+    typeEntryConflicted :: Bool,
     typeEntryTag :: TypeTag
   }
   deriving (Eq, Ord, Show, Generic)
+
+typeEntryDisplayName :: TypeEntry -> Text
+typeEntryDisplayName = HQ'.toText . typeEntryHQName
+
+typeEntryHQName :: TypeEntry -> HQ'.HashQualified NameSegment
+typeEntryHQName (TypeEntry {typeEntryName, typeEntryConflicted, typeEntryReference}) =
+  if typeEntryConflicted
+    then HQ'.HashQualified typeEntryName (Reference.toShortHash typeEntryReference)
+    else HQ'.NameOnly typeEntryName
 
 data FoundRef
   = FoundTermRef Referent
@@ -338,14 +363,14 @@ findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
         k <- Map.keys term
         case k of
           -- This shouldn't ever happen unless someone puts a non-doc as their readme.
-          V2.Con {} -> empty
-          V2.Ref ref -> pure $ Cv.reference2to1 ref
+          V2Referent.Con {} -> empty
+          V2Referent.Ref ref -> pure $ Cv.reference2to1 ref
         where
           termsMap = V2Branch.terms namespaceBranch
    in liftIO $ do
         traverse (renderReadme ppe) readme
 
-isDoc :: Monad m => Codebase m Symbol Ann -> Referent -> m Bool
+isDoc :: Monad m => Codebase m Symbol Ann -> Referent.Referent -> m Bool
 isDoc codebase ref = do
   ot <- loadReferentType codebase ref
   pure $ isDoc' ot
@@ -376,36 +401,100 @@ resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testR
 termListEntry ::
   Monad m =>
   Codebase m Symbol Ann ->
-  Referent ->
-  HQ'.HQSegment ->
+  V2Branch.Branch m ->
+  ExactName NameSegment V2Referent.Referent ->
   m (TermEntry Symbol Ann)
-termListEntry codebase r n = do
-  ot <- loadReferentType codebase r
-  let tag =
-        if
-            | isDoc' ot -> Just Doc
-            | isTestResultList ot -> Just Test
-            | otherwise -> Nothing
+termListEntry codebase branch exactName@(ExactName nameSegment ref) = do
+  v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
+  ot <- loadReferentType codebase v1Referent
+  tag <- getTermTag codebase branch (first Name.fromSegment exactName) ot
+  pure $
+    TermEntry
+      { termEntryReferent = ref,
+        termEntryName = nameSegment,
+        termEntryType = ot,
+        termEntryTag = tag,
+        termEntryConflicted = isConflicted,
+        termEntryHash = Cv.referent2toshorthash1 Nothing ref
+      }
+  where
+    isConflicted =
+      branch
+        & V2Branch.terms
+        & Map.lookup (coerce @NameSegment @V2Branch.NameSegment nameSegment)
+        & maybe 0 Map.size
+        & (> 1)
 
-  pure $ TermEntry r n ot tag
+getTermTag ::
+  (Monad m, Var v) =>
+  Codebase m v a ->
+  V2Branch.Branch m ->
+  -- | Name, must be relative to the branch
+  ExactName Name V2Referent.Referent ->
+  Maybe (Type v Ann) ->
+  m TermTag
+getTermTag codebase branch (ExactName n r) sig = do
+  let split = Path.splitFromName n
+  meta <- Codebase.termMetadata codebase (Just branch) split (Just r)
+  -- A term is a doc if its type conforms to the `Doc` type.
+  let isDoc = case sig of
+        Just t ->
+          Typechecker.isSubtype t (Type.ref mempty Decls.docRef)
+            || Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
+        Nothing -> False
+  -- A term is a test if it has a link of type `IsTest`.
+  let isTest = meta & any \mdValues -> List.elem (Cv.reference1to2 Decls.isTestRef) (Map.elems mdValues)
+  constructorType <- case r of
+    V2Referent.Ref {} -> pure Nothing
+    V2Referent.Con ref _ -> Just <$> Codebase.getDeclType codebase ref
+  pure $
+    if
+        | isDoc -> Doc
+        | isTest -> Test
+        | Just CT.Effect <- constructorType -> Constructor Ability
+        | Just CT.Data <- constructorType -> Constructor Data
+        | otherwise -> Plain
 
-typeListEntry ::
+getTypeTag ::
   Monad m =>
   Var v =>
   Codebase m v Ann ->
   Reference ->
-  HQ'.HQSegment ->
-  m TypeEntry
-typeListEntry codebase r n = do
-  -- The tag indicates whether the type is a data declaration or an ability.
-  tag <- case Reference.toId r of
+  m TypeTag
+getTypeTag codebase r = do
+  case Reference.toId r of
     Just r -> do
       decl <- Codebase.getTypeDeclaration codebase r
       pure $ case decl of
         Just (Left _) -> Ability
         _ -> Data
     _ -> pure (if Set.member r Type.builtinAbilities then Ability else Data)
-  pure $ TypeEntry r n tag
+
+typeListEntry ::
+  Monad m =>
+  Var v =>
+  Codebase m v Ann ->
+  V2Branch.Branch m ->
+  ExactName NameSegment Reference ->
+  m TypeEntry
+typeListEntry codebase b (ExactName nameSegment ref) = do
+  hashLength <- Codebase.hashLength codebase
+  tag <- getTypeTag codebase ref
+  pure $
+    TypeEntry
+      { typeEntryReference = ref,
+        typeEntryName = nameSegment,
+        typeEntryConflicted = isConflicted,
+        typeEntryTag = tag,
+        typeEntryHash = SH.take hashLength $ Reference.toShortHash ref
+      }
+  where
+    isConflicted =
+      b
+        & V2Branch.types
+        & Map.lookup (coerce @NameSegment @V2Branch.NameSegment nameSegment)
+        & maybe 0 Map.size
+        & (> 1)
 
 typeDeclHeader ::
   forall v m.
@@ -440,20 +529,20 @@ formatTypeName' ppe r =
 
 termEntryToNamedTerm ::
   Var v => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
-termEntryToNamedTerm ppe typeWidth (TermEntry r name mayType tag) =
+termEntryToNamedTerm ppe typeWidth te@(TermEntry {termEntryType = mayType, termEntryTag = tag, termEntryHash}) =
   NamedTerm
-    { termName = HQ'.toText name,
-      termHash = Referent.toText r,
+    { termName = termEntryHQName te,
+      termHash = termEntryHash,
       termType = formatType ppe (mayDefaultWidth typeWidth) <$> mayType,
       termTag = tag
     }
 
 typeEntryToNamedType :: TypeEntry -> NamedType
-typeEntryToNamedType (TypeEntry r name tag) =
+typeEntryToNamedType te@(TypeEntry {typeEntryTag, typeEntryHash}) =
   NamedType
-    { typeName = HQ'.toText name,
-      typeHash = Reference.toText r,
-      typeTag = tag
+    { typeName = typeEntryHQName $ te,
+      typeHash = typeEntryHash,
+      typeTag = typeEntryTag
     }
 
 -- | Find all definitions and children reachable from the given 'V2Branch.Branch',
@@ -463,40 +552,16 @@ lsBranch ::
   V2Branch.Branch m ->
   m [ShallowListEntry Symbol Ann]
 lsBranch codebase b0 = do
-  hashLength <- Codebase.hashLength codebase
-  let hqTerm ::
-        ( V2Branch.Branch m ->
-          V2Branch.NameSegment ->
-          Referent ->
-          HQ'.HashQualified NameSegment
-        )
-      hqTerm b ns r =
-        let refs = Map.lookup ns . V2Branch.terms $ b
-         in case length refs of
-              1 -> HQ'.fromName (Cv.namesegment2to1 ns)
-              _ -> HQ'.take hashLength $ HQ'.fromNamedReferent (Cv.namesegment2to1 ns) r
-      hqType ::
-        ( V2Branch.Branch m ->
-          V2Branch.NameSegment ->
-          Reference ->
-          HQ'.HashQualified NameSegment
-        )
-      hqType b ns r =
-        let refs = Map.lookup ns . V2Branch.types $ b
-         in case length refs of
-              1 -> HQ'.fromName (Cv.namesegment2to1 ns)
-              _ -> HQ'.take hashLength $ HQ'.fromNamedReference (Cv.namesegment2to1 ns) r
   let flattenRefs :: Map V2Branch.NameSegment (Map ref v) -> [(ref, V2Branch.NameSegment)]
       flattenRefs m = do
         (ns, refs) <- Map.toList m
         r <- Map.keys refs
         pure (r, ns)
   termEntries <- for (flattenRefs $ V2Branch.terms b0) $ \(r, ns) -> do
-    v1Ref <- Cv.referent2to1 (Codebase.getDeclType codebase) r
-    ShallowTermEntry <$> termListEntry codebase v1Ref (hqTerm b0 ns v1Ref)
+    ShallowTermEntry <$> termListEntry codebase b0 (ExactName (coerce @V2Branch.NameSegment ns) r)
   typeEntries <- for (flattenRefs $ V2Branch.types b0) \(r, ns) -> do
     let v1Ref = Cv.reference2to1 r
-    ShallowTypeEntry <$> typeListEntry codebase v1Ref (hqType b0 ns v1Ref)
+    ShallowTypeEntry <$> typeListEntry codebase b0 (ExactName (coerce @V2Branch.NameSegment ns) v1Ref)
   childrenWithStats <- Codebase.runTransaction codebase (V2Branch.childStats b0)
   let branchEntries :: [ShallowListEntry Symbol Ann] = do
         (ns, (h, stats)) <- Map.toList $ childrenWithStats
@@ -511,9 +576,8 @@ lsBranch codebase b0 = do
       ++ branchEntries
       ++ patchEntries
 
-termReferencesByShortHash ::
-  Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
-
+-- | Look up types in the codebase by short hash, and include builtins.
+typeReferencesByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
 typeReferencesByShortHash codebase sh = do
   fromCodebase <- Codebase.typeReferencesByPrefix codebase sh
   let fromBuiltins =
@@ -522,9 +586,7 @@ typeReferencesByShortHash codebase sh = do
           B.intrinsicTypeReferences
   pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
 
--- | Look up types in the codebase by short hash, and include builtins.
-typeReferencesByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
-
+termReferencesByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
 termReferencesByShortHash codebase sh = do
   fromCodebase <- Codebase.termReferencesByPrefix codebase sh
   let fromBuiltins =
@@ -771,9 +833,10 @@ prettyDefinitionsForHQName ::
   -- | The name, hash, or both, of the definition to display.
   HQ.HashQualified Name ->
   Backend IO DefinitionDisplayResults
-prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase query = do
+prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebase query = do
+  shallowRoot <- resolveCausalHashV2 codebase (fmap Cv.causalHash1to2 mayRoot)
   hqLength <- lift $ Codebase.hashLength codebase
-  (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase root path
+  (localNamesOnly, unbiasedPPE) <- scopedNamesForBranchHash codebase (Just shallowRoot) path
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our perspective but within the
   -- same tree;
@@ -788,6 +851,8 @@ prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase q
   let nameSearch :: NameSearch
       nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   DefinitionResults terms types misses <- lift (definitionsBySuffixes codebase nameSearch DontIncludeCycles [query])
+  causalAtPath <- lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)
+  branchAtPath <- lift $ V2Causal.value causalAtPath
   let width = mayDefaultWidth renderWidth
       -- Return only references which refer to docs.
       filterForDocs :: [Referent] -> IO [TermReference]
@@ -829,10 +894,7 @@ prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase q
         tag <-
           lift
             ( termEntryTag
-                <$> termListEntry
-                  codebase
-                  referent
-                  (HQ'.NameOnly (NameSegment bn))
+                <$> termListEntry codebase branchAtPath (ExactName (NameSegment bn) (Cv.referent1to2 referent))
             )
         docs <- lift (docResults r hqTermName)
         mk docs ts bn tag
@@ -861,11 +923,8 @@ prettyDefinitionsForHQName path root renderWidth suffixifyBindings rt codebase q
         let hqTypeName = PPE.typeNameOrHashOnly fqnPPE r
         let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
         tag <-
-          Just . typeEntryTag
-            <$> typeListEntry
-              codebase
-              r
-              (HQ'.NameOnly (NameSegment bn))
+          typeEntryTag
+            <$> typeListEntry codebase branchAtPath (ExactName (NameSegment bn) r)
         docs <- docResults r hqTypeName
         pure $
           TypeDefinition
@@ -1030,7 +1089,7 @@ bestNameForType ppe width =
 -- - 'local' includes ONLY the names within the provided path
 -- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (Names, PPED.PrettyPrintEnvDecl)
+scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (V2Branch.CausalBranch m) -> Path -> Backend m (Names, PPED.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.hashLength codebase
@@ -1038,15 +1097,17 @@ scopedNamesForBranchHash codebase mbh path = do
     Nothing
       | shouldUseNamesIndex -> indexNames
       | otherwise -> do
-        rootBranch <- lift $ Codebase.getRootBranch codebase
-        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-        pure (parseNames, localNames)
-    Just bh -> do
+          rootBranch <- lift $ Codebase.getRootBranch codebase
+          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+          pure (parseNames, localNames)
+    Just rootCausal -> do
+      let ch = V2Causal.causalHash rootCausal
+      let v1CausalHash = Cv.causalHash2to1 ch
       rootHash <- lift $ Codebase.getRootCausalHash codebase
-      if (Causal.unCausalHash bh == V2.Hash.unCausalHash rootHash) && shouldUseNamesIndex
+      if (ch == rootHash) && shouldUseNamesIndex
         then indexNames
         else do
-          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just bh) codebase
+          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just v1CausalHash) codebase
           pure (parseNames, localNames)
 
   let localPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
@@ -1071,6 +1132,12 @@ resolveCausalHash h codebase = case h of
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
     whenNothing mayBranch (throwError $ NoBranchForHash bhash)
 
+resolveCausalHashV2 ::
+  Monad m => Codebase m v a -> Maybe V2Branch.CausalHash -> Backend m (V2Branch.CausalBranch m)
+resolveCausalHashV2 codebase h = case h of
+  Nothing -> lift $ Codebase.getShallowRootCausal codebase
+  Just ch -> lift $ Codebase.getShallowCausalForHash codebase ch
+
 resolveRootBranchHash ::
   Monad m => Maybe ShortBranchHash -> Codebase m v a -> Backend m (Branch m)
 resolveRootBranchHash mayRoot codebase = case mayRoot of
@@ -1079,6 +1146,15 @@ resolveRootBranchHash mayRoot codebase = case mayRoot of
   Just sbh -> do
     h <- expandShortBranchHash codebase sbh
     resolveCausalHash (Just h) codebase
+
+resolveRootBranchHashV2 ::
+  Monad m => Codebase m v a -> Maybe ShortBranchHash -> Backend m (V2Branch.CausalBranch m)
+resolveRootBranchHashV2 codebase mayRoot = case mayRoot of
+  Nothing ->
+    lift (Codebase.getShallowRootCausal codebase)
+  Just sbh -> do
+    h <- Cv.causalHash1to2 <$> expandShortBranchHash codebase sbh
+    resolveCausalHashV2 codebase (Just h)
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
 data IncludeCycles
@@ -1105,7 +1181,7 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
           (Codebase.componentReferencesForReference codebase)
           termRefsWithoutCycles
       DontIncludeCycles -> pure termRefsWithoutCycles
-    Map.foldMapM (\ref -> (ref,) <$> displayTerm ref) termRefs
+    Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) termRefs
   types <- do
     let typeRefsWithoutCycles = searchResultsToTypeRefs results
     typeRefs <- case includeCycles of
@@ -1114,7 +1190,7 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
           (Codebase.componentReferencesForReference codebase)
           typeRefsWithoutCycles
       DontIncludeCycles -> pure typeRefsWithoutCycles
-    Map.foldMapM (\ref -> (ref,) <$> displayType ref) typeRefs
+    Map.foldMapM (\ref -> (ref,) <$> displayType codebase ref) typeRefs
   pure (DefinitionResults terms types misses)
   where
     searchResultsToTermRefs :: [SR.SearchResult] -> Set Reference
@@ -1129,26 +1205,28 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
           SR.Tm' _ (Referent.Con r _) _ -> Just (r ^. ConstructorReference.reference_)
           SR.Tp' _ r _ -> Just r
           _ -> Nothing
-    displayTerm :: Reference -> m (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
-    displayTerm = \case
-      ref@(Reference.Builtin _) -> do
-        pure case Map.lookup ref B.termRefTypes of
-          -- This would be better as a `MissingBuiltin` constructor; `MissingObject` is kind of being
-          -- misused here. Is `MissingObject` even possible anymore?
-          Nothing -> MissingObject $ Reference.toShortHash ref
-          Just typ -> BuiltinObject (mempty <$ typ)
-      Reference.DerivedId rid -> do
-        (term, ty) <- Codebase.unsafeGetTermWithType codebase rid
-        pure case term of
-          Term.Ann' _ _ -> UserObject term
-          -- manually annotate if necessary
-          _ -> UserObject (Term.ann (ABT.annotation term) term ty)
-    displayType :: Reference -> m (DisplayObject () (DD.Decl Symbol Ann))
-    displayType = \case
-      Reference.Builtin _ -> pure (BuiltinObject ())
-      Reference.DerivedId rid -> do
-        decl <- Codebase.unsafeGetTypeDeclaration codebase rid
-        pure (UserObject decl)
+
+displayTerm :: Monad m => Codebase m Symbol Ann -> Reference -> m (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+displayTerm codebase = \case
+  ref@(Reference.Builtin _) -> do
+    pure case Map.lookup ref B.termRefTypes of
+      -- This would be better as a `MissingBuiltin` constructor; `MissingObject` is kind of being
+      -- misused here. Is `MissingObject` even possible anymore?
+      Nothing -> MissingObject $ Reference.toShortHash ref
+      Just typ -> BuiltinObject (mempty <$ typ)
+  Reference.DerivedId rid -> do
+    (term, ty) <- Codebase.unsafeGetTermWithType codebase rid
+    pure case term of
+      Term.Ann' _ _ -> UserObject term
+      -- manually annotate if necessary
+      _ -> UserObject (Term.ann (ABT.annotation term) term ty)
+
+displayType :: Monad m => Codebase m Symbol Ann -> Reference -> m (DisplayObject () (DD.Decl Symbol Ann))
+displayType codebase = \case
+  Reference.Builtin _ -> pure (BuiltinObject ())
+  Reference.DerivedId rid -> do
+    decl <- Codebase.unsafeGetTypeDeclaration codebase rid
+    pure (UserObject decl)
 
 termsToSyntax ::
   Var v =>
@@ -1206,6 +1284,30 @@ typesToSyntax suff width ppe0 types =
       UserObject d ->
         UserObject . Pretty.render width $
           DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 r) r n d
+
+-- | Renders a type to its decl header, e.g.
+--
+-- Effect:
+--
+-- unique ability Stream s
+--
+-- Data:
+--
+-- structural type Maybe a
+typeToSyntaxHeader ::
+  Width ->
+  HQ.HashQualified Name ->
+  (DisplayObject () (DD.Decl Symbol Ann)) ->
+  (DisplayObject SyntaxText SyntaxText)
+typeToSyntaxHeader width hqName obj =
+  case obj of
+    BuiltinObject _ ->
+      let syntaxName = Pretty.renderUnbroken . NP.styleHashQualified id $ hqName
+       in BuiltinObject syntaxName
+    MissingObject sh -> MissingObject sh
+    UserObject d ->
+      UserObject . Pretty.render width $
+        DeclPrinter.prettyDeclHeader hqName d
 
 loadSearchResults ::
   Applicative m =>

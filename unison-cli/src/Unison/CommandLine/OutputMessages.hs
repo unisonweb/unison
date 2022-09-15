@@ -117,7 +117,8 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent
 import qualified Unison.Result as Result
-import Unison.Server.Backend (ShallowListEntry (..), TermEntry (..), TypeEntry (..))
+import Unison.Server.Backend (ShallowListEntry (..), TypeEntry (..))
+import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Share.Sync as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
@@ -962,13 +963,13 @@ notifyUser dir o = case o of
           f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
       formatEntry :: Var v => PPE.PrettyPrintEnv -> ShallowListEntry v a -> (Pretty, Pretty)
       formatEntry ppe = \case
-        ShallowTermEntry (TermEntry _r hq ot _) ->
-          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq,
-            P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")"
+        ShallowTermEntry termEntry ->
+          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment . Backend.termEntryHQName $ termEntry,
+            P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) (Backend.termEntryType termEntry) <> P.lit ")"
           )
-        ShallowTypeEntry (TypeEntry r hq _) ->
-          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq,
-            isBuiltin r
+        ShallowTypeEntry typeEntry ->
+          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment . Backend.typeEntryHQName $ typeEntry,
+            isBuiltin (typeEntryReference typeEntry)
           )
         ShallowBranchEntry ns _ (NamespaceStats {numContainedTerms, numContainedTypes}) ->
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/",
