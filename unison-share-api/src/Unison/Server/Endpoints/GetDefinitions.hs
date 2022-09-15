@@ -6,8 +6,6 @@
 
 module Unison.Server.Endpoints.GetDefinitions where
 
-import Control.Monad.Except
-import qualified Data.Text as Text
 import Servant
   ( QueryParam,
     QueryParams,
@@ -22,7 +20,6 @@ import Servant.Docs
   )
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
@@ -35,7 +32,6 @@ import Unison.Server.Types
   ( APIGet,
     DefinitionDisplayResults,
     HashQualifiedName,
-    NamespaceFQN,
     Suffixify (..),
     defaultWidth,
   )
@@ -45,7 +41,7 @@ import Unison.Util.Pretty (Width)
 
 type DefinitionsAPI =
   "getDefinition" :> QueryParam "rootBranch" ShortBranchHash
-    :> QueryParam "relativeTo" NamespaceFQN
+    :> QueryParam "relativeTo" Path.Path
     :> QueryParams "names" HashQualifiedName
     :> QueryParam "renderWidth" Width
     :> QueryParam "suffixifyBindings" Suffixify
@@ -74,13 +70,25 @@ instance ToParam (QueryParam "suffixifyBindings" Suffixify) where
       )
       Normal
 
-instance ToParam (QueryParam "relativeTo" NamespaceFQN) where
+instance ToParam (QueryParam "relativeTo" Path.Path) where
   toParam _ =
     DocQueryParam
       "relativeTo"
-      [".", ".base", "foo.bar"]
+      []
       ( "The namespace relative to which names will be resolved and displayed. "
           <> "If left absent, the root namespace will be used."
+          <> "E.g. base.List"
+      )
+      Normal
+
+instance ToParam (QueryParam "namespace" Path.Path) where
+  toParam _ =
+    DocQueryParam
+      "namespace"
+      []
+      ( "The namespace required by the endpoint."
+          <> "If left absent, the relativeTo namespace will be used."
+          <> "E.g. base.List"
       )
       Normal
 
@@ -109,27 +117,22 @@ serveDefinitions ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
-  Maybe NamespaceFQN ->
+  Maybe Path.Path ->
   [HashQualifiedName] ->
   Maybe Width ->
   Maybe Suffixify ->
   Backend.Backend IO DefinitionDisplayResults
 serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
   do
-    rel <-
-      fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
     root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
     let hqns = HQ.unsafeFromText <$> rawHqns
     hqns
       & foldMapM
         ( Backend.prettyDefinitionsForHQName
-            (fromMaybe Path.empty rel)
+            (fromMaybe Path.empty relativePath)
             root
             width
             (fromMaybe (Suffixify True) suff)
             rt
             codebase
         )
-  where
-    parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
-    errFromEither f = either (throwError . f) pure

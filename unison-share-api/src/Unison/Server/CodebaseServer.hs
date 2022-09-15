@@ -88,6 +88,7 @@ import qualified Unison.Codebase.Runtime as Rt
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend (Backend, BackendEnv, runBackend)
+import Unison.Server.Endpoints.DefinitionSummary (TermSummaryAPI, serveTermSummary)
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
@@ -121,6 +122,7 @@ type UnisonAPI =
     :<|> Projects.ProjectsAPI
     :<|> DefinitionsAPI
     :<|> FuzzyFindAPI
+    :<|> TermSummaryAPI
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -359,6 +361,7 @@ serveUnison env codebase rt =
       :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase mayRoot mayOwner)
       :<|> (\mayRoot relativePath rawHqns width suff -> setCacheControl <$> serveDefinitions rt codebase mayRoot relativePath rawHqns width suff)
       :<|> (\mayRoot relativePath limit typeWidth query -> setCacheControl <$> serveFuzzyFind codebase mayRoot relativePath limit typeWidth query)
+      :<|> (\name mayRoot relativeTo typeWidth -> setCacheControl <$> serveTermSummary codebase name mayRoot relativeTo typeWidth)
 
 backendHandler :: BackendEnv -> Backend IO a -> Handler a
 backendHandler env m =
