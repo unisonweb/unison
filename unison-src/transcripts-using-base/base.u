@@ -236,6 +236,10 @@ MVar.put = compose2 reraise put.impl
 MVar.swap = compose2 reraise MVar.swap.impl
 
 -- Some functions for using a sorted list as a map
+
+-- Given an association list sorted by a values, finds the corresponding
+-- b value. It is also expected that the a values will be unique. If not,
+-- which b is returned depends on the exact size of the list.
 bSearch : [(a,b)] -> a -> Optional b
 bSearch m k =
   find l u =
@@ -249,11 +253,18 @@ bSearch m k =
       None -> None
   find 0 (size m)
 
+-- Given a sorted association list, determine if an a value exists in the
+-- list.
 bContains : [(a,b)] -> a -> Boolean
 bContains m k = match bSearch m k with
   Some _ -> true
   None -> false
 
+-- Given a sorted association list, splits the list into the portion before
+-- the given a value, and after the a value. The a value should only appear
+-- once in the list to get a well defined split. Otherwise where the split
+-- occurs will be chosen arbitrarily, based on which copy the binary search
+-- finds.
 bSplit : [(a,b)] -> a -> ([(a,b)], [(a,b)])
 bSplit m k =
   find l u =
@@ -267,10 +278,14 @@ bSplit m k =
       None -> (m, [])
   find 0 (size m)
 
+-- Inserts a key-value pair into a sorted association list. This maintains
+-- the invariant that the a values are unique, via bSplit throwing out an
+-- association pair if there is an exact key match.
 bInsert : [(a,b)] -> a -> b -> [(a,b)]
 bInsert m k v = match bSplit m k with
   (pre, post) -> pre ++ [(k,v)] ++ post
 
+-- Yields a list with unique, sorted a keys via insertion sort.
 bSort : [(a,b)] -> [(a,b)]
 bSort = foldLeft (acc -> uncurry (bInsert acc)) []
 
