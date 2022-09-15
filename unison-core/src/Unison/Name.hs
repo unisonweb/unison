@@ -9,6 +9,8 @@ module Unison.Name
     fromSegment,
     fromSegments,
     fromReverseSegments,
+    fromText,
+    fromTextEither,
 
     -- ** Unsafe construction
     unsafeFromString,
@@ -557,7 +559,7 @@ commonPrefix :: Name -> Name -> [NameSegment]
 commonPrefix x@(Name p1 _) y@(Name p2 _)
   | p1 /= p2 = []
   | otherwise =
-    commonPrefix' (toList $ segments x) (toList $ segments y)
+      commonPrefix' (toList $ segments x) (toList $ segments y)
   where
     commonPrefix' (a : as) (b : bs)
       | a == b = a : commonPrefix' as bs
@@ -575,22 +577,36 @@ unsafeFromString =
 -- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
 -- no attempt at rejecting bogus names like "foo...bar...baz".
 unsafeFromText :: HasCallStack => Text -> Name
-unsafeFromText = \case
-  "" -> error "empty name"
-  "." -> Name Relative ("." :| [])
-  ".." -> Name Absolute ("." :| [])
+unsafeFromText = either (error . Text.unpack) id . fromTextEither
+
+-- | Parse a name from a string literal.
+--
+-- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
+-- no attempt at rejecting bogus names like "foo...bar...baz".
+fromText :: Text -> Maybe Name
+fromText = eitherToMaybe . fromTextEither
+
+-- | Unsafely parse a name from a string literal.
+--
+-- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
+-- no attempt at rejecting bogus names like "foo...bar...baz".
+fromTextEither :: Text -> Either Text Name
+fromTextEither = \case
+  "" -> Left "empty name"
+  "." -> Right $ Name Relative ("." :| [])
+  ".." -> Right $ Name Absolute ("." :| [])
   name
-    | Text.any (== '#') name -> error ("not a name: " <> show name)
-    | Text.head name == '.' -> Name Absolute (go (Text.tail name))
-    | otherwise -> Name Relative (go name)
+    | Text.any (== '#') name -> Left ("not a name: " <> tShow name)
+    | Text.head name == '.' -> Name Absolute <$> (go (Text.tail name))
+    | otherwise -> Name Relative <$> go name
   where
-    go :: Text -> List.NonEmpty NameSegment
+    go :: Text -> Either Text (List.NonEmpty NameSegment)
     go name =
       if ".." `Text.isSuffixOf` name
-        then "." :| split (Text.dropEnd 2 name)
+        then Right $ "." :| split (Text.dropEnd 2 name)
         else case split name of
-          [] -> error "empty name"
-          s : ss -> s :| ss
+          [] -> Left "empty name"
+          s : ss -> Right $ s :| ss
 
     split :: Text -> [NameSegment]
     split =

@@ -103,9 +103,10 @@ unsafeFromString s = fromMaybe msg . fromString $ s
 -- Doesn't validate against base58 or the codebase.
 fromText :: Text -> Maybe (HashQualified Name)
 fromText t = case Text.breakOn "#" t of -- breakOn leaves the '#' on the RHS
-  (name, "") -> Just $ NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
+  ("", "") -> Nothing
+  (name, "") -> NameOnly <$> (Name.fromText name)
   ("", hash) -> HashOnly <$> SH.fromText hash
-  (name, hash) -> HashQualified (Name.unsafeFromText name) <$> SH.fromText hash
+  (name, hash) -> HashQualified <$> Name.fromText name <*> SH.fromText hash
 
 -- Won't crash as long as SH.unsafeFromText doesn't crash on any input that
 -- starts with '#', which is true as of the time of this writing, but not great.
