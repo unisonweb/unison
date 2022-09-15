@@ -35,6 +35,7 @@ import qualified Text.Megaparsec as P
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
+import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified U.Util.Hash as Hash
 import U.Util.Hash32 (Hash32)
 import qualified U.Util.Hash32 as Hash32
@@ -937,7 +938,7 @@ loop e = do
               rootBranch <- Cli.getRootBranch
 
               pathArgAbs <- Cli.resolvePath' pathArg
-              entries <- liftIO (Backend.findShallow codebase pathArgAbs)
+              entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               #numberedArgs .= fmap entryToHQString entries
               let ppe =
@@ -1769,9 +1770,11 @@ handleDependents hq = do
   for_ lds \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
-      let tp r = liftIO (Codebase.dependents codebase r)
-          tm (Referent.Ref r) = liftIO (Codebase.dependents codebase r)
-          tm (Referent.Con (ConstructorReference r _cid) _ct) = liftIO (Codebase.dependents codebase r)
+      let tp r = liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+          tm = \case
+            Referent.Ref r -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+            Referent.Con (ConstructorReference r _cid) _ct ->
+              liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
        in LD.fold tp tm ld
     -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
     -- unambiguous name.
@@ -2594,25 +2597,10 @@ propagatePatch inputDescription patch scopePath = do
       (inputDescription <> " (applying patch)")
       (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
--- | Create the args needed for showTodoOutput and call it
+-- | Show todo output if there are any conflicts or edits.
 doShowTodoOutput :: Patch -> Path.Absolute -> Cli r ()
 doShowTodoOutput patch scopePath = do
   names0 <- Branch.toNames <$> Cli.getBranch0At scopePath
-  -- only needs the local references to check for obsolete defs
-  let getPpe = do
-        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-        prettyPrintEnvDecl names
-  showTodoOutput getPpe patch names0
-
--- | Show todo output if there are any conflicts or edits.
-showTodoOutput ::
-  -- | Action that fetches the pretty print env. It's expensive because it
-  -- involves looking up historical names, so only call it if necessary.
-  Cli r PPE.PrettyPrintEnvDecl ->
-  Patch ->
-  Names ->
-  Cli r ()
-showTodoOutput getPpe patch names0 = do
   todo <- checkTodo patch names0
   if TO.noConflicts todo && TO.noEdits todo
     then Cli.respond NoConflictsOrEdits
@@ -2621,41 +2609,49 @@ showTodoOutput getPpe patch names0 = do
         .= ( Text.unpack . Reference.toText . view _2
                <$> fst (TO.todoFrontierDependents todo)
            )
-      ppe <- getPpe
+      -- only needs the local references to check for obsolete defs
+      ppe <- do
+        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        prettyPrintEnvDecl names
       Cli.respondNumbered $ TodoOutput ppe todo
 
 checkTodo :: Patch -> Names -> Cli r (TO.TodoOutput Symbol Ann)
 checkTodo patch names0 = do
   Cli.Env {codebase} <- ask
-  let shouldUpdate = Names.contains names0
-  f <- Propagate.computeFrontier (liftIO . Codebase.dependents codebase) patch shouldUpdate
-  let dirty = R.dom f
-      frontier = R.ran f
-  (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
+  let -- Get the dependents of a reference which:
+      --   1. Don't appear on the LHS of this patch
+      --   2. Have a name in this namespace
+      getDependents :: Reference -> IO (Set Reference)
+      getDependents ref = do
+        dependents <- Codebase.dependents codebase Queries.ExcludeSelf ref
+        pure (dependents & removeEditedThings & removeNamelessThings)
+  -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
+  dependsOn <- liftIO (Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited)
+  let dirty = R.dom dependsOn
+  transitiveDirty <- liftIO (transitiveClosure getDependents dirty)
+  (frontierTerms, frontierTypes) <- loadDisplayInfo (R.ran dependsOn)
   (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
-  -- todo: something more intelligent here?
-  let scoreFn = const 1
-  remainingTransitive <-
-    frontierTransitiveDependents (liftIO . Codebase.dependents codebase) names0 frontier
-  let scoredDirtyTerms =
-        List.sortOn (view _1) [(scoreFn r, r, t) | (r, t) <- dirtyTerms]
-      scoredDirtyTypes =
-        List.sortOn (view _1) [(scoreFn r, r, t) | (r, t) <- dirtyTypes]
   pure $
     TO.TodoOutput
-      (Set.size remainingTransitive)
+      (Set.size transitiveDirty)
       (frontierTerms, frontierTypes)
-      (scoredDirtyTerms, scoredDirtyTypes)
+      (score dirtyTerms, score dirtyTypes)
       (Names.conflicts names0)
       (Patch.conflicts patch)
   where
-    frontierTransitiveDependents ::
-      Monad m => (Reference -> m (Set Reference)) -> Names -> Set Reference -> m (Set Reference)
-    frontierTransitiveDependents dependents names0 rs = do
-      let branchDependents r = Set.filter (Names.contains names0) <$> dependents r
-      tdeps <- transitiveClosure branchDependents rs
-      -- we don't want the frontier in the result
-      pure $ tdeps `Set.difference` rs
+    -- Remove from a all references that were edited, i.e. appear on the LHS of this patch.
+    removeEditedThings :: Set Reference -> Set Reference
+    removeEditedThings =
+      (`Set.difference` edited)
+    -- Remove all references that don't have a name in the given namespace
+    removeNamelessThings :: Set Reference -> Set Reference
+    removeNamelessThings =
+      Set.filter (Names.contains names0)
+    -- todo: something more intelligent here?
+    score :: [(a, b)] -> [(TO.Score, a, b)]
+    score = map (\(x, y) -> (1, x, y))
+    edited :: Set Reference
+    edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
 
 confirmedCommand :: Input -> Cli r Bool
 confirmedCommand i = do
@@ -2931,7 +2927,7 @@ getEndangeredDependents namesToDelete rootNames = do
       accumulateDependents :: LabeledDependency -> IO (Map LabeledDependency (Set LabeledDependency))
       accumulateDependents ld =
         let ref = LD.fold id Referent.toReference ld
-         in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents codebase ref
+         in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents codebase Queries.ExcludeOwnComponent ref
   -- All dependents of extinct, including terms which might themselves be in the process of being deleted.
   allDependentsOfExtinct :: Map LabeledDependency (Set LabeledDependency) <-
     liftIO (Map.unionsWith (<>) <$> for (Set.toList extinct) accumulateDependents)

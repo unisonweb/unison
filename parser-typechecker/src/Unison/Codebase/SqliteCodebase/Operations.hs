@@ -430,10 +430,10 @@ putPatch h p =
 patchExists :: Branch.EditHash -> Transaction Bool
 patchExists h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h)
 
-dependentsImpl :: Reference -> Transaction (Set Reference.Id)
-dependentsImpl r =
+dependentsImpl :: Q.DependentsSelector -> Reference -> Transaction (Set Reference.Id)
+dependentsImpl selector r =
   Set.map Cv.referenceid2to1
-    <$> Ops.dependents (Cv.reference1to2 r)
+    <$> Ops.dependents selector (Cv.reference1to2 r)
 
 dependentsOfComponentImpl :: Hash -> Transaction (Set Reference.Id)
 dependentsOfComponentImpl h =

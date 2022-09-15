@@ -8,4 +8,5 @@ data GitSqliteCodebaseError
   = GitCouldntParseRootBranchHash ReadGitRepo String
   | NoDatabaseFile ReadGitRepo CodebasePath
   | UnrecognizedSchemaVersion ReadGitRepo CodebasePath SchemaVersion
+  | CodebaseRequiresMigration SchemaVersion SchemaVersion
   deriving (Show)

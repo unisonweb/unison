@@ -17,7 +17,7 @@ import Prelude hiding (all, and, or)
 data BooleanMismatch = CondMismatch | AndMismatch | OrMismatch | GuardMismatch
   deriving (Show)
 
-data ExistentialMismatch = IfBody | VectorBody | CaseBody
+data ExistentialMismatch = IfBody | ListBody | CaseBody
   deriving (Show)
 
 data TypeError v loc
@@ -135,7 +135,7 @@ allErrors =
       cond,
       matchGuard,
       ifBody,
-      vectorBody,
+      listBody,
       matchBody,
       applyingFunction,
       applyingNonFunction,
@@ -288,11 +288,11 @@ existentialMismatch0 em getExpectedLoc = do
       n
 
 ifBody,
-  vectorBody,
+  listBody,
   matchBody ::
     (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 ifBody = existentialMismatch0 IfBody (Ex.inSynthesizeApp >> Ex.inIfBody)
-vectorBody = existentialMismatch0 VectorBody (Ex.inSynthesizeApp >> Ex.inVector)
+listBody = existentialMismatch0 ListBody (Ex.inSynthesizeApp >> Ex.inVector)
 matchBody = existentialMismatch0 CaseBody (Ex.inMatchBody >> Ex.inMatch)
 
 applyingNonFunction :: Var v => Ex.ErrorExtractor v loc (TypeError v loc)
