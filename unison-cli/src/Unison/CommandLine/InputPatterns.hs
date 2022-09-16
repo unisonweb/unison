@@ -1591,7 +1591,7 @@ topicNameArg :: ArgumentType
 topicNameArg =
   ArgumentType
     { typeName = "topic",
-      suggestions = \q _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
+      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
       globTargets = mempty
     }
 
@@ -1599,7 +1599,7 @@ codebaseServerNameArg :: ArgumentType
 codebaseServerNameArg =
   ArgumentType
     { typeName = "codebase-server",
-      suggestions = \q _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
+      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
       globTargets = mempty
     }
 
@@ -2345,7 +2345,7 @@ commandNameArg :: ArgumentType
 commandNameArg =
   ArgumentType
     { typeName = "command",
-      suggestions = \q _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap)),
+      suggestions = \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap)),
       globTargets = mempty
     }
 
@@ -2353,7 +2353,7 @@ exactDefinitionArg :: ArgumentType
 exactDefinitionArg =
   ArgumentType
     { typeName = "definition",
-      suggestions = prefixCompleteTermOrType,
+      suggestions = \q cb _http p -> prefixCompleteTermOrType q cb p,
       globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
@@ -2361,7 +2361,7 @@ fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
-      suggestions = prefixCompleteTermOrType,
+      suggestions = \q cb _http p -> prefixCompleteTermOrType q cb p,
       globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
@@ -2372,7 +2372,7 @@ exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
   ArgumentType
     { typeName = "type definition query",
-      suggestions = prefixCompleteType,
+      suggestions = \q cb _http p -> prefixCompleteType q cb p,
       globTargets = Set.fromList [Globbing.Type]
     }
 
@@ -2380,7 +2380,7 @@ exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
   ArgumentType
     { typeName = "term definition query",
-      suggestions = prefixCompleteTerm,
+      suggestions = \q cb _http p -> prefixCompleteTerm q cb p,
       globTargets = Set.fromList [Globbing.Term]
     }
 
@@ -2388,7 +2388,7 @@ patchArg :: ArgumentType
 patchArg =
   ArgumentType
     { typeName = "patch",
-      suggestions = prefixCompletePatch,
+      suggestions = \q cb _http p -> prefixCompletePatch q cb p,
       globTargets = Set.fromList []
     }
 
@@ -2396,7 +2396,7 @@ namespaceArg :: ArgumentType
 namespaceArg =
   ArgumentType
     { typeName = "namespace",
-      suggestions = prefixCompleteNamespace,
+      suggestions = \q cb _http p -> prefixCompleteNamespace q cb p,
       globTargets = Set.fromList [Globbing.Namespace]
     }
 
@@ -2408,8 +2408,7 @@ newNameArg :: ArgumentType
 newNameArg =
   ArgumentType
     { typeName = "new-name",
-      suggestions =
-        prefixCompleteNamespace,
+      suggestions = \q cb _http p -> prefixCompleteNamespace q cb p,
       globTargets = mempty
     }
 
@@ -2428,7 +2427,7 @@ gitUrlArg =
     { typeName = "git-url",
       suggestions =
         let complete s = pure [Completion s s False]
-         in \input _ _ -> case input of
+         in \input _ _ _ -> case input of
               "gh" -> complete "git(https://github.com/"
               "gl" -> complete "git(https://gitlab.com/"
               "bb" -> complete "git(https://bitbucket.com/"
@@ -2446,14 +2445,15 @@ remoteNamespaceArg =
     { typeName = "remote-namespace",
       suggestions =
         let complete s = pure [Completion s s False]
-         in \input _ _ -> case input of
+         in \input _cb http _p -> case input of
               "gh" -> complete "git(https://github.com/"
               "gl" -> complete "git(https://gitlab.com/"
               "bb" -> complete "git(https://bitbucket.com/"
               "ghs" -> complete "git(git@github.com:"
               "gls" -> complete "git(git@gitlab.com:"
               "bbs" -> complete "git(git@bitbucket.com:"
-              _ -> pure [],
+              _ -> do
+                sharePathCompletion http input,
       globTargets = mempty
     }
 

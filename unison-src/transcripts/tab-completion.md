@@ -50,3 +50,9 @@ unique type subnamespace.AType = A | B
 .> debug.tab-complete cd subnamespace
 .> debug.tab-complete cd subnamespace.
 ```
+
+## Tab complete against Share
+
+```ucm
+.> debug.tab-complete pull unison.pub
+```

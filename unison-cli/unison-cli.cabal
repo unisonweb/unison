@@ -53,6 +53,7 @@ library
       Unison.Codebase.TranscriptParser
       Unison.CommandLine
       Unison.CommandLine.Completion
+      Unison.CommandLine.Completion.Remote
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect
       Unison.CommandLine.Globbing
