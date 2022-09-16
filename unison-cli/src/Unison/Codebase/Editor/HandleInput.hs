@@ -19,6 +19,7 @@ import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
+import Unison.Cli.TypeCheck (typecheck)
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
@@ -113,7 +114,6 @@ import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.DataDeclaration as DD
-import Unison.FileParsers (parseAndSynthesizeFile)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Hashing.V2.Convert as Hashing
@@ -2939,29 +2939,6 @@ synthesizeForce typeOfFunc = do
             ]
         )
     Identity (Just typ, _) -> typ
-
-typecheck ::
-  [Type Symbol Ann] ->
-  NamesWithHistory ->
-  Text ->
-  (Text, [L.Token L.Lexeme]) ->
-  Cli
-    r
-    ( Result.Result
-        (Seq (Result.Note Symbol Ann))
-        (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann))
-    )
-typecheck ambient names sourceName source =
-  Cli.time "typecheck" do
-    Cli.Env {codebase, generateUniqueName} <- ask
-    uniqueName <- liftIO generateUniqueName
-    (liftIO . Result.getResult) $
-      parseAndSynthesizeFile
-        ambient
-        (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
-        (Parser.ParsingEnv uniqueName names)
-        (Text.unpack sourceName)
-        (fst source)
 
 -- | Evaluate all watched expressions in a UnisonFile and return
 -- their results, keyed by the name of the watch variable. The tuple returned
