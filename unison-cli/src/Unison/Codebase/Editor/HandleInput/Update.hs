@@ -10,6 +10,7 @@ import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Set.NonEmpty as NESet
+import Debug.Pretty.Simple
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
@@ -36,6 +37,7 @@ import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TypeEdit as TypeEdit
+import Unison.Hash (Hash)
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.Names (Names)
@@ -43,16 +45,19 @@ import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
-import Unison.Reference (Reference (..), TermReference, TypeReference)
+import Unison.Reference (Reference (..), TermReference, TermReferenceId, TypeReference)
+import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Runtime.IOSource (isTest)
 import Unison.Symbol (Symbol)
+import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
+import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Set as Set
 import Unison.Var (Var)
@@ -189,10 +194,54 @@ handleUpdate input optionalPatch requestedNames = do
 
 getSlurpResultForUpdate :: Set Name -> Cli r (SlurpResult Symbol)
 getSlurpResultForUpdate requestedNames = do
-  uf <- Cli.expectLatestTypecheckedFile
+  Cli.Env {codebase} <- ask
   slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
-  let requestedVars = Set.map Name.toVar requestedNames
-  pure (Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames)
+
+  let termNames :: TermReferenceId -> Set Name
+      termNames =
+        Names.namesForReferent slurpCheckNames . Referent.fromTermReferenceId
+
+  -- First, compute an initial slurp, which will identify the initial set of definitions we are updating.
+  slurp0 <- do
+    uf <- Cli.expectLatestTypecheckedFile
+    pure (Slurp.slurpFile uf (Set.map Name.toVar requestedNames) Slurp.UpdateOp slurpCheckNames)
+
+  let termVarsBeingUpdated :: Set Symbol
+      termVarsBeingUpdated =
+        SC.terms (Slurp.updates slurp0)
+
+  pTraceM "termVarsBeingUpdated"
+  pTraceShowM termVarsBeingUpdated
+
+  let termHashesBeingUpdated :: Set Hash
+      termHashesBeingUpdated =
+        foldMap f termVarsBeingUpdated
+        where
+          f :: Symbol -> Set Hash
+          f var =
+            Set.mapMaybe Reference.toHash (Names.refTermsNamed slurpCheckNames (Name.unsafeFromVar var))
+
+  pTraceM "termHashesBeingUpdated"
+  pTraceShowM termHashesBeingUpdated
+
+  let notBeingUpdated :: (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) -> Bool
+      notBeingUpdated (ref, _) =
+        Set.disjoint termVarsBeingUpdated (Set.map Name.toVar (termNames ref))
+
+  -- FIXME: this only looks at old components; doesn't search for new cycles
+  implicitTerms <-
+    liftIO do
+      foldMapM
+        ( \hash -> do
+            terms <- Codebase.unsafeGetTermComponent codebase hash
+            pure (filter notBeingUpdated (Reference.componentFor hash terms))
+        )
+        (Set.toList termHashesBeingUpdated)
+
+  pTraceM "implicitTerms"
+  pTraceShowM implicitTerms
+
+  pure slurp0
 
 -- updates the namespace for adding `slurp`
 doSlurpAdds ::

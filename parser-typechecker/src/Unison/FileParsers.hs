@@ -19,6 +19,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import qualified Unison.Name as Name
 import qualified Unison.Names as Names
+import Debug.Pretty.Simple
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parsers as Parsers
@@ -77,10 +78,11 @@ parseAndSynthesizeFile ::
 parseAndSynthesizeFile ambient typeLookupf env filePath src = do
   when debug $ traceM "parseAndSynthesizeFile"
   uf <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) env
+  pTraceShowM uf
   let names0 = NamesWithHistory.currentNames (Parser.names env)
   (tm, tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
   let (Result notes' r) = synthesizeFile ambient typeLookup tdnrMap uf tm
-  tell notes' $> maybe (Left uf) Right r
+  tell notes' $> maybe (Left uf) (Right . pTraceShowId) r
 
 type TDNRMap v = Map Typechecker.Name [Typechecker.NamedReference v Ann]
 
