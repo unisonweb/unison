@@ -20,6 +20,8 @@ module Unison.Prelude
     maybeToEither,
     altSum,
     altMap,
+    runMaybeTDefault,
+    guardMaybe,
 
     -- * @Either@ control flow
     onLeft,
@@ -83,6 +85,15 @@ altSum = foldl' (<|>) empty
 -- | Like 'foldMap' but for Alternative.
 altMap :: (Alternative f, Foldable t) => (a -> f b) -> t a -> f b
 altMap f = altSum . fmap f . toList
+
+runMaybeTDefault :: Functor m => a -> MaybeT m a -> m a
+runMaybeTDefault def = fmap (fromMaybe def) . runMaybeT
+
+-- | Useful for lifting 'maybe's into MaybeT or [].
+guardMaybe :: Alternative m => Maybe a -> m a
+guardMaybe = \case
+  Just a -> pure a
+  Nothing -> empty
 
 -- | E.g.
 --

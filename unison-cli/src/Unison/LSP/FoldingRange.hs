@@ -8,7 +8,7 @@ import Language.LSP.Types.Lens hiding (id, to)
 import qualified Unison.ABT as ABT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
-import Unison.LSP.Conversions (annToRange)
+import Unison.LSP.Conversions (annToLspRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis)
 import Unison.LSP.Types
 import Unison.Prelude
@@ -31,7 +31,7 @@ foldingRangesForFile fileUri =
       let abilityFolds = effectDeclarationsId ^.. folded . _2 . to DD.toDataDecl . to dataDeclSpan
       let termFolds = terms ^.. folded . _2 . to ABT.annotation
       let folds = dataFolds <> abilityFolds <> termFolds
-      let ranges = mapMaybe annToRange folds
+      let ranges = mapMaybe annToLspRange folds
       pure $ ranges <&> \r -> FoldingRange {_startLine = r ^. start . line, _startCharacter = Just (r ^. start . character), _endLine = r ^. end . line, _endCharacter = Just (r ^. end . character), _kind = Just FoldingRangeRegion}
   where
     dataDeclSpan dd =

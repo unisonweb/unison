@@ -3,9 +3,9 @@ module Unison.LSP.Conversions where
 import qualified Data.IntervalMap.Interval as Interval
 import Language.LSP.Types
 import Unison.LSP.Orphans ()
-import qualified Unison.Syntax.Lexer as Lex
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
+import qualified Unison.Syntax.Lexer as Lex
 import qualified Unison.Util.Range as Range
 
 rangeToInterval :: Range -> Interval.Interval Position
@@ -26,8 +26,14 @@ uToLspPos uPos =
 uToLspRange :: Range.Range -> Range
 uToLspRange (Range.Range start end) = Range (uToLspPos start) (uToLspPos end)
 
-annToRange :: Ann -> Maybe Range
-annToRange = \case
+annToLspRange :: Ann -> Maybe Range
+annToLspRange = \case
   Ann.Intrinsic -> Nothing
   Ann.External -> Nothing
   Ann.Ann start end -> Just $ Range (uToLspPos start) (uToLspPos end)
+
+annToURange :: Ann -> Maybe Range.Range
+annToURange = \case
+  Ann.Intrinsic -> Nothing
+  Ann.External -> Nothing
+  Ann.Ann start end -> Just $ Range.Range start end

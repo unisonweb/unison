@@ -23,6 +23,13 @@ data UnisonFile v a = UnisonFileId
   }
   deriving (Show)
 
+instance Foldable (UnisonFile v) where
+  foldMap f (UnisonFile dataDeclarationsId effectDeclarationsId terms watches) =
+    (foldMap . foldMap . foldMap) f dataDeclarationsId
+      <> (foldMap . foldMap . foldMap) f effectDeclarationsId
+      <> (foldMap . foldMap . foldMap) f terms
+      <> (foldMap . foldMap . foldMap . foldMap) f watches
+
 pattern UnisonFile ::
   Map v (TypeReference, DataDeclaration v a) ->
   Map v (TypeReference, EffectDeclaration v a) ->

@@ -84,6 +84,7 @@ library
       Unison.LSP.NotificationHandlers
       Unison.LSP.Orphans
       Unison.LSP.Queries
+      Unison.LSP.SelectionRange
       Unison.LSP.Types
       Unison.LSP.UCMWorker
       Unison.LSP.VFS
