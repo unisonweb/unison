@@ -79,7 +79,7 @@ data Codebase m v a = Codebase
     getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)]),
     getDeclComponent :: Hash -> m (Maybe [Decl v a]),
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
-    -- | Get the root branch Hash.
+    -- | Get the root causal Hash.
     getRootCausalHash :: m V2.CausalHash,
     -- | Get the root branch.
     getRootBranch :: m (Branch m),

@@ -40,6 +40,7 @@ module Unison.Reference
     toShortHash,
     idToHash,
     idToShortHash,
+    isBuiltin,
   )
 where
 
@@ -75,6 +76,10 @@ pattern Derived h i = DerivedId (Id h i)
 
 _DerivedId :: Prism' Reference Id
 _DerivedId = _Ctor @"DerivedId"
+
+isBuiltin :: Reference -> Bool
+isBuiltin (Builtin _) = True
+isBuiltin _ = False
 
 -- | @Pos@ is a position into a cycle, as cycles are hashed together.
 data Id = Id H.Hash Pos deriving (Eq, Ord)
@@ -129,7 +134,7 @@ readSuffix = \case
   pos
     | Text.all isDigit pos,
       Just pos' <- readMaybe (Text.unpack pos) ->
-      Right pos'
+        Right pos'
   t -> Left $ "Invalid reference suffix: " <> show t
 
 isPrefixOf :: ShortHash -> Reference -> Bool
