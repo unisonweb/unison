@@ -9,6 +9,7 @@ import Data.List (sortBy)
 import Language.LSP.Types hiding (Range (..))
 import qualified Language.LSP.Types as LSP
 import Language.LSP.Types.Lens
+import qualified Unison.Debug as Debug
 import Unison.LSP.Conversions (annToURange, rangeToInterval, uToLspRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis)
 import Unison.LSP.Types
@@ -21,10 +22,15 @@ selectionRangeHandler :: RequestMessage 'TextDocumentSelectionRange -> (Either R
 selectionRangeHandler m respond =
   respond . Right . fromMaybe mempty =<< runMaybeT do
     ranges <- allRangesForFile (m ^. params . textDocument . uri)
-    pure $
-      (m ^. params . positions) <&> \position ->
-        let intersects = IM.containing ranges position
-         in fromMaybe (idRange position) $ groupByParentage (sortBy compareRanges $ IM.elems intersects)
+    Debug.debugM Debug.LSP "selection ranges in file" ranges
+    for (m ^. params . positions) \position -> do
+      let intersects = IM.containing ranges position
+      Debug.debugM Debug.LSP "intersects" intersects
+      let sorted = sortBy compareRanges $ IM.elems intersects
+      Debug.debugM Debug.LSP "sorted" sorted
+      let grouped = groupByParentage sorted
+      Debug.debugM Debug.LSP "grouped" grouped
+      pure $ fromMaybe (idRange position) grouped
   where
     idRange :: LSP.Position -> LSP.SelectionRange
     idRange p = SelectionRange {_range = LSP.Range p p, _parent = Nothing}
@@ -52,6 +58,7 @@ allRangesForFile uri = do
   FileAnalysis {parsedFile} <- MaybeT (getFileAnalysis uri)
   pf <- MaybeT $ pure parsedFile
   let anns = Foldable.toList pf
+  Debug.debugM Debug.LSP "anns" anns
   pure $
     anns
       & foldMap aToR
