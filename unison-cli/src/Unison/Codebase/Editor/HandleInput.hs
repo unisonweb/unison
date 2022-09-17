@@ -2013,11 +2013,11 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     let ppe = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE
     Cli.respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
-  for outputPath \p -> do
+  for_ outputPath \p -> do
     -- We set latestFile to be programmatically generated, if we
     -- are viewing these definitions to a file - this will skip the
     -- next update for that file (which will happen immediately)
-    #latestFile .= (p, True)
+    #latestFile ?= (p, True)
   where
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
