@@ -9,6 +9,7 @@ import Colog.Core (LogAction (LogAction))
 import qualified Colog.Core as Colog
 import Control.Monad.Reader
 import Data.Aeson hiding (Options, defaultOptions)
+import GHC.IO.Exception (ioe_errno)
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
@@ -23,6 +24,7 @@ import Unison.Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
+import qualified Unison.Debug as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
 import qualified Unison.LSP.FileAnalysis as Analysis
@@ -39,6 +41,7 @@ import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import Unison.Symbol
 import UnliftIO
+import UnliftIO.Foreign (Errno (..), eADDRINUSE)
 
 getLspPort :: IO String
 getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
@@ -47,15 +50,26 @@ getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
 spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM (Branch IO, Path.Absolute) -> IO ()
 spawnLsp codebase runtime ucmState = TCP.withSocketsDo do
   lspPort <- getLspPort
-  TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
-    Ki.scoped \scope -> do
-      sockHandle <- socketToHandle sock ReadWriteMode
-      -- currently we have an independent VFS for each LSP client since each client might have
-      -- different un-saved state for the same file.
-      initVFS $ \vfs -> do
-        vfsVar <- newMVar vfs
-        void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope ucmState)
+  UnliftIO.handleIO (handleFailure lspPort) $ do
+    TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
+      Ki.scoped \scope -> do
+        sockHandle <- socketToHandle sock ReadWriteMode
+        -- currently we have an independent VFS for each LSP client since each client might have
+        -- different un-saved state for the same file.
+        initVFS $ \vfs -> do
+          vfsVar <- newMVar vfs
+          void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope ucmState)
   where
+    handleFailure :: String -> IOException -> IO ()
+    handleFailure lspPort ioerr =
+      case Errno <$> ioe_errno ioerr of
+        Just errNo
+          | errNo == eADDRINUSE -> do
+            putStrLn $ "Note: Port " <> lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
+        _ -> do
+          Debug.debugM Debug.LSP "LSP Exception" ioerr
+          Debug.debugM Debug.LSP "LSP Errno" (ioe_errno ioerr)
+          putStrLn "LSP server failed to start."
     -- Where to send logs that occur before a client connects
     lspServerLogger = Colog.filterBySeverity Colog.Error Colog.getSeverity $ Colog.cmap (fmap tShow) (LogAction print)
     -- Where to send logs that occur after a client connects

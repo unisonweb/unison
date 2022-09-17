@@ -13,7 +13,6 @@ module Unison.Server.Endpoints.FuzzyFind where
 import Control.Monad.Except
 import Data.Aeson (ToJSON (toEncoding), defaultOptions, genericToEncoding)
 import Data.OpenApi (ToSchema)
-import qualified Data.Text as Text
 import Servant
   ( QueryParam,
     (:>),
@@ -27,12 +26,13 @@ import Servant.Docs
   )
 import Servant.OpenApi ()
 import qualified Text.FuzzyFind as FZF
+import qualified U.Codebase.Causal as V2Causal
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -41,6 +41,7 @@ import qualified Unison.Server.Backend as Backend
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
   ( APIGet,
+    ExactName (..),
     HashQualifiedName,
     NamedTerm,
     NamedType,
@@ -52,7 +53,7 @@ import Unison.Util.Pretty (Width)
 
 type FuzzyFindAPI =
   "find" :> QueryParam "rootBranch" SBH.ShortBranchHash
-    :> QueryParam "relativeTo" HashQualifiedName
+    :> QueryParam "relativeTo" Path.Path
     :> QueryParam "limit" Int
     :> QueryParam "renderWidth" Width
     :> QueryParam "query" String
@@ -130,30 +131,30 @@ serveFuzzyFind ::
   MonadIO m =>
   Codebase m Symbol Ann ->
   Maybe SBH.ShortBranchHash ->
-  Maybe HashQualifiedName ->
+  Maybe Path.Path ->
   Maybe Int ->
   Maybe Width ->
   Maybe String ->
   Backend.Backend m [(FZF.Alignment, FoundResult)]
-serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
-  do
-    rel <-
-      maybe mempty Path.fromPath'
-        <$> traverse (parsePath . Text.unpack) relativePath
-    rootHash <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    (localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase rootHash rel
-    let alignments ::
-          ( [ ( FZF.Alignment,
-                UnisonName,
-                [Backend.FoundRef]
-              )
-            ]
-          )
-        alignments =
-          take (fromMaybe 10 limit) $ Backend.fuzzyFind localNamesOnly (fromMaybe "" query)
-    lift (join <$> traverse (loadEntry (PPE.suffixifiedPPE ppe)) alignments)
+serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
+  let path = fromMaybe Path.empty relativeTo
+  rootHash <- traverse (Backend.expandShortBranchHash codebase) mayRoot
+  rootCausal <- Backend.resolveCausalHashV2 codebase (Cv.causalHash1to2 <$> rootHash)
+  (localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) path
+  relativeToCausal <- lift $ Codebase.getShallowCausalAtPath codebase path (Just rootCausal)
+  relativeToBranch <- lift $ V2Causal.value relativeToCausal
+  let alignments ::
+        ( [ ( FZF.Alignment,
+              UnisonName,
+              [Backend.FoundRef]
+            )
+          ]
+        )
+      alignments =
+        take (fromMaybe 10 limit) $ Backend.fuzzyFind localNamesOnly (fromMaybe "" query)
+  lift (join <$> traverse (loadEntry relativeToBranch (PPE.suffixifiedPPE ppe)) alignments)
   where
-    loadEntry ppe (a, HQ'.NameOnly . NameSegment -> n, refs) =
+    loadEntry relativeToBranch ppe (a, n, refs) = do
       for refs $
         \case
           Backend.FoundTermRef r ->
@@ -165,14 +166,11 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query =
                     $ Backend.termEntryToNamedTerm ppe typeWidth te
                 )
             )
-              <$> Backend.termListEntry codebase r n
+              <$> Backend.termListEntry codebase relativeToBranch (ExactName (NameSegment n) (Cv.referent1to2 r))
           Backend.FoundTypeRef r -> do
-            te <- Backend.typeListEntry codebase r n
+            te <- Backend.typeListEntry codebase relativeToBranch (ExactName (NameSegment n) r)
             let namedType = Backend.typeEntryToNamedType te
             let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
             typeHeader <- Backend.typeDeclHeader codebase ppe r
             let ft = FoundType typeName typeHeader namedType
             pure (a, FoundTypeResult ft)
-
-    parsePath p = errFromEither (`Backend.BadNamespace` p) $ Path.parsePath' p
-    errFromEither f = either (throwError . f) pure
