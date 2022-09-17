@@ -36,6 +36,7 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import qualified Unison.LSP.Types as LSP
 import qualified Unison.LSP.VFS as VFS
+import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
@@ -51,6 +52,8 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
+import Unison.Term (Term)
+import qualified Unison.Term as Term
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
 import qualified Unison.UnisonFile as UF
@@ -282,3 +285,13 @@ ppeForFile fileUri = do
       let filePPE = PPE.fromSuffixNames hl (NamesWithHistory.fromCurrentNames fileNames)
       pure (filePPE `PPE.addFallback` ppe)
     _ -> pure ppe
+
+annotatedSubTerms :: UF.UnisonFile v a -> [(a, Term v a)]
+annotatedSubTerms (UF.UnisonFileId {terms}) =
+  terms ^.. folded . _2 . subTerms . to (\trm -> (ABT.annotation trm, trm))
+
+subTerms :: Fold (Term v a) (Term v a)
+subTerms =
+  cosmosOf (to ABT.out . folded)
+
+-- refs :: Fold (Term v a) (LabeledDependency)
