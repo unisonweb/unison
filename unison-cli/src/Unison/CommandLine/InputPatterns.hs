@@ -2108,7 +2108,7 @@ ioTest =
     [(Required, exactDefinitionTermQueryArg)]
     ( P.wrapColumn2
         [ ( "`io.test mytest`",
-            "Runs `!mytest`, where `mytest` is a test that requires the IO ability and has been added to the codebase."
+            "Runs `!mytest`, where `mytest` is a delayed test that can use the `IO` and `Exception` abilities. Note: `mytest` must already be added to the codebase."
           )
         ]
     )
