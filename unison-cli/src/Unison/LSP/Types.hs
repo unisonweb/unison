@@ -11,6 +11,7 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Data.HashMap.Strict as HM
 import Data.IntervalMap.Lazy (IntervalMap)
+import qualified Data.IntervalMap.Lazy as IM
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
@@ -77,6 +78,7 @@ data FileAnalysis = FileAnalysis
   { fileUri :: Uri,
     fileVersion :: FileVersion,
     lexedSource :: LexedSource,
+    tokenMap :: IM.IntervalMap Position Lexer.Lexeme,
     parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     notes :: Seq (Note Symbol Ann),

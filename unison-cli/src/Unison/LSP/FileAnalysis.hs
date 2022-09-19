@@ -24,6 +24,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.HandleInput (typecheckHelper)
 import qualified Unison.Codebase.Path as Path
+import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified' as HQ'
@@ -36,7 +37,6 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import qualified Unison.LSP.Types as LSP
 import qualified Unison.LSP.VFS as VFS
-import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
@@ -46,6 +46,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.PrintError as PrintError
+import Unison.Reference (Reference)
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
@@ -70,7 +71,7 @@ checkFile doc = runMaybeT $ do
   (fileVersion, contents) <- MaybeT (VFS.getFileContents doc)
   parseNames <- lift getParseNames
   let sourceName = getUri $ doc ^. uri
-  let lexedSource@(srcText, _) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
+  let lexedSource@(srcText, tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   cb <- asks codebase
   let generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG
@@ -89,6 +90,7 @@ checkFile doc = runMaybeT $ do
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
+  let tokenMap = getTokenMap tokens
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, ..}
   pure $ fileAnalysis
 
@@ -117,6 +119,15 @@ analyseFile :: Foldable f => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnos
 analyseFile fileUri srcText notes = do
   ppe <- LSP.globalPPE
   analyseNotes fileUri (PPE.suffixifiedPPE ppe) (Text.unpack srcText) notes
+
+getTokenMap :: [L.Token L.Lexeme] -> IM.IntervalMap Position L.Lexeme
+getTokenMap tokens =
+  tokens
+    & mapMaybe
+      ( \token ->
+          IM.singleton <$> (annToInterval $ Parser.ann token) <*> pure (L.payload token)
+      )
+    & fold
 
 analyseNotes :: Foldable f => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseNotes fileUri ppe src notes = do
@@ -285,13 +296,3 @@ ppeForFile fileUri = do
       let filePPE = PPE.fromSuffixNames hl (NamesWithHistory.fromCurrentNames fileNames)
       pure (filePPE `PPE.addFallback` ppe)
     _ -> pure ppe
-
-annotatedSubTerms :: UF.UnisonFile v a -> [(a, Term v a)]
-annotatedSubTerms (UF.UnisonFileId {terms}) =
-  terms ^.. folded . _2 . subTerms . to (\trm -> (ABT.annotation trm, trm))
-
-subTerms :: Fold (Term v a) (Term v a)
-subTerms =
-  cosmosOf (to ABT.out . folded)
-
--- refs :: Fold (Term v a) (LabeledDependency)

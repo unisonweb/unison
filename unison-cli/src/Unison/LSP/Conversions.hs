@@ -3,9 +3,10 @@ module Unison.LSP.Conversions where
 import qualified Data.IntervalMap.Interval as Interval
 import Language.LSP.Types
 import Unison.LSP.Orphans ()
-import qualified Unison.Syntax.Lexer as Lex
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
+import Unison.Prelude
+import qualified Unison.Syntax.Lexer as Lex
 import qualified Unison.Util.Range as Range
 
 rangeToInterval :: Range -> Interval.Interval Position
@@ -15,6 +16,9 @@ rangeToInterval (Range start end)
   -- Ranges of a single 'point' need to be closed for some interval map operations to work as
   -- intended (E.g. intersecting).
   | otherwise = Interval.IntervalCO start end
+
+annToInterval :: Ann -> Maybe (Interval.Interval Position)
+annToInterval ann = annToRange ann <&> rangeToInterval
 
 uToLspPos :: Lex.Pos -> Position
 uToLspPos uPos =
