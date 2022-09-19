@@ -1,8 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Editor.Propagate
-  ( computeFrontier,
-    propagateAndApply,
+  ( propagateAndApply,
   )
 where
 
@@ -12,6 +11,7 @@ import Control.Monad.Reader (ask)
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified Unison.Builtin as Builtin
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -266,7 +266,11 @@ propagate patch b = case validatePatch patch of
           n : _ -> show n
 
     Cli.Env {codebase} <- ask
-    initialDirty <- computeDirty (liftIO . Codebase.dependents codebase) patch (Names.contains names0)
+    initialDirty <-
+      computeDirty
+        (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
+        patch
+        (Names.contains names0)
 
     let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
     -- TODO: once patches can directly contain constructor replacements, this
@@ -314,7 +318,7 @@ propagate patch b = case validatePatch patch of
                     (Just edits', seen') -> do
                       -- plan to update the dependents of this component too
                       dependents <- case r of
-                        Reference.Builtin {} -> liftIO (Codebase.dependents codebase r)
+                        Reference.Builtin {} -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
                         Reference.Derived h _i -> liftIO (Codebase.dependentsOfComponent codebase h)
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
@@ -459,11 +463,11 @@ propagate patch b = case validatePatch patch of
     sortDependentsGraph codebase dependencies restrictTo = do
       closure <-
         transitiveClosure
-          (fmap (Set.intersection restrictTo) . liftIO . Codebase.dependents codebase)
+          (fmap (Set.intersection restrictTo) . liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
           dependencies
       dependents <-
         traverse
-          (\r -> (r,) <$> (liftIO . Codebase.dependents codebase) r)
+          (\r -> (r,) <$> (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent) r)
           (toList closure)
       let graphEdges = [(r, r, toList deps) | (r, deps) <- toList dependents]
           (graph, getReference, _) = Graph.graphFromEdges graphEdges
@@ -675,7 +679,6 @@ applyPropagate patch Edits {..} = do
 --
 -- Note: computeDirty a b c = R.dom <$> computeFrontier a b c
 computeDirty ::
-  forall m.
   Monad m =>
   (Reference -> m (Set Reference)) -> -- eg Codebase.dependents codebase
   Patch ->
@@ -691,35 +694,3 @@ computeDirty getDependents patch shouldUpdate =
 
     edited :: Set Reference
     edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
-
--- (d, f) when d is "dirty" (needs update),
---             f is in the frontier (an edited dependency of d),
---         and d depends on f
--- a ⋖ b = a depends directly on b
--- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
---
--- The range of this relation is the frontier, and the domain is
--- the set of dirty references.
-computeFrontier ::
-  forall m.
-  Monad m =>
-  (Reference -> m (Set Reference)) -> -- eg Codebase.dependents codebase
-  Patch ->
-  (Reference -> Bool) ->
-  m (R.Relation Reference Reference)
-computeFrontier getDependents patch shouldUpdate = do
-  -- (r,r2) ∈ dependsOn if r depends on r2
-  dependsOn <- foldM addDependents R.empty edited
-  -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
-  pure $ R.filterDom (not . flip Set.member edited) dependsOn
-  where
-    edited :: Set Reference
-    edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
-    addDependents ::
-      R.Relation Reference Reference ->
-      Reference ->
-      m (R.Relation Reference Reference)
-    addDependents dependents ref =
-      (\ds -> R.insertManyDom ds ref dependents)
-        . Set.filter shouldUpdate
-        <$> getDependents ref

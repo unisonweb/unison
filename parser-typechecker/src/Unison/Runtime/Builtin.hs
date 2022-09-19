@@ -159,63 +159,70 @@ freshes' avoid0 = go avoid0 []
       let v = freshIn avoid $ typed ANFBlank
        in go (insert v avoid) (v : vs) (n - 1)
 
+class Fresh t where fresh :: t
+
 fresh1 :: Var v => v
 fresh1 = head $ freshes 1
 
-fresh2 :: Var v => (v, v)
-fresh2 = (v1, v2)
-  where
-    [v1, v2] = freshes 2
+instance Var v => Fresh (v, v) where
+  fresh = (v1, v2)
+    where
+      [v1, v2] = freshes 2
 
-fresh3 :: Var v => (v, v, v)
-fresh3 = (v1, v2, v3)
-  where
-    [v1, v2, v3] = freshes 3
+instance Var v => Fresh (v, v, v) where
+  fresh = (v1, v2, v3)
+    where
+      [v1, v2, v3] = freshes 3
 
-fresh4 :: Var v => (v, v, v, v)
-fresh4 = (v1, v2, v3, v4)
-  where
-    [v1, v2, v3, v4] = freshes 4
+instance Var v => Fresh (v, v, v, v) where
+  fresh = (v1, v2, v3, v4)
+    where
+      [v1, v2, v3, v4] = freshes 4
 
-fresh5 :: Var v => (v, v, v, v, v)
-fresh5 = (v1, v2, v3, v4, v5)
-  where
-    [v1, v2, v3, v4, v5] = freshes 5
+instance Var v => Fresh (v, v, v, v, v) where
+  fresh = (v1, v2, v3, v4, v5)
+    where
+      [v1, v2, v3, v4, v5] = freshes 5
 
-fresh6 :: Var v => (v, v, v, v, v, v)
-fresh6 = (v1, v2, v3, v4, v5, v6)
-  where
-    [v1, v2, v3, v4, v5, v6] = freshes 6
+instance Var v => Fresh (v, v, v, v, v, v) where
+  fresh = (v1, v2, v3, v4, v5, v6)
+    where
+      [v1, v2, v3, v4, v5, v6] = freshes 6
 
-fresh7 :: Var v => (v, v, v, v, v, v, v)
-fresh7 = (v1, v2, v3, v4, v5, v6, v7)
-  where
-    [v1, v2, v3, v4, v5, v6, v7] = freshes 7
+instance Var v => Fresh (v, v, v, v, v, v, v) where
+  fresh = (v1, v2, v3, v4, v5, v6, v7)
+    where
+      [v1, v2, v3, v4, v5, v6, v7] = freshes 7
 
-fresh8 :: Var v => (v, v, v, v, v, v, v, v)
-fresh8 = (v1, v2, v3, v4, v5, v6, v7, v8)
-  where
-    [v1, v2, v3, v4, v5, v6, v7, v8] = freshes 8
+instance Var v => Fresh (v, v, v, v, v, v, v, v) where
+  fresh = (v1, v2, v3, v4, v5, v6, v7, v8)
+    where
+      [v1, v2, v3, v4, v5, v6, v7, v8] = freshes 8
 
-fresh9 :: Var v => (v, v, v, v, v, v, v, v, v)
-fresh9 = (v1, v2, v3, v4, v5, v6, v7, v8, v9)
-  where
-    [v1, v2, v3, v4, v5, v6, v7, v8, v9] = freshes 9
+instance Var v => Fresh (v, v, v, v, v, v, v, v, v) where
+  fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9)
+    where
+      [v1, v2, v3, v4, v5, v6, v7, v8, v9] = freshes 9
 
-fresh10 :: Var v => (v, v, v, v, v, v, v, v, v, v)
-fresh10 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10)
-  where
-    [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10] = freshes 10
+instance Var v => Fresh (v, v, v, v, v, v, v, v, v, v) where
+  fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10)
+    where
+      [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10] = freshes 10
 
-fresh11 :: Var v => (v, v, v, v, v, v, v, v, v, v, v)
-fresh11 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11)
-  where
-    [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11] = freshes 11
+instance Var v => Fresh (v, v, v, v, v, v, v, v, v, v, v) where
+  fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11)
+    where
+      [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11] = freshes 11
 
-fresh13 :: Var v => (v, v, v, v, v, v, v, v, v, v, v, v, v)
-fresh13 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13)
-  where
-    [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13] = freshes 13
+instance Var v => Fresh (v, v, v, v, v, v, v, v, v, v, v, v, v) where
+  fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13)
+    where
+      [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13] = freshes 13
+
+instance Var v => Fresh (v, v, v, v, v, v, v, v, v, v, v, v, v, v) where
+  fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14)
+    where
+      [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14] = freshes 14
 
 fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
@@ -803,7 +810,7 @@ fork'comp =
     . TName lz (Right act) [unit]
     $ TPrm FORK [lz]
   where
-    (act, unit, lz) = fresh3
+    (act, unit, lz) = fresh
 
 try'eval :: SuperNormal Symbol
 try'eval =
@@ -815,11 +822,11 @@ try'eval =
     . TMatch ta
     . MatchSum
     $ mapFromList
-      [ exnCase lnk msg xtra fail,
+      [ exnCase lnk msg xtra any fail,
         (1, ([BX], TAbs r (TVar r)))
       ]
   where
-    (act, unit, lz, ta, lnk, msg, xtra, fail, r) = fresh9
+    (act, unit, lz, ta, lnk, msg, xtra, any, fail, r) = fresh
 
 bug :: Util.Text.Text -> SuperNormal Symbol
 bug name =
@@ -879,7 +886,7 @@ code'lookup =
 
 code'validate :: SuperNormal Symbol
 code'validate =
-  unop0 5 $ \[item, t, ref, msg, extra, fail] ->
+  unop0 6 $ \[item, t, ref, msg, extra, any, fail] ->
     TLetD t UN (TPrm CVLD [item])
       . TMatch t
       . MatchSum
@@ -887,7 +894,8 @@ code'validate =
         [ ( 1,
             ([BX, BX, BX],)
               . TAbss [ref, msg, extra]
-              . TLetD fail BX (TCon Ty.failureRef 0 [ref, msg, extra])
+              . TLetD any BX (TCon Ty.anyRef 0 [extra])
+              . TLetD fail BX (TCon Ty.failureRef 0 [ref, msg, any])
               $ some fail
           ),
           ( 0,
@@ -921,7 +929,7 @@ check'sandbox =
     . TLetD b UN (TPrm SDBX [refs, val])
     $ boolift b
   where
-    (refs, val, b) = fresh3
+    (refs, val, b) = fresh
 
 stm'atomic :: SuperNormal Symbol
 stm'atomic =
@@ -931,7 +939,7 @@ stm'atomic =
     . TName lz (Right act) [unit]
     $ TPrm ATOM [lz]
   where
-    (act, unit, lz) = fresh3
+    (act, unit, lz) = fresh
 
 type ForeignOp = FOp -> ([Mem], ANormal Symbol)
 
@@ -942,7 +950,7 @@ standard'handle instr =
     . unenum 3 h0 Ty.stdHandleRef h
     $ TFOp instr [h]
   where
-    (h0, h) = fresh2
+    (h0, h) = fresh
 
 any'construct :: SuperNormal Symbol
 any'construct =
@@ -965,7 +973,7 @@ seek'handle instr =
     . TLetD result UN (TFOp instr [arg1, seek, nat])
     $ outIoFailUnit stack1 stack2 stack3 unit fail result
   where
-    (arg1, arg2, arg3, seek, nat, stack1, stack2, stack3, unit, fail, result) = fresh11
+    (arg1, arg2, arg3, seek, nat, stack1, stack2, stack3, unit, fail, result) = fresh
 
 no'buf, line'buf, block'buf, sblock'buf :: Enum e => e
 no'buf = toEnum $ fromIntegral Ty.bufferModeNoBufferingId
@@ -1004,18 +1012,13 @@ set'buffering instr =
     k2 args =
       TLetD r UN (TFOp instr (handle : args)) $
         outIoFailUnit s1 s2 s3 u f r
-    (handle, bmode, tag, n, w, s1, s2, s3, u, f, r) = fresh11
+    (handle, bmode, tag, n, w, s1, s2, s3, u, f, r) = fresh
 
-get'buffering'output :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
-get'buffering'output eitherResult stack1 stack2 resultTag failVar successVar =
+get'buffering'output :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> v -> ANormal v
+get'buffering'output eitherResult stack1 stack2 stack3 resultTag anyVar failVar successVar =
   TMatch eitherResult . MatchSum $
     mapFromList
-      [ ( 0,
-          ([BX, BX],)
-            . TAbss [stack1, stack2]
-            . TLetD failVar BX (TCon Ty.failureRef 0 [stack1, stack2])
-            $ left failVar
-        ),
+      [ failureCase stack1 stack2 stack3 anyVar failVar,
         ( 1,
           ([UN],)
             . TAbs resultTag
@@ -1043,9 +1046,9 @@ get'buffering'output eitherResult stack1 stack2 resultTag failVar successVar =
 get'buffering :: ForeignOp
 get'buffering =
   inBx arg1 eitherResult $
-    get'buffering'output eitherResult n n2 resultTag failVar successVar
+    get'buffering'output eitherResult n n2 n3 resultTag anyVar failVar successVar
   where
-    (arg1, eitherResult, n, n2, resultTag, failVar, successVar) = fresh7
+    (arg1, eitherResult, n, n2, n3, resultTag, anyVar, failVar, successVar) = fresh
 
 crypto'hash :: ForeignOp
 crypto'hash instr =
@@ -1054,7 +1057,7 @@ crypto'hash instr =
     . TLetD vl BX (TPrm VALU [x])
     $ TFOp instr [alg, vl]
   where
-    (alg, x, vl) = fresh3
+    (alg, x, vl) = fresh
 
 crypto'hmac :: ForeignOp
 crypto'hmac instr =
@@ -1063,7 +1066,7 @@ crypto'hmac instr =
     . TLetD vl BX (TPrm VALU [x])
     $ TFOp instr [alg, by, vl]
   where
-    (alg, by, x, vl) = fresh4
+    (alg, by, x, vl) = fresh
 
 -- Input Shape -- these will represent different argument lists a
 -- foreign might expect
@@ -1208,49 +1211,51 @@ outMaybeTup a b u bp ap result =
         )
       ]
 
-outIoFail :: forall v. Var v => v -> v -> v -> v -> ANormal v
-outIoFail stack1 stack2 fail result =
+outIoFail :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFail stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
-      [ ( 0,
-          ([BX, BX],)
-            . TAbss [stack1, stack2]
-            . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-            $ left fail
-        ),
+      [ failureCase stack1 stack2 stack3 any fail,
         (1, ([BX], TAbs stack1 $ right stack1))
       ]
 
 outIoFailNat :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
-outIoFailNat stack1 stack2 stack3 fail nat result =
+outIoFailNat stack1 stack2 stack3 fail extra result =
   TMatch result . MatchSum $
     mapFromList
-      [ ( 0,
-          ([BX, BX],)
-            . TAbss [stack1, stack2]
-            . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-            $ left fail
-        ),
+      [ failureCase stack1 stack2 stack3 extra fail,
         ( 1,
           ([UN],)
             . TAbs stack3
-            . TLetD nat BX (TCon Ty.natRef 0 [stack3])
-            $ right nat
+            . TLetD extra BX (TCon Ty.natRef 0 [stack3])
+            $ right extra
         )
       ]
 
-exnCase :: Var v => v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
-exnCase stack1 stack2 stack3 fail =
+failureCase
+  :: Var v => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
+failureCase stack1 stack2 stack3 any fail =
   (0,) . ([BX, BX, BX],)
     . TAbss [stack1, stack2, stack3]
-    . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, stack3])
+    . TLetD any BX (TCon Ty.anyRef 0 [stack3])
+    . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, any])
+    $ left fail
+
+exnCase
+  :: Var v => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
+exnCase stack1 stack2 stack3 any fail =
+  (0,) . ([BX, BX, BX],)
+    . TAbss [stack1, stack2, stack3]
+    . TLetD any BX (TCon Ty.anyRef 0 [stack3])
+    . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, any])
     $ TReq Ty.exceptionRef 0 [fail]
 
-outIoExnNat :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
-outIoExnNat stack1 stack2 stack3 fail result =
+outIoExnNat
+  :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoExnNat stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
-      [ exnCase stack1 stack2 stack3 fail,
+      [ exnCase stack1 stack2 stack3 any fail,
         ( 1,
           ([UN],)
             . TAbs stack1
@@ -1258,32 +1263,29 @@ outIoExnNat stack1 stack2 stack3 fail result =
         )
       ]
 
-outIoExnUnit :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
-outIoExnUnit stack1 stack2 stack3 fail result =
+outIoExnUnit
+  :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoExnUnit stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
-      [ exnCase stack1 stack2 stack3 fail,
+      [ exnCase stack1 stack2 stack3 any fail,
         (1, ([], TCon Ty.unitRef 0 []))
       ]
 
-outIoExnBox :: Var v => v -> v -> v -> v -> v -> ANormal v
-outIoExnBox stack1 stack2 stack3 fail result =
+outIoExnBox
+  :: Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoExnBox stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
-      [ exnCase stack1 stack2 stack3 fail,
+      [ exnCase stack1 stack2 stack3 any fail,
         (1, ([BX], TAbs stack1 $ TVar stack1))
       ]
 
-outIoFailBox :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
-outIoFailBox stack1 stack2 stack3 fail result =
+outIoFailBox :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailBox stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
-      [ ( 0,
-          ([BX, BX, BX],)
-            . TAbss [stack1, stack2, stack3]
-            . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, stack3])
-            $ left fail
-        ),
+      [ failureCase stack1 stack2 stack3 any fail,
         ( 1,
           ([BX],)
             . TAbs stack1
@@ -1292,38 +1294,28 @@ outIoFailBox stack1 stack2 stack3 fail result =
       ]
 
 outIoFailUnit :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
-outIoFailUnit stack1 stack2 stack3 unit fail result =
+outIoFailUnit stack1 stack2 stack3 extra fail result =
   TMatch result . MatchSum $
     mapFromList
-      [ ( 0,
-          ([BX, BX],)
-            . TAbss [stack1, stack2]
-            . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-            $ left fail
-        ),
+      [ failureCase stack1 stack2 stack3 extra fail,
         ( 1,
           ([BX],)
             . TAbss [stack3]
-            . TLetD unit BX (TCon Ty.unitRef 0 [])
-            $ right unit
+            . TLetD extra BX (TCon Ty.unitRef 0 [])
+            $ right extra
         )
       ]
 
 outIoFailBool :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
-outIoFailBool stack1 stack2 stack3 bool fail result =
+outIoFailBool stack1 stack2 stack3 extra fail result =
   TMatch result . MatchSum $
     mapFromList
-      [ ( 0,
-          ([BX, BX],)
-            . TAbss [stack1, stack2]
-            . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-            $ left fail
-        ),
+      [ failureCase stack1 stack2 stack3 extra fail,
         ( 1,
           ([UN],)
             . TAbs stack3
-            . TLet (Indirect 1) bool BX (boolift stack3)
-            $ right bool
+            . TLet (Indirect 1) extra BX (boolift stack3)
+            $ right extra
         )
       ]
 
@@ -1334,17 +1326,13 @@ outIoFailG ::
   v ->
   v ->
   v ->
+  v ->
   ((ANormal v -> ANormal v) -> ([Mem], ANormal v)) ->
   ANormal v
-outIoFailG stack1 stack2 fail result output k =
+outIoFailG stack1 stack2 stack3 fail result output k =
   TMatch result . MatchSum $
     mapFromList
-      [ ( 0,
-          ([BX, BX],)
-            . TAbss [stack1, stack2]
-            . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-            $ left fail
-        ),
+      [ failureCase stack1 stack2 stack3 output fail,
         ( 1,
           k $ \t ->
             TLetD output BX t $
@@ -1383,7 +1371,7 @@ unitToEFNat =
   inUnit unit result $
     outIoFailNat stack1 stack2 stack3 fail nat result
   where
-    (unit, stack1, stack2, stack3, fail, nat, result) = fresh7
+    (unit, stack1, stack2, stack3, fail, nat, result) = fresh
 
 -- () -> Int
 unitToInt :: ForeignOp
@@ -1391,40 +1379,40 @@ unitToInt =
   inUnit unit result $
     TCon Ty.intRef 0 [result]
   where
-    (unit, result) = fresh2
+    (unit, result) = fresh
 
 -- () -> Either Failure a
 unitToEFBox :: ForeignOp
 unitToEFBox =
   inUnit unit result $
-    outIoFailBox stack1 stack2 stack3 fail result
+    outIoFailBox stack1 stack2 stack3 any fail result
   where
-    (unit, stack1, stack2, stack3, fail, result) = fresh6
+    (unit, stack1, stack2, stack3, fail, any, result) = fresh
 
 -- a -> Int
 boxToInt :: ForeignOp
 boxToInt = inBx arg result (TCon Ty.intRef 0 [result])
   where
-    (arg, result) = fresh2
+    (arg, result) = fresh
 
 -- a -> Nat
 boxToNat :: ForeignOp
 boxToNat = inBx arg result (TCon Ty.natRef 0 [result])
   where
-    (arg, result) = fresh2
+    (arg, result) = fresh
 
 boxIomrToEFBox :: ForeignOp
 boxIomrToEFBox =
   inBxIomr arg1 arg2 enum result $
-    outIoFailBox stack1 stack2 stack3 fail result
+    outIoFailBox stack1 stack2 stack3 any fail result
   where
-    (arg1, arg2, enum, stack1, stack2, stack3, fail, result) = fresh8
+    (arg1, arg2, enum, stack1, stack2, stack3, any, fail, result) = fresh
 
 -- a -> ()
 boxTo0 :: ForeignOp
 boxTo0 = inBx arg result (TCon Ty.unitRef 0 [])
   where
-    (arg, result) = fresh2
+    (arg, result) = fresh
 
 -- a -> b ->{E} ()
 boxBoxTo0 :: ForeignOp
@@ -1434,7 +1422,7 @@ boxBoxTo0 instr =
     . TLets Direct [] [] (TFOp instr [arg1, arg2])
     $ TCon Ty.unitRef 0 []
   where
-    (arg1, arg2) = fresh2
+    (arg1, arg2) = fresh
 
 -- a -> b -> Option c
 
@@ -1444,14 +1432,14 @@ boxToBool =
   inBx arg result $
     boolift result
   where
-    (arg, result) = fresh2
+    (arg, result) = fresh
 
 -- a -> b -> Bool
 boxBoxToBool :: ForeignOp
 boxBoxToBool =
   inBxBx arg1 arg2 result $ boolift result
   where
-    (arg1, arg2, result) = fresh3
+    (arg1, arg2, result) = fresh
 
 -- Nat -> c
 -- Works for an type that's packed into a word, just
@@ -1464,7 +1452,7 @@ wordDirect wordType instr =
     . unbox b1 wordType ub1
     $ TFOp instr [ub1]
   where
-    (b1, ub1) = fresh2
+    (b1, ub1) = fresh
 
 -- Nat -> Nat -> c
 wordWordDirect :: Reference -> Reference -> ForeignOp
@@ -1475,7 +1463,7 @@ wordWordDirect word1 word2 instr =
     . unbox b2 word2 ub2
     $ TFOp instr [ub1, ub2]
   where
-    (b1, b2, ub1, ub2) = fresh4
+    (b1, b2, ub1, ub2) = fresh
 
 -- Nat -> a -> c
 -- Works for an type that's packed into a word, just
@@ -1488,7 +1476,7 @@ wordBoxDirect wordType instr =
     . unbox b1 wordType ub1
     $ TFOp instr [ub1, b2]
   where
-    (b1, b2, ub1) = fresh3
+    (b1, b2, ub1) = fresh
 
 -- a -> Nat -> c
 -- works for any second argument type that is packed into a word
@@ -1499,7 +1487,7 @@ boxWordDirect wordType instr =
     . unbox b2 wordType ub2
     $ TFOp instr [b1, ub2]
   where
-    (b1, b2, ub2) = fresh3
+    (b1, b2, ub2) = fresh
 
 -- a -> b -> c
 boxBoxDirect :: ForeignOp
@@ -1508,7 +1496,7 @@ boxBoxDirect instr =
     . TAbss [b1, b2]
     $ TFOp instr [b1, b2]
   where
-    (b1, b2) = fresh2
+    (b1, b2) = fresh
 
 -- a -> b -> c -> d
 boxBoxBoxDirect :: ForeignOp
@@ -1517,21 +1505,21 @@ boxBoxBoxDirect instr =
     . TAbss [b1, b2, b3]
     $ TFOp instr [b1, b2, b3]
   where
-    (b1, b2, b3) = fresh3
+    (b1, b2, b3) = fresh
 
 -- a -> Either Failure b
 boxToEFBox :: ForeignOp
 boxToEFBox =
   inBx arg result $
-    outIoFailBox stack1 stack2 stack3 fail result
+    outIoFailBox stack1 stack2 stack3 any fail result
   where
-    (arg, result, stack1, stack2, stack3, fail) = fresh6
+    (arg, result, stack1, stack2, stack3, any, fail) = fresh
 
 -- a -> Either Failure (Maybe b)
 boxToEFMBox :: ForeignOp
 boxToEFMBox =
   inBx arg result
-    . outIoFailG stack1 stack2 fail result output
+    . outIoFailG stack1 stack2 stack3 fail result output
     $ \k ->
       ( [UN],
         TAbs stack3 . TMatch stack3 . MatchSum $
@@ -1541,28 +1529,28 @@ boxToEFMBox =
             ]
       )
   where
-    (arg, result, stack1, stack2, stack3, stack4, fail, output) = fresh8
+    (arg, result, stack1, stack2, stack3, stack4, fail, output) = fresh
 
 -- a -> Maybe b
 boxToMaybeBox :: ForeignOp
 boxToMaybeBox =
   inBx arg result $ outMaybe maybe result
   where
-    (arg, maybe, result) = fresh3
+    (arg, maybe, result) = fresh
 
 -- a -> Maybe (Nat, b)
 boxToMaybeNTup :: ForeignOp
 boxToMaybeNTup =
   inBx arg result $ outMaybeNTup a b c u bp p result
   where
-    (arg, a, b, c, u, bp, p, result) = fresh8
+    (arg, a, b, c, u, bp, p, result) = fresh
 
 -- a -> b -> Maybe (c, d)
 boxBoxToMaybeTup :: ForeignOp
 boxBoxToMaybeTup =
   inBxBx arg1 arg2 result $ outMaybeTup a b u bp ap result
   where
-    (arg1, arg2, a, b, u, bp, ap, result) = fresh8
+    (arg1, arg2, a, b, u, bp, ap, result) = fresh
 
 -- a -> Either Failure Bool
 boxToEFBool :: ForeignOp
@@ -1570,7 +1558,7 @@ boxToEFBool =
   inBx arg result $
     outIoFailBool stack1 stack2 stack3 bool fail result
   where
-    (arg, stack1, stack2, stack3, bool, fail, result) = fresh7
+    (arg, stack1, stack2, stack3, bool, fail, result) = fresh
 
 -- a -> b -> Either Failure Bool
 boxBoxToEFBool :: ForeignOp
@@ -1578,7 +1566,7 @@ boxBoxToEFBool =
   inBxBx arg1 arg2 result $
     outIoFailBool stack1 stack2 stack3 bool fail result
   where
-    (arg1, arg2, stack1, stack2, stack3, bool, fail, result) = fresh8
+    (arg1, arg2, stack1, stack2, stack3, bool, fail, result) = fresh
 
 -- a -> Either Failure ()
 boxToEF0 :: ForeignOp
@@ -1586,7 +1574,7 @@ boxToEF0 =
   inBx arg result $
     outIoFailUnit stack1 stack2 stack3 unit fail result
   where
-    (arg, result, stack1, stack2, stack3, unit, fail) = fresh7
+    (arg, result, stack1, stack2, stack3, unit, fail) = fresh
 
 -- a -> b -> Either Failure ()
 boxBoxToEF0 :: ForeignOp
@@ -1594,7 +1582,7 @@ boxBoxToEF0 =
   inBxBx arg1 arg2 result $
     outIoFailUnit stack1 stack2 stack3 fail unit result
   where
-    (arg1, arg2, result, stack1, stack2, stack3, fail, unit) = fresh8
+    (arg1, arg2, result, stack1, stack2, stack3, fail, unit) = fresh
 
 -- a -> Either Failure Nat
 boxToEFNat :: ForeignOp
@@ -1602,23 +1590,23 @@ boxToEFNat =
   inBx arg result $
     outIoFailNat stack1 stack2 stack3 nat fail result
   where
-    (arg, result, stack1, stack2, stack3, nat, fail) = fresh7
+    (arg, result, stack1, stack2, stack3, nat, fail) = fresh
 
 -- Maybe a -> b -> Either Failure c
 maybeBoxToEFBox :: ForeignOp
 maybeBoxToEFBox =
   inMaybeBx arg1 arg2 arg3 mb result $
-    outIoFail stack1 stack2 fail result
+    outIoFail stack1 stack2 stack3 any fail result
   where
-    (arg1, arg2, arg3, mb, result, stack1, stack2, fail) = fresh8
+    (arg1, arg2, arg3, mb, result, stack1, stack2, stack3, any, fail) = fresh
 
 -- a -> b -> Either Failure c
 boxBoxToEFBox :: ForeignOp
 boxBoxToEFBox =
   inBxBx arg1 arg2 result $
-    outIoFail stack1 stack2 fail result
+    outIoFail stack1 stack2 stack3 any fail result
   where
-    (arg1, arg2, result, stack1, stack2, fail) = fresh6
+    (arg1, arg2, result, stack1, stack2, stack3, any, fail) = fresh
 
 -- Nat -> a
 -- Nat only
@@ -1639,7 +1627,7 @@ natNatBoxToBox instr =
     . unbox a2 Ty.natRef ua2
     $ TFOp instr [ua1, ua2, a3]
   where
-    (a1, a2, a3, ua1, ua2) = fresh5
+    (a1, a2, a3, ua1, ua2) = fresh
 
 -- a -> Nat -> c
 -- Nat only
@@ -1650,49 +1638,49 @@ boxNatToBox = boxWordDirect Ty.natRef
 boxNatToEFBox :: ForeignOp
 boxNatToEFBox =
   inBxNat arg1 arg2 nat result $
-    outIoFail stack1 stack2 fail result
+    outIoFail stack1 stack2 stack3 any fail result
   where
-    (arg1, arg2, nat, stack1, stack2, fail, result) = fresh7
+    (arg1, arg2, nat, stack1, stack2, stack3, any, fail, result) = fresh
 
 -- a -> Nat ->{Exception} b
 boxNatToExnBox :: ForeignOp
 boxNatToExnBox =
   inBxNat arg1 arg2 nat result $
-    outIoExnBox stack1 stack2 stack3 fail result
+    outIoExnBox stack1 stack2 stack3 fail any result
   where
-    (arg1, arg2, nat, stack1, stack2, stack3, fail, result) = fresh8
+    (arg1, arg2, nat, stack1, stack2, stack3, any, fail, result) = fresh
 
 -- a -> Nat -> b ->{Exception} ()
 boxNatBoxToExnUnit :: ForeignOp
 boxNatBoxToExnUnit =
   inBxNatBx arg1 arg2 arg3 nat result $
-    outIoExnUnit stack1 stack2 stack3 fail result
+    outIoExnUnit stack1 stack2 stack3 any fail result
   where
-    (arg1, arg2, arg3, nat, stack1, stack2, stack3, fail, result) = fresh9
+    (arg1, arg2, arg3, nat, stack1, stack2, stack3, any, fail, result) = fresh
 
 -- a -> Nat ->{Exception} Nat
 boxNatToExnNat :: ForeignOp
 boxNatToExnNat =
   inBxNat arg1 arg2 nat result $
-    outIoExnNat stack1 stack2 stack3 fail result
+    outIoExnNat stack1 stack2 stack3 any fail result
   where
-    (arg1, arg2, nat, stack1, stack2, stack3, fail, result) = fresh8
+    (arg1, arg2, nat, stack1, stack2, stack3, any, fail, result) = fresh
 
 -- a -> Nat -> Nat ->{Exception} ()
 boxNatNatToExnUnit :: ForeignOp
 boxNatNatToExnUnit =
   inBxNatNat arg1 arg2 arg3 nat1 nat2 result $
-    outIoExnUnit stack1 stack2 stack3 fail result
+    outIoExnUnit stack1 stack2 stack3 any fail result
   where
-    (arg1, arg2, arg3, nat1, nat2, result, stack1, stack2, stack3, fail) = fresh10
+    (arg1, arg2, arg3, nat1, nat2, result, stack1, stack2, stack3, any, fail) = fresh
 
 -- a -> Nat -> Nat ->{Exception} b
 boxNatNatToExnBox :: ForeignOp
 boxNatNatToExnBox =
   inBxNatNat arg1 arg2 arg3 nat1 nat2 result $
-    outIoExnBox stack1 stack2 stack3 fail result
+    outIoExnBox stack1 stack2 stack3 any fail result
   where
-    (arg1, arg2, arg3, nat1, nat2, result, stack1, stack2, stack3, fail) = fresh10
+    (arg1, arg2, arg3, nat1, nat2, result, stack1, stack2, stack3, any, fail) = fresh
 
 -- a -> Nat -> b -> Nat -> Nat ->{Exception} ()
 boxNatBoxNatNatToExnUnit :: ForeignOp
@@ -1703,15 +1691,15 @@ boxNatBoxNatNatToExnUnit instr =
     . unbox a3 Ty.natRef ua3
     . unbox a4 Ty.natRef ua4
     . TLetD result UN (TFOp instr [a0, ua1, a2, ua3, ua4])
-    $ outIoExnUnit stack1 stack2 stack3 fail result
+    $ outIoExnUnit stack1 stack2 stack3 any fail result
   where
-    (a0, a1, a2, a3, a4, ua1, ua3, ua4, result, stack1, stack2, stack3, fail) = fresh13
+    (a0, a1, a2, a3, a4, ua1, ua3, ua4, result, stack1, stack2, stack3, any, fail) = fresh
 
 -- Nat -> Either Failure b
 -- natToEFBox :: ForeignOp
 -- natToEFBox = inNat arg nat result $ outIoFail stack1 stack2 fail result
 --   where
---     (arg, nat, stack1, stack2, fail, result) = fresh6
+--     (arg, nat, stack1, stack2, fail, result) = fresh
 
 -- Nat -> Either Failure ()
 natToEFUnit :: ForeignOp
@@ -1720,12 +1708,7 @@ natToEFUnit =
     . TMatch result
     . MatchSum
     $ mapFromList
-      [ ( 0,
-          ([BX, BX],)
-            . TAbss [stack1, stack2]
-            . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-            $ left fail
-        ),
+      [ failureCase stack1 stack2 stack3 unit fail,
         ( 1,
           ([],)
             . TLetD unit BX (TCon Ty.unitRef 0 [])
@@ -1733,7 +1716,7 @@ natToEFUnit =
         )
       ]
   where
-    (arg, nat, result, fail, stack1, stack2, unit) = fresh7
+    (arg, nat, result, fail, stack1, stack2, stack3, unit) = fresh
 
 -- a -> Either b c
 boxToEBoxBox :: ForeignOp
@@ -1748,7 +1731,7 @@ boxToEBoxBox instr =
         (1, ([BX], TAbs ev $ right ev))
       ]
   where
-    (e, b, ev) = fresh3
+    (e, b, ev) = fresh
 
 builtinLookup :: Map.Map Reference (Sandbox, SuperNormal Symbol)
 builtinLookup =

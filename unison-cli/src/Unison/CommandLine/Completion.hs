@@ -41,12 +41,10 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.CommandLine.InputPattern as IP
-import qualified Unison.Hash as H
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
-import qualified Unison.ShortHash as SH
 import qualified Unison.Util.Pretty as P
 import Prelude hiding (readFile, writeFile)
 
@@ -129,25 +127,20 @@ completeWithinNamespace ::
   m [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace compTypes query codebase currentPath = do
   shortHashLen <- Codebase.hashLength codebase
-  Codebase.getShallowBranchFromRoot codebase absQueryPath >>= \case
-    Nothing -> do
-      pure []
-    Just cb -> do
-      b <- V2Causal.value cb
-      currentBranchSuggestions <- do
-        nib <- namesInBranch shortHashLen b
-        nib
-          & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match))
-          & filter (\(_isFinished, match) -> List.isPrefixOf query match)
-          & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
-          & pure
-
-      childSuggestions <- getChildSuggestions shortHashLen b
-      let allSuggestions =
-            currentBranchSuggestions
-              -- Only show child suggestions when the current branch isn't ambiguous
-              <> Monoid.whenM (length currentBranchSuggestions <= 1) childSuggestions
-      pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ allSuggestions
+  b <- Codebase.getShallowBranchAtPath codebase (Path.unabsolute absQueryPath) Nothing
+  currentBranchSuggestions <- do
+    nib <- namesInBranch shortHashLen b
+    nib
+      & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match))
+      & filter (\(_isFinished, match) -> List.isPrefixOf query match)
+      & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
+      & pure
+  childSuggestions <- getChildSuggestions shortHashLen b
+  let allSuggestions =
+        currentBranchSuggestions
+          -- Only show child suggestions when the current branch isn't ambiguous
+          <> Monoid.whenM (length currentBranchSuggestions <= 1) childSuggestions
+  pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ allSuggestions
   where
     queryPathPrefix :: Path.Path'
     querySuffix :: NameSegment.NameSegment
@@ -189,24 +182,9 @@ completeWithinNamespace compTypes query codebase currentPath = do
 
     -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
     hqFromNamedV2Referent :: Int -> V2Branch.NameSegment -> Referent.Referent -> HQ'.HashQualified V2Branch.NameSegment
-    hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (SH.take hashLen $ v2ReferentToShortHash r)
+    hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (Cv.referent2toshorthash1 (Just hashLen) r)
     hqFromNamedV2Reference :: Int -> V2Branch.NameSegment -> Reference.Reference -> HQ'.HashQualified V2Branch.NameSegment
-    hqFromNamedV2Reference hashLen n r = HQ'.HashQualified n (SH.take hashLen $ v2ReferenceToShortHash r)
-    v2ReferentToShortHash :: Referent.Referent -> SH.ShortHash
-    v2ReferentToShortHash = \case
-      Referent.Ref r -> v2ReferenceToShortHash r
-      Referent.Con r conId ->
-        case v2ReferenceToShortHash r of
-          SH.ShortHash h p _con -> SH.ShortHash h p (Just $ tShow conId)
-          sh@(SH.Builtin {}) -> sh
-
-    v2ReferenceToShortHash :: Reference.Reference -> SH.ShortHash
-    v2ReferenceToShortHash (Reference.ReferenceBuiltin b) = SH.Builtin b
-    v2ReferenceToShortHash (Reference.ReferenceDerived (Reference.Id h i)) = SH.ShortHash (H.base32Hex h) (showComponentPos i) Nothing
-    showComponentPos :: Reference.Pos -> Maybe Text
-    showComponentPos 0 = Nothing
-    showComponentPos n = Just (tShow n)
-
+    hqFromNamedV2Reference hashLen n r = HQ'.HashQualified n (Cv.reference2toshorthash1 (Just hashLen) r)
     hashQualifyCompletions :: forall r metadata. (V2Branch.NameSegment -> r -> HQ'.HashQualified V2Branch.NameSegment) -> Map V2Branch.NameSegment (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
     hashQualifyCompletions qualify defs = ifoldMap qualifyRefs defs
       where

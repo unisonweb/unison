@@ -1313,8 +1313,8 @@ createPullRequest =
             "example: "
               <> makeExampleNoBackticks
                 createPullRequest
-                [ "unison.base.main",
-                  "myself.prs.base._myFeature"
+                [ "unison.public.base.main",
+                  "myself.public.prs.base.myFeature"
                 ]
           ]
     )

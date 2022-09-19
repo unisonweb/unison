@@ -71,3 +71,4 @@ The format for this list: name, GitHub handle
 * Dan Freeman (@dfreeman)
 * Emil Hotkowski (@emilhotkowski)
 * Jesse Looney (@jesselooney)
+* Vlad Posmangiu Luchian (@cstml)

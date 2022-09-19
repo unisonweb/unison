@@ -11,6 +11,7 @@ module Unison.Codebase
     unsafeGetTypeOfTermById,
     isTerm,
     putTerm,
+    termMetadata,
 
     -- ** Referents (sorta-termlike)
     getTypeOfReferent,
@@ -36,15 +37,17 @@ module Unison.Codebase
     branchHashesByPrefix,
     lca,
     beforeImpl,
-    shallowBranchAtPath,
-    getShallowBranchForHash,
-    getShallowBranchFromRoot,
+    getShallowBranchAtPath,
+    getShallowCausalAtPath,
+    getShallowCausalForHash,
+    getShallowCausalFromRoot,
     getShallowRootBranch,
+    getShallowRootCausal,
 
     -- * Root branch
     getRootBranch,
     getRootBranchExists,
-    getRootBranchHash,
+    getRootCausalHash,
     putRootBranch,
     namesAtPath,
 
@@ -112,6 +115,8 @@ import qualified Data.Set as Set
 import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import qualified U.Codebase.Referent as V2
+import qualified U.Codebase.Sqlite.Queries as Queries
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Terms as Builtin
@@ -139,6 +144,7 @@ import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Parser.Ann as Parser
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -162,27 +168,58 @@ runTransaction :: MonadIO m => Codebase m v a -> Sqlite.Transaction b -> m b
 runTransaction Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransaction conn action
 
-getShallowBranchFromRoot :: Monad m => Codebase m v a -> Path.Absolute -> m (Maybe (V2Branch.CausalBranch m))
-getShallowBranchFromRoot codebase p = do
-  getShallowRootBranch codebase >>= shallowBranchAtPath (Path.unabsolute p)
+getShallowCausalFromRoot ::
+  Monad m =>
+  Codebase m v a ->
+  -- Optional root branch, if Nothing use the codebase's root branch.
+  Maybe V2.CausalHash ->
+  Path.Path ->
+  m (V2Branch.CausalBranch m)
+getShallowCausalFromRoot codebase mayRootHash p = do
+  rootCausal <- case mayRootHash of
+    Nothing -> getShallowRootCausal codebase
+    Just ch -> getShallowCausalForHash codebase ch
+  getShallowCausalAtPath codebase p (Just rootCausal)
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
-getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
-getShallowRootBranch codebase = do
-  hash <- getRootBranchHash codebase
-  getShallowBranchForHash codebase hash
+getShallowRootCausal :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
+getShallowRootCausal codebase = do
+  hash <- getRootCausalHash codebase
+  getShallowCausalForHash codebase hash
 
--- | Recursively descend into shallow branches following the given path.
-shallowBranchAtPath :: Monad m => Path -> V2Branch.CausalBranch m -> m (Maybe (V2Branch.CausalBranch m))
-shallowBranchAtPath path causal = do
+-- | Get the shallow representation of the root branches without loading the children or
+-- history.
+getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
+getShallowRootBranch codebase = do
+  getShallowRootCausal codebase >>= V2Causal.value
+
+-- | Recursively descend into causals following the given path,
+-- Use the root causal if none is provided.
+getShallowCausalAtPath :: Monad m => Codebase m v a -> Path -> Maybe (V2Branch.CausalBranch m) -> m (V2Branch.CausalBranch m)
+getShallowCausalAtPath codebase path mayCausal = do
+  causal <- whenNothing mayCausal (getShallowRootCausal codebase)
   case path of
-    Path.Empty -> pure (Just causal)
+    Path.Empty -> pure causal
     (ns Path.:< p) -> do
       b <- V2Causal.value causal
       case (V2Branch.childAt (Cv.namesegment1to2 ns) b) of
-        Nothing -> pure Nothing
-        Just childCausal -> shallowBranchAtPath p childCausal
+        Nothing -> pure (Cv.causalbranch1to2 Branch.empty)
+        Just childCausal -> getShallowCausalAtPath codebase p (Just childCausal)
+
+-- | Recursively descend into causals following the given path,
+-- Use the root causal if none is provided.
+getShallowBranchAtPath :: Monad m => Codebase m v a -> Path -> Maybe (V2Branch.Branch m) -> m (V2Branch.Branch m)
+getShallowBranchAtPath codebase path mayBranch = do
+  branch <- whenNothing mayBranch (getShallowRootCausal codebase >>= V2Causal.value)
+  case path of
+    Path.Empty -> pure branch
+    (ns Path.:< p) -> do
+      case (V2Branch.childAt (Cv.namesegment1to2 ns) branch) of
+        Nothing -> pure V2Branch.empty
+        Just childCausal -> do
+          childBranch <- V2Causal.value childCausal
+          getShallowBranchAtPath codebase p (Just childBranch)
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.CausalHash -> m (Maybe (Branch m))
@@ -201,6 +238,21 @@ getBranchForHash codebase h =
    in do
         rootBranch <- getRootBranch codebase
         maybe (getBranchForHashImpl codebase h) (pure . Just) (find rootBranch)
+
+-- | Get the metadata attached to the term at a given path and name relative to the given branch.
+termMetadata ::
+  Monad m =>
+  Codebase m v a ->
+  -- | The branch to search inside. Use the current root if 'Nothing'.
+  Maybe (V2Branch.Branch m) ->
+  Split ->
+  -- | There may be multiple terms at the given name. You can specify a Referent to
+  -- disambiguate if desired.
+  Maybe V2.Referent ->
+  m [Map V2Branch.MetadataValue V2Branch.MetadataType]
+termMetadata codebase mayBranch (path, nameSeg) ref = do
+  b <- getShallowBranchAtPath codebase path mayBranch
+  V2Branch.termMetadata b (coerce @NameSegment.NameSegment nameSeg) ref
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
 lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
@@ -339,11 +391,11 @@ componentReferencesForReference c = \case
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.
-dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
-dependents c r =
+dependents :: Functor m => Codebase m v a -> Queries.DependentsSelector -> Reference -> m (Set Reference)
+dependents c selector r =
   Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
-    <$> dependentsImpl c r
+    <$> dependentsImpl c selector r
 
 dependentsOfComponent :: Functor f => Codebase f v a -> Hash -> f (Set Reference)
 dependentsOfComponent c h =

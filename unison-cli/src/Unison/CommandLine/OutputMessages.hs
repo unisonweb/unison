@@ -75,11 +75,7 @@ import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.SqliteCodebase.GitError
-  ( GitSqliteCodebaseError
-      ( GitCouldntParseRootBranchHash,
-        NoDatabaseFile,
-        UnrecognizedSchemaVersion
-      ),
+  ( GitSqliteCodebaseError (..),
   )
 import qualified Unison.Codebase.TermEdit as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
@@ -121,7 +117,8 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent
 import qualified Unison.Result as Result
-import Unison.Server.Backend (ShallowListEntry (..), TermEntry (..), TypeEntry (..))
+import Unison.Server.Backend (ShallowListEntry (..), TypeEntry (..))
+import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Share.Sync as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
@@ -957,13 +954,13 @@ notifyUser dir o = case o of
           f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
       formatEntry :: Var v => ShallowListEntry v a -> (Pretty, Pretty)
       formatEntry = \case
-        ShallowTermEntry (TermEntry _r hq ot _) ->
-          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq,
-            P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")"
+        ShallowTermEntry termEntry ->
+          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment . Backend.termEntryHQName $ termEntry,
+            P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) (Backend.termEntryType termEntry) <> P.lit ")"
           )
-        ShallowTypeEntry (TypeEntry r hq _) ->
-          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq,
-            isBuiltin r
+        ShallowTypeEntry typeEntry ->
+          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment . Backend.typeEntryHQName $ typeEntry,
+            isBuiltin (typeEntryReference typeEntry)
           )
         ShallowBranchEntry ns _ (NamespaceStats {numContainedTerms, numContainedTypes}) ->
           ( (P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/",
@@ -1130,6 +1127,11 @@ notifyUser dir o = case o of
             <> prettyReadGitRepo repo
             <> "in the cache directory at"
             <> P.backticked' (P.string localPath) "."
+      CodebaseRequiresMigration (SchemaVersion fromSv) (SchemaVersion toSv) -> do
+        P.wrap $
+          "The specified codebase codebase is on version " <> P.shown fromSv
+            <> " but needs to be on version "
+            <> P.shown toSv
       UnrecognizedSchemaVersion repo localPath (SchemaVersion v) ->
         P.wrap $
           "I don't know how to interpret schema version " <> P.shown v
@@ -1476,12 +1478,12 @@ notifyUser dir o = case o of
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully updated" <> prettyPath' dest <> "from"
+        "✅ Successfully updated" <> prettyPath' dest <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "The destination" <> prettyPath' dest <> "was empty, and was replaced instead of merging."
+        "✅ Successfully pulled into newly created namespace " <> P.group (prettyPath' dest <> ".")
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $

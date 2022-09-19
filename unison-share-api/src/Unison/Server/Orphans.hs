@@ -1,8 +1,10 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Orphans where
 
+import Control.Lens
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Binary
@@ -11,6 +13,7 @@ import Data.OpenApi
 import Data.Proxy
 import qualified Data.Text as Text
 import Servant
+import Servant.Docs (DocCapture (DocCapture), ToCapture (..))
 import U.Codebase.HashTags
 import U.Util.Hash (Hash (..))
 import qualified U.Util.Hash as Hash
@@ -23,10 +26,13 @@ import Unison.Codebase.ShortBranchHash
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
+import qualified Unison.ShortHash as SH
 import Unison.Util.Pretty (Width (..))
 
 instance ToJSON Hash where
@@ -40,9 +46,10 @@ deriving via Hash instance ToJSON CausalHash
 deriving via Hash instance FromJSON CausalHash
 
 instance ToJSON ShortHash where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = Aeson.String . SH.toText
 
-instance ToJSONKey ShortHash
+instance ToJSONKey ShortHash where
+  toJSONKey = contramap SH.toText (toJSONKey @Text)
 
 deriving instance ToSchema ShortHash
 
@@ -75,21 +82,32 @@ instance ToSchema Name where
 
 deriving anyclass instance ToParamSchema ShortBranchHash
 
+instance ToParamSchema Name where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "base.List.map"
+
+instance ToParamSchema Path.Path where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "base.List"
+
+instance ToParamSchema Path.Relative where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "base.List"
+
 deriving via Int instance FromHttpApiData Width
 
 deriving via Int instance ToHttpApiData Width
 
 deriving anyclass instance ToParamSchema Width
 
-instance ToJSON n => ToJSON (HQ.HashQualified n) where
-  toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema n => ToSchema (HQ.HashQualified n)
-
 instance ToJSON ConstructorType where
   toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema ConstructorType
 
 instance FromHttpApiData Path.Relative where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
@@ -115,3 +133,38 @@ instance FromHttpApiData Path.Path' where
 instance ToHttpApiData Path.Path' where
   toUrlPiece = tShow
 
+instance FromHttpApiData Path.Path where
+  parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
+    Left s -> Left (Text.pack s)
+    Right (Path.RelativePath' p) -> Right (Path.unrelative p)
+    Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
+
+instance ToCapture (Capture "fqn" Name) where
+  toCapture _ =
+    DocCapture
+      "fqn"
+      "The fully qualified name of a definition."
+
+instance ToCapture (Capture "namespace" Path.Path) where
+  toCapture _ =
+    DocCapture
+      "namespace"
+      "E.g. base.List"
+
+instance ToJSON Path.Path where
+  toJSON p = Aeson.String (tShow p)
+
+instance ToSchema Path.Path where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance Show n => ToJSON (HQ.HashQualified n) where
+  toJSON = Aeson.String . HQ.toText
+
+instance Show n => ToJSON (HQ'.HashQualified n) where
+  toJSON = Aeson.String . HQ'.toText
+
+deriving newtype instance ToSchema NameSegment
+
+deriving anyclass instance ToSchema n => ToSchema (HQ.HashQualified n)
+
+deriving anyclass instance ToSchema n => ToSchema (HQ'.HashQualified n)
