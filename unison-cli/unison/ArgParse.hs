@@ -47,6 +47,7 @@ import Options.Applicative
     showHelpOnError,
     strArgument,
     strOption,
+    subparserInline,
   )
 import qualified Options.Applicative as OptParse
 import Options.Applicative.Help (bold, (<+>))
@@ -142,7 +143,7 @@ parseCLIArgs progName version = do
   (Width cols) <- PT.getAvailableWidth
   envOpts <- codebaseServerOptsFromEnv
   let parserInfo = rootParserInfo progName version envOpts
-  let preferences = prefs $ showHelpOnError <> helpShowGlobals <> columns cols
+  let preferences = prefs $ showHelpOnError <> helpShowGlobals <> columns cols <> subparserInline
   let usage = renderUsage progName parserInfo preferences
   (globalOptions, command) <- customExecParser preferences parserInfo
   pure $ (usage, globalOptions, command)
