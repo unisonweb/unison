@@ -35,6 +35,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
+      RankNTypes
       TupleSections
       TypeApplications
   ghc-options: -Wall
