@@ -120,9 +120,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
     let loop lastRoot = do
           currentRoot <- atomically do
             currentRoot <- readTMVar rootVar
-            let rootChange = Just currentRoot /= lastRoot
-            guard rootChange
-            when rootChange $ notifyBranchChange currentRoot
+            guard $ Just currentRoot /= lastRoot
+            notifyBranchChange currentRoot
             pure (Just currentRoot)
           loop currentRoot
     loop Nothing
