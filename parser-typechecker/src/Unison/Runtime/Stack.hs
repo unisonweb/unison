@@ -45,7 +45,7 @@ where
 
 import Control.Monad (when)
 import Control.Monad.Primitive
-import Data.Foldable as F (for_, toList)
+import Data.Foldable as F (for_)
 import qualified Data.Kind as Kind
 import Data.Primitive.Array
 import Data.Primitive.ByteArray
@@ -116,17 +116,33 @@ splitData (DataU2 r t i j) = Just (r, t, [i, j], [])
 splitData (DataB1 r t x) = Just (r, t, [], [x])
 splitData (DataB2 r t x y) = Just (r, t, [], [x, y])
 splitData (DataUB r t i y) = Just (r, t, [i], [y])
-splitData (DataG r t us bs) = Just (r, t, ints us, reverse $ F.toList bs)
+splitData (DataG r t us bs) = Just (r, t, ints us, bsegToList bs)
 splitData _ = Nothing
 
+-- | Converts an unboxed segment to a list of integers for a more interchangeable
+-- representation. The segments are stored in backwards order, so this reverses
+-- the contents.
 ints :: ByteArray -> [Int]
 ints ba = fmap (indexByteArray ba) [n - 1, n - 2 .. 0]
   where
     n = sizeofByteArray ba `div` 8
 
+-- | Converts a list of integers representing an unboxed segment back into the
+-- appropriate segment. Segments are stored backwards in the runtime, so this
+-- reverses the list.
 useg :: [Int] -> Seg 'UN
 useg ws = case L.fromList $ reverse ws of
   PrimArray ba -> ByteArray ba
+
+-- | Converts a boxed segment to a list of closures. The segments are stored
+-- backwards, so this reverses the contents.
+bsegToList :: Seg 'BX -> [Closure]
+bsegToList = reverse . L.toList
+
+-- | Converts a list of closures back to a boxed segment. Segments are stored
+-- backwards, so this reverses the contents.
+bseg :: [Closure] -> Seg 'BX
+bseg = L.fromList . reverse
 
 formData :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
 formData r t [] [] = Enum r t
@@ -135,7 +151,7 @@ formData r t [i, j] [] = DataU2 r t i j
 formData r t [] [x] = DataB1 r t x
 formData r t [] [x, y] = DataB2 r t x y
 formData r t [i] [x] = DataUB r t i x
-formData r t us bs = DataG r t (useg us) (L.fromList $ reverse bs)
+formData r t us bs = DataG r t (useg us) (bseg bs)
 
 frameDataSize :: K -> (Int, Int)
 frameDataSize = go 0 0
@@ -153,15 +169,15 @@ pattern DataC rf ct us bs <-
 
 pattern PApV :: CombIx -> [Int] -> [Closure] -> Closure
 pattern PApV ic us bs <-
-  PAp ic (ints -> us) (L.toList -> bs)
+  PAp ic (ints -> us) (bsegToList -> bs)
   where
-    PApV ic us bs = PAp ic (useg us) (L.fromList bs)
+    PApV ic us bs = PAp ic (useg us) (bseg bs)
 
 pattern CapV :: K -> Int -> Int -> [Int] -> [Closure] -> Closure
 pattern CapV k ua ba us bs <-
-  Captured k ua ba (ints -> us) (L.toList -> bs)
+  Captured k ua ba (ints -> us) (bsegToList -> bs)
   where
-    CapV k ua ba us bs = Captured k ua ba (useg us) (L.fromList bs)
+    CapV k ua ba us bs = Captured k ua ba (useg us) (bseg bs)
 
 {-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole #-}
 

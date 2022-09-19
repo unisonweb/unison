@@ -743,15 +743,12 @@ getCont v =
   getTag >>= \case
     KET -> pure KE
     MarkT ->
-      maker
+      Mark
+        <$> getWord64be
+        <*> getWord64be
         <*> getList getReference
         <*> getMap getReference (getValue v)
         <*> getCont v
-      where
-        maker
-          | v == 1 = pure (Mark 0 0)
-          | v == 2 = Mark <$> getWord64be <*> getWord64be
-          | otherwise = fail $ "getCont: unknown version"
     PushT ->
       Push <$> getWord64be <*> getWord64be
         <*> getWord64be
@@ -771,24 +768,30 @@ serializeGroup ::
   Var v => EC.EnumMap FOp Text -> SuperGroup v -> ByteString
 serializeGroup fops sg = runPutS (putVersion *> putGroup fops sg)
   where
-    putVersion = putWord32be 1
+    putVersion = putWord32be codeVersion
 
 deserializeValue :: ByteString -> Either String Value
 deserializeValue bs = runGetS (getVersion >>= getValue) bs
   where
     getVersion =
       getWord32be >>= \case
-        n
-          | n < 1 -> fail $ "deserializeValue: unknown version: " ++ show n
-          | n <= 2 -> pure n
+        n | n < 1 -> fail $ "deserializeValue: unknown version: " ++ show n
+          | n < 3 -> fail $ "deserializeValue: unsupported version: " ++ show n
+          | n == 3 -> pure n
           | otherwise -> fail $ "deserializeValue: unknown version: " ++ show n
 
 serializeValue :: Value -> ByteString
 serializeValue v = runPutS (putVersion *> putValue v)
   where
-    putVersion = putWord32be 2
+    putVersion = putWord32be valueVersion
 
 serializeValueLazy :: Value -> L.ByteString
 serializeValueLazy v = runPutLazy (putVersion *> putValue v)
   where
-    putVersion = putWord32be 1
+    putVersion = putWord32be valueVersion
+
+valueVersion :: Word32
+valueVersion = 3
+
+codeVersion :: Word32
+codeVersion = 1
