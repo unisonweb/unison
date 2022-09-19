@@ -24,10 +24,11 @@ hoverHandler :: RequestMessage 'TextDocumentHover -> (Either ResponseError (Resp
 hoverHandler m respond =
   respond . Right =<< runMaybeT do
     let p = (m ^. params)
-    identifier <- MaybeT $ identifierAtPosition p
+    txtIdentifier <- MaybeT $ identifierAtPosition p
+    hqIdentifier <- MaybeT . pure $ HQ.fromText txtIdentifier
     cb <- asks codebase
     rt <- asks runtime
-    results <- MaybeT . fmap eitherToMaybe $ (lspBackend $ Backend.prettyDefinitionsForHQName Path.empty Nothing Nothing (Backend.Suffixify True) rt cb (HQ.unsafeFromText identifier))
+    results <- MaybeT . fmap eitherToMaybe $ (lspBackend $ Backend.prettyDefinitionsForHQName Path.empty Nothing Nothing (Backend.Suffixify True) rt cb hqIdentifier)
     let termResults = formatTermDefinition <$> toList (Backend.termDefinitions results)
     let typeResults = formatTypeDefinition <$> toList (Backend.typeDefinitions results)
     let markup = Text.intercalate "\n\n---\n\n" $ termResults <> typeResults
