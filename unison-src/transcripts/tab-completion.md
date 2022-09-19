@@ -49,4 +49,7 @@ unique type subnamespace.AType = A | B
 .> debug.tab-complete cd sub
 .> debug.tab-complete cd subnamespace
 .> debug.tab-complete cd subnamespace.
+.> debug.tab-complete io.test sub
+.> debug.tab-complete io.test subnamespace
+.> debug.tab-complete io.test subnamespace.
 ```

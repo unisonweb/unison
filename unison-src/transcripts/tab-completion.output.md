@@ -113,4 +113,20 @@ unique type subnamespace.AType = A | B
 
    subnamespace.AType
 
+.> debug.tab-complete io.test sub
+
+   subnamespace.
+   subnamespace2.
+
+.> debug.tab-complete io.test subnamespace
+
+   subnamespace.
+   subnamespace2.
+
+.> debug.tab-complete io.test subnamespace.
+
+    subnamespace.AType.
+  * subnamespace.someName
+  * subnamespace.someOtherName
+
 ```
