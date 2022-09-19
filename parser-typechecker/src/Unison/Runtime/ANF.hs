@@ -93,6 +93,7 @@ import qualified Unison.Pattern as P
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference (..))
 import Unison.Referent (Referent)
+import Unison.Symbol (Symbol)
 import Unison.Term hiding (List, Ref, Text, float, fresh, resolve)
 import qualified Unison.Type as Ty
 import Unison.Typechecker.Components (minimize')
@@ -1152,6 +1153,8 @@ data BLit
   | TmLink Referent
   | TyLink Reference
   | Bytes Bytes
+  | Quote Value
+  | Code (SuperGroup Symbol)
   deriving (Show)
 
 groupVars :: ANFM v (Set v)

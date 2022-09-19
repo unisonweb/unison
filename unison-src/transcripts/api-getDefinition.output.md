@@ -13,7 +13,7 @@ GET /api/getDefinition?names=x
     "termDefinitions": {
         "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8": {
             "bestTermName": "x",
-            "defnTermTag": null,
+            "defnTermTag": "Plain",
             "signature": [
                 {
                     "annotation": {
@@ -108,7 +108,7 @@ GET /api/getDefinition?names=x&relativeTo=nested
     "termDefinitions": {
         "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8": {
             "bestTermName": "x",
-            "defnTermTag": null,
+            "defnTermTag": "Plain",
             "signature": [
                 {
                     "annotation": {
@@ -203,7 +203,7 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
     "termDefinitions": {
         "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8": {
             "bestTermName": "x",
-            "defnTermTag": null,
+            "defnTermTag": "Plain",
             "signature": [
                 {
                     "annotation": {
@@ -298,7 +298,7 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
     "termDefinitions": {
         "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8": {
             "bestTermName": "x",
-            "defnTermTag": null,
+            "defnTermTag": "Plain",
             "signature": [
                 {
                     "annotation": {
@@ -390,7 +390,7 @@ GET /api/getDefinition?names=thing&relativeTo=doctest
     "termDefinitions": {
         "#jksc1s5kud95ro5ivngossullt2oavsd41s3u48bch67jf3gknru5j6hmjslonkd5sdqs8mr8k4rrnef8fodngbg4sm7u6au564ekjg": {
             "bestTermName": "thing",
-            "defnTermTag": null,
+            "defnTermTag": "Plain",
             "signature": [
                 {
                     "annotation": {

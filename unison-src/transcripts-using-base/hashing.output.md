@@ -107,11 +107,11 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
   
     25 | > ex4
            ⧩
-           "a52c81c976ff4fe9c809d9896d6dc32775c6272bb100555c507b72f20ace4b39"
+           "976de6c1f94a685ce884b33bd96dc5cdfdcb0267005ec4fbf19cc1384efea88e"
   
     26 | > ex5
            ⧩
-           "b9f05335381fc8eecba3bfa6e82a4dc23fdab95a04f24b97d14785f0f15f56b4"
+           "45c02c8b8b4d2ab0ab32a3ce6502322f5d0f1c70feabcef2d5ec07cafadfdd0f"
 
 ```
 And here's the full API:
@@ -154,7 +154,7 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
 
     1 | > crypto.hash Sha3_256 (fromHex "3849238492")
           ⧩
-          0xse34b43a163bed5ed9e6961b667be73232441d7c9608d8c06aa49df705a19400c
+          0xse8a4c3e486840b57c45f437b6675572dcdabdf8a0c2d73c7efc4371fe1464448
 
 ```
 ## Hashing tests

@@ -5,7 +5,7 @@
 
 module Unison.Server.Errors where
 
-import Data.Set (Set)
+import qualified Data.ByteString.Lazy.Char8 as BSC
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
@@ -13,6 +13,9 @@ import Servant (ServerError (..), err400, err404, err409, err500)
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.HashQualified as HQ
+import Unison.Name (Name)
+import Unison.Prelude
 import qualified Unison.Reference as Reference
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Types
@@ -21,6 +24,7 @@ import Unison.Server.Types
     mungeShow,
     mungeString,
   )
+import qualified Unison.ShortHash as SH
 
 badHQN :: HashQualifiedName -> ServerError
 badHQN hqn =
@@ -45,6 +49,8 @@ backendError = \case
   Backend.AmbiguousBranchHash sbh hashes ->
     ambiguousNamespace (SBH.toText sbh) (Set.map SBH.toText hashes)
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
+  Backend.NoSuchDefinition hqName -> noSuchDefinition hqName
+  Backend.AmbiguousHashForDefinition shorthash -> ambiguousHashForDefinition shorthash
 
 badNamespace :: String -> String -> ServerError
 badNamespace err namespace =
@@ -89,4 +95,18 @@ missingSigForTerm r =
           <> "This means something might be wrong with the codebase, "
           <> "or the term was deleted just now. "
           <> "Try making the request again."
+    }
+
+noSuchDefinition :: HQ.HashQualified Name -> ServerError
+noSuchDefinition hqName =
+  err404
+    { errBody =
+        "Couldn't find a definition for " <> BSC.pack (show hqName)
+    }
+
+ambiguousHashForDefinition :: SH.ShortHash -> ServerError
+ambiguousHashForDefinition shorthash =
+  err400
+    { errBody =
+        "The hash prefix " <> BSC.pack (SH.toString shorthash) <> " is ambiguous"
     }

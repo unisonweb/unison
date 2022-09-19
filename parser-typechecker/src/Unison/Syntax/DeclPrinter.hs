@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclHeader, prettyDeclOrBuiltinHeader) where
 
 import Data.List (isPrefixOf)
@@ -13,7 +10,6 @@ import Unison.DataDeclaration
     toDataDecl,
   )
 import qualified Unison.DataDeclaration as DD
-import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
@@ -44,7 +40,7 @@ prettyDecl ::
   Var v =>
   PrettyPrintEnvDecl ->
   Reference ->
-  HashQualified Name ->
+  HQ.HashQualified Name ->
   DD.Decl v a ->
   Pretty SyntaxText
 prettyDecl ppe r hq d = case d of
@@ -55,7 +51,7 @@ prettyEffectDecl ::
   Var v =>
   PrettyPrintEnv ->
   Reference ->
-  HashQualified Name ->
+  HQ.HashQualified Name ->
   EffectDeclaration v a ->
   Pretty SyntaxText
 prettyEffectDecl ppe r name = prettyGADT ppe CT.Effect r name . toDataDecl
@@ -65,7 +61,7 @@ prettyGADT ::
   PrettyPrintEnv ->
   CT.ConstructorType ->
   Reference ->
-  HashQualified Name ->
+  HQ.HashQualified Name ->
   DataDeclaration v a ->
   Pretty SyntaxText
 prettyGADT env ctorType r name dd =
@@ -84,7 +80,7 @@ prettyGADT env ctorType r name dd =
 prettyPattern ::
   PrettyPrintEnv ->
   CT.ConstructorType ->
-  HashQualified Name ->
+  HQ.HashQualified Name ->
   ConstructorReference ->
   Pretty SyntaxText
 prettyPattern env ctorType namespace ref =
@@ -100,7 +96,7 @@ prettyDataDecl ::
   Var v =>
   PrettyPrintEnvDecl ->
   Reference ->
-  HashQualified Name ->
+  HQ.HashQualified Name ->
   DataDeclaration v a ->
   Pretty SyntaxText
 prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
@@ -149,9 +145,9 @@ fieldNames ::
   Var v =>
   PrettyPrintEnv ->
   Reference ->
-  HashQualified Name ->
+  HQ.HashQualified Name ->
   DataDeclaration v a ->
-  Maybe [HashQualified Name]
+  Maybe [HQ.HashQualified Name]
 fieldNames env r name dd = do
   typ <- case DD.constructors dd of
     [(_, typ)] -> Just typ
@@ -205,7 +201,7 @@ prettyModifier (DD.Unique _uid) =
   fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
 
 prettyDataHeader ::
-  Var v => HashQualified Name -> DD.DataDeclaration v a -> Pretty SyntaxText
+  Var v => HQ.HashQualified Name -> DD.DataDeclaration v a -> Pretty SyntaxText
 prettyDataHeader name dd =
   P.sepNonEmpty
     " "
@@ -217,7 +213,7 @@ prettyDataHeader name dd =
 
 prettyEffectHeader ::
   Var v =>
-  HashQualified Name ->
+  HQ.HashQualified Name ->
   DD.EffectDeclaration v a ->
   Pretty SyntaxText
 prettyEffectHeader name ed =
@@ -233,7 +229,7 @@ prettyEffectHeader name ed =
 
 prettyDeclHeader ::
   Var v =>
-  HashQualified Name ->
+  HQ.HashQualified Name ->
   Either (DD.EffectDeclaration v a) (DD.DataDeclaration v a) ->
   Pretty SyntaxText
 prettyDeclHeader name (Left e) = prettyEffectHeader name e
@@ -241,7 +237,7 @@ prettyDeclHeader name (Right d) = prettyDataHeader name d
 
 prettyDeclOrBuiltinHeader ::
   Var v =>
-  HashQualified Name ->
+  HQ.HashQualified Name ->
   DD.DeclOrBuiltin v a ->
   Pretty SyntaxText
 prettyDeclOrBuiltinHeader name (DD.Builtin ctype) = case ctype of

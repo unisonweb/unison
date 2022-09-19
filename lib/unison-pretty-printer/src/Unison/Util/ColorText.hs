@@ -136,13 +136,10 @@ toANSI (AnnotatedText chunks) =
               Nothing -> r <> resetANSI <> pure text
               Just style -> r <> resetANSI <> toANSI style <> pure text
           )
-    -- End every ANSI escape code in the prompt with '\STX' so that haskeline renders it properly on Windows.
-    -- This may also help haskeline make prompt width computations.
-    -- See https://github.com/judah/haskeline/wiki/ControlSequencesInPrompt for details.
-    startOfText = "\STX"
-    resetANSI = pure $ ANSI.setSGRCode [ANSI.Reset] <> startOfText
+    resetANSI :: Seq String
+    resetANSI = pure $ ANSI.setSGRCode [ANSI.Reset]
     toANSI :: Color -> Seq String
-    toANSI c = pure $ ANSI.setSGRCode (toANSI' c) <> startOfText
+    toANSI c = pure $ ANSI.setSGRCode (toANSI' c)
 
     toANSI' :: Color -> [ANSI.SGR]
     toANSI' c = case c of

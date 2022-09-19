@@ -8,6 +8,7 @@ module Unison.Codebase.Init
     CodebaseInitOptions (..),
     InitResult (..),
     SpecifiedCodebase (..),
+    MigrationStrategy (..),
     Pretty,
     createCodebase,
     initCodebaseAndExit,
@@ -41,6 +42,15 @@ data SpecifiedCodebase
   = CreateWhenMissing CodebasePath
   | DontCreateWhenMissing CodebasePath
 
+data MigrationStrategy
+  = -- | Perform a migration immediately if one is required.
+    MigrateAutomatically
+  | -- | Prompt the user that a migration is about to occur, continue after acknownledgment
+    MigrateAfterPrompt
+  | -- | Triggers an 'OpenCodebaseRequiresMigration' error instead of migrating
+    DontMigrate
+  deriving stock (Show, Eq, Ord)
+
 initOptionsToDir :: CodebaseInitOptions -> CodebasePath
 initOptionsToDir (Home dir) = dir
 initOptionsToDir (Specified (CreateWhenMissing dir)) = dir
@@ -50,7 +60,7 @@ type DebugName = String
 
 data Init m v a = Init
   { -- | open an existing codebase
-    withOpenCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either OpenCodebaseError r),
+    withOpenCodebase :: forall r. DebugName -> CodebasePath -> MigrationStrategy -> (Codebase m v a -> m r) -> m (Either OpenCodebaseError r),
     -- | create a new codebase
     withCreatedCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either CreateCodebaseError r),
     -- | given a codebase root, and given that the codebase root may have other junk in it,
@@ -86,34 +96,37 @@ withOpenOrCreateCodebase ::
   Init m v a ->
   DebugName ->
   CodebaseInitOptions ->
+  MigrationStrategy ->
   ((InitResult, CodebasePath, Codebase m v a) -> m r) ->
   m (Either (CodebasePath, InitError) r)
-withOpenOrCreateCodebase cbInit debugName initOptions action = do
+withOpenOrCreateCodebase cbInit debugName initOptions migrationStrategy action = do
   let resolvedPath = initOptionsToDir initOptions
-  result <- withOpenCodebase cbInit debugName resolvedPath \codebase -> do
+  result <- withOpenCodebase cbInit debugName resolvedPath migrationStrategy \codebase -> do
     action (OpenedCodebase, resolvedPath, codebase)
   case result of
     Right r -> pure $ Right r
-    Left OpenCodebaseDoesntExist ->
-      case initOptions of
-        Home homeDir -> do
-          ifM
-            (FCC.codebaseExists homeDir)
-            (do pure (Left (homeDir, FoundV1Codebase)))
-            ( do
-                -- Create V2 codebase if neither a V1 or V2 exists
-                createCodebaseWithResult cbInit debugName homeDir (\codebase -> action (CreatedCodebase, homeDir, codebase))
-            )
-        Specified specified ->
-          ifM
-            (FCC.codebaseExists resolvedPath)
-            (pure $ Left (resolvedPath, FoundV1Codebase))
-            case specified of
-              DontCreateWhenMissing dir ->
-                pure (Left (dir, (InitErrorOpen OpenCodebaseDoesntExist)))
-              CreateWhenMissing dir ->
-                createCodebaseWithResult cbInit debugName dir (\codebase -> action (CreatedCodebase, dir, codebase))
-    Left err@OpenCodebaseUnknownSchemaVersion {} -> pure (Left (resolvedPath, InitErrorOpen err))
+    Left err -> case err of
+      OpenCodebaseDoesntExist ->
+        case initOptions of
+          Home homeDir -> do
+            ifM
+              (FCC.codebaseExists homeDir)
+              (do pure (Left (homeDir, FoundV1Codebase)))
+              ( do
+                  -- Create V2 codebase if neither a V1 or V2 exists
+                  createCodebaseWithResult cbInit debugName homeDir (\codebase -> action (CreatedCodebase, homeDir, codebase))
+              )
+          Specified specified ->
+            ifM
+              (FCC.codebaseExists resolvedPath)
+              (pure $ Left (resolvedPath, FoundV1Codebase))
+              case specified of
+                DontCreateWhenMissing dir ->
+                  pure (Left (dir, (InitErrorOpen OpenCodebaseDoesntExist)))
+                CreateWhenMissing dir ->
+                  createCodebaseWithResult cbInit debugName dir (\codebase -> action (CreatedCodebase, dir, codebase))
+      OpenCodebaseUnknownSchemaVersion {} -> pure (Left (resolvedPath, InitErrorOpen err))
+      OpenCodebaseRequiresMigration {} -> pure (Left (resolvedPath, InitErrorOpen err))
 
 createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either Pretty r)
 createCodebase cbInit debugName path action = do
