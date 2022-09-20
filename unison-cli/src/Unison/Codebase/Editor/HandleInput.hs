@@ -2016,10 +2016,11 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     let ppe = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE
     Cli.respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
-  -- We set latestFile to be programmatically generated, if we
-  -- are viewing these definitions to a file - this will skip the
-  -- next update for that file (which will happen immediately)
-  #latestFile .= ((,True) <$> outputPath)
+  for_ outputPath \p -> do
+    -- We set latestFile to be programmatically generated, if we
+    -- are viewing these definitions to a file - this will skip the
+    -- next update for that file (which will happen immediately)
+    #latestFile ?= (p, True)
   where
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
@@ -3598,26 +3599,26 @@ typecheck ambient names sourceName source =
 
 typecheckHelper ::
   MonadIO m =>
-  Codebase IO Symbol Ann -> IO Parser.UniqueName ->
+  Codebase IO Symbol Ann ->
+  IO Parser.UniqueName ->
   [Type Symbol Ann] ->
   NamesWithHistory ->
   Text ->
   (Text, [L.Token L.Lexeme]) ->
-    m
+  m
     ( Result.Result
         (Seq (Result.Note Symbol Ann))
         (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann))
     )
 typecheckHelper codebase generateUniqueName ambient names sourceName source = do
-    uniqueName <- liftIO generateUniqueName
-    (liftIO . Result.getResult) $
-      parseAndSynthesizeFile
-        ambient
-        (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
-        (Parser.ParsingEnv uniqueName names)
-        (Text.unpack sourceName)
-        (fst source)
-
+  uniqueName <- liftIO generateUniqueName
+  (liftIO . Result.getResult) $
+    parseAndSynthesizeFile
+      ambient
+      (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+      (Parser.ParsingEnv uniqueName names)
+      (Text.unpack sourceName)
+      (fst source)
 
 -- | Evaluate all watched expressions in a UnisonFile and return
 -- their results, keyed by the name of the watch variable. The tuple returned

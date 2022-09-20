@@ -243,17 +243,19 @@ deriving instance ToSchema NamedType
 
 instance ToJSON TermTag where
   toJSON = \case
-    Doc -> "doc"
-    Test -> "test"
-    Plain -> "plain"
+    Doc -> "Doc"
+    Test -> "Test"
+    Plain -> "Plain"
     Constructor tt -> case tt of
-      Ability -> "ability-constructor"
-      Data -> "data-constructor"
+      Ability -> "AbilityConstructor"
+      Data -> "DataConstructor"
 
 deriving instance ToSchema TermTag
 
 instance ToJSON TypeTag where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = \case
+    Ability -> "Ability"
+    Data -> "Data"
 
 deriving instance ToSchema TypeTag
 

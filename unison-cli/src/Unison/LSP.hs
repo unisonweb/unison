@@ -18,16 +18,20 @@ import Language.LSP.Types.SMethodMap
 import qualified Language.LSP.Types.SMethodMap as SMM
 import Language.LSP.VFS
 import qualified Network.Simple.TCP as TCP
-import Network.Socket
+import Network.Socket (socketToHandle)
 import System.Environment (lookupEnv)
 import Unison.Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Debug as Debug
+import Unison.LSP.CancelRequest (cancelRequestHandler)
+import Unison.LSP.CodeAction (codeActionHandler)
 import qualified Unison.LSP.FileAnalysis as Analysis
+import Unison.LSP.FoldingRange (foldingRangeRequest)
+import qualified Unison.LSP.HandlerUtils as Handlers
 import Unison.LSP.Hover (hoverHandler)
-import Unison.LSP.NotificationHandlers as Notifications
+import qualified Unison.LSP.NotificationHandlers as Notifications
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
@@ -44,12 +48,12 @@ getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
 
 -- | Spawn an LSP server on the configured port.
 spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM (Branch IO) -> STM (Path.Absolute) -> IO ()
-spawnLsp codebase runtime latestBranch latestPath = withSocketsDo do
+spawnLsp codebase runtime latestBranch latestPath = TCP.withSocketsDo do
   lspPort <- getLspPort
   UnliftIO.handleIO (handleFailure lspPort) $ do
     TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
-      sockHandle <- socketToHandle sock ReadWriteMode
       Ki.scoped \scope -> do
+        sockHandle <- socketToHandle sock ReadWriteMode
         -- currently we have an independent VFS for each LSP client since each client might have
         -- different un-saved state for the same file.
         initVFS $ \vfs -> do
@@ -61,7 +65,7 @@ spawnLsp codebase runtime latestBranch latestPath = withSocketsDo do
       case Errno <$> ioe_errno ioerr of
         Just errNo
           | errNo == eADDRINUSE -> do
-              putStrLn $ "Note: Port " <> lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
+            putStrLn $ "Note: Port " <> lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
         _ -> do
           Debug.debugM Debug.LSP "LSP Exception" ioerr
           Debug.debugM Debug.LSP "LSP Errno" (ioe_errno ioerr)
@@ -115,6 +119,7 @@ lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext
   ppeCacheVar <- newTVarIO PPED.empty
   parseNamesCacheVar <- newTVarIO mempty
   currentPathCacheVar <- newTVarIO Path.absoluteEmpty
+  cancellationMapVar <- newTVarIO mempty
   let env = Env {ppeCache = readTVarIO ppeCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
@@ -133,9 +138,25 @@ lspStaticHandlers =
 lspRequestHandlers :: SMethodMap (ClientMessageHandler Lsp 'Request)
 lspRequestHandlers =
   mempty
-    & SMM.insert STextDocumentHover (ClientMessageHandler hoverHandler)
-
--- & SMM.insert STextDocumentCompletion (ClientMessageHandler completionHandler)
+    & SMM.insert STextDocumentHover (mkHandler hoverHandler)
+    & SMM.insert STextDocumentCodeAction (mkHandler codeActionHandler)
+    & SMM.insert STextDocumentFoldingRange (mkHandler foldingRangeRequest)
+  where
+    defaultTimeout = 10_000 -- 10s
+    mkHandler ::
+      forall m.
+      (Show (RequestMessage m), Show (ResponseMessage m), Show (ResponseResult m)) =>
+      ( ( RequestMessage m ->
+          (Either ResponseError (ResponseResult m) -> Lsp ()) ->
+          Lsp ()
+        ) ->
+        ClientMessageHandler Lsp 'Request m
+      )
+    mkHandler h =
+      h
+        & Handlers.withCancellation (Just defaultTimeout)
+        & Handlers.withDebugging
+        & ClientMessageHandler
 
 -- | LSP notification handlers
 lspNotificationHandlers :: SMethodMap (ClientMessageHandler Lsp 'Notification)
@@ -145,6 +166,7 @@ lspNotificationHandlers =
     & SMM.insert STextDocumentDidClose (ClientMessageHandler VFS.lspCloseFile)
     & SMM.insert STextDocumentDidChange (ClientMessageHandler VFS.lspChangeFile)
     & SMM.insert SInitialized (ClientMessageHandler Notifications.initializedHandler)
+    & SMM.insert SCancelRequest (ClientMessageHandler $ Notifications.withDebugging cancelRequestHandler)
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO

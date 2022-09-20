@@ -9,11 +9,12 @@ module Unison.Name
     fromSegment,
     fromSegments,
     fromReverseSegments,
+    fromText,
+    fromTextEither,
 
     -- ** Unsafe construction
     unsafeFromString,
     unsafeFromText,
-    fromText,
     unsafeFromVar,
 
     -- * Basic queries
@@ -558,7 +559,7 @@ commonPrefix :: Name -> Name -> [NameSegment]
 commonPrefix x@(Name p1 _) y@(Name p2 _)
   | p1 /= p2 = []
   | otherwise =
-      commonPrefix' (toList $ segments x) (toList $ segments y)
+    commonPrefix' (toList $ segments x) (toList $ segments y)
   where
     commonPrefix' (a : as) (b : bs)
       | a == b = a : commonPrefix' as bs
@@ -575,34 +576,41 @@ unsafeFromString =
 --
 -- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
 -- no attempt at rejecting bogus names like "foo...bar...baz".
-fromText :: Text -> Maybe Name
-fromText = \case
-  "" -> Nothing
-  "." -> Just $ Name Relative ("." :| [])
-  ".." -> Just $ Name Absolute ("." :| [])
-  name
-    | Text.any (== '#') name -> Nothing
-    | Text.head name == '.' -> Name Absolute <$> (go (Text.tail name))
-    | otherwise -> Name Relative <$> go name
-  where
-    go :: Text -> Maybe (List.NonEmpty NameSegment)
-    go name =
-      if ".." `Text.isSuffixOf` name
-        then Just $ "." :| split (Text.dropEnd 2 name)
-        else case split name of
-          [] -> Nothing
-          s : ss -> Just $ s :| ss
+unsafeFromText :: HasCallStack => Text -> Name
+unsafeFromText = either (error . Text.unpack) id . fromTextEither
 
-    split :: Text -> [NameSegment]
-    split =
-      reverse . map NameSegment . Text.split (== '.')
+-- | Parse a name from a string literal.
+--
+-- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
+-- no attempt at rejecting bogus names like "foo...bar...baz".
+fromText :: Text -> Maybe Name
+fromText = eitherToMaybe . fromTextEither
 
 -- | Unsafely parse a name from a string literal.
 --
 -- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
 -- no attempt at rejecting bogus names like "foo...bar...baz".
-unsafeFromText :: HasCallStack => Text -> Name
-unsafeFromText txt = fromMaybe (error $ "invalid name: " <> Text.unpack txt) . fromText $ txt
+fromTextEither :: Text -> Either Text Name
+fromTextEither = \case
+  "" -> Left "empty name"
+  "." -> Right $ Name Relative ("." :| [])
+  ".." -> Right $ Name Absolute ("." :| [])
+  name
+    | Text.any (== '#') name -> Left ("not a name: " <> tShow name)
+    | Text.head name == '.' -> Name Absolute <$> (go (Text.tail name))
+    | otherwise -> Name Relative <$> go name
+  where
+    go :: Text -> Either Text (List.NonEmpty NameSegment)
+    go name =
+      if ".." `Text.isSuffixOf` name
+        then Right $ "." :| split (Text.dropEnd 2 name)
+        else case split name of
+          [] -> Left "empty name"
+          s : ss -> Right $ s :| ss
+
+    split :: Text -> [NameSegment]
+    split =
+      reverse . map NameSegment . Text.split (== '.')
 
 -- | Unsafely parse a name from a var, by first rendering the var as a string.
 --

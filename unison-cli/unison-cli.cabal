@@ -62,9 +62,14 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
       Unison.LSP
+      Unison.LSP.CancelRequest
+      Unison.LSP.CodeAction
       Unison.LSP.Completion
+      Unison.LSP.Conversions
       Unison.LSP.Diagnostics
       Unison.LSP.FileAnalysis
+      Unison.LSP.FoldingRange
+      Unison.LSP.HandlerUtils
       Unison.LSP.Hover
       Unison.LSP.NotificationHandlers
       Unison.LSP.Orphans
@@ -109,7 +114,8 @@ library
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , aeson
     , aeson-pretty
     , async
@@ -174,6 +180,7 @@ library
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
     , uri-encode
     , vector
     , wai
@@ -226,7 +233,8 @@ executable cli-integration-tests
   build-tools:
       unison
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , aeson
     , aeson-pretty
     , async
@@ -295,6 +303,7 @@ executable cli-integration-tests
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
     , uri-encode
     , vector
     , wai
@@ -340,7 +349,8 @@ executable transcripts
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , aeson
     , aeson-pretty
     , async
@@ -410,6 +420,7 @@ executable transcripts
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
     , uri-encode
     , vector
     , wai
@@ -459,7 +470,8 @@ executable unison
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , aeson
     , aeson-pretty
     , async
@@ -530,6 +542,7 @@ executable unison
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
     , uri-encode
     , vector
     , wai
@@ -582,7 +595,8 @@ test-suite cli-tests
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , aeson
     , aeson-pretty
     , async
@@ -652,6 +666,7 @@ test-suite cli-tests
     , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
     , uri-encode
     , vector
     , wai

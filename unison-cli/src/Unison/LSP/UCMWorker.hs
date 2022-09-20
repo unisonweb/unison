@@ -31,12 +31,13 @@ ucmWorker ppeVar parseNamesVar getLatestRoot getLatestPath = do
         atomically $ do
           writeTVar parseNamesVar parseNames
           writeTVar ppeVar ppe
+        -- Re-check everything with the new names and ppe
+        VFS.markAllFilesDirty
         latest <- atomically $ do
           latestRoot <- getLatestRoot
           latestPath <- getLatestPath
           guard $ (currentRoot /= latestRoot || currentPath /= latestPath)
           pure (latestRoot, latestPath)
-        VFS.markAllFilesDirty
         loop latest
 
   -- Bootstrap manually from codebase just in case we're in headless mode and don't get any
