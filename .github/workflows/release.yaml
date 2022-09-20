@@ -69,6 +69,8 @@ jobs:
 
     name: "build_linux"
     runs-on: ubuntu-18.04
+    needs:
+      - setup
 
     steps:
       - uses: actions/checkout@v2
@@ -99,6 +101,8 @@ jobs:
   build_macos:
     name: "build_macos"
     runs-on: macos-10.15
+    needs:
+      - setup
 
     steps:
       - uses: actions/checkout@v2
@@ -132,6 +136,8 @@ jobs:
   build_windows:
     name: "build_windows"
     runs-on: windows-2019
+    needs:
+      - setup
 
     steps:
       - uses: actions/checkout@v2

@@ -1,42 +1,11 @@
+# Release Steps
 
-__0__
+## 1. Run Release script
 
-Communicate with core team - we are cutting a release now, are there any showstopping bugs that need fixing first?
 
-__1__
+* **Milestone Release**: Look up the most recent release; bump the number and remove any trailing letters, e.g. `./scripts/make-release release/M5`
+* **Minor Release**: Increment the trailing letter of the previous release, or add an `a` to the previous milestone release, e.g. `./scripts/make-release release/M5a`
 
-Create and push the tag to github. This will trigger the build. To determine the last release, check [the releases page](https://github.com/unisonweb/unison/releases).
-
-```
-git fetch
-git checkout origin/trunk
-git tag -a dev/$RELEASE_NAME -m "dev release"
-git checkout series/$SERIES # substitute whatever previous release
-git merge dev/$RELEASE_NAME
-git tag -a release/$RELEASE_NAME -m "release"
-# optional: stack clean && stack build --fast, and try out the resulting executable, 
-# checking stuff like that base downloads properly for a new codebase, etc.
-git push origin release/$RELEASE_NAME
-git push origin series/$SERIES
-```
-
-__2__
-
-Wait for the release to show up on [the releases page](https://github.com/unisonweb/unison/releases). This can take an hour or two!
-
-__3__
-
-Create a release notes draft issue, following [this template](https://github.com/unisonweb/unison/issues/2342) and updating the output of PRs merged and contributors to the release.
-
-__4__
-
-Update trunk of `base` to include any new builtins added since last release. Suggestion for how to do this: look through the release notes draft to find the PRs merged since last release. @runarorama does this usually.
-
-```
-git log --oneline release/M2h...release/M2i | grep 'Merge pull request #'
-```
-
-Then just use `alias.term ##Nat.newBuiltin Nat.someName` and/or `alias.type ##SomeType SomeType`. I think this is probably better than doing `builtins.merge` at this point.
 
 __5__
 
@@ -56,15 +25,6 @@ Edit `releases._<ReleaseName>.README` to include `Release: <ReleaseName>`.
 .basedev.release> fork releases._<ReleaseName> releases._latest
 .basedev.release> push git(git@github.com:unisonweb/base)
 ```
-
-__6__
-
-Mark a release of the [Codebase UI](https://github.com/unisonweb/codebase-ui) with a matching version number to that of the UCM release.
-Compile a UI Changelog for the release notes from the Done column on the [Codebase UI Project](https://github.com/unisonweb/codebase-ui/projects/2)
-
-__7__
-
-Build a new version of Unison Share by following these instructions: https://github.com/unisonweb/share#for-share-codebase-maintainers
 
 __8__
 
