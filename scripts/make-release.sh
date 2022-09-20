@@ -26,4 +26,10 @@ git push origin "${version}"
 
 
 echo "Kicking off Homebrew update task"
-gh workflow run release_version --field "version=${version}"
+gh workflow run release_version --repo unisonweb/homebrew-unison --field "version=${version}"
+
+echo "Opening relevant workflows in browser"
+gh workflow view release_version --web --repo unisonweb/homebrew-unison || true
+gh workflow view release --web --repo unisonweb/unison || true
+
+echo "Okay! All the work has been kicked off, it may take several hours to complete."
