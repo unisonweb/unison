@@ -201,146 +201,277 @@ handleUpdate input optionalPatch requestedNames = do
 
 getSlurpResultForUpdate :: Set Name -> Cli r (SlurpResult Symbol)
 getSlurpResultForUpdate requestedNames = do
-  -- ("ping", #old.ping)
-  -- ("pong", #old.pong)
-  slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
+  (slurp, termRefToNames, nameToTermRefs) <- do
+    slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
 
-  let slurpItUp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult Symbol
-      slurpItUp file =
-        Slurp.slurpFile file (Set.map Name.toVar requestedNames) Slurp.UpdateOp slurpCheckNames
+    let slurp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult Symbol
+        slurp file =
+          Slurp.slurpFile file (Set.map Name.toVar requestedNames) Slurp.UpdateOp slurpCheckNames
 
-  unisonFile0 <- Cli.expectLatestTypecheckedFile
+    let termRefToNames :: TermReferenceId -> Set Symbol
+        termRefToNames =
+          Set.map Name.toVar . Names.namesForReferent slurpCheckNames . Referent.fromTermReferenceId
 
-  hydrateTerms
-    unisonFile0
-    slurpItUp
-    (Set.map Name.toVar . Names.namesForReferent slurpCheckNames . Referent.fromTermReferenceId)
-    (Names.refTermsNamed slurpCheckNames . Name.unsafeFromVar)
+    let nameToTermRefs :: Symbol -> Set TermReference
+        nameToTermRefs = Names.refTermsNamed slurpCheckNames . Name.unsafeFromVar
 
-hydrateTerms ::
-  TypecheckedUnisonFile Symbol Ann ->
-  (TypecheckedUnisonFile Symbol Ann -> SlurpResult Symbol) ->
-  (TermReferenceId -> Set Symbol) ->
-  (Symbol -> Set TermReference) ->
-  Cli r (SlurpResult Symbol)
-hydrateTerms unisonFile0 slurp refToNames nameToRefs = do
-  Cli.Env {codebase} <- ask
+    pure (slurp, termRefToNames, nameToTermRefs)
 
-  -- First, compute an initial slurp, which will identify the initial set of definitions we are updating.
-  let slurp0 = slurp unisonFile0
+  slurp1 <- do
+    Cli.Env {codebase} <- ask
+    unisonFile0 <- Cli.expectLatestTypecheckedFile
 
-  -- {"ping"}
-  let namesBeingUpdated :: Set Symbol
-      namesBeingUpdated =
-        SC.terms (Slurp.updates slurp0)
+    -- Here, we identify whether there are any "implicit terms", which are terms that should be brought into the latest
+    -- typechecked Unsion file and re-typechecked, which also re-discovers components.
+    --
+    -- The running example here will be one in which the current namespace already has the following terms stored.
+    -- (For simplicity, we will ignore the limitation that mutually recursive definitions must be top-level arrows;
+    -- pretend this is Haskell's letrec).
+    --
+    --   ping = pong + 1   (reference = #pingpong0.ping)
+    --   pong = ping + 2   (reference = #pingpong0.pong)
+    --   wham = pong + 3   (reference = #wham0)
+    --
+    -- The user re-defines "ping" in their scratch file thus:
+    --
+    --   ping = wham + 4   (reference = #ping1)
+    --
+    -- Note that, pre-update, we had two components [ping,pong] and [wham]. But after the update, since the new `ping`
+    -- refers to the old `wham`, which refers to the old `pong`, which refers to the old `ping`, we really want to end
+    -- up with a single component in the end, [ping,pong,wham].
 
-  -- Map each term update to the *old* set of references that its name referred to.
-  -- TODO rename
-  -- TODO non-empty set?
-  --
-  -- "ping" => {#old.ping}
-  let nameToOldRefs :: Map Symbol (Set TermReference)
-      nameToOldRefs =
-        Map.fromSet nameToRefs namesBeingUpdated
+    -- First, compute an initial slurp, which will identify the initial set of definitions we are updating ({"ping"}).
+    -- Also, this will be the slurp that we fall back on, in case re-typechecking another Unison file with implicit
+    -- terms in it fails.
+    let slurp0 = slurp unisonFile0
 
-  -- FIXME: this only looks at old components; doesn't search for new cycles
-  --
-  -- #old.pong => (oldpong, {"pong"})
-  implicitTerms <-
-    liftIO do
-      foldMapM
-        ( \hash -> do
-            terms <- Codebase.unsafeGetTermComponent codebase hash
-            pure $
-              terms
-                & Reference.componentFor hash
-                & List.foldl'
-                  ( \acc (ref, (term, _typ)) ->
-                      let names = refToNames ref
-                       in if Set.disjoint namesBeingUpdated names
-                            then Map.insert ref (term, names) acc
-                            else acc
-                  )
-                  Map.empty
-        )
-        (foldMap (Set.mapMaybe Reference.toHash) nameToOldRefs)
+    -- Get the set of names that are being updated.
+    --
+    -- Running example:
+    --
+    --   { "ping" }
+    let namesBeingUpdated :: Set Symbol
+        namesBeingUpdated =
+          SC.terms (Slurp.updates slurp0)
 
-  if Map.null implicitTerms
-    then pure slurp0
-    else do
-      let nameToInterimInfo :: Map Symbol (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
-          nameToInterimInfo =
-            UF.hashTermsId (Slurp.originalFile slurp0)
-      -- For the name of a term being updated, resolve its name to its reference.
-      --
-      -- "ping" => #newping
-      let nameToInterimRef :: Map Symbol TermReferenceId
-          nameToInterimRef =
-            Map.remap (\(var, (ref, _wk, _term, _typ)) -> (var, ref)) nameToInterimInfo
-      -- #newping  => ("v0", newping["v1"/#old.ping])
-      -- #old.ping => ("v1", oldpong["v0"/#old.ping])
-      let interimRefToGeneratedNameAndTerm :: Map TermReferenceId (Symbol, Term Symbol Ann)
-          interimRefToGeneratedNameAndTerm =
-            implicitTerms
-              & Map.map (\(term, _names) -> rewrite term)
-              & Map.union interimRefToTerm
-              & Term.unhashComponent
-            where
-              interimRefToTerm :: Map TermReferenceId (Term Symbol Ann)
-              interimRefToTerm =
-                Map.remap (\(_var, (ref, _wk, term, _typ)) -> (ref, term)) nameToInterimInfo
-              rewrite :: Term Symbol Ann -> Term Symbol Ann
-              rewrite =
-                nameToOldRefs
-                  & Map.toList
-                  & foldMap
-                    ( \(name, oldRefs) ->
-                        oldRefs
-                          & Set.toList
-                          & map (,nameToInterimRef Map.! name)
-                          & Map.fromList
+    -- Associate each such name with the set of "old" references (already in the codebase) that it's associated with.
+    --
+    -- Running example:
+    --
+    --   "ping" => { #pingpong0.ping }
+    let nameToOldRefs :: Map Symbol (Set TermReference)
+        nameToOldRefs =
+          Map.fromSet nameToTermRefs namesBeingUpdated
+
+    -- Identify all of the implicit terms, which are both:
+    --
+    --   - Either:
+    --       - (A) A component-mate of a term that's being updated.
+    --       - Both:
+    --         - (B) A dependent of a term that's being updated.
+    --         - (C) A dependency of the new term.
+    --   - (D) Not being updated.
+    --
+    -- For example, in our running example, the full list of component-mates (A) of the terms being updated is:
+    --
+    --   [ #pingpong0.ping, #pingpong0.pong ]
+    --
+    -- And because #pingpong0.ping is being updated, due to (D), only #pingpong0.pong remains.
+    --
+    -- Furthermore, #wham0 is both a dependent of #pingpong (B), and a dependency of #ping1, so it too is an implicit
+    -- term.
+    --
+    -- FIXME: this currently only looks at old components; doesn't search for new cycles.
+    --
+    -- Running example:
+    --
+    --   #pingpong0.pong => (<#pingpong0.ping + 2>, { "pong" })
+    --   #wham0          => (<#pingpong0.pong + 3>, { "wham" })
+    implicitTerms <-
+      liftIO do
+        foldMapM
+          ( \hash -> do
+              -- Running example:
+              --
+              --   [(<#pingpong0.pong + 1>, <Nat>), (<#pingpong0.ping + 2>, <Nat>)]
+              terms <- Codebase.unsafeGetTermComponent codebase hash
+              pure $
+                terms
+                  -- Running example:
+                  --
+                  --   [ (#pingpong0.ping, (<#pingpong0.pong + 1>, <Nat>)),
+                  --     (#pingpong0.pong, (<#pingpong0.ping + 2>, <Nat>))
+                  --   ]
+                  & Reference.componentFor hash
+                  & List.foldl'
+                    ( \acc (ref, (term, _typ)) ->
+                        -- Running example, first time through (processing #pingpong0.ping):
+                        --
+                        --   Set.disjoint { "ping" } { "ping" } is false, so don't add to the map.
+                        --
+                        -- Running example, second time through (processing #pingpong0.pong):
+                        --
+                        --   Set.disjoint { "ping" } { "pong" } is true, so add
+                        --   #pingpong0.pong => (<#pingpong0.ping + 2>, { "pong" })) to the map.
+                        let names = termRefToNames ref
+                         in if Set.disjoint namesBeingUpdated names
+                              then Map.insert ref (term, names) acc
+                              else acc
                     )
-                  & rewriteTermReferences
-      let generatedNameToName :: Symbol -> Symbol
-          generatedNameToName =
-            (nameo2 Map.!)
-            where
-              nameo2 =
-                interimRefToGeneratedNameAndTerm & Map.remap \(interimRef, (generatedName, _term)) ->
-                  ( generatedName,
-                    case Map.lookup interimRef interimRefToName of
-                      Nothing ->
-                        let (_, names) = implicitTerms Map.! interimRef
-                         in case Set.lookupMin names of
-                              Nothing -> undefined
-                              Just name -> name
-                      Just name -> name
-                  )
-                where
-                  interimRefToName :: Map TermReferenceId Symbol
-                  interimRefToName =
-                    Map.remap (\(var, ref) -> (ref, var)) nameToInterimRef
-      let unisonFile :: UnisonFile Symbol Ann
-          unisonFile =
-            UnisonFileId
-              { dataDeclarationsId = UF.dataDeclarationsId' (Slurp.originalFile slurp0),
-                effectDeclarationsId = UF.effectDeclarationsId' (Slurp.originalFile slurp0),
-                terms = Map.elems interimRefToGeneratedNameAndTerm,
-                -- In the context of this update, whatever watches were in the latest typechecked Unison file are
-                -- irrelevant, so we don't need to copy them over.
-                -- FIXME ugh entire component of watches
-                watches = Map.empty
-              }
-      result <- typecheckFile [] unisonFile
-      case runIdentity (Result.toMaybe result) of
-        Just (Right file0) -> do
-          let file1 :: TypecheckedUnisonFile Symbol Ann
-              file1 =
-                file0
-                  & #hashTermsId %~ Map.mapKeys generatedNameToName
-                  & #topLevelComponents' . mapped . mapped . _1 %~ generatedNameToName
-          pure (slurp file1)
-        _ -> pure slurp0
+                    Map.empty
+          )
+          -- Running example:
+          --
+          --   { #pingpong0 }
+          (foldMap (Set.mapMaybe Reference.toHash) nameToOldRefs)
+
+    if Map.null implicitTerms
+      then pure slurp0
+      else do
+        -- We found some implicit terms, so it's time to:
+        --
+        --   1. Reconstruct a new unison file out of the latest typechecked unison file, plus all of the implicit terms,
+        --      taking care to adjust their references to each other, so that the proper components are discovered.
+        --
+        --   2. Re-typecheck, and if it that succeeds, use the resulting typechecked unison file and slurp.
+
+        -- Grab some interim info out of the original slurp.
+        --
+        -- Running example:
+        --
+        --   "ping" => (#ping1, Nothing, <#wham0 + 4>, <Nat>)
+        let nameToInterimInfo :: Map Symbol (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
+            nameToInterimInfo =
+              UF.hashTermsId (Slurp.originalFile slurp0)
+
+        -- Map each term name being updated to its interim reference.
+        --
+        -- Running example:
+        --
+        --   "ping" => #ping1
+        let nameToInterimRef :: Map Symbol TermReferenceId
+            nameToInterimRef =
+              Map.remap (\(var, (ref, _wk, _term, _typ)) -> (var, ref)) nameToInterimInfo
+
+        -- Remap the references contained in each implicit term, then add back in the slurped interim terms and unhash
+        -- the collection. The unhashing process will invent a fresh variable name for each term.
+        --
+        -- Running example:
+        --
+        --   #ping1          => ("fresh1", <"fresh3" + 4>)
+        --   #pingpong0.pong => ("fresh2", <"fresh1" + 2>)
+        --   #wham0          => ("fresh3", <"fresh2" + 3>)
+        let interimRefToGeneratedNameAndTerm :: Map TermReferenceId (Symbol, Term Symbol Ann)
+            interimRefToGeneratedNameAndTerm =
+              implicitTerms
+                -- Running example:
+                --
+                --   #pingpong0.pong => <#ping1 + 2>
+                --   #wham0          => <#pingpong0.pong + 3>
+                & Map.map (\(term, _names) -> rewrite term)
+                -- Running example:
+                --
+                --   #ping1          => <#wham0 + 4>
+                --   #pingpong0.pong => <#ping1 + 2>
+                --   #wham0          => <#pingpong0.pong + 3>
+                & Map.union interimRefToTerm
+                & Term.unhashComponent
+              where
+                -- Running example:
+                --
+                --   #ping1 => <#wham0 + 4>
+                interimRefToTerm :: Map TermReferenceId (Term Symbol Ann)
+                interimRefToTerm =
+                  Map.remap (\(_var, (ref, _wk, term, _typ)) -> (ref, term)) nameToInterimInfo
+                -- Running example: apply the following reference mapping everwhere in a term:
+                --
+                --   #pingpong0.ping -> #ping1
+                --   ref             -> ref
+                rewrite :: Term Symbol Ann -> Term Symbol Ann
+                rewrite =
+                  nameToOldRefs
+                    & Map.toList
+                    & foldMap
+                      ( \(name, oldRefs) ->
+                          oldRefs
+                            & Set.toList
+                            & map (,nameToInterimRef Map.! name)
+                            & Map.fromList
+                      )
+                    & rewriteTermReferences
+        -- Map each name generated by unhashing back to the name it should have in the Unison file we're going to
+        -- typecheck.
+        --
+        -- For explicit terms, that's just the name the user provided.
+        --
+        -- For implicit terms, we have a couple of weird issues to deal with.
+        --
+        --   1. If the term has no name in the current namespace, then we can't really successfully put it into the
+        --      Unison file anyway and forward it through the typecheck + slurp process, because slurping (at least
+        --      currently) assumes that it can freely convert back-and-forth between vars and names.
+        --
+        --   2. If the term has some name, and it's conflicted in the codebase, then putting it in the Unison file and
+        --      proceeding to do an update would have the undesirable side-effect of resolving the conflict :|
+        --
+        -- Anyway, for now, we just use an arbitrary name of the term, and barf on the no-name case, because it should
+        -- be difficult to end up with a nameless implicit term, given namespaces are supposed to be self-contained.
+        --
+        -- Running example:
+        --
+        --   "fresh1" -> "ping"
+        --   "fresh2" -> "pong"
+        --   "fresh3" -> "wham"
+        let generatedNameToName :: Symbol -> Symbol
+            generatedNameToName =
+              (mapping Map.!)
+              where
+                mapping :: Map Symbol Symbol
+                mapping =
+                  interimRefToGeneratedNameAndTerm & Map.remap \(interimRef, (generatedName, _term)) ->
+                    ( generatedName,
+                      case Map.lookup interimRef interimRefToName of
+                        Nothing ->
+                          let (_, names) = implicitTerms Map.! interimRef
+                           in case Set.lookupMin names of
+                                Nothing -> error "fixme: nameless implicit term :("
+                                Just name -> name
+                        Just name -> name
+                    )
+                  where
+                    -- Running example:
+                    --
+                    --   #ping1 => "ping"
+                    interimRefToName :: Map TermReferenceId Symbol
+                    interimRefToName =
+                      Map.remap (\(var, ref) -> (ref, var)) nameToInterimRef
+        let unisonFile :: UnisonFile Symbol Ann
+            unisonFile =
+              UnisonFileId
+                { dataDeclarationsId = UF.dataDeclarationsId' (Slurp.originalFile slurp0),
+                  effectDeclarationsId = UF.effectDeclarationsId' (Slurp.originalFile slurp0),
+                  -- Running example:
+                  --
+                  --   fresh1 = fresh3 + 4
+                  --   fresh2 = fresh1 + 2
+                  --   fresh3 = fresh2 + 3
+                  terms = Map.elems interimRefToGeneratedNameAndTerm,
+                  -- In the context of this update, whatever watches were in the latest typechecked Unison file are
+                  -- irrelevant, so we don't need to copy them over.
+                  -- FIXME ugh entire component of watches
+                  watches = Map.empty
+                }
+        result <- typecheckFile [] unisonFile
+        case runIdentity (Result.toMaybe result) of
+          Just (Right file0) -> do
+            let file1 :: TypecheckedUnisonFile Symbol Ann
+                file1 =
+                  file0
+                    & #hashTermsId %~ Map.mapKeys generatedNameToName
+                    & #topLevelComponents' . mapped . mapped . _1 %~ generatedNameToName
+            pure (slurp file1)
+          _ -> pure slurp0
+
+  pure slurp1
 
 rewriteTermReferences :: Map TermReference TermReferenceId -> Term Symbol Ann -> Term Symbol Ann
 rewriteTermReferences mapping =
