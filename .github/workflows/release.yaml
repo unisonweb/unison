@@ -16,8 +16,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: echo upload_url
-        run: "echo ${{ steps.create_release.outputs.upload_url }}"
 
       - name: make download dir
         run: "mkdir /tmp/ucm"
@@ -30,11 +28,39 @@ jobs:
       - name: "see what we got"
         run: "ls -R /tmp/ucm"
 
+      - name: Generate Release Notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prev_tag() {
+              awk '
+                      # This script figures out a previous tag for a given release to make release notes from.
+
+                      # The previous release of something like M4a is just M4
+                      match($0, /(release\/\w[0-9]+)a$/, a) {print a[1]}
+                      # The previous release of something like M4 is M3, since we want to show off everything since the last major release
+                      match($0, /release\/\w([0-9]+)$/, a) {print "release/M" a[1] - 1}
+                      # The previous release of something like M4b is M4a
+                      match($0, /(release\/\w[0-9]+)([b-z])$/, a) {printf a[1]; system("echo " a[2] " | tr b-z a-y")}
+              '
+          }
+
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/unisonweb/unison/releases/generate-notes \
+            -f tag_name='${{github.ref_name}}' \
+            -f target_commitish='trunk' \
+            -f previous_tag_name="$(echo "${{github.ref_name}}" | prev_tag)" \
+            | jq -r .body > ${{ github.workspace }}/RELEASE.md
+
       - name: make a release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          body: ${{ github.workspace }}/RELEASE.md
           files: |
             /tmp/ucm/**/*.tar.gz
             /tmp/ucm/**/*.zip
