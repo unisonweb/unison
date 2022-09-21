@@ -34,7 +34,7 @@ defaultBaseLib = fmap makeNS $ release <|> unknown
     -- Parses the milestone of the current version; e.g. M4a -> M4
     milestoneVersion = do
       m <- char 'M'
-      milestoneVersion <- some digit
+      milestoneVersion <- some digitChar
       _minor <- many (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))
       _dirty <- optional (char '\'')
       pure . Text.pack $ m : milestoneVersion
