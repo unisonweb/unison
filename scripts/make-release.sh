@@ -3,7 +3,9 @@
 set -e
 
 usage() {
-    echo "Usage: $0 <version>"
+    echo "Usage: $0 VERSION [TARGET]"
+    echo "VERSION: The version you're releasing, e.g. M4a"
+    echo "TARGET: The revision to make the release from, defaults to 'trunk'"
     echo ""
     echo "E.g."
     echo "$0 M4a"
@@ -27,7 +29,7 @@ fi
 
 version="${1}"
 prev_version=$(./scripts/previous-tag.sh "$version")
-committish=${2:-trunk}
+target=${2:-trunk}
 
 prereleaseFlag=""
 
@@ -35,14 +37,11 @@ if [[ "$1" =~ ^M[0-9]+[a-z]$ ]] ; then
     prereleaseFlag="--prerelease"
 fi
 
-# gh workflow run release --repo unisonweb/unison --field "version=${version}" --ref cp/automate-minor-releases
-
-echo "Tagging current unison-local-ui revision for this release..."
+echo "Creating release in unison-local-ui..."
 gh release create "release/${version}" --repo unisonweb/unison-local-ui --target main --generate-notes $prereleaseFlag --notes-start-tag "release/${prev_version}"
 
-echo "Tagging ${committish} with ${version} in the unison repo"
-git tag "${version}" "${committish}"
-git push origin "${version}"
+echo "Kicking off release workflow in unisonweb/unison"
+gh workflow run release --repo unisonweb/unison --field "version=${version}" --field "target=${target}" --ref cp/automate-minor-releases
 
 echo "Kicking off Homebrew update task"
 gh workflow run release_version --repo unisonweb/homebrew-unison --field "version=${version}" --ref cp/automate-brew-upgrade

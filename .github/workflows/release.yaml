@@ -11,6 +11,11 @@ on:
         description: 'Release Version (E.g. M4 or M4a)'
         required: true
         type: string
+      target:
+        description: 'Ref to use for this release, defaults to trunk'
+        required: true
+        default: 'trunk'
+        type: string
 
 jobs:
   release:
@@ -37,6 +42,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version="${{inputs.version}}"
+          target="${{inputs.target}}"
           if [[ -z "${version}" ]] ; then
             version=$(echo "${{github.ref_name}}" | awk 'match($0, /^release\/\w[0-9]+[a-z]?$/, a) {print a[1]}')
           fi
@@ -52,7 +58,7 @@ jobs:
           echo "Creating a release from these artifacts:"
           ls -R /tmp/ucm
 
-          gh release create "release/${version}" --target trunk --generate-notes --notes-start-tag "release/${prev_version}" $prereleaseFlag /tmp/ucm/**/*.tar.gz /tmp/ucm/**/*.zip
+          gh release create "release/${version}" --target "${target}" --generate-notes --notes-start-tag "release/${prev_version}" $prereleaseFlag /tmp/ucm/**/*.tar.gz /tmp/ucm/**/*.zip
 
   build_linux:
 
