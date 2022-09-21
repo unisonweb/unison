@@ -301,13 +301,13 @@ lexer0' scope rem =
     tweak (h@(payload -> Reserved _) : t) = h : tweak t
     tweak (t1 : t2@(payload -> Numeric num) : rem)
       | notLayout t1 && touches t1 t2 && isSigned num =
-        t1 :
-        Token
-          (SymbolyId (take 1 num) Nothing)
-          (start t2)
-          (inc $ start t2) :
-        Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
-        tweak rem
+          t1 :
+          Token
+            (SymbolyId (take 1 num) Nothing)
+            (start t2)
+            (inc $ start t2) :
+          Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
+          tweak rem
     tweak (h : t) = h : tweak t
     isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
 
@@ -387,11 +387,11 @@ lexemes' eof =
       pure $ case (mayTypeName, docToks) of
         (Just tname, ht : _)
           | isTopLevel ->
-            startToks
-              <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
-              <> docToks0
-              <> [Close <$ last docToks]
-              <> endToks
+              startToks
+                <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
+                <> docToks0
+                <> [Close <$ last docToks]
+                <> endToks
           where
             isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
         _ -> docToks <> endToks
@@ -573,7 +573,7 @@ lexemes' eof =
                   skip col ('\t' : r) = skip (col - tabWidth) r
                   skip col (c : r)
                     | isSpace c && (not $ isControl c) =
-                      skip (col - 1) r
+                        skip (col - 1) r
                   skip _ s = s
                in intercalate "\n" $ skip column <$> lines s
 
@@ -1039,7 +1039,7 @@ lexemes' eof =
           case topBlockName (layout env) of
             Just match
               | allowCommaToClose match ->
-                blockDelimiter ["[", "("] (lit ",")
+                  blockDelimiter ["[", "("] (lit ",")
             _ -> fail "this comma is a pattern separator"
 
         delim = P.try $ do
@@ -1238,7 +1238,7 @@ wordyId0 s = span' wordyIdChar s $ \case
   (id@(ch : _), rem)
     | not (Set.member id keywords)
         && wordyIdStartChar ch ->
-      Right (id, rem)
+        Right (id, rem)
   (id, _rem) -> Left (InvalidWordyId id)
 
 wordyIdStartChar :: Char -> Bool
