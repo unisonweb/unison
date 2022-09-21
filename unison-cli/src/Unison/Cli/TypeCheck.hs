@@ -1,5 +1,6 @@
 module Unison.Cli.TypeCheck
   ( typecheck,
+    typecheckHelper,
     typecheckFile,
   )
 where
@@ -9,6 +10,7 @@ import qualified Data.Text as Text
 import qualified Unison.Builtin as Builtin
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
+import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
 import Unison.Names (Names)
@@ -44,6 +46,29 @@ typecheck ambient names sourceName source =
         (Parser.ParsingEnv uniqueName names)
         (Text.unpack sourceName)
         (fst source)
+
+typecheckHelper ::
+  MonadIO m =>
+  Codebase IO Symbol Ann ->
+  IO Parser.UniqueName ->
+  [Type Symbol Ann] ->
+  NamesWithHistory ->
+  Text ->
+  (Text, [L.Token L.Lexeme]) ->
+  m
+    ( Result.Result
+        (Seq (Result.Note Symbol Ann))
+        (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann))
+    )
+typecheckHelper codebase generateUniqueName ambient names sourceName source = do
+  uniqueName <- liftIO generateUniqueName
+  (liftIO . Result.getResult) $
+    parseAndSynthesizeFile
+      ambient
+      (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+      (Parser.ParsingEnv uniqueName names)
+      (Text.unpack sourceName)
+      (fst source)
 
 typecheckFile ::
   [Type Symbol Ann] ->

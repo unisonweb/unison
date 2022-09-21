@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiWayIf #-}
+
 module Unison.Codebase.SqliteCodebase.Migrations where
 
 import Control.Concurrent.STM (TVar)
@@ -51,6 +53,26 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       (7, migrateSchema6To7)
     ]
 
+data CodebaseVersionStatus
+  = CodebaseUpToDate
+  | CodebaseUnknownSchemaVersion SchemaVersion
+  | CodebaseRequiresMigration
+      -- Current version
+      SchemaVersion
+      -- Required version
+      SchemaVersion
+  deriving stock (Eq, Ord, Show)
+
+checkCodebaseIsUpToDate :: Sqlite.Transaction CodebaseVersionStatus
+checkCodebaseIsUpToDate = do
+  schemaVersion <- Q.schemaVersion
+  -- The highest schema that this ucm knows how to migrate to.
+  pure $
+    if
+        | schemaVersion == Q.currentSchemaVersion -> CodebaseUpToDate
+        | schemaVersion < Q.currentSchemaVersion -> CodebaseRequiresMigration schemaVersion Q.currentSchemaVersion
+        | otherwise -> CodebaseUnknownSchemaVersion schemaVersion
+
 -- | Migrates a codebase up to the most recent version known to ucm.
 -- This is a No-op if it's up to date
 -- Returns an error if the schema version is newer than this ucm knows about.
@@ -62,9 +84,10 @@ ensureCodebaseIsUpToDate ::
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   TVar (Map Hash Ops2.TermBufferEntry) ->
   TVar (Map Hash Ops2.DeclBufferEntry) ->
+  Bool ->
   Sqlite.Connection ->
   m (Either Codebase.OpenCodebaseError ())
-ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer conn =
+ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt conn =
   UnliftIO.try do
     liftIO do
       ranMigrations <-
@@ -76,7 +99,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
           when (schemaVersion > currentSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral schemaVersion)
           let migrationsToRun =
                 Map.filterWithKey (\v _ -> v > schemaVersion) migs
-          when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase root
+          when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase root shouldPrompt
           -- This is a bit of a hack, hopefully we can remove this when we have a more
           -- reliable way to freeze old migration code in time.
           -- The problem is that 'saveObject' has been changed to flush temp entity tables,
@@ -118,11 +141,12 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer co
         putStrLn $ "🏁 Migration complete 🏁"
 
 -- | Copy the sqlite database to a new file with a unique name based on current time.
-backupCodebase :: CodebasePath -> IO ()
-backupCodebase root = do
+backupCodebase :: CodebasePath -> Bool -> IO ()
+backupCodebase root shouldPrompt = do
   backupPath <- backupCodebasePath <$> getPOSIXTime
   copyFile (root </> codebasePath) (root </> backupPath)
   putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
   putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
-  putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
-  void $ liftIO getLine
+  when shouldPrompt do
+    putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
+    void $ liftIO getLine

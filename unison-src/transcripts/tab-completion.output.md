@@ -30,7 +30,8 @@ Test that tab completion works as expected.
 ```unison
 subnamespace.someName = 1
 subnamespace.someOtherName = 2
-othernamespace.someName = 3
+subnamespace2.thing = 3
+othernamespace.someName = 4
 
 unique type subnamespace.AType = A | B
 ```
@@ -47,6 +48,7 @@ unique type subnamespace.AType = A | B
       othernamespace.someName    : ##Nat
       subnamespace.someName      : ##Nat
       subnamespace.someOtherName : ##Nat
+      subnamespace2.thing        : ##Nat
 
 ```
 ```ucm
@@ -54,22 +56,27 @@ unique type subnamespace.AType = A | B
 .> debug.tab-complete view sub
 
    subnamespace.
+   subnamespace2.
 
--- Should complete things from child namespaces of the current query
+-- Should not complete things from child namespaces of the current query if there are other completions at this level
 .> debug.tab-complete view subnamespace
 
-    subnamespace.
-  * subnamespace.AType
-    subnamespace.AType.
-  * subnamespace.someName
-  * subnamespace.someOtherName
+   subnamespace.
+   subnamespace2.
 
+-- Should complete things from child namespaces of the current query if it's dot-suffixed
 .> debug.tab-complete view subnamespace.
 
   * subnamespace.AType
     subnamespace.AType.
   * subnamespace.someName
   * subnamespace.someOtherName
+
+-- Should complete things from child namespaces of the current query if there are no more completions at this level.
+.> debug.tab-complete view subnamespace2
+
+    subnamespace2.
+  * subnamespace2.thing
 
 -- Should prefix-filter by query suffix
 .> debug.tab-complete view subnamespace.some
@@ -95,14 +102,31 @@ unique type subnamespace.AType = A | B
 .> debug.tab-complete cd sub
 
    subnamespace
+   subnamespace2
 
 .> debug.tab-complete cd subnamespace
 
    subnamespace
-   subnamespace.AType
+   subnamespace2
 
 .> debug.tab-complete cd subnamespace.
 
    subnamespace.AType
+
+.> debug.tab-complete io.test sub
+
+   subnamespace.
+   subnamespace2.
+
+.> debug.tab-complete io.test subnamespace
+
+   subnamespace.
+   subnamespace2.
+
+.> debug.tab-complete io.test subnamespace.
+
+    subnamespace.AType.
+  * subnamespace.someName
+  * subnamespace.someOtherName
 
 ```

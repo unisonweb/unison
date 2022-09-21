@@ -56,11 +56,11 @@ test = do
         expectExitCode ExitSuccess ucm ["transcript.fork", transcriptFile, "--codebase-create", tempCodebase] "",
         -- , expectExitCode ExitSuccess ucm ["headless"] "" -- ?
         -- options
-        expectExitCode ExitSuccess ucm ["--port", "8000", "--codebase-create", tempCodebase, "--no-base"] "",
-        expectExitCode ExitSuccess ucm ["--host", "localhost", "--codebase-create", tempCodebase, "--no-base"] "",
-        expectExitCode ExitSuccess ucm ["--token", "MY_TOKEN", "--codebase-create", tempCodebase, "--no-base"] "", -- ?
-        expectExitCode ExitSuccess ucm ["--codebase-create", tempCodebase, "--no-base"] "",
-        expectExitCode ExitSuccess ucm ["--ui", tempCodebase, "--codebase-create", tempCodebase, "--no-base"] "",
+        expectExitCode ExitSuccess ucm ["--port", "8000", "--codebase-create", tempCodebase, "--no-base"] "exit",
+        expectExitCode ExitSuccess ucm ["--host", "localhost", "--codebase-create", tempCodebase, "--no-base"] "exit",
+        expectExitCode ExitSuccess ucm ["--token", "MY_TOKEN", "--codebase-create", tempCodebase, "--no-base"] "exit", -- ?
+        expectExitCode ExitSuccess ucm ["--codebase-create", tempCodebase, "--no-base"] "exit",
+        expectExitCode ExitSuccess ucm ["--ui", tempCodebase, "--codebase-create", tempCodebase, "--no-base"] "exit",
         scope "can compile, then run compiled artifact" $
           tests
             [ expectExitCode ExitSuccess ucm ["transcript", transcriptFile] "",

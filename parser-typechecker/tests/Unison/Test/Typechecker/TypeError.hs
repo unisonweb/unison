@@ -25,7 +25,7 @@ test =
       y "> match 3 with 3 | 3 -> 3" Err.matchGuard,
       y "> match 3 with\n 3 -> 3\n 4 -> \"surprise\"" Err.matchBody,
       -- , y "> match 3 with true -> true" Err.
-      y "> [1, +1]" Err.vectorBody,
+      y "> [1, +1]" Err.listBody,
       n "> true && ((x -> x + 1) true)" Err.and,
       n "> true || ((x -> x + 1) true)" Err.or,
       n "> if ((x -> x + 1) true) then 1 else 2" Err.cond,

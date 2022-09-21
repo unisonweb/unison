@@ -57,14 +57,9 @@ fromNames names0 = Branch.stepManyAt (typeActions <> termActions) Branch.empty
     typeActions = map doType . R.toList $ Names.types names0
     termActions = map doTerm . R.toList $ Names.terms names0
     --  doTerm :: (Name, Referent) -> (Path, Branch0 m -> Branch0 m)
-    doTerm (n, r) = case Path.splitFromName n of
-      Nothing -> errorEmptyName
-      Just split -> makeAddTermName split r mempty -- no metadata
-      --  doType :: (Name, Reference) -> (Path, Branch0 m -> Branch0 m)
-    doType (n, r) = case Path.splitFromName n of
-      Nothing -> errorEmptyName
-      Just split -> makeAddTypeName split r mempty -- no metadata
-    errorEmptyName = error "encountered an empty name"
+    doTerm (n, r) = makeAddTermName (Path.splitFromName n) r mempty -- no metadata
+    --  doType :: (Name, Reference) -> (Path, Branch0 m -> Branch0 m)
+    doType (n, r) = makeAddTypeName (Path.splitFromName n) r mempty -- no metadata
 
 getTerm :: Path.HQSplit -> Branch0 m -> Set Referent
 getTerm (p, hq) b = case hq of

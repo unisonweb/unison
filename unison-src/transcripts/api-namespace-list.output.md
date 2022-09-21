@@ -55,7 +55,7 @@ GET /api/list?namespace=nested.names
             "contents": {
                 "termHash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
                 "termName": "x",
-                "termTag": null,
+                "termTag": "Plain",
                 "termType": [
                     {
                         "annotation": {
@@ -104,7 +104,7 @@ GET /api/list?namespace=names&relativeTo=nested
             "contents": {
                 "termHash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
                 "termName": "x",
-                "termTag": null,
+                "termTag": "Plain",
                 "termType": [
                     {
                         "annotation": {

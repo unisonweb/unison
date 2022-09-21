@@ -600,9 +600,10 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
       putStrLn $ "trace: " ++ UT.unpack tx
       print c
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
+    rf k = builtinTermBackref ! k
     combs =
       mapWithKey
-        (\k v -> emitComb @Symbol rns k mempty (0, v))
+        (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v))
         numberedTermLookup
 
 traceNeeded ::

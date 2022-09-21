@@ -532,9 +532,9 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
     doTerm :: v -> (Path, Branch0 m -> Branch0 m)
     doTerm v = case toList (Names.termsNamed names (Name.unsafeFromVar v)) of
       [] -> errorMissingVar v
-      [r] -> case Path.splitFromName (Name.unsafeFromVar v) of
-        Nothing -> errorEmptyVar
-        Just split -> BranchUtil.makeAddTermName split r (md v)
+      [r] ->
+        let split = Path.splitFromName (Name.unsafeFromVar v)
+         in BranchUtil.makeAddTermName split r (md v)
       wha ->
         error $
           "Unison bug, typechecked file w/ multiple terms named "
@@ -544,16 +544,15 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
     doType :: v -> (Path, Branch0 m -> Branch0 m)
     doType v = case toList (Names.typesNamed names (Name.unsafeFromVar v)) of
       [] -> errorMissingVar v
-      [r] -> case Path.splitFromName (Name.unsafeFromVar v) of
-        Nothing -> errorEmptyVar
-        Just split -> BranchUtil.makeAddTypeName split r Metadata.empty
+      [r] ->
+        let split = Path.splitFromName (Name.unsafeFromVar v)
+         in BranchUtil.makeAddTypeName split r Metadata.empty
       wha ->
         error $
           "Unison bug, typechecked file w/ multiple types named "
             <> Var.nameStr v
             <> ": "
             <> show wha
-    errorEmptyVar = error "encountered an empty var name"
     errorMissingVar v = error $ "expected to find " ++ show v ++ " in " ++ show uf
 
 doSlurpUpdates ::
@@ -569,34 +568,28 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
     termActions = join . map doTerm $ termEdits
     deprecateActions = join . map doDeprecate $ deprecated
       where
-        doDeprecate (n, r) = case Path.splitFromName n of
-          Nothing -> errorEmptyVar
-          Just split -> [BranchUtil.makeDeleteTermName split r]
+        doDeprecate (n, r) = [BranchUtil.makeDeleteTermName (Path.splitFromName n) r]
 
     -- we copy over the metadata on the old thing
     -- todo: if the thing being updated, m, is metadata for something x in b0
     -- update x's md to reference `m`
     doType :: (Name, TypeReference, TypeReference) -> [(Path, Branch0 m -> Branch0 m)]
-    doType (n, old, new) = case Path.splitFromName n of
-      Nothing -> errorEmptyVar
-      Just split ->
-        [ BranchUtil.makeDeleteTypeName split old,
-          BranchUtil.makeAddTypeName split new oldMd
-        ]
-        where
+    doType (n, old, new) =
+      let split = Path.splitFromName n
           oldMd = BranchUtil.getTypeMetadataAt split old b0
+       in [ BranchUtil.makeDeleteTypeName split old,
+            BranchUtil.makeAddTypeName split new oldMd
+          ]
     doTerm :: (Name, TermReference, TermReference) -> [(Path, Branch0 m -> Branch0 m)]
-    doTerm (n, old, new) = case Path.splitFromName n of
-      Nothing -> errorEmptyVar
-      Just split ->
-        [ BranchUtil.makeDeleteTermName split (Referent.Ref old),
-          BranchUtil.makeAddTermName split (Referent.Ref new) oldMd
-        ]
-        where
-          -- oldMd is the metadata linked to the old definition
-          -- we relink it to the new definition
-          oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
-    errorEmptyVar = error "encountered an empty var name"
+    doTerm (n, old, new) =
+      [ BranchUtil.makeDeleteTermName split (Referent.Ref old),
+        BranchUtil.makeAddTermName split (Referent.Ref new) oldMd
+      ]
+      where
+        split = Path.splitFromName n
+        -- oldMd is the metadata linked to the old definition
+        -- we relink it to the new definition
+        oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatchNoSync ::

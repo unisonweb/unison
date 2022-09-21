@@ -98,8 +98,9 @@ main ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
+  ((Branch IO, Path.Absolute) -> IO ()) ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion = do
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyChange = do
   root <- Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
@@ -185,6 +186,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
     -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
     let loop0 :: Cli.LoopState -> IO ()
         loop0 s0 = do
+          notifyChange (Cli.root s0, s0 ^. #currentPath)
           let step = do
                 input <- awaitInput s0
                 (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
