@@ -28,13 +28,16 @@ import qualified Unison.Codebase.Path as Path
 defaultBaseLib :: Parsec Void Text ReadShareRemoteNamespace
 defaultBaseLib = fmap makeNS $ release <|> unknown
   where
-    unknown, release, version :: Parsec Void Text Text
+    unknown, release, milestoneVersion :: Parsec Void Text Text
     unknown = pure "main" <* takeWhileP Nothing (const True) <* eof
-    release = fmap ("releases." <>) $ "release/" *> version <* eof
-    version = do
-      v <- Text.pack <$> some (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))
+    release = fmap ("releases." <>) $ "release/" *> milestoneVersion <* eof
+    -- Parses the milestone of the current version; e.g. M4a -> M4
+    milestoneVersion = do
+      m <- char 'M'
+      milestoneVersion <- some digit
+      _minor <- many (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))
       _dirty <- optional (char '\'')
-      pure v
+      pure . Text.pack $ m : milestoneVersion
     makeNS :: Text -> ReadShareRemoteNamespace
     makeNS t =
       ReadShareRemoteNamespace
