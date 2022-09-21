@@ -40,7 +40,7 @@ jobs:
           version="${{inputs.version}}"
           target="${{inputs.target}}"
           # E.g. M4a -> M4, M4c -> M4b, M4 -> M3
-          prev_version="$(${{ github.workspace }}/scripts/previous_tag.sh "${version}")"
+          prev_version="$(${{ github.workspace }}/scripts/previous-tag.sh "${version}")"
 
           prereleaseFlag=""
           # Make a pre-release release if we're not on a full milestone version.
