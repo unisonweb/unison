@@ -93,3 +93,17 @@ Note that if we view the source of the documentation, the various references are
 ```ucm
 .> view docs.List.take
 ```
+
+## Docs for operators round-trip properly.
+
+Regression test for https://github.com/unisonweb/unison/issues/2970
+
+```unison:hide
+{{ docs for +++ }}
+(+++) a b = "result"
+```
+
+```ucm
+.> add
+.> edit +++.doc
+```

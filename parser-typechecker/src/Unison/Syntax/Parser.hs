@@ -241,7 +241,7 @@ matchToken x = P.satisfy ((==) x . L.payload)
 importDotId :: Ord v => P v (L.Token Name)
 importDotId = queryToken go
   where
-    go (L.SymbolyId "." Nothing) = Just (Name.unsafeFromString ".")
+    go L.Dot = Just (Name.unsafeFromString ".")
     go _ = Nothing
 
 -- Consume a virtual semicolon

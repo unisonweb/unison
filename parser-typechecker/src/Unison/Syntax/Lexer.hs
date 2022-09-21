@@ -131,6 +131,7 @@ data Lexeme
   | Backticks String (Maybe ShortHash) -- an identifier in backticks
   | WordyId String (Maybe ShortHash) -- a (non-infix) identifier
   | SymbolyId String (Maybe ShortHash) -- an infix identifier
+  | Dot -- A solitary dot, used in some special cases like 'forall x. x' and `use .`
   | Blank String -- a typed hole or placeholder
   | Numeric String -- numeric literals, left unparsed
   | Bytes Bytes.Bytes -- bytes literals
@@ -300,13 +301,13 @@ lexer0' scope rem =
     tweak (h@(payload -> Reserved _) : t) = h : tweak t
     tweak (t1 : t2@(payload -> Numeric num) : rem)
       | notLayout t1 && touches t1 t2 && isSigned num =
-          t1 :
-          Token
-            (SymbolyId (take 1 num) Nothing)
-            (start t2)
-            (inc $ start t2) :
-          Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
-          tweak rem
+        t1 :
+        Token
+          (SymbolyId (take 1 num) Nothing)
+          (start t2)
+          (inc $ start t2) :
+        Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
+        tweak rem
     tweak (h : t) = h : tweak t
     isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
 
@@ -353,6 +354,7 @@ lexemes' eof =
         <|> token symbolyId
         <|> token blank
         <|> token wordyId
+        <|> token dot
         <|> (asum . map token) [semi, textual, hash]
 
     wordySep c = isSpace c || not (wordyIdChar c)
@@ -377,14 +379,19 @@ lexemes' eof =
       --   {{ Some docs }}             Foo.doc = {{ Some docs }}
       --   ability Foo where      =>   ability Foo where
       tn <- subsequentTypeName
-      pure $ case (tn, docToks) of
-        (Just (WordyId tname _), ht : _)
+      let mayTypeName = case tn of
+            Just (WordyId tname _) -> Just tname
+            Just (SymbolyId tname _) -> Just tname
+            _ -> Nothing
+
+      pure $ case (mayTypeName, docToks) of
+        (Just tname, ht : _)
           | isTopLevel ->
-              startToks
-                <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
-                <> docToks0
-                <> [Close <$ last docToks]
-                <> endToks
+            startToks
+              <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
+              <> docToks0
+              <> [Close <$ last docToks]
+              <> endToks
           where
             isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
         _ -> docToks <> endToks
@@ -566,7 +573,7 @@ lexemes' eof =
                   skip col ('\t' : r) = skip (col - tabWidth) r
                   skip col (c : r)
                     | isSpace c && (not $ isControl c) =
-                        skip (col - 1) r
+                      skip (col - 1) r
                   skip _ s = s
                in intercalate "\n" $ skip column <$> lines s
 
@@ -779,29 +786,42 @@ lexemes' eof =
     character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
       where
         spEsc = P.try (char '\\' *> char 's' $> ' ')
+
+    -- symboly Ids and wordy Ids differ only in their final segment, this parses the initial
+    -- path.
+    -- E.g. for `.Nat.-.doc` this returns (Just ".", ["Nat", "-"]) and consumes the final
+    -- dot, leaving "doc" next to be parsed.
+    idPrefix :: P (Maybe String, [String])
+    idPrefix = do
+      dot <- P.optional (lit ".")
+      nonTerminalSegments <-
+        P.many
+          ( P.try $ do
+              seg <- segmentP
+              -- Require a dot, and something that looks like another segment
+              -- to ensure this isn't the terminal segment.
+              char '.'
+              P.lookAhead (P.satisfy (\c -> wordyIdChar c || symbolyIdChar c))
+              pure seg
+          )
+      pure (dot, nonTerminalSegments)
+      where
+        segmentP = symbolyIdSeg <|> wordyIdSeg
     wordyId :: P Lexeme
     wordyId = P.label wordyMsg . P.try $ do
-      dot <- P.optional (lit ".")
-      segs <- P.sepBy1 wordyIdSeg (P.try (char '.' <* P.lookAhead (P.satisfy wordyIdChar)))
+      (dot, segs) <- idPrefix
+      baseName <- wordyIdSeg
       shorthash <- P.optional shorthash
-      pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
+      pure $ WordyId (fromMaybe "" dot <> intercalate "." (segs ++ [baseName])) shorthash
       where
-        wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
+        wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, .Nat.-.doc or 🌻)"
 
     symbolyId :: P Lexeme
     symbolyId = P.label symbolMsg . P.try $ do
-      dot <- P.optional (lit ".")
-      segs <- P.optional segs
+      (dot, segs) <- idPrefix
+      baseName <- symbolyIdSeg
       shorthash <- P.optional shorthash
-      case (dot, segs) of
-        (_, Just segs) -> pure $ SymbolyId (fromMaybe "" dot <> segs) shorthash
-        -- a single . or .#somehash is parsed as a symboly id
-        (Just dot, Nothing) -> pure $ SymbolyId dot shorthash
-        (Nothing, Nothing) -> fail symbolMsg
-      where
-        segs = symbolyIdSeg <|> (wordyIdSeg <+> lit "." <+> segs)
-
-    symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
+      pure $ SymbolyId (fromMaybe "" dot <> intercalate "." (segs ++ [baseName])) shorthash
 
     symbolyIdSeg :: P String
     symbolyIdSeg = do
@@ -811,6 +831,14 @@ lexemes' eof =
         stop <- pos
         P.customFailure (Token (ReservedSymbolyId id) start stop)
       pure id
+
+    dot :: P Lexeme
+    dot = P.label dotMsg $ (char '.' $> Dot)
+      where
+        dotMsg = "dot separator: ."
+
+    symbolMsg :: String
+    symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
 
     wordyIdSeg :: P String
     -- wordyIdSeg = litSeg <|> (P.try do -- todo
@@ -1011,7 +1039,7 @@ lexemes' eof =
           case topBlockName (layout env) of
             Just match
               | allowCommaToClose match ->
-                  blockDelimiter ["[", "("] (lit ",")
+                blockDelimiter ["[", "("] (lit ",")
             _ -> fail "this comma is a pattern separator"
 
         delim = P.try $ do
@@ -1210,7 +1238,7 @@ wordyId0 s = span' wordyIdChar s $ \case
   (id@(ch : _), rem)
     | not (Set.member id keywords)
         && wordyIdStartChar ch ->
-        Right (id, rem)
+      Right (id, rem)
   (id, _rem) -> Left (InvalidWordyId id)
 
 wordyIdStartChar :: Char -> Bool
@@ -1263,7 +1291,7 @@ symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>~\\/|:"
 
 keywords :: Set String
 keywords =
@@ -1377,6 +1405,7 @@ instance P.VisualStream [Token Lexeme] where
         '`' : n ++ (toList h >>= SH.toString) ++ ['`']
       pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
       pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
+      pretty Dot = "."
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh

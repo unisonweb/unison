@@ -462,7 +462,7 @@ test =
           \(+) a b c = foo a b c",
         tcBinding 50 "+" Nothing "a b -> foo a b" "a + b = foo a b",
         tcBinding 50 "+" Nothing "a b c -> foo a b c" "(+) a b c = foo a b c",
-        tcBinding 50 "." Nothing "f g x -> f (g x)" "(.) f g x = f (g x)",
+        tcBinding 50 ">>" Nothing "f g x -> f (g x)" "(>>) f g x = f (g x)",
         tcBreaks
           32
           "let\n\
