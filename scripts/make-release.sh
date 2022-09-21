@@ -26,6 +26,7 @@ if ! [[ "$1" =~ ^M[0-9]+[a-z]?$ ]] ; then
 fi
 
 version="${1}"
+prev_version=$(./scripts/previous-tag.sh "$version")
 committish=${2:-trunk}
 
 prereleaseFlag=""
@@ -34,10 +35,10 @@ if [[ "$1" =~ ^M[0-9]+[a-z]$ ]] ; then
     prereleaseFlag="--prerelease"
 fi
 
-gh workflow run release --repo unisonweb/unison --field "version=${version}" --ref cp/automate-minor-releases
+# gh workflow run release --repo unisonweb/unison --field "version=${version}" --ref cp/automate-minor-releases
 
 echo "Tagging current unison-local-ui revision for this release..."
-gh release create "release/${version}" --repo unisonweb/unison-local-ui --target main --generate-notes $prereleaseFlag
+gh release create "release/${version}" --repo unisonweb/unison-local-ui --target main --generate-notes $prereleaseFlag --notes-start-tag "release/${prev_version}"
 
 echo "Tagging ${committish} with ${version} in the unison repo"
 git tag "${version}" "${committish}"

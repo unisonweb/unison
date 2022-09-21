@@ -41,7 +41,7 @@ jobs:
             version=$(echo "${{github.ref_name}}" | awk 'match($0, /^release\/\w[0-9]+[a-z]?$/, a) {print a[1]}')
           fi
           # E.g. M4a -> M4, M4c -> M4b, M4 -> M3
-          prev_tag="$(${{ github.workspace }}/scripts/previous_tag.sh "${version}")"
+          prev_version="$(${{ github.workspace }}/scripts/previous_tag.sh "${version}")"
 
           prereleaseFlag=""
           # Make a pre-release release if we're not on a full milestone version.
@@ -52,7 +52,7 @@ jobs:
           echo "Creating a release from these artifacts:"
           ls -R /tmp/ucm
 
-          gh release create "release/${version}" --target trunk --generate-notes --notes-start-tag "${prev_tag}" $prereleaseFlag /tmp/ucm/**/*.tar.gz /tmp/ucm/**/*.zip
+          gh release create "release/${version}" --target trunk --generate-notes --notes-start-tag "release/${prev_version}" $prereleaseFlag /tmp/ucm/**/*.tar.gz /tmp/ucm/**/*.zip
 
   build_linux:
 
