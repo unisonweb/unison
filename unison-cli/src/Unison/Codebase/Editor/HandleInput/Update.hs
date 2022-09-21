@@ -274,6 +274,8 @@ getSlurpResultForUpdate requestedNames = do
     --           - (C) A dependency of the new term.
     --     - (D) Not being updated.
     --
+    -- FIXME don't bother for type-changing updates
+    --
     -- In our running example, the full list of component-mates (A) of the terms being updated is:
     --
     --   [ #pingpong.ping, #pingpong.pong ]
