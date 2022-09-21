@@ -39,9 +39,6 @@ jobs:
         run: |
           version="${{inputs.version}}"
           target="${{inputs.target}}"
-          if [[ -z "${version}" ]] ; then
-            version=$(echo "${{github.ref_name}}" | awk 'match($0, /^release\/\w[0-9]+[a-z]?$/, a) {print a[1]}')
-          fi
           # E.g. M4a -> M4, M4c -> M4b, M4 -> M3
           prev_version="$(${{ github.workspace }}/scripts/previous_tag.sh "${version}")"
 
