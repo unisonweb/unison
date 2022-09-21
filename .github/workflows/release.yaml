@@ -1,10 +1,6 @@
 name: "release"
 
 on:
-  push:
-    tags:
-      - "release/*"
-
   workflow_dispatch:
     inputs:
       version:
