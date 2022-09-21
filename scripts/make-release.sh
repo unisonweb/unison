@@ -2,7 +2,13 @@
 
 set -e
 
+if [[ "$1" = "--status" ]]; then
+    gh workflow view release --repo unisonweb/unison
+    gh workflow view release --repo unisonweb/homebrew-unison
+fi
+
 usage() {
+    echo "NOTE: must be run from the root of the project."
     echo "Usage: $0 VERSION [TARGET]"
     echo "VERSION: The version you're releasing, e.g. M4a"
     echo "TARGET: The revision to make the release from, defaults to 'trunk'"
@@ -44,10 +50,11 @@ echo "Kicking off release workflow in unisonweb/unison"
 gh workflow run release --repo unisonweb/unison --field "version=${version}" --field "target=${target}" --ref cp/automate-minor-releases
 
 echo "Kicking off Homebrew update task"
-gh workflow run release_version --repo unisonweb/homebrew-unison --field "version=${version}" --ref cp/automate-brew-upgrade
+gh workflow run release --repo unisonweb/homebrew-unison --field "version=${version}" --ref cp/automate-brew-upgrade
 
 echo "Opening relevant workflows in browser"
-gh workflow view release_version --web --repo unisonweb/homebrew-unison || true
+gh workflow view release --web --repo unisonweb/homebrew-unison || true
 gh workflow view release --web --repo unisonweb/unison || true
 
 echo "Okay! All the work has been kicked off, it may take several hours to complete."
+echo "Run '$0 --status' to see job status."
