@@ -59,6 +59,39 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
+
+      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
+      - uses: actions/cache@v3
+        name: cache ~/.stack (linux)
+        with:
+          path: ~/.stack
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
+          restore-keys: |
+            stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
+            stack-0_${{matrix.os}}
+
+      # Cache each local package's ~/.stack-work for fast incremental builds in CI.
+      - uses: actions/cache@v3
+        name: cache .stack-work
+        with:
+          path: |
+            **/.stack-work
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-work-3_${{matrix.os}}-${{github.sha}}
+          restore-keys: stack-work-3_${{matrix.os}}
+
       - name: install stack
         run: |
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
@@ -88,6 +121,39 @@ jobs:
     runs-on: macos-10.15
     steps:
       - uses: actions/checkout@v2
+
+      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
+      - uses: actions/cache@v3
+        name: cache ~/.stack (mac)
+        with:
+          path: ~/.stack
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
+          restore-keys: |
+            stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
+            stack-0_${{matrix.os}}
+
+      # Cache each local package's ~/.stack-work for fast incremental builds in CI.
+      - uses: actions/cache@v3
+        name: cache .stack-work
+        with:
+          path: |
+            **/.stack-work
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-work-3_${{matrix.os}}-${{github.sha}}
+          restore-keys: stack-work-3_${{matrix.os}}
+
       - name: install stack
         run: |
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
@@ -121,6 +187,39 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+
+      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
+      - uses: actions/cache@v3
+        name: cache ~/.stack (Windows)
+        with:
+          path: "C:\\Users\\runneradmin\\AppData\\Roaming\\stack"
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
+          restore-keys: |
+            stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
+            stack-0_${{matrix.os}}
+
+      # Cache each local package's ~/.stack-work for fast incremental builds in CI.
+      - uses: actions/cache@v3
+        name: cache .stack-work
+        with:
+          path: |
+            **/.stack-work
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-work-3_${{matrix.os}}-${{github.sha}}
+          restore-keys: stack-work-3_${{matrix.os}}
+
       - name: build
         shell: bash
         run: |
