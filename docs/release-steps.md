@@ -2,9 +2,21 @@
 
 ## 1. Run Release script
 
-
 * **Milestone Release**: Look up the most recent release; bump the number and remove any trailing letters, e.g. `./scripts/make-release release/M5`
 * **Minor Release**: Increment the trailing letter of the previous release, or add an `a` to the previous milestone release, e.g. `./scripts/make-release release/M5a`
+
+Then, using the new release version, from the root of the `unisonweb/unison` project run:
+
+```sh
+./scripts/make_release.sh <VERSION>
+```
+
+This will tag the appropriate versions in all the required projects, and kick off all of the necessary CI jobs to ship a release.
+
+Including:
+
+* A release workflow in `unisonweb/unison` to build UCM on multiple platforms, create a release with appropriate release notes from the previous release, and upload the artifacts to that release.
+* A release workflow in `unison-local-ui` to build UCM on multiple platforms, create a release with appropriate release notes from the previous release, and upload the artifacts to that release.
 
 
 __5__
