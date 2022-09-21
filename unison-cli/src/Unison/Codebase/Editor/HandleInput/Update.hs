@@ -229,13 +229,13 @@ getSlurpResultForUpdate requestedNames = do
     -- (For simplicity, we will ignore the limitation that mutually recursive definitions must be top-level arrows;
     -- pretend this is Haskell's let).
     --
-    --   ping = pong + 1   (reference = #pingpong0.ping)
-    --   pong = ping + 2   (reference = #pingpong0.pong)
-    --   wham = pong + 3   (reference = #wham0)
+    --   ping = pong + 1   (reference = #pingpong.ping)
+    --   pong = ping + 2   (reference = #pingpong.pong)
+    --   wham = pong + 3   (reference = #wham)
     --
     -- The user re-defines "ping" in their scratch file thus:
     --
-    --   ping = wham + 4   (reference = #ping1)
+    --   ping = wham + 4   (reference = #newping)
     --
     -- Note that, pre-update, we had two components [ping,pong] and [wham]. But after the update, since the new `ping`
     -- refers to the old `wham`, which refers to the old `pong`, which refers to the old `ping`, we really want to end
@@ -259,7 +259,7 @@ getSlurpResultForUpdate requestedNames = do
     --
     -- Running example:
     --
-    --   "ping" => { #pingpong0.ping }
+    --   "ping" => { #pingpong.ping }
     let updatedNameToOldRefs :: Map Symbol (Set TermReference)
         updatedNameToOldRefs =
           Map.fromSet nameToTermRefs namesBeingUpdated
@@ -276,25 +276,25 @@ getSlurpResultForUpdate requestedNames = do
     --
     -- In our running example, the full list of component-mates (A) of the terms being updated is:
     --
-    --   [ #pingpong0.ping, #pingpong0.pong ]
+    --   [ #pingpong.ping, #pingpong.pong ]
     --
-    -- And because #pingpong0.ping is being updated, due to (D), only #pingpong0.pong remains.
+    -- And because #pingpong.ping is being updated, due to (D), only #pingpong.pong remains.
     --
-    -- Furthermore, #wham0 is both a dependent of #pingpong (B), and a dependency of #ping1, so it too is an implicit
+    -- Furthermore, #wham is both a dependent of #pingpong (B), and a dependency of #newping, so it too is an implicit
     -- term.
     --
     -- FIXME: this currently only looks at old components; doesn't search for new cycles.
     --
     -- Running example:
     --
-    --   #pingpong0.pong => (<#pingpong0.ping + 2>, { "pong" })
-    --   #wham0          => (<#pingpong0.pong + 3>, { "wham" })
+    --   #pingpong.pong => (<#pingpong.ping + 2>, { "pong" })
+    --   #wham          => (<#pingpong.pong + 3>, { "wham" })
     implicitTerms :: Map TermReferenceId (Term Symbol Ann, Set Symbol) <-
       liftIO do
         -- Running example:
         --
         --
-        --   { #pingpong0 }
+        --   { #pingpong }
         let oldHashes :: Set Hash
             oldHashes =
               foldMap (Set.mapMaybe Reference.toHash) updatedNameToOldRefs
@@ -302,16 +302,16 @@ getSlurpResultForUpdate requestedNames = do
         oldHashes & foldMapM \oldHash -> do
           -- Running example:
           --
-          --   [ (<#pingpong0.pong + 1>, <Nat>),
-          --     (<#pingpong0.ping + 2>, <Nat>)
+          --   [ (<#pingpong.pong + 1>, <Nat>),
+          --     (<#pingpong.ping + 2>, <Nat>)
           --   ]
           terms <- Codebase.unsafeGetTermComponent codebase oldHash
           pure $
             terms
               -- Running example:
               --
-              --   [ (#pingpong0.ping, (<#pingpong0.pong + 1>, <Nat>)),
-              --     (#pingpong0.pong, (<#pingpong0.ping + 2>, <Nat>))
+              --   [ (#pingpong.ping, (<#pingpong.pong + 1>, <Nat>)),
+              --     (#pingpong.pong, (<#pingpong.ping + 2>, <Nat>))
               --   ]
               & Reference.componentFor oldHash
               & List.foldl'
@@ -320,14 +320,14 @@ getSlurpResultForUpdate requestedNames = do
                     -- want to keep only the members that are *not* being updated (i.e. those who have no name that is
                     -- being updated). This is (D) above.
                     --
-                    -- Running example, first time through (processing #pingpong0.ping):
+                    -- Running example, first time through (processing #pingpong.ping):
                     --
                     --   Set.disjoint { "ping" } { "ping" } is false, so don't add to the map.
                     --
-                    -- Running example, second time through (processing #pingpong0.pong):
+                    -- Running example, second time through (processing #pingpong.pong):
                     --
                     --   Set.disjoint { "ping" } { "pong" } is true, so add
-                    --   #pingpong0.pong => (<#pingpong0.ping + 2>, { "pong" })) to the map.
+                    --   #pingpong.pong => (<#pingpong.ping + 2>, { "pong" })) to the map.
                     let names = termRefToNames ref
                      in if Set.disjoint namesBeingUpdated names
                           then Map.insert ref (term, names) acc
@@ -349,7 +349,7 @@ getSlurpResultForUpdate requestedNames = do
         --
         -- Running example:
         --
-        --   "ping" => (#ping1, Nothing, <#wham0 + 4>, <Nat>)
+        --   "ping" => (#newping, Nothing, <#wham + 4>, <Nat>)
         let nameToInterimInfo :: Map Symbol (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
             nameToInterimInfo =
               UF.hashTermsId (Slurp.originalFile slurp0)
@@ -358,7 +358,7 @@ getSlurpResultForUpdate requestedNames = do
         --
         -- Running example:
         --
-        --   "ping" => #ping1
+        --   "ping" => #newping
         let nameToInterimRef :: Map Symbol TermReferenceId
             nameToInterimRef =
               Map.map (\(ref, _wk, _term, _typ) -> ref) nameToInterimInfo
@@ -368,39 +368,39 @@ getSlurpResultForUpdate requestedNames = do
         --
         -- Running example:
         --
-        --   #ping1          => ("fresh1", <"fresh3" + 4>)
-        --   #pingpong0.pong => ("fresh2", <"fresh1" + 2>)
-        --   #wham0          => ("fresh3", <"fresh2" + 3>)
+        --   #newping       => ("fresh1", <"fresh3" + 4>)
+        --   #pingpong.pong => ("fresh2", <"fresh1" + 2>)
+        --   #wham          => ("fresh3", <"fresh2" + 3>)
         let refToGeneratedNameAndTerm :: Map TermReferenceId (Symbol, Term Symbol Ann)
             refToGeneratedNameAndTerm =
               -- Running example:
               --
-              --   #pingpong0.pong => (<#pingpong0.ping + 2>, { "pong" })
-              --   #wham0          => (<#pingpong0.pong + 3>, { "wham" })
+              --   #pingpong.pong => (<#pingpong.ping + 2>, { "pong" })
+              --   #wham          => (<#pingpong.pong + 3>, { "wham" })
               implicitTerms
                 -- Running example:
                 --
-                --   #pingpong0.pong => <#ping1 + 2>
-                --   #wham0          => <#pingpong0.pong + 3>
+                --   #pingpong.pong => <#newping + 2>
+                --   #wham          => <#pingpong.pong + 3>
                 & Map.map (\(term, _names) -> rewrite term)
                 -- Running example:
                 --
-                --   #ping1          => <#wham0 + 4>
-                --   #pingpong0.pong => <#ping1 + 2>
-                --   #wham0          => <#pingpong0.pong + 3>
+                --   #newping       => <#wham + 4>
+                --   #pingpong.pong => <#newping + 2>
+                --   #wham          => <#pingpong.pong + 3>
                 & Map.union interimRefToTerm
                 & Term.unhashComponent
               where
                 -- Running example:
                 --
-                --   #ping1 => <#wham0 + 4>
+                --   #newping => <#wham + 4>
                 interimRefToTerm :: Map TermReferenceId (Term Symbol Ann)
                 interimRefToTerm =
                   Map.remap (\(_var, (ref, _wk, term, _typ)) -> (ref, term)) nameToInterimInfo
                 -- Running example: apply the following reference mapping everwhere in a term:
                 --
-                --   #pingpong0.ping -> #ping1
-                --   ref             -> ref
+                --   #pingpong.ping -> #newping
+                --   ref            -> ref
                 rewrite :: Term Symbol Ann -> Term Symbol Ann
                 rewrite =
                   updatedNameToOldRefs
@@ -473,7 +473,7 @@ getSlurpResultForUpdate requestedNames = do
                   where
                     -- Running example:
                     --
-                    --   #ping1 => "ping"
+                    --   #newping => "ping"
                     interimRefToName :: Map TermReferenceId Symbol
                     interimRefToName =
                       Map.remap (\(var, ref) -> (ref, var)) nameToInterimRef
