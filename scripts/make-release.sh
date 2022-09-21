@@ -3,13 +3,13 @@
 set -e
 
 usage() {
-    echo "Usage:"
-    echo "$0 <version>"
+    echo "Usage: $0 <version>"
+    echo ""
     echo "E.g."
     echo "$0 M4a"
 }
 
-if [[ $? -ne 1  ]] ; then
+if [[ -z "$1"  ]] ; then
   usage
   exit 1
 fi
@@ -26,7 +26,7 @@ if ! [[ "$1" =~ ^M[0-9]+[a-z]?$ ]] ; then
 fi
 
 version="${1}"
-committish=${2:trunk}
+committish=${2:-trunk}
 
 prereleaseFlag=""
 
@@ -35,7 +35,6 @@ if [[ "$1" =~ ^M[0-9]+[a-z]$ ]] ; then
 fi
 
 gh workflow run release --repo unisonweb/unison --field "version=${version}" --ref cp/automate-minor-releases
-
 
 echo "Tagging current unison-local-ui revision for this release..."
 gh release create "release/${version}" --repo unisonweb/unison-local-ui --target main --generate-notes $prereleaseFlag
