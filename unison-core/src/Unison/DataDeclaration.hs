@@ -62,7 +62,6 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Unison.Var.RefNamed as Var
 import Prelude hiding (cycle)
 
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
@@ -304,7 +303,7 @@ unhashComponent m =
       m' :: Map Reference.Id (v, Decl v a)
       m' = evalState (Map.traverseWithKey assignVar m) usedVars
         where
-          assignVar r d = (,d) <$> ABT.freshenS (Var.refIdNamed r)
+          assignVar r d = (,d) <$> ABT.freshenS (Var.unnamedRef r)
       unhash1 :: ABT.Term Type.F v a -> ABT.Term Type.F v a
       unhash1 = ABT.rebuildUp' go
         where

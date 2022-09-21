@@ -1,6 +1,5 @@
 module Unison.Codebase.Editor.HandleInput.MoveBranch where
 
-import Data.Configurator ()
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
