@@ -458,44 +458,46 @@ getSlurpResultForUpdate requestedNames = do
             --   "fresh1" -> "ping"
             --   "fresh2" -> "pong"
             --   "fresh3" -> "wham"
-            let generatedNameToName :: Symbol -> Symbol
+            let generatedNameToName :: Map Symbol Symbol
                 generatedNameToName =
-                  (mapping Map.!)
+                  refToGeneratedNameAndTerm & Map.remap \(ref, (generatedName, _term)) ->
+                    ( generatedName,
+                      case Map.lookup ref interimRefToName of
+                        Just name -> name
+                        Nothing ->
+                          let (_, names) = implicitTerms Map.! ref
+                           in case Set.lookupMin names of
+                                Nothing -> error "fixme: nameless implicit term :("
+                                Just name -> name
+                    )
                   where
-                    mapping :: Map Symbol Symbol
-                    mapping =
-                      refToGeneratedNameAndTerm & Map.remap \(ref, (generatedName, _term)) ->
-                        ( generatedName,
-                          case Map.lookup ref interimRefToName of
-                            Just name -> name
-                            Nothing ->
-                              let (_, names) = implicitTerms Map.! ref
-                               in case Set.lookupMin names of
-                                    Nothing -> error "fixme: nameless implicit term :("
-                                    Just name -> name
-                        )
-                      where
-                        -- Running example:
-                        --
-                        --   #ping1 => "ping"
-                        interimRefToName :: Map TermReferenceId Symbol
-                        interimRefToName =
-                          Map.remap (\(var, ref) -> (ref, var)) nameToInterimRef
+                    -- Running example:
+                    --
+                    --   #ping1 => "ping"
+                    interimRefToName :: Map TermReferenceId Symbol
+                    interimRefToName =
+                      Map.remap (\(var, ref) -> (ref, var)) nameToInterimRef
+
+            let renameTerm ::
+                  (Symbol, Term Symbol Ann, Type Symbol Ann) ->
+                  (Symbol, Term Symbol Ann, Type Symbol Ann)
+                renameTerm (generatedName, term, typ) =
+                  (generatedNameToName Map.! generatedName, ABT.renames generatedNameToName term, typ)
 
             let file1 :: TypecheckedUnisonFile Symbol Ann
                 file1 =
                   UF.typecheckedUnisonFile
                     (file0 ^. #dataDeclarationsId')
                     (file0 ^. #effectDeclarationsId')
-                    ((file0 ^. #topLevelComponents') & over (mapped . mapped . _1) generatedNameToName)
-                    ((file0 ^. #watchComponents) & over (mapped . _2 . mapped . _1) generatedNameToName)
+                    ((file0 ^. #topLevelComponents') & over (mapped . mapped) renameTerm)
+                    ((file0 ^. #watchComponents) & over (mapped . _2 . mapped) renameTerm)
 
             pure (slurp file1)
           _ -> pure slurp0
 
   pure slurp1
 
-rewriteTermReferences :: Map TermReference TermReferenceId -> Term Symbol Ann -> Term Symbol Ann
+rewriteTermReferences :: Ord v => Map TermReference TermReferenceId -> Term v a -> Term v a
 rewriteTermReferences mapping =
   ABT.rebuildUp \term ->
     case term of
