@@ -32,6 +32,15 @@ module Unison.Cli.MonadUtils
     branchExistsAtPath',
 
     -- ** Updating branches
+    stepAt',
+    stepAt,
+    stepAtM,
+    stepAtNoSync',
+    stepAtNoSync,
+    stepManyAt,
+    stepManyAtMNoSync,
+    stepManyAtNoSync,
+    syncRoot,
     updateRoot,
     updateAtM,
     updateAt,
@@ -81,7 +90,7 @@ import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
-import Unison.Codebase.Path (Path' (..))
+import Unison.Codebase.Path (Path, Path' (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
@@ -247,6 +256,132 @@ branchExistsAtPath' path' = do
     pure (not isEmpty)
 
 ------------------------------------------------------------------------------------------------------------------------
+-- Updating branches
+
+stepAt ::
+  Text ->
+  (Path, Branch0 IO -> Branch0 IO) ->
+  Cli r ()
+stepAt cause = stepManyAt @[] cause . pure
+
+stepAt' ::
+  Text ->
+  (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
+  Cli r Bool
+stepAt' cause = stepManyAt' @[] cause . pure
+
+stepAtNoSync' ::
+  (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
+  Cli r Bool
+stepAtNoSync' = stepManyAtNoSync' @[] . pure
+
+stepAtNoSync ::
+  (Path, Branch0 IO -> Branch0 IO) ->
+  Cli r ()
+stepAtNoSync = stepManyAtNoSync @[] . pure
+
+stepAtM ::
+  Text ->
+  (Path, Branch0 IO -> IO (Branch0 IO)) ->
+  Cli r ()
+stepAtM cause = stepManyAtM @[] cause . pure
+
+stepManyAt ::
+  Foldable f =>
+  Text ->
+  f (Path, Branch0 IO -> Branch0 IO) ->
+  Cli r ()
+stepManyAt reason actions = do
+  stepManyAtNoSync actions
+  syncRoot reason
+
+stepManyAt' ::
+  Foldable f =>
+  Text ->
+  f (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
+  Cli r Bool
+stepManyAt' reason actions = do
+  res <- stepManyAtNoSync' actions
+  syncRoot reason
+  pure res
+
+stepManyAtNoSync' ::
+  Foldable f =>
+  f (Path, Branch0 IO -> Cli r (Branch0 IO)) ->
+  Cli r Bool
+stepManyAtNoSync' actions = do
+  origRoot <- getRootBranch
+  newRoot <- Branch.stepManyAtM actions origRoot
+  setRootBranch newRoot
+  pure (origRoot /= newRoot)
+
+-- Like stepManyAt, but doesn't update the last saved root
+stepManyAtNoSync ::
+  Foldable f =>
+  f (Path, Branch0 IO -> Branch0 IO) ->
+  Cli r ()
+stepManyAtNoSync actions =
+  void . modifyRootBranch $ Branch.stepManyAt actions
+
+stepManyAtM ::
+  Foldable f =>
+  Text ->
+  f (Path, Branch0 IO -> IO (Branch0 IO)) ->
+  Cli r ()
+stepManyAtM reason actions = do
+  stepManyAtMNoSync actions
+  syncRoot reason
+
+stepManyAtMNoSync ::
+  Foldable f =>
+  f (Path, Branch0 IO -> IO (Branch0 IO)) ->
+  Cli r ()
+stepManyAtMNoSync actions = do
+  oldRoot <- getRootBranch
+  newRoot <- liftIO (Branch.stepManyAtM actions oldRoot)
+  setRootBranch newRoot
+
+-- | Sync the in-memory root branch.
+syncRoot :: Text -> Cli r ()
+syncRoot description = do
+  rootBranch <- getRootBranch
+  updateRoot rootBranch description
+
+-- | Update a branch at the given path, returning `True` if
+-- an update occurred and false otherwise
+updateAtM ::
+  Text ->
+  Path.Absolute ->
+  (Branch IO -> Cli r (Branch IO)) ->
+  Cli r Bool
+updateAtM reason (Path.Absolute p) f = do
+  b <- getRootBranch
+  b' <- Branch.modifyAtM p f b
+  updateRoot b' reason
+  pure $ b /= b'
+
+-- | Update a branch at the given path, returning `True` if
+-- an update occurred and false otherwise
+updateAt ::
+  Text ->
+  Path.Absolute ->
+  (Branch IO -> Branch IO) ->
+  Cli r Bool
+updateAt reason p f = do
+  updateAtM reason p (pure . f)
+
+updateRoot :: Branch IO -> Text -> Cli r ()
+updateRoot new reason =
+  Cli.time "updateRoot" do
+    Cli.Env {codebase} <- ask
+    let newHash = Cv.causalHash1to2 $ Branch.headHash new
+    oldHash <- getLastSavedRootHash
+    when (oldHash /= newHash) do
+      setRootBranch new
+      liftIO (Codebase.putRootBranch codebase reason new)
+      setLastSavedRootHash newHash
+
+------------------------------------------------------------------------------------------------------------------------
 -- Getting terms
 
 getTermsAt :: (Path.Absolute, HQ'.HQSegment) -> Cli r (Set Referent)
@@ -315,37 +450,3 @@ getLatestTypecheckedFile = do
 expectLatestTypecheckedFile :: Cli r (TypecheckedUnisonFile Symbol Ann)
 expectLatestTypecheckedFile =
   getLatestTypecheckedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
-
--- | Update a branch at the given path, returning `True` if
--- an update occurred and false otherwise
-updateAtM ::
-  Text ->
-  Path.Absolute ->
-  (Branch IO -> Cli r (Branch IO)) ->
-  Cli r Bool
-updateAtM reason (Path.Absolute p) f = do
-  b <- getRootBranch
-  b' <- Branch.modifyAtM p f b
-  updateRoot b' reason
-  pure $ b /= b'
-
--- | Update a branch at the given path, returning `True` if
--- an update occurred and false otherwise
-updateAt ::
-  Text ->
-  Path.Absolute ->
-  (Branch IO -> Branch IO) ->
-  Cli r Bool
-updateAt reason p f = do
-  updateAtM reason p (pure . f)
-
-updateRoot :: Branch IO -> Text -> Cli r ()
-updateRoot new reason =
-  Cli.time "updateRoot" do
-    Cli.Env {codebase} <- ask
-    let newHash = Cv.causalHash1to2 $ Branch.headHash new
-    oldHash <- getLastSavedRootHash
-    when (oldHash /= newHash) do
-      setRootBranch new
-      liftIO (Codebase.putRootBranch codebase reason new)
-      setLastSavedRootHash newHash

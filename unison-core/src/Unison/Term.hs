@@ -47,7 +47,6 @@ import qualified Unison.Type as Type
 import Unison.Util.List (multimap, validate)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Unison.Var.RefNamed as Var
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (and, or)
 
@@ -1332,7 +1331,7 @@ unhashComponent m =
       m' :: Map Reference.Id (v, Term v a)
       m' = evalState (Map.traverseWithKey assignVar m) usedVars
         where
-          assignVar r t = (,t) <$> ABT.freshenS (Var.refIdNamed r)
+          assignVar r t = (,t) <$> ABT.freshenS (Var.unnamedRef r)
       unhash1 :: Term v a -> Term v a
       unhash1 = ABT.rebuildUp' go
         where
