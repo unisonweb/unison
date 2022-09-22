@@ -82,47 +82,43 @@ main = withCP65001 do
     configFilePath <- getConfigFilePath mcodepath
     config <-
       catchIOError (watchConfig configFilePath) $ \_ ->
-        Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
+        exitError "Your .unisonConfig could not be loaded. Check that it's correct!"
     case command of
       PrintVersion ->
         putStrLn $ progName ++ " version: " ++ Version.gitDescribeWithDate
       Init -> do
-        PT.putPrettyLn $
-          P.callout
-            "⚠️"
-            ( P.lines
-                [ "The Init command has been removed",
-                  P.newline,
-                  P.wrap "Use --codebase-create to create a codebase at a specified location and open it:",
-                  P.indentN 2 (P.hiBlue "$ ucm --codebase-create myNewCodebase"),
-                  "Running UCM without the --codebase-create flag: ",
-                  P.indentN 2 (P.hiBlue "$ ucm"),
-                  P.wrap ("will " <> P.bold "always" <> " create a codebase in your home directory if one does not already exist.")
-                ]
-            )
+        exitError
+          ( P.lines
+              [ "The Init command has been removed",
+                P.newline,
+                P.wrap "Use --codebase-create to create a codebase at a specified location and open it:",
+                P.indentN 2 (P.hiBlue "$ ucm --codebase-create myNewCodebase"),
+                "Running UCM without the --codebase-create flag: ",
+                P.indentN 2 (P.hiBlue "$ ucm"),
+                P.wrap ("will " <> P.bold "always" <> " create a codebase in your home directory if one does not already exist.")
+              ]
+          )
       Run (RunFromSymbol mainName) args -> do
         getCodebaseOrExit mCodePathOption \(_, _, theCodebase) -> do
           runtime <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
           withArgs args (execute theCodebase runtime mainName) >>= \case
-            Left err -> do
-              PT.putPrettyLn err
-              Exit.exitFailure
+            Left err -> exitError err
             Right () -> pure ()
       Run (RunFromFile file mainName) args
-        | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
+        | not (isDotU file) -> exitError "Files must have a .u extension."
         | otherwise -> do
-          e <- safeReadUtf8 file
-          case e of
-            Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
-            Right contents -> do
-              getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-                rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
-                let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
+            e <- safeReadUtf8 file
+            case e of
+              Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
+              Right contents -> do
+                getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+                  rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
+                  let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                  launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
-          Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
+          Left _ -> exitError "I had trouble reading this input."
           Right contents -> do
             getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
               rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
@@ -140,7 +136,7 @@ main = withCP65001 do
         BL.readFile file >>= \bs ->
           try (evaluate $ RTI.decodeStandalone bs) >>= \case
             Left (PE _cs err) -> do
-              PT.putPrettyLn . P.lines $
+              exitError . P.lines $
                 [ P.wrap . P.text $
                     "I was unable to parse this file as a compiled\
                     \ program. The parser generated the following error:",
@@ -148,7 +144,7 @@ main = withCP65001 do
                   P.indentN 2 $ err
                 ]
             Right (Left err) ->
-              PT.putPrettyLn . P.lines $
+              exitError . P.lines $
                 [ P.wrap . P.text $
                     "I was unable to parse this file as a compiled\
                     \ program. The parser generated the following error:",
@@ -156,7 +152,7 @@ main = withCP65001 do
                   P.indentN 2 . P.wrap $ P.string err
                 ]
             Left _ -> do
-              PT.putPrettyLn . P.wrap . P.text $
+              exitError . P.wrap . P.text $
                 "I was unable to parse this file as a compiled\
                 \ program. The parser generated an unrecognized error."
             Right (Right (v, rf, w, sto))
@@ -454,6 +450,10 @@ getCodebaseOrExit codebasePathOption action = do
             PT.putPrettyLn' msg
             Exit.exitFailure
   where
+    exitError :: P.Pretty -> IO a
+    exitError msg = do
+      PT.putPrettyLn $ P.callout "⚠️" msg
+      Exit.exitFailure
     prettyDir dir = P.string <$> canonicalizePath dir
 
 argsToCodebaseInitOptions :: Maybe CodebasePathOption -> IO CodebaseInit.CodebaseInitOptions
