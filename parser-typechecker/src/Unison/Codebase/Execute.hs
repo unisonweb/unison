@@ -43,4 +43,6 @@ execute codebase runtime mainName =
       MainTerm.Success _ tm _ -> do
         let codeLookup = Codebase.toCodeLookup codebase
             ppe = PPE.empty
-        void . liftIO $ Runtime.evaluateTerm codeLookup ppe runtime tm
+        (liftIO $ Runtime.evaluateTerm codeLookup ppe runtime tm) >>= \case
+          Left err -> throwError err
+          Right _ -> pure ()
