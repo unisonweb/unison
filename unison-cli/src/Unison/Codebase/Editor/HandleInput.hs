@@ -1369,9 +1369,9 @@ loop e = do
                   terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugTabCompletionI inputs -> do
-              Cli.Env {codebase} <- ask
+              Cli.Env {authHTTPClient, codebase} <- ask
               currentPath <- Cli.getCurrentPath
-              let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase currentPath
+              let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
               (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
               Cli.respond (DisplayDebugCompletions completions)
             DebugDumpNamespacesI -> do

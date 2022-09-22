@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module Unison.Server.Types where
@@ -227,6 +228,14 @@ instance ToJSON NamedTerm where
         "termTag" .= tag
       ]
 
+instance FromJSON NamedTerm where
+  parseJSON = Aeson.withObject "NamedTerm" \obj -> do
+    termName <- obj .: "termName"
+    termHash <- obj .: "termHash"
+    termType <- obj .: "termType"
+    termTag <- obj .: "termTag"
+    pure $ NamedTerm {..}
+
 deriving instance ToSchema NamedTerm
 
 data NamedType = NamedType
@@ -239,6 +248,9 @@ data NamedType = NamedType
 instance ToJSON NamedType where
   toEncoding = genericToEncoding defaultOptions
 
+instance FromJSON NamedType where
+  parseJSON = genericParseJSON defaultOptions
+
 deriving instance ToSchema NamedType
 
 instance ToJSON TermTag where
@@ -250,12 +262,30 @@ instance ToJSON TermTag where
       Ability -> "AbilityConstructor"
       Data -> "DataConstructor"
 
+instance FromJSON TermTag where
+  parseJSON Null = pure Plain
+  parseJSON v =
+    v
+      & Aeson.withText "TermTag" \case
+        "Doc" -> pure Doc
+        "Test" -> pure Test
+        "Plain" -> pure Plain
+        "AbilityConstructor" -> pure $ Constructor Ability
+        "DataConstructor" -> pure $ Constructor Data
+        txt -> fail $ "Invalid TermTag" <> Text.unpack txt
+
 deriving instance ToSchema TermTag
 
 instance ToJSON TypeTag where
   toJSON = \case
     Ability -> "Ability"
     Data -> "Data"
+
+instance FromJSON TypeTag where
+  parseJSON = Aeson.withText "TypeTag" \case
+    "Ability" -> pure Ability
+    "Data" -> pure Data
+    txt -> fail $ "Invalid TypeTag" <> Text.unpack txt
 
 deriving instance ToSchema TypeTag
 

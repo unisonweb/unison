@@ -19,6 +19,7 @@ import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
 import Text.Pretty.Simple (pShow)
 import Unison.Auth.CredentialManager (newCredentialManager)
+import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Auth.HTTPClient as AuthN
 import qualified Unison.Auth.Tokens as AuthN
 import qualified Unison.Cli.Monad as Cli
@@ -51,11 +52,12 @@ getUserInput ::
   forall m v a.
   (MonadIO m, MonadMask m) =>
   Codebase m v a ->
+  AuthenticatedHttpClient ->
   Branch m ->
   Path.Absolute ->
   [String] ->
   m Input
-getUserInput codebase rootBranch currentPath numberedArgs =
+getUserInput codebase authHTTPClient rootBranch currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
@@ -85,7 +87,7 @@ getUserInput codebase rootBranch currentPath numberedArgs =
               Right i -> pure i
     settings :: Line.Settings m
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
-    tabComplete = haskelineTabComplete IP.patternMap codebase currentPath
+    tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
 
 main ::
   FilePath ->
@@ -107,10 +109,14 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
   initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
   pageOutput <- newIORef True
   cancelFileSystemWatch <- watchFileSystem eventQueue dir
+  credentialManager <- newCredentialManager
+  let tokenProvider = AuthN.newTokenProvider credentialManager
+  authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
   let getInput :: Cli.LoopState -> IO Input
       getInput loopState = do
         getUserInput
           codebase
+          authHTTPClient
           (loopState ^. #root)
           (loopState ^. #currentPath)
           (loopState ^. #numberedArgs)
@@ -158,9 +164,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
               x -> do
                 writeIORef pageOutput True
                 pure x
-  credentialManager <- newCredentialManager
-  let tokenProvider = AuthN.newTokenProvider credentialManager
-  authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
   let env =
         Cli.Env
