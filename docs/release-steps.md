@@ -1,25 +1,6 @@
 # Release Steps
 
-## 1. Run Release script
-
-* **Milestone Release**: Look up the most recent release; bump the number and remove any trailing letters, e.g. `./scripts/make-release release/M5`
-* **Minor Release**: Increment the trailing letter of the previous release, or add an `a` to the previous milestone release, e.g. `./scripts/make-release release/M5a`
-
-Then, using the new release version, from the root of the `unisonweb/unison` project run:
-
-```sh
-./scripts/make_release.sh <VERSION>
-```
-
-This will tag the appropriate versions in all the required projects, and kick off all of the necessary CI jobs to ship a release.
-
-Including:
-
-* A release workflow in `unisonweb/unison` to build UCM on multiple platforms, create a release with appropriate release notes from the previous release, and upload the artifacts to that release.
-* A release workflow in `unison-local-ui` to build UCM on multiple platforms, create a release with appropriate release notes from the previous release, and upload the artifacts to that release.
-
-
-__5__
+## 1. (Major milestones only) New Base Release
 
 Cut a release of base. @runarorama does this usually.
 
@@ -38,31 +19,32 @@ Edit `releases._<ReleaseName>.README` to include `Release: <ReleaseName>`.
 .basedev.release> push git(git@github.com:unisonweb/base)
 ```
 
-__8__
+## 2. Run Release script
 
-Update homebrew.
+* **Milestone Release**: Look up the most recent release; bump the number and remove any trailing letters, e.g. `./scripts/make-release release/M5`
+* **Minor Release**: Increment the trailing letter of the previous release, or add an `a` to the previous milestone release, e.g. `./scripts/make-release release/M5a`
 
-```
-git clone git@github.com/unisonweb/homebrew-unison.git
-```
-
-Update this file: https://github.com/unisonweb/homebrew-unison/blob/master/unison-language.rb and change the version number and the path to the release tar files.
-
-To get the updated sha256 values, use the following command, replacing the download link with the linux and mac downloads respectively.
+Then, using the new release version, from the root of the `unisonweb/unison` project run:
 
 ```sh
-curl -sSL https://github.com/unisonweb/unison/releases/download/release%2FM2h/ucm-linux.tar.gz | shasum -a 256 | cut -f1 -d" "
+./scripts/make_release.sh <VERSION>
 ```
 
-__9__
+This will tag the appropriate versions in all the required projects, and kick off all of the necessary CI jobs to ship a release.
 
-Give go ahead to @rlmark and @hojberg to deploy new version of website with blog post, updated install instructions, etc.
+Including:
 
-__10__
+* A release workflow in `unisonweb/unison` to build UCM on multiple platforms, create a release with appropriate release notes from the previous release, and upload the artifacts to that release.
+* A release workflow in `unison-local-ui` to build UCM on multiple platforms, create a release with appropriate release notes from the previous release, and upload the artifacts to that release.
+* A release workflow in `homebrew-unison` to wait for artifacts to be uploaded, then download those artifacts, get the checksums, and create an up-to-date homebrew formula.
+
+After successfully executing the script you just have to sit tight and wait for all the jobs to complete.
+
+## 3
 
 Smoke test of the new release. Try `brew upgrade unison-language`, launch it, launch `ui`.
 
-__11__
+## 4
 
 Announce on #general Slack channel. Template below.
 
