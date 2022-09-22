@@ -1,7 +1,7 @@
 # Documenting Unison code
 
 ```ucm:hide
-.> builtins.merge
+.> builtins.mergeio
 ```
 
 Unison documentation is written in Unison. Documentation is a value of the following type:

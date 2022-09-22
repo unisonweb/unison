@@ -7,11 +7,11 @@ Unison documentation is written in Unison. Documentation is a value of the follo
 
   unique type builtin.Doc
     = Blob Text
-    | Link Link
-    | Source Link
-    | Signature Term
-    | Evaluate Term
-    | Join [builtin.Doc]
+    | Doc.Link Link
+    | Doc.Source Link
+    | Doc.Signature Link.Term
+    | Evaluate Link.Term
+    | Doc.Join [builtin.Doc]
 
 ```
 You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of structural type `Doc` can be created via syntax like:
@@ -208,5 +208,36 @@ Note that if we view the source of the documentation, the various references are
       🔽
       @ex2 = @[evaluate] ex2
     :]
+
+```
+## Docs for operators round-trip properly.
+
+Regression test for https://github.com/unisonweb/unison/issues/2970
+
+```unison
+{{ docs for +++ }}
+(+++) a b = "result"
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    +++     : a -> b -> Text
+    +++.doc : Doc2
+
+.> edit +++.doc
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/cpenner/dev/unison-trunk/scratch.u
+  
+    (+++.doc) : Doc2
+    (+++.doc) = {{ docs for +++ }}
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
 
 ```
