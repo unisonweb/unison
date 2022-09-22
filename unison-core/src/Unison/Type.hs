@@ -4,13 +4,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Type where
 
 import Control.Lens (Prism')
 import qualified Control.Monad.Writer.Strict as Writer
-import Data.Functor.Identity (runIdentity)
 import Data.Generics.Sum (_Ctor)
 import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
@@ -97,50 +97,72 @@ arity (Ann' a _) = arity a
 arity _ = 0
 
 -- some smart patterns
+pattern Ref' :: Reference -> ABT.Term F v a
 pattern Ref' r <- ABT.Tm' (Ref r)
 
+pattern Arrow' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
 
+pattern Arrow'' :: Ord v => ABT.Term F v a -> [Type v a] -> Type v a -> ABT.Term F v a
 pattern Arrow'' i es o <- Arrow' i (Effect'' es o)
 
+pattern Arrows' :: [Type v a] -> Type v a
 pattern Arrows' spine <- (unArrows -> Just spine)
 
+pattern EffectfulArrows' :: Type v a -> [(Maybe [Type v a], Type v a)] -> Type v a
 pattern EffectfulArrows' fst rest <- (unEffectfulArrows -> Just (fst, rest))
 
+pattern Ann' :: ABT.Term F v a -> K.Kind -> ABT.Term F v a
 pattern Ann' t k <- ABT.Tm' (Ann t k)
 
+pattern App' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
 pattern App' f x <- ABT.Tm' (App f x)
 
+pattern Apps' :: Type v a -> [Type v a] -> Type v a
 pattern Apps' f args <- (unApps -> Just (f, args))
 
+pattern Pure' :: Ord v => Type v a -> Type v a
 pattern Pure' t <- (unPure -> Just t)
 
+pattern Effects' :: [ABT.Term F v a] -> ABT.Term F v a
 pattern Effects' es <- ABT.Tm' (Effects es)
 
 -- Effect1' must match at least one effect
+pattern Effect1' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
 pattern Effect1' e t <- ABT.Tm' (Effect e t)
 
+pattern Effect' :: Ord v => [Type v a] -> Type v a -> Type v a
 pattern Effect' es t <- (unEffects1 -> Just (es, t))
 
+pattern Effect'' :: Ord v => [Type v a] -> Type v a -> Type v a
 pattern Effect'' es t <- (unEffect0 -> (es, t))
 
 -- Effect0' may match zero effects
+pattern Effect0' :: Ord v => [Type v a] -> Type v a -> Type v a
 pattern Effect0' es t <- (unEffect0 -> (es, t))
 
+pattern Forall' :: ABT.Var v => ABT.Subst F v a -> ABT.Term F v a
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
 
+pattern IntroOuter' :: ABT.Var v => ABT.Subst F v a -> ABT.Term F v a
 pattern IntroOuter' subst <- ABT.Tm' (IntroOuter (ABT.Abs' subst))
 
+pattern IntroOuterNamed' :: v -> ABT.Term F v a -> ABT.Term F v a
 pattern IntroOuterNamed' v body <- ABT.Tm' (IntroOuter (ABT.out -> ABT.Abs v body))
 
+pattern ForallsNamed' :: [v] -> Type v a -> Type v a
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 
+pattern ForallNamed' :: v -> ABT.Term F v a -> ABT.Term F v a
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 
+pattern Var' :: v -> ABT.Term f v a
 pattern Var' v <- ABT.Var' v
 
+pattern Cycle' :: [v] -> f (ABT.Term f v a) -> ABT.Term f v a
 pattern Cycle' xs t <- ABT.Cycle' xs t
 
+pattern Abs' :: (Foldable f, Functor f, ABT.Var v) => ABT.Subst f v a -> ABT.Term f v a
 pattern Abs' subst <- ABT.Abs' subst
 
 unPure :: Ord v => Type v a -> Maybe (Type v a)
@@ -253,6 +275,14 @@ scopeRef, refRef :: Reference
 scopeRef = Reference.Builtin "Scope"
 refRef = Reference.Builtin "Ref"
 
+iarrayRef, marrayRef :: Reference
+iarrayRef = Reference.Builtin "ImmutableArray"
+marrayRef = Reference.Builtin "MutableArray"
+
+ibytearrayRef, mbytearrayRef :: Reference
+ibytearrayRef = Reference.Builtin "ImmutableByteArray"
+mbytearrayRef = Reference.Builtin "MutableByteArray"
+
 mvarRef, tvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
@@ -262,6 +292,9 @@ tlsRef = Reference.Builtin "Tls"
 
 stmRef :: Reference
 stmRef = Reference.Builtin "STM"
+
+patternRef :: Reference
+patternRef = Reference.Builtin "Pattern"
 
 tlsClientConfigRef :: Reference
 tlsClientConfigRef = Reference.Builtin "Tls.ClientConfig"
@@ -290,6 +323,9 @@ valueRef = Reference.Builtin "Value"
 
 anyRef :: Reference
 anyRef = Reference.Builtin "Any"
+
+timeSpecRef :: Reference
+timeSpecRef = Reference.Builtin "TimeSpec"
 
 any :: Ord v => a -> Type v a
 any a = ref a anyRef
@@ -329,6 +365,12 @@ scopeType a = ref a scopeRef
 
 refType :: Ord v => a -> Type v a
 refType a = ref a refRef
+
+iarrayType, marrayType, ibytearrayType, mbytearrayType :: Ord v => a -> Type v a
+iarrayType a = ref a iarrayRef
+marrayType a = ref a marrayRef
+ibytearrayType a = ref a ibytearrayRef
+mbytearrayType a = ref a mbytearrayRef
 
 socket :: Ord v => a -> Type v a
 socket a = ref a socketRef
@@ -694,7 +736,10 @@ cleanupVars1' = ABT.changeVars
 -- fresh ids to the minimum possible to avoid ambiguity.
 cleanupVars1 :: Var v => Type v a -> Type v a
 cleanupVars1 t | not Settings.cleanupTypes = t
-cleanupVars1 t = let [t'] = cleanupVars [t] in t'
+cleanupVars1 t =
+  case cleanupVars [t] of
+    [t'] -> t'
+    _ -> error "cleanupVars1: expected exactly one result"
 
 -- This removes duplicates and normalizes the order of ability lists
 cleanupAbilityLists :: Var v => Type v a -> Type v a

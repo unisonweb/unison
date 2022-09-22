@@ -18,10 +18,8 @@ import Data.Text (unpack)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import qualified Unison.Name as Name
-import Unison.Names (Names)
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parsers as Parsers
 import Unison.Prelude
@@ -29,6 +27,7 @@ import Unison.Reference (Reference)
 import qualified Unison.Referent as Referent
 import Unison.Result (CompilerBug (..), Note (..), Result, ResultT, pattern Result)
 import qualified Unison.Result as Result
+import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker as Typechecker
@@ -74,14 +73,14 @@ parseAndSynthesizeFile ::
   ResultT
     (Seq (Note v Ann))
     m
-    (Either Names (UF.TypecheckedUnisonFile v Ann))
+    (Either (UF.UnisonFile v Ann) (UF.TypecheckedUnisonFile v Ann))
 parseAndSynthesizeFile ambient typeLookupf env filePath src = do
   when debug $ traceM "parseAndSynthesizeFile"
   uf <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) env
   let names0 = NamesWithHistory.currentNames (Parser.names env)
   (tm, tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
   let (Result notes' r) = synthesizeFile ambient typeLookup tdnrMap uf tm
-  tell notes' $> maybe (Left (UF.toNames uf)) Right r
+  tell notes' $> maybe (Left uf) Right r
 
 type TDNRMap v = Map Typechecker.Name [Typechecker.NamedReference v Ann]
 

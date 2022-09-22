@@ -20,6 +20,9 @@ default-extensions:
 
 library:
   source-dirs: .
+  when:
+    - condition: false
+      other-modules: Paths_unison_codebase
 
 dependencies:
   - base
@@ -30,4 +33,6 @@ dependencies:
   - text
   - unison-core
   - unison-util
+  - unison-util-base32hex
   - unison-prelude
+  - time

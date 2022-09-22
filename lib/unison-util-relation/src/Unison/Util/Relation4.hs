@@ -79,6 +79,16 @@ selectD34 c d r =
             (Map.lookup c (d3 r))
     ]
 
+restrict34d12 ::
+  (Ord a, Ord b, Ord c, Ord d) =>
+  (c, d) ->
+  Relation4 a b c d ->
+  Relation a b
+restrict34d12 (c, d) Relation4 {d3} =
+  fromMaybe R.empty do
+    abd <- Map.lookup c d3
+    Map.lookup d (R3.d3 abd)
+
 keys :: Relation4 a b c d -> (Set a, Set b, Set c, Set d)
 keys Relation4 {d1, d2, d3, d4} =
   (Map.keysSet d1, Map.keysSet d2, Map.keysSet d3, Map.keysSet d4)
@@ -176,13 +186,12 @@ insertAll ::
 insertAll f r = foldl' (\r x -> uncurry4 insert x r) r f
 
 instance (Ord a, Ord b, Ord c, Ord d) => Semigroup (Relation4 a b c d) where
-  (<>) = mappend
-
-instance (Ord a, Ord b, Ord c, Ord d) => Monoid (Relation4 a b c d) where
-  mempty = Relation4 mempty mempty mempty mempty
-  s1 `mappend` s2 = Relation4 d1' d2' d3' d4'
+  s1 <> s2 = Relation4 d1' d2' d3' d4'
     where
       d1' = Map.unionWith (<>) (d1 s1) (d1 s2)
       d2' = Map.unionWith (<>) (d2 s1) (d2 s2)
       d3' = Map.unionWith (<>) (d3 s1) (d3 s2)
       d4' = Map.unionWith (<>) (d4 s1) (d4 s2)
+
+instance (Ord a, Ord b, Ord c, Ord d) => Monoid (Relation4 a b c d) where
+  mempty = Relation4 mempty mempty mempty mempty

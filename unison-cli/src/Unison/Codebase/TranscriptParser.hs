@@ -19,10 +19,11 @@ module Unison.Codebase.TranscriptParser
 where
 
 import Control.Concurrent.STM (atomically)
-import Control.Error (rightMay)
-import Control.Lens (view)
-import Control.Monad.State (runStateT)
+import Control.Lens ((?~), (^.))
 import qualified Crypto.Random as Random
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encode.Pretty as Aeson
+import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.Char as Char
 import qualified Data.Configurator as Configurator
 import Data.Configurator.Types (Config)
@@ -30,20 +31,24 @@ import Data.IORef
 import Data.List (isSubsequenceOf)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Network.HTTP.Client as HTTP
 import System.Directory (doesFileExist)
+import System.Environment (lookupEnv)
 import System.Exit (die)
 import qualified System.IO as IO
 import System.IO.Error (catchIOError)
 import qualified Text.Megaparsec as P
+import qualified Unison.Auth.CredentialManager as AuthN
+import qualified Unison.Auth.HTTPClient as AuthN
+import qualified Unison.Auth.Tokens as AuthN
+import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Command (LoadSourceResult (..))
-import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
-import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -56,15 +61,25 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
 import qualified Unison.Runtime.Interface as RTI
+import qualified Unison.Server.Backend as Backend
+import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Pretty as P
+import qualified Unison.Syntax.Parser as Parser
+import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
 import Prelude hiding (readFile, writeFile)
 
 -- | Render transcript errors at a width of 65 chars.
-terminalWidth :: P.Width
+terminalWidth :: Pretty.Width
 terminalWidth = 65
+
+-- | If provided, this access token will be used on all
+-- requests which use the Authenticated HTTP Client; i.e. all codeserver interactions.
+--
+-- It's useful in scripted contexts or when running transcripts against a codeserver.
+accessTokenEnvVarKey :: String
+accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
 
 type ExpectingError = Bool
 
@@ -79,9 +94,18 @@ data UcmLine
   = UcmCommand Path.Absolute Text
   | UcmComment Text -- Text does not include the '--' prefix.
 
+data APIRequest
+  = GetRequest Text
+  | APIComment Text
+
+instance Show APIRequest where
+  show (GetRequest txt) = "GET " <> Text.unpack txt
+  show (APIComment txt) = "-- " <> Text.unpack txt
+
 data Stanza
   = Ucm Hidden ExpectingError [UcmLine]
   | Unison Hidden ExpectingError (Maybe ScratchFileName) Text
+  | API [APIRequest]
   | UnprocessedFence FenceType Text
   | Unfenced Text
 
@@ -112,6 +136,13 @@ instance Show Stanza where
                   ""
                 ]
         ]
+    API apiRequests ->
+      "```api\n"
+        <> ( apiRequests
+               & fmap show
+               & unlines
+           )
+        <> "```\n"
     UnprocessedFence typ txt ->
       unlines
         [ "```" <> Text.unpack typ,
@@ -145,24 +176,29 @@ type TranscriptRunner =
 withTranscriptRunner ::
   forall m r.
   UnliftIO.MonadUnliftIO m =>
-  String ->
+  UCMVersion ->
   Maybe FilePath ->
   (TranscriptRunner -> m r) ->
   m r
-withTranscriptRunner version configFile action = do
-  withRuntime $ \runtime -> withConfig $ \config -> do
+withTranscriptRunner ucmVersion configFile action = do
+  withRuntime $ \runtime sbRuntime -> withConfig $ \config -> do
     action $ \transcriptName transcriptSrc (codebaseDir, codebase) -> do
-      let parsed = parse transcriptName transcriptSrc
-      result <- for parsed $ \stanzas -> do
-        liftIO $ run codebaseDir stanzas codebase runtime config
-      pure $ join @(Either TranscriptError) result
+      Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase $ \baseUrl -> do
+        let parsed = parse transcriptName transcriptSrc
+        result <- for parsed $ \stanzas -> do
+          liftIO $ run codebaseDir stanzas codebase runtime sbRuntime config ucmVersion (tShow baseUrl)
+        pure $ join @(Either TranscriptError) result
   where
-    withRuntime :: ((Runtime.Runtime Symbol -> m a) -> m a)
+    withRuntime :: ((Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a)
     withRuntime action =
       UnliftIO.bracket
-        (liftIO $ RTI.startRuntime RTI.UCM version)
+        (liftIO $ RTI.startRuntime False RTI.Persistent ucmVersion)
         (liftIO . Runtime.terminate)
-        action
+        $ \runtime ->
+          UnliftIO.bracket
+            (liftIO $ RTI.startRuntime True RTI.Persistent ucmVersion)
+            (liftIO . Runtime.terminate)
+            (action runtime)
     withConfig :: forall a. ((Maybe Config -> m a) -> m a)
     withConfig action = do
       case configFile of
@@ -181,225 +217,270 @@ run ::
   [Stanza] ->
   Codebase IO Symbol Ann ->
   Runtime.Runtime Symbol ->
+  Runtime.Runtime Symbol ->
   Maybe Config ->
+  UCMVersion ->
+  Text ->
   IO (Either TranscriptError Text)
-run dir stanzas codebase runtime config = UnliftIO.try $ do
+run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.try $ do
+  httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   let initialPath = Path.absoluteEmpty
   putPrettyLn $
-    P.lines
+    Pretty.lines
       [ asciiartUnison,
         "",
         "Running the provided transcript file...",
         ""
       ]
-  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
-  do
-    pathRef <- newIORef initialPath
-    rootBranchRef <- newIORef root
-    numberedArgsRef <- newIORef []
-    inputQueue <- Q.newIO
-    cmdQueue <- Q.newIO
-    unisonFiles <- newIORef Map.empty
-    out <- newIORef mempty
-    hidden <- newIORef Shown
-    allowErrors <- newIORef False
-    hasErrors <- newIORef False
-    mStanza <- newIORef Nothing
-    traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 ..])
-    let patternMap =
-          Map.fromList $
-            validInputs
-              >>= (\p -> (patternName p, p) : ((,p) <$> aliases p))
-    let output' :: Bool -> String -> IO ()
-        output' inputEcho msg = do
-          hide <- readIORef hidden
-          unless (hideOutput inputEcho hide) $ modifyIORef' out (\acc -> acc <> pure msg)
+  root <- Codebase.getRootBranch codebase
+  mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
+  credMan <- AuthN.newCredentialManager
+  let tokenProvider :: AuthN.TokenProvider
+      tokenProvider =
+        case mayShareAccessToken of
+          Nothing -> do
+            AuthN.newTokenProvider credMan
+          Just accessToken ->
+            \_codeserverID -> pure $ Right accessToken
+  seedRef <- newIORef (0 :: Int)
+  inputQueue <- Q.newIO
+  cmdQueue <- Q.newIO
+  unisonFiles <- newIORef Map.empty
+  out <- newIORef mempty
+  hidden <- newIORef Shown
+  allowErrors <- newIORef False
+  hasErrors <- newIORef False
+  mStanza <- newIORef Nothing
+  traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 :: Int ..])
+  let patternMap =
+        Map.fromList $
+          validInputs
+            >>= (\p -> (patternName p, p) : ((,p) <$> aliases p))
+  let output' :: Bool -> String -> IO ()
+      output' inputEcho msg = do
+        hide <- readIORef hidden
+        unless (hideOutput inputEcho hide) $ modifyIORef' out (\acc -> acc <> pure msg)
 
-        hideOutput :: Bool -> Hidden -> Bool
-        hideOutput inputEcho = \case
-          Shown -> False
-          HideOutput -> True && (not inputEcho)
-          HideAll -> True
+      hideOutput :: Bool -> Hidden -> Bool
+      hideOutput inputEcho = \case
+        Shown -> False
+        HideOutput -> True && (not inputEcho)
+        HideAll -> True
 
-        output, outputEcho :: (String -> IO ())
-        output = output' False
-        outputEcho = output' True
+      output, outputEcho :: (String -> IO ())
+      output = output' False
+      outputEcho = output' True
 
-        awaitInput :: IO (Either Event Input)
-        awaitInput = do
-          cmd <- atomically (Q.tryDequeue cmdQueue)
-          case cmd of
-            -- end of ucm block
-            Just Nothing -> do
-              output "\n```\n"
-              -- We clear the file cache after each `ucm` stanza, so
-              -- that `load` command can read the file written by `edit`
-              -- rather than hitting the cache.
-              writeIORef unisonFiles Map.empty
-              dieUnexpectedSuccess
-              awaitInput
-            -- ucm command to run
-            Just (Just ucmLine) -> do
-              case ucmLine of
-                p@(UcmComment {}) -> do
-                  output ("\n" <> show p)
-                  awaitInput
-                p@(UcmCommand path lineTxt) -> do
-                  curPath <- readIORef pathRef
-                  if curPath /= path
-                    then do
-                      atomically $ Q.undequeue cmdQueue (Just p)
-                      pure $ Right (SwitchBranchI $ Just (Path.absoluteToPath' path))
-                    else case words . Text.unpack $ lineTxt of
-                      [] -> awaitInput
-                      args -> do
-                        output ("\n" <> show p <> "\n")
-                        numberedArgs <- readIORef numberedArgsRef
-                        currentRoot <- Branch.head <$> readIORef rootBranchRef
-                        case parseInput currentRoot curPath numberedArgs patternMap args of
-                          -- invalid command is treated as a failure
-                          Left msg -> dieWithMsg $ P.toPlain terminalWidth msg
-                          Right input -> pure $ Right input
-            Nothing -> do
-              dieUnexpectedSuccess
-              writeIORef hidden Shown
-              writeIORef allowErrors False
-              maybeStanza <- atomically (Q.tryDequeue inputQueue)
-              _ <- writeIORef mStanza maybeStanza
-              case maybeStanza of
-                Nothing -> do
-                  putStrLn ""
-                  pure $ Right QuitI
-                Just (s, idx) -> do
-                  putStr $
-                    "\r⚙️   Processing stanza " ++ show idx ++ " of "
-                      ++ show (length stanzas)
-                      ++ "."
-                  IO.hFlush IO.stdout
-                  case s of
-                    Unfenced _ -> do
-                      output $ show s
-                      awaitInput
-                    UnprocessedFence _ _ -> do
-                      output $ show s
-                      awaitInput
-                    Unison hide errOk filename txt -> do
-                      writeIORef hidden hide
-                      outputEcho $ show s
-                      writeIORef allowErrors errOk
-                      output "```ucm\n"
-                      atomically . Q.enqueue cmdQueue $ Nothing
-                      modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt)
-                      pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
-                    Ucm hide errOk cmds -> do
-                      writeIORef hidden hide
-                      writeIORef allowErrors errOk
-                      writeIORef hasErrors False
-                      output "```ucm"
-                      traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
-                      atomically . Q.enqueue cmdQueue $ Nothing
-                      awaitInput
+      apiRequest :: APIRequest -> IO ()
+      apiRequest req = do
+        output (show req <> "\n")
+        case req of
+          (APIComment {}) -> pure ()
+          (GetRequest path) -> do
+            req <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
+              Left err -> dieWithMsg (show err)
+              Right req -> pure req
+            respBytes <- HTTP.httpLbs req httpManager
+            case Aeson.eitherDecode (HTTP.responseBody respBytes) of
+              Right (v :: Aeson.Value) -> do
+                let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
+                output . (<> "\n") . BL.unpack $ prettyBytes
+              Left err -> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err)
 
-        loadPreviousUnisonBlock name = do
-          ufs <- readIORef unisonFiles
-          case Map.lookup name ufs of
-            Just uf ->
-              return (LoadSuccess uf)
-            Nothing ->
-              -- This lets transcripts use the `load` command, as in:
-              --
-              -- .> load someFile.u
-              --
-              -- Important for Unison syntax that can't be embedded in
-              -- transcripts (like docs, which use ``` in their syntax).
-              let f = LoadSuccess <$> readUtf8 (Text.unpack name)
-               in f <|> pure InvalidSourceNameError
+      awaitInput :: Cli.LoopState -> IO (Either Event Input)
+      awaitInput loopState = do
+        cmd <- atomically (Q.tryDequeue cmdQueue)
+        case cmd of
+          -- end of ucm block
+          Just Nothing -> do
+            output "\n```\n"
+            -- We clear the file cache after each `ucm` stanza, so
+            -- that `load` command can read the file written by `edit`
+            -- rather than hitting the cache.
+            writeIORef unisonFiles Map.empty
+            dieUnexpectedSuccess
+            awaitInput loopState
+          -- ucm command to run
+          Just (Just ucmLine) -> do
+            case ucmLine of
+              p@(UcmComment {}) -> do
+                output ("\n" <> show p)
+                awaitInput loopState
+              p@(UcmCommand path lineTxt) -> do
+                let curPath = loopState ^. #currentPath
+                if curPath /= path
+                  then do
+                    atomically $ Q.undequeue cmdQueue (Just p)
+                    pure $ Right (SwitchBranchI $ Just (Path.absoluteToPath' path))
+                  else case words . Text.unpack $ lineTxt of
+                    [] -> awaitInput loopState
+                    args -> do
+                      output ("\n" <> show p <> "\n")
+                      let currentRoot = Branch.head (loopState ^. #root)
+                      case parseInput currentRoot curPath (loopState ^. #numberedArgs) patternMap args of
+                        -- invalid command is treated as a failure
+                        Left msg -> dieWithMsg $ Pretty.toPlain terminalWidth msg
+                        Right input -> pure $ Right input
+          Nothing -> do
+            dieUnexpectedSuccess
+            writeIORef hidden Shown
+            writeIORef allowErrors False
+            maybeStanza <- atomically (Q.tryDequeue inputQueue)
+            _ <- writeIORef mStanza maybeStanza
+            case maybeStanza of
+              Nothing -> do
+                putStrLn ""
+                pure $ Right QuitI
+              Just (s, idx) -> do
+                putStr $
+                  "\r⚙️   Processing stanza " ++ show idx ++ " of "
+                    ++ show (length stanzas)
+                    ++ "."
+                IO.hFlush IO.stdout
+                case s of
+                  Unfenced _ -> do
+                    output $ show s
+                    awaitInput loopState
+                  UnprocessedFence _ _ -> do
+                    output $ show s
+                    awaitInput loopState
+                  Unison hide errOk filename txt -> do
+                    writeIORef hidden hide
+                    outputEcho $ show s
+                    writeIORef allowErrors errOk
+                    output "```ucm\n"
+                    atomically . Q.enqueue cmdQueue $ Nothing
+                    modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt)
+                    pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
+                  API apiRequests -> do
+                    output "```api\n"
+                    for_ apiRequests apiRequest
+                    output "```"
+                    awaitInput loopState
+                  Ucm hide errOk cmds -> do
+                    writeIORef hidden hide
+                    writeIORef allowErrors errOk
+                    writeIORef hasErrors False
+                    output "```ucm"
+                    traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
+                    atomically . Q.enqueue cmdQueue $ Nothing
+                    awaitInput loopState
 
-        print o = do
-          msg <- notifyUser dir o
-          errOk <- readIORef allowErrors
-          let rendered = P.toPlain terminalWidth (P.border 2 msg)
-          output rendered
-          when (Output.isFailure o) $
-            if errOk
-              then writeIORef hasErrors True
-              else dieWithMsg rendered
+      loadPreviousUnisonBlock name = do
+        ufs <- readIORef unisonFiles
+        case Map.lookup name ufs of
+          Just uf ->
+            return (Cli.LoadSuccess uf)
+          Nothing ->
+            -- This lets transcripts use the `load` command, as in:
+            --
+            -- .> load someFile.u
+            --
+            -- Important for Unison syntax that can't be embedded in
+            -- transcripts (like docs, which use ``` in their syntax).
+            let f = Cli.LoadSuccess <$> readUtf8 (Text.unpack name)
+             in f <|> pure Cli.InvalidSourceNameError
 
-        printNumbered o = do
-          let (msg, numberedArgs) = notifyNumbered o
-          errOk <- readIORef allowErrors
-          let rendered = P.toPlain terminalWidth (P.border 2 msg)
-          output rendered
-          when (Output.isNumberedFailure o) $
-            if errOk
-              then writeIORef hasErrors True
-              else dieWithMsg rendered
-          pure numberedArgs
+      print :: Output.Output -> IO ()
+      print o = do
+        msg <- notifyUser dir o
+        errOk <- readIORef allowErrors
+        let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
+        output rendered
+        when (Output.isFailure o) $
+          if errOk
+            then writeIORef hasErrors True
+            else dieWithMsg rendered
 
-        -- Looks at the current stanza and decides if it is contained in the
-        -- output so far. Appends it if not.
-        appendFailingStanza :: IO ()
-        appendFailingStanza = do
-          stanzaOpt <- readIORef mStanza
-          currentOut <- readIORef out
-          let stnz = maybe "" show (fmap fst stanzaOpt :: Maybe Stanza)
-          unless (stnz `isSubsequenceOf` concat currentOut) $
-            modifyIORef' out (\acc -> acc <> pure stnz)
+      printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
+      printNumbered o = do
+        let (msg, numberedArgs) = notifyNumbered o
+        errOk <- readIORef allowErrors
+        let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
+        output rendered
+        when (Output.isNumberedFailure o) $
+          if errOk
+            then writeIORef hasErrors True
+            else dieWithMsg rendered
+        pure numberedArgs
 
-        -- output ``` and new lines then call transcriptFailure
-        dieWithMsg :: forall a. String -> IO a
-        dieWithMsg msg = do
+      -- Looks at the current stanza and decides if it is contained in the
+      -- output so far. Appends it if not.
+      appendFailingStanza :: IO ()
+      appendFailingStanza = do
+        stanzaOpt <- readIORef mStanza
+        currentOut <- readIORef out
+        let stnz = maybe "" show (fmap fst stanzaOpt :: Maybe Stanza)
+        unless (stnz `isSubsequenceOf` concat currentOut) $
+          modifyIORef' out (\acc -> acc <> pure stnz)
+
+      -- output ``` and new lines then call transcriptFailure
+      dieWithMsg :: forall a. String -> IO a
+      dieWithMsg msg = do
+        output "\n```\n\n"
+        appendFailingStanza
+        transcriptFailure out $
+          Text.unlines
+            [ "\128721",
+              "",
+              "The transcript failed due to an error in the stanza above. The error is:",
+              "",
+              Text.pack msg
+            ]
+
+      dieUnexpectedSuccess :: IO ()
+      dieUnexpectedSuccess = do
+        errOk <- readIORef allowErrors
+        hasErr <- readIORef hasErrors
+        when (errOk && not hasErr) $ do
           output "\n```\n\n"
           appendFailingStanza
           transcriptFailure out $
             Text.unlines
               [ "\128721",
                 "",
-                "The transcript failed due to an error in the stanza above. The error is:",
-                "",
-                Text.pack msg
+                "The transcript was expecting an error in the stanza above, but did not encounter one."
               ]
 
-        dieUnexpectedSuccess :: IO ()
-        dieUnexpectedSuccess = do
-          errOk <- readIORef allowErrors
-          hasErr <- readIORef hasErrors
-          when (errOk && not hasErr) $ do
-            output "\n```\n\n"
-            appendFailingStanza
-            transcriptFailure out $
-              Text.unlines
-                [ "\128721",
-                  "",
-                  "The transcript was expecting an error in the stanza above, but did not encounter one."
-                ]
+  authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
-        loop state = do
-          writeIORef pathRef (view LoopState.currentPath state)
-          let free = runStateT (runMaybeT HandleInput.loop) state
-              rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
-          (o, state') <-
-            HandleCommand.commandLine
-              (fromMaybe Configurator.empty config)
-              awaitInput
-              (const $ pure ())
-              runtime
-              print
-              printNumbered
-              loadPreviousUnisonBlock
-              codebase
-              Nothing
-              rng
-              free
-          case o of
-            Nothing -> do
-              texts <- readIORef out
-              pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
-            Just () -> do
-              writeIORef numberedArgsRef (LoopState._numberedArgs state')
-              writeIORef rootBranchRef (LoopState._root state')
-              loop state'
-    loop (LoopState.loopState0 root initialPath)
+  let env =
+        Cli.Env
+          { authHTTPClient = authenticatedHTTPClient,
+            codebase,
+            config = fromMaybe Configurator.empty config,
+            credentialManager = credMan,
+            generateUniqueName = do
+              i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
+              pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
+            loadSource = loadPreviousUnisonBlock,
+            notify = print,
+            notifyNumbered = printNumbered,
+            runtime,
+            sandboxedRuntime = sbRuntime,
+            serverBaseUrl = Nothing,
+            ucmVersion
+          }
+
+  let loop :: Cli.LoopState -> IO Text
+      loop s0 = do
+        input <- awaitInput s0
+        Cli.runCli env s0 (HandleInput.loop input) >>= \case
+          (Cli.Success (), s1) -> do
+            let sNext = case input of
+                  Left _ -> s1
+                  Right inp -> s1 & #lastInput ?~ inp
+            loop sNext
+          (Cli.Continue, s1) -> do
+            let sNext = case input of
+                  Left _ -> s1
+                  Right inp -> s1 & #lastInput ?~ inp
+            loop sNext
+          (Cli.HaltRepl, _) -> do
+            texts <- readIORef out
+            pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
+
+  loop (Cli.loopState0 root initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do
@@ -436,31 +517,50 @@ ucmLine = ucmCommand <|> ucmComment
       line <- P.takeWhileP Nothing (/= '\n') <* spaces
       pure $ UcmComment line
 
+apiRequest :: P APIRequest
+apiRequest = do
+  apiComment <|> getRequest
+  where
+    getRequest = do
+      word "GET"
+      spaces
+      path <- P.takeWhile1P Nothing (/= '\n')
+      spaces
+      pure (GetRequest path)
+    apiComment = do
+      word "--"
+      comment <- P.takeWhileP Nothing (/= '\n')
+      spaces
+      pure (APIComment comment)
+
 fenced :: P Stanza
 fenced = do
   fence
-  fenceType <- lineToken (word "ucm" <|> word "unison" <|> language)
+  fenceType <- lineToken (word "ucm" <|> word "unison" <|> word "api" <|> language)
   stanza <-
-    if fenceType == "ucm"
-      then do
+    case fenceType of
+      "ucm" -> do
         hide <- hidden
         err <- expectingError
         _ <- spaces
         cmds <- many ucmLine
         pure $ Ucm hide err cmds
-      else
-        if fenceType == "unison"
-          then do
-            -- todo: this has to be more interesting
-            -- ```unison:hide
-            -- ```unison
-            -- ```unison:hide:all scratch.u
-            hide <- lineToken hidden
-            err <- lineToken expectingError
-            fileName <- optional untilSpace1
-            blob <- spaces *> untilFence
-            pure $ Unison hide err fileName blob
-          else UnprocessedFence fenceType <$> untilFence
+      "unison" ->
+        do
+          -- todo: this has to be more interesting
+          -- ```unison:hide
+          -- ```unison
+          -- ```unison:hide:all scratch.u
+          hide <- lineToken hidden
+          err <- lineToken expectingError
+          fileName <- optional untilSpace1
+          blob <- spaces *> untilFence
+          pure $ Unison hide err fileName blob
+      "api" -> do
+        _ <- spaces
+        apiRequests <- many apiRequest
+        pure $ API apiRequests
+      _ -> UnprocessedFence fenceType <$> untilFence
   fence
   pure stanza
 

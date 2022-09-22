@@ -15,7 +15,7 @@ type Abc = Abc
   
   Learn more about when to use `structural` vs `unique` in the
   Unison Docs:
-  https://www.unisonweb.org/docs/language-reference/#unique-types
+  https://www.unison-lang.org/learn/language-reference/unique-types/
 
 ```
 Abilities needs to be prefixed with either `unique` or `structural`:
@@ -33,7 +33,7 @@ ability MyAbility where const : a
   
   Learn more about when to use `structural` vs `unique` in the
   Unison Docs:
-  https://www.unisonweb.org/docs/language-reference/#unique-types
+  https://www.unison-lang.org/learn/language-reference/unique-types/
 
 ```
 There should be no errors when `unique` or `structural` is provided:

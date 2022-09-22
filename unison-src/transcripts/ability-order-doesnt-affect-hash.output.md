@@ -43,5 +43,7 @@ term2 _ = ()
   Term
   Hash:   #8hum58rlih
   Names:  term1 term2
+  
+  Tip: Use `names.global` to see more results.
 
 ```

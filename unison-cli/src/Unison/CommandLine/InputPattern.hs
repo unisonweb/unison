@@ -2,15 +2,26 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.CommandLine.InputPattern where
+module Unison.CommandLine.InputPattern
+  ( InputPattern (..),
+    ArgumentType (..),
+    argType,
+    IsOptional (..),
+    Visibility (..),
 
-import Data.Set (Set)
+    -- * Currently Unused
+    minArgs,
+    maxArgs,
+  )
+where
+
 import qualified System.Console.Haskeline as Line
+import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
-import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Path as Path
 import qualified Unison.CommandLine.Globbing as Globbing
+import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 
@@ -23,9 +34,13 @@ data IsOptional
   | OnePlus -- 1 or more, at the end
   deriving (Show, Eq)
 
+data Visibility = Hidden | Visible
+  deriving (Show, Eq, Ord)
+
 data InputPattern = InputPattern
   { patternName :: String,
     aliases :: [String],
+    visibility :: Visibility, -- Allow hiding certain commands when debugging or work-in-progress
     argTypes :: [(IsOptional, ArgumentType)],
     help :: P.Pretty CT.ColorText,
     parse :: [String] -> Either (P.Pretty CT.ColorText) Input
@@ -36,10 +51,10 @@ data ArgumentType = ArgumentType
     -- | Generate completion suggestions for this argument type
     suggestions ::
       forall m v a.
-      Monad m =>
+      MonadIO m =>
       String ->
       Codebase m v a ->
-      Branch m -> -- Root Branch
+      AuthenticatedHttpClient ->
       Path.Absolute -> -- Current path
       m [Line.Completion],
     -- | Select which targets glob patterns may expand into for this argument.
@@ -101,12 +116,3 @@ maxArgs ip@(fmap fst . argTypes -> args) = go args
           <> show (patternName ip)
           <> "): "
           <> show args
-
-noSuggestions ::
-  Monad m =>
-  String ->
-  Codebase m v a ->
-  Branch m ->
-  Path.Absolute ->
-  m [Line.Completion]
-noSuggestions _ _ _ _ = pure []

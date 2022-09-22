@@ -54,9 +54,10 @@ toName = \case
 sortByLength :: [HashQualified Name] -> [HashQualified Name]
 sortByLength hs = sortOn f hs
   where
-    f (NameOnly n) = (length (Name.reverseSegments n), 0, Left n)
-    f (HashQualified n _h) = (length (Name.reverseSegments n), 1, Left n)
-    f (HashOnly h) = (maxBound, 0, Right h)
+    f :: HashQualified Name -> (Int, Int)
+    f (NameOnly n) = (length (Name.reverseSegments n), 0)
+    f (HashQualified n _h) = (length (Name.reverseSegments n), 1)
+    f (HashOnly _h) = (maxBound, 0)
 
 hasName, hasHash :: HashQualified Name -> Bool
 hasName = isJust . toName
@@ -102,9 +103,10 @@ unsafeFromString s = fromMaybe msg . fromString $ s
 -- Doesn't validate against base58 or the codebase.
 fromText :: Text -> Maybe (HashQualified Name)
 fromText t = case Text.breakOn "#" t of -- breakOn leaves the '#' on the RHS
-  (name, "") -> Just $ NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
+  ("", "") -> Nothing
+  (name, "") -> NameOnly <$> (Name.fromText name)
   ("", hash) -> HashOnly <$> SH.fromText hash
-  (name, hash) -> HashQualified (Name.unsafeFromText name) <$> SH.fromText hash
+  (name, hash) -> HashQualified <$> Name.fromText name <*> SH.fromText hash
 
 -- Won't crash as long as SH.unsafeFromText doesn't crash on any input that
 -- starts with '#', which is true as of the time of this writing, but not great.

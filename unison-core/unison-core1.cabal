@@ -40,6 +40,7 @@ library
       Unison.Name
       Unison.Names
       Unison.Names.ResolutionResult
+      Unison.Names.Scoped
       Unison.NameSegment
       Unison.NamesWithHistory
       Unison.Pattern
@@ -56,12 +57,8 @@ library
       Unison.Util.Alphabetical
       Unison.Util.Components
       Unison.Util.List
-      Unison.Util.Monoid
       Unison.Var
-      Unison.Var.RefNamed
       Unison.WatchKind
-  other-modules:
-      Paths_unison_core1
   hs-source-dirs:
       src
   default-extensions:
@@ -102,10 +99,11 @@ library
     , safe
     , text
     , transformers
+    , unison-core
     , unison-prelude
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
-    , util
     , vector
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields

@@ -9,11 +9,11 @@ module Unison.Codebase.Branch
     Branch (..),
     UnwrappedBranch,
     Branch0 (..),
-    Raw (..),
+    Raw,
     Star,
-    Hash,
+    NamespaceHash,
+    CausalHash,
     EditHash,
-    pattern Hash,
 
     -- * Branch construction
     branch0,
@@ -41,8 +41,10 @@ module Unison.Codebase.Branch
     nonEmptyChildren,
     deepEdits',
     toList0,
+    namespaceStats,
 
     -- * step
+    step,
     stepManyAt,
     stepManyAtM,
     stepEverywhere,
@@ -88,12 +90,14 @@ import qualified Data.Map as Map
 import qualified Data.Semialign as Align
 import qualified Data.Set as Set
 import Data.These (These (..))
-import Unison.Codebase.Branch.Raw (Raw (Raw))
+import U.Codebase.Branch (NamespaceStats (..))
+import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0 (..),
+    CausalHash (..),
     EditHash,
-    Hash,
+    NamespaceHash,
     Star,
     UnwrappedBranch,
     edits,
@@ -166,6 +170,14 @@ nonEmptyChildren b =
   b
     & _children
     & Map.filter (not . isEmpty0 . head)
+
+namespaceStats :: Branch0 m -> NamespaceStats
+namespaceStats Branch0 {deepTerms, deepTypes, deepEdits} =
+  NamespaceStats
+    { numContainedTerms = Relation.size deepTerms,
+      numContainedTypes = Relation.size deepTypes,
+      numContainedPatches = Map.size deepEdits
+    }
 
 -- creates a Branch0 from the primary fields and derives the others.
 branch0 ::
@@ -307,8 +319,6 @@ discardHistory b =
 before :: Monad m => Branch m -> Branch m -> m Bool
 before (Branch b1) (Branch b2) = Causal.before b1 b2
 
-pattern Hash h = Causal.RawHash h
-
 -- | what does this do? —AI
 toList0 :: Branch0 m -> [(Path, Branch0 m)]
 toList0 = go Path.empty
@@ -373,7 +383,7 @@ step f = runIdentity . stepM (Identity . f)
 -- | Perform an update over the current branch and create a new causal step.
 stepM :: (Monad n, Applicative m) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepM f = \case
-  Branch (Causal.One _h e) | e == empty0 -> Branch . Causal.one <$> f empty0
+  Branch (Causal.One _h _eh e) | e == empty0 -> Branch . Causal.one <$> f empty0
   b -> mapMOf history (Causal.stepDistinctM f) b
 
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
@@ -393,12 +403,11 @@ uncons (Branch b) = go <$> Causal.uncons b
 stepManyAt ::
   forall m f.
   (Monad m, Foldable f) =>
-  UpdateStrategy ->
   f (Path, Branch0 m -> Branch0 m) ->
   Branch m ->
   Branch m
-stepManyAt strat actions startBranch =
-  runIdentity $ stepManyAtM strat actionsIdentity startBranch
+stepManyAt actions startBranch =
+  runIdentity $ stepManyAtM actionsIdentity startBranch
   where
     actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
     actionsIdentity = coerce (toList actions)
@@ -427,20 +436,12 @@ data UpdateStrategy
 -- History is managed according to the 'UpdateStrategy'
 stepManyAtM ::
   (Monad m, Monad n, Foldable f) =>
-  UpdateStrategy ->
   f (Path, Branch0 m -> n (Branch0 m)) ->
   Branch m ->
   n (Branch m)
-stepManyAtM strat actions startBranch =
-  case strat of
-    AllowRewritingHistory -> steppedUpdates
-    CompressHistory -> squashedUpdates
-  where
-    steppedUpdates = do
-      stepM (batchUpdatesM actions) startBranch
-    squashedUpdates = do
-      updatedBranch <- startBranch & head_ %%~ batchUpdatesM actions
-      pure $ updatedBranch `consBranchSnapshot` startBranch
+stepManyAtM actions startBranch = do
+  updatedBranch <- startBranch & head_ %%~ batchUpdatesM actions
+  pure $ updatedBranch `consBranchSnapshot` startBranch
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere ::
@@ -643,8 +644,8 @@ transform f b = case _history b of
     transformB0s ::
       Functor m =>
       (forall a. m a -> n a) ->
-      Causal m Raw (Branch0 m) ->
-      Causal m Raw (Branch0 n)
+      Causal m (Branch0 m) ->
+      Causal m (Branch0 n)
     transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
 
 -- | Traverse the head branch of all direct children.

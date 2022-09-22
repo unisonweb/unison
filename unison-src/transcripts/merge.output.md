@@ -99,19 +99,11 @@ foo.z = +28348
 
 .P2> delete.namespace baz
 
-  Removed definitions:
-  
-    1. x : Nat
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .P2> delete.namespace quux
 
-  Removed definitions:
-  
-    1. x : Nat
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .P2> find
 

@@ -13,7 +13,7 @@ import qualified Unison.ABT as ABT
 import Unison.ABT.Normalized (Term (TAbs))
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.Pattern as P
-import Unison.Reference (Reference)
+import Unison.Reference (Reference(Builtin))
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.MCode (RefNums (..), emitCombs)
 import qualified Unison.Term as Term
@@ -53,9 +53,9 @@ testLift :: String -> Test ()
 testLift s = case cs of !_ -> ok
   where
     cs =
-      emitCombs (RN (const 0) (const 0)) 0
+      emitCombs (RN (const 0) (const 0)) (Builtin "Test") 0
         . superNormalize
-        . fst
+        . (\(ll, _, _) -> ll)
         . lamLift
         $ tm s
 
@@ -120,14 +120,14 @@ denormalizeMatch ::
 denormalizeMatch b
   | MatchEmpty <- b = []
   | MatchIntegral m df <- b =
-      (dcase (ipat Ty.intRef) <$> mapToList m) ++ dfcase df
+      (dcase (ipat @Word64 @Integer Ty.intRef) <$> mapToList m) ++ dfcase df
   | MatchText m df <- b =
-      (dcase (const $ P.Text () . Util.Text.toText) <$> Map.toList m) ++ dfcase df
+      (dcase (const @_ @Integer $ P.Text () . Util.Text.toText) <$> Map.toList m) ++ dfcase df
   | MatchData r cs Nothing <- b,
     [(0, ([UN], zb))] <- mapToList cs,
     TAbs i (TMatch j (MatchIntegral m df)) <- zb,
     i == j =
-      (dcase (ipat r) <$> mapToList m) ++ dfcase df
+      (dcase (ipat @Word64 @Integer r) <$> mapToList m) ++ dfcase df
   | MatchData r m df <- b =
       (dcase (dpat r) . fmap snd <$> mapToList m) ++ dfcase df
   | MatchRequest hs df <- b = denormalizeHandler hs df
@@ -141,6 +141,7 @@ denormalizeMatch b
       where
         (n, dbr) = denormalizeBranch br
 
+    ipat :: Integral a => Reference -> p -> a -> P.Pattern ()
     ipat r _ i
       | r == Ty.natRef = P.Nat () $ fromIntegral i
       | otherwise = P.Int () $ fromIntegral i
@@ -170,7 +171,7 @@ denormalizeHandler cs df = dcs
           db
       ]
       where
-        (_, db) = denormalizeBranch df
+        (_, db) = denormalizeBranch @Int df
     rf r rcs = foldMapWithKey (cf r) rcs
     cf r t b =
       [ Term.MatchCase

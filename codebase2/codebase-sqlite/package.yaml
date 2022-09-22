@@ -1,36 +1,17 @@
 name: unison-codebase-sqlite
 github: unisonweb/unison
 
-default-extensions:
-  - ApplicativeDo
-  - BangPatterns
-  - BlockArguments
-  - ConstraintKinds
-  - DeriveFunctor
-  - DerivingStrategies
-  - DoAndIfThenElse
-  - FlexibleContexts
-  - FlexibleInstances
-  - FunctionalDependencies
-  - GeneralizedNewtypeDeriving
-  - InstanceSigs
-  - LambdaCase
-  - MultiParamTypeClasses
-  - NamedFieldPuns
-  - PatternSynonyms
-  - ScopedTypeVariables
-  - TupleSections
-  - TypeApplications
-  - TypeFamilies
-  - TypeFamilyDependencies
-
 library:
+  when:
+    - condition: false
+      other-modules: Paths_unison_codebase_sqlite
   source-dirs: .
 
 extra-source-files:
   - sql/*
 
 dependencies:
+  - Only
   - base
   - bytes
   - bytestring
@@ -41,16 +22,54 @@ dependencies:
   - generic-lens
   - monad-validate
   - mtl
+  - nonempty-containers
   - safe
-  - sqlite-simple
   - text
   - transformers
-  - unliftio
-  - vector
   - unison-codebase
   - unison-codebase-sync
   - unison-core
   - unison-prelude
+  - unison-sqlite
   - unison-util
+  - unison-util-base32hex
+  - unison-util-base32hex-orphans-sqlite
   - unison-util-serialization
   - unison-util-term
+  - unliftio
+  - vector
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - ConstraintKinds
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveFoldable
+  - DeriveTraversable
+  - DeriveGeneric
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - FunctionalDependencies
+  - GeneralizedNewtypeDeriving
+  - InstanceSigs
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - QuasiQuotes
+  - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - TypeFamilyDependencies
+  - TypeOperators
+  - ViewPatterns

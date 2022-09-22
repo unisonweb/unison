@@ -15,11 +15,7 @@ Deleting a namespace with no external dependencies should succeed.
 ```ucm
 .> delete.namespace no_dependencies
 
-  Removed definitions:
-  
-    1. thing : Text
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 ```
 Deleting a namespace with external dependencies should fail and list all dependents.
@@ -48,12 +44,7 @@ Deleting a namespace with external dependencies should succeed when using `delet
 ```ucm
 .> delete.namespace.force dependencies
 
-  Removed definitions:
-  
-    1. term1 : Nat
-    2. term2 : Nat
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
   ⚠️
   

@@ -32,7 +32,7 @@ test =
           b1 <- BS.pack <$> replicateM n word8
           b2 <- BS.pack <$> replicateM m word8
           b3 <- BS.pack <$> replicateM o word8
-          let [b1s, b2s, b3s] = Bytes.fromArray <$> [b1, b2, b3]
+          let (b1s, b2s, b3s) = (Bytes.fromArray b1, Bytes.fromArray b2, Bytes.fromArray b3)
           scope "associtivity" . expect' $
             b1s <> (b2s <> b3s) == (b1s <> b2s) <> b3s
           scope "<>" . expect' $

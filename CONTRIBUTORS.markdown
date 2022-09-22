@@ -6,12 +6,12 @@ All contributions to Unison are licensed in the same way: the MIT license. See t
 
 ### Contributors
 
-The format for this list: name, GitHub handle, and then optional blurb about what areas of Unison you've worked on.
+The format for this list: name, GitHub handle
 
-* Paul Chiusano (@pchiusano) - I've worked on just about all aspects of Unison: overall design, typechecker, runtime, parser...
-* Arya Irani (@aryairani) - Ditto
-* Rúnar Bjarnason (@runarorama) - Typechecker, runtime, parser, code serialization
-* Chris Gibbs (@atacratic) - Pretty-printer
+* Paul Chiusano (@pchiusano)
+* Arya Irani (@aryairani)
+* Rúnar Bjarnason (@runarorama)
+* Chris Gibbs (@atacratic)
 * Noah Haasis (@noahhaasis)
 * Francis De Brabandere (@francisdb)
 * Matt Dziuban (@mrdziuban)
@@ -45,8 +45,8 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Cody Allen (@ceedubs)
 * Ludvig Sundström (@lsund)
 * Mohamed Elsharnouby (@sharno)
-* Jared Forsyth (@jaredly) - Documentation generation
-* Hakim Cassimally (@osfameron) - vim support
+* Jared Forsyth (@jaredly)
+* Hakim Cassimally (@osfameron)
 * Will Badart (@wbadart)
 * Sam Roberts (@samgqroberts)
 * Nigel Farrelly (@nini-faroux)
@@ -67,3 +67,8 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Nicole Prindle (@nprindle)
 * Harald Gliebe (@hagl)
 * Phil de Joux (@philderbeast)
+* Travis Staton (@tstat)
+* Dan Freeman (@dfreeman)
+* Emil Hotkowski (@emilhotkowski)
+* Jesse Looney (@jesselooney)
+* Vlad Posmangiu Luchian (@cstml)

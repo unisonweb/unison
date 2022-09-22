@@ -7,7 +7,7 @@
 -- See the excellent documentation at https://hackage.haskell.org/package/optparse-applicative
 module ArgParse where
 
-import Control.Applicative (Alternative (many, (<|>)), Applicative (liftA2), optional, (<**>))
+import Control.Applicative (Alternative (many, (<|>)), Applicative (liftA2), optional)
 import Data.Foldable (Foldable (fold))
 import Data.Functor ((<&>))
 import qualified Data.List as List
@@ -34,6 +34,7 @@ import Options.Applicative
     helper,
     hsubparser,
     info,
+    infoOption,
     long,
     metavar,
     option,
@@ -86,6 +87,9 @@ data CodebasePathOption
   | DontCreateCodebaseWhenMissing FilePath
   deriving (Show, Eq)
 
+data ShouldExit = Exit | DoNotExit
+  deriving (Show, Eq)
+
 data IsHeadless = Headless | WithCLI
   deriving (Show, Eq)
 
@@ -104,7 +108,8 @@ data Command
 
 -- | Options shared by sufficiently many subcommands.
 data GlobalOptions = GlobalOptions
-  { codebasePathOption :: Maybe CodebasePathOption
+  { codebasePathOption :: Maybe CodebasePathOption,
+    exitOption :: ShouldExit
   }
   deriving (Show, Eq)
 
@@ -112,7 +117,7 @@ data GlobalOptions = GlobalOptions
 rootParserInfo :: String -> String -> CodebaseServerOpts -> ParserInfo (GlobalOptions, Command)
 rootParserInfo progName version envOpts =
   info
-    ((,) <$> globalOptionsParser <*> commandParser envOpts <**> helper)
+    (helper <*> versionOptionParser progName version <*> ((,) <$> globalOptionsParser <*> commandParser envOpts))
     ( fullDesc
         <> headerDoc (Just $ unisonHelp progName version)
     )
@@ -241,9 +246,12 @@ commandParser envOpts =
 globalOptionsParser :: Parser GlobalOptions
 globalOptionsParser = do
   -- ApplicativeDo
-  codebasePathOption <- codebasePathParser <|> codebaseCreateParser
+  codebasePathOption <- codebasePathParser <|> codebaseCreateParser 
+  exitOption <- exitParser
 
-  pure GlobalOptions {codebasePathOption = codebasePathOption}
+  pure GlobalOptions {codebasePathOption = codebasePathOption,
+    exitOption = exitOption
+  }
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
 codebasePathParser = do
@@ -264,6 +272,15 @@ codebaseCreateParser = do
         <> metavar "CODEBASE/PATH"
         <> help "The path to a new or existing codebase (one will be created if there isn't one)"
   pure (fmap CreateCodebaseWhenMissing path)
+
+exitParser :: Parser ShouldExit
+exitParser = flag DoNotExit Exit (long "exit" <> help exitHelp)
+  where
+    exitHelp = "Exit repl after the command."
+
+versionOptionParser :: String -> String -> Parser (a -> a)
+versionOptionParser progName version =
+  infoOption (progName <> " version: " <> version) (short 'v' <> long "version" <> help "Show version")
 
 launchHeadlessCommand :: CodebaseServerOpts -> Mod CommandFields Command
 launchHeadlessCommand envOpts =

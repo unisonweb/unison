@@ -1,21 +1,40 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Editor.SlurpResult where
+module Unison.Codebase.Editor.SlurpResult
+  ( -- * Slurp result
+    SlurpResult (..),
+    Aliases (..),
 
+    -- ** Predicates
+    isOk,
+    isAllDuplicates,
+    hasAddsOrUpdates,
+
+    -- ** Filtering a Unison file
+    filterUnisonFile,
+
+    -- ** Pretty-printing
+    pretty,
+
+    -- * Definion status
+    Status (..),
+    prettyStatus,
+  )
+where
+
+import Data.Bifunctor (second)
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.TypePrinter as TP
+import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.TypePrinter as TP
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import Unison.Var (Var)
@@ -47,9 +66,6 @@ data SlurpResult v = SlurpResult
     -- in the branch with a different definition.
     -- I.e. an update is required but we're performing an add.
     collisions :: SlurpComponent v,
-    -- Not added to codebase due to the name existing
-    -- in the branch with a conflict (two or more definitions).
-    conflicts :: SlurpComponent v,
     -- Names that already exist in the branch, but whose definitions
     -- in `originalFile` are treated as updates.
     updates :: SlurpComponent v,
@@ -78,28 +94,17 @@ data Status
   | Update
   | Duplicate
   | Collision
-  | Conflicted
   | TermExistingConstructorCollision
   | ConstructorExistingTermCollision
   | ExtraDefinition
   | BlockedDependency
   deriving (Ord, Eq, Show)
 
-isFailure :: Status -> Bool
-isFailure s = case s of
-  TermExistingConstructorCollision -> True
-  ConstructorExistingTermCollision -> True
-  BlockedDependency -> True
-  Collision -> True
-  Conflicted -> True
-  _ -> False
-
 prettyStatus :: Status -> P.Pretty P.ColorText
 prettyStatus s = case s of
   Add -> "added"
   Update -> "updated"
   Collision -> "needs update"
-  Conflicted -> "conflicted"
   Duplicate -> "duplicate"
   TermExistingConstructorCollision -> "term/ctor collision"
   ConstructorExistingTermCollision -> "ctor/term collision"
@@ -236,11 +241,8 @@ pretty isPast ppe sr =
                 )
             typeMsgs =
               P.column2 $
-                (typeLineFor Conflicted <$> toList (types (conflicts sr)))
-                  ++ (typeLineFor Collision <$> toList (types (collisions sr)))
-                  ++ ( typeLineFor BlockedDependency
-                         <$> toList (types (defsWithBlockedDependencies sr))
-                     )
+                (typeLineFor Collision <$> toList (types (collisions sr)))
+                  ++ (typeLineFor BlockedDependency <$> toList (types (defsWithBlockedDependencies sr)))
             termLineFor status v = case Map.lookup v tms of
               Just (_ref, _wk, _tm, ty) ->
                 ( prettyStatus status,
@@ -250,8 +252,7 @@ pretty isPast ppe sr =
               Nothing -> (prettyStatus status, P.text (Var.name v), "")
             termMsgs =
               P.column3sep "  " $
-                (termLineFor Conflicted <$> toList (terms (conflicts sr)))
-                  ++ (termLineFor Collision <$> toList (terms (collisions sr)))
+                (termLineFor Collision <$> toList (terms (collisions sr)))
                   ++ ( termLineFor TermExistingConstructorCollision
                          <$> toList (termExistingConstructorCollisions sr)
                      )
@@ -305,7 +306,6 @@ pretty isPast ppe sr =
 isOk :: Ord v => SlurpResult v -> Bool
 isOk SlurpResult {..} =
   SC.isEmpty collisions
-    && SC.isEmpty conflicts
     && Set.null termExistingConstructorCollisions
     && Set.null constructorExistingTermCollisions
     && SC.isEmpty defsWithBlockedDependencies
@@ -316,7 +316,6 @@ isAllDuplicates SlurpResult {..} =
     && emptyIgnoringConstructors updates
     && emptyIgnoringConstructors extraDefinitions
     && SC.isEmpty collisions
-    && SC.isEmpty conflicts
     && Map.null typeAlias
     && Map.null termAlias
     && Set.null termExistingConstructorCollisions
@@ -327,45 +326,28 @@ isAllDuplicates SlurpResult {..} =
     emptyIgnoringConstructors SlurpComponent {types, terms} =
       null types && null terms
 
--- stack repl
---
--- λ> import Unison.Util.Pretty
--- λ> import Unison.Codebase.Editor.SlurpResult
--- λ> putStrLn $ toANSI 80 ex
-ex :: P.Pretty P.ColorText
-ex =
-  P.indentN 2 $
-    P.lines
-      [ "",
-        P.green "▣ I've added these definitions: ",
-        "",
-        P.indentN 2 . P.column2 $ [("a", "Nat"), ("map", "(a -> b) -> [a] -> [b]")],
-        "",
-        P.green "▣ I've updated these definitions: ",
-        "",
-        P.indentN 2 . P.column2 $ [("c", "Nat"), ("flatMap", "(a -> [b]) -> [a] -> [b]")],
-        "",
-        P.wrap $ P.red "x" <> P.bold "These definitions couldn't be added:",
-        "",
-        P.indentN 2 $
-          P.lines
-            [ P.column2
-                [ ( P.hiBlack
-                      "Reason for failure    Symbol ",
-                    P.hiBlack "Type"
-                  ),
-                  ("ctor/term collision   foo ", "Nat"),
-                  ("failed dependency     zoot ", "[a] -> [a] -> [a]"),
-                  ("term/ctor collision   unique type Foo ", "f x")
-                ],
-              "",
-              "Tip: use `help filestatus` to learn more."
-            ],
-        "",
-        "⊡ Ignoring previously added definitions: "
-          <> P.indentNAfterNewline
-            2
-            ( P.hiBlack (P.wrap $ P.sep " " ["zonk", "anotherOne", "List.wrangle", "oatbag", "blarg", "mcgee", P.group "ability Woot"])
-            ),
-        ""
-      ]
+filterUnisonFile ::
+  Ord v =>
+  SlurpResult v ->
+  UF.TypecheckedUnisonFile v Ann ->
+  UF.TypecheckedUnisonFile v Ann
+filterUnisonFile
+  SlurpResult {adds, updates}
+  ( UF.TypecheckedUnisonFileId
+      dataDeclarations'
+      effectDeclarations'
+      topLevelComponents'
+      watchComponents
+      hashTerms
+    ) =
+    UF.TypecheckedUnisonFileId datas effects tlcs watches hashTerms'
+    where
+      keep = updates <> adds
+      keepTerms = SC.terms keep
+      keepTypes = SC.types keep
+      hashTerms' = Map.restrictKeys hashTerms keepTerms
+      datas = Map.restrictKeys dataDeclarations' keepTypes
+      effects = Map.restrictKeys effectDeclarations' keepTypes
+      tlcs = filter (not . null) $ fmap (List.filter filterTLC) topLevelComponents'
+      watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
+      filterTLC (v, _, _) = Set.member v keepTerms

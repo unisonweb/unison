@@ -60,11 +60,10 @@ Cause a conflict:
        merge.
 
 ```
-Ideally we could just define the canonical `x` that we want, and update 
-to accept it, but we can't:
+Updating conflicted definitions works fine, and the associated patch contains two entries.
 
 ```unison
-x = 1 + 2
+x = 3
 ```
 
 ```ucm
@@ -73,24 +72,27 @@ x = 1 + 2
   do an `add` or `update`, here's how your codebase would
   change:
   
-    x These definitions would fail on `add` or `update`:
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
     
-      Reason
-      conflicted   x   : Nat
-    
-      Tip: Use `help filestatus` to learn more.
+      x : Nat
 
 ```
-Update fails on conflicted `x`:
-
 ```ucm
 .merged> update
 
-  x These definitions failed:
+  ⍟ I've updated these names to your new definition:
   
-    Reason
-    conflicted   x   : Nat
+    x : Nat
+
+.merged> view.patch
+
+  Edited Terms:
+    1. b.x -> 3. x
+    2. a.x -> 4. x
   
-    Tip: Use `help filestatus` to learn more.
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
 
 ```

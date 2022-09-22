@@ -13,11 +13,12 @@ import qualified Unison.Codebase.Path as Path
 test :: Test ()
 test =
   scope "versionparser" . tests . fmap makeTest $
-    [ ("release/M1j", "releases._M1j"),
-      ("release/M1j.2", "releases._M1j_2"),
-      ("latest-abc", "trunk"),
-      ("release/M2i_3", "releases._M2i_3"),
-      ("release/M2i-HOTFIX", "releases._M2i_HOTFIX")
+    [ ("latest-abc", "main"),
+      ("dev/M4", "main"), -- or should this be "releases.M4"?
+      ("dev/M4-1-g22ccb0b3b", "main"), -- and should this also be "releases.m4"?
+      ("release/M4", "releases.M4"),
+      ("release/M2i_3", "releases.M2i_3"),
+      ("release/M2i-HOTFIX", "releases.M2i_HOTFIX")
     ]
 
 makeTest :: (Text, Text) -> Test ()
@@ -26,9 +27,10 @@ makeTest (version, path) =
     expectEqual
       (rightMay $ runParser defaultBaseLib "versionparser" version)
       ( Just
-          -- We've hard-coded the v3 branch for base for now. See 'defaultBaseLib'
-          ( ReadGitRepo "https://github.com/unisonweb/base" (Just "v3"),
-            Nothing,
-            Path.fromText path
+          ( ReadShareRemoteNamespace
+              { server = DefaultCodeserver,
+                repo = "unison",
+                path = Path.fromList ["public", "base"] <> Path.fromText path
+              }
           )
       )

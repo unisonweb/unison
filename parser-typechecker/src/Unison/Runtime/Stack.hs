@@ -17,6 +17,7 @@ module Unison.Runtime.Stack
     Off,
     SZ,
     FP,
+    frameDataSize,
     marshalToForeign,
     unull,
     bnull,
@@ -44,7 +45,8 @@ where
 
 import Control.Monad (when)
 import Control.Monad.Primitive
-import Data.Foldable as F (for_, toList)
+import Data.Foldable as F (for_)
+import qualified Data.Kind as Kind
 import Data.Primitive.Array
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
@@ -73,6 +75,8 @@ data K
     CB Callback
   | -- mark continuation with a prompt
     Mark
+      !Int -- pending unboxed args
+      !Int -- pending boxed args
       !(EnumSet Word64)
       !(EnumMap Word64 Closure)
       !K
@@ -99,7 +103,8 @@ data Closure
   | DataB2 !Reference !Word64 !Closure !Closure
   | DataUB !Reference !Word64 !Int !Closure
   | DataG !Reference !Word64 !(Seg 'UN) !(Seg 'BX)
-  | Captured !K {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
+  | -- code cont, u/b arg size, u/b data stacks
+    Captured !K !Int !Int {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
   | Foreign !Foreign
   | BlackHole
   deriving (Show, Eq, Ord)
@@ -111,17 +116,33 @@ splitData (DataU2 r t i j) = Just (r, t, [i, j], [])
 splitData (DataB1 r t x) = Just (r, t, [], [x])
 splitData (DataB2 r t x y) = Just (r, t, [], [x, y])
 splitData (DataUB r t i y) = Just (r, t, [i], [y])
-splitData (DataG r t us bs) = Just (r, t, ints us, reverse $ F.toList bs)
+splitData (DataG r t us bs) = Just (r, t, ints us, bsegToList bs)
 splitData _ = Nothing
 
+-- | Converts an unboxed segment to a list of integers for a more interchangeable
+-- representation. The segments are stored in backwards order, so this reverses
+-- the contents.
 ints :: ByteArray -> [Int]
 ints ba = fmap (indexByteArray ba) [n - 1, n - 2 .. 0]
   where
     n = sizeofByteArray ba `div` 8
 
+-- | Converts a list of integers representing an unboxed segment back into the
+-- appropriate segment. Segments are stored backwards in the runtime, so this
+-- reverses the list.
 useg :: [Int] -> Seg 'UN
 useg ws = case L.fromList $ reverse ws of
   PrimArray ba -> ByteArray ba
+
+-- | Converts a boxed segment to a list of closures. The segments are stored
+-- backwards, so this reverses the contents.
+bsegToList :: Seg 'BX -> [Closure]
+bsegToList = reverse . L.toList
+
+-- | Converts a list of closures back to a boxed segment. Segments are stored
+-- backwards, so this reverses the contents.
+bseg :: [Closure] -> Seg 'BX
+bseg = L.fromList . reverse
 
 formData :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
 formData r t [] [] = Enum r t
@@ -130,7 +151,15 @@ formData r t [i, j] [] = DataU2 r t i j
 formData r t [] [x] = DataB1 r t x
 formData r t [] [x, y] = DataB2 r t x y
 formData r t [i] [x] = DataUB r t i x
-formData r t us bs = DataG r t (useg us) (L.fromList $ reverse bs)
+formData r t us bs = DataG r t (useg us) (bseg bs)
+
+frameDataSize :: K -> (Int, Int)
+frameDataSize = go 0 0
+  where
+    go usz bsz KE = (usz, bsz)
+    go usz bsz (CB _) = (usz, bsz)
+    go usz bsz (Mark ua ba _ _ k) = go (usz + ua) (bsz + ba) k
+    go usz bsz (Push uf bf ua ba _ k) = go (usz + uf + ua) (bsz + bf + ba) k
 
 pattern DataC :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
 pattern DataC rf ct us bs <-
@@ -140,15 +169,15 @@ pattern DataC rf ct us bs <-
 
 pattern PApV :: CombIx -> [Int] -> [Closure] -> Closure
 pattern PApV ic us bs <-
-  PAp ic (ints -> us) (L.toList -> bs)
+  PAp ic (ints -> us) (bsegToList -> bs)
   where
-    PApV ic us bs = PAp ic (useg us) (L.fromList bs)
+    PApV ic us bs = PAp ic (useg us) (bseg bs)
 
-pattern CapV :: K -> [Int] -> [Closure] -> Closure
-pattern CapV k us bs <-
-  Captured k (ints -> us) (L.toList -> bs)
+pattern CapV :: K -> Int -> Int -> [Int] -> [Closure] -> Closure
+pattern CapV k ua ba us bs <-
+  Captured k ua ba (ints -> us) (bsegToList -> bs)
   where
-    CapV k us bs = Captured k (useg us) (L.fromList bs)
+    CapV k ua ba us bs = Captured k ua ba (useg us) (bseg bs)
 
 {-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole #-}
 
@@ -201,7 +230,7 @@ uargOnto stk sp cop cp0 (ArgN v) = do
         | i < 0 = return ()
         | otherwise = do
             (x :: Int) <- readByteArray stk (sp - indexPrimArray v i)
-            writeByteArray buf (sz - 1 - i) x
+            writeByteArray buf (boff - i) x
             loop $ i - 1
   loop $ sz - 1
   when overwrite $
@@ -211,6 +240,7 @@ uargOnto stk sp cop cp0 (ArgN v) = do
     cp = cp0 + sz
     sz = sizeofPrimArray v
     overwrite = sameMutableByteArray stk cop
+    boff | overwrite = sz - 1 | otherwise = cp0 + sz
 uargOnto stk sp cop cp0 (ArgR i l) = do
   moveByteArray cop cbp stk sbp (bytes l)
   pure $ cp0 + l
@@ -242,9 +272,10 @@ bargOnto stk sp cop cp0 (ArgN v) = do
         | i < 0 = return ()
         | otherwise = do
             x <- readArray stk $ sp - indexPrimArray v i
-            writeArray buf (sz - 1 - i) x
+            writeArray buf (boff - i) x
             loop $ i - 1
   loop $ sz - 1
+
   when overwrite $
     copyMutableArray cop (cp0 + 1) buf 0 sz
   pure cp
@@ -252,29 +283,30 @@ bargOnto stk sp cop cp0 (ArgN v) = do
     cp = cp0 + sz
     sz = sizeofPrimArray v
     overwrite = stk == cop
+    boff | overwrite = sz - 1 | otherwise = cp0 + sz
 bargOnto stk sp cop cp0 (ArgR i l) = do
   copyMutableArray cop (cp0 + 1) stk (sp - i - l + 1) l
   pure $ cp0 + l
 
-data Dump = A | F Int | S
+data Dump = A | F Int Int | S
 
 dumpAP :: Int -> Int -> Int -> Dump -> Int
-dumpAP _ fp sz d@(F _) = dumpFP fp sz d
+dumpAP _ fp sz d@(F _ a) = dumpFP fp sz d - a
 dumpAP ap _ _ _ = ap
 
 dumpFP :: Int -> Int -> Dump -> Int
 dumpFP fp _ S = fp
 dumpFP fp sz A = fp + sz
-dumpFP fp sz (F n) = fp + sz - n
+dumpFP fp sz (F n _) = fp + sz - n
 
 -- closure augmentation mode
 -- instruction, kontinuation, call
 data Augment = I | K | C
 
 class MEM (b :: Mem) where
-  data Stack b :: *
-  type Elem b :: *
-  type Seg b :: *
+  data Stack b :: Kind.Type
+  type Elem b :: Kind.Type
+  type Seg b :: Kind.Type
   alloc :: IO (Stack b)
   peek :: Stack b -> IO (Elem b)
   peekOff :: Stack b -> Off -> IO (Elem b)
@@ -287,12 +319,14 @@ class MEM (b :: Mem) where
   duplicate :: Stack b -> IO (Stack b)
   discardFrame :: Stack b -> IO (Stack b)
   saveFrame :: Stack b -> IO (Stack b, SZ, SZ)
+  saveArgs :: Stack b -> IO (Stack b, SZ)
   restoreFrame :: Stack b -> SZ -> SZ -> IO (Stack b)
   prepareArgs :: Stack b -> Args' -> IO (Stack b)
   acceptArgs :: Stack b -> Int -> IO (Stack b)
   frameArgs :: Stack b -> IO (Stack b)
   augSeg :: Augment -> Stack b -> Seg b -> Maybe Args' -> IO (Seg b)
   dumpSeg :: Stack b -> Seg b -> Dump -> IO (Stack b)
+  adjustArgs :: Stack b -> SZ -> IO (Stack b)
   fsize :: Stack b -> SZ
   asize :: Stack b -> SZ
 
@@ -364,6 +398,9 @@ instance MEM 'UN where
   saveFrame (US ap fp sp stk) = pure (US sp sp sp stk, sp - fp, fp - ap)
   {-# INLINE saveFrame #-}
 
+  saveArgs (US ap fp sp stk) = pure (US fp fp sp stk, fp - ap)
+  {-# INLINE saveArgs #-}
+
   restoreFrame (US _ fp0 sp stk) fsz asz = pure $ US ap fp sp stk
     where
       fp = fp0 - fsz
@@ -415,6 +452,9 @@ instance MEM 'UN where
       fp' = dumpFP fp sz mode
       ap' = dumpAP ap fp sz mode
   {-# INLINE dumpSeg #-}
+
+  adjustArgs (US ap fp sp stk) sz = pure $ US (ap - sz) fp sp stk
+  {-# INLINE adjustArgs #-}
 
   fsize (US _ fp sp _) = sp - fp
   {-# INLINE fsize #-}
@@ -502,9 +542,10 @@ instance Show K where
     where
       go _ KE = "]"
       go _ (CB _) = "]"
-      go com (Push uf bf ua ba _ k) =
-        com ++ show (uf, bf, ua, ba) ++ go "," k
-      go com (Mark ps _ k) = com ++ "M" ++ show ps ++ go "," k
+      go com (Push uf bf ua ba ci k) =
+        com ++ show (uf, bf, ua, ba, ci) ++ go "," k
+      go com (Mark ua ba ps _ k) =
+        com ++ "M " ++ show ua ++ " " ++ show ba ++ " " ++ show ps ++ go "," k
 
 instance MEM 'BX where
   data Stack 'BX = BS
@@ -569,6 +610,9 @@ instance MEM 'BX where
   saveFrame (BS ap fp sp stk) = pure (BS sp sp sp stk, sp - fp, fp - ap)
   {-# INLINE saveFrame #-}
 
+  saveArgs (BS ap fp sp stk) = pure (BS fp fp sp stk, fp - ap)
+  {-# INLINE saveArgs #-}
+
   restoreFrame (BS _ fp0 sp stk) fsz asz = pure $ BS ap fp sp stk
     where
       fp = fp0 - fsz
@@ -618,6 +662,9 @@ instance MEM 'BX where
       ap' = dumpAP ap fp sz mode
   {-# INLINE dumpSeg #-}
 
+  adjustArgs (BS ap fp sp stk) sz = pure $ BS (ap - sz) fp sp stk
+  {-# INLINE adjustArgs #-}
+
   fsize (BS _ fp sp _) = sp - fp
   {-# INLINE fsize #-}
 
@@ -655,7 +702,7 @@ closureTermRefs f (DataB2 _ _ c1 c2) =
   closureTermRefs f c1 <> closureTermRefs f c2
 closureTermRefs f (DataUB _ _ _ c) =
   closureTermRefs f c
-closureTermRefs f (Captured k _ cs) =
+closureTermRefs f (Captured k _ _ _ cs) =
   contTermRefs f k <> foldMap (closureTermRefs f) cs
 closureTermRefs f (Foreign fo)
   | Just (cs :: Seq Closure) <- maybeUnwrapForeign Ty.listRef fo =
@@ -663,7 +710,7 @@ closureTermRefs f (Foreign fo)
 closureTermRefs _ _ = mempty
 
 contTermRefs :: Monoid m => (Reference -> m) -> K -> m
-contTermRefs f (Mark _ m k) =
+contTermRefs f (Mark _ _ _ m k) =
   foldMap (closureTermRefs f) m <> contTermRefs f k
 contTermRefs f (Push _ _ _ _ (CIx r _ _) k) =
   f r <> contTermRefs f k

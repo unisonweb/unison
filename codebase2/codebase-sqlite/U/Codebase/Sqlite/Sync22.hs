@@ -9,23 +9,22 @@
 
 module U.Codebase.Sqlite.Sync22 where
 
-import Control.Monad.Except (ExceptT, MonadError (throwError))
-import qualified Control.Monad.Except as Except
-import Control.Monad.RWS (MonadReader)
-import Control.Monad.Reader (ReaderT)
-import qualified Control.Monad.Reader as Reader
+import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.Validate (ValidateT, runValidateT)
 import qualified Control.Monad.Validate as Validate
 import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
-import Data.Bytes.Get (getWord8, runGetS)
-import Data.Bytes.Put (putWord8, runPutS)
+import Data.Bytes.Get (runGetS)
+import Data.Bytes.Put (runPutS)
 import Data.List.Extra (nubOrd)
 import qualified Data.Set as Set
+import qualified Data.Vector as Vector
+import Data.Void (Void)
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
-import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId
+import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import U.Codebase.Sqlite.HashHandle (HashHandle)
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Format as PL
@@ -35,20 +34,20 @@ import qualified U.Codebase.Sqlite.Reference as Sqlite.Reference
 import qualified U.Codebase.Sqlite.Referent as Sqlite.Referent
 import qualified U.Codebase.Sqlite.Serialization as S
 import qualified U.Codebase.Sqlite.Term.Format as TL
+import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Codebase.Sync (Sync (Sync), TrySyncResult)
 import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
 import Unison.Prelude
+import Unison.Sqlite (Transaction)
 
 data Entity
   = O ObjectId
   | C CausalHashId
   | W WK.WatchKind Sqlite.Reference.IdH
   deriving (Eq, Ord, Show)
-
-data DbTag = SrcDb | DestDb
 
 data DecodeError
   = ErrTermComponent
@@ -61,20 +60,27 @@ data DecodeError
 type ErrString = String
 
 data Error
-  = DbIntegrity Q.Integrity
-  | DecodeError DecodeError ByteString ErrString
+  = DecodeError DecodeError ByteString ErrString
   | -- | hashes corresponding to a single object in source codebase
     --  correspond to multiple objects in destination codebase
     HashObjectCorrespondence ObjectId [HashId] [HashId] [ObjectId]
   | SourceDbNotExist
   deriving (Show)
 
-data Env = Env
-  { srcDB :: Connection,
-    destDB :: Connection,
+data Env m = Env
+  { runSrc :: forall a. Transaction a -> m a,
+    runDest :: forall a. Transaction a -> m a,
     -- | there are three caches of this size
     idCacheSize :: Word
   }
+
+hoistEnv :: (forall x. m x -> n x) -> Env m -> Env n
+hoistEnv f Env {runSrc, runDest, idCacheSize} =
+  Env
+    { runSrc = f . runSrc,
+      runDest = f . runDest,
+      idCacheSize
+    }
 
 debug :: Bool
 debug = False
@@ -82,28 +88,31 @@ debug = False
 -- data Mappings
 sync22 ::
   ( MonadIO m,
-    MonadError Error m,
-    MonadReader Env m
+    MonadError Error m
   ) =>
-  m (Sync m Entity)
-sync22 = do
-  size <- Reader.reader idCacheSize
+  HashHandle ->
+  Env m ->
+  IO (Sync m Entity)
+sync22 hh Env {runSrc, runDest, idCacheSize = size} = do
   tCache <- Cache.semispaceCache size
   hCache <- Cache.semispaceCache size
   oCache <- Cache.semispaceCache size
   cCache <- Cache.semispaceCache size
-  pure $ Sync (trySync tCache hCache oCache cCache)
+  pure $ Sync (trySync hh runSrc runDest tCache hCache oCache cCache)
 
 trySync ::
   forall m.
-  (MonadIO m, MonadError Error m, MonadReader Env m) =>
+  (MonadIO m, MonadError Error m) =>
+  HashHandle ->
+  (forall a. Transaction a -> m a) ->
+  (forall a. Transaction a -> m a) ->
   Cache TextId TextId ->
   Cache HashId HashId ->
   Cache ObjectId ObjectId ->
   Cache CausalHashId CausalHashId ->
   Entity ->
   m (TrySyncResult Entity)
-trySync tCache hCache oCache cCache = \case
+trySync hh runSrc runDest tCache hCache oCache cCache = \case
   -- for causals, we need to get the value_hash_id of the thingo
   -- - maybe enqueue their parents
   -- - enqueue the self_ and value_ hashes
@@ -113,16 +122,14 @@ trySync tCache hCache oCache cCache = \case
       Just {} -> pure Sync.PreviouslyDone
       Nothing -> do
         result <- runValidateT @(Set Entity) @m @() do
-          bhId <- runSrc $ Q.loadCausalValueHashId chId
-          mayBoId <- runSrc . Q.maybeObjectIdForAnyHashId $ unBranchHashId bhId
+          bhId <- lift . runSrc $ Q.expectCausalValueHashId chId
+          mayBoId <- lift . runSrc . Q.loadObjectIdForAnyHashId $ unBranchHashId bhId
           traverse_ syncLocalObjectId mayBoId
 
           parents' :: [CausalHashId] <- findParents' chId
           bhId' <- lift $ syncBranchHashId bhId
           chId' <- lift $ syncCausalHashId chId
-          runDest do
-            Q.saveCausal chId' bhId'
-            Q.saveCausalParents chId' parents'
+          lift (runDest (Q.saveCausal hh chId' bhId' parents'))
 
         case result of
           Left deps -> pure . Sync.Missing $ toList deps
@@ -134,96 +141,98 @@ trySync tCache hCache oCache cCache = \case
     isSyncedObject oId >>= \case
       Just {} -> pure Sync.PreviouslyDone
       Nothing -> do
-        (hId, objType, bytes) <- runSrc $ Q.loadObjectWithHashIdAndTypeById oId
+        (hId, objType, bytes) <- runSrc $ Q.expectObjectWithHashIdAndType oId
         hId' <- syncHashLiteral hId
         result <- runValidateT @(Set Entity) @m @ObjectId case objType of
           OT.TermComponent -> do
             -- split up the localIds (parsed), term, and type blobs
-            -- note: this whole business with `fmt` is pretty weird, and will need to be
-            -- revisited when there are more formats.
-            -- (or maybe i'll learn something by implementing sync for patches and namespaces,
-            -- which have two formats already)
-            (fmt, unzip -> (localIds, bytes)) <-
-              lift case flip runGetS bytes do
-                tag <- getWord8
-                component <- S.decomposeComponent
-                pure (tag, component) of
-                Right x -> pure x
-                Left s -> throwError $ DecodeError ErrTermComponent bytes s
-            -- iterate through the local ids looking for missing deps;
-            -- then either enqueue the missing deps, or proceed to move the object
-            when debug $ traceM $ "LocalIds for Source " ++ show oId ++ ": " ++ show localIds
-            localIds' <- traverse syncLocalIds localIds
-            when debug $ traceM $ "LocalIds for Dest: " ++ show localIds'
-            -- reassemble and save the reindexed term
-            let bytes' =
-                  runPutS $
-                    putWord8 fmt >> S.recomposeComponent (zip localIds' bytes)
-            oId' <- runDest $ Q.saveObject hId' objType bytes'
-            lift do
-              -- copy reference-specific stuff
-              for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-                let ref = Reference.Id oId idx
-                    refH = Reference.Id hId idx
-                    ref' = Reference.Id oId' idx
-                -- sync watch results
-                for_ [WK.TestWatch] \wk ->
-                  syncWatch wk refH
-                syncDependenciesIndex ref ref'
-              syncTypeIndex oId oId'
-              syncTypeMentionsIndex oId oId'
-            pure oId'
+            case flip runGetS bytes S.decomposeTermFormat of
+              Left s -> throwError $ DecodeError ErrTermComponent bytes s
+              Right
+                ( TermFormat.SyncTerm
+                    ( TermFormat.SyncLocallyIndexedComponent
+                        (Vector.unzip -> (localIds, bytes))
+                      )
+                  ) -> do
+                  -- iterate through the local ids looking for missing deps;
+                  -- then either enqueue the missing deps, or proceed to move the object
+                  when debug $ traceM $ "LocalIds for Source " ++ show oId ++ ": " ++ show localIds
+                  localIds' <- traverse syncLocalIds localIds
+                  when debug $ traceM $ "LocalIds for Dest: " ++ show localIds'
+                  -- reassemble and save the reindexed term
+                  let bytes' =
+                        runPutS
+                          . S.recomposeTermFormat
+                          . TermFormat.SyncTerm
+                          . TermFormat.SyncLocallyIndexedComponent
+                          $ Vector.zip localIds' bytes
+                  lift do
+                    oId' <- runDest $ Q.saveObject hh hId' objType bytes'
+                    -- copy reference-specific stuff
+                    for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+                      let ref = Reference.Id oId idx
+                          refH = Reference.Id hId idx
+                          ref' = Reference.Id oId' idx
+                      -- sync watch results
+                      for_ [WK.TestWatch] \wk ->
+                        syncWatch wk refH
+                      syncDependenciesIndex ref ref'
+                    syncTypeIndex oId oId'
+                    syncTypeMentionsIndex oId oId'
+                    pure oId'
           OT.DeclComponent -> do
             -- split up the localIds (parsed), decl blobs
-            (fmt, unzip -> (localIds, declBytes)) <-
-              case flip runGetS bytes do
-                tag <- getWord8
-                component <- S.decomposeComponent
-                pure (tag, component) of
-                Right x -> pure x
-                Left s -> throwError $ DecodeError ErrDeclComponent bytes s
-            -- iterate through the local ids looking for missing deps;
-            -- then either enqueue the missing deps, or proceed to move the object
-            localIds' <- traverse syncLocalIds localIds
-            -- reassemble and save the reindexed term
-            let bytes' =
-                  runPutS $
-                    putWord8 fmt
-                      >> S.recomposeComponent (zip localIds' declBytes)
-            oId' <- runDest $ Q.saveObject hId' objType bytes'
-            lift do
-              -- copy per-element-of-the-component stuff
-              for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-                let ref = Reference.Id oId idx
-                    ref' = Reference.Id oId' idx
-                syncDependenciesIndex ref ref'
-              syncTypeIndex oId oId'
-              syncTypeMentionsIndex oId oId'
-            pure oId'
+            case flip runGetS bytes S.decomposeDeclFormat of
+              Left s -> throwError $ DecodeError ErrDeclComponent bytes s
+              Right
+                ( DeclFormat.SyncDecl
+                    ( DeclFormat.SyncLocallyIndexedComponent
+                        (Vector.unzip -> (localIds, declBytes))
+                      )
+                  ) -> do
+                  -- iterate through the local ids looking for missing deps;
+                  -- then either enqueue the missing deps, or proceed to move the object
+                  localIds' <- traverse syncLocalIds localIds
+                  -- reassemble and save the reindexed term
+                  let bytes' =
+                        runPutS . S.recomposeDeclFormat
+                          . DeclFormat.SyncDecl
+                          . DeclFormat.SyncLocallyIndexedComponent
+                          $ Vector.zip localIds' declBytes
+                  lift do
+                    oId' <- runDest $ Q.saveObject hh hId' objType bytes'
+                    -- copy per-element-of-the-component stuff
+                    for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+                      let ref = Reference.Id oId idx
+                          ref' = Reference.Id oId' idx
+                      syncDependenciesIndex ref ref'
+                    syncTypeIndex oId oId'
+                    syncTypeMentionsIndex oId oId'
+                    pure oId'
           OT.Namespace -> case flip runGetS bytes S.decomposeBranchFormat of
             Right (BL.SyncFull ids body) -> do
               ids' <- syncBranchLocalIds ids
               let bytes' = runPutS $ S.recomposeBranchFormat (BL.SyncFull ids' body)
-              oId' <- runDest $ Q.saveObject hId' objType bytes'
+              oId' <- lift . runDest $ Q.saveObject hh hId' objType bytes'
               pure oId'
             Right (BL.SyncDiff boId ids body) -> do
               boId' <- syncBranchObjectId boId
               ids' <- syncBranchLocalIds ids
               let bytes' = runPutS $ S.recomposeBranchFormat (BL.SyncDiff boId' ids' body)
-              oId' <- runDest $ Q.saveObject hId' objType bytes'
+              oId' <- lift . runDest $ Q.saveObject hh hId' objType bytes'
               pure oId'
             Left s -> throwError $ DecodeError ErrBranchFormat bytes s
           OT.Patch -> case flip runGetS bytes S.decomposePatchFormat of
             Right (PL.SyncFull ids body) -> do
               ids' <- syncPatchLocalIds ids
               let bytes' = runPutS $ S.recomposePatchFormat (PL.SyncFull ids' body)
-              oId' <- runDest $ Q.saveObject hId' objType bytes'
+              oId' <- lift . runDest $ Q.saveObject hh hId' objType bytes'
               pure oId'
             Right (PL.SyncDiff poId ids body) -> do
               poId' <- syncPatchObjectId poId
               ids' <- syncPatchLocalIds ids
               let bytes' = runPutS $ S.recomposePatchFormat (PL.SyncDiff poId' ids' body)
-              oId' <- runDest $ Q.saveObject hId' objType bytes'
+              oId' <- lift . runDest $ Q.saveObject hh hId' objType bytes'
               pure oId'
             Left s -> throwError $ DecodeError ErrPatchFormat bytes s
         case result of
@@ -271,12 +280,6 @@ trySync tCache hCache oCache cCache = \case
       oIds' <- traverse syncLocalObjectId oIds
       tIds' <- lift $ traverse syncTextLiteral tIds
       hIds' <- lift $ traverse syncHashLiteral hIds
-
-      -- workaround for requiring components to compute component lengths for references.
-      -- this line requires objects in the destination for any hashes referenced in the source,
-      -- (making those objects dependencies of this patch).  See Sync21.filter{Term,Type}Edit
-      traverse_ syncLocalObjectId =<< traverse (runSrc . Q.expectObjectIdForAnyHashId) hIds
-
       pure $ PL.LocalIds tIds' hIds' oIds'
 
     syncBranchLocalIds :: BL.BranchLocalIds -> ValidateT (Set Entity) m BL.BranchLocalIds
@@ -316,14 +319,14 @@ trySync tCache hCache oCache cCache = \case
 
     syncTextLiteral :: TextId -> m TextId
     syncTextLiteral = Cache.apply tCache \tId -> do
-      t <- runSrc $ Q.loadTextById tId
+      t <- runSrc $ Q.expectText tId
       tId' <- runDest $ Q.saveText t
       when debug $ traceM $ "Source " ++ show tId ++ " is Dest " ++ show tId' ++ " (" ++ show t ++ ")"
       pure tId'
 
     syncHashLiteral :: HashId -> m HashId
     syncHashLiteral = Cache.apply hCache \hId -> do
-      b32hex <- runSrc $ Q.loadHashById hId
+      b32hex <- runSrc $ Q.expectHash32 hId
       hId' <- runDest $ Q.saveHash b32hex
       when debug $ traceM $ "Source " ++ show hId ++ " is Dest " ++ show hId' ++ " (" ++ show b32hex ++ ")"
       pure hId'
@@ -357,7 +360,7 @@ trySync tCache hCache oCache cCache = \case
 
     findParents' :: CausalHashId -> ValidateT (Set Entity) m [CausalHashId]
     findParents' chId = do
-      srcParents <- runSrc $ Q.loadCausalParents chId
+      srcParents <- lift . runSrc $ Q.loadCausalParents chId
       traverse syncCausal srcParents
 
     -- Sync any watches of the given kinds to the dest if and only if watches of those kinds
@@ -365,7 +368,7 @@ trySync tCache hCache oCache cCache = \case
     syncWatch :: WK.WatchKind -> Sqlite.Reference.IdH -> m (TrySyncResult Entity)
     syncWatch wk r | debug && trace ("Sync22.syncWatch " ++ show wk ++ " " ++ show r) False = undefined
     syncWatch wk r = do
-      runSrc (Q.loadWatch wk r) >>= \case
+      runSrc (Q.loadWatch wk r (Right :: ByteString -> Either Void ByteString)) >>= \case
         Nothing -> pure Sync.Done
         Just blob -> do
           r' <- traverse syncHashLiteral r
@@ -391,10 +394,10 @@ trySync tCache hCache oCache cCache = \case
 
     isSyncedObject :: ObjectId -> m (Maybe ObjectId)
     isSyncedObject = Cache.applyDefined oCache \oId -> do
-      hIds <- toList <$> runSrc (Q.hashIdsForObject oId)
+      hIds <- toList <$> runSrc (Q.expectHashIdsForObject oId)
       hIds' <- traverse syncHashLiteral hIds
       ( nubOrd . catMaybes
-          <$> traverse (runDest . Q.maybeObjectIdForAnyHashId) hIds'
+          <$> traverse (runDest . Q.loadObjectIdForAnyHashId) hIds'
         )
         >>= \case
           [oId'] -> do
@@ -411,18 +414,3 @@ trySync tCache hCache oCache cCache = \case
         (runDest $ Q.isCausalHash hId')
         (pure . Just $ CausalHashId hId')
         (pure Nothing)
-
-runSrc,
-  runDest ::
-    (MonadError Error m, MonadReader Env m) =>
-    ReaderT Connection (ExceptT Q.Integrity m) a ->
-    m a
-runSrc ma = Reader.reader srcDB >>= flip runDB ma
-runDest ma = Reader.reader destDB >>= flip runDB ma
-
-runDB ::
-  MonadError Error m => Connection -> ReaderT Connection (ExceptT Q.Integrity m) a -> m a
-runDB conn action =
-  Except.runExceptT (Reader.runReaderT action conn) >>= \case
-    Left e -> throwError (DbIntegrity e)
-    Right a -> pure a

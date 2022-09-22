@@ -36,10 +36,12 @@ module Unison.Reference
     toId,
     fromId,
     toText,
+    idToText,
     unsafeId,
     toShortHash,
     idToHash,
     idToShortHash,
+    isBuiltin,
   )
 where
 
@@ -76,7 +78,11 @@ pattern Derived h i = DerivedId (Id h i)
 _DerivedId :: Prism' Reference Id
 _DerivedId = _Ctor @"DerivedId"
 
--- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
+isBuiltin :: Reference -> Bool
+isBuiltin (Builtin _) = True
+isBuiltin _ = False
+
+-- | @Pos@ is a position into a cycle, as cycles are hashed together.
 data Id = Id H.Hash Pos deriving (Eq, Ord)
 
 -- | A term reference.
@@ -138,6 +144,9 @@ isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
 toText :: Reference -> Text
 toText = SH.toText . toShortHash
 
+idToText :: Id -> Text
+idToText = toText . DerivedId
+
 showShort :: Int -> Reference -> Text
 showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash
 
@@ -149,7 +158,7 @@ type CycleSize = Word64
 
 -- enumerate the `a`s and associates them with corresponding `Reference.Id`s
 componentFor :: H.Hash -> [a] -> [(Id, a)]
-componentFor h as = [(Id h i, a) | (fromIntegral -> i, a) <- zip [0 ..] as]
+componentFor h as = [(Id h i, a) | (i, a) <- zip [0 ..] as]
 
 componentFromLength :: H.Hash -> CycleSize -> Set Id
 componentFromLength h size = Set.fromList [Id h i | i <- [0 .. size - 1]]

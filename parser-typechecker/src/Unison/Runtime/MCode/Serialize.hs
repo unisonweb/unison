@@ -110,6 +110,7 @@ data InstrT
   | ForkT
   | AtomicallyT
   | SeqT
+  | TryForceT
 
 instance Tag InstrT where
   tag2word UPrim1T = 0
@@ -129,6 +130,7 @@ instance Tag InstrT where
   tag2word ForkT = 14
   tag2word AtomicallyT = 15
   tag2word SeqT = 16
+  tag2word TryForceT = 17
 
   word2tag 0 = pure UPrim1T
   word2tag 1 = pure UPrim2T
@@ -147,6 +149,7 @@ instance Tag InstrT where
   word2tag 14 = pure ForkT
   word2tag 15 = pure AtomicallyT
   word2tag 16 = pure SeqT
+  word2tag 17 = pure TryForceT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: MonadPut m => Instr -> m ()
@@ -184,6 +187,8 @@ putInstr (Atomically i) =
   putTag AtomicallyT *> pInt i
 putInstr (Seq a) =
   putTag SeqT *> putArgs a
+putInstr (TryForce i) =
+  putTag TryForceT *> pInt i
 
 getInstr :: MonadGet m => m Instr
 getInstr =
@@ -205,6 +210,7 @@ getInstr =
     ForkT -> Fork <$> gInt
     AtomicallyT -> Atomically <$> gInt
     SeqT -> Seq <$> getArgs
+    TryForceT -> TryForce <$> gInt
 
 data ArgsT
   = ZArgsT

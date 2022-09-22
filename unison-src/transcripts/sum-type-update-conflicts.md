@@ -3,7 +3,7 @@
 https://github.com/unisonweb/unison/issues/2786
 
 ```ucm:hide
-.builtins> builtins.mergeio
+.> builtins.mergeio
 ```
 
 First we add a sum-type to the codebase.
@@ -14,6 +14,7 @@ structural type X = x
 
 ```ucm
 .ns> add
+.> cd .
 ```
 
 Now we update the type, changing the name of the constructors, _but_, we simultaneously

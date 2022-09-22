@@ -8,9 +8,7 @@ module Unison.Codebase.Editor.Output
     HistoryTail (..),
     TestReportStats (..),
     UndoFailureReason (..),
-    PushPull (..),
-    ReflogEntry (..),
-    pushPull,
+    ShareError (..),
     isFailure,
     isNumberedFailure,
   )
@@ -19,21 +17,27 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
-import Unison.Codebase (GetRootBranchError)
+import Data.Time (UTCTime)
+import Network.URI (URI)
+import qualified System.Console.Haskeline as Completion
+import Unison.Auth.Types (CredentialFailure)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
+import Unison.Codebase.Editor.Output.PushPull (PushPull)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.TodoOutput as TO
+import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path')
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.InputPattern as Input
 import Unison.DataDeclaration (Decl)
@@ -45,7 +49,6 @@ import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as Names
-import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -55,7 +58,10 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResult' (SearchResult')
+import qualified Unison.Share.Sync.Types as Sync
 import Unison.ShortHash (ShortHash)
+import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Typechecker.Context as Context
@@ -72,28 +78,21 @@ type NumberedArgs = [String]
 
 type HashLength = Int
 
-data PushPull = Push | Pull deriving (Eq, Ord, Show)
-
-pushPull :: a -> a -> PushPull -> a
-pushPull push pull p = case p of
-  Push -> push
-  Pull -> pull
-
-data NumberedOutput v
-  = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterMerge Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+data NumberedOutput
+  = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMerge Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
-    ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+    ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
-    TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
+    TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput Symbol Ann)
   | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
@@ -104,13 +103,13 @@ data NumberedOutput v
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(Branch.Hash, Names.Diff)]
+      [(Branch.CausalHash, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
   | ListEdits Patch PPE.PrettyPrintEnv
 
 --  | ShowDiff
 
-data Output v
+data Output
   = -- Generic Success response; we might consider deleting this.
     Success
   | -- User did `add` or `update` before typechecking a file?
@@ -120,20 +119,21 @@ data Output v
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
-    NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
+    NoMainFunction String PPE.PrettyPrintEnv [Type Symbol Ann]
   | -- Main function found, but has improper type
-    BadMainFunction String (Type v Ann) PPE.PrettyPrintEnv [Type v Ann]
+    BadMainFunction String (Type Symbol Ann) PPE.PrettyPrintEnv [Type Symbol Ann]
   | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
+  | FindNoLocalMatches
   | PatchAlreadyExists Path.Split'
   | NoExactTypeMatches
   | TypeAlreadyExists Path.Split' (Set Reference)
-  | TypeParseError String (Parser.Err v)
-  | ParseResolutionFailures String [Names.ResolutionFailure v Ann]
-  | TypeHasFreeVars (Type v Ann)
+  | TypeParseError String (Parser.Err Symbol)
+  | ParseResolutionFailures String [Names.ResolutionFailure Symbol Ann]
+  | TypeHasFreeVars (Type Symbol Ann)
   | TermAlreadyExists Path.Split' (Set Referent)
   | LabeledReferenceAmbiguous Int (HQ.HashQualified Name) (Set LabeledDependency)
   | LabeledReferenceNotFound (HQ.HashQualified Name)
@@ -141,7 +141,9 @@ data Output v
   | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
+  | BadNamespace String String
   | BranchNotFound Path'
+  | EmptyPush Path'
   | NameNotFound Path.HQSplit'
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
@@ -149,47 +151,64 @@ data Output v
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
   | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
+  | NoLastRunResult
+  | SaveTermNameConflict Name
   | SearchTermsNotFound [HQ.HashQualified Name]
+  | -- Like 'SearchTermsNotFound' but additionally contains term hits
+    -- if we are searching for types or type hits if we are searching
+    -- for terms. This additional info is used to provide an enhanced
+    -- error message.
+    SearchTermsNotFoundDetailed
+      Bool
+      -- ^ @True@ if we are searching for a term, @False@ if we are searching for a type
+      [HQ.HashQualified Name]
+      -- ^ Misses (search terms that returned no hits for terms or types)
+      [HQ.HashQualified Name]
+      -- ^ Hits for types if we are searching for terms or terms if we are searching for types
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
     -- the path is deleted.
     DeleteBranchConfirmation
-      [(Path', (Names, [SearchResult' v Ann]))]
+      [(Path', (Names, [SearchResult' Symbol Ann]))]
   | DeleteEverythingConfirmation
+  | MoveRootBranchConfirmation
+  | MovedOverExistingBranch Path'
   | DeletedEverything
   | ListNames
+      IsGlobal
       Int -- hq length to print References
       [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
       [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
       -- list of all the definitions within this branch
-  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
-  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type v Ann))]
-  | ListShallow PPE.PrettyPrintEnv [ShallowListEntry v Ann]
+  | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
+  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
+  | ListShallow PPE.PrettyPrintEnv [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
   | -- show the result of add/update
-    SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
+    SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult Symbol)
   | -- Original source, followed by the errors:
-    ParseErrors Text [Parser.Err v]
-  | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
-  | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug v Ann]
+    ParseErrors Text [Parser.Err Symbol]
+  | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote Symbol Ann]
+  | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure Runtime.Error
   | Evaluated
       SourceFileContents
       PPE.PrettyPrintEnv
-      [(v, Term v ())]
-      (Map v (Ann, WK.WatchKind, Term v (), Runtime.IsCacheHit))
-  | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
+      [(Symbol, Term Symbol ())]
+      (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
+  | RunResult PPE.PrettyPrintEnv (Term Symbol ())
+  | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult Symbol) (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
     DisplayDefinitions
       (Maybe FilePath)
       PPE.PrettyPrintEnvDecl
-      (Map Reference (DisplayObject () (Decl v Ann)))
-      (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
-  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term v Ann)
-  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term v Ann)
+      (Map Reference (DisplayObject () (Decl Symbol Ann)))
+      (Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)))
+  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
+  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
   | TestResults
       TestReportStats
       PPE.PrettyPrintEnv
@@ -203,9 +222,11 @@ data Output v
     -- and a nicer render.
     BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
+  | ShareError ShareError
+  | ViewOnShare WriteShareRemotePath
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
-  | NoConfiguredGitUrl PushPull Path'
-  | ConfiguredGitUrlParseError PushPull Path' Text String
+  | NoConfiguredRemoteMapping PushPull Path.Absolute
+  | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
@@ -215,7 +236,7 @@ data Output v
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)
   | StartOfCurrentPathHistory
-  | ShowReflog [ReflogEntry]
+  | ShowReflog [(Maybe UTCTime, SBH.ShortBranchHash, Text)]
   | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | PullSuccessful ReadRemoteNamespace Path'
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
@@ -235,27 +256,37 @@ data Output v
       Path.Absolute -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
-  | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
+  | DumpBitBooster Branch.CausalHash (Map Branch.CausalHash [Branch.CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
-  | BadRootBranch GetRootBranchError
-  | CouldntLoadBranch Branch.Hash
+  | CouldntLoadBranch Branch.CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-    RefusedToPush PushBehavior
-  | -- | @GistCreated repo hash@ means causal @hash@ was just published to @repo@.
-    GistCreated Int WriteRepo Branch.Hash
+    RefusedToPush PushBehavior WriteRemotePath
+  | -- | @GistCreated repo@ means a causal was just published to @repo@.
+    GistCreated ReadRemoteNamespace
+  | -- | Directs the user to URI to begin an authorization flow.
+    InitiateAuthFlow URI
+  | UnknownCodeServer Text
+  | CredentialFailureMsg CredentialFailure
+  | PrintVersion Text
+  | IntegrityCheck IntegrityResult
+  | DisplayDebugCompletions [Completion.Completion]
 
-data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
-  deriving (Show)
+data ShareError
+  = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
+  | ShareErrorFastForwardPush Sync.FastForwardPushError
+  | ShareErrorPull Sync.PullError
+  | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
+  | ShareErrorTransport Sync.CodeserverTransportError
 
 data HistoryTail
-  = EndOfLog Branch.Hash
-  | MergeTail Branch.Hash [Branch.Hash]
-  | PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex
+  = EndOfLog Branch.CausalHash
+  | MergeTail Branch.CausalHash [Branch.CausalHash]
+  | PageEnd Branch.CausalHash Int -- PageEnd nextHash nextIndex
   deriving (Show)
 
 data TestReportStats
@@ -275,11 +306,13 @@ data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving (Show)
 
 type SourceFileContents = Text
 
-isFailure :: Ord v => Output v -> Bool
+isFailure :: Output -> Bool
 isFailure o = case o of
+  NoLastRunResult {} -> True
+  SaveTermNameConflict {} -> True
+  RunResult {} -> False
   Success {} -> False
   PrintMessage {} -> False
-  BadRootBranch {} -> True
   CouldntLoadBranch {} -> True
   NoUnisonFile {} -> True
   InvalidSourceName {} -> True
@@ -288,9 +321,11 @@ isFailure o = case o of
   BadMainFunction {} -> True
   CreatedNewBranch {} -> False
   BranchAlreadyExists {} -> True
+  FindNoLocalMatches {} -> True
   PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True
+  EmptyPush {} -> True
   BranchNotEmpty {} -> True
   TypeAlreadyExists {} -> True
   TypeParseError {} -> True
@@ -303,6 +338,7 @@ isFailure o = case o of
   TermAmbiguous {} -> True
   BranchHashAmbiguous {} -> True
   BadName {} -> True
+  BadNamespace {} -> True
   BranchNotFound {} -> True
   NameNotFound {} -> True
   PatchNotFound {} -> True
@@ -312,12 +348,15 @@ isFailure o = case o of
   TermNotFound' {} -> True
   TypeTermMismatch {} -> True
   SearchTermsNotFound ts -> not (null ts)
+  SearchTermsNotFoundDetailed _ misses otherHits -> not (null misses && null otherHits)
   DeleteBranchConfirmation {} -> False
   DeleteEverythingConfirmation -> False
+  MoveRootBranchConfirmation -> False
+  MovedOverExistingBranch {} -> False
   DeletedEverything -> False
-  ListNames _ tys tms -> null tms && null tys
+  ListNames _ _ tys tms -> null tms && null tys
   ListOfLinks _ ds -> null ds
-  ListOfDefinitions _ _ ds -> null ds
+  ListOfDefinitions _ _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors {} -> True
@@ -336,8 +375,8 @@ isFailure o = case o of
   GitError {} -> True
   BustedBuiltins {} -> True
   ConfiguredMetadataParseError {} -> True
-  NoConfiguredGitUrl {} -> True
-  ConfiguredGitUrlParseError {} -> True
+  NoConfiguredRemoteMapping {} -> True
+  ConfiguredRemoteMappingParseError {} -> True
   MetadataMissingType {} -> True
   MetadataAmbiguous {} -> True
   PatchNeedsToBeConflictFree {} -> True
@@ -370,8 +409,19 @@ isFailure o = case o of
   NamespaceEmpty {} -> True
   RefusedToPush {} -> True
   GistCreated {} -> False
+  InitiateAuthFlow {} -> False
+  UnknownCodeServer {} -> True
+  CredentialFailureMsg {} -> True
+  PrintVersion {} -> False
+  IntegrityCheck r ->
+    case r of
+      NoIntegrityErrors -> False
+      IntegrityErrorDetected {} -> True
+  ShareError {} -> True
+  ViewOnShare {} -> False
+  DisplayDebugCompletions {} -> False
 
-isNumberedFailure :: NumberedOutput v -> Bool
+isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
   ShowDiffNamespace {} -> False
   ShowDiffAfterDeleteDefinitions {} -> False

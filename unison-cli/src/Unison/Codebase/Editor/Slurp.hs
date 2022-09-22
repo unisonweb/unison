@@ -5,10 +5,9 @@ module Unison.Codebase.Editor.Slurp
 where
 
 import Control.Lens
+import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
-import qualified Data.Semialign as Align
 import qualified Data.Set as Set
-import Data.These
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import qualified Unison.Codebase.Editor.SlurpResult as SR
@@ -52,61 +51,46 @@ untagged (TypeVar v) = v
 untagged (ConstructorVar v) = v
 
 -- | A definition's status with relation to the codebase.
-data SlurpOk
-  = New
-  | Updated
-  | Duplicated
-  deriving (Eq, Ord, Show)
-
--- | Possible error conditions for a definition.
-data SlurpErr
-  = -- | A term in the scratch file conflicts with a Ctor in the codebase
-    TermCtorCollision
-  | -- | A constructor in the scratch file conflicts with a term in the codebase
-    CtorTermCollision
-  | -- | The name of this term is conflicted in the codebase.
-    Conflict
-  deriving (Eq, Ord, Show)
-
--- | Possible statuses for a given definition
 data DefnStatus
-  = DefOk SlurpOk
-  | DefErr SlurpErr
+  = -- | A constructor in the scratch file conflicts with a term in the codebase
+    CtorTermCollision
+  | Duplicated
+  | New
+  | -- | A term in the scratch file conflicts with a Ctor in the codebase
+    TermCtorCollision
+  | -- | The name of the term is already in the codebase (maybe more than once, i.e. conflicted)
+    Updated
   deriving (Eq, Ord, Show)
 
--- | A definition's final status, incorporating the statuses of all of its dependencies.
-data SummarizedStatus v
-  = SelfStatus DefnStatus
-  | -- Dependency Status
-    DepStatus (TaggedVar v) DefnStatus
-  deriving (Eq, Ord, Show)
+-- | A coarser, totally-ordered variant of a defnintion's status, which summarizes its own status and the statuses of
+-- all of its transitive dependencies.
+--
+-- For example, if any transitive dependency of a defnition requires an `update`, then so does the definition itself,
+-- even if it's new (and thus ok to `add`).
+--
+-- Note: these must be defined in descending severity order, per @mostSevereDepStatus@!
+data DepStatus
+  = -- | Part of a term/ctor or ctor/term collision: neither `add` nor `update` ok
+    DepCollision
+  | -- | Requires an update: `add` not ok, `update` ok
+    DepNeedsUpdate
+  | -- | `add` or `update` both ok
+    DepOk
+  deriving stock (Eq, Ord, Show)
 
--- | Ideally we would display all available information about each var to the end-user,
--- but for now we simply pick the "most important" issue to maintain backwards compatibility
--- with current behaviour.
-pickPriorityStatus :: SummarizedStatus v -> SummarizedStatus v -> SummarizedStatus v
-pickPriorityStatus a b =
-  case (a, b) of
-    -- If the definition has its own error, that takes highest priority.
-    (SelfStatus (DefErr err), _) -> SelfStatus (DefErr err)
-    (_, SelfStatus (DefErr err)) -> SelfStatus (DefErr err)
-    -- Next we care if a dependency has an error
-    (DepStatus v (DefErr err), _) -> DepStatus v (DefErr err)
-    (_, DepStatus v (DefErr err)) -> DepStatus v (DefErr err)
-    -- If our definition needs its own update then we don't care if dependencies need updates.
-    (SelfStatus (DefOk Updated), _) -> SelfStatus (DefOk Updated)
-    (_, SelfStatus (DefOk Updated)) -> SelfStatus (DefOk Updated)
-    (DepStatus v (DefOk Updated), _) -> DepStatus v (DefOk Updated)
-    (_, DepStatus v (DefOk Updated)) -> DepStatus v (DefOk Updated)
-    -- Any other 'ok' dependency status doesn't meaningfully affect anything the summary.
-    (DepStatus _ (DefOk _), x) -> x
-    (x, DepStatus _ (DefOk _)) -> x
-    -- 'New' definitions take precedence over duplicated dependencies when reporting status.
-    -- E.g. if a definition has dependencies which are duplicated, but it is itself a new
-    -- definition, we report it as New.
-    (SelfStatus (DefOk New), _) -> SelfStatus (DefOk New)
-    (_, SelfStatus (DefOk New)) -> SelfStatus (DefOk New)
-    (SelfStatus (DefOk Duplicated), _) -> SelfStatus (DefOk Duplicated)
+-- | Classify a definition status into a coarser dependency status.
+defnStatusToDepStatus :: DefnStatus -> DepStatus
+defnStatusToDepStatus = \case
+  CtorTermCollision -> DepCollision
+  Duplicated -> DepOk
+  New -> DepOk
+  TermCtorCollision -> DepCollision
+  Updated -> DepNeedsUpdate
+
+-- | DepCollision more severe than DepNeedsUpdate more severe than DepOk
+mostSevereDepStatus :: DepStatus -> DepStatus -> DepStatus
+mostSevereDepStatus =
+  min
 
 -- | Analyze a file and determine the status of all of its definitions with respect to a set
 -- of vars to analyze and an operation you wish to perform.
@@ -130,8 +114,8 @@ slurpFile uf defsToConsider slurpOp unalteredCodebaseNames =
       -- 2. An in-file transitive dependency (within the file) of a var specified by the end-user.
       involvedVars :: Set (TaggedVar v)
       involvedVars = computeInvolvedVars uf defsToConsider varReferences
-      -- The set of names after removing any constructors which would removed by the requested
-      -- operation.
+      -- The set of names after removing any constructors which would
+      -- be removed by the requested operation.
       codebaseNames :: Names
       codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars slurpOp
       -- A mapping of every involved variable to its transitive dependencies.
@@ -142,15 +126,11 @@ slurpFile uf defsToConsider slurpOp unalteredCodebaseNames =
       -- Compute the status of each definition on its own.
       -- This doesn't consider the vars dependencies.
       selfStatuses :: Map (TaggedVar v) DefnStatus
-      selfStatuses = computeVarStatuses varDeps varReferences codebaseNames
-      -- Determine the _actual_ status of each var by summarizing all of the statuses of its
-      -- dependencies.
-      summaries :: Map (TaggedVar v) (SummarizedStatus v)
-      summaries = summarizeTransitiveStatus selfStatuses varDeps
-      slurpResult :: SR.SlurpResult v
-      slurpResult =
-        toSlurpResult uf slurpOp defsToConsider involvedVars fileNames codebaseNames summaries
-   in slurpResult
+      selfStatuses = computeSelfStatuses involvedVars varReferences codebaseNames
+      -- A mapping from each definition's name to the most severe status of it plus its transitive dependencies.
+      depStatuses :: Map (TaggedVar v) DepStatus
+      depStatuses = computeDepStatuses varDeps selfStatuses
+   in toSlurpResult uf slurpOp defsToConsider involvedVars fileNames codebaseNames selfStatuses depStatuses
   where
     fileNames :: Names
     fileNames = UF.typecheckedToNames uf
@@ -164,12 +144,11 @@ computeNamesWithDeprecations ::
   Set (TaggedVar v) ->
   SlurpOp ->
   Names
-computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars op =
-  case op of
-    AddOp ->
-      -- If we're 'adding', there won't be any deprecations to worry about.
-      unalteredCodebaseNames
-    _ -> codebaseNames
+computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars = \case
+  -- If we're 'adding', there won't be any deprecations to worry about.
+  AddOp -> unalteredCodebaseNames
+  CheckOp -> codebaseNames
+  UpdateOp -> codebaseNames
   where
     -- Get the set of all DIRECT definitions in the file which a definition depends on.
     codebaseNames :: Names
@@ -202,19 +181,16 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars op =
        in -- Compute any constructors which were deleted
           existingConstructorsFromEditedTypes `Set.difference` constructorsUnderConsideration
 
--- | Compute a mapping of each definition to its status, and its dependencies' statuses.
-computeVarStatuses ::
+-- | Compute a mapping of each definition to its status.
+computeSelfStatuses ::
   forall v.
   (Ord v, Var v) =>
-  Map (TaggedVar v) (Set (TaggedVar v)) ->
+  Set (TaggedVar v) ->
   Map (TaggedVar v) LD.LabeledDependency ->
   Names ->
   Map (TaggedVar v) DefnStatus
-computeVarStatuses depMap varReferences codebaseNames =
-  depMap
-    & Map.mapWithKey
-      ( \tv _ -> definitionStatus tv
-      )
+computeSelfStatuses vars varReferences codebaseNames =
+  Map.fromSet definitionStatus vars
   where
     definitionStatus :: TaggedVar v -> DefnStatus
     definitionStatus tv =
@@ -227,64 +203,30 @@ computeVarStatuses depMap varReferences codebaseNames =
        in case ld of
             LD.TypeReference _typeRef ->
               case Set.toList existingTypesAtName of
-                [] -> DefOk New
-                [r]
-                  | LD.typeRef r == ld -> DefOk Duplicated
-                  | otherwise -> DefOk Updated
-                -- If there are many existing types, they must be in conflict.
-                -- Currently we treat conflicts as errors rather than resolving them.
-                _ -> DefErr Conflict
+                [] -> New
+                [r] | LD.typeRef r == ld -> Duplicated
+                _ -> Updated
             LD.TermReference {} ->
               case Set.toList existingTermsOrCtorsAtName of
-                [] -> DefOk New
-                rs | any Referent.isConstructor rs -> DefErr TermCtorCollision
-                [r]
-                  | LD.referent r == ld -> DefOk Duplicated
-                  | otherwise -> DefOk Updated
-                -- If there are many existing terms, they must be in conflict.
-                -- Currently we treat conflicts as errors rather than resolving them.
-                _ -> DefErr Conflict
+                [] -> New
+                rs | any Referent.isConstructor rs -> TermCtorCollision
+                [r] | LD.referent r == ld -> Duplicated
+                _ -> Updated
             LD.ConReference {} ->
               case Set.toList existingTermsOrCtorsAtName of
-                [] -> DefOk New
-                rs | any (not . Referent.isConstructor) rs -> DefErr CtorTermCollision
-                [r]
-                  | LD.referent r == ld -> DefOk Duplicated
-                  | otherwise -> DefOk Updated
-                -- If there are many existing terms, they must be in conflict.
-                -- Currently we treat conflicts as errors rather than resolving them.
-                _ -> DefErr Conflict
+                [] -> New
+                rs | any (not . Referent.isConstructor) rs -> CtorTermCollision
+                [r] | LD.referent r == ld -> Duplicated
+                _ -> Updated
 
--- | Compute all definitions which can be added, or the reasons why a def can't be added.
-summarizeTransitiveStatus ::
-  forall v.
-  (Ord v, Show v) =>
-  Map (TaggedVar v) DefnStatus ->
-  Map (TaggedVar v) (Set (TaggedVar v)) ->
-  Map (TaggedVar v) (SummarizedStatus v)
-summarizeTransitiveStatus statuses deps =
-  flip imap (Align.align statuses deps) $ \tv -> \case
-    -- No dependencies
-    This selfStatus -> toSummary False selfStatus tv
-    That _set -> error $ "Encountered var without a status during slurping: " <> show tv
-    These selfStatus deps ->
-      let selfSummary = toSummary False selfStatus tv
-          summaryOfDeps = do
-            v <- Set.toList deps
-            depStatus <- maybeToList $ Map.lookup v statuses
-            pure $ toSummary True depStatus v
-       in foldl' pickPriorityStatus selfSummary summaryOfDeps
-  where
-    toSummary :: (Ord v, Show v) => Bool -> DefnStatus -> TaggedVar v -> SummarizedStatus v
-    toSummary isDep defNotes tv =
-      case defNotes of
-        DefOk Updated -> if isDep then DepStatus tv (DefOk Updated) else SelfStatus (DefOk Updated)
-        DefErr err ->
-          if isDep
-            then DepStatus tv (DefErr err)
-            else SelfStatus (DefErr err)
-        DefOk New -> SelfStatus (DefOk New)
-        DefOk Duplicated -> SelfStatus (DefOk Duplicated)
+computeDepStatuses :: Ord k => Map k (Set k) -> Map k DefnStatus -> Map k DepStatus
+computeDepStatuses varDeps selfStatuses =
+  selfStatuses & Map.mapWithKey \name status -> do
+    varDeps
+      & Map.findWithDefault Set.empty name
+      & Set.toList
+      & mapMaybe (\depName -> defnStatusToDepStatus <$> Map.lookup depName selfStatuses)
+      & Foldable.foldr mostSevereDepStatus (defnStatusToDepStatus status)
 
 -- | Determine all variables which should be considered in analysis.
 -- I.e. any variable requested by the user and all of their dependencies,
@@ -390,13 +332,12 @@ data SlurpingSummary v = SlurpingSummary
     updates :: !(SlurpComponent v),
     termCtorColl :: !(SlurpComponent v),
     ctorTermColl :: !(SlurpComponent v),
-    blocked :: !(SlurpComponent v),
-    conflicts :: !(SlurpComponent v)
+    blocked :: !(SlurpComponent v)
   }
 
-instance (Ord v) => Semigroup (SlurpingSummary v) where
-  SlurpingSummary a b c d e f g
-    <> SlurpingSummary a' b' c' d' e' f' g' =
+instance Ord v => Semigroup (SlurpingSummary v) where
+  SlurpingSummary a b c d e f
+    <> SlurpingSummary a' b' c' d' e' f' =
       SlurpingSummary
         (a <> a')
         (b <> b')
@@ -404,10 +345,9 @@ instance (Ord v) => Semigroup (SlurpingSummary v) where
         (d <> d')
         (e <> e')
         (f <> f')
-        (g <> g')
 
-instance (Ord v) => Monoid (SlurpingSummary v) where
-  mempty = SlurpingSummary mempty mempty mempty mempty mempty mempty mempty
+instance Ord v => Monoid (SlurpingSummary v) where
+  mempty = SlurpingSummary mempty mempty mempty mempty mempty mempty
 
 -- | Convert a 'VarsByStatus' mapping into a 'SR.SlurpResult'
 toSlurpResult ::
@@ -419,9 +359,10 @@ toSlurpResult ::
   Set (TaggedVar v) ->
   Names ->
   Names ->
-  Map (TaggedVar v) (SummarizedStatus v) ->
+  Map (TaggedVar v) DefnStatus ->
+  Map (TaggedVar v) DepStatus ->
   SR.SlurpResult v
-toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames summarizedStatuses =
+toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatuses depStatuses =
   SR.SlurpResult
     { SR.originalFile = uf,
       SR.extraDefinitions =
@@ -435,7 +376,6 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames summarize
       SR.adds = adds,
       SR.duplicates = duplicates,
       SR.collisions = if op == AddOp then updates else mempty,
-      SR.conflicts = conflicts,
       SR.updates = if op /= AddOp then updates else mempty,
       SR.termExistingConstructorCollisions =
         let SlurpComponent {types, terms, ctors} = termCtorColl
@@ -448,36 +388,38 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames summarize
       SR.defsWithBlockedDependencies = blocked
     }
   where
-    SlurpingSummary {adds, duplicates, updates, termCtorColl, ctorTermColl, blocked, conflicts} =
-      summarizedStatuses
-        & ifoldMap
-          ( \tv status ->
-              let sc = scFromTaggedVar tv
-               in case status of
-                    SelfStatus (DefOk New) -> mempty {adds = sc}
-                    SelfStatus (DefOk Duplicated) -> mempty {duplicates = sc}
-                    SelfStatus (DefOk Updated) -> mempty {updates = sc}
-                    DepStatus _ (DefOk Updated) ->
-                      case op of
-                        AddOp ->
-                          mempty {blocked = sc}
-                        UpdateOp ->
-                          mempty {adds = sc}
-                        CheckOp ->
-                          mempty {adds = sc}
-                    -- It shouldn't be possible for the two following cases to occur,
-                    -- since a 'SelfStatus' would take priority when summarizing.
-                    DepStatus _ (DefOk New) ->
-                      error $ "Unexpected summary status for " <> show tv <> ": " <> show status
-                    DepStatus _ (DefOk Duplicated) ->
-                      error $ "Unexpected summary status for " <> show tv <> ": " <> show status
-                    DepStatus _ (DefErr TermCtorCollision) -> mempty {blocked = sc}
-                    DepStatus _ (DefErr CtorTermCollision) -> mempty {blocked = sc}
-                    DepStatus _ (DefErr Conflict) -> mempty {blocked = sc}
-                    SelfStatus (DefErr TermCtorCollision) -> mempty {termCtorColl = sc}
-                    SelfStatus (DefErr CtorTermCollision) -> mempty {ctorTermColl = sc}
-                    SelfStatus (DefErr Conflict) -> mempty {conflicts = sc}
-          )
+    SlurpingSummary {adds, duplicates, updates, termCtorColl, ctorTermColl, blocked} =
+      ifoldMap summarize1 selfStatuses
+
+    -- Compute a singleton summary for a single definition, per its own status and the most severe status of its
+    -- transitive dependencies.
+    summarize1 :: TaggedVar v -> DefnStatus -> SlurpingSummary v
+    summarize1 name = \case
+      CtorTermCollision -> mempty {ctorTermColl = sc}
+      Duplicated -> mempty {duplicates = sc}
+      TermCtorCollision -> mempty {termCtorColl = sc}
+      New ->
+        case depStatus of
+          DepOk -> mempty {adds = sc}
+          DepNeedsUpdate ->
+            case op of
+              AddOp -> mempty {blocked = sc}
+              CheckOp -> mempty {adds = sc}
+              UpdateOp -> mempty {adds = sc}
+          DepCollision -> mempty {blocked = sc}
+      Updated ->
+        case depStatus of
+          DepOk -> mempty {updates = sc}
+          DepNeedsUpdate -> mempty {updates = sc}
+          DepCollision -> mempty {blocked = sc}
+      where
+        sc :: SlurpComponent v
+        sc =
+          scFromTaggedVar name
+
+        depStatus :: DepStatus
+        depStatus =
+          Map.findWithDefault DepOk name depStatuses
 
     scFromTaggedVar :: TaggedVar v -> SlurpComponent v
     scFromTaggedVar = \case

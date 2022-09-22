@@ -215,6 +215,30 @@ test> Text.tests.alignment =
       ]
 
 test> Text.tests.literalsEq = checks [":)" == ":)"]
+
+test> Text.tests.patterns =
+  use Pattern many or run isMatch capture join replicate
+  use Text.patterns literal digit letter anyChar space punctuation notCharIn charIn charRange notCharRange eof
+  l = literal
+  checks [
+    run digit "1abc" == Some ([], "abc"),
+    run (capture (many digit)) "11234abc" == Some (["11234"], "abc"),
+    run (many letter) "abc11234abc" == Some ([], "11234abc"),
+    run (join [many space, capture (many anyChar)]) "   abc123" == Some (["abc123"], ""),
+    run (many punctuation) "!!!!,,,..." == Some ([], ""),
+    run (charIn [?0,?1]) "0" == Some ([], ""),
+    run (notCharIn [?0,?1]) "0" == None,
+    run (many (notCharIn [?0,?1])) "asjdfskdfjlskdjflskdjf011" == Some ([], "011"),
+    run (capture (many (charRange ?a ?z))) "hi123" == Some (["hi"], "123"),
+    run (capture (many (notCharRange ?, ?,))) "abc123," == Some (["abc123"], ","),
+    run (capture (many (notCharIn [?,,]))) "abracadabra,123" == Some (["abracadabra"], ",123"),
+    run (capture (many (or digit letter))) "11234abc,remainder" == Some (["11234abc"], ",remainder"),
+    run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa" == Some (["1a2ba"], " aaa"),
+    isMatch (join [many letter, eof]) "aaaaabbbb" == true,
+    isMatch (join [many letter, eof]) "aaaaabbbb1" == false,
+    isMatch (join [l "abra", many (l "cadabra")]) "abracadabracadabra" == true,
+
+  ]
 ```
 
 ```ucm:hide

@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 655ca1a695b9a272d6b440b74fe2b6717f710a543d7ddb7639366d4233961bf8
 
 name:           unison-util-term
 version:        0.0.0
@@ -20,8 +18,6 @@ library
   exposed-modules:
       U.Util.Term
       U.Util.Type
-  other-modules:
-      Paths_unison_util_term
   hs-source-dirs:
       ./
   build-depends:

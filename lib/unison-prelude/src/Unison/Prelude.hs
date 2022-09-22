@@ -7,12 +7,23 @@ module Unison.Prelude
     uncurry4,
     reportBug,
     tShow,
+    wundefined,
 
     -- * @Maybe@ control flow
     onNothing,
+    onNothingM,
+    whenNothing,
+    whenNothingM,
+    whenJust,
+    whenJustM,
+    eitherToMaybe,
+    maybeToEither,
 
     -- * @Either@ control flow
+    onLeft,
+    onLeftM,
     whenLeft,
+    whenLeftM,
     throwEitherM,
     throwEitherMWith,
     throwExceptT,
@@ -22,7 +33,7 @@ where
 
 import Control.Applicative as X
 import Control.Category as X ((>>>))
-import Control.Exception as X (Exception, IOException, SomeException, try)
+import Control.Exception as X (Exception, IOException, SomeException)
 import Control.Monad as X
 import Control.Monad.Extra as X (ifM, mapMaybeM, unlessM, whenM)
 import Control.Monad.IO.Class as X (MonadIO (liftIO))
@@ -33,13 +44,15 @@ import Data.ByteString as X (ByteString)
 import Data.Coerce as X (Coercible, coerce)
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
+import Data.Either.Extra (eitherToMaybe, maybeToEither)
 import Data.Foldable as X (asum, fold, foldl', for_, toList, traverse_)
 import Data.Function as X ((&))
 import Data.Functor as X
+import Data.Functor.Identity as X
 import Data.Int as X
 import Data.List as X (foldl1', sortOn)
 import Data.Map as X (Map)
-import Data.Maybe as X (catMaybes, fromMaybe, isJust, isNothing, listToMaybe, mapMaybe, maybeToList)
+import Data.Maybe as X (catMaybes, fromMaybe, isJust, isNothing, listToMaybe, maybeToList)
 import Data.Sequence as X (Seq)
 import Data.Set as X (Set)
 import Data.String as X (IsString, fromString)
@@ -57,16 +70,56 @@ import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
 import qualified System.IO as IO
 import Text.Read as X (readMaybe)
+import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import qualified UnliftIO
+import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
 
+-- | E.g.
+--
+-- @@
+-- onNothing (throwIO MissingPerson) $ mayThing
+-- @@
 onNothing :: Applicative m => m a -> Maybe a -> m a
-onNothing x =
-  maybe x pure
+onNothing m may = maybe m pure may
+
+onNothingM :: Monad m => m a -> m (Maybe a) -> m a
+onNothingM =
+  flip whenNothingM
+
+-- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
+whenNothing :: Applicative m => Maybe a -> m a -> m a
+whenNothing may m = maybe m pure may
+
+whenNothingM :: Monad m => m (Maybe a) -> m a -> m a
+whenNothingM mx my =
+  mx >>= maybe my pure
+
+whenJust :: Applicative m => Maybe a -> (a -> m ()) -> m ()
+whenJust mx f =
+  maybe (pure ()) f mx
+
+whenJustM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
+whenJustM mx f = do
+  mx >>= maybe (pure ()) f
+
+onLeft :: Applicative m => (a -> m b) -> Either a b -> m b
+onLeft =
+  flip whenLeft
+
+onLeftM :: Monad m => (a -> m b) -> m (Either a b) -> m b
+onLeftM =
+  flip whenLeftM
 
 whenLeft :: Applicative m => Either a b -> (a -> m b) -> m b
 whenLeft = \case
   Left a -> \f -> f a
   Right b -> \_ -> pure b
+
+whenLeftM :: Monad m => m (Either a b) -> (a -> m b) -> m b
+whenLeftM m f =
+  m >>= \case
+    Left x -> f x
+    Right y -> pure y
 
 throwExceptT :: (MonadIO m, Exception e) => ExceptT e m a -> m a
 throwExceptT = throwExceptTWith id
@@ -77,10 +130,10 @@ throwExceptTWith f action =
     Left e -> liftIO . UnliftIO.throwIO $ e
     Right a -> pure a
 
-throwEitherM :: (MonadIO m, Exception e) => m (Either e a) -> m a
+throwEitherM :: forall e m a. (MonadIO m, Exception e) => m (Either e a) -> m a
 throwEitherM = throwEitherMWith id
 
-throwEitherMWith :: (MonadIO m, Exception e') => (e -> e') -> m (Either e a) -> m a
+throwEitherMWith :: forall e e' m a. (MonadIO m, Exception e') => (e -> e') -> m (Either e a) -> m a
 throwEitherMWith f action = throwExceptT . withExceptT f $ (ExceptT action)
 
 tShow :: Show a => a -> Text
@@ -141,3 +194,7 @@ reportBug bugId msg =
       "on the issue to let the team know you encountered it, and you can add",
       "any additional details you know of to the issue."
     ]
+
+{-# WARNING wundefined "You left this wundefined." #-}
+wundefined :: HasCallStack => a
+wundefined = undefined

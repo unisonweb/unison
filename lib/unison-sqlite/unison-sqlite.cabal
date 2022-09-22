@@ -19,8 +19,9 @@ library
   exposed-modules:
       Unison.Sqlite
       Unison.Sqlite.Connection
-      Unison.Sqlite.DB
+      Unison.Sqlite.Connection.Internal
       Unison.Sqlite.Transaction
+      Unison.Sqlite.Values
   other-modules:
       Unison.Sqlite.DataVersion
       Unison.Sqlite.Exception
@@ -33,6 +34,8 @@ library
       ConstraintKinds
       DeriveAnyClass
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -48,6 +51,7 @@ library
       NumericUnderscores
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -58,8 +62,12 @@ library
     , direct-sqlite
     , exceptions
     , mtl
+    , neat-interpolation
+    , pretty-simple
+    , random
     , recover-rtti
     , sqlite-simple
+    , template-haskell
     , text
     , transformers
     , unison-prelude

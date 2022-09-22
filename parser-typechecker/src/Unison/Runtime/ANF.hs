@@ -87,11 +87,13 @@ import qualified Unison.ABT.Normalized as ABTN
 import Unison.Blank (nameb)
 import qualified Unison.Builtin.Decls as Ty
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
 import qualified Unison.Pattern as P
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference (..))
 import Unison.Referent (Referent)
+import Unison.Symbol (Symbol)
 import Unison.Term hiding (List, Ref, Text, float, fresh, resolve)
 import qualified Unison.Type as Ty
 import Unison.Typechecker.Components (minimize')
@@ -317,6 +319,10 @@ floater ::
   (Term v a -> FloatM v a (Term v a)) ->
   Term v a ->
   Maybe (FloatM v a (Term v a))
+floater top rec tm0@(Ann' tm ty) =
+  (fmap . fmap) (\tm -> ann a tm ty) (floater top rec tm)
+  where
+    a = ABT.annotation tm0
 floater top rec (LetRecNamed' vbs e) =
   Just $
     letFloater rec vbs e >>= \case
@@ -328,7 +334,7 @@ floater _ rec (Let1Named' v b e)
   | Just (vs0, _, vs1, bd) <- unLamsAnnot b =
       Just $
         rec bd
-          >>= lamFloater (null $ ABT.freeVars b) b (Just v) a (vs0 ++ vs1)
+          >>= lamFloater True b (Just v) a (vs0 ++ vs1)
           >>= \lv -> rec $ ABT.renames (Map.singleton v lv) e
   where
     a = ABT.annotation b
@@ -336,23 +342,33 @@ floater top rec tm@(LamsNamed' vs bd)
   | top = Just $ lam' a vs <$> rec bd
   | otherwise = Just $ do
       bd <- rec bd
-      lv <- lamFloater (null $ ABT.freeVars tm) tm Nothing a vs bd
+      lv <- lamFloater True tm Nothing a vs bd
       pure $ var a lv
   where
     a = ABT.annotation tm
 floater _ _ _ = Nothing
 
-float :: (Var v, Monoid a) => Term v a -> (Term v a, [(v, Term v a)])
+float ::
+  Var v =>
+  Monoid a =>
+  Term v a ->
+  (Term v a, [(Reference, Term v a)], [(Reference, Term v a)])
 float tm = case runState go0 (Set.empty, [], []) of
-  (bd, (_, ctx, dcmp)) -> (deannotate $ letRec' True ctx bd, dcmp)
+  (bd, (_, ctx, dcmp)) ->
+    let m = hashTermComponentsWithoutTypes . Map.fromList $ fmap deannotate <$> ctx
+        trips = Map.toList m
+        f (v, (id, tm)) = ((v, id), (v, idtm), (id, tm))
+          where
+            idtm = ref (ABT.annotation tm) (DerivedId id)
+        (subvs, subs, tops) = unzip3 $ map f trips
+        subm = Map.fromList subvs
+     in ( letRec' True [] . ABT.substs subs . deannotate $ bd,
+          fmap (first DerivedId) tops,
+          dcmp <&> \(v, tm) -> (DerivedId $ subm Map.! v, tm)
+        )
   where
     go0 = fromMaybe (go tm) (floater True go tm)
     go = ABT.visit $ floater False go
-
--- tm | LetRecNamedTop' _ vbs e <- tm0
---    , (pre, rec, post) <- reduceCycle vbs
---    = let1' False pre . letRec' False rec . let1' False post $ e
---    | otherwise = tm0
 
 unAnn :: Term v a -> Term v a
 unAnn (Ann' tm _) = tm
@@ -378,7 +394,11 @@ deannotate = ABT.visitPure $ \case
   Ann' c _ -> Just $ deannotate c
   _ -> Nothing
 
-lamLift :: (Var v, Monoid a) => Term v a -> (Term v a, [(v, Term v a)])
+lamLift ::
+  Var v =>
+  Monoid a =>
+  Term v a ->
+  (Term v a, [(Reference, Term v a)], [(Reference, Term v a)])
 lamLift = float . close Set.empty
 
 saturate ::
@@ -456,6 +476,7 @@ data CTE v s
   | LZ v (Either Reference v) [v]
   deriving (Show)
 
+pattern ST1 :: Direction Word16 -> v -> Mem -> s -> CTE v s
 pattern ST1 d v m s = ST d [v] [m] s
 
 data ANormalF v e
@@ -473,9 +494,13 @@ data ANormalF v e
 -- Types representing components that will go into the runtime tag of
 -- a data type value. RTags correspond to references, while CTags
 -- correspond to constructors.
-newtype RTag = RTag Word64 deriving (Eq, Ord, Show, Read, EC.EnumKey)
+newtype RTag = RTag Word64
+  deriving stock (Eq, Ord, Show, Read)
+  deriving newtype (EC.EnumKey)
 
-newtype CTag = CTag Word16 deriving (Eq, Ord, Show, Read, EC.EnumKey)
+newtype CTag = CTag Word16
+  deriving stock (Eq, Ord, Show, Read)
+  deriving newtype (EC.EnumKey)
 
 class Tag t where rawTag :: t -> Word64
 
@@ -573,56 +598,159 @@ matchLit (Text' t) = Just $ T (Util.Text.fromText t)
 matchLit (Char' c) = Just $ C c
 matchLit _ = Nothing
 
+pattern TLet ::
+  ABT.Var v =>
+  Direction Word16 ->
+  v ->
+  Mem ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern TLet d v m bn bo = ABTN.TTm (ALet d [m] bn (ABTN.TAbs v bo))
 
+pattern TLetD ::
+  ABT.Var v =>
+  v ->
+  Mem ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern TLetD v m bn bo = ABTN.TTm (ALet Direct [m] bn (ABTN.TAbs v bo))
 
+pattern TLets ::
+  ABT.Var v =>
+  Direction Word16 ->
+  [v] ->
+  [Mem] ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern TLets d vs ms bn bo = ABTN.TTm (ALet d ms bn (ABTN.TAbss vs bo))
 
+pattern TName ::
+  ABT.Var v =>
+  v ->
+  Either Reference v ->
+  [v] ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern TName v f as bo = ABTN.TTm (AName f as (ABTN.TAbs v bo))
 
+pattern Lit' :: Lit -> Term v a
 pattern Lit' l <- (matchLit -> Just l)
 
+pattern TLit ::
+  ABT.Var v =>
+  Lit ->
+  ABTN.Term ANormalF v
 pattern TLit l = ABTN.TTm (ALit l)
 
+pattern TApp ::
+  ABT.Var v =>
+  Func v ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TApp f args = ABTN.TTm (AApp f args)
 
+pattern AApv :: v -> [v] -> ANormalF v e
 pattern AApv v args = AApp (FVar v) args
 
+pattern TApv ::
+  ABT.Var v =>
+  v ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TApv v args = TApp (FVar v) args
 
+pattern ACom :: Reference -> [v] -> ANormalF v e
 pattern ACom r args = AApp (FComb r) args
 
+pattern TCom ::
+  ABT.Var v =>
+  Reference ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TCom r args = TApp (FComb r) args
 
+pattern ACon :: Reference -> CTag -> [v] -> ANormalF v e
 pattern ACon r t args = AApp (FCon r t) args
 
+pattern TCon ::
+  ABT.Var v =>
+  Reference ->
+  CTag ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TCon r t args = TApp (FCon r t) args
 
+pattern AKon :: v -> [v] -> ANormalF v e
 pattern AKon v args = AApp (FCont v) args
 
+pattern TKon ::
+  ABT.Var v =>
+  v ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TKon v args = TApp (FCont v) args
 
+pattern AReq :: Reference -> CTag -> [v] -> ANormalF v e
 pattern AReq r t args = AApp (FReq r t) args
 
+pattern TReq ::
+  ABT.Var v =>
+  Reference ->
+  CTag ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TReq r t args = TApp (FReq r t) args
 
+pattern APrm :: POp -> [v] -> ANormalF v e
 pattern APrm p args = AApp (FPrim (Left p)) args
 
+pattern TPrm ::
+  ABT.Var v =>
+  POp ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TPrm p args = TApp (FPrim (Left p)) args
 
+pattern AFOp :: FOp -> [v] -> ANormalF v e
 pattern AFOp p args = AApp (FPrim (Right p)) args
 
+pattern TFOp ::
+  ABT.Var v =>
+  FOp ->
+  [v] ->
+  ABTN.Term ANormalF v
 pattern TFOp p args = TApp (FPrim (Right p)) args
 
+pattern THnd ::
+  ABT.Var v =>
+  [Reference] ->
+  v ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern THnd rs h b = ABTN.TTm (AHnd rs h b)
 
+pattern TShift ::
+  ABT.Var v =>
+  Reference ->
+  v ->
+  ABTN.Term ANormalF v ->
+  ABTN.Term ANormalF v
 pattern TShift i v e = ABTN.TTm (AShift i (ABTN.TAbs v e))
 
+pattern TMatch ::
+  ABT.Var v =>
+  v ->
+  Branched (ABTN.Term ANormalF v) ->
+  ABTN.Term ANormalF v
 pattern TMatch v cs = ABTN.TTm (AMatch v cs)
 
+pattern TFrc :: ABT.Var v => v -> ABTN.Term ANormalF v
 pattern TFrc v = ABTN.TTm (AFrc v)
 
+pattern TVar :: ABT.Var v => v -> ABTN.Term ANormalF v
 pattern TVar v = ABTN.TTm (AVar v)
 
 {-# COMPLETE TLet, TName, TVar, TApp, TFrc, TLit, THnd, TShift, TMatch #-}
@@ -660,6 +788,11 @@ unbinds (TLets d us ms bu (unbinds -> (ctx, bd))) =
 unbinds (TName u f as (unbinds -> (ctx, bd))) = (LZ u f as : ctx, bd)
 unbinds tm = ([], tm)
 
+pattern TBind ::
+  Var v =>
+  Cte v ->
+  ANormal v ->
+  ANormal v
 pattern TBind bn bd <-
   (unbind -> Just (bn, bd))
   where
@@ -686,6 +819,7 @@ data Branched e
   deriving (Show, Functor, Foldable, Traversable)
 
 -- Data cases expected to cover all constructors
+pattern MatchDataCover :: Reference -> EnumMap CTag ([Mem], e) -> Branched e
 pattern MatchDataCover r m = MatchData r m Nothing
 
 data BranchAccum v
@@ -814,6 +948,10 @@ litRef (C _) = Ty.charRef
 litRef (LM _) = Ty.termLinkRef
 litRef (LY _) = Ty.typeLinkRef
 
+-- Note: Enum/Bounded instances should only be used for things like
+-- getting a list of all ops. Using auto-generated numberings for
+-- serialization, for instance, could cause observable changes to
+-- formats that we want to control and version.
 data POp
   = -- Int
     ADDI
@@ -946,7 +1084,8 @@ data POp
   | TRCE
   | -- STM
     ATOM
-  deriving (Show, Eq, Ord)
+  | TFRC -- try force
+  deriving (Show, Eq, Ord, Enum, Bounded)
 
 type ANormal = ABTN.Term ANormalF
 
@@ -1004,7 +1143,7 @@ data Value
 
 data Cont
   = KE
-  | Mark [Reference] (Map Reference Value) Cont
+  | Mark Word64 Word64 [Reference] (Map Reference Value) Cont
   | Push Word64 Word64 Word64 Word64 GroupRef Cont
   deriving (Show)
 
@@ -1014,6 +1153,8 @@ data BLit
   | TmLink Referent
   | TyLink Reference
   | Bytes Bytes
+  | Quote Value
+  | Code (SuperGroup Symbol)
   deriving (Show)
 
 groupVars :: ANFM v (Set v)
@@ -1111,6 +1252,28 @@ anfHandled body =
 fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
 tru = TCon Ty.booleanRef 1 []
+
+-- Helper function for renaming a variable arising from a
+--   let v = u
+-- binding during ANF translation. Renames a variable in a
+-- context, and returns an indication of whether the varible
+-- was shadowed by one of the context bindings.
+renameCtx :: Var v => v -> v -> Ctx v -> (Ctx v, Bool)
+renameCtx v u (d, ctx) | (ctx, b) <- rn [] ctx = ((d, ctx), b)
+  where
+    swap w | w == v = u | otherwise = w
+
+    rn acc [] = (reverse acc, False)
+    rn acc (ST d vs ccs b : es)
+      | any (== v) vs = (reverse acc ++ e : es, True)
+      | otherwise = rn (e : acc) es
+      where
+        e = ST d vs ccs $ ABTN.rename v u b
+    rn acc (LZ w f as : es)
+      | w == v = (reverse acc ++ e : es, True)
+      | otherwise = rn (e : acc) es
+      where
+        e = LZ w (swap <$> f) (swap <$> as)
 
 anfBlock :: Var v => Term v a -> ANFM v (Ctx v, DNormal v)
 anfBlock (Var' v) = pure (mempty, pure $ TVar v)
@@ -1266,7 +1429,9 @@ anfBlock (Let1Named' v b e) =
   anfBlock b >>= \case
     (bctx, (Direct, TVar u)) -> do
       (ectx, ce) <- anfBlock e
-      pure (bctx <> ectx, ABTN.rename v u <$> ce)
+      (ectx, shaded) <- pure $ renameCtx v u ectx
+      ce <- pure $ if shaded then ce else ABTN.rename v u <$> ce
+      pure (bctx <> ectx, ce)
     (bctx, (d0, cb)) -> bindLocal [v] $ do
       (ectx, ce) <- anfBlock e
       d <- bindDirection d0
@@ -1421,7 +1586,7 @@ valueLinks f (BLit l) = litLinks f l
 contLinks :: Monoid a => (Bool -> Reference -> a) -> Cont -> a
 contLinks f (Push _ _ _ _ (GR cr _) k) =
   f False cr <> contLinks f k
-contLinks f (Mark ps de k) =
+contLinks f (Mark _ _ ps de k) =
   foldMap (f True) ps
     <> Map.foldMapWithKey (\k c -> f True k <> valueLinks f c) de
     <> contLinks f k
@@ -1680,7 +1845,7 @@ prettyBranches ind bs = case bs of
             s
             (mapToList $ snd <$> m)
       )
-      (prettyCase ind (prettyReq 0 0) df id)
+      (prettyCase ind (prettyReq (0 :: Int) (0 :: Int)) df id)
       (Map.toList bs)
   MatchSum bs ->
     foldr
@@ -1689,6 +1854,7 @@ prettyBranches ind bs = case bs of
       (mapToList $ snd <$> bs)
       -- _ -> error "prettyBranches: todo"
   where
+    -- prettyReq :: Reference -> CTag -> ShowS
     prettyReq r c =
       showString "REQ("
         . shows r

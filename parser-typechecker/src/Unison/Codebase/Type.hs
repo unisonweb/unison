@@ -5,33 +5,40 @@ module Unison.Codebase.Type
   ( Codebase (..),
     CodebasePath,
     PushGitBranchOpts (..),
+    GitPushBehavior (..),
     GitError (..),
-    GetRootBranchError (..),
     SyncToDir,
     LocalOrRemote (..),
     gitErrorFromOpenCodebaseError,
   )
 where
 
+import qualified U.Codebase.Branch as V2
+import qualified U.Codebase.Reference as V2
+import qualified U.Codebase.Reflog as Reflog
+import qualified U.Codebase.Sqlite.Queries as Queries
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, WriteGitRepo)
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Patch (Patch)
-import qualified Unison.Codebase.Reflog as Reflog
+import Unison.Codebase.Path (Path)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
+import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
+import Unison.Names.Scoped (ScopedNames)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
+import qualified Unison.Sqlite as Sqlite
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
@@ -59,6 +66,8 @@ data Codebase m v a = Codebase
     -- Note that it is possible to call 'putTypeDeclaration', then 'getTypeDeclaration', and receive @Nothing@, per the
     -- semantics of 'putTypeDeclaration'.
     getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a)),
+    -- | Get the type of a given decl.
+    getDeclType :: V2.Reference -> m CT.ConstructorType,
     -- | Enqueue the put of a user-defined term (with its type) into the codebase, if it doesn't already exist. The
     -- implementation may choose to delay the put until all of the term's (and its type's) references are stored as
     -- well.
@@ -70,21 +79,26 @@ data Codebase m v a = Codebase
     getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)]),
     getDeclComponent :: Hash -> m (Maybe [Decl v a]),
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
+    -- | Get the root causal Hash.
+    getRootCausalHash :: m V2.CausalHash,
     -- | Get the root branch.
-    getRootBranch :: m (Either GetRootBranchError (Branch m)),
+    getRootBranch :: m (Branch m),
     -- | Get whether the root branch exists.
     getRootBranchExists :: m Bool,
     -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
-    putRootBranch :: Branch m -> m (),
-    rootBranchUpdates :: m (IO (), IO (Set Branch.Hash)),
-    getBranchForHashImpl :: Branch.Hash -> m (Maybe (Branch m)),
+    putRootBranch ::
+      Text -> -- Reason for the change, will be recorded in the reflog
+      Branch m ->
+      m (),
+    getShallowCausalForHash :: V2.CausalHash -> m (V2.CausalBranch m),
+    getBranchForHashImpl :: Branch.CausalHash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
     --
     -- The terms and type declarations that a branch references must already exist in the codebase.
     putBranch :: Branch m -> m (),
     -- | Check whether the given branch exists in the codebase.
-    branchExists :: Branch.Hash -> m Bool,
+    branchExists :: Branch.CausalHash -> m Bool,
     -- | Get a patch from the codebase.
     getPatch :: Branch.EditHash -> m (Maybe Patch),
     -- | Put a patch into the codebase.
@@ -95,15 +109,15 @@ data Codebase m v a = Codebase
     patchExists :: Branch.EditHash -> m Bool,
     -- | Get the set of user-defined terms and type declarations that depend on the given term, type declaration, or
     -- builtin type.
-    dependentsImpl :: Reference -> m (Set Reference.Id),
+    dependentsImpl :: Queries.DependentsSelector -> Reference -> m (Set Reference.Id),
     dependentsOfComponentImpl :: Hash -> m (Set Reference.Id),
     -- | Copy a branch and all of its dependencies from the given codebase into this one.
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
     syncToDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
-    viewRemoteBranch' :: forall r. ReadRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
+    viewRemoteBranch' :: forall r. ReadGitRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
     -- | Push the given branch to the given repo, and optionally set it as the root branch.
-    pushGitBranch :: forall e. WriteRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
+    pushGitBranch :: forall e. WriteGitRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
     -- | @watches k@ returns all of the references @r@ that were previously put by a @putWatch k r t@. @t@ can be
     -- retrieved by @getWatch k r@.
     watches :: WK.WatchKind -> m [Reference.Id],
@@ -122,16 +136,8 @@ data Codebase m v a = Codebase
     putWatch :: WK.WatchKind -> Reference.Id -> Term v a -> m (),
     -- | Delete all watches that were put by 'putWatch'.
     clearWatches :: m (),
-    -- | Get the entire reflog.
-    getReflog :: m [Reflog.Entry Branch.Hash],
-    -- | @appendReflog reason before after@ appends a reflog entry.
-    --
-    -- FIXME: this could have type
-    --
-    -- @
-    -- appendReflog :: Reflog.Entry (Branch m) -> m ()
-    -- @
-    appendReflog :: Text -> Branch m -> Branch m -> m (),
+    -- | Gets the specified number of reflog entries in chronological order, most recent first.
+    getReflog :: Int -> m [Reflog.Entry V2.CausalHash Text],
     -- | Get the set of user-defined terms-or-constructors that have the given type.
     termsOfTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.
@@ -147,17 +153,29 @@ data Codebase m v a = Codebase
     -- | The number of base32 characters needed to distinguish any two branch in the codebase.
     branchHashLength :: m Int,
     -- | Get the set of branches whose hash matches the given prefix.
-    branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash),
+    branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.CausalHash),
     -- returns `Nothing` to not implemented, fallback to in-memory
     --    also `Nothing` if no LCA
     -- The result is undefined if the two hashes are not in the codebase.
     -- Use `Codebase.lca` which wraps this in a nice API.
-    lcaImpl :: Maybe (Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)),
+    lcaImpl :: Maybe (Branch.CausalHash -> Branch.CausalHash -> m (Maybe Branch.CausalHash)),
     -- `beforeImpl` returns `Nothing` if not implemented by the codebase
     -- `beforeImpl b1 b2` is undefined if `b2` not in the codebase
     --
     --  Use `Codebase.before` which wraps this in a nice API.
-    beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool)
+    beforeImpl :: Maybe (Branch.CausalHash -> Branch.CausalHash -> m Bool),
+    -- Use the name lookup index to build a 'Names' for all names found within 'Path' of the current root namespace.
+    --
+    -- NOTE: this method requires an up-to-date name lookup index, which is
+    -- currently not kept up-to-date automatically (because it's slow to do so).
+    namesAtPath :: Path -> m ScopedNames,
+    -- Updates the root namespace names index.
+    -- This isn't run automatically because it can be a bit slow.
+    updateNameLookup :: m (),
+    -- | Acquire a new connection to the same underlying database file this codebase object connects to.
+    withConnection :: forall x. (Sqlite.Connection -> m x) -> m x,
+    -- | Acquire a new connection to the same underlying database file this codebase object connects to.
+    withConnectionIO :: forall x. (Sqlite.Connection -> IO x) -> IO x
   }
 
 -- | Whether a codebase is local or remote.
@@ -167,27 +185,30 @@ data LocalOrRemote
   deriving (Show, Eq, Ord)
 
 data PushGitBranchOpts = PushGitBranchOpts
-  { -- | Set the branch as root?
-    setRoot :: Bool,
+  { behavior :: GitPushBehavior,
     syncMode :: SyncMode
   }
 
-data GetRootBranchError
-  = NoRootBranch
-  | CouldntParseRootBranch String
-  | CouldntLoadRootBranch Branch.Hash
-  deriving (Show)
+data GitPushBehavior
+  = -- | Don't set root, just sync entities.
+    GitPushBehaviorGist
+  | -- | After syncing entities, do a fast-forward check, then set the root.
+    GitPushBehaviorFf
+  | -- | After syncing entities, just set the root (force-pushy).
+    GitPushBehaviorForce
 
 data GitError
   = GitProtocolError GitProtocolError
-  | GitCodebaseError (GitCodebaseError Branch.Hash)
+  | GitCodebaseError (GitCodebaseError Branch.CausalHash)
   | GitSqliteCodebaseError GitSqliteCodebaseError
   deriving (Show)
 
 instance Exception GitError
 
-gitErrorFromOpenCodebaseError :: CodebasePath -> ReadRepo -> OpenCodebaseError -> GitSqliteCodebaseError
+gitErrorFromOpenCodebaseError :: CodebasePath -> ReadGitRepo -> OpenCodebaseError -> GitSqliteCodebaseError
 gitErrorFromOpenCodebaseError path repo = \case
   OpenCodebaseDoesntExist -> NoDatabaseFile repo path
   OpenCodebaseUnknownSchemaVersion v ->
     UnrecognizedSchemaVersion repo path (fromIntegral v)
+  OpenCodebaseRequiresMigration fromSv toSv ->
+    CodebaseRequiresMigration fromSv toSv

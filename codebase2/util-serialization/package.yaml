@@ -2,6 +2,9 @@ name: unison-util-serialization
 
 library:
   source-dirs: .
+  when:
+    - condition: false
+      other-modules: Paths_unison_util_serialization
 
 dependencies:
   - base

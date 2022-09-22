@@ -29,27 +29,18 @@ execute ::
   Runtime Symbol ->
   String ->
   IO (Either Runtime.Error ())
-execute codebase runtime mainName = do
-  (`finally` Runtime.terminate runtime) $
-    runExceptT $ do
-      root <-
-        liftIO (Codebase.getRootBranch codebase) >>= \case
-          Right r -> pure r
-          Left Codebase.NoRootBranch ->
-            throwError "Couldn't identify a root namespace."
-          Left (Codebase.CouldntLoadRootBranch h) ->
-            throwError ("Couldn't load root branch " <> P.shown h)
-          Left (Codebase.CouldntParseRootBranch h) ->
-            throwError ("Couldn't parse root branch head " <> P.shown h)
-      let parseNames = Names.makeAbsolute (Branch.toNames (Branch.head root))
-          loadTypeOfTerm = Codebase.getTypeOfTerm codebase
-      let mainType = Runtime.mainType runtime
-      mt <- liftIO $ getMainTerm loadTypeOfTerm parseNames mainName mainType
-      case mt of
-        MainTerm.NotAFunctionName s -> throwError ("Not a function name: " <> P.string s)
-        MainTerm.NotFound s -> throwError ("Not found: " <> P.string s)
-        MainTerm.BadType s _ -> throwError (P.string s <> " is not of type '{IO} ()")
-        MainTerm.Success _ tm _ -> do
-          let codeLookup = Codebase.toCodeLookup codebase
-              ppe = PPE.PrettyPrintEnv (const Nothing) (const Nothing)
-          void . ExceptT $ Runtime.evaluateTerm codeLookup ppe runtime tm
+execute codebase runtime mainName =
+  (`finally` Runtime.terminate runtime) . runExceptT $ do
+    root <- liftIO $ Codebase.getRootBranch codebase
+    let parseNames = Names.makeAbsolute (Branch.toNames (Branch.head root))
+        loadTypeOfTerm = Codebase.getTypeOfTerm codebase
+    let mainType = Runtime.mainType runtime
+    mt <- liftIO $ getMainTerm loadTypeOfTerm parseNames mainName mainType
+    case mt of
+      MainTerm.NotAFunctionName s -> throwError ("Not a function name: " <> P.string s)
+      MainTerm.NotFound s -> throwError ("Not found: " <> P.string s)
+      MainTerm.BadType s _ -> throwError (P.string s <> " is not of type '{IO} ()")
+      MainTerm.Success _ tm _ -> do
+        let codeLookup = Codebase.toCodeLookup codebase
+            ppe = PPE.empty
+        void . liftIO $ Runtime.evaluateTerm codeLookup ppe runtime tm

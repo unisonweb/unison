@@ -20,9 +20,9 @@ where
 import Control.Concurrent.STM as STM
 import Control.Exception (catch, try)
 import Control.Monad
-import Data.Bifunctor (bimap, first, second)
+import Data.Bifunctor (bimap, first)
 import Data.Binary.Get (runGetOrFail)
-import Data.Bits (shiftL)
+-- import Data.Bits (shiftL)
 import qualified Data.ByteString.Lazy as BL
 import Data.Bytes.Get (MonadGet)
 import Data.Bytes.Put (MonadPut, runPutL)
@@ -42,7 +42,7 @@ import Data.Set as Set
     (\\),
   )
 import qualified Data.Set as Set
-import Data.Text (Text, isPrefixOf, pack)
+import Data.Text (Text, isPrefixOf)
 import Data.Traversable (for)
 import Data.Word (Word64)
 import GHC.Stack (HasCallStack)
@@ -58,8 +58,9 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.LabeledDependency as RF
 import Unison.Parser.Ann (Ann (External))
-import Unison.Prelude (maybeToList, reportBug)
+import Unison.Prelude (reportBug)
 import Unison.PrettyPrintEnv
+import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as RF
 import qualified Unison.Referent as RF (pattern Ref)
@@ -98,8 +99,8 @@ import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
+import Unison.Syntax.TermPrinter
 import qualified Unison.Term as Tm
-import Unison.TermPrinter
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty as P
 import qualified Unison.Util.Text as UT
@@ -126,8 +127,8 @@ cacheContext =
     $ Map.keys builtinTermNumbering
       <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
 
-baseContext :: IO EvalCtx
-baseContext = cacheContext <$> baseCCache
+baseContext :: Bool -> IO EvalCtx
+baseContext sandboxed = cacheContext <$> baseCCache sandboxed
 
 resolveTermRef ::
   CodeLookup Symbol IO () ->
@@ -260,40 +261,31 @@ loadDeps cl ppe ctx tyrs tmrs = do
   rtms <-
     traverse (\r -> (,) r <$> resolveTermRef cl r) $
       Prelude.filter q tmrs
-  let (rgrp, rbkr) = intermediateTerms ppe ctx rtms
+  let (rgrp0, rbkr) = intermediateTerms ppe ctx rtms
+      rgrp = Map.toList rgrp0
       tyAdd = Set.fromList $ fst <$> tyrs
   backrefAdd rbkr ctx
     <$ cacheAdd0 tyAdd rgrp (expandSandbox sand rgrp) cc
 
 backrefLifted ::
+  Reference ->
   Term Symbol ->
-  [(Symbol, Term Symbol)] ->
-  Map.Map Word64 (Term Symbol)
-backrefLifted tm@(Tm.LetRecNamed' bs _) dcmp =
-  Map.fromList . ((0, tm) :) $
-    [ (ix, dc)
-      | ix <- ixs
-      | (v, _) <- reverse bs,
-        dc <- maybeToList $ Prelude.lookup v dcmp
-    ]
-  where
-    ixs = fmap (`shiftL` 16) [1 ..]
-backrefLifted tm _ = Map.singleton 0 tm
+  [(Reference, Term Symbol)] ->
+  Map.Map Reference (Map.Map Word64 (Term Symbol))
+backrefLifted ref (Tm.Ann' tm _) dcmp = backrefLifted ref tm dcmp
+backrefLifted ref tm dcmp =
+  Map.fromList . (fmap . fmap) (Map.singleton 0) $ (ref, tm) : dcmp
 
 intermediateTerms ::
   HasCallStack =>
   PrettyPrintEnv ->
   EvalCtx ->
   [(Reference, Term Symbol)] ->
-  ( [(Reference, SuperGroup Symbol)],
+  ( Map.Map Reference (SuperGroup Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerms ppe ctx rtms =
-  ((fmap . second) fst rint, Map.fromList $ (fmap . second) snd rint)
-  where
-    rint =
-      rtms <&> \(ref, tm) ->
-        (ref, intermediateTerm ppe ref ctx tm)
+  foldMap (\(ref, tm) -> intermediateTerm ppe ref ctx tm) rtms
 
 intermediateTerm ::
   HasCallStack =>
@@ -301,9 +293,11 @@ intermediateTerm ::
   Reference ->
   EvalCtx ->
   Term Symbol ->
-  (SuperGroup Symbol, Map.Map Word64 (Term Symbol))
+  ( Map.Map Reference (SuperGroup Symbol),
+    Map.Map Reference (Map.Map Word64 (Term Symbol))
+  )
 intermediateTerm ppe ref ctx tm =
-  first
+  (first . fmap)
     ( superNormalize
         . splitPatterns (dspec ctx)
         . addDefaultCases tmName
@@ -314,7 +308,10 @@ intermediateTerm ppe ref ctx tm =
     . inlineAlias
     $ tm
   where
-    memorize (ll, dcmp) = (ll, backrefLifted ll dcmp)
+    memorize (ll, ctx, dcmp) =
+      ( Map.fromList $ (ref, ll) : ctx,
+        backrefLifted ref tm dcmp
+      )
     tmName = HQ.toString . termName ppe $ RF.Ref ref
 
 prepareEvaluation ::
@@ -341,7 +338,8 @@ prepareEvaluation ppe tm ctx = do
       | rmn <- RF.DerivedId $ Hashing.hashClosedTerm tm =
           (rmn, [(rmn, tm)])
 
-    (rgrp, rbkr) = intermediateTerms ppe ctx rtms
+    (rgrp0, rbkr) = intermediateTerms ppe ctx rtms
+    rgrp = Map.toList rgrp0
 
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
@@ -402,7 +400,7 @@ executeMainComb init cc =
     handler (BU nm c) = do
       crs <- readTVarIO (combRefs cc)
       let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
-      pure . either id (bugMsg mempty nm) $ decom c
+      pure . either id (bugMsg PPE.empty nm) $ decom c
 
 bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
 bugMsg ppe name tm
@@ -490,21 +488,22 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
         <*> getNat
         <*> getStoredCache
 
--- | Whether the runtime is hosted within a UCM session or as a standalone process.
+-- | Whether the runtime is hosted within a persistent session or as a one-off process.
+-- This affects the amount of clean-up and book-keeping the runtime does.
 data RuntimeHost
-  = Standalone
-  | UCM
+  = OneOff
+  | Persistent
 
-startRuntime :: RuntimeHost -> String -> IO (Runtime Symbol)
-startRuntime runtimeHost version = do
-  ctxVar <- newIORef =<< baseContext
+startRuntime :: Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
+startRuntime sandboxed runtimeHost version = do
+  ctxVar <- newIORef =<< baseContext sandboxed
   (activeThreads, cleanupThreads) <- case runtimeHost of
     -- Don't bother tracking open threads when running standalone, they'll all be cleaned up
     -- when the process itself exits.
-    Standalone -> pure (Nothing, pure ())
+    OneOff -> pure (Nothing, pure ())
     -- Track all forked threads so that they can be killed when the main process returns,
     -- otherwise they'll be orphaned and left running.
-    UCM -> do
+    Persistent -> do
       activeThreads <- newIORef Set.empty
       let cleanupThreads = do
             threads <- readIORef activeThreads
@@ -528,7 +527,7 @@ startRuntime runtimeHost version = do
           Just w <- Map.lookup rf <$> readTVarIO (refTm cc)
           sto <- standalone cc w
           BL.writeFile path . runPutL $ do
-            serialize $ pack version
+            serialize $ version
             serialize $ RF.showShort 8 rf
             putNat w
             putStoredCache sto,
@@ -566,7 +565,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
   putEnumMap putNat putReference trs
   putNat ftm
   putNat fty
-  putMap putReference putGroup int
+  putMap putReference (putGroup mempty) int
   putMap putReference putNat rtm
   putMap putReference putNat rty
   putMap putReference (putFoldable putReference) sbs
@@ -586,7 +585,7 @@ getStoredCache =
 
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
-  CCache builtinForeigns uglyTrace
+  CCache builtinForeigns False uglyTrace
     <$> newTVarIO (cs <> combs)
     <*> newTVarIO (crs <> builtinTermBackref)
     <*> newTVarIO (trs <> builtinTypeBackref)
@@ -601,9 +600,10 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
       putStrLn $ "trace: " ++ UT.unpack tx
       print c
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
+    rf k = builtinTermBackref ! k
     combs =
       mapWithKey
-        (\k v -> emitComb @Symbol rns k mempty (0, v))
+        (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v))
         numberedTermLookup
 
 traceNeeded ::

@@ -57,5 +57,4 @@ instance Semigroup BranchDiff where
       }
 
 instance Monoid BranchDiff where
-  mappend = (<>)
   mempty = BranchDiff mempty mempty mempty mempty mempty

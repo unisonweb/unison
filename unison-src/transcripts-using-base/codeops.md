@@ -3,7 +3,6 @@ Test for code serialization operations.
 
 ```ucm:hide
 .> builtins.merge
-.> cd builtin
 ```
 
 Define a function, serialize it, then deserialize it back to an actual
@@ -13,12 +12,25 @@ function. Also ask for its dependencies for display later.
 save : a -> Bytes
 save x = Value.serialize (Value.value x)
 
+Code.save : Code -> Bytes
+Code.save = Code.serialize
+
+Code.get : Link.Term -> Code
+Code.get tl = match Code.lookup tl with
+  Some co -> co
+  None -> throw "could not look up code"
+
 load : Bytes ->{io2.IO, Throw Text} a
 load b = match Value.deserialize b with
   Left _ -> throw "could not deserialize value"
   Right v -> match Value.load v with
     Left _ -> throw "could not load value"
     Right x -> x
+
+Code.load : Bytes ->{io2.IO, Throw Text} Code
+Code.load b = match Code.deserialize b with
+  Left _ -> throw "could not deserialize code"
+  Right co -> co
 
 roundtrip : a ->{io2.IO, Throw Text} a
 roundtrip x = load (save x)
@@ -82,6 +94,16 @@ extensionality t f = let
 identicality : Text -> a ->{io2.IO} Result
 identicality t x
   = handle identical "" x (roundtrip x) with handleTest t
+
+idempotence : Text -> Link.Term ->{io2.IO} Result
+idempotence t tl =
+  handle let
+    co1 = Code.get tl
+    b1 = Code.save co1
+    co2 = Code.load b1
+    b2 = Code.save co2
+    identical "" b1 b2
+  with handleTest t
 ```
 
 ```ucm
@@ -121,6 +143,13 @@ zapper t = cases
   { r } -> r
   { zap -> k } -> handle k t with zapper (rotate t)
 
+bigFun : Nat -> Nat -> Nat -> Nat
+bigFun i j k = let
+  f x y = i + x + y
+  g x y = j + x + y
+  h x y = k + x + y
+  f j k + g i k + h i j
+
 tests : '{io2.IO} [Result]
 tests =
   '[ extensionality "ext f" (t x -> handle f x with zapper t)
@@ -140,12 +169,12 @@ tests =
 
 badLoad : '{IO} [Result]
 badLoad _ =
-  payload = Bytes.fromList[0,0,0,1,0,1,64,175,174,29,188,217,78,209,175,255,137,165,135,165,1,20,151,182,215,54,21,196,43,159,247,106,175,177,213,20,111,178,134,214,188,207,243,196,240,187,111,44,245,111,219,223,98,88,183,163,97,22,18,153,104,185,125,175,157,36,209,151,166,168,102,0,1,0,0,0,0,0,2,0,0,0,0]
+  payload = Bytes.fromList[0,0,0,3,0,1,64,175,174,29,188,217,78,209,175,255,137,165,135,165,1,20,151,182,215,54,21,196,43,159,247,106,175,177,213,20,111,178,134,214,188,207,243,196,240,187,111,44,245,111,219,223,98,88,183,163,97,22,18,153,104,185,125,175,157,36,209,151,166,168,102,0,1,0,0,0,0,0,2,0,0,0,0]
   go _ =
     match Value.deserialize payload with
       Left t -> Fail "deserialize exception"
       Right a -> match Value.load a with
-        Left terms -> 
+        Left terms ->
             bs = Value.serialize (Value.value terms)
             s = size bs
             Ok ("serialized" ++ toText s)
@@ -162,9 +191,28 @@ to actual show that the serialization works.
 
 ```ucm
 .> add
-.> display fDeps
 .> io.test tests
 .> io.test badLoad
+```
+
+```unison
+codeTests : '{io2.IO} [Result]
+codeTests =
+  '[ idempotence "idem f" (termLink f)
+   , idempotence "idem h" (termLink h)
+   , idempotence "idem rotate" (termLink rotate)
+   , idempotence "idem zapper" (termLink zapper)
+   , idempotence "idem showThree" (termLink showThree)
+   , idempotence "idem concatMap" (termLink concatMap)
+   , idempotence "idem big" (termLink bigFun)
+   , idempotence "idem extensionality" (termLink extensionality)
+   , idempotence "idem identicality" (termLink identicality)
+   ]
+```
+
+```ucm
+.> add
+.> io.test codeTests
 ```
 
 ```unison

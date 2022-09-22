@@ -230,9 +230,11 @@ union r s =
     }
 
 intersection :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
-intersection r s
-  | size r > size s = intersection s r
-  | otherwise = filter (\(a, b) -> member a b s) r
+intersection r s =
+  Relation
+    { domain = M.intersectionWith Set.intersection (domain r) (domain s),
+      range = M.intersectionWith Set.intersection (range r) (range s)
+    }
 
 outerJoinDomMultimaps ::
   (Ord a, Ord b, Ord c) =>
@@ -500,32 +502,40 @@ compactSet = S.fold (S.union . fromMaybe S.empty) S.empty
 -- | Domain restriction for a relation. Modeled on z.
 (<|), restrictDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
 restrictDom = (<|)
-s <| r =
-  fromList $
-    concatMap (\(x, y) -> zip (repeat x) (S.toList y)) (M.toList domain')
+s <| r = go s (domain r)
   where
-    domain' = M.unions . List.map filtrar . S.toList $ s
-    filtrar x = M.filterWithKey (\k _ -> k == x) dr
-    dr = domain r -- just to memoize the value
+    go _ Map.Tip = mempty
+    go s _ | Set.null s = mempty
+    go s (Map.Bin _ amid bs l r) = here <> go sl l <> go sr r
+      where
+        (sl, hasMid, sr) = Set.splitMember amid s
+        mids = Set.singleton amid
+        here =
+          if hasMid
+            then Relation (Map.singleton amid bs) (Map.fromList $ (,mids) <$> (Set.toList bs))
+            else mempty
 
 -- | Range restriction for a relation. Modeled on z.
 (|>), restrictRan :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
 restrictRan = (|>)
-r |> t =
-  fromList $
-    concatMap (\(x, y) -> zip (S.toList y) (repeat x)) (M.toList range')
-  where
-    range' = M.unions . List.map filtrar . S.toList $ t
-    filtrar x = M.filterWithKey (\k _ -> k == x) rr
-    rr = range r -- just to memoize the value
+r |> t = swap (t <| swap r)
 
 -- | Restrict the range to not include these `b`s.
 (||>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
-Relation {domain, range} ||> t =
-  Relation
-    { domain = Map.mapMaybe (`Set.difference1` t) domain,
-      range = range `Map.withoutKeys` t
-    }
+r@(Relation {domain, range}) ||> t =
+  Relation domain' range'
+  where
+    go m a = Map.alter g a m
+      where
+        g Nothing = Nothing
+        g (Just s) =
+          if Set.null s'
+            then Nothing
+            else Just s'
+          where
+            s' = Set.difference s t
+    domain' = foldl' go domain (foldMap (`lookupRan` r) t)
+    range' = range `Map.withoutKeys` t
 
 -- | Named version of ('||>').
 subtractRan :: (Ord a, Ord b) => Set b -> Relation a b -> Relation a b
@@ -533,11 +543,7 @@ subtractRan = flip (||>)
 
 -- | Restrict the domain to not include these `a`s.
 (<||) :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
-s <|| Relation {domain, range} =
-  Relation
-    { domain = domain `Map.withoutKeys` s,
-      range = Map.mapMaybe (`Set.difference1` s) range
-    }
+s <|| r = swap (swap r ||> s)
 
 -- | Named version of ('<||').
 subtractDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
@@ -741,7 +747,6 @@ bitraverse f g = fmap fromList . traverse (\(a, b) -> (,) <$> f a <*> g b) . toL
 
 instance (Ord a, Ord b) => Monoid (Relation a b) where
   mempty = empty
-  mappend = (<>)
 
 instance (Ord a, Ord b) => Semigroup (Relation a b) where
   (<>) = union

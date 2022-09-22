@@ -1,20 +1,42 @@
- Example uses of the `names` command and output
-```ucm:hide
-.> alias.type ##Int .builtins.Int
-```
+# `names` command
 
-```unison:hide
-structural type IntTriple = IntTriple (Int, Int, Int)
-intTriple = IntTriple(+1, +1, +1)
-```
+Example uses of the `names` command and output
 
-```ucm:hide
-.> add
+```unison
+-- Some names with the same value
+some.place.x = 1
+some.otherplace.y = 1
+some.otherplace.x = 10
+somewhere.z = 1
+-- Some similar name with a different value
+somewhere.y = 2
 ```
 
 ```ucm
-.> alias.type IntTriple namespc.another.TripleInt
-.> alias.term intTriple namespc.another.tripleInt
-.> names IntTriple
-.> names intTriple
+.> add
+```
+
+
+`names` searches relative to the current path.
+
+```ucm
+-- We can search by suffix and find all definitions named 'x', and each of their aliases respectively.
+-- But we don't see somewhere.z which is has the same value but is out of our namespace
+.some> names x
+-- We can search by hash, and see all aliases of that hash
+.some> names #gjmq673r1v
+-- If the query is absolute, treat it as a `names.global`
+.some> names .some.place.x
+```
+
+`names.global` searches from the root, and absolutely qualifies results
+
+
+```ucm
+-- We can search by suffix and find all definitions in the codebase named 'x', and each of their aliases respectively.
+.some> names.global x
+-- We can search by hash, and see all aliases of that hash in the codebase
+.some> names.global #gjmq673r1v
+-- We can search using an absolute name
+.some> names.global .some.place.x
 ```

@@ -173,6 +173,11 @@ inSubtype = asPathExtractor $ \case
   C.InEquate found expected -> Just (found, expected)
   _ -> Nothing
 
+inEquate :: SubseqExtractor v loc (C.Type v loc, C.Type v loc)
+inEquate = asPathExtractor $ \case
+  C.InEquate lhs rhs -> Just (lhs, rhs)
+  _ -> Nothing
+
 inCheck :: SubseqExtractor v loc (C.Term v loc, C.Type v loc)
 inCheck = asPathExtractor $ \case
   C.InCheck e t -> Just (e, t)
@@ -271,6 +276,13 @@ abilityCheckFailure =
     C.AbilityCheckFailure ambient requested ctx -> pure (ambient, requested, ctx)
     _ -> mzero
 
+abilityEqFailure ::
+  ErrorExtractor v loc ([C.Type v loc], [C.Type v loc], C.Context v loc)
+abilityEqFailure =
+  cause >>= \case
+    C.AbilityEqFailure lhs rhs ctx -> pure (lhs, rhs, ctx)
+    _ -> mzero
+
 effectConstructorWrongArgCount ::
   ErrorExtractor
     v
@@ -324,14 +336,14 @@ instance Functor (SubseqExtractor' n) where
   fmap = liftM
 
 instance Applicative (SubseqExtractor' n) where
-  pure = return
+  pure a = SubseqExtractor' $ \_ -> [Pure a]
   (<*>) = ap
 
 instance MonadFail (SubseqExtractor' n) where
   fail _ = mzero
 
 instance Monad (SubseqExtractor' n) where
-  return a = SubseqExtractor' $ \_ -> [Pure a]
+  return = pure
   xa >>= f = SubseqExtractor' $ \note ->
     let as = runSubseq xa note
      in do
@@ -358,7 +370,6 @@ instance MonadPlus (SubseqExtractor' n) where
 
 instance Monoid (SubseqExtractor' n a) where
   mempty = mzero
-  mappend = mplus
 
 instance Semigroup (SubseqExtractor' n a) where
-  (<>) = mappend
+  (<>) = mplus

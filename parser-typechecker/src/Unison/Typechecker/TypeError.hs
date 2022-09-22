@@ -17,7 +17,7 @@ import Prelude hiding (all, and, or)
 data BooleanMismatch = CondMismatch | AndMismatch | OrMismatch | GuardMismatch
   deriving (Show)
 
-data ExistentialMismatch = IfBody | VectorBody | CaseBody
+data ExistentialMismatch = IfBody | ListBody | CaseBody
   deriving (Show)
 
 data TypeError v loc
@@ -63,6 +63,23 @@ data TypeError v loc
       { ambient :: [C.Type v loc],
         requested :: [C.Type v loc],
         abilityCheckFailureSite :: loc,
+        note :: C.ErrorNote v loc
+      }
+  | AbilityEqFailure
+      { lhs :: [C.Type v loc],
+        rhs :: [C.Type v loc],
+        tlhs :: C.Type v loc,
+        trhs :: C.Type v loc,
+        abilityCheckFailureSite :: loc,
+        note :: C.ErrorNote v loc
+      }
+  | AbilityEqFailureFromAp
+      { lhs :: [C.Type v loc],
+        rhs :: [C.Type v loc],
+        tlhs :: C.Type v loc,
+        trhs :: C.Type v loc,
+        expectedSite :: C.Term v loc,
+        mismatchSite :: C.Term v loc,
         note :: C.ErrorNote v loc
       }
   | UnguardedLetRecCycle
@@ -118,12 +135,13 @@ allErrors =
       cond,
       matchGuard,
       ifBody,
-      vectorBody,
+      listBody,
       matchBody,
       applyingFunction,
       applyingNonFunction,
       generalMismatch,
       abilityCheckFailure,
+      abilityEqFailure,
       unguardedCycle,
       unknownType,
       unknownTerm,
@@ -141,6 +159,23 @@ abilityCheckFailure = do
   e <- Ex.innermostTerm
   n <- Ex.errorNote
   pure $ AbilityCheckFailure ambient requested (ABT.annotation e) n
+
+abilityEqFailure :: Ex.ErrorExtractor v a (TypeError v a)
+abilityEqFailure = do
+  (lhs, rhs, _ctx) <- Ex.abilityEqFailure
+  e <- Ex.innermostTerm
+  n <- Ex.errorNote
+  path <- Ex.path
+  (tlhs, trhs) : _ <- pure . mapMaybe p $ reverse path
+  let app = do
+        (_, f, _, _) <- Ex.unique Ex.inFunctionCall
+        pure $ AbilityEqFailureFromAp lhs rhs tlhs trhs f e n
+      plain = pure $ AbilityEqFailure lhs rhs tlhs trhs (ABT.annotation e) n
+  app <|> plain
+  where
+    p (C.InSubtype t1 t2) = Just (t1, t2)
+    p (C.InEquate t1 t2) = Just (t1, t2)
+    p _ = Nothing
 
 duplicateDefinitions :: Ex.ErrorExtractor v a (TypeError v a)
 duplicateDefinitions = do
@@ -184,14 +219,9 @@ generalMismatch = do
   n <- Ex.errorNote
   mismatchSite <- Ex.innermostTerm
   ((foundLeaf, expectedLeaf), (foundType, expectedType)) <- firstLastSubtype
-  let [ft, et, fl, el] =
-        Type.cleanups
-          [ sub foundType,
-            sub expectedType,
-            sub foundLeaf,
-            sub expectedLeaf
-          ]
-  pure $ Mismatch ft et fl el mismatchSite n
+  case Type.cleanups [sub foundType, sub expectedType, sub foundLeaf, sub expectedLeaf] of
+    [ft, et, fl, el] -> pure $ Mismatch ft et fl el mismatchSite n
+    _ -> error "generalMismatch: Mismatched type binding"
 
 and,
   or,
@@ -258,11 +288,11 @@ existentialMismatch0 em getExpectedLoc = do
       n
 
 ifBody,
-  vectorBody,
+  listBody,
   matchBody ::
     (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 ifBody = existentialMismatch0 IfBody (Ex.inSynthesizeApp >> Ex.inIfBody)
-vectorBody = existentialMismatch0 VectorBody (Ex.inSynthesizeApp >> Ex.inVector)
+listBody = existentialMismatch0 ListBody (Ex.inSynthesizeApp >> Ex.inVector)
 matchBody = existentialMismatch0 CaseBody (Ex.inMatchBody >> Ex.inMatch)
 
 applyingNonFunction :: Var v => Ex.ErrorExtractor v loc (TypeError v loc)

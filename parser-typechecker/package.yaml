@@ -2,28 +2,6 @@ name: unison-parser-typechecker
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
-default-extensions:
-  - ApplicativeDo
-  - BangPatterns
-  - BlockArguments
-  - DeriveFunctor
-  - DeriveGeneric
-  - DerivingStrategies
-  - DoAndIfThenElse
-  - FlexibleContexts
-  - FlexibleInstances
-  - GeneralizedNewtypeDeriving
-  - LambdaCase
-  - MultiParamTypeClasses
-  - NamedFieldPuns
-  - OverloadedStrings
-  - PatternSynonyms
-  - RankNTypes
-  - ScopedTypeVariables
-  - TupleSections
-  - TypeApplications
-  - ViewPatterns
-
 ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
 flags:
@@ -35,155 +13,164 @@ when:
   - condition: flag(optimized)
     ghc-options: -funbox-strict-fields -O2
 
+dependencies:
+  - ListLike
+  - NanoID
+  - aeson
+  - ansi-terminal
+  - async
+  - base
+  - base16 >= 0.2.1.0
+  - base64-bytestring
+  - basement
+  - binary
+  - bytes
+  - bytestring
+  - bytestring-to-vector
+  - cereal
+  - clock
+  - configurator
+  - containers >= 0.6.3
+  - cryptonite
+  - data-default
+  - data-memocombinators
+  - deepseq
+  - directory
+  - either
+  - errors
+  - exceptions
+  - extra
+  - filepath
+  - fingertree
+  - fsnotify
+  - fuzzyfind
+  - generic-lens
+  - generic-monoid
+  - hashable
+  - hashtables
+  - haskeline
+  - here
+  - http-client
+  - http-media
+  - http-types
+  - lens
+  - lucid
+  - megaparsec
+  - memory
+  - mmorph
+  - monad-validate
+  - mtl
+  - mutable-containers
+  - mwc-random
+  - natural-transformation
+  - network
+  - network-simple
+  - network-uri
+  - nonempty-containers
+  - open-browser
+  - openapi3
+  - optparse-applicative >= 0.16.1.0
+  - pem
+  - prelude-extras
+  - pretty-simple
+  - primitive
+  - process
+  - random >= 1.2.0
+  - raw-strings-qq
+  - regex-base
+  - regex-tdfa
+  - safe
+  - safe-exceptions
+  - semialign
+  - servant
+  - servant-client
+  - servant-docs
+  - servant-openapi3
+  - servant-server
+  - shellmet
+  - stm
+  - strings
+  - tagged
+  - temporary
+  - terminal-size
+  - text
+  - text-short
+  - these
+  - time
+  - tls
+  - transformers
+  - unicode-show
+  - unison-codebase
+  - unison-codebase-sqlite
+  - unison-codebase-sqlite-hashing-v2
+  - unison-codebase-sync
+  - unison-core
+  - unison-core1
+  - unison-hashing-v2
+  - unison-prelude
+  - unison-pretty-printer
+  - unison-sqlite
+  - unison-util
+  - unison-util-base32hex
+  - unison-util-relation
+  - unison-util-serialization
+  - unliftio
+  - uri-encode
+  - utf8-string
+  - vector
+  - wai
+  - warp
+  - x509
+  - x509-store
+  - x509-system
+  - yaml
+  - zlib
+
 library:
   source-dirs: src
-  dependencies:
-    - aeson
-    - ansi-terminal
-    - async
-    - base
-    - base16 >= 0.2.1.0
-    - base64-bytestring
-    - basement
-    - binary
-    - bytes
-    - bytestring
-    - bytestring-to-vector
-    - cereal
-    - containers >= 0.6.3
-    - configurator
-    - cryptonite
-    - data-default
-    - deepseq
-    - directory
-    - either
-    - fuzzyfind
-    - data-memocombinators
-    - errors
-    - exceptions
-    - extra
-    - filepath
-    - fingertree
-    - fsnotify
-    - generic-monoid
-    - generic-lens
-    - hashable
-    - hashtables
-    - haskeline
-    - http-types
-    - http-media
-    - lens
-    - ListLike
-    - megaparsec >= 5.0.0 && < 7.0.0
-    - memory
-    - mmorph
-    - monad-validate
-    - mtl
-    - mutable-containers
-    - natural-transformation
-    - network
-    - network-simple
-    - nonempty-containers
-    - optparse-applicative >= 0.16.1.0
-    - openapi3
-    - pem
-    - prelude-extras
-    - process
-    - primitive
-    - random >= 1.2.0
-    - raw-strings-qq
-    - regex-base
-    - regex-tdfa
-    - safe
-    - safe-exceptions
-    - semialign
-    - mwc-random
-    - NanoID
-    - lucid
-    - yaml
-    - semialign
-    - servant
-    - servant-docs
-    - servant-openapi3
-    - servant-server
-    - shellmet
-    - stm
-    - strings
-    - sqlite-simple
-    - tagged
-    - temporary
-    - terminal-size
-    - text
-    - text-short
-    - these
-    - time
-    - tls
-    - transformers
-    - unliftio
-    - utf8-string
-    - unicode-show
-    - vector
-    - wai
-    - warp
-    - unicode-show
-    - x509
-    - x509-store
-    - x509-system
-    - zlib
-    - unison-codebase
-    - unison-codebase-sqlite
-    - unison-codebase-sync
-    - unison-core
-    - unison-core1
-    - unison-prelude
-    - unison-util
-    - unison-util-relation
-    - open-browser
-    - uri-encode
-    - generic-lens
+  when:
+    - condition: false
+      other-modules: Paths_unison_parser_typechecker
 
-executables:
-  prettyprintdemo:
-    source-dirs: prettyprintdemo
-    main: Main.hs
-    dependencies:
-      - base
-      - safe
-      - text
-      - unison-parser-typechecker
-
-  tests:
+tests:
+  parser-typechecker-tests:
     source-dirs: tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
     dependencies:
-      - async
-      - base
-      - bytestring
       - code-page
-      - containers
-      - directory
       - easytest
-      - errors
-      - exceptions
-      - extra
-      - filepath
       - filemanip
-      - haskeline
-      - here
-      - lens
-      - megaparsec
-      - mtl
-      - raw-strings-qq
-      - stm
-      - shellmet
       - split
-      - temporary
-      - text
-      - transformers
-      - unliftio
-      - unison-core1
       - unison-parser-typechecker
-      - unison-prelude
-      - unison-util
-      - unison-util-relation
+    when:
+      - condition: false
+        other-modules: Paths_unison_parser_typechecker
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - ViewPatterns

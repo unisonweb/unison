@@ -90,6 +90,8 @@ and update the codebase to use the new type `Foo`...
   fooToInt : Foo -> Int
   fooToInt _ = +42
 
+.> cd .
+
 ```
 ### Preserving user type variables
 
@@ -130,6 +132,8 @@ Add that to the codebase:
     otherTerm : Optional baz -> Optional baz
     someTerm  : Optional foo -> Optional foo
 
+.> cd .
+
 ```
 Let's now edit the dependency:
 
@@ -146,8 +150,7 @@ someTerm _ = None
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
+    ⍟ These new definitions are ok to `add`:
     
       someTerm : Optional x -> Optional x
 
@@ -160,6 +163,8 @@ Update...
   ⍟ I've updated these names to your new definition:
   
     someTerm : Optional x -> Optional x
+
+.> cd .
 
 ```
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
@@ -184,18 +189,7 @@ Cleaning up a bit...
 ```ucm
 .> delete.namespace subpath
 
-  Removed definitions:
-  
-    1. unique type Foo
-    2. Foo.Bar            : #isd1untaal
-    3. Foo.Foo            : #isd1untaal
-    4. fooToInt           : #isd1untaal -> Int
-    5. preserve.otherTerm : Optional baz -> Optional baz
-    6. preserve.someTerm  : Optional x -> Optional x
-    7. patch patch
-    8. patch preserve.patch
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 ```
 Now, we make two terms, where one depends on the other.
@@ -237,6 +231,8 @@ We'll make two copies of this namespace.
 .subpath> fork one two
 
   Done.
+
+.> cd .
 
 ```
 Now let's edit one of the terms...
