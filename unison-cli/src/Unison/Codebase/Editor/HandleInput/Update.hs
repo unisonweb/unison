@@ -11,6 +11,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Set.NonEmpty as NESet
+import qualified Data.Tuple as Tuple
 import qualified Unison.ABT as ABT
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -376,14 +377,16 @@ getSlurpResultForUpdate requestedNames = do
             nameToInterimInfo =
               UF.hashTermsId (Slurp.originalFile slurp0)
 
-        -- Map each term name being updated to its interim reference.
+        -- Associate each term name being updated with its interim reference.
         --
         -- Running example:
         --
-        --   "ping" => #newping
-        let nameToInterimRef :: Map Symbol TermReferenceId
+        --   "ping" <=> #newping
+        let nameToInterimRef :: Bij Symbol TermReferenceId
             nameToInterimRef =
-              Map.map (\(ref, _wk, _term, _typ) -> ref) nameToInterimInfo
+              nameToInterimInfo
+                & Map.map (\(ref, _wk, _term, _typ) -> ref)
+                & bijFromMap
 
         -- Remap the references contained in each implicit term, then add back in the slurped interim terms and unhash
         -- the collection. The unhashing process will invent a fresh variable name for each term.
@@ -431,7 +434,12 @@ getSlurpResultForUpdate requestedNames = do
                       ( \(name, oldRefs) ->
                           oldRefs
                             & Set.toList
-                            & map (,nameToInterimRef Map.! name)
+                            & map
+                              ( \oldRef ->
+                                  case bijLookupL name nameToInterimRef of
+                                    Nothing -> undefined
+                                    Just interimRef -> (oldRef, interimRef)
+                              )
                             & Map.fromList
                       )
                     & rewriteTermReferences
@@ -466,25 +474,21 @@ getSlurpResultForUpdate requestedNames = do
                 generatedNameToName =
                   refToGeneratedNameAndTerm & Map.remap \(ref, (generatedName, _term)) ->
                     ( generatedName,
-                      case Map.lookup ref interimRefToName of
+                      case bijLookupR ref nameToInterimRef of
                         Just name -> name
                         Nothing ->
                           let (_term, name) = implicitTerms Map.! ref
                            in name
                     )
-                  where
-                    -- Running example:
-                    --
-                    --   #newping => "ping"
-                    interimRefToName :: Map TermReferenceId Symbol
-                    interimRefToName =
-                      Map.remap (\(var, ref) -> (ref, var)) nameToInterimRef
 
             let renameTerm ::
                   (Symbol, Term Symbol Ann, Type Symbol Ann) ->
                   (Symbol, Term Symbol Ann, Type Symbol Ann)
                 renameTerm (generatedName, term, typ) =
-                  (generatedNameToName Map.! generatedName, ABT.renames generatedNameToName term, typ)
+                  ( generatedNameToName Map.! generatedName,
+                    ABT.renames generatedNameToName term,
+                    typ
+                  )
 
             let file1 :: TypecheckedUnisonFile Symbol Ann
                 file1 =
@@ -599,3 +603,24 @@ propagatePatchNoSync ::
 propagatePatchNoSync patch scopePath =
   Cli.time "propagatePatchNoSync" do
     Cli.stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Tiny helper bijection type
+--
+-- This is semantically a set of `(a, b)` tuples, where no `a` nor `b` appears more than once. An `a` can be looked up
+-- given its associated `b`, and vice-versa.
+
+data Bij a b
+  = Bij (Map a b) (Map b a)
+
+bijFromMap :: Ord b => Map a b -> Bij a b
+bijFromMap m =
+  Bij m (Map.remap Tuple.swap m)
+
+bijLookupL :: Ord a => a -> Bij a b -> Maybe b
+bijLookupL x (Bij m _) =
+  Map.lookup x m
+
+bijLookupR :: Ord b => b -> Bij a b -> Maybe a
+bijLookupR x (Bij _ m) =
+  Map.lookup x m
