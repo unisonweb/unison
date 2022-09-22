@@ -51,6 +51,12 @@ jobs:
           echo "Creating a release from these artifacts:"
           ls -R /tmp/ucm
 
+          # As of time of writing, `ubuntu-latest` is behind on 'gh' and we need > 2.15.0;
+          # If https://github.com/actions/runner-images/blob/main/images/linux/Ubuntu2004-Readme.md
+          # lists a github cli version > 2.15.0 then this install command can be removed.
+          sudo apt update
+          sudo apt install gh
+
           gh release create "release/${version}" --target "${target}" --generate-notes --notes-start-tag "release/${prev_version}" $prereleaseFlag /tmp/ucm/**/*.tar.gz /tmp/ucm/**/*.zip
 
   build_linux:
