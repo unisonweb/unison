@@ -210,34 +210,3 @@ Note that if we view the source of the documentation, the various references are
     :]
 
 ```
-## Docs for operators round-trip properly.
-
-Regression test for https://github.com/unisonweb/unison/issues/2970
-
-```unison
-{{ docs for +++ }}
-(+++) a b = "result"
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    +++     : a -> b -> Text
-    +++.doc : Doc2
-
-.> edit +++.doc
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/cpenner/dev/unison-trunk/scratch.u
-  
-    (+++.doc) : Doc2
-    (+++.doc) = {{ docs for +++ }}
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-```
