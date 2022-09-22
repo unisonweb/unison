@@ -1,6 +1,6 @@
 Not yet working: using update to establish a cycle.
 
-```ucm
+```ucm:hide
 .> builtins.merge
 ```
 

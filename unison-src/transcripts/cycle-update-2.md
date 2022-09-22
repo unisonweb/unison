@@ -1,6 +1,6 @@
 Update a member of a cycle with a type-preserving update, but sever the cycle.
 
-```ucm
+```ucm:hide
 .> builtins.merge
 ```
 

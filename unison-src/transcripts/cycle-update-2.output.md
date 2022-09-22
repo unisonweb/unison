@@ -1,11 +1,5 @@
 Update a member of a cycle with a type-preserving update, but sever the cycle.
 
-```ucm
-.> builtins.merge
-
-  Done.
-
-```
 ```unison
 ping : 'Nat
 ping _ = !pong + 1

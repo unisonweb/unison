@@ -1,6 +1,6 @@
 Update a member of a cycle, but retain the cycle.
 
-```ucm
+```ucm:hide
 .> builtins.merge
 ```
 

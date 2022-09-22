@@ -1,11 +1,5 @@
 Not yet working: using update to establish a cycle.
 
-```ucm
-.> builtins.merge
-
-  Done.
-
-```
 ```unison
 ping : 'Nat
 ping _ = 1

@@ -1,6 +1,6 @@
 Not yet working: properly updating nameless implicit terms.
 
-```ucm
+```ucm:hide
 .> builtins.merge
 ```
 
@@ -11,9 +11,6 @@ inner.ping _ = !pong + 1
 pong : 'Nat
 pong _ = !inner.ping + 2
 ```
-
-N.B. `find.verbose` on `pong` just to put its hash into the transcript output, so it's easier to copy if we change
-hashing.
 
 ```ucm
 .> add

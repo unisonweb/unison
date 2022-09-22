@@ -1,6 +1,6 @@
-Update a member of a cycle with a type-changing update, thus severing the cycle.
+Not yet working: properly updating implicit terms with conflicted names.
 
-```ucm:hide
+```ucm
 .> builtins.merge
 ```
 
@@ -14,11 +14,12 @@ pong _ = !ping + 2
 
 ```ucm
 .> add
+.> alias.term pong pong2
 ```
 
 ```unison
-ping : Nat
-ping = 3
+ping : 'Nat
+ping _ = !pong + 3
 ```
 
 ```ucm

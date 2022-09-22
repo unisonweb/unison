@@ -1,11 +1,5 @@
 Update a member of a cycle, but retain the cycle.
 
-```ucm
-.> builtins.merge
-
-  Done.
-
-```
 ```unison
 ping : 'Nat
 ping _ = !pong + 1

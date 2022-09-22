@@ -1,11 +1,5 @@
 Not yet working: properly updating nameless implicit terms.
 
-```ucm
-.> builtins.merge
-
-  Done.
-
-```
 ```unison
 inner.ping : 'Nat
 inner.ping _ = !pong + 1
@@ -26,9 +20,6 @@ pong _ = !inner.ping + 2
       pong       : 'Nat
 
 ```
-N.B. `find.verbose` on `pong` just to put its hash into the transcript output, so it's easier to copy if we change
-hashing.
-
 ```ucm
 .> add
 

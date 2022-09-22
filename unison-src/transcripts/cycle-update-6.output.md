@@ -1,5 +1,11 @@
-Update a member of a cycle with a type-changing update, thus severing the cycle.
+Not yet working: properly updating implicit terms with conflicted names.
 
+```ucm
+.> builtins.merge
+
+  Done.
+
+```
 ```unison
 ping : 'Nat
 ping _ = !pong + 1
@@ -28,10 +34,14 @@ pong _ = !ping + 2
     ping : 'Nat
     pong : 'Nat
 
+.> alias.term pong pong2
+
+  Done.
+
 ```
 ```unison
-ping : Nat
-ping = 3
+ping : 'Nat
+ping _ = !pong + 3
 ```
 
 ```ucm
@@ -43,7 +53,7 @@ ping = 3
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      ping : Nat
+      ping : 'Nat
 
 ```
 ```ucm
@@ -51,12 +61,14 @@ ping = 3
 
   ⍟ I've updated these names to your new definition:
   
-    ping : Nat
+    ping : 'Nat
 
 .> view ping pong
 
-  ping : Nat
-  ping = 3
+  ping : 'Nat
+  ping _ =
+    use Nat +
+    !pong + 3
   
   pong : 'Nat
   pong _ =
