@@ -316,7 +316,7 @@ expectLatestTypecheckedFile :: Cli r (TypecheckedUnisonFile Symbol Ann)
 expectLatestTypecheckedFile =
   getLatestTypecheckedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
 
--- Update a branch at the given path, returning `True` if
+-- | Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM ::
   Text ->

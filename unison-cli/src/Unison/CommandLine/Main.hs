@@ -118,6 +118,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
   let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
   Ki.fork_ scope $ do
     let loop lastRoot = do
+          -- This doesn't necessarily notify on _every_ update, but the LSP only needs the
+          -- most recent version at any given time, so it's fine to skip some intermediate
+          -- versions.
           currentRoot <- atomically do
             currentRoot <- readTMVar rootVar
             guard $ Just currentRoot /= lastRoot
