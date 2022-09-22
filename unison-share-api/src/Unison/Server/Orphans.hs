@@ -9,6 +9,7 @@ import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Binary
 import Data.ByteString.Short (ShortByteString)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.OpenApi
 import Data.Proxy
 import qualified Data.Text as Text
@@ -50,6 +51,19 @@ instance ToJSON ShortHash where
 
 instance ToJSONKey ShortHash where
   toJSONKey = contramap SH.toText (toJSONKey @Text)
+
+instance FromJSON ShortHash where
+  parseJSON = Aeson.withText "ShortHash" \txt ->
+    case SH.fromText txt of
+      Nothing -> fail $ "Invalid Shorthash" <> Text.unpack txt
+      Just sh -> pure sh
+
+instance FromJSONKey ShortHash where
+  fromJSONKey =
+    Aeson.FromJSONKeyTextParser \txt ->
+      case SH.fromText txt of
+        Nothing -> fail $ "Invalid Shorthash" <> Text.unpack txt
+        Just sh -> pure sh
 
 deriving instance ToSchema ShortHash
 
@@ -162,6 +176,28 @@ instance Show n => ToJSON (HQ.HashQualified n) where
 
 instance Show n => ToJSON (HQ'.HashQualified n) where
   toJSON = Aeson.String . HQ'.toText
+
+instance FromJSON (HQ'.HashQualified Name) where
+  parseJSON = Aeson.withText "HashQualified'" \txt ->
+    maybe (fail "Invalid HashQualified' Name") pure $ HQ'.fromText txt
+
+instance FromJSON (HQ.HashQualified Name) where
+  parseJSON = Aeson.withText "HashQualified" \txt ->
+    maybe (fail "Invalid HashQualified Name") pure $ HQ.fromText txt
+
+instance FromJSON (HQ'.HashQualified NameSegment) where
+  parseJSON = Aeson.withText "HashQualified'" \txt -> do
+    hqName <- maybe (fail "Invalid HashQualified' NameSegment") pure $ HQ'.fromText txt
+    for hqName \name -> case Name.segments name of
+      (ns :| []) -> pure ns
+      _ -> fail $ "Expected a single name segment but received several: " <> Text.unpack txt
+
+instance FromJSON (HQ.HashQualified NameSegment) where
+  parseJSON = Aeson.withText "HashQualified" \txt -> do
+    hqName <- maybe (fail "Invalid HashQualified' NameSegment") pure $ HQ.fromText txt
+    for hqName \name -> case Name.segments name of
+      (ns :| []) -> pure ns
+      _ -> fail $ "Expected a single name segment but received several: " <> Text.unpack txt
 
 deriving newtype instance ToSchema NameSegment
 

@@ -10,7 +10,7 @@
 -- to the server frontend.
 module Unison.Server.Syntax where
 
-import Data.Aeson (ToJSON)
+import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.List as List
 import Data.List.Extra
 import qualified Data.List.NonEmpty as List.NonEmpty
@@ -42,17 +42,25 @@ type SyntaxSegment = Segment Element
 
 instance ToJSON Element
 
+instance FromJSON Element
+
 deriving instance ToSchema Element
 
 instance ToJSON a => ToJSON (Segment a)
+
+instance FromJSON a => FromJSON (Segment a)
 
 deriving instance ToSchema a => ToSchema (Segment a)
 
 instance ToJSON SeqOp
 
+instance FromJSON SeqOp
+
 deriving instance ToSchema SeqOp
 
 instance ToJSON SyntaxText
+
+instance FromJSON SyntaxText
 
 deriving anyclass instance ToSchema SyntaxText
 

@@ -1,6 +1,8 @@
 {-
    This module defines tab-completion strategies for entering info via the CLI
 -}
+{-# LANGUAGE RecordWildCards #-}
+
 module Unison.CommandLine.Completion
   ( -- * Completers
     exactComplete,
@@ -14,12 +16,14 @@ module Unison.CommandLine.Completion
     prettyCompletion,
     fixupCompletion,
     haskelineTabComplete,
+    sharePathCompletion,
   )
 where
 
 import Control.Lens (ifoldMap)
 import qualified Control.Lens as Lens
 import Control.Lens.Cons (unsnoc)
+import qualified Data.Aeson as Aeson
 import Data.List (isPrefixOf)
 import qualified Data.List as List
 import Data.List.Extra (nubOrdOn)
@@ -28,6 +32,8 @@ import qualified Data.Map as Map
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.URI as URI
 import qualified System.Console.Haskeline as Line
 import System.Console.Haskeline.Completion (Completion)
 import qualified System.Console.Haskeline.Completion as Haskeline
@@ -36,6 +42,7 @@ import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Referent as Referent
 import qualified U.Util.Monoid as Monoid
+import Unison.Auth.HTTPClient (AuthenticatedHttpClient (..))
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
@@ -45,7 +52,13 @@ import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
+import Unison.Server.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
+import qualified Unison.Server.Endpoints.NamespaceListing as Server
+import qualified Unison.Server.Types as Server
+import qualified Unison.Share.Codeserver as Codeserver
+import qualified Unison.Share.Types as Share
 import qualified Unison.Util.Pretty as P
+import qualified UnliftIO
 import Prelude hiding (readFile, writeFile)
 
 -- | A completion func for use with Haskeline
@@ -53,9 +66,10 @@ haskelineTabComplete ::
   MonadIO m =>
   Map String IP.InputPattern ->
   Codebase m v a ->
+  AuthenticatedHttpClient ->
   Path.Absolute ->
   Line.CompletionFunc m
-haskelineTabComplete patterns codebase currentPath = Line.completeWordWithPrev Nothing " " $ \prev word ->
+haskelineTabComplete patterns codebase authedHTTPClient currentPath = Line.completeWordWithPrev Nothing " " $ \prev word ->
   -- User hasn't finished a command name, complete from command names
   if null prev
     then pure . exactComplete word $ Map.keys patterns
@@ -64,7 +78,7 @@ haskelineTabComplete patterns codebase currentPath = Line.completeWordWithPrev N
       h : t -> fromMaybe (pure []) $ do
         p <- Map.lookup h patterns
         argType <- IP.argType p (length t)
-        pure $ IP.suggestions argType word codebase currentPath
+        pure $ IP.suggestions argType word codebase authedHTTPClient currentPath
       _ -> pure []
 
 -- | Things which we may want to complete for.
@@ -80,9 +94,10 @@ noCompletions ::
   MonadIO m =>
   String ->
   Codebase m v a ->
+  AuthenticatedHttpClient ->
   Path.Absolute ->
   m [System.Console.Haskeline.Completion.Completion]
-noCompletions _ _ _ = pure []
+noCompletions _ _ _ _ = pure []
 
 -- | Finds names of the selected completion types within the path provided by the query.
 --
@@ -339,3 +354,101 @@ fixupCompletion q cs@(h : t) =
    in if not (q `isPrefixOf` overallCommonPrefix)
         then [c {Line.replacement = q} | c <- cs]
         else cs
+
+sharePathCompletion ::
+  MonadIO m =>
+  AuthenticatedHttpClient ->
+  String ->
+  m [Completion]
+sharePathCompletion = shareCompletion (NESet.singleton NamespaceCompletion)
+
+shareCompletion ::
+  MonadIO m =>
+  NESet CompletionType ->
+  AuthenticatedHttpClient ->
+  String ->
+  m [Completion]
+shareCompletion completionTypes authHTTPClient str =
+  fromMaybe [] <$> runMaybeT do
+    case Text.splitOn "." (Text.pack str) of
+      [] -> empty
+      [userPrefix] -> do
+        userHandles <- searchUsers authHTTPClient userPrefix
+        pure $
+          userHandles
+            & filter (userPrefix `Text.isPrefixOf`)
+            <&> \handle -> prettyCompletionWithQueryPrefix False (Text.unpack userPrefix) (Text.unpack handle)
+      userHandle : path -> do
+        (userHandle, path, pathSuffix) <- case unsnoc path of
+          Just (path, pathSuffix) -> pure (userHandle, Path.fromList (NameSegment <$> path), pathSuffix)
+          Nothing -> pure (userHandle, Path.empty, "")
+        NamespaceListing {namespaceListingChildren} <- MaybeT $ fetchShareNamespaceInfo authHTTPClient userHandle path
+        namespaceListingChildren
+          & fmap
+            ( \case
+                Server.Subnamespace nn ->
+                  let name = Server.namespaceName nn
+                   in (NamespaceCompletion, name)
+                Server.TermObject nt ->
+                  let name = HQ'.toText $ Server.termName nt
+                   in (NamespaceCompletion, name)
+                Server.TypeObject nt ->
+                  let name = HQ'.toText $ Server.typeName nt
+                   in (TermCompletion, name)
+                Server.PatchObject np ->
+                  let name = Server.patchName np
+                   in (NamespaceCompletion, name)
+            )
+          & filter (\(typ, name) -> typ `NESet.member` completionTypes && pathSuffix `Text.isPrefixOf` name)
+          & fmap
+            ( \(_, name) ->
+                let queryPath = userHandle : coerce (Path.toList path)
+                    result = Text.unpack $ Text.intercalate "." (queryPath <> [name])
+                 in prettyCompletionWithQueryPrefix False str result
+            )
+          & pure
+
+fetchShareNamespaceInfo :: MonadIO m => AuthenticatedHttpClient -> Text -> Path.Path -> m (Maybe NamespaceListing)
+fetchShareNamespaceInfo (AuthenticatedHttpClient httpManager) userHandle path = runMaybeT do
+  let uri =
+        (Share.codeserverToURI Codeserver.defaultCodeserver)
+          { URI.uriPath = Text.unpack $ "/codebases/" <> userHandle <> "/browse",
+            URI.uriQuery =
+              if not . null $ Path.toList path
+                then Text.unpack $ "?relativeTo=" <> tShow path
+                else ""
+          }
+  req <- MaybeT $ pure (HTTP.requestFromURI uri)
+  fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req httpManager
+  resp <- either (const empty) pure $ fullResp
+  MaybeT . pure . Aeson.decode @Server.NamespaceListing $ HTTP.responseBody resp
+
+searchUsers :: MonadIO m => AuthenticatedHttpClient -> Text -> m [Text]
+searchUsers _ "" = pure []
+searchUsers (AuthenticatedHttpClient httpManager) userHandlePrefix =
+  fromMaybe [] <$> runMaybeT do
+    let uri =
+          (Share.codeserverToURI Codeserver.defaultCodeserver)
+            { URI.uriPath = "/search",
+              URI.uriQuery = Text.unpack $ "?query=" <> userHandlePrefix
+            }
+    req <- MaybeT $ pure (HTTP.requestFromURI uri)
+    fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req httpManager
+    resp <- either (const empty) pure $ fullResp
+    results <- (MaybeT . pure . Aeson.decode @[SearchResult] $ HTTP.responseBody resp)
+    pure $
+      results
+        & filter (\SearchResult {tag} -> tag == "User")
+        & fmap handle
+
+data SearchResult = SearchResult
+  { handle :: Text,
+    tag :: Text
+  }
+  deriving (Show)
+
+instance Aeson.FromJSON SearchResult where
+  parseJSON = Aeson.withObject "SearchResult" \obj -> do
+    handle <- obj Aeson..: "handle"
+    tag <- obj Aeson..: "tag"
+    pure $ SearchResult {..}
