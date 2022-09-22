@@ -46,10 +46,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: install stack
-        run: |
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
 
       - name: build
         run: stack --no-terminal build --flag unison-parser-typechecker:optimized
@@ -76,11 +72,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: install stack
-        run: |
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
-
       - name: remove ~/.stack/setup-exe-cache on macOS
         run: rm -rf ~/.stack/setup-exe-cache
 
