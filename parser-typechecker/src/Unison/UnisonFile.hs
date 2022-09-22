@@ -30,6 +30,8 @@ module Unison.UnisonFile
     termSignatureExternalLabeledDependencies,
     topLevelComponents,
     typecheckedUnisonFile,
+    namedTermFromTypecheckedFile,
+    createWatcherFile,
   )
 where
 
@@ -58,6 +60,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), pattern TypecheckedUnisonFile, pattern UnisonFile)
 import qualified Unison.Util.List as List
 import Unison.Var (Var)
+import qualified Unison.Var as Var
 import Unison.WatchKind (WatchKind, pattern TestWatch)
 
 dataDeclarations :: UnisonFile v a -> Map v (Reference, DataDeclaration v a)
@@ -241,3 +244,25 @@ constructorsForDecls types uf =
           & fmap (DD.toDataDecl . snd)
           & concatMap DD.constructorVars
    in Set.fromList (dataConstructors <> effectConstructors)
+
+-- | Extract a term of a given name from the provided typechecked file.
+namedTermFromTypecheckedFile :: Eq v => TypecheckedUnisonFile v a -> v -> Maybe (v, Term v a, Type v a)
+namedTermFromTypecheckedFile uf sym = listToMaybe $ do
+  let components = join $ topLevelComponents uf
+  let mainComponent = filter ((\v -> v == sym) . view _1) components
+  mainComponent
+
+-- | Produce a typechecked unison file where the given term is the
+-- only watcher, with the watch type set to 'magicMainWatcherString'.
+createWatcherFile :: Var v => WatchKind -> Maybe (TypecheckedUnisonFile v a) -> v -> Term v a -> Type v a -> TypecheckedUnisonFile v a
+createWatcherFile wk mayUf v tm typ =
+  case mayUf of
+    Nothing -> (typecheckedUnisonFile mempty mempty mempty [(wk, [(v, tm, typ)])])
+    Just uf ->
+      let v2 = Var.freshIn (Set.fromList [v]) v
+       in typecheckedUnisonFile
+            (dataDeclarationsId' uf)
+            (effectDeclarationsId' uf)
+            (topLevelComponents' uf)
+            -- what about main's component? we have dropped them if they existed.
+            [(wk, [(v2, tm, typ)])]
