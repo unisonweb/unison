@@ -180,7 +180,10 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                 \ program. The parser generated an unrecognized error."
             Right (Right (v, rf, w, sto))
               | not vmatch -> mismatchMsg
-              | otherwise -> withArgs args $ RTI.runStandalone sto w
+              | otherwise ->
+                  withArgs args (RTI.runStandalone sto w) >>= \case
+                    Left err -> exitError err
+                    Right () -> pure ()
               where
                 vmatch = v == Version.gitDescribeWithDate
                 ws s = P.wrap (P.text s)
