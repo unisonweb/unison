@@ -114,11 +114,3 @@ unique type subnamespace.AType = A | B
    subnamespace.AType
 
 ```
-## Tab complete against Share
-
-```ucm
-.> debug.tab-complete pull unison.pub
-
-   unison.public
-
-```
