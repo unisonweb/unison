@@ -449,7 +449,6 @@ getSlurpResultForUpdate requestedNames = do
                   terms = Map.elems refToGeneratedNameAndTerm,
                   -- In the context of this update, whatever watches were in the latest typechecked Unison file are
                   -- irrelevant, so we don't need to copy them over.
-                  -- FIXME ugh entire component of watches
                   watches = Map.empty
                 }
         result <- typecheckFile [] unisonFile
