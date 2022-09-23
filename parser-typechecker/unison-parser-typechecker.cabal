@@ -199,6 +199,7 @@ library
     , bytestring-to-vector
     , cereal
     , clock
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -380,6 +381,7 @@ test-suite parser-typechecker-tests
     , cereal
     , clock
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
