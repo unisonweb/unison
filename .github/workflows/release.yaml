@@ -24,6 +24,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+        with:
+          ref: release/${inputs.version}
 
       - name: make download dir
         run: "mkdir /tmp/ucm"
@@ -59,6 +61,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
+        with:
+          ref: release/${inputs.version}
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
       - uses: actions/cache@v3
@@ -121,6 +125,8 @@ jobs:
     runs-on: macos-11
     steps:
       - uses: actions/checkout@v2
+        with:
+          ref: release/${inputs.version}
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
       - uses: actions/cache@v3
@@ -187,6 +193,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+        with:
+          ref: release/${inputs.version}
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
       - uses: actions/cache@v3
