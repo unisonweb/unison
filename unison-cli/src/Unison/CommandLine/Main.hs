@@ -53,24 +53,12 @@ getUserInput ::
   forall m v a.
   (MonadIO m, MonadMask m) =>
   Codebase m v a ->
-<<<<<<< HEAD
-  IO (Branch m) ->
-||||||| f688776f1
-  Branch m ->
-=======
   AuthenticatedHttpClient ->
-  Branch m ->
->>>>>>> trunk
+  IO (Branch m) ->
   Path.Absolute ->
   [String] ->
   m Input
-<<<<<<< HEAD
-getUserInput codebase getRoot currentPath numberedArgs =
-||||||| f688776f1
-getUserInput codebase rootBranch currentPath numberedArgs =
-=======
-getUserInput codebase authHTTPClient rootBranch currentPath numberedArgs =
->>>>>>> trunk
+getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
