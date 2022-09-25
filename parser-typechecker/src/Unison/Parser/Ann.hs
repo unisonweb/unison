@@ -20,7 +20,7 @@ instance Monoid Ann where
   mempty = External
 
 instance Semigroup Ann where
-  Ann s1 _ <> Ann _ e2 = Ann s1 e2
+  Ann s1 e1 <> Ann s2 e2 = Ann (min s1 s2) (max e1 e2)
   -- If we have a concrete location from a file, use it
   External <> a = a
   a <> External = a
