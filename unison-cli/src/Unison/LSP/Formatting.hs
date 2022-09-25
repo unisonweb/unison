@@ -14,10 +14,13 @@ import Unison.LSP.Conversions (annToRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis, ppedForFile)
 import Unison.LSP.Types
 import qualified Unison.Name as Name
+import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPED
+import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.TermPrinter as TermPrinter
-import Unison.UnisonFile (UnisonFile (..))
+import Unison.Term hiding (Ann, List)
+import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as Pretty
 
 -- | TODO: Add an LSP option for formatting width
@@ -37,17 +40,35 @@ formatDefs fileUri =
   fromMaybe []
     <$> runMaybeT do
       cwd <- lift getCurrentPath
-      FileAnalysis {parsedFile} <- getFileAnalysis fileUri
-      UnisonFileId {terms} <- MaybeT $ pure parsedFile
+      FileAnalysis {typecheckedFile} <- getFileAnalysis fileUri
+      UF.TypecheckedUnisonFileId {topLevelComponents'} <- MaybeT $ pure typecheckedFile
       filePPED <- ppedForFile fileUri
-      for terms \(sym, trm) -> do
+      for (concat topLevelComponents') \(sym, trm, _typ) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute cwd)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments
         let biasedPPED = PPED.biasTo [defName] filePPED
-        -- We use unsuffixified here in an attempt to keep names within the file the same
-        let biasedPPE = PPED.unsuffixifiedPPE biasedPPED
+        let biasedPPE = PPED.suffixifiedPPE biasedPPED
         let formatted = Pretty.toPlain prettyPrintWidth $ TermPrinter.pretty biasedPPE trm
-        editRange <- hoistMaybe . annToRange $ ABT.annotation trm
+        -- This is an unfortunate hack; we need to fix annotations so they actually represent the span of the term.
+        -- for now this 'folds' all annotations so we hopefully cover the whole term, but ideally the top-level ann
+        -- would actually just contain the whole term.
+        editRange <- hoistMaybe . annToRange $ fold trm
+        let rangeList = toList trm
         let edit = TextEdit editRange (Text.pack formatted)
+        Debug.debugM Debug.LSP "Anns" (sym, rangeList)
+        Debug.debugM Debug.LSP "DEBUGTERMS" (debugTerms trm)
         pure edit
+
+addASTName :: Term Symbol Ann -> String
+addASTName = show . ABT.out
+
+debugTerms :: Term Symbol Ann -> [(Ann, Term Symbol Ann)]
+debugTerms tm =
+  toListOf
+    ( cosmosOf
+        ( folding
+            (\(_, tm) -> ((ABT.annotation tm,) <$> toList (ABT.out tm)))
+        )
+    )
+    (ABT.annotation tm, tm)
