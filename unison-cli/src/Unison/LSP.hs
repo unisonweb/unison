@@ -29,6 +29,7 @@ import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
 import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
+import Unison.LSP.Formatting (formatDocRequest)
 import qualified Unison.LSP.HandlerUtils as Handlers
 import Unison.LSP.Hover (hoverHandler)
 import qualified Unison.LSP.NotificationHandlers as Notifications
@@ -65,7 +66,7 @@ spawnLsp codebase runtime ucmState = TCP.withSocketsDo do
       case Errno <$> ioe_errno ioerr of
         Just errNo
           | errNo == eADDRINUSE -> do
-            putStrLn $ "Note: Port " <> lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
+              putStrLn $ "Note: Port " <> lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
         _ -> do
           Debug.debugM Debug.LSP "LSP Exception" ioerr
           Debug.debugM Debug.LSP "LSP Errno" (ioe_errno ioerr)
@@ -139,6 +140,7 @@ lspRequestHandlers =
     & SMM.insert STextDocumentHover (mkHandler hoverHandler)
     & SMM.insert STextDocumentCodeAction (mkHandler codeActionHandler)
     & SMM.insert STextDocumentFoldingRange (mkHandler foldingRangeRequest)
+    & SMM.insert STextDocumentFormatting (mkHandler formatDocRequest)
   where
     defaultTimeout = 10_000 -- 10s
     mkHandler ::

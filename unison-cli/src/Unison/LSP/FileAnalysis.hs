@@ -36,14 +36,16 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import qualified Unison.LSP.Types as LSP
 import qualified Unison.LSP.VFS as VFS
+import Unison.Names (Names)
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPED
+import qualified Unison.PrettyPrintEnvDecl.Names as PPED
 import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
 import qualified Unison.Result as Result
@@ -265,20 +267,27 @@ toRangeMap :: (Foldable f) => f (Range, a) -> IntervalMap Position [a]
 toRangeMap vs =
   IM.fromListWith (<>) (toList vs <&> \(r, a) -> (rangeToInterval r, [a]))
 
-getFileAnalysis :: Uri -> Lsp (Maybe FileAnalysis)
+getFileAnalysis :: Uri -> MaybeT Lsp FileAnalysis
 getFileAnalysis uri = do
   checkedFilesV <- asks checkedFilesVar
   checkedFiles <- readTVarIO checkedFilesV
-  pure $ Map.lookup uri checkedFiles
+  hoistMaybe $ Map.lookup uri checkedFiles
 
+-- | Build a Names from a file if it's parseable.
+getFileNames :: Uri -> MaybeT Lsp Names
+getFileNames fileUri = do
+  FileAnalysis {typecheckedFile = tf} <- getFileAnalysis fileUri
+  hoistMaybe (UF.typecheckedToNames <$> tf)
+
+-- | Build a PPE which uses names from a given file, falls back to the global PPE.
+--
+-- Note that currently we can only properly generate names if the file typechecks.
+-- Otherwise this will return Nothing
 -- TODO memoize per file
-ppeForFile :: Uri -> Lsp PrettyPrintEnv
-ppeForFile fileUri = do
-  ppe <- PPE.suffixifiedPPE <$> globalPPE
-  getFileAnalysis fileUri >>= \case
-    Just (FileAnalysis {typecheckedFile = Just tf}) -> do
-      hl <- asks codebase >>= liftIO . Codebase.hashLength
-      let fileNames = UF.typecheckedToNames tf
-      let filePPE = PPE.fromSuffixNames hl (NamesWithHistory.fromCurrentNames fileNames)
-      pure (filePPE `PPE.addFallback` ppe)
-    _ -> pure ppe
+ppedForFile :: Uri -> MaybeT Lsp PPED.PrettyPrintEnvDecl
+ppedForFile fileUri = do
+  fileNames <- getFileNames fileUri
+  hl <- asks codebase >>= liftIO . Codebase.hashLength
+  let filePPE = PPED.fromNamesDecl hl (NamesWithHistory.fromCurrentNames fileNames)
+  gPPED <- lift globalPPE
+  pure (filePPE `PPED.addFallback` gPPED)

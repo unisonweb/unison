@@ -25,7 +25,7 @@ foldingRangesForFile :: Uri -> Lsp [FoldingRange]
 foldingRangesForFile fileUri =
   fromMaybe []
     <$> runMaybeT do
-      FileAnalysis {parsedFile} <- MaybeT $ getFileAnalysis fileUri
+      FileAnalysis {parsedFile} <- getFileAnalysis fileUri
       UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms} <- MaybeT $ pure parsedFile
       let dataFolds = dataDeclarationsId ^.. folded . _2 . to dataDeclSpan
       let abilityFolds = effectDeclarationsId ^.. folded . _2 . to DD.toDataDecl . to dataDeclSpan

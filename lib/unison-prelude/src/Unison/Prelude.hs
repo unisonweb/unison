@@ -18,6 +18,7 @@ module Unison.Prelude
     whenJustM,
     eitherToMaybe,
     maybeToEither,
+    hoistMaybe,
 
     -- * @Either@ control flow
     onLeft,
@@ -73,6 +74,11 @@ import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import qualified UnliftIO
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
+
+-- | This is added to `transformers` in a future version,
+-- we can delete this when we upgrade.
+hoistMaybe :: Applicative m => Maybe a -> MaybeT m a
+hoistMaybe m = MaybeT (pure m)
 
 -- | E.g.
 --

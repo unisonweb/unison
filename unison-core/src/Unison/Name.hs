@@ -11,6 +11,7 @@ module Unison.Name
     fromReverseSegments,
     fromText,
     fromTextEither,
+    fromVar,
 
     -- ** Unsafe construction
     unsafeFromString,
@@ -559,7 +560,7 @@ commonPrefix :: Name -> Name -> [NameSegment]
 commonPrefix x@(Name p1 _) y@(Name p2 _)
   | p1 /= p2 = []
   | otherwise =
-    commonPrefix' (toList $ segments x) (toList $ segments y)
+      commonPrefix' (toList $ segments x) (toList $ segments y)
   where
     commonPrefix' (a : as) (b : bs)
       | a == b = a : commonPrefix' as bs
@@ -618,6 +619,11 @@ fromTextEither = \case
 unsafeFromVar :: Var v => v -> Name
 unsafeFromVar =
   unsafeFromText . Var.name
+
+-- | Parse a name from a var, by first rendering the var as a string.
+fromVar :: Var v => v -> Maybe Name
+fromVar =
+  fromText . Var.name
 
 class Convert a b where
   convert :: a -> b
