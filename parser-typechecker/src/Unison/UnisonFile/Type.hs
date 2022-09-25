@@ -20,8 +20,8 @@ import Unison.WatchKind (WatchKind)
 data UnisonFile v a = UnisonFileId
   { dataDeclarationsId :: Map v (Reference.Id, DataDeclaration v a),
     effectDeclarationsId :: Map v (Reference.Id, EffectDeclaration v a),
-    terms :: [(v, Term v a)],
-    watches :: Map WatchKind [(v, Term v a)]
+    terms :: [(a, v, Term v a)],
+    watches :: Map WatchKind [(a, v, Term v a)]
   }
   deriving (Show)
 

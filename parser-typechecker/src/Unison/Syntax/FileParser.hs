@@ -18,6 +18,7 @@ import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
+import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer as L
 import Unison.Syntax.Parser
@@ -67,12 +68,12 @@ file = do
     _ <- closeBlock
     let (termsr, watchesr) = foldl' go ([], []) stanzas
         go (terms, watches) s = case s of
-          WatchBinding kind _ ((_, v), at) ->
-            (terms, (kind, (v, Term.generalizeTypeSignatures at)) : watches)
-          WatchExpression kind guid _ at ->
-            (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
-          Binding ((_, v), at) -> ((v, Term.generalizeTypeSignatures at) : terms, watches)
-          Bindings bs -> ([(v, Term.generalizeTypeSignatures at) | ((_, v), at) <- bs] ++ terms, watches)
+          WatchBinding kind ann ((_, v), at) ->
+            (terms, (kind, (ann, v, Term.generalizeTypeSignatures at)) : watches)
+          WatchExpression kind guid ann at ->
+            (terms, (kind, (ann, Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
+          Binding ((ann, v), at) -> ((ann, v, Term.generalizeTypeSignatures at) : terms, watches)
+          Bindings bs -> ([(ann, v, Term.generalizeTypeSignatures at) | ((ann, v), at) <- bs] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
@@ -124,11 +125,12 @@ file = do
             | (typ, fields) <- parsedAccessors,
               Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
           ]
+        addAccessorAnn (v, t) = (Ann.External, v, t)
         uf =
           UnisonFileId
             (UF.datasId env)
             (UF.effectsId env)
-            (terms <> join accessors)
+            (terms <> fmap addAccessorAnn (join accessors))
             (List.multimap watches)
     validateUnisonFile uf
     pure uf
