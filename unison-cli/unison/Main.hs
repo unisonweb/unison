@@ -133,7 +133,9 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                   sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
                   let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                   let notifyOnUcmChanges _ = pure ()
-                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes notifyOnUcmChanges
+                  let serverUrl = Nothing
+                  let startPath = Nothing
+                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] serverUrl startPath ShouldNotDownloadBase initRes notifyOnUcmChanges
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
@@ -144,6 +146,8 @@ main = withCP65001 . Ki.scoped $ \scope -> do
               sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
               let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
               let notifyOnUcmChanges _ = pure ()
+              let serverUrl = Nothing
+              let startPath = Nothing
               launch
                 currentDir
                 config
@@ -151,7 +155,8 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                 sbrt
                 theCodebase
                 [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
-                Nothing
+                serverUrl
+                startPath
                 ShouldNotDownloadBase
                 initRes
                 notifyOnUcmChanges
@@ -221,7 +226,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                     ]
       Transcript shouldFork shouldSaveCodebase transcriptFiles ->
         runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
-      Launch isHeadless codebaseServerOpts downloadBase -> do
+      Launch isHeadless codebaseServerOpts downloadBase mayStartingPath -> do
         getCodebaseOrExit mCodePathOption SC.MigrateAfterPrompt \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime False RTI.Persistent Version.gitDescribeWithDate
           ucmStateVar <- newTVarIO Nothing
@@ -258,7 +263,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                     takeMVar mvar
                   WithCLI -> do
                     PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                    launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) downloadBase initRes notifyOnUcmChanges
+                    launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) mayStartingPath downloadBase initRes notifyOnUcmChanges
               Exit -> do Exit.exitSuccess
 
 -- | Set user agent and configure TLS on global http client.
@@ -404,11 +409,12 @@ launch ::
   Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
   Maybe Server.BaseUrl ->
+  Maybe Path.Absolute ->
   ShouldDownloadBase ->
   InitResult ->
   ((Branch IO, Path.Absolute) -> IO ()) ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl shouldDownloadBase initResult notifyChange =
+launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath shouldDownloadBase initResult notifyChange =
   let downloadBase = case defaultBaseLib of
         Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
         _ -> Welcome.DontDownloadBase
@@ -421,7 +427,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl shouldDownload
    in CommandLine.main
         dir
         welcome
-        initialPath
+        (fromMaybe initialPath mayStartingPath)
         config
         inputs
         runtime
