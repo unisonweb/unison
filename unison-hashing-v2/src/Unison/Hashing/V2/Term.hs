@@ -103,20 +103,20 @@ refId a = ref a . Reference.DerivedId
 hashComponents ::
   forall v a.
   Var v =>
-  Map v (Term v a, Type v a) ->
-  Map v (Reference.Id, Term v a, Type v a)
+  Map v (a, Term v a, Type v a) ->
+  Map v (a, Reference.Id, Term v a, Type v a)
 hashComponents terms =
   Zip.zipWith keepType terms (ReferenceUtil.hashComponents (refId ()) terms')
   where
     terms' :: Map v (Term v a)
-    terms' = uncurry incorporateType <$> terms
+    terms' = incorporateType <$> terms
 
-    keepType :: ((Term v a, Type v a) -> (Reference.Id, Term v a) -> (Reference.Id, Term v a, Type v a))
-    keepType (_oldTrm, typ) (refId, trm) = (refId, trm, typ)
+    keepType :: ((a, Term v a, Type v a) -> (Reference.Id, Term v a) -> (a, Reference.Id, Term v a, Type v a))
+    keepType (a, _oldTrm, typ) (refId, trm) = (a, refId, trm, typ)
 
-    incorporateType :: Term v a -> Type v a -> Term v a
-    incorporateType a@(ABT.out -> ABT.Tm (Ann e _tp)) typ = ABT.tm' (ABT.annotation a) (Ann e typ)
-    incorporateType e typ = ABT.tm' (ABT.annotation e) (Ann e typ)
+    incorporateType :: (a, Term v a, Type v a) -> Term v a
+    incorporateType (_, a@(ABT.out -> ABT.Tm (Ann e _tp)), typ) = ABT.tm' (ABT.annotation a) (Ann e typ)
+    incorporateType (_, e, typ) = ABT.tm' (ABT.annotation e) (Ann e typ)
 
 -- keep these until we decide if we want to add the appropriate smart constructors back into this module
 -- incorporateType (Term.Ann' e _) typ = Term.ann () e typ

@@ -17,6 +17,7 @@ module Unison.Hashing.V2.Convert
   )
 where
 
+import Control.Applicative (liftA3)
 import Control.Lens (over, _3)
 import qualified Control.Lens as Lens
 import Control.Monad.Trans.Writer.CPS (Writer)
@@ -78,10 +79,10 @@ typeToReferenceMentions = Set.map h2mReference . Hashing.Type.toReferenceMention
 hashTermComponents ::
   forall v a.
   Var v =>
-  Map v (Memory.Term.Term v a, Memory.Type.Type v a) ->
-  Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
+  Map v (a, Memory.Term.Term v a, Memory.Type.Type v a) ->
+  Map v (a, Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
 hashTermComponents mTerms =
-  case Writer.runWriter (traverse (bitraverse m2hTerm (pure . m2hType)) mTerms) of
+  case Writer.runWriter (traverse (\(a, tm, typ) -> liftA3 (,,) (pure a) (m2hTerm tm) (pure $ m2hType typ)) mTerms) of
     (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.Term.hashComponents hTerms
   where
     h2mTermResult ::

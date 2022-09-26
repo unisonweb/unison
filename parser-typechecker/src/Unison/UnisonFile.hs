@@ -66,23 +66,24 @@ dataDeclarations = fmap (first Reference.DerivedId) . dataDeclarationsId
 effectDeclarations :: UnisonFile v a -> Map v (Reference, EffectDeclaration v a)
 effectDeclarations = fmap (first Reference.DerivedId) . effectDeclarationsId
 
-watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, Term v a)]
+watchesOfKind :: WatchKind -> UnisonFile v a -> [(a, v, Term v a)]
 watchesOfKind kind uf = Map.findWithDefault [] kind (watches uf)
 
-watchesOfOtherKinds :: WatchKind -> UnisonFile v a -> [(v, Term v a)]
+watchesOfOtherKinds :: WatchKind -> UnisonFile v a -> [(a, v, Term v a)]
 watchesOfOtherKinds kind uf =
   join [ws | (k, ws) <- Map.toList (watches uf), k /= kind]
 
-allWatches :: UnisonFile v a -> [(v, Term v a)]
+allWatches :: UnisonFile v a -> [(a, v, Term v a)]
 allWatches = join . Map.elems . watches
 
 -- Converts a file to a single let rec with a body of `()`, for
 -- purposes of typechecking.
 typecheckingTerm :: (Var v, Monoid a) => UnisonFile v a -> Term v a
 typecheckingTerm uf =
-  Term.letRec' True (terms uf <> testWatches <> watchesOfOtherKinds TestWatch uf) $
+  Term.letRec' True ((dropAnn <$> terms uf) <> (dropAnn <$> testWatches) <> (dropAnn <$> watchesOfOtherKinds TestWatch uf)) $
     DD.unitTerm mempty
   where
+    dropAnn (_a, b, c) = (b, c)
     -- we make sure each test has type Test.Result
     f w = let wa = ABT.annotation w in Term.ann wa w (DD.testResultType wa)
     testWatches = map (second f) $ watchesOfKind TestWatch uf
@@ -94,32 +95,32 @@ dataDeclarations' = fmap (first Reference.DerivedId) . dataDeclarationsId'
 effectDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, EffectDeclaration v a)
 effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 
-hashTerms :: TypecheckedUnisonFile v a -> Map v (Reference, Maybe WatchKind, Term v a, Type v a)
-hashTerms = fmap (over _1 Reference.DerivedId) . hashTermsId
+hashTerms :: TypecheckedUnisonFile v a -> Map v (a, Reference, Maybe WatchKind, Term v a, Type v a)
+hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
 
 typecheckedUnisonFile ::
   forall v a.
   Var v =>
   Map v (Reference.Id, DataDeclaration v a) ->
   Map v (Reference.Id, EffectDeclaration v a) ->
-  [[(v, Term v a, Type v a)]] ->
-  [(WatchKind, [(v, Term v a, Type v a)])] ->
+  [[(a, v, Term v a, Type v a)]] ->
+  [(WatchKind, [(a, v, Term v a, Type v a)])] ->
   TypecheckedUnisonFile v a
 typecheckedUnisonFile datas effects tlcs watches =
   TypecheckedUnisonFileId datas effects tlcs watches hashImpl
   where
     hashImpl =
       let -- includes watches
-          allTerms :: [(v, Term v a, Type v a)]
+          allTerms :: [(a, v, Term v a, Type v a)]
           allTerms = join tlcs ++ join (snd <$> watches)
           types :: Map v (Type v a)
-          types = Map.fromList [(v, t) | (v, _, t) <- allTerms]
+          types = Map.fromList [(v, t) | (_a, v, _, t) <- allTerms]
           watchKinds :: Map v (Maybe WatchKind)
           watchKinds =
             Map.fromList $
-              [(v, Nothing) | (v, _e, _t) <- join tlcs]
-                ++ [(v, Just wk) | (wk, wkTerms) <- watches, (v, _e, _t) <- wkTerms]
-          hcs = Hashing.hashTermComponents $ Map.fromList $ (\(v, e, t) -> (v, (e, t))) <$> allTerms
+              [(v, Nothing) | (_a, v, _e, _t) <- join tlcs]
+                ++ [(v, Just wk) | (wk, wkTerms) <- watches, (_a, v, _e, _t) <- wkTerms]
+          hcs = Hashing.hashTermComponents $ Map.fromList $ (\(a, v, e, t) -> (a, v, (e, t))) <$> allTerms
        in Map.fromList
             [ (v, (r, wk, e, t))
               | (v, (r, e, _typ)) <- Map.toList hcs,
@@ -188,14 +189,14 @@ dependencies :: (Monoid a, Var v) => UnisonFile v a -> Set Reference
 dependencies (UnisonFile ds es ts ws) =
   foldMap (DD.dependencies . snd) ds
     <> foldMap (DD.dependencies . DD.toDataDecl . snd) es
-    <> foldMap (Term.dependencies . snd) ts
-    <> foldMap (foldMap (Term.dependencies . snd)) ws
+    <> foldMap (Term.dependencies . view _3) ts
+    <> foldMap (foldMap (Term.dependencies . view _3)) ws
 
 discardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes (TypecheckedUnisonFileId datas effects terms watches _) =
   let watches' = g . mconcat <$> List.multimap watches
-      g tup3s = [(v, e) | (v, e, _t) <- tup3s]
-   in UnisonFileId datas effects [(a, b) | (a, b, _) <- join terms] watches'
+      g tup3s = [(a, v, e) | (a, v, e, _t) <- tup3s]
+   in UnisonFileId datas effects [(a, v, tm) | (a, v, tm, _typ) <- join terms] watches'
 
 declsToTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf =

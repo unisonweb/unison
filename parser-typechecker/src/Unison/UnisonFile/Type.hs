@@ -28,8 +28,8 @@ data UnisonFile v a = UnisonFileId
 pattern UnisonFile ::
   Map v (Reference.Reference, DataDeclaration v a) ->
   Map v (Reference.Reference, EffectDeclaration v a) ->
-  [(v, Term v a)] ->
-  Map WatchKind [(v, Term v a)] ->
+  [(a, v, Term v a)] ->
+  Map WatchKind [(a, v, Term v a)] ->
   UnisonFile v a
 pattern UnisonFile ds es tms ws <-
   UnisonFileId
@@ -45,9 +45,9 @@ pattern UnisonFile ds es tms ws <-
 data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
   { dataDeclarationsId' :: Map v (Reference.Id, DataDeclaration v a),
     effectDeclarationsId' :: Map v (Reference.Id, EffectDeclaration v a),
-    topLevelComponents' :: [[(v, Term v a, Type v a)]],
-    watchComponents :: [(WatchKind, [(v, Term v a, Type v a)])],
-    hashTermsId :: Map v (Reference.Id, Maybe WatchKind, Term v a, Type v a)
+    topLevelComponents' :: [[(a, v, Term v a, Type v a)]],
+    watchComponents :: [(WatchKind, [(a, v, Term v a, Type v a)])],
+    hashTermsId :: Map v (a, Reference.Id, Maybe WatchKind, Term v a, Type v a)
   }
   deriving (Show)
 

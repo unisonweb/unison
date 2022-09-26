@@ -113,10 +113,10 @@ file = do
     let bindNames = Term.bindSomeNames avoid curNames . resolveLocals
           where
             avoid = Set.fromList (stanzas0 >>= getVars)
-    terms <- case List.validate (traverse bindNames) terms of
+    terms <- case List.validate (traverseOf _3 bindNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
-    watches <- case List.validate (traverse . traverse $ bindNames) watches of
+    watches <- case List.validate (traverseOf (_2 . _3) $ bindNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
     let toPair (tok, _) = (L.payload tok, ann tok)
@@ -169,7 +169,7 @@ checkForDuplicateTermsAndConstructors uf = do
     allTerms :: [(v, Ann)]
     allTerms =
       UF.terms uf
-        <&> (\(v, t) -> (v, ABT.annotation t))
+        <&> (\(ann, v, _t) -> (v, ann))
     mergedTerms :: Map v (Set Ann)
     mergedTerms =
       (allConstructors <> allTerms)
