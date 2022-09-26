@@ -21,13 +21,13 @@ Edit `releases._<ReleaseName>.README` to include `Release: <ReleaseName>`.
 
 ## 2. Run Release script
 
-* **Milestone Release**: Look up the most recent release; bump the number and remove any trailing letters, e.g. `./scripts/make-release release/M5`
-* **Minor Release**: Increment the trailing letter of the previous release, or add an `a` to the previous milestone release, e.g. `./scripts/make-release release/M5a`
+* **Milestone Release**: Look up the most recent release; bump the number and remove any trailing letters, e.g. `./scripts/make-release release/M5 trunk`
+* **Minor Release**: Increment the trailing letter of the previous release, or add an `a` to the previous milestone release, e.g. `./scripts/make-release release/M5a trunk`
 
 Then, using the new release version, from the root of the `unisonweb/unison` project run:
 
 ```sh
-./scripts/make_release.sh <VERSION>
+./scripts/make_release.sh <VERSION> [TARGET (defaults to trunk)]
 ```
 
 This will tag the appropriate versions in all the required projects, and kick off all of the necessary CI jobs to ship a release.
