@@ -20,6 +20,7 @@ import qualified Unison.PrettyPrintEnvDecl as PPED
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.TermPrinter as TermPrinter
 import Unison.Term hiding (Ann, List)
+import qualified Unison.Term as Term
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as Pretty
 
@@ -43,21 +44,23 @@ formatDefs fileUri =
       FileAnalysis {typecheckedFile} <- getFileAnalysis fileUri
       UF.TypecheckedUnisonFileId {topLevelComponents'} <- MaybeT $ pure typecheckedFile
       filePPED <- ppedForFile fileUri
-      for (concat topLevelComponents') \(sym, trm, _typ) -> do
+      for (concat topLevelComponents') \(sym, topLevelTerm, _typ) -> do
+        termToPrint <- hoistMaybe $ case topLevelTerm of
+          Term.Ann' trm _typ -> Just trm
+          Term.Lam' {} -> toList $ ABT.out topLevelTerm
+          trm -> Just trm
         symName <- hoistMaybe (Name.fromVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute cwd)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments
         let biasedPPED = PPED.biasTo [defName] filePPED
         let biasedPPE = PPED.suffixifiedPPE biasedPPED
-        let formatted = Pretty.toPlain prettyPrintWidth $ TermPrinter.pretty biasedPPE trm
+        let formatted = Pretty.toPlain prettyPrintWidth $ TermPrinter.pretty biasedPPE termToPrint
         -- This is an unfortunate hack; we need to fix annotations so they actually represent the span of the term.
         -- for now this 'folds' all annotations so we hopefully cover the whole term, but ideally the top-level ann
         -- would actually just contain the whole term.
-        editRange <- hoistMaybe . annToRange $ fold trm
-        let rangeList = toList trm
+        editRange <- hoistMaybe . annToRange $ fold termToPrint
         let edit = TextEdit editRange (Text.pack formatted)
-        Debug.debugM Debug.LSP "Anns" (sym, rangeList)
-        Debug.debugM Debug.LSP "DEBUGTERMS" (debugTerms trm)
+        Debug.debugM Debug.LSP "DEBUGTERMS" (debugTerms termToPrint)
         pure edit
 
 addASTName :: Term Symbol Ann -> String

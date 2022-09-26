@@ -61,7 +61,7 @@ delayed = do
   t <- effect <|> type2a
   pure $
     Type.arrow
-      (Ann (L.start q) (end $ ann t))
+      (ann q <> ann t)
       (DD.unitType (ann q))
       t
 
