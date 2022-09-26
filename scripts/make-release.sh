@@ -38,14 +38,8 @@ prev_version=$(./scripts/previous-tag.sh "$version")
 target=${2:-trunk}
 tag="release/${version}"
 
-prereleaseFlag=""
-
-if [[ "$1" =~ ^M[0-9]+[a-z]$ ]] ; then
-    prereleaseFlag="--prerelease"
-fi
-
 echo "Creating release in unison-local-ui..."
-gh release create "release/${version}" --repo unisonweb/unison-local-ui --target main --generate-notes $prereleaseFlag --notes-start-tag "release/${prev_version}"
+gh release create "release/${version}" --repo unisonweb/unison-local-ui --target main --generate-notes --notes-start-tag "release/${prev_version}"
 
 echo "Kicking off release workflow in unisonweb/unison"
 git tag "${tag}" "${target}"
