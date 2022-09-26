@@ -14,10 +14,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: install stack
-        run: |
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
@@ -50,10 +46,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: install stack
-        run: |
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info

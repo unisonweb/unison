@@ -12,8 +12,6 @@ import Network.URI (URI)
 import Unison.Auth.CredentialManager
 import Unison.Auth.Discovery (fetchDiscoveryDoc)
 import Unison.Auth.Types
-import Unison.CommandLine.InputPattern (patternName)
-import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.Prelude
 import Unison.Share.Types (CodeserverId)
 import qualified UnliftIO
@@ -54,7 +52,7 @@ performTokenRefresh :: MonadIO m => URI -> Tokens -> m (Either CredentialFailure
 performTokenRefresh discoveryURI (Tokens {refreshToken = currentRefreshToken}) = runExceptT $
   case currentRefreshToken of
     Nothing ->
-      throwError $ (RefreshFailure . Text.pack $ "Unable to refresh authentication, please run " <> patternName IP.authLogin <> " and try again.")
+      throwError $ (RefreshFailure . Text.pack $ "Unable to refresh authentication, please run auth.login and try again.")
     Just rt -> do
       DiscoveryDoc {tokenEndpoint} <- ExceptT $ fetchDiscoveryDoc discoveryURI
       req <- liftIO $ HTTP.requestFromURI tokenEndpoint
@@ -69,10 +67,10 @@ performTokenRefresh discoveryURI (Tokens {refreshToken = currentRefreshToken}) =
       newTokens <- case HTTP.responseStatus resp of
         status
           | status < Network.status300 -> do
-            let respBytes = HTTP.responseBody resp
-            case Aeson.eitherDecode @Tokens respBytes of
-              Left err -> throwError (InvalidTokenResponse tokenEndpoint (Text.pack err))
-              Right a -> pure a
+              let respBytes = HTTP.responseBody resp
+              case Aeson.eitherDecode @Tokens respBytes of
+                Left err -> throwError (InvalidTokenResponse tokenEndpoint (Text.pack err))
+                Right a -> pure a
           | otherwise -> throwError $ (InvalidTokenResponse tokenEndpoint $ "Received " <> tShow status <> " response from token endpoint")
       -- According to the spec, servers may or may not update the refresh token itself.
       -- If updated we need to replace it, if not updated we keep the existing one.

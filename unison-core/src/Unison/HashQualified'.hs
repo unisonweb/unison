@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.HashQualified' where
@@ -19,7 +20,7 @@ import qualified Unison.ShortHash as SH
 import Prelude hiding (take)
 
 data HashQualified n = NameOnly n | HashQualified n ShortHash
-  deriving (Eq, Functor, Generic, Foldable)
+  deriving (Eq, Functor, Generic, Foldable, Traversable)
 
 type HQSegment = HashQualified NameSegment
 

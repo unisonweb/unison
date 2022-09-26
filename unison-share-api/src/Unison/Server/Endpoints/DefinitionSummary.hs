@@ -9,8 +9,10 @@
 module Unison.Server.Endpoints.DefinitionSummary
   ( TermSummaryAPI,
     serveTermSummary,
+    TermSummary(..),
     TypeSummaryAPI,
     serveTypeSummary,
+    TypeSummary(..),
   )
 where
 
