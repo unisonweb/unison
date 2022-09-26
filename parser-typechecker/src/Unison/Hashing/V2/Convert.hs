@@ -23,7 +23,6 @@ import qualified Control.Lens as Lens
 import Control.Monad.Trans.Writer.CPS (Writer)
 import qualified Control.Monad.Trans.Writer.CPS as Writer
 import Data.Bifunctor (bimap)
-import Data.Bitraversable (bitraverse)
 import Data.Foldable (toList)
 import Data.Functor ((<&>))
 import Data.Map (Map)
@@ -90,9 +89,9 @@ hashTermComponents mTerms =
       ( Memory.Reference.Reference ->
         Memory.ConstructorType.ConstructorType
       ) ->
-      (Hashing.Reference.Id, Hashing.Term.Term v a, Hashing.Type.Type v a) ->
-      (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
-    h2mTermResult getCtorType (id, tm, typ) = (h2mReferenceId id, h2mTerm getCtorType tm, h2mType typ)
+      (a, Hashing.Reference.Id, Hashing.Term.Term v a, Hashing.Type.Type v a) ->
+      (a, Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
+    h2mTermResult getCtorType (a, id, tm, typ) = (a, h2mReferenceId id, h2mTerm getCtorType tm, h2mType typ)
 
 -- | This shouldn't be used when storing terms in the codebase, as it doesn't incorporate the type into the hash.
 --   this should only be used in cases where you just need a way to identify some terms that you have, but won't be

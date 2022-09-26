@@ -298,8 +298,8 @@ addDefsToCodebase c uf = do
   traverse_ goTerm (UF.hashTermsId uf)
   where
     goTerm t | debug && trace ("Codebase.addDefsToCodebase.goTerm " ++ show t) False = undefined
-    goTerm (r, Nothing, tm, tp) = putTerm c r tm tp
-    goTerm (r, Just WK.TestWatch, tm, tp) = putTerm c r tm tp
+    goTerm (_a, r, Nothing, tm, tp) = putTerm c r tm tp
+    goTerm (_a, r, Just WK.TestWatch, tm, tp) = putTerm c r tm tp
     goTerm _ = pure ()
     goType :: Show t => (t -> Decl v a) -> (Reference.Id, t) -> m ()
     goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined

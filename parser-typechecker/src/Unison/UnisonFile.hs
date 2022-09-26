@@ -120,10 +120,10 @@ typecheckedUnisonFile datas effects tlcs watches =
             Map.fromList $
               [(v, Nothing) | (_a, v, _e, _t) <- join tlcs]
                 ++ [(v, Just wk) | (wk, wkTerms) <- watches, (_a, v, _e, _t) <- wkTerms]
-          hcs = Hashing.hashTermComponents $ Map.fromList $ (\(a, v, e, t) -> (a, v, (e, t))) <$> allTerms
+          hcs = Hashing.hashTermComponents $ Map.fromList $ (\(a, v, e, t) -> (v, (a, e, t))) <$> allTerms
        in Map.fromList
-            [ (v, (r, wk, e, t))
-              | (v, (r, e, _typ)) <- Map.toList hcs,
+            [ (v, (a, r, wk, e, t))
+              | (v, (a, r, e, _typ)) <- Map.toList hcs,
                 Just t <- [Map.lookup v types],
                 wk <- [Map.findWithDefault (error $ show v ++ " missing from watchKinds") v watchKinds]
             ]
@@ -147,21 +147,21 @@ indexByReference uf = (tms, tys)
         <> Map.fromList (over _2 Left <$> toList (effectDeclarationsId' uf))
     tms =
       Map.fromList
-        [ (r, (tm, ty)) | (Reference.DerivedId r, _wk, tm, ty) <- toList (hashTerms uf)
+        [ (r, (tm, ty)) | (_a, Reference.DerivedId r, _wk, tm, ty) <- toList (hashTerms uf)
         ]
 
 -- | A mapping of all terms in the file by their var name.
 -- The returned terms refer to other definitions in the file by their
 -- var, not by reference.
 -- Includes test watches.
-allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (Term v a)
+allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (a, Term v a)
 allTerms uf =
-  Map.fromList [(v, t) | (v, t, _) <- join $ topLevelComponents uf]
+  Map.fromList [(v, (a, t)) | (a, v, t, _) <- join $ topLevelComponents uf]
 
 -- | the top level components (no watches) plus test watches.
 topLevelComponents ::
   TypecheckedUnisonFile v a ->
-  [[(v, Term v a, Type v a)]]
+  [[(a, v, Term v a, Type v a)]]
 topLevelComponents file =
   topLevelComponents' file ++ [comp | (TestWatch, comp) <- watchComponents file]
 
@@ -173,7 +173,7 @@ termSignatureExternalLabeledDependencies
     Set.difference
       ( Set.map LD.typeRef
           . foldMap Type.dependencies
-          . fmap (\(_r, _wk, _e, t) -> t)
+          . fmap (\(_a, _r, _wk, _e, t) -> t)
           . toList
           $ hashTerms
       )

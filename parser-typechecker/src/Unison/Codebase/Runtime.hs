@@ -10,6 +10,7 @@ import qualified Unison.Codebase.CodeLookup as CL
 import qualified Unison.Codebase.CodeLookup.Util as CL
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
+import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
@@ -80,12 +81,12 @@ evaluateWatches ::
 evaluateWatches code ppe evaluationCache rt tuf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference.Id, Term.Term v a)
-      m = fmap (\(id, _wk, tm, _tp) -> (id, tm)) (UF.hashTermsId tuf)
+      m = fmap (\(_a, id, _wk, tm, _tp) -> (id, tm)) (UF.hashTermsId tuf)
       watches :: Set v = Map.keysSet watchKinds
       watchKinds :: Map v WatchKind
       watchKinds =
         Map.fromList
-          [(v, k) | (k, ws) <- UF.watchComponents tuf, (v, _tm, _tp) <- ws]
+          [(v, k) | (k, ws) <- UF.watchComponents tuf, (_a, v, _tm, _tp) <- ws]
       unann = Term.amap (const ())
   -- 2. use the cache to lookup things already computed
   m' <- fmap Map.fromList . for (Map.toList m) $ \(v, (r, t)) -> do
@@ -136,12 +137,12 @@ evaluateWatches code ppe evaluationCache rt tuf = do
         go _ = Nothing
 
 evaluateTerm' ::
-  (Var v, Monoid a) =>
+  (Var v) =>
   CL.CodeLookup v IO a ->
   (Reference.Id -> IO (Maybe (Term v))) ->
   PPE.PrettyPrintEnv ->
   Runtime v ->
-  Term.Term v a ->
+  Term.Term v Ann ->
   IO (Either Error (Term v))
 evaluateTerm' codeLookup cache ppe rt tm = do
   result <- cache (Hashing.hashClosedTerm tm)
@@ -153,7 +154,7 @@ evaluateTerm' codeLookup cache ppe rt tm = do
               mempty
               mempty
               mempty
-              [(WK.RegularWatch, [(Var.nameds "result", tm, mempty <$> mainType rt)])]
+              [(WK.RegularWatch, [(Ann.External, Var.nameds "result", tm, mempty <$> mainType rt)])]
       r <- evaluateWatches (void codeLookup) ppe cache rt (void tuf)
       pure $
         r <&> \(_, map) ->
@@ -162,10 +163,10 @@ evaluateTerm' codeLookup cache ppe rt tm = do
             _ -> error "evaluateTerm': Pattern mismatch on watch results"
 
 evaluateTerm ::
-  (Var v, Monoid a) =>
-  CL.CodeLookup v IO a ->
+  (Var v) =>
+  CL.CodeLookup v IO Ann ->
   PPE.PrettyPrintEnv ->
   Runtime v ->
-  Term.Term v a ->
+  Term.Term v Ann ->
   IO (Either Error (Term v))
 evaluateTerm codeLookup = evaluateTerm' codeLookup noCache

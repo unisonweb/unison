@@ -32,4 +32,4 @@ fromTypecheckedUnisonFile tuf = CodeLookup tm ty
               Map.toList (UF.effectDeclarations' tuf)
         ]
     termMap :: Map Reference.Id (Term.Term v a)
-    termMap = Map.fromList [(id, tm) | (id, _wk, tm, _tp) <- toList $ UF.hashTermsId tuf]
+    termMap = Map.fromList [(id, tm) | (_a, id, _wk, tm, _tp) <- toList $ UF.hashTermsId tuf]

@@ -13,6 +13,7 @@ import Data.Text (Text)
 import qualified Unison.Builtin.Decls as Decls
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.Hashing.V2.Convert as H
+import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Reference as Reference
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
@@ -22,13 +23,15 @@ import qualified Unison.Type as Type
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 
-builtinTermsSrc :: a -> [(Symbol, Term Symbol a, Type Symbol a)]
+builtinTermsSrc :: a -> [(a, Symbol, Term Symbol a, Type Symbol a)]
 builtinTermsSrc ann =
-  [ ( v "metadata.isPropagated",
+  [ ( ann,
+      v "metadata.isPropagated",
       Term.constructor ann (ConstructorReference Decls.isPropagatedRef Decls.isPropagatedConstructorId),
       Type.ref ann Decls.isPropagatedRef
     ),
-    ( v "metadata.isTest",
+    ( ann,
+      v "metadata.isTest",
       Term.constructor ann (ConstructorReference Decls.isTestRef Decls.isTestConstructorId),
       Type.ref ann Decls.isTestRef
     )
@@ -39,8 +42,8 @@ v = Var.named
 
 builtinTermsRef :: Map Symbol Reference.Id
 builtinTermsRef =
-  fmap (\(refId, _, _) -> refId)
+  fmap (\(_a, refId, _, _) -> refId)
     . H.hashTermComponents
     . Map.fromList
-    . fmap (\(v, tm, tp) -> (v, (tm, tp)))
-    $ builtinTermsSrc ()
+    . fmap (\(a, v, tm, tp) -> (v, (a, tm, tp)))
+    $ builtinTermsSrc Ann.Intrinsic

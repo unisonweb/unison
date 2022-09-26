@@ -18,7 +18,6 @@ import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer as L
 import Unison.Syntax.Parser
@@ -125,12 +124,11 @@ file = do
             | (typ, fields) <- parsedAccessors,
               Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
           ]
-        addAccessorAnn (v, t) = (Ann.External, v, t)
         uf =
           UnisonFileId
             (UF.datasId env)
             (UF.effectsId env)
-            (terms <> fmap addAccessorAnn (join accessors))
+            (terms <> join accessors)
             (List.multimap watches)
     validateUnisonFile uf
     pure uf

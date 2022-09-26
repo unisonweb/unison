@@ -21,6 +21,7 @@ import qualified Unison.Name as Name
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
+import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Parsers as Parsers
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -162,7 +163,7 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
   Result (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
-    (topLevelComponents :: [[(v, Term v, Type v)]]) <-
+    (topLevelComponents :: [[(Ann, v, Term v, Type v)]]) <-
       let topLevelBindings :: Map v (Term v)
           topLevelBindings = Map.mapKeys Var.reset $ extractTopLevelBindings tdnrTerm
           extractTopLevelBindings (Term.LetRecNamedAnnotatedTop' True _ bs body) =
@@ -181,18 +182,18 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
               Just (Term.Ann' x _) | redundant -> pure x
               Just x -> pure x
             -- The Var.reset removes any freshening added during typechecking
-            pure (Var.reset v, tm, typ)
+            pure (Ann.External {- TODO: is this right? -}, Var.reset v, tm, typ)
        in -- use tlcsFromTypechecker to inform annotation-stripping decisions
           traverse (traverse strippedTopLevelBinding) tlcsFromTypechecker
     let doTdnr = applyTdnrDecisions infos
-        doTdnrInComponent (v, t, tp) = (\t -> (v, t, tp)) <$> doTdnr t
+        doTdnrInComponent (a, v, t, tp) = (\t -> (a, v, t, tp)) <$> doTdnr t
     _ <- doTdnr tdnrTerm
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
     let (watches', terms') = partition isWatch tdnredTlcs
-        isWatch = all (\(v, _, _) -> Set.member v watchedVars)
+        isWatch = all (\(_a, v, _, _) -> Set.member v watchedVars)
         watchedVars = Set.fromList [v | (_ann, v, _tm) <- UF.allWatches uf]
         tlcKind [] = error "empty TLC, should never occur"
-        tlcKind tlc@((v, _, _) : _) =
+        tlcKind tlc@((_a, v, _, _) : _) =
           let hasE k =
                 UF.watches uf
                   & elemOf (ix k . folded . _2) v

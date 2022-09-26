@@ -56,11 +56,12 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
 pattern TypecheckedUnisonFile ::
   Map v (Reference.Reference, DataDeclaration v a) ->
   Map v (Reference.Reference, EffectDeclaration v a) ->
-  [[(v, Term v a, Type v a)]] ->
-  [(WatchKind, [(v, Term v a, Type v a)])] ->
+  [[(a, v, Term v a, Type v a)]] ->
+  [(WatchKind, [(a, v, Term v a, Type v a)])] ->
   Map
     v
-    ( Reference.Reference,
+    ( a,
+      Reference.Reference,
       Maybe WatchKind,
       ABT.Term (Term.F v a a) v a,
       ABT.Term Type.F v a
@@ -72,7 +73,7 @@ pattern TypecheckedUnisonFile ds es tlcs wcs hts <-
     (fmap (first Reference.DerivedId) -> es)
     tlcs
     wcs
-    (fmap (over _1 Reference.DerivedId) -> hts)
+    (fmap (over _2 Reference.DerivedId) -> hts)
 
 instance Ord v => Functor (TypecheckedUnisonFile v) where
   fmap f (TypecheckedUnisonFileId ds es tlcs wcs hashTerms) =
@@ -80,6 +81,6 @@ instance Ord v => Functor (TypecheckedUnisonFile v) where
     where
       ds' = fmap (\(id, dd) -> (id, fmap f dd)) ds
       es' = fmap (\(id, ed) -> (id, fmap f ed)) es
-      tlcs' = (fmap . fmap) (\(v, tm, tp) -> (v, Term.amap f tm, fmap f tp)) tlcs
-      wcs' = map (\(wk, tms) -> (wk, map (\(v, tm, tp) -> (v, Term.amap f tm, fmap f tp)) tms)) wcs
-      hashTerms' = fmap (\(id, wk, tm, tp) -> (id, wk, Term.amap f tm, fmap f tp)) hashTerms
+      tlcs' = (fmap . fmap) (\(a, v, tm, tp) -> (f a, v, Term.amap f tm, fmap f tp)) tlcs
+      wcs' = map (\(wk, tms) -> (wk, map (\(a, v, tm, tp) -> (f a, v, Term.amap f tm, fmap f tp)) tms)) wcs
+      hashTerms' = fmap (\(a, id, wk, tm, tp) -> (f a, id, wk, Term.amap f tm, fmap f tp)) hashTerms

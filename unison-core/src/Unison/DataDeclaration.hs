@@ -120,15 +120,15 @@ generateRecordAccessors ::
   [(v, a)] ->
   v ->
   Reference ->
-  [(v, Term v a)]
+  [(a, v, Term v a)]
 generateRecordAccessors fields typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
   where
     argname = Var.uncapitalize typename
     tm (fname, ann) i =
-      [ (Var.namespaced [typename, fname], get),
-        (Var.namespaced [typename, fname, Var.named "set"], set),
-        (Var.namespaced [typename, fname, Var.named "modify"], modify)
+      [ (ann, Var.namespaced [typename, fname], get),
+        (ann, Var.namespaced [typename, fname, Var.named "set"], set),
+        (ann, Var.namespaced [typename, fname, Var.named "modify"], modify)
       ]
       where
         -- example: `point -> case point of Point x _ -> x`
