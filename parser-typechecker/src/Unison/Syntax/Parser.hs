@@ -230,8 +230,8 @@ openBlock = queryToken getOpen
     getOpen (L.Open s) = Just s
     getOpen _ = Nothing
 
-openBlockWith :: Ord v => String -> P v (L.Token ())
-openBlockWith s = void <$> P.satisfy ((L.Open s ==) . L.payload)
+openBlockWith :: Ord v => String -> P v (L.Token L.Lexeme)
+openBlockWith s = P.satisfy ((L.Open s ==) . L.payload)
 
 -- Match a particular lexeme exactly, and consume it.
 matchToken :: Ord v => L.Lexeme -> P v (L.Token L.Lexeme)
@@ -252,8 +252,8 @@ semi = queryToken go
     go _ = Nothing
 
 -- Consume the end of a block
-closeBlock :: Ord v => P v (L.Token ())
-closeBlock = void <$> matchToken L.Close
+closeBlock :: Ord v => P v (L.Token L.Lexeme)
+closeBlock = matchToken L.Close
 
 wordyPatternName :: Var v => P v (L.Token v)
 wordyPatternName = queryToken $ \case
@@ -374,16 +374,20 @@ string = queryToken getString
     getString (L.Textual s) = Just (Text.pack s)
     getString _ = Nothing
 
-tupleOrParenthesized :: Ord v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
+-- | Parses a tuple of 'a's, or a single parenthesized 'a'
+--
+-- returns the result of combining elements with 'pair', alongside the annotation containing
+-- the full parenthesized expression.
+tupleOrParenthesized :: Ord v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v (Ann, a)
 tupleOrParenthesized p unit pair = seq' "(" go p
   where
-    go _ [t] = t
-    go a xs = foldr pair (unit a) xs
+    go ann [t] = (ann, t)
+    go ann xs = (ann, foldr pair (unit ann) xs)
 
 seq :: Ord v => (Ann -> [a] -> a) -> P v a -> P v a
 seq = seq' "["
 
-seq' :: Ord v => String -> (Ann -> [a] -> a) -> P v a -> P v a
+seq' :: Ord v => String -> (Ann -> [a] -> b) -> P v a -> P v b
 seq' openStr f p = do
   open <- openBlockWith openStr <* redundant
   es <- sepEndBy (P.try $ optional semi *> reserved "," <* redundant) p

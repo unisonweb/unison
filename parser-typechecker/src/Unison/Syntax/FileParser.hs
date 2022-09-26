@@ -218,7 +218,7 @@ stanza = watchExpression <|> unexpectedAction <|> binding
       P.try $ do
         op <- optional (L.payload <$> P.lookAhead closeBlock)
         case op of
-          Just () -> P.customFailure (EmptyWatch ann)
+          Just _ -> P.customFailure (EmptyWatch ann)
           _ -> pure ()
 
     -- binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
@@ -316,7 +316,7 @@ dataDeclaration ::
   Maybe (L.Token DD.Modifier) ->
   P v (v, DataDeclaration v Ann, Accessors v)
 dataDeclaration mod = do
-  keywordTok <- fmap void (reserved "type") <|> openBlockWith "type"
+  keywordTok <- fmap void (reserved "type") <|> fmap void (openBlockWith "type")
   (name, typeArgs) <-
     (,) <$> TermParser.verifyRelativeVarName prefixDefinitionName
       <*> many (TermParser.verifyRelativeVarName prefixDefinitionName)
@@ -367,7 +367,7 @@ dataDeclaration mod = do
 effectDeclaration ::
   Var v => Maybe (L.Token DD.Modifier) -> P v (v, EffectDeclaration v Ann)
 effectDeclaration mod = do
-  keywordTok <- fmap void (reserved "ability") <|> openBlockWith "ability"
+  keywordTok <- fmap void (reserved "ability") <|> fmap void (openBlockWith "ability")
   name <- TermParser.verifyRelativeVarName prefixDefinitionName
   typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let typeArgVs = L.payload <$> typeArgs

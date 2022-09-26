@@ -5,6 +5,7 @@ module Unison.Syntax.TypeParser where
 import Control.Monad.Reader (asks)
 import qualified Data.Set as Set
 import qualified Text.Megaparsec as P
+import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Name as Name
@@ -93,7 +94,9 @@ sequenceTyp = do
   pure $ Type.app a (Type.list a) t
 
 tupleOrParenthesizedType :: Var v => TypeP v -> TypeP v
-tupleOrParenthesizedType rec = tupleOrParenthesized rec DD.unitType pair
+tupleOrParenthesizedType rec = do
+  (spanAnn, ty) <- tupleOrParenthesized rec DD.unitType pair
+  pure (ty {ABT.annotation = ABT.annotation ty <> spanAnn})
   where
     pair t1 t2 =
       let a = ann t1 <> ann t2

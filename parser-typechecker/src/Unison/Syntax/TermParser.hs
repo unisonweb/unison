@@ -24,6 +24,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
+import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import qualified Unison.Name as Name
@@ -144,13 +145,13 @@ match = do
       scrutinee
       (toList cases)
 
-matchCases1 :: Var v => L.Token () -> P v (NonEmpty (Int, Term.MatchCase Ann (Term v Ann)))
+matchCases1 :: Var v => L.Token L.Lexeme -> P v (NonEmpty (Int, Term.MatchCase Ann (Term v Ann)))
 matchCases1 start = do
   cases <-
     sepBy1 semi matchCase
       <&> \cases -> [(n, c) | (n, cs) <- cases, c <- cs]
   case cases of
-    [] -> P.customFailure (EmptyMatch start)
+    [] -> P.customFailure (EmptyMatch $ void start)
     (c : cs) -> pure (c NonEmpty.:| cs)
 
 -- Returns the arity of the pattern and the `MatchCase`. Examples:
@@ -221,7 +222,9 @@ parsePattern = root
     text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
     char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
     parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
-    parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
+    parenthesizedOrTuplePattern = do
+      (spanAnn, (pat, pats)) <- tupleOrParenthesized parsePattern unit pair
+      pure (fmap (<> spanAnn) pat, pats)
     unit ann = (Pattern.Constructor ann (ConstructorReference DD.unitRef 0) [], [])
     pair (p1, v1) (p2, v2) =
       ( Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2],
@@ -530,10 +533,10 @@ doc2Block =
           "syntax.docTransclude" -> evalLike id
           "syntax.docEvalInline" -> evalLike addDelay
           "syntax.docExampleBlock" -> do
-            tm <- block'' False True "syntax.docExampleBlock" (pure (void t)) closeBlock
+            tm <- block'' False True "syntax.docExampleBlock" (pure $ fmap L.Open t) closeBlock
             pure $ Term.apps' f [Term.nat (ann tm) 0, addDelay tm]
           "syntax.docEval" -> do
-            tm <- block' False "syntax.docEval" (pure (void t)) closeBlock
+            tm <- block' False "syntax.docEval" (pure $ fmap L.Open t) closeBlock
             pure $ Term.apps' f [addDelay tm]
           _ -> regular
 
@@ -1109,32 +1112,48 @@ substImports ns imports =
           NamesWithHistory.hasTypeNamed (Name.unsafeFromVar full) ns
       ]
 
-block' :: Var v => IsTop -> String -> P v (L.Token ()) -> P v b -> TermP v
+block' :: Var v => IsTop -> String -> P v (L.Token L.Lexeme) -> P v (L.Token L.Lexeme) -> TermP v
 block' isTop = block'' isTop False
 
 block'' ::
-  forall v b.
+  forall v.
   Var v =>
   IsTop ->
   Bool -> -- `True` means insert `()` at end of block if it ends with a statement
   String ->
-  P v (L.Token ()) ->
-  P v b ->
+  P v (L.Token L.Lexeme) ->
+  P v (L.Token L.Lexeme) ->
   TermP v
 block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
   open <- openBlock
   (names, imports) <- imports
   _ <- optional semi
   statements <- local (\e -> e {names = names}) $ sepBy semi statement
-  _ <- closeBlock
-  substImports names imports <$> go open statements
+  close <- closeBlock
+  substImports names imports <$> go open close statements
   where
     statement = asum [Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm]
-    go :: L.Token () -> [BlockElement v] -> P v (Term v Ann)
-    go open bs =
+    go :: L.Token L.Lexeme -> L.Token L.Lexeme -> [BlockElement v] -> P v (Term v Ann)
+    go open close bs =
       let finish tm = case Components.minimize' tm of
             Left dups -> customFailure $ DuplicateTermNames (toList dups)
             Right tm -> pure tm
+          -- Some block openers should be included in the annotation for the body,
+          -- but ones like '=' should not be considered part of body itself.
+          expandedAnn =
+            Debug.debugLog Debug.LSP ("OPENER" <> show (L.payload open)) $
+              case L.payload open of
+                L.Open "=" -> mempty
+                L.Open "(" -> ann open <> ann close
+                L.Open "[" -> ann open <> ann close
+                L.Open "{{" -> ann open <> ann close
+                L.Open "[:" -> ann open <> ann close
+                L.Open "do" -> ann open
+                L.Open "let" -> ann open
+                L.Open "syntax.docUntitledSection" -> ann open <> ann close
+                L.Open x -> Debug.debugLog Debug.LSP ("Unknown open" <> show x) mempty
+                x -> Debug.debugLog Debug.LSP ("Unknown open" <> show x) mempty
+
           toTm bs = do
             (bs, body) <- body bs
             finish =<< foldrM step body bs
@@ -1144,14 +1163,14 @@ block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
                   pure $
                     Term.consLetRec
                       isTop
-                      (ann a <> ann body)
+                      (expandedAnn <> ann a <> ann body)
                       (a, v, tm)
                       body
                 Action tm ->
                   pure $
                     Term.consLetRec
                       isTop
-                      (ann tm <> ann body)
+                      (expandedAnn <> ann tm <> ann body)
                       (ann tm, positionalVar (ann tm) (Var.named "_"), tm)
                       body
                 DestructuringBind (_, f) ->
@@ -1200,7 +1219,9 @@ number' i u f = fmap go numeric
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
-tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair
+tupleOrParenthesizedTerm = label "tuple" $ do
+  (spanAnn, tm) <- tupleOrParenthesized term DD.unitTerm pair
+  pure $ tm {ABT.annotation = ABT.annotation tm <> spanAnn}
   where
     pair t1 t2 =
       Term.app
