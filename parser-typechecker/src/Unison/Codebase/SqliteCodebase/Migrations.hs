@@ -2,12 +2,16 @@
 
 module Unison.Codebase.SqliteCodebase.Migrations where
 
+import Control.Concurrent.MVar
 import Control.Concurrent.STM (TVar)
 import Control.Monad.Reader
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import qualified System.Console.Regions as Region
 import System.Directory (copyFile)
 import System.FilePath ((</>))
+import Text.Printf (printf)
 import qualified U.Codebase.Reference as C.Reference
 import U.Codebase.Sqlite.DbId (SchemaVersion (..))
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -30,6 +34,7 @@ import Unison.Hash (Hash)
 import Unison.Prelude
 import qualified Unison.Sqlite as Sqlite
 import qualified Unison.Sqlite.Connection as Sqlite.Connection
+import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
 import qualified UnliftIO
 
@@ -77,7 +82,7 @@ checkCodebaseIsUpToDate = do
 -- This is a No-op if it's up to date
 -- Returns an error if the schema version is newer than this ucm knows about.
 ensureCodebaseIsUpToDate ::
-  MonadUnliftIO m =>
+  MonadIO m =>
   LocalOrRemote ->
   CodebasePath ->
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
@@ -88,57 +93,73 @@ ensureCodebaseIsUpToDate ::
   Sqlite.Connection ->
   m (Either Codebase.OpenCodebaseError ())
 ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt conn =
-  UnliftIO.try do
-    liftIO do
-      ranMigrations <-
-        Sqlite.runWriteTransaction conn \run -> do
-          schemaVersion <- run Q.schemaVersion
-          let migs = migrations getDeclType termBuffer declBuffer root
-          -- The highest schema that this ucm knows how to migrate to.
-          let currentSchemaVersion = fst . head $ Map.toDescList migs
-          when (schemaVersion > currentSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral schemaVersion)
-          let migrationsToRun =
-                Map.filterWithKey (\v _ -> v > schemaVersion) migs
-          when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase root shouldPrompt
-          -- This is a bit of a hack, hopefully we can remove this when we have a more
-          -- reliable way to freeze old migration code in time.
-          -- The problem is that 'saveObject' has been changed to flush temp entity tables,
-          -- but old schema versions still use 'saveObject', but don't have the tables!
-          -- We can create the tables no matter what, there won't be anything to flush, so
-          -- everything still works as expected.
-          --
-          -- Hopefully we can remove this once we've got better methods of freezing migration
-          -- code in time.
-          when (schemaVersion < 5) $ run Q.addTempEntityTables
-          when (schemaVersion < 6) $ run Q.addNamespaceStatsTables
-          for_ (Map.toAscList migrationsToRun) $ \(SchemaVersion v, migration) -> do
-            putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
-            run migration
-          let ranMigrations = not (null migrationsToRun)
-          when ranMigrations $ do
-            putStrLn $ "🕵️  Checking codebase integrity..."
-            run do
-              result <-
-                fmap fold . sequenceA $
-                  [ -- Ideally we'd check everything here, but certain codebases are known to have objects
-                    -- with missing Hash Objects, we'll want to clean that up in a future migration.
-                    -- integrityCheckAllHashObjects,
-                    integrityCheckAllBranches,
-                    integrityCheckAllCausals
-                  ]
+  (liftIO . UnliftIO.try) do
+    regionVar <- newEmptyMVar
+    let finalizeRegion :: IO ()
+        finalizeRegion =
+          whenJustM (tryTakeMVar regionVar) \region -> do
+            content <- Region.getConsoleRegion region
+            Region.finishConsoleRegion region content
+
+    Region.displayConsoleRegions do
+      (`UnliftIO.finally` finalizeRegion) do
+        ranMigrations <-
+          Sqlite.runWriteTransaction conn \run -> do
+            schemaVersion <- run Q.schemaVersion
+            let migs = migrations getDeclType termBuffer declBuffer root
+            -- The highest schema that this ucm knows how to migrate to.
+            let currentSchemaVersion = fst . head $ Map.toDescList migs
+            when (schemaVersion > currentSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral schemaVersion)
+            let migrationsToRun = Map.filterWithKey (\v _ -> v > schemaVersion) migs
+            when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase root shouldPrompt
+            -- This is a bit of a hack, hopefully we can remove this when we have a more
+            -- reliable way to freeze old migration code in time.
+            -- The problem is that 'saveObject' has been changed to flush temp entity tables,
+            -- but old schema versions still use 'saveObject', but don't have the tables!
+            -- We can create the tables no matter what, there won't be anything to flush, so
+            -- everything still works as expected.
+            --
+            -- Hopefully we can remove this once we've got better methods of freezing migration
+            -- code in time.
+            when (schemaVersion < 5) $ run Q.addTempEntityTables
+            when (schemaVersion < 6) $ run Q.addNamespaceStatsTables
+            for_ (Map.toAscList migrationsToRun) $ \(SchemaVersion v, migration) -> do
+              putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
+              run migration
+            let ranMigrations = not (null migrationsToRun)
+            when ranMigrations do
+              region <-
+                UnliftIO.mask_ do
+                  region <- Region.openConsoleRegion Region.Linear
+                  putMVar regionVar region
+                  pure region
+              result <- do
+                let checks =
+                      [ -- Ideally we'd check everything here, but certain codebases are known to have objects
+                        -- with missing Hash Objects, we'll want to clean that up in a future migration.
+                        -- integrityCheckAllHashObjects,
+                        integrityCheckAllBranches,
+                        integrityCheckAllCausals
+                      ]
+                zip [(1 :: Int) ..] checks & foldMapM \(i, check) -> do
+                  Region.setConsoleRegion
+                    region
+                    (Text.pack (printf "🕵️  Checking codebase integrity (step %d of %d)..." i (length checks)))
+                  run check
               case result of
                 NoIntegrityErrors -> pure ()
                 IntegrityErrorDetected errs -> do
                   let msg = prettyPrintIntegrityErrors errs
                   let rendered = Pretty.toPlain 80 (Pretty.border 2 msg)
-                  Sqlite.unsafeIO $ putStrLn rendered
-                  abortMigration "Codebase integrity error detected."
-          pure ranMigrations
-      when ranMigrations do
-        -- Vacuum once now that any migrations have taken place.
-        putStrLn $ "Cleaning up..."
-        _success <- Sqlite.Connection.vacuum conn
-        putStrLn $ "🏁 Migration complete 🏁"
+                  Region.setConsoleRegion region (Text.pack rendered)
+                  run (abortMigration "Codebase integrity error detected.")
+            pure ranMigrations
+        when ranMigrations do
+          region <- readMVar regionVar
+          -- Vacuum once now that any migrations have taken place.
+          Region.setConsoleRegion region ("✅ All good, cleaning up..." :: Text)
+          _success <- Sqlite.Connection.vacuum conn
+          Region.setConsoleRegion region ("🏁 Migrations complete 🏁" :: Text)
 
 -- | Copy the sqlite database to a new file with a unique name based on current time.
 backupCodebase :: CodebasePath -> Bool -> IO ()
