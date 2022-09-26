@@ -1366,7 +1366,7 @@ loop e = do
               let datas, effects, terms :: [(Name, Reference.Id)]
                   datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
                   effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
-                  terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
+                  terms = [(Name.unsafeFromVar v, r) | (v, (_a, r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugTabCompletionI inputs -> do
               Cli.Env {authHTTPClient, codebase} <- ask
@@ -2740,9 +2740,9 @@ addWatch ::
 addWatch _watchName Nothing = Nothing
 addWatch watchName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
-  let mainComponent = filter ((\v -> Var.nameStr v == watchName) . view _1) components
+  let mainComponent = filter ((\v -> Var.nameStr v == watchName) . view _2) components
   case mainComponent of
-    [(v, tm, ty)] ->
+    [(ann, v, tm, ty)] ->
       Just $
         let v2 = Var.freshIn (Set.fromList [v]) v
             a = ABT.annotation tm
@@ -2751,7 +2751,7 @@ addWatch watchName (Just uf) = do
                 (UF.dataDeclarationsId' uf)
                 (UF.effectDeclarationsId' uf)
                 (UF.topLevelComponents' uf)
-                (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, Term.var a v, ty)])])
+                (UF.watchComponents uf <> [(WK.RegularWatch, [(ann, v2, Term.var a v, ty)])])
             )
     _ -> addWatch watchName Nothing
 
@@ -2769,7 +2769,7 @@ addSavedTermToUnisonFile resultName = do
     UF.typecheckedUnisonFile
       (UF.dataDeclarationsId' uf)
       (UF.effectDeclarationsId' uf)
-      ([(resultSymbol, trm, typ)] : UF.topLevelComponents' uf)
+      ([(Ann.External, resultSymbol, trm, typ)] : UF.topLevelComponents' uf)
       (UF.watchComponents uf)
 
 -- | Look up runnable term with the given name in the codebase or
@@ -2809,9 +2809,9 @@ getTerm' mainName =
                   pure (GetTermSuccess (v, tm, typ, otyp))
       getFromFile uf = do
         let components = join $ UF.topLevelComponents uf
-        let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
+        let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _2) components
         case mainComponent of
-          [(v, tm, ty)] ->
+          [(_ann, v, tm, ty)] ->
             checkType ty \otyp ->
               let runMain = DD.forceTerm a a (Term.var a v)
                   v2 = Var.freshIn (Set.fromList [v]) v
@@ -2833,7 +2833,7 @@ getTerm' mainName =
 createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli r (TypecheckedUnisonFile Symbol Ann)
 createWatcherFile v tm typ =
   Cli.getLatestTypecheckedFile >>= \case
-    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, tm, typ)])])
+    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(Ann.External, v, tm, typ)])])
     Just uf ->
       let v2 = Var.freshIn (Set.fromList [v]) v
        in pure $
@@ -2842,7 +2842,7 @@ createWatcherFile v tm typ =
               (UF.effectDeclarationsId' uf)
               (UF.topLevelComponents' uf)
               -- what about main's component? we have dropped them if they existed.
-              [(magicMainWatcherString, [(v2, tm, typ)])]
+              [(magicMainWatcherString, [(Ann.External, v2, tm, typ)])]
 
 executePPE ::
   Var v =>
@@ -3083,7 +3083,7 @@ evalUnisonTerm sandbox ppe useCache tm =
 stripUnisonFileReferences :: TypecheckedUnisonFile Symbol a -> Term Symbol () -> Term Symbol ()
 stripUnisonFileReferences unisonFile term =
   let refMap :: Map Reference.Id Symbol
-      refMap = Map.fromList . map (\(sym, (refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
+      refMap = Map.fromList . map (\(sym, (_ann, refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
       alg () = \case
         ABT.Var x -> ABT.var x
         ABT.Cycle x -> ABT.cycle x

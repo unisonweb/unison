@@ -41,6 +41,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann (..))
+import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
 import Unison.Reference (Reference (..))
 import qualified Unison.Reference as Reference
@@ -404,7 +405,7 @@ propagate patch b = case validatePatch patch of
                 Just componentMap'' -> do
                   let joinedStuff =
                         toList (Map.intersectionWith f componentMap componentMap'')
-                      f (oldRef, _oldTerm, oldType) (newRef, _newWatchKind, newTerm, newType) =
+                      f (oldRef, _oldTerm, oldType) (_ann, newRef, _newWatchKind, newTerm, newType) =
                         (oldRef, newRef, newTerm, oldType, newType')
                         where
                           -- Don't replace the type if it hasn't changed.
@@ -512,7 +513,7 @@ propagate patch b = case validatePatch patch of
     verifyTermComponent ::
       Map Symbol (Reference, Term Symbol Ann, a) ->
       Edits Symbol ->
-      Cli r (Maybe (Map Symbol (Reference, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)))
+      Cli r (Maybe (Map Symbol (Ann, Reference, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)))
     verifyTermComponent componentMap Edits {..} = do
       -- If the term contains references to old patterns, we can't update it.
       -- If the term had a redunant type signature, it's discarded and a new type
@@ -534,7 +535,7 @@ propagate patch b = case validatePatch patch of
                 UnisonFileId
                   mempty
                   mempty
-                  (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
+                  (Map.toList componentMap <&> (\(sym, (_ref, tm, _a)) -> (Ann.External, sym, tm)))
                   mempty
           typecheckResult <- typecheckFile [] file
           pure

@@ -97,7 +97,7 @@ closeWithDependencies uf inputs = seenDefns {ctors = constructorDeps}
     resolveTypes rs = [v | r <- Set.toList rs, Just v <- [Map.lookup r typeNames]]
 
     findTerm :: v -> Maybe (Term.Term v a)
-    findTerm v = Map.lookup v allTerms
+    findTerm v = Map.lookup v allTerms <&> snd
 
     allTerms = UF.allTerms uf
 
