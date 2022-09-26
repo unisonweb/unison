@@ -44,10 +44,10 @@ gh release create "release/${version}" --repo unisonweb/unison-local-ui --target
 echo "Kicking off release workflow in unisonweb/unison"
 git tag "${tag}" "${target}"
 git push origin "${tag}"
-gh workflow run release --repo unisonweb/unison --field "version=${version}" --ref cp/automate-minor-releases
+gh workflow run release --repo unisonweb/unison --field "version=${version}"
 
 echo "Kicking off Homebrew update task"
-gh workflow run release --repo unisonweb/homebrew-unison --field "version=${version}" --ref cp/automate-brew-upgrade
+gh workflow run release --repo unisonweb/homebrew-unison --field "version=${version}"
 
 echo "Opening relevant workflows in browser"
 gh workflow view release --web --repo unisonweb/homebrew-unison || true
