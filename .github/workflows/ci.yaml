@@ -50,9 +50,10 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.sha}}
-          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
+          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.ref}}-${{github.sha}}
+          # Fall-back to use the most recent cache for the branch, stack.yaml, or the OS
           restore-keys: |
+            stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.ref}}
             stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
             stack-0_${{matrix.os}}
 
@@ -68,9 +69,10 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.sha}}
-          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
+          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.ref}}-${{github.sha}}
+          # Fall-back to use the most recent cache for the branch, stack.yaml, or the OS
           restore-keys: |
+            stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}-${{github.ref}}
             stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
             stack-0_${{matrix.os}}
 
@@ -86,8 +88,10 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-work-3_${{matrix.os}}-${{github.sha}}
-          restore-keys: stack-work-3_${{matrix.os}}
+          key: stack-work-3_${{matrix.os}}-${{github.ref}}-${{github.sha}}
+          restore-keys: |
+            stack-work-3_${{matrix.os}}-${{github.ref}}
+            stack-work-3_${{matrix.os}}
 
       # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
       # so this is split into two steps, only one of which will run on any particular build.
