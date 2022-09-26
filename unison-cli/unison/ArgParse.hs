@@ -50,6 +50,7 @@ import Options.Applicative
     subparserInline,
   )
 import qualified Options.Applicative as OptParse
+import Options.Applicative.Builder.Internal (noGlobal {- https://github.com/pcapriotti/optparse-applicative/issues/461 -})
 import Options.Applicative.Help (bold, (<+>))
 import qualified Options.Applicative.Help.Pretty as P
 import System.Environment (lookupEnv)
@@ -320,21 +321,25 @@ codebaseServerOptsParser envOpts = do
         long "token"
           <> metavar "STRING"
           <> help "API auth token"
+          <> noGlobal
     hostFlag =
       optional . strOption $
         long "host"
           <> metavar "STRING"
           <> help "Codebase server host"
+          <> noGlobal
     portFlag =
       optional . option auto $
         long "port"
           <> metavar "NUMBER"
           <> help "Codebase server port"
+          <> noGlobal
     codebaseUIPathFlag =
       optional . strOption $
         long "ui"
           <> metavar "DIR"
           <> help "Path to codebase ui root"
+          <> noGlobal
 
 launchParser :: CodebaseServerOpts -> IsHeadless -> Parser Command
 launchParser envOpts isHeadless = do
@@ -379,7 +384,14 @@ saveCodebaseFlag = flag DontSaveCodebase SaveCodebase (long "save-codebase" <> h
     saveHelp = "if set the resulting codebase will be saved to a new directory, otherwise it will be deleted"
 
 downloadBaseFlag :: Parser ShouldDownloadBase
-downloadBaseFlag = flag ShouldDownloadBase ShouldNotDownloadBase (long "no-base" <> help downloadBaseHelp)
+downloadBaseFlag =
+  flag
+    ShouldDownloadBase
+    ShouldNotDownloadBase
+    ( long "no-base"
+        <> help downloadBaseHelp
+        <> noGlobal
+    )
   where
     downloadBaseHelp = "if set, a new codebase will be created without downloading the base library, otherwise the new codebase will download base"
 
@@ -390,6 +402,7 @@ startingPathOption =
           <> long "path"
           <> short 'p'
           <> help "Launch the UCM session at the provided path location."
+          <> noGlobal
    in optional $ option readAbsolutePath meta
 
 readAbsolutePath :: ReadM Path.Absolute
