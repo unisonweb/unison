@@ -544,8 +544,10 @@ loop e = do
                       (Path.unsafeToName (Path.unsplit (Path.convert absPath)))
                       (Branch.toNames (Branch.head branch))
               afterDelete <- do
-                rootNames <- Branch.toNames <$> Cli.getRootBranch0
-                endangerments <- getEndangeredDependents toDelete rootNames
+                root <- Cli.getRootBranch
+                path <- Cli.getCurrentPath
+                let currentNames = Backend.prettyNamesForBranch root (Backend.Within $ Path.unabsolute path)
+                endangerments <- getEndangeredDependents toDelete currentNames
                 case (null endangerments, insistence) of
                   (True, _) -> pure (Cli.respond Success)
                   (False, Force) -> do
@@ -2532,10 +2534,10 @@ getEndangeredDependents ::
   Names ->
   -- | map from references going extinct to the set of endangered dependents
   Cli r (Map LabeledDependency (NESet LabeledDependency))
-getEndangeredDependents namesToDelete rootNames = do
+getEndangeredDependents namesToDelete localNames = do
   Cli.Env {codebase} <- ask
   let remainingNames :: Names
-      remainingNames = rootNames `Names.difference` namesToDelete
+      remainingNames = localNames `Names.difference` namesToDelete
       refsToDelete, remainingRefs, extinct :: Set LabeledDependency
       refsToDelete = Names.labeledReferences namesToDelete
       remainingRefs = Names.labeledReferences remainingNames -- left over after delete
