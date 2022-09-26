@@ -43,20 +43,16 @@ formatDefs fileUri =
       FileAnalysis {typecheckedFile} <- getFileAnalysis fileUri
       UF.TypecheckedUnisonFileId {topLevelComponents'} <- MaybeT $ pure typecheckedFile
       filePPED <- ppedForFile fileUri
-      for (concat topLevelComponents') \(sym, trm, _typ) -> do
+      forMaybe (concat topLevelComponents') \(ann, sym, trm, _typ) -> runMaybeT do
+        Debug.debugM Debug.LSP "Anns" (sym, ann)
         symName <- hoistMaybe (Name.fromVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute cwd)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments
         let biasedPPED = PPED.biasTo [defName] filePPED
         let biasedPPE = PPED.suffixifiedPPE biasedPPED
         let formatted = Pretty.toPlain prettyPrintWidth $ TermPrinter.pretty biasedPPE trm
-        -- This is an unfortunate hack; we need to fix annotations so they actually represent the span of the term.
-        -- for now this 'folds' all annotations so we hopefully cover the whole term, but ideally the top-level ann
-        -- would actually just contain the whole term.
-        editRange <- hoistMaybe . annToRange $ fold trm
-        let rangeList = toList trm
+        editRange <- hoistMaybe $ annToRange ann
         let edit = TextEdit editRange (Text.pack formatted)
-        Debug.debugM Debug.LSP "Anns" (sym, rangeList)
         Debug.debugM Debug.LSP "DEBUGTERMS" (debugTerms trm)
         pure edit
 

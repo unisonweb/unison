@@ -92,7 +92,7 @@ handleUpdate input optionalPatch requestedNames = do
       hashTerms :: Map Reference (Type Symbol Ann)
       hashTerms = Map.fromList (toList hashTerms0)
         where
-          hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms (Slurp.originalFile sr)
+          hashTerms0 = (\(_ann, r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms (Slurp.originalFile sr)
       termEdits :: [(Name, Reference, Reference)]
       termEdits = do
         v <- Set.toList (SC.terms (updates sr))
@@ -203,7 +203,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
       map doTerm . toList $
         SC.terms slurp <> UF.constructorsForDecls (SC.types slurp) uf
     names = UF.typecheckedToNames uf
-    tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
+    tests = Set.fromList $ view _2 <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
     (isTestType, isTestValue) = isTest
     md v =
       if Set.member v tests

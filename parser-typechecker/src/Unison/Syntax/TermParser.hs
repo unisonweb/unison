@@ -998,7 +998,7 @@ destructuringBind = do
          in Term.match a scrute [thecase t]
     )
 
-binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
+binding :: forall v. Var v => P v (Ann, (Ann, v), Term v Ann)
 binding = label "binding" $ do
   typ <- optional typedecl
   -- a ++ b = ...
@@ -1032,9 +1032,9 @@ binding = label "binding" $ do
           (\e -> Term.ann (ann nameT <> ann e) e typ)
           (mkBinding (ann nameT) (L.payload name) args body)
   where
-    mkBinding loc f [] body = ((loc, f), body)
-    mkBinding loc f args body =
-      ((loc, f), Term.lam' (loc <> ann body) (L.payload <$> args) body)
+    mkBinding nameLoc f [] body = (nameLoc <> ABT.annotation body, (nameLoc, f), body)
+    mkBinding nameLoc f args body =
+      (nameLoc <> ABT.annotation body, (nameLoc, f), Term.lam' (nameLoc <> ann body) (L.payload <$> args) body)
 
 customFailure :: P.MonadParsec e s m => e -> m a
 customFailure = P.customFailure
@@ -1074,12 +1074,12 @@ importp = do
       pure (suffix, Name.joinDot (L.payload prefix) suffix)
 
 data BlockElement v
-  = Binding ((Ann, v), Term v Ann)
+  = Binding (Ann, (Ann, v), Term v Ann)
   | DestructuringBind (Ann, Term v Ann -> Term v Ann)
   | Action (Term v Ann)
 
 instance Show v => Show (BlockElement v) where
-  show (Binding ((pos, name), _)) = show ("binding: " :: Text, pos, name)
+  show (Binding (_ann, (pos, name), _)) = show ("binding: " :: Text, pos, name)
   show (DestructuringBind (pos, _)) = show ("destructuring bind: " :: Text, pos)
   show (Action tm) = show ("action: " :: Text, ann tm)
 
@@ -1140,12 +1140,12 @@ block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
             finish =<< foldrM step body bs
             where
               step elem body = case elem of
-                Binding ((a, v), tm) ->
+                Binding (bodyAnn, (nameAnn, v), tm) ->
                   pure $
                     Term.consLetRec
                       isTop
-                      (ann a <> ann body)
-                      (a, v, tm)
+                      bodyAnn
+                      (nameAnn, v, tm)
                       body
                 Action tm ->
                   pure $
@@ -1157,7 +1157,7 @@ block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
                 DestructuringBind (_, f) ->
                   f <$> finish body
           body bs = case reverse bs of
-            Binding ((a, _v), _) : _ ->
+            Binding (_bodyAnn, (a, _v), _) : _ ->
               pure $
                 if implicitUnitAtEnd
                   then (bs, DD.unitTerm a)

@@ -13,11 +13,13 @@ import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Debug as Debug
 import qualified Unison.Name as Name
 import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
+import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer as L
 import Unison.Syntax.Parser
@@ -63,16 +65,17 @@ file = do
   local (\e -> e {names = NamesWithHistory.push locals namesStart}) $ do
     names <- asks names
     stanzas0 <- sepBy semi stanza
+    Debug.debugM Debug.LSP "STANZAS" (stanzas0)
     let stanzas = fmap (TermParser.substImports names imports) <$> stanzas0
     _ <- closeBlock
     let (termsr, watchesr) = foldl' go ([], []) stanzas
         go (terms, watches) s = case s of
-          WatchBinding kind ann ((_, v), at) ->
-            (terms, (kind, (ann, v, Term.generalizeTypeSignatures at)) : watches)
+          WatchBinding kind ann (_bodyAnn, (_, v), at) ->
+            (terms, (kind, (ann {- is this the right one? -}, v, Term.generalizeTypeSignatures at)) : watches)
           WatchExpression kind guid ann at ->
             (terms, (kind, (ann, Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
-          Binding ((ann, v), at) -> ((ann, v, Term.generalizeTypeSignatures at) : terms, watches)
-          Bindings bs -> ([(ann, v, Term.generalizeTypeSignatures at) | ((ann, v), at) <- bs] ++ terms, watches)
+          Binding (bodyAnn, (_nameAnn, v), at) -> ((bodyAnn, v, Term.generalizeTypeSignatures at) : terms, watches)
+          Bindings bs -> ([(bodyAnn, v, Term.generalizeTypeSignatures at) | (bodyAnn, (_nameAnn, v), at) <- bs] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
@@ -186,18 +189,20 @@ checkForDuplicateTermsAndConstructors uf = do
 --   foo x = x + 42
 
 data Stanza v term
-  = WatchBinding UF.WatchKind Ann ((Ann, v), term)
+  = WatchBinding UF.WatchKind Ann (Ann, (Ann, v), term)
   | WatchExpression UF.WatchKind Text Ann term
-  | Binding ((Ann, v), term)
-  | Bindings [((Ann, v), term)]
-  deriving (Foldable, Traversable, Functor)
+  | -- | Binding (ann for whole def, (name ann, name), term)
+    Binding (Ann, (Ann, v), term)
+  | -- | Bindings [ (ann for whole def, (name ann, name), term )]
+    Bindings [(Ann, (Ann, v), term)]
+  deriving (Show, Foldable, Traversable, Functor)
 
 getVars :: Var v => Stanza v term -> [v]
 getVars = \case
-  WatchBinding _ _ ((_, v), _) -> [v]
+  WatchBinding _ _ (_, (_, v), _) -> [v]
   WatchExpression _ guid _ _ -> [Var.unnamedTest guid]
-  Binding ((_, v), _) -> [v]
-  Bindings bs -> [v | ((_, v), _) <- bs]
+  Binding (_, (_, v), _) -> [v]
+  Bindings bs -> [v | (_, (_, v), _) <- bs]
 
 stanza :: Var v => P v (Stanza v (Term v Ann))
 stanza = watchExpression <|> unexpectedAction <|> binding
@@ -227,10 +232,10 @@ stanza = watchExpression <|> unexpectedAction <|> binding
       --   {{ A doc }}  to   foo.doc = {{ A doc }}
       --   foo = 42          foo = 42
       doc <- P.optional (TermParser.doc2Block <* semi)
-      binding@((_, v), _) <- TermParser.binding
+      binding@(_, (_, v), _) <- TermParser.binding
       pure $ case doc of
         Nothing -> Binding binding
-        Just doc -> Bindings [((ann doc, Var.joinDot v (Var.named "doc")), doc), binding]
+        Just doc -> Bindings [(ann doc, (Ann.External, Var.joinDot v (Var.named "doc")), doc), binding]
 
 watched :: Var v => P v (UF.WatchKind, Text, Ann)
 watched = P.try $ do
