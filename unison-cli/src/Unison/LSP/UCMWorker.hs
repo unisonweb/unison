@@ -26,11 +26,12 @@ ucmWorker ppeVar parseNamesVar ucmState = do
         atomically $ do
           writeTVar parseNamesVar parseNames
           writeTVar ppeVar ppe
+        -- Re-check everything with the new names and ppe
+        VFS.markAllFilesDirty
         latest <- atomically $ do
           latest <- ucmState
           guard $ (currentRoot, currentPath) /= latest
           pure latest
-        VFS.markAllFilesDirty
         loop latest
 
   -- Bootstrap manually from codebase just in case we're in headless mode and don't get any

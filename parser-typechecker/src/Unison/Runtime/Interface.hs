@@ -18,7 +18,6 @@ module Unison.Runtime.Interface
 where
 
 import Control.Concurrent.STM as STM
-import Control.Exception (catch, try)
 import Control.Monad
 import Data.Bifunctor (bimap, first)
 import Data.Binary.Get (runGetOrFail)
@@ -28,13 +27,10 @@ import Data.Bytes.Get (MonadGet)
 import Data.Bytes.Put (MonadPut, runPutL)
 import Data.Bytes.Serial
 import Data.Foldable
-import Data.Functor ((<&>))
 import Data.IORef
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set as Set
-  ( Set,
-    filter,
+  ( filter,
     fromList,
     map,
     notMember,
@@ -42,10 +38,7 @@ import Data.Set as Set
     (\\),
   )
 import qualified Data.Set as Set
-import Data.Text (Text, isPrefixOf)
-import Data.Traversable (for)
-import Data.Word (Word64)
-import GHC.Stack (HasCallStack)
+import Data.Text (isPrefixOf)
 import qualified Unison.ABT as Tm (substs)
 import qualified Unison.Builtin.Decls as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
@@ -58,7 +51,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.LabeledDependency as RF
 import Unison.Parser.Ann (Ann (External))
-import Unison.Prelude (reportBug)
+import Unison.Prelude
 import Unison.PrettyPrintEnv
 import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
@@ -389,15 +382,19 @@ evalInContext ppe ctx activeThreads w = do
 executeMainComb ::
   Word64 ->
   CCache ->
-  IO ()
-executeMainComb init cc =
-  flip catch (putStrLn . toANSI 50 <=< handler)
-    . eval0 cc Nothing
-    . Ins (Pack RF.unitRef 0 ZArgs)
-    $ Call True init (BArg1 0)
+  IO (Either (Pretty ColorText) ())
+executeMainComb init cc = do
+  result <-
+    UnliftIO.try
+      . eval0 cc Nothing
+      . Ins (Pack RF.unitRef 0 ZArgs)
+      $ Call True init (BArg1 0)
+  case result of
+    Left err -> Left <$> formatErr err
+    Right () -> pure (Right ())
   where
-    handler (PE _ msg) = pure msg
-    handler (BU nm c) = do
+    formatErr (PE _ msg) = pure msg
+    formatErr (BU nm c) = do
       crs <- readTVarIO (combRefs cc)
       let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
       pure . either id (bugMsg PPE.empty nm) $ decom c
@@ -473,7 +470,7 @@ sorryMsg =
 catchInternalErrors ::
   IO (Either Error a) ->
   IO (Either Error a)
-catchInternalErrors sub = sub `catch` \(CE _ e) -> pure $ Left e
+catchInternalErrors sub = sub `UnliftIO.catch` \(CE _ e) -> pure $ Left e
 
 decodeStandalone ::
   BL.ByteString ->
@@ -541,7 +538,7 @@ tryM = fmap (either (Just . extract) (const Nothing)) . try
     extract (PE _ e) = e
     extract (BU _ _) = "impossible"
 
-runStandalone :: StoredCache -> Word64 -> IO ()
+runStandalone :: StoredCache -> Word64 -> IO (Either (Pretty ColorText) ())
 runStandalone sc init =
   restoreCache sc >>= executeMainComb init
 
@@ -600,9 +597,10 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
       putStrLn $ "trace: " ++ UT.unpack tx
       print c
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
+    rf k = builtinTermBackref ! k
     combs =
       mapWithKey
-        (\k v -> emitComb @Symbol rns k mempty (0, v))
+        (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v))
         numberedTermLookup
 
 traceNeeded ::

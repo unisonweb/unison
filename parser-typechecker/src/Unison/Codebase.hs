@@ -305,15 +305,15 @@ addDefsToCodebase c uf = do
     goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
-getTypeOfConstructor ::
-  (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
-getTypeOfConstructor codebase (ConstructorReference (Reference.DerivedId r) cid) = do
-  maybeDecl <- getTypeDeclaration codebase r
-  pure $ case maybeDecl of
-    Nothing -> Nothing
-    Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-getTypeOfConstructor _ r =
-  error $ "Don't know how to getTypeOfConstructor " ++ show r
+getTypeOfConstructor :: (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
+getTypeOfConstructor codebase (ConstructorReference r0 cid) =
+  case r0 of
+    Reference.DerivedId r -> do
+      maybeDecl <- getTypeDeclaration codebase r
+      pure $ case maybeDecl of
+        Nothing -> Nothing
+        Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
+    Reference.Builtin _ -> error (reportBug "924628772" "Attempt to load a type declaration which is a builtin!")
 
 -- | Like 'getWatch', but first looks up the given reference as a regular watch, then as a test watch.
 --
