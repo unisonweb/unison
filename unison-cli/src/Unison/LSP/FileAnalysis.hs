@@ -5,12 +5,14 @@ module Unison.LSP.FileAnalysis where
 import Control.Lens
 import Control.Monad.Reader
 import qualified Crypto.Random as Random
+import Data.Align (alignWith)
 import Data.Bifunctor (second)
 import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Data.IntervalMap.Lazy as IM
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import Data.These
 import Language.LSP.Types
   ( Diagnostic,
     DiagnosticSeverity (DsError),
@@ -60,7 +62,7 @@ import qualified Unison.UnisonFile.Names as UF
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Var as Var
-import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
+import UnliftIO.STM
 
 -- | Lex, parse, and typecheck a file.
 checkFile :: HasUri d Uri => d -> Lsp (Maybe FileAnalysis)
@@ -108,7 +110,14 @@ fileAnalysisWorker = forever do
       pure (docUri, fileInfo)
   Debug.debugM Debug.LSP "Freshly Typechecked " freshlyCheckedFiles
   -- Overwrite any files we successfully checked
-  atomically $ modifyTVar' checkedFilesV (Map.union freshlyCheckedFiles)
+  atomically $ do
+    checkedFiles <- readTVar checkedFilesV
+    let zipper = \case
+          These mvar new -> tryTakeTMVar mvar *> putTMVar mvar new *> pure mvar
+          This mvar -> pure mvar
+          That new -> newTMVar new
+    newCheckedFiles <- sequenceA $ alignWith zipper checkedFiles freshlyCheckedFiles
+    writeTVar checkedFilesV newCheckedFiles
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
@@ -270,8 +279,19 @@ toRangeMap vs =
 getFileAnalysis :: Uri -> MaybeT Lsp FileAnalysis
 getFileAnalysis uri = do
   checkedFilesV <- asks checkedFilesVar
-  checkedFiles <- readTVarIO checkedFilesV
-  hoistMaybe $ Map.lookup uri checkedFiles
+  -- Try to get the file analysis, if there's a var, then read it, waiting if necessary
+  -- If there's no var, add one and wait for it to be filled (all Uris should be analyzed
+  -- eventually unless theres some bug in the VFS).
+  tmvar <- atomically do
+    checkedFiles <- readTVar checkedFilesV
+    case Map.lookup uri checkedFiles of
+      Nothing -> do
+        mvar <- newEmptyTMVar
+        Debug.debugM Debug.LSP "File analysis requested but none available, waiting for analysis for" uri
+        writeTVar checkedFilesV $ Map.insert uri mvar checkedFiles
+        pure mvar
+      Just mvar -> pure mvar
+  atomically (readTMVar tmvar)
 
 -- | Build a Names from a file if it's parseable.
 getFileNames :: Uri -> MaybeT Lsp Names

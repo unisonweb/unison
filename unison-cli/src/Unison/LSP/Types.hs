@@ -59,9 +59,10 @@ data Env = Env
     currentPathCache :: IO Path.Absolute,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
-    -- The information we have for each file, which may or may not have a valid parse or
-    -- typecheck.
-    checkedFilesVar :: TVar (Map Uri FileAnalysis),
+    -- The information we have for each file.
+    -- The MVar is filled when analysis finishes, and is emptied whenever
+    -- the file has changed (until it's checked again)
+    checkedFilesVar :: TVar (Map Uri (TMVar FileAnalysis)),
     dirtyFilesVar :: TVar (Set Uri),
     -- A map  of request IDs to an action which kills that request.
     cancellationMapVar :: TVar (Map SomeLspId (IO ())),

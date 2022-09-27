@@ -12,7 +12,6 @@ import Language.LSP.Types.Lens hiding (id, to)
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as Decl
-import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified as HQ
 import Unison.LSP.Conversions (annToRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis, ppedForFile)
