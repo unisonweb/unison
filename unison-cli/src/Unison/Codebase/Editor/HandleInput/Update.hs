@@ -84,7 +84,7 @@ handleUpdate input optionalPatch requestedNames = do
           DefaultPatch -> Just Cli.defaultPatchPath
           UsePatch p -> Just p
   slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
-  sr <- getSlurpResultForUpdate requestedNames
+  sr <- getSlurpResultForUpdate requestedNames slurpCheckNames
   let addsAndUpdates :: SlurpComponent Symbol
       addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
       fileNames :: Names
@@ -201,23 +201,18 @@ handleUpdate input optionalPatch requestedNames = do
         & Path.resolve @_ @_ @Path.Absolute currentPath'
         & tShow
 
-getSlurpResultForUpdate :: Set Name -> Cli r (SlurpResult Symbol)
-getSlurpResultForUpdate requestedNames = do
-  (slurp, termRefToNames, nameToTermRefs) <- do
-    slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
+getSlurpResultForUpdate :: Set Name -> Names -> Cli r (SlurpResult Symbol)
+getSlurpResultForUpdate requestedNames slurpCheckNames = do
+  let slurp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult Symbol
+      slurp file =
+        Slurp.slurpFile file (Set.map Name.toVar requestedNames) Slurp.UpdateOp slurpCheckNames
 
-    let slurp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult Symbol
-        slurp file =
-          Slurp.slurpFile file (Set.map Name.toVar requestedNames) Slurp.UpdateOp slurpCheckNames
+  let termRefToNames :: TermReferenceId -> Set Symbol
+      termRefToNames =
+        Set.map Name.toVar . Names.namesForReferent slurpCheckNames . Referent.fromTermReferenceId
 
-    let termRefToNames :: TermReferenceId -> Set Symbol
-        termRefToNames =
-          Set.map Name.toVar . Names.namesForReferent slurpCheckNames . Referent.fromTermReferenceId
-
-    let nameToTermRefs :: Symbol -> Set TermReference
-        nameToTermRefs = Names.refTermsNamed slurpCheckNames . Name.unsafeFromVar
-
-    pure (slurp, termRefToNames, nameToTermRefs)
+  let nameToTermRefs :: Symbol -> Set TermReference
+      nameToTermRefs = Names.refTermsNamed slurpCheckNames . Name.unsafeFromVar
 
   slurp1 <- do
     Cli.Env {codebase} <- ask
