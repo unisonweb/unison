@@ -221,7 +221,9 @@ parsePattern = root
     text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
     char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
     parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
-    parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
+    parenthesizedOrTuplePattern = do
+      (spanAnn, (pat, pats)) <- tupleOrParenthesized parsePattern unit pair
+      pure (fmap (<> spanAnn) pat, pats)
     unit ann = (Pattern.Constructor ann (ConstructorReference DD.unitRef 0) [], [])
     pair (p1, v1) (p2, v2) =
       ( Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2],
@@ -1200,7 +1202,9 @@ number' i u f = fmap go numeric
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
-tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair
+tupleOrParenthesizedTerm = label "tuple" $ do
+  (spanAnn, tm) <- tupleOrParenthesized term DD.unitTerm pair
+  pure $ tm {ABT.annotation = ABT.annotation tm <> spanAnn}
   where
     pair t1 t2 =
       Term.app
