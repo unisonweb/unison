@@ -25,7 +25,8 @@ import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Reference as Reference
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.TermPrinter as TermPrinter
-import Unison.UnisonFile (UnisonFile (..))
+import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as Pretty
 
 -- | TODO: Add an LSP option for formatting width
@@ -45,10 +46,10 @@ formatDefs fileUri =
   fromMaybe []
     <$> runMaybeT do
       cwd <- lift getCurrentPath
-      FileAnalysis {parsedFile, lexedSource = (src, _)} <- getFileAnalysis fileUri
-      UnisonFileId {terms, dataDeclarationsId, effectDeclarationsId} <- MaybeT $ pure parsedFile
+      FileAnalysis {typecheckedFile, lexedSource = (src, _)} <- getFileAnalysis fileUri
+      UF.TypecheckedUnisonFileId {hashTermsId, dataDeclarationsId', effectDeclarationsId'} <- hoistMaybe typecheckedFile
       filePPED <- ppedForFile fileUri
-      let decls = Map.toList (fmap Right <$> dataDeclarationsId) <> Map.toList (fmap Left <$> effectDeclarationsId)
+      let decls = Map.toList (fmap Right <$> dataDeclarationsId') <> Map.toList (fmap Left <$> effectDeclarationsId')
       formattedDecls <- for decls \(sym, (ref, decl)) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let declNameSegments = NEL.appendr (Path.toList (Path.unabsolute cwd)) (Name.segments symName)
@@ -56,14 +57,14 @@ formatDefs fileUri =
         let hqName = HQ.fromName symName
         let biasedPPED = PPED.biasTo [declName] filePPED
         pure $ (either (Decl.annotation . Decl.toDataDecl) (Decl.annotation) decl, DeclPrinter.prettyDecl biasedPPED (Reference.DerivedId ref) hqName decl)
-      formattedTerms <- for terms \(sym, trm) -> do
+      formattedTerms <- for (Map.toList hashTermsId) \(sym, (_ref, _wk, trm, _typ)) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute cwd)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments
         let hqName = HQ.NameOnly symName
         let biasedPPED = PPED.biasTo [defName] filePPED
         -- We use unsuffixified here in an attempt to keep names within the file the same
-        let biasedPPE = PPED.unsuffixifiedPPE biasedPPED
+        let biasedPPE = PPED.suffixifiedPPE biasedPPED
         let formatted = TermPrinter.prettyBinding biasedPPE hqName trm
         pure (ABT.annotation trm, formatted)
       let allDefs = (formattedTerms <> formattedDecls)
@@ -73,7 +74,6 @@ formatDefs fileUri =
           _ -> annToRange $ Ann.Ann mempty (L.Pos (succ . Prelude.length . Text.lines $ src) 0)
       (formattedTerms <> formattedDecls)
         & List.sortOn fst -- Sort defs in the order they were parsed.
-        & fmap (Pretty.toPlain prettyPrintWidth . Pretty.syntaxToColor . snd)
-        & unlines
+        & Monoid.intercalateMap "\n\n" (Pretty.toPlain prettyPrintWidth . Pretty.syntaxToColor . snd)
         & (\txt -> [TextEdit range (Text.pack txt)])
         & pure

@@ -3,9 +3,9 @@ module Unison.LSP.Conversions where
 import qualified Data.IntervalMap.Interval as Interval
 import Language.LSP.Types
 import Unison.LSP.Orphans ()
-import qualified Unison.Syntax.Lexer as Lex
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
+import qualified Unison.Syntax.Lexer as Lex
 import qualified Unison.Util.Range as Range
 
 rangeToInterval :: Range -> Interval.Interval Position
@@ -19,8 +19,8 @@ rangeToInterval (Range start end)
 uToLspPos :: Lex.Pos -> Position
 uToLspPos uPos =
   Position
-    { _line = fromIntegral $ Lex.line uPos - 1, -- 1 indexed vs 0 indexed
-      _character = fromIntegral $ Lex.column uPos - 1
+    { _line = fromIntegral $ max 0 (Lex.line uPos - 1), -- 1 indexed vs 0 indexed
+      _character = fromIntegral $ max 0 (Lex.column uPos - 1)
     }
 
 uToLspRange :: Range.Range -> Range
