@@ -18,6 +18,7 @@ import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
+import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer as L
 import Unison.Syntax.Parser
@@ -120,7 +121,7 @@ file = do
       Right ws -> pure ws
     let toPair (tok, _) = (L.payload tok, ann tok)
         accessors =
-          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
+          [ DD.generateRecordAccessors Ann.Intrinsic (toPair <$> fields) (L.payload typ) r
             | (typ, fields) <- parsedAccessors,
               Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
           ]
@@ -321,7 +322,7 @@ dataDeclaration mod = do
     (,) <$> TermParser.verifyRelativeVarName prefixDefinitionName
       <*> many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let typeArgVs = L.payload <$> typeArgs
-  eq <- reserved "="
+  _ <- reserved "="
   let -- go gives the type of the constructor, given the types of
       -- the constructor arguments, e.g. Cons becomes forall a . a -> List a -> List a
       go :: L.Token v -> [Type v Ann] -> (Ann, v, Type v Ann)
@@ -345,22 +346,18 @@ dataDeclaration mod = do
         fields <-
           sepBy1 (reserved "," <* optional semi) $
             liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
-        _ <- closeBlock
+        close <- closeBlock
         let lastSegment = name <&> (\v -> Var.named (Name.toText $ Name.unqualified (Name.unsafeFromVar v)))
-        pure ([go lastSegment (snd <$> fields)], [(name, fields)])
-  (constructors, accessors) <-
-    msum [record, (,[]) <$> sepBy (reserved "|") dataConstructor]
+        pure ([go lastSegment (snd <$> fields)], [(name, fields)], ann close)
+  (constructors, accessors, closingAnn) <-
+    msum [record, (\(tm) -> (tm, [], foldMap (ann . view _3) tm)) <$> sepBy (reserved "|") dataConstructor]
   _ <- closeBlock
-  let -- the annotation of the last constructor if present,
-      -- otherwise ann of name
-      closingAnn :: Ann
-      closingAnn = last (ann eq : ((\(_, _, t) -> ann t) <$> constructors))
   case mod of
     Nothing -> P.customFailure $ MissingTypeModifier ("type" <$ keywordTok) name
     Just mod' ->
       pure
         ( L.payload name,
-          DD.mkDataDecl' (L.payload mod') (ann mod' <> closingAnn) typeArgVs constructors,
+          DD.mkDataDecl' (L.payload mod') (ann mod' <> ann closingAnn) typeArgVs constructors,
           accessors
         )
 

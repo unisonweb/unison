@@ -155,7 +155,7 @@ fieldNames env r name dd = do
   let vars :: [v]
       vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
   let accessors :: [(v, Term.Term v ())]
-      accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
+      accessors = DD.generateRecordAccessors () (map (,()) vars) (HQ.toVar name) r
   let typeLookup :: TypeLookup v ()
       typeLookup =
         TypeLookup
