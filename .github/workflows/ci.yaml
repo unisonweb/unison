@@ -134,6 +134,8 @@ jobs:
           # Add all changes to the index for when we diff.
           git add --all
           # Ignore changes in generated cabal files. Oftentimes this is just due to mismatched hpack versions
+          shopt -s nullglob
+          shopt -s globstar
           git reset **/*.cabal
           # Fail if any transcripts cause git diffs.
           git diff --cached --ignore-cr-at-eol --exit-code
