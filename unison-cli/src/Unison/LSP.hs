@@ -9,6 +9,7 @@ import Colog.Core (LogAction (LogAction))
 import qualified Colog.Core as Colog
 import Control.Monad.Reader
 import Data.Aeson hiding (Options, defaultOptions)
+import qualified Data.Text as Text
 import GHC.IO.Exception (ioe_errno)
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
@@ -85,7 +86,7 @@ serverDefinition ::
   ServerDefinition Config
 serverDefinition vfsVar codebase runtime scope ucmState =
   ServerDefinition
-    { defaultConfig = lspDefaultConfig,
+    { defaultConfig = defaultLSPConfig,
       onConfigurationChange = lspOnConfigurationChange,
       doInitialize = lspDoInitialize vfsVar codebase runtime scope ucmState,
       staticHandlers = lspStaticHandlers,
@@ -93,12 +94,11 @@ serverDefinition vfsVar codebase runtime scope ucmState =
       options = lspOptions
     }
 
--- | Detect user LSP configuration changes.
+-- | Handle configuration changes
 lspOnConfigurationChange :: Config -> Value -> Either Text Config
-lspOnConfigurationChange _ _ = pure Config
-
-lspDefaultConfig :: Config
-lspDefaultConfig = Config
+lspOnConfigurationChange _oldConfig newConfig = case fromJSON newConfig of
+  Error err -> Left $ Text.pack err
+  Success a -> Right a
 
 -- | Initialize any context needed by the LSP server
 lspDoInitialize ::

@@ -28,10 +28,6 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as Pretty
 
--- | TODO: Add an LSP option for formatting width
-prettyPrintWidth :: Pretty.Width
-prettyPrintWidth = 80
-
 formatDocRequest :: RequestMessage 'TextDocumentFormatting -> (Either ResponseError (List TextEdit) -> Lsp ()) -> Lsp ()
 formatDocRequest m respond = do
   edits <- formatDefs (m ^. params . textDocument . uri)
@@ -81,8 +77,9 @@ formatDefs fileUri =
           Ann.Ann _ end -> annToRange (Ann.Ann mempty end)
           _ -> annToRange $ Ann.Ann mempty (L.Pos (succ . Prelude.length . Text.lines $ src) 0)
       when (null filteredDefs) empty {- Don't format if we have no definitions or it wipes out the fold! -}
+      Config {formattingWidth} <- lift getConfig
       filteredDefs
         & List.sortOn fst -- Sort defs in the order they were parsed.
-        & Monoid.intercalateMap "\n\n" (Pretty.toPlain prettyPrintWidth . Pretty.syntaxToColor . snd)
+        & Monoid.intercalateMap "\n\n" (Pretty.toPlain (Pretty.Width formattingWidth) . Pretty.syntaxToColor . snd)
         & (\txt -> [TextEdit defsRange (Text.pack txt)])
         & pure

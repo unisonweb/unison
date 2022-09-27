@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Unison.LSP.Types where
@@ -9,11 +10,16 @@ import Colog.Core hiding (Lens')
 import Control.Lens hiding (List)
 import Control.Monad.Except
 import Control.Monad.Reader
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy.Char8 as BSC
 import qualified Data.HashMap.Strict as HM
 import Data.IntervalMap.Lazy (IntervalMap)
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
+import qualified Language.LSP.Server as LSP
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Language.LSP.VFS
@@ -96,6 +102,36 @@ getParseNames :: Lsp NamesWithHistory
 getParseNames = asks parseNamesCache >>= liftIO
 
 data Config = Config
+  { formattingWidth :: Int
+  }
+  deriving stock (Show)
+
+instance Aeson.FromJSON Config where
+  parseJSON = Aeson.withObject "Config" \obj -> do
+    formattingWidth <- obj Aeson..: "formattingWidth"
+    let invalidKeys = Set.fromList (HM.keys obj) `Set.difference` validKeys
+    when (not . null $ invalidKeys) do
+      fail . Text.unpack $
+        "Unrecognized configuration key(s): "
+          <> Text.intercalate ", " (Set.toList invalidKeys)
+          <> ".\nThe default configuration is:\n"
+          <> Text.pack defaultConfigExample
+    pure Config {..}
+    where
+      validKeys = Set.fromList ["formattingWidth"]
+      defaultConfigExample =
+        BSC.unpack $ Aeson.encode defaultLSPConfig
+
+instance Aeson.ToJSON Config where
+  toJSON (Config formattingWidth) =
+    Aeson.object
+      [ "formattingWidth" Aeson..= formattingWidth
+      ]
+
+defaultLSPConfig :: Config
+defaultLSPConfig = Config {..}
+  where
+    formattingWidth = 80
 
 -- | Lift a backend computation into the Lsp monad.
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
@@ -143,3 +179,6 @@ includeEdits uri replacement ranges rca =
             _changeAnnotations = Nothing
           }
    in rca & codeAction . edit ?~ workspaceEdit
+
+getConfig :: Lsp Config
+getConfig = LSP.getConfig
