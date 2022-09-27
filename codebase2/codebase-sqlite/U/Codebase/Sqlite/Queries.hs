@@ -104,6 +104,7 @@ module U.Codebase.Sqlite.Queries
     getDependentsForDependencyComponent,
     getDependenciesForDependent,
     getDependencyIdsForDependent,
+    getDependenciesBetweenTerms,
 
     -- ** migrations
     currentSchemaVersion,
@@ -1393,6 +1394,101 @@ getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
     isNotSelfReference :: Reference.Id -> Bool
     isNotSelfReference (C.Reference.Id oid1 _) =
       oid0 /= oid1
+
+-- | Given two term (components) A and B, return the set of all terms that are along any "dependency path" from A to B,
+-- not including A nor B; i.e., the transitive dependencies of A that are transitive dependents of B.
+--
+-- For example, if A depends on X and Y, and Y depends on Z, and X and Z depend on B...
+--
+--     --X--
+--    /     \
+--   A       B
+--    \     /
+--     Y---Z
+--
+-- ...then `getDependenciesBetweenTerms A B` would return the set {X Y Z}
+getDependenciesBetweenTerms :: ObjectId -> ObjectId -> Transaction (Set ObjectId)
+getDependenciesBetweenTerms oid1 oid2 =
+  queryListCol sql (oid1, oid2) <&> Set.fromList
+  where
+    -- Given the example above, we'd have tables that look like this.
+    --
+    -- First, the `paths` table finds all paths from source `A` to sink `B`, exploring depth-first. As a minor
+    -- optimization, we seed the search not with `A`, but rather the direct dependencies of `A` (namely `X` and `Y`).
+    --
+    -- +-paths-------------------------------+
+    -- +-level-+-object_id-+-object_id_array-+
+    -- |     0 |         X |              '' |
+    -- |     0 |         Y |              '' |
+    -- |     1 |         B |            'X,' |
+    -- |     1 |         Z |            'Y,' |
+    -- |     2 |         B |          'Z,Y,' |
+    -- +-------+-----------+-----------------+
+    --
+    -- Next, we seed another recursive CTE with those paths that end in the sink `B`. This is just the (very verbose)
+    -- way to unnest an array in SQLite. All we're doing is turning the set of strings {'X,' 'Z,Y,'}, each of which
+    -- represents the inner nodes of a full path between `A` and `B`, into the set {X Z Y}, which is just the full set
+    -- of such inner nodes, along any path.
+    --
+    -- +-elems-----------------------+
+    -- +-object_id-+-object_id_array-+
+    -- |           |            'X,' |
+    -- |           |          'Z,Y,' |
+    -- |       'X' |              '' |
+    -- |       'Z' |            'Y,' |
+    -- |       'Y' |              '' |
+    -- +-----------+-----------------+
+    --
+    -- And finally, we just select out the non-null `object_id` rows from here, casting the strings back to integers for
+    -- clarity (this isn't very matter - SQLite would cast on-the-fly).
+    --
+    -- +-object_id-+
+    -- |         X |
+    -- |         Z |
+    -- |         Y |
+    -- +-----------+
+    sql :: Sql
+    sql = [here|
+      with recursive paths(level, object_id, object_id_array) as (
+        select
+          0,
+          dependents_index.dependency_object_id,
+          ''
+        from dependents_index
+          join object on dependents_index.dependency_object_id = object.id
+        where dependents_index.dependent_object_id = ?
+          and object.type_id = 0
+          and not dependents_index.dependent_object_id = dependents_index.dependency_object_id
+        union
+        select
+          paths.level + 1 as level,
+          dependents_index.dependency_object_id,
+          dependents_index.dependent_object_id
+            || ','
+            || paths.object_id_array
+        from paths
+          join dependents_index
+            on paths.object_id = dependents_index.dependent_object_id
+          join object on dependents_index.dependency_object_id = object.id
+        where object.type_id = 0
+          and not dependents_index.dependent_object_id = dependents_index.dependency_object_id
+        order by level desc
+      ),
+      elems(object_id, object_id_array) as (
+        select null, object_id_array
+        from paths
+        where paths.object_id = ?
+        union all
+        select
+          substr(object_id_array, 0, instr(object_id_array, ',')),
+          substr(object_id_array, instr(object_id_array, ',') + 1)
+        from elems
+        where object_id_array != ''
+      )
+      select cast(object_id as integer) as object_id
+      from elems
+      where object_id is not null
+    |]
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
 objectIdByBase32Prefix objType prefix = queryListCol sql (objType, likeEscape '\\' prefix <> "%") where sql = [here|
