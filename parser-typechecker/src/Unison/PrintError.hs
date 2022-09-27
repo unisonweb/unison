@@ -1139,16 +1139,18 @@ rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
               then "line " ++ show l
               else "lines " ++ show l ++ "—" ++ show l'
 
-annotatedToEnglish :: (Annotated a, IsString s) => a -> s
+annotatedToEnglish :: (Annotated a, IsString s, Semigroup s) => a -> s
 annotatedToEnglish a = case ann a of
-  Intrinsic -> "an intrinsic"
-  External -> "an external"
+  Intrinsic -> "<intrinsic>"
+  External -> "<external>"
+  GeneratedFrom a -> "generated from: " <> annotatedToEnglish a
   Ann start end -> rangeToEnglish $ Range start end
 
 rangeForAnnotated :: Annotated a => a -> Maybe Range
 rangeForAnnotated a = case ann a of
   Intrinsic -> Nothing
   External -> Nothing
+  GeneratedFrom a -> rangeForAnnotated a
   Ann start end -> Just $ Range start end
 
 showLexerOutput :: Bool

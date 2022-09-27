@@ -121,7 +121,7 @@ file = do
       Right ws -> pure ws
     let toPair (tok, _) = (L.payload tok, ann tok)
         accessors =
-          [ DD.generateRecordAccessors Ann.Intrinsic (toPair <$> fields) (L.payload typ) r
+          [ DD.generateRecordAccessors Ann.GeneratedFrom (toPair <$> fields) (L.payload typ) r
             | (typ, fields) <- parsedAccessors,
               Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
           ]

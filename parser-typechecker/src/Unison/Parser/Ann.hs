@@ -9,11 +9,15 @@ import qualified Unison.Lexer.Pos as L
 data Ann
   = Intrinsic -- { sig :: String, start :: L.Pos, end :: L.Pos }
   | External
+  | -- Indicates that the construct was generated from something at the given location.
+    -- E.g. record constructors are generated from their field definition.
+    GeneratedFrom Ann
   | Ann {start :: L.Pos, end :: L.Pos}
   deriving (Eq, Ord, Show)
 
 startingLine :: Ann -> Maybe L.Line
 startingLine (Ann (L.line -> line) _) = Just line
+startingLine (GeneratedFrom a) = startingLine a
 startingLine _ = Nothing
 
 instance Monoid Ann where
@@ -26,3 +30,5 @@ instance Semigroup Ann where
   a <> External = a
   Intrinsic <> a = a
   a <> Intrinsic = a
+  GeneratedFrom a <> b = a <> b
+  a <> GeneratedFrom b = a <> b

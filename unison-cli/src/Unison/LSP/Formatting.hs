@@ -66,14 +66,23 @@ formatDefs fileUri =
         pure (ABT.annotation trm, formatted)
       let allDefs =
             (formattedTerms <> formattedDecls)
-      let filteredDefs = allDefs & filter (\(ann, _) -> ann /= Ann.External && ann /= Ann.Intrinsic)
-      range <- hoistMaybe $
+
+      -- Only keep definitions which are _actually_ in the file, skipping generated accessors
+      -- and such.
+      let filteredDefs =
+            allDefs
+              & filter
+                ( \(ann, _) -> case ann of
+                    Ann.Ann {} -> True
+                    _ -> False
+                )
+      defsRange <- hoistMaybe $
         case foldMap fst allDefs of
           Ann.Ann _ end -> annToRange (Ann.Ann mempty end)
           _ -> annToRange $ Ann.Ann mempty (L.Pos (succ . Prelude.length . Text.lines $ src) 0)
       when (null filteredDefs) empty {- Don't format if we have no definitions or it wipes out the fold! -}
-      (filteredDefs)
+      filteredDefs
         & List.sortOn fst -- Sort defs in the order they were parsed.
         & Monoid.intercalateMap "\n\n" (Pretty.toPlain prettyPrintWidth . Pretty.syntaxToColor . snd)
-        & (\txt -> [TextEdit range (Text.pack txt)])
+        & (\txt -> [TextEdit defsRange (Text.pack txt)])
         & pure

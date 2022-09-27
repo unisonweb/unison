@@ -30,4 +30,5 @@ annToRange :: Ann -> Maybe Range
 annToRange = \case
   Ann.Intrinsic -> Nothing
   Ann.External -> Nothing
+  Ann.GeneratedFrom a -> annToRange a
   Ann.Ann start end -> Just $ Range (uToLspPos start) (uToLspPos end)
