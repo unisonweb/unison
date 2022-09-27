@@ -1,14 +1,22 @@
 name: "release"
 
 on:
-  push:
-    tags:
-      - "release/*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release Version (E.g. M4 or M4a)'
+        required: true
+        type: string
+      target:
+        description: 'Ref to use for this release, defaults to trunk'
+        required: true
+        default: 'trunk'
+        type: string
 
 jobs:
   release:
     name: "create_release"
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-22.04
     needs:
       - build_linux
       - build_macos
@@ -16,8 +24,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: echo upload_url
-        run: "echo ${{ steps.create_release.outputs.upload_url }}"
+        with:
+          ref: release/${{inputs.version}}
 
       - name: make download dir
         run: "mkdir /tmp/ucm"
@@ -27,29 +35,60 @@ jobs:
         with:
           path: /tmp/ucm
 
-      - name: "see what we got"
-        run: "ls -R /tmp/ucm"
-
-      - name: make a release
-        uses: softprops/action-gh-release@v1
+      - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          files: |
-            /tmp/ucm/**/*.tar.gz
-            /tmp/ucm/**/*.zip
+        run: |
+          version="${{inputs.version}}"
+          target="${{inputs.target}}"
+          # E.g. M4a -> M4, M4c -> M4b, M4 -> M3
+          prev_version="$(${{ github.workspace }}/scripts/previous-tag.sh "${version}")"
+
+          echo "Creating a release from these artifacts:"
+          ls -R /tmp/ucm
+
+          gh release create "release/${version}" --target "${target}" --generate-notes --notes-start-tag "release/${prev_version}" /tmp/ucm/**/*.tar.gz /tmp/ucm/**/*.zip
 
   build_linux:
 
     name: "build_linux"
-    runs-on: ubuntu-18.04
-
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
-      - name: install stack
-        run: |
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
+        with:
+          ref: release/${{inputs.version}}
+
+      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
+      - uses: actions/cache@v3
+        name: cache ~/.stack (linux)
+        with:
+          path: ~/.stack
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-0_ubuntu-22.04-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
+          restore-keys: |
+            stack-0_ubuntu-22.04-${{hashFiles('stack.yaml')}}
+            stack-0_ubuntu-22.04
+
+      # Cache each local package's ~/.stack-work for fast incremental builds in CI.
+      - uses: actions/cache@v3
+        name: cache .stack-work
+        with:
+          path: |
+            **/.stack-work
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-work-3_ubuntu-22.04-${{github.sha}}
+          restore-keys: stack-work-3_ubuntu-22.04
 
       - name: build
         run: stack --no-terminal build --flag unison-parser-typechecker:optimized
@@ -72,14 +111,43 @@ jobs:
 
   build_macos:
     name: "build_macos"
-    runs-on: macos-10.15
-
+    runs-on: macos-11
     steps:
       - uses: actions/checkout@v2
-      - name: install stack
-        run: |
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
+        with:
+          ref: release/${{inputs.version}}
+
+      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
+      - uses: actions/cache@v3
+        name: cache ~/.stack (mac)
+        with:
+          path: ~/.stack
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-0_macOS-11.0-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
+          restore-keys: |
+            stack-0_macOS-11.0-${{hashFiles('stack.yaml')}}
+            stack-0_macOS-11.0
+
+      # Cache each local package's ~/.stack-work for fast incremental builds in CI.
+      - uses: actions/cache@v3
+        name: cache .stack-work
+        with:
+          path: |
+            **/.stack-work
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-work-3_macOS-11.0-${{github.sha}}
+          restore-keys: stack-work-3_macOS-11.0
 
       - name: remove ~/.stack/setup-exe-cache on macOS
         run: rm -rf ~/.stack/setup-exe-cache
@@ -109,8 +177,51 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+        with:
+          ref: release/${{inputs.version}}
+
+      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
+      - uses: actions/cache@v3
+        name: cache ~/.stack (Windows)
+        with:
+          path: "C:\\Users\\runneradmin\\AppData\\Roaming\\stack"
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-0_windows-2019-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
+          restore-keys: |
+            stack-0_windows-2019-${{hashFiles('stack.yaml')}}
+            stack-0_windows-2019
+
+      # Cache each local package's ~/.stack-work for fast incremental builds in CI.
+      - uses: actions/cache@v3
+        name: cache .stack-work
+        with:
+          path: |
+            **/.stack-work
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-work-3_windows-2019-${{github.sha}}
+          restore-keys: stack-work-3_windows-2019
+
       - name: build
-        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+        shell: bash
+        run: |
+          # Windows will crash on build intermittently because the filesystem
+          # sucks at managing concurrent file access;
+          # Just keep retrying on these failures.
+          tries=5
+          for (( i = 0; i < $tries; i++ )); do
+              stack --no-terminal build --flag unison-parser-typechecker:optimized && break;
+          done
 
       - name: fetch latest Unison Local UI and package with ucm
         # Powershell

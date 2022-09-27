@@ -99,51 +99,55 @@ main = withCP65001 . Ki.scoped $ \scope -> do
     configFilePath <- getConfigFilePath mcodepath
     config <-
       catchIOError (watchConfig configFilePath) $ \_ ->
-        Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
+        exitError "Your .unisonConfig could not be loaded. Check that it's correct!"
     case command of
       PrintVersion ->
         Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate
       Init -> do
-        PT.putPrettyLn $
-          P.callout
-            "⚠️"
-            ( P.lines
-                [ "The Init command has been removed",
-                  P.newline,
-                  P.wrap "Use --codebase-create to create a codebase at a specified location and open it:",
-                  P.indentN 2 (P.hiBlue "$ ucm --codebase-create myNewCodebase"),
-                  "Running UCM without the --codebase-create flag: ",
-                  P.indentN 2 (P.hiBlue "$ ucm"),
-                  P.wrap ("will " <> P.bold "always" <> " create a codebase in your home directory if one does not already exist.")
-                ]
-            )
+        exitError
+          ( P.lines
+              [ "The Init command has been removed",
+                P.newline,
+                P.wrap "Use --codebase-create to create a codebase at a specified location and open it:",
+                P.indentN 2 (P.hiBlue "$ ucm --codebase-create myNewCodebase"),
+                "Running UCM without the --codebase-create flag: ",
+                P.indentN 2 (P.hiBlue "$ ucm"),
+                P.wrap ("will " <> P.bold "always" <> " create a codebase in your home directory if one does not already exist.")
+              ]
+          )
       Run (RunFromSymbol mainName) args -> do
         getCodebaseOrExit mCodePathOption SC.MigrateAutomatically \(_, _, theCodebase) -> do
           runtime <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
-          withArgs args $ execute theCodebase runtime mainName
+          withArgs args (execute theCodebase runtime mainName) >>= \case
+            Left err -> exitError err
+            Right () -> pure ()
       Run (RunFromFile file mainName) args
-        | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
+        | not (isDotU file) -> exitError "Files must have a .u extension."
         | otherwise -> do
             e <- safeReadUtf8 file
             case e of
-              Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
+              Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
               Right contents -> do
                 getCodebaseOrExit mCodePathOption SC.MigrateAutomatically \(initRes, _, theCodebase) -> do
                   rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
                   sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
                   let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                   let notifyOnUcmChanges _ = pure ()
-                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes notifyOnUcmChanges
+                  let serverUrl = Nothing
+                  let startPath = Nothing
+                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] serverUrl startPath ShouldNotDownloadBase initRes notifyOnUcmChanges
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
-          Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
+          Left _ -> exitError "I had trouble reading this input."
           Right contents -> do
             getCodebaseOrExit mCodePathOption SC.MigrateAutomatically \(initRes, _, theCodebase) -> do
               rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
               sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
               let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
               let notifyOnUcmChanges _ = pure ()
+              let serverUrl = Nothing
+              let startPath = Nothing
               launch
                 currentDir
                 config
@@ -151,7 +155,8 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                 sbrt
                 theCodebase
                 [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
-                Nothing
+                serverUrl
+                startPath
                 ShouldNotDownloadBase
                 initRes
                 notifyOnUcmChanges
@@ -159,7 +164,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
         BL.readFile file >>= \bs ->
           try (evaluate $ RTI.decodeStandalone bs) >>= \case
             Left (PE _cs err) -> do
-              PT.putPrettyLn . P.lines $
+              exitError . P.lines $
                 [ P.wrap . P.text $
                     "I was unable to parse this file as a compiled\
                     \ program. The parser generated the following error:",
@@ -167,7 +172,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                   P.indentN 2 $ err
                 ]
             Right (Left err) ->
-              PT.putPrettyLn . P.lines $
+              exitError . P.lines $
                 [ P.wrap . P.text $
                     "I was unable to parse this file as a compiled\
                     \ program. The parser generated the following error:",
@@ -175,12 +180,15 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                   P.indentN 2 . P.wrap $ P.string err
                 ]
             Left _ -> do
-              PT.putPrettyLn . P.wrap . P.text $
+              exitError . P.wrap . P.text $
                 "I was unable to parse this file as a compiled\
                 \ program. The parser generated an unrecognized error."
             Right (Right (v, rf, w, sto))
               | not vmatch -> mismatchMsg
-              | otherwise -> withArgs args $ RTI.runStandalone sto w
+              | otherwise ->
+                  withArgs args (RTI.runStandalone sto w) >>= \case
+                    Left err -> exitError err
+                    Right () -> pure ()
               where
                 vmatch = v == Version.gitDescribeWithDate
                 ws s = P.wrap (P.text s)
@@ -218,7 +226,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                     ]
       Transcript shouldFork shouldSaveCodebase transcriptFiles ->
         runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
-      Launch isHeadless codebaseServerOpts downloadBase -> do
+      Launch isHeadless codebaseServerOpts downloadBase mayStartingPath -> do
         getCodebaseOrExit mCodePathOption SC.MigrateAfterPrompt \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime False RTI.Persistent Version.gitDescribeWithDate
           ucmStateVar <- newTVarIO Nothing
@@ -255,7 +263,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                     takeMVar mvar
                   WithCLI -> do
                     PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                    launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) downloadBase initRes notifyOnUcmChanges
+                    launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) mayStartingPath downloadBase initRes notifyOnUcmChanges
               Exit -> do Exit.exitSuccess
 
 -- | Set user agent and configure TLS on global http client.
@@ -401,11 +409,12 @@ launch ::
   Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
   Maybe Server.BaseUrl ->
+  Maybe Path.Absolute ->
   ShouldDownloadBase ->
   InitResult ->
   ((Branch IO, Path.Absolute) -> IO ()) ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl shouldDownloadBase initResult notifyChange =
+launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath shouldDownloadBase initResult notifyChange =
   let downloadBase = case defaultBaseLib of
         Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
         _ -> Welcome.DontDownloadBase
@@ -418,7 +427,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl shouldDownload
    in CommandLine.main
         dir
         welcome
-        initialPath
+        (fromMaybe initialPath mayStartingPath)
         config
         inputs
         runtime
@@ -513,6 +522,11 @@ getCodebaseOrExit codebasePathOption migrationStrategy action = do
             Exit.exitFailure
   where
     prettyDir dir = P.string <$> canonicalizePath dir
+
+exitError :: P.Pretty P.ColorText -> IO a
+exitError msg = do
+  PT.putPrettyLn $ P.callout "⚠️" msg
+  Exit.exitFailure
 
 argsToCodebaseInitOptions :: Maybe CodebasePathOption -> IO CodebaseInit.CodebaseInitOptions
 argsToCodebaseInitOptions pathOption =
