@@ -270,10 +270,9 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
     --           - (C) A dependency of the new term.
     --     - (D) Not being updated.
     --
-    -- FIXME Additionally, we have two more temporary requirements.
+    -- FIXME Additionally, we have one more temporary requirement.
     --
-    --   - (E) The term has exactly one name in the namespace.
-    --   - (F) No other terms share its name.
+    --   - (E) The term has at least one unambiguous (unconflicted) name in the codebase.
     --
     -- This works around two fixable issues:
     --
@@ -281,8 +280,8 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
     --      forward it through the typecheck + slurp process, because slurping currently assumes that it can freely
     --      convert back-and-forth between vars and names.
     --
-    --   2. If more than one term has its name, then putting this name in the Unison file and proceeding to do an update
-    --      would have the undesirable side-effect of resolving the conflict.
+    --   2. If the term has only ambiguous/conflicted names, then putting one of them in the Unison file and proceeding
+    --      to do an update would have the undesirable side-effect of resolving the conflict.
     --
     -- FIXME don't bother for type-changing updates
     --
@@ -341,14 +340,12 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                         --   Set.disjoint { "ping" } { "pong" } is true, so add
                         --   #pingpong.pong => (<#pingpong.ping + 2>, { "pong" })) to the map.
                         notBeingUpdated = Set.disjoint namesBeingUpdated
+                        nameIsUnconflicted name = Set.size (nameToTermRefs name) == 1
                         names = termRefToNames ref
                      in if notBeingUpdated names
-                          then case Set.asSingleton names {- (E) -} of
+                          then case Foldable.find nameIsUnconflicted names {- (E) -} of
                             Nothing -> acc
-                            Just name ->
-                              if Set.size (nameToTermRefs name) == 1 -- (F)
-                                then Map.insert ref (term, name) acc
-                                else acc
+                            Just name -> Map.insert ref (term, name) acc
                           else acc
                 )
                 Map.empty
