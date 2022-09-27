@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -194,12 +194,12 @@ library
     , wai
     , warp
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   if !os(windows)
     build-depends:
         unix
-  default-language: Haskell2010
 
 executable cli-integration-tests
   main-is: Suite.hs
@@ -317,9 +317,9 @@ executable cli-integration-tests
     , wai
     , warp
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010
 
 executable transcripts
   main-is: Transcripts.hs
@@ -434,9 +434,9 @@ executable transcripts
     , wai
     , warp
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010
 
 executable unison
   main-is: Main.hs
@@ -556,9 +556,9 @@ executable unison
     , wai
     , warp
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010
 
 test-suite cli-tests
   type: exitcode-stdio-1.0
@@ -680,6 +680,6 @@ test-suite cli-tests
     , wai
     , warp
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010
