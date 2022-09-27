@@ -2,12 +2,18 @@
 
 [![asciicast](https://asciinema.org/a/Kwa7NscffA3R8KCHxq1OavRm0.svg)](https://asciinema.org/a/Kwa7NscffA3R8KCHxq1OavRm0)
 
+* [Overview](#overview)
+* [Installation and setup](#installation-and-setup)
+  * [NeoVim](#neovim)
+  * [VSCode](#vscode)
+
 ## Overview
 
 Supported features:
 
 * Show type on hover
 * Inline type and parser error messages
+* Format on save
 * NO autocomplete yet, but soon.
 
 Notes:
@@ -20,6 +26,16 @@ Currently the only supported configuration is to connect to the LSP via a specif
 
 By default the LSP is hosted at `127.0.0.1:5757`, but you can change the port using `UNISON_LSP_PORT=1234`.
 
+### Settings
+
+Supported settings and their defaults. See information for your language server client about where to provide these.
+
+```json
+{
+  // A suggestion for the formatter about how wide (in columns) to print definitions.
+  "formattingWidth": 80
+}
+```
 
 ### NeoVim
 
@@ -30,7 +46,8 @@ Configuration for [coc-nvim](https://github.com/neoclide/coc.nvim), enter the fo
     "unison": {
       "filetypes": ["unison"],
       "host": "127.0.0.1",
-      "port": 5757
+      "port": 5757,
+      "settings": {}
     }
   }
 ```
