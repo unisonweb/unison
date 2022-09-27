@@ -4,6 +4,7 @@
 
 * [Overview](#overview)
 * [Installation and setup](#installation-and-setup)
+  * [Settings](#settings)
   * [NeoVim](#neovim)
   * [VSCode](#vscode)
 
@@ -56,5 +57,4 @@ Note that you'll need to start UCM _before_ you try connecting to it in your edi
 
 ### VSCode
 
-VSCode doesn't allow customizing LSP implementations without an extension,
-Hang tight, one will be available soon!
+Install the [Unison Extension](https://marketplace.visualstudio.com/items?itemName=unison-lang.unison) from the extension marketplace.
