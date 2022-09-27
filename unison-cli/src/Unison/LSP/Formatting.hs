@@ -35,9 +35,7 @@ prettyPrintWidth = 80
 
 formatDocRequest :: RequestMessage 'TextDocumentFormatting -> (Either ResponseError (List TextEdit) -> Lsp ()) -> Lsp ()
 formatDocRequest m respond = do
-  Debug.debugLogM Debug.LSP "Formatting!!"
   edits <- formatDefs (m ^. params . textDocument . uri)
-  Debug.debugM Debug.LSP "Formatting Edits" edits
   respond . Right . List $ edits
 
 -- | Return a folding range for each top-level definition
@@ -72,6 +70,7 @@ formatDefs fileUri =
         case foldMap fst allDefs of
           Ann.Ann _ end -> annToRange (Ann.Ann mempty end)
           _ -> annToRange $ Ann.Ann mempty (L.Pos (succ . Prelude.length . Text.lines $ src) 0)
+      when (null allDefs) empty {- Don't format if we have no definitions or it wipes out the fold! -}
       (formattedTerms <> formattedDecls)
         & List.sortOn fst -- Sort defs in the order they were parsed.
         & Monoid.intercalateMap "\n\n" (Pretty.toPlain prettyPrintWidth . Pretty.syntaxToColor . snd)
