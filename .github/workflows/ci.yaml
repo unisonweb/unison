@@ -133,6 +133,8 @@ jobs:
           stack --no-terminal exec transcripts
           # Add all changes to the index for when we diff.
           git add --all
+          # Ignore changes in generated cabal files. Oftentimes this is just due to mismatched hpack versions
+          git reset **/*.cabal
           # Fail if any transcripts cause git diffs.
           git diff --cached --ignore-cr-at-eol --exit-code
       - name: prettyprint-round-trip
