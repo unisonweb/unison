@@ -437,8 +437,8 @@ getSlurpResultForUpdate requestedNames = do
                             & map
                               ( \oldRef ->
                                   case bijLookupL name nameToInterimRef of
-                                    Nothing -> undefined
                                     Just interimRef -> (oldRef, interimRef)
+                                    Nothing -> error (reportBug "E798907" "no interim ref for name")
                               )
                             & Map.fromList
                       )
@@ -477,15 +477,18 @@ getSlurpResultForUpdate requestedNames = do
                       case bijLookupR ref nameToInterimRef of
                         Just name -> name
                         Nothing ->
-                          let (_term, name) = implicitTerms Map.! ref
-                           in name
+                          case Map.lookup ref implicitTerms of
+                            Just (_term, name) -> name
+                            Nothing -> error (reportBug "E836680" "ref not interim nor implicit")
                     )
 
             let renameTerm ::
                   (Symbol, Term Symbol Ann, Type Symbol Ann) ->
                   (Symbol, Term Symbol Ann, Type Symbol Ann)
                 renameTerm (generatedName, term, typ) =
-                  ( generatedNameToName Map.! generatedName,
+                  ( case Map.lookup generatedName generatedNameToName of
+                      Just name -> name
+                      Nothing -> error (reportBug "E440546" "no name for generated name"),
                     ABT.renames generatedNameToName term,
                     typ
                   )
