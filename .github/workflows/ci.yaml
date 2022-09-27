@@ -89,23 +89,6 @@ jobs:
           key: stack-work-3_${{matrix.os}}-${{github.sha}}
           restore-keys: stack-work-3_${{matrix.os}}
 
-      # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
-      # so this is split into two steps, only one of which will run on any particular build.
-      - name: install stack (Linux)
-        if: runner.os == 'Linux'
-        working-directory: ${{ github.workspace }}
-        run: |
-          mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-linux-x86_64.tar.gz | tar -xz
-          echo "$PWD/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
-      - name: install stack (macOS)
-        working-directory: ${{ github.workspace }}
-        if: runner.os == 'macOS'
-        run: |
-          mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-osx-x86_64.tar.gz | tar -xz
-          echo "$PWD/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
-
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
         run: |
