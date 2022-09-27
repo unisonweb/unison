@@ -108,7 +108,7 @@ data Config = Config
 
 instance Aeson.FromJSON Config where
   parseJSON = Aeson.withObject "Config" \obj -> do
-    formattingWidth <- obj Aeson..: "formattingWidth"
+    formattingWidth <- obj Aeson..:? "formattingWidth" Aeson..!= formattingWidth defaultLSPConfig
     let invalidKeys = Set.fromList (HM.keys obj) `Set.difference` validKeys
     when (not . null $ invalidKeys) do
       fail . Text.unpack $
@@ -182,3 +182,6 @@ includeEdits uri replacement ranges rca =
 
 getConfig :: Lsp Config
 getConfig = LSP.getConfig
+
+setConfig :: Config -> Lsp ()
+setConfig = LSP.setConfig

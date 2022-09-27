@@ -8,8 +8,6 @@ module Unison.LSP where
 import Colog.Core (LogAction (LogAction))
 import qualified Colog.Core as Colog
 import Control.Monad.Reader
-import Data.Aeson hiding (Options, defaultOptions)
-import qualified Data.Text as Text
 import GHC.IO.Exception (ioe_errno)
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
@@ -28,6 +26,7 @@ import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Debug as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
+import qualified Unison.LSP.Configuration as Config
 import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
 import Unison.LSP.Formatting (formatDocRequest)
@@ -87,18 +86,12 @@ serverDefinition ::
 serverDefinition vfsVar codebase runtime scope ucmState =
   ServerDefinition
     { defaultConfig = defaultLSPConfig,
-      onConfigurationChange = lspOnConfigurationChange,
+      onConfigurationChange = Config.updateConfig,
       doInitialize = lspDoInitialize vfsVar codebase runtime scope ucmState,
       staticHandlers = lspStaticHandlers,
       interpretHandler = lspInterpretHandler,
       options = lspOptions
     }
-
--- | Handle configuration changes
-lspOnConfigurationChange :: Config -> Value -> Either Text Config
-lspOnConfigurationChange _oldConfig newConfig = case fromJSON newConfig of
-  Error err -> Left $ Text.pack err
-  Success a -> Right a
 
 -- | Initialize any context needed by the LSP server
 lspDoInitialize ::
@@ -167,6 +160,7 @@ lspNotificationHandlers =
     & SMM.insert STextDocumentDidChange (ClientMessageHandler VFS.lspChangeFile)
     & SMM.insert SInitialized (ClientMessageHandler Notifications.initializedHandler)
     & SMM.insert SCancelRequest (ClientMessageHandler $ Notifications.withDebugging cancelRequestHandler)
+    & SMM.insert SWorkspaceDidChangeConfiguration (ClientMessageHandler Config.workspaceConfigurationChanged)
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO
