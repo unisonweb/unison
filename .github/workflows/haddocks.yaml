@@ -3,6 +3,7 @@ name: Haddocks
 defaults:
   run:
     working-directory: unison
+    shell: bash
 
 on:
   push:
@@ -56,6 +57,13 @@ jobs:
           restore-keys: |
             stack-work-2_Linux-haddocks
             stack-work-2_Linux
+
+      - name: install stack (Linux)
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-linux-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
