@@ -248,6 +248,8 @@ jobs:
           done
 
       - name: fetch latest Unison Local UI and package with ucm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p /tmp/ucm/ui
           UCM="$(stack path | awk '/local-install-root/{print $2}')/bin/unison"
