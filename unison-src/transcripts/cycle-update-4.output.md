@@ -66,3 +66,4 @@ ping _ = !pong + 1
     !#tte2bk37hp + 2
 
 ```
+The bug: `pong` should refer to the new `ping` by name, not the (now nameless) old `ping.

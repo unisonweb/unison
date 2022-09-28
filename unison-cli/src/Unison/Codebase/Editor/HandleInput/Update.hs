@@ -84,7 +84,7 @@ handleUpdate input optionalPatch requestedNames = do
           DefaultPatch -> Just Cli.defaultPatchPath
           UsePatch p -> Just p
   slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
-  sr <- getSlurpResultForUpdate requestedNames
+  sr <- getSlurpResultForUpdate requestedNames slurpCheckNames
   let addsAndUpdates :: SlurpComponent Symbol
       addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
       fileNames :: Names
@@ -201,23 +201,18 @@ handleUpdate input optionalPatch requestedNames = do
         & Path.resolve @_ @_ @Path.Absolute currentPath'
         & tShow
 
-getSlurpResultForUpdate :: Set Name -> Cli r (SlurpResult Symbol)
-getSlurpResultForUpdate requestedNames = do
-  (slurp, termRefToNames, nameToTermRefs) <- do
-    slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
+getSlurpResultForUpdate :: Set Name -> Names -> Cli r (SlurpResult Symbol)
+getSlurpResultForUpdate requestedNames slurpCheckNames = do
+  let slurp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult Symbol
+      slurp file =
+        Slurp.slurpFile file (Set.map Name.toVar requestedNames) Slurp.UpdateOp slurpCheckNames
 
-    let slurp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult Symbol
-        slurp file =
-          Slurp.slurpFile file (Set.map Name.toVar requestedNames) Slurp.UpdateOp slurpCheckNames
+  let termRefToNames :: TermReferenceId -> Set Symbol
+      termRefToNames =
+        Set.map Name.toVar . Names.namesForReferent slurpCheckNames . Referent.fromTermReferenceId
 
-    let termRefToNames :: TermReferenceId -> Set Symbol
-        termRefToNames =
-          Set.map Name.toVar . Names.namesForReferent slurpCheckNames . Referent.fromTermReferenceId
-
-    let nameToTermRefs :: Symbol -> Set TermReference
-        nameToTermRefs = Names.refTermsNamed slurpCheckNames . Name.unsafeFromVar
-
-    pure (slurp, termRefToNames, nameToTermRefs)
+  let nameToTermRefs :: Symbol -> Set TermReference
+      nameToTermRefs = Names.refTermsNamed slurpCheckNames . Name.unsafeFromVar
 
   slurp1 <- do
     Cli.Env {codebase} <- ask
@@ -288,7 +283,7 @@ getSlurpResultForUpdate requestedNames = do
             ( \name ->
                 ( nameToTermRefs name,
                   case bijLookupL name nameToInterimRef of
-                    Nothing -> undefined
+                    Nothing -> error (reportBug "E798907" "no interim ref for name")
                     Just interimRef -> interimRef
                 )
             )
@@ -304,10 +299,9 @@ getSlurpResultForUpdate requestedNames = do
     --           - (C) A dependency of the new term.
     --     - (D) Not being updated.
     --
-    -- FIXME Additionally, we have two more temporary requirements.
+    -- FIXME Additionally, we have one more temporary requirement.
     --
-    --   - (E) The term has exactly one name in the namespace.
-    --   - (F) No other terms share its name.
+    --   - (E) The term has at least one unambiguous (unconflicted) name in the codebase.
     --
     -- This works around two fixable issues:
     --
@@ -315,8 +309,8 @@ getSlurpResultForUpdate requestedNames = do
     --      forward it through the typecheck + slurp process, because slurping currently assumes that it can freely
     --      convert back-and-forth between vars and names.
     --
-    --   2. If more than one term has its name, then putting this name in the Unison file and proceeding to do an update
-    --      would have the undesirable side-effect of resolving the conflict.
+    --   2. If the term has only ambiguous/conflicted names, then putting one of them in the Unison file and proceeding
+    --      to do an update would have the undesirable side-effect of resolving the conflict.
     --
     -- FIXME don't bother for type-changing updates
     --
@@ -379,14 +373,12 @@ getSlurpResultForUpdate requestedNames = do
                         --   Set.disjoint { "ping" } { "pong" } is true, so add
                         --   #pingpong.pong => (<#pingpong.ping + 2>, { "pong" })) to the map.
                         notBeingUpdated = Set.disjoint namesBeingUpdated
+                        nameIsUnconflicted name = Set.size (nameToTermRefs name) == 1
                         names = termRefToNames ref
                      in if notBeingUpdated names
-                          then case Set.asSingleton names {- (E) -} of
+                          then case Foldable.find nameIsUnconflicted names {- (E) -} of
                             Nothing -> acc
-                            Just name ->
-                              if Set.size (nameToTermRefs name) == 1 -- (F)
-                                then Map.insert ref (term, name) acc
-                                else acc
+                            Just name -> Map.insert ref (term, name) acc
                           else acc
                 )
                 Map.empty
@@ -442,8 +434,7 @@ getSlurpResultForUpdate requestedNames = do
                 rewrite :: Term Symbol Ann -> Term Symbol Ann
                 rewrite =
                   updatedNameToRefs
-                    & foldMap
-                      (\(oldRefs, interimRef) -> foldMap (\oldRef -> Map.singleton oldRef interimRef) oldRefs)
+                    & foldMap (\(oldRefs, interimRef) -> foldMap (\oldRef -> Map.singleton oldRef interimRef) oldRefs)
                     & rewriteTermReferences
 
         let unisonFile :: UnisonFile Symbol Ann
@@ -479,15 +470,18 @@ getSlurpResultForUpdate requestedNames = do
                       case bijLookupR ref nameToInterimRef of
                         Just name -> name
                         Nothing ->
-                          let (_term, name) = implicitTerms Map.! ref
-                           in name
+                          case Map.lookup ref implicitTerms of
+                            Just (_term, name) -> name
+                            Nothing -> error (reportBug "E836680" "ref not interim nor implicit")
                     )
 
             let renameTerm ::
                   (Symbol, Term Symbol Ann, Type Symbol Ann) ->
                   (Symbol, Term Symbol Ann, Type Symbol Ann)
                 renameTerm (generatedName, term, typ) =
-                  ( generatedNameToName Map.! generatedName,
+                  ( case Map.lookup generatedName generatedNameToName of
+                      Just name -> name
+                      Nothing -> error (reportBug "E440546" "no name for generated name"),
                     ABT.renames generatedNameToName term,
                     typ
                   )
