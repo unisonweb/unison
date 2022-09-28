@@ -34,6 +34,7 @@ library
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
       Unison.Cli.PrettyPrintUtils
+      Unison.Cli.TypeCheck
       Unison.Cli.UnisonConfigUtils
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
