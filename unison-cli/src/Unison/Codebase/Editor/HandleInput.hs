@@ -185,6 +185,7 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
+import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
 
 prettyPrintEnvDecl :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
@@ -560,18 +561,18 @@ loop e = do
                 BranchUtil.makeDeleteBranch (Path.convert absPath)
               afterDelete
             SwitchBranchI maybePath' -> do
-              root0 <- Cli.getRootBranch0
               path' <-
                 maybePath' & onNothing do
+                  root0 <- Cli.getRootBranch0
                   fuzzySelectNamespace Absolute root0 >>= \case
                     -- Shouldn't be possible to get multiple paths here, we can just take
                     -- the first.
                     Just (p : _) -> pure p
                     _ -> Cli.returnEarly (HelpMessage InputPatterns.cd)
               path <- Cli.resolvePath' path'
+              branchExists <- Cli.branchExistsAtPath' path'
+              when (not branchExists) (Cli.respond $ CreatedNewBranch path)
               #currentPathStack %= Nel.cons path
-              branch' <- Cli.getBranch0At path
-              when (Branch.isEmpty0 branch') (Cli.respond $ CreatedNewBranch path)
             UpI -> do
               path0 <- Cli.getCurrentPath
               whenJust (unsnoc path0) \(path, _) ->
@@ -929,19 +930,21 @@ loop e = do
               #numberedArgs .= fmap Name.toString patches
             FindShallowI pathArg -> do
               Cli.Env {codebase} <- ask
-              sbhLength <- liftIO (Codebase.branchHashLength codebase)
-              rootBranch <- Cli.getRootBranch
 
               pathArgAbs <- Cli.resolvePath' pathArg
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               #numberedArgs .= fmap entryToHQString entries
-              let ppe =
-                    Backend.basicSuffixifiedNames
-                      sbhLength
-                      rootBranch
-                      (Backend.AllNames (Path.unabsolute pathArgAbs))
-              Cli.respond $ ListShallow ppe entries
+              getRoot <- atomically . STM.readTMVar <$> use #root
+              let buildPPE = do
+                    sbhLength <- liftIO (Codebase.branchHashLength codebase)
+                    rootBranch <- getRoot
+                    pure $
+                      Backend.basicSuffixifiedNames
+                        sbhLength
+                        rootBranch
+                        (Backend.AllNames (Path.unabsolute pathArgAbs))
+              Cli.respond $ ListShallow buildPPE entries
               where
                 entryToHQString :: ShallowListEntry v Ann -> String
                 entryToHQString e =
@@ -1368,9 +1371,9 @@ loop e = do
                   terms = [(Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugTabCompletionI inputs -> do
-              Cli.Env {codebase} <- ask
+              Cli.Env {authHTTPClient, codebase} <- ask
               currentPath <- Cli.getCurrentPath
-              let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase currentPath
+              let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
               (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
               Cli.respond (DisplayDebugCompletions completions)
             DebugDumpNamespacesI -> do

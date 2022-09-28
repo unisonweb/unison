@@ -16,6 +16,7 @@ module Unison.CommandLine.InputPattern
 where
 
 import qualified System.Console.Haskeline as Line
+import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Path as Path
@@ -53,6 +54,7 @@ data ArgumentType = ArgumentType
       MonadIO m =>
       String ->
       Codebase m v a ->
+      AuthenticatedHttpClient ->
       Path.Absolute -> -- Current path
       m [Line.Completion],
     -- | Select which targets glob patterns may expand into for this argument.
