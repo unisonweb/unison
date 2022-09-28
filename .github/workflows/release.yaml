@@ -1,5 +1,9 @@
 name: "release"
 
+defaults:
+  run:
+    shell: bash
+
 on:
   workflow_dispatch:
     inputs:
@@ -228,14 +232,12 @@ jobs:
 
       - name: install stack (windows)
         working-directory: ${{ github.workspace }}
-        shell: bash
         run: |
           mkdir stack && cd stack
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-windows-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: build
-        shell: bash
         run: |
           # Windows will crash on build intermittently because the filesystem
           # sucks at managing concurrent file access;
@@ -246,15 +248,13 @@ jobs:
           done
 
       - name: fetch latest Unison Local UI and package with ucm
-        # Powershell
         run: |
-          mkdir -p tmp\ui
-          mkdir -p release\ui
-          $UCM = stack exec -- where unison
-          cp $UCM .\release\ucm.exe
-          Invoke-WebRequest -Uri https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
-          Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui
-          Compress-Archive -Path .\release\* -DestinationPath ucm-windows.zip
+          mkdir -p /tmp/ucm/ui
+          UCM="$(stack path | awk '/local-install-root/{print $2}')/bin/unison"
+          cp "$UCM" /tmp/ucm/ucm
+          wget -O /tmp/unisonLocal.zip https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
+          tar.exe -xf /tmp/unisonLocal.zip --directory /tmp/ucm/ui
+          tar.exe -a -c -f ucm-windows.zip /tmp/ucm
 
       - name: Upload windows artifact
         uses: actions/upload-artifact@v2

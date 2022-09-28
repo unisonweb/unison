@@ -3,6 +3,7 @@ name: Haddocks
 defaults:
   run:
     working-directory: unison
+    shell: bash
 
 on:
   push:
