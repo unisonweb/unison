@@ -11,7 +11,6 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Set.NonEmpty as NESet
-import qualified Data.Tuple as Tuple
 import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified Unison.ABT as ABT
 import Unison.Cli.Monad (Cli)
@@ -253,17 +252,6 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
         nameToInterimInfo =
           UF.hashTermsId (Slurp.originalFile slurp0)
 
-    -- Associate each term name being updated with its interim reference.
-    --
-    -- Running example:
-    --
-    --   "ping" <=> #newping
-    let nameToInterimRef :: Bij Symbol TermReferenceId
-        nameToInterimRef =
-          nameToInterimInfo
-            & Map.map (\(ref, _wk, _term, _typ) -> ref)
-            & bijFromMap
-
     -- Get the set of names that are being updated.
     --
     -- Running example:
@@ -499,13 +487,22 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                 generatedNameToName =
                   refToGeneratedNameAndTerm & Map.remap \(ref, (generatedName, _term)) ->
                     ( generatedName,
-                      case bijLookupR ref nameToInterimRef of
+                      case Map.lookup ref interimRefToName of
                         Just name -> name
                         Nothing ->
                           case Map.lookup ref implicitTerms of
                             Just (_term, name) -> name
                             Nothing -> error (reportBug "E836680" "ref not interim nor implicit")
                     )
+                  where
+                    -- Associate each term name being updated with its interim reference.
+                    --
+                    -- Running example:
+                    --
+                    --   #newping => "ping"
+                    interimRefToName :: Map TermReferenceId Symbol
+                    interimRefToName =
+                      Map.remap (\(name, (ref, _wk, _term, _typ)) -> (ref, name)) nameToInterimInfo
 
             let renameTerm ::
                   (Symbol, Term Symbol Ann, Type Symbol Ann) ->
@@ -631,24 +628,3 @@ propagatePatchNoSync ::
 propagatePatchNoSync patch scopePath =
   Cli.time "propagatePatchNoSync" do
     Cli.stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
-
-------------------------------------------------------------------------------------------------------------------------
--- Tiny helper bijection type
---
--- This is semantically a set of `(a, b)` tuples, where no `a` nor `b` appears more than once. An `a` can be looked up
--- given its associated `b`, and vice-versa.
-
-data Bij a b
-  = Bij (Map a b) (Map b a)
-
-bijFromMap :: Ord b => Map a b -> Bij a b
-bijFromMap m =
-  Bij m (Map.remap Tuple.swap m)
-
-bijLookupL :: Ord a => a -> Bij a b -> Maybe b
-bijLookupL x (Bij m _) =
-  Map.lookup x m
-
-bijLookupR :: Ord b => b -> Bij a b -> Maybe a
-bijLookupR x (Bij _ m) =
-  Map.lookup x m
