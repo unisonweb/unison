@@ -89,6 +89,33 @@ jobs:
           key: stack-work-3_${{matrix.os}}-${{github.sha}}
           restore-keys: stack-work-3_${{matrix.os}}
 
+      # Install stack by downloading the binary from GitHub. 
+      # The installation process differs by OS.
+      - name: install stack (Linux)
+        if: runner.os == 'Linux'
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-linux-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
+
+      - name: install stack (macOS)
+        working-directory: ${{ github.workspace }}
+        if: runner.os == 'macOS'
+        run: |
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-osx-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
+
+      - name: install stack (windows)
+        working-directory: ${{ github.workspace }}
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-windows-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
+
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
         run: |
@@ -110,6 +137,7 @@ jobs:
         # cached within a single build, it should get further along on each re-start
         # and should hopefully finish!
         run: |
+          stack --version
           tries=1
           if [[ ${{matrix.os}} = "windows-"* ]]; then
             tries=5

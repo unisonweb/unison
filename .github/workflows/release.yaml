@@ -90,6 +90,13 @@ jobs:
           key: stack-work-3_ubuntu-22.04-${{github.sha}}
           restore-keys: stack-work-3_ubuntu-22.04
 
+      - name: install stack (Linux)
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-linux-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
+
       - name: build
         run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
@@ -148,6 +155,13 @@ jobs:
           # the next build on this branch.
           key: stack-work-3_macOS-11.0-${{github.sha}}
           restore-keys: stack-work-3_macOS-11.0
+
+      - name: install stack (macOS)
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-osx-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: remove ~/.stack/setup-exe-cache on macOS
         run: rm -rf ~/.stack/setup-exe-cache
@@ -211,6 +225,14 @@ jobs:
           # the next build on this branch.
           key: stack-work-3_windows-2019-${{github.sha}}
           restore-keys: stack-work-3_windows-2019
+
+      - name: install stack (windows)
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        run: |
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-windows-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: build
         shell: bash
