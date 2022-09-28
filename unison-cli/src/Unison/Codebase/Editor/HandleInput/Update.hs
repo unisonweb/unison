@@ -247,6 +247,26 @@ getSlurpResultForUpdate requestedNames = do
     -- terms in it fails.
     let slurp0 = slurp unisonFile0
 
+    -- Grab some interim info out of the original slurp.
+    --
+    -- Running example:
+    --
+    --   "ping" => (#newping, Nothing, <#wham + 4>, <Nat>)
+    let nameToInterimInfo :: Map Symbol (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
+        nameToInterimInfo =
+          UF.hashTermsId (Slurp.originalFile slurp0)
+
+    -- Associate each term name being updated with its interim reference.
+    --
+    -- Running example:
+    --
+    --   "ping" <=> #newping
+    let nameToInterimRef :: Bij Symbol TermReferenceId
+        nameToInterimRef =
+          nameToInterimInfo
+            & Map.map (\(ref, _wk, _term, _typ) -> ref)
+            & bijFromMap
+
     -- Get the set of names that are being updated.
     --
     -- Running example:
@@ -256,14 +276,23 @@ getSlurpResultForUpdate requestedNames = do
         namesBeingUpdated =
           SC.terms (Slurp.updates slurp0)
 
-    -- Associate each such name with the set of "old" references (already in the codebase) that it's associated with.
+    -- Associate each such name with the set of old (already in the codebase) and new (in the scratch file) references
+    -- that it's associated with.
     --
     -- Running example:
     --
-    --   "ping" => { #pingpong.ping }
-    let updatedNameToOldRefs :: Map Symbol (Set TermReference)
-        updatedNameToOldRefs =
-          Map.fromSet nameToTermRefs namesBeingUpdated
+    --   "ping" => ({ #pingpong.ping }, #newping)
+    let updatedNameToRefs :: Map Symbol (Set TermReference, TermReferenceId)
+        updatedNameToRefs =
+          Map.fromSet
+            ( \name ->
+                ( nameToTermRefs name,
+                  case bijLookupL name nameToInterimRef of
+                    Nothing -> undefined
+                    Just interimRef -> interimRef
+                )
+            )
+            namesBeingUpdated
 
     -- Identify all of the implicit terms, which are:
     --
@@ -311,12 +340,16 @@ getSlurpResultForUpdate requestedNames = do
         -- Running example:
         --
         --
-        --   { #pingpong }
-        let oldHashes :: Set Hash
-            oldHashes =
-              foldMap (Set.mapMaybe Reference.toHash) updatedNameToOldRefs
+        --   { (#pingpong, #newping) }
+        let updateHashes :: Set (Hash, Hash)
+            updateHashes =
+              updatedNameToRefs & foldMap \(oldRefs, interimRef) ->
+                let interimHash = Reference.idToHash interimRef
+                 in oldRefs & Set.mapMaybe \oldRef -> do
+                      oldHash <- Reference.toHash oldRef
+                      Just (oldHash, interimHash)
 
-        oldHashes & foldMapM \oldHash -> do
+        updateHashes & foldMapM \(oldHash, interimHash) -> do
           -- Running example:
           --
           --   [ (<#pingpong.pong + 1>, <Nat>),
@@ -368,26 +401,6 @@ getSlurpResultForUpdate requestedNames = do
         --
         --   2. Re-typecheck, and if it that succeeds, use the resulting typechecked unison file and slurp.
 
-        -- Grab some interim info out of the original slurp.
-        --
-        -- Running example:
-        --
-        --   "ping" => (#newping, Nothing, <#wham + 4>, <Nat>)
-        let nameToInterimInfo :: Map Symbol (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
-            nameToInterimInfo =
-              UF.hashTermsId (Slurp.originalFile slurp0)
-
-        -- Associate each term name being updated with its interim reference.
-        --
-        -- Running example:
-        --
-        --   "ping" <=> #newping
-        let nameToInterimRef :: Bij Symbol TermReferenceId
-            nameToInterimRef =
-              nameToInterimInfo
-                & Map.map (\(ref, _wk, _term, _typ) -> ref)
-                & bijFromMap
-
         -- Remap the references contained in each implicit term, then add back in the slurped interim terms and unhash
         -- the collection. The unhashing process will invent a fresh variable name for each term.
         --
@@ -428,20 +441,9 @@ getSlurpResultForUpdate requestedNames = do
                 --   ref            -> ref
                 rewrite :: Term Symbol Ann -> Term Symbol Ann
                 rewrite =
-                  updatedNameToOldRefs
-                    & Map.toList
+                  updatedNameToRefs
                     & foldMap
-                      ( \(name, oldRefs) ->
-                          oldRefs
-                            & Set.toList
-                            & map
-                              ( \oldRef ->
-                                  case bijLookupL name nameToInterimRef of
-                                    Nothing -> undefined
-                                    Just interimRef -> (oldRef, interimRef)
-                              )
-                            & Map.fromList
-                      )
+                      (\(oldRefs, interimRef) -> foldMap (\oldRef -> Map.singleton oldRef interimRef) oldRefs)
                     & rewriteTermReferences
 
         let unisonFile :: UnisonFile Symbol Ann
