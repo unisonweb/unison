@@ -100,7 +100,7 @@ slurpFile ::
   Set Symbol ->
   SlurpOp ->
   Names ->
-  SR.SlurpResult Symbol
+  SR.SlurpResult
 slurpFile uf defsToConsider slurpOp unalteredCodebaseNames =
   let -- A mapping of all vars in the file to their references.
       -- TypeVars are keyed to Type references
@@ -354,7 +354,7 @@ toSlurpResult ::
   Names ->
   Map (TaggedVar Symbol) DefnStatus ->
   Map (TaggedVar Symbol) DepStatus ->
-  SR.SlurpResult Symbol
+  SR.SlurpResult
 toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatuses depStatuses =
   SR.SlurpResult
     { SR.originalFile = uf,

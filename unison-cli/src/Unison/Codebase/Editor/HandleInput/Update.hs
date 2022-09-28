@@ -200,9 +200,9 @@ handleUpdate input optionalPatch requestedNames = do
         & Path.resolve @_ @_ @Path.Absolute currentPath'
         & tShow
 
-getSlurpResultForUpdate :: Set Name -> Names -> Cli r (SlurpResult Symbol)
+getSlurpResultForUpdate :: Set Name -> Names -> Cli r SlurpResult
 getSlurpResultForUpdate requestedNames slurpCheckNames = do
-  let slurp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult Symbol
+  let slurp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult
       slurp file =
         Slurp.slurpFile file (Set.map Name.toVar requestedNames) Slurp.UpdateOp slurpCheckNames
 
