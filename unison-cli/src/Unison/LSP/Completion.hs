@@ -14,7 +14,12 @@ import qualified Text.FuzzyFind as Fuzzy
 import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
+import Unison.LabeledDependency (LabeledDependency)
+import Unison.Name (Name)
+import Unison.NameSegment (NameSegment)
+import Unison.Names (Names (..))
 import Unison.Prelude
+import Unison.Reference (Reference)
 import qualified Unison.Server.Endpoints.FuzzyFind as FZF
 import qualified Unison.Server.Syntax as Server
 import qualified Unison.Server.Types as Backend
@@ -123,3 +128,19 @@ mkCompletionItem lbl =
       _command = Nothing,
       _xdata = Nothing
     }
+
+newtype CompletionTree = CompletionTree {unCompletionTree :: Cofree (Map NameSegment) (Set (Name, LabeledDependency))}
+
+namesToCompletionTree :: Names -> CompletionTree
+namesToCompletionTree = _
+
+nameToCompletionTree :: Name -> LabeledDependency -> CompletionTree
+nameToCompletionTree name ref =
+  case Name.reverseSegments name of
+    (lastSegment :| prefix) -> helper (Map.singleton lastSegment (Set.singleton (name, ref) :< mempty)) prefix
+  where
+    helper subMap revPrefix = case revPrefix of
+      [] -> subMap
+      (ns : rest) ->
+        let newSubMap = Map.unionWith (<>) (Map.singleton ns (mempty :< subMap)) subMap
+         in helper newSubMap rest
