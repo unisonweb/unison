@@ -65,8 +65,12 @@ data Env = Env
     dirtyFilesVar :: TVar (Set Uri),
     -- A map  of request IDs to an action which kills that request.
     cancellationMapVar :: TVar (Map SomeLspId (IO ())),
+    -- A lazily computed map of all valid completion suffixes from the current path.
+    completionsVar :: TVar CompletionTree,
     scope :: Ki.Scope
   }
+
+newtype CompletionTree = CompletionTree {unCompletionTree :: Cofree (Map NameSegment) (Set (Name, LabeledDependency))}
 
 -- | A monotonically increasing file version tracked by the lsp client.
 type FileVersion = Int32
@@ -87,6 +91,9 @@ data FileAnalysis = FileAnalysis
 
 getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO
+
+getCompletions :: Lsp CompletionTree
+getCompletions = asks completionsVar >>= readTVarIO
 
 globalPPE :: Lsp PrettyPrintEnvDecl
 globalPPE = asks ppeCache >>= liftIO

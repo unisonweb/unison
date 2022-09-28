@@ -5,6 +5,7 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Debug as Debug
+import Unison.LSP.Completion
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import Unison.NamesWithHistory (NamesWithHistory)
@@ -21,7 +22,7 @@ ucmWorker ::
   STM Path.Absolute ->
   Lsp ()
 ucmWorker ppeVar parseNamesVar getLatestRoot getLatestPath = do
-  Env {codebase} <- ask
+  Env {codebase, completionsVar} <- ask
   let loop :: (Branch IO, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
         Debug.debugM Debug.LSP "LSP path: " currentPath
@@ -33,6 +34,8 @@ ucmWorker ppeVar parseNamesVar getLatestRoot getLatestPath = do
           writeTVar ppeVar ppe
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
+        atomically do
+          writeTVar completionsVar (NamesWithHistory.current parseNames)
         latest <- atomically $ do
           latestRoot <- getLatestRoot
           latestPath <- getLatestPath
