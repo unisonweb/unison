@@ -1,4 +1,4 @@
-Not yet working: using update to establish a cycle.
+`update` properly discovers and establishes new cycles.
 
 ```ucm:hide
 .> builtins.merge
@@ -18,12 +18,13 @@ pong _ = !ping + 2
 
 ```unison
 ping : 'Nat
-ping _ = !pong + 1
+ping _ = !clang + 1
+
+clang : 'Nat
+clang _ = !pong + 3
 ```
 
 ```ucm
-.> update
-.> view ping pong
+.> update ping
+.> view ping pong clang
 ```
-
-The bug: `pong` should refer to the new `ping` by name, not the (now nameless) old `ping`.
