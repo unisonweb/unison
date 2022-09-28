@@ -10,7 +10,7 @@ jobs:
   build_linux:
 
     name: "build_linux"
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v2
@@ -127,7 +127,7 @@ jobs:
 
   release:
     name: "create_release"
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-20.04
     needs:
       - build_linux
       - build_macos

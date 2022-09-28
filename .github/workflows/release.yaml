@@ -16,7 +16,7 @@ on:
 jobs:
   release:
     name: "create_release"
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     needs:
       - build_linux
       - build_macos
@@ -52,7 +52,7 @@ jobs:
   build_linux:
 
     name: "build_linux"
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
         with:
@@ -69,11 +69,11 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-0_ubuntu-22.04-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          key: stack-0_ubuntu-20.04-${{hashFiles('stack.yaml')}}-${{github.sha}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: |
-            stack-0_ubuntu-22.04-${{hashFiles('stack.yaml')}}
-            stack-0_ubuntu-22.04
+            stack-0_ubuntu-20.04-${{hashFiles('stack.yaml')}}
+            stack-0_ubuntu-20.04
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
       - uses: actions/cache@v3
@@ -87,8 +87,8 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-work-3_ubuntu-22.04-${{github.sha}}
-          restore-keys: stack-work-3_ubuntu-22.04
+          key: stack-work-3_ubuntu-20.04-${{github.sha}}
+          restore-keys: stack-work-3_ubuntu-20.04
 
       - name: install stack (Linux)
         working-directory: ${{ github.workspace }}
