@@ -4,25 +4,30 @@
 
 module Unison.LSP.Completion where
 
-import Control.Lens hiding (List)
+import Control.Comonad.Cofree
+import Control.Lens hiding (List, (:<))
 import Control.Monad.Reader
+import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.String.Here.Uninterpolated (here)
 import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
-import qualified Text.FuzzyFind as Fuzzy
 import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import Unison.LabeledDependency (LabeledDependency)
+import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
-import Unison.NameSegment (NameSegment)
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (..))
+import qualified Unison.NameSegment as NameSegment
 import Unison.Names (Names (..))
 import Unison.Prelude
-import Unison.Reference (Reference)
-import qualified Unison.Server.Endpoints.FuzzyFind as FZF
-import qualified Unison.Server.Syntax as Server
-import qualified Unison.Server.Types as Backend
+import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPED
+import qualified Unison.Util.Relation as Relation
 
 -- | Rudimentary auto-completion handler
 --
@@ -34,81 +39,19 @@ import qualified Unison.Server.Types as Backend
 -- * Include docs in completion details?
 completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
 completionHandler m respond =
-  respond =<< runMaybeT do
+  respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
     (range, prefix) <- MaybeT $ VFS.completionPrefix (m ^. params)
-    completions <- getCompletions
+    ppe <- PPED.suffixifiedPPE <$> lift globalPPE
+    completions <- lift getCompletions
     let matches =
           matchCompletions completions prefix
-            <&> \(name, dep) -> mkCompletionItem name
+            & Set.toList
+            & mapMaybe \(name, dep) ->
+              let biasedPPE = PPE.biasTo [name] ppe
+                  hqName = LD.fold (PPE.types biasedPPE) (PPE.terms biasedPPE) dep
+               in mkCompletionItem . HQ'.toText <$> hqName
     let isIncomplete = False -- TODO: be smarter about this
-    pure . Right . InR . CompletionList isIncomplete . List $ snippetCompletions prefix range <> matches
-  where
-    resultToCompletion :: Range -> Text -> FZF.FoundResult -> CompletionItem
-    resultToCompletion range prefix = \case
-      FZF.FoundTermResult (FZF.FoundTerm {namedTerm = Backend.NamedTerm {termName, termType}}) -> do
-        (mkCompletionItem (HQ'.toText termName))
-          { _detail = (": " <>) . Text.pack . Server.toPlain <$> termType,
-            _kind = Just CiVariable,
-            _insertText = Text.stripPrefix prefix (HQ'.toText termName),
-            _textEdit = Just $ CompletionEditText (TextEdit range (HQ'.toText termName))
-          }
-      FZF.FoundTypeResult (FZF.FoundType {namedType = Backend.NamedType {typeName, typeTag}}) ->
-        let (detail, kind) = case typeTag of
-              Backend.Ability -> ("Ability", CiInterface)
-              Backend.Data -> ("Data", CiClass)
-         in (mkCompletionItem (HQ'.toText typeName))
-              { _detail = Just detail,
-                _kind = Just kind
-              }
-    expand :: Range -> Text -> Lsp [CompletionItem]
-    expand range prefix = do
-      -- We should probably write a different fzf specifically for completion, but for now, it
-      -- expects the unique pieces of the query to be different "words".
-      let query = Text.unwords . Text.splitOn "." $ prefix
-      cb <- asks codebase
-      lspBackend (FZF.serveFuzzyFind cb Nothing Nothing Nothing Nothing (Just $ Text.unpack query)) >>= \case
-        Left _be -> pure []
-        Right results ->
-          pure . fmap (resultToCompletion range prefix . snd) . take 15 . sortOn (Fuzzy.score . fst) $ results
-
-completionHandler' :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
-completionHandler' m respond =
-  respond =<< do
-    mayPrefix <- VFS.completionPrefix (m ^. params)
-    case mayPrefix of
-      Nothing -> pure . Right . InL . List $ []
-      Just (range, prefix) -> do
-        matches <- expand range prefix
-        let isIncomplete = True -- TODO: be smarter about this
-        pure . Right . InR . CompletionList isIncomplete . List $ snippetCompletions prefix range <> matches
-  where
-    resultToCompletion :: Range -> Text -> FZF.FoundResult -> CompletionItem
-    resultToCompletion range prefix = \case
-      FZF.FoundTermResult (FZF.FoundTerm {namedTerm = Backend.NamedTerm {termName, termType}}) -> do
-        (mkCompletionItem (HQ'.toText termName))
-          { _detail = (": " <>) . Text.pack . Server.toPlain <$> termType,
-            _kind = Just CiVariable,
-            _insertText = Text.stripPrefix prefix (HQ'.toText termName),
-            _textEdit = Just $ CompletionEditText (TextEdit range (HQ'.toText termName))
-          }
-      FZF.FoundTypeResult (FZF.FoundType {namedType = Backend.NamedType {typeName, typeTag}}) ->
-        let (detail, kind) = case typeTag of
-              Backend.Ability -> ("Ability", CiInterface)
-              Backend.Data -> ("Data", CiClass)
-         in (mkCompletionItem (HQ'.toText typeName))
-              { _detail = Just detail,
-                _kind = Just kind
-              }
-    expand :: Range -> Text -> Lsp [CompletionItem]
-    expand range prefix = do
-      -- We should probably write a different fzf specifically for completion, but for now, it
-      -- expects the unique pieces of the query to be different "words".
-      let query = Text.unwords . Text.splitOn "." $ prefix
-      cb <- asks codebase
-      lspBackend (FZF.serveFuzzyFind cb Nothing Nothing Nothing Nothing (Just $ Text.unpack query)) >>= \case
-        Left _be -> pure []
-        Right results ->
-          pure . fmap (resultToCompletion range prefix . snd) . take 15 . sortOn (Fuzzy.score . fst) $ results
+    pure . CompletionList isIncomplete . List $ snippetCompletions prefix range <> matches
 
 snippetCompletions :: Text -> Range -> [CompletionItem]
 snippetCompletions prefix range =
@@ -171,41 +114,50 @@ mkCompletionItem lbl =
 namesToCompletionTree :: Names -> CompletionTree
 namesToCompletionTree Names {terms, types} =
   let typeCompls =
-        Relation.domain terms
-          & ifoldMap (\name ref -> Set.singleton (LD.typeRef ref))
+        Relation.domain types
+          & ifoldMap (\name refs -> refs & Set.map \ref -> (name, LD.typeRef ref))
       termCompls =
         Relation.domain terms
-          & ifoldMap (\name ref -> Set.singleton (LD.referent ref))
+          & ifoldMap (\name refs -> refs & Set.map \ref -> (name, LD.referent ref))
    in foldMap (uncurry nameToCompletionTree) (typeCompls <> termCompls)
 
 nameToCompletionTree :: Name -> LabeledDependency -> CompletionTree
 nameToCompletionTree name ref =
-  case Name.reverseSegments name of
-    (lastSegment :| prefix) -> helper (Map.singleton lastSegment (Set.singleton (name, ref) :< mempty)) prefix
+  let (lastSegment :| prefix) = Name.reverseSegments name
+      complMap = helper (Map.singleton lastSegment (Set.singleton (name, ref) :< mempty)) prefix
+   in CompletionTree (mempty :< complMap)
   where
+    helper ::
+      Map
+        NameSegment
+        (Cofree (Map NameSegment) (Set (Name, LabeledDependency))) ->
+      [NameSegment] ->
+      Map
+        NameSegment
+        (Cofree (Map NameSegment) (Set (Name, LabeledDependency)))
     helper subMap revPrefix = case revPrefix of
       [] -> subMap
       (ns : rest) ->
-        let newSubMap = Map.unionWith (<>) (Map.singleton ns (mempty :< subMap)) subMap
+        let newSubMap = Map.unionWith (\a b -> unCompletionTree $ CompletionTree a <> CompletionTree b) (Map.singleton ns (mempty :< subMap)) subMap
          in helper newSubMap rest
 
-matchCompletions :: CompletionTree -> Text -> [(Text, LabeledDependency)]
+matchCompletions :: CompletionTree -> Text -> Set (Name, LabeledDependency)
 matchCompletions (CompletionTree tree) txt =
-  matchSegments tree segments
-    <&> first (Text.intercalate ".")
+  matchSegments segments tree
   where
-    segments :: [NameSegment]
+    segments :: [Text]
     segments =
-      Text.splitOn "." prefix
+      Text.splitOn "." txt
         & filter (not . Text.null)
-    matchSegments :: Cofree (Map NameSegment) (Set (Name, LabeledDependency)) -> [Text] -> Set (Name, LabeledDependency)
-    matchSegments tree@(_ :< subtreeMap) xs =
+    matchSegments :: [Text] -> Cofree (Map NameSegment) (Set (Name, LabeledDependency)) -> Set (Name, LabeledDependency)
+    matchSegments xs (currentMatches :< subtreeMap) =
       case xs of
-        [] -> mkMatches subtreeMap
+        [] -> currentMatches <> mkMatches subtreeMap
         [ns] ->
-          Map.dropWhileAntitone (not . Text.isPrefixOf ns) subtreeMap
-            & Map.takeWhileAntitone (Text.isPrefixOf ns)
+          Map.dropWhileAntitone (not . Text.isPrefixOf ns . NameSegment.toText) subtreeMap
+            & Map.takeWhileAntitone (Text.isPrefixOf ns . NameSegment.toText)
             & mkMatches
-        (ns : rest) -> foldMap mkMatches $ Map.lookup ns subtreeMap
+        (ns : rest) ->
+          foldMap (matchSegments rest) (Map.lookup (NameSegment ns) subtreeMap)
     mkMatches :: Map NameSegment (Cofree (Map NameSegment) (Set (Name, LabeledDependency))) -> Set (Name, LabeledDependency)
-    mkMatches xs = fold (Map.elems xs)
+    mkMatches xs = foldMap fold (Map.elems xs)

@@ -9,6 +9,7 @@ import Unison.LSP.Completion
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
 import Unison.NamesWithHistory (NamesWithHistory)
+import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.PrettyPrintEnvDecl
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import qualified Unison.Server.Backend as Backend
@@ -35,7 +36,7 @@ ucmWorker ppeVar parseNamesVar getLatestRoot getLatestPath = do
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
         atomically do
-          writeTVar completionsVar (NamesWithHistory.current parseNames)
+          writeTVar completionsVar (namesToCompletionTree $ NamesWithHistory.currentNames parseNames)
         latest <- atomically $ do
           latestRoot <- getLatestRoot
           latestPath <- getLatestPath

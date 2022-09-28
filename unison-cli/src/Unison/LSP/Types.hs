@@ -6,11 +6,14 @@
 module Unison.LSP.Types where
 
 import Colog.Core hiding (Lens')
-import Control.Lens hiding (List)
+import Control.Comonad.Cofree (Cofree)
+import qualified Control.Comonad.Cofree as Cofree
+import Control.Lens hiding (List, (:<))
 import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Data.HashMap.Strict as HM
 import Data.IntervalMap.Lazy (IntervalMap)
+import qualified Data.Map as Map
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
@@ -21,6 +24,9 @@ import Unison.Codebase
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.LSP.Orphans ()
+import Unison.LabeledDependency (LabeledDependency)
+import Unison.Name (Name)
+import Unison.NameSegment (NameSegment)
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
@@ -71,6 +77,13 @@ data Env = Env
   }
 
 newtype CompletionTree = CompletionTree {unCompletionTree :: Cofree (Map NameSegment) (Set (Name, LabeledDependency))}
+
+instance Semigroup CompletionTree where
+  CompletionTree (a Cofree.:< subtreeA) <> CompletionTree (b Cofree.:< subtreeB) =
+    CompletionTree (a <> b Cofree.:< Map.unionWith (\a b -> unCompletionTree $ CompletionTree a <> CompletionTree b) subtreeA subtreeB)
+
+instance Monoid CompletionTree where
+  mempty = CompletionTree $ mempty Cofree.:< mempty
 
 -- | A monotonically increasing file version tracked by the lsp client.
 type FileVersion = Int32
