@@ -252,7 +252,7 @@ jobs:
           mkdir -p /tmp/ucm/ui
           UCM="$(stack path | awk '/local-install-root/{print $2}')/bin/unison"
           cp "$UCM" /tmp/ucm/ucm
-          wget -O /tmp/unisonLocal.zip https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
+          gh release download latest --repo unisonweb/unison-local-ui --pattern '*.zip' --dir /tmp/
           tar.exe -xf /tmp/unisonLocal.zip --directory /tmp/ucm/ui
           tar.exe -a -c -f ucm-windows.zip /tmp/ucm
 
