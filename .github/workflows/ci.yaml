@@ -23,6 +23,7 @@ jobs:
     defaults: 
       run:
         working-directory: unison
+        shell: bash
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
