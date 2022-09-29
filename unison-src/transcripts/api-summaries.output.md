@@ -23,9 +23,28 @@ structural ability Stream s where
 
 ```api
 --  term
-GET /api/definitions/terms/qualified/nat@qkhkl0n238/summary
+GET /api/definitions/terms/by-hash/@qkhkl0n238/summary?name=nat
 {
-    "fqn": "nat",
+    "displayName": "nat",
+    "hash": "#qkhkl0n238",
+    "summary": {
+        "contents": [
+            {
+                "annotation": {
+                    "contents": "##Nat",
+                    "tag": "TypeReference"
+                },
+                "segment": "Nat"
+            }
+        ],
+        "tag": "UserObject"
+    },
+    "tag": "Plain"
+}
+--  term without name uses hash
+GET /api/definitions/terms/by-hash/@qkhkl0n238/summary
+{
+    "displayName": "#qkhkl0n238",
     "hash": "#qkhkl0n238",
     "summary": {
         "contents": [
@@ -42,9 +61,9 @@ GET /api/definitions/terms/qualified/nat@qkhkl0n238/summary
     "tag": "Plain"
 }
 --  doc
-GET /api/definitions/terms/qualified/doc@icfnhas71n/summary
+GET /api/definitions/terms/by-hash/@icfnhas71n/summary?name=doc
 {
-    "fqn": "doc",
+    "displayName": "doc",
     "hash": "#icfnhas71n",
     "summary": {
         "contents": [
@@ -61,9 +80,9 @@ GET /api/definitions/terms/qualified/doc@icfnhas71n/summary
     "tag": "Doc"
 }
 --  test
-GET /api/definitions/terms/qualified/mytest@u17p9803hd/summary
+GET /api/definitions/terms/by-hash/@u17p9803hd/summary?name=mytest
 {
-    "fqn": "mytest",
+    "displayName": "mytest",
     "hash": "#u17p9803hd",
     "summary": {
         "contents": [
@@ -92,9 +111,9 @@ GET /api/definitions/terms/qualified/mytest@u17p9803hd/summary
     "tag": "Test"
 }
 --  function
-GET /api/definitions/terms/qualified/func@6ee6j48hk3/summary
+GET /api/definitions/terms/by-hash/@6ee6j48hk3/summary?name=func
 {
-    "fqn": "func",
+    "displayName": "func",
     "hash": "#6ee6j48hk3",
     "summary": {
         "contents": [
@@ -132,9 +151,9 @@ GET /api/definitions/terms/qualified/func@6ee6j48hk3/summary
     "tag": "Plain"
 }
 --  constructor
-GET /api/definitions/terms/qualified/Thing.This@altimqs66j@0/summary
+GET /api/definitions/terms/by-hash/@altimqs66j@0/summary?name=Thing.This
 {
-    "fqn": "Thing.This",
+    "displayName": "Thing.This",
     "hash": "#altimqs66j#0",
     "summary": {
         "contents": [
@@ -172,9 +191,9 @@ GET /api/definitions/terms/qualified/Thing.This@altimqs66j@0/summary
     "tag": "DataConstructor"
 }
 --  Long type signature
-GET /api/definitions/terms/qualified/funcWithLongType@ieskgcjjvu/summary
+GET /api/definitions/terms/by-hash/@ieskgcjjvu/summary?name=funcWithLongType
 {
-    "fqn": "funcWithLongType",
+    "displayName": "funcWithLongType",
     "hash": "#ieskgcjjvu",
     "summary": {
         "contents": [
@@ -359,9 +378,9 @@ GET /api/definitions/terms/qualified/funcWithLongType@ieskgcjjvu/summary
     "tag": "Plain"
 }
 --  Long type signature with render width
-GET /api/definitions/terms/qualified/funcWithLongType@ieskgcjjvu/summary?renderWidth=20
+GET /api/definitions/terms/by-hash/@ieskgcjjvu/summary?renderWidth=20&name=funcWithLongType
 {
-    "fqn": "funcWithLongType",
+    "displayName": "funcWithLongType",
     "hash": "#ieskgcjjvu",
     "summary": {
         "contents": [
@@ -546,9 +565,9 @@ GET /api/definitions/terms/qualified/funcWithLongType@ieskgcjjvu/summary?renderW
     "tag": "Plain"
 }
 --  Builtin Term
-GET /api/definitions/terms/qualified/putBytesImpl@@IO.putBytes.impl.v3/summary
+GET /api/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summary?name=putBytesImpl
 {
-    "fqn": "putBytesImpl",
+    "displayName": "putBytesImpl",
     "hash": "##IO.putBytes.impl.v3",
     "summary": {
         "contents": [
@@ -652,9 +671,9 @@ GET /api/definitions/terms/qualified/putBytesImpl@@IO.putBytes.impl.v3/summary
 
 ```api
 --  data
-GET /api/definitions/types/qualified/Thing@altimqs66j/summary
+GET /api/definitions/types/by-hash/@altimqs66j/summary?name=Thing
 {
-    "fqn": "Thing",
+    "displayName": "Thing",
     "hash": "#altimqs66j",
     "summary": {
         "contents": [
@@ -680,17 +699,10 @@ GET /api/definitions/types/qualified/Thing@altimqs66j/summary
             },
             {
                 "annotation": {
-                    "contents": "Thing#altimqs66j",
+                    "contents": "Thing",
                     "tag": "HashQualifier"
                 },
                 "segment": "Thing"
-            },
-            {
-                "annotation": {
-                    "contents": "Thing#altimqs66j",
-                    "tag": "HashQualifier"
-                },
-                "segment": "#altimqs66j"
             }
         ],
         "tag": "UserObject"
@@ -698,9 +710,9 @@ GET /api/definitions/types/qualified/Thing@altimqs66j/summary
     "tag": "Data"
 }
 --  data with type args
-GET /api/definitions/types/qualified/Maybe@nirp5os0q6/summary
+GET /api/definitions/types/by-hash/@nirp5os0q6/summary?name=Maybe
 {
-    "fqn": "Maybe",
+    "displayName": "Maybe",
     "hash": "#nirp5os0q6",
     "summary": {
         "contents": [
@@ -726,17 +738,10 @@ GET /api/definitions/types/qualified/Maybe@nirp5os0q6/summary
             },
             {
                 "annotation": {
-                    "contents": "Maybe#nirp5os0q6",
+                    "contents": "Maybe",
                     "tag": "HashQualifier"
                 },
                 "segment": "Maybe"
-            },
-            {
-                "annotation": {
-                    "contents": "Maybe#nirp5os0q6",
-                    "tag": "HashQualifier"
-                },
-                "segment": "#nirp5os0q6"
             },
             {
                 "annotation": null,
@@ -754,9 +759,9 @@ GET /api/definitions/types/qualified/Maybe@nirp5os0q6/summary
     "tag": "Data"
 }
 --  ability
-GET /api/definitions/types/qualified/Stream@rfi1v9429f/summary
+GET /api/definitions/types/by-hash/@rfi1v9429f/summary?name=Stream
 {
-    "fqn": "Stream",
+    "displayName": "Stream",
     "hash": "#rfi1v9429f",
     "summary": {
         "contents": [
@@ -782,17 +787,10 @@ GET /api/definitions/types/qualified/Stream@rfi1v9429f/summary
             },
             {
                 "annotation": {
-                    "contents": "Stream#rfi1v9429f",
+                    "contents": "Stream",
                     "tag": "HashQualifier"
                 },
                 "segment": "Stream"
-            },
-            {
-                "annotation": {
-                    "contents": "Stream#rfi1v9429f",
-                    "tag": "HashQualifier"
-                },
-                "segment": "#rfi1v9429f"
             },
             {
                 "annotation": null,
@@ -810,19 +808,15 @@ GET /api/definitions/types/qualified/Stream@rfi1v9429f/summary
     "tag": "Ability"
 }
 --  builtin type
-GET /api/definitions/types/qualified/Nat@@Nat/summary
+GET /api/definitions/types/by-hash/@@Nat/summary?name=Nat
 {
-    "fqn": "Nat",
+    "displayName": "Nat",
     "hash": "##Nat",
     "summary": {
         "contents": [
             {
                 "annotation": null,
                 "segment": "Nat"
-            },
-            {
-                "annotation": null,
-                "segment": "##Nat"
             }
         ],
         "tag": "BuiltinObject"

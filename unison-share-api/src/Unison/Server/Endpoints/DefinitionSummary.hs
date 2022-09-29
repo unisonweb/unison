@@ -83,13 +83,14 @@ serveTermSummary ::
   Maybe Width ->
   Backend IO TermSummary
 serveTermSummary codebase shortHash mayName mayRoot relativeTo mayWidth = do
-  let displayName = maybe (HQ.HashOnly shortHash) (`HQ.HashQualified` shortHash) mayName
+  let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
+  let fullyQualifiedName = maybe (HQ.HashOnly shortHash) (`HQ.HashQualified` shortHash) mayName
   matchingReferents <- lift $ Backend.termReferentsByShortHash codebase shortHash
   termReferent <- case NESet.nonEmptySet matchingReferents of
     Just neSet
       | NESet.size neSet == 1 -> pure $ NESet.findMin neSet
       | otherwise -> throwError $ Backend.AmbiguousHashForDefinition shortHash
-    Nothing -> throwError $ Backend.NoSuchDefinition displayName
+    Nothing -> throwError $ Backend.NoSuchDefinition fullyQualifiedName
   let relativeToPath = fromMaybe Path.empty relativeTo
   let termReference = Referent.toReference termReferent
   let v2Referent = Cv.referent1to2 termReferent
@@ -148,14 +149,15 @@ serveTypeSummary ::
   Maybe Width ->
   Backend IO TypeSummary
 serveTypeSummary codebase shortHash mayName _mayRoot _relativeTo mayWidth = do
-  let displayName = maybe (HQ.HashOnly shortHash) (`HQ.HashQualified` shortHash) mayName
+  let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
+  let fullyQualifiedName = maybe (HQ.HashOnly shortHash) (`HQ.HashQualified` shortHash) mayName
   typeReference <- do
     matchingReferences <- lift $ Backend.typeReferencesByShortHash codebase shortHash
     case NESet.nonEmptySet matchingReferences of
       Just neSet
         | NESet.size neSet == 1 -> pure $ NESet.findMin neSet
         | otherwise -> throwError $ Backend.AmbiguousHashForDefinition shortHash
-      Nothing -> throwError $ Backend.NoSuchDefinition displayName
+      Nothing -> throwError $ Backend.NoSuchDefinition fullyQualifiedName
   tag <- lift $ Backend.getTypeTag codebase typeReference
   displayDecl <- lift $ Backend.displayType codebase typeReference
   let syntaxHeader = Backend.typeToSyntaxHeader width displayName displayDecl

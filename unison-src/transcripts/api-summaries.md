@@ -34,44 +34,47 @@ structural ability Stream s where
 
 ```api
 -- term
-GET /api/definitions/terms/qualified/nat@qkhkl0n238/summary
+GET /api/definitions/terms/by-hash/@qkhkl0n238/summary?name=nat
+
+-- term without name uses hash
+GET /api/definitions/terms/by-hash/@qkhkl0n238/summary
 
 -- doc
-GET /api/definitions/terms/qualified/doc@icfnhas71n/summary
+GET /api/definitions/terms/by-hash/@icfnhas71n/summary?name=doc
 
 -- test
-GET /api/definitions/terms/qualified/mytest@u17p9803hd/summary
+GET /api/definitions/terms/by-hash/@u17p9803hd/summary?name=mytest
 
 -- function
-GET /api/definitions/terms/qualified/func@6ee6j48hk3/summary
+GET /api/definitions/terms/by-hash/@6ee6j48hk3/summary?name=func
 
 -- constructor
-GET /api/definitions/terms/qualified/Thing.This@altimqs66j@0/summary
+GET /api/definitions/terms/by-hash/@altimqs66j@0/summary?name=Thing.This
 
 -- Long type signature
-GET /api/definitions/terms/qualified/funcWithLongType@ieskgcjjvu/summary
+GET /api/definitions/terms/by-hash/@ieskgcjjvu/summary?name=funcWithLongType
 
 -- Long type signature with render width
-GET /api/definitions/terms/qualified/funcWithLongType@ieskgcjjvu/summary?renderWidth=20
+GET /api/definitions/terms/by-hash/@ieskgcjjvu/summary?renderWidth=20&name=funcWithLongType
 
 -- Builtin Term
-GET /api/definitions/terms/qualified/putBytesImpl@@IO.putBytes.impl.v3/summary
+GET /api/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summary?name=putBytesImpl
 ```
 
 ## Type Summary APIs
 
 ```api
 -- data
-GET /api/definitions/types/qualified/Thing@altimqs66j/summary
+GET /api/definitions/types/by-hash/@altimqs66j/summary?name=Thing
 
 -- data with type args
-GET /api/definitions/types/qualified/Maybe@nirp5os0q6/summary
+GET /api/definitions/types/by-hash/@nirp5os0q6/summary?name=Maybe
 
 -- ability
-GET /api/definitions/types/qualified/Stream@rfi1v9429f/summary
+GET /api/definitions/types/by-hash/@rfi1v9429f/summary?name=Stream
 
 -- builtin type
-GET /api/definitions/types/qualified/Nat@@Nat/summary
+GET /api/definitions/types/by-hash/@@Nat/summary?name=Nat
 ```
 
 
