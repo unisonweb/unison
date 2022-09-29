@@ -7,13 +7,17 @@ module Unison.LSP.Completion where
 import Control.Comonad.Cofree
 import Control.Lens hiding (List, (:<))
 import Control.Monad.Reader
+import Data.Bifunctor (second)
+import Data.List.Extra (nubOrdOn)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.String.Here.Uninterpolated (here)
 import qualified Data.Text as Text
 import Language.LSP.Types
 import Language.LSP.Types.Lens
+import Unison.Codebase.Path (Path)
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
@@ -27,89 +31,97 @@ import Unison.Names (Names (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
+import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as Relation
 
--- | Rudimentary auto-completion handler
---
--- TODO:
--- * Rewrite this to use an index rather than fuzzy searching ALL names
--- * Respect ucm's current path
--- * Provide namespaces as auto-complete targets
--- * Auto-complete minimally suffixed names
--- * Include docs in completion details?
 completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
 completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
     (range, prefix) <- MaybeT $ VFS.completionPrefix (m ^. params)
+    Debug.debugM Debug.LSP "PREFIX" prefix
     ppe <- PPED.suffixifiedPPE <$> lift globalPPE
     completions <- lift getCompletions
-    let matches =
-          matchCompletions completions prefix
-            & Set.toList
-            & mapMaybe \(name, dep) ->
-              let biasedPPE = PPE.biasTo [name] ppe
+    let (_pathMatches, defMatches) = matchCompletions completions prefix
+    -- let pathCompletions =
+    --       pathMatches
+    --         <&> mkPathCompletionItem range
+    let (isIncomplete, defCompletions) =
+          defMatches
+            & nubOrdOn (\(p, _name, ref) -> (p, ref))
+            & fmap (over _1 Path.toText)
+            & ( let x = Text.dropWhileEnd (== '.') prefix
+                 in filter (\(path, _name, _ref) -> path /= x) -- Filter out completions that already match
+              )
+            & takeCompletions 10
+    let defCompletionItems =
+          defCompletions
+            & mapMaybe \(path, fqn, dep) ->
+              let biasedPPE = PPE.biasTo [fqn] ppe
                   hqName = LD.fold (PPE.types biasedPPE) (PPE.terms biasedPPE) dep
-               in mkCompletionItem . HQ'.toText <$> hqName
-    let isIncomplete = False -- TODO: be smarter about this
-    pure . CompletionList isIncomplete . List $ snippetCompletions prefix range <> matches
-
-snippetCompletions :: Text -> Range -> [CompletionItem]
-snippetCompletions prefix range =
-  [ ("handler", handlerTemplate),
-    ("cases", casesTemplate),
-    ("match-with", matchWithTemplate)
-  ]
-    & filter (Text.isPrefixOf prefix . fst)
-    & fmap toCompletion
+               in hqName <&> \hqName -> mkDefCompletionItem range path (HQ'.toText hqName) dep
+    pure . CompletionList isIncomplete . List $ defCompletionItems
   where
-    toCompletion :: (Text, Text) -> CompletionItem
-    toCompletion (pat, snippet) =
-      (mkCompletionItem pat)
-        { _insertTextFormat = Just Snippet,
-          _insertTextMode = Just AdjustIndentation,
-          _textEdit = Just $ CompletionEditText (TextEdit range snippet)
-        }
-    handlerTemplate =
-      [here|
-handle${1:Ability} : Request (${1:Ability} ${2}) a -> a
-handle${1:Ability} = cases
-  {${3} -> continue} -> do
-    ${4}
-    |]
-    casesTemplate =
-      [here|
-cases
-  ${1} -> do
-    ${2}
-    |]
-    matchWithTemplate =
-      [here|
-match ${1} with
-  ${2} -> do
-    ${3}
-    |]
+    takeCompletions :: Int -> [a] -> (Bool, [a])
+    takeCompletions 0 xs = (not $ null xs, [])
+    takeCompletions _ [] = (False, [])
+    takeCompletions n (x : xs) = second (x :) $ takeCompletions (pred n) xs
 
-mkCompletionItem :: Text -> CompletionItem
-mkCompletionItem lbl =
+mkDefCompletionItem :: Range -> Text -> Text -> LabeledDependency -> CompletionItem
+mkDefCompletionItem range path suffixified dep =
   CompletionItem
     { _label = lbl,
-      _kind = Nothing,
+      _kind = case dep of
+        LD.TypeReference _ref -> Just CiClass
+        LD.TermReferent ref -> case ref of
+          Referent.Con {} -> Just CiConstructor
+          Referent.Ref {} -> Just CiValue,
       _tags = Nothing,
-      _detail = Nothing,
+      _detail = Just detail,
       _documentation = Nothing,
       _deprecated = Nothing,
       _preselect = Nothing,
-      _sortText = Nothing,
-      _filterText = Nothing,
+      -- Sort def completions after path completions
+      _sortText = Just ("1" <> path),
+      _filterText = Just path,
       _insertText = Nothing,
       _insertTextFormat = Nothing,
       _insertTextMode = Nothing,
-      _textEdit = Nothing,
+      _textEdit = Just (CompletionEditText $ TextEdit range suffixified),
       _additionalTextEdits = Nothing,
       _commitCharacters = Nothing,
       _command = Nothing,
       _xdata = Nothing
     }
+  where
+    (lbl, detail) =
+      if Text.length path > Text.length suffixified
+        then (path, suffixified)
+        else (suffixified, path)
+
+mkPathCompletionItem :: Range -> Path -> CompletionItem
+mkPathCompletionItem range path =
+  CompletionItem
+    { _label = lbl <> ".",
+      _kind = Just CiModule,
+      _tags = Nothing,
+      _detail = Nothing,
+      _documentation = Nothing,
+      _deprecated = Nothing,
+      _preselect = Nothing,
+      -- Sort path completions first
+      _sortText = Just ("0" <> lbl),
+      _filterText = Nothing,
+      _insertText = Nothing,
+      _insertTextFormat = Nothing,
+      _insertTextMode = Nothing,
+      _textEdit = Just (CompletionEditText $ TextEdit range lbl),
+      _additionalTextEdits = Nothing,
+      _commitCharacters = Nothing,
+      _command = Nothing,
+      _xdata = Nothing
+    }
+  where
+    lbl = Path.toText path
 
 namesToCompletionTree :: Names -> CompletionTree
 namesToCompletionTree Names {terms, types} =
@@ -138,26 +150,40 @@ nameToCompletionTree name ref =
     helper subMap revPrefix = case revPrefix of
       [] -> subMap
       (ns : rest) ->
-        let newSubMap = Map.unionWith (\a b -> unCompletionTree $ CompletionTree a <> CompletionTree b) (Map.singleton ns (mempty :< subMap)) subMap
-         in helper newSubMap rest
+        mergeSubmaps (helper (Map.singleton ns (mempty :< subMap)) rest) subMap
+      where
+        mergeSubmaps = Map.unionWith (\a b -> unCompletionTree $ CompletionTree a <> CompletionTree b)
 
-matchCompletions :: CompletionTree -> Text -> Set (Name, LabeledDependency)
+matchCompletions :: CompletionTree -> Text -> ([Path], [(Path, Name, LabeledDependency)])
 matchCompletions (CompletionTree tree) txt =
-  matchSegments segments tree
+  matchSegments segments (Set.toList <$> tree)
   where
     segments :: [Text]
     segments =
       Text.splitOn "." txt
         & filter (not . Text.null)
-    matchSegments :: [Text] -> Cofree (Map NameSegment) (Set (Name, LabeledDependency)) -> Set (Name, LabeledDependency)
+    matchSegments :: [Text] -> Cofree (Map NameSegment) [(Name, LabeledDependency)] -> ([Path], [(Path, Name, LabeledDependency)])
     matchSegments xs (currentMatches :< subtreeMap) =
       case xs of
-        [] -> currentMatches <> mkMatches subtreeMap
-        [ns] ->
-          Map.dropWhileAntitone (not . Text.isPrefixOf ns . NameSegment.toText) subtreeMap
-            & Map.takeWhileAntitone (Text.isPrefixOf ns . NameSegment.toText)
-            & mkMatches
+        [] ->
+          let current = currentMatches <&> (\(name, def) -> (Path.empty, name, def))
+           in ([], current <> mkDefMatches subtreeMap)
+        [prefix] ->
+          Map.dropWhileAntitone ((< prefix) . NameSegment.toText) subtreeMap
+            & Map.takeWhileAntitone (Text.isPrefixOf prefix . NameSegment.toText)
+            & \matchingSubtrees ->
+              let subMatches = ifoldMap (\ns subTree -> matchSegments [] subTree & consPathPrefix ns) matchingSubtrees
+               in (mkPathMatches matchingSubtrees, []) <> subMatches
         (ns : rest) ->
           foldMap (matchSegments rest) (Map.lookup (NameSegment ns) subtreeMap)
-    mkMatches :: Map NameSegment (Cofree (Map NameSegment) (Set (Name, LabeledDependency))) -> Set (Name, LabeledDependency)
-    mkMatches xs = foldMap fold (Map.elems xs)
+            & consPathPrefix (NameSegment ns)
+    consPathPrefix :: NameSegment -> ([Path], [(Path, Name, LabeledDependency)]) -> ([Path], [(Path, Name, LabeledDependency)])
+    consPathPrefix ns = over (beside mapped (mapped . _1)) (Path.cons ns)
+    mkDefMatches :: Map NameSegment (Cofree (Map NameSegment) [(Name, LabeledDependency)]) -> [(Path, Name, LabeledDependency)]
+    mkDefMatches xs = do
+      (ns, (matches :< rest)) <- Map.toList xs
+      let childMatches = mkDefMatches rest <&> over _1 (Path.cons ns)
+      let currentMatches = matches <&> \(name, dep) -> (Path.singleton ns, name, dep)
+      currentMatches <> childMatches
+    mkPathMatches :: Map NameSegment a -> [Path]
+    mkPathMatches subtree = Path.singleton <$> Map.keys subtree
