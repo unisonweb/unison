@@ -234,6 +234,10 @@ analyseNotes fileUri ppe src notes = do
               (_v, locs) <- toList defns
               (r, rs) <- withNeighbours (locs >>= aToR)
               pure (r, ("duplicate definition",) <$> rs)
+            TypeError.RedundantPattern _ploc -> do
+              empty
+            TypeError.UncoveredPatterns _mloc _pats -> do
+              empty
             -- These type errors don't have custom type error conversions, but some
             -- still have valid diagnostics.
             TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
@@ -338,18 +342,18 @@ analyseNotes fileUri ppe src notes = do
     typeHoleReplacementCodeActions diags v typ
       | not (isUserBlank v) = pure []
       | otherwise = do
-          Env {codebase} <- ask
-          ppe <- PPED.suffixifiedPPE <$> globalPPED
-          let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
-          refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
-          forMaybe (toList refs) $ \ref -> runMaybeT $ do
-            hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
-            typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
-            let prettyType = TypePrinter.prettyStr Nothing ppe typ
-            let txtName = HQ'.toText hqNameSuggestion
-            let ranges = (diags ^.. folded . range)
-            let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
-            pure $ includeEdits fileUri txtName ranges rca
+        Env {codebase} <- ask
+        ppe <- PPED.suffixifiedPPE <$> globalPPED
+        let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
+        refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
+        forMaybe (toList refs) $ \ref -> runMaybeT $ do
+          hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
+          typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
+          let prettyType = TypePrinter.prettyStr Nothing ppe typ
+          let txtName = HQ'.toText hqNameSuggestion
+          let ranges = (diags ^.. folded . range)
+          let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
+          pure $ includeEdits fileUri txtName ranges rca
     isUserBlank :: Symbol -> Bool
     isUserBlank v = case Var.typeOf v of
       Var.User name -> Text.isPrefixOf "_" name
