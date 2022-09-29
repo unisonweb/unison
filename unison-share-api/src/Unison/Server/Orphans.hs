@@ -153,9 +153,6 @@ instance ToParam (QueryParam "name" Name) where
 instance FromHttpApiData Name where
   parseQueryParam = Name.fromTextEither
 
-instance ToHttpApiData Name where
-  toQueryParam = Name.toText
-
 deriving via Int instance FromHttpApiData Width
 
 deriving via Int instance ToHttpApiData Width
@@ -246,6 +243,33 @@ instance FromJSON (HQ.HashQualified NameSegment) where
     for hqName \name -> case Name.segments name of
       (ns :| []) -> pure ns
       _ -> fail $ "Expected a single name segment but received several: " <> Text.unpack txt
+
+instance FromHttpApiData (HQ.HashQualified Name) where
+  parseQueryParam txt =
+    Text.replace "@" "#" txt
+      & HQ.fromText
+      & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name, @hash") Right
+
+instance FromHttpApiData (HQ'.HashQualified Name) where
+  parseQueryParam txt =
+    Text.replace "@" "#" txt
+      & HQ'.fromText
+      & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name") Right
+
+instance ToParamSchema (HQ.HashQualified n) where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "name@hash"
+
+instance ToParamSchema (HQ'.HashQualified n) where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "name@hash"
+
+instance ToHttpApiData Name where
+  toQueryParam = Name.toText
 
 deriving newtype instance ToSchema NameSegment
 
