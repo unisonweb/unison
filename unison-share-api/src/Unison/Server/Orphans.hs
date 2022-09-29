@@ -14,7 +14,7 @@ import Data.OpenApi
 import Data.Proxy
 import qualified Data.Text as Text
 import Servant
-import Servant.Docs (DocCapture (DocCapture), ToCapture (..))
+import Servant.Docs (DocCapture (DocCapture), DocQueryParam (..), ParamKind (..), ToCapture (..), ToParam (..))
 import U.Codebase.HashTags
 import U.Util.Hash (Hash (..))
 import qualified U.Util.Hash as Hash
@@ -65,10 +65,32 @@ instance FromJSONKey ShortHash where
         Nothing -> fail $ "Invalid Shorthash" <> Text.unpack txt
         Just sh -> pure sh
 
-deriving instance ToSchema ShortHash
-
 instance FromHttpApiData ShortBranchHash where
   parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
+
+-- | Always renders to the form: #abcdef
+instance ToHttpApiData ShortHash where
+  toQueryParam = SH.toText
+
+-- | Accepts shorthashes of any of the following forms:
+-- @abcdef
+-- @@builtin
+-- #abcdef
+-- ##builtin
+-- abcdef
+instance FromHttpApiData ShortHash where
+  parseUrlPiece txt =
+    Text.replace "@" "#" txt
+      & \t ->
+        ( if Text.isPrefixOf "#" t
+            then t
+            else ("#" <> t)
+        )
+          & SH.fromText
+          & maybe (Left "Invalid ShortBranchHash") Right
+
+instance ToSchema ShortHash where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 deriving via ShortByteString instance Binary Hash
 
@@ -96,6 +118,12 @@ instance ToSchema Name where
 
 deriving anyclass instance ToParamSchema ShortBranchHash
 
+instance ToParamSchema ShortHash where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "@abcdef"
+
 instance ToParamSchema Name where
   toParamSchema _ =
     mempty
@@ -113,6 +141,20 @@ instance ToParamSchema Path.Relative where
     mempty
       & type_ ?~ OpenApiString
       & example ?~ Aeson.String "base.List"
+
+instance ToParam (QueryParam "name" Name) where
+  toParam _ =
+    DocQueryParam
+      "name"
+      []
+      "A definition name. See API documentation to determine how it should be qualified."
+      Normal
+
+instance FromHttpApiData Name where
+  parseQueryParam = Name.fromTextEither
+
+instance ToHttpApiData Name where
+  toQueryParam = Name.toText
 
 deriving via Int instance FromHttpApiData Width
 
@@ -152,6 +194,12 @@ instance FromHttpApiData Path.Path where
     Left s -> Left (Text.pack s)
     Right (Path.RelativePath' p) -> Right (Path.unrelative p)
     Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
+
+instance ToCapture (Capture "hash" ShortHash) where
+  toCapture _ =
+    DocCapture
+      "hash"
+      "A shorthash for a term or type. E.g. @abcdef, #abcdef, @@builtin, ##builtin, abcdef"
 
 instance ToCapture (Capture "fqn" Name) where
   toCapture _ =
