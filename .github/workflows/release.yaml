@@ -250,7 +250,7 @@ jobs:
       - name: fetch latest Unison Local UI and package with ucm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Powershell, because it's the only way to do certain things.
+        # Powershell
         shell: pwsh
         run: |
           mkdir -p tmp\ui
