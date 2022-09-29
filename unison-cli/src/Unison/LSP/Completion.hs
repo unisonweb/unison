@@ -17,7 +17,6 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
@@ -48,7 +47,6 @@ completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseE
 completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
     (range, prefix) <- MaybeT $ VFS.completionPrefix (m ^. params)
-    Debug.debugM Debug.LSP "PREFIX" prefix
     ppe <- PPED.suffixifiedPPE <$> lift globalPPE
     completions <- lift getCompletions
     let defMatches = matchCompletions completions prefix
