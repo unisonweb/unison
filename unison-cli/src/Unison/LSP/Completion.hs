@@ -34,6 +34,16 @@ import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as Relation
 
+-- | TODO: move this to a configuration param.
+--
+-- 'Nothing' will load ALL available completions, which is slower, but may provide a better
+-- solution for some users.
+--
+-- 'Just n' will only fetch the first 'n' completions and will prompt the client to ask for
+-- more completions after more typing.
+completionLimit :: Maybe Int
+completionLimit = Just 100
+
 completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
 completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
@@ -41,10 +51,7 @@ completionHandler m respond =
     Debug.debugM Debug.LSP "PREFIX" prefix
     ppe <- PPED.suffixifiedPPE <$> lift globalPPE
     completions <- lift getCompletions
-    let (_pathMatches, defMatches) = matchCompletions completions prefix
-    -- let pathCompletions =
-    --       pathMatches
-    --         <&> mkPathCompletionItem range
+    let defMatches = matchCompletions completions prefix
     let (isIncomplete, defCompletions) =
           defMatches
             & nubOrdOn (\(p, _name, ref) -> (p, ref))
@@ -52,7 +59,9 @@ completionHandler m respond =
             & ( let x = Text.dropWhileEnd (== '.') prefix
                  in filter (\(path, _name, _ref) -> path /= x) -- Filter out completions that already match
               )
-            & takeCompletions 10
+            & case completionLimit of
+              Nothing -> (False,)
+              Just n -> takeCompletions n
     let defCompletionItems =
           defCompletions
             & mapMaybe \(path, fqn, dep) ->
@@ -81,7 +90,7 @@ mkDefCompletionItem range path suffixified dep =
       _deprecated = Nothing,
       _preselect = Nothing,
       -- Sort def completions after path completions
-      _sortText = Just ("1" <> path),
+      _sortText = Just ("1" <> lbl),
       _filterText = Just path,
       _insertText = Nothing,
       _insertTextFormat = Nothing,
@@ -154,7 +163,7 @@ nameToCompletionTree name ref =
       where
         mergeSubmaps = Map.unionWith (\a b -> unCompletionTree $ CompletionTree a <> CompletionTree b)
 
-matchCompletions :: CompletionTree -> Text -> ([Path], [(Path, Name, LabeledDependency)])
+matchCompletions :: CompletionTree -> Text -> [(Path, Name, LabeledDependency)]
 matchCompletions (CompletionTree tree) txt =
   matchSegments segments (Set.toList <$> tree)
   where
@@ -162,28 +171,26 @@ matchCompletions (CompletionTree tree) txt =
     segments =
       Text.splitOn "." txt
         & filter (not . Text.null)
-    matchSegments :: [Text] -> Cofree (Map NameSegment) [(Name, LabeledDependency)] -> ([Path], [(Path, Name, LabeledDependency)])
+    matchSegments :: [Text] -> Cofree (Map NameSegment) [(Name, LabeledDependency)] -> [(Path, Name, LabeledDependency)]
     matchSegments xs (currentMatches :< subtreeMap) =
       case xs of
         [] ->
           let current = currentMatches <&> (\(name, def) -> (Path.empty, name, def))
-           in ([], current <> mkDefMatches subtreeMap)
+           in (current <> mkDefMatches subtreeMap)
         [prefix] ->
           Map.dropWhileAntitone ((< prefix) . NameSegment.toText) subtreeMap
             & Map.takeWhileAntitone (Text.isPrefixOf prefix . NameSegment.toText)
             & \matchingSubtrees ->
               let subMatches = ifoldMap (\ns subTree -> matchSegments [] subTree & consPathPrefix ns) matchingSubtrees
-               in (mkPathMatches matchingSubtrees, []) <> subMatches
+               in subMatches
         (ns : rest) ->
           foldMap (matchSegments rest) (Map.lookup (NameSegment ns) subtreeMap)
             & consPathPrefix (NameSegment ns)
-    consPathPrefix :: NameSegment -> ([Path], [(Path, Name, LabeledDependency)]) -> ([Path], [(Path, Name, LabeledDependency)])
-    consPathPrefix ns = over (beside mapped (mapped . _1)) (Path.cons ns)
+    consPathPrefix :: NameSegment -> ([(Path, Name, LabeledDependency)]) -> [(Path, Name, LabeledDependency)]
+    consPathPrefix ns = over (mapped . _1) (Path.cons ns)
     mkDefMatches :: Map NameSegment (Cofree (Map NameSegment) [(Name, LabeledDependency)]) -> [(Path, Name, LabeledDependency)]
     mkDefMatches xs = do
       (ns, (matches :< rest)) <- Map.toList xs
       let childMatches = mkDefMatches rest <&> over _1 (Path.cons ns)
       let currentMatches = matches <&> \(name, dep) -> (Path.singleton ns, name, dep)
       currentMatches <> childMatches
-    mkPathMatches :: Map NameSegment a -> [Path]
-    mkPathMatches subtree = Path.singleton <$> Map.keys subtree
