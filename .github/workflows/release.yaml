@@ -248,13 +248,18 @@ jobs:
           done
 
       - name: fetch latest Unison Local UI and package with ucm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Powershell
+        shell: pwsh
         run: |
-          mkdir -p /tmp/ucm/ui
-          UCM="$(stack path | awk '/local-install-root/{print $2}')/bin/unison"
-          cp "$UCM" /tmp/ucm/ucm
-          wget -O /tmp/unisonLocal.zip https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
-          tar.exe -xf /tmp/unisonLocal.zip --directory /tmp/ucm/ui
-          tar.exe -a -c -f ucm-windows.zip /tmp/ucm
+          mkdir -p tmp\ui
+          mkdir -p release\ui
+          $UCM = .\stack\stack-2.7.5-windows-x86_64\stack.exe exec -- where unison
+          cp $UCM .\release\ucm.exe
+          Invoke-WebRequest -Uri https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
+          Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui
+          Compress-Archive -Path .\release\* -DestinationPath ucm-windows.zip
 
       - name: Upload windows artifact
         uses: actions/upload-artifact@v2
