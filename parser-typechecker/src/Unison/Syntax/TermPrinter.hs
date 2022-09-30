@@ -717,6 +717,14 @@ printCase env im doc ms0 = PP.lines $ alignGrid grid
             pretty0 env (ac 2 Normal im doc) g
         printBody b = let (im', uses) = calcImports im b in goBody im' uses b
 
+-- prettyWatch ::
+--   WatchKind ->
+--   PrettyPrintEnv ->
+--   HQ.HashQualified Name ->
+--   Term2 v at ap v a ->
+--   Pretty SyntaxText
+-- prettyWatch = _
+
 {- Render a binding, producing output of the form
 
 foo : t -> u

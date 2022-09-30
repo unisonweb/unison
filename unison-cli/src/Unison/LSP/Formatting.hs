@@ -22,11 +22,15 @@ import qualified Unison.Parser.Ann as Ann
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Reference as Reference
+import qualified Unison.Symbol as Symbol
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.TermPrinter as TermPrinter
+import qualified Unison.Term as Term
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as Pretty
+import qualified Unison.Var as Var
+import Unison.WatchKind (pattern TestWatch)
 
 formatDocRequest :: RequestMessage 'TextDocumentFormatting -> (Either ResponseError (List TextEdit) -> Lsp ()) -> Lsp ()
 formatDocRequest m respond = do
@@ -40,9 +44,16 @@ formatDefs fileUri =
     <$> runMaybeT do
       cwd <- lift getCurrentPath
       FileAnalysis {typecheckedFile, parsedFile, lexedSource = (src, _)} <- getFileAnalysis fileUri
-      (datas, effects, terms) <- case (typecheckedFile, parsedFile) of
-        (Just (UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId}), _) -> pure (dataDeclarationsId', effectDeclarationsId', hashTermsId ^@.. ifolded <. _3)
-        (_, Just (UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches})) -> pure (dataDeclarationsId, effectDeclarationsId, terms <> fold watches)
+      (datas, effects, termsAndWatches) <- case (typecheckedFile, parsedFile) of
+        (Just (UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId}), _) -> do
+          let termsWithWatchKind =
+                Map.toList hashTermsId
+                  <&> \(sym, (_id, wk, tm, _typ)) -> (sym, tm, wk)
+          pure (dataDeclarationsId', effectDeclarationsId', termsWithWatchKind)
+        (_, Just (UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches})) -> do
+          let termsWithKind = terms <&> \(sym, trm) -> (sym, trm, Nothing)
+          let watchesWithKind = watches & ifoldMap \wk exprs -> exprs <&> \(sym, trm) -> (sym, trm, Just wk)
+          pure (dataDeclarationsId, effectDeclarationsId, termsWithKind <> watchesWithKind)
         (Nothing, Nothing) -> empty
       filePPED <- ppedForFile fileUri
       let decls = Map.toList (fmap Right <$> datas) <> Map.toList (fmap Left <$> effects)
@@ -52,8 +63,10 @@ formatDefs fileUri =
         let declName = Name.fromSegments declNameSegments
         let hqName = HQ.fromName symName
         let biasedPPED = PPED.biasTo [declName] filePPED
-        pure $ (either (Decl.annotation . Decl.toDataDecl) (Decl.annotation) decl, DeclPrinter.prettyDecl biasedPPED (Reference.DerivedId ref) hqName decl)
-      formattedTerms <- for terms \(sym, trm) -> do
+        pure $
+          (either (Decl.annotation . Decl.toDataDecl) (Decl.annotation) decl, DeclPrinter.prettyDecl biasedPPED (Reference.DerivedId ref) hqName decl)
+            & over _2 Pretty.syntaxToColor
+      formattedTerms <- for termsAndWatches \(sym, trm, wk) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute cwd)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments
@@ -61,7 +74,13 @@ formatDefs fileUri =
         let biasedPPED = PPED.biasTo [defName] filePPED
         -- We use unsuffixified here in an attempt to keep names within the file the same
         let biasedPPE = PPED.suffixifiedPPE biasedPPED
-        let formatted = TermPrinter.prettyBinding biasedPPE hqName trm
+        let formattedTm = case sym of
+              Symbol.Symbol _ (Var.User {}) -> Pretty.syntaxToColor $ TermPrinter.prettyBinding biasedPPE hqName (stripTypeAnnotation trm)
+              _ -> TermPrinter.pretty biasedPPE (stripTypeAnnotation trm)
+        let formatted = case wk of
+              Nothing -> Pretty.syntaxToColor $ TermPrinter.prettyBinding biasedPPE hqName trm
+              Just TestWatch -> "test> " <> formattedTm
+              Just _ -> "> " <> formattedTm
         pure (ABT.annotation trm, formatted)
 
       -- Only keep definitions which are _actually_ in the file, skipping generated accessors
@@ -81,6 +100,12 @@ formatDefs fileUri =
       Config {formattingWidth} <- lift getConfig
       filteredDefs
         & List.sortOn fst -- Sort defs in the order they were parsed.
-        & Monoid.intercalateMap "\n\n" (Pretty.toPlain (Pretty.Width formattingWidth) . Pretty.syntaxToColor . snd)
+        & Monoid.intercalateMap "\n\n" (Pretty.toPlain (Pretty.Width formattingWidth) . snd)
         & (\txt -> [TextEdit defsRange (Text.pack txt)])
         & pure
+  where
+    stripTypeAnnotation ::
+      (Term.Term v a) -> (Term.Term v a)
+    stripTypeAnnotation = \case
+      Term.Ann' tm _annotation -> tm
+      x -> x
