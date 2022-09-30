@@ -248,9 +248,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getTypeOfTermImpl id =
               runTransaction (CodebaseOps.getTypeOfTermImpl id)
 
-            getTermComponentWithTypes :: Hash -> m (Maybe [(Term Symbol Ann, Type Symbol Ann)])
-            getTermComponentWithTypes h =
-              runTransaction (CodebaseOps.getTermComponentWithTypes getDeclType h)
+            getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
+            getTermComponentWithTypes =
+              CodebaseOps.getTermComponentWithTypes getDeclType
 
             getTypeDeclaration :: Reference.Id -> m (Maybe (Decl Symbol Ann))
             getTypeDeclaration id =

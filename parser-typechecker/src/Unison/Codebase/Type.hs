@@ -76,7 +76,7 @@ data Codebase m v a = Codebase
     -- choose to delay the put until all of the type declaration's references are stored as well.
     putTypeDeclaration :: Reference.Id -> Decl v a -> m (),
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
-    getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)]),
+    getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
     getDeclComponent :: Hash -> m (Maybe [Decl v a]),
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
     -- | Get the root causal Hash.
