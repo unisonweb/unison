@@ -39,10 +39,13 @@ formatDefs fileUri =
   fromMaybe []
     <$> runMaybeT do
       cwd <- lift getCurrentPath
-      FileAnalysis {typecheckedFile, lexedSource = (src, _)} <- getFileAnalysis fileUri
-      UF.TypecheckedUnisonFileId {hashTermsId, dataDeclarationsId', effectDeclarationsId'} <- hoistMaybe typecheckedFile
+      FileAnalysis {typecheckedFile, parsedFile, lexedSource = (src, _)} <- getFileAnalysis fileUri
+      (datas, effects, terms) <- case (typecheckedFile, parsedFile) of
+        (Just (UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId}), _) -> pure (dataDeclarationsId', effectDeclarationsId', hashTermsId ^@.. ifolded <. _3)
+        (_, Just (UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches})) -> pure (dataDeclarationsId, effectDeclarationsId, terms <> fold watches)
+        (Nothing, Nothing) -> empty
       filePPED <- ppedForFile fileUri
-      let decls = Map.toList (fmap Right <$> dataDeclarationsId') <> Map.toList (fmap Left <$> effectDeclarationsId')
+      let decls = Map.toList (fmap Right <$> datas) <> Map.toList (fmap Left <$> effects)
       formattedDecls <- for decls \(sym, (ref, decl)) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let declNameSegments = NEL.appendr (Path.toList (Path.unabsolute cwd)) (Name.segments symName)
@@ -50,7 +53,7 @@ formatDefs fileUri =
         let hqName = HQ.fromName symName
         let biasedPPED = PPED.biasTo [declName] filePPED
         pure $ (either (Decl.annotation . Decl.toDataDecl) (Decl.annotation) decl, DeclPrinter.prettyDecl biasedPPED (Reference.DerivedId ref) hqName decl)
-      formattedTerms <- for (Map.toList hashTermsId) \(sym, (_ref, _wk, trm, _typ)) -> do
+      formattedTerms <- for terms \(sym, trm) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute cwd)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments
@@ -60,20 +63,18 @@ formatDefs fileUri =
         let biasedPPE = PPED.suffixifiedPPE biasedPPED
         let formatted = TermPrinter.prettyBinding biasedPPE hqName trm
         pure (ABT.annotation trm, formatted)
-      let allDefs =
-            (formattedTerms <> formattedDecls)
 
       -- Only keep definitions which are _actually_ in the file, skipping generated accessors
       -- and such.
       let filteredDefs =
-            allDefs
+            (formattedTerms <> formattedDecls)
               & filter
                 ( \(ann, _) -> case ann of
                     Ann.Ann {} -> True
                     _ -> False
                 )
       defsRange <- hoistMaybe $
-        case foldMap fst allDefs of
+        case foldMap fst filteredDefs of
           Ann.Ann _ end -> annToRange (Ann.Ann mempty end)
           _ -> annToRange $ Ann.Ann mempty (L.Pos (succ . Prelude.length . Text.lines $ src) 0)
       when (null filteredDefs) empty {- Don't format if we have no definitions or it wipes out the fold! -}

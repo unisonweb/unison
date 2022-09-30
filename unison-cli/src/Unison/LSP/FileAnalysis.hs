@@ -294,16 +294,32 @@ getFileAnalysis uri = do
   atomically (readTMVar tmvar)
 
 -- | Build a Names from a file if it's parseable.
+--
+-- If the file typechecks, generate names from that,
+-- otherwise, generate names from the 'parsed' file. Note that the
+-- names for a parsed file contains only names for parts of decls, since
+-- we don't know references within terms before typechecking due to TDNR.
+-- This should be fine though, since those references will all be kept in the
+-- ABT as symbols anyways.
+--
+-- See UF.toNames and UF.typecheckedToNames for more info.
 getFileNames :: Uri -> MaybeT Lsp Names
 getFileNames fileUri = do
-  FileAnalysis {typecheckedFile = tf} <- getFileAnalysis fileUri
-  hoistMaybe (UF.typecheckedToNames <$> tf)
+  FileAnalysis {typecheckedFile = tf, parsedFile = pf} <- getFileAnalysis fileUri
+  hoistMaybe (fmap UF.typecheckedToNames tf <|> fmap UF.toNames pf)
 
--- | Build a PPE which uses names from a given file, falls back to the global PPE.
+-- | Build a PPE which uses names from a given file.
 --
--- Note that currently we can only properly generate names if the file typechecks.
--- Otherwise this will return Nothing
--- TODO memoize per file
+-- If the file typechecks, generate the ppe from that,
+-- otherwise, generate the ppe from the 'parsed' file. Note that the
+-- ppe for a parsed file contains only names for parts of decls, since
+-- we don't know references within terms before typechecking due to TDNR.
+-- This should be fine though, since those references will all be kept in the
+-- ABT as symbols anyways.
+--
+-- See UF.toNames and UF.typecheckedToNames for more info.
+--
+-- The PPE contains a fallback for global names.
 ppedForFile :: Uri -> MaybeT Lsp PPED.PrettyPrintEnvDecl
 ppedForFile fileUri = do
   fileNames <- getFileNames fileUri
