@@ -50,6 +50,10 @@ formatDefs fileUri =
                   <&> \(sym, (_id, wk, tm, _typ)) -> (sym, tm, wk)
           pure (dataDeclarationsId', effectDeclarationsId', termsWithWatchKind)
         (_, Just (UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches})) -> do
+          -- Currently we can't correctly print Record types without a successful typecheck, so we just bail on printing
+          -- entirely if a record might be present.
+          -- We also can't easily determine whether a given type is actually a record.
+          when (not . null $ dataDeclarationsId) empty
           let termsWithKind = terms <&> \(sym, trm) -> (sym, trm, Nothing)
           let watchesWithKind = watches & ifoldMap \wk exprs -> exprs <&> \(sym, trm) -> (sym, trm, Just wk)
           pure (dataDeclarationsId, effectDeclarationsId, termsWithKind <> watchesWithKind)
