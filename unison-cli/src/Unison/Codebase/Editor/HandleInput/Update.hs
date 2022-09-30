@@ -319,86 +319,77 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
     --   #wham          => (<#pingpong.pong + 3>, "wham")
     implicitTerms :: Map TermReferenceId (Term Symbol Ann, Symbol) <-
       liftIO do
-        -- Map each old hash to the set of direct dependencies of its associated new hash, minus the old hash itself.
-        --
-        -- Running example:
-        --
-        --   #pingpong => { #wham }
-        --                ^^^^^^^^^
-        --                Set of direct dependencies of #newping, less #pingpong
-        let items :: Map Hash (Set Hash)
-            items =
-              foldMap f updatedNameToRefs
-              where
-                f :: (Set Reference, TermReferenceId, Term Symbol Ann) -> Map Hash (Set Hash)
-                f (oldRefs, _interimRef, interimTerm) =
-                  oldRefs
-                    & Set.mapMaybe Reference.toHash
-                    & Map.fromSet \oldHash ->
-                      interimTerm
-                        & Term.termDependencies
-                        & Set.mapMaybe Reference.toHash
-                        & Set.delete oldHash
+        Codebase.withConnection codebase \conn ->
+          Sqlite.runTransaction conn do
+            -- Running example:
+            --
+            --   { #pingpong }
+            let oldHashes :: Set Hash
+                oldHashes =
+                  updatedNameToRefs & foldMap \(oldRefs, _interimRef, _interimTerm) ->
+                    Set.mapMaybe Reference.toHash oldRefs
 
-        let hashToImplicitTerms :: Hash -> IO (Map TermReferenceId (Term Symbol Ann, Symbol))
-            hashToImplicitTerms hash = do
-              -- Running example (for `oldHash` iteration):
-              --
-              --   [ (<#pingpong.pong + 1>, <Nat>),
-              --     (<#pingpong.ping + 2>, <Nat>)
-              --   ]
-              terms <- Codebase.unsafeGetTermComponent codebase hash
-              let keep :: TermReferenceId -> Maybe Symbol
-                  keep ref =
-                    if notBeingUpdated names
-                      then Foldable.find nameIsUnconflicted names -- (E)
-                      else Nothing
-                    where
-                      -- (D) After getting the entire component of `oldHash`, which has at least one member being
-                      -- updated, we want to keep only the members that are *not* being updated (i.e. those who have no
-                      -- name that is being updated).
-                      --
-                      -- Running example, first time through (processing #pingpong.ping):
-                      --
-                      --   Set.disjoint { "ping" } { "ping" } is false, so don't add to the map.
-                      --
-                      -- Running example, second time through (processing #pingpong.pong):
-                      --
-                      --   Set.disjoint { "ping" } { "pong" } is true, so add
-                      --   #pingpong.pong => (<#pingpong.ping + 2>, { "pong" })) to the map.
-                      notBeingUpdated = Set.disjoint namesBeingUpdated
-                      nameIsUnconflicted name = Set.size (nameToTermRefs name) == 1
-                      names = termRefToNames ref
-              pure $
-                terms
-                  -- Running example:
+            let hashToImplicitTerms :: Hash -> Sqlite.Transaction (Map TermReferenceId (Term Symbol Ann, Symbol))
+                hashToImplicitTerms hash = do
+                  -- Running example (for `oldHash` iteration):
                   --
-                  --   [ (#pingpong.ping, (<#pingpong.pong + 1>, <Nat>)),
-                  --     (#pingpong.pong, (<#pingpong.ping + 2>, <Nat>))
+                  --   [ (<#pingpong.pong + 1>, <Nat>),
+                  --     (<#pingpong.ping + 2>, <Nat>)
                   --   ]
-                  & Reference.componentFor hash
-                  & List.foldl'
-                    ( \acc (ref, (term, _typ)) ->
-                        case keep ref of
-                          Nothing -> acc
-                          Just name -> Map.insert ref (term, name) acc
-                    )
-                    Map.empty
+                  terms <- undefined -- Codebase.unsafeGetTermComponent codebase hash
+                  let keep :: TermReferenceId -> Maybe Symbol
+                      keep ref =
+                        if notBeingUpdated names
+                          then Foldable.find nameIsUnconflicted names -- (E)
+                          else Nothing
+                        where
+                          -- (D) After getting the entire component of `oldHash`, which has at least one member being
+                          -- updated, we want to keep only the members that are *not* being updated (i.e. those who have
+                          -- no name that is being updated).
+                          --
+                          -- Running example, first time through (processing #pingpong.ping):
+                          --
+                          --   Set.disjoint { "ping" } { "ping" } is false, so don't add to the map.
+                          --
+                          -- Running example, second time through (processing #pingpong.pong):
+                          --
+                          --   Set.disjoint { "ping" } { "pong" } is true, so add
+                          --   #pingpong.pong => (<#pingpong.ping + 2>, { "pong" })) to the map.
+                          notBeingUpdated = Set.disjoint namesBeingUpdated
+                          nameIsUnconflicted name = Set.size (nameToTermRefs name) == 1
+                          names = termRefToNames ref
+                  pure $
+                    terms
+                      -- Running example:
+                      --
+                      --   [ (#pingpong.ping, (<#pingpong.pong + 1>, <Nat>)),
+                      --     (#pingpong.pong, (<#pingpong.ping + 2>, <Nat>))
+                      --   ]
+                      & Reference.componentFor hash
+                      & List.foldl'
+                        ( \acc (ref, (term, _typ)) ->
+                            case keep ref of
+                              Nothing -> acc
+                              Just name -> Map.insert ref (term, name) acc
+                        )
+                        Map.empty
 
-        Map.toList items & foldMapM \(oldHash, interimTermDependencies) -> do
-          hashes <-
-            Codebase.withConnection codebase \conn ->
-              Sqlite.runTransaction conn do
+            oldHashes & foldMapM \oldHash -> do
+              hashes <-
                 Queries.loadObjectIdForAnyHash oldHash >>= \case
                   Nothing -> pure Set.empty
                   Just oldOid ->
-                    interimTermDependencies & foldMapM \dependencyHash -> do
-                      Queries.loadObjectIdForAnyHash dependencyHash >>= \case
-                        Nothing -> pure Set.empty
-                        Just dependencyOid -> do
-                          betweenOids <- Queries.getDependenciesBetweenTerms dependencyOid oldOid
-                          Set.insert dependencyHash <$> Set.traverse Queries.expectPrimaryHashByObjectId betweenOids
-          foldMapM hashToImplicitTerms (oldHash : Set.toList hashes)
+                    -- FIXME in a rolled-back savepoint (or with this transaction ultimately rolled back), insert
+                    -- dependency rows for every term in the file (slurped)
+                    let interimTermDependencies :: Set Hash
+                        interimTermDependencies = undefined
+                     in interimTermDependencies & foldMapM \dependencyHash -> do
+                          Queries.loadObjectIdForAnyHash dependencyHash >>= \case
+                            Nothing -> pure Set.empty
+                            Just dependencyOid -> do
+                              betweenOids <- Queries.getDependenciesBetweenTerms dependencyOid oldOid
+                              Set.insert dependencyHash <$> Set.traverse Queries.expectPrimaryHashByObjectId betweenOids
+              foldMapM hashToImplicitTerms (oldHash : Set.toList hashes)
     if Map.null implicitTerms
       then pure slurp0
       else do
