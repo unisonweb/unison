@@ -30,7 +30,6 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Var as Var
-import Unison.WatchKind (pattern TestWatch)
 
 formatDocRequest :: RequestMessage 'TextDocumentFormatting -> (Either ResponseError (List TextEdit) -> Lsp ()) -> Lsp ()
 formatDocRequest m respond = do
@@ -79,8 +78,7 @@ formatDefs fileUri =
               _ -> TermPrinter.pretty biasedPPE (stripTypeAnnotation trm)
         let formatted = case wk of
               Nothing -> Pretty.syntaxToColor $ TermPrinter.prettyBinding biasedPPE hqName trm
-              Just TestWatch -> "test> " <> formattedTm
-              Just _ -> "> " <> formattedTm
+              Just wk -> Pretty.string wk <> "> " <> formattedTm
         pure (ABT.annotation trm, formatted)
 
       -- Only keep definitions which are _actually_ in the file, skipping generated accessors
