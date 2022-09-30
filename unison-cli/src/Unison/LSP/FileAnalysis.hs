@@ -24,7 +24,6 @@ import qualified Unison.ABT as ABT
 import Unison.Cli.TypeCheck (typecheckHelper)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
-import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified' as HQ'
@@ -46,15 +45,12 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.PrintError as PrintError
-import Unison.Reference (Reference)
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
-import Unison.Term (Term)
-import qualified Unison.Term as Term
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeError as TypeError
 import qualified Unison.UnisonFile as UF
