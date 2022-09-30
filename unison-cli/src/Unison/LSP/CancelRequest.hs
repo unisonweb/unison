@@ -19,5 +19,5 @@ cancelRequestHandler m = do
   let reqId' = case m ^. params of
         CancelParams id' -> SomeLspId id'
   case Map.lookup reqId' cancelMap of
-    Just cancel -> liftIO $ cancel
+    Just cancel -> liftIO cancel
     Nothing -> pure ()

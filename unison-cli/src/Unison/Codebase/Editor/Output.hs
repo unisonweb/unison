@@ -183,7 +183,7 @@ data Output
       -- list of all the definitions within this branch
   | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
-  | ListShallow PPE.PrettyPrintEnv [ShallowListEntry Symbol Ann]
+  | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
   | -- show the result of add/update
     SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult Symbol)
