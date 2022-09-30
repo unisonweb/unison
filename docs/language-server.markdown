@@ -34,7 +34,10 @@ Supported settings and their defaults. See information for your language server 
 ```json
 {
   // A suggestion for the formatter about how wide (in columns) to print definitions.
-  "formattingWidth": 80
+  "formattingWidth": 80,
+  // Whether the formatter should rewrite your names for you, typically reducing them to their smallest unambiguous suffix,
+  // and introducing 'use' statements when necessary for disambiguoation.
+  "rewriteNamesOnFormat": true
 }
 ```
 

@@ -102,13 +102,15 @@ getParseNames :: Lsp NamesWithHistory
 getParseNames = asks parseNamesCache >>= liftIO
 
 data Config = Config
-  { formattingWidth :: Int
+  { formattingWidth :: Int,
+    rewriteNamesOnFormat :: Bool
   }
   deriving stock (Show)
 
 instance Aeson.FromJSON Config where
   parseJSON = Aeson.withObject "Config" \obj -> do
     formattingWidth <- obj Aeson..:? "formattingWidth" Aeson..!= formattingWidth defaultLSPConfig
+    rewriteNamesOnFormat <- obj Aeson..:? "rewriteNamesOnFormat" Aeson..!= rewriteNamesOnFormat defaultLSPConfig
     let invalidKeys = Set.fromList (HM.keys obj) `Set.difference` validKeys
     when (not . null $ invalidKeys) do
       fail . Text.unpack $
@@ -123,15 +125,17 @@ instance Aeson.FromJSON Config where
         BSC.unpack $ Aeson.encode defaultLSPConfig
 
 instance Aeson.ToJSON Config where
-  toJSON (Config formattingWidth) =
+  toJSON (Config formattingWidth rewriteNamesOnFormat) =
     Aeson.object
-      [ "formattingWidth" Aeson..= formattingWidth
+      [ "formattingWidth" Aeson..= formattingWidth,
+        "rewriteNamesOnFormat" Aeson..= rewriteNamesOnFormat
       ]
 
 defaultLSPConfig :: Config
 defaultLSPConfig = Config {..}
   where
     formattingWidth = 80
+    rewriteNamesOnFormat = True
 
 -- | Lift a backend computation into the Lsp monad.
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
