@@ -336,7 +336,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                   --   [ (<#pingpong.pong + 1>, <Nat>),
                   --     (<#pingpong.ping + 2>, <Nat>)
                   --   ]
-                  terms <- undefined -- Codebase.unsafeGetTermComponent codebase hash
+                  terms <- Codebase.unsafeGetTermComponent codebase hash
                   let keep :: TermReferenceId -> Maybe Symbol
                       keep ref =
                         if notBeingUpdated names
@@ -390,6 +390,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                               betweenOids <- Queries.getDependenciesBetweenTerms dependencyOid oldOid
                               Set.insert dependencyHash <$> Set.traverse Queries.expectPrimaryHashByObjectId betweenOids
               foldMapM hashToImplicitTerms (oldHash : Set.toList hashes)
+
     if Map.null implicitTerms
       then pure slurp0
       else do

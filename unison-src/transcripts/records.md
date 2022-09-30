@@ -68,3 +68,14 @@ unique type Record4 =
 ```ucm
 .> view Record4
 ```
+
+## Syntax
+
+Trailing commas are allowed.
+
+```unison
+unique type Record5 = 
+  { a : Text, 
+    b : Int,
+  }
+```

@@ -184,16 +184,16 @@ getShallowCausalFromRoot codebase mayRootHash p = do
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
+getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
+getShallowRootBranch codebase = do
+  getShallowRootCausal codebase >>= V2Causal.value
+
+-- | Get the shallow representation of the root branches without loading the children or
+-- history.
 getShallowRootCausal :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
 getShallowRootCausal codebase = do
   hash <- getRootCausalHash codebase
   getShallowCausalForHash codebase hash
-
--- | Get the shallow representation of the root branches without loading the children or
--- history.
-getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
-getShallowRootBranch codebase = do
-  getShallowRootCausal codebase >>= V2Causal.value
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
@@ -526,11 +526,11 @@ unsafeGetTermWithType codebase rid = do
 
 -- | Like 'getTermComponentWithTypes', for when the term component is known to exist in the codebase.
 unsafeGetTermComponent ::
-  (HasCallStack, Monad m) =>
+  HasCallStack =>
   Codebase m v a ->
   Hash ->
-  m [(Term v a, Type v a)]
+  Sqlite.Transaction [(Term v a, Type v a)]
 unsafeGetTermComponent codebase hash =
-  getTermComponentWithTypes codebase hash >>= \case
+  getTermComponentWithTypes codebase hash <&> \case
     Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
-    Just terms -> pure terms
+    Just terms -> terms
