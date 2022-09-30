@@ -1099,14 +1099,6 @@ inBx arg result cont instr =
     . TAbs arg
     $ TLetD result UN (TFOp instr [arg]) cont
 
--- Bool -> ...
--- inBool :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
--- inBool arg nat result cont instr =
---   ([BX],)
---     . TAbs arg
---     . unbox arg Ty.booleanRef nat
---     $ TLetD result UN (TFOp instr [nat]) cont
-
 -- Nat -> ...
 inNat :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inNat arg nat result cont instr =
