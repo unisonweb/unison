@@ -49,7 +49,7 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
     watchComponents :: [(WatchKind, [(v, Term v a, Type v a)])],
     hashTermsId :: Map v (Reference.Id, Maybe WatchKind, Term v a, Type v a)
   }
-  deriving (Show)
+  deriving stock (Generic, Show)
 
 {-# COMPLETE TypecheckedUnisonFile #-}
 

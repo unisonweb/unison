@@ -21,8 +21,8 @@ import Language.LSP.Types
   )
 import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
 import qualified Unison.ABT as ABT
+import Unison.Cli.TypeCheck (typecheckHelper)
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Editor.HandleInput (typecheckHelper)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug

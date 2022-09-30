@@ -26,8 +26,8 @@ module Unison.CommandLine
 where
 
 import Control.Concurrent (forkIO, killThread)
-import Control.Concurrent.STM (atomically)
 import Control.Lens (ifor)
+import Control.Monad.Trans.Except
 import Data.Configurator (autoConfig, autoReload)
 import qualified Data.Configurator as Config
 import Data.Configurator.Types (Config, Worth (..))
@@ -47,8 +47,8 @@ import qualified Unison.CommandLine.InputPattern as InputPattern
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
-import Unison.Util.TQueue (TQueue)
 import qualified Unison.Util.TQueue as Q
+import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
 
 disableWatchConfig :: Bool
@@ -68,7 +68,7 @@ watchConfig path =
       (config, t) <- autoReload autoConfig [Optional path]
       pure (config, killThread t)
 
-watchFileSystem :: TQueue Event -> FilePath -> IO (IO ())
+watchFileSystem :: Q.TQueue Event -> FilePath -> IO (IO ())
 watchFileSystem q dir = do
   (cancel, watcher) <- Watch.watchDirectory dir allow
   t <- forkIO . forever $ do
@@ -107,8 +107,7 @@ nothingTodo :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 nothingTodo = emojiNote "😶"
 
 parseInput ::
-  -- | Root branch, used to expand globs
-  Branch0 m ->
+  IO (Branch0 m) ->
   -- | Current path from root, used to expand globs
   Path.Absolute ->
   -- | Numbered arguments
@@ -117,26 +116,30 @@ parseInput ::
   Map String InputPattern ->
   -- | command:arguments
   [String] ->
-  Either (P.Pretty CT.ColorText) Input
-parseInput rootBranch currentPath numberedArgs patterns segments = do
+  IO (Either (P.Pretty CT.ColorText) Input)
+parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
   case segments of
-    [] -> Left ""
+    [] -> throwE ""
     command : args -> case Map.lookup command patterns of
       Just pat@(InputPattern {parse}) -> do
         let expandedNumbers :: [String]
             expandedNumbers = foldMap (expandNumber numberedArgs) args
         expandedGlobs <- ifor expandedNumbers $ \i arg -> do
-          let targets = case InputPattern.argType pat i of
-                Just argT -> InputPattern.globTargets argT
-                Nothing -> mempty
-          case Globbing.expandGlobs targets rootBranch currentPath arg of
-            -- No globs encountered
-            Nothing -> pure [arg]
-            Just [] -> Left $ "No matches for: " <> fromString arg
-            Just matches -> pure matches
-        parse (concat expandedGlobs)
+          if Globbing.containsGlob arg
+            then do
+              rootBranch <- liftIO getRoot
+              let targets = case InputPattern.argType pat i of
+                    Just argT -> InputPattern.globTargets argT
+                    Nothing -> mempty
+              case Globbing.expandGlobs targets rootBranch currentPath arg of
+                -- No globs encountered
+                Nothing -> pure [arg]
+                Just [] -> throwE $ "No matches for: " <> fromString arg
+                Just matches -> pure matches
+            else pure [arg]
+        except $ parse (concat expandedGlobs)
       Nothing ->
-        Left
+        throwE
           . warn
           . P.wrap
           $ "I don't know how to "

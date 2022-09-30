@@ -10,6 +10,9 @@ module Unison.Codebase.Editor.SlurpResult
     isAllDuplicates,
     hasAddsOrUpdates,
 
+    -- ** Filtering a Unison file
+    filterUnisonFile,
+
     -- ** Pretty-printing
     pretty,
 
@@ -19,6 +22,8 @@ module Unison.Codebase.Editor.SlurpResult
   )
 where
 
+import Data.Bifunctor (second)
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
@@ -320,3 +325,29 @@ isAllDuplicates SlurpResult {..} =
     emptyIgnoringConstructors :: SlurpComponent v -> Bool
     emptyIgnoringConstructors SlurpComponent {types, terms} =
       null types && null terms
+
+filterUnisonFile ::
+  Ord v =>
+  SlurpResult v ->
+  UF.TypecheckedUnisonFile v Ann ->
+  UF.TypecheckedUnisonFile v Ann
+filterUnisonFile
+  SlurpResult {adds, updates}
+  ( UF.TypecheckedUnisonFileId
+      dataDeclarations'
+      effectDeclarations'
+      topLevelComponents'
+      watchComponents
+      hashTerms
+    ) =
+    UF.TypecheckedUnisonFileId datas effects tlcs watches hashTerms'
+    where
+      keep = updates <> adds
+      keepTerms = SC.terms keep
+      keepTypes = SC.types keep
+      hashTerms' = Map.restrictKeys hashTerms keepTerms
+      datas = Map.restrictKeys dataDeclarations' keepTypes
+      effects = Map.restrictKeys effectDeclarations' keepTypes
+      tlcs = filter (not . null) $ fmap (List.filter filterTLC) topLevelComponents'
+      watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
+      filterTLC (v, _, _) = Set.member v keepTerms

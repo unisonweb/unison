@@ -36,6 +36,7 @@ module Unison.Reference
     toId,
     fromId,
     toText,
+    idToText,
     unsafeId,
     toShortHash,
     idToHash,
@@ -142,6 +143,9 @@ isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
 
 toText :: Reference -> Text
 toText = SH.toText . toShortHash
+
+idToText :: Id -> Text
+idToText = toText . DerivedId
 
 showShort :: Int -> Reference -> Text
 showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash

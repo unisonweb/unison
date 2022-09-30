@@ -90,6 +90,9 @@ data NamespaceListing = NamespaceListing
 instance ToJSON NamespaceListing where
   toEncoding = genericToEncoding defaultOptions
 
+instance FromJSON NamespaceListing where
+  parseJSON = genericParseJSON defaultOptions
+
 deriving instance ToSchema NamespaceListing
 
 data NamespaceObject
@@ -101,6 +104,9 @@ data NamespaceObject
 
 instance ToJSON NamespaceObject where
   toEncoding = genericToEncoding defaultOptions
+
+instance FromJSON NamespaceObject where
+  parseJSON = genericParseJSON defaultOptions
 
 deriving instance ToSchema NamespaceObject
 
@@ -114,6 +120,9 @@ data NamedNamespace = NamedNamespace
 instance ToJSON NamedNamespace where
   toEncoding = genericToEncoding defaultOptions
 
+instance FromJSON NamedNamespace where
+  parseJSON = genericParseJSON defaultOptions
+
 deriving instance ToSchema NamedNamespace
 
 newtype NamedPatch = NamedPatch {patchName :: HashQualifiedName}
@@ -122,6 +131,9 @@ newtype NamedPatch = NamedPatch {patchName :: HashQualifiedName}
 
 instance ToJSON NamedPatch where
   toEncoding = genericToEncoding defaultOptions
+
+instance FromJSON NamedPatch where
+  parseJSON = genericParseJSON defaultOptions
 
 newtype KindExpression = KindExpression {kindExpressionText :: Text}
   deriving stock (Generic, Show)

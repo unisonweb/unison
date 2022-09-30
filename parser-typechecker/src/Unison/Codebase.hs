@@ -6,6 +6,7 @@ module Unison.Codebase
     unsafeGetTerm,
     unsafeGetTermWithType,
     getTermComponentWithTypes,
+    unsafeGetTermComponent,
     getTypeOfTerm,
     getDeclType,
     unsafeGetTypeOfTermById,
@@ -183,16 +184,16 @@ getShallowCausalFromRoot codebase mayRootHash p = do
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
+getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
+getShallowRootBranch codebase = do
+  getShallowRootCausal codebase >>= V2Causal.value
+
+-- | Get the shallow representation of the root branches without loading the children or
+-- history.
 getShallowRootCausal :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
 getShallowRootCausal codebase = do
   hash <- getRootCausalHash codebase
   getShallowCausalForHash codebase hash
-
--- | Get the shallow representation of the root branches without loading the children or
--- history.
-getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
-getShallowRootBranch codebase = do
-  getShallowRootCausal codebase >>= V2Causal.value
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
@@ -305,15 +306,15 @@ addDefsToCodebase c uf = do
     goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
-getTypeOfConstructor ::
-  (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
-getTypeOfConstructor codebase (ConstructorReference (Reference.DerivedId r) cid) = do
-  maybeDecl <- getTypeDeclaration codebase r
-  pure $ case maybeDecl of
-    Nothing -> Nothing
-    Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-getTypeOfConstructor _ r =
-  error $ "Don't know how to getTypeOfConstructor " ++ show r
+getTypeOfConstructor :: (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
+getTypeOfConstructor codebase (ConstructorReference r0 cid) =
+  case r0 of
+    Reference.DerivedId r -> do
+      maybeDecl <- getTypeDeclaration codebase r
+      pure $ case maybeDecl of
+        Nothing -> Nothing
+        Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
+    Reference.Builtin _ -> error (reportBug "924628772" "Attempt to load a type declaration which is a builtin!")
 
 -- | Like 'getWatch', but first looks up the given reference as a regular watch, then as a test watch.
 --
@@ -522,3 +523,14 @@ unsafeGetTermWithType codebase rid = do
       Term.Ann' _ ty -> pure ty
       _ -> unsafeGetTypeOfTermById codebase rid
   pure (term, ty)
+
+-- | Like 'getTermComponentWithTypes', for when the term component is known to exist in the codebase.
+unsafeGetTermComponent ::
+  (HasCallStack, Monad m) =>
+  Codebase m v a ->
+  Hash ->
+  m [(Term v a, Type v a)]
+unsafeGetTermComponent codebase hash =
+  getTermComponentWithTypes codebase hash >>= \case
+    Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
+    Just terms -> pure terms
