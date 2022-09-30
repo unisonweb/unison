@@ -57,6 +57,7 @@ import Data.Time.Clock.TAI (diffAbsoluteTime)
 import GHC.OverloadedLabels (IsLabel (..))
 import System.CPUTime (getCPUTime)
 import Text.Printf (printf)
+import qualified U.Codebase.Branch as V2Branch
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
@@ -75,6 +76,7 @@ import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
+import UnliftIO.STM
 
 -- | The main command-line app monad.
 --
@@ -145,8 +147,8 @@ data Env = Env
 --
 -- There's an additional pseudo @"currentPath"@ field lens, for convenience.
 data LoopState = LoopState
-  { root :: Branch IO,
-    lastSavedRoot :: Branch IO,
+  { root :: TMVar (Branch IO),
+    lastSavedRootHash :: V2Branch.CausalHash,
     -- the current position in the namespace
     currentPathStack :: List.NonEmpty Path.Absolute,
     -- TBD
@@ -184,11 +186,11 @@ instance
       )
 
 -- | Create an initial loop state given a root branch and the current path.
-loopState0 :: Branch IO -> Path.Absolute -> LoopState
-loopState0 b p =
+loopState0 :: V2Branch.CausalHash -> TMVar (Branch IO) -> Path.Absolute -> LoopState
+loopState0 lastSavedRootHash b p = do
   LoopState
     { root = b,
-      lastSavedRoot = b,
+      lastSavedRootHash = lastSavedRootHash,
       currentPathStack = pure p,
       latestFile = Nothing,
       latestTypecheckedFile = Nothing,

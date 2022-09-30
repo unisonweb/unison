@@ -208,9 +208,9 @@ completeWithinNamespace compTypes query codebase currentPath = do
         qualifyRefs :: V2Branch.NameSegment -> (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
         qualifyRefs n refs
           | ((Text.isInfixOf "#" . NameSegment.toText) querySuffix) || length refs > 1 =
-              refs
-                & Map.keys
-                <&> qualify n
+            refs
+              & Map.keys
+              <&> qualify n
           | otherwise = [HQ'.NameOnly n]
 
     -- If we're not completing namespaces, then all namespace completions should automatically

@@ -183,16 +183,16 @@ getShallowCausalFromRoot codebase mayRootHash p = do
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
+getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
+getShallowRootBranch codebase = do
+  getShallowRootCausal codebase >>= V2Causal.value
+
+-- | Get the shallow representation of the root branches without loading the children or
+-- history.
 getShallowRootCausal :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
 getShallowRootCausal codebase = do
   hash <- getRootCausalHash codebase
   getShallowCausalForHash codebase hash
-
--- | Get the shallow representation of the root branches without loading the children or
--- history.
-getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
-getShallowRootBranch codebase = do
-  getShallowRootCausal codebase >>= V2Causal.value
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.

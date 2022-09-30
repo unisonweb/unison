@@ -2,6 +2,7 @@ module U.Codebase.Branch
   ( module X,
     nonEmptyChildren,
     childStats,
+    isEmpty,
   )
 where
 
@@ -10,6 +11,11 @@ import qualified U.Codebase.Causal as Causal
 import qualified U.Codebase.Sqlite.Operations as Ops
 import Unison.Prelude
 import Unison.Sqlite (Transaction)
+
+isEmpty :: Branch m -> Transaction Bool
+isEmpty b@(Branch {types, terms, patches}) = do
+  noChildren <- null <$> nonEmptyChildren b
+  pure $ null types && null terms && null patches && noChildren
 
 nonEmptyChildren :: Branch m -> Transaction (Map NameSegment (CausalBranch m))
 nonEmptyChildren branch = do

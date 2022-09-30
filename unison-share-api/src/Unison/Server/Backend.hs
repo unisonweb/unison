@@ -547,7 +547,7 @@ typeEntryToNamedType te@(TypeEntry {typeEntryTag, typeEntryHash}) =
 
 -- | Find all definitions and children reachable from the given 'V2Branch.Branch',
 lsBranch ::
-  (MonadIO m) =>
+  MonadIO m =>
   Codebase m Symbol Ann ->
   V2Branch.Branch m ->
   m [ShallowListEntry Symbol Ann]
