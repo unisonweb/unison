@@ -106,11 +106,15 @@ import System.IO as SYS
   ( IOMode (..),
     hClose,
     hGetBuffering,
+    hGetChar,
+    hGetEcho,
     hIsEOF,
     hIsOpen,
     hIsSeekable,
+    hReady,
     hSeek,
     hSetBuffering,
+    hSetEcho,
     hTell,
     openFile,
     stderr,
@@ -1095,6 +1099,14 @@ inBx arg result cont instr =
     . TAbs arg
     $ TLetD result UN (TFOp instr [arg]) cont
 
+-- Bool -> ...
+-- inBool :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+-- inBool arg nat result cont instr =
+--   ([BX],)
+--     . TAbs arg
+--     . unbox arg Ty.booleanRef nat
+--     $ TLetD result UN (TFOp instr [nat]) cont
+
 -- Nat -> ...
 inNat :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inNat arg nat result cont instr =
@@ -1126,6 +1138,16 @@ inBxBx arg1 arg2 result cont instr =
   ([BX, BX],)
     . TAbss [arg1, arg2]
     $ TLetD result UN (TFOp instr [arg1, arg2]) cont
+
+set'echo :: ForeignOp
+set'echo instr =
+  ([BX, BX],)
+    . TAbss [arg1, arg2]
+    . unenum 2 arg2 Ty.booleanRef bol
+    . TLetD result UN (TFOp instr [arg1, bol])
+    $ outIoFailUnit stack1 stack2 stack3 unit fail result
+  where
+    (arg1, arg2, bol, stack1, stack2, stack3, unit, fail, result) = fresh
 
 -- a -> Nat -> ...
 inBxNat :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
@@ -1228,6 +1250,19 @@ outIoFailNat stack1 stack2 stack3 fail extra result =
           ([UN],)
             . TAbs stack3
             . TLetD extra BX (TCon Ty.natRef 0 [stack3])
+            $ right extra
+        )
+      ]
+
+outIoFailChar :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailChar stack1 stack2 stack3 fail extra result =
+  TMatch result . MatchSum $
+    mapFromList
+      [ failureCase stack1 stack2 stack3 extra fail,
+        ( 1,
+          ([UN],)
+            . TAbs stack3
+            . TLetD extra BX (TCon Ty.charRef 0 [stack3])
             $ right extra
         )
       ]
@@ -1557,6 +1592,14 @@ boxToEFBool :: ForeignOp
 boxToEFBool =
   inBx arg result $
     outIoFailBool stack1 stack2 stack3 bool fail result
+  where
+    (arg, stack1, stack2, stack3, bool, fail, result) = fresh
+
+-- a -> Either Failure Char
+boxToEFChar :: ForeignOp
+boxToEFChar =
+  inBx arg result $
+    outIoFailChar stack1 stack2 stack3 bool fail result
   where
     (arg, stack1, stack2, stack3, bool, fail, result) = fresh
 
@@ -2006,6 +2049,9 @@ declareForeigns = do
   declareForeign Tracked "IO.closeFile.impl.v3" boxToEF0 $ mkForeignIOF hClose
   declareForeign Tracked "IO.isFileEOF.impl.v3" boxToEFBool $ mkForeignIOF hIsEOF
   declareForeign Tracked "IO.isFileOpen.impl.v3" boxToEFBool $ mkForeignIOF hIsOpen
+  declareForeign Tracked "IO.getEcho.impl.v1" boxToEFBool $ mkForeignIOF hGetEcho
+  declareForeign Tracked "IO.ready.impl.v1" boxToEFBool $ mkForeignIOF hReady
+  declareForeign Tracked "IO.getChar.impl.v1" boxToEFChar $ mkForeignIOF hGetChar
   declareForeign Tracked "IO.isSeekable.impl.v3" boxToEFBool $ mkForeignIOF hIsSeekable
 
   declareForeign Tracked "IO.seekHandle.impl.v3" seek'handle
@@ -2023,6 +2069,8 @@ declareForeigns = do
   declareForeign Tracked "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF
     $ uncurry hSetBuffering
+
+  declareForeign Tracked "IO.setEcho.impl.v1" set'echo . mkForeignIOF $ uncurry hSetEcho
 
   declareForeign Tracked "IO.getLine.impl.v1" boxToEFBox $
     mkForeignIOF $
