@@ -63,3 +63,30 @@ unique type Record4 =
         g : [Nat] }
 
 ```
+## Syntax
+
+Trailing commas are allowed.
+
+```unison
+unique type Record5 = 
+  { a : Text, 
+    b : Int,
+  }
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type Record5
+      Record5.a        : Record5 -> Text
+      Record5.a.modify : (Text ->{g} Text)
+                         -> Record5
+                         ->{g} Record5
+      Record5.a.set    : Text -> Record5 -> Record5
+
+```

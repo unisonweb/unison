@@ -21,7 +21,6 @@ module U.Codebase.Branch.Type
   )
 where
 
-import Control.Lens hiding (children)
 import qualified Data.Map as Map
 import U.Codebase.Causal (Causal)
 import qualified U.Codebase.Causal as Causal
@@ -51,14 +50,8 @@ data Branch m = Branch
     children :: Map NameSegment (CausalBranch m)
   }
 
-instance AsEmpty (Branch m) where
-  _Empty =
-    nearly
-      (Branch mempty mempty mempty mempty)
-      (\(Branch terms types patches children) -> null terms && null types && null patches && null children)
-
 empty :: Branch m
-empty = Empty
+empty = Branch mempty mempty mempty mempty
 
 data Patch = Patch
   { termEdits :: Map Referent (Set TermEdit),
