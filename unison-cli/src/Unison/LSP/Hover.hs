@@ -64,7 +64,7 @@ hoverHandler m respond =
 hoverInfo :: Uri -> Position -> MaybeT Lsp Text
 hoverInfo uri p = do
   Debug.debugM Debug.LSP "POINT" p
-  FileAnalysis {tokenMap, typecheckedFile} <- getFileAnalysis uri
+  FileAnalysis {tokenMap, typecheckedFile} <- MaybeT $ getFileAnalysis uri
   Debug.debugM Debug.LSP "TYPECHECKED" typecheckedFile
   subTermMap <- mkSubTermMap <$> MaybeT (pure typecheckedFile)
   Debug.debugM Debug.LSP "SubTerms" subTermMap
@@ -74,7 +74,7 @@ hoverInfo uri p = do
   renderedTypes <- for matchingHoverInfos \info -> do
     case info of
       BuiltinType txt -> pure txt
-      LocalVar _v -> pure $ "<locally inferred>"
+      LocalVar _v -> pure $ "<local>"
       Ref ref -> do
         Env {codebase} <- ask
         typ <- MaybeT . liftIO $ Codebase.getTypeOfReferent codebase ref
@@ -82,8 +82,8 @@ hoverInfo uri p = do
         pure . Text.pack $ TypePrinter.prettyStr (Just 40) (PPED.suffixifiedPPE ppe) typ
   Debug.debugM Debug.LSP "Rendered" renderedTypes
   -- Due to the way hover info is computed, there should be at most one.
-  typ <- hoistMaybe $ safeHead renderedTypes
-  hoistMaybe $ case listToMaybe matchingLexeme of
+  typ <- MaybeT . pure $ safeHead renderedTypes
+  MaybeT . pure $ case listToMaybe matchingLexeme of
     Just (Lex.WordyId n _) -> Just $ Text.pack n <> " : " <> typ
     Just (Lex.SymbolyId n _) -> Just $ Text.pack n <> " : " <> typ
     Just (Lex.Textual _) -> Just $ "<text literal> : " <> typ

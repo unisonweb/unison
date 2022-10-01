@@ -21,15 +21,19 @@ import Language.LSP.VFS
 import Unison.Codebase
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
+import qualified Unison.DataDeclaration as DD
 import Unison.LSP.Orphans ()
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
+import qualified Unison.Reference as Reference
 import Unison.Result (Note)
 import qualified Unison.Server.Backend as Backend
 import Unison.Symbol
 import qualified Unison.Syntax.Lexer as Lexer
+import Unison.Term (Term)
+import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
 import UnliftIO
 
@@ -83,9 +87,25 @@ data FileAnalysis = FileAnalysis
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
     notes :: Seq (Note Symbol Ann),
     diagnostics :: IntervalMap Position [Diagnostic],
-    codeActions :: IntervalMap Position [CodeAction]
+    codeActions :: IntervalMap Position [CodeAction],
+    fileSummary :: Maybe FileSummary
   }
   deriving (Show)
+
+-- | A file that parses might not always type-check, but often we just want to get as much
+-- information as we have available. This provides a type where we can summarize the
+-- information available in a Unison file.
+--
+-- If the file typechecked then all the Ref Ids and types will be filled in, otherwise
+-- they will be Nothing.
+data FileSummary = FileSummary
+  { dataDeclSummary :: Map Symbol (Reference.Id, DD.DataDeclaration Symbol Ann),
+    effectDeclSummary :: Map Symbol (Reference.Id, DD.EffectDeclaration Symbol Ann),
+    termSummary :: Map Symbol (Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
+    testWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
+    exprWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))]
+  }
+  deriving stock (Show)
 
 getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO

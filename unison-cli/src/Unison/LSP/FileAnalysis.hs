@@ -86,9 +86,33 @@ checkFile doc = runMaybeT $ do
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
+  let fileSummary = mkFileSummary parsedFile typecheckedFile
   let tokenMap = getTokenMap tokens
-  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, ..}
+  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, ..}
   pure $ fileAnalysis
+
+mkFileSummary :: Maybe (UF.UnisonFile Symbol Ann) -> Maybe (UF.TypecheckedUnisonFile Symbol Ann) -> Maybe FileSummary
+mkFileSummary parsed typechecked = case (parsed, typechecked) of
+  (Nothing, Nothing) -> Nothing
+  (_, Just (UF.TypecheckedUnisonFileId {})) -> error "mkFileSummary"
+  (Just UF.UnisonFileId {}, _) -> error "mkFileSummary"
+
+getFileDefLocations :: Uri -> MaybeT Lsp (Map Symbol Ann)
+getFileDefLocations uri = do
+  fileDefLocations <$> getFileSummary uri
+
+fileDefLocations :: FileSummary -> Map Symbol Ann
+fileDefLocations FileSummary {dataDeclSummary, effectDeclSummary, testWatchSummary, exprWatchSummary, termSummary} =
+  fold
+    [ dataDeclSummary <&> (DD.annotation . snd),
+      effectDeclSummary <&> (DD.annotation . DD.toDataDecl . snd),
+      (testWatchSummary <> exprWatchSummary)
+        & foldMap \(maySym, _id, trm, _typ) ->
+          case maySym of
+            Nothing -> mempty
+            Just sym -> Map.singleton sym (ABT.annotation trm),
+      termSummary <&> \(_refId, trm, _typ) -> ABT.annotation trm
+    ]
 
 fileAnalysisWorker :: Lsp ()
 fileAnalysisWorker = forever do
@@ -281,6 +305,11 @@ getFileAnalysis uri = do
   checkedFiles <- readTVarIO checkedFilesV
   pure $ Map.lookup uri checkedFiles
 
+getFileSummary :: Uri -> MaybeT Lsp FileSummary
+getFileSummary uri = do
+  FileAnalysis {fileSummary} <- MaybeT $ getFileAnalysis uri
+  MaybeT . pure $ fileSummary
+
 -- TODO memoize per file
 ppeForFile :: Uri -> Lsp PrettyPrintEnv
 ppeForFile fileUri = do
@@ -292,3 +321,24 @@ ppeForFile fileUri = do
       let filePPE = PPE.fromSuffixNames hl (NamesWithHistory.fromCurrentNames fileNames)
       pure (filePPE `PPE.addFallback` ppe)
     _ -> pure ppe
+
+-- | Information about a symbol defined within the file.
+-- data FileDefInfo ann
+--   = FileDataDecl Reference.Id ann
+--   | FileAbilityDecl Reference.Id ann
+--   | FileTerm (Maybe Reference.Id) ann
+--   | FileWatch WatchKind (Maybe Reference.Id) ann
+
+-- getFileSymbols :: Uri -> MaybeT Lsp (Map Symbol (FileDefInfo Ann))
+-- getFileSymbols uri = do
+--   FileAnalysis {parsedFile} <- MaybeT $ getFileAnalysis uri
+--   UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches} <- MaybeT (pure parsedFile)
+
+-- pure $
+--   do
+--     dataDeclarationsId & ifoldMap \v (ref, dd) -> Map.singleton v . FileDataDecl ref $ DD.annotation dd
+--     <> (effectDeclarationsId & ifoldMap \v (ref, dd) -> Map.singleton v . FileAbilityDecl ref . DD.annotation . DD.toDataDecl $ dd)
+--     <> (terms & foldMap \(v, ref, dd) -> Map.singleton v . FileAbilityDecl ref . DD.annotation . DD.toDataDecl $ dd)
+
+-- effectDeclarationsId & ifoldMap \v ed -> [Map.singleton v . FileEffectDecl $ DD.annotation ed]
+-- terms & foldMap \(v, trm) -> [Map.singleton v $ FileEffectDecl ann]
