@@ -6,15 +6,16 @@ module Unison.LSP.Hover where
 import Control.Lens hiding (List)
 import Control.Monad.Reader
 import qualified Data.IntervalMap.Lazy as IM
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Language.LSP.Types
-import Language.LSP.Types.Lens hiding (to)
+import Language.LSP.Types.Lens hiding (only, to)
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase as Codebase
 import qualified Unison.ConstructorType as CT
 import qualified Unison.Debug as Debug
 import Unison.LSP.Conversions (annToInterval)
-import Unison.LSP.FileAnalysis (getFileAnalysis)
+import Unison.LSP.FileAnalysis (getFileAnalysis, getFileDefLocations, getFileSummary)
 import Unison.LSP.Types
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPED
@@ -27,7 +28,6 @@ import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Term as Term
 import qualified Unison.UnisonFile as UF
 import Unison.Util.List (safeHead)
-import qualified Unison.Var as Var
 
 -- | Hover help handler
 --
@@ -49,7 +49,7 @@ hoverHandler m respond =
     -- let markup = Text.intercalate "\n\n---\n\n" $ termResults <> typeResults
     pure $
       Hover
-        { _contents = HoverContents (MarkupContent MkPlainText hoverTxt),
+        { _contents = HoverContents (MarkupContent MkMarkdown hoverTxt),
           _range = Nothing -- TODO add range info
         }
   where
@@ -65,25 +65,34 @@ hoverInfo :: Uri -> Position -> MaybeT Lsp Text
 hoverInfo uri p = do
   Debug.debugM Debug.LSP "POINT" p
   FileAnalysis {tokenMap, typecheckedFile} <- MaybeT $ getFileAnalysis uri
+  FileSummary {termSummary, testWatchSummary, exprWatchSummary} <- getFileSummary uri
+  fileDefLocations <- getFileDefLocations uri
   Debug.debugM Debug.LSP "TYPECHECKED" typecheckedFile
-  subTermMap <- mkSubTermMap <$> MaybeT (pure typecheckedFile)
+  subTermMap <- mkSubTermMap fileDefLocations <$> MaybeT (pure typecheckedFile)
   Debug.debugM Debug.LSP "SubTerms" subTermMap
   let matchingHoverInfos = concat . IM.elems $ IM.containing subTermMap p
   let matchingLexeme = IM.elems $ IM.containing tokenMap p
+
   Debug.debugM Debug.LSP "Matching" matchingHoverInfos
+  ppe <- lift $ globalPPE
+  let renderType typ = Text.pack $ TypePrinter.prettyStr (Just 40) (PPED.suffixifiedPPE ppe) typ
   renderedTypes <- for matchingHoverInfos \info -> do
     case info of
       BuiltinType txt -> pure txt
       LocalVar _v -> pure $ "<local>"
+      FileDef v ->
+        pure . maybe "<file>" renderType $
+          termSummary ^? ix v . _3 . _Just
+            <|> testWatchSummary ^? folded . filteredBy (_1 . _Just . only v) . _4 . _Just
+            <|> exprWatchSummary ^? folded . filteredBy (_1 . _Just . only v) . _4 . _Just
       Ref ref -> do
         Env {codebase} <- ask
         typ <- MaybeT . liftIO $ Codebase.getTypeOfReferent codebase ref
-        ppe <- lift $ globalPPE
-        pure . Text.pack $ TypePrinter.prettyStr (Just 40) (PPED.suffixifiedPPE ppe) typ
+        pure $ renderType typ
   Debug.debugM Debug.LSP "Rendered" renderedTypes
   -- Due to the way hover info is computed, there should be at most one.
   typ <- MaybeT . pure $ safeHead renderedTypes
-  MaybeT . pure $ case listToMaybe matchingLexeme of
+  typeSig <- MaybeT . pure $ case listToMaybe matchingLexeme of
     Just (Lex.WordyId n _) -> Just $ Text.pack n <> " : " <> typ
     Just (Lex.SymbolyId n _) -> Just $ Text.pack n <> " : " <> typ
     Just (Lex.Textual _) -> Just $ "<text literal> : " <> typ
@@ -92,10 +101,11 @@ hoverInfo uri p = do
     Just (Lex.Bytes _) -> Just $ "<byte literal> : " <> typ
     -- TODO: add other lexemes
     _ -> Nothing
+  pure $ Text.unlines ["```unison", typeSig, "```"]
 
-mkSubTermMap :: (Parser.Annotated a, Show a) => UF.TypecheckedUnisonFile Symbol a -> IM.IntervalMap Position [HoverInfo]
-mkSubTermMap (UF.TypecheckedUnisonFileId {hashTermsId}) =
-  hashTermsId ^@.. (folded . _3 . subTerms . (reindexed ABT.annotation selfIndex) <. termHoverInfo)
+mkSubTermMap :: (Parser.Annotated a, Show a) => Map Symbol a -> UF.TypecheckedUnisonFile Symbol a -> IM.IntervalMap Position [HoverInfo]
+mkSubTermMap fileDefs (UF.TypecheckedUnisonFileId {hashTermsId}) =
+  hashTermsId ^@.. (folded . _3 . subTerms . (reindexed ABT.annotation selfIndex) <. termHoverInfo fileDefs)
     & Debug.debug Debug.LSP "Cosmos'd"
     & map (\(a, info) -> IM.singleton <$> annToInterval (Parser.ann a) <*> pure [info])
     & Debug.debug Debug.LSP "Converted1"
@@ -109,12 +119,13 @@ subTerms =
 
 data HoverInfo
   = BuiltinType Text
-  | LocalVar Text
+  | LocalVar Symbol
+  | FileDef Symbol
   | Ref Referent
   deriving stock (Show, Eq, Ord)
 
-termHoverInfo :: Fold (Term.Term Symbol a) HoverInfo
-termHoverInfo = folding \term ->
+termHoverInfo :: (Map Symbol a) -> Fold (Term.Term Symbol a) HoverInfo
+termHoverInfo fileDefs = folding \term ->
   case ABT.out term of
     ABT.Tm f -> case f of
       Term.Int {} -> Just (BuiltinType "Int")
@@ -141,5 +152,8 @@ termHoverInfo = folding \term ->
       Term.TermLink {} -> Nothing
       Term.TypeLink {} -> Nothing
     -- ABT.Abs v r -> case f of
-    ABT.Var v -> Just (LocalVar $ Var.name v)
+    ABT.Var v ->
+      case Map.lookup v fileDefs of
+        Nothing -> Just (LocalVar v)
+        Just _ -> Just (FileDef v)
     _ -> Nothing

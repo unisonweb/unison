@@ -48,6 +48,7 @@ import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
+import qualified Unison.Symbol as Symbol
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter
@@ -58,6 +59,7 @@ import qualified Unison.UnisonFile.Names as UF
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Var as Var
+import Unison.WatchKind (pattern TestWatch)
 import UnliftIO (atomically, modifyTVar', readTVar, readTVarIO, writeTVar)
 
 -- | Lex, parse, and typecheck a file.
@@ -91,11 +93,47 @@ checkFile doc = runMaybeT $ do
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, ..}
   pure $ fileAnalysis
 
+assertUserSym :: Symbol -> Maybe Symbol
+assertUserSym sym = case sym of
+  Symbol.Symbol _ (Var.User {}) -> Just sym
+  _ -> Nothing
+
 mkFileSummary :: Maybe (UF.UnisonFile Symbol Ann) -> Maybe (UF.TypecheckedUnisonFile Symbol Ann) -> Maybe FileSummary
 mkFileSummary parsed typechecked = case (parsed, typechecked) of
   (Nothing, Nothing) -> Nothing
-  (_, Just (UF.TypecheckedUnisonFileId {})) -> error "mkFileSummary"
-  (Just UF.UnisonFileId {}, _) -> error "mkFileSummary"
+  (_, Just (UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId})) ->
+    let (trms, testWatches, exprWatches) =
+          hashTermsId & ifoldMap \sym (ref, wk, trm, typ) ->
+            case wk of
+              Nothing -> (Map.singleton sym (Just ref, trm, Just typ), mempty, mempty)
+              Just TestWatch -> (mempty, [(assertUserSym sym, Just ref, trm, Just typ)], mempty)
+              Just _ -> (mempty, mempty, [(assertUserSym sym, Just ref, trm, Just typ)])
+     in Just $
+          FileSummary
+            { dataDeclSummary = dataDeclarationsId',
+              effectDeclSummary = effectDeclarationsId',
+              termSummary = trms,
+              testWatchSummary = testWatches,
+              exprWatchSummary = exprWatches
+            }
+  (Just UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches}, _) ->
+    let trms =
+          terms & foldMap \(sym, trm) ->
+            (Map.singleton sym (Nothing, trm, Nothing))
+        (testWatches, exprWatches) =
+          watches & ifoldMap \wk tms ->
+            tms & foldMap \(v, trm) ->
+              case wk of
+                TestWatch -> ([(assertUserSym v, Nothing, trm, Nothing)], mempty)
+                _ -> (mempty, [(assertUserSym v, Nothing, trm, Nothing)])
+     in Just $
+          FileSummary
+            { dataDeclSummary = dataDeclarationsId,
+              effectDeclSummary = effectDeclarationsId,
+              termSummary = trms,
+              testWatchSummary = testWatches,
+              exprWatchSummary = exprWatches
+            }
 
 getFileDefLocations :: Uri -> MaybeT Lsp (Map Symbol Ann)
 getFileDefLocations uri = do
