@@ -31,7 +31,7 @@ usingVFS :: forall a. StateT VFS Lsp a -> Lsp a
 usingVFS m = do
   vfsVar' <- asks vfsVar
   modifyMVar vfsVar' $ \vfs -> do
-    (a, b) <- runStateT m vfs
+    (!a, !b) <- runStateT m vfs
     pure $! (b, a)
 
 getVirtualFile :: (HasUri doc Uri) => doc -> Lsp (Maybe VirtualFile)
