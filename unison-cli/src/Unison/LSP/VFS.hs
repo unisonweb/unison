@@ -15,7 +15,6 @@ import qualified Data.Set as Set
 import Data.Set.Lens (setOf)
 import qualified Data.Text as Text
 import qualified Data.Text.Utf16.Rope as Rope
-import Data.Tuple (swap)
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Types
 import Language.LSP.Types.Lens (HasCharacter (character), HasParams (params), HasPosition (position), HasTextDocument (textDocument), HasUri (uri))
@@ -31,7 +30,9 @@ import UnliftIO
 usingVFS :: forall a. StateT VFS Lsp a -> Lsp a
 usingVFS m = do
   vfsVar' <- asks vfsVar
-  modifyMVar vfsVar' $ \vfs -> swap <$> runStateT m vfs
+  modifyMVar vfsVar' $ \vfs -> do
+    (a, b) <- runStateT m vfs
+    pure $! (b, a)
 
 getVirtualFile :: (HasUri doc Uri) => doc -> Lsp (Maybe VirtualFile)
 getVirtualFile p = do

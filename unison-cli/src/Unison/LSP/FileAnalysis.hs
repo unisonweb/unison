@@ -113,11 +113,11 @@ fileAnalysisWorker = forever do
   atomically $ do
     checkedFiles <- readTVar checkedFilesV
     let zipper = \case
-          These mvar new -> tryTakeTMVar mvar *> putTMVar mvar new *> pure mvar
+          These mvar (!new) -> tryTakeTMVar mvar *> putTMVar mvar new *> pure mvar
           This mvar -> pure mvar
           That new -> newTMVar new
     newCheckedFiles <- sequenceA $ alignWith zipper checkedFiles freshlyCheckedFiles
-    writeTVar checkedFilesV newCheckedFiles
+    writeTVar checkedFilesV $! newCheckedFiles
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
@@ -288,7 +288,7 @@ getFileAnalysis uri = do
       Nothing -> do
         mvar <- newEmptyTMVar
         Debug.debugM Debug.LSP "File analysis requested but none available, waiting for analysis for" uri
-        writeTVar checkedFilesV $ Map.insert uri mvar checkedFiles
+        writeTVar checkedFilesV $! Map.insert uri mvar checkedFiles
         pure mvar
       Just mvar -> pure mvar
   atomically (readTMVar tmvar)
