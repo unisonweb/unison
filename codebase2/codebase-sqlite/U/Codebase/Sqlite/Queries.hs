@@ -1612,6 +1612,7 @@ rootTypeNamesByPath mayNamespace = do
         ORDER BY (namespace GLOB ? OR namespace = ?) DESC
         |]
 
+-- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool
 before chId1 chId2 = queryOneCol sql (chId2, chId1)
   where
