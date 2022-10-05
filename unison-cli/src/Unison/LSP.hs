@@ -20,8 +20,8 @@ import Language.LSP.VFS
 import qualified Network.Simple.TCP as TCP
 import Network.Socket (socketToHandle)
 import System.Environment (lookupEnv)
+import U.Codebase.HashTags (BranchHash)
 import Unison.Codebase
-import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Debug as Debug
@@ -36,6 +36,7 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
 import qualified Unison.LSP.VFS as VFS
+import Unison.Names (Names)
 import Unison.Parser.Ann
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPED
@@ -47,8 +48,8 @@ getLspPort :: IO String
 getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
 
 -- | Spawn an LSP server on the configured port.
-spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM (Branch IO) -> STM (Path.Absolute) -> IO ()
-spawnLsp codebase runtime latestBranch latestPath = TCP.withSocketsDo do
+spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM (BranchHash, Names) -> IO ()
+spawnLsp codebase runtime latestNames = TCP.withSocketsDo do
   lspPort <- getLspPort
   UnliftIO.handleIO (handleFailure lspPort) $ do
     TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
@@ -58,7 +59,7 @@ spawnLsp codebase runtime latestBranch latestPath = TCP.withSocketsDo do
         -- different un-saved state for the same file.
         initVFS $ \vfs -> do
           vfsVar <- newMVar vfs
-          void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope latestBranch latestPath)
+          void $ runServerWithHandles lspServerLogger lspClientLogger sockHandle sockHandle (serverDefinition vfsVar codebase runtime scope latestNames)
   where
     handleFailure :: String -> IOException -> IO ()
     handleFailure lspPort ioerr =
@@ -80,10 +81,9 @@ serverDefinition ::
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
   Ki.Scope ->
-  STM (Branch IO) ->
-  STM (Path.Absolute) ->
+  STM (BranchHash, Names) ->
   ServerDefinition Config
-serverDefinition vfsVar codebase runtime scope latestBranch latestPath =
+serverDefinition vfsVar codebase runtime scope latestNames =
   ServerDefinition
     { defaultConfig = lspDefaultConfig,
       onConfigurationChange = lspOnConfigurationChange,
@@ -106,12 +106,11 @@ lspDoInitialize ::
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
   Ki.Scope ->
-  STM (Branch IO) ->
-  STM (Path.Absolute) ->
+  STM (BranchHash, Names) ->
   LanguageContextEnv Config ->
   Message 'Initialize ->
   IO (Either ResponseError Env)
-lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext _initMsg = do
+lspDoInitialize vfsVar codebase runtime scope latestNames lspContext _initMsg = do
   -- TODO: some of these should probably be MVars so that we correctly wait for names and
   -- things to be generated before serving requests.
   checkedFilesVar <- newTVarIO mempty
@@ -123,7 +122,7 @@ lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext
   let env = Env {ppeCache = readTVarIO ppeCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
-  Ki.fork scope (lspToIO $ ucmWorker ppeCacheVar parseNamesCacheVar latestBranch latestPath)
+  Ki.fork scope (lspToIO $ ucmWorker ppeCacheVar parseNamesCacheVar latestNames)
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
