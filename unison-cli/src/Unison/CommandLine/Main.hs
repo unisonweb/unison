@@ -102,9 +102,8 @@ main ::
   Maybe Server.BaseUrl ->
   UCMVersion ->
   (Branch IO -> STM ()) ->
-  (Path.Absolute -> STM ()) ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange = Ki.scoped \scope -> do
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.getRootCausalHash codebase
   _ <- Ki.fork scope $ do
@@ -232,7 +231,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
               Text.Lazy.hPutStrLn stderr ("Encountered exception:\n" <> pShow e)
               loop0 s0
             Right (Right (result, s1)) -> do
-              when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
               case result of
                 Cli.Success () -> loop0 s1
                 Cli.Continue -> loop0 s1

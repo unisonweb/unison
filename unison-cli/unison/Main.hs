@@ -53,6 +53,9 @@ import Text.Pretty.Simple (pHPrint)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Branch.Names as Branch
+import qualified Unison.Codebase.Branch.Type as Branch
+import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (ReadShareRemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
@@ -63,6 +66,7 @@ import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.Codebase.SqliteCodebase as SC
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.CommandLine (plural', watchConfig)
 import qualified Unison.CommandLine.Main as CommandLine
@@ -132,11 +136,10 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                   rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
                   sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
                   let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                  let noOpRootNotifier _ = pure ()
-                  let noOpPathNotifier _ = pure ()
+                  let noOpBranchNotifier _ = pure ()
                   let serverUrl = Nothing
                   let startPath = Nothing
-                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] serverUrl startPath ShouldNotDownloadBase initRes noOpRootNotifier noOpPathNotifier
+                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] serverUrl startPath ShouldNotDownloadBase initRes noOpBranchNotifier
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
@@ -146,8 +149,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
               rt <- RTI.startRuntime False RTI.OneOff Version.gitDescribeWithDate
               sbrt <- RTI.startRuntime True RTI.OneOff Version.gitDescribeWithDate
               let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
-              let noOpRootNotifier _ = pure ()
-              let noOpPathNotifier _ = pure ()
+              let noOpBranchNotifier _ = pure ()
               let serverUrl = Nothing
               let startPath = Nothing
               launch
@@ -161,8 +163,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                 startPath
                 ShouldNotDownloadBase
                 initRes
-                noOpRootNotifier
-                noOpPathNotifier
+                noOpBranchNotifier
       Run (RunCompiled file) args ->
         BL.readFile file >>= \bs ->
           try (evaluate $ RTI.decodeStandalone bs) >>= \case
@@ -232,23 +233,22 @@ main = withCP65001 . Ki.scoped $ \scope -> do
       Launch isHeadless codebaseServerOpts downloadBase mayStartingPath -> do
         getCodebaseOrExit mCodePathOption SC.MigrateAfterPrompt \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime False RTI.Persistent Version.gitDescribeWithDate
-          rootVar <- newEmptyTMVarIO
-          pathVar <- newTVarIO initialPath
-          let notifyOnRootChanges :: Branch IO -> STM ()
-              notifyOnRootChanges b = do
-                isEmpty <- isEmptyTMVar rootVar
+          namesVar <- newEmptyTMVarIO
+          let notifyOnBranchChanges :: Branch IO -> STM ()
+              notifyOnBranchChanges b@(Branch.Branch c) = do
+                let bh = Cv.branchHash1to2 $ Causal.valueHash c
+                let names = Branch.toNames (Branch.head b)
+                isEmpty <- isEmptyTMVar namesVar
                 if isEmpty
-                  then putTMVar rootVar b
-                  else void $ swapTMVar rootVar b
-          let notifyOnPathChanges :: Path.Absolute -> STM ()
-              notifyOnPathChanges = writeTVar pathVar
+                  then putTMVar namesVar $! (bh, names)
+                  else void $ swapTMVar namesVar $! (bh, names)
           sbRuntime <- RTI.startRuntime True RTI.Persistent Version.gitDescribeWithDate
           -- Unfortunately, the windows IO manager on GHC 8.* is prone to just hanging forever
           -- when waiting for input on handles, so if we listen for LSP connections it will
           -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
           -- Windows when we move to GHC 9.*
           -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
-          when (not onWindows) . void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTMVar rootVar) (readTVar pathVar)
+          when (not onWindows) . void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTMVar namesVar)
           Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
             case exitOption of
               DoNotExit -> do
@@ -271,7 +271,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                     takeMVar mvar
                   WithCLI -> do
                     PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                    launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) mayStartingPath downloadBase initRes notifyOnRootChanges notifyOnPathChanges
+                    launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) mayStartingPath downloadBase initRes notifyOnBranchChanges
               Exit -> do Exit.exitSuccess
 
 -- | Set user agent and configure TLS on global http client.
@@ -421,9 +421,8 @@ launch ::
   ShouldDownloadBase ->
   InitResult ->
   (Branch IO -> STM ()) ->
-  (Path.Absolute -> STM ()) ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath shouldDownloadBase initResult notifyRootChange notifyPathChange =
+launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath shouldDownloadBase initResult notifyBranchChange =
   let downloadBase = case defaultBaseLib of
         Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
         _ -> Welcome.DontDownloadBase
@@ -444,8 +443,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPat
         codebase
         serverBaseUrl
         ucmVersion
-        notifyRootChange
-        notifyPathChange
+        notifyBranchChange
 
 newtype MarkdownFile = MarkdownFile FilePath
 
