@@ -29,8 +29,8 @@ ucmWorker ppeVar parseNamesVar getLatestRoot getLatestPath = do
         hl <- liftIO $ Codebase.hashLength codebase
         let ppe = PPE.fromNamesDecl hl parseNames
         atomically $ do
-          writeTVar parseNamesVar parseNames
-          writeTVar ppeVar ppe
+          writeTVar parseNamesVar $! parseNames
+          writeTVar ppeVar $! ppe
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
         latest <- atomically $ do
