@@ -186,7 +186,7 @@ modifyRootBranch f = do
   atomically do
     root <- takeTMVar rootVar
     let newRoot = f root
-    putTMVar rootVar newRoot
+    putTMVar rootVar $! newRoot
     pure newRoot
 
 -- | Get the current branch.
