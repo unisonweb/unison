@@ -241,7 +241,7 @@ main = withCP65001 . Ki.scoped $ \scope -> do
                 isEmpty <- isEmptyTMVar namesVar
                 if isEmpty
                   then putTMVar namesVar $! (bh, names)
-                  else void $ swapTMVar namesVar $! (bh, names)
+                  else void . swapTMVar namesVar $! (bh, names)
           sbRuntime <- RTI.startRuntime True RTI.Persistent Version.gitDescribeWithDate
           -- Unfortunately, the windows IO manager on GHC 8.* is prone to just hanging forever
           -- when waiting for input on handles, so if we listen for LSP connections it will

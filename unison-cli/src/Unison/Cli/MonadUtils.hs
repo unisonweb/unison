@@ -186,7 +186,7 @@ modifyRootBranch f = do
   atomically do
     root <- takeTMVar rootVar
     let newRoot = f root
-    putTMVar rootVar newRoot
+    putTMVar rootVar $! newRoot
     pure newRoot
 
 -- | Get the current branch.
@@ -208,7 +208,7 @@ getLastSavedRootHash = do
 -- | Set a new root branch.
 -- Note: This does _not_ update the codebase, the caller is responsible for that.
 setLastSavedRootHash :: V2Branch.CausalHash -> Cli r ()
-setLastSavedRootHash ch = do
+setLastSavedRootHash !ch = do
   #lastSavedRootHash .= ch
 
 -- | Get the branch at an absolute path.
