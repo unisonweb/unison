@@ -19,7 +19,6 @@ where
 import Data.Aeson
 import Data.Bifunctor (bimap)
 import Data.OpenApi (ToSchema)
-import qualified Data.Set.NonEmpty as NESet
 import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
@@ -32,7 +31,9 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
+import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Server.Backend (Backend)
 import qualified Unison.Server.Backend as Backend
@@ -48,7 +49,7 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 
 type TermSummaryAPI =
-  "definitions" :> "terms" :> "by-hash" :> Capture "hash" SH.ShortHash :> "summary"
+  "definitions" :> "terms" :> "by-hash" :> Capture "hash" Referent :> "summary"
     -- Optional name to include in summary.
     -- It's propagated through to the response as-is.
     -- If missing, the short hash will be used instead.
@@ -76,26 +77,20 @@ deriving instance ToSchema TermSummary
 
 serveTermSummary ::
   Codebase IO Symbol Ann ->
-  SH.ShortHash ->
+  Referent ->
   Maybe Name ->
   Maybe ShortBranchHash ->
   Maybe Path.Path ->
   Maybe Width ->
   Backend IO TermSummary
-serveTermSummary codebase shortHash mayName mayRoot relativeTo mayWidth = do
+serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
+  let shortHash = Referent.toShortHash referent
   let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
-  let fullyQualifiedName = maybe (HQ.HashOnly shortHash) (`HQ.HashQualified` shortHash) mayName
-  matchingReferents <- lift $ Backend.termReferentsByShortHash codebase shortHash
-  termReferent <- case NESet.nonEmptySet matchingReferents of
-    Just neSet
-      | NESet.size neSet == 1 -> pure $ NESet.findMin neSet
-      | otherwise -> throwError $ Backend.AmbiguousHashForDefinition shortHash
-    Nothing -> throwError $ Backend.NoSuchDefinition fullyQualifiedName
   let relativeToPath = fromMaybe Path.empty relativeTo
-  let termReference = Referent.toReference termReferent
-  let v2Referent = Cv.referent1to2 termReferent
+  let termReference = Referent.toReference referent
+  let v2Referent = Cv.referent1to2 referent
   root <- Backend.resolveRootBranchHashV2 codebase mayRoot
-  sig <- lift $ Backend.loadReferentType codebase termReferent
+  sig <- lift $ Backend.loadReferentType codebase referent
   case sig of
     Nothing ->
       throwError (Backend.MissingSignatureForTerm termReference)
@@ -114,7 +109,7 @@ serveTermSummary codebase shortHash mayName mayRoot relativeTo mayWidth = do
         else UserObject termSig
 
 type TypeSummaryAPI =
-  "definitions" :> "types" :> "by-hash" :> Capture "hash" SH.ShortHash :> "summary"
+  "definitions" :> "types" :> "by-hash" :> Capture "hash" Reference :> "summary"
     -- Optional name to include in summary.
     -- It's propagated through to the response as-is.
     -- If missing, the short hash will be used instead.
@@ -142,24 +137,17 @@ deriving instance ToSchema TypeSummary
 
 serveTypeSummary ::
   Codebase IO Symbol Ann ->
-  SH.ShortHash ->
+  Reference ->
   Maybe Name ->
   Maybe ShortBranchHash ->
   Maybe Path.Path ->
   Maybe Width ->
   Backend IO TypeSummary
-serveTypeSummary codebase shortHash mayName _mayRoot _relativeTo mayWidth = do
+serveTypeSummary codebase reference mayName _mayRoot _relativeTo mayWidth = do
+  let shortHash = Reference.toShortHash reference
   let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
-  let fullyQualifiedName = maybe (HQ.HashOnly shortHash) (`HQ.HashQualified` shortHash) mayName
-  typeReference <- do
-    matchingReferences <- lift $ Backend.typeReferencesByShortHash codebase shortHash
-    case NESet.nonEmptySet matchingReferences of
-      Just neSet
-        | NESet.size neSet == 1 -> pure $ NESet.findMin neSet
-        | otherwise -> throwError $ Backend.AmbiguousHashForDefinition shortHash
-      Nothing -> throwError $ Backend.NoSuchDefinition fullyQualifiedName
-  tag <- lift $ Backend.getTypeTag codebase typeReference
-  displayDecl <- lift $ Backend.displayType codebase typeReference
+  tag <- lift $ Backend.getTypeTag codebase reference
+  displayDecl <- lift $ Backend.displayType codebase reference
   let syntaxHeader = Backend.typeToSyntaxHeader width displayName displayDecl
   pure $
     TypeSummary

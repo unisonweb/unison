@@ -32,6 +32,8 @@ import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
+import qualified Unison.Reference as Reference
+import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import Unison.Util.Pretty (Width (..))
@@ -92,6 +94,47 @@ instance FromHttpApiData ShortHash where
 instance ToSchema ShortHash where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
+-- | Always renders to the form: #abcdef
+instance ToHttpApiData Reference.Reference where
+  toQueryParam = Reference.toText
+
+-- | Accepts shorthashes of any of the following forms:
+-- @abcdef
+-- @@builtin
+-- #abcdef
+-- ##builtin
+-- abcdef
+instance FromHttpApiData Reference.Reference where
+  parseUrlPiece txt =
+    Text.replace "@" "#" txt
+      & \t ->
+        ( if Text.isPrefixOf "#" t
+            then t
+            else ("#" <> t)
+        )
+          & Reference.fromText
+          & mapLeft Text.pack
+
+-- | Accepts shorthashes of any of the following forms:
+-- @abcdef
+-- @@builtin
+-- #abcdef
+-- ##builtin
+-- abcdef
+instance FromHttpApiData Referent.Referent where
+  parseUrlPiece txt =
+    Text.replace "@" "#" txt
+      & \t ->
+        ( if Text.isPrefixOf "#" t
+            then t
+            else ("#" <> t)
+        )
+          & Referent.fromText
+          & maybe (Left "Invalid Referent") Right
+
+instance ToSchema Reference where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
 deriving via ShortByteString instance Binary Hash
 
 deriving via Hash instance Binary CausalHash
@@ -119,6 +162,18 @@ instance ToSchema Name where
 deriving anyclass instance ToParamSchema ShortBranchHash
 
 instance ToParamSchema ShortHash where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "@abcdef"
+
+instance ToParamSchema Reference.Reference where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "@abcdef"
+
+instance ToParamSchema Referent.Referent where
   toParamSchema _ =
     mempty
       & type_ ?~ OpenApiString
@@ -197,6 +252,18 @@ instance ToCapture (Capture "hash" ShortHash) where
     DocCapture
       "hash"
       "A shorthash for a term or type. E.g. @abcdef, #abcdef, @@builtin, ##builtin, abcdef"
+
+instance ToCapture (Capture "hash" Reference.Reference) where
+  toCapture _ =
+    DocCapture
+      "hash"
+      "A hash reference for a type. E.g. @abcdef, #abcdef, @@builtin, ##builtin, abcdef"
+
+instance ToCapture (Capture "hash" Referent.Referent) where
+  toCapture _ =
+    DocCapture
+      "hash"
+      "A hash reference for a term. E.g. @abcdef, #abcdef, @@builtin, ##builtin, abcdef"
 
 instance ToCapture (Capture "fqn" Name) where
   toCapture _ =
