@@ -98,6 +98,10 @@ instance ToSchema ShortHash where
 instance ToHttpApiData Reference.Reference where
   toQueryParam = Reference.toText
 
+-- | Always renders to the form: #abcdef
+instance ToHttpApiData Referent.Referent where
+  toQueryParam = Referent.toText
+
 -- | Accepts shorthashes of any of the following forms:
 -- @abcdef
 -- @@builtin
