@@ -48,6 +48,7 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
 import qualified Unison.Runtime.IOSource as IOSource
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -498,8 +499,12 @@ propagate patch b = case validatePatch patch of
     unhashTermComponent' :: Hash -> Cli r (Map Symbol (Reference.Id, Term Symbol Ann, Type Symbol Ann))
     unhashTermComponent' h = do
       Cli.Env {codebase} <- ask
-      liftIO (Codebase.getTermComponentWithTypes codebase h) <&> foldMap \termsWithTypes ->
-        unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
+      maybeTermsWithTypes <-
+        liftIO do
+          Codebase.withConnection codebase \conn ->
+            Sqlite.runTransaction conn (Codebase.getTermComponentWithTypes codebase h)
+      pure do
+        foldMap (\termsWithTypes -> unhash $ Map.fromList (Reference.componentFor h termsWithTypes)) maybeTermsWithTypes
       where
         unhash m =
           -- this grabs the corresponding input map values (with types)

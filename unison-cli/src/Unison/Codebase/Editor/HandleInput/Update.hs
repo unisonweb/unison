@@ -54,6 +54,7 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
 import Unison.Runtime.IOSource (isTest)
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -316,7 +317,9 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
           --   [ (<#pingpong.pong + 1>, <Nat>),
           --     (<#pingpong.ping + 2>, <Nat>)
           --   ]
-          terms <- Codebase.unsafeGetTermComponent codebase oldHash
+          terms <-
+            Codebase.withConnection codebase \conn ->
+              Sqlite.runTransaction conn (Codebase.unsafeGetTermComponent codebase oldHash)
           pure $
             terms
               -- Running example:
