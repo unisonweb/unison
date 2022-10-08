@@ -562,6 +562,8 @@ loop e = do
               branchExists <- Cli.branchExistsAtPath' path'
               when (not branchExists) (Cli.respond $ CreatedNewBranch path)
               #currentPathStack %= Nel.cons path
+              -- TODO: do this better
+              State.get >>= liftIO . Cli.updateDerivedValues >>= State.put
             UpI -> do
               path0 <- Cli.getCurrentPath
               whenJust (unsnoc path0) \(path, _) ->
@@ -1958,20 +1960,16 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
             ConsoleLocation -> HelpMessage InputPatterns.view
             _ -> HelpMessage InputPatterns.edit
       else pure inputQuery
-  root <- Cli.getRootBranch
-  let root0 = Branch.head root
   let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
   (names, unbiasedPPE) <- case (hasAbsoluteQuery, showDefinitionScope) of
     (True, _) -> do
-      names <- Cli.getCurrentNames
-      pped <- Cli.getCurrentPPED
-      -- TODO: do these names need to be absolute?
+      names <- Cli.getRootNames
+      pped <- Cli.getRootPPED
       pure (NamesWithHistory.fromCurrentNames names, pped)
     (_, ShowDefinitionGlobal) -> do
-      let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
-      -- Use an absolutely qualified ppe for view.global
-      let ppe = PPE.fromNamesDecl hqLength names
-      pure (names, ppe)
+      names <- Cli.getRootNames
+      pped <- Cli.getRootPPED
+      pure (NamesWithHistory.fromCurrentNames names, pped)
     (_, ShowDefinitionLocal) -> do
       names <- Cli.getCurrentNames
       pped <- Cli.getCurrentPPED

@@ -15,6 +15,8 @@ module Unison.Cli.Monad
     LoopState (..),
     loopState0,
     modifyLoopStateRootBranch,
+    -- TODO: do this better
+    updateDerivedValues,
 
     -- * Lifting IO actions
     ioE,
