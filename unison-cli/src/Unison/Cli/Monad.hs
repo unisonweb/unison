@@ -14,6 +14,7 @@ module Unison.Cli.Monad
     -- * Immutable state
     LoopState (..),
     loopState0,
+    modifyLoopStateRootBranch,
 
     -- * Lifting IO actions
     ioE,
@@ -43,7 +44,8 @@ module Unison.Cli.Monad
   )
 where
 
-import Control.Lens (lens, (.=))
+import Control.Concurrent.Extra (once)
+import Control.Lens (lens, (.=), (^.))
 import Control.Monad.Reader (MonadReader (..), ReaderT (ReaderT))
 import Control.Monad.State.Strict (MonadState, StateT (StateT))
 import Control.Monad.Trans.Cont
@@ -62,14 +64,20 @@ import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Debug as Debug
+import Unison.Names (Names)
+import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
+import qualified Unison.PrettyPrintEnvDecl.Names as PPED
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
@@ -151,6 +159,11 @@ data LoopState = LoopState
     lastSavedRootHash :: V2Branch.CausalHash,
     -- the current position in the namespace
     currentPathStack :: List.NonEmpty Path.Absolute,
+    currentBranch :: IO (Branch IO),
+    currentNames :: IO Names,
+    currentPPED :: IO PrettyPrintEnvDecl,
+    -- Hash length to use when generating ppes
+    hashLength :: Int,
     -- TBD
     -- , _activeEdits :: Set Branch.EditGuid
 
@@ -185,19 +198,52 @@ instance
           loopState {currentPathStack = path List.NonEmpty.:| paths}
       )
 
+modifyLoopStateRootBranch :: (Branch IO -> Branch IO) -> (LoopState -> IO (LoopState, Branch IO))
+modifyLoopStateRootBranch f ls = do
+  let rootVar = root ls
+  newRoot <- atomically do
+    root <- takeTMVar rootVar
+    let newRoot = f root
+    putTMVar rootVar $! newRoot
+    pure newRoot
+  ls' <- updateDerivedValues ls
+  pure (ls', newRoot)
+
+updateDerivedValues :: LoopState -> IO LoopState
+updateDerivedValues ls = do
+  let currentPath = ls ^. #currentPath
+  currentBranch <- once do
+    atomically do
+      rootBranch <- readTMVar (root ls)
+      pure $ Branch.getAt' (Path.unabsolute currentPath) rootBranch
+  let currentNames = Branch.toNames . Branch.head <$> currentBranch
+  let currentPPED = PPED.fromNamesDecl (hashLength ls) . NamesWithHistory.fromCurrentNames <$> currentNames
+  pure $ ls {currentBranch = currentBranch, currentNames = currentNames, currentPPED = currentPPED}
+
 -- | Create an initial loop state given a root branch and the current path.
-loopState0 :: V2Branch.CausalHash -> TMVar (Branch IO) -> Path.Absolute -> LoopState
-loopState0 lastSavedRootHash b p = do
-  LoopState
-    { root = b,
-      lastSavedRootHash = lastSavedRootHash,
-      currentPathStack = pure p,
-      latestFile = Nothing,
-      latestTypecheckedFile = Nothing,
-      lastInput = Nothing,
-      numberedArgs = [],
-      lastRunResult = Nothing
-    }
+loopState0 :: Int -> V2Branch.CausalHash -> TMVar (Branch IO) -> Path.Absolute -> IO LoopState
+loopState0 hashLength lastSavedRootHash b p = do
+  currentBranch <- once do
+    atomically do
+      rootBranch <- readTMVar b
+      pure $ Branch.getAt' (Path.unabsolute p) rootBranch
+  let currentNames = Branch.toNames . Branch.head <$> currentBranch
+  let currentPPED = PPED.fromNamesDecl hashLength . NamesWithHistory.fromCurrentNames <$> currentNames
+  pure $
+    LoopState
+      { root = b,
+        lastSavedRootHash = lastSavedRootHash,
+        currentPathStack = pure p,
+        currentBranch,
+        currentNames,
+        currentPPED,
+        hashLength,
+        latestFile = Nothing,
+        latestTypecheckedFile = Nothing,
+        lastInput = Nothing,
+        numberedArgs = [],
+        lastRunResult = Nothing
+      }
 
 -- | Run a @Cli@ action down to @IO@.
 runCli :: Env -> LoopState -> Cli a a -> IO (ReturnType a, LoopState)
