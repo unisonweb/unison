@@ -159,41 +159,6 @@ suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
   PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
 
--- implementation detail of parseNamesForBranch and prettyNamesForBranch
--- Returns (parseNames, prettyNames, localNames)
-namesForBranch :: Branch m -> NameScoping -> (Names, Names, Names)
-namesForBranch root scope =
-  (parseNames0, prettyPrintNames0, currentPathNames)
-  where
-    path :: Path
-    includeAllNames :: Bool
-    (path, includeAllNames) = case scope of
-      AllNames path -> (path, True)
-      Within path -> (path, False)
-    root0 = Branch.head root
-    currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
-    absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
-    currentBranch0 = Branch.head currentBranch
-    currentPathNames = Branch.toNames currentBranch0
-    -- all names, but with local names in their relative form only, rather
-    -- than absolute; external names appear as absolute
-    currentAndExternalNames =
-      currentPathNames
-        `Names.unionLeft` Names.mapNames Name.makeAbsolute externalNames
-      where
-        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
-        rootNames = Branch.toNames root0
-        pathPrefixed = case Path.toName path of
-          Nothing -> const mempty
-          Just pathName -> Names.prefix0 pathName
-    -- parsing should respond to local and absolute names
-    parseNames0 = currentPathNames <> Monoid.whenM includeAllNames absoluteRootNames
-    -- pretty-printing should use local names where available
-    prettyPrintNames0 =
-      if includeAllNames
-        then currentAndExternalNames
-        else currentPathNames
-
 shallowPPE :: Monad m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
 shallowPPE codebase b = do
   hashLength <- Codebase.hashLength codebase
@@ -1065,13 +1030,13 @@ scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (V2
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.hashLength codebase
-  (parseNames, localNames) <- case mbh of
+  names <- case mbh of
     Nothing
       | shouldUseNamesIndex -> indexNames
       | otherwise -> do
           rootBranch <- lift $ Codebase.getRootBranch codebase
-          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-          pure (parseNames, localNames)
+          let currentBranch = Branch.getAt' path rootBranch
+          pure . Branch.toNames $ Branch.head currentBranch
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       let v1CausalHash = Cv.causalHash2to1 ch
@@ -1079,22 +1044,15 @@ scopedNamesForBranchHash codebase mbh path = do
       if (ch == rootHash) && shouldUseNamesIndex
         then indexNames
         else do
-          (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just v1CausalHash) codebase
-          pure (parseNames, localNames)
+          Branch.toNames . Branch.head . Branch.getAt' path <$> resolveCausalHash (Just v1CausalHash) codebase
 
-  let localPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
-  let globalPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames parseNames)
-  pure (localNames, mkPPE localPPE globalPPE)
+  let pped = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames names)
+  pure (names, pped)
   where
-    mkPPE :: PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl
-    mkPPE primary addFallback =
-      PPED.PrettyPrintEnvDecl
-        (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE addFallback)
-        (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE addFallback)
-    indexNames :: Backend m (Names, Names)
+    indexNames :: Backend m Names
     indexNames = do
       scopedNames <- lift $ Codebase.namesAtPath codebase path
-      pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
+      pure (ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::
   Monad m => Maybe Branch.CausalHash -> Codebase m v a -> Backend m (Branch m)

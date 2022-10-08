@@ -28,7 +28,7 @@ import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPED
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Server.Backend as Backend
@@ -123,14 +123,7 @@ manageLinks silent srcs' metadataNames op = do
 resolveMetadata :: HQ.HashQualified Name -> Cli r (Either Output (Metadata.Type, Metadata.Value))
 resolveMetadata name = do
   Cli.Env {codebase} <- ask
-  root' <- Cli.getRootBranch
-  currentPath' <- Cli.getCurrentPath
-  sbhLength <- liftIO (Codebase.branchHashLength codebase)
-
-  let ppe :: PPE.PrettyPrintEnv
-      ppe =
-        Backend.basicSuffixifiedNames sbhLength root' (Backend.Within $ Path.unabsolute currentPath')
-
+  ppe <- PPED.suffixifiedPPE <$> Cli.getCurrentPPED
   terms <- getHQTerms name
   ref <-
     case Set.asSingleton terms of

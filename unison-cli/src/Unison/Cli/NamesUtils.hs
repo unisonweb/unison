@@ -2,7 +2,6 @@
 module Unison.Cli.NamesUtils
   ( displayNames,
     findHistoricalHQs,
-    getBasicPrettyPrintNames,
     makeHistoricalParsingNames,
     makePrintNamesFromLabeled',
     makeShadowedPrintNamesFromHQ,
@@ -24,7 +23,6 @@ import qualified Unison.Names as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Prelude
-import qualified Unison.Server.Backend as Backend
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
@@ -82,12 +80,6 @@ fixupNamesRelative currentPath' = Names.map fixName
         else fromMaybe (Name.makeAbsolute n) do
           prefix <- Path.toName (Path.unabsolute currentPath')
           Name.stripNamePrefix prefix n
-
-getBasicPrettyPrintNames :: Cli r Names
-getBasicPrettyPrintNames = do
-  rootBranch <- Cli.getRootBranch
-  currentPath <- Cli.getCurrentPath
-  pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath)))
 
 makeHistoricalParsingNames :: Set (HQ.HashQualified Name) -> Cli r NamesWithHistory
 makeHistoricalParsingNames lexedHQs = do
