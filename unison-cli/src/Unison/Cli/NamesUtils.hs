@@ -1,8 +1,6 @@
 -- | Utilities that have to do with constructing names objects.
 module Unison.Cli.NamesUtils
-  ( basicParseNames,
-    basicPrettyPrintNamesA,
-    displayNames,
+  ( displayNames,
     findHistoricalHQs,
     getBasicPrettyPrintNames,
     makeHistoricalParsingNames,
@@ -16,7 +14,6 @@ import qualified Data.Set as Set
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.MonadUtils as Cli
 import qualified Unison.Codebase.Branch.Names as Branch
-import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.HashQualified as HQ
 import Unison.LabeledDependency (LabeledDependency)
@@ -32,21 +29,6 @@ import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import Unison.Var (Var)
-
-basicParseNames :: Cli r Names
-basicParseNames =
-  fst <$> basicNames' Backend.Within
-
-basicPrettyPrintNamesA :: Cli r Names
-basicPrettyPrintNamesA = snd <$> basicNames' Backend.AllNames
-
--- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNames' :: (Path -> Backend.NameScoping) -> Cli r (Names, Names)
-basicNames' nameScoping = do
-  root' <- Cli.getRootBranch
-  currentPath' <- Cli.getCurrentPath
-  let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
-  pure (parse, pretty)
 
 -- | Produce a `Names` needed to display all the hashes used in the given file.
 displayNames ::
@@ -112,7 +94,7 @@ makeHistoricalParsingNames lexedHQs = do
   currentPath <- Cli.getCurrentPath
 
   rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames <- basicParseNames
+  basicNames <- Cli.getCurrentNames
   pure $
     NamesWithHistory
       basicNames
@@ -129,13 +111,13 @@ makePrintNamesFromLabeled' deps = do
       Branch.findHistoricalRefs
         deps
         root'
-  basicNames <- basicPrettyPrintNamesA
+  basicNames <- Cli.getCurrentNames
   pure $ NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames)
 
 makeShadowedPrintNamesFromHQ :: Set (HQ.HashQualified Name) -> Names -> Cli r NamesWithHistory
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames <- basicPrettyPrintNamesA
+  basicNames <- Cli.getCurrentNames
   currentPath <- Cli.getCurrentPath
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.

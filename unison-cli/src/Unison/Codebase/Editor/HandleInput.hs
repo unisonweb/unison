@@ -44,7 +44,7 @@ import qualified Unison.Builtin.Terms as Builtin
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.NamesUtils (basicParseNames, basicPrettyPrintNamesA, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
+import Unison.Cli.NamesUtils (displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.UnisonConfigUtils (gitUrlKey, remoteMappingKey)
 import Unison.Codebase (Codebase, Preprocessing (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase as Codebase
@@ -221,9 +221,7 @@ loop e = do
               L.Hash sh -> Just (HQ.HashOnly sh)
               _ -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        rootBranch <- Cli.getRootBranch
-        currentPath <- Cli.getCurrentPath
-        let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
+        parseNames <- NamesWithHistory.fromCurrentNames <$> Cli.getCurrentNames
         State.modify' \loopState ->
           loopState
             & #latestFile .~ Just (Text.unpack sourceName, False)
@@ -1175,8 +1173,7 @@ loop e = do
             MakeStandaloneI output main -> do
               Cli.Env {codebase, runtime} <- ask
               let mainType = Runtime.mainType runtime
-              parseNames <-
-                flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintNamesA
+              parseNames <- NamesWithHistory.fromCurrentNames <$> Cli.getCurrentNames
               ppe <- suffixifiedPPE parseNames
               let resolved = toList $ NamesWithHistory.lookupHQTerm main parseNames
                   smain = HQ.toString main
@@ -1195,7 +1192,7 @@ loop e = do
               Cli.Env {codebase, runtime} <- ask
               -- todo - allow this to run tests from scratch file, using addRunMain
               let testType = Runtime.ioTestType runtime
-              parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
+              parseNames <- NamesWithHistory.fromCurrentNames <$> Cli.getCurrentNames
               ppe <- suffixifiedPPE parseNames
               -- use suffixed names for resolving the argument to display
               let oks results =
@@ -2222,7 +2219,7 @@ importRemoteShareBranch rrn@(ReadShareRemoteNamespace {server, repo, path}) = do
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli r (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
   HQ.NameOnly n -> do
-    parseNames <- basicParseNames
+    parseNames <- Cli.getCurrentNames
     let terms, types :: Set LabeledDependency
         terms = Set.map LD.referent . Name.searchBySuffix n $ Names.terms parseNames
         types = Set.map LD.typeRef . Name.searchBySuffix n $ Names.types parseNames
@@ -2639,7 +2636,7 @@ docsI srcLoc prettyPrintNames src =
 
     codebaseByName :: Cli r ()
     codebaseByName = do
-      parseNames <- basicParseNames
+      parseNames <- Cli.getCurrentNames
       case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
         s
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
@@ -2702,7 +2699,7 @@ parseType :: SrcLoc -> String -> Cli r (Type Symbol Ann)
 parseType input src = do
   -- `show Input` is the name of the "file" being lexed
   (names0, lexed) <- lexedSource (Text.pack input) (Text.pack src)
-  parseNames <- basicParseNames
+  parseNames <- Cli.getCurrentNames
   let names =
         NamesWithHistory.push
           (NamesWithHistory.currentNames names0)
@@ -2798,7 +2795,7 @@ getTerm' mainName =
   let getFromCodebase = do
         Cli.Env {codebase, runtime} <- ask
 
-        parseNames <- basicParseNames
+        parseNames <- Cli.getCurrentNames
         let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
         mainToFile
           =<< MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)

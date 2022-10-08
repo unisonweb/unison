@@ -194,17 +194,6 @@ namesForBranch root scope =
         then currentAndExternalNames
         else currentPathNames
 
-basicSuffixifiedNames :: Int -> Branch m -> NameScoping -> PPE.PrettyPrintEnv
-basicSuffixifiedNames hashLength root nameScope =
-  let names0 = prettyNamesForBranch root nameScope
-   in suffixifyNames hashLength names0
-
-parseNamesForBranch :: Branch m -> NameScoping -> Names
-parseNamesForBranch root = namesForBranch root <&> \(n, _, _) -> n
-
-prettyNamesForBranch :: Branch m -> NameScoping -> Names
-prettyNamesForBranch root = namesForBranch root <&> \(_, n, _) -> n
-
 shallowPPE :: Monad m => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
 shallowPPE codebase b = do
   hashLength <- Codebase.hashLength codebase
@@ -619,22 +608,6 @@ data NameScoping
   | -- | Filter returned names to only include names within this path.
     Within Path
 
-toAllNames :: NameScoping -> NameScoping
-toAllNames (AllNames p) = AllNames p
-toAllNames (Within p) = AllNames p
-
-getCurrentPrettyNames :: Int -> NameScoping -> Branch m -> PPED.PrettyPrintEnvDecl
-getCurrentPrettyNames hashLen scope root =
-  let primary = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
-      backup = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
-   in PPED.PrettyPrintEnvDecl
-        (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE backup)
-        (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE backup)
-
-getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
-getCurrentParseNames scope root =
-  NamesWithHistory (parseNamesForBranch root scope) mempty
-
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
 -- converted to absolute names. For example:
@@ -1000,9 +973,8 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   docTermsWithNames <- filterM (isDoc codebase . fst) (filter notLib allTerms)
   let docNamesByRef = Map.fromList docTermsWithNames
   hqLength <- Codebase.hashLength codebase
-  let printNames = prettyNamesForBranch root (AllNames currentPath)
-  let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
-  let ppe = PPED.fromNamesDecl hqLength printNamesWithHistory
+  let printNames = NamesWithHistory.fromCurrentNames $ Branch.toNames (Branch.head currentBranch)
+  let ppe = PPED.fromNamesDecl hqLength printNames
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
   liftIO $ traverse_ (renderDocToHtmlFile docNamesByRef directory) docs
   where
