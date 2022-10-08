@@ -235,9 +235,14 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
       ]
   initialRootCausalHash <- Codebase.getRootCausalHash codebase
   rootVar <- newEmptyTMVarIO
+  currentBranchVar <- newEmptyTMVarIO
+  currentPPEDVar <- newEmptyTMVarIO
   void $ Ki.fork scope do
     root <- Codebase.getRootBranch codebase
-    atomically $ putTMVar rootVar root
+    atomically $ do
+      putTMVar rootVar root
+      putTMVar currentBranchVar root
+      putTMVar currentPPEDVar root
   mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
   credMan <- AuthN.newCredentialManager
   let tokenProvider :: AuthN.TokenProvider
@@ -485,7 +490,9 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
 
-  loop (Cli.loopState0 initialRootCausalHash rootVar initialPath)
+  hashLen <- Codebase.hashLength codebase
+  initState <- liftIO (Cli.loopState0 hashLen initialRootCausalHash rootVar initialPath)
+  loop initState
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do

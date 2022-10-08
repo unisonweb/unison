@@ -117,7 +117,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
     -- This might be overly aggressive, maybe we should just evaluate the top level but avoid
     -- recursive "deep*" things.
     void $ UnliftIO.evaluate root
-  let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
+  hashLen <- Codebase.hashLength codebase
+  initialState <- liftIO (Cli.loopState0 hashLen initialRootCausalHash rootVar initialPath)
   Ki.fork_ scope $ do
     let loop lastRoot = do
           -- This doesn't necessarily notify on _every_ update, but the LSP only needs the

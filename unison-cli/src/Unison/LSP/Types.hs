@@ -84,11 +84,11 @@ data FileAnalysis = FileAnalysis
   { fileUri :: !Uri,
     fileVersion :: !FileVersion,
     lexedSource :: LexedSource,
-    parsedFile :: ~Maybe (UF.UnisonFile Symbol Ann),
-    typecheckedFile :: ~Maybe (UF.TypecheckedUnisonFile Symbol Ann),
-    notes :: ~Seq (Note Symbol Ann),
-    diagnostics :: ~IntervalMap Position [Diagnostic],
-    codeActions :: ~IntervalMap Position [CodeAction]
+    parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
+    typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
+    notes :: Seq (Note Symbol Ann),
+    diagnostics :: IntervalMap Position [Diagnostic],
+    codeActions :: IntervalMap Position [CodeAction]
   }
   deriving (Show)
 
