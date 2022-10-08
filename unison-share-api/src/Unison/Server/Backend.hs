@@ -560,19 +560,6 @@ termReferentsByShortHash codebase sh = do
             B.intrinsicTermReferences
   pure (fromBuiltins <> Set.mapMonotonic (over Referent.reference_ Reference.DerivedId) fromCodebase)
 
--- currentPathNames :: Path -> Names
--- currentPathNames = Branch.toNames . Branch.head . Branch.getAt
-
--- | Configure how names will be constructed and filtered.
---   this is typically used when fetching names for printing source code or when finding
---   definitions by name.
-data NameScoping
-  = -- | Find all names, making any names which are children of this path,
-    -- otherwise leave them absolute.
-    AllNames Path
-  | -- | Filter returned names to only include names within this path.
-    Within Path
-
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
 -- converted to absolute names. For example:

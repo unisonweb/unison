@@ -23,6 +23,7 @@ module Unison.Cli.MonadUtils
     getCurrentBranch,
     getCurrentBranch0,
     getCurrentNames,
+    getRootNames,
     getCurrentPPED,
     getBranchAt,
     getBranch0At,
@@ -86,6 +87,7 @@ import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.Input as Input
@@ -200,6 +202,12 @@ getCurrentBranch = do
 getCurrentNames :: (MonadState LoopState m, MonadIO m) => m Names
 getCurrentNames = do
   use #currentNames >>= liftIO
+
+-- | Get all the names for the codebase root.
+-- Don't do this unless you have to, it's slow.
+getRootNames :: Cli r Names
+getRootNames = do
+  Branch.toNames <$> getRootBranch0
 
 -- | Get the names for the current branch.
 getCurrentPPED :: (MonadState LoopState m, MonadIO m) => m PrettyPrintEnvDecl

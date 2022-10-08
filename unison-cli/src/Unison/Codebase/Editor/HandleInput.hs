@@ -44,7 +44,7 @@ import qualified Unison.Builtin.Terms as Builtin
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.NamesUtils (displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
+import Unison.Cli.NamesUtils (displayNames, findHistoricalHQs, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.UnisonConfigUtils (gitUrlKey, remoteMappingKey)
 import Unison.Codebase (Codebase, Preprocessing (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase as Codebase
@@ -186,22 +186,12 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
 
 prettyPrintEnvDecl :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = do
   Cli.Env {codebase} <- ask
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
-
--- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli r PPE.PrettyPrintEnvDecl
-currentPrettyPrintEnvDecl scoping = do
-  Cli.Env {codebase} <- ask
-  root' <- Cli.getRootBranch
-  currentPath <- Cli.getCurrentPath
-  hqLen <- liftIO (Codebase.hashLength codebase)
-  pure $ Backend.getCurrentPrettyNames hqLen (scoping (Path.unabsolute currentPath)) root'
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -364,7 +354,7 @@ loop e = do
                 (ppe, diff) <- diffHelper before after
                 Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
               else do
-                ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                ppeDecl <- Cli.getCurrentPPED
                 Cli.respondNumbered (CantDeleteDefinitions ppeDecl endangerments)
        in case input of
             ApiI -> do
@@ -548,12 +538,12 @@ loop e = do
                 case (null endangerments, insistence) of
                   (True, _) -> pure (Cli.respond Success)
                   (False, Force) -> do
-                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                    ppeDecl <- Cli.getCurrentPPED
                     pure do
                       Cli.respond Success
                       Cli.respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                   (False, Try) -> do
-                    ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                    ppeDecl <- Cli.getCurrentPPED
                     Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
                     Cli.returnEarlyWithoutOutput
               Cli.stepAt description $
@@ -757,7 +747,6 @@ loop e = do
                 fixupOutput = fmap Path.unsafeToName . HQ'.toHQ . Path.unsplitHQ
             NamesI global query -> do
               Cli.Env {codebase} <- ask
-              currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
               hqLength <- liftIO (Codebase.hashLength codebase)
               root <- Cli.getRootBranch
               (names, pped) <-
@@ -769,10 +758,9 @@ loop e = do
                     let pped = PPE.fromNamesDecl hqLength names
                     pure (names, pped)
                   else do
-                    currentBranch <- Cli.getCurrentBranch0
-                    let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
-                    let pped = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
-                    pure (currentNames, pped)
+                    currentNames <- Cli.getCurrentNames
+                    pped <- Cli.getCurrentPPED
+                    pure (NamesWithHistory.fromCurrentNames currentNames, pped)
 
               let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
                   terms = NamesWithHistory.lookupHQTerm query names
@@ -805,7 +793,7 @@ loop e = do
               Cli.respond $ ListOfLinks biasedPPE out
             DocsI srcs -> do
               currentBranch0 <- Cli.getCurrentBranch0
-              basicPrettyPrintNames <- getBasicPrettyPrintNames
+              names <- Cli.getCurrentNames
               srcs' <- case srcs of
                 [] -> do
                   defs <-
@@ -815,7 +803,7 @@ loop e = do
                   -- that don't to satisfy the type-checker.
                   pure . mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString) $ defs
                 xs -> pure xs
-              for_ srcs' (docsI (show input) basicPrettyPrintNames)
+              for_ srcs' (docsI (show input) names)
             CreateAuthorI authorNameSegment authorFullName -> do
               Cli.Env {codebase} <- ask
               initialBranch <- Cli.getCurrentBranch
@@ -910,7 +898,7 @@ loop e = do
             DeleteTermI hq -> delete Cli.getTermsAt (const (pure Set.empty)) hq
             DisplayI outputLoc names' -> do
               currentBranch0 <- Cli.getCurrentBranch0
-              basicPrettyPrintNames <- getBasicPrettyPrintNames
+              basicPrettyPrintNames <- Cli.getCurrentNames
               names <- case names' of
                 [] ->
                   fuzzySelectDefinition Absolute currentBranch0 & onNothingM do
@@ -934,16 +922,8 @@ loop e = do
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
               #numberedArgs .= fmap entryToHQString entries
-              getRoot <- atomically . STM.readTMVar <$> use #root
-              let buildPPE = do
-                    sbhLength <- liftIO (Codebase.branchHashLength codebase)
-                    rootBranch <- getRoot
-                    pure $
-                      Backend.basicSuffixifiedNames
-                        sbhLength
-                        rootBranch
-                        (Backend.AllNames (Path.unabsolute pathArgAbs))
-              Cli.respond $ ListShallow buildPPE entries
+              getPPE <- use #currentPPED
+              Cli.respond $ ListShallow (PPED.suffixifiedPPE <$> getPPE) entries
               where
                 entryToHQString :: ShallowListEntry v Ann -> String
                 entryToHQString e =
@@ -1354,7 +1334,7 @@ loop e = do
                 Nothing -> Cli.respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+                  ppe <- PPE.unsuffixifiedPPE <$> Cli.getCurrentPPED
                   Cli.respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> do
               numArgs <- use #numberedArgs
@@ -1682,16 +1662,13 @@ handleFindI ::
   Cli r ()
 handleFindI isVerbose fscope ws input = do
   Cli.Env {codebase} <- ask
-  root' <- Cli.getRootBranch
-  currentPath' <- Cli.getCurrentPath
   currentBranch0 <- Cli.getCurrentBranch0
-  let getNames :: FindScope -> Names
-      getNames findScope =
-        let cp = Path.unabsolute currentPath'
-            nameScope = case findScope of
-              FindLocal -> Backend.Within cp
-              FindLocalAndDeps -> Backend.Within cp
-              FindGlobal -> Backend.AllNames cp
+  let getNames :: FindScope -> Cli r Names
+      getNames findScope = do
+        let getNames = case findScope of
+              FindLocal -> Cli.getCurrentNames
+              FindLocalAndDeps -> Cli.getCurrentNames
+              FindGlobal -> Cli.getRootNames
             scopeFilter = case findScope of
               FindLocal ->
                 let f n =
@@ -1706,7 +1683,7 @@ handleFindI isVerbose fscope ws input = do
                         "lib" Nel.:| (_ : "lib" : _) -> False
                         _ -> True
                  in Names.filter f
-         in scopeFilter (Backend.prettyNamesForBranch root' nameScope)
+         in scopeFilter <$> getNames
   let getResults :: Names -> Cli r [SearchResult]
       getResults names = do
         case ws of
@@ -1744,11 +1721,13 @@ handleFindI isVerbose fscope ws input = do
             =<< makePrintNamesFromLabeled'
               (foldMap SR'.labeledDependencies results')
         Cli.respond $ ListOfDefinitions fscope ppe isVerbose results'
-  results <- getResults (getNames fscope)
+  names <- getNames fscope
+  results <- getResults names
   case (results, fscope) of
     ([], FindLocal) -> do
       Cli.respond FindNoLocalMatches
-      respondResults =<< getResults (getNames FindLocalAndDeps)
+      names <- getNames FindLocalAndDeps
+      respondResults =<< getResults names
     _ -> respondResults results
 
 handleDependents :: HQ.HashQualified Name -> Cli r ()
@@ -1772,7 +1751,7 @@ handleDependents hq = do
        in LD.fold tp tm ld
     -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
     -- unambiguous name.
-    ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+    ppe <- PPE.unsuffixifiedPPE <$> Cli.getCurrentPPED
     let results :: [(Reference, Maybe Name)]
         results =
           -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
@@ -1981,24 +1960,22 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       else pure inputQuery
   root <- Cli.getRootBranch
   let root0 = Branch.head root
-  currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
   let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
   (names, unbiasedPPE) <- case (hasAbsoluteQuery, showDefinitionScope) of
     (True, _) -> do
-      let namingScope = Backend.AllNames currentPath'
-      let parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root namingScope
-      let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
-      pure (parseNames, ppe)
+      names <- Cli.getCurrentNames
+      pped <- Cli.getCurrentPPED
+      -- TODO: do these names need to be absolute?
+      pure (NamesWithHistory.fromCurrentNames names, pped)
     (_, ShowDefinitionGlobal) -> do
       let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
       -- Use an absolutely qualified ppe for view.global
       let ppe = PPE.fromNamesDecl hqLength names
       pure (names, ppe)
     (_, ShowDefinitionLocal) -> do
-      currentBranch <- Cli.getCurrentBranch0
-      let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
-      let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
-      pure (currentNames, ppe)
+      names <- Cli.getCurrentNames
+      pped <- Cli.getCurrentPPED
+      pure (NamesWithHistory.fromCurrentNames names, pped)
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = Backend.makeNameSearch hqLength names
     liftIO (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
@@ -2780,13 +2757,13 @@ getTerm main =
   getTerm' main >>= \case
     NoTermWithThatName -> do
       mainType <- Runtime.mainType <$> view #runtime
-      basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+      names <- Cli.getCurrentNames
+      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory names mempty)
       Cli.returnEarly $ NoMainFunction main ppe [mainType]
     TermHasBadType ty -> do
       mainType <- Runtime.mainType <$> view #runtime
-      basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+      names <- Cli.getCurrentNames
+      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory names mempty)
       Cli.returnEarly $ BadMainFunction main ty ppe [mainType]
     GetTermSuccess x -> pure x
 
@@ -2865,11 +2842,9 @@ loadTypeOfTerm _ Referent.Con {} =
 hqNameQuery :: [HQ.HashQualified Name] -> Cli r QueryResult
 hqNameQuery query = do
   Cli.Env {codebase} <- ask
-  root' <- Cli.getRootBranch
-  currentPath <- Cli.getCurrentPath
   hqLength <- liftIO (Codebase.hashLength codebase)
-  let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
-  let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+  names <- Cli.getCurrentNames
+  let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames names)
   liftIO (Backend.hqNameQuery codebase nameSearch query)
 
 -- | Select a definition from the given branch.

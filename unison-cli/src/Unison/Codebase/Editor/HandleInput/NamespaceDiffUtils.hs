@@ -10,23 +10,19 @@ import qualified Unison.Builtin as Builtin
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.PrettyPrintUtils (prettyPrintEnvDecl)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
 import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.BranchDiff as BranchDiff
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
-import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
-import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
 import Unison.Reference (Reference (..))
 import qualified Unison.Reference as Reference
-import qualified Unison.Server.Backend as Backend
 import Unison.Symbol (Symbol)
 
 diffHelper ::
@@ -36,12 +32,9 @@ diffHelper ::
 diffHelper before after =
   Cli.time "diffHelper" do
     Cli.Env {codebase} <- ask
-    rootBranch <- Cli.getRootBranch
-    currentPath <- Cli.getCurrentPath
     hqLength <- liftIO (Codebase.hashLength codebase)
     diff <- liftIO (BranchDiff.diff0 before after)
-    let (_parseNames, prettyNames0, _local) = Backend.namesForBranch rootBranch (Backend.AllNames $ Path.unabsolute currentPath)
-    ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
+    ppe <- PPE.suffixifiedPPE <$> Cli.getCurrentPPED
     liftIO do
       fmap (ppe,) do
         OBranchDiff.toOutput
