@@ -1,5 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-
 -- | @Map@ utilities.
 module Unison.Util.Map
   ( bimap,
@@ -8,6 +6,7 @@ module Unison.Util.Map
     deleteLookup,
     foldMapM,
     unionWithM,
+    remap,
     traverseKeys,
     traverseKeysWith,
     swap,
@@ -74,6 +73,15 @@ unionWithM f m1 m2 =
     go m1 (k, a2) = case Map.lookup k m1 of
       Just a1 -> do a <- f a1 a2; pure $ Map.insert k a m1
       Nothing -> pure $ Map.insert k a2 m1
+
+-- | Reconstruct a map entirely, given a function from old key/value to new key/value.
+--
+-- @
+-- remap f = Map.fromList . map f . Map.toList
+-- @
+remap :: Ord k1 => ((k0, v0) -> (k1, v1)) -> Map k0 v0 -> Map k1 v1
+remap f =
+  Map.fromList . map f . Map.toList
 
 traverseKeys :: (Applicative f, Ord k') => (k -> f k') -> Map k v -> f (Map k' v)
 traverseKeys f = bitraverse f pure

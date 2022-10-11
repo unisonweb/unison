@@ -66,7 +66,7 @@ import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReference, TypeReference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -83,7 +83,7 @@ import qualified Prelude
 -- For parsing (both .u files and command-line args)
 data Names = Names
   { terms :: Relation Name Referent,
-    types :: Relation Name Reference
+    types :: Relation Name TypeReference
   }
   deriving (Eq, Ord)
 
@@ -123,7 +123,7 @@ makeRelative = map Name.makeRelative
 fuzzyFind ::
   [String] ->
   Names ->
-  [(FZF.Alignment, Name, Set (Either Referent Reference))]
+  [(FZF.Alignment, Name, Set (Either Referent TypeReference))]
 fuzzyFind query names =
   fmap flatten
     . fuzzyFinds (Name.toString . fst) query
@@ -159,8 +159,10 @@ fuzzyFind query names =
                       query
             )
 
-termReferences, typeReferences :: Names -> Set Reference
+termReferences :: Names -> Set TermReference
 termReferences Names {..} = Set.map Referent.toReference $ R.ran terms
+
+typeReferences :: Names -> Set TypeReference
 typeReferences Names {..} = R.ran types
 
 -- | Collect all references in the given Names, tagged with their type.
@@ -259,26 +261,26 @@ numHashChars = 3
 termsNamed :: Names -> Name -> Set Referent
 termsNamed = flip R.lookupDom . terms
 
-refTermsNamed :: Names -> Name -> Set Reference
+refTermsNamed :: Names -> Name -> Set TermReference
 refTermsNamed names n =
   Set.fromList [r | Referent.Ref r <- toList $ termsNamed names n]
 
-typesNamed :: Names -> Name -> Set Reference
+typesNamed :: Names -> Name -> Set TypeReference
 typesNamed = flip R.lookupDom . types
 
 namesForReferent :: Names -> Referent -> Set Name
 namesForReferent names r = R.lookupRan r (terms names)
 
-namesForReference :: Names -> Reference -> Set Name
+namesForReference :: Names -> TypeReference -> Set Name
 namesForReference names r = R.lookupRan r (types names)
 
 termAliases :: Names -> Name -> Referent -> Set Name
 termAliases names n r = Set.delete n $ namesForReferent names r
 
-typeAliases :: Names -> Name -> Reference -> Set Name
+typeAliases :: Names -> Name -> TypeReference -> Set Name
 typeAliases names n r = Set.delete n $ namesForReference names r
 
-addType :: Name -> Reference -> Names -> Names
+addType :: Name -> TypeReference -> Names -> Names
 addType n r = (<> fromTypes [(n, r)])
 
 addTerm :: Name -> Referent -> Names -> Names
@@ -297,7 +299,7 @@ addTerm n r = (<> fromTerms [(n, r)])
 --
 -- We want to append the hash regardless of whether or not one is a term and the
 -- other is a type.
-hqName :: Names -> Name -> Either Reference Referent -> HQ'.HashQualified Name
+hqName :: Names -> Name -> Either TypeReference Referent -> HQ'.HashQualified Name
 hqName b n = \case
   Left r -> if ambiguous then _hqTypeName' b n r else HQ'.fromName n
   Right r -> if ambiguous then _hqTermName' b n r else HQ'.fromName n
@@ -312,7 +314,7 @@ hqTermName hqLen b n r =
     then hqTermName' hqLen n r
     else HQ'.fromName n
 
-hqTypeName :: Int -> Names -> Name -> Reference -> HQ'.HashQualified Name
+hqTypeName :: Int -> Names -> Name -> TypeReference -> HQ'.HashQualified Name
 hqTypeName hqLen b n r =
   if Set.size (typesNamed b n) > 1
     then hqTypeName' hqLen n r
@@ -324,13 +326,13 @@ _hqTermName b n r =
     then _hqTermName' b n r
     else HQ'.fromName n
 
-_hqTypeName :: Names -> Name -> Reference -> HQ'.HashQualified Name
+_hqTypeName :: Names -> Name -> TypeReference -> HQ'.HashQualified Name
 _hqTypeName b n r =
   if Set.size (typesNamed b n) > 1
     then _hqTypeName' b n r
     else HQ'.fromName n
 
-_hqTypeAliases :: Names -> Name -> Reference -> Set (HQ'.HashQualified Name)
+_hqTypeAliases :: Names -> Name -> TypeReference -> Set (HQ'.HashQualified Name)
 _hqTypeAliases b n r = Set.map (flip (_hqTypeName b) r) (typeAliases b n r)
 
 _hqTermAliases :: Names -> Name -> Referent -> Set (HQ'.HashQualified Name)
@@ -342,7 +344,7 @@ hqTermName' :: Int -> Name -> Referent -> HQ'.HashQualified Name
 hqTermName' hqLen n r =
   HQ'.take hqLen $ HQ'.fromNamedReferent n r
 
-hqTypeName' :: Int -> Name -> Reference -> HQ'.HashQualified Name
+hqTypeName' :: Int -> Name -> TypeReference -> HQ'.HashQualified Name
 hqTypeName' hqLen n r =
   HQ'.take hqLen $ HQ'.fromNamedReference n r
 
@@ -350,14 +352,14 @@ _hqTermName' :: Names -> Name -> Referent -> HQ'.HashQualified Name
 _hqTermName' _b n r =
   HQ'.take numHashChars $ HQ'.fromNamedReferent n r
 
-_hqTypeName' :: Names -> Name -> Reference -> HQ'.HashQualified Name
+_hqTypeName' :: Names -> Name -> TypeReference -> HQ'.HashQualified Name
 _hqTypeName' _b n r =
   HQ'.take numHashChars $ HQ'.fromNamedReference n r
 
 fromTerms :: [(Name, Referent)] -> Names
 fromTerms ts = Names (R.fromList ts) mempty
 
-fromTypes :: [(Name, Reference)] -> Names
+fromTypes :: [(Name, TypeReference)] -> Names
 fromTypes ts = Names mempty (R.fromList ts)
 
 -- | Map over each name in a 'Names'.
@@ -412,7 +414,7 @@ contains names =
   \r -> Set.member r termsReferences || R.memberRan r (types names)
   where
     -- this check makes `contains` O(n) instead of O(log n)
-    termsReferences :: Set Reference
+    termsReferences :: Set TermReference
     termsReferences =
       Set.map Referent.toReference (R.ran (terms names))
 
@@ -470,7 +472,7 @@ expandWildcardImport prefix ns =
       pure (suffix, full)
 
 -- Finds all the constructors for the given type in the `Names`
-constructorsForType :: Reference -> Names -> [(Name, Referent)]
+constructorsForType :: TypeReference -> Names -> [(Name, Referent)]
 constructorsForType r ns =
   let -- rather than searching all of names, we use the known possible forms
       -- that the constructors can take
@@ -486,7 +488,7 @@ constructorsForType r ns =
 hashQualifyTermsRelation :: R.Relation Name Referent -> R.Relation (HQ.HashQualified Name) Referent
 hashQualifyTermsRelation = hashQualifyRelation HQ.fromNamedReferent
 
-hashQualifyTypesRelation :: R.Relation Name Reference -> R.Relation (HQ.HashQualified Name) Reference
+hashQualifyTypesRelation :: R.Relation Name TypeReference -> R.Relation (HQ.HashQualified Name) TypeReference
 hashQualifyTypesRelation = hashQualifyRelation HQ.fromNamedReference
 
 hashQualifyRelation :: Ord r => (Name -> r -> HQ.HashQualified Name) -> R.Relation Name r -> R.Relation (HQ.HashQualified Name) r

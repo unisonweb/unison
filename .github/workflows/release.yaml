@@ -1,5 +1,9 @@
 name: "release"
 
+defaults:
+  run:
+    shell: bash
+
 on:
   workflow_dispatch:
     inputs:
@@ -16,7 +20,7 @@ on:
 jobs:
   release:
     name: "create_release"
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     needs:
       - build_linux
       - build_macos
@@ -52,7 +56,7 @@ jobs:
   build_linux:
 
     name: "build_linux"
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
         with:
@@ -69,11 +73,11 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-0_ubuntu-22.04-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          key: stack-0_ubuntu-20.04-${{hashFiles('stack.yaml')}}-${{github.sha}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: |
-            stack-0_ubuntu-22.04-${{hashFiles('stack.yaml')}}
-            stack-0_ubuntu-22.04
+            stack-0_ubuntu-20.04-${{hashFiles('stack.yaml')}}
+            stack-0_ubuntu-20.04
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
       - uses: actions/cache@v3
@@ -87,8 +91,15 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-work-3_ubuntu-22.04-${{github.sha}}
-          restore-keys: stack-work-3_ubuntu-22.04
+          key: stack-work-3_ubuntu-20.04-${{github.sha}}
+          restore-keys: stack-work-3_ubuntu-20.04
+
+      - name: install stack (Linux)
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-linux-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: build
         run: stack --no-terminal build --flag unison-parser-typechecker:optimized
@@ -148,6 +159,13 @@ jobs:
           # the next build on this branch.
           key: stack-work-3_macOS-11.0-${{github.sha}}
           restore-keys: stack-work-3_macOS-11.0
+
+      - name: install stack (macOS)
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-osx-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: remove ~/.stack/setup-exe-cache on macOS
         run: rm -rf ~/.stack/setup-exe-cache
@@ -212,8 +230,14 @@ jobs:
           key: stack-work-3_windows-2019-${{github.sha}}
           restore-keys: stack-work-3_windows-2019
 
+      - name: install stack (windows)
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-windows-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
+
       - name: build
-        shell: bash
         run: |
           # Windows will crash on build intermittently because the filesystem
           # sucks at managing concurrent file access;
@@ -224,11 +248,14 @@ jobs:
           done
 
       - name: fetch latest Unison Local UI and package with ucm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Powershell
+        shell: pwsh
         run: |
           mkdir -p tmp\ui
           mkdir -p release\ui
-          $UCM = stack exec -- where unison
+          $UCM = .\stack\stack-2.7.5-windows-x86_64\stack.exe exec -- where unison
           cp $UCM .\release\ucm.exe
           Invoke-WebRequest -Uri https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
           Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui

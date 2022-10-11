@@ -6,6 +6,7 @@ module Unison.Codebase
     unsafeGetTerm,
     unsafeGetTermWithType,
     getTermComponentWithTypes,
+    unsafeGetTermComponent,
     getTypeOfTerm,
     getDeclType,
     unsafeGetTypeOfTermById,
@@ -522,3 +523,14 @@ unsafeGetTermWithType codebase rid = do
       Term.Ann' _ ty -> pure ty
       _ -> unsafeGetTypeOfTermById codebase rid
   pure (term, ty)
+
+-- | Like 'getTermComponentWithTypes', for when the term component is known to exist in the codebase.
+unsafeGetTermComponent ::
+  (HasCallStack, Monad m) =>
+  Codebase m v a ->
+  Hash ->
+  m [(Term v a, Type v a)]
+unsafeGetTermComponent codebase hash =
+  getTermComponentWithTypes codebase hash >>= \case
+    Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
+    Just terms -> pure terms
