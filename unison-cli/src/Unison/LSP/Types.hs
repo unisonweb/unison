@@ -76,7 +76,12 @@ data Env = Env
     scope :: Ki.Scope
   }
 
-newtype CompletionTree = CompletionTree {unCompletionTree :: Cofree (Map NameSegment) (Set (Name, LabeledDependency))}
+-- | A suffix tree over path segments of name completions.
+-- see 'namesToCompletionTree' for more on how this is built and the invariants it should have.
+newtype CompletionTree = CompletionTree
+  { unCompletionTree :: Cofree (Map NameSegment) (Set (Name, LabeledDependency))
+  }
+  deriving (Show)
 
 instance Semigroup CompletionTree where
   CompletionTree (a Cofree.:< subtreeA) <> CompletionTree (b Cofree.:< subtreeB) =
