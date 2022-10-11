@@ -23,10 +23,10 @@ structural ability Stream s where
 
 ```api
 --  term
-GET /api/definitions/terms/by-hash/@qkhkl0n238/summary?name=nat
+GET /api/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8/summary?name=nat
 {
     "displayName": "nat",
-    "hash": "#qkhkl0n238",
+    "hash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
     "summary": {
         "contents": [
             {
@@ -42,10 +42,10 @@ GET /api/definitions/terms/by-hash/@qkhkl0n238/summary?name=nat
     "tag": "Plain"
 }
 --  term without name uses hash
-GET /api/definitions/terms/by-hash/@qkhkl0n238/summary
+GET /api/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8/summary
 {
-    "displayName": "#qkhkl0n238",
-    "hash": "#qkhkl0n238",
+    "displayName": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
+    "hash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
     "summary": {
         "contents": [
             {
@@ -61,10 +61,10 @@ GET /api/definitions/terms/by-hash/@qkhkl0n238/summary
     "tag": "Plain"
 }
 --  doc
-GET /api/definitions/terms/by-hash/@icfnhas71n/summary?name=doc
+GET /api/definitions/terms/by-hash/@icfnhas71n8q5rm7rmpe51hh7bltsr7rb4lv7qadc4cbsifu1mhonlqj2d7836iar2ptc648q9p4u7hf40ijvld574421b6u8gpu0lo/summary?name=doc
 {
     "displayName": "doc",
-    "hash": "#icfnhas71n",
+    "hash": "#icfnhas71n8q5rm7rmpe51hh7bltsr7rb4lv7qadc4cbsifu1mhonlqj2d7836iar2ptc648q9p4u7hf40ijvld574421b6u8gpu0lo",
     "summary": {
         "contents": [
             {
@@ -80,10 +80,10 @@ GET /api/definitions/terms/by-hash/@icfnhas71n/summary?name=doc
     "tag": "Doc"
 }
 --  test
-GET /api/definitions/terms/by-hash/@u17p9803hd/summary?name=mytest
+GET /api/definitions/terms/by-hash/@u17p9803hdibisou6rlr1sjbccdossgh7vtkd03ovlvnsl2n91lq94sqhughc62tnrual2jlrfk922sebp4nm22o7m5u9j40emft8r8/summary?name=mytest
 {
     "displayName": "mytest",
-    "hash": "#u17p9803hd",
+    "hash": "#u17p9803hdibisou6rlr1sjbccdossgh7vtkd03ovlvnsl2n91lq94sqhughc62tnrual2jlrfk922sebp4nm22o7m5u9j40emft8r8",
     "summary": {
         "contents": [
             {
@@ -111,10 +111,10 @@ GET /api/definitions/terms/by-hash/@u17p9803hd/summary?name=mytest
     "tag": "Test"
 }
 --  function
-GET /api/definitions/terms/by-hash/@6ee6j48hk3/summary?name=func
+GET /api/definitions/terms/by-hash/@6ee6j48hk3eovokflkgbmpbfr3oqj4hedqn8ocg3i4i0ko8j7nls7njjirmnh4k2bg8h95seaot798uuloqk62u2ttiqoceulkbmq2o/summary?name=func
 {
     "displayName": "func",
-    "hash": "#6ee6j48hk3",
+    "hash": "#6ee6j48hk3eovokflkgbmpbfr3oqj4hedqn8ocg3i4i0ko8j7nls7njjirmnh4k2bg8h95seaot798uuloqk62u2ttiqoceulkbmq2o",
     "summary": {
         "contents": [
             {
@@ -151,10 +151,10 @@ GET /api/definitions/terms/by-hash/@6ee6j48hk3/summary?name=func
     "tag": "Plain"
 }
 --  constructor
-GET /api/definitions/terms/by-hash/@altimqs66j@0/summary?name=Thing.This
+GET /api/definitions/terms/by-hash/@altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0@d0/summary?name=Thing.This
 {
     "displayName": "Thing.This",
-    "hash": "#altimqs66j#0",
+    "hash": "#altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0#0",
     "summary": {
         "contents": [
             {
@@ -191,10 +191,10 @@ GET /api/definitions/terms/by-hash/@altimqs66j@0/summary?name=Thing.This
     "tag": "DataConstructor"
 }
 --  Long type signature
-GET /api/definitions/terms/by-hash/@ieskgcjjvu/summary?name=funcWithLongType
+GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8/summary?name=funcWithLongType
 {
     "displayName": "funcWithLongType",
-    "hash": "#ieskgcjjvu",
+    "hash": "#ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8",
     "summary": {
         "contents": [
             {
@@ -378,10 +378,10 @@ GET /api/definitions/terms/by-hash/@ieskgcjjvu/summary?name=funcWithLongType
     "tag": "Plain"
 }
 --  Long type signature with render width
-GET /api/definitions/terms/by-hash/@ieskgcjjvu/summary?renderWidth=20&name=funcWithLongType
+GET /api/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8/summary?renderWidth=20&name=funcWithLongType
 {
     "displayName": "funcWithLongType",
-    "hash": "#ieskgcjjvu",
+    "hash": "#ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8",
     "summary": {
         "contents": [
             {
@@ -671,10 +671,10 @@ GET /api/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summary?name=putBytesIm
 
 ```api
 --  data
-GET /api/definitions/types/by-hash/@altimqs66j/summary?name=Thing
+GET /api/definitions/types/by-hash/@altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0/summary?name=Thing
 {
     "displayName": "Thing",
-    "hash": "#altimqs66j",
+    "hash": "#altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0",
     "summary": {
         "contents": [
             {
@@ -710,10 +710,10 @@ GET /api/definitions/types/by-hash/@altimqs66j/summary?name=Thing
     "tag": "Data"
 }
 --  data with type args
-GET /api/definitions/types/by-hash/@nirp5os0q6/summary?name=Maybe
+GET /api/definitions/types/by-hash/@nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg/summary?name=Maybe
 {
     "displayName": "Maybe",
-    "hash": "#nirp5os0q6",
+    "hash": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
     "summary": {
         "contents": [
             {
@@ -759,10 +759,10 @@ GET /api/definitions/types/by-hash/@nirp5os0q6/summary?name=Maybe
     "tag": "Data"
 }
 --  ability
-GET /api/definitions/types/by-hash/@rfi1v9429f/summary?name=Stream
+GET /api/definitions/types/by-hash/@rfi1v9429f9qluv533l2iba77aadttilrpmnhljfapfnfa6sru2nr8ibpqvib9nc4s4nb9s1as45upsfqfqe6ivqi2p82b2vd866it8/summary?name=Stream
 {
     "displayName": "Stream",
-    "hash": "#rfi1v9429f",
+    "hash": "#rfi1v9429f9qluv533l2iba77aadttilrpmnhljfapfnfa6sru2nr8ibpqvib9nc4s4nb9s1as45upsfqfqe6ivqi2p82b2vd866it8",
     "summary": {
         "contents": [
             {
