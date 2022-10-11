@@ -31,6 +31,7 @@ import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.Referent as Referent
+import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Relation as Relation
 
 -- | TODO: move this to a configuration param.
@@ -54,9 +55,9 @@ completionHandler m respond =
           defMatches
             & nubOrdOn (\(p, _name, ref) -> (p, ref))
             & fmap (over _1 Path.toText)
-            & ( let x = Text.dropWhileEnd (== '.') prefix
-                 in filter (\(path, _name, _ref) -> path /= x) -- Filter out completions that already match
-              )
+            -- & ( let x = Text.dropWhileEnd (== '.') prefix
+            --      in filter (\(path, _name, _ref) -> path /= x) -- Filter out completions that already match
+            --   )
             & case completionLimit of
               Nothing -> (False,)
               Just n -> takeCompletions n
@@ -65,7 +66,7 @@ completionHandler m respond =
             & mapMaybe \(path, fqn, dep) ->
               let biasedPPE = PPE.biasTo [fqn] ppe
                   hqName = LD.fold (PPE.types biasedPPE) (PPE.terms biasedPPE) dep
-               in hqName <&> \hqName -> mkDefCompletionItem range path (HQ'.toText hqName) dep
+               in hqName <&> \hqName -> mkDefCompletionItem range (Name.toText fqn) path (HQ'.toText hqName) dep
     pure . CompletionList isIncomplete . List $ defCompletionItems
   where
     takeCompletions :: Int -> [a] -> (Bool, [a])
@@ -73,8 +74,8 @@ completionHandler m respond =
     takeCompletions _ [] = (False, [])
     takeCompletions n (x : xs) = second (x :) $ takeCompletions (pred n) xs
 
-mkDefCompletionItem :: Range -> Text -> Text -> LabeledDependency -> CompletionItem
-mkDefCompletionItem range path suffixified dep =
+mkDefCompletionItem :: Range -> Text -> Text -> Text -> LabeledDependency -> CompletionItem
+mkDefCompletionItem range fqn path suffixified dep =
   CompletionItem
     { _label = lbl,
       _kind = case dep of
@@ -83,7 +84,7 @@ mkDefCompletionItem range path suffixified dep =
           Referent.Con {} -> Just CiConstructor
           Referent.Ref {} -> Just CiValue,
       _tags = Nothing,
-      _detail = Just detail,
+      _detail = Just fqn,
       _documentation = Nothing,
       _deprecated = Nothing,
       _preselect = Nothing,
@@ -100,35 +101,10 @@ mkDefCompletionItem range path suffixified dep =
       _xdata = Nothing
     }
   where
-    (lbl, detail) =
+    (lbl, _detail) =
       if Text.length path > Text.length suffixified
         then (path, suffixified)
         else (suffixified, path)
-
-mkPathCompletionItem :: Range -> Path -> CompletionItem
-mkPathCompletionItem range path =
-  CompletionItem
-    { _label = lbl <> ".",
-      _kind = Just CiModule,
-      _tags = Nothing,
-      _detail = Nothing,
-      _documentation = Nothing,
-      _deprecated = Nothing,
-      _preselect = Nothing,
-      -- Sort path completions first
-      _sortText = Just ("0" <> lbl),
-      _filterText = Nothing,
-      _insertText = Nothing,
-      _insertTextFormat = Nothing,
-      _insertTextMode = Nothing,
-      _textEdit = Just (CompletionEditText $ TextEdit range lbl),
-      _additionalTextEdits = Nothing,
-      _commitCharacters = Nothing,
-      _command = Nothing,
-      _xdata = Nothing
-    }
-  where
-    lbl = Path.toText path
 
 -- | Generate a completion tree from a set of names.
 -- A completion tree is a suffix tree over the path segments of each name it contains.
@@ -174,11 +150,28 @@ namesToCompletionTree :: Names -> CompletionTree
 namesToCompletionTree Names {terms, types} =
   let typeCompls =
         Relation.domain types
-          & ifoldMap (\name refs -> refs & Set.map \ref -> (name, LD.typeRef ref))
+          & ifoldMap
+            ( \name refs ->
+                refs
+                  & Monoid.whenM (not . isDefinitionDoc $ name)
+                  & Set.map \ref -> (name, LD.typeRef ref)
+            )
       termCompls =
         Relation.domain terms
-          & ifoldMap (\name refs -> refs & Set.map \ref -> (name, LD.referent ref))
+          & ifoldMap
+            ( \name refs ->
+                refs
+                  & Monoid.whenM (not . isDefinitionDoc $ name)
+                  & Set.map \ref -> (name, LD.referent ref)
+            )
    in foldMap (uncurry nameToCompletionTree) (typeCompls <> termCompls)
+  where
+    -- It's  annoying to see _all_ the definition docs in autocomplete so we filter them out.
+    -- Special docs like "README" will still appear since they're not named 'doc'
+    isDefinitionDoc name =
+      case Name.reverseSegments name of
+        ("doc" :| _) -> True
+        _ -> False
 
 nameToCompletionTree :: Name -> LabeledDependency -> CompletionTree
 nameToCompletionTree name ref =
