@@ -8,7 +8,7 @@
 module Unison.Codebase.SqliteCodebase.Operations where
 
 import Control.Lens (ifor)
-import Data.Bifunctor (Bifunctor (bimap), second)
+import Data.Bifunctor (second)
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
 import qualified Data.List as List
@@ -232,6 +232,19 @@ getDeclComponent h =
     decl2 <- Ops.loadDeclComponent h
     pure (map (Cv.decl2to1 h) decl2)
 
+putTermComponent ::
+  TVar (Map Hash TermBufferEntry) ->
+  TVar (Map Hash DeclBufferEntry) ->
+  -- | The hash of the term component.
+  Hash ->
+  [(Term Symbol Ann, Type Symbol Ann)] ->
+  Transaction ()
+putTermComponent termBuffer declBuffer h component =
+  unlessM (Ops.objectExistsForHash h) do
+    for_ (Reference.componentFor h component) \(ref, (tm, tp)) -> do
+      putTerm_ termBuffer declBuffer ref tm tp
+      tryFlushTermBuffer termBuffer h
+
 putTerm ::
   TVar (Map Hash TermBufferEntry) ->
   TVar (Map Hash DeclBufferEntry) ->
@@ -239,46 +252,50 @@ putTerm ::
   Term Symbol Ann ->
   Type Symbol Ann ->
   Transaction ()
-putTerm termBuffer declBuffer (Reference.Id h i) tm tp =
+putTerm termBuffer declBuffer ref@(Reference.Id h _) tm tp =
   unlessM (Ops.objectExistsForHash h) do
-    BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer termBuffer h)
-    let termDependencies = Set.toList $ Term.termDependencies tm
-    -- update the component target size if we encounter any higher self-references
-    let size' = max size (Just $ biggestSelfReference + 1)
-          where
-            biggestSelfReference =
-              maximum1 $
-                i :| [i' | Reference.Derived h' i' <- termDependencies, h == h']
-    let comp' = Map.insert i (tm, tp) comp
-    -- for the component element that's been passed in, add its dependencies to missing'
-    missingTerms' <-
-      filterM
-        (fmap not . Ops.objectExistsForHash)
-        [h | Reference.Derived h _i <- termDependencies]
-    missingTypes' <-
-      filterM (fmap not . Ops.objectExistsForHash) $
-        [h | Reference.Derived h _i <- Set.toList $ Term.typeDependencies tm]
-          ++ [h | Reference.Derived h _i <- Set.toList $ Type.dependencies tp]
-    let missing' = missing <> Set.fromList (missingTerms' <> missingTypes')
-    Sqlite.unsafeIO do
-      -- notify each of the dependencies that h depends on them.
-      traverse_ (addBufferDependent h termBuffer) missingTerms'
-      traverse_ (addBufferDependent h declBuffer) missingTypes'
-      putBuffer termBuffer h (BufferEntry size' comp' missing' waiting)
+    putTerm_ termBuffer declBuffer ref tm tp
     tryFlushTermBuffer termBuffer h
+
+putTerm_ ::
+  TVar (Map Hash TermBufferEntry) ->
+  TVar (Map Hash DeclBufferEntry) ->
+  Reference.Id ->
+  Term Symbol Ann ->
+  Type Symbol Ann ->
+  Transaction ()
+putTerm_ termBuffer declBuffer (Reference.Id h i) tm tp = do
+  BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer termBuffer h)
+  let termDependencies = Set.toList $ Term.termDependencies tm
+  -- update the component target size if we encounter any higher self-references
+  let size' = max size (Just $ biggestSelfReference + 1)
+        where
+          biggestSelfReference =
+            maximum1 $
+              i :| [i' | Reference.Derived h' i' <- termDependencies, h == h']
+  let comp' = Map.insert i (tm, tp) comp
+  -- for the component element that's been passed in, add its dependencies to missing'
+  missingTerms' <-
+    filterM
+      (fmap not . Ops.objectExistsForHash)
+      [h | Reference.Derived h _i <- termDependencies]
+  missingTypes' <-
+    filterM (fmap not . Ops.objectExistsForHash) $
+      [h | Reference.Derived h _i <- Set.toList $ Term.typeDependencies tm]
+        ++ [h | Reference.Derived h _i <- Set.toList $ Type.dependencies tp]
+  let missing' = missing <> Set.fromList (missingTerms' <> missingTypes')
+  Sqlite.unsafeIO do
+    -- notify each of the dependencies that h depends on them.
+    traverse_ (addBufferDependent h termBuffer) missingTerms'
+    traverse_ (addBufferDependent h declBuffer) missingTypes'
+    putBuffer termBuffer h (BufferEntry size' comp' missing' waiting)
 
 tryFlushTermBuffer :: TVar (Map Hash TermBufferEntry) -> Hash -> Transaction ()
 tryFlushTermBuffer termBuffer =
   let loop h =
         tryFlushBuffer
           termBuffer
-          ( \h2 component ->
-              void $
-                saveTermComponent
-                  Nothing
-                  h2
-                  (fmap (bimap (Cv.term1to2 h) Cv.ttype1to2) component)
-          )
+          (\h2 component -> void $ saveTermComponent Nothing h2 (Cv.termComponent1to2 h component))
           loop
           h
    in loop
