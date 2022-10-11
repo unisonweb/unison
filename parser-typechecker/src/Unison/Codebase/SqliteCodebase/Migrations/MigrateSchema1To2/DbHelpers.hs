@@ -25,7 +25,6 @@ import qualified U.Codebase.Sqlite.Patch.TypeEdit as S.TypeEdit
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as S
 import qualified U.Codebase.Sqlite.Referent as S
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Branch (NameSegment (..))
 import qualified Unison.Hashing.V2.Branch as Hashing.Branch
@@ -79,11 +78,11 @@ dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
 
     doPatches :: Map Db.TextId Db.PatchObjectId -> Transaction (Map NameSegment Hash)
     doPatches =
-      Map.bitraverse s2hNameSegment (objectIdToPrimaryHash . Db.unPatchObjectId)
+      Map.bitraverse s2hNameSegment (Q.expectPrimaryHashByObjectId . Db.unPatchObjectId)
 
     doChildren :: Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> Transaction (Map NameSegment Hash)
     doChildren =
-      Map.bitraverse s2hNameSegment \(_boId, chId) -> causalHashIdToHash chId
+      Map.bitraverse s2hNameSegment \(_boId, chId) -> Q.expectHash (Db.unCausalHashId chId)
 
 dbPatchHash :: S.Patch -> Transaction PatchHash
 dbPatchHash S.Patch {S.termEdits, S.typeEdits} =
@@ -121,12 +120,12 @@ s2hReferentH = \case
 s2hReference :: S.Reference -> Transaction Hashing.Reference
 s2hReference = \case
   S.ReferenceBuiltin t -> Hashing.Reference.Builtin <$> Q.expectText t
-  S.Reference.Derived h i -> Hashing.Reference.Derived <$> objectIdToPrimaryHash h <*> pure i
+  S.Reference.Derived h i -> Hashing.Reference.Derived <$> Q.expectPrimaryHashByObjectId h <*> pure i
 
 s2hReferenceH :: S.ReferenceH -> Transaction Hashing.Reference
 s2hReferenceH = \case
   S.ReferenceBuiltin t -> Hashing.Reference.Builtin <$> Q.expectText t
-  S.Reference.Derived h i -> Hashing.Reference.Derived <$> expectHash h <*> pure i
+  S.Reference.Derived h i -> Hashing.Reference.Derived <$> Q.expectHash h <*> pure i
 
 s2hTermEdit :: S.TermEdit -> Transaction Hashing.TermEdit
 s2hTermEdit = \case
@@ -137,17 +136,3 @@ s2hTypeEdit :: S.TypeEdit -> Transaction Hashing.TypeEdit
 s2hTypeEdit = \case
   S.TypeEdit.Replace r -> Hashing.TypeEdit.Replace <$> s2hReference r
   S.TypeEdit.Deprecate -> pure Hashing.TypeEdit.Deprecate
-
--- Mitchell: Do these variants of Q.* queries belong somewhere else? Or in Q perhaps?
-
-causalHashIdToHash :: Db.CausalHashId -> Transaction Hash
-causalHashIdToHash =
-  fmap Cv.hash2to1 . Q.expectHash . Db.unCausalHashId
-
-objectIdToPrimaryHash :: Db.ObjectId -> Transaction Hash
-objectIdToPrimaryHash =
-  fmap Cv.hash2to1 . Q.expectPrimaryHashByObjectId
-
-expectHash :: Db.HashId -> Transaction Hash
-expectHash =
-  fmap Cv.hash2to1 . Q.expectHash

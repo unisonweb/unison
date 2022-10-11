@@ -262,7 +262,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
 
             getCycleLength :: Hash -> m (Maybe Reference.CycleSize)
             getCycleLength h =
-              runTransaction (CodebaseOps.getCycleLength h)
+              runTransaction (Ops.getCycleLen h)
 
             -- putTermComponent :: MonadIO m => Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> m ()
             -- putTerms :: MonadIO m => Map Reference.Id (Term Symbol Ann, Type Symbol Ann) -> m () -- dies horribly if missing dependencies?
@@ -528,7 +528,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
               processBranches rest
             do
               when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in dest db"
-              let h2 = CausalHash . Cv.hash1to2 $ Causal.unCausalHash h
+              let h2 = CausalHash $ Causal.unCausalHash h
               runSrc (Q.loadCausalHashIdByCausalHash h2) >>= \case
                 Just chId -> do
                   when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
@@ -559,7 +559,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
                         processBranches (os ++ bs ++ b0 : rest)
         O h : rest -> do
           when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
-          oId <- runSrc (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)
+          oId <- runSrc (Q.expectHashIdByHash h >>= Q.expectObjectIdForAnyHashId)
           doSync [Sync22.O oId]
           processBranches rest
   let bHash = Branch.headHash b
