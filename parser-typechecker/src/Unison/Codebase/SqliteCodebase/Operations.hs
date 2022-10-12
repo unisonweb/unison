@@ -607,12 +607,21 @@ namesAtPath path = do
 
 -- | Update the root namespace names index which is used by the share server for serving api
 -- requests.
-updateNameLookupIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Path -> Maybe BranchHash -> BranchHash -> Sqlite.Transaction ()
-updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash toBranchHash = do
+updateNameLookupIndex ::
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  Path ->
+  -- | "from" branch, if 'Nothing' use the empty branch
+  Maybe BranchHash ->
+  -- | "to" branch, if 'Nothing' use the root.
+  Maybe BranchHash ->
+  Sqlite.Transaction ()
+updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash mayToBranchHash = do
   fromBranch <- case mayFromBranchHash of
     Nothing -> pure V2Branch.empty
     Just fromBH -> Ops.expectBranchByBranchHash fromBH
-  toBranch <- Ops.expectBranchByBranchHash toBranchHash
+  toBranch <- case mayToBranchHash of
+    Nothing -> Ops.expectRootBranchHash >>= Ops.expectBranchByBranchHash
+    Just fromBH -> Ops.expectBranchByBranchHash fromBH
   treeDiff <- BranchDiff.diffBranches fromBranch toBranch
   let namePrefix = case pathPrefix of
         Path.Empty -> Nothing
