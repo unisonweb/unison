@@ -105,25 +105,49 @@ diffBranches from to = do
                  in (GDiff {removals = lRefs `Set.difference` rRefs, adds = rRefs `Set.difference` lRefs})
           )
 
-collateChanges :: Maybe Name -> TreeDiff -> ([(Name, Either Reference Referent)], [(Name, Either Reference Referent)])
-collateChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< children)) =
-  ( termDiffs
-      & ifoldMap \ns diff ->
-        let name = appendName ns
-         in (go name Right $ adds diff, go name Right $ removals diff)
-  )
-    <> ( typeDiffs
-           & ifoldMap \ns diff ->
-             let name = appendName ns
-              in (go name Left $ adds diff, go name Left $ removals diff)
-       )
-    <> ( children
-           & ifoldMap \ns childTree ->
-             collateChanges (Just $ appendName ns) (TreeDiff childTree)
-       )
+data NameChanges = NameChanges
+  { termNameAdds :: [(Name, Referent)],
+    termNameRemovals :: [(Name, Referent)],
+    typeNameAdds :: [(Name, Reference)],
+    typeNameRemovals :: [(Name, Reference)]
+  }
+
+instance Semigroup NameChanges where
+  (NameChanges a b c d) <> (NameChanges a2 b2 c2 d2) =
+    NameChanges (a <> a2) (b <> b2) (c <> c2) (d <> d2)
+
+instance Monoid NameChanges where
+  mempty = NameChanges mempty mempty mempty mempty
+
+-- | Get all the name (adds, removals) from a tree diff.
+--
+-- Pass 'Nothing' on the initial call.
+nameChanges ::
+  Maybe Name ->
+  TreeDiff ->
+  NameChanges
+nameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< children)) =
+  let (termNameAdds, termNameRemovals) =
+        ( termDiffs
+            & ifoldMap \ns diff ->
+              let name = appendName ns
+               in (go name $ adds diff, go name $ removals diff)
+        )
+      (typeNameAdds, typeNameRemovals) =
+        ( typeDiffs
+            & ifoldMap \ns diff ->
+              let name = appendName ns
+               in (go name $ adds diff, go name $ removals diff)
+        )
+      childNameChanges =
+        ( children
+            & ifoldMap \ns childTree ->
+              nameChanges (Just $ appendName ns) (TreeDiff childTree)
+        )
+   in NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} <> childNameChanges
   where
     appendName ns = maybe (Name.fromSegment . NameSegment.NameSegment . coerce $ ns) (`Lens.snoc` NameSegment.NameSegment (coerce ns)) namePrefix
-    go name inj xs =
+    go name xs =
       xs
         & Set.toList
-        & fmap ((name,) . inj)
+        & fmap (name,)

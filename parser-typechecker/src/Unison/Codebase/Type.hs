@@ -14,6 +14,7 @@ module Unison.Codebase.Type
 where
 
 import qualified U.Codebase.Branch as V2
+import U.Codebase.HashTags (BranchHash)
 import qualified U.Codebase.Reference as V2
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Queries as Queries
@@ -169,9 +170,14 @@ data Codebase m v a = Codebase
     -- NOTE: this method requires an up-to-date name lookup index, which is
     -- currently not kept up-to-date automatically (because it's slow to do so).
     namesAtPath :: Path -> m ScopedNames,
-    -- Updates the root namespace names index.
+    -- Updates the root namespace names index from an old BranchHash to a new one.
     -- This isn't run automatically because it can be a bit slow.
-    updateNameLookup :: m (),
+    updateNameLookup ::
+      -- The previous branch the index was based on
+      BranchHash ->
+      -- The new branch
+      BranchHash ->
+      m (),
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.
     withConnection :: forall x. (Sqlite.Connection -> m x) -> m x,
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.
