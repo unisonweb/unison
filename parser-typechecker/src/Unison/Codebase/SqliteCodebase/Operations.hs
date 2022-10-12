@@ -621,7 +621,7 @@ updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash mayToBranchHash =
     Just fromBH -> Ops.expectBranchByBranchHash fromBH
   toBranch <- case mayToBranchHash of
     Nothing -> Ops.expectRootBranchHash >>= Ops.expectBranchByBranchHash
-    Just fromBH -> Ops.expectBranchByBranchHash fromBH
+    Just toBH -> Ops.expectBranchByBranchHash toBH
   treeDiff <- BranchDiff.diffBranches fromBranch toBranch
   let namePrefix = case pathPrefix of
         Path.Empty -> Nothing

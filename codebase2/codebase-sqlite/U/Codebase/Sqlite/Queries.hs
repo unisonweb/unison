@@ -1400,7 +1400,7 @@ getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
         FROM dependents_index
         WHERE dependency_builtin IS NULL
           AND dependent_object_id = ?
-          AND dependen_component_index = ?
+          AND dependent_component_index = ?
       |]
 
     isNotSelfReference :: Reference.Id -> Bool
@@ -1528,11 +1528,11 @@ removeTermNames names = do
       [here|
       DELETE FROM term_name_lookup
         WHERE
-        reversed_name = ?
-        AND referent_builtin = ?
-        AND referent_component_hash = ?
-        AND referent_component_index = ?
-        AND referent_constructor_index = ?
+        reversed_name IS ?
+        AND referent_builtin IS ?
+        AND referent_component_hash IS ?
+        AND referent_component_index IS ?
+        AND referent_constructor_index IS ?
         |]
 
 -- | Remove the given set of term names into the name lookup table
@@ -1544,10 +1544,10 @@ removeTypeNames names = do
       [here|
       DELETE FROM type_name_lookup
         WHERE
-        reversed_name = ?
-        AND reference_builtin = ?
-        AND reference_component_hash = ?
-        AND reference_component_index = ?
+        reversed_name IS ?
+        AND reference_builtin IS ?
+        AND reference_component_hash IS ?
+        AND reference_component_index IS ?
         |]
 
 -- | We need to escape any special characters for globbing.
