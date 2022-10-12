@@ -118,11 +118,20 @@ isPrefixOf :: ShortHash -> Referent -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
 
 -- #abc[.xy][#<T>cid]
+--
+-- >>> fromText "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d0"
+-- Just (Con' (ConstructorReference #nirp5 0) Data)
+--
+-- >>> fromText "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg"
+-- Just (Ref' #nirp5)
+--
+-- >>> fromText "##Text.uncons"
+-- Just (Ref' ##Text.uncons)
 fromText :: Text -> Maybe Referent
 fromText t =
   either (const Nothing) Just $
     -- if the string has just one hash at the start, it's just a reference
-    if Text.length refPart == 1
+    if refPart == "#" || refPart == "##"
       then Ref <$> R.fromText t
       else
         if Text.all Char.isDigit cidPart && (not . Text.null) cidPart

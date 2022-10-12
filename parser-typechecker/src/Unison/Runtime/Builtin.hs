@@ -1268,8 +1268,8 @@ failureCase stack1 stack2 stack3 any fail =
     . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, any])
     $ left fail
 
-exnCase
-  :: Var v => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
+exnCase ::
+  Var v => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
 exnCase stack1 stack2 stack3 any fail =
   (0,) . ([BX, BX, BX],)
     . TAbss [stack1, stack2, stack3]
@@ -1277,8 +1277,8 @@ exnCase stack1 stack2 stack3 any fail =
     . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, any])
     $ TReq Ty.exceptionRef 0 [fail]
 
-outIoExnNat
-  :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoExnNat ::
+  forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
 outIoExnNat stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
@@ -1290,8 +1290,8 @@ outIoExnNat stack1 stack2 stack3 any fail result =
         )
       ]
 
-outIoExnUnit
-  :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoExnUnit ::
+  forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
 outIoExnUnit stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
@@ -1299,8 +1299,8 @@ outIoExnUnit stack1 stack2 stack3 any fail result =
         (1, ([], TCon Ty.unitRef 0 []))
       ]
 
-outIoExnBox
-  :: Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoExnBox ::
+  Var v => v -> v -> v -> v -> v -> v -> ANormal v
 outIoExnBox stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
