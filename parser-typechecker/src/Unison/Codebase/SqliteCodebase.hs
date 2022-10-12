@@ -426,9 +426,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             namesAtPath path =
               runTransaction (CodebaseOps.namesAtPath path)
 
-            updateNameLookup :: BranchHash -> BranchHash -> m ()
-            updateNameLookup fromBH toBH =
-              runTransaction (CodebaseOps.updateNameLookupIndex getDeclType fromBH toBH)
+            updateNameLookup :: Path -> Maybe BranchHash -> BranchHash -> m ()
+            updateNameLookup pathPrefix fromBH toBH =
+              runTransaction (CodebaseOps.updateNameLookupIndex getDeclType pathPrefix fromBH toBH)
 
         let codebase =
               C.Codebase

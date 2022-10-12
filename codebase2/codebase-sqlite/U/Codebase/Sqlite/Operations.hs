@@ -4,6 +4,7 @@ module U.Codebase.Sqlite.Operations
     loadRootCausalHash,
     expectRootCausalHash,
     expectRootCausal,
+    expectRootBranchHash,
     loadCausalHashAtPath,
     expectCausalHashAtPath,
     saveBranch,
@@ -196,6 +197,11 @@ expectValueHashByCausalHashId = loadValueHashById <=< Q.expectCausalValueHashId
 
 expectRootCausalHash :: Transaction CausalHash
 expectRootCausalHash = Q.expectCausalHash =<< Q.expectNamespaceRoot
+
+expectRootBranchHash :: Transaction BranchHash
+expectRootBranchHash = do
+  rootCausalHashId <- Q.expectNamespaceRoot
+  expectValueHashByCausalHashId rootCausalHashId
 
 loadRootCausalHash :: Transaction (Maybe CausalHash)
 loadRootCausalHash =

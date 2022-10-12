@@ -607,15 +607,17 @@ namesAtPath path = do
 
 -- | Update the root namespace names index which is used by the share server for serving api
 -- requests.
---
--- This version should be used if you don't already have the root Branch pre-loaded,
--- If you do, use 'updateNameLookupIndexFromV2Branch' instead.
-updateNameLookupIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> BranchHash -> BranchHash -> Sqlite.Transaction ()
-updateNameLookupIndex getDeclType fromBranchHash toBranchHash = do
-  fromBranch <- Ops.expectBranchByBranchHash fromBranchHash
+updateNameLookupIndex :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Path -> Maybe BranchHash -> BranchHash -> Sqlite.Transaction ()
+updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash toBranchHash = do
+  fromBranch <- case mayFromBranchHash of
+    Nothing -> pure V2Branch.empty
+    Just fromBH -> Ops.expectBranchByBranchHash fromBH
   toBranch <- Ops.expectBranchByBranchHash toBranchHash
   treeDiff <- BranchDiff.diffBranches fromBranch toBranch
-  let BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} = BranchDiff.nameChanges Nothing treeDiff
+  let namePrefix = case pathPrefix of
+        Path.Empty -> Nothing
+        (p Path.:< ps) -> Just $ Name.fromSegments (p :| Path.toList ps)
+  let BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} = BranchDiff.nameChanges namePrefix treeDiff
   termNameAddsWithCT <- do
     for termNameAdds \(name, ref) -> do
       refWithCT <- addReferentCT ref
