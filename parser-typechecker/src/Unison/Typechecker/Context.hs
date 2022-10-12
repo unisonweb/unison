@@ -2408,8 +2408,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) =
         -- InstLIIL
         v0 <- ABT.freshen body freshenTypeVar
         markThenRetract0 v0 $ do
-          v <- extendUniversal v0
-          instantiateL B.Blank v (ABT.bindInheritAnnotation body (universal' () v))
+          v1 <- extendUniversal v0
+          instantiateL B.Blank v (ABT.bindInheritAnnotation body (universal' () v1))
       _ -> failWith $ TypeMismatch ctx
 
 nameFrom :: Var v => v -> Type v loc -> v
