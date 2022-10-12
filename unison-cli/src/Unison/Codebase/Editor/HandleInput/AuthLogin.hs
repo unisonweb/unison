@@ -46,7 +46,7 @@ ucmOAuthClientID = "ucm"
 
 -- | Checks if the user has valid auth for the given codeserver,
 -- and runs through an authentication flow if not.
-ensureAuthenticatedWithCodeserver :: CodeserverURI -> Cli r ()
+ensureAuthenticatedWithCodeserver :: CodeserverURI -> Cli ()
 ensureAuthenticatedWithCodeserver codeserverURI = do
   Cli.Env {credentialManager} <- ask
   getCredentials credentialManager (codeserverIdFromCodeserverURI codeserverURI) >>= \case
@@ -55,7 +55,7 @@ ensureAuthenticatedWithCodeserver codeserverURI = do
 
 -- | Direct the user through an authentication flow with the given server and store the credentials in the provided
 -- credential manager.
-authLogin :: CodeserverURI -> Cli r ()
+authLogin :: CodeserverURI -> Cli ()
 authLogin host = do
   Cli.Env {credentialManager} <- ask
   httpClient <- liftIO HTTP.getGlobalManager

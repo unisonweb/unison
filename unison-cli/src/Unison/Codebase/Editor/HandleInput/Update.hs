@@ -75,7 +75,7 @@ import Unison.WatchKind (WatchKind)
 import qualified Unison.WatchKind as WK
 
 -- | Handle an @update@ command.
-handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli r ()
+handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli ()
 handleUpdate input optionalPatch requestedNames = do
   Cli.Env {codebase} <- ask
   currentPath' <- Cli.getCurrentPath
@@ -202,7 +202,7 @@ handleUpdate input optionalPatch requestedNames = do
         & Path.resolve @_ @_ @Path.Absolute currentPath'
         & tShow
 
-getSlurpResultForUpdate :: Set Name -> Names -> Cli r (SlurpResult Symbol)
+getSlurpResultForUpdate :: Set Name -> Names -> Cli (SlurpResult Symbol)
 getSlurpResultForUpdate requestedNames slurpCheckNames = do
   let slurp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult Symbol
       slurp file =
@@ -594,10 +594,7 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
         oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
 
 -- Returns True if the operation changed the namespace, False otherwise.
-propagatePatchNoSync ::
-  Patch ->
-  Path.Absolute ->
-  Cli r Bool
+propagatePatchNoSync :: Patch -> Path.Absolute -> Cli Bool
 propagatePatchNoSync patch scopePath =
   Cli.time "propagatePatchNoSync" do
     Cli.stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
