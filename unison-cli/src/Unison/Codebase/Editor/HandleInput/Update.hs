@@ -65,7 +65,7 @@ import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import Unison.UnisonFile.Type (UnisonFile (UnisonFileId))
-import qualified Unison.Util.Map as Map (remap)
+import qualified Unison.Util.Map as Map (remap, upsert)
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Set as Set
@@ -267,13 +267,13 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
     -- Running example:
     --
     --   "ping" => ({ #pingpong.ping }, #newping)
-    let updatedNameToRefs :: Map Symbol (Set TermReference, TermReferenceId, Term Symbol Ann)
+    let updatedNameToRefs :: Map Symbol (Set TermReference, TermReferenceId)
         updatedNameToRefs =
           Map.fromSet
             ( \name ->
                 case Map.lookup name nameToInterimInfo of
                   Nothing -> error (reportBug "E798907" "no interim ref for name")
-                  Just (interimRef, _, interimTerm, _) -> (nameToTermRefs name, interimRef, interimTerm)
+                  Just (interimRef, _, _, _) -> (nameToTermRefs name, interimRef)
             )
             namesBeingUpdated
 
@@ -311,8 +311,6 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
     -- Furthermore, #wham is both a dependent of #pingpong (B), and a dependency of #newping, so it too is an implicit
     -- term.
     --
-    -- FIXME: this currently only looks at old components; doesn't search for new cycles.
-    --
     -- Running example:
     --
     --   #pingpong.pong => (<#pingpong.ping + 2>, "pong")
@@ -323,11 +321,16 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
           Sqlite.runTransaction conn do
             -- Running example:
             --
-            --   { #pingpong }
-            let oldHashes :: Set Hash
-                oldHashes =
-                  updatedNameToRefs & foldMap \(oldRefs, _interimRef, _interimTerm) ->
-                    Set.mapMaybe Reference.toHash oldRefs
+            --   #pingpong => #newping
+            let oldHashToInterimHash :: Map Hash Hash
+                oldHashToInterimHash =
+                  updatedNameToRefs & foldMap \(oldRefs, interimRef) ->
+                    let interimHash = Reference.idToHash interimRef
+                     in Map.fromList $
+                          oldRefs
+                            & Set.toList
+                            & mapMaybe Reference.toHash
+                            & map (,interimHash)
 
             let hashToImplicitTerms :: Hash -> Sqlite.Transaction (Map TermReferenceId (Term Symbol Ann, Symbol))
                 hashToImplicitTerms hash = do
@@ -374,23 +377,57 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                         )
                         Map.empty
 
-            oldHashes & foldMapM \oldHash -> do
-              hashes <-
-                Queries.loadObjectIdForAnyHash oldHash >>= \case
-                  Nothing -> pure Set.empty
-                  Just oldOid ->
-                    -- FIXME in a rolled-back savepoint (or with this transaction ultimately rolled back), insert
-                    -- dependency rows for every term in the file (slurped)
-                    let interimTermDependencies :: Set Hash
-                        interimTermDependencies = undefined
-                     in interimTermDependencies & foldMapM \dependencyHash -> do
-                          Queries.loadObjectIdForAnyHash dependencyHash >>= \case
-                            Nothing -> pure Set.empty
-                            Just dependencyOid -> do
-                              betweenOids <- Queries.getDependenciesBetweenTerms dependencyOid oldOid
-                              Set.insert dependencyHash <$> Set.traverse Queries.expectPrimaryHashByObjectId betweenOids
-              foldMapM hashToImplicitTerms (oldHash : Set.toList hashes)
+            if Map.null oldHashToInterimHash
+              then pure Map.empty
+              else do
+                Sqlite.savepoint do
+                  -- Compute the actual interim components in the latest typechecked file. These aren't quite given in
+                  -- the unison file structure itself - in the `topLevelComponents'` field we have the components in
+                  -- some arbitrary order (I *think*), each tagged with its stringy name, and in the `hashTermsId` field
+                  -- we have all of the individual terms organized by reference.
+                  let interimComponents :: [(Hash, [(Term Symbol Ann, Type Symbol Ann)])]
+                      interimComponents =
+                        nameToInterimInfo
+                          & Map.elems
+                          & foldl' step Map.empty
+                          & Map.toList
+                          & over (mapped . _2) Map.elems
+                        where
+                          step ::
+                            Map Hash (Map Reference.Pos (Term Symbol Ann, Type Symbol Ann)) ->
+                            (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann) ->
+                            Map Hash (Map Reference.Pos (Term Symbol Ann, Type Symbol Ann))
+                          step acc (Reference.Id hash pos, _wk, term, typ) =
+                            Map.upsert
+                              ( \case
+                                  Nothing -> Map.singleton pos (term, typ)
+                                  Just acc1 -> Map.insert pos (term, typ) acc1
+                              )
+                              hash
+                              acc
 
+                  -- Insert each interim component into the codebase proper. Note: this relies on the codebase interface
+                  -- being smart enough to handle out-of-order components (i.e. inserting a dependent before a
+                  -- dependency). That's currently how the codebase interface works, but maybe in the future it'll grow
+                  -- a precondition that components can only be inserted after their dependencies.
+                  for_ interimComponents \(hash, terms) -> Codebase.putTermComponent codebase hash terms
+
+                  terms <-
+                    let interimHashes :: Set Hash
+                        interimHashes = Set.fromList (map fst interimComponents)
+                     in Map.toList oldHashToInterimHash & foldMapM \(oldHash, interimHash) -> do
+                          hashes <-
+                            Queries.loadObjectIdForAnyHash oldHash >>= \case
+                              -- better would be to short-circuit all the way to the user and say, actually we can't 
+                              -- perform this update at all, due to some intervening delete (e.g. some sort of
+                              -- hard-reset or garbage collection on the codebase)
+                              Nothing -> pure Set.empty 
+                              Just oldOid -> do
+                                interimOid <- Queries.expectObjectIdForPrimaryHash interimHash
+                                betweenOids <- Queries.getDependenciesBetweenTerms interimOid oldOid
+                                (Set.\\ interimHashes) <$> Set.traverse Queries.expectPrimaryHashByObjectId betweenOids
+                          foldMapM hashToImplicitTerms (oldHash : Set.toList hashes)
+                  pure (Left terms) -- left = rollback to savepoint
     if Map.null implicitTerms
       then pure slurp0
       else do
@@ -444,9 +481,9 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                   rewriteTermReferences (foldMap toMapping updatedNameToRefs)
                   where
                     toMapping ::
-                      (Set TermReference, TermReferenceId, Term Symbol Ann) ->
+                      (Set TermReference, TermReferenceId) ->
                       Map TermReference TermReferenceId
-                    toMapping (oldRefs, interimRef, _interimTerm) =
+                    toMapping (oldRefs, interimRef) =
                       foldMap (\oldRef -> Map.singleton oldRef interimRef) oldRefs
 
         let unisonFile :: UnisonFile Symbol Ann

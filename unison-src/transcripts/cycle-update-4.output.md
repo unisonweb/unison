@@ -63,6 +63,7 @@ clang _ = !pong + 3
   ⍟ I've updated these names to your new definition:
   
     ping : 'Nat
+    pong : 'Nat
 
 .> view ping pong clang
 
@@ -79,6 +80,6 @@ clang _ = !pong + 3
   pong : 'Nat
   pong _ =
     use Nat +
-    !#mpsn5ql7hq + 2
+    !ping + 2
 
 ```
