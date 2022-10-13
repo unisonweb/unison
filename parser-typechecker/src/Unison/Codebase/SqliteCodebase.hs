@@ -276,6 +276,10 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             putTerm id tm tp =
               runTransaction (CodebaseOps.putTerm termBuffer declBuffer id tm tp)
 
+            putTermComponent :: Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> Sqlite.Transaction ()
+            putTermComponent =
+              CodebaseOps.putTermComponent termBuffer declBuffer
+
             putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> m ()
             putTypeDeclaration id decl =
               runTransaction (CodebaseOps.putTypeDeclaration termBuffer declBuffer id decl)
@@ -440,6 +444,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                       withConn \conn ->
                         Sqlite.runReadOnlyTransaction conn \run -> run (getDeclType r),
                   putTerm,
+                  putTermComponent,
                   putTypeDeclaration,
                   getTermComponentWithTypes,
                   getDeclComponent,
