@@ -2489,7 +2489,7 @@ declareForeigns = do
     pure . mapLeft Util.Text.fromText . Bytes.fromBase32
   declareForeign Untracked "Bytes.fromBase64" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64
-  declareForeign Untracked "Bytes.fromBase64UrlUnpadded.v2" boxToEBoxBox . mkForeign $
+  declareForeign Untracked "Bytes.fromBase64UrlUnpadded" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64UrlUnpadded
 
   declareForeign Untracked "Bytes.decodeNat64be" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat64be
