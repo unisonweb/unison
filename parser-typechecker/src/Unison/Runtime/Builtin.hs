@@ -1259,8 +1259,8 @@ outIoFailChar stack1 stack2 stack3 fail extra result =
         )
       ]
 
-failureCase
-  :: Var v => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
+failureCase ::
+  Var v => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
 failureCase stack1 stack2 stack3 any fail =
   (0,) . ([BX, BX, BX],)
     . TAbss [stack1, stack2, stack3]
@@ -1970,7 +1970,7 @@ declareForeign sand name op func0 = do
           | sanitize,
             Tracked <- sand,
             FF r w _ <- func0 =
-              FF r w (bomb name)
+            FF r w (bomb name)
           | otherwise = func0
         code = (name, (sand, uncurry Lambda (op w)))
      in (w + 1, code : codes, mapInsert w (name, func) funcs)
@@ -2489,7 +2489,7 @@ declareForeigns = do
     pure . mapLeft Util.Text.fromText . Bytes.fromBase32
   declareForeign Untracked "Bytes.fromBase64" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64
-  declareForeign Untracked "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $
+  declareForeign Untracked "Bytes.fromBase64UrlUnpadded" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64UrlUnpadded
 
   declareForeign Untracked "Bytes.decodeNat64be" boxToMaybeNTup . mkForeign $ pure . Bytes.decodeNat64be
