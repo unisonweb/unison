@@ -1435,6 +1435,14 @@ loop e = do
               Cli.Env {codebase} <- ask
               r <- liftIO (Codebase.runTransaction codebase IntegrityCheck.integrityCheckFullCodebase)
               Cli.respond (IntegrityCheck r)
+            DebugNameDiffI fromCH toCH -> do
+              Cli.Env {codebase} <- ask
+              Codebase.runTransaction do
+                fromBranch <- Codebase.getBranchForHash codebase fromCH
+                toBranch <- Codebase.getBranchForHash codebase toCH
+                treeDiff <- V2Branch.diffBranches fromBranch toBranch
+                nameChanges <- V2Branch.nameChanges treeDiff
+                Cli.respond (DisplayDebugNameDiff nameChanges)
             DeprecateTermI {} -> Cli.respond NotImplemented
             DeprecateTypeI {} -> Cli.respond NotImplemented
             RemoveTermReplacementI from patchPath -> doRemoveReplacement from patchPath True

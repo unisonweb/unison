@@ -20,6 +20,7 @@ import Data.Set.NonEmpty (NESet)
 import Data.Time (UTCTime)
 import Network.URI (URI)
 import qualified System.Console.Haskeline as Completion
+import U.Codebase.Branch.Diff (NameChanges)
 import Unison.Auth.Types (CredentialFailure)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
@@ -274,6 +275,7 @@ data Output
   | CredentialFailureMsg CredentialFailure
   | PrintVersion Text
   | IntegrityCheck IntegrityResult
+  | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
 
 data ShareError
@@ -420,6 +422,7 @@ isFailure o = case o of
   ShareError {} -> True
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
+  DisplayDebugNameDiff {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

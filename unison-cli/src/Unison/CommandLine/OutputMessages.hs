@@ -37,6 +37,7 @@ import System.Directory
     getHomeDirectory,
   )
 import U.Codebase.Branch (NamespaceStats (..))
+import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
@@ -663,8 +664,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
+        pure $
+          P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -673,7 +674,6 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
-
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1805,6 +1805,15 @@ notifyUser dir o = case o of
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
+  DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} ->
+    pure $
+      P.columnNHeader
+        ["Kind", "Name", "Ref", "Change"]
+        ( (termNameAdds <&> \(n, ref) -> ["Term", Name.toText n, Referent.toText ref, "Added"])
+            <> (termNameRemovals <&> \(n, ref) -> ["Term", Name.toText n, Referent.toText ref, "Removed"])
+            <> (typeNameAdds <&> \(n, ref) -> ["Type", Name.toText n, Referent.toText ref, "Added"])
+            <> (typeNameRemovals <&> \(n, ref) -> ["Type", Name.toText n, Referent.toText ref, "Removed"])
+        )
   DisplayDebugCompletions completions ->
     pure $
       P.column2
@@ -2447,7 +2456,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-      ("The namespaces are identical.", mempty)
+    ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where

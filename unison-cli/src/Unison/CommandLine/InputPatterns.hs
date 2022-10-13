@@ -2005,6 +2005,24 @@ debugDoctor =
         _ -> Left (showPatternHelp debugDoctor)
     )
 
+debugNameDiff :: InputPattern
+debugNameDiff =
+  InputPattern
+    { patternName = "debug.name-diff",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [(Required, namespaceArg), (Required, namespaceArg)],
+      help = P.wrap "List all name changes between two causal hashes. Does not detect patch or metadata changes.",
+      parse =
+        ( \case
+            [from, to] -> first fromString $ do
+              fromSBH <- Input.parseShortBranchHash from
+              toSBH <- Input.parseShortBranchHash to
+              pure $ Input.DebugNameDiffI fromSBH toSBH
+            _ -> Left (I.help debugNameDiff)
+        )
+    }
+
 test :: InputPattern
 test =
   InputPattern
