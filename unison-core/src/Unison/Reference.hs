@@ -62,7 +62,8 @@ import qualified Unison.ShortHash as SH
 --
 -- Other used defined things like local variables don't get @Reference@s.
 data Reference
-  = Builtin Text.Text
+  = -- A builtin, e.g. (Builtin "Nat")
+    Builtin Text.Text
   | -- `Derived` can be part of a strongly connected component.
     -- The `Pos` refers to a particular element of the component
     -- and the `Size` is the number of elements in the component.
@@ -188,11 +189,21 @@ fromId = DerivedId
 toHash :: Reference -> Maybe H.Hash
 toHash r = idToHash <$> toId r
 
--- examples:
--- `##Text.take` — builtins don’t have cycles
--- `#2tWjVAuc7` — derived, no cycle
--- `#y9ycWkiC1.y9` — derived, part of cycle
+-- |
 -- todo: take a (Reference -> CycleSize) so that `readSuffix` doesn't have to parse the size from the text.
+-- examples:
+--
+-- builtins don’t have cycles
+-- >>> fromText "##Text.take"
+-- Right ##Text.take
+--
+-- derived, no cycle
+-- >>> fromText "#2tWjVAuc7"
+-- Reference.derivedBase32Hex Nothing
+--
+-- derived, part of cycle
+-- >>> fromText "#y9ycWkiC1.12345"
+-- Reference.derivedBase32Hex Nothing
 fromText :: Text -> Either String Reference
 fromText t = case Text.split (== '#') t of
   [_, "", b] -> Right (Builtin b)

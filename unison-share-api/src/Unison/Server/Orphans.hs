@@ -14,7 +14,7 @@ import Data.OpenApi
 import Data.Proxy
 import qualified Data.Text as Text
 import Servant
-import Servant.Docs (DocCapture (DocCapture), ToCapture (..))
+import Servant.Docs (DocCapture (DocCapture), DocQueryParam (..), ParamKind (..), ToCapture (..), ToParam (..))
 import U.Codebase.HashTags
 import U.Util.Hash (Hash (..))
 import qualified U.Util.Hash as Hash
@@ -32,6 +32,8 @@ import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
+import qualified Unison.Reference as Reference
+import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import Unison.Util.Pretty (Width (..))
@@ -65,10 +67,77 @@ instance FromJSONKey ShortHash where
         Nothing -> fail $ "Invalid Shorthash" <> Text.unpack txt
         Just sh -> pure sh
 
-deriving instance ToSchema ShortHash
-
 instance FromHttpApiData ShortBranchHash where
   parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
+
+-- | Always renders to the form: #abcdef
+instance ToHttpApiData ShortHash where
+  toQueryParam = SH.toText
+
+-- | Accepts shorthashes of any of the following forms:
+-- @abcdef
+-- @@builtin
+-- #abcdef
+-- ##builtin
+-- abcdef
+instance FromHttpApiData ShortHash where
+  parseUrlPiece txt =
+    Text.replace "@" "#" txt
+      & \t ->
+        ( if Text.isPrefixOf "#" t
+            then t
+            else ("#" <> t)
+        )
+          & SH.fromText
+          & maybe (Left "Invalid ShortBranchHash") Right
+
+instance ToSchema ShortHash where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+-- | Always renders to the form: #abcdef
+instance ToHttpApiData Reference.Reference where
+  toQueryParam = Reference.toText
+
+-- | Always renders to the form: #abcdef
+instance ToHttpApiData Referent.Referent where
+  toQueryParam = Referent.toText
+
+-- | Accepts shorthashes of any of the following forms:
+-- @abcdef
+-- @@builtin
+-- #abcdef
+-- ##builtin
+-- abcdef
+instance FromHttpApiData Reference.Reference where
+  parseUrlPiece txt =
+    Text.replace "@" "#" txt
+      & \t ->
+        ( if Text.isPrefixOf "#" t
+            then t
+            else ("#" <> t)
+        )
+          & Reference.fromText
+          & mapLeft Text.pack
+
+-- | Accepts shorthashes of any of the following forms:
+-- @abcdef
+-- @@builtin
+-- #abcdef
+-- ##builtin
+-- abcdef
+instance FromHttpApiData Referent.Referent where
+  parseUrlPiece txt =
+    Text.replace "@" "#" txt
+      & \t ->
+        ( if Text.isPrefixOf "#" t
+            then t
+            else ("#" <> t)
+        )
+          & Referent.fromText
+          & maybe (Left "Invalid Referent") Right
+
+instance ToSchema Reference where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 deriving via ShortByteString instance Binary Hash
 
@@ -96,6 +165,24 @@ instance ToSchema Name where
 
 deriving anyclass instance ToParamSchema ShortBranchHash
 
+instance ToParamSchema ShortHash where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "@abcdef"
+
+instance ToParamSchema Reference.Reference where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "@abcdef"
+
+instance ToParamSchema Referent.Referent where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "@abcdef"
+
 instance ToParamSchema Name where
   toParamSchema _ =
     mempty
@@ -113,6 +200,17 @@ instance ToParamSchema Path.Relative where
     mempty
       & type_ ?~ OpenApiString
       & example ?~ Aeson.String "base.List"
+
+instance ToParam (QueryParam "name" Name) where
+  toParam _ =
+    DocQueryParam
+      "name"
+      []
+      "A definition name. See API documentation to determine how it should be qualified."
+      Normal
+
+instance FromHttpApiData Name where
+  parseQueryParam = Name.fromTextEither
 
 deriving via Int instance FromHttpApiData Width
 
@@ -152,6 +250,24 @@ instance FromHttpApiData Path.Path where
     Left s -> Left (Text.pack s)
     Right (Path.RelativePath' p) -> Right (Path.unrelative p)
     Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
+
+instance ToCapture (Capture "hash" ShortHash) where
+  toCapture _ =
+    DocCapture
+      "hash"
+      "A shorthash for a term or type. E.g. @abcdef, #abcdef, @@builtin, ##builtin, abcdef"
+
+instance ToCapture (Capture "hash" Reference.Reference) where
+  toCapture _ =
+    DocCapture
+      "hash"
+      "A hash reference for a type. E.g. @abcdef, #abcdef, @@builtin, ##builtin, abcdef"
+
+instance ToCapture (Capture "hash" Referent.Referent) where
+  toCapture _ =
+    DocCapture
+      "hash"
+      "A hash reference for a term. E.g. @abcdef, #abcdef, @@builtin, ##builtin, abcdef"
 
 instance ToCapture (Capture "fqn" Name) where
   toCapture _ =
@@ -198,6 +314,33 @@ instance FromJSON (HQ.HashQualified NameSegment) where
     for hqName \name -> case Name.segments name of
       (ns :| []) -> pure ns
       _ -> fail $ "Expected a single name segment but received several: " <> Text.unpack txt
+
+instance FromHttpApiData (HQ.HashQualified Name) where
+  parseQueryParam txt =
+    Text.replace "@" "#" txt
+      & HQ.fromText
+      & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name, @hash") Right
+
+instance FromHttpApiData (HQ'.HashQualified Name) where
+  parseQueryParam txt =
+    Text.replace "@" "#" txt
+      & HQ'.fromText
+      & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name") Right
+
+instance ToParamSchema (HQ.HashQualified n) where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "name@hash"
+
+instance ToParamSchema (HQ'.HashQualified n) where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "name@hash"
+
+instance ToHttpApiData Name where
+  toQueryParam = Name.toText
 
 deriving newtype instance ToSchema NameSegment
 
