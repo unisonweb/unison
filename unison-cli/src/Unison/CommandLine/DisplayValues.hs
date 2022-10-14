@@ -76,16 +76,18 @@ displayTerm' elideUnit pped terms typeOf eval types = \case
   tm@(Term.Apps' (Term.Constructor' (ConstructorReference typ _)) _)
     | typ == DD.docRef -> displayDoc pped terms typeOf eval types tm
     | typ == DD.doc2Ref -> do
-        -- Pretty.get (doc.formatConsole tm)
-        let tm' =
-              Term.app
-                ()
-                (Term.ref () DD.prettyGetRef)
-                (Term.app () (Term.ref () DD.doc2FormatConsoleRef) tm)
-        tm <- eval tm'
-        case tm of
-          Nothing -> pure $ errMsg tm'
-          Just tm -> displayTerm pped terms typeOf eval types tm
+      -- Pretty.get (doc.formatConsole tm)
+      let tm' =
+            Term.app
+              ()
+              (Term.ref () DD.prettyGetRef)
+              (Term.app () (Term.ref () DD.doc2FormatConsoleRef) tm)
+      tm <- eval tm'
+      case tm of
+        Nothing -> pure $ errMsg tm'
+        Just tm -> displayTerm pped terms typeOf eval types tm
+    | typ == DD.prettyAnnotatedRef -> displayPretty pped terms typeOf eval types tm
+  tm@(Term.Constructor' (ConstructorReference typ _))
     | typ == DD.prettyAnnotatedRef -> displayPretty pped terms typeOf eval types tm
   tm -> pure $ src tm
   where
@@ -120,7 +122,7 @@ displayPretty ::
 displayPretty pped terms typeOf eval types tm = go tm
   where
     go = \case
-      DD.PrettyEmpty _ -> pure mempty
+      DD.PrettyEmpty -> pure mempty
       DD.PrettyGroup _ p -> P.group <$> go p
       DD.PrettyLit _ (DD.EitherLeft' special) -> goSpecial special
       DD.PrettyLit _ (DD.EitherRight' consoleTxt) -> goConsole consoleTxt

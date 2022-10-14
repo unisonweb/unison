@@ -331,7 +331,7 @@ prettyAppendId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Append"
 
 prettyTableId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Table"
 
-pattern PrettyEmpty ann <- Term.App' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyEmptyId -> True))) ann
+pattern PrettyEmpty <- Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyEmptyId -> True))
 
 pattern PrettyGroup ann tm <- Term.Apps' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyGroupId -> True))) [ann, tm]
 

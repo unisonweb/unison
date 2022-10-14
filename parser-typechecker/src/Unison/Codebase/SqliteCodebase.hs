@@ -284,6 +284,10 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             putTypeDeclaration id decl =
               runTransaction (CodebaseOps.putTypeDeclaration termBuffer declBuffer id decl)
 
+            putTypeDeclarationComponent :: Hash -> [Decl Symbol Ann] -> Sqlite.Transaction ()
+            putTypeDeclarationComponent =
+              CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer
+
             getRootCausalHash :: MonadIO m => m V2Branch.CausalHash
             getRootCausalHash =
               runTransaction Ops.expectRootCausalHash
@@ -446,6 +450,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   putTerm,
                   putTermComponent,
                   putTypeDeclaration,
+                  putTypeDeclarationComponent,
                   getTermComponentWithTypes,
                   getDeclComponent,
                   getComponentLength = getCycleLength,

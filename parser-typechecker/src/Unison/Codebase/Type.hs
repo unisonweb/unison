@@ -76,6 +76,7 @@ data Codebase m v a = Codebase
     -- | Enqueue the put of a type declaration into the codebase, if it doesn't already exist. The implementation may
     -- choose to delay the put until all of the type declaration's references are stored as well.
     putTypeDeclaration :: Reference.Id -> Decl v a -> m (),
+    putTypeDeclarationComponent :: Hash -> [Decl v a] -> Sqlite.Transaction (),
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
     getDeclComponent :: Hash -> m (Maybe [Decl v a]),
