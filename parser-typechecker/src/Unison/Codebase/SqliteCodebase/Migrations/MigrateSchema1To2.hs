@@ -243,11 +243,11 @@ migrateCausal oldCausalHashId = fmap (either id id) . runExceptT $ do
 
   let newCausalHash :: CausalHash
       newCausalHash =
-        CausalHash . Cv.hash1to2 $
+        CausalHash $
           Hashing.hashCausal
             ( Hashing.Causal
                 { branchHash = unBranchHash newBranchHash,
-                  parents = Set.mapMonotonic Cv.hash2to1 newParentHashes
+                  parents = newParentHashes
                 }
             )
   newCausalHashId <- lift . lift $ Q.saveCausalHash newCausalHash
@@ -273,8 +273,8 @@ migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
   whenM (Map.member oldObjectId <$> use (field @"objLookup")) (throwE Sync.PreviouslyDone)
 
   oldBranch <- lift . lift $ Ops.expectDbBranch (BranchObjectId oldObjectId)
-  oldHash <- lift . lift $ fmap Cv.hash2to1 $ Q.expectPrimaryHashByObjectId oldObjectId
-  oldBranchWithHashes <- lift . lift $ traverseOf S.branchHashes_ (fmap Cv.hash2to1 . Q.expectPrimaryHashByObjectId) oldBranch
+  oldHash <- lift . lift $ Q.expectPrimaryHashByObjectId oldObjectId
+  oldBranchWithHashes <- lift . lift $ traverseOf S.branchHashes_ Q.expectPrimaryHashByObjectId oldBranch
   migratedRefs <- gets referenceMapping
   migratedObjects <- gets objLookup
   migratedCausals <- gets causalMapping
@@ -337,7 +337,7 @@ migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
           & S.childrenHashes_ %~ (remapBranchObjectId *** remapCausalHashId)
 
   newHash <- lift . lift $ Hashing.dbBranchHash newBranch
-  newHashId <- lift . lift $ Q.saveBranchHash (coerce Cv.hash1to2 newHash)
+  newHashId <- lift . lift $ Q.saveBranchHash newHash
   stats <- lift . lift $ Ops.namespaceStatsForDbBranch newBranch
   newObjectId <- lift . lift $ Ops.saveDbBranchUnderHashId v2HashHandle newHashId stats newBranch
   field @"objLookup"
@@ -354,19 +354,13 @@ migratePatch :: Old PatchObjectId -> StateT MigrationState Sqlite.Transaction (S
 migratePatch oldObjectId = fmap (either id id) . runExceptT $ do
   whenM (Map.member (unPatchObjectId oldObjectId) <$> use (field @"objLookup")) (throwE Sync.PreviouslyDone)
 
-  oldHash <- lift . lift $ fmap Cv.hash2to1 $ Q.expectPrimaryHashByObjectId (unPatchObjectId oldObjectId)
+  oldHash <- lift . lift $ Q.expectPrimaryHashByObjectId (unPatchObjectId oldObjectId)
   oldPatch <- lift . lift $ Ops.expectDbPatch oldObjectId
-  let hydrateHashes :: HashId -> Sqlite.Transaction Hash
-      hydrateHashes hashId = do
-        Cv.hash2to1 <$> Q.expectHash hashId
-  let hydrateObjectIds :: ObjectId -> Sqlite.Transaction Hash
-      hydrateObjectIds objId = do
-        Cv.hash2to1 <$> Q.expectPrimaryHashByObjectId objId
 
   oldPatchWithHashes :: S.Patch' TextId Hash Hash <-
     lift . lift $
-      (oldPatch & S.patchH_ %%~ hydrateHashes)
-        >>= (S.patchO_ %%~ hydrateObjectIds)
+      (oldPatch & S.patchH_ %%~ Q.expectHash)
+        >>= (S.patchO_ %%~ Q.expectPrimaryHashByObjectId)
 
   migratedRefs <- gets referenceMapping
   let isUnmigratedRef ref = Map.notMember ref migratedRefs
@@ -379,7 +373,7 @@ migratePatch oldObjectId = fmap (either id id) . runExceptT $ do
 
   let hashToHashId :: Hash -> Sqlite.Transaction HashId
       hashToHashId h =
-        fromMaybe (error $ "expected hashId for hash: " <> show h) <$> (Q.loadHashIdByHash (Cv.hash1to2 h))
+        fromMaybe (error $ "expected hashId for hash: " <> show h) <$> Q.loadHashIdByHash h
   let hashToObjectId :: Hash -> Sqlite.Transaction ObjectId
       hashToObjectId = hashToHashId >=> Q.expectObjectIdForPrimaryHashId
 
@@ -403,9 +397,9 @@ migratePatch oldObjectId = fmap (either id id) . runExceptT $ do
     lift . lift $
       Ops.saveDbPatch
         v2HashHandle
-        (coerce Cv.hash1to2 newHash)
+        newHash
         (S.Patch.Format.Full localPatchIds localPatch)
-  newHashId <- lift . lift $ Q.expectHashIdByHash (coerce Cv.hash1to2 newHash)
+  newHashId <- lift . lift $ Q.expectHashIdByHash (unPatchHash newHash)
   field @"objLookup"
     %= Map.insert
       (unPatchObjectId oldObjectId)
@@ -704,10 +698,10 @@ migrateDeclComponent termBuffer declBuffer oldHash = fmap (either id id) . runEx
 insertObjectMappingForHash :: Old Hash -> New Hash -> StateT MigrationState Sqlite.Transaction ()
 insertObjectMappingForHash oldHash newHash = do
   (oldObjectId, newHashId, newObjectId) <- lift do
-    oldHashId <- Q.expectHashIdByHash . Cv.hash1to2 $ oldHash
-    oldObjectId <- Q.expectObjectIdForPrimaryHashId $ oldHashId
-    newHashId <- Q.expectHashIdByHash . Cv.hash1to2 $ newHash
-    newObjectId <- Q.expectObjectIdForPrimaryHashId $ newHashId
+    oldHashId <- Q.expectHashIdByHash oldHash
+    oldObjectId <- Q.expectObjectIdForPrimaryHashId oldHashId
+    newHashId <- Q.expectHashIdByHash newHash
+    newObjectId <- Q.expectObjectIdForPrimaryHashId newHashId
     pure (oldObjectId, newHashId, newObjectId)
   field @"objLookup" %= Map.insert oldObjectId (newObjectId, newHashId, newHash, oldHash)
 
@@ -872,7 +866,7 @@ saveV2EmptyBranch :: Sqlite.Transaction (BranchHashId, BranchHash)
 saveV2EmptyBranch = do
   let branch = S.emptyBranch
   newHash <- Hashing.dbBranchHash branch
-  newHashId <- Q.saveBranchHash (coerce Cv.hash1to2 newHash)
+  newHashId <- Q.saveBranchHash newHash
   -- Stats are empty for the empty branch.
   let emptyStats = NamespaceStats 0 0 0
   _ <- Ops.saveDbBranchUnderHashId v2HashHandle newHashId emptyStats branch
