@@ -131,6 +131,7 @@ data ReturnType a
   = Success a
   | Continue
   | HaltRepl
+  deriving stock (Eq, Show)
 
 -- | The command-line app monad environment.
 --
