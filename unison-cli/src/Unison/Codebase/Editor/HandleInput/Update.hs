@@ -40,6 +40,7 @@ import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TypeEdit as TypeEdit
+import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Name (Name)
 import qualified Unison.Name as Name
@@ -48,7 +49,7 @@ import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
-import Unison.Reference (Reference (..), TermReference, TermReferenceId, TypeReference)
+import Unison.Reference (Reference (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -381,47 +382,50 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
               then pure Map.empty
               else do
                 Sqlite.savepoint do
-                  -- Compute the actual interim components in the latest typechecked file. These aren't quite given in
-                  -- the unison file structure itself - in the `topLevelComponents'` field we have the components in
-                  -- some arbitrary order (I *think*), each tagged with its stringy name, and in the `hashTermsId` field
-                  -- we have all of the individual terms organized by reference.
-                  let interimComponents :: [(Hash, [(Term Symbol Ann, Type Symbol Ann)])]
-                      interimComponents =
+                  -- Compute the actual interim decl/term components in the latest typechecked file. These aren't quite
+                  -- given in the unison file structure itself - in the `topLevelComponents'` field we have the
+                  -- components in some arbitrary order (I *think*), each tagged with its stringy name, and in the
+                  -- `hashTermsId` field we have all of the individual terms organized by reference.
+                  let interimDeclComponents :: [(Hash, [Decl Symbol Ann])]
+                      interimDeclComponents =
+                        decls UF.dataDeclarationsId' Right ++ decls UF.effectDeclarationsId' Left
+                        where
+                          decls ::
+                            (TypecheckedUnisonFile Symbol Ann -> Map Symbol (TypeReferenceId, decl)) ->
+                            (decl -> Decl Symbol Ann) ->
+                            [(Hash, [Decl Symbol Ann])]
+                          decls project inject =
+                            slurp0
+                              & Slurp.originalFile
+                              & project
+                              & Map.elems
+                              & recomponentize
+                              & over (mapped . _2 . mapped) inject
+                      interimTermComponents :: [(Hash, [(Term Symbol Ann, Type Symbol Ann)])]
+                      interimTermComponents =
                         nameToInterimInfo
                           & Map.elems
-                          & foldl' step Map.empty
-                          & Map.toList
-                          & over (mapped . _2) Map.elems
-                        where
-                          step ::
-                            Map Hash (Map Reference.Pos (Term Symbol Ann, Type Symbol Ann)) ->
-                            (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann) ->
-                            Map Hash (Map Reference.Pos (Term Symbol Ann, Type Symbol Ann))
-                          step acc (Reference.Id hash pos, _wk, term, typ) =
-                            Map.upsert
-                              ( \case
-                                  Nothing -> Map.singleton pos (term, typ)
-                                  Just acc1 -> Map.insert pos (term, typ) acc1
-                              )
-                              hash
-                              acc
+                          & map (\(ref, _wk, term, typ) -> (ref, (term, typ)))
+                          & componentize
+                          & uncomponentize
 
                   -- Insert each interim component into the codebase proper. Note: this relies on the codebase interface
                   -- being smart enough to handle out-of-order components (i.e. inserting a dependent before a
                   -- dependency). That's currently how the codebase interface works, but maybe in the future it'll grow
                   -- a precondition that components can only be inserted after their dependencies.
-                  for_ interimComponents \(hash, terms) -> Codebase.putTermComponent codebase hash terms
+                  for_ interimDeclComponents \(hash, decls) -> Codebase.putTypeDeclarationComponent codebase hash decls
+                  for_ interimTermComponents \(hash, terms) -> Codebase.putTermComponent codebase hash terms
 
                   terms <-
                     let interimHashes :: Set Hash
-                        interimHashes = Set.fromList (map fst interimComponents)
+                        interimHashes = Set.fromList (map fst interimTermComponents)
                      in Map.toList oldHashToInterimHash & foldMapM \(oldHash, interimHash) -> do
                           hashes <-
                             Queries.loadObjectIdForAnyHash oldHash >>= \case
-                              -- better would be to short-circuit all the way to the user and say, actually we can't 
+                              -- better would be to short-circuit all the way to the user and say, actually we can't
                               -- perform this update at all, due to some intervening delete (e.g. some sort of
                               -- hard-reset or garbage collection on the codebase)
-                              Nothing -> pure Set.empty 
+                              Nothing -> pure Set.empty
                               Just oldOid -> do
                                 interimOid <- Queries.expectObjectIdForPrimaryHash interimHash
                                 betweenOids <- Queries.getDependenciesBetweenTerms interimOid oldOid
@@ -657,3 +661,27 @@ propagatePatchNoSync ::
 propagatePatchNoSync patch scopePath =
   Cli.time "propagatePatchNoSync" do
     Cli.stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
+
+recomponentize :: [(Reference.Id, a)] -> [(Hash, [a])]
+recomponentize =
+  uncomponentize . componentize
+
+-- Misc. helper: convert a component in listy-form to mappy-form.
+componentize :: [(Reference.Id, a)] -> Map Hash (Map Reference.Pos a)
+componentize =
+  foldl' step Map.empty
+  where
+    step :: Map Hash (Map Reference.Pos a) -> (Reference.Id, a) -> Map Hash (Map Reference.Pos a)
+    step acc (Reference.Id hash pos, x) =
+      Map.upsert
+        ( \case
+            Nothing -> Map.singleton pos x
+            Just acc1 -> Map.insert pos x acc1
+        )
+        hash
+        acc
+
+-- Misc. helper: convert a component in mappy-form to listy-form.
+uncomponentize :: Map Hash (Map Reference.Pos a) -> [(Hash, [a])]
+uncomponentize =
+  over (mapped . _2) Map.elems . Map.toList
