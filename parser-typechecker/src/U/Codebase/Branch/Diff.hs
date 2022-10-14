@@ -1,4 +1,12 @@
-module U.Codebase.Branch.Diff where
+module U.Codebase.Branch.Diff
+  ( TreeDiff (..),
+    NameChanges (..),
+    DefinitionDiffs (..),
+    Diff (..),
+    diffBranches,
+    nameChanges,
+  )
+where
 
 import Control.Comonad.Cofree
 import Control.Lens (ifoldMap)
@@ -17,19 +25,21 @@ import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 
-data GDiff a = GDiff
+data Diff a = Diff
   { adds :: Set a,
     removals :: Set a
   }
   deriving (Show, Eq, Ord)
 
--- | TODO: includ info on patch and metadata diffs, I just didn't need it yet.
+-- | Represents the changes to definitions at a given path, not including child paths.
+--
+-- Note: doesn't yet include any info on metadata or patch diffs. Feel free to add it.
 data DefinitionDiffs = DefinitionDiffs
-  { termDiffs :: Map NameSegment (GDiff Referent),
-    typeDiffs :: Map NameSegment (GDiff Reference)
-    -- termMetadataDiffs :: Map (NameSegment, Referent) (GDiff Reference),
-    -- typeMetadataDiffs :: Map (NameSegment, Reference) (GDiff Reference)
-    -- patchDiffs :: Map NameSegment (GDiff ())
+  { termDiffs :: Map NameSegment (Diff Referent),
+    typeDiffs :: Map NameSegment (Diff Reference)
+    -- termMetadataDiffs :: Map (NameSegment, Referent) (Diff Reference),
+    -- typeMetadataDiffs :: Map (NameSegment, Reference) (Diff Reference)
+    -- patchDiffs :: Map NameSegment (Diff ())
   }
   deriving stock (Show, Eq, Ord)
 
@@ -43,7 +53,7 @@ instance Semigroup DefinitionDiffs where
 instance Monoid DefinitionDiffs where
   mempty = DefinitionDiffs mempty mempty
 
--- | Note: currently doesn't detect causal changes.
+-- | A tree of local diffs. Each node of the tree contains the definition diffs at that path.
 newtype TreeDiff = TreeDiff
   { unTreeDiff :: Cofree (Map NameSegment) DefinitionDiffs
   }
@@ -61,6 +71,25 @@ instance Monoid TreeDiff where
 instance Lens.AsEmpty TreeDiff where
   _Empty = Lens.only mempty
 
+-- | A summary of a 'TreeDiff', containing all names added and removed.
+-- Note that there isn't a clear notion of a name "changing" since conflicts might muddy the notion
+-- by having multiple copies of both the from and to names, so we just talk about adds and
+-- removals instead.
+data NameChanges = NameChanges
+  { termNameAdds :: [(Name, Referent)],
+    termNameRemovals :: [(Name, Referent)],
+    typeNameAdds :: [(Name, Reference)],
+    typeNameRemovals :: [(Name, Reference)]
+  }
+
+instance Semigroup NameChanges where
+  (NameChanges a b c d) <> (NameChanges a2 b2 c2 d2) =
+    NameChanges (a <> a2) (b <> b2) (c <> c2) (d <> d2)
+
+instance Monoid NameChanges where
+  mempty = NameChanges mempty mempty mempty mempty
+
+-- | Diff two Branches, returning a tree containing all of the changes
 diffBranches :: forall m. Monad m => Branch m -> Branch m -> m TreeDiff
 diffBranches from to = do
   let termDiffs = diffMap (terms from) (terms to)
@@ -81,47 +110,34 @@ diffBranches from to = do
               Just . unTreeDiff <$> diffBranches Branch.empty newChildBranch
             These fromC toC
               | Causal.valueHash fromC == Causal.valueHash toC -> do
-                  -- This child didn't change.
-                  pure Nothing
+                -- This child didn't change.
+                pure Nothing
               | otherwise -> do
-                  fromChildBranch <- Causal.value fromC
-                  toChildBranch <- Causal.value toC
-                  diffBranches fromChildBranch toChildBranch >>= \case
-                    Lens.Empty -> pure Nothing
-                    TreeDiff cfr -> pure . Just $ cfr
+                fromChildBranch <- Causal.value fromC
+                toChildBranch <- Causal.value toC
+                diffBranches fromChildBranch toChildBranch >>= \case
+                  Lens.Empty -> pure Nothing
+                  TreeDiff cfr -> pure . Just $ cfr
         )
   pure $ TreeDiff (defDiff :< rec)
   where
-    diffMap :: forall ref. Ord ref => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (GDiff ref)
+    diffMap :: forall ref. Ord ref => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Diff ref)
     diffMap l r =
       Align.align l r
         & fmap
           ( \case
-              (This refs) -> (GDiff {removals = Map.keysSet refs, adds = mempty})
-              (That refs) -> (GDiff {removals = mempty, adds = Map.keysSet refs})
+              (This refs) -> (Diff {removals = Map.keysSet refs, adds = mempty})
+              (That refs) -> (Diff {removals = mempty, adds = Map.keysSet refs})
               (These l' r') ->
                 let lRefs = Map.keysSet l'
                     rRefs = Map.keysSet r'
-                 in (GDiff {removals = lRefs `Set.difference` rRefs, adds = rRefs `Set.difference` lRefs})
+                 in (Diff {removals = lRefs `Set.difference` rRefs, adds = rRefs `Set.difference` lRefs})
           )
 
-data NameChanges = NameChanges
-  { termNameAdds :: [(Name, Referent)],
-    termNameRemovals :: [(Name, Referent)],
-    typeNameAdds :: [(Name, Reference)],
-    typeNameRemovals :: [(Name, Reference)]
-  }
-
-instance Semigroup NameChanges where
-  (NameChanges a b c d) <> (NameChanges a2 b2 c2 d2) =
-    NameChanges (a <> a2) (b <> b2) (c <> c2) (d <> d2)
-
-instance Monoid NameChanges where
-  mempty = NameChanges mempty mempty mempty mempty
-
--- | Get all the name (adds, removals) from a tree diff.
+-- | Get a summary of all of the name adds and removals from a tree diff.
 --
--- Pass 'Nothing' on the initial call.
+-- The provided name will be used as a prefix, and can be useful if diffing branches at a
+-- specific sub-tree, but you can pass 'Nothing' if you're diffing from the root.
 nameChanges ::
   Maybe Name ->
   TreeDiff ->

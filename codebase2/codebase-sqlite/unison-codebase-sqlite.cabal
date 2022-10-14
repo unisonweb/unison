@@ -94,7 +94,6 @@ library
     , bytestring
     , containers
     , extra
-    , free
     , generic-lens
     , here
     , lens
@@ -102,9 +101,7 @@ library
     , mtl
     , nonempty-containers
     , safe
-    , semialign
     , text
-    , these
     , transformers
     , unison-codebase
     , unison-codebase-sync

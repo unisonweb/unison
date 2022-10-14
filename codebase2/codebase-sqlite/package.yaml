@@ -17,7 +17,6 @@ dependencies:
   - bytestring
   - containers
   - extra
-  - free
   - here
   - lens
   - generic-lens
@@ -25,9 +24,7 @@ dependencies:
   - mtl
   - nonempty-containers
   - safe
-  - semialign
   - text
-  - these
   - transformers
   - unison-codebase
   - unison-codebase-sync

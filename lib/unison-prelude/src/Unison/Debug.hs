@@ -35,7 +35,7 @@ data DebugFlag
   | -- | Timing how long things take
     Timing
   | -- | Useful for adding temporary debugging statements during development.
-    -- These should be removed before merging.
+    -- Remove uses of Debug.Temp before merging to keep things clean for the next person :)
     Temp
   deriving (Eq, Ord, Show, Bounded, Enum)
 

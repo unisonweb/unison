@@ -1055,12 +1055,11 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
--- | Given the list of term and type names from the root branch, rebuild the name lookup
--- table.
+-- | Given lists of names to add and remove, update the index accordingly.
 updateNameIndex ::
-  -- |  (add referents, remove referents)
+  -- |  (add terms, remove terms)
   ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
-  -- |  (add references, remove reference)
+  -- |  (add types, remove types)
   ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
   Transaction ()
 updateNameIndex (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
