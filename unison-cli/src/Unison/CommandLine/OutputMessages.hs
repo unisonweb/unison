@@ -75,6 +75,7 @@ import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SqliteCodebase.GitError
   ( GitSqliteCodebaseError (..),
   )
@@ -85,6 +86,7 @@ import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.InputPatterns (makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.ConstructorReference (GConstructorReference (..))
+import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
@@ -1805,14 +1807,19 @@ notifyUser dir o = case o of
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
-  DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} ->
+  DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
+    let referentText =
+          -- We don't use the constructor type in the actual output here, so there's no
+          -- point in looking up the correct one.
+          P.text . Referent.toText . runIdentity . Cv.referent2to1 (\_ref -> Identity CT.Data)
+    let referenceText = P.text . Reference.toText . Cv.reference2to1
     pure $
       P.columnNHeader
-        ["Kind", "Name", "Ref", "Change"]
-        ( (termNameAdds <&> \(n, ref) -> ["Term", Name.toText n, Referent.toText ref, "Added"])
-            <> (termNameRemovals <&> \(n, ref) -> ["Term", Name.toText n, Referent.toText ref, "Removed"])
-            <> (typeNameAdds <&> \(n, ref) -> ["Type", Name.toText n, Referent.toText ref, "Added"])
-            <> (typeNameRemovals <&> \(n, ref) -> ["Type", Name.toText n, Referent.toText ref, "Removed"])
+        ["Kind", "Name",  "Change", "Ref"]
+        ( (termNameAdds <&> \(n, ref) -> ["Term", prettyName n, "Added", referentText ref])
+            <> (termNameRemovals <&> \(n, ref) -> ["Term", prettyName n, "Removed", referentText ref])
+            <> (typeNameAdds <&> \(n, ref) -> ["Type", prettyName n, "Added", referenceText ref])
+            <> (typeNameRemovals <&> \(n, ref) -> ["Type", prettyName n, "Removed", referenceText ref])
         )
   DisplayDebugCompletions completions ->
     pure $

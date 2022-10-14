@@ -2340,6 +2340,7 @@ validInputs =
       debugClearWatchCache,
       debugDoctor,
       debugTabCompletion,
+      debugNameDiff,
       gist,
       authLogin,
       printVersion

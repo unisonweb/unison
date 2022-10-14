@@ -90,18 +90,18 @@ structural type a.b.Baz = Boo
 
 .> debug.name-diff 4 1
 
-  Kind   Name          Ref                                                                                                           Change
-  Term   a.newtwo      #dcgdua2lj6upd1ah5v0qp09gjsej0d77d87fu6qn8e2qrssnlnmuinoio46hiu53magr7qn8vnqke8ndt0v76700o5u8gcvo7st28jg      Added
-  Term   a.y.four      #vcfbbslncd2qloc03kalgsmufl3j5es6cehcrbmlj6t78d4uk5j9gpa3hhf2opln1u2kiepg5n2cn49ianf2oig0mi4c2ldn1r9lf40      Added
-  Term   a.y.three     #f3lgjvjqoocpt8v6kdgd2bgthh11a7md3qdp9rf5datccmo580btjd5bt5dro3irqs0is7vm7s1dphddjbtufch620te7ef7canmjj8      Added
-  Term   a.y.Foo.Bar   #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0#d1   Added
-  Term   a.y.Foo.Foo   #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0#d0   Added
-  Term   a.b.one       #gjmq673r1vrurfotlnirv7vutdhm6sa3s02em5g22kk606mv6duvv8be402dv79312i4a0onepq5bo7citsodvq2g720nttj0ee9p0g      Removed
-  Term   a.x.four      #vcfbbslncd2qloc03kalgsmufl3j5es6cehcrbmlj6t78d4uk5j9gpa3hhf2opln1u2kiepg5n2cn49ianf2oig0mi4c2ldn1r9lf40      Removed
-  Term   a.x.three     #f3lgjvjqoocpt8v6kdgd2bgthh11a7md3qdp9rf5datccmo580btjd5bt5dro3irqs0is7vm7s1dphddjbtufch620te7ef7canmjj8      Removed
-  Term   a.x.Foo.Bar   #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0#d1   Removed
-  Term   a.x.Foo.Foo   #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0#d0   Removed
-  Type   a.y.Foo       #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0      Added
-  Type   a.x.Foo       #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0      Removed
+  Kind   Name          Change    Ref
+  Term   a.newtwo      Added     #dcgdua2lj6upd1ah5v0qp09gjsej0d77d87fu6qn8e2qrssnlnmuinoio46hiu53magr7qn8vnqke8ndt0v76700o5u8gcvo7st28jg
+  Term   a.y.four      Added     #vcfbbslncd2qloc03kalgsmufl3j5es6cehcrbmlj6t78d4uk5j9gpa3hhf2opln1u2kiepg5n2cn49ianf2oig0mi4c2ldn1r9lf40
+  Term   a.y.three     Added     #f3lgjvjqoocpt8v6kdgd2bgthh11a7md3qdp9rf5datccmo580btjd5bt5dro3irqs0is7vm7s1dphddjbtufch620te7ef7canmjj8
+  Term   a.y.Foo.Bar   Added     #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0#d1
+  Term   a.y.Foo.Foo   Added     #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0#d0
+  Term   a.b.one       Removed   #gjmq673r1vrurfotlnirv7vutdhm6sa3s02em5g22kk606mv6duvv8be402dv79312i4a0onepq5bo7citsodvq2g720nttj0ee9p0g
+  Term   a.x.four      Removed   #vcfbbslncd2qloc03kalgsmufl3j5es6cehcrbmlj6t78d4uk5j9gpa3hhf2opln1u2kiepg5n2cn49ianf2oig0mi4c2ldn1r9lf40
+  Term   a.x.three     Removed   #f3lgjvjqoocpt8v6kdgd2bgthh11a7md3qdp9rf5datccmo580btjd5bt5dro3irqs0is7vm7s1dphddjbtufch620te7ef7canmjj8
+  Term   a.x.Foo.Bar   Removed   #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0#d1
+  Term   a.x.Foo.Foo   Removed   #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0#d0
+  Type   a.y.Foo       Added     #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0
+  Type   a.x.Foo       Removed   #6kbe32g06nqg93cqub6ohqc4ql4o49ntgnunifds0t75qre6lacnbsr3evn8bkivj68ecbvmhkbak4dbg4fqertcpgb396rmo34tnh0
 
 ```
