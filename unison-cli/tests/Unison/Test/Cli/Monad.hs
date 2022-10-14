@@ -18,7 +18,7 @@ test =
                 Cli.label \_ -> do
                   #numberedArgs .= ["foo"]
                   goto (1 :: Int)
-                  pure 2
+                pure 2
         -- test that 'goto' short-circuits, as expected
         expectEqual' (Cli.Success 1) r
         -- test that calling 'goto' doesn't lose state changes made along the way
