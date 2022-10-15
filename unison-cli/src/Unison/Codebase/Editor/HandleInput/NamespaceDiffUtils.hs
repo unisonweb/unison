@@ -32,7 +32,7 @@ import Unison.Symbol (Symbol)
 diffHelper ::
   Branch0 IO ->
   Branch0 IO ->
-  Cli r (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
+  Cli (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput Symbol Ann)
 diffHelper before after =
   Cli.time "diffHelper" do
     Cli.Env {codebase} <- ask
