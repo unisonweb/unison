@@ -1218,8 +1218,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     (Right
                                                       (Term.Term
                                                         (Any
-                                                          (_ ->
-                                                            Some)))))),
+                                                          'Some))))),
                                               Lit
                                                 ()
                                                 (Right
@@ -1527,8 +1526,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           (SpecialForm.Link
                                             (Right
                                               (Term.Term
-                                                (Any
-                                                  (_ -> lists)))))) ]))) ])))),
+                                                (Any 'lists))))) ]))) ])))),
                 Lit () (Right (Plain "\n")),
                 Lit () (Right (Plain "\n")),
                 Indent
@@ -2586,8 +2584,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                 (EvalInline
                                                   (Term.Term
                                                     (Any
-                                                      (_ ->
-                                                        1
+                                                      '(1
                                                           Nat.+ 1))))),
                                             Lit
                                               ()
@@ -2643,7 +2640,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     (Eval
                                       (Term.Term
                                         (Any
-                                          (_ ->
+                                          (do
                                             id x = x
                                             id (sqr 10)))))))),
                             Lit () (Right (Plain "\n")),
@@ -2672,8 +2669,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     (Eval
                                       (Term.Term
                                         (Any
-                                          (_ ->
-                                            (match 1 with
+                                          ('(match 1 with
                                               1 -> "hi"
                                               _ -> "goodbye")))))))),
                             Lit () (Right (Plain "\n")),
@@ -2733,7 +2729,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     (ExampleBlock
                                       0 (Term.Term
                                         (Any
-                                          (_ ->
+                                          (do
                                             cube : Nat -> Nat
                                             cube x =
                                               use Nat *
@@ -2840,7 +2836,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           []),
                                           (Right
                                             (Term.Term
-                                              (Any (_ -> sqr))),
+                                              (Any 'sqr)),
                                           []) ]))))),
                             Lit () (Right (Plain "\n")),
                             Lit () (Right (Plain "\n")),
@@ -2895,7 +2891,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           []),
                                           (Right
                                             (Term.Term
-                                              (Any (_ -> sqr))),
+                                              (Any 'sqr)),
                                           []) ]))))),
                             Lit () (Right (Plain "\n")),
                             Lit () (Right (Plain "\n")),
@@ -2942,8 +2938,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               (Left
                                                 (SignatureInline
                                                   (Term.Term
-                                                    (Any
-                                                      (_ -> sqr))))),
+                                                    (Any 'sqr)))),
                                             Lit
                                               ()
                                               (Right (Plain ",")) ]),
@@ -2987,10 +2982,9 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     (Left
                                       (SpecialForm.Signature
-                                        [ Term.Term
-                                            (Any (_ -> sqr)),
+                                        [ Term.Term (Any 'sqr),
                                           Term.Term
-                                            (Any (_ -> (Nat.+))) ]))))),
+                                            (Any '(Nat.+)) ]))))),
                             Lit () (Right (Plain "\n")),
                             Lit () (Right (Plain "\n")),
                             Indent
@@ -3024,7 +3018,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     (Left
                                       (SpecialForm.Signature
                                         [ Term.Term
-                                            (Any (_ -> List.map)) ]))))),
+                                            (Any 'List.map) ]))))),
                             Lit () (Right (Plain "\n")),
                             Lit () (Right (Plain "\n")),
                             Indent
@@ -3429,10 +3423,9 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                                     1
                                                                     (Term.Term
                                                                       (Any
-                                                                        (_
-                                                                        x ->
-                                                                          sqr
-                                                                            x))))),
+                                                                        '(x ->
+                                                                            sqr
+                                                                              x))))),
                                                               Lit
                                                                 ()
                                                                 (Right
@@ -3469,10 +3462,9 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                                     1
                                                                     (Term.Term
                                                                       (Any
-                                                                        (_
-                                                                        x ->
-                                                                          sqr
-                                                                            x))))),
+                                                                        '(x ->
+                                                                            sqr
+                                                                              x))))),
                                                               Lit
                                                                 ()
                                                                 (Right
@@ -3819,16 +3811,15 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   (Left
                                     (SpecialForm.Signature
                                       [ Term.Term
-                                          (Any (_ -> docAside)),
+                                          (Any 'docAside),
                                         Term.Term
-                                          (Any (_ -> docCallout)),
+                                          (Any 'docCallout),
                                         Term.Term
-                                          (Any
-                                            (_ -> docBlockquote)),
+                                          (Any 'docBlockquote),
                                         Term.Term
-                                          (Any (_ -> docTooltip)),
+                                          (Any 'docTooltip),
                                         Term.Term
-                                          (Any (_ -> docTable)) ])))),
+                                          (Any 'docTable) ])))),
                             Lit () (Right (Plain "\n")),
                             Lit () (Right (Plain "\n")),
                             Annotated.Group
