@@ -132,6 +132,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * Name Lookup
     ensureNameLookupTables,
+    dropNameLookupTables,
     insertTermNames,
     insertTypeNames,
     removeTermNames,
@@ -1453,6 +1454,20 @@ removeHashObjectsByHashingVersion hashVersion =
     DELETE FROM hash_object
       WHERE hash_version = ?
 |]
+
+-- | Not used in typical operations, but if we ever end up in a situation where a bug
+-- has caused the name lookup index to go out of sync this can be used to get back to a clean
+-- slate.
+dropNameLookupTables :: Transaction ()
+dropNameLookupTables = do
+  execute_
+    [here|
+    DROP TABLE IF EXISTS term_name_lookup
+  |]
+  execute_
+    [here|
+    DROP TABLE IF EXISTS type_name_lookup
+  |]
 
 -- | Ensure the name lookup tables exist.
 ensureNameLookupTables :: Transaction ()

@@ -182,8 +182,8 @@ data Codebase m v a = Codebase
       -- The previous branch the index was based on.
       -- Pass 'Nothing' to build the index from scratch.
       Maybe BranchHash ->
-      -- The new branch, uses the codebase root if 'Nothing'
-      Maybe BranchHash ->
+      -- The new branch
+      BranchHash ->
       m (),
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.
     withConnection :: forall x. (Sqlite.Connection -> m x) -> m x,

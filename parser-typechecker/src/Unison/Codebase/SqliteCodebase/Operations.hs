@@ -607,16 +607,14 @@ updateNameLookupIndex ::
   Path ->
   -- | "from" branch, if 'Nothing' use the empty branch
   Maybe BranchHash ->
-  -- | "to" branch, if 'Nothing' use the root.
-  Maybe BranchHash ->
+  -- | "to" branch
+  BranchHash ->
   Sqlite.Transaction ()
-updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash mayToBranchHash = do
+updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash toBranchHash = do
   fromBranch <- case mayFromBranchHash of
     Nothing -> pure V2Branch.empty
     Just fromBH -> Ops.expectBranchByBranchHash fromBH
-  toBranch <- case mayToBranchHash of
-    Nothing -> Ops.expectRootBranchHash >>= Ops.expectBranchByBranchHash
-    Just toBH -> Ops.expectBranchByBranchHash toBH
+  toBranch <- Ops.expectBranchByBranchHash toBranchHash
   treeDiff <- BranchDiff.diffBranches fromBranch toBranch
   let namePrefix = case pathPrefix of
         Path.Empty -> Nothing
@@ -644,6 +642,7 @@ updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash mayToBranchHash =
 -- it's faster to use 'updateNameLookupIndexFromV2Branch'
 initializeNameLookupIndexFromV1Branch :: Branch Transaction -> Sqlite.Transaction ()
 initializeNameLookupIndexFromV1Branch root = do
+  Q.dropNameLookupTables
   saveRootNamesIndexV1 (V1Branch.toNames . Branch.head $ root)
   where
     saveRootNamesIndexV1 :: Names -> Transaction ()
@@ -672,6 +671,7 @@ initializeNameLookupIndexFromV1Branch root = do
 -- If you do, use 'updateNameLookupIndexFromV2Branch' instead.
 initializeNameLookupIndexFromV2Root :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
 initializeNameLookupIndexFromV2Root getDeclType = do
+  Q.dropNameLookupTables
   rootHash <- Ops.expectRootCausalHash
   causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
   (termNameMap, typeNameMap) <- nameMapsFromV2Branch [] causalBranch

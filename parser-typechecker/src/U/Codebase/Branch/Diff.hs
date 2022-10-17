@@ -95,7 +95,7 @@ diffBranches from to = do
   let termDiffs = diffMap (terms from) (terms to)
   let typeDiffs = diffMap (types from) (types to)
   let defDiff = DefinitionDiffs {termDiffs, typeDiffs}
-  rec <- do
+  childDiff <- do
     Align.align (children from) (children to)
       & wither
         ( \case
@@ -110,16 +110,16 @@ diffBranches from to = do
               Just . unTreeDiff <$> diffBranches Branch.empty newChildBranch
             These fromC toC
               | Causal.valueHash fromC == Causal.valueHash toC -> do
-                -- This child didn't change.
-                pure Nothing
+                  -- This child didn't change.
+                  pure Nothing
               | otherwise -> do
-                fromChildBranch <- Causal.value fromC
-                toChildBranch <- Causal.value toC
-                diffBranches fromChildBranch toChildBranch >>= \case
-                  Lens.Empty -> pure Nothing
-                  TreeDiff cfr -> pure . Just $ cfr
+                  fromChildBranch <- Causal.value fromC
+                  toChildBranch <- Causal.value toC
+                  diffBranches fromChildBranch toChildBranch >>= \case
+                    Lens.Empty -> pure Nothing
+                    TreeDiff cfr -> pure . Just $ cfr
         )
-  pure $ TreeDiff (defDiff :< rec)
+  pure $ TreeDiff (defDiff :< childDiff)
   where
     diffMap :: forall ref. Ord ref => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Diff ref)
     diffMap l r =
