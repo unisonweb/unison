@@ -6,9 +6,9 @@
 
 Supported features:
 
-* Show type on hover
+* Autocompletion
 * Inline type and parser error messages
-* NO autocomplete yet, but soon.
+* Show type on hover
 
 Notes:
 
@@ -39,5 +39,12 @@ Note that you'll need to start UCM _before_ you try connecting to it in your edi
 
 ### VSCode
 
-VSCode doesn't allow customizing LSP implementations without an extension,
-Hang tight, one will be available soon!
+Simply install the [Unison Language VSCode extension](https://marketplace.visualstudio.com/items?itemName=unison-lang.unison).
+
+
+### Other Editors
+
+If your editor provides a mechanism for connecting to a host and port, provide a host of `127.0.0.1` and port `5757`.
+
+If your editor requires a command to run, you can provide the command `nc localhost 5757` on Mac, or `netcat localhost 5757` on linux.
+Note that some editors require passing the command and arguments as separate parameters.
