@@ -28,6 +28,7 @@ import qualified Unison.Debug as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
 import Unison.LSP.Completion (completionHandler)
+import qualified Unison.LSP.Configuration as Config
 import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
 import qualified Unison.LSP.HandlerUtils as Handlers
@@ -93,13 +94,6 @@ serverDefinition vfsVar codebase runtime scope latestBranch latestPath =
       interpretHandler = lspInterpretHandler,
       options = lspOptions
     }
-
--- | Detect user LSP configuration changes.
-lspOnConfigurationChange :: Config -> Value -> Either Text Config
-lspOnConfigurationChange _ _ = pure Config
-
-lspDefaultConfig :: Config
-lspDefaultConfig = Config
 
 -- | Initialize any context needed by the LSP server
 lspDoInitialize ::
@@ -170,6 +164,7 @@ lspNotificationHandlers =
     & SMM.insert STextDocumentDidChange (ClientMessageHandler VFS.lspChangeFile)
     & SMM.insert SInitialized (ClientMessageHandler Notifications.initializedHandler)
     & SMM.insert SCancelRequest (ClientMessageHandler $ Notifications.withDebugging cancelRequestHandler)
+    & SMM.insert SWorkspaceDidChangeConfiguration (ClientMessageHandler Config.workspaceConfigurationChanged)
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO

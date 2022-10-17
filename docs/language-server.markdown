@@ -30,7 +30,8 @@ Configuration for [coc-nvim](https://github.com/neoclide/coc.nvim), enter the fo
     "unison": {
       "filetypes": ["unison"],
       "host": "127.0.0.1",
-      "port": 5757
+      "port": 5757,
+      "settings": {}
     }
   }
 ```
@@ -48,3 +49,15 @@ If your editor provides a mechanism for connecting to a host and port, provide a
 
 If your editor requires a command to run, you can provide the command `nc localhost 5757` on Mac, or `netcat localhost 5757` on linux.
 Note that some editors require passing the command and arguments as separate parameters.
+
+## Configuration
+
+Supported settings and their defaults. See information for your language server client about where to provide these.
+
+```json
+{
+  // The number of completions the server should collect and send based on a single query.
+  // Increasing this limit may improve completion, but at the cost of being slower to respond with results.
+  "maxCompletions": 100
+}
+```

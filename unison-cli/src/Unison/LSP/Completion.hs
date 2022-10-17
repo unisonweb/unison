@@ -34,31 +34,20 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Relation as Relation
 
--- | TODO: move this to a configuration param.
---
--- 'Nothing' will load ALL available completions, which is slower, but may provide a better
--- solution for some users.
---
--- 'Just n' will only fetch the first 'n' completions and will prompt the client to ask for
--- more completions after more typing.
-completionLimit :: Maybe Int
-completionLimit = Just 100
-
 completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
 completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
     (range, prefix) <- MaybeT $ VFS.completionPrefix (m ^. params)
     ppe <- PPED.suffixifiedPPE <$> lift globalPPE
     completions <- lift getCompletions
+    Config {maxCompletions} <- getConfig
+    Debug.debugM Debug.LSP "maxCompletions" maxCompletions
     let defMatches = matchCompletions completions prefix
     let (isIncomplete, defCompletions) =
           defMatches
             & nubOrdOn (\(p, _name, ref) -> (p, ref))
             & fmap (over _1 Path.toText)
-            -- & ( let x = Text.dropWhileEnd (== '.') prefix
-            --      in filter (\(path, _name, _ref) -> path /= x) -- Filter out completions that already match
-            --   )
-            & case completionLimit of
+            & case maxCompletions of
               Nothing -> (False,)
               Just n -> takeCompletions n
     let defCompletionItems =
