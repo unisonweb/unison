@@ -17,7 +17,6 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
@@ -42,7 +41,6 @@ completionHandler m respond =
     ppe <- PPED.suffixifiedPPE <$> lift globalPPE
     completions <- lift getCompletions
     Config {maxCompletions} <- lift getConfig
-    Debug.debugM Debug.LSP "maxCompletions" maxCompletions
     let defMatches = matchCompletions completions prefix
     let (isIncomplete, defCompletions) =
           defMatches
@@ -59,6 +57,8 @@ completionHandler m respond =
                in hqName <&> \hqName -> mkDefCompletionItem range (Name.toText fqn) path (HQ'.toText hqName) dep
     pure . CompletionList isIncomplete . List $ defCompletionItems
   where
+    -- Takes at most the specified number of completions, but also indicates with a boolean
+    -- whether there were more completions remaining so we can pass that along to the client.
     takeCompletions :: Int -> [a] -> (Bool, [a])
     takeCompletions 0 xs = (not $ null xs, [])
     takeCompletions _ [] = (False, [])
@@ -78,8 +78,7 @@ mkDefCompletionItem range fqn path suffixified dep =
       _documentation = Nothing,
       _deprecated = Nothing,
       _preselect = Nothing,
-      -- Sort def completions after path completions
-      _sortText = Just ("1" <> lbl),
+      _sortText = Nothing,
       _filterText = Just path,
       _insertText = Nothing,
       _insertTextFormat = Nothing,
@@ -91,10 +90,23 @@ mkDefCompletionItem range fqn path suffixified dep =
       _xdata = Nothing
     }
   where
-    (lbl, _detail) =
+    -- We should generally show the longer of the path or suffixified name in the label,
+    -- it helps the user understand the difference between options which may otherwise look
+    -- the same.
+    --
+    -- E.g. if I type "ma" then the suffixied options might be: List.map, Bag.map, but the
+    -- path matches are just "map" and "map" since the query starts at that segment, so we
+    -- show the suffixified version to disambiguate.
+    --
+    -- However, if the user types "base.List.ma" then the matching path is "base.List.map" and
+    -- the suffixification is just "List.map", so we use the path in this case because it more
+    -- closely matches what the user actually typed.
+    --
+    -- This is what's felt best to me, anecdotally.
+    lbl =
       if Text.length path > Text.length suffixified
-        then (path, suffixified)
-        else (suffixified, path)
+        then path
+        else suffixified
 
 -- | Generate a completion tree from a set of names.
 -- A completion tree is a suffix tree over the path segments of each name it contains.
