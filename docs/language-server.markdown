@@ -57,7 +57,8 @@ Supported settings and their defaults. See information for your language server 
 ```json
 {
   // The number of completions the server should collect and send based on a single query.
-  // Increasing this limit may improve completion, but at the cost of being slower to respond with results.
+  // Increasing this limit will provide more completion results, but at the cost of being slower to respond.
+  // If explicitly set to `null` the server will return ALL completions available.
   "maxCompletions": 100
 }
 ```

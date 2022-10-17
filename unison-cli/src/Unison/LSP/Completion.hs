@@ -17,6 +17,7 @@ import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Debug as Debug
 import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Types
 import qualified Unison.LSP.VFS as VFS
@@ -40,7 +41,7 @@ completionHandler m respond =
     (range, prefix) <- MaybeT $ VFS.completionPrefix (m ^. params)
     ppe <- PPED.suffixifiedPPE <$> lift globalPPE
     completions <- lift getCompletions
-    Config {maxCompletions} <- getConfig
+    Config {maxCompletions} <- lift getConfig
     Debug.debugM Debug.LSP "maxCompletions" maxCompletions
     let defMatches = matchCompletions completions prefix
     let (isIncomplete, defCompletions) =

@@ -8,7 +8,6 @@ module Unison.LSP where
 import Colog.Core (LogAction (LogAction))
 import qualified Colog.Core as Colog
 import Control.Monad.Reader
-import Data.Aeson hiding (Options, defaultOptions)
 import GHC.IO.Exception (ioe_errno)
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
@@ -87,8 +86,8 @@ serverDefinition ::
   ServerDefinition Config
 serverDefinition vfsVar codebase runtime scope latestBranch latestPath =
   ServerDefinition
-    { defaultConfig = lspDefaultConfig,
-      onConfigurationChange = lspOnConfigurationChange,
+    { defaultConfig = defaultLSPConfig,
+      onConfigurationChange = Config.updateConfig,
       doInitialize = lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath,
       staticHandlers = lspStaticHandlers,
       interpretHandler = lspInterpretHandler,

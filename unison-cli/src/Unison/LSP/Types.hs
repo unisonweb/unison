@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Unison.LSP.Types where
@@ -16,6 +17,7 @@ import qualified Data.ByteString.Lazy.Char8 as BSC
 import qualified Data.HashMap.Strict as HM
 import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
@@ -135,7 +137,7 @@ data Config = Config
 
 instance Aeson.FromJSON Config where
   parseJSON = Aeson.withObject "Config" \obj -> do
-    maxCompletions <- obj Aeson..:? "maxCompletions" Aeson..!= maxCompletions defaultLSPConfig
+    maxCompletions <- obj Aeson..:! "maxCompletions" Aeson..!= maxCompletions defaultLSPConfig
     let invalidKeys = Set.fromList (HM.keys obj) `Set.difference` validKeys
     when (not . null $ invalidKeys) do
       fail . Text.unpack $
