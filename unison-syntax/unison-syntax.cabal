@@ -17,7 +17,10 @@ source-repository head
 
 library
   exposed-modules:
+      Unison.Parser.Ann
       Unison.Syntax.Lexer
+      Unison.Syntax.Parser
+      Unison.UnisonFile.Error
   hs-source-dirs:
       src
   default-extensions:
@@ -52,7 +55,9 @@ library
   ghc-options: -Wall
   build-depends:
       base
+    , bytes
     , containers
+    , cryptonite
     , lens
     , megaparsec
     , mtl
@@ -60,6 +65,7 @@ library
     , unison-core1
     , unison-prelude
     , unison-pretty-printer
+    , unison-util-base32hex
     , unison-util-bytes
   default-language: Haskell2010
 
@@ -100,8 +106,10 @@ test-suite syntax-tests
   ghc-options: -Wall
   build-depends:
       base
+    , bytes
     , code-page
     , containers
+    , cryptonite
     , easytest
     , lens
     , megaparsec
@@ -111,5 +119,6 @@ test-suite syntax-tests
     , unison-prelude
     , unison-pretty-printer
     , unison-syntax
+    , unison-util-base32hex
     , unison-util-bytes
   default-language: Haskell2010

@@ -88,7 +88,6 @@ library
       Unison.CodebasePath
       Unison.FileParsers
       Unison.Hashing.V2.Convert
-      Unison.Parser.Ann
       Unison.Parsers
       Unison.PrettyPrintEnv
       Unison.PrettyPrintEnv.FQN
@@ -120,7 +119,6 @@ library
       Unison.Syntax.DeclPrinter
       Unison.Syntax.FileParser
       Unison.Syntax.NamePrinter
-      Unison.Syntax.Parser
       Unison.Syntax.TermParser
       Unison.Syntax.TermPrinter
       Unison.Syntax.TypeParser
@@ -134,7 +132,6 @@ library
       Unison.Typechecker.TypeVar
       Unison.UnisonFile
       Unison.UnisonFile.Env
-      Unison.UnisonFile.Error
       Unison.UnisonFile.Names
       Unison.UnisonFile.Type
       Unison.Util.Convert

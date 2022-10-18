@@ -6,7 +6,9 @@ ghc-options: -Wall
 
 dependencies:
   - base
+  - bytes
   - containers
+  - cryptonite
   - lens
   - megaparsec
   - mtl
@@ -14,6 +16,7 @@ dependencies:
   - unison-core1
   - unison-prelude
   - unison-pretty-printer
+  - unison-util-base32hex
   - unison-util-bytes
 
 library:
