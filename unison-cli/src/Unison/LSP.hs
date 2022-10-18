@@ -66,7 +66,7 @@ spawnLsp codebase runtime latestNames = TCP.withSocketsDo do
       case Errno <$> ioe_errno ioerr of
         Just errNo
           | errNo == eADDRINUSE -> do
-            putStrLn $ "Note: Port " <> lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
+              putStrLn $ "Note: Port " <> lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
         _ -> do
           Debug.debugM Debug.LSP "LSP Exception" ioerr
           Debug.debugM Debug.LSP "LSP Errno" (ioe_errno ioerr)
@@ -87,7 +87,7 @@ serverDefinition vfsVar codebase runtime scope latestNames =
   ServerDefinition
     { defaultConfig = lspDefaultConfig,
       onConfigurationChange = lspOnConfigurationChange,
-      doInitialize = lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath,
+      doInitialize = lspDoInitialize vfsVar codebase runtime scope latestNames,
       staticHandlers = lspStaticHandlers,
       interpretHandler = lspInterpretHandler,
       options = lspOptions
