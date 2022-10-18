@@ -261,10 +261,6 @@ test> Bytes.tests.compression =
           (Bytes.zlib.decompress (Bytes.zlib.compress b) == Right b)
             && (Bytes.gzip.decompress (Bytes.gzip.compress b) == Right b)
 
-        isLeft = cases
-          Left _ -> true
-          Right _ -> false
-
         checks [
           roundTrip 0xs2093487509823745709827345789023457892345,
           roundTrip 0xs00000000000000000000000000000000000000000000,
@@ -276,6 +272,13 @@ test> Bytes.tests.compression =
           isLeft (zlib.decompress 0xs2093487509823745709827345789023457892345),
           isLeft (gzip.decompress 0xs201209348750982374593939393939709827345789023457892345)
         ]
+
+test> Bytes.tests.fromBase64UrlUnpadded = 
+  checks [Exception.catch
+           '(fromUtf8
+              (raiseMessage () (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ")))) == Right "hello world"
+         , isLeft (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ="))]
+  
 ```
 
 ```ucm:hide

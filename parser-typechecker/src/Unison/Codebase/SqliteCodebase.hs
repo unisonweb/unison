@@ -248,9 +248,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getTypeOfTermImpl id =
               runTransaction (CodebaseOps.getTypeOfTermImpl id)
 
-            getTermComponentWithTypes :: Hash -> m (Maybe [(Term Symbol Ann, Type Symbol Ann)])
-            getTermComponentWithTypes h =
-              runTransaction (CodebaseOps.getTermComponentWithTypes getDeclType h)
+            getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
+            getTermComponentWithTypes =
+              CodebaseOps.getTermComponentWithTypes getDeclType
 
             getTypeDeclaration :: Reference.Id -> m (Maybe (Decl Symbol Ann))
             getTypeDeclaration id =
@@ -262,7 +262,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
 
             getCycleLength :: Hash -> m (Maybe Reference.CycleSize)
             getCycleLength h =
-              runTransaction (CodebaseOps.getCycleLength h)
+              runTransaction (Ops.getCycleLen h)
 
             -- putTermComponent :: MonadIO m => Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> m ()
             -- putTerms :: MonadIO m => Map Reference.Id (Term Symbol Ann, Type Symbol Ann) -> m () -- dies horribly if missing dependencies?
@@ -279,6 +279,10 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> m ()
             putTypeDeclaration id decl =
               runTransaction (CodebaseOps.putTypeDeclaration termBuffer declBuffer id decl)
+
+            putTypeDeclarationComponent :: Hash -> [Decl Symbol Ann] -> Sqlite.Transaction ()
+            putTypeDeclarationComponent =
+              CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer
 
             getRootCausalHash :: MonadIO m => m V2Branch.CausalHash
             getRootCausalHash =
@@ -441,6 +445,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                         Sqlite.runReadOnlyTransaction conn \run -> run (getDeclType r),
                   putTerm,
                   putTypeDeclaration,
+                  putTypeDeclarationComponent,
                   getTermComponentWithTypes,
                   getDeclComponent,
                   getComponentLength = getCycleLength,
@@ -528,7 +533,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
               processBranches rest
             do
               when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in dest db"
-              let h2 = CausalHash . Cv.hash1to2 $ Causal.unCausalHash h
+              let h2 = CausalHash $ Causal.unCausalHash h
               runSrc (Q.loadCausalHashIdByCausalHash h2) >>= \case
                 Just chId -> do
                   when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
@@ -559,7 +564,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
                         processBranches (os ++ bs ++ b0 : rest)
         O h : rest -> do
           when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
-          oId <- runSrc (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)
+          oId <- runSrc (Q.expectHashIdByHash h >>= Q.expectObjectIdForAnyHashId)
           doSync [Sync22.O oId]
           processBranches rest
   let bHash = Branch.headHash b

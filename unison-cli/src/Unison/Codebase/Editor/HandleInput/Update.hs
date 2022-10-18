@@ -54,6 +54,7 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
 import Unison.Runtime.IOSource (isTest)
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -73,7 +74,7 @@ import Unison.WatchKind (WatchKind)
 import qualified Unison.WatchKind as WK
 
 -- | Handle an @update@ command.
-handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli r ()
+handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli ()
 handleUpdate input optionalPatch requestedNames = do
   Cli.Env {codebase} <- ask
   currentPath' <- Cli.getCurrentPath
@@ -200,7 +201,7 @@ handleUpdate input optionalPatch requestedNames = do
         & Path.resolve @_ @_ @Path.Absolute currentPath'
         & tShow
 
-getSlurpResultForUpdate :: Set Name -> Names -> Cli r SlurpResult
+getSlurpResultForUpdate :: Set Name -> Names -> Cli SlurpResult
 getSlurpResultForUpdate requestedNames slurpCheckNames = do
   let slurp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult
       slurp file =
@@ -315,7 +316,9 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
           --   [ (<#pingpong.pong + 1>, <Nat>),
           --     (<#pingpong.ping + 2>, <Nat>)
           --   ]
-          terms <- Codebase.unsafeGetTermComponent codebase oldHash
+          terms <-
+            Codebase.withConnection codebase \conn ->
+              Sqlite.runTransaction conn (Codebase.unsafeGetTermComponent codebase oldHash)
           pure $
             terms
               -- Running example:
@@ -590,10 +593,7 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
         oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
 
 -- Returns True if the operation changed the namespace, False otherwise.
-propagatePatchNoSync ::
-  Patch ->
-  Path.Absolute ->
-  Cli r Bool
+propagatePatchNoSync :: Patch -> Path.Absolute -> Cli Bool
 propagatePatchNoSync patch scopePath =
   Cli.time "propagatePatchNoSync" do
     Cli.stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)

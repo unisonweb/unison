@@ -347,7 +347,7 @@ dataDeclaration mod = do
               optional (reserved ",")
                 >>= ( \case
                         Nothing -> pure [f]
-                        Just _ -> maybe [] (f :) <$> (optional semi *> optional field)
+                        Just _ -> maybe [f] (f :) <$> (optional semi *> optional field)
                     )
         fields <- field
         _ <- closeBlock

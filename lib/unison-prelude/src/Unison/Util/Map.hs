@@ -10,6 +10,7 @@ module Unison.Util.Map
     traverseKeys,
     traverseKeysWith,
     swap,
+    upsert,
     valuesVector,
   )
 where
@@ -38,6 +39,11 @@ bitraversed keyT valT f m =
 swap :: Ord b => Map a b -> Map b a
 swap =
   Map.foldlWithKey' (\z a b -> Map.insert b a z) mempty
+
+-- | Upsert an element into a map.
+upsert :: Ord k => (Maybe v -> v) -> k -> Map k v -> Map k v
+upsert f =
+  Map.alter (Just . f)
 
 valuesVector :: Map k v -> Vector v
 valuesVector =

@@ -88,5 +88,10 @@ unique type Record5 =
                          -> Record5
                          ->{g} Record5
       Record5.a.set    : Text -> Record5 -> Record5
+      Record5.b        : Record5 -> Int
+      Record5.b.modify : (Int ->{g} Int)
+                         -> Record5
+                         ->{g} Record5
+      Record5.b.set    : Int -> Record5 -> Record5
 
 ```

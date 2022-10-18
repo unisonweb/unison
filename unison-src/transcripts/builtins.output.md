@@ -238,10 +238,6 @@ test> Bytes.tests.compression =
           (Bytes.zlib.decompress (Bytes.zlib.compress b) == Right b)
             && (Bytes.gzip.decompress (Bytes.gzip.compress b) == Right b)
 
-        isLeft = cases
-          Left _ -> true
-          Right _ -> false
-
         checks [
           roundTrip 0xs2093487509823745709827345789023457892345,
           roundTrip 0xs00000000000000000000000000000000000000000000,
@@ -253,6 +249,13 @@ test> Bytes.tests.compression =
           isLeft (zlib.decompress 0xs2093487509823745709827345789023457892345),
           isLeft (gzip.decompress 0xs201209348750982374593939393939709827345789023457892345)
         ]
+
+test> Bytes.tests.fromBase64UrlUnpadded = 
+  checks [Exception.catch
+           '(fromUtf8
+              (raiseMessage () (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ")))) == Right "hello world"
+         , isLeft (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ="))]
+  
 ```
 
 ## `Any` functions
@@ -349,29 +352,30 @@ Now that all the tests have been added to the codebase, let's view the test repo
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ Any.test1                   Passed
-  ◉ Any.test2                   Passed
-  ◉ Boolean.tests.andTable      Passed
-  ◉ Boolean.tests.notTable      Passed
-  ◉ Boolean.tests.orTable       Passed
-  ◉ Bytes.tests.at              Passed
-  ◉ Bytes.tests.compression     Passed
-  ◉ Int.tests.arithmetic        Passed
-  ◉ Int.tests.bitTwiddling      Passed
-  ◉ Int.tests.conversions       Passed
-  ◉ Nat.tests.arithmetic        Passed
-  ◉ Nat.tests.bitTwiddling      Passed
-  ◉ Nat.tests.conversions       Passed
-  ◉ Sandbox.test1               Passed
-  ◉ Sandbox.test2               Passed
-  ◉ Sandbox.test3               Passed
-  ◉ Text.tests.alignment        Passed
-  ◉ Text.tests.literalsEq       Passed
-  ◉ Text.tests.patterns         Passed
-  ◉ Text.tests.repeat           Passed
-  ◉ Text.tests.takeDropAppend   Passed
+  ◉ Any.test1                           Passed
+  ◉ Any.test2                           Passed
+  ◉ Boolean.tests.andTable              Passed
+  ◉ Boolean.tests.notTable              Passed
+  ◉ Boolean.tests.orTable               Passed
+  ◉ Bytes.tests.at                      Passed
+  ◉ Bytes.tests.compression             Passed
+  ◉ Bytes.tests.fromBase64UrlUnpadded   Passed
+  ◉ Int.tests.arithmetic                Passed
+  ◉ Int.tests.bitTwiddling              Passed
+  ◉ Int.tests.conversions               Passed
+  ◉ Nat.tests.arithmetic                Passed
+  ◉ Nat.tests.bitTwiddling              Passed
+  ◉ Nat.tests.conversions               Passed
+  ◉ Sandbox.test1                       Passed
+  ◉ Sandbox.test2                       Passed
+  ◉ Sandbox.test3                       Passed
+  ◉ Text.tests.alignment                Passed
+  ◉ Text.tests.literalsEq               Passed
+  ◉ Text.tests.patterns                 Passed
+  ◉ Text.tests.repeat                   Passed
+  ◉ Text.tests.takeDropAppend           Passed
   
-  ✅ 21 test(s) passing
+  ✅ 22 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 

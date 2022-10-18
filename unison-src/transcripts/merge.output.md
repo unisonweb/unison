@@ -322,7 +322,7 @@ Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`
   a = "hello world!"
   
   f : Text
-  f = (x y -> y) a "woot!"
+  f = '(y -> y) a "woot!"
   
   oog.b : Nat
   oog.b = 230948

@@ -30,7 +30,6 @@ typecheck ::
   Text ->
   (Text, [L.Token L.Lexeme]) ->
   Cli
-    r
     ( Result.Result
         (Seq (Result.Note Symbol Ann))
         (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann))
@@ -74,7 +73,6 @@ typecheckFile ::
   [Type Symbol Ann] ->
   UF.UnisonFile Symbol Ann ->
   Cli
-    r
     ( Result.Result
         (Seq (Result.Note Symbol Ann))
         (Either Names (UF.TypecheckedUnisonFile Symbol Ann))

@@ -25,13 +25,13 @@ import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
   )
 import qualified Unison.HashQualified as HQ
+import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Types
   ( APIGet,
     DefinitionDisplayResults,
-    HashQualifiedName,
     Suffixify (..),
     defaultWidth,
   )
@@ -42,7 +42,7 @@ import Unison.Util.Pretty (Width)
 type DefinitionsAPI =
   "getDefinition" :> QueryParam "rootBranch" ShortBranchHash
     :> QueryParam "relativeTo" Path.Path
-    :> QueryParams "names" HashQualifiedName
+    :> QueryParams "names" (HQ.HashQualified Name)
     :> QueryParam "renderWidth" Width
     :> QueryParam "suffixifyBindings" Suffixify
     :> APIGet DefinitionDisplayResults
@@ -102,11 +102,11 @@ instance ToParam (QueryParam "rootBranch" ShortBranchHash) where
       )
       Normal
 
-instance ToParam (QueryParams "names" Text) where
+instance ToParam (QueryParams "names" (HQ.HashQualified Name)) where
   toParam _ =
     DocQueryParam
       "names"
-      [".base.List", "foo.bar", "#abc123"]
+      [".base.List", "foo.bar", "@abc123"]
       ("A fully qualified name, hash-qualified name, " <> "or hash.")
       List
 
@@ -118,14 +118,13 @@ serveDefinitions ::
   Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
   Maybe Path.Path ->
-  [HashQualifiedName] ->
+  [HQ.HashQualified Name] ->
   Maybe Width ->
   Maybe Suffixify ->
   Backend.Backend IO DefinitionDisplayResults
-serveDefinitions rt codebase mayRoot relativePath rawHqns width suff =
+serveDefinitions rt codebase mayRoot relativePath hqns width suff =
   do
     root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    let hqns = HQ.unsafeFromText <$> rawHqns
     hqns
       & foldMapM
         ( Backend.prettyDefinitionsForHQName
