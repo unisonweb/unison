@@ -114,6 +114,7 @@ dependencies:
   - unison-util
   - unison-util-base32hex
   - unison-util-relation
+  - unison-util-rope
   - unison-util-serialization
   - unliftio
   - uri-encode
