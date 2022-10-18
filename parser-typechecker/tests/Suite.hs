@@ -29,7 +29,6 @@ import qualified Unison.Test.Typechecker as Typechecker
 import qualified Unison.Test.Typechecker.Context as Context
 import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.UnisonSources as UnisonSources
-import qualified Unison.Test.Util.Bytes as Bytes
 import qualified Unison.Test.Util.PinBoard as PinBoard
 import qualified Unison.Test.Util.Relation as Relation
 import qualified Unison.Test.Util.Text as Text
@@ -49,7 +48,6 @@ test =
       UnisonSources.test,
       FileParser.test,
       DataDeclaration.test,
-      Bytes.test,
       Text.test,
       Relation.test,
       Path.test,
