@@ -9,15 +9,16 @@ fi
 
 usage() {
     echo "NOTE: must be run from the root of the project."
-    echo "Usage: $0 VERSION [TARGET]"
+    echo "Usage: $0 VERSION SHARE_BASE_PATH [TARGET]"
     echo "VERSION: The version you're releasing, e.g. M4a"
     echo "TARGET: The revision to make the release from, defaults to 'trunk'"
+    echo "SHARE_BASE_PATH: Which base version to pull from share, e.g. 'unison.public.base.releases.M4'"
     echo ""
     echo "E.g."
     echo "$0 M4a"
 }
 
-if [[ -z "$1"  ]] ; then
+if [[ -z "$1" || -z "$2" ]] ; then
   usage
   exit 1
 fi
@@ -35,7 +36,8 @@ fi
 
 version="${1}"
 prev_version=$(./scripts/previous-tag.sh "$version")
-target=${2:-trunk}
+share_base_path=${2}
+target=${3:-trunk}
 tag="release/${version}"
 
 echo "Creating release in unison-local-ui..."
@@ -44,7 +46,7 @@ gh release create "release/${version}" --repo unisonweb/unison-local-ui --target
 echo "Kicking off release workflow in unisonweb/unison"
 git tag "${tag}" "${target}"
 git push origin "${tag}"
-gh workflow run release --repo unisonweb/unison --field "version=${version}"
+gh workflow run release --repo unisonweb/unison --field "version=${version}" --field "share_base_path=${share_base_path}"
 
 echo "Kicking off Homebrew update task"
 gh workflow run release --repo unisonweb/homebrew-unison --field "version=${version}"
