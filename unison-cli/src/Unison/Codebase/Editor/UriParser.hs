@@ -5,9 +5,12 @@ module Unison.Codebase.Editor.UriParser
     writeGitRepo,
     deprecatedWriteGitRemotePath,
     writeRemotePath,
+    parseReadRemoteNamespace,
+    parseReadShareRemoteNamespace,
   )
 where
 
+import Data.Bifunctor (first)
 import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Sequence as Seq
 import qualified Data.Text as Text
@@ -33,6 +36,8 @@ import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer
+import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Pretty.MegaParsec as P
 
 type P = P.Parsec Void Text.Text
 
@@ -59,6 +64,16 @@ repoPath =
   P.label "generic repo" $
     fmap ReadRemoteNamespaceGit readGitRemoteNamespace
       <|> fmap ReadRemoteNamespaceShare readShareRemoteNamespace
+
+parseReadRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
+parseReadRemoteNamespace label input =
+  let printError err = P.lines [P.string "I couldn't parse the repository address given above.", P.prettyPrintParseError input err]
+   in first printError (P.parse repoPath label (Text.pack input))
+
+parseReadShareRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadShareRemoteNamespace
+parseReadShareRemoteNamespace label input =
+  let printError err = P.lines [P.string "I couldn't parse this as a share path.", P.prettyPrintParseError input err]
+   in first printError (P.parse readShareRemoteNamespace label (Text.pack input))
 
 -- >>> P.parseMaybe writeRemotePath "unisonweb.base._releases.M4"
 -- >>> P.parseMaybe writeRemotePath "git(git@github.com:unisonweb/base:v3)._releases.M3"

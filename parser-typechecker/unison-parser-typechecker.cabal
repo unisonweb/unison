@@ -147,6 +147,7 @@ library
       Unison.Util.Exception
       Unison.Util.Logger
       Unison.Util.PinBoard
+      Unison.Util.Pretty.MegaParsec
       Unison.Util.Rope
       Unison.Util.Star3
       Unison.Util.Text
