@@ -28,6 +28,7 @@ module Unison.Codebase
     unsafeGetTypeDeclaration,
     getDeclComponent,
     putTypeDeclaration,
+    putTypeDeclarationComponent,
     typeReferencesByPrefix,
     isType,
 

@@ -293,30 +293,50 @@ addDeclComponentTypeIndex oId ctorss =
       Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
       Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
 
+putTypeDeclarationComponent ::
+  TVar (Map Hash TermBufferEntry) ->
+  TVar (Map Hash DeclBufferEntry) ->
+  Hash ->
+  [Decl Symbol Ann] ->
+  Transaction ()
+putTypeDeclarationComponent termBuffer declBuffer h decls =
+  unlessM (Ops.objectExistsForHash h) do
+    for_ (Reference.componentFor h decls) \(ref, decl) ->
+      putTypeDeclaration_ declBuffer ref decl
+    tryFlushDeclBuffer termBuffer declBuffer h
+
 putTypeDeclaration ::
   TVar (Map Hash TermBufferEntry) ->
   TVar (Map Hash DeclBufferEntry) ->
   Reference.Id ->
   Decl Symbol Ann ->
   Transaction ()
-putTypeDeclaration termBuffer declBuffer (Reference.Id h i) decl =
+putTypeDeclaration termBuffer declBuffer ref@(Reference.Id h _) decl = do
   unlessM (Ops.objectExistsForHash h) do
-    BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer declBuffer h)
-    let declDependencies = Set.toList $ Decl.declDependencies decl
-    let size' = max size (Just $ biggestSelfReference + 1)
-          where
-            biggestSelfReference =
-              maximum1 $
-                i :| [i' | Reference.Derived h' i' <- declDependencies, h == h']
-    let comp' = Map.insert i decl comp
-    moreMissing <-
-      filterM (fmap not . Ops.objectExistsForHash) $
-        [h | Reference.Derived h _i <- declDependencies]
-    let missing' = missing <> Set.fromList moreMissing
-    Sqlite.unsafeIO do
-      traverse_ (addBufferDependent h declBuffer) moreMissing
-      putBuffer declBuffer h (BufferEntry size' comp' missing' waiting)
+    putTypeDeclaration_ declBuffer ref decl
     tryFlushDeclBuffer termBuffer declBuffer h
+
+putTypeDeclaration_ ::
+  TVar (Map Hash DeclBufferEntry) ->
+  Reference.Id ->
+  Decl Symbol Ann ->
+  Transaction ()
+putTypeDeclaration_ declBuffer (Reference.Id h i) decl = do
+  BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer declBuffer h)
+  let declDependencies = Set.toList $ Decl.declDependencies decl
+  let size' = max size (Just $ biggestSelfReference + 1)
+        where
+          biggestSelfReference =
+            maximum1 $
+              i :| [i' | Reference.Derived h' i' <- declDependencies, h == h']
+  let comp' = Map.insert i decl comp
+  moreMissing <-
+    filterM (fmap not . Ops.objectExistsForHash) $
+      [h | Reference.Derived h _i <- declDependencies]
+  let missing' = missing <> Set.fromList moreMissing
+  Sqlite.unsafeIO do
+    traverse_ (addBufferDependent h declBuffer) moreMissing
+    putBuffer declBuffer h (BufferEntry size' comp' missing' waiting)
 
 tryFlushDeclBuffer ::
   TVar (Map Hash TermBufferEntry) ->
