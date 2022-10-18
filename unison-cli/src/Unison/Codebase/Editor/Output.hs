@@ -186,7 +186,7 @@ data Output
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
   | -- show the result of add/update
-    SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult Symbol)
+    SlurpOutput Input PPE.PrettyPrintEnv SlurpResult
   | -- Original source, followed by the errors:
     ParseErrors Text [Parser.Err Symbol]
   | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote Symbol Ann]
@@ -199,7 +199,7 @@ data Output
       [(Symbol, Term Symbol ())]
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
-  | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult Symbol) (UF.TypecheckedUnisonFile Symbol Ann)
+  | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
     DisplayDefinitions
