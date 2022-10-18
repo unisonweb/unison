@@ -20,9 +20,9 @@ import qualified U.Codebase.Branch.Type as Branch
 import qualified U.Codebase.Causal as Causal
 import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 
 data Diff a = Diff
@@ -136,7 +136,7 @@ diffBranches from to = do
 
 -- | Get a summary of all of the name adds and removals from a tree diff.
 --
--- The provided name will be used as a prefix, and can be useful if diffing branches at a
+-- The provided name will be prepended to all names in the output diff, and can be useful if diffing branches at a
 -- specific sub-tree, but you can pass 'Nothing' if you're diffing from the root.
 nameChanges ::
   Maybe Name ->
@@ -147,13 +147,13 @@ nameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< chil
         ( termDiffs
             & ifoldMap \ns diff ->
               let name = appendName ns
-               in (go name $ adds diff, go name $ removals diff)
+               in (listifyNames name $ adds diff, listifyNames name $ removals diff)
         )
       (typeNameAdds, typeNameRemovals) =
         ( typeDiffs
             & ifoldMap \ns diff ->
               let name = appendName ns
-               in (go name $ adds diff, go name $ removals diff)
+               in (listifyNames name $ adds diff, listifyNames name $ removals diff)
         )
       childNameChanges =
         ( children
@@ -162,8 +162,13 @@ nameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< chil
         )
    in NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} <> childNameChanges
   where
-    appendName ns = maybe (Name.fromSegment . NameSegment.NameSegment . coerce $ ns) (`Lens.snoc` NameSegment.NameSegment (coerce ns)) namePrefix
-    go name xs =
+    appendName :: NameSegment -> Name
+    appendName ns =
+      case namePrefix of
+        Nothing -> Name.fromSegment . Cv.namesegment2to1 $ ns
+        Just prefix -> prefix Lens.|> Cv.namesegment2to1 ns
+    listifyNames :: (Name -> Set ref -> [(Name, ref)])
+    listifyNames name xs =
       xs
         & Set.toList
         & fmap (name,)

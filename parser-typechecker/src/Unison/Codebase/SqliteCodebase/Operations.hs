@@ -635,11 +635,13 @@ updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash toBranchHash = do
         ct <- getDeclType ref
         pure (referent, Just $ Cv.constructorType1to2 ct)
 
--- | Update the root namespace names index which is used by the share server for serving api
--- requests.
+-- | Compute the root namespace names index which is used by the share server for serving api
+-- requests. Using 'updateNameLookupIndex' is preferred whenever possible, since it's
+-- considerably faster. This can be used to reset the index if it ever gets out of sync due to
+-- a bug.
 --
--- This version should be used if you've already got the root Branch pre-loaded, otherwise
--- it's faster to use 'updateNameLookupIndexFromV2Branch'
+-- This version can be used if you've already got the root Branch pre-loaded, otherwise
+-- it's faster to use 'initializeNameLookupIndexFromV2Root'
 initializeNameLookupIndexFromV1Branch :: Branch Transaction -> Sqlite.Transaction ()
 initializeNameLookupIndexFromV1Branch root = do
   Q.dropNameLookupTables
@@ -664,11 +666,13 @@ initializeNameLookupIndexFromV1Branch root = do
           Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
           Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))
 
--- | Update the root namespace names index which is used by the share server for serving api
--- requests.
+-- | Compute the root namespace names index which is used by the share server for serving api
+-- requests. Using 'updateNameLookupIndex' is preferred whenever possible, since it's
+-- considerably faster. This can be used to reset the index if it ever gets out of sync due to
+-- a bug.
 --
 -- This version should be used if you don't already have the root Branch pre-loaded,
--- If you do, use 'updateNameLookupIndexFromV2Branch' instead.
+-- If you do, use 'initializeNameLookupIndexFromV1Branch' instead.
 initializeNameLookupIndexFromV2Root :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
 initializeNameLookupIndexFromV2Root getDeclType = do
   Q.dropNameLookupTables

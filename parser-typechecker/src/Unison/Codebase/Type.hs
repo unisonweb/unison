@@ -173,14 +173,14 @@ data Codebase m v a = Codebase
     -- Updates the root namespace names index from an old BranchHash to a new one.
     -- This isn't run automatically because it can be a bit slow.
     updateNameLookup ::
-      -- The root of the _changes_.
+      -- Path to the root of the _changes_.
       -- E.g. if you know that all the changes occur at "base.List", you can pass "base.List"
       -- here, and pass the old and new branch hashes for the branch as "base.List".
       -- This allows us to avoid searching for changes in areas where it's impossible for it
       -- to have occurred.
       Path ->
-      -- The previous branch the index was based on.
-      -- Pass 'Nothing' to build the index from scratch.
+      -- The branch hash at 'Path' which the existing index was built from.
+      -- Pass 'Nothing' to build the index from scratch (i.e. compute a diff from an empty branch).
       Maybe BranchHash ->
       -- The new branch
       BranchHash ->
