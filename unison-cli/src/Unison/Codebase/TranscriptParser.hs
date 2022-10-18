@@ -490,8 +490,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
 
-  hashLen <- Codebase.hashLength codebase
-  initState <- liftIO (Cli.loopState0 hashLen initialRootCausalHash rootVar initialPath)
+  let initState = Cli.loopState0 initialRootCausalHash rootVar initialPath
   loop initState
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b

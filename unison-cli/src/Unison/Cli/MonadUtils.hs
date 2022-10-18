@@ -22,8 +22,6 @@ module Unison.Cli.MonadUtils
     getRootBranch0,
     getCurrentBranch,
     getCurrentBranch0,
-    getCurrentNames,
-    getCurrentPPED,
     getBranchAt,
     getBranch0At,
     getLastSavedRootHash,
@@ -81,7 +79,7 @@ import qualified Data.Configurator.Types as Configurator
 import qualified Data.Set as Set
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
-import Unison.Cli.Monad (Cli, LoopState)
+import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
@@ -99,10 +97,8 @@ import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment)
-import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
@@ -186,25 +182,18 @@ setRootBranch b = do
 -- | Get the root branch.
 modifyRootBranch :: (Branch IO -> Branch IO) -> Cli (Branch IO)
 modifyRootBranch f = do
-  ls <- get
-  (ls', b) <- liftIO $ Cli.modifyLoopStateRootBranch f ls
-  put ls'
-  pure b
+  rootVar <- use #root
+  atomically do
+    root <- takeTMVar rootVar
+    let newRoot = f root
+    putTMVar rootVar newRoot
+    pure newRoot
 
 -- | Get the current branch.
 getCurrentBranch :: Cli (Branch IO)
 getCurrentBranch = do
-  use #currentBranch >>= liftIO
-
--- | Get the names for the current branch.
-getCurrentNames :: (MonadState LoopState m, MonadIO m) => m Names
-getCurrentNames = do
-  use #currentNames >>= liftIO
-
--- | Get the names for the current branch.
-getCurrentPPED :: (MonadState LoopState m, MonadIO m) => m PrettyPrintEnvDecl
-getCurrentPPED = do
-  use #currentPPED >>= liftIO
+  path <- getCurrentPath
+  getBranchAt path
 
 -- | Get the current branch0.
 getCurrentBranch0 :: Cli (Branch0 IO)
