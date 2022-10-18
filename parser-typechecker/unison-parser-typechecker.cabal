@@ -119,7 +119,6 @@ library
       Unison.Share.Types
       Unison.Syntax.DeclPrinter
       Unison.Syntax.FileParser
-      Unison.Syntax.Lexer
       Unison.Syntax.NamePrinter
       Unison.Syntax.Parser
       Unison.Syntax.TermParser
@@ -279,6 +278,7 @@ library
     , unison-prelude
     , unison-pretty-printer
     , unison-sqlite
+    , unison-syntax
     , unison-util
     , unison-util-base32hex
     , unison-util-bytes
@@ -317,7 +317,6 @@ test-suite parser-typechecker-tests
       Unison.Test.MCode
       Unison.Test.Referent
       Unison.Test.Syntax.FileParser
-      Unison.Test.Syntax.Lexer
       Unison.Test.Syntax.TermParser
       Unison.Test.Syntax.TermPrinter
       Unison.Test.Syntax.TypePrinter
@@ -466,6 +465,7 @@ test-suite parser-typechecker-tests
     , unison-prelude
     , unison-pretty-printer
     , unison-sqlite
+    , unison-syntax
     , unison-util
     , unison-util-base32hex
     , unison-util-bytes
