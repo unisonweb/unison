@@ -616,8 +616,7 @@ loop e = do
                       else CantUndoPastMerge
               description <- inputDescription input
               Cli.updateRoot prev description
-              (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
-              Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
+              Cli.respond (Output.UndoSuccess (Branch.headHash prev) (Branch.headHash rootBranch))
             UiI -> do
               Cli.Env {serverBaseUrl} <- ask
               whenJust serverBaseUrl \url -> do

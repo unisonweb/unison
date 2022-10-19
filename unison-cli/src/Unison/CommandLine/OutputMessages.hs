@@ -263,10 +263,6 @@ notifyNumbered o = case o of
             ]
       )
       (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diffOutput)
-  ShowDiffAfterUndo ppe diffOutput ->
-    first
-      (\p -> P.lines ["Here are the changes I undid", "", p])
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId Path.absoluteEmpty) (absPathToBranchId Path.absoluteEmpty) diffOutput)
   ShowDiffAfterPull dest' destAbs ppe diff ->
     if OBD.isEmpty diff
       then ("✅  Looks like " <> prettyPath' dest' <> " is up to date.", mempty)
@@ -1815,6 +1811,12 @@ notifyUser dir o = case o of
                     else ""
              in (isCompleteTxt, P.string (Completion.replacement comp))
         )
+  UndoSuccess prevCausalHash currentCausalHash ->
+    pure $
+      P.lines
+        [ "I undid the most recent changes. If you'd like to see what changed, you can run:",
+          IP.makeExample IP.diffNamespace [prettyCausalHash prevCausalHash, prettyCausalHash currentCausalHash]
+        ]
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
     expectedEmptyPushDest writeRemotePath =

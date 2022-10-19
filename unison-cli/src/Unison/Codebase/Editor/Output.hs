@@ -80,7 +80,6 @@ type HashLength = Int
 
 data NumberedOutput
   = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -275,6 +274,7 @@ data Output
   | PrintVersion Text
   | IntegrityCheck IntegrityResult
   | DisplayDebugCompletions [Completion.Completion]
+  | UndoSuccess Branch.CausalHash Branch.CausalHash
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
@@ -420,6 +420,7 @@ isFailure o = case o of
   ShareError {} -> True
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
+  UndoSuccess {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
@@ -430,7 +431,6 @@ isNumberedFailure = \case
   ShowDiffAfterMerge {} -> False
   ShowDiffAfterMergePropagate {} -> False
   ShowDiffAfterMergePreview {} -> False
-  ShowDiffAfterUndo {} -> False
   ShowDiffAfterPull {} -> False
   ShowDiffAfterCreatePR {} -> False
   ShowDiffAfterCreateAuthor {} -> False
