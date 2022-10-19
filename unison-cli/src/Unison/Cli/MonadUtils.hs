@@ -24,6 +24,7 @@ module Unison.Cli.MonadUtils
     getCurrentBranch0,
     getBranchAt,
     getBranch0At,
+    getCurrentNames,
     getLastSavedRootHash,
     setLastSavedRootHash,
     getMaybeBranchAt,
@@ -84,6 +85,7 @@ import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.Input as Input
@@ -97,6 +99,7 @@ import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment)
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Reference (TypeReference)
@@ -190,6 +193,8 @@ modifyRootBranch f = do
     pure newRoot
 
 -- | Get the current branch.
+--
+-- TODO: We should probably cache this
 getCurrentBranch :: Cli (Branch IO)
 getCurrentBranch = do
   path <- getCurrentPath
@@ -199,6 +204,14 @@ getCurrentBranch = do
 getCurrentBranch0 :: Cli (Branch0 IO)
 getCurrentBranch0 = do
   Branch.head <$> getCurrentBranch
+
+-- | Get names for the current branch.
+--
+-- TODO: We should probably cache this
+getCurrentNames :: Cli Names
+getCurrentNames = do
+  curBranch <- getCurrentBranch0
+  pure $ Branch.toNames curBranch
 
 -- | Get the last saved root hash.
 getLastSavedRootHash :: Cli V2Branch.CausalHash

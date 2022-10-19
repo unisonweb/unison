@@ -544,9 +544,7 @@ loop e = do
                       (Path.unsafeToName (Path.unsplit (Path.convert absPath)))
                       (Branch.toNames (Branch.head branch))
               afterDelete <- do
-                root <- Cli.getRootBranch
-                path <- Cli.getCurrentPath
-                let currentNames = Backend.prettyNamesForBranch root (Backend.Within $ Path.unabsolute path)
+                currentNames <- Cli.getCurrentNames
                 endangerments <- getEndangeredDependents toDelete currentNames
                 case (null endangerments, insistence) of
                   (True, _) -> pure (Cli.respond Success)
@@ -1187,9 +1185,9 @@ loop e = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.fitsScheme ty mainType -> do
-                    let codeLookup = () <$ Codebase.toCodeLookup codebase
-                    whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
-                      Cli.returnEarly (EvaluationFailure err)
+                      let codeLookup = () <$ Codebase.toCodeLookup codebase
+                      whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
+                        Cli.returnEarly (EvaluationFailure err)
                   | otherwise -> Cli.returnEarly (BadMainFunction smain ty ppe [mainType])
                 _ -> Cli.returnEarly (NoMainFunction smain ppe [mainType])
             IOTestI main -> do
@@ -2448,10 +2446,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2468,10 +2466,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
