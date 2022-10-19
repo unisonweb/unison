@@ -66,6 +66,9 @@ cradle:
     - path: "lib/unison-util-relation/benchmarks/relation/Main.hs"
       component: "unison-util-relation:bench:relation"
 
+    - path: "lib/unison-util-rope/src"
+      component: "unison-util-rope:lib"
+
     - path: "parser-typechecker/src"
       component: "unison-parser-typechecker:lib"
 
