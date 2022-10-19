@@ -352,11 +352,10 @@ lexemes' eof =
         <|> token character
         <|> reserved
         <|> token blank
-        <|> token identifier
+        <|> token identifierP
         <|> (asum . map token) [semi, textual, hash]
 
     wordySep c = isSpace c || not (wordyIdChar c)
-    positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
 
     tok :: P a -> P [Token a]
     tok p = do
@@ -439,7 +438,7 @@ lexemes' eof =
                           (tok (Reserved <$> lit "@") <+> (CP.space *> annotations))
                       )
               where
-                annotation = tok identifier <|> expr <* CP.space
+                annotation = tok identifierP <|> expr <* CP.space
                 annotations =
                   join <$> P.some (wrap "syntax.docEmbedAnnotation" annotation)
             src' name atName = wrap name $ do
@@ -465,15 +464,15 @@ lexemes' eof =
 
         typeLink = wrap "syntax.docEmbedTypeLink" $ do
           _ <- typeOrAbilityAlt wordyKw <* CP.space
-          tok identifier <* CP.space
+          tok identifierP <* CP.space
 
         termLink =
           wrap "syntax.docEmbedTermLink" $
-            tok identifier <* CP.space
+            tok identifierP <* CP.space
 
         signatureLink =
           wrap "syntax.docEmbedSignatureLink" $
-            tok identifier <* CP.space
+            tok identifierP <* CP.space
 
         groupy closing p = do
           (start, p, stop) <- positioned p
@@ -758,18 +757,18 @@ lexemes' eof =
             ch = (":]" <$ lit "\\:]") <|> ("@" <$ lit "\\@") <|> (pure <$> P.anySingle)
             txt = tok (Textual . join <$> P.manyTill ch (P.lookAhead sep))
             sep = void at <|> void close
-            ref = at *> (tok identifier <|> docTyp)
+            ref = at *> (tok identifierP <|> docTyp)
             atk = (ref <|> docTyp) <+> body
             docTyp = do
               _ <- lit "["
               typ <- tok (P.manyTill P.anySingle (P.lookAhead (lit "]")))
               _ <- lit "]" *> CP.space
-              t <- tok identifier
+              t <- tok identifierP
               pure $ (fmap Reserved <$> typ) <> t
 
     blank =
       separated wordySep $
-        char '_' *> P.optional wordyIdSeg <&> (Blank . fromMaybe "")
+        char '_' *> P.optional wordyIdSegP <&> (Blank . fromMaybe "")
 
     semi = char ';' $> Semi False
     textual = Textual <$> quoted
@@ -780,98 +779,13 @@ lexemes' eof =
       where
         spEsc = P.try (char '\\' *> char 's' $> ' ')
 
-    -- An identifier is a non-empty dot-delimited list of segments, with an optional leading dot, where each segment is
-    -- symboly (comprised of only symbols) or wordy (comprised of only alphanums).
-    --
-    -- Examples:
-    --
-    --   foo
-    --   .foo.++.doc
-    --   `.`.`..`     (This is a two-segment identifier without a leading dot: "." then "..")
-    identifier :: P Lexeme
-    identifier = do
-      identifier_ <&> \case
-        (False, ident, shorthash) -> WordyId ident shorthash
-        (True, ident, shorthash) -> SymbolyId ident shorthash
-
-    -- internal identifier helper that returns (isSymboly, identifier, shorthash)
-    identifier_ :: P (Bool, String, Maybe ShortHash)
-    identifier_ = do
-      P.label "identifier (ex: abba1, snake_case, .foo.++#xyz, or 🌻)" do
-        P.try do
-          emptyOrDot <- fromMaybe "" <$> P.optional (lit ".")
-          segments <- Monad.sepBy1 (symbolyIdSeg <|> wordyIdSeg) (lit ".")
-          shorthash <- P.optional shorthash
-          pure (isSymbolyId (last segments), emptyOrDot ++ concat (intersperse "." segments), shorthash)
-      where
-        isSymbolyId :: String -> Bool
-        isSymbolyId = \case
-          c : _ -> not (wordyIdStartChar c)
-          _ -> False
-
     -- Like 'identifier', but the returned lexeme is always a WordyId, never SymbolyId (i.e. the last segment is wordy).
     wordyId :: P Lexeme
     wordyId = do
-      start <- pos
-      (isSymboly, ident, shorthash) <- identifier_
+      (start, (isSymboly, ident, shorthash), stop) <- positioned identifierP_
       if isSymboly
-        then do
-          stop <- pos
-          P.customFailure (Token (InvalidSymbolyId ident) start stop)
+        then P.customFailure (Token (InvalidSymbolyId ident) start stop)
         else pure (WordyId ident shorthash)
-
-    symbolyIdSeg :: P String
-    symbolyIdSeg = do
-      start <- pos
-      id <-
-        let unescaped = P.takeWhile1P (Just symbolMsg) symbolyIdChar
-            escaped = do
-              _ <- lit "`"
-              s <- P.takeWhile1P (Just symbolMsg) escapedSymbolyIdChar
-              _ <- lit "`"
-              pure ("`" ++ s ++ "`")
-         in unescaped <|> escaped
-      when (Set.member id reservedOperators) $ do
-        stop <- pos
-        P.customFailure (Token (ReservedSymbolyId id) start stop)
-      pure id
-      where
-        symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
-
-    wordyIdSeg :: P String
-    -- wordyIdSeg = litSeg <|> (P.try do -- todo
-    wordyIdSeg = P.try $ do
-      start <- pos
-      ch <- P.satisfy wordyIdStartChar
-      rest <- P.takeWhileP (Just wordyMsg) wordyIdChar
-      let word = ch : rest
-      when (Set.member word keywords) $ do
-        stop <- pos
-        P.customFailure (Token (ReservedWordyId word) start stop)
-      pure (ch : rest)
-      where
-        wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
-
-    {-
-    -- ``an-identifier-with-dashes``
-    -- ```an identifier with spaces```
-    litSeg :: P String
-    litSeg = P.try $ do
-      ticks1 <- lit "``"
-      ticks2 <- P.many (char '`')
-      let ticks = ticks1 <> ticks2
-      let escTick = lit "\\`" $> '`'
-      P.manyTill (LP.charLiteral <|> escTick) (lit ticks)
-    -}
-
-    hashMsg = "hash (ex: #af3sj3)"
-    shorthash = P.label hashMsg $ do
-      P.lookAhead (char '#')
-      -- `foo#xyz` should parse
-      (start, potentialHash, _) <- positioned $ P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
-      case SH.fromString potentialHash of
-        Nothing -> err start (InvalidShortHash potentialHash)
-        Just sh -> pure sh
 
     separated :: (Char -> Bool) -> P a -> P a
     separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)
@@ -917,7 +831,7 @@ lexemes' eof =
         num sign n = Numeric (fromMaybe "" sign <> show n)
         sign = P.optional (lit "+" <|> lit "-")
 
-    hash = Hash <$> P.try shorthash
+    hash = Hash <$> P.try shorthashP
 
     reserved :: P [Token Lexeme]
     reserved =
@@ -1103,6 +1017,86 @@ lexemes' eof =
         findClose :: [String] -> Layout -> Maybe (String, Int)
         findClose _ [] = Nothing
         findClose s ((h, _) : tl) = if h `elem` s then Just (h, 1) else fmap (1 +) <$> findClose s tl
+
+-- An identifier is a non-empty dot-delimited list of segments, with an optional leading dot, where each segment is
+-- symboly (comprised of only symbols) or wordy (comprised of only alphanums).
+--
+-- Examples:
+--
+--   foo
+--   .foo.++.doc
+--   `.`.`..`     (This is a two-segment identifier without a leading dot: "." then "..")
+identifierP :: P Lexeme
+identifierP = do
+  identifierP_ <&> \case
+    (False, ident, shorthash) -> WordyId ident shorthash
+    (True, ident, shorthash) -> SymbolyId ident shorthash
+
+-- internal identifier helper that returns (isSymboly, identifier, shorthash)
+identifierP_ :: P (Bool, String, Maybe ShortHash)
+identifierP_ = do
+  P.label "identifier (ex: abba1, snake_case, .foo.++#xyz, or 🌻)" do
+    P.try do
+      emptyOrDot <- fromMaybe "" <$> P.optional (lit ".")
+      segments <- Monad.sepBy1 (symbolyIdSegP <|> wordyIdSegP) (lit ".")
+      shorthash <- P.optional shorthashP
+      pure (isSymbolyId (last segments), emptyOrDot ++ concat (intersperse "." segments), shorthash)
+  where
+    isSymbolyId :: String -> Bool
+    isSymbolyId = \case
+      c : _ -> not (wordyIdStartChar c)
+      _ -> False
+
+symbolyIdSegP :: P String
+symbolyIdSegP = do
+  start <- pos
+  id <-
+    let unescaped = P.takeWhile1P (Just symbolMsg) symbolyIdChar
+        escaped = do
+          _ <- lit "`"
+          s <- P.takeWhile1P (Just symbolMsg) escapedSymbolyIdChar
+          _ <- lit "`"
+          pure ("`" ++ s ++ "`")
+     in unescaped <|> escaped
+  when (Set.member id reservedOperators) $ do
+    stop <- pos
+    P.customFailure (Token (ReservedSymbolyId id) start stop)
+  pure id
+  where
+    symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
+
+wordyIdSegP :: P String
+wordyIdSegP =
+  P.try do
+    start <- pos
+    ch <- P.satisfy wordyIdStartChar
+    rest <- P.takeWhileP (Just wordyMsg) wordyIdChar
+    let word = ch : rest
+    when (Set.member word keywords) $ do
+      stop <- pos
+      P.customFailure (Token (ReservedWordyId word) start stop)
+    pure (ch : rest)
+  where
+    wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
+
+shorthashP :: P ShortHash
+shorthashP =
+  P.label hashMsg do
+    P.lookAhead (char '#')
+    -- `foo#xyz` should parse
+    (start, potentialHash, _) <- positioned $ P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
+    case SH.fromString potentialHash of
+      Nothing -> err start (InvalidShortHash potentialHash)
+      Just sh -> pure sh
+  where
+    hashMsg = "hash (ex: #af3sj3)"
+
+positioned :: P a -> P (Pos, a, Pos)
+positioned p = do
+  start <- pos
+  a <- p
+  stop <- pos
+  pure (start, a, stop)
 
 simpleWordyId :: String -> Lexeme
 simpleWordyId = flip WordyId Nothing
