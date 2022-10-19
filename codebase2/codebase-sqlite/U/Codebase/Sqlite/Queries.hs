@@ -2259,6 +2259,7 @@ saveNamespaceStats bhId stats = do
       [here|
         INSERT INTO namespace_statistics (namespace_hash_id, num_contained_terms, num_contained_types, num_contained_patches)
           VALUES (?, ?, ?, ?)
+          ON CONFLICT DO NOTHING
       |]
 
 -- | Looks up statistics for a given branch, there's no guarantee that we have
