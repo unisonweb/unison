@@ -74,8 +74,8 @@ type FileVersion = Int32
 type LexedSource = (Text, [Lexer.Token Lexer.Lexeme])
 
 data FileAnalysis = FileAnalysis
-  { fileUri :: Uri,
-    fileVersion :: FileVersion,
+  { fileUri :: !Uri,
+    fileVersion :: !FileVersion,
     lexedSource :: LexedSource,
     parsedFile :: Maybe (UF.UnisonFile Symbol Ann),
     typecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),

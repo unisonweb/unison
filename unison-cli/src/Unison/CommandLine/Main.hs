@@ -23,6 +23,7 @@ import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Auth.HTTPClient as AuthN
 import qualified Unison.Auth.Tokens as AuthN
 import qualified Unison.Cli.Monad as Cli
+import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
@@ -102,9 +103,8 @@ main ::
   Maybe Server.BaseUrl ->
   UCMVersion ->
   (Branch IO -> STM ()) ->
-  (Path.Absolute -> STM ()) ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange = Ki.scoped \scope -> do
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.getRootCausalHash codebase
   _ <- Ki.fork scope $ do
@@ -217,7 +217,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
         loop0 s0 = do
           let step = do
                 input <- awaitInput s0
-                (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                (result, resultState) <- Cli.runCli env s0 $ do
+                  HandleInput.loop input
+                  Cli.getCurrentBranch
                 let sNext = case input of
                       Left _ -> resultState
                       Right inp -> resultState & #lastInput ?~ inp
@@ -232,10 +234,13 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
               Text.Lazy.hPutStrLn stderr ("Encountered exception:\n" <> pShow e)
               loop0 s0
             Right (Right (result, s1)) -> do
-              when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
               case result of
-                Cli.Success () -> loop0 s1
-                Cli.Continue -> loop0 s1
+                Cli.Success curBranch -> do
+                  atomically $ notifyBranchChange curBranch
+                  loop0 s1
+                Cli.Continue ->
+                  -- TODO: we should notify on branch changes here.
+                  loop0 s1
                 Cli.HaltRepl -> pure ()
 
     withInterruptHandler onInterrupt (loop0 initialState `finally` cleanup)
