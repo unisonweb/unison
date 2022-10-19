@@ -10,7 +10,7 @@ import Unison.Prelude
 
 -- | Moves a branch and its history from one location to another, and saves the new root
 -- branch.
-doMoveBranch :: forall r. Text -> Bool -> Path.Path' -> Path.Path' -> Cli r ()
+doMoveBranch :: Text -> Bool -> Path.Path' -> Path.Path' -> Cli ()
 doMoveBranch actionDescription hasConfirmed src' dest' = do
   srcAbs <- Cli.resolvePath' src'
   destAbs <- Cli.resolvePath' dest'

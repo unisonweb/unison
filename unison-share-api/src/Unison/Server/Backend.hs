@@ -404,10 +404,10 @@ termListEntry ::
   V2Branch.Branch m ->
   ExactName NameSegment V2Referent.Referent ->
   m (TermEntry Symbol Ann)
-termListEntry codebase branch exactName@(ExactName nameSegment ref) = do
+termListEntry codebase branch (ExactName nameSegment ref) = do
   v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
   ot <- loadReferentType codebase v1Referent
-  tag <- getTermTag codebase branch (first Name.fromSegment exactName) ot
+  tag <- getTermTag codebase ref ot
   pure $
     TermEntry
       { termEntryReferent = ref,
@@ -428,22 +428,21 @@ termListEntry codebase branch exactName@(ExactName nameSegment ref) = do
 getTermTag ::
   (Monad m, Var v) =>
   Codebase m v a ->
-  V2Branch.Branch m ->
-  -- | Name, must be relative to the branch
-  ExactName Name V2Referent.Referent ->
+  V2Referent.Referent ->
   Maybe (Type v Ann) ->
   m TermTag
-getTermTag codebase branch (ExactName n r) sig = do
-  let split = Path.splitFromName n
-  meta <- Codebase.termMetadata codebase (Just branch) split (Just r)
+getTermTag codebase r sig = do
   -- A term is a doc if its type conforms to the `Doc` type.
   let isDoc = case sig of
         Just t ->
           Typechecker.isSubtype t (Type.ref mempty Decls.docRef)
             || Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
         Nothing -> False
-  -- A term is a test if it has a link of type `IsTest`.
-  let isTest = meta & any \mdValues -> List.elem (Cv.reference1to2 Decls.isTestRef) (Map.elems mdValues)
+  -- A term is a test if it has the type [test.Result]
+  let isTest = case sig of
+        Just t ->
+          Typechecker.isSubtype t (Decls.testResultType mempty)
+        Nothing -> False
   constructorType <- case r of
     V2Referent.Ref {} -> pure Nothing
     V2Referent.Con ref _ -> Just <$> Codebase.getDeclType codebase ref
@@ -547,7 +546,7 @@ typeEntryToNamedType te@(TypeEntry {typeEntryTag, typeEntryHash}) =
 
 -- | Find all definitions and children reachable from the given 'V2Branch.Branch',
 lsBranch ::
-  (MonadIO m) =>
+  MonadIO m =>
   Codebase m Symbol Ann ->
   V2Branch.Branch m ->
   m [ShallowListEntry Symbol Ann]

@@ -6,6 +6,7 @@ module Unison.Codebase
     unsafeGetTerm,
     unsafeGetTermWithType,
     getTermComponentWithTypes,
+    unsafeGetTermComponent,
     getTypeOfTerm,
     getDeclType,
     unsafeGetTypeOfTermById,
@@ -27,6 +28,7 @@ module Unison.Codebase
     unsafeGetTypeDeclaration,
     getDeclComponent,
     putTypeDeclaration,
+    putTypeDeclarationComponent,
     typeReferencesByPrefix,
     isType,
 
@@ -183,16 +185,16 @@ getShallowCausalFromRoot codebase mayRootHash p = do
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
+getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
+getShallowRootBranch codebase = do
+  getShallowRootCausal codebase >>= V2Causal.value
+
+-- | Get the shallow representation of the root branches without loading the children or
+-- history.
 getShallowRootCausal :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
 getShallowRootCausal codebase = do
   hash <- getRootCausalHash codebase
   getShallowCausalForHash codebase hash
-
--- | Get the shallow representation of the root branches without loading the children or
--- history.
-getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
-getShallowRootBranch codebase = do
-  getShallowRootCausal codebase >>= V2Causal.value
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
@@ -522,3 +524,14 @@ unsafeGetTermWithType codebase rid = do
       Term.Ann' _ ty -> pure ty
       _ -> unsafeGetTypeOfTermById codebase rid
   pure (term, ty)
+
+-- | Like 'getTermComponentWithTypes', for when the term component is known to exist in the codebase.
+unsafeGetTermComponent ::
+  HasCallStack =>
+  Codebase m v a ->
+  Hash ->
+  Sqlite.Transaction [(Term v a, Type v a)]
+unsafeGetTermComponent codebase hash =
+  getTermComponentWithTypes codebase hash <&> \case
+    Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
+    Just terms -> terms

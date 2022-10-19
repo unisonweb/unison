@@ -48,6 +48,7 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
 import qualified Unison.Runtime.IOSource as IOSource
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -80,7 +81,7 @@ noEdits = Edits mempty mempty mempty mempty mempty mempty mempty
 propagateAndApply ::
   Patch ->
   Branch0 IO ->
-  Cli r (Branch0 IO)
+  Cli (Branch0 IO)
 propagateAndApply patch branch = do
   edits <- propagate patch branch
   let f = applyPropagate patch edits
@@ -143,9 +144,9 @@ propagateCtorMapping oldComponent newComponent =
 -- If the cycle is size 1 for old and new, then the type names need not be the same,
 -- and if the number of constructors is 1, then the constructor names need not
 -- be the same.
-genInitialCtorMapping :: Codebase IO Symbol Ann -> Names -> Map Reference Reference -> Cli r (Map Referent Referent)
+genInitialCtorMapping :: Codebase IO Symbol Ann -> Names -> Map Reference Reference -> Cli (Map Referent Referent)
 genInitialCtorMapping codebase rootNames initialTypeReplacements = do
-  let mappings :: (Reference, Reference) -> Cli r (Map Referent Referent)
+  let mappings :: (Reference, Reference) -> Cli (Map Referent Referent)
       mappings (old, new) = do
         old <- unhashTypeComponent codebase old
         new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent codebase new
@@ -230,10 +231,7 @@ debugMode = False
 --
 -- "dirty" means in need of update
 -- "frontier" means updated definitions responsible for the "dirty"
-propagate ::
-  Patch ->
-  Branch0 IO ->
-  Cli r (Edits Symbol)
+propagate :: Patch -> Branch0 IO -> Cli (Edits Symbol)
 propagate patch b = case validatePatch patch of
   Nothing -> do
     Cli.respond PatchNeedsToBeConflictFree
@@ -286,7 +284,7 @@ propagate patch b = case validatePatch patch of
           Edits Symbol ->
           Set Reference ->
           Map Int Reference ->
-          Cli r (Edits Symbol)
+          Cli (Edits Symbol)
         collectEdits es@Edits {..} seen todo = case Map.minView todo of
           Nothing -> pure es
           Just (r, todo) -> case r of
@@ -323,7 +321,7 @@ propagate patch b = case validatePatch patch of
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
 
-            doType :: Reference -> Cli r (Maybe (Edits Symbol), Set Reference)
+            doType :: Reference -> Cli (Maybe (Edits Symbol), Set Reference)
             doType r = do
               when debugMode $ traceM ("Rewriting type: " <> refName r)
               componentMap <- unhashTypeComponent codebase r
@@ -386,7 +384,7 @@ propagate patch b = case validatePatch patch of
                       constructorReplacements',
                   seen'
                 )
-            doTerm :: Reference -> Cli r (Maybe (Edits Symbol), Set Reference)
+            doTerm :: Reference -> Cli (Maybe (Edits Symbol), Set Reference)
             doTerm r = do
               when debugMode (traceM $ "Rewriting term: " <> show r)
               componentMap <- unhashTermComponent r
@@ -488,18 +486,22 @@ propagate patch b = case validatePatch patch of
     --  Free (Command m i v) monad, passing in the actions that are needed.
     -- However, if we want this to be parametric in the annotation type, then
     -- Command would have to be made parametric in the annotation type too.
-    unhashTermComponent :: Reference -> Cli r (Map Symbol (Reference, Term Symbol Ann, Type Symbol Ann))
+    unhashTermComponent :: Reference -> Cli (Map Symbol (Reference, Term Symbol Ann, Type Symbol Ann))
     unhashTermComponent r = case Reference.toId r of
       Nothing -> pure mempty
       Just r -> do
         unhashed <- unhashTermComponent' (Reference.idToHash r)
         pure $ fmap (over _1 Reference.DerivedId) unhashed
 
-    unhashTermComponent' :: Hash -> Cli r (Map Symbol (Reference.Id, Term Symbol Ann, Type Symbol Ann))
+    unhashTermComponent' :: Hash -> Cli (Map Symbol (Reference.Id, Term Symbol Ann, Type Symbol Ann))
     unhashTermComponent' h = do
       Cli.Env {codebase} <- ask
-      liftIO (Codebase.getTermComponentWithTypes codebase h) <&> foldMap \termsWithTypes ->
-        unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
+      maybeTermsWithTypes <-
+        liftIO do
+          Codebase.withConnection codebase \conn ->
+            Sqlite.runTransaction conn (Codebase.getTermComponentWithTypes codebase h)
+      pure do
+        foldMap (\termsWithTypes -> unhash $ Map.fromList (Reference.componentFor h termsWithTypes)) maybeTermsWithTypes
       where
         unhash m =
           -- this grabs the corresponding input map values (with types)
@@ -512,7 +514,7 @@ propagate patch b = case validatePatch patch of
     verifyTermComponent ::
       Map Symbol (Reference, Term Symbol Ann, a) ->
       Edits Symbol ->
-      Cli r (Maybe (Map Symbol (Reference, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)))
+      Cli (Maybe (Map Symbol (Reference, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)))
     verifyTermComponent componentMap Edits {..} = do
       -- If the term contains references to old patterns, we can't update it.
       -- If the term had a redunant type signature, it's discarded and a new type
@@ -545,21 +547,21 @@ propagate patch b = case validatePatch patch of
 typecheckFile ::
   [Type Symbol Ann] ->
   UF.UnisonFile Symbol Ann ->
-  Cli r (Result.Result (Seq (Result.Note Symbol Ann)) (Either Names (UF.TypecheckedUnisonFile Symbol Ann)))
+  Cli (Result.Result (Seq (Result.Note Symbol Ann)) (Either Names (UF.TypecheckedUnisonFile Symbol Ann)))
 typecheckFile ambient file = do
   Cli.Env {codebase} <- ask
   typeLookup <- liftIO (Codebase.typeLookupForDependencies codebase (UF.dependencies file))
   pure . fmap Right $ synthesizeFile' ambient (typeLookup <> Builtin.typeLookup) file
 
 -- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
-unhashTypeComponent :: Codebase IO Symbol Ann -> Reference -> Cli r (Map Symbol (Reference, Decl Symbol Ann))
+unhashTypeComponent :: Codebase IO Symbol Ann -> Reference -> Cli (Map Symbol (Reference, Decl Symbol Ann))
 unhashTypeComponent codebase r = case Reference.toId r of
   Nothing -> pure mempty
   Just id -> do
     unhashed <- unhashTypeComponent' codebase (Reference.idToHash id)
     pure $ over _1 Reference.DerivedId <$> unhashed
 
-unhashTypeComponent' :: Codebase IO Symbol Ann -> Hash -> Cli r (Map Symbol (Reference.Id, Decl Symbol Ann))
+unhashTypeComponent' :: Codebase IO Symbol Ann -> Hash -> Cli (Map Symbol (Reference.Id, Decl Symbol Ann))
 unhashTypeComponent' codebase h =
   liftIO (Codebase.getDeclComponent codebase h) <&> foldMap \decls ->
     unhash $ Map.fromList (Reference.componentFor h decls)

@@ -1286,8 +1286,8 @@ garbageCollectWatchesWithoutObjects = do
       (SELECT hash_object.hash_id FROM hash_object)
     |]
 
-addToDependentsIndex :: Reference.Reference -> Reference.Id -> Transaction ()
-addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)
+addToDependentsIndex :: [Reference.Reference] -> Reference.Id -> Transaction ()
+addToDependentsIndex dependencies dependent = executeMany sql (map (:. dependent) dependencies)
   where sql = [here|
     INSERT INTO dependents_index (
       dependency_builtin,
@@ -1877,8 +1877,7 @@ saveTermComponent hh@HashHandle {toReference, toReferenceMentions} maybeEncodedT
          in S.putBytes Serialization.putTermFormat $ S.Term.Term li
   oId <- saveObject hh hashId ObjectType.TermComponent bytes
   -- populate dependents index
-  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sTermElements `zip` [0 ..])
-      unlocalizeRefs :: ((LocalIds, S.Term.Term, S.Term.Type), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
+  let unlocalizeRefs :: ((LocalIds, S.Term.Term, S.Term.Type), C.Reference.Pos) -> (Set S.Reference.Reference, S.Reference.Id)
       unlocalizeRefs ((LocalIds tIds oIds, tm, tp), i) =
         let self = C.Reference.Id oId i
             dependencies :: Set S.Reference =
@@ -1903,8 +1902,9 @@ saveTermComponent hh@HashHandle {toReference, toReferenceMentions} maybeEncodedT
                       ++ map getSTermLink tmLinks
                       ++ map getTypeSRef (tpRefs ++ tpRefs')
                       ++ map getSTypeLink tpLinks
-         in Set.map (,self) dependencies
-  traverse_ (uncurry addToDependentsIndex) dependencies
+         in (dependencies, self)
+  for_ (map unlocalizeRefs (sTermElements `zip` [0 ..])) \(dependencies, dependent) ->
+    addToDependentsIndex (Set.toList dependencies) dependent
   for_ ((snd <$> terms) `zip` [0 ..]) \(tp, i) -> do
     let self = C.Referent.RefId (C.Reference.Id oId i)
         typeForIndexing = toReference tp
@@ -1936,8 +1936,7 @@ saveDeclComponent hh@HashHandle {toReferenceDecl, toReferenceDeclMentions} maybe
          in S.putBytes Serialization.putDeclFormat $ S.Decl.Decl li
   oId <- saveObject hh hashId ObjectType.DeclComponent bytes
   -- populate dependents index
-  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sDeclElements `zip` [0 ..])
-      unlocalizeRefs :: ((LocalIds, S.Decl.Decl Symbol), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
+  let unlocalizeRefs :: ((LocalIds, S.Decl.Decl Symbol), C.Reference.Pos) -> (Set S.Reference.Reference, S.Reference.Id)
       unlocalizeRefs ((LocalIds tIds oIds, decl), i) =
         let self = C.Reference.Id oId i
             dependencies :: Set S.Decl.TypeRef = C.Decl.dependencies decl
@@ -1946,8 +1945,9 @@ saveDeclComponent hh@HashHandle {toReferenceDecl, toReferenceDeclMentions} maybe
               C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
               C.Reference.Derived Nothing i -> C.Reference.Derived oId i -- index self-references
               C.Reference.Derived (Just h) i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
-         in Set.map ((,self) . getSRef) dependencies
-  traverse_ (uncurry addToDependentsIndex) dependencies
+         in (Set.map getSRef dependencies, self)
+  for_ (map unlocalizeRefs (sDeclElements `zip` [0 ..])) \(dependencies, dependent) ->
+    addToDependentsIndex (Set.toList dependencies) dependent
   for_ ((fmap C.Decl.constructorTypes decls) `zip` [0 ..]) \(ctors, i) ->
     for_ (ctors `zip` [0 ..]) \(tp, j) -> do
       let self = C.Referent.ConId (C.Reference.Id oId i) j
