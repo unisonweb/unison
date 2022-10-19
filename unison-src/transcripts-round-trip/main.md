@@ -441,3 +441,32 @@ bar3 x = do
 ```ucm
 .> load scratch.u
 ```
+
+# Lambda as the last argument where the bound var is not free in the body
+
+If a lambda's argument is not free in the body, the term printer counts this as
+a "delay" instead of a lambda. This test makes sure that detecting this
+condition lines up with the printing, so we don't detect a delay but then
+go ahead and print it as a normal lambda.
+
+```unison:hide
+(+) a b = ##Nat.+ a b
+
+afun x f = f x
+
+roundtripLastLam =
+  afun "foo" (n -> let
+    1 + 1
+    3
+  )
+```
+
+```ucm
+.> add
+.> edit roundtripLastLam afun
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```
