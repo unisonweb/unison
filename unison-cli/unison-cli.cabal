@@ -569,6 +569,7 @@ test-suite cli-tests
   main-is: Main.hs
   other-modules:
       Unison.Test.ClearCache
+      Unison.Test.Cli.Monad
       Unison.Test.GitSync
       Unison.Test.Ucm
       Unison.Test.UriParser

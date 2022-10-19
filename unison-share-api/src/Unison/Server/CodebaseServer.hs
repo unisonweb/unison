@@ -362,8 +362,8 @@ serveUnison env codebase rt =
       :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase mayRoot mayOwner)
       :<|> (\mayRoot relativePath rawHqns renderWidth suff -> setCacheControl <$> serveDefinitions rt codebase mayRoot relativePath rawHqns renderWidth suff)
       :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase mayRoot relativePath limit renderWidth query)
-      :<|> (\name mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase name mayRoot relativeTo renderWidth)
-      :<|> (\name mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase name mayRoot relativeTo renderWidth)
+      :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase shortHash mayName mayRoot relativeTo renderWidth)
+      :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase shortHash mayName mayRoot relativeTo renderWidth)
 
 backendHandler :: BackendEnv -> Backend IO a -> Handler a
 backendHandler env m =

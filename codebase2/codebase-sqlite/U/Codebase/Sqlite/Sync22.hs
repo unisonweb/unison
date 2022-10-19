@@ -265,9 +265,8 @@ trySync hh runSrc runDest tCache hCache oCache cCache = \case
     syncDependenciesIndex :: Sqlite.Reference.Id -> Sqlite.Reference.Id -> m ()
     syncDependenciesIndex ref ref' = do
       deps <- runSrc (Q.getDependenciesForDependent ref)
-      for_ deps \dep -> do
-        dep' <- expectSyncedObjectReference dep
-        runDest (Q.addToDependentsIndex dep' ref')
+      deps' <- for deps expectSyncedObjectReference
+      runDest (Q.addToDependentsIndex deps' ref')
 
     syncLocalIds :: L.LocalIds -> ValidateT (Set Entity) m L.LocalIds
     syncLocalIds (L.LocalIds tIds oIds) = do

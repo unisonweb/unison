@@ -20,13 +20,13 @@ import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import qualified Unison.Server.Backend as Backend
 
-prettyPrintEnvDecl :: NamesWithHistory -> Cli r PPE.PrettyPrintEnvDecl
+prettyPrintEnvDecl :: NamesWithHistory -> Cli PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = do
   Cli.Env {codebase} <- ask
   liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli r PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl scoping = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch

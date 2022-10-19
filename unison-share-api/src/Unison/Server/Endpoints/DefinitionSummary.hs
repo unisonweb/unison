@@ -9,42 +9,39 @@
 module Unison.Server.Endpoints.DefinitionSummary
   ( TermSummaryAPI,
     serveTermSummary,
-    TermSummary(..),
+    TermSummary (..),
     TypeSummaryAPI,
     serveTypeSummary,
-    TypeSummary(..),
+    TypeSummary (..),
   )
 where
 
 import Data.Aeson
 import Data.Bifunctor (bimap)
-import Data.Bitraversable (bitraverse)
 import Data.OpenApi (ToSchema)
-import qualified Data.Set.NonEmpty as NESet
 import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
-import qualified U.Codebase.Causal as V2Causal
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
+import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Server.Backend (Backend)
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
   ( APIGet,
-    ExactName (..),
     TermTag (..),
     TypeTag,
-    exactToHQ,
     mayDefaultWidth,
   )
 import qualified Unison.ShortHash as SH
@@ -52,7 +49,11 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 
 type TermSummaryAPI =
-  "definitions" :> "terms" :> "qualified" :> Capture "fqn" (ExactName Name SH.ShortHash) :> "summary"
+  "definitions" :> "terms" :> "by-hash" :> Capture "hash" Referent :> "summary"
+    -- Optional name to include in summary.
+    -- It's propagated through to the response as-is.
+    -- If missing, the short hash will be used instead.
+    :> QueryParam "name" Name
     :> QueryParam "rootBranch" ShortBranchHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "renderWidth" Width
@@ -62,7 +63,7 @@ instance ToSample TermSummary where
   toSamples _ = noSamples
 
 data TermSummary = TermSummary
-  { fqn :: Name,
+  { displayName :: HQ.HashQualified Name,
     hash :: SH.ShortHash,
     summary :: DisplayObject SyntaxText SyntaxText,
     tag :: TermTag
@@ -76,27 +77,20 @@ deriving instance ToSchema TermSummary
 
 serveTermSummary ::
   Codebase IO Symbol Ann ->
-  ExactName Name SH.ShortHash ->
+  Referent ->
+  Maybe Name ->
   Maybe ShortBranchHash ->
   Maybe Path.Path ->
   Maybe Width ->
   Backend IO TermSummary
-serveTermSummary codebase exactNameSH@(ExactName {name = termName, ref = shortHash}) mayRoot relativeTo mayWidth = do
-  exactNameRef@ExactName {ref = termReferent} <-
-    exactNameSH & bitraverse pure \shortHash -> do
-      matchingReferents <- lift $ Backend.termReferentsByShortHash codebase shortHash
-      case NESet.nonEmptySet matchingReferents of
-        Just neSet
-          | NESet.size neSet == 1 -> pure $ NESet.findMin neSet
-          | otherwise -> throwError $ Backend.AmbiguousHashForDefinition shortHash
-        Nothing -> throwError $ Backend.NoSuchDefinition (exactToHQ exactNameSH)
+serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
+  let shortHash = Referent.toShortHash referent
+  let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
   let relativeToPath = fromMaybe Path.empty relativeTo
-  let termReference = Referent.toReference termReferent
-  let v2ExactName = bimap id Cv.referent1to2 exactNameRef
+  let termReference = Referent.toReference referent
+  let v2Referent = Cv.referent1to2 referent
   root <- Backend.resolveRootBranchHashV2 codebase mayRoot
-  relativeToCausal <- lift $ Codebase.getShallowCausalAtPath codebase relativeToPath (Just root)
-  relativeToBranch <- lift $ V2Causal.value relativeToCausal
-  sig <- lift $ Backend.loadReferentType codebase termReferent
+  sig <- lift $ Backend.loadReferentType codebase referent
   case sig of
     Nothing ->
       throwError (Backend.MissingSignatureForTerm termReference)
@@ -104,8 +98,8 @@ serveTermSummary codebase exactNameSH@(ExactName {name = termName, ref = shortHa
       (_localNames, ppe) <- Backend.scopedNamesForBranchHash codebase (Just root) relativeToPath
       let formattedTermSig = Backend.formatSuffixedType ppe width typeSig
       let summary = mkSummary termReference formattedTermSig
-      tag <- lift $ Backend.getTermTag codebase relativeToBranch v2ExactName sig
-      pure $ TermSummary termName shortHash summary tag
+      tag <- lift $ Backend.getTermTag codebase v2Referent sig
+      pure $ TermSummary displayName shortHash summary tag
   where
     width = mayDefaultWidth mayWidth
 
@@ -115,7 +109,11 @@ serveTermSummary codebase exactNameSH@(ExactName {name = termName, ref = shortHa
         else UserObject termSig
 
 type TypeSummaryAPI =
-  "definitions" :> "types" :> "qualified" :> Capture "fqn" (ExactName Name SH.ShortHash) :> "summary"
+  "definitions" :> "types" :> "by-hash" :> Capture "hash" Reference :> "summary"
+    -- Optional name to include in summary.
+    -- It's propagated through to the response as-is.
+    -- If missing, the short hash will be used instead.
+    :> QueryParam "name" Name
     :> QueryParam "rootBranch" ShortBranchHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "renderWidth" Width
@@ -125,7 +123,7 @@ instance ToSample TypeSummary where
   toSamples _ = noSamples
 
 data TypeSummary = TypeSummary
-  { fqn :: Name,
+  { displayName :: HQ.HashQualified Name,
     hash :: SH.ShortHash,
     summary :: DisplayObject SyntaxText SyntaxText,
     tag :: TypeTag
@@ -139,26 +137,21 @@ deriving instance ToSchema TypeSummary
 
 serveTypeSummary ::
   Codebase IO Symbol Ann ->
-  ExactName Name SH.ShortHash ->
+  Reference ->
+  Maybe Name ->
   Maybe ShortBranchHash ->
   Maybe Path.Path ->
   Maybe Width ->
   Backend IO TypeSummary
-serveTypeSummary codebase exactNameSH@(ExactName {name, ref = shortHash}) _mayRoot _relativeTo mayWidth = do
-  let hqName = exactToHQ exactNameSH
-  typeReference <- do
-    matchingReferences <- lift $ Backend.typeReferencesByShortHash codebase shortHash
-    case NESet.nonEmptySet matchingReferences of
-      Just neSet
-        | NESet.size neSet == 1 -> pure $ NESet.findMin neSet
-        | otherwise -> throwError $ Backend.AmbiguousHashForDefinition shortHash
-      Nothing -> throwError $ Backend.NoSuchDefinition (exactToHQ exactNameSH)
-  tag <- lift $ Backend.getTypeTag codebase typeReference
-  displayDecl <- lift $ Backend.displayType codebase typeReference
-  let syntaxHeader = Backend.typeToSyntaxHeader width hqName displayDecl
+serveTypeSummary codebase reference mayName _mayRoot _relativeTo mayWidth = do
+  let shortHash = Reference.toShortHash reference
+  let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
+  tag <- lift $ Backend.getTypeTag codebase reference
+  displayDecl <- lift $ Backend.displayType codebase reference
+  let syntaxHeader = Backend.typeToSyntaxHeader width displayName displayDecl
   pure $
     TypeSummary
-      { fqn = name,
+      { displayName = displayName,
         hash = shortHash,
         summary = bimap Backend.mungeSyntaxText Backend.mungeSyntaxText syntaxHeader,
         tag = tag

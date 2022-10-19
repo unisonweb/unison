@@ -28,6 +28,7 @@ module Unison.Codebase
     unsafeGetTypeDeclaration,
     getDeclComponent,
     putTypeDeclaration,
+    putTypeDeclarationComponent,
     typeReferencesByPrefix,
     isType,
 
@@ -526,11 +527,11 @@ unsafeGetTermWithType codebase rid = do
 
 -- | Like 'getTermComponentWithTypes', for when the term component is known to exist in the codebase.
 unsafeGetTermComponent ::
-  (HasCallStack, Monad m) =>
+  HasCallStack =>
   Codebase m v a ->
   Hash ->
-  m [(Term v a, Type v a)]
+  Sqlite.Transaction [(Term v a, Type v a)]
 unsafeGetTermComponent codebase hash =
-  getTermComponentWithTypes codebase hash >>= \case
+  getTermComponentWithTypes codebase hash <&> \case
     Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
-    Just terms -> pure terms
+    Just terms -> terms
