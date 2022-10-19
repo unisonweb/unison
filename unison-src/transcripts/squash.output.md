@@ -305,29 +305,15 @@ Since squash merges don't produce any merge nodes, we can `undo` a couple times 
 ```ucm
 .> undo
 
-  Here are the changes I undid
+  I undid the most recent changes. If you'd like to see what changed, you can run:
   
-  Name changes:
-  
-    Original                  Changes
-    1. bob.babyDon'tHurtMe    2. trunk.babyDon'tHurtMe (added)
-    
-    3. bob.no                 4. trunk.no (added)
-    
-    5. bob.whatIsLove         6. trunk.whatIsLove (added)
+  diff.namespace #1u2nvi62jf #stvk469d1h
 
 .> undo
 
-  Here are the changes I undid
+  I undid the most recent changes. If you'd like to see what changed, you can run:
   
-  Name changes:
-  
-    Original                      Changes
-    1. alice.bodaciousNumero      2. trunk.bodaciousNumero (added)
-    
-    3. alice.productionReadyId    4. trunk.productionReadyId (added)
-    
-    5. alice.superRadNumber       6. trunk.superRadNumber (added)
+  diff.namespace #tnll7hv315 #1u2nvi62jf
 
 .> history trunk
 

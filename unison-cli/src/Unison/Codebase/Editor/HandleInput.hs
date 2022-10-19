@@ -544,8 +544,8 @@ loop e = do
                       (Path.unsafeToName (Path.unsplit (Path.convert absPath)))
                       (Branch.toNames (Branch.head branch))
               afterDelete <- do
-                currentNames <- Cli.getCurrentNames
-                endangerments <- getEndangeredDependents toDelete currentNames
+                rootNames <- Branch.toNames <$> Cli.getRootBranch0
+                endangerments <- getEndangeredDependents toDelete rootNames
                 case (null endangerments, insistence) of
                   (True, _) -> pure (Cli.respond Success)
                   (False, Force) -> do
@@ -616,7 +616,9 @@ loop e = do
                       else CantUndoPastMerge
               description <- inputDescription input
               Cli.updateRoot prev description
-              Cli.respond (Output.UndoSuccess (Branch.headHash prev) (Branch.headHash rootBranch))
+              Cli.Env {codebase} <- ask
+              sbhLen <- liftIO $ Codebase.branchHashLength codebase
+              Cli.respond (Output.UndoSuccess (SBH.fromHash sbhLen $ Branch.headHash prev) (SBH.fromHash sbhLen $ Branch.headHash rootBranch))
             UiI -> do
               Cli.Env {serverBaseUrl} <- ask
               whenJust serverBaseUrl \url -> do
@@ -2531,10 +2533,10 @@ getEndangeredDependents ::
   Names ->
   -- | map from references going extinct to the set of endangered dependents
   Cli (Map LabeledDependency (NESet LabeledDependency))
-getEndangeredDependents namesToDelete localNames = do
+getEndangeredDependents namesToDelete rootNames = do
   Cli.Env {codebase} <- ask
   let remainingNames :: Names
-      remainingNames = localNames `Names.difference` namesToDelete
+      remainingNames = rootNames `Names.difference` namesToDelete
       refsToDelete, remainingRefs, extinct :: Set LabeledDependency
       refsToDelete = Names.labeledReferences namesToDelete
       remainingRefs = Names.labeledReferences remainingNames -- left over after delete

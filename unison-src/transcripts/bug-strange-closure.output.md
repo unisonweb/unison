@@ -838,11 +838,9 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 
 .> undo
 
-  Here are the changes I undid
+  I undid the most recent changes. If you'd like to see what changed, you can run:
   
-  Added definitions:
-  
-    1. rendered : Annotated () (Either SpecialForm ConsoleText)
+  diff.namespace #ihldcp5hvr #do35d63ke9
 
 ```
 And then this sometimes generates a GHC crash "strange closure error" but doesn't seem deterministic.

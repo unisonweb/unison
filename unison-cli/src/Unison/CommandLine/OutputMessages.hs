@@ -1811,11 +1811,12 @@ notifyUser dir o = case o of
                     else ""
              in (isCompleteTxt, P.string (Completion.replacement comp))
         )
-  UndoSuccess prevCausalHash currentCausalHash ->
+  UndoSuccess prevSBH currentSBH ->
     pure $
       P.lines
         [ "I undid the most recent changes. If you'd like to see what changed, you can run:",
-          IP.makeExample IP.diffNamespace [prettyCausalHash prevCausalHash, prettyCausalHash currentCausalHash]
+          "",
+          IP.makeExampleNoBackticks IP.diffNamespace [prettySBH prevSBH, prettySBH currentSBH]
         ]
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"

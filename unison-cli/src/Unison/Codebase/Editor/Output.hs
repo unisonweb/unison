@@ -274,7 +274,7 @@ data Output
   | PrintVersion Text
   | IntegrityCheck IntegrityResult
   | DisplayDebugCompletions [Completion.Completion]
-  | UndoSuccess Branch.CausalHash Branch.CausalHash
+  | UndoSuccess ShortBranchHash ShortBranchHash
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
