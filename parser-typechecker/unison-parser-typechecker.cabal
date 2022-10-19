@@ -148,7 +148,6 @@ library
       Unison.Util.Exception
       Unison.Util.Logger
       Unison.Util.PinBoard
-      Unison.Util.Rope
       Unison.Util.Star3
       Unison.Util.Text
       Unison.Util.Text.Pattern
@@ -286,6 +285,7 @@ library
     , unison-util
     , unison-util-base32hex
     , unison-util-relation
+    , unison-util-rope
     , unison-util-serialization
     , unliftio
     , uri-encode
@@ -473,6 +473,7 @@ test-suite parser-typechecker-tests
     , unison-util
     , unison-util-base32hex
     , unison-util-relation
+    , unison-util-rope
     , unison-util-serialization
     , unliftio
     , uri-encode
