@@ -12,6 +12,7 @@ dependencies:
   - lens
   - megaparsec
   - mtl
+  - parser-combinators
   - text
   - unison-core1
   - unison-prelude

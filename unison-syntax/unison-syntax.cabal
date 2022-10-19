@@ -61,6 +61,7 @@ library
     , lens
     , megaparsec
     , mtl
+    , parser-combinators
     , text
     , unison-core1
     , unison-prelude
@@ -114,6 +115,7 @@ test-suite syntax-tests
     , lens
     , megaparsec
     , mtl
+    , parser-combinators
     , text
     , unison-core1
     , unison-prelude

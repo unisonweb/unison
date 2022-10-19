@@ -33,6 +33,7 @@ module Unison.Syntax.Lexer
 where
 
 import Control.Lens.TH (makePrisms)
+import qualified Control.Monad.Combinators as Monad
 import qualified Control.Monad.State as S
 import Data.Char
 import Data.List
@@ -314,7 +315,7 @@ lexemes :: P [Token Lexeme]
 lexemes = lexemes' eof
   where
     eof :: P [Token Lexeme]
-    eof = P.try $ do
+    eof = P.try do
       p <- P.eof >> pos
       n <- maybe 0 (const 1) <$> S.gets opening
       l <- S.gets layout
@@ -343,11 +344,15 @@ lexemes' eof =
     tl <- eof
     pure $ hd <> tl
   where
+    toks :: P [Token Lexeme]
     toks =
-      doc2 <|> doc <|> token numeric <|> token character <|> reserved
-        <|> token symbolyId
+      doc2
+        <|> doc
+        <|> token numeric
+        <|> token character
+        <|> reserved
         <|> token blank
-        <|> token wordyId
+        <|> token identifier
         <|> (asum . map token) [semi, textual, hash]
 
     wordySep c = isSpace c || not (wordyIdChar c)
@@ -434,7 +439,7 @@ lexemes' eof =
                           (tok (Reserved <$> lit "@") <+> (CP.space *> annotations))
                       )
               where
-                annotation = tok (symbolyId <|> wordyId) <|> expr <* CP.space
+                annotation = tok identifier <|> expr <* CP.space
                 annotations =
                   join <$> P.some (wrap "syntax.docEmbedAnnotation" annotation)
             src' name atName = wrap name $ do
@@ -460,15 +465,15 @@ lexemes' eof =
 
         typeLink = wrap "syntax.docEmbedTypeLink" $ do
           _ <- typeOrAbilityAlt wordyKw <* CP.space
-          tok (symbolyId <|> wordyId) <* CP.space
+          tok identifier <* CP.space
 
         termLink =
           wrap "syntax.docEmbedTermLink" $
-            tok (symbolyId <|> wordyId) <* CP.space
+            tok identifier <* CP.space
 
         signatureLink =
           wrap "syntax.docEmbedSignatureLink" $
-            tok (symbolyId <|> wordyId) <* CP.space
+            tok identifier <* CP.space
 
         groupy closing p = do
           (start, p, stop) <- positioned p
@@ -488,7 +493,7 @@ lexemes' eof =
         verbatim =
           P.label "code (examples: ''**unformatted**'', '''_words_''')" $ do
             (start, txt, stop) <- positioned $ do
-              quotes <- lit "''" <+> many (P.satisfy (== '\''))
+              quotes <- lit "''" <+> P.takeWhileP Nothing (== '\'')
               P.someTill P.anySingle (lit quotes)
             if all isSpace $ takeWhile (/= '\n') txt
               then
@@ -540,7 +545,7 @@ lexemes' eof =
             evalUnison = wrap "syntax.docEval" $ do
               -- commit after seeing that ``` is on its own line
               fence <- P.try $ do
-                fence <- lit "```" <+> P.many (P.satisfy (== '`'))
+                fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
                 b <- all isSpace <$> P.lookAhead (P.takeWhileP Nothing (/= '\n'))
                 fence <$ guard b
               CP.space
@@ -550,7 +555,7 @@ lexemes' eof =
 
             exampleBlock = wrap "syntax.docExampleBlock" $ do
               void $ lit "@typecheck" <* CP.space
-              fence <- lit "```" <+> P.many (P.satisfy (== '`'))
+              fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
               local
                 (\env -> env {inLayout = True, opening = Just "docExampleBlock"})
                 (restoreStack "docExampleBlock" $ lexemes' ([] <$ lit fence))
@@ -568,11 +573,11 @@ lexemes' eof =
             other = wrap "syntax.docCodeBlock" $ do
               column <- (\x -> x - 1) . toInteger . P.unPos <$> LP.indentLevel
               let tabWidth = toInteger . P.unPos $ P.defaultTabWidth
-              fence <- lit "```" <+> P.many (P.satisfy (== '`'))
+              fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
               name <-
-                P.many (P.satisfy nonNewlineSpace)
+                P.takeWhileP Nothing nonNewlineSpace
                   *> tok (Textual <$> P.takeWhile1P Nothing (not . isSpace))
-                  <* P.many (P.satisfy nonNewlineSpace)
+                  <* P.takeWhileP Nothing nonNewlineSpace
               _ <- void CP.eol
               verbatim <-
                 tok $
@@ -753,13 +758,13 @@ lexemes' eof =
             ch = (":]" <$ lit "\\:]") <|> ("@" <$ lit "\\@") <|> (pure <$> P.anySingle)
             txt = tok (Textual . join <$> P.manyTill ch (P.lookAhead sep))
             sep = void at <|> void close
-            ref = at *> (tok wordyId <|> tok symbolyId <|> docTyp)
+            ref = at *> (tok identifier <|> docTyp)
             atk = (ref <|> docTyp) <+> body
             docTyp = do
               _ <- lit "["
               typ <- tok (P.manyTill P.anySingle (P.lookAhead (lit "]")))
               _ <- lit "]" *> CP.space
-              t <- tok wordyId <|> tok symbolyId
+              t <- tok identifier
               pure $ (fmap Reserved <$> typ) <> t
 
     blank =
@@ -774,50 +779,78 @@ lexemes' eof =
     character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
       where
         spEsc = P.try (char '\\' *> char 's' $> ' ')
+
+    -- An identifier is a non-empty dot-delimited list of segments, with an optional leading dot, where each segment is
+    -- symboly (comprised of only symbols) or wordy (comprised of only alphanums).
+    --
+    -- Examples:
+    --
+    --   foo
+    --   .foo.++.doc
+    --   `.`.`..`     (This is a two-segment identifier without a leading dot: "." then "..")
+    identifier :: P Lexeme
+    identifier = do
+      identifier_ <&> \case
+        (False, ident, shorthash) -> WordyId ident shorthash
+        (True, ident, shorthash) -> SymbolyId ident shorthash
+
+    -- internal identifier helper that returns (isSymboly, identifier, shorthash)
+    identifier_ :: P (Bool, String, Maybe ShortHash)
+    identifier_ = do
+      P.label "identifier (ex: abba1, snake_case, .foo.++#xyz, or 🌻)" do
+        P.try do
+          emptyOrDot <- fromMaybe "" <$> P.optional (lit ".")
+          segments <- Monad.sepBy1 (symbolyIdSeg <|> wordyIdSeg) (lit ".")
+          shorthash <- P.optional shorthash
+          pure (isSymbolyId (last segments), emptyOrDot ++ concat (intersperse "." segments), shorthash)
+      where
+        isSymbolyId :: String -> Bool
+        isSymbolyId = \case
+          c : _ -> not (wordyIdStartChar c)
+          _ -> False
+
+    -- Like 'identifier', but the returned lexeme is always a WordyId, never SymbolyId (i.e. the last segment is wordy).
     wordyId :: P Lexeme
-    wordyId = P.label wordyMsg . P.try $ do
-      dot <- P.optional (lit ".")
-      segs <- P.sepBy1 wordyIdSeg (P.try (char '.' <* P.lookAhead (P.satisfy wordyIdChar)))
-      shorthash <- P.optional shorthash
-      pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
-      where
-        wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
-
-    symbolyId :: P Lexeme
-    symbolyId = P.label symbolMsg . P.try $ do
-      dot <- P.optional (lit ".")
-      segs <- P.optional segs
-      shorthash <- P.optional shorthash
-      case (dot, segs) of
-        (_, Just segs) -> pure $ SymbolyId (fromMaybe "" dot <> segs) shorthash
-        -- a single . or .#somehash is parsed as a symboly id
-        (Just dot, Nothing) -> pure $ SymbolyId dot shorthash
-        (Nothing, Nothing) -> fail symbolMsg
-      where
-        segs = symbolyIdSeg <|> (wordyIdSeg <+> lit "." <+> segs)
-
-    symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
+    wordyId = do
+      start <- pos
+      (isSymboly, ident, shorthash) <- identifier_
+      if isSymboly
+        then do
+          stop <- pos
+          P.customFailure (Token (InvalidSymbolyId ident) start stop)
+        else pure (WordyId ident shorthash)
 
     symbolyIdSeg :: P String
     symbolyIdSeg = do
       start <- pos
-      id <- P.takeWhile1P (Just symbolMsg) symbolyIdChar
+      id <-
+        let unescaped = P.takeWhile1P (Just symbolMsg) symbolyIdChar
+            escaped = do
+              _ <- lit "`"
+              s <- P.takeWhile1P (Just symbolMsg) escapedSymbolyIdChar
+              _ <- lit "`"
+              pure ("`" ++ s ++ "`")
+         in unescaped <|> escaped
       when (Set.member id reservedOperators) $ do
         stop <- pos
         P.customFailure (Token (ReservedSymbolyId id) start stop)
       pure id
+      where
+        symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
 
     wordyIdSeg :: P String
     -- wordyIdSeg = litSeg <|> (P.try do -- todo
     wordyIdSeg = P.try $ do
       start <- pos
       ch <- P.satisfy wordyIdStartChar
-      rest <- P.many (P.satisfy wordyIdChar)
+      rest <- P.takeWhileP (Just wordyMsg) wordyIdChar
       let word = ch : rest
       when (Set.member word keywords) $ do
         stop <- pos
         P.customFailure (Token (ReservedWordyId word) start stop)
       pure (ch : rest)
+      where
+        wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
 
     {-
     -- ``an-identifier-with-dashes``
@@ -899,7 +932,8 @@ lexemes' eof =
           <|> layoutKeywords
       where
         keywords =
-          symbolyKw ":"
+          symbolyKw "."
+            <|> symbolyKw ":"
             <|> symbolyKw "@"
             <|> symbolyKw "||"
             <|> symbolyKw "|"
@@ -1250,15 +1284,23 @@ wordyId' s = case wordyId0 s of
 
 -- Returns either an error or an id and a remainder
 symbolyId0 :: String -> Either Err (String, String)
-symbolyId0 s = span' symbolyIdChar s $ \case
+symbolyId0 s = span' symbolyIdChar s \case
   (id@(_ : _), rem) | not (Set.member id reservedOperators) -> Right (id, rem)
   (id, _rem) -> Left (InvalidSymbolyId id)
 
 symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
+-- | The set of characters allowed in an unescaped symboly identifier.
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>~\\/|:"
+
+escapedSymbolyIdChar :: Char -> Bool
+escapedSymbolyIdChar = (`Set.member` escapedSymbolyIdChars)
+
+-- | The set of characters allowed in an escaped symboly identifier.
+escapedSymbolyIdChars :: Set Char
+escapedSymbolyIdChars = Set.insert '.' symbolyIdChars
 
 keywords :: Set String
 keywords =

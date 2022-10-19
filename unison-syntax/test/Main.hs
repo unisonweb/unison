@@ -73,13 +73,16 @@ test =
       t "0:Int" [Numeric "0", Reserved ":", simpleWordyId "Int"],
       t "0 : Int" [Numeric "0", Reserved ":", simpleWordyId "Int"],
       t
-        ".Foo Foo . .foo.bar.baz"
+        ".Foo Foo `.` .foo.bar.baz"
         [ simpleWordyId ".Foo",
           simpleWordyId "Foo",
-          simpleSymbolyId ".",
+          simpleSymbolyId "`.`",
           simpleWordyId ".foo.bar.baz"
         ],
       t ".Foo.Bar.+" [simpleSymbolyId ".Foo.Bar.+"],
+      t ".Foo.++.+" [simpleSymbolyId ".Foo.++.+"],
+      t ".Foo.`++`.+" [simpleSymbolyId ".Foo.`++`.+"],
+      t ".Foo.`+.+`.+" [simpleSymbolyId ".Foo.`+.+`.+"],
       -- idents with hashes
       t "foo#bar" [WordyId "foo" (Just (ShortHash.unsafeFromText "#bar"))],
       t "+#bar" [SymbolyId "+" (Just (ShortHash.unsafeFromText "#bar"))],
