@@ -8,15 +8,9 @@ where
 import Control.Lens as Lens
 import Data.List.NonEmpty (pattern (:|))
 import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as Text.Lazy
-import qualified Data.Text.Lazy.Builder as Text (Builder)
-import qualified Data.Text.Lazy.Builder as Text.Builder
-import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment (NameSegment)
 import Unison.Position (Position (..))
 import Unison.Prelude
-import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 
 -- | A name is an absolute-or-relative non-empty list of name segments.
 data Name

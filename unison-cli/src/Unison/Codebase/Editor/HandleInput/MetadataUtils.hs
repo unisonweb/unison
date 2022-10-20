@@ -31,7 +31,6 @@ import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Server.Backend as Backend
-import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Name as Name (unsafeFromVar)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Relation as R
@@ -40,7 +39,7 @@ import qualified Unison.Util.Set as Set
 -- Add default metadata to all added types and terms in a slurp component.
 --
 -- No-op if the slurp component is empty.
-addDefaultMetadata :: SlurpComponent Symbol -> Cli ()
+addDefaultMetadata :: SlurpComponent -> Cli ()
 addDefaultMetadata adds =
   when (not (SC.isEmpty adds)) do
     Cli.time "add-default-metadata" do

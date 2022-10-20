@@ -4,11 +4,13 @@ module U.Codebase.Sqlite.Operations
     loadRootCausalHash,
     expectRootCausalHash,
     expectRootCausal,
+    expectRootBranchHash,
     loadCausalHashAtPath,
     expectCausalHashAtPath,
     saveBranch,
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
+    expectBranchByBranchHash,
     expectNamespaceStatsByHash,
     expectNamespaceStatsByHashId,
 
@@ -65,7 +67,7 @@ module U.Codebase.Sqlite.Operations
     termsMentioningType,
 
     -- ** name lookup index
-    rebuildNameIndex,
+    updateNameIndex,
     rootNamesByPath,
     NamesByPath (..),
 
@@ -195,6 +197,11 @@ expectValueHashByCausalHashId = loadValueHashById <=< Q.expectCausalValueHashId
 
 expectRootCausalHash :: Transaction CausalHash
 expectRootCausalHash = Q.expectCausalHash =<< Q.expectNamespaceRoot
+
+expectRootBranchHash :: Transaction BranchHash
+expectRootBranchHash = do
+  rootCausalHashId <- Q.expectNamespaceRoot
+  expectValueHashByCausalHashId rootCausalHashId
 
 loadRootCausalHash :: Transaction (Maybe CausalHash)
 loadRootCausalHash =
@@ -716,6 +723,16 @@ loadDbBranchByCausalHashId causalHashId =
     Nothing -> pure Nothing
     Just branchObjectId -> Just <$> expectDbBranch branchObjectId
 
+expectBranchByBranchHashId :: Db.BranchHashId -> Transaction (C.Branch.Branch Transaction)
+expectBranchByBranchHashId bhId = do
+  boId <- Q.expectBranchObjectIdByBranchHashId bhId
+  expectBranch boId
+
+expectBranchByBranchHash :: BranchHash -> Transaction (C.Branch.Branch Transaction)
+expectBranchByBranchHash bh = do
+  bhId <- Q.saveBranchHash bh
+  expectBranchByBranchHashId bhId
+
 -- | Expect a branch value given its causal hash id.
 expectDbBranchByCausalHashId :: Db.CausalHashId -> Transaction S.DbBranch
 expectDbBranchByCausalHashId causalHashId = do
@@ -1038,13 +1055,19 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
--- | Given the list of term and type names from the root branch, rebuild the name lookup
--- table.
-rebuildNameIndex :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)] -> [S.NamedRef C.Reference] -> Transaction ()
-rebuildNameIndex termNames typeNames = do
-  Q.resetNameLookupTables
-  Q.insertTermNames ((fmap (c2sTextReferent *** fmap c2sConstructorType) <$> termNames))
-  Q.insertTypeNames ((fmap c2sTextReference <$> typeNames))
+-- | Given lists of names to add and remove, update the index accordingly.
+updateNameIndex ::
+  -- |  (add terms, remove terms)
+  ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
+  -- |  (add types, remove types)
+  ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
+  Transaction ()
+updateNameIndex (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
+  Q.ensureNameLookupTables
+  Q.removeTermNames ((fmap c2sTextReferent <$> removedTermNames))
+  Q.removeTypeNames ((fmap c2sTextReference <$> removedTypeNames))
+  Q.insertTermNames (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
+  Q.insertTypeNames (fmap c2sTextReference <$> newTypeNames)
 
 data NamesByPath = NamesByPath
   { termNamesInPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],

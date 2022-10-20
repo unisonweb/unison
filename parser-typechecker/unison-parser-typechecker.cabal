@@ -23,6 +23,7 @@ flag optimized
 
 library
   exposed-modules:
+      U.Codebase.Branch.Diff
       Unison.Builtin
       Unison.Builtin.Decls
       Unison.Builtin.Terms
@@ -207,6 +208,7 @@ library
     , extra
     , filepath
     , fingertree
+    , free
     , fsnotify
     , fuzzyfind
     , generic-lens
@@ -393,6 +395,7 @@ test-suite parser-typechecker-tests
     , filemanip
     , filepath
     , fingertree
+    , free
     , fsnotify
     , fuzzyfind
     , generic-lens

@@ -72,6 +72,7 @@ library
       Unison.LSP.CancelRequest
       Unison.LSP.CodeAction
       Unison.LSP.Completion
+      Unison.LSP.Configuration
       Unison.LSP.Conversions
       Unison.LSP.Diagnostics
       Unison.LSP.FileAnalysis
@@ -140,6 +141,7 @@ library
     , exceptions
     , extra
     , filepath
+    , free
     , friendly-time
     , fuzzyfind
     , generic-lens
@@ -263,6 +265,7 @@ executable cli-integration-tests
     , exceptions
     , extra
     , filepath
+    , free
     , friendly-time
     , fuzzyfind
     , generic-lens
@@ -381,6 +384,7 @@ executable transcripts
     , exceptions
     , extra
     , filepath
+    , free
     , friendly-time
     , fuzzyfind
     , generic-lens
@@ -503,6 +507,7 @@ executable unison
     , exceptions
     , extra
     , filepath
+    , free
     , friendly-time
     , fuzzyfind
     , generic-lens
@@ -632,6 +637,7 @@ test-suite cli-tests
     , exceptions
     , extra
     , filepath
+    , free
     , friendly-time
     , fuzzyfind
     , generic-lens
