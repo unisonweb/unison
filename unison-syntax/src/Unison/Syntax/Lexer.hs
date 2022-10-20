@@ -33,7 +33,7 @@ module Unison.Syntax.Lexer
 where
 
 import Control.Lens.TH (makePrisms)
-import qualified Control.Monad.Combinators as Monad
+import qualified Control.Monad.Combinators.NonEmpty as Monad
 import qualified Control.Monad.State as S
 import Data.Char
 import Data.List
@@ -48,10 +48,13 @@ import qualified Text.Megaparsec.Char as CP
 import qualified Text.Megaparsec.Char.Lexer as LP
 import qualified Text.Megaparsec.Error as EP
 import qualified Text.Megaparsec.Internal as PI
+import qualified Unison.HashQualified' as HQ'
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
+import Unison.Syntax.Identifier (Identifier (..))
+import qualified Unison.Syntax.Identifier as Identifier
 import qualified Unison.Util.Bytes as Bytes
 import Unison.Util.Monoid (intercalateMap)
 
@@ -112,7 +115,7 @@ data Err
   | Opaque String -- Catch-all failure type, generally these will be
   -- automatically generated errors coming from megaparsec
   -- Try to avoid this for common errors a user is likely to see.
-  deriving (Eq, Ord, Show) -- richer algebra
+  deriving stock (Eq, Ord, Show) -- richer algebra
 
 -- Design principle:
 --   `[Lexeme]` should be sufficient information for parsing without
@@ -125,14 +128,14 @@ data Lexeme
   | Reserved String -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String -- text literals, `"foo bar"`
   | Character Char -- character literals, `?X`
-  | WordyId String (Maybe ShortHash) -- a (non-infix) identifier
-  | SymbolyId String (Maybe ShortHash) -- an infix identifier
+  | WordyId (HQ'.HashQualified Identifier) -- a (non-infix) identifier. invariant: last segment is wordy
+  | SymbolyId (HQ'.HashQualified Identifier) -- an infix identifier. invariant: last segment is symboly
   | Blank String -- a typed hole or placeholder
   | Numeric String -- numeric literals, left unparsed
   | Bytes Bytes.Bytes -- bytes literals
   | Hash ShortHash -- hash literals
   | Err Err
-  deriving (Eq, Show, Ord)
+  deriving stock (Eq, Show, Ord)
 
 type IsVirtual = Bool -- is it a virtual semi or an actual semi?
 
@@ -298,7 +301,14 @@ lexer0' scope rem =
       | notLayout t1 && touches t1 t2 && isSigned num =
           t1 :
           Token
-            (SymbolyId (take 1 num) Nothing)
+            ( SymbolyId
+                ( HQ'.fromName
+                    Identifier
+                      { leadingDot = False,
+                        segments = Text.pack (take 1 num) Nel.:| []
+                      }
+                )
+            )
             (start t2)
             (inc $ start t2) :
           Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
@@ -352,7 +362,7 @@ lexemes' eof =
         <|> token character
         <|> reserved
         <|> token blank
-        <|> token identifierP
+        <|> token identifierLexemeP
         <|> (asum . map token) [semi, textual, hash]
 
     wordySep c = isSpace c || not (wordyIdChar c)
@@ -377,10 +387,12 @@ lexemes' eof =
       --   ability Foo where      =>   ability Foo where
       tn <- subsequentTypeName
       pure $ case (tn, docToks) of
-        (Just (WordyId tname _), ht : _)
+        (Just (WordyId ident), ht : _)
           | isTopLevel ->
               startToks
-                <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
+                <> [ WordyId (HQ'.fromName (Identifier.appendSegment (HQ'.toName ident) "doc")) <$ ht,
+                     Open "=" <$ ht
+                   ]
                 <> docToks0
                 <> [Close <$ last docToks]
                 <> endToks
@@ -394,7 +406,12 @@ lexemes' eof =
           let modifier = typeModifiersAlt lit'
           let typeOrAbility' = typeOrAbilityAlt wordyKw
           _ <- modifier <* typeOrAbility' *> sp
-          wordyId
+          (start, ident, stop) <- positioned identifierP
+          if isSymbolyIdentifier ident
+            then
+              P.customFailure
+                (Token (InvalidSymbolyId (Text.unpack (HQ'.toTextWith Identifier.toText ident))) start stop)
+            else pure (WordyId ident)
         ignore _ _ _ = []
         body = join <$> P.many (sectionElem <* CP.space)
         sectionElem = section <|> fencedBlock <|> list <|> paragraph
@@ -438,7 +455,7 @@ lexemes' eof =
                           (tok (Reserved <$> lit "@") <+> (CP.space *> annotations))
                       )
               where
-                annotation = tok identifierP <|> expr <* CP.space
+                annotation = tok identifierLexemeP <|> expr <* CP.space
                 annotations =
                   join <$> P.some (wrap "syntax.docEmbedAnnotation" annotation)
             src' name atName = wrap name $ do
@@ -464,15 +481,15 @@ lexemes' eof =
 
         typeLink = wrap "syntax.docEmbedTypeLink" $ do
           _ <- typeOrAbilityAlt wordyKw <* CP.space
-          tok identifierP <* CP.space
+          tok identifierLexemeP <* CP.space
 
         termLink =
           wrap "syntax.docEmbedTermLink" $
-            tok identifierP <* CP.space
+            tok identifierLexemeP <* CP.space
 
         signatureLink =
           wrap "syntax.docEmbedSignatureLink" $
-            tok identifierP <* CP.space
+            tok identifierLexemeP <* CP.space
 
         groupy closing p = do
           (start, p, stop) <- positioned p
@@ -757,13 +774,13 @@ lexemes' eof =
             ch = (":]" <$ lit "\\:]") <|> ("@" <$ lit "\\@") <|> (pure <$> P.anySingle)
             txt = tok (Textual . join <$> P.manyTill ch (P.lookAhead sep))
             sep = void at <|> void close
-            ref = at *> (tok identifierP <|> docTyp)
+            ref = at *> (tok identifierLexemeP <|> docTyp)
             atk = (ref <|> docTyp) <+> body
             docTyp = do
               _ <- lit "["
               typ <- tok (P.manyTill P.anySingle (P.lookAhead (lit "]")))
               _ <- lit "]" *> CP.space
-              t <- tok identifierP
+              t <- tok identifierLexemeP
               pure $ (fmap Reserved <$> typ) <> t
 
     blank =
@@ -778,14 +795,6 @@ lexemes' eof =
     character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
       where
         spEsc = P.try (char '\\' *> char 's' $> ' ')
-
-    -- Like 'identifier', but the returned lexeme is always a WordyId, never SymbolyId (i.e. the last segment is wordy).
-    wordyId :: P Lexeme
-    wordyId = do
-      (start, (isSymboly, ident, shorthash), stop) <- positioned identifierP_
-      if isSymboly
-        then P.customFailure (Token (InvalidSymbolyId ident) start stop)
-        else pure (WordyId ident shorthash)
 
     separated :: (Char -> Bool) -> P a -> P a
     separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)
@@ -1026,26 +1035,39 @@ lexemes' eof =
 --   foo
 --   .foo.++.doc
 --   `.`.`..`     (This is a two-segment identifier without a leading dot: "." then "..")
-identifierP :: P Lexeme
+identifierP :: P (HQ'.HashQualified Identifier)
 identifierP = do
-  identifierP_ <&> \case
-    (False, ident, shorthash) -> WordyId ident shorthash
-    (True, ident, shorthash) -> SymbolyId ident shorthash
-
--- internal identifier helper that returns (isSymboly, identifier, shorthash)
-identifierP_ :: P (Bool, String, Maybe ShortHash)
-identifierP_ = do
+  -- identifierP_ <&> \case
+  --   (False, ident, shorthash) -> WordyId ident shorthash
+  --   (True, ident, shorthash) -> SymbolyId ident shorthash
   P.label "identifier (ex: abba1, snake_case, .foo.++#xyz, or 🌻)" do
     P.try do
-      emptyOrDot <- fromMaybe "" <$> P.optional (lit ".")
-      segments <- Monad.sepBy1 (symbolyIdSegP <|> wordyIdSegP) (lit ".")
-      shorthash <- P.optional shorthashP
-      pure (isSymbolyId (last segments), emptyOrDot ++ concat (intersperse "." segments), shorthash)
-  where
-    isSymbolyId :: String -> Bool
-    isSymbolyId = \case
-      c : _ -> not (wordyIdStartChar c)
-      _ -> False
+      maybeDot <- P.optional (lit ".")
+      segments <- fmap Text.pack <$> Monad.sepBy1 (symbolyIdSegP <|> wordyIdSegP) (lit ".")
+      let ident = Identifier {leadingDot = isJust maybeDot, segments}
+      P.optional shorthashP <&> \case
+        Nothing -> HQ'.fromName ident
+        Just shorthash -> HQ'.HashQualified ident shorthash
+
+-- An identifier is a non-empty dot-delimited list of segments, with an optional leading dot, where each segment is
+-- symboly (comprised of only symbols) or wordy (comprised of only alphanums).
+--
+-- Examples:
+--
+--   foo
+--   .foo.++.doc
+--   `.`.`..`     (This is a two-segment identifier without a leading dot: "." then "..")
+identifierLexemeP :: P Lexeme
+identifierLexemeP = do
+  ident <- identifierP
+  pure
+    if isSymbolyIdSeg (Nel.last (Identifier.segments (HQ'.toName ident)))
+      then SymbolyId ident
+      else WordyId ident
+
+isSymbolyIdentifier :: HQ'.HashQualified Identifier -> Bool
+isSymbolyIdentifier =
+  isSymbolyIdSeg . Nel.last . Identifier.segments . HQ'.toName
 
 symbolyIdSegP :: P String
 symbolyIdSegP = do
@@ -1056,7 +1078,7 @@ symbolyIdSegP = do
           _ <- lit "`"
           s <- P.takeWhile1P (Just symbolMsg) escapedSymbolyIdChar
           _ <- lit "`"
-          pure ("`" ++ s ++ "`")
+          pure s
      in unescaped <|> escaped
   when (Set.member id reservedOperators) $ do
     stop <- pos
@@ -1099,10 +1121,10 @@ positioned p = do
   pure (start, a, stop)
 
 simpleWordyId :: String -> Lexeme
-simpleWordyId = flip WordyId Nothing
+simpleWordyId = undefined -- flip WordyId Nothing
 
 simpleSymbolyId :: String -> Lexeme
-simpleSymbolyId = flip SymbolyId Nothing
+simpleSymbolyId = undefined -- flip SymbolyId Nothing
 
 notLayout :: Token Lexeme -> Bool
 notLayout t = case payload t of
@@ -1296,6 +1318,10 @@ escapedSymbolyIdChar = (`Set.member` escapedSymbolyIdChars)
 escapedSymbolyIdChars :: Set Char
 escapedSymbolyIdChars = Set.insert '.' symbolyIdChars
 
+isSymbolyIdSeg :: Text -> Bool
+isSymbolyIdSeg =
+  not . wordyIdStartChar . Text.head
+
 keywords :: Set String
 keywords =
   Set.fromList
@@ -1404,8 +1430,8 @@ instance P.VisualStream [Token Lexeme] where
         case showEscapeChar c of
           Just c -> "?\\" ++ [c]
           Nothing -> '?' : [c]
-      pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
-      pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
+      pretty (WordyId n) = Text.unpack (HQ'.toTextWith Identifier.toText n)
+      pretty (SymbolyId n) = Text.unpack (HQ'.toTextWith Identifier.toText n)
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh

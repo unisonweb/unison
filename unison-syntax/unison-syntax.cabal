@@ -18,6 +18,7 @@ source-repository head
 library
   exposed-modules:
       Unison.Parser.Ann
+      Unison.Syntax.Identifier
       Unison.Syntax.Lexer
       Unison.Syntax.Parser
       Unison.UnisonFile.Error
@@ -63,6 +64,7 @@ library
     , mtl
     , parser-combinators
     , text
+    , text-builder
     , unison-core1
     , unison-prelude
     , unison-pretty-printer
@@ -117,6 +119,7 @@ test-suite syntax-tests
     , mtl
     , parser-combinators
     , text
+    , text-builder
     , unison-core1
     , unison-prelude
     , unison-pretty-printer

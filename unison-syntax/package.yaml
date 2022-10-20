@@ -14,6 +14,7 @@ dependencies:
   - mtl
   - parser-combinators
   - text
+  - text-builder
   - unison-core1
   - unison-prelude
   - unison-pretty-printer
