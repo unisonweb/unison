@@ -9,13 +9,6 @@ module Unison.Name
     fromSegment,
     fromSegments,
     fromReverseSegments,
-    fromText,
-    fromTextEither,
-
-    -- ** Unsafe construction
-    unsafeFromString,
-    unsafeFromText,
-    unsafeFromVar,
 
     -- * Basic queries
     countSegments,
@@ -45,9 +38,6 @@ module Unison.Name
     suffixFrom,
     shortestUniqueSuffix,
     commonPrefix,
-    toString,
-    toText,
-    toVar,
     splits,
 
     -- * Re-exports
@@ -59,20 +49,15 @@ module Unison.Name
 where
 
 import Control.Lens (mapped, over, _1, _2)
-import qualified Control.Lens as Lens
 import qualified Data.List as List
 import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Map as Map
 import qualified Data.RFC5051 as RFC5051
 import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as Text.Lazy
-import qualified Data.Text.Lazy.Builder as Text (Builder)
-import qualified Data.Text.Lazy.Builder as Text.Builder
-import Unison.Name.Internal (Name (..), fromTextEither, toText)
+import Debug.RecoverRTTI (anythingToString)
+import Unison.Name.Internal (Name (..))
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Position (Position (..))
@@ -80,8 +65,6 @@ import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as R
-import Unison.Var (Var)
-import qualified Unison.Var as Var
 
 -- | @compareSuffix x y@ compares the suffix of @y@ (in reverse segment order) that is as long as @x@ to @x@ (in reverse
 -- segment order).
@@ -122,7 +105,11 @@ compareSuffix (Name _ ss0) =
 cons :: HasCallStack => NameSegment -> Name -> Name
 cons x name =
   case name of
-    Name Absolute _ -> error (reportBug "E495986" ("cannot cons " ++ show x ++ " onto absolute name" ++ show name))
+    Name Absolute _ ->
+      error $
+        reportBug
+          "E495986"
+          ("cannot cons " ++ anythingToString x ++ " onto absolute name" ++ anythingToString name)
     Name Relative (y :| ys) -> Name Relative (y :| ys ++ [x])
 
 -- | Return the number of name segments in a name.
@@ -203,7 +190,12 @@ joinDot n1@(Name p0 ss0) n2@(Name p1 ss1) =
       error $
         reportBug
           "E261635"
-          ("joinDot: second name cannot be absolute. (name 1 = " ++ show n1 ++ ", name 2 = " ++ show n2 ++ ")")
+          ( "joinDot: second name cannot be absolute. (name 1 = "
+              ++ anythingToString n1
+              ++ ", name 2 = "
+              ++ anythingToString n2
+              ++ ")"
+          )
 
 -- | Make a name absolute. No-op if the name is already absolute.
 --
@@ -332,13 +324,13 @@ sortByText by as =
       comp (_, s) (_, s2) = RFC5051.compareUnicode s s2
    in fst <$> List.sortBy comp as'
 
-sortNamed :: (a -> Name) -> [a] -> [a]
-sortNamed f =
+sortNamed :: (Name -> Text) -> (a -> Name) -> [a] -> [a]
+sortNamed toText f =
   sortByText (toText . f)
 
-sortNames :: [Name] -> [Name]
-sortNames =
-  sortNamed id
+sortNames :: (Name -> Text) -> [Name] -> [Name]
+sortNames toText =
+  sortNamed toText id
 
 -- | Return all "splits" of a relative name, which pair a possibly-empty prefix of name segments with a suffix, such
 -- that the original name is equivalent to @prefix + suffix@.
@@ -442,16 +434,6 @@ suffixFrom (Name p0 ss0) (Name _ ss1) = do
               then Just (prepend xs)
               else go (prepend . (y :)) ys
 
--- | Convert a name to a string representation.
-toString :: Name -> String
-toString =
-  Text.unpack . toText
-
--- | Convert a name to a string representation, then parse that as a var.
-toVar :: Var v => Name -> v
-toVar =
-  Var.named . toText
-
 -- | Drop all leading segments from a name, retaining only the last segment as a relative name.
 --
 -- >>> unqualified "a.b.c"
@@ -515,20 +497,6 @@ commonPrefix x@(Name p1 _) y@(Name p2 _)
       | a == b = a : commonPrefix' as bs
     commonPrefix' _ _ = []
 
--- | Parse a name from a string literal.
---
--- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
--- no attempt at rejecting bogus names like "foo...bar...baz".
-fromText :: Text -> Maybe Name
-fromText = eitherToMaybe . fromTextEither
-
--- | Unsafely parse a name from a var, by first rendering the var as a string.
---
--- See 'unsafeFromText'.
-unsafeFromVar :: Var v => v -> Name
-unsafeFromVar =
-  unsafeFromText . Var.name
-
 class Convert a b where
   convert :: a -> b
 
@@ -542,16 +510,3 @@ instance Parse Text NameSegment where
 
 instance (Parse a a2, Parse b b2) => Parse (a, b) (a2, b2) where
   parse (a, b) = (,) <$> parse a <*> parse b
-
-instance Lens.Snoc Name Name NameSegment NameSegment where
-  _Snoc =
-    Lens.prism snoc unsnoc
-    where
-      snoc :: (Name, NameSegment) -> Name
-      snoc (Name p (x :| xs), y) =
-        Name p (y :| x : xs)
-      unsnoc :: Name -> Either Name (Name, NameSegment)
-      unsnoc name =
-        case name of
-          Name _ (_ :| []) -> Left name
-          Name p (x :| y : ys) -> Right (Name p (y :| ys), x)

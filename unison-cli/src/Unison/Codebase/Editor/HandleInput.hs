@@ -19,7 +19,6 @@ import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
-import Unison.Cli.TypeCheck (typecheck)
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
@@ -45,6 +44,7 @@ import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Cli.NamesUtils (basicParseNames, basicPrettyPrintNamesA, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
+import Unison.Cli.TypeCheck (typecheck)
 import Unison.Cli.UnisonConfigUtils (gitUrlKey, remoteMappingKey)
 import Unison.Codebase (Codebase, Preprocessing (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase as Codebase
@@ -160,7 +160,9 @@ import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
+import qualified Unison.Syntax.HashQualified as HQ (unsafeFromString)
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name (toString, toVar, unsafeFromString, unsafeFromVar)
 import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -2707,7 +2709,7 @@ parseType input src = do
     Parsers.parseType (Text.unpack (fst lexed)) (Parser.ParsingEnv mempty names) & onLeft \err ->
       Cli.returnEarly (TypeParseError src err)
 
-  Type.bindNames mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->
+  Type.bindNames Name.unsafeFromVar mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->
     Cli.returnEarly (ParseResolutionFailures src (toList errs))
 
 getTermsIncludingHistorical :: Monad m => Path.HQSplit -> Branch0 m -> Cli (Set Referent)

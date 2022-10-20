@@ -1,10 +1,6 @@
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.HashQualified' where
 
+import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Convert, Name, Parse)
@@ -20,7 +16,7 @@ import qualified Unison.ShortHash as SH
 import Prelude hiding (take)
 
 data HashQualified n = NameOnly n | HashQualified n ShortHash
-  deriving (Eq, Functor, Generic, Foldable, Traversable)
+  deriving stock (Eq, Functor, Generic, Foldable, Ord, Traversable)
 
 type HQSegment = HashQualified NameSegment
 
@@ -48,8 +44,8 @@ toName = \case
   NameOnly name -> name
   HashQualified name _ -> name
 
-nameLength :: HashQualified Name -> Int
-nameLength = Text.length . toTextWith Name.toText
+nameLength :: (Name -> Text) -> HashQualified Name -> Int
+nameLength nameToText = Text.length . toTextWith nameToText
 
 take :: Int -> HashQualified n -> HashQualified n
 take i = \case
@@ -69,22 +65,6 @@ toString = Text.unpack . toText
 
 toStringWith :: (n -> String) -> HashQualified n -> String
 toStringWith f = Text.unpack . toTextWith (Text.pack . f)
-
--- Parses possibly-hash-qualified into structured type.
-fromText :: Text -> Maybe (HashQualified Name)
-fromText t = case Text.breakOn "#" t of
-  (name, "") ->
-    Just $ NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
-  (name, hash) ->
-    HashQualified (Name.unsafeFromText name) <$> SH.fromText hash
-
-unsafeFromText :: Text -> HashQualified Name
-unsafeFromText txt = fromMaybe msg (fromText txt)
-  where
-    msg = error ("HashQualified.unsafeFromText " <> show txt)
-
-fromString :: String -> Maybe (HashQualified Name)
-fromString = fromText . Text.pack
 
 toText :: Show n => HashQualified n -> Text
 toText =
@@ -122,24 +102,23 @@ requalify hq r = case hq of
   NameOnly n -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
 
+-- | Sort alphabetically.
+sortAlphabetically :: Name.Alphabetical n => [HashQualified n] -> [HashQualified n]
+sortAlphabetically =
+  List.sortBy go
+  where
+    go (NameOnly n) (NameOnly n2) = Name.compareAlphabetical n n2
+    -- NameOnly comes first
+    go NameOnly {} HashQualified {} = LT
+    go HashQualified {} NameOnly {} = GT
+    go (HashQualified n sh) (HashQualified n2 sh2) = Name.compareAlphabetical n n2 <> compare sh sh2
+
 -- | Sort the list of names by length of segments: smaller number of segments is listed first. NameOnly < HashQualified
 sortByLength :: [HashQualified Name] -> [HashQualified Name]
 sortByLength =
   sortOn \case
     NameOnly name -> (length (Name.reverseSegments name), Nothing, Name.isAbsolute name)
     HashQualified name hash -> (length (Name.reverseSegments name), Just hash, Name.isAbsolute name)
-
--- `HashQualified` is usually used for display, so we sort it alphabetically
-instance Name.Alphabetical n => Ord (HashQualified n) where
-  compare (NameOnly n) (NameOnly n2) = Name.compareAlphabetical n n2
-  -- NameOnly comes first
-  compare NameOnly {} HashQualified {} = LT
-  compare HashQualified {} NameOnly {} = GT
-  compare (HashQualified n sh) (HashQualified n2 sh2) =
-    Name.compareAlphabetical n n2 <> compare sh sh2
-
-instance IsString (HashQualified Name) where
-  fromString = unsafeFromText . Text.pack
 
 instance Show n => Show (HashQualified n) where
   show = Text.unpack . toText
@@ -154,6 +133,3 @@ instance Convert (HashQualified n) (HQ.HashQualified n) where
 
 instance Parse (HQ.HashQualified n) (HashQualified n) where
   parse = fromHQ
-
-instance Parse Text (HashQualified Name) where
-  parse = fromText

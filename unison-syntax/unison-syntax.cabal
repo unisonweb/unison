@@ -18,7 +18,10 @@ source-repository head
 library
   exposed-modules:
       Unison.Parser.Ann
+      Unison.Syntax.HashQualified
+      Unison.Syntax.HashQualified'
       Unison.Syntax.Lexer
+      Unison.Syntax.Name
       Unison.Syntax.Parser
       Unison.UnisonFile.Error
   hs-source-dirs:

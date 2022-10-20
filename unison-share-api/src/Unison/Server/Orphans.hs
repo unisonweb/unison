@@ -21,9 +21,7 @@ import qualified U.Util.Hash as Hash
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
-import Unison.Codebase.ShortBranchHash
-  ( ShortBranchHash (..),
-  )
+import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.HashQualified as HQ
@@ -36,6 +34,9 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Syntax.HashQualified as HQ (fromText)
+import qualified Unison.Syntax.HashQualified' as HQ' (fromText)
+import qualified Unison.Syntax.Name as Name (fromTextEither, toText)
 import Unison.Util.Pretty (Width (..))
 
 instance ToJSON Hash where

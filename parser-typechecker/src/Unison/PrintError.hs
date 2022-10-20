@@ -1,7 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.PrintError where
 
@@ -17,6 +14,7 @@ import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NES
 import qualified Data.Text as Text
+import Data.Void (Void)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import Unison.Builtin.Decls (pattern TupleType')
@@ -1362,7 +1360,7 @@ renderParseErrors s = \case
               excerpt
             ]
         L.Opaque msg -> style ErrorSite msg
-  te@(P.TrivialError _errOffset unexpected _expected) ->
+  P.TrivialError errOffset unexpected expected ->
     let (src, ranges) = case unexpected of
           Just (P.Tokens (toList -> ts)) -> case ts of
             [] -> (mempty, [])
@@ -1370,7 +1368,11 @@ renderParseErrors s = \case
               let rs = rangeForToken <$> ts
                in (showSource s $ (\r -> (r, ErrorSite)) <$> rs, rs)
           _ -> mempty
-     in [(fromString (P.parseErrorPretty te) <> src, ranges)]
+        -- Same error that we just pattern matched on, but with a different error component (here Void) - we need one
+        -- with a ShowErrorComponent instance, which our error type doesn't have.
+        sameErr :: P.ParseError Parser.Input Void
+        sameErr = P.TrivialError errOffset unexpected expected
+     in [(fromString (P.parseErrorPretty sameErr) <> src, ranges)]
   P.FancyError _sp fancyErrors ->
     (go' <$> Set.toList fancyErrors)
   where

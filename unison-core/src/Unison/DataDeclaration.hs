@@ -1,10 +1,4 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.DataDeclaration
   ( DataDeclaration (..),
@@ -247,13 +241,14 @@ allVars' = allVars . either toDataDecl id
 
 bindReferences ::
   Var v =>
+  (v -> Name.Name) ->
   Set v ->
   Map Name.Name Reference ->
   DataDeclaration v a ->
   Names.ResolutionResult v a (DataDeclaration v a)
-bindReferences keepFree names (DataDeclaration m a bound constructors) = do
+bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constructors) = do
   constructors <- for constructors $ \(a, v, ty) ->
-    (a,v,) <$> Type.bindReferences keepFree names ty
+    (a,v,) <$> Type.bindReferences unsafeVarToName keepFree names ty
   pure $ DataDeclaration m a bound constructors
 
 dependencies :: Ord v => DataDeclaration v a -> Set Reference

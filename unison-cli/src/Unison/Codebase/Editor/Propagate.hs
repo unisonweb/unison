@@ -50,6 +50,7 @@ import qualified Unison.Result as Result
 import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Name as Name (unsafeFromVar)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -332,7 +333,7 @@ propagate patch b = case validatePatch patch of
                   -- TODO: kind-check the new components
                   hashedDecls =
                     (fmap . fmap) (over _2 DerivedId)
-                      . Hashing.hashDataDecls
+                      . Hashing.hashDataDecls Name.unsafeFromVar
                       $ view _2 <$> declMap
               hashedComponents' <- case hashedDecls of
                 Left _ ->

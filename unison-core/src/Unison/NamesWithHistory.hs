@@ -34,7 +34,6 @@ data NamesWithHistory = NamesWithHistory
     -- context to users rather than just a hash.
     oldNames :: Names.Names
   }
-  deriving (Show)
 
 instance Semigroup NamesWithHistory where
   NamesWithHistory cur1 old1 <> NamesWithHistory cur2 old2 =
@@ -71,7 +70,6 @@ data Diff = Diff
     addedNames :: Names,
     removedNames :: Names
   }
-  deriving (Show)
 
 -- Add `n1` to `currentNames`, shadowing anything with the same name and
 -- moving shadowed definitions into `oldNames` so they can can still be

@@ -1,14 +1,10 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns #-}
--- pTrace
 {-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Unison.Syntax.Parser where
 
 import Control.Monad.Reader.Class (asks)
+import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import qualified Crypto.Random as Random
 import Data.Bytes.Put (runPutS)
 import Data.Bytes.Serial (serialize)
@@ -126,10 +122,7 @@ data Error v
   | DuplicateTermNames [(v, [Ann])]
   | PatternArityMismatch Int Int Ann -- PatternArityMismatch expectedArity actualArity location
   | FloatPattern Ann
-  deriving (Show, Eq, Ord)
-
-instance (Ord v, Show v) => ShowErrorComponent (Error v) where
-  showErrorComponent e = show e
+  deriving stock (Eq, Ord)
 
 tokenToPair :: L.Token a -> (Ann, a)
 tokenToPair t = (ann t, L.payload t)

@@ -1,11 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Names
   ( Names (..),
+    showNames,
     addTerm,
     addType,
     labeledReferences,
@@ -94,14 +91,14 @@ instance Semigroup (Names) where
 instance Monoid (Names) where
   mempty = Names mempty mempty
 
-instance Show (Names) where
-  show (Names terms types) =
-    "Terms:\n"
-      ++ foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList terms)
-      ++ "\n"
-      ++ "Types:\n"
-      ++ foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList types)
-      ++ "\n"
+showNames :: (Name -> String) -> Names -> String
+showNames showName (Names terms types) =
+  "Terms:\n"
+    ++ foldMap (\(n, r) -> "  " ++ showName n ++ " -> " ++ show r ++ "\n") (R.toList terms)
+    ++ "\n"
+    ++ "Types:\n"
+    ++ foldMap (\(n, r) -> "  " ++ showName n ++ " -> " ++ show r ++ "\n") (R.toList types)
+    ++ "\n"
 
 isEmpty :: Names -> Bool
 isEmpty n = R.null (terms n) && R.null (types n)
@@ -121,12 +118,13 @@ makeRelative = map Name.makeRelative
 -- Finds names that are supersequences of all the given strings, ordered by
 -- score and grouped by name.
 fuzzyFind ::
+  (Name -> Text) ->
   [String] ->
   Names ->
   [(FZF.Alignment, Name, Set (Either Referent TypeReference))]
-fuzzyFind query names =
+fuzzyFind nameToText query names =
   fmap flatten
-    . fuzzyFinds (Name.toString . fst) query
+    . fuzzyFinds (Text.unpack . nameToText . fst) query
     . Prelude.filter prefilter
     . Map.toList
     -- `mapMonotonic` is safe here and saves a log n factor
@@ -137,7 +135,7 @@ fuzzyFind query names =
     -- For performance, case-insensitive substring matching as a pre-filter
     -- This finds fewer matches than subsequence matching, but is
     -- (currently) way faster even on large name sets.
-    prefilter (Name.toText -> name, _) = case lowerqueryt of
+    prefilter (nameToText -> name, _) = case lowerqueryt of
       -- Special cases here just to help optimizer, since
       -- not sure if `all` will get sufficiently unrolled for
       -- Text fusion to work out.
@@ -491,7 +489,11 @@ hashQualifyTermsRelation = hashQualifyRelation HQ.fromNamedReferent
 hashQualifyTypesRelation :: R.Relation Name TypeReference -> R.Relation (HQ.HashQualified Name) TypeReference
 hashQualifyTypesRelation = hashQualifyRelation HQ.fromNamedReference
 
-hashQualifyRelation :: Ord r => (Name -> r -> HQ.HashQualified Name) -> R.Relation Name r -> R.Relation (HQ.HashQualified Name) r
+hashQualifyRelation ::
+  Ord r =>
+  (Name -> r -> HQ.HashQualified Name) ->
+  R.Relation Name r ->
+  R.Relation (HQ.HashQualified Name) r
 hashQualifyRelation fromNamedRef rel = R.map go rel
   where
     go (n, r) =

@@ -21,7 +21,7 @@ import qualified Unison.Type as Type
 data SearchResult' v a
   = Tm' (TermResult' v a)
   | Tp' (TypeResult' v a)
-  deriving (Eq, Show)
+  deriving (Eq)
 
 data TermResult' v a
   = TermResult'
@@ -29,7 +29,7 @@ data TermResult' v a
       (Maybe (Type v a))
       Referent
       (Set (HQ'.HashQualified Name))
-  deriving (Eq, Show)
+  deriving (Eq)
 
 data TypeResult' v a
   = TypeResult'
@@ -37,7 +37,7 @@ data TypeResult' v a
       (DisplayObject () (Decl v a))
       Reference
       (Set (HQ'.HashQualified Name))
-  deriving (Eq, Show)
+  deriving (Eq)
 
 pattern Tm :: HQ.HashQualified Name
            -> Maybe (Type v a)

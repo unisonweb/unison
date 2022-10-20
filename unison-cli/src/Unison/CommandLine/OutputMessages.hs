@@ -126,6 +126,8 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.HashQualified as HQ (unsafeFromVar)
+import qualified Unison.Syntax.Name as Name (toString, toText)
 import Unison.Syntax.NamePrinter
   ( prettyHashQualified,
     prettyHashQualified',
@@ -2570,10 +2572,10 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
         leftNamePad :: P.Width =
           foldl1' max $
             map
-              (foldl1' max . map (P.Width . HQ'.nameLength) . toList . view _3)
+              (foldl1' max . map (P.Width . HQ'.nameLength Name.toText) . toList . view _3)
               terms
               <> map
-                (foldl1' max . map (P.Width . HQ'.nameLength) . toList . view _3)
+                (foldl1' max . map (P.Width . HQ'.nameLength Name.toText) . toList . view _3)
                 types
         prettyGroup ::
           ( (Referent, b, Set (HQ'.HashQualified Name), Set (HQ'.HashQualified Name)),
@@ -2791,7 +2793,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
         then error "Super invalid UpdateTermDisplay"
         else fmap P.column2 $ traverse (mdTermLine newPath namesWidth) newTerms
       where
-        namesWidth = foldl1' max $ fmap (P.Width . HQ'.nameLength . view _1) newTerms
+        namesWidth = foldl1' max $ fmap (P.Width . HQ'.nameLength Name.toText . view _1) newTerms
     prettyUpdateTerm (Just olds, news) = fmap P.column2 $ do
       olds <-
         traverse
@@ -2807,8 +2809,8 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       where
         namesWidth =
           foldl1' max $
-            fmap (P.Width . HQ'.nameLength . view _1) news
-              <> fmap (P.Width . HQ'.nameLength . view _1) olds
+            fmap (P.Width . HQ'.nameLength Name.toText . view _1) news
+              <> fmap (P.Width . HQ'.nameLength Name.toText . view _1) olds
 
     prettyMetadataDiff :: OBD.MetadataDiff (OBD.MetadataDisplay v a) -> Numbered Pretty
     prettyMetadataDiff OBD.MetadataDiff {..} =
@@ -3036,7 +3038,7 @@ prettyDiff diff =
       movedTypes =
         [ (n, n2) | (n, r) <- R.toList (Names.types removes), n2 <- toList (R.lookupRan r (Names.types adds))
         ]
-      moved = Name.sortNamed fst . nubOrd $ (movedTerms <> movedTypes)
+      moved = Name.sortNamed Name.toText fst . nubOrd $ (movedTerms <> movedTypes)
 
       copiedTerms =
         List.multimap
@@ -3047,7 +3049,7 @@ prettyDiff diff =
           [ (n, n2) | (n2, r) <- R.toList (Names.types adds), not (R.memberRan r (Names.types removes)), n <- toList (R.lookupRan r (Names.types orig))
           ]
       copied =
-        Name.sortNamed fst $
+        Name.sortNamed Name.toText fst $
           Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
    in P.sepNonEmpty
         "\n\n"

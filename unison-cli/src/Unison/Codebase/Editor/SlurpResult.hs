@@ -28,12 +28,12 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
+import qualified Unison.Syntax.HashQualified as HQ (unsafeFromVar)
 import qualified Unison.Syntax.TypePrinter as TP
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P

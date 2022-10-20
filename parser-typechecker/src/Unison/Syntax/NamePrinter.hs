@@ -5,12 +5,12 @@ import qualified Unison.HashQualified' as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Syntax.Name as Name (toText)
 import Unison.Util.Pretty (Pretty)
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.Util.SyntaxText as S

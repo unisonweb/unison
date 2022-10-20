@@ -65,8 +65,11 @@ library
   default-extensions:
       ApplicativeDo
       BlockArguments
+      DeriveAnyClass
+      DeriveFoldable
       DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
@@ -77,6 +80,7 @@ library
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -96,6 +100,7 @@ library
     , mtl
     , nonempty-containers
     , prelude-extras
+    , recover-rtti
     , rfc5051
     , safe
     , text

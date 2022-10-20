@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-
 module Unison.Util.SyntaxText where
 
 import Unison.HashQualified (HashQualified)
@@ -53,7 +51,7 @@ data Element r
   | DocDelimiter
   | -- the 'include' in @[include], etc
     DocKeyword
-  deriving (Eq, Ord, Show, Functor)
+  deriving (Eq, Ord, Functor)
 
 syntax :: Element r -> SyntaxText' r -> SyntaxText' r
 syntax = annotate

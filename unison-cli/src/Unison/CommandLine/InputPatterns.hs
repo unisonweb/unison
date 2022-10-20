@@ -40,9 +40,10 @@ import Unison.CommandLine.InputPattern
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
+import qualified Unison.Syntax.HashQualified as HQ (fromString)
+import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P

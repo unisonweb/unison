@@ -721,7 +721,7 @@ wrapColumn2 rows = lines (align rows)
 
 -- Pad with enough space on the right to make all rows the same width
 leftJustify ::
-  (Eq s, Show s, LL.ListLike s Char, IsString s) =>
+  (Eq s, LL.ListLike s Char, IsString s) =>
   [(Pretty s, a)] ->
   [(Pretty s, a)]
 leftJustify rows =

@@ -33,7 +33,6 @@ data TodoOutput v a = TodoOutput
     nameConflicts :: Names,
     editConflicts :: Patch
   }
-  deriving (Show)
 
 labeledDependencies :: Ord v => TodoOutput v a -> Set LabeledDependency
 labeledDependencies TodoOutput {..} =

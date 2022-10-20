@@ -1,8 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.UnisonFile.Names where
 
 import Data.Bifunctor (second)
@@ -13,12 +8,12 @@ import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DataDeclaration.Names as DD.Names
 import qualified Unison.Hashing.V2.Convert as Hashing
-import qualified Unison.Name as Name
 import Unison.Names (Names (Names))
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.Prelude
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
+import qualified Unison.Syntax.Name as Name (unsafeFromVar)
 import qualified Unison.Term as Term
 import qualified Unison.UnisonFile as UF
 import Unison.UnisonFile.Env (Env (..))
@@ -31,8 +26,8 @@ import qualified Unison.WatchKind as WK
 toNames :: Var v => UnisonFile v a -> Names
 toNames uf = datas <> effects
   where
-    datas = foldMap DD.Names.dataDeclToNames' (Map.toList (UF.dataDeclarationsId uf))
-    effects = foldMap DD.Names.effectDeclToNames' (Map.toList (UF.effectDeclarationsId uf))
+    datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeFromVar) (Map.toList (UF.dataDeclarationsId uf))
+    effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeFromVar) (Map.toList (UF.effectDeclarationsId uf))
 
 typecheckedToNames :: Var v => TypecheckedUnisonFile v a -> Names
 typecheckedToNames uf = Names (terms <> ctors) types
@@ -81,8 +76,8 @@ bindNames names (UnisonFileId d e ts ws) = do
   let termVars = (fst <$> ts) ++ (Map.elems ws >>= map fst)
       termVarsSet = Set.fromList termVars
   -- todo: can we clean up this lambda using something like `second`
-  ts' <- traverse (\(v, t) -> (v,) <$> Term.bindNames termVarsSet names t) ts
-  ws' <- traverse (traverse (\(v, t) -> (v,) <$> Term.bindNames termVarsSet names t)) ws
+  ts' <- traverse (\(v, t) -> (v,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t) ts
+  ws' <- traverse (traverse (\(v, t) -> (v,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t)) ws
   pure $ UnisonFileId d e ts' ws'
 
 -- This function computes hashes for data and effect declarations, and
@@ -102,19 +97,19 @@ environmentFor names dataDecls0 effectDecls0 = do
   let locallyBoundTypes = Map.keysSet dataDecls0 <> Map.keysSet effectDecls0
   -- data decls and hash decls may reference each other, and thus must be hashed together
   dataDecls :: Map v (DataDeclaration v a) <-
-    traverse (DD.Names.bindNames locallyBoundTypes names) dataDecls0
+    traverse (DD.Names.bindNames Name.unsafeFromVar locallyBoundTypes names) dataDecls0
   effectDecls :: Map v (EffectDeclaration v a) <-
-    traverse (DD.withEffectDeclM (DD.Names.bindNames locallyBoundTypes names)) effectDecls0
+    traverse (DD.withEffectDeclM (DD.Names.bindNames Name.unsafeFromVar locallyBoundTypes names)) effectDecls0
   let allDecls0 :: Map v (DataDeclaration v a)
       allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
-  hashDecls' :: [(v, Reference.Id, DataDeclaration v a)] <- Hashing.hashDataDecls allDecls0
+  hashDecls' :: [(v, Reference.Id, DataDeclaration v a)] <- Hashing.hashDataDecls Name.unsafeFromVar allDecls0
   -- then we have to pick out the dataDecls from the effectDecls
   let allDecls = Map.fromList [(v, (r, de)) | (v, r, de) <- hashDecls']
       dataDecls' = Map.difference allDecls effectDecls
       effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls
       -- ctor and effect terms
-      ctors = foldMap DD.Names.dataDeclToNames' (Map.toList dataDecls')
-      effects = foldMap DD.Names.effectDeclToNames' (Map.toList effectDecls')
+      ctors = foldMap (DD.Names.dataDeclToNames' Name.unsafeFromVar) (Map.toList dataDecls')
+      effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeFromVar) (Map.toList effectDecls')
       names' = ctors <> effects
       overlaps =
         let w v dd (toDataDecl -> ed) = DupDataAndAbility v (DD.annotation dd) (DD.annotation ed)

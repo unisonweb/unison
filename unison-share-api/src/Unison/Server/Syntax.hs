@@ -28,6 +28,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
+import qualified Unison.Syntax.Name as Name (unsafeFromText)
 import Unison.Util.AnnotatedText
   ( AnnotatedText (..),
     Segment (..),

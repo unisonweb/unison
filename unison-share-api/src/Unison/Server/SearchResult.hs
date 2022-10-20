@@ -12,21 +12,21 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as R
 
-data SearchResult = Tp TypeResult | Tm TermResult deriving (Eq, Ord, Show)
+data SearchResult = Tp TypeResult | Tm TermResult deriving (Eq, Ord)
 
 data TermResult = TermResult
   { termName :: HashQualified Name,
     referent :: Referent,
     termAliases :: Set (HQ'.HashQualified Name)
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
 
 data TypeResult = TypeResult
   { typeName :: HashQualified Name,
     reference :: Reference,
     typeAliases :: Set (HQ'.HashQualified Name)
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
 
 pattern Tm' :: HashQualified Name -> Referent -> Set (HQ'.HashQualified Name) -> SearchResult
 pattern Tm' hq r as = Tm (TermResult hq r as)

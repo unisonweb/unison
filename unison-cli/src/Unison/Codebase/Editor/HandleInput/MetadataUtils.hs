@@ -25,7 +25,6 @@ import qualified Unison.CommandLine.InputPatterns as InputPatterns
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -33,6 +32,7 @@ import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Server.Backend as Backend
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Name as Name (unsafeFromVar)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Set as Set

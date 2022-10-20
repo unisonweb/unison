@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Builtin.Decls where
 
 import Control.Lens (over, _3)
@@ -10,13 +6,11 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Data.Sequence (Seq)
 import Data.Text (Text, unpack)
+import Debug.RecoverRTTI (anythingToString)
 import qualified Unison.ABT as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
-import Unison.DataDeclaration
-  ( DataDeclaration (..),
-    Modifier (Structural, Unique),
-  )
+import Unison.DataDeclaration (DataDeclaration (..), Modifier (Structural, Unique))
 import qualified Unison.DataDeclaration as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Convert (hashDataDecls)
@@ -26,6 +20,7 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Name as Name (unsafeFromVar)
 import Unison.Term (Term, Term2)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -162,13 +157,13 @@ failConstructorReferent = Referent.Con (ConstructorReference testResultRef failC
 builtinDataDecls :: [(Symbol, Reference.Id, DataDeclaration Symbol ())]
 builtinDataDecls = rs1 ++ rs
   where
-    rs1 = case hashDataDecls $
+    rs1 = case hashDataDecls Name.unsafeFromVar $
       Map.fromList
         [ (v "Link", link)
         ] of
       Right a -> a
-      Left e -> error $ "builtinDataDecls: " <> show e
-    rs = case hashDataDecls $
+      Left e -> error $ "builtinDataDecls: " <> anythingToString e
+    rs = case hashDataDecls Name.unsafeFromVar $
       Map.fromList
         [ (v "Unit", unit),
           (v "Tuple", tuple),
@@ -194,7 +189,7 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.STMFailure", stmFailure)
         ] of
       Right a -> a
-      Left e -> error $ "builtinDataDecls: " <> show e
+      Left e -> error $ "builtinDataDecls: " <> anythingToString e
     linkRef = case rs1 of
       [(_, linkRef, _)] -> linkRef
       _ -> error "builtinDataDecls: Expected a single linkRef"
@@ -431,9 +426,9 @@ builtinDataDecls = rs1 ++ rs
 
 builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
 builtinEffectDecls =
-  case hashDataDecls $ Map.fromList [(v "Exception", exception)] of
+  case hashDataDecls Name.unsafeFromVar $ Map.fromList [(v "Exception", exception)] of
     Right a -> over _3 DD.EffectDeclaration <$> a
-    Left e -> error $ "builtinEffectDecls: " <> show e
+    Left e -> error $ "builtinEffectDecls: " <> anythingToString e
   where
     v = Var.named
     var name = Type.var () (v name)

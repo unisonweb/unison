@@ -55,6 +55,7 @@ import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
 import Unison.ShortHash (ShortHash)
+import qualified Unison.Syntax.HashQualified as HQ (fromText)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =

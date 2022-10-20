@@ -1,5 +1,4 @@
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- | Description: Converts V1 types to the V2 hashing types
 module Unison.Hashing.V2.Convert
@@ -35,6 +34,7 @@ import qualified Unison.Codebase.Causal.Type as Memory.Causal
 import qualified Unison.Codebase.Patch as Memory.Patch
 import qualified Unison.Codebase.TermEdit as Memory.TermEdit
 import qualified Unison.Codebase.TypeEdit as Memory.TypeEdit
+import Unison.Name (Name)
 import qualified Unison.ConstructorReference as Memory.ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.ConstructorType as Memory.ConstructorType
@@ -235,11 +235,12 @@ h2mReferent getCT = \case
 
 hashDataDecls ::
   Var v =>
+  (v -> Name) ->
   Map v (Memory.DD.DataDeclaration v a) ->
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
-hashDataDecls memDecls = do
+hashDataDecls unsafeVarToName memDecls = do
   let hashingDecls = fmap m2hDecl memDecls
-  hashingResult <- Hashing.DD.hashDecls hashingDecls
+  hashingResult <- Hashing.DD.hashDecls unsafeVarToName hashingDecls
   pure $ map h2mDeclResult hashingResult
   where
     h2mDeclResult :: Ord v => (v, Hashing.Reference.Id, Hashing.DD.DataDeclaration v a) -> (v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)
@@ -247,16 +248,17 @@ hashDataDecls memDecls = do
 
 hashDecls ::
   Var v =>
+  (v -> Name) ->
   Map v (Memory.DD.Decl v a) ->
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.Decl v a)]
-hashDecls memDecls = do
+hashDecls unsafeVarToName memDecls = do
   -- want to unwrap the decl before doing the rehashing, and then wrap it back up the same way
   let howToReassemble =
         memDecls <&> \case
           Left {} -> CT.Effect
           Right {} -> CT.Data
       memDeclsAsDDs = Memory.DD.asDataDecl <$> memDecls
-  result <- hashDataDecls memDeclsAsDDs
+  result <- hashDataDecls unsafeVarToName memDeclsAsDDs
   pure $
     result <&> \(v, id', decl) ->
       case Map.lookup v howToReassemble of

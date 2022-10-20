@@ -1,4 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
@@ -27,6 +26,7 @@ import Unison.Reference (Reference)
 import qualified Unison.Referent as Referent
 import Unison.Result (CompilerBug (..), Note (..), Result, ResultT, pattern Result)
 import qualified Unison.Result as Result
+import qualified Unison.Syntax.Name as Name (toText, unsafeFromVar)
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type

@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Syntax.TermPrinter where
 
 import Control.Lens (unsnoc, (^.))
@@ -36,7 +32,9 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
+import qualified Unison.Syntax.HashQualified as HQ (unsafeFromVar)
 import Unison.Syntax.Lexer (showEscapeChar, symbolyId)
+import qualified Unison.Syntax.Name as Name (toString, toText, unsafeFromText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import Unison.Term
@@ -256,19 +254,19 @@ pretty0
             <> pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x
       Delay' x
         | Lets' _ _ <- x ->
-          paren (p >= 3) $
-            fmt S.ControlKeyword "do" `PP.hang` pretty0 n (ac 0 Block im doc) x
+            paren (p >= 3) $
+              fmt S.ControlKeyword "do" `PP.hang` pretty0 n (ac 0 Block im doc) x
         | otherwise ->
-          paren (p >= 11 || isBlock x && p >= 3) $
-            fmt S.DelayForceChar (l "'")
-              <> ( case x of
-                     Lets' _ _ -> id
-                     -- Add indentation below if we're opening parens with '(
-                     -- This is in case the contents are a long function application
-                     -- in which case the arguments should be indented.
-                     _ -> PP.indentAfterNewline "  "
-                 )
-                (pretty0 n (ac 10 Normal im doc) x)
+            paren (p >= 11 || isBlock x && p >= 3) $
+              fmt S.DelayForceChar (l "'")
+                <> ( case x of
+                       Lets' _ _ -> id
+                       -- Add indentation below if we're opening parens with '(
+                       -- This is in case the contents are a long function application
+                       -- in which case the arguments should be indented.
+                       _ -> PP.indentAfterNewline "  "
+                   )
+                  (pretty0 n (ac 10 Normal im doc) x)
       List' xs ->
         PP.group $
           (fmt S.DelimiterChar $ l "[") <> optSpace
@@ -319,11 +317,11 @@ pretty0
       -- See `isDestructuringBind` definition.
       Match' scrutinee cs@[MatchCase pat guard (AbsN' vs body)]
         | p < 1 && isDestructuringBind scrutinee cs ->
-          letIntro $
-            PP.lines
-              [ (lhs <> eq) `PP.hang` rhs,
-                pretty0 n (ac (-1) Block im doc) body
-              ]
+            letIntro $
+              PP.lines
+                [ (lhs <> eq) `PP.hang` rhs,
+                  pretty0 n (ac (-1) Block im doc) body
+                ]
         where
           letIntro = case bc of
             Block -> id
@@ -363,9 +361,9 @@ pretty0
       specialCases term go = case (term, binaryOpsPred) of
         (DD.Doc, _)
           | doc == MaybeDoc ->
-            if isDocLiteral term
-              then prettyDoc n im term
-              else pretty0 n (a {docContext = NoDoc}) term
+              if isDocLiteral term
+                then prettyDoc n im term
+                else pretty0 n (a {docContext = NoDoc}) term
         (TupleTerm' [x], _) ->
           let conRef = DD.pairCtorRef
               name = elideFQN im $ PrettyPrintEnv.termName n conRef
@@ -420,12 +418,12 @@ pretty0
         _ -> case (term, nonForcePred) of
           OverappliedBinaryAppPred' f a b r
             | binaryOpsPred f ->
-              -- Special case for overapplied binary op
-              paren
-                True
-                ( binaryApps [(f, a)] (pretty0 n (ac 3 Normal im doc) b)
-                    `PP.hang` PP.spacedMap (pretty0 n (ac 10 Normal im doc)) r
-                )
+                -- Special case for overapplied binary op
+                paren
+                  True
+                  ( binaryApps [(f, a)] (pretty0 n (ac 3 Normal im doc) b)
+                      `PP.hang` PP.spacedMap (pretty0 n (ac 10 Normal im doc)) r
+                  )
           AppsPred' f args ->
             paren (p >= 10) $
               pretty0 n (ac 10 Normal im doc) f
@@ -569,8 +567,8 @@ prettyPattern n c@(AmbientContext {imports = im}) p vs patt = case patt of
   Pattern.Text _ t -> (fmt S.TextLiteral $ l $ show t, vs)
   TuplePattern pats
     | length pats /= 1 ->
-      let (pats_printed, tail_vs) = patterns (-1) vs pats
-       in (PP.parenthesizeCommas pats_printed, tail_vs)
+        let (pats_printed, tail_vs) = patterns (-1) vs pats
+         in (PP.parenthesizeCommas pats_printed, tail_vs)
   Pattern.Constructor _ ref [] ->
     (styleHashQualified'' (fmt $ S.TermReference conRef) name, vs)
     where
@@ -800,14 +798,14 @@ prettyBinding0 env a@AmbientContext {imports = im, docContext = doc} v term =
       where
         defnLhs v vs
           | infix' = case vs of
-            x : y : _ ->
-              PP.sep
-                " "
-                [ fmt S.Var $ PP.text (Var.name x),
-                  styleHashQualified'' (fmt $ S.HashQualifier v) $ elideFQN im v,
-                  fmt S.Var $ PP.text (Var.name y)
-                ]
-            _ -> l "error"
+              x : y : _ ->
+                PP.sep
+                  " "
+                  [ fmt S.Var $ PP.text (Var.name x),
+                    styleHashQualified'' (fmt $ S.HashQualifier v) $ elideFQN im v,
+                    fmt S.Var $ PP.text (Var.name y)
+                  ]
+              _ -> l "error"
           | null vs = renderName v
           | otherwise = renderName v `PP.hang` args vs
         args = PP.spacedMap $ fmt S.Var . PP.text . Var.name
@@ -1433,7 +1431,7 @@ unLetBlock t = rec t
       Just (_isTop, bindings, body) -> case rec body of
         Just (innerBindings, innerBody)
           | dontIntersect bindings innerBindings ->
-            Just (bindings ++ innerBindings, innerBody)
+              Just (bindings ++ innerBindings, innerBody)
         _ -> Just (bindings, body)
     nonrec t = case unLet t of
       Nothing -> Nothing
@@ -1442,7 +1440,7 @@ unLetBlock t = rec t
          in case rec body of
               Just (innerBindings, innerBody)
                 | dontIntersect bindings innerBindings ->
-                  Just (bindings ++ innerBindings, innerBody)
+                    Just (bindings ++ innerBindings, innerBody)
               _ -> Just (bindings, body)
 
 pattern LamsNamedMatch' ::
@@ -1495,7 +1493,7 @@ unLamsMatch' t = case unLamsUntilDelay' t of
     | -- if `v1'` is referenced in any of the branches, we can't use lambda case
       -- syntax as we need to keep the `v1'` name that was introduced
       (v1 == v1') && Set.notMember v1' (Set.unions $ freeVars <$> branches) ->
-      Just (reverse vs, [([p], guard, body) | MatchCase p guard body <- branches])
+        Just (reverse vs, [([p], guard, body) | MatchCase p guard body <- branches])
   -- x y z -> match (x,y,z) with (pat1, pat2, pat3) -> ...
   --   becomes
   -- cases pat1 pat2 pat3 -> ...`
@@ -1508,7 +1506,7 @@ unLamsMatch' t = case unLamsUntilDelay' t of
         all notFree (take len vs)
         && all isRightArity branches
         && len /= 0 -> -- all patterns need to match arity of scrutes
-      Just (reverse (drop len vs), branches')
+        Just (reverse (drop len vs), branches')
     where
       isRightArity (MatchCase (TuplePattern ps) _ _) = length ps == len
       isRightArity (MatchCase {}) = False
@@ -1747,7 +1745,7 @@ toDocExample' suffix ppe (Apps' (Ref' r) [Nat' n, l@(LamsNamed' vs tm)])
   | nameEndsWith ppe suffix r,
     ABT.freeVars l == mempty,
     ok tm =
-    Just (lam' (ABT.annotation l) (drop (fromIntegral n + 1) vs) tm)
+      Just (lam' (ABT.annotation l) (drop (fromIntegral n + 1) vs) tm)
   where
     ok (Apps' f _) = ABT.freeVars f == mempty
     ok tm = ABT.freeVars tm == mempty
@@ -1761,9 +1759,9 @@ toDocTransclude _ _ = Nothing
 toDocLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Either Reference Referent)
 toDocLink ppe (App' (Ref' r) tm)
   | nameEndsWith ppe ".docLink" r = case tm of
-    (toDocEmbedTermLink ppe -> Just tm) -> Just (Right tm)
-    (toDocEmbedTypeLink ppe -> Just tm) -> Just (Left tm)
-    _ -> Nothing
+      (toDocEmbedTermLink ppe -> Just tm) -> Just (Right tm)
+      (toDocEmbedTypeLink ppe -> Just tm) -> Just (Left tm)
+      _ -> Nothing
 toDocLink _ _ = Nothing
 
 toDocNamedLink :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation, Term3 v PrintAnnotation)
@@ -1802,7 +1800,7 @@ toDocSourceAnnotations _ppe _tm = Just [] -- todo fetch annotations
 toDocSourceElement :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Either Reference Referent, [Referent])
 toDocSourceElement ppe (Apps' (Ref' r) [tm, toDocSourceAnnotations ppe -> Just annotations])
   | nameEndsWith ppe ".docSourceElement" r =
-    (,annotations) <$> ok tm
+      (,annotations) <$> ok tm
   where
     ok tm =
       (Right <$> toDocEmbedTermLink ppe tm)
@@ -1817,9 +1815,9 @@ toDocSource' ::
   Maybe [(Either Reference Referent, [Referent])]
 toDocSource' suffix ppe (App' (Ref' r) (List' tms))
   | nameEndsWith ppe suffix r =
-    case [tm | Just tm <- toDocSourceElement ppe <$> toList tms] of
-      tms' | length tms' == length tms -> Just tms'
-      _ -> Nothing
+      case [tm | Just tm <- toDocSourceElement ppe <$> toList tms] of
+        tms' | length tms' == length tms -> Just tms'
+        _ -> Nothing
 toDocSource' _ _ _ = Nothing
 
 toDocSource,
@@ -1849,17 +1847,17 @@ toDocEmbedAnnotation _ _ = Nothing
 toDocEmbedAnnotations :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
 toDocEmbedAnnotations ppe (App' (Ref' r) (List' tms))
   | nameEndsWith ppe ".docEmbedAnnotations" r =
-    case [ann | Just ann <- toDocEmbedAnnotation ppe <$> toList tms] of
-      tms' | length tms' == length tms -> Just tms'
-      _ -> Nothing
+      case [ann | Just ann <- toDocEmbedAnnotation ppe <$> toList tms] of
+        tms' | length tms' == length tms -> Just tms'
+        _ -> Nothing
 toDocEmbedAnnotations _ _ = Nothing
 
 toDocSignature :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Referent]
 toDocSignature ppe (App' (Ref' r) (List' tms))
   | nameEndsWith ppe ".docSignature" r =
-    case [tm | Just tm <- toDocEmbedSignatureLink ppe <$> toList tms] of
-      tms' | length tms' == length tms -> Just tms'
-      _ -> Nothing
+      case [tm | Just tm <- toDocEmbedSignatureLink ppe <$> toList tms] of
+        tms' | length tms' == length tms -> Just tms'
+        _ -> Nothing
 toDocSignature _ _ = Nothing
 
 toDocBulletedList :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]

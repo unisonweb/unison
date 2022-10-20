@@ -1,7 +1,3 @@
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Syntax.FileParser where
 
 import Control.Lens
@@ -20,6 +16,7 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name (toText, toVar, unsafeFromVar)
 import Unison.Syntax.Parser
 import qualified Unison.Syntax.TermParser as TermParser
 import qualified Unison.Syntax.TypeParser as TypeParser
@@ -109,7 +106,7 @@ file = do
             -- `bob -> bob * 42`, `bob` will correctly refer to the lambda parameter.
             -- and not the `zonk.bob` declared in the file.
             resolveLocals = ABT.substsInheritAnnotation replacements
-    let bindNames = Term.bindSomeNames avoid curNames . resolveLocals
+    let bindNames = Term.bindSomeNames Name.unsafeFromVar avoid curNames . resolveLocals
           where
             avoid = Set.fromList (stanzas0 >>= getVars)
     terms <- case List.validate (traverse bindNames) terms of
