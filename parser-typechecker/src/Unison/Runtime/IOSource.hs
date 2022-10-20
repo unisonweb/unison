@@ -5,7 +5,6 @@ module Unison.Runtime.IOSource where
 
 import Control.Lens (view, _1)
 import Control.Monad.Morph (hoist)
-import Data.Foldable (toList)
 import Data.List (elemIndex, genericIndex)
 import qualified Data.Map as Map
 import Debug.RecoverRTTI (anythingToString)
