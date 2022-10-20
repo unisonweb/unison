@@ -4,7 +4,6 @@
 module Unison.Syntax.Parser where
 
 import Control.Monad.Reader.Class (asks)
-import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import qualified Crypto.Random as Random
 import Data.Bytes.Put (runPutS)
 import Data.Bytes.Serial (serialize)
@@ -16,7 +15,6 @@ import qualified Data.Text as Text
 import Data.Typeable (Proxy (..))
 import Text.Megaparsec (runParserT)
 import qualified Text.Megaparsec as P
-import Text.Megaparsec.Error (ShowErrorComponent)
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified Unison.ABT as ABT
 import Unison.ConstructorReference (ConstructorReference)
@@ -45,6 +43,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import Unison.Term (MatchCase (..))
 import qualified Unison.UnisonFile.Error as UF
 import Unison.Util.Bytes (Bytes)
