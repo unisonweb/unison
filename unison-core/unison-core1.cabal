@@ -38,6 +38,7 @@ library
       Unison.Kind
       Unison.LabeledDependency
       Unison.Name
+      Unison.Name.Internal
       Unison.Names
       Unison.Names.ResolutionResult
       Unison.Names.Scoped
