@@ -1718,7 +1718,7 @@ resolve env _ _ (Env n i) =
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve _ denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
-  _ -> die $ "resolve: looked up bad dynamic: " ++ show i
+  _ -> die $ "resolve: unhandled ability request: " ++ show i
 
 combSection :: HasCallStack => CCache -> CombIx -> IO Comb
 combSection env (CIx _ n i) =
