@@ -124,6 +124,19 @@ test =
               dpart = P.Join [P.Literal ".", part]
               ip = P.Join [part, P.Replicate 3 3 dpart, P.Eof]
            in P.run ip "127.0.0.1" == Just (["127", "0", "0", "1"], "")
+        -- https://github.com/unisonweb/unison/issues/3530
+        expectEqual Nothing $
+          let p =
+                P.Or
+                  (P.Join [P.Literal "a", P.Literal "b"])
+                  (P.Join [P.Literal "a", P.Literal "c"])
+           in P.run p "aac"
+        expectEqual (Just ([""], "ac")) $
+          let p = P.Capture (P.Or (P.Join [P.Literal "a", P.Literal "b"]) (P.Join []))
+           in P.run p "ac"
+        expectEqual (Just ([""], "ac")) $
+          let p = P.Capture (P.Replicate 0 1 (P.Join [P.Literal "a", P.Literal "b"]))
+           in P.run p "ac"
         ok
     ]
   where

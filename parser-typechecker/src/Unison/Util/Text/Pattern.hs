@@ -47,11 +47,46 @@ cpattern p = CP p (run p)
 
 run :: Pattern -> Text -> Maybe ([Text], Text)
 run p =
-  let cp = compile p (\_ _ -> Nothing) (\acc rem -> Just (reverse acc, rem))
-   in \t -> cp [] t
+  let cp = compile p (\_ _ -> Nothing) (\acc rem -> Just (s acc, rem))
+      s = reverse . capturesToList . stackCaptures
+   in \t -> cp (Empty emptyCaptures) t
 
+data Stack = Empty !Captures | Mark !Captures !Text !Stack
+
+type Captures = [Text] -> [Text]
+
+stackCaptures :: Stack -> Captures
+stackCaptures (Mark cs _ _) = cs
+stackCaptures (Empty cs) = cs
+{-# INLINE stackCaptures #-}
+
+pushCaptures :: Captures -> Stack -> Stack
+pushCaptures c (Empty cs) = Empty (appendCaptures c cs)
+pushCaptures c (Mark cs t s) = Mark (appendCaptures c cs) t s
+{-# INLINE pushCaptures #-}
+
+pushCapture :: Text -> Stack -> Stack
+pushCapture txt = pushCaptures (txt :)
+
+appendCaptures :: Captures -> Captures -> Captures
+appendCaptures c1 c2 = c1 . c2
+{-# INLINE appendCaptures #-}
+
+emptyCaptures :: Captures
+emptyCaptures = const []
+
+capturesToList :: Captures -> [Text]
+capturesToList c = c []
+
+-- data Stack = Empty [Text] | Mark [Text] !Text !Stack
+-- in `Or`: push a mark, then try left branch, if it succeeds,
+--          merge top captures into the thing below, and pop from stack
+--          if it fails, just pop the top mark from the stack
+-- can just pop from the stack until hitting the correct mark
+-- but then that leaves marks on the stack, even when the left branch succeeded
+--
 -- Pattern a -> ([a] -> a -> r) -> ... -- might need a takeable and droppable interface if go this route
-compile :: Pattern -> ([Text] -> Text -> r) -> ([Text] -> Text -> r) -> [Text] -> Text -> r
+compile :: Pattern -> (Stack -> Text -> r) -> (Stack -> Text -> r) -> Stack -> Text -> r
 compile !Eof !err !success = go
   where
     go acc t
@@ -68,17 +103,24 @@ compile AnyChar !err !success = go
       rem
         | Text.size t > Text.size rem -> success acc rem
         | otherwise -> err acc rem
-compile (Capture (Many AnyChar)) !_ !success = \acc t -> success (t : acc) Text.empty
+compile (Capture (Many AnyChar)) !_ !success = \acc t -> success (pushCapture t acc) Text.empty
 compile (Capture c) !err !success = go
   where
     err' _ _ acc0 t0 = err acc0 t0
-    success' _ rem acc0 t0 = success (Text.take (Text.size t0 - Text.size rem) t0 : acc0) rem
+    success' _ rem acc0 t0 = success (pushCapture (Text.take (Text.size t0 - Text.size rem) t0) acc0) rem
     compiled = compile c err' success'
     go acc t = compiled acc t acc t
-compile (Or p1 p2) err success = cp1
+compile (Or p1 p2) err success = cp1'
   where
-    cp2 = compile p2 err success
-    cp1 = compile p1 cp2 success
+    err' stk _ = case stk of
+      Mark _ rem stk -> err stk rem
+      _ -> error "pattern compiler bug"
+    success' stk rem = case stk of
+      Mark caps _ stk -> success (pushCaptures caps stk) rem
+      _ -> error "pattern compiler bug"
+    cp2 = compile p2 err' success'
+    cp1 = compile p1 cp2 success'
+    cp1' stk rem = cp1 (Mark (stackCaptures stk) rem stk) rem
 compile (Join ps) !err !success = go ps
   where
     go [] = success
