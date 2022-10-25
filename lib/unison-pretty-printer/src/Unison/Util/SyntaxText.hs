@@ -5,6 +5,7 @@ import Unison.Name (Name)
 import Unison.Pattern (SeqOp)
 import Unison.Prelude
 import Unison.Referent' (Referent')
+import Unison.Syntax.Name ()
 import Unison.Util.AnnotatedText (AnnotatedText (..), annotate, segment)
 
 type SyntaxText' r = AnnotatedText (Element r)
@@ -51,7 +52,7 @@ data Element r
   | DocDelimiter
   | -- the 'include' in @[include], etc
     DocKeyword
-  deriving (Eq, Ord, Functor)
+  deriving (Eq, Ord, Show, Functor)
 
 syntax :: Element r -> SyntaxText' r -> SyntaxText' r
 syntax = annotate

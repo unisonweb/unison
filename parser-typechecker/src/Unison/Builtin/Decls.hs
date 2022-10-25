@@ -20,7 +20,6 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Name as Name (unsafeFromVar)
 import Unison.Term (Term, Term2)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -157,13 +156,13 @@ failConstructorReferent = Referent.Con (ConstructorReference testResultRef failC
 builtinDataDecls :: [(Symbol, Reference.Id, DataDeclaration Symbol ())]
 builtinDataDecls = rs1 ++ rs
   where
-    rs1 = case hashDataDecls Name.unsafeFromVar $
+    rs1 = case hashDataDecls $
       Map.fromList
         [ (v "Link", link)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> anythingToString e
-    rs = case hashDataDecls Name.unsafeFromVar $
+    rs = case hashDataDecls $
       Map.fromList
         [ (v "Unit", unit),
           (v "Tuple", tuple),
@@ -426,7 +425,7 @@ builtinDataDecls = rs1 ++ rs
 
 builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
 builtinEffectDecls =
-  case hashDataDecls Name.unsafeFromVar $ Map.fromList [(v "Exception", exception)] of
+  case hashDataDecls $ Map.fromList [(v "Exception", exception)] of
     Right a -> over _3 DD.EffectDeclaration <$> a
     Left e -> error $ "builtinEffectDecls: " <> anythingToString e
   where

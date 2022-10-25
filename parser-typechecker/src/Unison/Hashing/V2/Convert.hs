@@ -34,7 +34,6 @@ import qualified Unison.Codebase.Causal.Type as Memory.Causal
 import qualified Unison.Codebase.Patch as Memory.Patch
 import qualified Unison.Codebase.TermEdit as Memory.TermEdit
 import qualified Unison.Codebase.TypeEdit as Memory.TypeEdit
-import Unison.Name (Name)
 import qualified Unison.ConstructorReference as Memory.ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.ConstructorType as Memory.ConstructorType
@@ -60,6 +59,7 @@ import Unison.Names.ResolutionResult (ResolutionResult)
 import qualified Unison.Pattern as Memory.Pattern
 import qualified Unison.Reference as Memory.Reference
 import qualified Unison.Referent as Memory.Referent
+import qualified Unison.Syntax.Name as Name (unsafeFromVar)
 import qualified Unison.Term as Memory.Term
 import qualified Unison.Type as Memory.Type
 import qualified Unison.Util.Map as Map
@@ -235,12 +235,11 @@ h2mReferent getCT = \case
 
 hashDataDecls ::
   Var v =>
-  (v -> Name) ->
   Map v (Memory.DD.DataDeclaration v a) ->
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
-hashDataDecls unsafeVarToName memDecls = do
+hashDataDecls memDecls = do
   let hashingDecls = fmap m2hDecl memDecls
-  hashingResult <- Hashing.DD.hashDecls unsafeVarToName hashingDecls
+  hashingResult <- Hashing.DD.hashDecls Name.unsafeFromVar hashingDecls
   pure $ map h2mDeclResult hashingResult
   where
     h2mDeclResult :: Ord v => (v, Hashing.Reference.Id, Hashing.DD.DataDeclaration v a) -> (v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)
@@ -248,17 +247,16 @@ hashDataDecls unsafeVarToName memDecls = do
 
 hashDecls ::
   Var v =>
-  (v -> Name) ->
   Map v (Memory.DD.Decl v a) ->
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.Decl v a)]
-hashDecls unsafeVarToName memDecls = do
+hashDecls memDecls = do
   -- want to unwrap the decl before doing the rehashing, and then wrap it back up the same way
   let howToReassemble =
         memDecls <&> \case
           Left {} -> CT.Effect
           Right {} -> CT.Data
       memDeclsAsDDs = Memory.DD.asDataDecl <$> memDecls
-  result <- hashDataDecls unsafeVarToName memDeclsAsDDs
+  result <- hashDataDecls memDeclsAsDDs
   pure $
     result <&> \(v, id', decl) ->
       case Map.lookup v howToReassemble of

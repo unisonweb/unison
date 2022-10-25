@@ -78,7 +78,6 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent'
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Name as Name (unsafeFromVar)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -664,7 +663,7 @@ migrateDeclComponent termBuffer declBuffer oldHash = fmap (either id id) . runEx
         remappedReferences
           & Map.elems
           & Map.fromList
-          & Convert.hashDecls Name.unsafeFromVar
+          & Convert.hashDecls
           & fromRight (error "unexpected resolution error")
 
   for_ newComponent $ \(declName, newReferenceId, dd) -> do
