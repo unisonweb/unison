@@ -51,8 +51,14 @@ run p =
       s = reverse . capturesToList . stackCaptures
    in \t -> cp (Empty emptyCaptures) t
 
+-- Stack used to track captures and to support backtracking.
+-- A `try` will push a `Mark` that allows the old state
+-- (both the list of captures and the current remainder)
+-- to be restored on failure.
 data Stack = Empty !Captures | Mark !Captures !Text !Stack
 
+-- A difference list for representing the captures of a pattern.
+-- So that capture lists can be appended in O(1).
 type Captures = [Text] -> [Text]
 
 stackCaptures :: Stack -> Captures
@@ -78,15 +84,6 @@ emptyCaptures = id
 
 capturesToList :: Captures -> [Text]
 capturesToList c = c []
-
--- data Stack = Empty [Text] | Mark [Text] !Text !Stack
--- in `Or`: push a mark, then try left branch, if it succeeds,
---          merge top captures into the thing below, and pop from stack
---          if it fails, just pop the top mark from the stack
--- can just pop from the stack until hitting the correct mark
--- but then that leaves marks on the stack, even when the left branch succeeded
---
--- Pattern a -> ([a] -> a -> r) -> ... -- might need a takeable and droppable interface if go this route
 
 type Compiled r = (Stack -> Text -> r) -> (Stack -> Text -> r) -> Stack -> Text -> r
 
