@@ -67,6 +67,7 @@ pushCaptures c (Mark cs t s) = Mark (appendCaptures c cs) t s
 
 pushCapture :: Text -> Stack -> Stack
 pushCapture txt = pushCaptures (txt :)
+{-# INLINE pushCapture #-}
 
 appendCaptures :: Captures -> Captures -> Captures
 appendCaptures c1 c2 = c1 . c2
@@ -86,7 +87,10 @@ capturesToList c = c []
 -- but then that leaves marks on the stack, even when the left branch succeeded
 --
 -- Pattern a -> ([a] -> a -> r) -> ... -- might need a takeable and droppable interface if go this route
-compile :: Pattern -> (Stack -> Text -> r) -> (Stack -> Text -> r) -> Stack -> Text -> r
+
+type Compiled r = (Stack -> Text -> r) -> (Stack -> Text -> r) -> Stack -> Text -> r
+
+compile :: Pattern -> Compiled r
 compile !Eof !err !success = go
   where
     go acc t
@@ -110,18 +114,10 @@ compile (Capture c) !err !success = go
     success' _ rem acc0 t0 = success (pushCapture (Text.take (Text.size t0 - Text.size rem) t0) acc0) rem
     compiled = compile c err' success'
     go acc t = compiled acc t acc t
-compile (Or p1 p2) err success = cp1'
+compile (Or p1 p2) err success = cp1
   where
     cp2 = compile p2 err success
-    cp2' stk _ = case stk of
-      Mark _ rem stk -> cp2 stk rem
-      _ -> error "pattern compiler bug"
-    cp1 = compile p1 cp2' success'
-      where
-        success' stk rem = case stk of
-          Mark caps _ stk -> success (pushCaptures caps stk) rem
-          _ -> error "pattern compiler bug"
-    cp1' stk rem = cp1 (Mark (stackCaptures stk) rem stk) rem
+    cp1 = try "Or" (compile p1) cp2 success
 compile (Join ps) !err !success = go ps
   where
     go [] = success
@@ -155,6 +151,8 @@ compile (Many p) !_ !success = case p of
   AnyChar -> (\acc _ -> success acc Text.empty)
   CharIn cs -> walker (charInPred cs)
   NotCharIn cs -> walker (charNotInPred cs)
+  CharRange c1 c2 -> walker (\ch -> ch >= c1 && c1 <= c2)
+  NotCharRange c1 c2 -> walker (\ch -> ch < c1 || ch > c2)
   Digit -> walker isDigit
   Letter -> walker isLetter
   Punctuation -> walker isPunctuation
@@ -187,16 +185,18 @@ compile (Replicate m n p) !err !success = case p of
       else success acc (Text.drop n t)
   CharIn cs -> dropper (charInPred cs)
   NotCharIn cs -> dropper (charNotInPred cs)
+  CharRange c1 c2 -> dropper (\ch -> ch >= c1 && c1 <= c2)
+  NotCharRange c1 c2 -> dropper (\ch -> ch < c1 || ch > c2)
   Digit -> dropper isDigit
   Letter -> dropper isLetter
   Punctuation -> dropper isPunctuation
   Space -> dropper isSpace
-  _ -> go1 m
+  _ -> try "Replicate" (go1 m) err (go2 (n - m))
   where
-    go1 0 = go2 (n - m)
-    go1 n = compile p err (go1 (n - 1))
+    go1 0 = \_err success stk rem -> success stk rem
+    go1 n = \err success -> compile p err (go1 (n - 1) err success)
     go2 0 = success
-    go2 n = compile p success (go2 (n - 1))
+    go2 n = try "Replicate" (compile p) success (go2 (n - 1))
 
     dropper ok acc t
       | (i, rest) <- Text.dropWhileMax ok n t, i >= m = success acc rest
@@ -227,3 +227,16 @@ charInPred [] = const False
 charInPred (c : chs) = let ok = charInPred chs in \ci -> ci == c || ok ci
 charNotInPred [] = const True
 charNotInPred (c : chs) = let ok = charNotInPred chs in (\ci -> ci /= c && ok ci)
+
+-- runs c and if it fails, restores state to what it was before
+try :: String -> Compiled r -> Compiled r
+try msg c err success stk rem =
+  c err' success' (Mark id rem stk) rem
+  where
+    success' stk rem = case stk of
+      Mark caps _ stk -> success (pushCaptures caps stk) rem
+      _ -> error $ "Pattern compiler error in: " <> msg
+    err' stk _ = case stk of
+      Mark _ rem stk -> err stk rem
+      _ -> error $ "Pattern compiler error in: " <> msg
+{-# INLINE try #-}

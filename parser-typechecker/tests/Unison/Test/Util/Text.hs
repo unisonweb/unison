@@ -142,6 +142,11 @@ test =
                   )
                   (P.Join [P.Literal "aa", P.Literal "cd"])
            in P.run p "aacd"
+        -- this is just making sure we don't duplicate captures to our left
+        -- when entering an `Or` node
+        expectEqual (Just (["a"], "")) $
+          let p = P.Join [P.Capture P.AnyChar, P.Or (P.Literal "c") (P.Join []), P.Literal "d"]
+           in P.run p "acd"
         expectEqual (Just ([""], "ac")) $
           let p = P.Capture (P.Or (P.Join [P.Literal "a", P.Literal "b"]) (P.Join []))
            in P.run p "ac"
