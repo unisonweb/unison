@@ -124,6 +124,15 @@ test =
               dpart = P.Join [P.Literal ".", part]
               ip = P.Join [part, P.Replicate 3 3 dpart, P.Eof]
            in P.run ip "127.0.0.1" == Just (["127", "0", "0", "1"], "")
+        expect' $
+          let p = P.Replicate 5 8 (P.Capture P.Digit)
+           in P.run p "12345" == Just (["1", "2", "3", "4", "5"], "")
+        expect' $
+          let p = P.Replicate 5 8 (P.Capture P.Digit) `P.Or` P.Join []
+           in P.run p "1234" == Just ([], "1234")
+        expect' $
+          let p = P.Replicate 5 8 (P.Capture (P.Join [P.Digit, P.Literal "z"])) `P.Or` P.Join []
+           in P.run p "1z2z3z4z5z6a" == Just (["1z", "2z", "3z", "4z", "5z"], "6a")
         -- https://github.com/unisonweb/unison/issues/3530
         expectEqual Nothing $
           let p =
@@ -144,9 +153,12 @@ test =
            in P.run p "aacd"
         -- this is just making sure we don't duplicate captures to our left
         -- when entering an `Or` node
-        expectEqual (Just (["a"], "")) $
+        expectEqual (Just (["@"], "")) $
           let p = P.Join [P.Capture P.AnyChar, P.Or (P.Literal "c") (P.Join []), P.Literal "d"]
-           in P.run p "acd"
+           in P.run p "@cd"
+        expectEqual (Just (["%", "c"], "")) $
+          let p = P.Join [P.Capture P.AnyChar, (P.Or (P.Capture (P.Literal "c")) (P.Join [])), P.Literal "d"]
+           in P.run p "%cd"
         expectEqual (Just ([""], "ac")) $
           let p = P.Capture (P.Or (P.Join [P.Literal "a", P.Literal "b"]) (P.Join []))
            in P.run p "ac"

@@ -74,7 +74,7 @@ appendCaptures c1 c2 = c1 . c2
 {-# INLINE appendCaptures #-}
 
 emptyCaptures :: Captures
-emptyCaptures = const []
+emptyCaptures = id
 
 capturesToList :: Captures -> [Text]
 capturesToList c = c []
