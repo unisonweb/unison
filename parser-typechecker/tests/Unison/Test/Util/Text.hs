@@ -165,6 +165,16 @@ test =
         expectEqual (Just ([""], "ac")) $
           let p = P.Capture (P.Replicate 0 1 (P.Join [P.Literal "a", P.Literal "b"]))
            in P.run p "ac"
+        -- nested or tests
+        expectEqual (Just (["zzzaaa", "!"], "!!")) $
+          let p =
+                P.Or
+                  ( P.Or
+                      (P.Literal "a")
+                      (P.Join [P.Literal "z", P.Replicate 3 5 (P.Literal "z")])
+                  )
+                  (P.Join [P.Capture (P.Literal "zzzaaa"), P.Capture (P.Literal "!")])
+           in P.run p "zzzaaa!!!"
         ok
     ]
   where
