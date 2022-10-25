@@ -112,14 +112,15 @@ compile (Capture c) !err !success = go
     go acc t = compiled acc t acc t
 compile (Or p1 p2) err success = cp1'
   where
-    err' stk _ = case stk of
-      Mark _ rem stk -> err stk rem
+    cp2 = compile p2 err success
+    cp2' stk _ = case stk of
+      Mark _ rem stk -> cp2 stk rem
       _ -> error "pattern compiler bug"
-    success' stk rem = case stk of
-      Mark caps _ stk -> success (pushCaptures caps stk) rem
-      _ -> error "pattern compiler bug"
-    cp2 = compile p2 err' success'
-    cp1 = compile p1 cp2 success'
+    cp1 = compile p1 cp2' success'
+      where
+        success' stk rem = case stk of
+          Mark caps _ stk -> success (pushCaptures caps stk) rem
+          _ -> error "pattern compiler bug"
     cp1' stk rem = cp1 (Mark (stackCaptures stk) rem stk) rem
 compile (Join ps) !err !success = go ps
   where

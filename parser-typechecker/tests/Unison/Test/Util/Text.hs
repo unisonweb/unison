@@ -131,6 +131,17 @@ test =
                   (P.Join [P.Literal "a", P.Literal "b"])
                   (P.Join [P.Literal "a", P.Literal "c"])
            in P.run p "aac"
+        expectEqual (Just ([], "")) $
+          let p =
+                P.Or
+                  ( P.Capture $
+                      ( P.Or
+                          (P.Join [P.Literal "a", P.Literal "b"])
+                          (P.Join [P.Literal "a", P.Literal "c"])
+                      )
+                  )
+                  (P.Join [P.Literal "aa", P.Literal "cd"])
+           in P.run p "aacd"
         expectEqual (Just ([""], "ac")) $
           let p = P.Capture (P.Or (P.Join [P.Literal "a", P.Literal "b"]) (P.Join []))
            in P.run p "ac"
