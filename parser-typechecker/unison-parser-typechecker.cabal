@@ -139,7 +139,6 @@ library
       Unison.UnisonFile.Error
       Unison.UnisonFile.Names
       Unison.UnisonFile.Type
-      Unison.Util.Bytes
       Unison.Util.Convert
       Unison.Util.CycleTable
       Unison.Util.CyclicEq
@@ -284,6 +283,7 @@ library
     , unison-sqlite
     , unison-util
     , unison-util-base32hex
+    , unison-util-bytes
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -330,7 +330,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.TypeError
       Unison.Test.UnisonSources
-      Unison.Test.Util.Bytes
       Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
@@ -472,6 +471,7 @@ test-suite parser-typechecker-tests
     , unison-sqlite
     , unison-util
     , unison-util-base32hex
+    , unison-util-bytes
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization

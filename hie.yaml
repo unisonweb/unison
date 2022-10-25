@@ -51,6 +51,12 @@ cradle:
     - path: "lib/unison-util-base32hex-orphans-sqlite/src"
       component: "unison-util-base32hex-orphans-sqlite:lib"
 
+    - path: "lib/unison-util-bytes/src"
+      component: "unison-util-bytes:lib"
+
+    - path: "lib/unison-util-bytes/test"
+      component: "unison-util-bytes:test:util-bytes-tests"
+
     - path: "lib/unison-util-relation/src"
       component: "unison-util-relation:lib"
 
