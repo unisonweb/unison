@@ -1409,12 +1409,12 @@ getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
 -- ...then `getDependenciesBetweenTerms A B` would return the set {X Y Z}
 getDependenciesBetweenTerms :: ObjectId -> ObjectId -> Transaction (Set ObjectId)
 getDependenciesBetweenTerms oid1 oid2 =
-  queryListCol sql (oid1, oid2) <&> Set.fromList
+  queryListCol sql (oid1, oid2, oid2) <&> Set.fromList
   where
     -- Given the example above, we'd have tables that look like this.
     --
-    -- First, the `paths` table finds all paths from source `A` to sink `B`, exploring depth-first. As a minor
-    -- optimization, we seed the search not with `A`, but rather the direct dependencies of `A` (namely `X` and `Y`).
+    -- First, the `paths` table finds all paths from source `A`, exploring depth-first. As a minor optimization, we seed
+    -- the search not with `A`, but rather the direct dependencies of `A` (namely `X` and `Y`).
     --
     -- +-paths-------------------------------+
     -- +-level-+-object_id-+-object_id_array-+
@@ -1447,6 +1447,12 @@ getDependenciesBetweenTerms oid1 oid2 =
     -- |         Z |
     -- |         Y |
     -- +-----------+
+    --
+    -- Notes
+    --
+    -- (1) We only care about term dependencies, not type dependencies
+    -- (2) No need to search beyond the sink itself, since component dependencies form a DAG
+    -- (3) An explicit cast from e.g. string '1' to int 1 isn't strictly necessary
     sql :: Sql
     sql = [here|
       with recursive paths(level, object_id, object_id_array) as (
@@ -1457,9 +1463,9 @@ getDependenciesBetweenTerms oid1 oid2 =
         from dependents_index
           join object on dependents_index.dependency_object_id = object.id
         where dependents_index.dependent_object_id = ?
-          and object.type_id = 0
-          and not dependents_index.dependent_object_id = dependents_index.dependency_object_id
-        union
+          and object.type_id = 0 -- Note (1)
+          and dependents_index.dependent_object_id != dependents_index.dependency_object_id
+        union all
         select
           paths.level + 1 as level,
           dependents_index.dependency_object_id,
@@ -1470,8 +1476,9 @@ getDependenciesBetweenTerms oid1 oid2 =
           join dependents_index
             on paths.object_id = dependents_index.dependent_object_id
           join object on dependents_index.dependency_object_id = object.id
-        where object.type_id = 0
-          and not dependents_index.dependent_object_id = dependents_index.dependency_object_id
+        where object.type_id = 0 -- Note (1)
+          and dependents_index.dependent_object_id != dependents_index.dependency_object_id
+          and paths.object_id != ? -- Note (2)
         order by level desc
       ),
       elems(object_id, object_id_array) as (
@@ -1485,7 +1492,7 @@ getDependenciesBetweenTerms oid1 oid2 =
         from elems
         where object_id_array != ''
       )
-      select cast(object_id as integer) as object_id
+      select distinct cast(object_id as integer) as object_id -- Note (3)
       from elems
       where object_id is not null
     |]
