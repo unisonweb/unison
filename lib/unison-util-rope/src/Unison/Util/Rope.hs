@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE FunctionalDependencies #-}
-
 module Unison.Util.Rope
   ( chunks,
     singleton,

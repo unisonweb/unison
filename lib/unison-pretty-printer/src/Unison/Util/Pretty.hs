@@ -40,6 +40,7 @@ module Unison.Util.Pretty
     column3UnzippedM,
     column3sep,
     column3Header,
+    columnNHeader,
     commas,
     commented,
     oxfordCommas,
@@ -469,7 +470,7 @@ excerptSep' ::
 excerptSep' maxCount summarize s ps = case maxCount of
   Just max
     | length ps > max ->
-        sep s (take max ps) <> summarize (length ps - max)
+      sep s (take max ps) <> summarize (length ps - max)
   _ -> sep s ps
 
 nonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> [Pretty s]
@@ -579,7 +580,7 @@ excerptColumn2Headed ::
 excerptColumn2Headed max hd cols = case max of
   Just max
     | len > max ->
-        lines [column2 (hd : take max cols), "... " <> shown (len - max) <> " more"]
+      lines [column2 (hd : take max cols), "... " <> shown (len - max) <> " more"]
   _ -> column2 (hd : cols)
   where
     len = length cols

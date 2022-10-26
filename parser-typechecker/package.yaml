@@ -45,6 +45,7 @@ dependencies:
   - fingertree
   - fsnotify
   - fuzzyfind
+  - free
   - generic-lens
   - generic-monoid
   - hashable
@@ -113,7 +114,9 @@ dependencies:
   - unison-sqlite
   - unison-util
   - unison-util-base32hex
+  - unison-util-bytes
   - unison-util-relation
+  - unison-util-rope
   - unison-util-serialization
   - unliftio
   - uri-encode

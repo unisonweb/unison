@@ -14,6 +14,7 @@ module Unison.Codebase.Type
 where
 
 import qualified U.Codebase.Branch as V2
+import U.Codebase.HashTags (BranchHash)
 import qualified U.Codebase.Reference as V2
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Queries as Queries
@@ -72,9 +73,11 @@ data Codebase m v a = Codebase
     -- implementation may choose to delay the put until all of the term's (and its type's) references are stored as
     -- well.
     putTerm :: Reference.Id -> Term v a -> Type v a -> m (),
+    putTermComponent :: Hash -> [(Term v a, Type v a)] -> Sqlite.Transaction (),
     -- | Enqueue the put of a type declaration into the codebase, if it doesn't already exist. The implementation may
     -- choose to delay the put until all of the type declaration's references are stored as well.
     putTypeDeclaration :: Reference.Id -> Decl v a -> m (),
+    putTypeDeclarationComponent :: Hash -> [Decl v a] -> Sqlite.Transaction (),
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
     getDeclComponent :: Hash -> m (Maybe [Decl v a]),
@@ -169,9 +172,21 @@ data Codebase m v a = Codebase
     -- NOTE: this method requires an up-to-date name lookup index, which is
     -- currently not kept up-to-date automatically (because it's slow to do so).
     namesAtPath :: Path -> m ScopedNames,
-    -- Updates the root namespace names index.
+    -- Updates the root namespace names index from an old BranchHash to a new one.
     -- This isn't run automatically because it can be a bit slow.
-    updateNameLookup :: m (),
+    updateNameLookup ::
+      -- Path to the root of the _changes_.
+      -- E.g. if you know that all the changes occur at "base.List", you can pass "base.List"
+      -- here, and pass the old and new branch hashes for the branch as "base.List".
+      -- This allows us to avoid searching for changes in areas where it's impossible for it
+      -- to have occurred.
+      Path ->
+      -- The branch hash at 'Path' which the existing index was built from.
+      -- Pass 'Nothing' to build the index from scratch (i.e. compute a diff from an empty branch).
+      Maybe BranchHash ->
+      -- The new branch
+      BranchHash ->
+      m (),
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.
     withConnection :: forall x. (Sqlite.Connection -> m x) -> m x,
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.

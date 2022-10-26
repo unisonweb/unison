@@ -8,7 +8,6 @@ module Unison.LSP where
 import Colog.Core (LogAction (LogAction))
 import qualified Colog.Core as Colog
 import Control.Monad.Reader
-import Data.Aeson hiding (Options, defaultOptions)
 import GHC.IO.Exception (ioe_errno)
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
@@ -27,6 +26,8 @@ import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Debug as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
+import Unison.LSP.Completion (completionHandler)
+import qualified Unison.LSP.Configuration as Config
 import qualified Unison.LSP.FileAnalysis as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
 import qualified Unison.LSP.HandlerUtils as Handlers
@@ -65,7 +66,7 @@ spawnLsp codebase runtime latestBranch latestPath = TCP.withSocketsDo do
       case Errno <$> ioe_errno ioerr of
         Just errNo
           | errNo == eADDRINUSE -> do
-            putStrLn $ "Note: Port " <> lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
+              putStrLn $ "Note: Port " <> lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
         _ -> do
           Debug.debugM Debug.LSP "LSP Exception" ioerr
           Debug.debugM Debug.LSP "LSP Errno" (ioe_errno ioerr)
@@ -85,20 +86,13 @@ serverDefinition ::
   ServerDefinition Config
 serverDefinition vfsVar codebase runtime scope latestBranch latestPath =
   ServerDefinition
-    { defaultConfig = lspDefaultConfig,
-      onConfigurationChange = lspOnConfigurationChange,
+    { defaultConfig = defaultLSPConfig,
+      onConfigurationChange = Config.updateConfig,
       doInitialize = lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath,
       staticHandlers = lspStaticHandlers,
       interpretHandler = lspInterpretHandler,
       options = lspOptions
     }
-
--- | Detect user LSP configuration changes.
-lspOnConfigurationChange :: Config -> Value -> Either Text Config
-lspOnConfigurationChange _ _ = pure Config
-
-lspDefaultConfig :: Config
-lspDefaultConfig = Config
 
 -- | Initialize any context needed by the LSP server
 lspDoInitialize ::
@@ -120,6 +114,7 @@ lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext
   parseNamesCacheVar <- newTVarIO mempty
   currentPathCacheVar <- newTVarIO Path.absoluteEmpty
   cancellationMapVar <- newTVarIO mempty
+  completionsVar <- newTVarIO mempty
   let env = Env {ppeCache = readTVarIO ppeCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
@@ -141,6 +136,7 @@ lspRequestHandlers =
     & SMM.insert STextDocumentHover (mkHandler hoverHandler)
     & SMM.insert STextDocumentCodeAction (mkHandler codeActionHandler)
     & SMM.insert STextDocumentFoldingRange (mkHandler foldingRangeRequest)
+    & SMM.insert STextDocumentCompletion (mkHandler completionHandler)
   where
     defaultTimeout = 10_000 -- 10s
     mkHandler ::
@@ -167,6 +163,7 @@ lspNotificationHandlers =
     & SMM.insert STextDocumentDidChange (ClientMessageHandler VFS.lspChangeFile)
     & SMM.insert SInitialized (ClientMessageHandler Notifications.initializedHandler)
     & SMM.insert SCancelRequest (ClientMessageHandler $ Notifications.withDebugging cancelRequestHandler)
+    & SMM.insert SWorkspaceDidChangeConfiguration (ClientMessageHandler Config.workspaceConfigurationChanged)
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO

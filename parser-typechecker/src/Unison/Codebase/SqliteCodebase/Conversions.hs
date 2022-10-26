@@ -204,6 +204,13 @@ term2to1 h lookupCT =
           V2.Term.PConcat -> V1.Pattern.Concat
         a = Ann.External
 
+termComponent1to2 ::
+  Hash ->
+  [(V1.Term.Term V1.Symbol Ann, V1.Type.Type V1.Symbol a)] ->
+  [(V2.Term.Term V2.Symbol, V2.Type.TypeT V2.Symbol)]
+termComponent1to2 h =
+  map (bimap (term1to2 h) ttype1to2)
+
 decl2to1 :: Hash -> V2.Decl.Decl V2.Symbol -> V1.Decl.Decl V1.Symbol Ann
 decl2to1 h (V2.Decl.DataDeclaration dt m bound cts) =
   goCT dt $

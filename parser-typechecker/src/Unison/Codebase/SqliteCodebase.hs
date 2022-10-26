@@ -27,7 +27,7 @@ import qualified System.Console.ANSI as ANSI
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
 import qualified U.Codebase.Branch as V2Branch
-import U.Codebase.HashTags (CausalHash (CausalHash))
+import U.Codebase.HashTags (BranchHash, CausalHash (CausalHash))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -276,9 +276,17 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             putTerm id tm tp =
               runTransaction (CodebaseOps.putTerm termBuffer declBuffer id tm tp)
 
+            putTermComponent :: Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> Sqlite.Transaction ()
+            putTermComponent =
+              CodebaseOps.putTermComponent termBuffer declBuffer
+
             putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> m ()
             putTypeDeclaration id decl =
               runTransaction (CodebaseOps.putTypeDeclaration termBuffer declBuffer id decl)
+
+            putTypeDeclarationComponent :: Hash -> [Decl Symbol Ann] -> Sqlite.Transaction ()
+            putTypeDeclarationComponent =
+              CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer
 
             getRootCausalHash :: MonadIO m => m V2Branch.CausalHash
             getRootCausalHash =
@@ -426,9 +434,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             namesAtPath path =
               runTransaction (CodebaseOps.namesAtPath path)
 
-            updateNameLookup :: m ()
-            updateNameLookup =
-              runTransaction (CodebaseOps.updateNameLookupIndexFromV2Root getDeclType)
+            updateNameLookup :: Path -> Maybe BranchHash -> BranchHash -> m ()
+            updateNameLookup pathPrefix fromBH toBH =
+              runTransaction (CodebaseOps.updateNameLookupIndex getDeclType pathPrefix fromBH toBH)
 
         let codebase =
               C.Codebase
@@ -440,7 +448,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                       withConn \conn ->
                         Sqlite.runReadOnlyTransaction conn \run -> run (getDeclType r),
                   putTerm,
+                  putTermComponent,
                   putTypeDeclaration,
+                  putTypeDeclarationComponent,
                   getTermComponentWithTypes,
                   getDeclComponent,
                   getComponentLength = getCycleLength,

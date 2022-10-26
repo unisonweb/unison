@@ -69,7 +69,6 @@ import qualified Unison.Util.Map as Map (remap)
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Set as Set
-import Unison.Var (Var)
 import qualified Unison.Var as Var
 import Unison.WatchKind (WatchKind)
 import qualified Unison.WatchKind as WK
@@ -86,7 +85,7 @@ handleUpdate input optionalPatch requestedNames = do
           UsePatch p -> Just p
   slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
   sr <- getSlurpResultForUpdate requestedNames slurpCheckNames
-  let addsAndUpdates :: SlurpComponent Symbol
+  let addsAndUpdates :: SlurpComponent
       addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
       fileNames :: Names
       fileNames = UF.typecheckedToNames (Slurp.originalFile sr)
@@ -202,9 +201,9 @@ handleUpdate input optionalPatch requestedNames = do
         & Path.resolve @_ @_ @Path.Absolute currentPath'
         & tShow
 
-getSlurpResultForUpdate :: Set Name -> Names -> Cli (SlurpResult Symbol)
+getSlurpResultForUpdate :: Set Name -> Names -> Cli SlurpResult
 getSlurpResultForUpdate requestedNames slurpCheckNames = do
-  let slurp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult Symbol
+  let slurp :: TypecheckedUnisonFile Symbol Ann -> SlurpResult
       slurp file =
         Slurp.slurpFile file (Set.map Name.toVar requestedNames) Slurp.UpdateOp slurpCheckNames
 
@@ -513,10 +512,10 @@ rewriteTermReferences mapping =
 
 -- updates the namespace for adding `slurp`
 doSlurpAdds ::
-  forall m v.
-  (Monad m, Var v) =>
-  SlurpComponent v ->
-  TypecheckedUnisonFile v Ann ->
+  forall m.
+  Monad m =>
+  SlurpComponent ->
+  TypecheckedUnisonFile Symbol Ann ->
   (Branch0 m -> Branch0 m)
 doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
   where
@@ -531,7 +530,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
       if Set.member v tests
         then Metadata.singleton isTestType isTestValue
         else Metadata.empty
-    doTerm :: v -> (Path, Branch0 m -> Branch0 m)
+    doTerm :: Symbol -> (Path, Branch0 m -> Branch0 m)
     doTerm v = case toList (Names.termsNamed names (Name.unsafeFromVar v)) of
       [] -> errorMissingVar v
       [r] ->
@@ -543,7 +542,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
             <> Var.nameStr v
             <> ": "
             <> show wha
-    doType :: v -> (Path, Branch0 m -> Branch0 m)
+    doType :: Symbol -> (Path, Branch0 m -> Branch0 m)
     doType v = case toList (Names.typesNamed names (Name.unsafeFromVar v)) of
       [] -> errorMissingVar v
       [r] ->
