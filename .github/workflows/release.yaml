@@ -109,6 +109,9 @@ jobs:
 
       - name: build
         run: |
+          # unison-cli checks env vars for which base version to automatically pull,
+          # so it needs to be forced to rebuild to ensure those are updated.
+          stack clean unison-cli
           stack --no-terminal build --flag unison-parser-typechecker:optimized
 
       - name: fetch latest Unison Local UI and package with ucm
@@ -181,6 +184,9 @@ jobs:
 
       - name: build
         run: |
+          # unison-cli checks env vars for which base version to automatically pull,
+          # so it needs to be forced to rebuild to ensure those are updated.
+          stack clean unison-cli
           stack --no-terminal build --flag unison-parser-typechecker:optimized
 
       - name: fetch latest Unison Local UI and package with ucm
@@ -251,6 +257,10 @@ jobs:
 
       - name: build
         run: |
+          # unison-cli checks env vars for which base version to automatically pull,
+          # so it needs to be forced to rebuild to ensure those are updated.
+          stack clean unison-cli
+
           # Windows will crash on build intermittently because the filesystem
           # sucks at managing concurrent file access;
           # Just keep retrying on these failures.
