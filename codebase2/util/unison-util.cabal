@@ -17,17 +17,13 @@ source-repository head
 library
   exposed-modules:
       U.Util.Alternative
-      U.Util.Base32Hex
       U.Util.Cache
       U.Util.Components
-      U.Util.Hash
       U.Util.Lens
       U.Util.Monoid
       U.Util.String
       U.Util.Text
       U.Util.Timing
-  other-modules:
-      Paths_unison_util
   hs-source-dirs:
       src
   default-extensions:
@@ -58,15 +54,15 @@ library
     , safe
     , text
     , time
+    , unison-prelude
     , unison-util-relation
     , unliftio
+    , vector
   default-language: Haskell2010
 
 benchmark bench
   type: exitcode-stdio-1.0
   main-is: Main.hs
-  other-modules:
-      Paths_unison_util
   hs-source-dirs:
       bench
   default-extensions:
@@ -99,7 +95,10 @@ benchmark bench
     , sandi
     , text
     , time
+    , unison-prelude
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , vector
   default-language: Haskell2010

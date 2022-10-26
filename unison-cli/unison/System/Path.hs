@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 -- Copied from
 --
 -- <https://hackage.haskell.org/package/fsutils-0.1.2/docs/src/System-Path.html>
@@ -16,24 +15,25 @@
 -- but the versions here will probably be more simplistic. Furthermore, this
 -- library is focused on this one thing and not a whole bunch of things.
 module System.Path
-       ( mtreeList
-       , fileList
-       , walkDir
-       , copyDir
-       , replaceRoot
-       , removeRoot
-       , Directory
-       , dirPath
-       , subDirs
-       , files
-       , createDir
-       , filterUseless
-       ) where
+  ( mtreeList,
+    fileList,
+    walkDir,
+    copyDir,
+    replaceRoot,
+    removeRoot,
+    Directory,
+    dirPath,
+    subDirs,
+    files,
+    createDir,
+    filterUseless,
+  )
+where
 
 import Control.Monad (filterM, forM_)
-import System.Directory
-import System.FilePath ((</>), addTrailingPathSeparator)
 import Data.List ((\\))
+import System.Directory
+import System.FilePath (addTrailingPathSeparator, (</>))
 
 -- | Remove useless paths from a list of paths.
 filterUseless :: [FilePath] -> [FilePath]
@@ -54,38 +54,40 @@ topFileList path =
 -- | Recursively list the contents of a directory. Depth-first.
 fileList :: FilePath -> IO [FilePath]
 fileList = mtreeList children
-  where children path = do
-          directory <- doesDirectoryExist path
-          if directory
-            then topFileList path
-            else return []
+  where
+    children path = do
+      directory <- doesDirectoryExist path
+      if directory
+        then topFileList path
+        else return []
 
 -- | We can use this data type to represent the pieces of a directory.
 data Directory = Directory
-                 { -- | The path of the directory itself.
-                   dirPath :: FilePath
-                   -- | All subdirectories of this directory.
-                 , subDirs :: [FilePath]
-                   -- | All files contained in this directory.
-                 , files   :: [FilePath]
-                 }
-               deriving (Show)
+  { -- | The path of the directory itself.
+    dirPath :: FilePath,
+    -- | All subdirectories of this directory.
+    subDirs :: [FilePath],
+    -- | All files contained in this directory.
+    files :: [FilePath]
+  }
+  deriving (Show)
 
 -- | Creates a Directory instance from a FilePath.
 createDir :: FilePath -> IO Directory
 createDir path = do
   contents <- topFileList path
-  subdirs  <- filterM doesDirectoryExist contents
-  files    <- filterM doesFileExist contents
+  subdirs <- filterM doesDirectoryExist contents
+  files <- filterM doesFileExist contents
   return (Directory path subdirs files)
 
 -- | Walk a directory depth-first. Similar to Python's os.walk and fs.core/walk
 -- from the fs Clojure library.
 walkDir :: FilePath -> IO [Directory]
 walkDir root = createDir root >>= mtreeList children
-  where children path = do
-          let dirs = subDirs path
-          mapM createDir dirs
+  where
+    children path = do
+      let dirs = subDirs path
+      mapM createDir dirs
 
 -- | Given a root (prefix), remove it from a path. This is useful
 -- for getting the filename and subdirs of a path inside of a root.

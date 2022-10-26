@@ -1,28 +1,28 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Names.ResolutionResult where
 
-import Unison.Prelude
-import Unison.Reference as Reference ( Reference )
-import Unison.Referent as Referent ( Referent )
-import Unison.Names (Names)
 import Data.Set.NonEmpty
+import Unison.Names (Names)
+import Unison.Prelude
+import Unison.Reference as Reference (Reference)
+import Unison.Referent as Referent (Referent)
 
 data ResolutionError ref
   = NotFound
-    -- Contains the names which were in scope and which refs were possible options
+  | -- Contains the names which were in scope and which refs were possible options
     -- The NonEmpty set of refs must contain 2 or more refs (otherwise what is ambiguous?).
-  | Ambiguous Names (NESet ref)
+    Ambiguous Names (NESet ref)
   deriving (Eq, Ord, Show)
 
 -- | ResolutionFailure represents the failure to resolve a given variable.
 data ResolutionFailure var annotation
   = TypeResolutionFailure var annotation (ResolutionError Reference)
   | TermResolutionFailure var annotation (ResolutionError Referent)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 getAnnotation :: ResolutionFailure v a -> a
 getAnnotation = \case

@@ -21,9 +21,10 @@
   
     "implement me later"
   
-  I'm sorry this message doesn't have more detail about the
-  location of the failure. My makers plan to fix this in a
-  future release. 😢
+  
+  Stack trace:
+    todo
+    #qe5e1lcfn8
 
 ```
 ```unison
@@ -46,9 +47,10 @@
   
     "there's a bug in my code"
   
-  I'm sorry this message doesn't have more detail about the
-  location of the failure. My makers plan to fix this in a
-  future release. 😢
+  
+  Stack trace:
+    bug
+    #m67hcdcoda
 
 ```
 ## Todo

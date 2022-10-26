@@ -1,29 +1,37 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
+
 module Unison.Test.VersionParser where
 
-import EasyTest
+import Control.Error.Safe (rightMay)
 import Data.Text
+import EasyTest
+import Text.Megaparsec
+import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.VersionParser
 import qualified Unison.Codebase.Path as Path
-import Control.Error.Safe (rightMay)
-import Unison.Codebase.Editor.RemoteRepo
-import Text.Megaparsec
 
 test :: Test ()
-test = scope "versionparser" . tests . fmap makeTest $
-  [ ("release/M1j", "releases._M1j")
-  , ("release/M1j.2", "releases._M1j_2")
-  , ("latest-abc", "trunk")
-  , ("release/M2i_3", "releases._M2i_3")
-  , ("release/M2i-HOTFIX", "releases._M2i_HOTFIX")
-  ]
+test =
+  scope "versionparser" . tests . fmap makeTest $
+    [ ("latest-abc", "main"),
+      ("dev/M4", "main"), -- or should this be "releases.M4"?
+      ("dev/M4-1-g22ccb0b3b", "main"), -- and should this also be "releases.m4"?
+      -- All non-dev releases should pull from the most recent major milestone
+      ("release/M4", "releases.M4"),
+      ("release/M2i_3", "releases.M2"),
+      ("release/M2i-HOTFIX", "releases.M2")
+    ]
 
 makeTest :: (Text, Text) -> Test ()
 makeTest (version, path) =
-  scope (unpack version) $ expectEqual
-    (rightMay $ runParser defaultBaseLib "versionparser" version)
-    (Just
-      ( ReadGitRepo "https://github.com/unisonweb/base"
-      , Nothing
-      , Path.fromText path ))
+  scope (unpack version) $
+    expectEqual
+      (rightMay $ runParser defaultBaseLib "versionparser" version)
+      ( Just
+          ( ReadShareRemoteNamespace
+              { server = DefaultCodeserver,
+                repo = "unison",
+                path = Path.fromList ["public", "base"] <> Path.fromText path
+              }
+          )
+      )

@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 007d5ba1a9afa5423c79bb923619ab440794eb2496188191ac82b66ee645901c
 
 name:           unison-codebase
 version:        0.0.0
@@ -18,7 +16,7 @@ source-repository head
 
 library
   exposed-modules:
-      U.Codebase.Branch
+      U.Codebase.Branch.Type
       U.Codebase.Causal
       U.Codebase.Decl
       U.Codebase.HashTags
@@ -32,16 +30,34 @@ library
       U.Codebase.Type
       U.Codebase.TypeEdit
       U.Codebase.WatchKind
-  other-modules:
-      Paths_unison_codebase
   hs-source-dirs:
       ./
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DeriveGeneric
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      PatternSynonyms
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   build-depends:
       base
     , containers
+    , generic-lens
     , lens
     , mtl
     , text
+    , time
     , unison-core
+    , unison-prelude
     , unison-util
+    , unison-util-base32hex
   default-language: Haskell2010

@@ -1,13 +1,10 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module U.Codebase.Sqlite.ObjectType where
 
-import Database.SQLite.Simple.FromField (FromField(..))
-import Database.SQLite.Simple.ToField (ToField(..))
-import Database.SQLite.Simple (SQLData(SQLInteger))
+import Unison.Sqlite (FromField (..), SQLData (SQLInteger), ToField (..))
 
--- |Don't reorder these, they are part of the database,
--- and the ToField and FromField implementation currently
--- depends on the derived Enum implementation.
+-- | Don't reorder these, they are part of the database,
+--  and the ToField and FromField implementation currently
+--  depends on the derived Enum implementation.
 data ObjectType
   = TermComponent -- 0
   | DeclComponent -- 1

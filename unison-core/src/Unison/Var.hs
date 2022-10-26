@@ -1,17 +1,42 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# Language OverloadedStrings #-}
-{-# Language ViewPatterns #-}
-{-# Language PatternSynonyms #-}
-
-module Unison.Var where
-
-import Unison.Prelude
+module Unison.Var
+  ( Var (..),
+    Type (..),
+    InferenceType (..),
+    blank,
+    freshIn,
+    inferAbility,
+    inferInput,
+    inferOther,
+    inferOutput,
+    inferPatternBindE,
+    inferPatternBindV,
+    inferPatternPureE,
+    inferPatternPureV,
+    inferTypeConstructor,
+    inferTypeConstructorArg,
+    joinDot,
+    missingResult,
+    name,
+    nameStr,
+    named,
+    nameds,
+    namespaced,
+    rawName,
+    reset,
+    uncapitalize,
+    universallyQuantifyIfFree,
+    unnamedRef,
+    unnamedTest,
+  )
+where
 
 import Data.Char (isLower, toLower)
 import Data.Text (pack)
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.NameSegment as Name
+import Unison.Prelude
+import qualified Unison.Reference as Reference
 import Unison.Util.Monoid (intercalateMap)
 import Unison.WatchKind (WatchKind, pattern TestWatch)
 
@@ -53,23 +78,34 @@ rawName typ = case typ of
   Float -> "_float"
   Pattern -> "_pattern"
   Irrelevant -> "_irrelevant"
+  UnnamedReference ref -> Reference.idToText ref
   UnnamedWatch k guid -> fromString k <> "." <> guid
 
 name :: Var v => v -> Text
 name v = rawName (typeOf v) <> showid v
   where
-  showid (freshId -> 0) = ""
-  showid (freshId -> n) = pack (show n)
+    showid (freshId -> 0) = ""
+    showid (freshId -> n) = pack (show n)
 
 uncapitalize :: Var v => v -> v
-uncapitalize v = nameds $ go (nameStr v) where
-  go (c:rest) = toLower c : rest
-  go n = n
+uncapitalize v = nameds $ go (nameStr v)
+  where
+    go (c : rest) = toLower c : rest
+    go n = n
 
-missingResult, blank, inferInput, inferOutput, inferAbility,
-  inferPatternPureE, inferPatternPureV, inferPatternBindE, inferPatternBindV,
-  inferTypeConstructor, inferTypeConstructorArg,
-  inferOther :: Var v => v
+missingResult,
+  blank,
+  inferInput,
+  inferOutput,
+  inferAbility,
+  inferPatternPureE,
+  inferPatternPureV,
+  inferPatternBindE,
+  inferPatternBindV,
+  inferTypeConstructor,
+  inferTypeConstructorArg,
+  inferOther ::
+    Var v => v
 missingResult = typed MissingResult
 blank = typed Blank
 inferInput = typed (Inference Input)
@@ -83,45 +119,55 @@ inferTypeConstructor = typed (Inference TypeConstructor)
 inferTypeConstructorArg = typed (Inference TypeConstructorArg)
 inferOther = typed (Inference Other)
 
+unnamedRef :: Var v => Reference.Id -> v
+unnamedRef ref = typed (UnnamedReference ref)
+
 unnamedTest :: Var v => Text -> v
 unnamedTest guid = typed (UnnamedWatch TestWatch guid)
 
 data Type
-  -- User provided variables, these should generally be left alone
-  = User Text
-  -- Variables created during type inference
-  | Inference InferenceType
-  -- Variables created to finish a block that doesn't end with an expression
-  | MissingResult
-  -- Variables invented for placeholder values inserted by user or by TDNR
-  | Blank
-  -- An unnamed watch expression of the given kind, for instance:
-  --
-  --  test> Ok "oog"
-  --    has kind "test"
-  --  > 1 + 1
-  --    has kind ""
-  | UnnamedWatch WatchKind Text -- guid
-  -- An unnamed variable for constructor eta expansion
+  = -- User provided variables, these should generally be left alone
+    User Text
+  | -- Variables created during type inference
+    Inference InferenceType
+  | -- Variables created to finish a block that doesn't end with an expression
+    MissingResult
+  | -- Variables invented for placeholder values inserted by user or by TDNR
+    Blank
+  | -- | An unnamed reference, created during unhashing a term/decl component.
+    UnnamedReference Reference.Id
+  | -- An unnamed watch expression of the given kind, for instance:
+    --
+    --  test> Ok "oog"
+    --    has kind "test"
+    --  > 1 + 1
+    --    has kind ""
+    UnnamedWatch WatchKind Text -- guid
+    -- An unnamed variable for constructor eta expansion
   | Eta
-  -- An unnamed variable introduced by ANF transformation
-  | ANFBlank
-  -- An unnamed variable for a floated lambda
-  | Float
-  -- An unnamed variable introduced from pattern compilation
-  | Pattern
-  -- A variable for situations where we need to make up one that
-  -- definitely won't be used.
-  | Irrelevant
-  deriving (Eq,Ord,Show)
+  | -- An unnamed variable introduced by ANF transformation
+    ANFBlank
+  | -- An unnamed variable for a floated lambda
+    Float
+  | -- An unnamed variable introduced from pattern compilation
+    Pattern
+  | -- A variable for situations where we need to make up one that
+    -- definitely won't be used.
+    Irrelevant
+  deriving (Eq, Ord, Show)
 
-data InferenceType =
-  Ability | Input | Output |
-  PatternPureE | PatternPureV |
-  PatternBindE | PatternBindV |
-  TypeConstructor | TypeConstructorArg |
-  Other
-  deriving (Eq,Ord,Show)
+data InferenceType
+  = Ability
+  | Input
+  | Output
+  | PatternPureE
+  | PatternPureV
+  | PatternBindE
+  | PatternBindV
+  | TypeConstructor
+  | TypeConstructorArg
+  | Other
+  deriving (Eq, Ord, Show)
 
 reset :: Var v => v -> v
 reset v = typed (typeOf v)
@@ -145,14 +191,12 @@ nameds s = named (Text.pack s)
 
 joinDot :: Var v => v -> v -> v
 joinDot prefix v2 =
-  if name prefix == "." then named (name prefix `mappend` name v2)
-  else named (name prefix `mappend` "." `mappend` name v2)
+  if name prefix == "."
+    then named (name prefix `mappend` name v2)
+    else named (name prefix `mappend` "." `mappend` name v2)
 
-freshNamed :: Var v => Set v -> Text -> v
-freshNamed used n = ABT.freshIn used (named n)
-
-universallyQuantifyIfFree :: forall v . Var v => v -> Bool
+universallyQuantifyIfFree :: forall v. Var v => v -> Bool
 universallyQuantifyIfFree v =
   ok (name $ reset v) && unqualified v == v
   where
-  ok n = (all isLower . take 1 . Text.unpack) n
+    ok n = (all isLower . take 1 . Text.unpack) n

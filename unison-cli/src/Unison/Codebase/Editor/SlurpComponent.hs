@@ -1,88 +1,139 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# LANGUAGE PatternSynonyms #-}
+module Unison.Codebase.Editor.SlurpComponent
+  ( -- * Slurp component
+    SlurpComponent (..),
 
-module Unison.Codebase.Editor.SlurpComponent where
+    -- ** Basic constructors
+    empty,
+    fromTerms,
+    fromTypes,
+    fromCtors,
 
-import Unison.Prelude
+    -- ** Predicates
+    isEmpty,
 
-import Data.Tuple (swap)
-import Unison.Reference ( Reference )
-import Unison.UnisonFile (TypecheckedUnisonFile)
+    -- ** Set operations
+    difference,
+    intersection,
+
+    -- ** Closure
+    closeWithDependencies,
+  )
+where
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Tuple (swap)
 import qualified Unison.DataDeclaration as DD
+import Unison.Prelude hiding (empty)
+import Unison.Reference (Reference)
+import Unison.Symbol (Symbol)
 import qualified Unison.Term as Term
+import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 
-data SlurpComponent v =
-  SlurpComponent { types :: Set v, terms :: Set v }
-  deriving (Eq,Ord,Show)
+data SlurpComponent = SlurpComponent
+  { types :: Set Symbol,
+    terms :: Set Symbol,
+    ctors :: Set Symbol
+  }
+  deriving (Eq, Ord, Show)
 
-isEmpty :: SlurpComponent v -> Bool
-isEmpty sc = Set.null (types sc) && Set.null (terms sc)
+isEmpty :: SlurpComponent -> Bool
+isEmpty sc = Set.null (types sc) && Set.null (terms sc) && Set.null (ctors sc)
 
-empty :: Ord v => SlurpComponent v
-empty = SlurpComponent mempty mempty
+empty :: SlurpComponent
+empty = SlurpComponent {types = Set.empty, terms = Set.empty, ctors = Set.empty}
 
-difference :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
-difference c1 c2 = SlurpComponent types' terms' where
-  types' = types c1 `Set.difference` types c2
-  terms' = terms c1 `Set.difference` terms c2
+difference :: SlurpComponent -> SlurpComponent -> SlurpComponent
+difference c1 c2 = SlurpComponent {types = types', terms = terms', ctors = ctors'}
+  where
+    types' = types c1 `Set.difference` types c2
+    terms' = terms c1 `Set.difference` terms c2
+    ctors' = ctors c1 `Set.difference` ctors c2
 
-intersection :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
-intersection c1 c2 = SlurpComponent types' terms' where
-  types' = types c1 `Set.intersection` types c2
-  terms' = terms c1 `Set.intersection` terms c2
+intersection :: SlurpComponent -> SlurpComponent -> SlurpComponent
+intersection c1 c2 = SlurpComponent {types = types', terms = terms', ctors = ctors'}
+  where
+    types' = types c1 `Set.intersection` types c2
+    terms' = terms c1 `Set.intersection` terms c2
+    ctors' = ctors c1 `Set.intersection` ctors c2
 
-instance Ord v => Semigroup (SlurpComponent v) where (<>) = mappend
-instance Ord v => Monoid (SlurpComponent v) where
-  mempty = SlurpComponent mempty mempty
-  c1 `mappend` c2 = SlurpComponent (types c1 <> types c2)
-                                   (terms c1 <> terms c2)
+instance Semigroup SlurpComponent where
+  c1 <> c2 =
+    SlurpComponent
+      { types = types c1 <> types c2,
+        terms = terms c1 <> terms c2,
+        ctors = ctors c1 <> ctors c2
+      }
 
+instance Monoid SlurpComponent where
+  mempty = empty
 
 -- I'm calling this `closeWithDependencies` because it doesn't just compute
 -- the dependencies of the inputs, it mixes them together.  Make sure this
 -- is what you want.
-closeWithDependencies :: forall v a. Ord v
-  => TypecheckedUnisonFile v a -> SlurpComponent v -> SlurpComponent v
-closeWithDependencies uf inputs = seenDefns where
-  seenDefns = foldl' termDeps (SlurpComponent mempty seenTypes) (terms inputs)
-  seenTypes = foldl' typeDeps mempty (types inputs)
+closeWithDependencies ::
+  forall a.
+  TypecheckedUnisonFile Symbol a ->
+  SlurpComponent ->
+  SlurpComponent
+closeWithDependencies uf inputs = seenDefns {ctors = constructorDeps}
+  where
+    seenDefns = foldl' termDeps (SlurpComponent {terms = mempty, types = seenTypes, ctors = mempty}) (terms inputs)
+    seenTypes = foldl' typeDeps mempty (types inputs)
 
-  termDeps :: SlurpComponent v -> v -> SlurpComponent v
-  termDeps seen v | Set.member v (terms seen) = seen
-  termDeps seen v = fromMaybe seen $ do
-    term <- findTerm v
-    let -- get the `v`s for the transitive dependency types
-        -- (the ones for terms are just the `freeVars below`)
-        -- although this isn't how you'd do it for a term that's already in codebase
-        tdeps :: [v]
-        tdeps = resolveTypes $ Term.dependencies term
-        seenTypes :: Set v
-        seenTypes = foldl' typeDeps (types seen) tdeps
-        seenTerms = Set.insert v (terms seen)
-    pure $ foldl' termDeps (seen { types = seenTypes
-                                 , terms = seenTerms})
-                           (Term.freeVars term)
+    constructorDeps :: Set Symbol
+    constructorDeps = UF.constructorsForDecls seenTypes uf
 
-  typeDeps :: Set v -> v -> Set v
-  typeDeps seen v | Set.member v seen = seen
-  typeDeps seen v = fromMaybe seen $ do
-    dd <- fmap snd (Map.lookup v (UF.dataDeclarations' uf)) <|>
-          fmap (DD.toDataDecl . snd) (Map.lookup v (UF.effectDeclarations' uf))
-    pure $ foldl' typeDeps (Set.insert v seen) (resolveTypes $ DD.dependencies dd)
+    termDeps :: SlurpComponent -> Symbol -> SlurpComponent
+    termDeps seen v | Set.member v (terms seen) = seen
+    termDeps seen v = fromMaybe seen $ do
+      term <- findTerm v
+      let -- get the `v`s for the transitive dependency types
+          -- (the ones for terms are just the `freeVars below`)
+          -- although this isn't how you'd do it for a term that's already in codebase
+          tdeps :: [Symbol]
+          tdeps = resolveTypes $ Term.dependencies term
+          seenTypes :: Set Symbol
+          seenTypes = foldl' typeDeps (types seen) tdeps
+          seenTerms = Set.insert v (terms seen)
+      pure $
+        foldl'
+          termDeps
+          ( seen
+              { types = seenTypes,
+                terms = seenTerms
+              }
+          )
+          (Term.freeVars term)
 
-  resolveTypes :: Set Reference -> [v]
-  resolveTypes rs = [ v | r <- Set.toList rs, Just v <- [Map.lookup r typeNames]]
+    typeDeps :: Set Symbol -> Symbol -> Set Symbol
+    typeDeps seen v | Set.member v seen = seen
+    typeDeps seen v = fromMaybe seen $ do
+      dd <-
+        fmap snd (Map.lookup v (UF.dataDeclarations' uf))
+          <|> fmap (DD.toDataDecl . snd) (Map.lookup v (UF.effectDeclarations' uf))
+      pure $ foldl' typeDeps (Set.insert v seen) (resolveTypes $ DD.dependencies dd)
 
-  findTerm :: v -> Maybe (Term.Term v a)
-  findTerm v = Map.lookup v allTerms
+    resolveTypes :: Set Reference -> [Symbol]
+    resolveTypes rs = [v | r <- Set.toList rs, Just v <- [Map.lookup r typeNames]]
 
-  allTerms = UF.allTerms uf
+    findTerm :: Symbol -> Maybe (Term.Term Symbol a)
+    findTerm v = Map.lookup v allTerms
 
-  typeNames :: Map Reference v
-  typeNames = invert (fst <$> UF.dataDeclarations' uf) <> invert (fst <$> UF.effectDeclarations' uf)
+    allTerms = UF.allTerms uf
 
-  invert :: forall k v . Ord k => Ord v => Map k v -> Map v k
-  invert m = Map.fromList (swap <$> Map.toList m)
+    typeNames :: Map Reference Symbol
+    typeNames = invert (fst <$> UF.dataDeclarations' uf) <> invert (fst <$> UF.effectDeclarations' uf)
+
+    invert :: forall k v. Ord k => Ord v => Map k v -> Map v k
+    invert m = Map.fromList (swap <$> Map.toList m)
+
+fromTypes :: Set Symbol -> SlurpComponent
+fromTypes vs = mempty {types = vs}
+
+fromTerms :: Set Symbol -> SlurpComponent
+fromTerms vs = mempty {terms = vs}
+
+fromCtors :: Set Symbol -> SlurpComponent
+fromCtors vs = mempty {ctors = vs}

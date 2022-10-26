@@ -2,7 +2,6 @@ module Unison.Codebase.ShortBranchHash
   ( toString,
     toHash,
     fromHash,
-    fullFromHash,
     fromText,
     ShortBranchHash (..),
   )
@@ -25,9 +24,6 @@ toHash = fmap coerce . Hash.fromBase32Hex . toText
 fromHash :: Coercible h Hash.Hash => Int -> h -> ShortBranchHash
 fromHash len =
   ShortBranchHash . Text.take len . Hash.base32Hex . coerce
-
-fullFromHash :: Coercible h Hash.Hash => h -> ShortBranchHash
-fullFromHash = ShortBranchHash . Hash.base32Hex . coerce
 
 -- abc -> SBH abc
 -- #abc -> SBH abc

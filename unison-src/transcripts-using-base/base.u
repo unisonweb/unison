@@ -1,6 +1,9 @@
 
 a |> f = f a
 
+uncurry f = cases (x, y) -> f x y
+snd = cases (_, y) -> y
+
 compose f g = a -> f (g a)
 compose2 f g = a -> b -> f (g a b)
 compose3 f g = a -> b -> c -> f (g a b c)
@@ -15,6 +18,26 @@ Exception.reraise = cases
   Left e  -> Exception.raise e
   Right a -> a
 
+Either.isLeft = cases
+  Left _ -> true
+  Right _ -> false
+
+Exception.catch : '{g, Exception} a ->{g} Either Failure a
+Exception.catch ex =
+    handle !ex
+    with
+      cases
+        { a }                    -> Right a
+        {Exception.raise f -> _} -> Left f
+
+Either.raiseMessage v e = reraise (Either.mapLeft (msg -> failure msg v) e)
+
+Either.mapLeft f = cases
+  Left l  -> Left (f l)
+  Right r -> Right r
+
+Exception.failure msg a = Failure (typeLink Unit) msg (Any a)
+
 Exception.toEither.handler : Request {Exception} a -> Either Failure a
 Exception.toEither.handler = cases
   { a }                         -> Right a
@@ -22,6 +45,14 @@ Exception.toEither.handler = cases
 
 Exception.toEither : '{ε, Exception} a -> {ε} Either Failure a
 Exception.toEither a = handle !a with Exception.toEither.handler
+
+Exception.unsafeRun! : '{g, Exception} a ->{g} a
+Exception.unsafeRun! e =
+  h : Request {Exception} a -> a
+  h = cases
+    {raise fail -> _} -> bug fail
+    { a }             -> a
+  handle !e with h
 
 structural ability Throw e where
   throw : e -> a
@@ -31,12 +62,29 @@ List.all f = cases
   [] -> true
   h +: t -> f h && all f t
 
+List.foldLeft : (b ->{g} a ->{g} b) -> b -> [a] ->{g} b
+List.foldLeft f b as =
+  go b i =
+    match List.at i as with
+      None   -> b
+      Some a ->
+        use Nat +
+        go (f b a) (i + 1)
+  go b 0
+
 List.filter: (a -> Boolean) -> [a] -> [a]
 List.filter f all =
   go acc = cases
     [] -> acc
     a +: as -> if (f a) then go (cons a acc) as else go acc as
   go [] all
+
+List.forEach : [a] -> (a ->{e} ()) ->{e} ()
+List.forEach l f =
+  go = cases
+    x +: xs -> f x ; go xs
+    [] -> ()
+  go l
 
 check: Text -> Boolean -> {Stream Result} ()
 check msg test = if test then emit (Ok msg) else emit (Fail msg)
@@ -169,6 +217,8 @@ contains needle haystack = if (size haystack) == 0 then false else
 
 isDirectory = compose reraise isDirectory.impl
 createTempDirectory = compose reraise createTempDirectory.impl
+directoryContents = compose reraise directoryContents.impl
+getTempDirectory = compose reraise getTempDirectory.impl
 removeDirectory = compose reraise removeDirectory.impl
 fileExists = compose reraise fileExists.impl
 renameDirectory = compose2 reraise renameDirectory.impl
@@ -179,9 +229,14 @@ isSeekable = compose reraise isSeekable.impl
 isFileEOF = compose reraise isFileEOF.impl
 Text.fromUtf8 = compose reraise fromUtf8.impl
 getBytes = compose2 reraise getBytes.impl
+getSomeBytes = compose2 reraise getSomeBytes.impl
 handlePosition = compose reraise handlePosition.impl
 getBuffering = compose reraise getBuffering.impl
 setBuffering mode = compose reraise (setBuffering.impl mode)
+setEcho = compose2 reraise setEcho.impl
+getEcho = compose reraise getEcho.impl
+getChar =  compose reraise getChar.impl
+ready = compose reraise ready.impl
 seekHandle = compose3 reraise seekHandle.impl
 putBytes = compose2 reraise putBytes.impl
 getLine = compose reraise getLine.impl
@@ -203,3 +258,156 @@ MVar.take = compose reraise take.impl
 MVar.read = compose reraise read.impl
 MVar.put = compose2 reraise put.impl
 MVar.swap = compose2 reraise MVar.swap.impl
+
+-- Some functions for using a sorted list as a map
+
+-- Given an association list sorted by a values, finds the corresponding
+-- b value. It is also expected that the a values will be unique. If not,
+-- which b is returned depends on the exact size of the list.
+bSearch : [(a,b)] -> a -> Optional b
+bSearch m k =
+  find l u =
+    i = (l+u)/2
+    if l >= u then None
+    else match at i m with
+      Some (k', v)
+        | k == k' -> Some v
+        | k > k' -> find (i+1) u
+        | k < k' -> find l i
+      None -> None
+  find 0 (size m)
+
+-- Given a sorted association list, determine if an a value exists in the
+-- list.
+bContains : [(a,b)] -> a -> Boolean
+bContains m k = match bSearch m k with
+  Some _ -> true
+  None -> false
+
+-- Given a sorted association list, splits the list into the portion before
+-- the given a value, and after the a value. The a value should only appear
+-- once in the list to get a well defined split. Otherwise where the split
+-- occurs will be chosen arbitrarily, based on which copy the binary search
+-- finds.
+bSplit : [(a,b)] -> a -> ([(a,b)], [(a,b)])
+bSplit m k =
+  find l u =
+    i = (l+u)/2
+    if l >= u then (List.take l m, List.drop l m)
+    else match at i m with
+      Some (k', _)
+        | k == k' -> (List.take i m, List.drop (i+1) m)
+        | k > k' -> find (i+1) u
+        | k < k' -> find l i
+      None -> (m, [])
+  find 0 (size m)
+
+-- Inserts a key-value pair into a sorted association list. This maintains
+-- the invariant that the a values are unique, via bSplit throwing out an
+-- association pair if there is an exact key match.
+bInsert : [(a,b)] -> a -> b -> [(a,b)]
+bInsert m k v = match bSplit m k with
+  (pre, post) -> pre ++ [(k,v)] ++ post
+
+-- Yields a list with unique, sorted a keys via insertion sort.
+bSort : [(a,b)] -> [(a,b)]
+bSort = foldLeft (acc -> uncurry (bInsert acc)) []
+
+-- Finding transitive dependencies
+
+-- main logic, given a sorted list of found dependencies and a list of
+-- dependencies to search, yields the sorted list of transitive
+-- dependencies
+--
+-- Leaves out builtins, since they shouldn't be necessary, and can't be
+-- transported/saved reliably.
+crawl found = cases
+  [] -> found
+  ln +: rest
+    | Text.take 2 (Link.Term.toText ln) == "##" -> crawl found rest
+    | bContains found ln -> crawl found rest
+    | otherwise -> match Code.lookup ln with
+      Some code ->
+        crawl
+          (bInsert found ln code)
+          (rest ++ Code.dependencies code)
+      None -> crawl found rest
+
+Code.transitiveDeps : Link.Term ->{IO} [(Link.Term, Code)]
+Code.transitiveDeps base = crawl [] [base]
+
+Value.transitiveDeps : Value ->{IO} [(Link.Term, Code)]
+Value.transitiveDeps v = crawl [] (Value.dependencies v)
+
+--  Save/load a value with its dependencies to a file for serialization testing.
+saveSelfContained : a -> Text ->{IO, Exception} ()
+saveSelfContained x path =
+  v = Value.value x
+  deps = Value.transitiveDeps v
+  cv = Value.value (deps, v)
+  bs = Bytes.toBase32 (Value.serialize cv)
+  writeFile path bs
+
+readFile : Text ->{IO,Exception} Bytes
+readFile path =
+  h = openFile path FileMode.Read
+  load acc =
+    if isFileEOF h then acc else load (acc ++ getBytes h 1024)
+
+  bs = load Bytes.empty
+  closeFile h
+  bs
+
+writeFile : Text -> Bytes ->{IO,Exception} ()
+writeFile path bs =
+  h = openFile path FileMode.Write
+  putBytes h bs
+  closeFile h
+
+fail : Text -> b ->{Exception} c
+fail msg x = raise (Failure (typeLink IOFailure) msg (Any x))
+
+fromB32 : Bytes ->{Exception} Bytes
+fromB32 bs32 = match fromBase32 bs32 with
+  Left msg -> fail ("base32 decoding failed: " ++ msg) bs32
+  Right bs -> bs
+
+loadValueBytes : Bytes ->{Exception,IO} ([(Link.Term, Code)], Value)
+loadValueBytes bs = match Value.deserialize bs with
+  Left err -> fail ("could not deserialize value: " ++ err) bs
+  Right sv -> match Value.load sv with
+    Left l -> fail "could not load value" l
+    Right v -> v
+
+loadCodeBytes : Bytes ->{Exception} Code
+loadCodeBytes bs = match Code.deserialize bs with
+  Left err -> fail ("could not deserialize code: " ++ err) bs
+  Right co -> co
+
+cache : [(Link.Term, Code)] -> ()
+cache deps = match cache_ deps with
+  [] -> ()
+  l -> fail "code not self-contained" l
+
+loadSelfContained : Text ->{IO, Exception} a
+loadSelfContained path =
+  bs = fromB32 (readFile path)
+  (deps, v) = loadValueBytes bs
+  cache deps
+  match Value.load v with
+    Left l -> fail "value missing deps" l
+    Right x -> x
+
+saveTestCase : Text -> (a ->{} Text) -> a ->{IO,Exception} ()
+saveTestCase name f i =
+  dir = "unison-src/transcripts-using-base/serialized-cases/"
+  sfile = dir ++ name ++ ".ser"
+  ofile = dir ++ name ++ ".out"
+  hfile = dir ++ name ++ ".hash"
+
+  output = f i
+
+  saveSelfContained (f, i) sfile
+  writeFile ofile (toUtf8 output)
+  writeFile hfile (Bytes.toBase32 (crypto.hash Sha3_512 (f, i)))
+

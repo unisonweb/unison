@@ -1,14 +1,38 @@
 name: unison-codebase
 github: unisonweb/unison
 
+default-extensions:
+  - ApplicativeDo
+  - BlockArguments
+  - DeriveFunctor
+  - DeriveGeneric
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - PatternSynonyms
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+
 library:
   source-dirs: .
+  when:
+    - condition: false
+      other-modules: Paths_unison_codebase
 
 dependencies:
   - base
   - containers
+  - generic-lens
   - lens
   - mtl
   - text
   - unison-core
   - unison-util
+  - unison-util-base32hex
+  - unison-prelude
+  - time

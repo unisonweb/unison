@@ -10,45 +10,97 @@ flags:
 ghc-options: -Wall
 
 dependencies:
+  - IntervalMap
   - ListLike
+  - aeson
+  - aeson-pretty
   - async
   - base
+  - bytes
   - bytestring
+  - concurrent-output
   - configurator
   - containers >= 0.6.3
-  - nonempty-containers
   - cryptonite
   - directory
+  - either
   - errors
+  - exceptions
   - extra
   - filepath
+  - free
+  - fuzzyfind
+  - friendly-time
+  - generic-lens
   - haskeline
+  - here
+  - http-client >= 0.7.6
+  - http-client-tls
+  - http-types
+  - jwt
+  - ki
   - lens
-  - megaparsec >= 5.0.0 && < 7.0.0
+  - lock-file
+  - lsp
+  - lsp-types
+  - megaparsec
+  - memory
   - mtl
-  - transformers
+  - network-uri
+  - network-simple
+  - network
+  - co-log-core
+  - uri-encode
+  - nonempty-containers
   - open-browser
+  - pretty-simple
   - random >= 1.2.0
   - regex-tdfa
+  - semialign
+  - servant
+  - servant-client
   - stm
   - text
+  - text-rope
+  - these
+  - time
+  - transformers
+  - unison-codebase
   - unison-codebase-sqlite
+  - unison-codebase-sqlite-hashing-v2
+  - unison-sqlite
   - unison-core1
   - unison-parser-typechecker
   - unison-prelude
+  - unison-pretty-printer
+  - unison-share-api
+  - unison-sqlite
   - unison-util
+  - unison-util-base32hex
   - unison-util-relation
   - unliftio
+  - unordered-containers
+  - vector
+  - witherable
+  - wai
+  - warp
+  - witherable
 
 library:
   source-dirs: src
   when:
     - condition: '!os(windows)'
       dependencies: unix
+    - condition: false
+      other-modules: Paths_unison_cli
 
 tests:
-  tests:
+  cli-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     dependencies:
+      - code-page
       - easytest
       - here
       - shellmet
@@ -59,10 +111,14 @@ tests:
 
 executables:
   unison:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     source-dirs: unison
     main: Main.hs
     ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
     dependencies:
+      - code-page
       - optparse-applicative >= 0.16.1.0
       - shellmet
       - template-haskell
@@ -70,25 +126,34 @@ executables:
       - unison-cli
 
   transcripts:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     source-dirs: transcripts
     main: Transcripts.hs
     ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
     dependencies:
+      - code-page
       - easytest
       - process
       - shellmet
-    build-tools:
-      - unison-cli:unison
+      - unison-cli
 
-  integration-tests:
+  cli-integration-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     source-dirs: integration-tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
     dependencies:
+      - code-page
       - easytest
       - process
       - shellmet
       - time
+    build-tools:
+      - unison-cli:unison
 
 when:
   - condition: flag(optimized)
@@ -98,18 +163,25 @@ default-extensions:
   - ApplicativeDo
   - BangPatterns
   - BlockArguments
+  - DeriveAnyClass
   - DeriveFunctor
   - DeriveFoldable
   - DeriveTraversable
   - DeriveGeneric
   - DerivingStrategies
+  - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
+  - GADTs
   - GeneralizedNewtypeDeriving
+  - InstanceSigs
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - NumericUnderscores
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes

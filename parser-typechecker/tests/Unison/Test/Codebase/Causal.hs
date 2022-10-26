@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Unison.Test.Codebase.Causal (test) where
@@ -11,7 +10,6 @@ import qualified Data.Set as Set
 import EasyTest
 import Unison.Codebase.Causal (Causal, one)
 import qualified Unison.Codebase.Causal as Causal
-import Unison.Hash (Hash)
 
 test :: Test ()
 test =
@@ -79,14 +77,14 @@ int64 = random
 
 extend ::
   Int ->
-  Causal Identity Hash Int64 ->
-  Test (Causal Identity Hash Int64)
+  Causal Identity Int64 ->
+  Test (Causal Identity Int64)
 extend 0 ca = pure ca
 extend n ca = do
   i <- int64
-  extend (n -1) (Causal.cons i ca)
+  extend (n - 1) (Causal.cons i ca)
 
-lcaPair :: Test (Causal Identity Hash Int64, Causal Identity Hash Int64)
+lcaPair :: Test (Causal Identity Int64, Causal Identity Int64)
 lcaPair = do
   base <- one <$> int64
   ll <- int' 0 20
@@ -102,7 +100,7 @@ lcaPairTest = replicateM_ 50 test >> ok
         Nothing -> crash "expected lca"
 
 noLcaPair ::
-  Test (Causal Identity Hash Int64, Causal Identity Hash Int64)
+  Test (Causal Identity Int64, Causal Identity Int64)
 noLcaPair = do
   basel <- one <$> int64
   baser <- one <$> int64
@@ -118,21 +116,21 @@ noLcaPairTest = replicateM_ 50 test >> ok
         Nothing -> pure ()
         Just _ -> crash "expected no lca"
 
-oneRemoved :: Causal Identity Hash (Set Int64)
+oneRemoved :: Causal Identity (Set Int64)
 oneRemoved =
   foldr
     Causal.cons
     (one (Set.singleton 1))
     (Set.fromList <$> [[2, 3, 4], [1, 2, 3, 4], [1, 2]])
 
-twoRemoved :: Causal Identity Hash (Set Int64)
+twoRemoved :: Causal Identity (Set Int64)
 twoRemoved =
   foldr
     Causal.cons
     (one (Set.singleton 1))
     (Set.fromList <$> [[1, 3, 4], [1, 2, 3], [1, 2]])
 
-testThreeWay :: Causal Identity Hash (Set Int64)
+testThreeWay :: Causal Identity (Set Int64)
 testThreeWay =
   runIdentity $
     threeWayMerge' oneRemoved twoRemoved
@@ -147,7 +145,7 @@ setPatch :: Applicative m => Ord a => Set a -> (Set a, Set a) -> m (Set a)
 setPatch s (added, removed) = pure (added <> Set.difference s removed)
 
 -- merge x x == x, should not add a new head, and also the value at the head should be the same of course
-testIdempotent :: Causal Identity Hash (Set Int64) -> Bool -- Causal Identity Hash (Set Int64)
+testIdempotent :: Causal Identity (Set Int64) -> Bool -- Causal Identity (Set Int64)
 testIdempotent causal =
   runIdentity (threeWayMerge' causal causal)
     == causal
@@ -155,10 +153,10 @@ testIdempotent causal =
 -- prop_mergeIdempotent :: Bool
 -- prop_mergeIdempotent = and (map testIdempotent (take 1000 generateRandomCausals))
 
-oneCausal :: Causal Identity Hash (Set Int64)
+oneCausal :: Causal Identity (Set Int64)
 oneCausal = Causal.one (Set.fromList [1])
 
--- generateRandomCausals :: Causal Identity Hash (Set Int64)
+-- generateRandomCausals :: Causal Identity (Set Int64)
 -- generateRandomCausals = undefined
 
 easyCombine ::
@@ -174,22 +172,22 @@ easyCombine _ diff appl (Just ca) l r = do
   appl ca (dl <> dr)
 
 threeWayMerge' ::
-  Causal Identity Hash (Set Int64) ->
-  Causal Identity Hash (Set Int64) ->
-  Identity (Causal Identity Hash (Set Int64))
+  Causal Identity (Set Int64) ->
+  Causal Identity (Set Int64) ->
+  Identity (Causal Identity (Set Int64))
 threeWayMerge' = Causal.threeWayMerge (easyCombine setCombine setDiff setPatch)
 
 -- merge x mempty == x, merge mempty x == x
-testIdentity :: Causal Identity Hash (Set Int64) -> Causal Identity Hash (Set Int64) -> Bool
+testIdentity :: Causal Identity (Set Int64) -> Causal Identity (Set Int64) -> Bool
 testIdentity causal mempty =
   (threeWayMerge' causal mempty)
     == (threeWayMerge' mempty causal)
 
-emptyCausal :: Causal Identity Hash (Set Int64)
+emptyCausal :: Causal Identity (Set Int64)
 emptyCausal = one (Set.empty)
 
 -- merge (cons hd tl) tl == cons hd tl, merge tl (cons hd tl) == cons hd tl
-testCommutative :: Set Int64 -> Causal Identity Hash (Set Int64) -> Bool
+testCommutative :: Set Int64 -> Causal Identity (Set Int64) -> Bool
 testCommutative hd tl =
   (threeWayMerge' (Causal.cons hd tl) tl)
     == (threeWayMerge' tl (Causal.cons hd tl))

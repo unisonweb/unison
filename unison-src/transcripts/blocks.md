@@ -68,7 +68,7 @@ sumTo n =
   -- A recursive function, defined inside a block
   go acc n =
     if n == 0 then acc
-    else go (acc + n) (n `drop` 1)
+    else go (acc + n) (drop n 1)
   go 0 n
 
 ex n =

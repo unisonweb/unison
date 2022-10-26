@@ -73,6 +73,14 @@ id x = x
 id (sqr 10)
 ``` 
 
+also:
+
+```
+match 1 with
+  1 -> "hi"
+  _ -> "goodbye"
+```
+
 To include a typechecked snippet of code without evaluating it, you can do:
 
 @typecheck ```

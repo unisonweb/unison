@@ -18,18 +18,18 @@ use Int
 -- want to be able to tell which one is failing
 test> Int.tests.arithmetic =
       checks [
-        +1 + +1 `eq` +2,
+        eq (+1 + +1) +2,
         +10 - +4 == +6,
-        +11 * +6 `eq` +66,
-        +11 * +6 `eq` +66,
+        eq (+11 * +6) +66,
+        eq (+11 * +6) +66,
         +10 / +3 == +3,
         +10 / +5 == +2,
-        +10 `mod` +3 == +1,
-        +10 `mod` +2 == +0,
-        -13 `mod` +3 == +2,
-        -13 `mod` -3 == -1,
-        -13 `mod` -5 == -3,
-        -13 `mod` +5 == +2,
+        mod +10 +3 == +1,
+        mod +10 +2 == +0,
+        mod -13 +3 == +2,
+        mod -13 -3 == -1,
+        mod -13 -5 == -3,
+        mod -13 +5 == +2,
         negate +99 == -99,
         increment +99 == +100,
         not (isEven +99),
@@ -39,20 +39,20 @@ test> Int.tests.arithmetic =
         signum +99 == +1,
         signum -3949 == -1,
         signum +0 == +0,
-        +42 `gt` -1,
-        +42 `lt` +1000,
-        +43 `lteq` +43,
-        +43 `lteq` +44,
-        +43 `gteq` +43,
-        +43 `gteq` +41
+        gt +42 -1,
+        lt +42 +1000,
+        lteq +43 +43,
+        lteq +43 +44,
+        gteq +43 +43,
+        gteq +43 +41
         ]
 
 test> Int.tests.bitTwiddling =
       checks [
-        +5 `and` +4 == +4,
-        +5 `and` +1 == +1,
-        +4 `or` +1 == +5,
-        +5 `xor` +1 == +4,
+        and +5 +4 == +4,
+        and +5 +1 == +1,
+        or +4 +1 == +5,
+        xor +5 +1 == +4,
         complement -1 == +0,
         popCount +1 == 1,
         popCount +2 == 1,
@@ -94,35 +94,35 @@ use Nat
 
 test> Nat.tests.arithmetic =
       checks [
-        1 + 1 `eq` 2,
-        10 `drop` 4 == 6,
-        10 `sub` 12 == -2,
-        11 * 6 `eq` 66,
+        eq (1 + 1) 2,
+        drop 10 4 == 6,
+        sub 10 12 == -2,
+        eq (11 * 6) 66,
         10 / 3 == 3,
         10 / 5 == 2,
-        10 `mod` 3 == 1,
-        10 `mod` 2 == 0,
+        mod 10 3 == 1,
+        mod 10 2 == 0,
         18446744073709551615 / 2 == 9223372036854775807,
-        18446744073709551615 `mod` 2 == 1,
+        mod 18446744073709551615 2 == 1,
         increment 99 == 100,
         not (isEven 99),
         isEven 100,
         isOdd 105,
         not (isOdd 108),
-        42 `gt` 1,
-        42 `lt` 1000,
-        43 `lteq` 43,
-        43 `lteq` 44,
-        43 `gteq` 43,
-        43 `gteq` 41,
+        gt 42 1,
+        lt 42 1000,
+        lteq 43 43,
+        lteq 43 44,
+        gteq 43 43,
+        gteq 43 41,
         ]
 
 test> Nat.tests.bitTwiddling =
       checks [
-        5 `and` 4 == 4,
-        5 `and` 1 == 1,
-        4 `or` 1 == 5,
-        5 `xor` 1 == 4,
+        and 5 4 == 4,
+        and 5 1 == 1,
+        or 4 1 == 5,
+        xor 5 1 == 4,
         complement (complement 0) == 0,
         popCount 1 == 1,
         popCount 2 == 1,
@@ -213,6 +213,32 @@ test> Text.tests.alignment =
         Text.alignRightWith 5 ?_ "ababa" == "ababa",
         Text.alignRightWith 5 ?_ "ab" == "___ab"
       ]
+
+test> Text.tests.literalsEq = checks [":)" == ":)"]
+
+test> Text.tests.patterns =
+  use Pattern many or run isMatch capture join replicate
+  use Text.patterns literal digit letter anyChar space punctuation notCharIn charIn charRange notCharRange eof
+  l = literal
+  checks [
+    run digit "1abc" == Some ([], "abc"),
+    run (capture (many digit)) "11234abc" == Some (["11234"], "abc"),
+    run (many letter) "abc11234abc" == Some ([], "11234abc"),
+    run (join [many space, capture (many anyChar)]) "   abc123" == Some (["abc123"], ""),
+    run (many punctuation) "!!!!,,,..." == Some ([], ""),
+    run (charIn [?0,?1]) "0" == Some ([], ""),
+    run (notCharIn [?0,?1]) "0" == None,
+    run (many (notCharIn [?0,?1])) "asjdfskdfjlskdjflskdjf011" == Some ([], "011"),
+    run (capture (many (charRange ?a ?z))) "hi123" == Some (["hi"], "123"),
+    run (capture (many (notCharRange ?, ?,))) "abc123," == Some (["abc123"], ","),
+    run (capture (many (notCharIn [?,,]))) "abracadabra,123" == Some (["abracadabra"], ",123"),
+    run (capture (many (or digit letter))) "11234abc,remainder" == Some (["11234abc"], ",remainder"),
+    run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa" == Some (["1a2ba"], " aaa"),
+    isMatch (join [many letter, eof]) "aaaaabbbb" == true,
+    isMatch (join [many letter, eof]) "aaaaabbbb1" == false,
+    isMatch (join [l "abra", many (l "cadabra")]) "abracadabracadabra" == true,
+
+  ]
 ```
 
 ```ucm:hide
@@ -235,10 +261,6 @@ test> Bytes.tests.compression =
           (Bytes.zlib.decompress (Bytes.zlib.compress b) == Right b)
             && (Bytes.gzip.decompress (Bytes.gzip.compress b) == Right b)
 
-        isLeft = cases
-          Left _ -> true
-          Right _ -> false
-
         checks [
           roundTrip 0xs2093487509823745709827345789023457892345,
           roundTrip 0xs00000000000000000000000000000000000000000000,
@@ -250,6 +272,13 @@ test> Bytes.tests.compression =
           isLeft (zlib.decompress 0xs2093487509823745709827345789023457892345),
           isLeft (gzip.decompress 0xs201209348750982374593939393939709827345789023457892345)
         ]
+
+test> Bytes.tests.fromBase64UrlUnpadded = 
+  checks [Exception.catch
+           '(fromUtf8
+              (raiseMessage () (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ")))) == Right "hello world"
+         , isLeft (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ="))]
+  
 ```
 
 ```ucm:hide
@@ -263,6 +292,28 @@ test> Bytes.tests.compression =
 
 test> Any.test1 = checks [(Any "hi" == Any "hi")]
 test> Any.test2 = checks [(not (Any "hi" == Any 42))]
+```
+
+```ucm:hide
+.> add
+```
+
+## Sandboxing functions
+
+```unison
+openFile1 t = openFile t
+openFile2 t = openFile1 t
+
+openFiles =
+  [ not (validateSandboxed [] openFile)
+  , not (validateSandboxed [] openFile1)
+  , not (validateSandboxed [] openFile2)
+  ]
+
+test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
+test> Sandbox.test2 = checks openFiles
+test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
+openFile]
 ```
 
 ```ucm:hide

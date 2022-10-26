@@ -24,24 +24,42 @@ flag optimized
 library
   exposed-modules:
       Compat
+      Unison.Auth.CredentialFile
+      Unison.Auth.CredentialManager
+      Unison.Auth.Discovery
+      Unison.Auth.HTTPClient
+      Unison.Auth.Tokens
+      Unison.Auth.Types
+      Unison.Cli.Monad
+      Unison.Cli.MonadUtils
+      Unison.Cli.NamesUtils
+      Unison.Cli.PrettyPrintUtils
+      Unison.Cli.TypeCheck
+      Unison.Cli.UnisonConfigUtils
       Unison.Codebase.Editor.AuthorInfo
-      Unison.Codebase.Editor.Command
-      Unison.Codebase.Editor.HandleCommand
       Unison.Codebase.Editor.HandleInput
-      Unison.Codebase.Editor.HandleInput.LoopState
+      Unison.Codebase.Editor.HandleInput.AuthLogin
+      Unison.Codebase.Editor.HandleInput.MetadataUtils
+      Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
+      Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
+      Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
       Unison.Codebase.Editor.Output.DumpNamespace
+      Unison.Codebase.Editor.Output.PushPull
       Unison.Codebase.Editor.Propagate
+      Unison.Codebase.Editor.Slurp
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
       Unison.Codebase.Editor.TodoOutput
+      Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
       Unison.Codebase.Editor.VersionParser
       Unison.Codebase.TranscriptParser
       Unison.CommandLine
+      Unison.CommandLine.Completion
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect
       Unison.CommandLine.Globbing
@@ -50,26 +68,51 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
-  other-modules:
-      Paths_unison_cli
+      Unison.LSP
+      Unison.LSP.CancelRequest
+      Unison.LSP.CodeAction
+      Unison.LSP.Completion
+      Unison.LSP.Configuration
+      Unison.LSP.Conversions
+      Unison.LSP.Diagnostics
+      Unison.LSP.FileAnalysis
+      Unison.LSP.FoldingRange
+      Unison.LSP.HandlerUtils
+      Unison.LSP.Hover
+      Unison.LSP.NotificationHandlers
+      Unison.LSP.Orphans
+      Unison.LSP.Types
+      Unison.LSP.UCMWorker
+      Unison.LSP.VFS
+      Unison.Share.Codeserver
+      Unison.Share.Sync
+      Unison.Share.Sync.Types
+      Unison.Util.HTTP
   hs-source-dirs:
       src
   default-extensions:
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -79,35 +122,79 @@ library
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
+    , aeson
+    , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
+    , co-log-core
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
+    , either
     , errors
+    , exceptions
     , extra
     , filepath
+    , free
+    , friendly-time
+    , fuzzyfind
+    , generic-lens
     , haskeline
+    , here
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
+    , ki
     , lens
-    , megaparsec >=5.0.0 && <7.0.0
+    , lock-file
+    , lsp
+    , lsp-types
+    , megaparsec
+    , memory
     , mtl
+    , network
+    , network-simple
+    , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
+    , semialign
+    , servant
+    , servant-client
     , stm
     , text
+    , text-rope
+    , these
+    , time
     , transformers
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
+    , unison-share-api
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
+    , uri-encode
+    , vector
+    , wai
+    , warp
+    , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   if !os(windows)
@@ -115,29 +202,35 @@ library
         unix
   default-language: Haskell2010
 
-executable integration-tests
+executable cli-integration-tests
   main-is: Suite.hs
   other-modules:
       IntegrationTests.ArgumentParsing
-      Paths_unison_cli
   hs-source-dirs:
       integration-tests
   default-extensions:
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -146,66 +239,117 @@ executable integration-tests
       TypeApplications
       ViewPatterns
   ghc-options: -Wall -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  build-tools:
+      unison
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
+    , aeson
+    , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
+    , co-log-core
+    , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
+    , exceptions
     , extra
     , filepath
+    , free
+    , friendly-time
+    , fuzzyfind
+    , generic-lens
     , haskeline
+    , here
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
+    , ki
     , lens
-    , megaparsec >=5.0.0 && <7.0.0
+    , lock-file
+    , lsp
+    , lsp-types
+    , megaparsec
+    , memory
     , mtl
+    , network
+    , network-simple
+    , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , process
     , random >=1.2.0
     , regex-tdfa
+    , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , text
+    , text-rope
+    , these
     , time
     , transformers
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
+    , unison-share-api
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
+    , uri-encode
+    , vector
+    , wai
+    , warp
+    , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
 
 executable transcripts
   main-is: Transcripts.hs
-  other-modules:
-      Paths_unison_cli
   hs-source-dirs:
       transcripts
   default-extensions:
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -214,41 +358,85 @@ executable transcripts
       TypeApplications
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
-  build-tools:
-      unison
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
+    , aeson
+    , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
+    , co-log-core
+    , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
+    , exceptions
     , extra
     , filepath
+    , free
+    , friendly-time
+    , fuzzyfind
+    , generic-lens
     , haskeline
+    , here
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
+    , ki
     , lens
-    , megaparsec >=5.0.0 && <7.0.0
+    , lock-file
+    , lsp
+    , lsp-types
+    , megaparsec
+    , memory
     , mtl
+    , network
+    , network-simple
+    , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , process
     , random >=1.2.0
     , regex-tdfa
+    , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , text
+    , text-rope
+    , these
+    , time
     , transformers
+    , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
+    , unison-share-api
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
+    , uri-encode
+    , vector
+    , wai
+    , warp
+    , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
@@ -259,25 +447,31 @@ executable unison
       ArgParse
       System.Path
       Version
-      Paths_unison_cli
   hs-source-dirs:
       unison
   default-extensions:
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -287,73 +481,124 @@ executable unison
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
+    , aeson
+    , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
+    , co-log-core
+    , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
+    , either
     , errors
+    , exceptions
     , extra
     , filepath
+    , free
+    , friendly-time
+    , fuzzyfind
+    , generic-lens
     , haskeline
+    , here
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
+    , ki
     , lens
-    , megaparsec >=5.0.0 && <7.0.0
+    , lock-file
+    , lsp
+    , lsp-types
+    , megaparsec
+    , memory
     , mtl
+    , network
+    , network-simple
+    , network-uri
     , nonempty-containers
     , open-browser
     , optparse-applicative >=0.16.1.0
+    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
+    , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , template-haskell
     , temporary
     , text
+    , text-rope
+    , these
+    , time
     , transformers
     , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
+    , unison-share-api
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
+    , uri-encode
+    , vector
+    , wai
+    , warp
+    , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
 
-test-suite tests
+test-suite cli-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
       Unison.Test.ClearCache
-      Unison.Test.CommandLine
+      Unison.Test.Cli.Monad
       Unison.Test.GitSync
       Unison.Test.Ucm
       Unison.Test.UriParser
       Unison.Test.VersionParser
-      Paths_unison_cli
   hs-source-dirs:
       tests
   default-extensions:
       ApplicativeDo
       BangPatterns
       BlockArguments
+      DeriveAnyClass
       DeriveFunctor
       DeriveFoldable
       DeriveTraversable
       DeriveGeneric
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -363,40 +608,84 @@ test-suite tests
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
+    , aeson
+    , aeson-pretty
     , async
     , base
+    , bytes
     , bytestring
+    , co-log-core
+    , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
     , easytest
+    , either
     , errors
+    , exceptions
     , extra
     , filepath
+    , free
+    , friendly-time
+    , fuzzyfind
+    , generic-lens
     , haskeline
     , here
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
+    , ki
     , lens
-    , megaparsec >=5.0.0 && <7.0.0
+    , lock-file
+    , lsp
+    , lsp-types
+    , megaparsec
+    , memory
     , mtl
+    , network
+    , network-simple
+    , network-uri
     , nonempty-containers
     , open-browser
+    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
+    , semialign
+    , servant
+    , servant-client
     , shellmet
     , stm
     , temporary
     , text
+    , text-rope
+    , these
+    , time
     , transformers
     , unison-cli
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
+    , unison-share-api
+    , unison-sqlite
     , unison-util
+    , unison-util-base32hex
     , unison-util-relation
     , unliftio
+    , unordered-containers
+    , uri-encode
+    , vector
+    , wai
+    , warp
+    , witherable
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010

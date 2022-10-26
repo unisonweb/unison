@@ -3,7 +3,15 @@ The Unison language
 
 [![Build Status](https://travis-ci.org/unisonweb/unison.svg?branch=master)](https://travis-ci.org/unisonweb/unison)
 
-[Unison](https://unisonweb.org) is a new programming language, currently under active development. It's a modern, statically-typed purely functional language, similar to Haskell, but with the ability to describe entire distributed systems with a single program. Here's an example of a distributed map-reduce implementation:
+* [Overview](#overview)
+* [Building using Stack](#building-using-stack)
+* [Language Server Protocol (LSP)](#language-server-protocol-lsp)
+* [Codebase Server](#codebase-server)
+
+Overview
+--------
+
+[Unison](https://unisonweb.org) is a modern, statically-typed purely functional language with the ability to describe entire distributed systems using a single program. Here's an example of a distributed map-reduce implementation:
 
 ```Haskell
 -- comments start with `--`
@@ -11,16 +19,20 @@ mapReduce loc fn ifEmpty reduce data = match split data with
   Empty          -> ifEmpty
   One a          -> fn a
   Two left right ->
-    fl = at loc '(mapReduce loc fn ifEmpty reduce !left)
-    fr = at loc '(mapReduce loc fn ifEmpty reduce !right)
-    reduce !fl !fr
+    fl = forkAt loc '(mapReduce loc fn ifEmpty reduce !left)
+    fr = forkAt loc '(mapReduce loc fn ifEmpty reduce !right)
+    reduce (await fl) (await fr)
 ```
 
-This function can be either simulated locally (possibly with faults injected for testing purposes), or run atop a distributed pool of compute. 
+This function can be either simulated locally (possibly with faults injected for testing purposes), or run atop a distributed pool of compute. See [this article](https://www.unison-lang.org/articles/distributed-datasets/) for more in-depth coverage of how to build distributed computing libraries like this.
 
-If you'd like to learn more about the project, [this Strange Loop talk is a good introduction](https://www.youtube.com/watch?v=gCWtkvDQ2ZI). You can also follow along with [project website](https://unisonweb.org) or you can also say hello or lurk [in the Slack chat](https://unisonweb.org/slack).
+Other resources:
 
-We are currently alpha testing Unison. If you'd like to participate in alpha testing, you can go to [the docs site](https://www.unisonweb.org/docs) to get started.
+* [Learn about the big idea behind Unison](https://www.unison-lang.org/learn/the-big-idea/)
+* Check out [the project website](https://unison-lang.org)
+* Say hello or lurk [in the Slack chat](https://unison-lang.org/slack)
+* Explore [the Unison ecosystem](https://share.unison-lang.org/)
+* [Learn Unison](https://www.unison-lang.org/learn/)
 
 Building using Stack
 --------------------
@@ -33,18 +45,23 @@ The build uses [Stack](http://docs.haskellstack.org/). If you don't already have
 $ git clone https://github.com/unisonweb/unison.git
 $ cd unison
 $ stack --version # we'll want to know this version if you run into trouble
-$ stack build && stack exec tests && stack exec unison
+$ stack build --fast --test && stack exec unison
 ```
 
-To run a local codebase-ui while building from source, you can use the `/dev-ui-install.sh` script. It will download the latest release of the codebase-ui and put it in the expected location for the unison executable created by `stack build`. When you start unison, you'll see a url where the codebase-ui is running. 
+To run the Unison Local UI while building from source, you can use the `/dev-ui-install.sh` script. It will download the latest release of [unison-local-ui](https://github.com/unisonweb/unison-local-ui) and put it in the expected location for the unison executable created by `stack build`. When you start unison, you'll see a url where Unison Local UI is running. 
 
 See [`development.markdown`](development.markdown) for a list of build commands you'll likely use during development.
+
+Language Server Protocol (LSP)
+------------------------------
+
+View Language Server setup instructions [here](docs/language-server.markdown).
 
 Codebase Server
 ---------------
 
 When `ucm` starts it starts a Codebase web server that is used by the 
-[Codebase UI](https://github.com/unisonweb/codebase-ui). It selects a random
+[Unison Local UI](https://github.com/unisonweb/unison-local-ui). It selects a random
 port and a unique token that must be used when starting the UI to correctly
 connect to the server.
 

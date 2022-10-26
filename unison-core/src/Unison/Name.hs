@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Name
   ( Name,
     Convert (..),
@@ -9,6 +8,9 @@ module Unison.Name
     joinDot,
     fromSegment,
     fromSegments,
+    fromReverseSegments,
+    fromText,
+    fromTextEither,
 
     -- ** Unsafe construction
     unsafeFromString,
@@ -21,6 +23,7 @@ module Unison.Name
     isPrefixOf,
     endsWithReverseSegments,
     endsWithSegments,
+    stripReversedPrefix,
     reverseSegments,
     segments,
     suffixes,
@@ -38,8 +41,10 @@ module Unison.Name
     sortNamed,
     sortByText,
     searchBySuffix,
+    searchByRankedSuffix,
     suffixFrom,
     shortestUniqueSuffix,
+    commonPrefix,
     toString,
     toText,
     toVar,
@@ -56,9 +61,11 @@ where
 import Control.Lens (mapped, over, _1, _2)
 import qualified Control.Lens as Lens
 import qualified Data.List as List
+import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as List (NonEmpty)
 import qualified Data.List.NonEmpty as List.NonEmpty
+import qualified Data.Map as Map
 import qualified Data.RFC5051 as RFC5051
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -67,29 +74,30 @@ import qualified Data.Text.Lazy.Builder as Text (Builder)
 import qualified Data.Text.Lazy.Builder as Text.Builder
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
+import Unison.Position (Position (..))
 import Unison.Prelude
-import Unison.Position (Position(..))
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
+import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 
 -- | A name is an absolute-or-relative non-empty list of name segments.
 data Name
-  -- A few example names:
-  --
-  --   "foo.bar"  --> Name Relative ["bar", "foo"]
-  --   ".foo.bar" --> Name Absolute ["bar", "foo"]
-  --   "|>.<|"    --> Name Relative ["<|", "|>"]
-  --   "."        --> Name Relative ["."]
-  --   ".."       --> Name Absolute ["."]
-  --
-  = Name
+  = -- A few example names:
+    --
+    --   "foo.bar"  --> Name Relative ["bar", "foo"]
+    --   ".foo.bar" --> Name Absolute ["bar", "foo"]
+    --   "|>.<|"    --> Name Relative ["<|", "|>"]
+    --   "."        --> Name Relative ["."]
+    --   ".."       --> Name Absolute ["."]
+    --
+    Name
       -- whether the name is positioned absolutely (to some arbitrary root namespace), or relatively
       Position
       -- the name segments in reverse order
       (List.NonEmpty NameSegment)
-  deriving stock (Eq)
+  deriving stock (Eq, Generic)
 
 instance Alphabetical Name where
   compareAlphabetical n1 n2 =
@@ -175,9 +183,24 @@ endsWithSegments name ss =
 -- | Like 'endsWithSegments', but accepts a list of name segments in reverse order.
 --
 -- Slightly more efficient than 'endsWithSegments'.
+--
+-- >>> endsWithReverseSegments "a.b.c" ["c", "b"]
+-- True
 endsWithReverseSegments :: Name -> [NameSegment] -> Bool
 endsWithReverseSegments (Name _ ss0) ss1 =
   List.NonEmpty.isPrefixOf ss1 ss0
+
+-- >>> stripReversedPrefix "a.b.c" ["b", "a"]
+-- Just c
+-- >>> stripReversedPrefix "x.y" ["b", "a"]
+-- Nothing
+-- >>> stripReversedPrefix "a.b" ["b", "a"]
+-- Nothing
+stripReversedPrefix :: Name -> [NameSegment] -> Maybe Name
+stripReversedPrefix (Name p segs) suffix = do
+  stripped <- List.stripSuffix suffix (toList segs)
+  nonEmptyStripped <- List.NonEmpty.nonEmpty stripped
+  pure $ Name p nonEmptyStripped
 
 -- | Is this name absolute?
 --
@@ -266,6 +289,16 @@ fromSegments :: NonEmpty NameSegment -> Name
 fromSegments ss =
   Name Relative (List.NonEmpty.reverse ss)
 
+-- | Construct a relative name from a list of name segments which are in reverse order
+--
+-- >>> fromReverseSegments ("c" :| ["b", "a"])
+-- a.b.c
+--
+-- /O(1)/
+fromReverseSegments :: NonEmpty NameSegment -> Name
+fromReverseSegments rs =
+  Name Relative rs
+
 -- | Return the name segments of a name, in reverse order.
 --
 -- >>> reverseSegments "a.b.c"
@@ -287,6 +320,33 @@ searchBySuffix suffix rel =
   R.lookupDom suffix rel `orElse` R.searchDom (compareSuffix suffix) rel
   where
     orElse s1 s2 = if Set.null s1 then s2 else s1
+
+-- Like `searchBySuffix`, but prefers names that have fewer
+-- segments equal to "lib". This is used to prefer "local"
+-- names rather than names coming from libraries, which
+-- are traditionally placed under a "lib" subnamespace.
+--
+-- Example: foo.bar shadows lib.foo.bar
+-- Example: lib.foo.bar shadows lib.blah.lib.foo.bar
+searchByRankedSuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
+searchByRankedSuffix suffix rel = case searchBySuffix suffix rel of
+  rs | Set.size rs <= 1 -> rs
+  rs -> case Map.lookup 0 byDepth <|> Map.lookup 1 byDepth of
+    -- anything with more than one lib in it is treated the same
+    Nothing -> rs
+    Just rs -> Set.fromList rs
+    where
+      byDepth =
+        List.multimap
+          [ (minLibs ns, r)
+            | r <- toList rs,
+              ns <- [filter ok (toList (R.lookupRan r rel))]
+          ]
+      lib = NameSegment "lib"
+      libCount = length . filter (== lib) . toList . reverseSegments
+      minLibs [] = 0
+      minLibs ns = minimum (map libCount ns)
+      ok name = compareSuffix suffix name == EQ
 
 -- | Return the name segments of a name.
 --
@@ -475,6 +535,36 @@ shortestUniqueSuffix fqn r rel =
         rs =
           R.searchDom (compareSuffix suffix) rel
 
+-- | Returns the common prefix of two names as segments
+--
+-- Note: the returned segments are NOT reversed.
+--
+-- >>> commonPrefix "a.b.x" "a.b.y"
+-- [a,b]
+--
+-- >>> commonPrefix "x.y.z" "a.b.c"
+-- []
+--
+-- >>> commonPrefix "a.b.c" "a.b.c.d.e"
+-- [a,b,c]
+--
+-- Must have equivalent positions or no there's no common prefix
+-- >>> commonPrefix ".a.b.c" "a.b.c.d.e"
+-- []
+--
+-- Prefix matches are performed at the *segment* level:
+-- >>> commonPrefix "a.bears" "a.beats"
+-- [a]
+commonPrefix :: Name -> Name -> [NameSegment]
+commonPrefix x@(Name p1 _) y@(Name p2 _)
+  | p1 /= p2 = []
+  | otherwise =
+    commonPrefix' (toList $ segments x) (toList $ segments y)
+  where
+    commonPrefix' (a : as) (b : bs)
+      | a == b = a : commonPrefix' as bs
+    commonPrefix' _ _ = []
+
 -- | Unsafely parse a name from a string literal.
 --
 -- See 'unsafeFromText'.
@@ -487,22 +577,36 @@ unsafeFromString =
 -- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
 -- no attempt at rejecting bogus names like "foo...bar...baz".
 unsafeFromText :: HasCallStack => Text -> Name
-unsafeFromText = \case
-  "" -> error "empty name"
-  "." -> Name Relative ("." :| [])
-  ".." -> Name Absolute ("." :| [])
+unsafeFromText = either (error . Text.unpack) id . fromTextEither
+
+-- | Parse a name from a string literal.
+--
+-- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
+-- no attempt at rejecting bogus names like "foo...bar...baz".
+fromText :: Text -> Maybe Name
+fromText = eitherToMaybe . fromTextEither
+
+-- | Unsafely parse a name from a string literal.
+--
+-- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
+-- no attempt at rejecting bogus names like "foo...bar...baz".
+fromTextEither :: Text -> Either Text Name
+fromTextEither = \case
+  "" -> Left "empty name"
+  "." -> Right $ Name Relative ("." :| [])
+  ".." -> Right $ Name Absolute ("." :| [])
   name
-    | Text.any (== '#') name -> error ("not a name: " <> show name)
-    | Text.head name == '.' -> Name Absolute (go (Text.tail name))
-    | otherwise -> Name Relative (go name)
+    | Text.any (== '#') name -> Left ("not a name: " <> tShow name)
+    | Text.head name == '.' -> Name Absolute <$> (go (Text.tail name))
+    | otherwise -> Name Relative <$> go name
   where
-    go :: Text -> List.NonEmpty NameSegment
+    go :: Text -> Either Text (List.NonEmpty NameSegment)
     go name =
       if ".." `Text.isSuffixOf` name
-        then "." :| split (Text.dropEnd 2 name)
+        then Right $ "." :| split (Text.dropEnd 2 name)
         else case split name of
-          [] -> error "empty name"
-          s : ss -> s :| ss
+          [] -> Left "empty name"
+          s : ss -> Right $ s :| ss
 
     split :: Text -> [NameSegment]
     split =

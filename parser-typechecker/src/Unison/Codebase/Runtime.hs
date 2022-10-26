@@ -1,10 +1,7 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Unison.Codebase.Runtime where
-
-import Unison.Prelude
 
 import qualified Data.Map as Map
 import qualified Unison.ABT as ABT
@@ -13,6 +10,7 @@ import qualified Unison.Codebase.CodeLookup as CL
 import qualified Unison.Codebase.CodeLookup.Util as CL
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
+import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -27,23 +25,24 @@ import Unison.WatchKind (WatchKind)
 import qualified Unison.WatchKind as WK
 
 type Error = P.Pretty P.ColorText
+
 type Term v = Term.Term v ()
 
 data Runtime v = Runtime
-  { terminate :: IO ()
-  , evaluate
-      :: CL.CodeLookup v IO ()
-      -> PPE.PrettyPrintEnv
-      -> Term v
-      -> IO (Either Error (Term v))
-  , compileTo
-      :: CL.CodeLookup v IO ()
-      -> PPE.PrettyPrintEnv
-      -> Reference
-      -> FilePath
-      -> IO (Maybe Error)
-  , mainType :: Type v Ann
-  , ioTestType :: Type v Ann
+  { terminate :: IO (),
+    evaluate ::
+      CL.CodeLookup v IO () ->
+      PPE.PrettyPrintEnv ->
+      Term v ->
+      IO (Either Error (Term v)),
+    compileTo ::
+      CL.CodeLookup v IO () ->
+      PPE.PrettyPrintEnv ->
+      Reference ->
+      FilePath ->
+      IO (Maybe Error),
+    mainType :: Type v Ann,
+    ioTestType :: Type v Ann
   }
 
 type IsCacheHit = Bool
@@ -51,12 +50,15 @@ type IsCacheHit = Bool
 noCache :: Reference.Id -> IO (Maybe (Term v))
 noCache _ = pure Nothing
 
-type WatchResults v a = (Either Error
-         -- Bindings:
-       ( [(v, Term v)]
-         -- Map watchName (loc, hash, expression, value, isHit)
-       , Map v (a, WatchKind, Reference.Id, Term v, Term v, IsCacheHit)
-       ))
+type WatchResults v a =
+  ( Either
+      Error
+      -- Bindings:
+      ( [(v, Term v)],
+        -- Map watchName (loc, hash, expression, value, isHit)
+        Map v (a, WatchKind, Reference.Id, Term v, Term v, IsCacheHit)
+      )
+  )
 
 -- Evaluates the watch expressions in the file, returning a `Map` of their
 -- results. This has to be a bit fancy to handle that the definitions in the
@@ -66,15 +68,15 @@ type WatchResults v a = (Either Error
 -- Note: The definitions in the file are hashed and looked up in
 -- `evaluationCache`. If that returns a result, evaluation of that definition
 -- can be skipped.
-evaluateWatches
-  :: forall v a
-   . Var v
-  => CL.CodeLookup v IO a
-  -> PPE.PrettyPrintEnv
-  -> (Reference.Id -> IO (Maybe (Term v)))
-  -> Runtime v
-  -> TypecheckedUnisonFile v a
-  -> IO (WatchResults v a)
+evaluateWatches ::
+  forall v a.
+  Var v =>
+  CL.CodeLookup v IO a ->
+  PPE.PrettyPrintEnv ->
+  (Reference.Id -> IO (Maybe (Term v))) ->
+  Runtime v ->
+  TypecheckedUnisonFile v a ->
+  IO (WatchResults v a)
 evaluateWatches code ppe evaluationCache rt tuf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference.Id, Term.Term v a)
@@ -93,62 +95,77 @@ evaluateWatches code ppe evaluationCache rt tuf = do
       Just t' -> pure (v, (r, ABT.annotation t, t', True))
   -- 3. create a big ol' let rec whose body is a big tuple of all watches
   let rv :: Map Reference.Id v
-      rv = Map.fromList [ (r, v) | (v, (r, _)) <- Map.toList m ]
+      rv = Map.fromList [(r, v) | (v, (r, _)) <- Map.toList m]
       bindings :: [(v, Term v)]
-      bindings     = [ (v, unref rv b) | (v, (_, _, b, _)) <- Map.toList m' ]
-      watchVars    = [ Term.var () v | v <- toList watches ]
+      bindings = [(v, unref rv b) | (v, (_, _, b, _)) <- Map.toList m']
+      watchVars = [Term.var () v | v <- toList watches]
       bigOl'LetRec = Term.letRec' True bindings (tupleTerm watchVars)
-      cl           = void (CL.fromTypecheckedUnisonFile tuf) <> void code
+      cl = void (CL.fromTypecheckedUnisonFile tuf) <> void code
   -- 4. evaluate it and get all the results out of the tuple, then
   -- create the result Map
   out <- evaluate rt cl ppe bigOl'LetRec
   case out of
     Right out -> do
-      let
-        (bindings, results) = case out of
-          TupleTerm' results -> (mempty, results)
-          Term.LetRecNamed' bs (TupleTerm' results) -> (bs, results)
-          _ -> error $ "Evaluation should produce a tuple, but gave: " ++ show out
+      let (bindings, results) = case out of
+            TupleTerm' results -> (mempty, results)
+            Term.LetRecNamed' bs (TupleTerm' results) -> (bs, results)
+            _ -> error $ "Evaluation should produce a tuple, but gave: " ++ show out
       let go v eval (ref, a, uneval, isHit) =
-            (a, Map.findWithDefault (die v) v watchKinds,
-             ref, uneval, Term.etaNormalForm eval, isHit)
-          watchMap = Map.intersectionWithKey go
-            (Map.fromList (toList watches `zip` results)) m'
+            ( a,
+              Map.findWithDefault (die v) v watchKinds,
+              ref,
+              uneval,
+              Term.etaNormalForm eval,
+              isHit
+            )
+          watchMap =
+            Map.intersectionWithKey
+              go
+              (Map.fromList (toList watches `zip` results))
+              m'
           die v = error $ "not sure what kind of watch this is: " <> show v
       pure $ Right (bindings, watchMap)
     Left e -> pure (Left e)
- where
+  where
     -- unref :: Map Reference.Id v -> Term.Term v a -> Term.Term v a
-  unref rv t = ABT.visitPure go t
-   where
-    go t@(Term.Ref' (Reference.DerivedId r)) = case Map.lookup r rv of
-      Nothing -> Nothing
-      Just v  -> Just (Term.var (ABT.annotation t) v)
-    go _ = Nothing
+    unref rv t = ABT.visitPure go t
+      where
+        go t@(Term.Ref' (Reference.DerivedId r)) = case Map.lookup r rv of
+          Nothing -> Nothing
+          Just v -> Just (Term.var (ABT.annotation t) v)
+        go _ = Nothing
 
-evaluateTerm'
-  :: (Var v, Monoid a)
-  => CL.CodeLookup v IO a
-  -> (Reference.Id -> IO (Maybe (Term v)))
-  -> PPE.PrettyPrintEnv
-  -> Runtime v
-  -> Term.Term v a
-  -> IO (Either Error (Term v))
+evaluateTerm' ::
+  (Var v, Monoid a) =>
+  CL.CodeLookup v IO a ->
+  (Reference.Id -> IO (Maybe (Term v))) ->
+  PPE.PrettyPrintEnv ->
+  Runtime v ->
+  Term.Term v a ->
+  IO (Either Error (Term v))
 evaluateTerm' codeLookup cache ppe rt tm = do
   result <- cache (Hashing.hashClosedTerm tm)
   case result of
     Just r -> pure (Right r)
     Nothing -> do
-      let
-        tuf = UF.typecheckedUnisonFile mempty mempty mempty
-                 [(WK.RegularWatch, [(Var.nameds "result", tm, mempty <$> mainType rt)])]
+      let tuf =
+            UF.typecheckedUnisonFile
+              mempty
+              mempty
+              mempty
+              [(WK.RegularWatch, [(Var.nameds "result", tm, mempty <$> mainType rt)])]
       r <- evaluateWatches (void codeLookup) ppe cache rt (void tuf)
-      pure $ r <&> \(_,map) ->
-        let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
-        in value
+      pure $
+        r <&> \(_, map) ->
+          case Map.elems map of
+            [(_loc, _kind, _hash, _src, value, _isHit)] -> value
+            _ -> error "evaluateTerm': Pattern mismatch on watch results"
 
-evaluateTerm
-  :: (Var v, Monoid a)
-  => CL.CodeLookup v IO a -> PPE.PrettyPrintEnv -> Runtime v -> Term.Term v a
-  -> IO (Either Error (Term v))
+evaluateTerm ::
+  (Var v, Monoid a) =>
+  CL.CodeLookup v IO a ->
+  PPE.PrettyPrintEnv ->
+  Runtime v ->
+  Term.Term v a ->
+  IO (Either Error (Term v))
 evaluateTerm codeLookup = evaluateTerm' codeLookup noCache

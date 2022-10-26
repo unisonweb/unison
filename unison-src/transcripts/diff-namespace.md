@@ -40,8 +40,8 @@ bdependent = b
 c = 3
 helloWorld = "Hello, world!"
 
-structural type A a = A Nat
-structural ability X a1 a2 where x : Nat
+structural type A a = A ()
+structural ability X a1 a2 where x : ()
 ```
 
 ```ucm
@@ -143,14 +143,6 @@ a = 555
 .> diff.namespace nsx nsw
 .nsw> view a b
 ```
-```unison
-a = 777
-```
-
-```ucm:error
-.nsw> update
-.nsw> view a b
-```
 
 ## Should be able to diff a namespace hash from history.
 
@@ -169,7 +161,7 @@ y = 2
 ```ucm
 .hashdiff> add
 .hashdiff> history
-.hashdiff> diff.namespace #hkrqt3tm05 #is7tu6katt
+.hashdiff> diff.namespace 2 1
 ```
 
 ##

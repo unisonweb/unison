@@ -17,14 +17,14 @@ inside.r = d
 ```ucm
 .> debug.file
 
-  type inside.M#4idrjau939
-  type outside.A#0n4pbd0q9u
-  type outside.B#muulibntaq
-  inside.p#fiupm7pl7o
-  inside.q#l5pndeifuh
-  inside.r#im2kiu2hmn
-  outside.c#msp7bv40rv
-  outside.d#6cdi7g1oi2
+  type inside.M#h37a56c5ep
+  type outside.A#6l6krl7n4l
+  type outside.B#eo6rj0lj1b
+  inside.p#htoo5rnb54
+  inside.q#vtdbqaojv6
+  inside.r#nkgohbke6n
+  outside.c#f3lgjvjqoo
+  outside.d#ukd7tu6kds
 
 ```
 This will help me make progress in some situations when UCM is being deficient or broken.
@@ -47,47 +47,52 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 
 .> dependents q
 
-  #l5pndeifuh doesn't have any named dependents.
+  #vtdbqaojv6 doesn't have any named dependents.
 
 .> dependencies q
 
-  Dependencies of #l5pndeifuh:
+  Dependencies of #vtdbqaojv6:
   
        Reference   Name
-    1. ##Nat.*     builtin.Nat.*
-    2. ##Nat.+     builtin.Nat.+
-    3. #fiupm7pl7o inside.p
+    1. ##Nat       builtin.Nat
+    2. ##Nat.*     builtin.Nat.*
+    3. ##Nat.+     builtin.Nat.+
+    4. #htoo5rnb54 inside.p
 
 .> dependencies B
 
-  Dependencies of #muulibntaq:
+  Dependencies of #eo6rj0lj1b:
   
        Reference Name
     1. ##Int     builtin.Int
 
-  Dependencies of #muulibntaq#0:
+  Dependencies of #eo6rj0lj1b#0:
   
        Reference   Name
-    1. #muulibntaq outside.B
+    1. #eo6rj0lj1b outside.B
     2. ##Int       builtin.Int
 
 .> dependencies d
 
-  Dependencies of #6cdi7g1oi2:
+  Dependencies of #ukd7tu6kds:
   
        Reference     Name
-    1. ##Nat         builtin.Nat
-    2. ##Nat.+       builtin.Nat.+
-    3. ##Universal.< builtin.Universal.<
-    4. #msp7bv40rv   outside.c
-    5. #fiupm7pl7o   inside.p
+    1. ##Boolean     builtin.Boolean
+    2. ##Nat         builtin.Nat
+    3. ##Nat.+       builtin.Nat.+
+    4. ##Universal.< builtin.Universal.<
+    5. #f3lgjvjqoo   outside.c
+    6. #htoo5rnb54   inside.p
 
 .> dependents d
 
-  Dependents of #6cdi7g1oi2:
+  Dependents of #ukd7tu6kds:
   
-       Reference   Name
-    1. #im2kiu2hmn inside.r
+       Name     Reference
+    1. inside.r #nkgohbke6n
+  
+  Tip: Try `view 1` to see the source of any numbered item in
+       the above list.
 
 ```
 We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the structural type that provided the constructor.

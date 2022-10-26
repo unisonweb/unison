@@ -1,10 +1,11 @@
->
+
 ```ucm:hide
 .> builtins.merge
 .> builtins.mergeio
 .> cd builtin
 .> load unison-src/transcripts-using-base/base.u
 .> add
+.> find
 ```
 
 ```unison
@@ -22,19 +23,19 @@ testRoundTrip n = cases
   EncDec label enc dec ->
     encoded = enc n
     match dec encoded with
-      Some (n', remain) -> 
-        if n == n' then 
+      Some (n', remain) ->
+        if n == n' then
           emit (Ok ("successfully decoded " ++ (toText n) ++ " using " ++ label))
         else
           emit (Fail ("decoded " ++ (toText n') ++ " instead of " ++ (toText n) ++ " using " ++ label))
-        if (size remain) > 0 then 
+        if (size remain) > 0 then
           emit (Fail ("unconsumed input using " ++ label))
         else
           emit (Ok ("consumed all input"))
       None -> emit (Fail ("failed to decode " ++ (toText n) ++ " using " ++ label))
-    
+
 testNat : Nat -> '{IO, Stream Result} ()
-testNat n _ = 
+testNat n _ =
   if n >= (shiftLeft 1 32) then
     testRoundTrip n BE64
     testRoundTrip n LE64
@@ -52,13 +53,13 @@ testNat n _ =
     testRoundTrip n LE16
 
 
-testABunchOfNats _ = 
-  (runTest (testNat 0xFFFFFFFF)) ++ 
-  (runTest (testNat 0x41000000)) ++ 
-  (runTest (testNat 0x00410000)) ++ 
-  (runTest (testNat 0x00004100)) ++ 
-  (runTest (testNat 0x86753099)) ++ 
-  (runTest (testNat 0x00000041)) ++ 
+testABunchOfNats _ =
+  (runTest (testNat 0xFFFFFFFF)) ++
+  (runTest (testNat 0x41000000)) ++
+  (runTest (testNat 0x00410000)) ++
+  (runTest (testNat 0x00004100)) ++
+  (runTest (testNat 0x86753099)) ++
+  (runTest (testNat 0x00000041)) ++
   (runTest (testNat 0))
 ```
 

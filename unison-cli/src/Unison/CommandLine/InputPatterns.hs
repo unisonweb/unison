@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-
    This module defines 'InputPattern' values for every supported input command.
 -}
@@ -6,23 +5,22 @@ module Unison.CommandLine.InputPatterns where
 
 import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
-import Data.List (intercalate, isPrefixOf)
-import Data.List.Extra (nubOrdOn)
+import Data.List (intercalate)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
+import Data.Proxy (Proxy (..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
-import qualified System.Console.Haskeline.Completion as Completion
 import qualified Text.Megaparsec as P
-import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Input (Input)
 import qualified Unison.Codebase.Editor.Input as Input
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemotePath, WriteRepo)
+import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
+import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemotePath)
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.Path as Path
@@ -32,6 +30,7 @@ import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
 import Unison.CommandLine
+import Unison.CommandLine.Completion
 import qualified Unison.CommandLine.Globbing as Globbing
 import Unison.CommandLine.InputPattern
   ( ArgumentType (..),
@@ -40,15 +39,12 @@ import Unison.CommandLine.InputPattern
   )
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
-import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.Names as Names
+import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Pretty as P
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
@@ -89,6 +85,7 @@ mergeBuiltins =
   InputPattern
     "builtins.merge"
     []
+    I.Hidden
     []
     "Adds the builtins to `builtins.` in the current namespace (excluding `io` and misc)."
     (const . pure $ Input.MergeBuiltinsI)
@@ -98,6 +95,7 @@ mergeIOBuiltins =
   InputPattern
     "builtins.mergeio"
     []
+    I.Hidden
     []
     "Adds all the builtins to `builtins.` in the current namespace, including `io` and misc."
     (const . pure $ Input.MergeIOBuiltinsI)
@@ -107,6 +105,7 @@ updateBuiltins =
   InputPattern
     "builtins.update"
     []
+    I.Visible
     []
     ( "Adds all the builtins that are missing from this namespace, "
         <> "and deprecate the ones that don't exist in this version of Unison."
@@ -118,6 +117,7 @@ todo =
   InputPattern
     "todo"
     []
+    I.Visible
     [(Optional, patchArg), (Optional, namespaceArg)]
     ( P.wrapColumn2
         [ ( makeExample' todo,
@@ -149,7 +149,8 @@ load =
   InputPattern
     "load"
     []
-    [(Optional, noCompletions)]
+    I.Visible
+    [(Optional, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( makeExample' load,
             "parses, typechecks, and evaluates the most recent scratch file."
@@ -170,51 +171,71 @@ add =
   InputPattern
     "add"
     []
-    [(ZeroPlus, noCompletions)]
+    I.Visible
+    [(ZeroPlus, noCompletionsArg)]
     ( "`add` adds to the codebase all the definitions from the most recently "
         <> "typechecked file."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.AddI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.AddI (Set.fromList $ map Name.unsafeFromString ws)
 
 previewAdd :: InputPattern
 previewAdd =
   InputPattern
     "add.preview"
     []
-    [(ZeroPlus, noCompletions)]
+    I.Visible
+    [(ZeroPlus, noCompletionsArg)]
     ( "`add.preview` previews additions to the codebase from the most recently "
         <> "typechecked file. This command only displays cached typechecking "
         <> "results. Use `load` to reparse & typecheck the file if the context "
         <> "has changed."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.PreviewAddI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.PreviewAddI (Set.fromList $ map Name.unsafeFromString ws)
+
+updateNoPatch :: InputPattern
+updateNoPatch =
+  InputPattern
+    "update.nopatch"
+    ["un"]
+    I.Visible
+    [(ZeroPlus, noCompletionsArg)]
+    ( P.wrap
+        ( makeExample' updateNoPatch
+            <> "works like"
+            <> P.group (makeExample' update <> ",")
+            <> "except it doesn't add a patch entry for any updates. "
+            <> "Use this when you want to make changes to definitions without "
+            <> "pushing those changes to dependents beyond your codebase. "
+            <> "An example is when updating docs, or when updating a term you "
+            <> "just added."
+        )
+        <> P.wrapColumn2
+          [ ( makeExample' updateNoPatch,
+              "updates all definitions in the .u file."
+            ),
+            ( makeExample updateNoPatch ["foo", "bar"],
+              "updates `foo`, `bar`, and their dependents from the .u file."
+            )
+          ]
+    )
+    ( \case
+        ws -> do
+          pure $
+            Input.UpdateI
+              Input.NoPatch
+              (Set.fromList $ map Name.unsafeFromString ws)
+    )
 
 update :: InputPattern
 update =
   InputPattern
     "update"
     []
-    [ (Optional, patchArg),
-      (ZeroPlus, noCompletions)
-    ]
+    I.Visible
+    [(Optional, patchArg), (ZeroPlus, noCompletionsArg)]
     ( P.wrap
-        ( makeExample' update <> "works like"
+        ( makeExample' update
+            <> "works like"
             <> P.group (makeExample' add <> ",")
             <> "except that if a definition in the file has the same name as an"
             <> "existing definition, the name gets updated to point to the new"
@@ -239,14 +260,14 @@ update =
     )
     ( \case
         patchStr : ws -> do
-          patch <- first fromString $ Path.parseSplit' Path.definitionNameSegment patchStr
-          case traverse HQ'.fromString ws of
-            Just ws -> Right $ Input.UpdateI (Just patch) ws
-            Nothing ->
-              Left . warn . P.lines . fmap fromString
-                . ("I don't know what these refer to:\n" :)
-                $ collectNothings HQ'.fromString ws
-        [] -> Right $ Input.UpdateI Nothing []
+          patch <-
+            first fromString $
+              Path.parseSplit' Path.definitionNameSegment patchStr
+          pure $
+            Input.UpdateI
+              (Input.UsePatch patch)
+              (Set.fromList $ map Name.unsafeFromString ws)
+        [] -> Right $ Input.UpdateI Input.DefaultPatch mempty
     )
 
 previewUpdate :: InputPattern
@@ -254,33 +275,40 @@ previewUpdate =
   InputPattern
     "update.preview"
     []
-    [(ZeroPlus, noCompletions)]
+    I.Visible
+    [(ZeroPlus, noCompletionsArg)]
     ( "`update.preview` previews updates to the codebase from the most "
         <> "recently typechecked file. This command only displays cached "
         <> "typechecking results. Use `load` to reparse & typecheck the file if "
         <> "the context has changed."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.PreviewUpdateI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.PreviewUpdateI (Set.fromList $ map Name.unsafeFromString ws)
 
 patch :: InputPattern
 patch =
   InputPattern
     "patch"
     []
+    I.Visible
     [(Required, patchArg), (Optional, namespaceArg)]
-    ( P.wrap $
-        makeExample' patch
-          <> "rewrites any definitions that depend on "
-          <> "definitions with type-preserving edits to use the updated versions of"
-          <> "these dependencies."
+    ( P.lines
+        [ P.wrap $
+            makeExample' patch
+              <> "rewrites any definitions that depend on "
+              <> "definitions with type-preserving edits to use the updated versions of"
+              <> "these dependencies.",
+          "",
+          P.wrapColumn2
+            [ ( makeExample patch ["<patch>", "[path]"],
+                "applies the given patch"
+                  <> "to the given namespace"
+              ),
+              ( makeExample patch ["<patch>"],
+                "applies the given patch"
+                  <> "to the current namespace"
+              )
+            ]
+        ]
     )
     ( \case
         patchStr : ws -> first fromString $ do
@@ -301,13 +329,30 @@ view =
   InputPattern
     "view"
     []
+    I.Visible
     [(ZeroPlus, definitionQueryArg)]
     ( P.lines
-        [ "`view foo` prints the definition of `foo`.",
+        [ "`view foo` prints definitions named `foo` within your current namespace.",
           "`view` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
         ]
     )
-    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
+    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
+        . traverse parseHashQualifiedName
+    )
+
+viewGlobal :: InputPattern
+viewGlobal =
+  InputPattern
+    "view.global"
+    []
+    I.Visible
+    [(ZeroPlus, definitionQueryArg)]
+    ( P.lines
+        [ "`view.global foo` prints definitions of `foo` within your codebase.",
+          "`view.global` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
+        ]
+    )
+    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionGlobal)
         . traverse parseHashQualifiedName
     )
 
@@ -316,6 +361,7 @@ display =
   InputPattern
     "display"
     []
+    I.Visible
     [(ZeroPlus, definitionQueryArg)]
     ( P.lines
         [ "`display foo` prints a rendered version of the term `foo`.",
@@ -330,7 +376,8 @@ displayTo =
   InputPattern
     "display.to"
     []
-    [(Required, noCompletions), (ZeroPlus, definitionQueryArg)]
+    I.Visible
+    [(Required, noCompletionsArg), (ZeroPlus, definitionQueryArg)]
     ( P.wrap $
         makeExample displayTo ["<filename>", "foo"]
           <> "prints a rendered version of the term `foo` to the given file."
@@ -346,6 +393,7 @@ docs =
   InputPattern
     "docs"
     []
+    I.Visible
     [(ZeroPlus, definitionQueryArg)]
     ( P.lines
         [ "`docs foo` shows documentation for the definition `foo`.",
@@ -359,6 +407,7 @@ api =
   InputPattern
     "api"
     []
+    I.Visible
     []
     "`api` provides details about the API."
     (const $ pure Input.ApiI)
@@ -368,6 +417,7 @@ ui =
   InputPattern
     "ui"
     []
+    I.Visible
     []
     "`ui` opens the Codebase UI in the default browser."
     (const $ pure Input.UiI)
@@ -377,6 +427,7 @@ undo =
   InputPattern
     "undo"
     []
+    I.Visible
     []
     "`undo` reverts the most recent change to the codebase."
     (const $ pure Input.UndoI)
@@ -386,6 +437,7 @@ viewByPrefix =
   InputPattern
     "view.recursive"
     []
+    I.Visible
     [(OnePlus, definitionQueryArg)]
     "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
     ( fmap (Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
@@ -393,30 +445,48 @@ viewByPrefix =
     )
 
 find :: InputPattern
-find =
+find = find' "find" Input.FindLocal
+
+findAll :: InputPattern
+findAll = find' "find.all" Input.FindLocalAndDeps
+
+findGlobal :: InputPattern
+findGlobal = find' "find.global" Input.FindGlobal
+
+find' :: String -> Input.FindScope -> InputPattern
+find' cmd fscope =
   InputPattern
-    "find"
+    cmd
     []
-    [(ZeroPlus, fuzzyDefinitionQueryArg)]
+    I.Visible
+    [(ZeroPlus, exactDefinitionArg)]
     ( P.wrapColumn2
         [ ("`find`", "lists all definitions in the current namespace."),
           ( "`find foo`",
             "lists all definitions with a name similar to 'foo' in the current "
-              <> "namespace."
+              <> "namespace (excluding those under 'lib')."
           ),
           ( "`find foo bar`",
             "lists all definitions with a name similar to 'foo' or 'bar' in the "
-              <> "current namespace."
+              <> "current namespace (excluding those under 'lib')."
+          ),
+          ( "find.all foo",
+            "lists all definitions with a name similar to 'foo' in the current "
+              <> "namespace (including one level of 'lib')."
+          ),
+          ( "find.global foo",
+            "lists all definitions with a name similar to 'foo' in any namespace"
           )
         ]
     )
-    (pure . Input.SearchByNameI False False)
+    (pure . Input.FindI False fscope)
 
 findShallow :: InputPattern
 findShallow =
   InputPattern
     "list"
-    ["ls"]
+    ["ls", "dir"]
+    I.Visible
     [(Optional, namespaceArg)]
     ( P.wrapColumn2
         [ ("`list`", "lists definitions and namespaces at the current level of the current namespace."),
@@ -436,18 +506,32 @@ findVerbose :: InputPattern
 findVerbose =
   InputPattern
     "find.verbose"
-    ["list.verbose", "ls.verbose"]
-    [(ZeroPlus, fuzzyDefinitionQueryArg)]
+    []
+    I.Visible
+    [(ZeroPlus, exactDefinitionArg)]
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.SearchByNameI True False)
+    (pure . Input.FindI True Input.FindLocal)
+
+findVerboseAll :: InputPattern
+findVerboseAll =
+  InputPattern
+    "find.all.verbose"
+    []
+    I.Visible
+    [(ZeroPlus, exactDefinitionArg)]
+    ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
+        <> "and aliases in the results."
+    )
+    (pure . Input.FindI True Input.FindLocalAndDeps)
 
 findPatch :: InputPattern
 findPatch =
   InputPattern
     "find.patch"
     ["list.patch", "ls.patch"]
+    I.Visible
     []
     ( P.wrapColumn2
         [("`find.patch`", "lists all patches in the current namespace.")]
@@ -459,6 +543,7 @@ renameTerm =
   InputPattern
     "move.term"
     ["rename.term"]
+    I.Visible
     [ (Required, exactDefinitionTermQueryArg),
       (Required, newNameArg)
     ]
@@ -479,6 +564,7 @@ renameType =
   InputPattern
     "move.type"
     ["rename.type"]
+    I.Visible
     [ (Required, exactDefinitionTypeQueryArg),
       (Required, newNameArg)
     ]
@@ -499,6 +585,7 @@ delete =
   InputPattern
     "delete"
     []
+    I.Visible
     [(OnePlus, definitionQueryArg)]
     "`delete foo` removes the term or type name `foo` from the namespace."
     ( \case
@@ -516,6 +603,7 @@ deleteTerm =
   InputPattern
     "delete.term"
     []
+    I.Visible
     [(OnePlus, exactDefinitionTermQueryArg)]
     "`delete.term foo` removes the term name `foo` from the namespace."
     ( \case
@@ -533,6 +621,7 @@ deleteType =
   InputPattern
     "delete.type"
     []
+    I.Visible
     [(OnePlus, exactDefinitionTypeQueryArg)]
     "`delete.type foo` removes the type name `foo` from the namespace."
     ( \case
@@ -556,6 +645,7 @@ deleteReplacement isTerm =
   InputPattern
     commandName
     []
+    I.Visible
     [(Required, if isTerm then exactDefinitionTermQueryArg else exactDefinitionTypeQueryArg), (Optional, patchArg)]
     ( P.string $
         commandName
@@ -620,6 +710,7 @@ aliasTerm =
   InputPattern
     "alias.term"
     []
+    I.Visible
     [(Required, exactDefinitionTermQueryArg), (Required, newNameArg)]
     "`alias.term foo bar` introduces `bar` with the same definition as `foo`."
     ( \case
@@ -638,6 +729,7 @@ aliasType =
   InputPattern
     "alias.type"
     []
+    I.Visible
     [(Required, exactDefinitionTypeQueryArg), (Required, newNameArg)]
     "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
     ( \case
@@ -656,7 +748,8 @@ aliasMany =
   InputPattern
     "alias.many"
     ["copy"]
-    [(Required, definitionQueryArg), (OnePlus, exactDefinitionOrPathArg)]
+    I.Visible
+    [(Required, definitionQueryArg), (OnePlus, exactDefinitionArg)]
     ( P.group . P.lines $
         [ P.wrap $
             P.group (makeExample aliasMany ["<relative1>", "[relative2...]", "<namespace>"])
@@ -679,6 +772,7 @@ up =
   InputPattern
     "up"
     []
+    I.Visible
     []
     (P.wrapColumn2 [(makeExample up [], "move current path up one level")])
     ( \case
@@ -691,6 +785,7 @@ cd =
   InputPattern
     "namespace"
     ["cd", "j"]
+    I.Visible
     [(Required, namespaceArg)]
     ( P.lines
         [ "Moves your perspective to a different namespace.",
@@ -726,6 +821,7 @@ back =
   InputPattern
     "back"
     ["popd"]
+    I.Visible
     []
     ( P.wrapColumn2
         [ ( makeExample back [],
@@ -743,6 +839,7 @@ deleteNamespace =
   InputPattern
     "delete.namespace"
     []
+    I.Visible
     [(Required, namespaceArg)]
     "`delete.namespace <foo>` deletes the namespace `foo`"
     (deleteNamespaceParser (I.help deleteNamespace) Input.Try)
@@ -752,29 +849,32 @@ deleteNamespaceForce =
   InputPattern
     "delete.namespace.force"
     []
+    I.Visible
     [(Required, namespaceArg)]
-    ("`delete.namespace.force <foo>` deletes the namespace `foo`,"
-    <> "deletion will proceed even if other code depends on definitions in foo.")
+    ( "`delete.namespace.force <foo>` deletes the namespace `foo`,"
+        <> "deletion will proceed even if other code depends on definitions in foo."
+    )
     (deleteNamespaceParser (I.help deleteNamespaceForce) Input.Force)
 
 deleteNamespaceParser :: P.Pretty CT.ColorText -> Input.Insistence -> [String] -> Either (P.Pretty CT.ColorText) Input
 deleteNamespaceParser helpText insistence =
-    ( \case
-        ["."] ->
-          first fromString
-            . pure
-            $ Input.DeleteBranchI insistence Nothing
-        [p] -> first fromString $ do
-          p <- Path.parseSplit' Path.definitionNameSegment p
-          pure . Input.DeleteBranchI insistence $ Just p
-        _ -> Left helpText
-    )
+  ( \case
+      ["."] ->
+        first fromString
+          . pure
+          $ Input.DeleteBranchI insistence Nothing
+      [p] -> first fromString $ do
+        p <- Path.parseSplit' Path.definitionNameSegment p
+        pure . Input.DeleteBranchI insistence $ Just p
+      _ -> Left helpText
+  )
 
 deletePatch :: InputPattern
 deletePatch =
   InputPattern
     "delete.patch"
     []
+    I.Visible
     [(Required, patchArg)]
     "`delete.patch <foo>` deletes the patch `foo`"
     ( \case
@@ -801,6 +901,7 @@ copyPatch =
   InputPattern
     "copy.patch"
     []
+    I.Visible
     [(Required, patchArg), (Required, newNameArg)]
     "`copy.patch foo bar` copies the patch `foo` to `bar`."
     ( \case
@@ -813,6 +914,7 @@ renamePatch =
   InputPattern
     "move.patch"
     ["rename.patch"]
+    I.Visible
     [(Required, patchArg), (Required, newNameArg)]
     "`move.patch foo bar` renames the patch `foo` to `bar`."
     ( \case
@@ -825,16 +927,14 @@ renameBranch =
   InputPattern
     "move.namespace"
     ["rename.namespace"]
+    I.Visible
     [(Required, namespaceArg), (Required, newNameArg)]
-    "`move.namespace foo bar` renames the path `bar` to `foo`."
+    "`move.namespace foo bar` renames the path `foo` to `bar`."
     ( \case
-        [".", dest] -> first fromString $ do
-          dest <- Path.parseSplit' Path.definitionNameSegment dest
-          pure $ Input.MoveBranchI Nothing dest
         [src, dest] -> first fromString $ do
-          src <- Path.parseSplit' Path.definitionNameSegment src
-          dest <- Path.parseSplit' Path.definitionNameSegment dest
-          pure $ Input.MoveBranchI (Just src) dest
+          src <- Path.parsePath' src
+          dest <- Path.parsePath' dest
+          pure $ Input.MoveBranchI src dest
         _ -> Left (I.help renameBranch)
     )
 
@@ -843,6 +943,7 @@ history =
   InputPattern
     "history"
     []
+    I.Visible
     [(Optional, namespaceArg)]
     ( P.wrapColumn2
         [ (makeExample history [], "Shows the history of the current path."),
@@ -866,6 +967,7 @@ forkLocal =
   InputPattern
     "fork"
     ["copy.namespace"]
+    I.Visible
     [ (Required, namespaceArg),
       (Required, newNameArg)
     ]
@@ -883,6 +985,7 @@ resetRoot =
   InputPattern
     "reset-root"
     []
+    I.Visible
     [(Required, namespaceArg)]
     ( P.wrapColumn2
         [ ( makeExample resetRoot [".foo"],
@@ -923,7 +1026,8 @@ pullImpl name verbosity pullMode addendum = do
       InputPattern
         name
         []
-        [(Optional, gitUrlArg), (Optional, namespaceArg)]
+        I.Visible
+        [(Optional, remoteNamespaceArg), (Optional, namespaceArg)]
         ( P.lines
             [ P.wrap
                 "The"
@@ -942,27 +1046,21 @@ pullImpl name verbosity pullMode addendum = do
                   ),
                   ( makeExample' self,
                     "merges the remote namespace configured in `.unisonConfig`"
-                      <> "with the key `GitUrl.ns` where `ns` is the current namespace,"
-                      <> "into the current namespace"
+                      <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
                   )
                 ],
               "",
-              P.wrap "where `remote` is a git repository, optionally followed by `:`"
-                <> "and an absolute remote path, such as:",
-              P.indentN 2 . P.lines $
-                [ P.backticked "https://github.com/org/repo",
-                  P.backticked "https://github.com/org/repo:.some.remote.path"
-                ]
+              explainRemote Pull
             ]
         )
         ( \case
             [] ->
               Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url] -> do
-              ns <- parseUri "url" url
+              ns <- parseReadRemoteNamespace "remote-namespace" url
               Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url, path] -> do
-              ns <- parseUri "url" url
+              ns <- parseReadRemoteNamespace "remote-namespace" url
               p <- first fromString $ Path.parsePath' path
               Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit pullMode verbosity
             _ -> Left (I.help self)
@@ -973,7 +1071,8 @@ pullExhaustive =
   InputPattern
     "debug.pull-exhaustive"
     []
-    [(Required, gitUrlArg), (Optional, namespaceArg)]
+    I.Hidden
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
             "The " <> makeExample' pullExhaustive <> "command can be used in place of"
@@ -987,13 +1086,29 @@ pullExhaustive =
         [] ->
           Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url] -> do
-          ns <- parseUri "url" url
+          ns <- parseReadRemoteNamespace "remote-namespace" url
           Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url, path] -> do
-          ns <- parseUri "url" url
+          ns <- parseReadRemoteNamespace "remote-namespace" url
           p <- first fromString $ Path.parsePath' path
           Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Default
         _ -> Left (I.help pull)
+    )
+
+debugTabCompletion :: InputPattern
+debugTabCompletion =
+  InputPattern
+    "debug.tab-complete"
+    []
+    I.Hidden
+    [(ZeroPlus, noCompletionsArg)]
+    ( P.lines
+        [ P.wrap $ "This command can be used to test and debug ucm's tab-completion within transcripts.",
+          P.wrap $ "Completions which are finished are prefixed with a *"
+        ]
+    )
+    ( \inputs ->
+        Right $ Input.DebugTabCompletionI inputs
     )
 
 push :: InputPattern
@@ -1001,7 +1116,8 @@ push =
   InputPattern
     "push"
     []
-    [(Required, gitUrlArg), (Optional, namespaceArg)]
+    I.Visible
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap
             "The `push` command merges a local namespace into a remote namespace.",
@@ -1015,30 +1131,38 @@ push =
                 "publishes the current namespace into the remote namespace `remote`"
               ),
               ( "`push`",
-                "publishes the current namespace"
-                  <> "into the remote namespace configured in `.unisonConfig`"
-                  <> "with the key `GitUrl.ns` where `ns` is the current namespace"
+                "publishes the current namespace into the remote namespace configured in your `.unisonConfig`"
+                  <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace."
               )
             ],
           "",
-          P.wrap "where `remote` is a git repository, optionally followed by `:`"
-            <> "and an absolute remote path, such as:",
-          P.indentN 2 . P.lines $
-            [ P.backticked "https://github.com/org/repo",
-              P.backticked "https://github.com/org/repo:.some.remote.path"
-            ]
+          explainRemote Push
         ]
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
     )
 
 pushCreate :: InputPattern
@@ -1046,7 +1170,8 @@ pushCreate =
   InputPattern
     "push.create"
     []
-    [(Required, gitUrlArg), (Optional, namespaceArg)]
+    I.Visible
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap
             "The `push.create` command pushes a local namespace to an empty remote namespace.",
@@ -1060,30 +1185,73 @@ pushCreate =
                 "publishes the current namespace into the empty remote namespace `remote`"
               ),
               ( "`push`",
-                "publishes the current namespace"
-                  <> "into the empty remote namespace configured in `.unisonConfig`"
-                  <> "with the key `GitUrl.ns` where `ns` is the current namespace"
+                "publishes the current namespace into the remote namespace configured in your `.unisonConfig`"
+                  <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
+                  <> "then publishes the current namespace to that location."
               )
             ],
           "",
-          P.wrap "where `remote` is a git repository, optionally followed by `:`"
-            <> "and an absolute remote path, such as:",
-          P.indentN 2 . P.lines $
-            [ P.backticked "https://github.com/org/repo",
-              P.backticked "https://github.com/org/repo:.some.remote.path"
-            ]
+          explainRemote Push
         ]
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.RequireEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.RequireEmpty,
+                  syncMode = SyncMode.ShortCircuit
+                }
+    )
+
+pushForce :: InputPattern
+pushForce =
+  InputPattern
+    "unsafe.force-push"
+    []
+    I.Hidden
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
+    (P.wrap "Like `push`, but overwrites any remote namespace.")
+    ( \case
+        [] ->
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.ForcePush,
+                  syncMode = SyncMode.ShortCircuit
+                }
+        url : rest -> do
+          pushPath <- parseWriteRemotePath "remote-path" url
+          p <- case rest of
+            [] -> Right Path.relativeEmpty'
+            [path] -> first fromString $ Path.parsePath' path
+            _ -> Left (I.help push)
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.ForcePush,
+                  syncMode = SyncMode.ShortCircuit
+                }
     )
 
 pushExhaustive :: InputPattern
@@ -1091,7 +1259,8 @@ pushExhaustive =
   InputPattern
     "debug.push-exhaustive"
     []
-    [(Required, gitUrlArg), (Optional, namespaceArg)]
+    I.Hidden
+    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
             "The " <> makeExample' pushExhaustive <> "command can be used in place of"
@@ -1103,14 +1272,28 @@ pushExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.Complete
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = Path.relativeEmpty',
+                  maybeRemoteRepo = Nothing,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.Complete
+                }
         url : rest -> do
-          (repo, path) <- parsePushPath "url" url
+          pushPath <- parseWriteRemotePath "remote-path" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.Complete
+          Right $
+            Input.PushRemoteBranchI
+              Input.PushRemoteBranchInput
+                { localPath = p,
+                  maybeRemoteRepo = Just pushPath,
+                  pushBehavior = PushBehavior.RequireNonEmpty,
+                  syncMode = SyncMode.Complete
+                }
     )
 
 createPullRequest :: InputPattern
@@ -1118,7 +1301,8 @@ createPullRequest =
   InputPattern
     "pull-request.create"
     ["pr.create"]
-    [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, namespaceArg)]
+    I.Visible
+    [(Required, remoteNamespaceArg), (Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.group $
         P.lines
           [ P.wrap $
@@ -1129,15 +1313,15 @@ createPullRequest =
             "example: "
               <> makeExampleNoBackticks
                 createPullRequest
-                [ "https://github.com/unisonweb/base:.trunk",
-                  "https://github.com/me/unison:.prs.base._myFeature"
+                [ "unison.public.base.main",
+                  "myself.public.prs.base.myFeature"
                 ]
           ]
     )
     ( \case
         [baseUrl, headUrl] -> do
-          baseRepo <- parseUri "baseRepo" baseUrl
-          headRepo <- parseUri "headRepo" headUrl
+          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
+          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
           pure $ Input.CreatePullRequestI baseRepo headRepo
         _ -> Left (I.help createPullRequest)
     )
@@ -1147,7 +1331,8 @@ loadPullRequest =
   InputPattern
     "pull-request.load"
     ["pr.load"]
-    [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, namespaceArg)]
+    I.Visible
+    [(Required, remoteNamespaceArg), (Required, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
             makeExample loadPullRequest ["base", "head"]
@@ -1162,70 +1347,75 @@ loadPullRequest =
     )
     ( \case
         [baseUrl, headUrl] -> do
-          baseRepo <- parseUri "baseRepo" baseUrl
-          headRepo <- parseUri "topicRepo" headUrl
+          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
+          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
           pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
         [baseUrl, headUrl, dest] -> do
-          baseRepo <- parseUri "baseRepo" baseUrl
-          headRepo <- parseUri "topicRepo" headUrl
+          baseRepo <- parseReadRemoteNamespace "base-remote-namespace" baseUrl
+          headRepo <- parseReadRemoteNamespace "head-remote-namespace" headUrl
           destPath <- first fromString $ Path.parsePath' dest
           pure $ Input.LoadPullRequestI baseRepo headRepo destPath
         _ -> Left (I.help loadPullRequest)
     )
 
-parseUri :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
-parseUri label input =
-  let printError err = P.lines [ P.string  "I couldn't parse the repository address given above.", prettyPrintParseError input err]
-  in first printError (P.parse UriParser.repoPath label (Text.pack input))
+parseReadRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
+parseReadRemoteNamespace label input =
+  let printError err = P.lines [P.string "I couldn't parse the repository address given above.", prettyPrintParseError input err]
+   in first printError (P.parse UriParser.repoPath label (Text.pack input))
 
-prettyPrintParseError :: String -> P.ParseError Char Void -> P.Pretty P.ColorText
-prettyPrintParseError input = \case
-  P.TrivialError sp ue ee ->
-      P.lines [ printLocation sp,
-                P.newline,
-                printTrivial ue ee
-              ]
-  P.FancyError sp ee ->
-      let errors = foldMap (P.string . mappend "\n" . P.showErrorComponent) ee
-      in P.lines
-         [ printLocation sp,
-           errors
-         ]
+prettyPrintParseError :: String -> P.ParseErrorBundle Text Void -> P.Pretty P.ColorText
+prettyPrintParseError input errBundle =
+  let (firstError, sp) = NE.head . fst $ P.attachSourcePos P.errorOffset (P.bundleErrors errBundle) (P.bundlePosState errBundle)
+   in case firstError of
+        P.TrivialError _errorOffset ue ee ->
+          P.lines
+            [ printLocation sp,
+              P.newline,
+              printTrivial ue ee
+            ]
+        P.FancyError _errorOffset ee ->
+          let errors = foldMap (P.string . mappend "\n" . showErrorFancy) ee
+           in P.lines
+                [ printLocation sp,
+                  errors
+                ]
   where
-    printLocation :: NE.NonEmpty P.SourcePos -> P.Pretty P.ColorText
+    printLocation :: P.SourcePos -> P.Pretty P.ColorText
     printLocation sp =
-      let col = (P.unPos $ P.sourceColumn $ NE.head sp) - 1
-          row = (P.unPos $ P.sourceLine $ NE.head sp) - 1
+      let col = (P.unPos $ P.sourceColumn sp) - 1
+          row = (P.unPos $ P.sourceLine sp) - 1
           errorLine = lines input !! row
-      in P.lines [ P.newline,
-                   P.string errorLine,
-                   P.string $ replicate col ' ' <> "^-- This is where I gave up."
-                 ]
+       in P.lines
+            [ P.newline,
+              P.string errorLine,
+              P.string $ replicate col ' ' <> "^-- This is where I gave up."
+            ]
 
     printTrivial :: (Maybe (P.ErrorItem Char)) -> (Set (P.ErrorItem Char)) -> P.Pretty P.ColorText
-    printTrivial ue ee = 
-      let expected = "I expected " <> foldMap (P.singleQuoted . P.string . P.showErrorComponent) ee
-          found =  P.string . mappend "I found " . P.showErrorComponent <$> ue 
+    printTrivial ue ee =
+      let expected = "I expected " <> foldMap (P.singleQuoted . P.string . showErrorItem) ee
+          found = P.string . mappend "I found " . showErrorItem <$> ue
           message = [expected] <> catMaybes [found]
-      in P.oxfordCommasWith "." message
+       in P.oxfordCommasWith "." message
 
-parseWriteRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteRepo
-parseWriteRepo label input = do
+parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
+parseWriteGitRepo label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeRepo label (Text.pack input))
+    (P.parse UriParser.writeGitRepo label (Text.pack input))
 
-parsePushPath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
-parsePushPath label input = do
+parseWriteRemotePath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
+parseWriteRemotePath label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.writeRepoPath label (Text.pack input))
+    (P.parse UriParser.writeRemotePath label (Text.pack input))
 
 squashMerge :: InputPattern
 squashMerge =
   InputPattern
     "merge.squash"
     ["squash"]
+    I.Visible
     [(Required, namespaceArg), (Required, namespaceArg)]
     ( P.wrap $
         makeExample squashMerge ["src", "dest"]
@@ -1247,6 +1437,7 @@ mergeLocal =
   InputPattern
     "merge"
     []
+    I.Visible
     [ (Required, namespaceArg),
       (Optional, namespaceArg)
     ]
@@ -1271,6 +1462,7 @@ diffNamespace =
   InputPattern
     "diff.namespace"
     []
+    I.Visible
     [(Required, namespaceArg), (Optional, namespaceArg)]
     ( P.column2
         [ ( "`diff.namespace before after`",
@@ -1299,6 +1491,7 @@ previewMergeLocal =
   InputPattern
     "merge.preview"
     []
+    I.Visible
     [(Required, namespaceArg), (Optional, namespaceArg)]
     ( P.column2
         [ ( "`merge.preview src`",
@@ -1333,6 +1526,7 @@ replaceEdit f = self
       InputPattern
         "replace"
         []
+        I.Visible
         [ (Required, definitionQueryArg),
           (Required, definitionQueryArg),
           (Optional, patchArg)
@@ -1366,6 +1560,7 @@ viewReflog =
   InputPattern
     "reflog"
     []
+    I.Visible
     []
     "`reflog` lists the changes that have affected the root namespace"
     ( \case
@@ -1380,6 +1575,7 @@ edit =
   InputPattern
     "edit"
     []
+    I.Visible
     [(OnePlus, definitionQueryArg)]
     ( P.lines
         [ "`edit foo` prepends the definition of `foo` to the top of the most "
@@ -1387,7 +1583,7 @@ edit =
           "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
         ]
     )
-    ( fmap (Input.ShowDefinitionI Input.LatestFileLocation)
+    ( fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
         . traverse parseHashQualifiedName
     )
 
@@ -1399,11 +1595,20 @@ topicNameArg =
       globTargets = mempty
     }
 
+codebaseServerNameArg :: ArgumentType
+codebaseServerNameArg =
+  ArgumentType
+    { typeName = "codebase-server",
+      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
+      globTargets = mempty
+    }
+
 helpTopics :: InputPattern
 helpTopics =
   InputPattern
     "help-topics"
     ["help-topic"]
+    I.Visible
     [(Optional, topicNameArg)]
     ("`help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic.")
     ( \case
@@ -1445,12 +1650,6 @@ helpTopicsMap =
                 "A definition with the same name as an existing definition. Doing"
                   <> "`update` instead of `add` will turn this failure into a successful"
                   <> "update."
-              ),
-              blankline,
-              ( P.bold $ SR.prettyStatus SR.Conflicted,
-                "A definition with the same name as an existing definition."
-                  <> "Resolving the conflict and then trying an `update` again will"
-                  <> "turn this into a successful update."
               ),
               blankline,
               ( P.bold $ SR.prettyStatus SR.TermExistingConstructorCollision,
@@ -1548,6 +1747,7 @@ help =
   InputPattern
     "help"
     ["?"]
+    I.Visible
     [(Optional, commandNameArg)]
     "`help` shows general help and `help <cmd>` shows help for one command."
     ( \case
@@ -1556,7 +1756,7 @@ help =
             intercalateMap
               "\n\n"
               showPatternHelp
-              (sortOn I.patternName validInputs)
+              visibleInputs
         [isHelp -> Just msg] -> Left msg
         [cmd] -> case Map.lookup cmd commandsByName of
           Nothing -> Left . warn $ "I don't know of that command. Try `help`."
@@ -1565,9 +1765,10 @@ help =
     )
   where
     commandsByName =
-      Map.fromList
-        [ (n, i) | i <- validInputs, n <- I.patternName i : I.aliases i
-        ]
+      Map.fromList $ do
+        input@I.InputPattern {I.patternName, I.aliases} <- validInputs
+        name <- patternName : aliases
+        pure (name, input)
     isHelp s = Map.lookup s helpTopicsMap
 
 quit :: InputPattern
@@ -1575,6 +1776,7 @@ quit =
   InputPattern
     "quit"
     ["exit", ":q"]
+    I.Visible
     []
     "Exits the Unison command line interface."
     ( \case
@@ -1587,6 +1789,7 @@ viewPatch =
   InputPattern
     "view.patch"
     []
+    I.Visible
     [(Required, patchArg)]
     ( P.wrapColumn2
         [ ( makeExample' viewPatch,
@@ -1610,6 +1813,7 @@ link =
   InputPattern
     "link"
     []
+    I.Visible
     [(Required, definitionQueryArg), (OnePlus, definitionQueryArg)]
     ( fromString $
         concat
@@ -1635,6 +1839,7 @@ links =
   InputPattern
     "links"
     []
+    I.Visible
     [(Required, definitionQueryArg), (Optional, definitionQueryArg)]
     ( P.column2
         [ (makeExample links ["defn"], "shows all outgoing links from `defn`."),
@@ -1656,6 +1861,7 @@ unlink =
   InputPattern
     "unlink"
     ["delete.link"]
+    I.Visible
     [(Required, definitionQueryArg), (OnePlus, definitionQueryArg)]
     ( fromString $
         concat
@@ -1675,28 +1881,32 @@ unlink =
         _ -> Left (I.help unlink)
     )
 
-names :: InputPattern
-names =
+names :: Input.IsGlobal -> InputPattern
+names isGlobal =
   InputPattern
-    "names"
+    cmdName
     []
+    I.Visible
     [(Required, definitionQueryArg)]
-    "`names foo` shows the hash and all known names for `foo`."
+    (P.wrap $ makeExample (names isGlobal) ["foo"] <> " shows the hash and all known names for `foo`.")
     ( \case
         [thing] -> case HQ.fromString thing of
-          Just hq -> Right $ Input.NamesI hq
+          Just hq -> Right $ Input.NamesI isGlobal hq
           Nothing ->
             Left $
               "I was looking for one of these forms: "
                 <> P.blue "foo .foo.bar foo#abc #abcde .foo.bar#asdf"
-        _ -> Left (I.help names)
+        _ -> Left (I.help (names isGlobal))
     )
+  where
+    cmdName = if isGlobal then "names.global" else "names"
 
 dependents, dependencies :: InputPattern
 dependents =
   InputPattern
     "dependents"
     []
+    I.Visible
     []
     "List the named dependents of the specified definition."
     ( \case
@@ -1707,6 +1917,7 @@ dependencies =
   InputPattern
     "dependencies"
     []
+    I.Visible
     []
     "List the dependencies of the specified definition."
     ( \case
@@ -1715,21 +1926,27 @@ dependencies =
     )
 
 namespaceDependencies :: InputPattern
-namespaceDependencies = InputPattern "namespace.dependencies" [] [(Optional, namespaceArg)]
-  "List the external dependencies of the specified namespace."
-  (\case
-    [p] -> first fromString $ do
-             p <- Path.parsePath' p
-             pure $ Input.NamespaceDependenciesI (Just p)
-    [] -> pure (Input.NamespaceDependenciesI Nothing)
-    _ -> Left (I.help namespaceDependencies)
-  )
+namespaceDependencies =
+  InputPattern
+    "namespace.dependencies"
+    []
+    I.Visible
+    [(Optional, namespaceArg)]
+    "List the external dependencies of the specified namespace."
+    ( \case
+        [p] -> first fromString $ do
+          p <- Path.parsePath' p
+          pure $ Input.NamespaceDependenciesI (Just p)
+        [] -> pure (Input.NamespaceDependenciesI Nothing)
+        _ -> Left (I.help namespaceDependencies)
+    )
 
 debugNumberedArgs :: InputPattern
 debugNumberedArgs =
   InputPattern
     "debug.numberedArgs"
     []
+    I.Visible
     []
     "Dump the contents of the numbered args state."
     (const $ Right Input.DebugNumberedArgsI)
@@ -1739,6 +1956,7 @@ debugFileHashes =
   InputPattern
     "debug.file"
     []
+    I.Visible
     []
     "View details about the most recent succesfully typechecked file."
     (const $ Right Input.DebugTypecheckedUnisonFileI)
@@ -1748,7 +1966,8 @@ debugDumpNamespace =
   InputPattern
     "debug.dump-namespace"
     []
-    [(Required, noCompletions)]
+    I.Visible
+    [(Required, noCompletionsArg)]
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespacesI)
 
@@ -1757,7 +1976,8 @@ debugDumpNamespaceSimple =
   InputPattern
     "debug.dump-namespace-simple"
     []
-    [(Required, noCompletions)]
+    I.Visible
+    [(Required, noCompletionsArg)]
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespaceSimpleI)
 
@@ -1766,24 +1986,85 @@ debugClearWatchCache =
   InputPattern
     "debug.clear-cache"
     []
-    [(Required, noCompletions)]
+    I.Visible
+    [(Required, noCompletionsArg)]
     "Clear the watch expression cache"
     (const $ Right Input.DebugClearWatchI)
+
+debugDoctor :: InputPattern
+debugDoctor =
+  InputPattern
+    "debug.doctor"
+    []
+    I.Visible
+    []
+    ( P.wrap "Analyze your codebase for errors and inconsistencies."
+    )
+    ( \case
+        [] -> Right $ Input.DebugDoctorI
+        _ -> Left (showPatternHelp debugDoctor)
+    )
+
+debugNameDiff :: InputPattern
+debugNameDiff =
+  InputPattern
+    { patternName = "debug.name-diff",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [(Required, namespaceArg), (Required, namespaceArg)],
+      help = P.wrap "List all name changes between two causal hashes. Does not detect patch or metadata changes.",
+      parse =
+        ( \case
+            [from, to] -> first fromString $ do
+              fromSBH <- Input.parseShortBranchHash from
+              toSBH <- Input.parseShortBranchHash to
+              pure $ Input.DebugNameDiffI fromSBH toSBH
+            _ -> Left (I.help debugNameDiff)
+        )
+    }
 
 test :: InputPattern
 test =
   InputPattern
     "test"
     []
+    I.Visible
     []
     "`test` runs unit tests for the current branch."
-    (const $ pure $ Input.TestI True True)
+    ( const $
+        pure $
+          Input.TestI
+            Input.TestInput
+              { includeLibNamespace = False,
+                showFailures = True,
+                showSuccesses = True
+              }
+    )
+
+testAll :: InputPattern
+testAll =
+  InputPattern
+    "test.all"
+    []
+    I.Visible
+    []
+    "`test.all` runs unit tests for the current branch (including the `lib` namespace)."
+    ( const $
+        pure $
+          Input.TestI
+            Input.TestInput
+              { includeLibNamespace = True,
+                showFailures = True,
+                showSuccesses = True
+              }
+    )
 
 docsToHtml :: InputPattern
 docsToHtml =
   InputPattern
     "docs.to-html"
     []
+    I.Visible
     []
     ( P.wrapColumn2
         [ ( "`docs.to-html .path.to.namespace ~/path/to/file/output`",
@@ -1804,7 +2085,8 @@ execute =
   InputPattern
     "run"
     []
-    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
+    I.Visible
+    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( "`run mymain args...`",
             "Runs `!mymain`, where `mymain` is searched for in the most recent"
@@ -1820,16 +2102,31 @@ execute =
         _ -> Left $ showPatternHelp execute
     )
 
+saveExecuteResult :: InputPattern
+saveExecuteResult =
+  InputPattern
+    "add.run"
+    []
+    I.Visible
+    [(Required, newNameArg)]
+    ( "`add.run name` adds to the codebase the result of the most recent `run` command"
+        <> "as `name`."
+    )
+    ( \case
+        [w] -> pure $ Input.SaveExecuteResultI (Name.unsafeFromString w)
+        _ -> Left $ showPatternHelp saveExecuteResult
+    )
+
 ioTest :: InputPattern
 ioTest =
   InputPattern
     "io.test"
-    []
-    []
+    ["test.io"]
+    I.Visible
+    [(Required, exactDefinitionTermQueryArg)]
     ( P.wrapColumn2
         [ ( "`io.test mytest`",
-            "Runs `!mytest`, where `mytest` is searched for in the most recent"
-              <> "typechecked file, or in the codebase."
+            "Runs `!mytest`, where `mytest` is a delayed test that can use the `IO` and `Exception` abilities. Note: `mytest` must already be added to the codebase."
           )
         ]
     )
@@ -1841,11 +2138,12 @@ ioTest =
 makeStandalone :: InputPattern
 makeStandalone =
   InputPattern
-    "compile.output"
-    []
-    []
+    "compile"
+    ["compile.output"]
+    I.Visible
+    [(Required, exactDefinitionTermQueryArg), (Required, noCompletionsArg)]
     ( P.wrapColumn2
-        [ ( "`compile.output main file`",
+        [ ( "`compile main file`",
             "Outputs a stand alone file that can be directly loaded and"
               <> "executed by unison. Said execution will have the effect of"
               <> "running `!main`."
@@ -1863,7 +2161,8 @@ createAuthor =
   InputPattern
     "create.author"
     []
-    [(Required, noCompletions), (Required, noCompletions)]
+    I.Visible
+    [(Required, noCompletionsArg), (Required, noCompletionsArg)]
     ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
         <> "creates"
         <> backtick "alicecoder"
@@ -1890,112 +2189,175 @@ gist =
   InputPattern
     "push.gist"
     ["gist"]
+    I.Visible
     [(Required, gitUrlArg)]
     ( P.lines
         [ "Publish the current namespace.",
           "",
           P.wrapColumn2
-            [ ( "`gist remote`",
-                "publishes the contents of the current namespace into the repo `remote`."
+            [ ( "`gist git(git@github.com:user/repo)`",
+                "publishes the contents of the current namespace into the specified git repo."
               )
-            ]
+            ],
+          "",
+          P.indentN 2 . P.wrap $
+            "Note: Gists are not yet supported on Unison Share, though you can just do a normal"
+              <> "`push.create` of the current namespace to your Unison Share codebase wherever you like!"
         ]
     )
     ( \case
         [repoString] -> do
-          repo <- parseWriteRepo "repo" repoString
+          repo <- parseWriteGitRepo "gist git repo" repoString
           pure (Input.GistI (Input.GistInput repo))
         _ -> Left (showPatternHelp gist)
     )
 
+authLogin :: InputPattern
+authLogin =
+  InputPattern
+    "auth.login"
+    []
+    I.Hidden
+    []
+    ( P.lines
+        [ P.wrap "Obtain an authentication session with Unison Share.",
+          makeExample authLogin []
+            <> "authenticates ucm with Unison Share."
+        ]
+    )
+    ( \case
+        [] -> Right $ Input.AuthLoginI
+        _ -> Left (showPatternHelp authLogin)
+    )
+
+printVersion :: InputPattern
+printVersion =
+  InputPattern
+    "version"
+    []
+    I.Visible
+    []
+    ( P.wrap "Print the version of unison you're running"
+    )
+    ( \case
+        [] -> Right $ Input.VersionI
+        _ -> Left (showPatternHelp printVersion)
+    )
+
 validInputs :: [InputPattern]
 validInputs =
-  [ help,
-    helpTopics,
-    load,
-    add,
-    previewAdd,
-    update,
-    previewUpdate,
-    delete,
-    forkLocal,
-    mergeLocal,
-    squashMerge,
-    previewMergeLocal,
-    diffNamespace,
-    names,
-    push,
-    pushCreate,
-    pull,
-    pullWithoutHistory,
-    pullSilent,
-    pushExhaustive,
-    pullExhaustive,
-    createPullRequest,
-    loadPullRequest,
-    cd,
-    up,
-    back,
-    deleteNamespace,
-    deleteNamespaceForce,
-    renameBranch,
-    deletePatch,
-    renamePatch,
-    copyPatch,
-    find,
-    findShallow,
-    findVerbose,
-    view,
-    display,
-    displayTo,
-    api,
-    ui,
-    docs,
-    docsToHtml,
-    findPatch,
-    viewPatch,
-    undo,
-    history,
-    edit,
-    renameTerm,
-    deleteTerm,
-    aliasTerm,
-    renameType,
-    deleteType,
-    aliasType,
-    aliasMany,
-    todo,
-    patch,
-    link,
-    unlink,
-    links,
-    createAuthor,
-    replace,
-    deleteTermReplacement,
-    deleteTypeReplacement,
-    test,
-    ioTest,
-    execute,
-    viewReflog,
-    resetRoot,
-    quit,
-    updateBuiltins,
-    makeStandalone,
-    mergeBuiltins,
-    mergeIOBuiltins,
-    dependents,
-    dependencies,
-    namespaceDependencies,
-    debugNumberedArgs,
-    debugFileHashes,
-    debugDumpNamespace,
-    debugDumpNamespaceSimple,
-    debugClearWatchCache,
-    gist
-  ]
+  sortOn
+    I.patternName
+    [ help,
+      helpTopics,
+      load,
+      add,
+      previewAdd,
+      update,
+      previewUpdate,
+      updateNoPatch,
+      delete,
+      forkLocal,
+      mergeLocal,
+      squashMerge,
+      previewMergeLocal,
+      diffNamespace,
+      names True, -- names.global
+      names False, -- names
+      push,
+      pushCreate,
+      pushForce,
+      pull,
+      pullWithoutHistory,
+      pullSilent,
+      pushExhaustive,
+      pullExhaustive,
+      createPullRequest,
+      loadPullRequest,
+      cd,
+      up,
+      back,
+      deleteNamespace,
+      deleteNamespaceForce,
+      renameBranch,
+      deletePatch,
+      renamePatch,
+      copyPatch,
+      find,
+      findGlobal,
+      findAll,
+      findShallow,
+      findVerbose,
+      findVerboseAll,
+      view,
+      viewGlobal,
+      display,
+      displayTo,
+      api,
+      ui,
+      docs,
+      docsToHtml,
+      findPatch,
+      viewPatch,
+      undo,
+      history,
+      edit,
+      renameTerm,
+      deleteTerm,
+      aliasTerm,
+      renameType,
+      deleteType,
+      aliasType,
+      aliasMany,
+      todo,
+      patch,
+      link,
+      unlink,
+      links,
+      createAuthor,
+      replace,
+      deleteTermReplacement,
+      deleteTypeReplacement,
+      test,
+      testAll,
+      ioTest,
+      execute,
+      saveExecuteResult,
+      viewReflog,
+      resetRoot,
+      quit,
+      updateBuiltins,
+      makeStandalone,
+      mergeBuiltins,
+      mergeIOBuiltins,
+      dependents,
+      dependencies,
+      namespaceDependencies,
+      debugNumberedArgs,
+      debugFileHashes,
+      debugDumpNamespace,
+      debugDumpNamespaceSimple,
+      debugClearWatchCache,
+      debugDoctor,
+      debugTabCompletion,
+      debugNameDiff,
+      gist,
+      authLogin,
+      printVersion
+    ]
+
+-- | A map of all command patterns by pattern name or alias.
+patternMap :: Map String InputPattern
+patternMap =
+  Map.fromList $
+    validInputs
+      >>= (\p -> (I.patternName p, p) : ((,p) <$> I.aliases p))
+
+visibleInputs :: [InputPattern]
+visibleInputs = filter ((== I.Visible) . I.visibility) validInputs
 
 commandNames :: [String]
-commandNames = validInputs >>= \i -> I.patternName i : I.aliases i
+commandNames = visibleInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
 commandNameArg =
@@ -2005,39 +2367,30 @@ commandNameArg =
       globTargets = mempty
     }
 
-exactDefinitionOrPathArg :: ArgumentType
-exactDefinitionOrPathArg =
+exactDefinitionArg :: ArgumentType
+exactDefinitionArg =
   ArgumentType
-    { typeName = "definition or path",
-      suggestions =
-        allCompletors
-          [ termCompletor exactComplete,
-            typeCompletor exactComplete,
-            pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
-          ],
-      globTargets = Set.fromList [Globbing.Term, Globbing.Type, Globbing.Namespace]
+    { typeName = "definition",
+      suggestions = \q cb _http p -> prefixCompleteTermOrType q cb p,
+      globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
--- todo: improve this
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
-      suggestions =
-        bothCompletors
-          (termCompletor fuzzyComplete)
-          (typeCompletor fuzzyComplete),
+      suggestions = \q cb _http p -> prefixCompleteTermOrType q cb p,
       globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
 definitionQueryArg :: ArgumentType
-definitionQueryArg = fuzzyDefinitionQueryArg {typeName = "definition query"}
+definitionQueryArg = exactDefinitionArg {typeName = "definition query"}
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
   ArgumentType
     { typeName = "type definition query",
-      suggestions = typeCompletor exactComplete,
+      suggestions = \q cb _http p -> prefixCompleteType q cb p,
       globTargets = Set.fromList [Globbing.Type]
     }
 
@@ -2045,127 +2398,47 @@ exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
   ArgumentType
     { typeName = "term definition query",
-      suggestions = termCompletor exactComplete,
+      suggestions = \q cb _http p -> prefixCompleteTerm q cb p,
       globTargets = Set.fromList [Globbing.Term]
     }
-
-typeCompletor ::
-  Applicative m =>
-  (String -> [String] -> [Completion]) ->
-  String ->
-  Codebase m v a ->
-  Branch.Branch m ->
-  Path.Absolute ->
-  m [Completion]
-typeCompletor filterQuery = pathCompletor filterQuery go
-  where
-    go = Set.map HQ.toText . R.dom . Names.hashQualifyTypesRelation . Names.types . Branch.toNames
-
-termCompletor ::
-  Applicative m =>
-  (String -> [String] -> [Completion]) ->
-  String ->
-  Codebase m v a ->
-  Branch.Branch m ->
-  Path.Absolute ->
-  m [Completion]
-termCompletor filterQuery = pathCompletor filterQuery go
-  where
-    go = Set.map HQ.toText . R.dom . Names.hashQualifyTermsRelation . Names.terms . Branch.toNames
 
 patchArg :: ArgumentType
 patchArg =
   ArgumentType
     { typeName = "patch",
-      suggestions =
-        pathCompletor
-          exactComplete
-          (Set.map Name.toText . Map.keysSet . Branch.deepEdits),
+      suggestions = \q cb _http p -> prefixCompletePatch q cb p,
       globTargets = Set.fromList []
     }
-
-allCompletors ::
-  Monad m =>
-  ( [String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion]] ->
-    (String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion])
-  )
-allCompletors = foldl' bothCompletors I.noSuggestions
-
-bothCompletors ::
-  (Monad m) =>
-  (String -> t2 -> t3 -> t4 -> m [Completion]) ->
-  (String -> t2 -> t3 -> t4 -> m [Completion]) ->
-  String ->
-  t2 ->
-  t3 ->
-  t4 ->
-  m [Completion]
-bothCompletors c1 c2 q code b currentPath = do
-  suggestions1 <- c1 q code b currentPath
-  suggestions2 <- c2 q code b currentPath
-  pure . fixupCompletion q
-    . nubOrdOn Completion.display
-    $ suggestions1 ++ suggestions2
-
--- | A completer for namespace paths.
-pathCompletor ::
-  Applicative f =>
-  -- | Turns a query and list of possible completions into a 'Completion'.
-  (String -> [String] -> [Completion]) ->
-  -- | Construct completions given ucm's current branch context, or the root namespace if
-  -- the query is absolute.
-  (Branch.Branch0 m -> Set Text) ->
-  -- | The portion of this arg that the user has already typed.
-  String ->
-  codebase ->
-  Branch.Branch m ->
-  Path.Absolute ->
-  f [Completion]
-pathCompletor filterQuery getNames query _code b p =
-  let b0root = Branch.head b
-      b0local = Branch.getAt0 (Path.unabsolute p) b0root
-   in -- todo: if these sets are huge, maybe trim results
-      pure . filterQuery query . map Text.unpack $
-        toList (getNames b0local)
-          ++ if "." `isPrefixOf` query
-            then map ("." <>) (toList (getNames b0root))
-            else []
 
 namespaceArg :: ArgumentType
 namespaceArg =
   ArgumentType
     { typeName = "namespace",
-      suggestions = pathCompletor completeWithinQueryNamespace (Set.fromList . allSubNamespaces),
+      suggestions = \q cb _http p -> prefixCompleteNamespace q cb p,
       globTargets = Set.fromList [Globbing.Namespace]
     }
 
--- | Recursively collects all names of namespaces which are children of the branch.
-allSubNamespaces :: Branch.Branch0 m -> [Text]
-allSubNamespaces b =
-  flip Map.foldMapWithKey (Branch.nonEmptyChildren b) $
-    \(NameSegment k) (Branch.head -> b') ->
-      (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
+-- | Names of child branches of the branch, only gives options for one 'layer' deeper at a time.
+childNamespaceNames :: Branch.Branch0 m -> [Text]
+childNamespaceNames b = NameSegment.toText <$> Map.keys (Branch.nonEmptyChildren b)
 
 newNameArg :: ArgumentType
 newNameArg =
   ArgumentType
     { typeName = "new-name",
-      suggestions =
-        pathCompletor
-          prefixIncomplete
-          (Set.map ((<> ".") . Path.toText) . Branch.deepPaths),
+      suggestions = \q cb _http p -> prefixCompleteNamespace q cb p,
       globTargets = mempty
     }
 
-noCompletions :: ArgumentType
-noCompletions =
+noCompletionsArg :: ArgumentType
+noCompletionsArg =
   ArgumentType
     { typeName = "word",
-      suggestions = I.noSuggestions,
+      suggestions = noCompletions,
       globTargets = mempty
     }
 
--- Arya: I could imagine completions coming from previous git pulls
+-- Arya: I could imagine completions coming from previous pulls
 gitUrlArg :: ArgumentType
 gitUrlArg =
   ArgumentType
@@ -2173,15 +2446,70 @@ gitUrlArg =
       suggestions =
         let complete s = pure [Completion s s False]
          in \input _ _ _ -> case input of
-              "gh" -> complete "https://github.com/"
-              "gl" -> complete "https://gitlab.com/"
-              "bb" -> complete "https://bitbucket.com/"
-              "ghs" -> complete "git@github.com:"
-              "gls" -> complete "git@gitlab.com:"
-              "bbs" -> complete "git@bitbucket.com:"
+              "gh" -> complete "git(https://github.com/"
+              "gl" -> complete "git(https://gitlab.com/"
+              "bb" -> complete "git(https://bitbucket.com/"
+              "ghs" -> complete "git(git@github.com:"
+              "gls" -> complete "git(git@gitlab.com:"
+              "bbs" -> complete "git(git@bitbucket.com:"
               _ -> pure [],
+      globTargets = mempty
+    }
+
+-- | Refers to a namespace on some remote code host.
+remoteNamespaceArg :: ArgumentType
+remoteNamespaceArg =
+  ArgumentType
+    { typeName = "remote-namespace",
+      suggestions =
+        let complete s = pure [Completion s s False]
+         in \input _cb http _p -> case input of
+              "gh" -> complete "git(https://github.com/"
+              "gl" -> complete "git(https://gitlab.com/"
+              "bb" -> complete "git(https://bitbucket.com/"
+              "ghs" -> complete "git(git@github.com:"
+              "gls" -> complete "git(git@gitlab.com:"
+              "bbs" -> complete "git(git@bitbucket.com:"
+              _ -> do
+                sharePathCompletion http input,
       globTargets = mempty
     }
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
+
+explainRemote :: PushPull -> P.Pretty CT.ColorText
+explainRemote pushPull =
+  P.group $
+    P.lines
+      [ P.wrap $ "where `remote` is a hosted codebase, such as:",
+        P.indentN 2 . P.column2 $
+          [ ("Unison Share", P.backticked "user.public.some.remote.path"),
+            ("Git + root", P.backticked $ "git(" <> gitRepo <> "user/repo)"),
+            ("Git + path", P.backticked $ "git(" <> gitRepo <> "user/repo).some.remote.path"),
+            ("Git + branch", P.backticked $ "git(" <> gitRepo <> "user/repo:some-branch)"),
+            ("Git + branch + path", P.backticked $ "git(" <> gitRepo <> "user/repo:some-branch).some.remote.path")
+          ]
+      ]
+  where
+    gitRepo = PushPull.fold @(P.Pretty P.ColorText) "git@github.com:" "https://github.com/" pushPull
+
+showErrorFancy :: P.ShowErrorComponent e => P.ErrorFancy e -> String
+showErrorFancy (P.ErrorFail msg) = msg
+showErrorFancy (P.ErrorIndentation ord ref actual) =
+  "incorrect indentation (got " <> show (P.unPos actual)
+    <> ", should be "
+    <> p
+    <> show (P.unPos ref)
+    <> ")"
+  where
+    p = case ord of
+      LT -> "less than "
+      EQ -> "equal to "
+      GT -> "greater than "
+showErrorFancy (P.ErrorCustom a) = P.showErrorComponent a
+
+showErrorItem :: P.ErrorItem (P.Token Text) -> String
+showErrorItem (P.Tokens ts) = P.showTokens (Proxy @Text) ts
+showErrorItem (P.Label label) = NE.toList label
+showErrorItem P.EndOfInput = "end of input"

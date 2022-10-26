@@ -1,25 +1,23 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 
 module Unison.Result where
 
-import Unison.Prelude
-
-import           Control.Monad.Except           ( ExceptT(..) )
-import           Data.Functor.Identity
-import qualified Control.Monad.Fail            as Fail
-import qualified Control.Monad.Morph           as Morph
-import           Control.Monad.Writer           ( WriterT(..)
-                                                , runWriterT
-                                                , MonadWriter(..)
-                                                )
-import           Unison.Name                    ( Name )
-import qualified Unison.Parser                 as Parser
-import           Unison.Term                    ( Term )
-import qualified Unison.Typechecker.Context    as Context
-import           Control.Error.Util             ( note)
+import Control.Error.Util (note)
+import Control.Monad.Except (ExceptT (..))
+import qualified Control.Monad.Fail as Fail
+import qualified Control.Monad.Morph as Morph
+import Control.Monad.Writer
+  ( MonadWriter (..),
+    WriterT (..),
+    runWriterT,
+  )
+import Unison.Name (Name)
 import qualified Unison.Names.ResolutionResult as Names
+import Unison.Prelude
+import qualified Unison.Syntax.Parser as Parser
+import Unison.Term (Term)
+import qualified Unison.Typechecker.Context as Context
 
 type Result notes = ResultT notes Identity
 
@@ -32,18 +30,20 @@ data Note v loc
   | TypeError (Context.ErrorNote v loc)
   | TypeInfo (Context.InfoNote v loc)
   | CompilerBug (CompilerBug v loc)
-  deriving Show
+  deriving (Show)
 
 data CompilerBug v loc
   = TopLevelComponentNotFound v (Term v loc)
   | ResolvedNameNotFound v loc Name
   | TypecheckerBug (Context.CompilerBug v loc)
-  deriving Show
+  deriving (Show)
 
 result :: Result notes a -> Maybe a
 result (Result _ may) = may
 
+pattern Result :: w -> Maybe a -> MaybeT (WriterT w Identity) a
 pattern Result notes may = MaybeT (WriterT (Identity (may, notes)))
+
 {-# COMPLETE Result #-}
 
 isSuccess :: Functor f => ResultT note f a -> f Bool
@@ -64,13 +64,14 @@ getResult r = uncurry (flip Result) <$> runResultT r
 
 toEither :: Functor f => ResultT notes f a -> ExceptT notes f a
 toEither r = ExceptT (go <$> runResultT r)
-  where go (may, notes) = note notes may
+  where
+    go (may, notes) = note notes may
 
 tell1 :: Monad f => note -> ResultT (Seq note) f ()
 tell1 = tell . pure
 
-fromParsing
-  :: Monad f => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
+fromParsing ::
+  Monad f => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
 fromParsing (Left e) = do
   tell1 $ Parsing e
   Fail.fail ""
@@ -82,8 +83,9 @@ tellAndFail note = tell1 note *> Fail.fail "Elegantly and responsibly"
 compilerBug :: Monad f => CompilerBug v loc -> ResultT (Seq (Note v loc)) f a
 compilerBug = tellAndFail . CompilerBug
 
-hoist
-  :: (Monad f, Monoid notes)
-  => (forall a. f a -> g a)
-  -> ResultT notes f b -> ResultT notes g b
+hoist ::
+  (Monad f, Monoid notes) =>
+  (forall a. f a -> g a) ->
+  ResultT notes f b ->
+  ResultT notes g b
 hoist morph = Morph.hoist (Morph.hoist morph)

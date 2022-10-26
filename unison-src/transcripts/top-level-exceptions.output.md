@@ -40,6 +40,8 @@ mytest _ = [Ok "Great"]
 ```ucm
 .> run main
 
+  ()
+
 .> add
 
   ⍟ I've added these definitions:
@@ -90,6 +92,10 @@ unique type RuntimeError =
   
   The program halted with an unhandled exception:
   
-    Failure (typeLink RuntimeError) "oh noes!" !Any
+    Failure (typeLink RuntimeError) "oh noes!" (Any ())
+  
+  
+  Stack trace:
+    ##raise
 
 ```

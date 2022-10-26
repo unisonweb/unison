@@ -1,29 +1,26 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.NamesWithHistory where
 
-import Unison.Prelude
-
-import Control.Lens (view, _4)
-import Data.List.Extra (nubOrd, sort)
+import Data.List.Extra (nubOrd)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Unison.ConstructorReference (ConstructorReference)
+import qualified Unison.ConstructorType as CT
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.Names (Names (..))
+import qualified Unison.Names as Names
+import Unison.Prelude
 import Unison.Reference as Reference
 import Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
-import Unison.Util.Relation (Relation)
-import qualified Data.Set as Set
-import qualified Data.Map as Map
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
 import qualified Unison.Util.List as List
+import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
-import qualified Unison.ConstructorType as CT
-import Unison.Names (Names(..) )
 
 -- | NamesWithHistory contains two sets of 'Names',
 -- One represents names which are currently assigned,
@@ -39,6 +36,16 @@ data NamesWithHistory = NamesWithHistory
   }
   deriving (Show)
 
+instance Semigroup NamesWithHistory where
+  NamesWithHistory cur1 old1 <> NamesWithHistory cur2 old2 =
+    NamesWithHistory (cur1 <> old1) (cur2 <> old2)
+
+instance Monoid NamesWithHistory where
+  mempty = NamesWithHistory mempty mempty
+
+fromCurrentNames :: Names -> NamesWithHistory
+fromCurrentNames n = NamesWithHistory {currentNames = n, oldNames = mempty}
+
 filterTypes :: (Name -> Bool) -> Names -> Names
 filterTypes = Names.filterTypes
 
@@ -48,51 +55,60 @@ filterTypes = Names.filterTypes
 -- `addedNames` are names in `n2` but not `n1`
 -- `removedNames` are names in `n1` but not `n2`
 diff :: Names -> Names -> Diff
-diff n1 n2 = Diff n1 added removed where
-  added = Names (terms n2 `R.difference` terms n1)
-                 (types n2 `R.difference` types n1)
-  removed = Names (terms n1 `R.difference` terms n2)
-                   (types n1 `R.difference` types n2)
+diff n1 n2 = Diff n1 added removed
+  where
+    added =
+      Names
+        (terms n2 `R.difference` terms n1)
+        (types n2 `R.difference` types n1)
+    removed =
+      Names
+        (terms n1 `R.difference` terms n2)
+        (types n1 `R.difference` types n2)
 
-data Diff =
-  Diff { originalNames :: Names
-       , addedNames    :: Names
-       , removedNames  :: Names
-       } deriving Show
+data Diff = Diff
+  { originalNames :: Names,
+    addedNames :: Names,
+    removedNames :: Names
+  }
+  deriving (Show)
 
 -- Add `n1` to `currentNames`, shadowing anything with the same name and
 -- moving shadowed definitions into `oldNames` so they can can still be
 -- referenced hash qualified.
 push :: Names -> NamesWithHistory -> NamesWithHistory
-push n0 ns = NamesWithHistory (unionLeft0 n1 cur) (oldNames ns <> shadowed) where
-  n1 = suffixify0 n0
-  cur = currentNames ns
-  shadowed = Names terms' types' where
-    terms' = R.dom (terms n1) R.<| (terms cur `R.difference` terms n1)
-    types' = R.dom (types n1) R.<| (types cur `R.difference` types n1)
-  unionLeft0 :: Names -> Names -> Names
-  unionLeft0 n1 n2 = Names terms' types' where
-    terms' = terms n1 <> R.subtractDom (R.dom $ terms n1) (terms n2)
-    types' = types n1 <> R.subtractDom (R.dom $ types n1) (types n2)
-  -- For all names in `ns`, (ex: foo.bar.baz), generate the list of suffixes
-  -- of that name [[foo.bar.baz], [bar.baz], [baz]]. Any suffix which uniquely
-  -- refers to a single definition is added as an alias
-  --
-  -- If `Names` were more like a `[Names]`, then `push` could just cons
-  -- onto the list and we could get rid of all this complex logic. The
-  -- complexity here is that we have to "bake the shadowing" into a single
-  -- Names, taking into account suffix-based name resolution.
-  --
-  -- We currently have `oldNames`, but that controls an unrelated axis, which
-  -- is whether names are hash qualified or not.
-  suffixify0 :: Names -> Names
-  suffixify0 ns = ns <> suffixNs
-    where
-    suffixNs = Names (R.fromList uniqueTerms) (R.fromList uniqueTypes)
-    terms' = List.multimap [ (n,ref) | (n0,ref) <- R.toList (terms ns), n <- Name.suffixes n0 ]
-    types' = List.multimap [ (n,ref) | (n0,ref) <- R.toList (types ns), n <- Name.suffixes n0 ]
-    uniqueTerms = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList terms' ]
-    uniqueTypes = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList types' ]
+push n0 ns = NamesWithHistory (unionLeft0 n1 cur) (oldNames ns <> shadowed)
+  where
+    n1 = suffixify0 n0
+    cur = currentNames ns
+    shadowed = Names terms' types'
+      where
+        terms' = R.dom (terms n1) R.<| (terms cur `R.difference` terms n1)
+        types' = R.dom (types n1) R.<| (types cur `R.difference` types n1)
+    unionLeft0 :: Names -> Names -> Names
+    unionLeft0 n1 n2 = Names terms' types'
+      where
+        terms' = terms n1 <> R.subtractDom (R.dom $ terms n1) (terms n2)
+        types' = types n1 <> R.subtractDom (R.dom $ types n1) (types n2)
+    -- For all names in `ns`, (ex: foo.bar.baz), generate the list of suffixes
+    -- of that name [[foo.bar.baz], [bar.baz], [baz]]. Any suffix which uniquely
+    -- refers to a single definition is added as an alias
+    --
+    -- If `Names` were more like a `[Names]`, then `push` could just cons
+    -- onto the list and we could get rid of all this complex logic. The
+    -- complexity here is that we have to "bake the shadowing" into a single
+    -- Names, taking into account suffix-based name resolution.
+    --
+    -- We currently have `oldNames`, but that controls an unrelated axis, which
+    -- is whether names are hash qualified or not.
+    suffixify0 :: Names -> Names
+    suffixify0 ns = ns <> suffixNs
+      where
+        suffixNs = Names (R.fromList uniqueTerms) (R.fromList uniqueTypes)
+        terms' = List.multimap [(n, ref) | (n0, ref) <- R.toList (terms ns), n <- Name.suffixes n0]
+        types' = List.multimap [(n, ref) | (n0, ref) <- R.toList (types ns), n <- Name.suffixes n0]
+        uniqueTerms = [(n, ref) | (n, nubOrd -> [ref]) <- Map.toList terms']
+        uniqueTypes = [(n, ref) | (n, nubOrd -> [ref]) <- Map.toList types']
 
 -- if I push an existing name, the pushed reference should be the thing
 -- if I push a different name for the same thing, i suppose they should coexist
@@ -178,12 +194,12 @@ lookupHQRef ::
   Set r
 lookupHQRef which isPrefixOf hq NamesWithHistory {currentNames, oldNames} =
   case hq of
-    HQ.NameOnly n -> Name.searchBySuffix n currentRefs
+    HQ.NameOnly n -> Name.searchByRankedSuffix n currentRefs
     HQ.HashQualified n sh -> matches currentRefs `orIfEmpty` matches oldRefs
       where
         matches :: Relation Name r -> Set r
         matches ns =
-          Set.filter (isPrefixOf sh) (Name.searchBySuffix n ns)
+          Set.filter (isPrefixOf sh) (Name.searchByRankedSuffix n ns)
     HQ.HashOnly sh -> matches currentRefs `orIfEmpty` matches oldRefs
       where
         matches :: Relation Name r -> Set r
@@ -202,20 +218,24 @@ lookupHQRef which isPrefixOf hq NamesWithHistory {currentNames, oldNames} =
 -- them if they are conflicted names.  If `r` isn't in "current" names, look up
 -- each of its "old" names and hash-qualify them.
 typeName :: Int -> Reference -> NamesWithHistory -> Set (HQ'.HashQualified Name)
-typeName length r NamesWithHistory{..} =
+typeName length r NamesWithHistory {..} =
   if R.memberRan r . Names.types $ currentNames
-  then Set.map (\n -> if isConflicted n then hq n else HQ'.fromName n)
-               (R.lookupRan r . Names.types $ currentNames)
-  else Set.map hq (R.lookupRan r . Names.types $ oldNames)
-  where hq n = HQ'.take length (HQ'.fromNamedReference n r)
-        isConflicted n = R.manyDom n (Names.types currentNames)
+    then
+      Set.map
+        (\n -> if isConflicted n then hq n else HQ'.fromName n)
+        (R.lookupRan r . Names.types $ currentNames)
+    else Set.map hq (R.lookupRan r . Names.types $ oldNames)
+  where
+    hq n = HQ'.take length (HQ'.fromNamedReference n r)
+    isConflicted n = R.manyDom n (Names.types currentNames)
 
 -- List of names for a referent, longer names (by number of segments) first.
 termNamesByLength :: Int -> Referent -> NamesWithHistory -> [HQ'.HashQualified Name]
 termNamesByLength length r ns =
   sortOn len (toList $ termName length r ns)
-  where len (HQ'.NameOnly n) = Name.countSegments n
-        len (HQ'.HashQualified n _) = Name.countSegments n
+  where
+    len (HQ'.NameOnly n) = Name.countSegments n
+    len (HQ'.HashQualified n _) = Name.countSegments n
 
 -- The longest term name (by segment count) for a `Referent`.
 longestTermName :: Int -> Referent -> NamesWithHistory -> HQ.HashQualified Name
@@ -225,51 +245,31 @@ longestTermName length r ns =
     (h : _) -> Name.convert h
 
 termName :: Int -> Referent -> NamesWithHistory -> Set (HQ'.HashQualified Name)
-termName length r NamesWithHistory{..} =
+termName length r NamesWithHistory {..} =
   if R.memberRan r . Names.terms $ currentNames
-  then Set.map (\n -> if isConflicted n then hq n else HQ'.fromName n)
-               (R.lookupRan r . Names.terms $ currentNames)
-  else Set.map hq (R.lookupRan r . Names.terms $ oldNames)
-  where hq n = HQ'.take length (HQ'.fromNamedReferent n r)
-        isConflicted n = R.manyDom n (Names.terms currentNames)
-
-suffixedTypeName :: Int -> Reference -> NamesWithHistory -> [HQ'.HashQualified Name]
-suffixedTermName :: Int -> Referent -> NamesWithHistory -> [HQ'.HashQualified Name]
-(suffixedTermName,suffixedTypeName) =
-  ( suffixedName termName (Names.terms . currentNames) HQ'.fromNamedReferent
-  , suffixedName typeName (Names.types . currentNames) HQ'.fromNamedReference )
+    then
+      Set.map
+        (\n -> if isConflicted n then hq n else HQ'.fromName n)
+        (R.lookupRan r . Names.terms $ currentNames)
+    else Set.map hq (R.lookupRan r . Names.terms $ oldNames)
   where
-  suffixedName fallback getRel hq' length r ns@(getRel -> rel) =
-    if R.memberRan r rel
-    then go $ toList (R.lookupRan r rel)
-    else sort $ Set.toList (fallback length r ns)
-    where
-      -- Orders names, using these criteria, in this order:
-      -- 1. NameOnly comes before HashQualified,
-      -- 2. Shorter names (in terms of segment count) come before longer ones
-      -- 3. If same on attributes 1 and 2, compare alphabetically
-      go :: [Name] -> [HQ'.HashQualified Name]
-      go fqns = map (view _4) . sort $ map f fqns where
-        f fqn = let
-          n' = Name.shortestUniqueSuffix fqn r rel
-          isHQ'd = R.manyDom fqn rel -- it is conflicted
-          hq n = HQ'.take length (hq' n r)
-          hqn = if isHQ'd then hq n' else HQ'.fromName n'
-          in (isHQ'd, Name.countSegments fqn, Name.isAbsolute n', hqn)
+    hq n = HQ'.take length (HQ'.fromNamedReferent n r)
+    isConflicted n = R.manyDom n (Names.terms currentNames)
 
 -- Set HashQualified -> Branch m -> Action' m v Names
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names
 -- Set HashQualified -> Branch m -> Command m i v Names
 -- populate historical names
-lookupHQPattern
-  :: HQ.HashQualified Name
-  -> CT.ConstructorType
-  -> NamesWithHistory
-  -> Set ConstructorReference
-lookupHQPattern hq ctt names = Set.fromList
-  [ r
-    | Referent.Con r ct <- toList $ lookupHQTerm hq names
-    , ct == ctt
+lookupHQPattern ::
+  HQ.HashQualified Name ->
+  CT.ConstructorType ->
+  NamesWithHistory ->
+  Set ConstructorReference
+lookupHQPattern hq ctt names =
+  Set.fromList
+    [ r
+      | Referent.Con r ct <- toList $ lookupHQTerm hq names,
+        ct == ctt
     ]
 
 -- | Given a mapping from name to qualified name, update a `Names`,
@@ -281,4 +281,4 @@ lookupHQPattern hq ctt names = Set.fromList
 -- Only affects `currentNames`.
 importing :: [(Name, Name)] -> NamesWithHistory -> NamesWithHistory
 importing shortToLongName ns =
-  ns { currentNames = Names.importing shortToLongName (currentNames ns) }
+  ns {currentNames = Names.importing shortToLongName (currentNames ns)}

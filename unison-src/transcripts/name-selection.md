@@ -20,6 +20,7 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 .a> add
 .a> alias.term b aaa.but.more.segments
 .a> view a
+.> cd .
 ```
 
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
@@ -34,9 +35,12 @@ c = 1
 d = c + 10
 ```
 
+```ucm:hide
+.a2> builtins.merge
+```
 ```ucm
 .a2> add
-.a2> alias.term c aaaa.tooManySegments
+.a2> alias.term c long.name.but.shortest.suffixification
 ```
 
 ```unison:hide
@@ -49,8 +53,42 @@ d = c + 10
 .a3> merge .a2 .a3
 ```
 
-At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2` namespace has an unconflicted definition for `c` and `d`, so those are preferred.
+At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized. 
+The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope, 
+`long.name.but.shortest.suffixification` is chosen because its suffixified version has the fewest segments.
 
 ```ucm
 .> view a b c d
 ```
+
+## Name biasing
+
+```unison
+deeply.nested.term = 
+  a + 1
+
+deeply.nested.value = 10
+
+a = 10
+```
+
+```ucm
+.biasing> add
+-- Despite being saved with name `a`, 
+-- the pretty printer should prefer the suffixified 'deeply.nested.value name' over the shallow 'a'.
+-- It's closer to the term being printed.
+.biasing> view deeply.nested.term
+```
+
+Add another term with `value` suffix to force longer suffixification of `deeply.nested.value`
+
+```unison
+other.value = 20
+```
+
+```ucm
+.biasing> add
+-- nested.value should still be preferred even if the suffixification requires more segments than `a`
+.biasing> view deeply.nested.term
+```
+

@@ -13,9 +13,7 @@ baz = cases
 ```
 
 ```ucm
-  ☝️  The namespace .example is empty.
-
-.example> add
+.> add
 
   ⍟ I've added these definitions:
   
@@ -24,33 +22,33 @@ baz = cases
     baz : A -> Text
     foo : A
 
-.example> find : Text -> A
+.> find : Text -> A
 
   1. bar : Text -> A
   2. A.A : Text -> A
   
 
-.example> find : A -> Text
+.> find : A -> Text
 
   1. baz : A -> Text
   
 
-.example> find : A
+.> find : A
 
   1. foo : A
   
 
 ```
 ```ucm
-.example> find : Text
+.> find : Text
 
   ☝️
   
   I couldn't find exact type matches, resorting to fuzzy
   matching...
 
-  1. baz : A -> Text
-  2. bar : Text -> A
+  1. bar : Text -> A
+  2. baz : A -> Text
   3. A.A : Text -> A
   
 

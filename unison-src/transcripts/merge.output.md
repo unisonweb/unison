@@ -99,19 +99,11 @@ foo.z = +28348
 
 .P2> delete.namespace baz
 
-  Removed definitions:
-  
-    1. x : Nat
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .P2> delete.namespace quux
 
-  Removed definitions:
-  
-    1. x : Nat
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .P2> find
 
@@ -330,7 +322,7 @@ Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`
   a = "hello world!"
   
   f : Text
-  f = (x y -> y) a "woot!"
+  f = '(y -> y) a "woot!"
   
   oog.b : Nat
   oog.b = 230948

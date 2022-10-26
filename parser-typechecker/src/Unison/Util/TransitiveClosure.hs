@@ -1,31 +1,34 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Util.TransitiveClosure where
 
+import qualified Data.Set as Set
 import Unison.Prelude
 
-import           Data.Functor.Identity    (runIdentity)
-import qualified Data.Set                 as Set
-
-transitiveClosure :: forall m a. (Monad m, Ord a)
-                  => (a -> m (Set a))
-                  -> Set a
-                  -> m (Set a)
+transitiveClosure ::
+  forall m a.
+  (Monad m, Ord a) =>
+  (a -> m (Set a)) ->
+  Set a ->
+  m (Set a)
 transitiveClosure getDependencies open =
   let go :: Set a -> [a] -> m (Set a)
       go closed [] = pure closed
-      go closed (h:t) =
+      go closed (h : t) =
         if Set.member h closed
           then go closed t
-        else do
-          deps <- getDependencies h
-          go (Set.insert h closed) (toList deps ++ t)
-  in go Set.empty (toList open)
-  
+          else do
+            deps <- getDependencies h
+            go (Set.insert h closed) (toList deps ++ t)
+   in go Set.empty (toList open)
+
 transitiveClosure' :: Ord a => (a -> Set a) -> Set a -> Set a
 transitiveClosure' f as = runIdentity $ transitiveClosure (pure . f) as
 
-transitiveClosure1 :: forall m a. (Monad m, Ord a)
-                   => (a -> m (Set a)) -> a -> m (Set a)
+transitiveClosure1 ::
+  forall m a.
+  (Monad m, Ord a) =>
+  (a -> m (Set a)) ->
+  a ->
+  m (Set a)
 transitiveClosure1 f a = transitiveClosure f (Set.singleton a)
 
 transitiveClosure1' :: Ord a => (a -> Set a) -> a -> Set a

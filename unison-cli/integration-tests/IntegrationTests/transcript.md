@@ -20,5 +20,5 @@ main = '(printLine "Hello, world!")
 
 ```ucm
 .> add
-.> compile.output main ./unison-cli/integration-tests/IntegrationTests/main
+.> compile main ./unison-cli/integration-tests/IntegrationTests/main
 ```

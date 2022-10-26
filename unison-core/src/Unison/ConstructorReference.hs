@@ -32,4 +32,6 @@ reference_ =
 
 toShortHash :: ConstructorReference -> ShortHash
 toShortHash (ConstructorReference r i) =
-  (Reference.toShortHash r) {ShortHash.cid = Just (tShow i)}
+  case Reference.toShortHash r of
+    ShortHash.Builtin b -> ShortHash.Builtin b
+    ShortHash.ShortHash prefix cycle _cid -> ShortHash.ShortHash prefix cycle (Just $ tShow i)

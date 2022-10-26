@@ -37,13 +37,13 @@ And then we add it.
 
 .subpath> find.verbose
 
-  1. -- #v4a90flt15t54qnjbvbdtj42ouqo8dktu5da8g6q30l4frc6l81ttjtov42r1nbj5jq3hh98snlb64tkbb1mc5dk8les96v71b4qr6g
+  1. -- #khopi9b7o8afgva63q9riun664i1p24ricqjbnelo7eipmnsccu3s49v78u9sd3psdfkbllbk183n4e4apco3db99k3v8fehhaasbqo
      unique type Foo
      
-  2. -- #v4a90flt15t54qnjbvbdtj42ouqo8dktu5da8g6q30l4frc6l81ttjtov42r1nbj5jq3hh98snlb64tkbb1mc5dk8les96v71b4qr6g#0
+  2. -- #khopi9b7o8afgva63q9riun664i1p24ricqjbnelo7eipmnsccu3s49v78u9sd3psdfkbllbk183n4e4apco3db99k3v8fehhaasbqo#0
      Foo.Foo : Foo
      
-  3. -- #31g7t8qcmqqdtpe4bdo1591egqh1q0ltnt69u345gdrdur0n8flfu1ohpjasauc9k81msvi2a4q4b03tp1018sac9esd8d3qmbq4b2g
+  3. -- #4lcpsef0pconupgdboml883pi87fimsmlrcihnm0f2nvnboj3c8qikuebsrrpuoildl8vigcplgm9crfge5mddijb531utsjcuob5oo
      fooToInt : Foo -> Int
      
   
@@ -90,6 +90,8 @@ and update the codebase to use the new type `Foo`...
   fooToInt : Foo -> Int
   fooToInt _ = +42
 
+.> cd .
+
 ```
 ### Preserving user type variables
 
@@ -130,6 +132,8 @@ Add that to the codebase:
     otherTerm : Optional baz -> Optional baz
     someTerm  : Optional foo -> Optional foo
 
+.> cd .
+
 ```
 Let's now edit the dependency:
 
@@ -146,8 +150,7 @@ someTerm _ = None
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
+    ⍟ These new definitions are ok to `add`:
     
       someTerm : Optional x -> Optional x
 
@@ -160,6 +163,8 @@ Update...
   ⍟ I've updated these names to your new definition:
   
     someTerm : Optional x -> Optional x
+
+.> cd .
 
 ```
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
@@ -184,18 +189,7 @@ Cleaning up a bit...
 ```ucm
 .> delete.namespace subpath
 
-  Removed definitions:
-  
-    1. unique type Foo
-    2. Foo.Bar            : #i2nv821v0u
-    3. Foo.Foo            : #i2nv821v0u
-    4. fooToInt           : #i2nv821v0u -> Int
-    5. preserve.otherTerm : Optional baz -> Optional baz
-    6. preserve.someTerm  : Optional x -> Optional x
-    7. patch patch
-    8. patch preserve.patch
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 ```
 Now, we make two terms, where one depends on the other.
@@ -237,6 +231,8 @@ We'll make two copies of this namespace.
 .subpath> fork one two
 
   Done.
+
+.> cd .
 
 ```
 Now let's edit one of the terms...

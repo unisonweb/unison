@@ -17,11 +17,11 @@ source-repository head
 
 library
   exposed-modules:
+      Unison.Debug
       Unison.Prelude
       Unison.Util.Map
+      Unison.Util.Monoid
       Unison.Util.Set
-  other-modules:
-      Paths_unison_prelude
   hs-source-dirs:
       src
   default-extensions:
@@ -35,6 +35,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
+      RankNTypes
       TupleSections
       TypeApplications
   ghc-options: -Wall
@@ -44,9 +45,13 @@ library
     , containers
     , either
     , extra
+    , lens
     , mtl
+    , pretty-simple
     , safe
     , text
     , transformers
     , unliftio
+    , vector
+    , witherable
   default-language: Haskell2010

@@ -1,20 +1,18 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-
 module Unison.Runtime.Exception where
-
-import GHC.Stack
 
 import Control.Exception
 import Data.String (fromString)
 import Data.Text
-
+import GHC.Stack
 import Unison.Runtime.Stack
 import Unison.Util.Pretty as P
+import Unison.Reference (Reference)
 
 data RuntimeExn
   = PE CallStack (P.Pretty P.ColorText)
-  | BU Text Closure
+  | BU [(Reference,Int)] Text Closure
   deriving (Show)
+
 instance Exception RuntimeExn
 
 die :: HasCallStack => String -> IO a

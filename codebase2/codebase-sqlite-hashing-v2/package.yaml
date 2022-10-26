@@ -1,0 +1,56 @@
+name: unison-codebase-sqlite-hashing-v2
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+
+ghc-options: -Wall
+
+dependencies:
+  - base
+  - bytes
+  - bytestring
+  - containers
+  - lens
+  - text
+  - unison-codebase
+  - unison-codebase-sqlite
+  - unison-core
+  - unison-core1
+  - unison-hashing-v2
+  - unison-prelude
+  - unison-sqlite
+  - unison-util
+  - unison-util-base32hex
+  - unison-util-term
+  - vector
+
+library:
+  source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_codebase_sqlite_hashing_v2
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RecordWildCards
+  - RankNTypes
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - ViewPatterns

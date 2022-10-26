@@ -101,37 +101,33 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
 ```ucm
 .> delete.namespace .feature1
 
-  Removed definitions:
-  
-    1. y : Text
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .> history .feature1
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #gj7j96t88n
+  ⊙ 1. #hsbtlt2og6
   
     - Deletes:
     
       y
   
-  □ #aqh5c7qsod (start of history)
+  □ 2. #q95r47tc4l (start of history)
 
 .> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #5aa4qmhvur
+  ⊙ 1. #jvvtvqg91i
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #g1jho38v97
+  ⊙ 2. #pdn0nrdikc
   
     + Adds / updates:
     
@@ -142,26 +138,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #dkcip47417
+  ⊙ 3. #j275561d72
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #at9qnsl83m
+  ⊙ 4. #aib93cgn8r
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #g271dghaje
+  ⊙ 5. #22gtrovg7e
   
     + Adds / updates:
     
       x
   
-  □ #aooso6apun (start of history)
+  □ 6. #qehn7jqmaf (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
@@ -249,8 +245,8 @@ master.frobnicate n = n + 1
 
 .> view master.y
 
-  feature2.y : Text
-  feature2.y = "updated y"
+  master.y : Text
+  master.y = "updated y"
 
 .> view master.frobnicate
 
@@ -297,13 +293,13 @@ And notice that `y` has the most recent value, and that `z` and `frobnicate` bot
 ```ucm
 .> view master.y
 
-  feature2.y : Text
-  feature2.y = "updated y"
+  master.y : Text
+  master.y = "updated y"
 
 .> view master.z
 
-  feature2.z : Nat
-  feature2.z = 99
+  master.z : Nat
+  master.z = 99
 
 .> view master.frobnicate
 

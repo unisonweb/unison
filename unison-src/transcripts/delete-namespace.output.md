@@ -15,11 +15,7 @@ Deleting a namespace with no external dependencies should succeed.
 ```ucm
 .> delete.namespace no_dependencies
 
-  Removed definitions:
-  
-    1. thing : Text
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 ```
 Deleting a namespace with external dependencies should fail and list all dependents.
@@ -33,14 +29,14 @@ Deleting a namespace with external dependencies should fail and list all depende
   definitions are still in use.
   
   Dependency   Referenced In
-  term2        1. dependents.usage2
-               2. dependents.usage1
+  term2        1. dependents.usage1
+               2. dependents.usage2
                
-  term1        3. dependents.usage2
-               4. dependents.usage1
+  term1        3. dependents.usage1
+               4. dependents.usage2
   
   If you want to proceed anyways and leave those definitions
-  without names, usedelete.namespace.force
+  without names, use delete.namespace.force
 
 ```
 Deleting a namespace with external dependencies should succeed when using `delete.namespace.force`
@@ -48,12 +44,7 @@ Deleting a namespace with external dependencies should succeed when using `delet
 ```ucm
 .> delete.namespace.force dependencies
 
-  Removed definitions:
-  
-    1. term1 : Nat
-    2. term2 : Nat
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
   ⚠️
   
@@ -61,11 +52,11 @@ Deleting a namespace with external dependencies should succeed when using `delet
   following definitions. They now contain un-named references.
   
   Dependency   Referenced In
-  term2        1. dependents.usage2
-               2. dependents.usage1
+  term2        1. dependents.usage1
+               2. dependents.usage2
                
-  term1        3. dependents.usage2
-               4. dependents.usage1
+  term1        3. dependents.usage1
+               4. dependents.usage2
 
 ```
 I should be able to view an affected dependency by number
@@ -73,10 +64,10 @@ I should be able to view an affected dependency by number
 ```ucm
 .> view 2
 
-  dependents.usage1 : Nat
-  dependents.usage1 =
-    use Nat +
-    #jk19sm5bf8 + #0ja1qfpej6
+  dependents.usage2 : Nat
+  dependents.usage2 =
+    use Nat *
+    #gjmq673r1v * #dcgdua2lj6
 
 ```
 Deleting the root namespace should require confirmation if not forced.

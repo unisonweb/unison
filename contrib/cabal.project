@@ -1,17 +1,23 @@
 packages:
-    yaks/easytest
-    parser-typechecker
-    unison-core
-    unison-cli
-    lib/unison-prelude
-    lib/unison-util-relation
-    codebase2/codebase
-    codebase2/codebase-sqlite
-    codebase2/codebase-sync
-    codebase2/core
-    codebase2/util
-    codebase2/util-serialization
-    codebase2/util-term
+  yaks/easytest
+  parser-typechecker
+  unison-core
+  unison-cli
+  unison-share-api
+
+  codebase2/codebase
+  codebase2/codebase-sqlite
+  codebase2/codebase-sync
+  codebase2/core
+  codebase2/util
+  codebase2/util-serialization
+  codebase2/util-term
+
+  lib/unison-prelude
+  lib/unison-sqlite
+  lib/unison-util-base32hex
+  lib/unison-util-relation
+  lib/unison-pretty-printer
 
 source-repository-package
   type: git
@@ -28,6 +34,11 @@ source-repository-package
   location: https://github.com/unisonweb/megaparsec.git
   tag: c4463124c578e8d1074c04518779b5ce5957af6b
 
+source-repository-package
+  type: git
+  location: https://github.com/unisonweb/shellmet.git
+  tag: 2fd348592c8f51bb4c0ca6ba4bc8e38668913746
+
 allow-newer: 
   haskeline:base
 
@@ -37,6 +48,15 @@ package easytest
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package parser-typechecker
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-core
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-cli
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-share-api
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package codebase
@@ -58,6 +78,18 @@ package util-serialization
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package util-term
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-prelude
+  ghc-options: -Wall         -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-sqlite
+  ghc-options: -Wall         -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-util-relation
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-pretty-printer
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 -- This options are applied to all packages, local ones and also external dependencies.
