@@ -2138,6 +2138,27 @@ makeStandalone =
         _ -> Left $ showPatternHelp makeStandalone
     )
 
+compileScheme :: InputPattern
+compileScheme =
+  InputPattern
+    "compile.scheme"
+    ["compile.scheme"]
+    I.Visible
+    [(Required, exactDefinitionTermQueryArg), (Required, noCompletionsArg)]
+    ( P.wrapColumn2
+        [ ( "`compile.scheme main file`",
+            "Creates stand alone executable via compilation to"
+              <> "scheme. The created executable will have the effect"
+              <> "of running `!main`."
+          )
+        ]
+    )
+    ( \case
+        [main, file] ->
+          Input.CompileSchemeI file <$> parseHashQualifiedName main
+        _ -> Left $ showPatternHelp compileScheme
+    )
+
 createAuthor :: InputPattern
 createAuthor =
   InputPattern
@@ -2310,6 +2331,7 @@ validInputs =
       quit,
       updateBuiltins,
       makeStandalone,
+      compileScheme,
       mergeBuiltins,
       mergeIOBuiltins,
       dependents,

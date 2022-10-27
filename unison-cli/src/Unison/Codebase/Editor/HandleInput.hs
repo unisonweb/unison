@@ -19,7 +19,7 @@ import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
-import Unison.Cli.TypeCheck (typecheck)
+import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
@@ -63,6 +63,8 @@ import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, man
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
+import Unison.Codebase.Editor.HandleInput.TermResolution
+  (resolveTermRef, resolveMainRef, resolveCon)
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
 import Unison.Codebase.Editor.Input
 import qualified Unison.Codebase.Editor.Input as Input
@@ -102,6 +104,7 @@ import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SyncMode as SyncMode
+import qualified Unison.Syntax.TermPrinter as TP
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
 import Unison.Codebase.Type (GitPushBehavior (..))
@@ -1173,23 +1176,11 @@ loop e = do
               Cli.respond (RunResult ppe mainRes)
             MakeStandaloneI output main -> do
               Cli.Env {codebase, runtime} <- ask
-              let mainType = Runtime.mainType runtime
-              parseNames <-
-                flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintNamesA
-              ppe <- suffixifiedPPE parseNames
-              let resolved = toList $ NamesWithHistory.lookupHQTerm main parseNames
-                  smain = HQ.toString main
-              filtered <-
-                catMaybes
-                  <$> traverse (\r -> fmap (r,) <$> liftIO (loadTypeOfTerm codebase r)) resolved
-              case filtered of
-                [(Referent.Ref ref, ty)]
-                  | Typechecker.fitsScheme ty mainType -> do
-                      let codeLookup = () <$ Codebase.toCodeLookup codebase
-                      whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
-                        Cli.returnEarly (EvaluationFailure err)
-                  | otherwise -> Cli.returnEarly (BadMainFunction smain ty ppe [mainType])
-                _ -> Cli.returnEarly (NoMainFunction smain ppe [mainType])
+              (ref, ppe) <- resolveMainRef main
+              let codeLookup = () <$ Codebase.toCodeLookup codebase
+              whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
+                Cli.returnEarly (EvaluationFailure err)
+            CompileSchemeI output main -> doCompileScheme output main
             IOTestI main -> do
               Cli.Env {codebase, runtime} <- ask
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -1275,46 +1266,9 @@ loop e = do
               patch <- Cli.getPatchAt (fromMaybe Cli.defaultPatchPath maybePath)
               ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               Cli.respondNumbered $ ListEdits patch ppe
-            PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> do
-              Cli.Env {codebase} <- ask
-              let preprocess = case pullMode of
-                    Input.PullWithHistory -> Unmodified
-                    Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-              ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
-              remoteBranch <- case ns of
-                ReadRemoteNamespaceGit repo ->
-                  Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
-                    Cli.returnEarly (Output.GitError err)
-                ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
-              description <- inputDescription input
-              let unchangedMsg = PullAlreadyUpToDate ns path
-              destAbs <- Cli.resolvePath' path
-              let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
-              case pullMode of
-                Input.PullWithHistory -> do
-                  destBranch <- Cli.getBranch0At destAbs
-                  if Branch.isEmpty0 destBranch
-                    then do
-                      void $ Cli.updateAtM description destAbs (const $ pure remoteBranch)
-                      Cli.respond $ MergeOverEmpty path
-                    else
-                      mergeBranchAndPropagateDefaultPatch
-                        Branch.RegularMerge
-                        description
-                        (Just unchangedMsg)
-                        remoteBranch
-                        printDiffPath
-                        destAbs
-                Input.PullWithoutHistory -> do
-                  didUpdate <-
-                    Cli.updateAtM
-                      description
-                      destAbs
-                      (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
-                  Cli.respond
-                    if didUpdate
-                      then PullSuccessful ns path
-                      else unchangedMsg
+            PullRemoteBranchI mRepo path sMode pMode verbosity ->
+              inputDescription input >>=
+                doPullRemoteBranch mRepo path sMode pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> do
@@ -1450,6 +1404,26 @@ loop e = do
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
+
+-- resolveMain
+--   :: HQ.HashQualified Name -> Cli (Reference, PPE.PrettyPrintEnv)
+-- resolveMain main = do
+--   Cli.Env {codebase, runtime} <- ask
+--   let mainType = Runtime.mainType runtime
+--   parseNames <-
+--     flip NamesWithHistory.NamesWithHistory mempty
+--       <$> basicPrettyPrintNamesA
+--   ppe <- suffixifiedPPE parseNames
+--   let resolved = toList $ NamesWithHistory.lookupHQTerm main parseNames
+--       smain = HQ.toString main
+--   filtered <-
+--     catMaybes
+--       <$> traverse (\r -> fmap (r,) <$> liftIO (loadTypeOfTerm codebase r)) resolved
+--   case filtered of
+--     [(Referent.Ref ref, ty)]
+--       | Typechecker.fitsScheme ty mainType -> pure (ref, ppe)
+--       | otherwise -> Cli.returnEarly (BadMainFunction smain ty ppe [mainType])
+--     _ -> Cli.returnEarly (NoMainFunction smain ppe [mainType])
 
 inputDescription :: Input -> Cli Text
 inputDescription input =
@@ -2504,6 +2478,125 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
           (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
           Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
         pure b
+
+compilerPath :: Path.Path'
+compilerPath = Path.Path' { Path.unPath' = Left abs }
+  where
+  segs = NameSegment <$> ["unison", "internal"]
+  rootPath = Path.Path { Path.toSeq = Seq.fromList segs }
+  abs = Path.Absolute { Path.unabsolute = rootPath }
+
+doFetchCompiler :: Cli ()
+doFetchCompiler =
+  inputDescription pullInput >>=
+    doPullRemoteBranch
+      repo compilerPath
+      SyncMode.Complete
+      Input.PullWithoutHistory
+      Verbosity.Silent
+  where
+  -- fetching info
+  ns = ReadShareRemoteNamespace
+     { server = RemoteRepo.DefaultCodeserver
+     , repo = "dolio"
+     , path =
+         Path.fromList $ NameSegment <$> ["public", "internal", "trunk"]
+     }
+  repo = Just $ ReadRemoteNamespaceShare ns
+
+  pullInput =
+    PullRemoteBranchI
+      repo
+      compilerPath
+      SyncMode.Complete
+      Input.PullWithoutHistory
+      Verbosity.Silent
+
+doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
+doCompileScheme (Text.pack -> output) main = do
+  Cli.Env {codebase, runtime} <- ask
+  haveCompiler <- Cli.branchExistsAtPath' compilerPath
+  when (not haveCompiler) doFetchCompiler
+  (comp, ppe) <- resolveMainRef main
+  -- Term.termLink rf
+  sscm <- Term.ref a <$> resolveTermRef saveNm
+  fprf <- resolveCon filePathNm
+  let toCmp = Term.termLink a (Referent.Ref comp)
+      outTm = Term.text a (output <> ".scm")
+      fpc = Term.constructor a fprf
+      fp = Term.app a fpc outTm
+      mty = Runtime.mainType runtime
+      tm :: Term Symbol Ann
+      tm = Term.apps' sscm [toCmp, fp]
+      rendered = P.toPlainUnbroken $ TP.pretty ppe tm
+  tcRes <- typecheckTerm (Term.delay a tm)
+  case tcRes of
+    -- Type checking succeeded
+    Result.Result _ (Just ty)
+      | Typechecker.fitsScheme ty mty ->
+        () <$ evalUnisonTerm False ppe False tm
+      | otherwise ->
+        Cli.returnEarly $ BadMainFunction rendered ty ppe [mty]
+    Result.Result notes Nothing -> do
+      currentPath <- Cli.getCurrentPath
+      let tes = [ err | Result.TypeError err <- toList notes ]
+      Cli.respond (TypeErrors currentPath (Text.pack rendered) ppe tes)
+  where
+  a = External
+  hq nm
+    | Just hqn <- HQ.fromString nm = hqn
+    | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
+
+  saveNm = hq ".unison.internal.compiler.saveScheme"
+  filePathNm = hq "FilePath.FilePath"
+
+doPullRemoteBranch
+  :: Maybe ReadRemoteNamespace
+  -> Path'
+  -> SyncMode.SyncMode
+  -> PullMode
+  -> Verbosity.Verbosity
+  -> Text
+  -> Cli ()
+doPullRemoteBranch mayRepo path syncMode pullMode verbosity description = do
+  Cli.Env {codebase} <- ask
+  let preprocess = case pullMode of
+        Input.PullWithHistory -> Unmodified
+        Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
+  ns <- maybe (writePathToRead <$> resolveConfiguredUrl Pull path) pure mayRepo
+  remoteBranch <- case ns of
+    ReadRemoteNamespaceGit repo ->
+      Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
+        Cli.returnEarly (Output.GitError err)
+    ReadRemoteNamespaceShare repo -> importRemoteShareBranch repo
+  let unchangedMsg = PullAlreadyUpToDate ns path
+  destAbs <- Cli.resolvePath' path
+  let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
+  case pullMode of
+    Input.PullWithHistory -> do
+      destBranch <- Cli.getBranch0At destAbs
+      if Branch.isEmpty0 destBranch
+        then do
+          void $ Cli.updateAtM description destAbs (const $ pure remoteBranch)
+          Cli.respond $ MergeOverEmpty path
+        else
+          mergeBranchAndPropagateDefaultPatch
+            Branch.RegularMerge
+            description
+            (Just unchangedMsg)
+            remoteBranch
+            printDiffPath
+            destAbs
+    Input.PullWithoutHistory -> do
+      didUpdate <-
+        Cli.updateAtM
+          description
+          destAbs
+          (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch)
+      Cli.respond
+        if didUpdate
+          then PullSuccessful ns path
+          else unchangedMsg
 
 loadPropagateDiffDefaultPatch ::
   Text ->
