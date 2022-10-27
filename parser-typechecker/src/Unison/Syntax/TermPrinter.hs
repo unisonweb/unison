@@ -377,114 +377,115 @@ pretty0
         case doc of
           Just d -> pure d
           Nothing -> notDoc go
-      notDoc go = do
-        n <- getPPE
-        let -- This predicate controls which binary functions we render as infix
-            -- operators. At the moment the policy is just to render symbolic
-            -- operators as infix.
-            binaryOpsPred :: Term3 v PrintAnnotation -> Bool
-            binaryOpsPred = \case
-              Ref' r -> isSymbolic $ PrettyPrintEnv.termName n (Referent.Ref r)
-              Var' v -> isSymbolic $ HQ.unsafeFromVar v
-              _ -> False
-        case (term, binaryOpsPred) of
-          (DD.Doc, _)
-            | doc == MaybeDoc ->
-              if isDocLiteral term
-                then applyPPE3 prettyDoc im term
-                else pretty0 (a {docContext = NoDoc}) term
-          (TupleTerm' [x], _) -> do
-            let conRef = DD.pairCtorRef
-            name <- elideFQN im <$> applyPPE2 PrettyPrintEnv.termName conRef
-            let pair = parenIfInfix name ic $ styleHashQualified'' (fmt (S.TermReference conRef)) name
-            x' <- pretty0 (ac 10 Normal im doc) x
-            pure . paren (p >= 10) $
-              pair
-                `PP.hang` PP.spaced [x', fmt (S.TermReference DD.unitCtorRef) "()"]
-          (TupleTerm' xs, _) -> do
-            clist <- commaList xs
-            let tupleLink p = fmt (S.TypeReference DD.unitRef) p
-            pure $ PP.group (tupleLink "(" <> clist <> tupleLink ")")
-          (App' f@(Builtin' "Any.Any") arg, _) ->
-            paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> goNormal 10 arg)
-          (Apps' f@(Constructor' _) args, _) ->
-            paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> PP.spacedTraverse (goNormal 10) args)
-          {-
-          When a delayed computation block is passed to a function as the last argument
-          in a context where the ambient precedence is low enough, we can elide parentheses
-          around it and use a "soft hang" to put the `'let` on the same line as the function call.
-          This looks nice.
+        where
+          notDoc go = do
+            n <- getPPE
+            let -- This predicate controls which binary functions we render as infix
+                -- operators. At the moment the policy is just to render symbolic
+                -- operators as infix.
+                binaryOpsPred :: Term3 v PrintAnnotation -> Bool
+                binaryOpsPred = \case
+                  Ref' r -> isSymbolic $ PrettyPrintEnv.termName n (Referent.Ref r)
+                  Var' v -> isSymbolic $ HQ.unsafeFromVar v
+                  _ -> False
+            case (term, binaryOpsPred) of
+              (DD.Doc, _)
+                | doc == MaybeDoc ->
+                  if isDocLiteral term
+                    then applyPPE3 prettyDoc im term
+                    else pretty0 (a {docContext = NoDoc}) term
+              (TupleTerm' [x], _) -> do
+                let conRef = DD.pairCtorRef
+                name <- elideFQN im <$> applyPPE2 PrettyPrintEnv.termName conRef
+                let pair = parenIfInfix name ic $ styleHashQualified'' (fmt (S.TermReference conRef)) name
+                x' <- pretty0 (ac 10 Normal im doc) x
+                pure . paren (p >= 10) $
+                  pair
+                    `PP.hang` PP.spaced [x', fmt (S.TermReference DD.unitCtorRef) "()"]
+              (TupleTerm' xs, _) -> do
+                clist <- commaList xs
+                let tupleLink p = fmt (S.TypeReference DD.unitRef) p
+                pure $ PP.group (tupleLink "(" <> clist <> tupleLink ")")
+              (App' f@(Builtin' "Any.Any") arg, _) ->
+                paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> goNormal 10 arg)
+              (Apps' f@(Constructor' _) args, _) ->
+                paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> PP.spacedTraverse (goNormal 10) args)
+              {-
+              When a delayed computation block is passed to a function as the last argument
+              in a context where the ambient precedence is low enough, we can elide parentheses
+              around it and use a "soft hang" to put the `'let` on the same line as the function call.
+              This looks nice.
 
-            forkAt usEast 'let
-              x = thing1
-              y = thing2
-              ...
+                forkAt usEast 'let
+                  x = thing1
+                  y = thing2
+                  ...
 
-          instead of the ugly but effective
+              instead of the ugly but effective
 
-            forkAt
-              usEast
-              ('let
-                x = thing1
-                y = thing2
-                ...)
-          -}
-          (Apps' f (unsnoc -> Just (args, lastArg@(Delay' (Lets' _ _)))), _) -> do
-            fun <- goNormal 9 f
-            args' <- traverse (goNormal 10) args
-            lastArg' <- goNormal 0 lastArg
-            pure . paren (p >= 3) $ PP.softHang fun (PP.spaced (args' <> [lastArg']))
-          (Bytes' bs, _) ->
-            pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
-          BinaryAppsPred' apps lastArg -> do
-            prettyLast <- pretty0 (ac 3 Normal im doc) lastArg
-            prettyApps <- binaryApps apps prettyLast
-            pure $ paren (p >= 3) prettyApps
-          -- Note that && and || are at the same precedence, which can cause
-          -- confusion, so for clarity we do not want to elide the parentheses in a
-          -- case like `(x || y) && z`.
-          (Ands' xs lastArg, _) ->
-            -- Old code, without monadic booleanOps:
-            -- paren (p >= 10)
-            --   . booleanOps (fmt S.ControlKeyword "&&") xs
-            --   <$> pretty0 (ac 10 Normal im doc) lastArg
-            -- New code, where booleanOps is monadic like pretty0:
-            paren (p >= 10) <$> do
-              lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
-              booleanOps (fmt S.ControlKeyword "&&") xs lastArg'
-          (Ors' xs lastArg, _) ->
-            -- Old code:
-            -- paren (p >= 10)
-            --   . booleanOps (fmt S.ControlKeyword "||") xs
-            --   <$> pretty0 (ac 10 Normal im doc) lastArg
-            -- New code:
-            paren (p >= 10) <$> do
-              lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
-              booleanOps (fmt S.ControlKeyword "||") xs lastArg'
-          _ -> case (term, nonForcePred) of
-            OverappliedBinaryAppPred' f a b r
-              | binaryOpsPred f ->
-                -- Special case for overapplied binary op
-                do
-                  prettyB <- pretty0 (ac 3 Normal im doc) b
-                  prettyR <- PP.spacedTraverse (pretty0 (ac 10 Normal im doc)) r
-                  prettyA <- binaryApps [(f, a)] prettyB
-                  pure $ paren True $ PP.hang prettyA prettyR
-            AppsPred' f args ->
-              paren (p >= 10) <$> do
-                f' <- pretty0 (ac 10 Normal im doc) f
-                args' <- PP.spacedTraverse (pretty0 (ac 10 Normal im doc)) args
-                pure $ f' `PP.hang` args'
-            _ -> case (term, \v -> nonUnitArgPred v && not (isDelay term)) of
-              (LamsNamedMatch' [] branches, _) -> do
-                pbs <- printCase im doc branches
-                pure . paren (p >= 3) $
-                  PP.group (fmt S.ControlKeyword "cases") `PP.hang` pbs
-              LamsNamedPred' vs body -> do
-                prettyBody <- pretty0 (ac 2 Block im doc) body
-                pure . paren (p >= 3) $
-                  PP.group (varList vs <> fmt S.ControlKeyword " ->") `PP.hang` prettyBody
-              _ -> go term
+                forkAt
+                  usEast
+                  ('let
+                    x = thing1
+                    y = thing2
+                    ...)
+              -}
+              (Apps' f (unsnoc -> Just (args, lastArg@(Delay' (Lets' _ _)))), _) -> do
+                fun <- goNormal 9 f
+                args' <- traverse (goNormal 10) args
+                lastArg' <- goNormal 0 lastArg
+                pure . paren (p >= 3) $ PP.softHang fun (PP.spaced (args' <> [lastArg']))
+              (Bytes' bs, _) ->
+                pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
+              BinaryAppsPred' apps lastArg -> do
+                prettyLast <- pretty0 (ac 3 Normal im doc) lastArg
+                prettyApps <- binaryApps apps prettyLast
+                pure $ paren (p >= 3) prettyApps
+              -- Note that && and || are at the same precedence, which can cause
+              -- confusion, so for clarity we do not want to elide the parentheses in a
+              -- case like `(x || y) && z`.
+              (Ands' xs lastArg, _) ->
+                -- Old code, without monadic booleanOps:
+                -- paren (p >= 10)
+                --   . booleanOps (fmt S.ControlKeyword "&&") xs
+                --   <$> pretty0 (ac 10 Normal im doc) lastArg
+                -- New code, where booleanOps is monadic like pretty0:
+                paren (p >= 10) <$> do
+                  lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
+                  booleanOps (fmt S.ControlKeyword "&&") xs lastArg'
+              (Ors' xs lastArg, _) ->
+                -- Old code:
+                -- paren (p >= 10)
+                --   . booleanOps (fmt S.ControlKeyword "||") xs
+                --   <$> pretty0 (ac 10 Normal im doc) lastArg
+                -- New code:
+                paren (p >= 10) <$> do
+                  lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
+                  booleanOps (fmt S.ControlKeyword "||") xs lastArg'
+              _ -> case (term, nonForcePred) of
+                OverappliedBinaryAppPred' f a b r
+                  | binaryOpsPred f ->
+                    -- Special case for overapplied binary op
+                    do
+                      prettyB <- pretty0 (ac 3 Normal im doc) b
+                      prettyR <- PP.spacedTraverse (pretty0 (ac 10 Normal im doc)) r
+                      prettyA <- binaryApps [(f, a)] prettyB
+                      pure $ paren True $ PP.hang prettyA prettyR
+                AppsPred' f args ->
+                  paren (p >= 10) <$> do
+                    f' <- pretty0 (ac 10 Normal im doc) f
+                    args' <- PP.spacedTraverse (pretty0 (ac 10 Normal im doc)) args
+                    pure $ f' `PP.hang` args'
+                _ -> case (term, \v -> nonUnitArgPred v && not (isDelay term)) of
+                  (LamsNamedMatch' [] branches, _) -> do
+                    pbs <- printCase im doc branches
+                    pure . paren (p >= 3) $
+                      PP.group (fmt S.ControlKeyword "cases") `PP.hang` pbs
+                  LamsNamedPred' vs body -> do
+                    prettyBody <- pretty0 (ac 2 Block im doc) body
+                    pure . paren (p >= 3) $
+                      PP.group (varList vs <> fmt S.ControlKeyword " ->") `PP.hang` prettyBody
+                  _ -> go term
 
       isDelay (Delay' _) = True
       isDelay _ = False
@@ -1648,13 +1649,8 @@ prettyDoc2 ac tm = do
           Left r -> "{type " <> tyName r <> "}"
           Right r -> "{" <> tmName r <> "}"
         (toDocEval ppe -> Just tm) ->
-          -- Old code:
-          -- let inner = ac tm
-          --     fence = makeFence inner
-          --  in PP.lines [fence, inner, fence]
-          -- New code:
           do
-            inner <- rec tm
+            inner <- pretty0 ac tm
             let fence = makeFence inner
             pure $ PP.lines [fence, inner, fence]
         (toDocEvalInline ppe -> Just tm) ->
@@ -1662,14 +1658,10 @@ prettyDoc2 ac tm = do
             inner <- pretty0 ac tm
             pure $ "@eval{" <> inner <> "}"
         (toDocExample ppe -> Just tm) ->
-          -- PP.group $ "``" <> pretty0 ac tm <> "``"
           do
             inner <- pretty0 ac tm
             pure $ "``" <> inner <> "``"
         (toDocExampleBlock ppe -> Just tm) ->
-          -- let inner = pretty0 ac' tm
-          --     fence = makeFence inner
-          --  in PP.lines ["@typecheck " <> fence, inner, fence]
           do
             inner <- pretty0 ac' tm
             let fence = makeFence inner
