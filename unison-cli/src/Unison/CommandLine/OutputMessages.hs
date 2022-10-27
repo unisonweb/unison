@@ -102,6 +102,7 @@ import qualified Unison.NamesWithHistory as Names
 import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv.MonadPretty (runPretty)
 import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import Unison.PrettyTerminal
@@ -299,21 +300,20 @@ notifyNumbered o = case o of
       else
         first
           ( \p ->
-              ( P.lines
-                  [ P.wrap $
-                      "The changes summarized below are available for you to review,"
-                        <> "using the following command:",
-                    "",
-                    P.indentN 2 $
-                      IP.makeExampleNoBackticks
-                        IP.loadPullRequest
-                        [ (prettyReadRemoteNamespace baseRepo),
-                          (prettyReadRemoteNamespace headRepo)
-                        ],
-                    "",
-                    p
-                  ]
-              )
+              P.lines
+                [ P.wrap $
+                    "The changes summarized below are available for you to review,"
+                      <> "using the following command:",
+                  "",
+                  P.indentN 2 $
+                    IP.makeExampleNoBackticks
+                      IP.loadPullRequest
+                      [ prettyReadRemoteNamespace baseRepo,
+                        prettyReadRemoteNamespace headRepo
+                      ],
+                  "",
+                  p
+                ]
           )
           (showDiffNamespace HideNumbers ppe (absPathToBranchId Path.absoluteEmpty) (absPathToBranchId Path.absoluteEmpty) diff)
   -- todo: these numbers aren't going to work,
@@ -689,7 +689,7 @@ notifyUser dir o = case o of
   TestIncrementalOutputStart ppe (n, total) r _src -> do
     putPretty' $
       P.shown (total - n) <> " tests left to run, current test: "
-        <> (P.syntaxToColor $ prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
+        <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
     pure mempty
   TestIncrementalOutputEnd _ppe (_n, _total) _r result -> do
     clearCurrentLine
@@ -1039,7 +1039,7 @@ notifyUser dir o = case o of
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:" :
                 "" :
-                  [ (P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b)
+                  [ P.syntaxToColor . runPretty ppe $ TermPrinter.prettyBinding (HQ.unsafeFromVar v) b
                     | (v, b) <- bindings
                   ]
             prettyWatches =
@@ -1815,7 +1815,7 @@ notifyUser dir o = case o of
     let referenceText = P.text . Reference.toText . Cv.reference2to1
     pure $
       P.columnNHeader
-        ["Kind", "Name",  "Change", "Ref"]
+        ["Kind", "Name", "Change", "Ref"]
         ( (termNameAdds <&> \(n, ref) -> ["Term", prettyName n, "Added", referentText ref])
             <> (termNameRemovals <&> \(n, ref) -> ["Term", prettyName n, "Removed", referentText ref])
             <> (typeNameAdds <&> \(n, ref) -> ["Type", prettyName n, "Added", referenceText ref])
@@ -1976,7 +1976,7 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
           P.hang
             ("builtin " <> prettyHashQualified n <> " :")
             (TypePrinter.prettySyntax (ppeBody r) typ)
-        UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
+        UserObject tm -> runPretty (ppeBody r) $ TermPrinter.prettyBinding n tm
     go2 ((n, r), dt) =
       case dt of
         MissingObject r -> missing n r
@@ -2081,7 +2081,7 @@ displayDefinitions outputLoc ppe types terms =
               P.hang
                 ("builtin " <> prettyHashQualified n <> " :")
                 (TypePrinter.prettySyntax (ppeBody n r) typ)
-            UserObject tm -> TermPrinter.prettyBinding (ppeBody n r) n tm
+            UserObject tm -> runPretty (ppeBody n r) $ TermPrinter.prettyBinding n tm
         go2 ((n, r), dt) =
           case dt of
             MissingObject r -> missing n r
@@ -2148,7 +2148,7 @@ unsafePrettyTermResultSig' ::
   Pretty
 unsafePrettyTermResultSig' ppe = \case
   SR'.TermResult' name (Just typ) r _aliases ->
-    head (TypePrinter.prettySignaturesCT ppe [(r, name, typ)])
+    head (runPretty ppe $ TypePrinter.prettySignaturesCT [(r, name, typ)])
   _ -> error "Don't pass Nothing"
 
 -- produces:
@@ -2165,7 +2165,7 @@ unsafePrettyTermResultSigFull' ppe = \case
       [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r),
         P.group $
           P.commas (fmap greyHash $ hq : map HQ'.toHQ (toList aliases)) <> " : "
-            <> (P.syntaxToColor $ TypePrinter.pretty0 ppe mempty (-1) typ),
+            <> P.syntaxToColor (TypePrinter.prettySyntax ppe typ),
         mempty
       ]
   _ -> error "Don't pass Nothing"
@@ -2396,7 +2396,7 @@ todoOutput ppe todo = runNumbered do
       termNumbers <- for filteredTerms \(ref, _, _) -> do
         n <- addNumberedArg (HQ.toString $ PPE.termName ppeu ref)
         pure $ formatNum n
-      let formattedTerms = TypePrinter.prettySignaturesCT ppes filteredTerms
+      let formattedTerms = runPretty ppes $ TypePrinter.prettySignaturesCT filteredTerms
           numberedTerms = zipWith (<>) termNumbers formattedTerms
       pure $
         Monoid.unlessM (TO.noEdits todo) . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
@@ -2407,7 +2407,7 @@ todoOutput ppe todo = runNumbered do
               ),
             P.indentN 2 . P.lines $
               ( (prettyDeclPair ppeu <$> toList frontierTypes)
-                  ++ TypePrinter.prettySignaturesCT ppes (goodTerms frontierTerms)
+                  ++ runPretty ppes (TypePrinter.prettySignaturesCT (goodTerms frontierTerms))
               ),
             P.wrap "I recommend working on them in the following order:",
             P.lines $ numberedTypes ++ numberedTerms,

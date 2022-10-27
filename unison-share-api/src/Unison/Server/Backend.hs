@@ -73,6 +73,7 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv.MonadPretty (runPretty)
 import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPED
@@ -144,7 +145,7 @@ data BackendError
   | MissingSignatureForTerm Reference
   | NoSuchDefinition (HQ.HashQualified Name)
 
-data BackendEnv = BackendEnv
+newtype BackendEnv = BackendEnv
   { -- | Whether to use the sqlite name-lookup table to generate Names objects rather than building Names from the root branch.
     useNamesIndex :: Bool
   }
@@ -265,7 +266,7 @@ termEntryDisplayName :: TermEntry v a -> Text
 termEntryDisplayName = HQ'.toText . termEntryHQName
 
 termEntryHQName :: TermEntry v a -> HQ'.HashQualified NameSegment
-termEntryHQName (TermEntry {termEntryName, termEntryConflicted, termEntryHash}) =
+termEntryHQName TermEntry {termEntryName, termEntryConflicted, termEntryHash} =
   if termEntryConflicted
     then HQ'.HashQualified termEntryName termEntryHash
     else HQ'.NameOnly termEntryName
@@ -283,7 +284,7 @@ typeEntryDisplayName :: TypeEntry -> Text
 typeEntryDisplayName = HQ'.toText . typeEntryHQName
 
 typeEntryHQName :: TypeEntry -> HQ'.HashQualified NameSegment
-typeEntryHQName (TypeEntry {typeEntryName, typeEntryConflicted, typeEntryReference}) =
+typeEntryHQName TypeEntry {typeEntryName, typeEntryConflicted, typeEntryReference} =
   if typeEntryConflicted
     then HQ'.HashQualified typeEntryName (Reference.toShortHash typeEntryReference)
     else HQ'.NameOnly typeEntryName
@@ -528,7 +529,7 @@ formatTypeName' ppe r =
 
 termEntryToNamedTerm ::
   Var v => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
-termEntryToNamedTerm ppe typeWidth te@(TermEntry {termEntryType = mayType, termEntryTag = tag, termEntryHash}) =
+termEntryToNamedTerm ppe typeWidth te@TermEntry {termEntryType = mayType, termEntryTag = tag, termEntryHash} =
   NamedTerm
     { termName = termEntryHQName te,
       termHash = termEntryHash,
@@ -537,7 +538,7 @@ termEntryToNamedTerm ppe typeWidth te@(TermEntry {termEntryType = mayType, termE
     }
 
 typeEntryToNamedType :: TypeEntry -> NamedType
-typeEntryToNamedType te@(TypeEntry {typeEntryTag, typeEntryHash}) =
+typeEntryToNamedType te@TypeEntry {typeEntryTag, typeEntryHash} =
   NamedType
     { typeName = typeEntryHQName $ te,
       typeHash = typeEntryHash,
@@ -672,7 +673,7 @@ makeTypeSearch :: Int -> NamesWithHistory -> Search Reference
 makeTypeSearch len names =
   Search
     { lookupNames = \ref -> NamesWithHistory.typeName len ref names,
-      lookupRelativeHQRefs' = \name -> NamesWithHistory.lookupRelativeHQType' name names,
+      lookupRelativeHQRefs' = (`NamesWithHistory.lookupRelativeHQType'` names),
       matchesNamedRef = HQ'.matchesNamedReference,
       makeResult = SR.typeResult
     }
@@ -682,7 +683,7 @@ makeTermSearch :: Int -> NamesWithHistory -> Search Referent
 makeTermSearch len names =
   Search
     { lookupNames = \ref -> NamesWithHistory.termName len ref names,
-      lookupRelativeHQRefs' = \name -> NamesWithHistory.lookupRelativeHQTerm' name names,
+      lookupRelativeHQRefs' = (`NamesWithHistory.lookupRelativeHQTerm'` names),
       matchesNamedRef = HQ'.matchesNamedReferent,
       makeResult = SR.termResult
     }
@@ -721,7 +722,7 @@ hqNameQuery ::
   NameSearch ->
   [HQ.HashQualified Name] ->
   m QueryResult
-hqNameQuery codebase (NameSearch {typeSearch, termSearch}) hqs = do
+hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hashes, hqnames) = partitionEithers (map HQ'.fromHQ2 hqs)
   -- Find the terms with those hashes.
@@ -747,8 +748,12 @@ hqNameQuery codebase (NameSearch {typeSearch, termSearch}) hqs = do
       -- Now do the actual name query
       resultss = map (\name -> applySearch typeSearch name <> applySearch termSearch name) hqnames
       (misses, hits) =
-        zip hqnames resultss
-          & map (\(hqname, results) -> if null results then Left hqname else Right results)
+        zipWith
+          ( \hqname results ->
+              (if null results then Left hqname else Right results)
+          )
+          hqnames
+          resultss
           & partitionEithers
       -- Handle query misses correctly
       missingRefs =
@@ -776,7 +781,7 @@ data DefinitionResults v = DefinitionResults
   }
 
 expandShortBranchHash ::
-  Monad m => Codebase m v a -> ShortBranchHash -> Backend m (Branch.CausalHash)
+  Monad m => Codebase m v a -> ShortBranchHash -> Backend m Branch.CausalHash
 expandShortBranchHash codebase hash = do
   hashSet <- lift $ Codebase.branchHashesByPrefix codebase hash
   len <- lift $ Codebase.branchHashLength codebase
@@ -787,18 +792,17 @@ expandShortBranchHash codebase hash = do
       throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
-getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe (Branch.CausalHash) -> Path -> Backend m (V2Branch.CausalBranch m)
+getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (V2Branch.CausalBranch m)
 getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
   shallowRoot <- case mayRootHash of
     Nothing -> lift (Codebase.getShallowRootCausal codebase)
     Just h -> do
       lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
-  causal <- lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)
-  pure causal
+  lift $ Codebase.getShallowCausalAtPath codebase path (Just shallowRoot)
 
 formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
 formatType' ppe w =
-  Pretty.render w . TypePrinter.pretty0 ppe mempty (-1)
+  Pretty.render w . TypePrinter.prettySyntax ppe
 
 formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> Syntax.SyntaxText
 formatType ppe w = mungeSyntaxText . formatType' ppe w
@@ -822,7 +826,7 @@ prettyDefinitionsForHQName ::
   -- this path.
   Path ->
   -- | The root branch to use
-  Maybe (Branch.CausalHash) ->
+  Maybe Branch.CausalHash ->
   Maybe Width ->
   -- | Whether to suffixify bindings in the rendered syntax
   Suffixify ->
@@ -995,7 +999,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   let currentBranch = Branch.getAt' currentPath root
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
   -- ignores docs inside lib namespace, recursively
-  let notLib (_, name) = all (/= "lib") (Name.segments name)
+  let notLib (_, name) = "lib" `notElem` Name.segments name
   docTermsWithNames <- filterM (isDoc codebase . fst) (filter notLib allTerms)
   let docNamesByRef = Map.fromList docTermsWithNames
   hqLength <- Codebase.hashLength codebase
@@ -1069,7 +1073,8 @@ bestNameForTerm ppe width =
   Text.pack
     . Pretty.render width
     . fmap UST.toPlain
-    . TermPrinter.pretty0 @v ppe TermPrinter.emptyAc
+    . runPretty ppe
+    . TermPrinter.pretty0 @v TermPrinter.emptyAc
     . Term.fromReferent mempty
 
 bestNameForType ::
@@ -1078,7 +1083,7 @@ bestNameForType ppe width =
   Text.pack
     . Pretty.render width
     . fmap UST.toPlain
-    . TypePrinter.pretty0 @v ppe mempty (-1)
+    . TypePrinter.prettySyntax @v ppe
     . Type.ref ()
 
 -- | Returns (parse, pretty, local, ppe) where:
@@ -1096,9 +1101,9 @@ scopedNamesForBranchHash codebase mbh path = do
     Nothing
       | shouldUseNamesIndex -> indexNames
       | otherwise -> do
-          rootBranch <- lift $ Codebase.getRootBranch codebase
-          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-          pure (parseNames, localNames)
+        rootBranch <- lift $ Codebase.getRootBranch codebase
+        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+        pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       let v1CausalHash = Cv.causalHash2to1 ch
@@ -1255,8 +1260,8 @@ termsToSyntax suff width ppe0 terms =
       DisplayObject.UserObject tm ->
         DisplayObject.UserObject
           . Pretty.render width
-          . TermPrinter.prettyBinding (ppeBody r) n
-          $ tm
+          . runPretty (ppeBody r)
+          $ TermPrinter.prettyBinding n tm
 
 typesToSyntax ::
   Var v =>
@@ -1296,8 +1301,8 @@ typesToSyntax suff width ppe0 types =
 typeToSyntaxHeader ::
   Width ->
   HQ.HashQualified Name ->
-  (DisplayObject () (DD.Decl Symbol Ann)) ->
-  (DisplayObject SyntaxText SyntaxText)
+  DisplayObject () (DD.Decl Symbol Ann) ->
+  DisplayObject SyntaxText SyntaxText
 typeToSyntaxHeader width hqName obj =
   case obj of
     BuiltinObject _ ->

@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.CommandLine.DisplayValues where
@@ -17,6 +16,7 @@ import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv.MonadPretty (runPretty)
 import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import Unison.Reference (Reference)
@@ -246,10 +246,9 @@ displayPretty pped terms typeOf eval types tm = go tm
       typeOf r >>= \case
         Nothing -> pure $ termName (PPE.suffixifiedPPE pped) r
         Just typ ->
-          pure . P.group $
-            TypePrinter.prettySignaturesCTCollapsed
-              (PPE.suffixifiedPPE pped)
-              [(r, PPE.termName (PPE.suffixifiedPPE pped) r, typ)]
+          pure . P.group
+            . runPretty (PPE.suffixifiedPPE pped)
+            $ TypePrinter.prettySignaturesCTCollapsed [(r, PPE.termName (PPE.suffixifiedPPE pped) r, typ)]
 
     goColor c = case c of
       DD.AnsiColorBlack -> P.black
@@ -311,9 +310,8 @@ displayDoc pped terms typeOf evaluated types = go
       typeOf r >>= \case
         Nothing -> pure $ termName (PPE.unsuffixifiedPPE pped) r
         Just typ ->
-          pure . P.group $
+          pure . P.group . runPretty (PPE.suffixifiedPPE pped) $
             TypePrinter.prettySignaturesCTCollapsed
-              (PPE.suffixifiedPPE pped)
               [(r, PPE.termName (PPE.unsuffixifiedPPE pped) r, typ)]
     prettyEval terms r = case r of
       Referent.Ref (Reference.Builtin n) -> pure . P.syntaxToColor $ P.text n
@@ -329,7 +327,7 @@ displayDoc pped terms typeOf evaluated types = go
         let ppe = PPE.declarationPPE pped ref
          in terms ref >>= \case
               Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
-              Just tm -> pure . P.syntaxToColor $ P.group $ TP.prettyBinding ppe (PPE.termName ppe r) tm
+              Just tm -> pure . P.syntaxToColor . P.group . runPretty ppe $ TP.prettyBinding (PPE.termName ppe r) tm
       Referent.Con (ConstructorReference r _) _ -> prettyType r
     prettyType r =
       let ppe = PPE.declarationPPE pped r

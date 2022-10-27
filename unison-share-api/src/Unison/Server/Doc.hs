@@ -1,6 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -32,6 +30,7 @@ import qualified Unison.Codebase.Editor.DisplayObject as DO
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv.MonadPretty (runPretty)
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -183,16 +182,15 @@ renderDoc pped terms typeOf eval types tm =
     formatPrettyType ppe typ = formatPretty (TypePrinter.prettySyntax ppe typ)
 
     source :: Term v () -> m SyntaxText
-    source tm = (pure . formatPretty . TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped)) tm
+    source tm = pure . formatPretty $ TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped) tm
 
     goSignatures :: [Referent] -> m [P.Pretty SSyntaxText]
     goSignatures rs =
       runMaybeT (traverse (MaybeT . typeOf) rs) >>= \case
         Nothing -> pure ["🆘  codebase is missing type signature for these definitions"]
         Just types ->
-          pure . fmap P.group $
+          pure . fmap P.group . runPretty (PPE.suffixifiedPPE pped) $
             TypePrinter.prettySignaturesST
-              (PPE.suffixifiedPPE pped)
               [(r, PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r, ty) <- zip rs types]
 
     goSpecial :: Term v () -> m SpecialForm
@@ -314,12 +312,12 @@ renderDoc pped terms typeOf eval types tm =
                               typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
                               let name = PPE.termName ppe (Referent.Ref ref)
                               let folded =
-                                    formatPretty . P.lines $
-                                      TypePrinter.prettySignaturesST ppe [(Referent.Ref ref, name, typ)]
+                                    formatPretty . P.lines . runPretty ppe $
+                                      TypePrinter.prettySignaturesST [(Referent.Ref ref, name, typ)]
                               let full tm@(Term.Ann' _ _) _ =
-                                    formatPretty (TermPrinter.prettyBinding ppe name tm)
+                                    formatPretty (runPretty ppe $ TermPrinter.prettyBinding name tm)
                                   full tm typ =
-                                    formatPretty (TermPrinter.prettyBinding ppe name (Term.ann () tm typ))
+                                    formatPretty (runPretty ppe $ TermPrinter.prettyBinding name (Term.ann () tm typ))
                               pure (DO.UserObject (Src folded (full tm typ)))
                   Term.RequestOrCtor' (view ConstructorReference.reference_ -> r) | Set.notMember r seen -> (: acc) <$> goType r
                   _ -> pure acc
