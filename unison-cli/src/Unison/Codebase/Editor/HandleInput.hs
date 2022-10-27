@@ -160,6 +160,7 @@ import qualified Unison.Share.Sync as Share
 import qualified Unison.Share.Sync.Types as Share
 import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
 import qualified Unison.Syntax.Lexer as L
@@ -1187,9 +1188,9 @@ loop e = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.fitsScheme ty mainType -> do
-                    let codeLookup = () <$ Codebase.toCodeLookup codebase
-                    whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
-                      Cli.returnEarly (EvaluationFailure err)
+                      let codeLookup = () <$ Codebase.toCodeLookup codebase
+                      whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
+                        Cli.returnEarly (EvaluationFailure err)
                   | otherwise -> Cli.returnEarly (BadMainFunction smain ty ppe [mainType])
                 _ -> Cli.returnEarly (NoMainFunction smain ppe [mainType])
             IOTestI main -> do
@@ -1787,12 +1788,12 @@ handleDependents hq = do
   for_ lds \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
-      let tp r = liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+      let tp r = Codebase.dependents codebase Queries.ExcludeOwnComponent r
           tm = \case
-            Referent.Ref r -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+            Referent.Ref r -> Codebase.dependents codebase Queries.ExcludeOwnComponent r
             Referent.Con (ConstructorReference r _cid) _ct ->
-              liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
-       in LD.fold tp tm ld
+              Codebase.dependents codebase Queries.ExcludeOwnComponent r
+       in liftIO (Codebase.runTransaction codebase (LD.fold tp tm ld))
     -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
     -- unambiguous name.
     ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
@@ -2370,7 +2371,7 @@ checkTodo patch names0 = do
       --   2. Have a name in this namespace
       getDependents :: Reference -> IO (Set Reference)
       getDependents ref = do
-        dependents <- Codebase.dependents codebase Queries.ExcludeSelf ref
+        dependents <- liftIO $ Codebase.runTransaction codebase $ Codebase.dependents codebase Queries.ExcludeSelf ref
         pure (dependents & removeEditedThings & removeNamelessThings)
   -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
   dependsOn <- liftIO (Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited)
@@ -2467,10 +2468,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2487,10 +2488,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref
@@ -2561,13 +2562,13 @@ getEndangeredDependents namesToDelete rootNames = do
       refsToDelete = Names.labeledReferences namesToDelete
       remainingRefs = Names.labeledReferences remainingNames -- left over after delete
       extinct = refsToDelete `Set.difference` remainingRefs -- deleting and not left over
-      accumulateDependents :: LabeledDependency -> IO (Map LabeledDependency (Set LabeledDependency))
+      accumulateDependents :: LabeledDependency -> Sqlite.Transaction (Map LabeledDependency (Set LabeledDependency))
       accumulateDependents ld =
         let ref = LD.fold id Referent.toReference ld
          in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents codebase Queries.ExcludeOwnComponent ref
   -- All dependents of extinct, including terms which might themselves be in the process of being deleted.
   allDependentsOfExtinct :: Map LabeledDependency (Set LabeledDependency) <-
-    liftIO (Map.unionsWith (<>) <$> for (Set.toList extinct) accumulateDependents)
+    Map.unionsWith (<>) <$> liftIO (Codebase.runTransaction codebase (for (Set.toList extinct) accumulateDependents))
 
   -- Filtered to only include dependencies which are not being deleted, but depend one which
   -- is going extinct.

@@ -11,6 +11,8 @@ import Control.Monad.Reader (ask)
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified U.Codebase.Reference as C
+import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified Unison.Builtin as Builtin
 import Unison.Cli.Monad (Cli)
@@ -25,6 +27,7 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
@@ -265,10 +268,21 @@ propagate patch b = case validatePatch patch of
 
     Cli.Env {codebase} <- ask
     initialDirty <-
-      computeDirty
-        (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
-        patch
-        (Names.contains names0)
+      liftIO $ Codebase.runTransaction codebase do
+        computeDirty
+          ( \ref -> do
+              mref <- case Cv.reference1to2 ref of
+                C.ReferenceBuiltin {} -> pure (Just ref)
+                C.ReferenceDerived id_ ->
+                  Operations.objectExistsForHash (view C.idH id_) <&> \case
+                    True -> Just ref
+                    False -> Nothing
+              case mref of
+                Nothing -> pure mempty
+                Just ref -> Codebase.dependents codebase Queries.ExcludeOwnComponent ref
+          )
+          patch
+          (Names.contains names0)
 
     let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
     -- TODO: once patches can directly contain constructor replacements, this
@@ -316,7 +330,12 @@ propagate patch b = case validatePatch patch of
                     (Just edits', seen') -> do
                       -- plan to update the dependents of this component too
                       dependents <- case r of
-                        Reference.Builtin {} -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+                        Reference.Builtin {} ->
+                          liftIO
+                            ( Codebase.runTransaction
+                                codebase
+                                (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+                            )
                         Reference.Derived h _i -> liftIO (Codebase.dependentsOfComponent codebase h)
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
@@ -461,11 +480,21 @@ propagate patch b = case validatePatch patch of
     sortDependentsGraph codebase dependencies restrictTo = do
       closure <-
         transitiveClosure
-          (fmap (Set.intersection restrictTo) . liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
+          ( fmap (Set.intersection restrictTo) . liftIO
+              . Codebase.runTransaction codebase
+              . Codebase.dependents codebase Queries.ExcludeOwnComponent
+          )
           dependencies
       dependents <-
         traverse
-          (\r -> (r,) <$> (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent) r)
+          ( \r ->
+              (r,)
+                <$> ( liftIO
+                        . Codebase.runTransaction codebase
+                        . Codebase.dependents codebase Queries.ExcludeOwnComponent
+                    )
+                  r
+          )
           (toList closure)
       let graphEdges = [(r, r, toList deps) | (r, deps) <- toList dependents]
           (graph, getReference, _) = Graph.graphFromEdges graphEdges
@@ -681,11 +710,10 @@ applyPropagate patch Edits {..} = do
 --
 -- Note: computeDirty a b c = R.dom <$> computeFrontier a b c
 computeDirty ::
-  Monad m =>
-  (Reference -> m (Set Reference)) -> -- eg Codebase.dependents codebase
+  (Reference -> Sqlite.Transaction (Set Reference)) -> -- eg Codebase.dependents codebase
   Patch ->
   (Reference -> Bool) ->
-  m (Set Reference)
+  Sqlite.Transaction (Set Reference)
 computeDirty getDependents patch shouldUpdate =
   foldMapM (\ref -> keepDirtyDependents <$> getDependents ref) edited
   where
