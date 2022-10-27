@@ -143,6 +143,7 @@ data BackendError
   | CouldntLoadBranch Branch.CausalHash
   | MissingSignatureForTerm Reference
   | NoSuchDefinition (HQ.HashQualified Name)
+  deriving stock (Show)
 
 newtype BackendEnv = BackendEnv
   { -- | Whether to use the sqlite name-lookup table to generate Names objects rather than building Names from the root branch.
