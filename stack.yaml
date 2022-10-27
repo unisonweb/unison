@@ -29,7 +29,9 @@ packages:
 - lib/unison-util-base32hex
 - lib/unison-util-base32hex-orphans-aeson
 - lib/unison-util-base32hex-orphans-sqlite
+- lib/unison-util-bytes
 - lib/unison-util-relation
+- lib/unison-util-rope
 - lib/unison-pretty-printer
 
 #compiler-check: match-exact

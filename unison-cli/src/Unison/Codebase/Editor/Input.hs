@@ -9,6 +9,7 @@ module Unison.Codebase.Editor.Input
     BranchId,
     AbsBranchId,
     parseBranchId,
+    parseShortBranchHash,
     HashOrHQSplit',
     Insistence (..),
     PullMode (..),
@@ -66,6 +67,10 @@ parseBranchId ('#' : s) = case SBH.fromText (Text.pack s) of
   Nothing -> Left "Invalid hash, expected a base32hex string."
   Just h -> pure $ Left h
 parseBranchId s = Right <$> Path.parsePath' s
+
+parseShortBranchHash :: String -> Either String ShortBranchHash
+parseShortBranchHash ('#' : s) | Just sbh <- SBH.fromText (Text.pack s) = Right sbh
+parseShortBranchHash _ = Left "Invalid hash, expected a base32hex string."
 
 data PullMode
   = PullWithHistory
@@ -186,6 +191,7 @@ data Input
   | DebugDumpNamespaceSimpleI
   | DebugClearWatchI
   | DebugDoctorI
+  | DebugNameDiffI ShortBranchHash ShortBranchHash
   | QuitI
   | ApiI
   | UiI

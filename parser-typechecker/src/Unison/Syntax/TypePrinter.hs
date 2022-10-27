@@ -103,7 +103,7 @@ prettyRaw n im p tp = go n im p tp
       Abs' _ -> fromString "error: TypeParser does not currently emit Abs"
       Ann' _ _ -> fromString "error: TypeParser does not currently emit Ann"
       App' (Ref' (Builtin "Sequence")) x ->
-        PP.group $ (fmt S.DelimiterChar "[") <> go n im 0 x <> (fmt S.DelimiterChar "]")
+        PP.group $ (fmt S.DelimiterChar "[") <> go n im (-1) x <> (fmt S.DelimiterChar "]")
       Apps' f xs ->
         PP.parenthesizeIf (p >= 10) $
           go n im 9 f
@@ -128,7 +128,7 @@ prettyRaw n im p tp = go n im p tp
           case fst of
             Var' v
               | Var.name v == "()" ->
-                  PP.parenthesizeIf (p >= 10) $ arrows True True rest
+                PP.parenthesizeIf (p >= 10) $ arrows True True rest
             _ ->
               PP.parenthesizeIf (p >= 0) $
                 go n im 0 fst <> arrows False False rest

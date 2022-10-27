@@ -23,6 +23,7 @@ flag optimized
 
 library
   exposed-modules:
+      U.Codebase.Branch.Diff
       Unison.Builtin
       Unison.Builtin.Decls
       Unison.Builtin.Terms
@@ -138,7 +139,6 @@ library
       Unison.UnisonFile.Error
       Unison.UnisonFile.Names
       Unison.UnisonFile.Type
-      Unison.Util.Bytes
       Unison.Util.Convert
       Unison.Util.CycleTable
       Unison.Util.CyclicEq
@@ -147,7 +147,7 @@ library
       Unison.Util.Exception
       Unison.Util.Logger
       Unison.Util.PinBoard
-      Unison.Util.Rope
+      Unison.Util.Pretty.MegaParsec
       Unison.Util.Star3
       Unison.Util.Text
       Unison.Util.Text.Pattern
@@ -213,6 +213,7 @@ library
     , extra
     , filepath
     , fingertree
+    , free
     , fsnotify
     , fuzzyfind
     , generic-lens
@@ -283,7 +284,9 @@ library
     , unison-sqlite
     , unison-util
     , unison-util-base32hex
+    , unison-util-bytes
     , unison-util-relation
+    , unison-util-rope
     , unison-util-serialization
     , unliftio
     , uri-encode
@@ -328,7 +331,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.TypeError
       Unison.Test.UnisonSources
-      Unison.Test.Util.Bytes
       Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
@@ -397,6 +399,7 @@ test-suite parser-typechecker-tests
     , filemanip
     , filepath
     , fingertree
+    , free
     , fsnotify
     , fuzzyfind
     , generic-lens
@@ -469,7 +472,9 @@ test-suite parser-typechecker-tests
     , unison-sqlite
     , unison-util
     , unison-util-base32hex
+    , unison-util-bytes
     , unison-util-relation
+    , unison-util-rope
     , unison-util-serialization
     , unliftio
     , uri-encode

@@ -27,7 +27,7 @@ import qualified System.Console.ANSI as ANSI
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
 import qualified U.Codebase.Branch as V2Branch
-import U.Codebase.HashTags (CausalHash (CausalHash))
+import U.Codebase.HashTags (BranchHash, CausalHash (CausalHash))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -434,9 +434,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             namesAtPath path =
               runTransaction (CodebaseOps.namesAtPath path)
 
-            updateNameLookup :: m ()
-            updateNameLookup =
-              runTransaction (CodebaseOps.updateNameLookupIndexFromV2Root getDeclType)
+            updateNameLookup :: Path -> Maybe BranchHash -> BranchHash -> m ()
+            updateNameLookup pathPrefix fromBH toBH =
+              runTransaction (CodebaseOps.updateNameLookupIndex getDeclType pathPrefix fromBH toBH)
 
         let codebase =
               C.Codebase
