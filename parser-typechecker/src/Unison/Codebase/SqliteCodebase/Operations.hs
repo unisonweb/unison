@@ -554,7 +554,13 @@ referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to
   termReferents <-
     Ops.termReferentsByPrefix prefix cycle
       >>= traverse (Cv.referentid2to1 doGetDeclType)
-  declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
+  cid' <- case cid of
+    Nothing -> pure Nothing
+    Just c ->
+      case readMaybe (Text.unpack c) of
+        Nothing -> error $ reportBug "994787297" "cid of ShortHash must be an integer but got: " <> show cid
+        Just cInt -> pure $ Just cInt
+  declReferents' <- Ops.declReferentsByPrefix prefix cycle cid'
   let declReferents =
         [ Referent.ConId (ConstructorReference (Reference.Id h pos) (fromIntegral cid)) (Cv.decltype2to1 ct)
           | (h, pos, ct, cids) <- declReferents',
