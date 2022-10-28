@@ -45,6 +45,7 @@ dependencies:
   - fingertree
   - fsnotify
   - fuzzyfind
+  - free
   - generic-lens
   - generic-monoid
   - hashable

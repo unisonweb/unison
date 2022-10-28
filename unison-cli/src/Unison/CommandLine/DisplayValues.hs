@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.CommandLine.DisplayValues where
@@ -329,7 +328,7 @@ displayDoc pped terms typeOf evaluated types = go
         let ppe = PPE.declarationPPE pped ref
          in terms ref >>= \case
               Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
-              Just tm -> pure . P.syntaxToColor $ P.group $ TP.prettyBinding ppe (PPE.termName ppe r) tm
+              Just tm -> pure . P.syntaxToColor . P.group $ TP.prettyBinding ppe (PPE.termName ppe r) tm
       Referent.Con (ConstructorReference r _) _ -> prettyType r
     prettyType r =
       let ppe = PPE.declarationPPE pped r

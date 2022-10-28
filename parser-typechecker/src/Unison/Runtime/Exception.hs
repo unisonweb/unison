@@ -6,10 +6,11 @@ import Data.Text
 import GHC.Stack
 import Unison.Runtime.Stack
 import Unison.Util.Pretty as P
+import Unison.Reference (Reference)
 
 data RuntimeExn
   = PE CallStack (P.Pretty P.ColorText)
-  | BU Text Closure
+  | BU [(Reference,Int)] Text Closure
   deriving (Show)
 
 instance Exception RuntimeExn

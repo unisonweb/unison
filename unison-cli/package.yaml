@@ -28,6 +28,7 @@ dependencies:
   - exceptions
   - extra
   - filepath
+  - free
   - fuzzyfind
   - friendly-time
   - generic-lens
