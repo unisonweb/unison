@@ -1,6 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -183,7 +181,7 @@ renderDoc pped terms typeOf eval types tm =
     formatPrettyType ppe typ = formatPretty (TypePrinter.prettySyntax ppe typ)
 
     source :: Term v () -> m SyntaxText
-    source tm = (pure . formatPretty . TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped)) tm
+    source tm = pure . formatPretty $ TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped) tm
 
     goSignatures :: [Referent] -> m [P.Pretty SSyntaxText]
     goSignatures rs =

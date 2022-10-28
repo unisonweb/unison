@@ -102,6 +102,7 @@ module Unison.Util.Pretty
     spaceIfNeeded,
     spaced,
     spacedMap,
+    spacedTraverse,
     spacesIfBreak,
     string,
     surroundCommas,
@@ -405,6 +406,9 @@ spaced = intercalateMap softbreak id
 
 spacedMap :: (Foldable f, IsString s) => (a -> Pretty s) -> f a -> Pretty s
 spacedMap f as = spaced . fmap f $ toList as
+
+spacedTraverse :: (Traversable f, IsString s, Applicative m) => (a -> m (Pretty s)) -> f a -> m (Pretty s)
+spacedTraverse f as = spaced <$> traverse f as
 
 commas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 commas = intercalateMap ("," <> softbreak) id
