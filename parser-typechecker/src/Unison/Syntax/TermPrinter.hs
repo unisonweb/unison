@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Syntax.TermPrinter where
+module Unison.Syntax.TermPrinter (emptyAc, pretty, prettyBlock, prettyBlock', pretty', prettyBinding, prettyBinding', pretty0, runPretty) where
 
 import Control.Lens (unsnoc, (^.))
 import Control.Monad.State (evalState)
@@ -779,20 +779,22 @@ a + b = ...
 
 -}
 prettyBinding ::
-  MonadPretty v m =>
+  Var v =>
+  PrettyPrintEnv ->
   HQ.HashQualified Name ->
   Term2 v at ap v a ->
-  m (Pretty SyntaxText)
-prettyBinding = prettyBinding0 $ ac (-1) Block Map.empty MaybeDoc
+  Pretty SyntaxText
+prettyBinding ppe n = runPretty ppe . prettyBinding0 (ac (-1) Block Map.empty MaybeDoc) n
 
 prettyBinding' ::
-  MonadPretty v m =>
+  Var v =>
+  PrettyPrintEnv ->
   Width ->
   HQ.HashQualified Name ->
   Term v a ->
-  m ColorText
-prettyBinding' width v t =
-  PP.render width . PP.syntaxToColor <$> prettyBinding v t
+  ColorText
+prettyBinding' ppe width v t =
+  PP.render width . PP.syntaxToColor $ prettyBinding ppe v t
 
 prettyBinding0 ::
   MonadPretty v m =>
@@ -1885,18 +1887,18 @@ toDocEmbedSignatureLink ppe (App' (Ref' r) (Delay' (Referent' tm)))
   | nameEndsWith ppe ".docEmbedSignatureLink" r = Just tm
 toDocEmbedSignatureLink _ _ = Nothing
 
-toDocEmbedAnnotation :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocEmbedAnnotation ppe (App' (Ref' r) tm)
-  | nameEndsWith ppe ".docEmbedAnnotation" r = Just tm
-toDocEmbedAnnotation _ _ = Nothing
+-- toDocEmbedAnnotation :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+-- toDocEmbedAnnotation ppe (App' (Ref' r) tm)
+--   | nameEndsWith ppe ".docEmbedAnnotation" r = Just tm
+-- toDocEmbedAnnotation _ _ = Nothing
 
-toDocEmbedAnnotations :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
-toDocEmbedAnnotations ppe (App' (Ref' r) (List' tms))
-  | nameEndsWith ppe ".docEmbedAnnotations" r =
-    case [ann | Just ann <- toDocEmbedAnnotation ppe <$> toList tms] of
-      tms' | length tms' == length tms -> Just tms'
-      _ -> Nothing
-toDocEmbedAnnotations _ _ = Nothing
+-- toDocEmbedAnnotations :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+-- toDocEmbedAnnotations ppe (App' (Ref' r) (List' tms))
+--   | nameEndsWith ppe ".docEmbedAnnotations" r =
+--     case [ann | Just ann <- toDocEmbedAnnotation ppe <$> toList tms] of
+--       tms' | length tms' == length tms -> Just tms'
+--       _ -> Nothing
+-- toDocEmbedAnnotations _ _ = Nothing
 
 toDocSignature :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Referent]
 toDocSignature ppe (App' (Ref' r) (List' tms))

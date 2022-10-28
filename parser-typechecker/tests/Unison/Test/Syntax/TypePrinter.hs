@@ -1,12 +1,12 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use camelCase" #-}
+
 module Unison.Test.Syntax.TypePrinter where
 
 import qualified Data.Map as Map
 import EasyTest
 import qualified Unison.Builtin
-import Unison.PrettyPrintEnv.MonadPretty (runPretty)
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import Unison.Syntax.TypePrinter
 import qualified Unison.Test.Common as Common

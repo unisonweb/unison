@@ -17,12 +17,12 @@ import qualified Unison.Name as Name
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PPE
-import Unison.PrettyPrintEnv.MonadPretty (runPretty)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.Reference (Reference (DerivedId))
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
 import Unison.Syntax.NamePrinter (styleHashQualified'')
+import Unison.Syntax.TypePrinter (runPretty)
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type

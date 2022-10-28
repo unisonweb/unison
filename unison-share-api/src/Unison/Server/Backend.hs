@@ -73,7 +73,6 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
-import Unison.PrettyPrintEnv.MonadPretty (runPretty)
 import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import qualified Unison.PrettyPrintEnvDecl.Names as PPED
@@ -1073,7 +1072,7 @@ bestNameForTerm ppe width =
   Text.pack
     . Pretty.render width
     . fmap UST.toPlain
-    . runPretty ppe
+    . TermPrinter.runPretty ppe
     . TermPrinter.pretty0 @v TermPrinter.emptyAc
     . Term.fromReferent mempty
 
@@ -1260,8 +1259,7 @@ termsToSyntax suff width ppe0 terms =
       DisplayObject.UserObject tm ->
         DisplayObject.UserObject
           . Pretty.render width
-          . runPretty (ppeBody r)
-          $ TermPrinter.prettyBinding n tm
+          $ TermPrinter.prettyBinding (ppeBody r) n tm
 
 typesToSyntax ::
   Var v =>

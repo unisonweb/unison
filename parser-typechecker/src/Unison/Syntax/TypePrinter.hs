@@ -13,6 +13,7 @@ module Unison.Syntax.TypePrinter
     prettySignaturesCTCollapsed,
     prettySignaturesAlt,
     prettySignaturesAlt',
+    runPretty,
   )
 where
 
@@ -181,26 +182,29 @@ fmt = PP.withSyntax
 
 -- todo: provide sample output in comment
 prettySignaturesCT ::
-  MonadPretty v m =>
+  Var v =>
+  PrettyPrintEnv ->
   [(Referent, HashQualified Name, Type v a)] ->
-  m [Pretty ColorText]
-prettySignaturesCT ts = map PP.syntaxToColor <$> prettySignaturesST ts
+  [Pretty ColorText]
+prettySignaturesCT ppe ts = map PP.syntaxToColor $ prettySignaturesST ppe ts
 
 prettySignaturesCTCollapsed ::
-  MonadPretty v m =>
+  Var v =>
+  PrettyPrintEnv ->
   [(Referent, HashQualified Name, Type v a)] ->
-  m (Pretty ColorText)
-prettySignaturesCTCollapsed ts =
+  Pretty ColorText
+prettySignaturesCTCollapsed ppe ts =
   PP.lines
     . map PP.group
-    <$> prettySignaturesCT ts
+    $ prettySignaturesCT ppe ts
 
 prettySignaturesST ::
-  MonadPretty v m =>
+  Var v =>
+  PrettyPrintEnv ->
   [(Referent, HashQualified Name, Type v a)] ->
-  m [Pretty SyntaxText]
-prettySignaturesST ts =
-  PP.align <$> traverse (\(r, hq, typ) -> (name r hq,) <$> sig typ) ts
+  [Pretty SyntaxText]
+prettySignaturesST ppe ts =
+  PP.align . runPretty ppe $ traverse (\(r, hq, typ) -> (name r hq,) <$> sig typ) ts
   where
     name r hq =
       styleHashQualified'' (fmt $ S.TermReference r) hq
@@ -211,16 +215,16 @@ prettySignaturesST ts =
 
 -- todo: provide sample output in comment; different from prettySignatures'
 prettySignaturesAlt' ::
-  forall a v m.
-  MonadPretty v m =>
+  Var v =>
+  PrettyPrintEnv ->
   [([HashQualified Name], Type v a)] ->
-  m [Pretty ColorText]
-prettySignaturesAlt' ts =
+  [Pretty ColorText]
+prettySignaturesAlt' ppe ts = runPretty ppe $
   do
     ts' <- traverse f ts
     pure $ map PP.syntaxToColor $ PP.align ts'
   where
-    f :: ([HashQualified Name], Type v a) -> m (Pretty SyntaxText, Pretty SyntaxText)
+    f :: MonadPretty v m => ([HashQualified Name], Type v a) -> m (Pretty SyntaxText, Pretty SyntaxText)
     f (names, typ) = do
       typ' <- pretty0 Map.empty (-1) typ
       let col = fmt S.TypeAscriptionColon ": "
@@ -233,10 +237,11 @@ prettySignaturesAlt' ts =
 -- prettySignatures'' env ts = prettySignatures' env (first HQ.fromName <$> ts)
 
 prettySignaturesAlt ::
-  MonadPretty v m =>
+  Var v =>
+  PrettyPrintEnv ->
   [([HashQualified Name], Type v a)] ->
-  m (Pretty ColorText)
-prettySignaturesAlt ts =
+  Pretty ColorText
+prettySignaturesAlt ppe ts =
   PP.lines
     . map PP.group
-    <$> prettySignaturesAlt' ts
+    $ prettySignaturesAlt' ppe ts

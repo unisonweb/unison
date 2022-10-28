@@ -9,7 +9,6 @@ import qualified Unison.Builtin
 import qualified Unison.HashQualified as HQ
 import Unison.Parser.Ann (Ann (..))
 import qualified Unison.PrettyPrintEnv as PPE
-import Unison.PrettyPrintEnv.MonadPretty (runPretty)
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import Unison.Symbol (Symbol, symbol)
 import Unison.Syntax.TermPrinter
@@ -84,8 +83,9 @@ tcBinding width v mtp tm expected =
       varV = symbol $ Text.pack v
       prettied =
         fmap CT.toPlain $
-          PP.syntaxToColor . runPretty getNames $
+          PP.syntaxToColor $
             prettyBinding
+              getNames
               (HQ.unsafeFromVar varV)
               (inputTerm inputType)
       actual =

@@ -102,7 +102,6 @@ import qualified Unison.NamesWithHistory as Names
 import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
-import Unison.PrettyPrintEnv.MonadPretty (runPretty)
 import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPED
 import Unison.PrettyTerminal
@@ -1039,7 +1038,7 @@ notifyUser dir o = case o of
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:" :
                 "" :
-                  [ P.syntaxToColor . runPretty ppe $ TermPrinter.prettyBinding (HQ.unsafeFromVar v) b
+                  [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
                     | (v, b) <- bindings
                   ]
             prettyWatches =
@@ -1976,7 +1975,7 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
           P.hang
             ("builtin " <> prettyHashQualified n <> " :")
             (TypePrinter.prettySyntax (ppeBody r) typ)
-        UserObject tm -> runPretty (ppeBody r) $ TermPrinter.prettyBinding n tm
+        UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
     go2 ((n, r), dt) =
       case dt of
         MissingObject r -> missing n r
@@ -2081,7 +2080,7 @@ displayDefinitions outputLoc ppe types terms =
               P.hang
                 ("builtin " <> prettyHashQualified n <> " :")
                 (TypePrinter.prettySyntax (ppeBody n r) typ)
-            UserObject tm -> runPretty (ppeBody n r) $ TermPrinter.prettyBinding n tm
+            UserObject tm -> TermPrinter.prettyBinding (ppeBody n r) n tm
         go2 ((n, r), dt) =
           case dt of
             MissingObject r -> missing n r
@@ -2148,7 +2147,7 @@ unsafePrettyTermResultSig' ::
   Pretty
 unsafePrettyTermResultSig' ppe = \case
   SR'.TermResult' name (Just typ) r _aliases ->
-    head (runPretty ppe $ TypePrinter.prettySignaturesCT [(r, name, typ)])
+    head (TypePrinter.prettySignaturesCT ppe [(r, name, typ)])
   _ -> error "Don't pass Nothing"
 
 -- produces:
@@ -2396,7 +2395,7 @@ todoOutput ppe todo = runNumbered do
       termNumbers <- for filteredTerms \(ref, _, _) -> do
         n <- addNumberedArg (HQ.toString $ PPE.termName ppeu ref)
         pure $ formatNum n
-      let formattedTerms = runPretty ppes $ TypePrinter.prettySignaturesCT filteredTerms
+      let formattedTerms = TypePrinter.prettySignaturesCT ppes filteredTerms
           numberedTerms = zipWith (<>) termNumbers formattedTerms
       pure $
         Monoid.unlessM (TO.noEdits todo) . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
@@ -2407,7 +2406,7 @@ todoOutput ppe todo = runNumbered do
               ),
             P.indentN 2 . P.lines $
               ( (prettyDeclPair ppeu <$> toList frontierTypes)
-                  ++ runPretty ppes (TypePrinter.prettySignaturesCT (goodTerms frontierTerms))
+                  ++ TypePrinter.prettySignaturesCT ppes (goodTerms frontierTerms)
               ),
             P.wrap "I recommend working on them in the following order:",
             P.lines $ numberedTypes ++ numberedTerms,
