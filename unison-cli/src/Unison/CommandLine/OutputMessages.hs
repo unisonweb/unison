@@ -301,21 +301,20 @@ notifyNumbered o = case o of
       else
         first
           ( \p ->
-              ( P.lines
-                  [ P.wrap $
-                      "The changes summarized below are available for you to review,"
-                        <> "using the following command:",
-                    "",
-                    P.indentN 2 $
-                      IP.makeExampleNoBackticks
-                        IP.loadPullRequest
-                        [ (prettyReadRemoteNamespace baseRepo),
-                          (prettyReadRemoteNamespace headRepo)
-                        ],
-                    "",
-                    p
-                  ]
-              )
+              P.lines
+                [ P.wrap $
+                    "The changes summarized below are available for you to review,"
+                      <> "using the following command:",
+                  "",
+                  P.indentN 2 $
+                    IP.makeExampleNoBackticks
+                      IP.loadPullRequest
+                      [ prettyReadRemoteNamespace baseRepo,
+                        prettyReadRemoteNamespace headRepo
+                      ],
+                  "",
+                  p
+                ]
           )
           (showDiffNamespace HideNumbers ppe (absPathToBranchId Path.absoluteEmpty) (absPathToBranchId Path.absoluteEmpty) diff)
   -- todo: these numbers aren't going to work,
@@ -690,7 +689,7 @@ notifyUser dir o = case o of
   TestIncrementalOutputStart ppe (n, total) r _src -> do
     putPretty' $
       P.shown (total - n) <> " tests left to run, current test: "
-        <> (P.syntaxToColor $ prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
+        <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
     pure mempty
   TestIncrementalOutputEnd _ppe (_n, _total) _r result -> do
     clearCurrentLine
@@ -1048,7 +1047,7 @@ notifyUser dir o = case o of
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:" :
                 "" :
-                  [ (P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b)
+                  [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
                     | (v, b) <- bindings
                   ]
             prettyWatches =
@@ -2179,7 +2178,7 @@ unsafePrettyTermResultSigFull' ppe = \case
       [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r),
         P.group $
           P.commas (fmap greyHash $ hq : map HQ'.toHQ (toList aliases)) <> " : "
-            <> (P.syntaxToColor $ TypePrinter.pretty0 ppe mempty (-1) typ),
+            <> P.syntaxToColor (TypePrinter.prettySyntax ppe typ),
         mempty
       ]
   _ -> error "Don't pass Nothing"

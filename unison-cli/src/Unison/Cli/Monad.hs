@@ -322,7 +322,7 @@ time label action =
     then Cli \env k s -> do
       systemStart <- getSystemTime
       cpuPicoStart <- getCPUTime
-      r <- unCli action env k s
+      a <- unCli action env (\a loopState -> pure (Success a, loopState)) s
       cpuPicoEnd <- getCPUTime
       systemEnd <- getSystemTime
       let systemDiff =
@@ -330,7 +330,7 @@ time label action =
               (diffAbsoluteTime (systemToTAITime systemEnd) (systemToTAITime systemStart))
       let cpuDiff = picosToNanos (cpuPicoEnd - cpuPicoStart)
       printf "%s: %s (cpu), %s (system)\n" label (renderNanos cpuDiff) (renderNanos systemDiff)
-      pure r
+      feed k a
     else action
   where
     diffTimeToNanos :: DiffTime -> Double
