@@ -782,15 +782,11 @@ loop e = do
               let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
                   terms = NamesWithHistory.lookupHQTerm query names
                   types = NamesWithHistory.lookupHQType query names
-                  terms' :: Set (Referent, Set (HQ'.HashQualified Name))
-                  terms' = Set.map go terms
-                    where
-                      go r = (r, Set.fromList $ PPE.allTermNames unsuffixifiedPPE r)
-                  types' :: Set (Reference, Set (HQ'.HashQualified Name))
-                  types' = Set.map go types
-                    where
-                      go r = (r, Set.fromList $ PPE.allTypeNames unsuffixifiedPPE r)
-              Cli.respond $ ListNames global hqLength (toList types') (toList terms')
+                  terms' :: [(Referent, [HQ'.HashQualified Name])]
+                  terms' = map (\r -> (r, PPE.allTermNames unsuffixifiedPPE r)) (Set.toList terms)
+                  types' :: [(Reference, [HQ'.HashQualified Name])]
+                  types' = map (\r -> (r, PPE.allTypeNames unsuffixifiedPPE r)) (Set.toList types)
+              Cli.respond $ ListNames global hqLength types' terms'
             LinkI mdValue srcs -> do
               description <- inputDescription input
               manageLinks False srcs [mdValue] Metadata.insert
@@ -1189,9 +1185,9 @@ loop e = do
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.fitsScheme ty mainType -> do
-                    let codeLookup = () <$ Codebase.toCodeLookup codebase
-                    whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
-                      Cli.returnEarly (EvaluationFailure err)
+                      let codeLookup = () <$ Codebase.toCodeLookup codebase
+                      whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
+                        Cli.returnEarly (EvaluationFailure err)
                   | otherwise -> Cli.returnEarly (BadMainFunction smain ty ppe [mainType])
                 _ -> Cli.returnEarly (NoMainFunction smain ppe [mainType])
             IOTestI main -> do
@@ -1733,34 +1729,35 @@ handleFindI isVerbose fscope ws input = do
                  in Names.filter f
          in scopeFilter (Backend.prettyNamesForBranch root' nameScope)
   let getResults :: Names -> Cli [SearchResult]
-      getResults names = do
-        case ws of
-          [] -> pure (List.sortOn (\s -> (SR.name s, s)) (SR.fromNames names))
-          -- type query
-          ":" : ws -> do
-            typ <- parseSearchType (show input) (unwords ws)
-            let named = Branch.deepReferents currentBranch0
-            matches <-
-              fmap (filter (`Set.member` named) . toList) $
-                liftIO (Codebase.termsOfType codebase typ)
-            matches <-
-              if null matches
-                then do
-                  Cli.respond NoExactTypeMatches
-                  fmap (filter (`Set.member` named) . toList) $
-                    liftIO (Codebase.termsMentioningType codebase typ)
-                else pure matches
-            pure $
-              -- in verbose mode, aliases are shown, so we collapse all
-              -- aliases to a single search result; in non-verbose mode,
-              -- a separate result may be shown for each alias
-              (if isVerbose then uniqueBy SR.toReferent else id) $
-                searchResultsFor names matches []
+      getResults names =
+        fmap SR.sortByName do
+          case ws of
+            [] -> pure (SR.fromNames names)
+            -- type query
+            ":" : ws -> do
+              typ <- parseSearchType (show input) (unwords ws)
+              let named = Branch.deepReferents currentBranch0
+              matches <-
+                fmap (filter (`Set.member` named) . toList) $
+                  liftIO (Codebase.termsOfType codebase typ)
+              matches <-
+                if null matches
+                  then do
+                    Cli.respond NoExactTypeMatches
+                    fmap (filter (`Set.member` named) . toList) $
+                      liftIO (Codebase.termsMentioningType codebase typ)
+                  else pure matches
+              pure $
+                -- in verbose mode, aliases are shown, so we collapse all
+                -- aliases to a single search result; in non-verbose mode,
+                -- a separate result may be shown for each alias
+                (if isVerbose then uniqueBy SR.toReferent else id) $
+                  searchResultsFor names matches []
 
-          -- name query
-          (map HQ.unsafeFromString -> qs) -> do
-            let srs = searchBranchScored names fuzzyNameDistance qs
-            pure $ uniqueBy SR.toReferent srs
+            -- name query
+            (map HQ.unsafeFromString -> qs) -> do
+              let srs = searchBranchScored names fuzzyNameDistance qs
+              pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
         #numberedArgs .= fmap searchResultToHQString results
         results' <- liftIO (Backend.loadSearchResults codebase results)
@@ -2451,7 +2448,7 @@ searchResultsFor ns terms types =
 
 searchBranchScored ::
   forall score.
-  (Ord score) =>
+  Ord score =>
   Names ->
   (Name -> Name -> Maybe score) ->
   [HQ.HashQualified Name] ->
@@ -2469,10 +2466,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.termSearchResult names0 name ref
@@ -2489,10 +2486,10 @@ searchBranchScored names0 score queries =
             pair qn
           HQ.HashQualified qn h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              pair qn
+                pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-              Set.singleton (Nothing, result)
+                Set.singleton (Nothing, result)
           _ -> mempty
           where
             result = SR.typeSearchResult names0 name ref

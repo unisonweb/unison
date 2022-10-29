@@ -179,8 +179,8 @@ data Output
   | ListNames
       IsGlobal
       Int -- hq length to print References
-      [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
-      [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
+      [(Reference, [HQ'.HashQualified Name])] -- type match, type names
+      [(Referent, [HQ'.HashQualified Name])] -- term match, term names
       -- list of all the definitions within this branch
   | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]

@@ -1,6 +1,5 @@
 module Unison.HashQualified where
 
-import qualified Data.List as List
 import qualified Data.Text as Text
 import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.ConstructorReference as ConstructorReference
@@ -35,21 +34,6 @@ toName = \case
   NameOnly name -> Just name
   HashQualified name _ -> Just name
   HashOnly _ -> Nothing
-
--- | Ordered alphabetically, based on the name. Hashes come last.
-sortAlphabetically :: Name.Alphabetical n => [HashQualified n] -> [HashQualified n]
-sortAlphabetically =
-  List.sortBy \a b ->
-    case (toName a, toName b) of
-      (Just n, Just n2) -> Name.compareAlphabetical n n2
-      (Nothing, Just _) -> GT
-      (Just _, Nothing) -> LT
-      (Nothing, Nothing) -> EQ
-      <> case (toHash a, toHash b) of
-        (Nothing, Nothing) -> EQ
-        (Nothing, Just _) -> LT -- prefer NameOnly to HashQualified
-        (Just _, Nothing) -> GT
-        (Just sh, Just sh2) -> compare sh sh2
 
 -- Sort the list of names by length of segments: smaller number of
 -- segments is listed first. NameOnly < Hash qualified < Hash only
@@ -148,6 +132,20 @@ requalify hq r = case hq of
   NameOnly n -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
   HashOnly _ -> fromReferent r
+
+instance Name.Alphabetical n => Name.Alphabetical (HashQualified n) where
+  -- Ordered alphabetically, based on the name. Hashes come last.
+  compareAlphabetical a b =
+    case (toName a, toName b) of
+      (Just n, Just n2) -> Name.compareAlphabetical n n2
+      (Nothing, Just _) -> GT
+      (Just _, Nothing) -> LT
+      (Nothing, Nothing) -> EQ
+      <> case (toHash a, toHash b) of
+        (Nothing, Nothing) -> EQ
+        (Nothing, Just _) -> LT -- prefer NameOnly to HashQualified
+        (Just _, Nothing) -> GT
+        (Just sh, Just sh2) -> compare sh sh2
 
 instance Convert n n2 => Convert (HashQualified n) (HashQualified n2) where
   convert = fmap Name.convert

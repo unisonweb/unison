@@ -12,7 +12,7 @@ import Control.Monad.Trans.Writer.CPS
 import Data.Bifunctor (first, second)
 import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Foldable as Foldable
-import Data.List (sort, stripPrefix)
+import Data.List (stripPrefix)
 import qualified Data.List as List
 import Data.List.Extra (notNull, nubOrd, nubOrdOn)
 import qualified Data.List.NonEmpty as NEList
@@ -668,8 +668,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -677,7 +677,6 @@ notifyUser dir o = case o of
           else
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
-      where
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -927,7 +926,11 @@ notifyUser dir o = case o of
           go (ref, hqs) =
             P.column2
               [ ("Hash:", P.syntaxToColor (prettyReferent len ref)),
-                ("Names: ", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
+                ( "Names: ",
+                  P.group $
+                    P.spaced $
+                      P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
+                )
               ]
       formatTypes types =
         P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : List.intersperse "" (go <$> types)
@@ -935,7 +938,11 @@ notifyUser dir o = case o of
           go (ref, hqs) =
             P.column2
               [ ("Hash:", P.syntaxToColor (prettyReference len ref)),
-                ("Names:", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
+                ( "Names:",
+                  P.group $
+                    P.spaced $
+                      P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
+                )
               ]
   -- > names foo
   --   Terms:
@@ -1817,7 +1824,7 @@ notifyUser dir o = case o of
     let referenceText = P.text . Reference.toText . Cv.reference2to1
     pure $
       P.columnNHeader
-        ["Kind", "Name",  "Change", "Ref"]
+        ["Kind", "Name", "Change", "Ref"]
         ( (termNameAdds <&> \(n, ref) -> ["Term", prettyName n, "Added", referentText ref])
             <> (termNameRemovals <&> \(n, ref) -> ["Term", prettyName n, "Removed", referentText ref])
             <> (typeNameAdds <&> \(n, ref) -> ["Type", prettyName n, "Added", referenceText ref])
@@ -2070,13 +2077,18 @@ displayDefinitions outputLoc ppe types terms =
         ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE ppe r
         ppeDecl = PPED.unsuffixifiedPPE ppe
         prettyTerms =
-          map go . Map.toList $
-            -- sort by name
-            Map.mapKeys (first (PPE.termName ppeDecl . Referent.Ref) . dupe) terms
+          terms
+            & Map.toList
+            & map (\(ref, dt) -> (PPE.termName ppeDecl (Referent.Ref ref), ref, dt))
+            & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
+            & map go
         prettyTypes =
-          map go2 . Map.toList $
-            Map.mapKeys (first (PPE.typeName ppeDecl) . dupe) types
-        go ((n, r), dt) =
+          types
+            & Map.toList
+            & map (\(ref, dt) -> (PPE.typeName ppeDecl ref, ref, dt))
+            & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
+            & map go2
+        go (n, r, dt) =
           case dt of
             MissingObject r -> missing n r
             BuiltinObject typ ->
@@ -2084,7 +2096,7 @@ displayDefinitions outputLoc ppe types terms =
                 ("builtin " <> prettyHashQualified n <> " :")
                 (TypePrinter.prettySyntax (ppeBody n r) typ)
             UserObject tm -> TermPrinter.prettyBinding (ppeBody n r) n tm
-        go2 ((n, r), dt) =
+        go2 (n, r, dt) =
           case dt of
             MissingObject r -> missing n r
             BuiltinObject _ -> builtin n
@@ -2465,7 +2477,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
@@ -2602,11 +2614,12 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           let -- [ "peach  ┐"
               -- , "peach' ┘"]
               olds' :: [Numbered Pretty] =
-                map (\(oldhq, oldp) -> numHQ' oldPath oldhq r <&> (\n -> n <> " " <> oldp))
-                  . (zip (toList olds))
-                  . P.boxRight
-                  . map (P.rightPad leftNamePad . phq')
-                  $ toList olds
+                let olds0 = List.sortBy Name.compareAlphabetical (Set.toList olds)
+                 in map (\(oldhq, oldp) -> numHQ' oldPath oldhq r <&> (\n -> n <> " " <> oldp))
+                      . zip olds0
+                      . P.boxRight
+                      . map (P.rightPad leftNamePad . phq')
+                      $ olds0
 
               added' = toList $ Set.difference news olds
               removed' = toList $ Set.difference olds news
@@ -3028,7 +3041,7 @@ prettyDiff diff =
       addedTypes =
         [ (n, r) | (n, r) <- R.toList (Names.types adds), not $ R.memberRan r (Names.types removes)
         ]
-      added = sort (hqTerms ++ hqTypes)
+      added = List.sortBy Name.compareAlphabetical (hqTerms ++ hqTypes)
         where
           hqTerms = [Names.hqName adds n (Right r) | (n, r) <- addedTerms]
           hqTypes = [Names.hqName adds n (Left r) | (n, r) <- addedTypes]
@@ -3043,7 +3056,7 @@ prettyDiff diff =
         ]
         where
           addedTypesSet = Set.fromList (map fst addedTypes)
-      removed = sort (hqTerms ++ hqTypes)
+      removed = List.sortBy Name.compareAlphabetical (hqTerms ++ hqTypes)
         where
           hqTerms = [Names.hqName removes n (Right r) | (n, r) <- removedTerms]
           hqTypes = [Names.hqName removes n (Left r) | (n, r) <- removedTypes]

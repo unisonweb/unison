@@ -1,6 +1,5 @@
 module Unison.HashQualified' where
 
-import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Convert, Name, Parse)
@@ -102,23 +101,19 @@ requalify hq r = case hq of
   NameOnly n -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
 
--- | Sort alphabetically.
-sortAlphabetically :: Name.Alphabetical n => [HashQualified n] -> [HashQualified n]
-sortAlphabetically =
-  List.sortBy go
-  where
-    go (NameOnly n) (NameOnly n2) = Name.compareAlphabetical n n2
-    -- NameOnly comes first
-    go NameOnly {} HashQualified {} = LT
-    go HashQualified {} NameOnly {} = GT
-    go (HashQualified n sh) (HashQualified n2 sh2) = Name.compareAlphabetical n n2 <> compare sh sh2
-
 -- | Sort the list of names by length of segments: smaller number of segments is listed first. NameOnly < HashQualified
 sortByLength :: [HashQualified Name] -> [HashQualified Name]
 sortByLength =
   sortOn \case
     NameOnly name -> (length (Name.reverseSegments name), Nothing, Name.isAbsolute name)
     HashQualified name hash -> (length (Name.reverseSegments name), Just hash, Name.isAbsolute name)
+
+instance Name.Alphabetical n => Name.Alphabetical (HashQualified n) where
+  compareAlphabetical (NameOnly n) (NameOnly n2) = Name.compareAlphabetical n n2
+  -- NameOnly comes first
+  compareAlphabetical NameOnly {} HashQualified {} = LT
+  compareAlphabetical HashQualified {} NameOnly {} = GT
+  compareAlphabetical (HashQualified n sh) (HashQualified n2 sh2) = Name.compareAlphabetical n n2 <> compare sh sh2
 
 instance Show n => Show (HashQualified n) where
   show = Text.unpack . toText
