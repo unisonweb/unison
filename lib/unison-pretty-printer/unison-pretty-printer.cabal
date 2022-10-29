@@ -145,6 +145,7 @@ test-suite pretty-printer-tests
     , easytest
     , raw-strings-qq
     , unison-pretty-printer
+    , unison-syntax
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010

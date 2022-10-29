@@ -17,7 +17,6 @@ import Unison.Parsers (unsafeParseFile)
 import Unison.Prelude
 import qualified Unison.Reference as R
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Name as Name (unsafeFromVar)
 import qualified Unison.Test.Common as Common
 import qualified Unison.Type as Type
 import Unison.UnisonFile (UnisonFile (..))
@@ -26,7 +25,7 @@ import qualified Unison.Var as Var
 test :: Test ()
 test =
   scope "datadeclaration" $
-    let hashes = fromRight (error "Expected Right") $ Hashing.hashDataDecls Name.unsafeFromVar . (snd <$>) . dataDeclarationsId $ file
+    let hashes = fromRight (error "Expected Right") $ Hashing.hashDataDecls . (snd <$>) . dataDeclarationsId $ file
         hashMap = Map.fromList $ fmap (\(a, b, _) -> (a, b)) hashes
         hashOf k = Map.lookup (Var.named k) hashMap
      in tests

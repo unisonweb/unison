@@ -85,3 +85,4 @@ tests:
       - easytest
       - containers
       - code-page
+      - unison-syntax
