@@ -1469,46 +1469,44 @@ getDependenciesBetweenTerms oid1 oid2 =
     -- (3) An explicit cast from e.g. string '1' to int 1 isn't strictly necessary
     sql :: Sql
     sql = [here|
-      with recursive paths(level, object_id, object_id_array) as (
-        select
+      WITH RECURSIVE paths(level, object_id, object_id_array) AS (
+        SELECT
           0,
           dependents_index.dependency_object_id,
           ''
-        from dependents_index
-          join object on dependents_index.dependency_object_id = object.id
-        where dependents_index.dependent_object_id = ?
-          and object.type_id = 0 -- Note (1)
-          and dependents_index.dependent_object_id != dependents_index.dependency_object_id
-        union all
-        select
-          paths.level + 1 as level,
+        FROM dependents_index
+          JOIN object ON dependents_index.dependency_object_id = object.id
+        WHERE dependents_index.dependent_object_id = ?
+          AND object.type_id = 0 -- Note (1)
+          AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
+        UNION ALL
+        SELECT
+          paths.level + 1 AS level,
           dependents_index.dependency_object_id,
-          dependents_index.dependent_object_id
-            || ','
-            || paths.object_id_array
-        from paths
-          join dependents_index
-            on paths.object_id = dependents_index.dependent_object_id
-          join object on dependents_index.dependency_object_id = object.id
-        where object.type_id = 0 -- Note (1)
-          and dependents_index.dependent_object_id != dependents_index.dependency_object_id
-          and paths.object_id != ? -- Note (2)
-        order by level desc
+          dependents_index.dependent_object_id || ',' || paths.object_id_array
+        FROM paths
+          JOIN dependents_index
+            ON paths.object_id = dependents_index.dependent_object_id
+          JOIN object ON dependents_index.dependency_object_id = object.id
+        WHERE object.type_id = 0 -- Note (1)
+          AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
+          AND paths.object_id != ? -- Note (2)
+        ORDER BY level DESC
       ),
-      elems(object_id, object_id_array) as (
-        select null, object_id_array
-        from paths
-        where paths.object_id = ?
-        union all
-        select
+      elems(object_id, object_id_array) AS (
+        SELECT null, object_id_array
+        FROM paths
+        WHERE paths.object_id = ?
+        UNION ALL
+        SELECT
           substr(object_id_array, 0, instr(object_id_array, ',')),
           substr(object_id_array, instr(object_id_array, ',') + 1)
-        from elems
-        where object_id_array != ''
+        FROM elems
+        WHERE object_id_array != ''
       )
-      select distinct cast(object_id as integer) as object_id -- Note (3)
-      from elems
-      where object_id is not null
+      SELECT DISTINCT CAST(object_id AS integer) AS object_id -- Note (3)
+      FROM elems
+      WHERE object_id IS NOT null
     |]
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
