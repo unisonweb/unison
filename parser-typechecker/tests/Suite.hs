@@ -19,7 +19,6 @@ import qualified Unison.Test.DataDeclaration as DataDeclaration
 import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.Referent as Referent
 import qualified Unison.Test.Syntax.FileParser as FileParser
-import qualified Unison.Test.Syntax.Lexer as Lexer
 import qualified Unison.Test.Syntax.TermParser as TermParser
 import qualified Unison.Test.Syntax.TermPrinter as TermPrinter
 import qualified Unison.Test.Syntax.TypePrinter as TypePrinter
@@ -38,7 +37,6 @@ test :: Test ()
 test =
   tests
     [ Cache.test,
-      Lexer.test,
       Term.test,
       TermParser.test,
       TermPrinter.test,

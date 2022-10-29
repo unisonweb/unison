@@ -111,6 +111,12 @@ cradle:
     - path: "unison-share-api/src"
       component: "unison-share-api:lib"
 
+    - path: "unison-syntax/src"
+      component: "unison-syntax:lib"
+
+    - path: "unison-syntax/test"
+      component: "unison-syntax:test:syntax-tests"
+
     - path: "yaks/easytest/src"
       component: "easytest:lib"
 
