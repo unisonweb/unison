@@ -2077,9 +2077,10 @@ displayDefinitions outputLoc ppe types terms =
           case dt of
             MissingObject r -> missing n r
             BuiltinObject typ ->
-              P.hang
-                ("builtin " <> prettyHashQualified n <> " :")
-                (TypePrinter.prettySyntax (ppeBody n r) typ)
+              (if isJust outputLoc then P.indent "-- " else id) $
+                P.hang
+                  ("builtin " <> prettyHashQualified n <> " :")
+                  (TypePrinter.prettySyntax (ppeBody n r) typ)
             UserObject tm -> TermPrinter.prettyBinding (ppeBody n r) n tm
         go2 ((n, r), dt) =
           case dt of

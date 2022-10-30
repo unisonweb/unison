@@ -470,3 +470,17 @@ roundtripLastLam =
 ```ucm
 .> load scratch.u
 ```
+
+# Comment out builtins in the edit command
+
+Regression test for https://github.com/unisonweb/unison/pull/3548
+
+```ucm
+.> alias.term ##Nat.+ plus
+.> edit plus
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```

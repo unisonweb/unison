@@ -1432,3 +1432,40 @@ roundtripLastLam =
       roundtripLastLam : Nat
 
 ```
+# Comment out builtins in the edit command
+
+Regression test for https://github.com/unisonweb/unison/pull/3548
+
+```ucm
+.> alias.term ##Nat.+ plus
+
+  Done.
+
+.> edit plus
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    -- builtin plus : builtin.Nat -> builtin.Nat -> builtin.Nat
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Name changes:
+  
+    Original            Changes
+    1. builtin.Nat.+    2. plus (added)
+
+```
+```ucm
+.> load scratch.u
+
+  I loaded scratch.u and didn't find anything.
+
+```
