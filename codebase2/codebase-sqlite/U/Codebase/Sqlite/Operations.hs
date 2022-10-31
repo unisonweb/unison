@@ -1035,9 +1035,18 @@ causalHashesByPrefix (ShortBranchHash b32prefix) = do
 -- | returns a list of known definitions referencing `r`
 dependents :: Q.DependentsSelector -> C.Reference -> Transaction (Set C.Reference.Id)
 dependents selector r = do
-  r' <- c2sReference r
-  sIds <- Q.getDependentsForDependency selector r'
-  Set.traverse s2cReferenceId sIds
+  mr <- case r of
+    C.ReferenceBuiltin {} -> pure (Just r)
+    C.ReferenceDerived id_ ->
+      objectExistsForHash (view C.idH id_) <&> \case
+        True -> Just r
+        False -> Nothing
+  case mr of
+    Nothing -> pure mempty
+    Just r -> do
+      r' <- c2sReference r
+      sIds <- Q.getDependentsForDependency selector r'
+      Set.traverse s2cReferenceId sIds
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)
