@@ -19,13 +19,13 @@ import Unison.Codebase.Editor.RemoteRepo
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
+import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.NameSegment (NameSegment (..))
 
 test :: Test ()
 test = scope "uriparser" . tests $ [testShare, testGit]
 
-gitHelper :: (ReadGitRepo, Maybe ShortBranchHash, Path) -> ReadRemoteNamespace
+gitHelper :: (ReadGitRepo, Maybe ShortCausalHash, Path) -> ReadRemoteNamespace
 gitHelper (repo, sbh, path) = ReadRemoteNamespaceGit (ReadGitRemoteNamespace repo sbh path)
 
 testShare :: Test ()
@@ -120,5 +120,5 @@ expectParseFailure s = void . scope (Text.unpack s) . expectLeft . P.parse UriPa
 path :: [Text] -> Path
 path = Path . Seq.fromList . fmap NameSegment
 
-sbh :: Text -> Maybe ShortBranchHash
-sbh = Just . ShortBranchHash
+sbh :: Text -> Maybe ShortCausalHash
+sbh = Just . ShortCausalHash

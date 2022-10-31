@@ -11,8 +11,8 @@ import qualified Data.Text as Text
 import qualified U.Util.Monoid as Monoid
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Codebase.ShortCausalHash as SBH
 import Unison.Prelude
 import Unison.Share.Types
 
@@ -110,7 +110,7 @@ data ReadRemoteNamespace
 
 data ReadGitRemoteNamespace = ReadGitRemoteNamespace
   { repo :: ReadGitRepo,
-    sbh :: Maybe ShortBranchHash,
+    sbh :: Maybe ShortCausalHash,
     path :: Path
   }
   deriving stock (Eq, Show)
@@ -118,7 +118,7 @@ data ReadGitRemoteNamespace = ReadGitRemoteNamespace
 data ReadShareRemoteNamespace = ReadShareRemoteNamespace
   { server :: ShareCodeserver,
     repo :: Text,
-    -- sbh :: Maybe ShortBranchHash, -- maybe later
+    -- sbh :: Maybe ShortCausalHash, -- maybe later
     path :: Path
   }
   deriving stock (Eq, Show)

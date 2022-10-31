@@ -1976,8 +1976,8 @@ debugNameDiff =
       parse =
         ( \case
             [from, to] -> first fromString $ do
-              fromSBH <- Input.parseShortBranchHash from
-              toSBH <- Input.parseShortBranchHash to
+              fromSBH <- Input.parseShortCausalHash from
+              toSBH <- Input.parseShortCausalHash to
               pure $ Input.DebugNameDiffI fromSBH toSBH
             _ -> Left (I.help debugNameDiff)
         )

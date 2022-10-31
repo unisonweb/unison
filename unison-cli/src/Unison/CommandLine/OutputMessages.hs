@@ -73,8 +73,8 @@ import qualified Unison.Codebase.Patch as Patch
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Codebase.ShortCausalHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SqliteCodebase.GitError
   ( GitSqliteCodebaseError (..),
@@ -369,7 +369,7 @@ notifyNumbered o = case o of
         branchHashes = (fst <$> reversedHistory) <> tailHashes
      in (msg, displayBranchHash <$> branchHashes)
     where
-      toSBH :: Branch.CausalHash -> ShortBranchHash
+      toSBH :: Branch.CausalHash -> ShortCausalHash
       toSBH h = SBH.fromHash sbhLength h
       reversedHistory = reverse history
       showNum :: Int -> Pretty
@@ -1470,7 +1470,7 @@ notifyUser dir o = case o of
                 ""
               ]
           _ -> mempty
-      renderEntry3Column :: UTCTime -> (Maybe UTCTime, SBH.ShortBranchHash, Text) -> [Pretty]
+      renderEntry3Column :: UTCTime -> (Maybe UTCTime, SBH.ShortCausalHash, Text) -> [Pretty]
       renderEntry3Column now (mayTime, sbh, reason) =
         [maybe "" (prettyHumanReadableTime now) mayTime, P.blue (prettySBH sbh), P.text $ truncateReason reason]
       truncateReason :: Text -> Text
@@ -1914,7 +1914,7 @@ prettyRelative = P.blue . P.shown
 prettyAbsolute :: Path.Absolute -> Pretty
 prettyAbsolute = P.blue . P.shown
 
-prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
+prettySBH :: IsString s => ShortCausalHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
 prettyCausalHash :: IsString s => Causal.CausalHash -> P.Pretty s

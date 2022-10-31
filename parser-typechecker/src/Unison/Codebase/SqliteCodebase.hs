@@ -58,7 +58,7 @@ import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -417,7 +417,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             referentsByPrefix sh =
               runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
 
-            branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.CausalHash)
+            branchHashesByPrefix :: ShortCausalHash -> m (Set Branch.CausalHash)
             branchHashesByPrefix sh =
               runTransaction (CodebaseOps.branchHashesByPrefix sh)
 
@@ -698,7 +698,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior act
         branch <- time "Git fetch (sbh)" $ case sbh of
           -- no sub-branch was specified, so use the root.
           Nothing -> time "Get remote root branch" $ Codebase1.getRootBranch codebase
-          -- load from a specific `ShortBranchHash`
+          -- load from a specific `ShortCausalHash`
           Just sbh -> do
             branchCompletions <- Codebase1.branchHashesByPrefix codebase sbh
             case toList branchCompletions of

@@ -32,7 +32,7 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
@@ -44,7 +44,7 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Monoid (foldMapM)
 
 type ProjectsAPI =
-  "projects" :> QueryParam "rootBranch" ShortBranchHash
+  "projects" :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "owner" ProjectOwner
     :> APIGet [ProjectListing]
 
@@ -126,7 +126,7 @@ serve ::
   forall m.
   MonadIO m =>
   Codebase m Symbol Ann ->
-  Maybe ShortBranchHash ->
+  Maybe ShortCausalHash ->
   Maybe ProjectOwner ->
   Backend m [ProjectListing]
 serve codebase mayRoot mayOwner = projects
@@ -136,7 +136,7 @@ serve codebase mayRoot mayOwner = projects
       shallowRootBranch <- case mayRoot of
         Nothing -> lift (Codebase.getShallowRootBranch codebase)
         Just sbh -> do
-          h <- Backend.expandShortBranchHash codebase sbh
+          h <- Backend.expandShortCausalHash codebase sbh
           -- TODO: can this ever be missing?
           causal <- lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
           lift $ V2Causal.value causal

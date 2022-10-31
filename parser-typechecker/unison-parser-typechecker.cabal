@@ -61,7 +61,7 @@ library
       Unison.Codebase.PushBehavior
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
-      Unison.Codebase.ShortBranchHash
+      Unison.Codebase.ShortCausalHash
       Unison.Codebase.SqliteCodebase
       Unison.Codebase.SqliteCodebase.Branch.Cache
       Unison.Codebase.SqliteCodebase.Branch.Dependencies

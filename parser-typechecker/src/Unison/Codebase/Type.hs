@@ -26,7 +26,7 @@ import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
@@ -156,7 +156,7 @@ data Codebase m v a = Codebase
     -- | The number of base32 characters needed to distinguish any two branch in the codebase.
     branchHashLength :: m Int,
     -- | Get the set of branches whose hash matches the given prefix.
-    branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.CausalHash),
+    branchHashesByPrefix :: ShortCausalHash -> m (Set Branch.CausalHash),
     -- returns `Nothing` to not implemented, fallback to in-memory
     --    also `Nothing` if no LCA
     -- The result is undefined if the two hashes are not in the codebase.

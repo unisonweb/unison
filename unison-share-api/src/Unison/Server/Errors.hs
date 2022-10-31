@@ -12,7 +12,7 @@ import qualified Data.Text.Lazy.Encoding as Text
 import Servant (ServerError (..), err400, err404, err409, err500)
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SBH
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.Prelude

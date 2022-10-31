@@ -20,7 +20,7 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
@@ -37,7 +37,7 @@ import Unison.Util.Pretty (Width)
 
 type NamespaceDetailsAPI =
   "namespaces" :> Capture "namespace" Path.Path
-    :> QueryParam "rootBranch" ShortBranchHash
+    :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "renderWidth" Width
     :> APIGet NamespaceDetails
 
@@ -74,7 +74,7 @@ namespaceDetails ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Path.Path ->
-  Maybe ShortBranchHash ->
+  Maybe ShortCausalHash ->
   Maybe Width ->
   Backend IO NamespaceDetails
 namespaceDetails runtime codebase namespacePath maySBH mayWidth =

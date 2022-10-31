@@ -30,7 +30,7 @@ import Unison.Codebase.Editor.RemoteRepo
   )
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
+import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import qualified Unison.Hash as Hash
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
@@ -336,7 +336,7 @@ parseGitProtocol =
 --
 -- >>> P.parseMaybe namespaceHashPath "."
 -- Just (Nothing,)
-namespaceHashPath :: P (Maybe ShortBranchHash, Path)
+namespaceHashPath :: P (Maybe ShortCausalHash, Path)
 namespaceHashPath = do
   sbh <- P.optional shortBranchHash
   p <- P.optional absolutePath
@@ -364,8 +364,8 @@ gitTreeishSuffix = P.label "git treeish" . P.try $ do
   void $ C.char ':'
   P.takeWhile1P (Just "not close paren") (/= ')')
 
-shortBranchHash :: P ShortBranchHash
+shortBranchHash :: P ShortCausalHash
 shortBranchHash = P.label "short branch hash" $ do
   void $ C.char '#'
-  ShortBranchHash
+  ShortCausalHash
     <$> P.takeWhile1P (Just "base32hex chars") (`elem` Hash.validBase32HexChars)

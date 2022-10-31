@@ -28,7 +28,7 @@ import qualified Unison.Codebase.Branch as V1.Branch
 import qualified Unison.Codebase.Causal.Type as V1.Causal
 import qualified Unison.Codebase.Metadata as V1.Metadata
 import qualified Unison.Codebase.Patch as V1
-import qualified Unison.Codebase.ShortBranchHash as V1
+import qualified Unison.Codebase.ShortCausalHash as V1
 import Unison.Codebase.SqliteCodebase.Branch.Cache
 import qualified Unison.Codebase.TermEdit as V1.TermEdit
 import qualified Unison.Codebase.TypeEdit as V1.TypeEdit
@@ -57,8 +57,8 @@ import qualified Unison.Util.Star3 as V1.Star3
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as V1.WK
 
-sbh1to2 :: V1.ShortBranchHash -> V2.ShortCausalHash
-sbh1to2 (V1.ShortBranchHash b32) = V2.ShortCausalHash b32
+sbh1to2 :: V1.ShortCausalHash -> V2.ShortCausalHash
+sbh1to2 (V1.ShortCausalHash b32) = V2.ShortCausalHash b32
 
 decltype2to1 :: V2.Decl.DeclType -> CT.ConstructorType
 decltype2to1 = \case
