@@ -60,6 +60,9 @@ import qualified Unison.WatchKind as V1.WK
 sbh1to2 :: V1.ShortCausalHash -> V2.ShortCausalHash
 sbh1to2 (V1.ShortCausalHash b32) = V2.ShortCausalHash b32
 
+sbh2to1 :: V2.ShortBranchHash -> V1.ShortBranchHash
+sbh2to1 (V2.ShortBranchHash b32) = V1.ShortBranchHash b32
+
 decltype2to1 :: V2.Decl.DeclType -> CT.ConstructorType
 decltype2to1 = \case
   V2.Decl.Data -> CT.Data

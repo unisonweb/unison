@@ -31,6 +31,7 @@ import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import qualified U.Codebase.HashTags as V2
 import qualified U.Codebase.Referent as V2Referent
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
@@ -140,6 +141,7 @@ data BackendError
   | AmbiguousBranchHash ShortCausalHash (Set ShortCausalHash)
   | AmbiguousHashForDefinition ShortHash
   | NoBranchForHash Branch.CausalHash
+  | NoNamespaceForHash V2.BranchHash
   | CouldntLoadBranch Branch.CausalHash
   | MissingSignatureForTerm Reference
   | NoSuchDefinition (HQ.HashQualified Name)

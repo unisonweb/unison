@@ -80,6 +80,7 @@ module U.Codebase.Sqlite.Queries
     expectCausalByCausalHash,
     loadBranchObjectIdByCausalHashId,
     expectBranchObjectIdByCausalHashId,
+    loadBranchObjectIdByBranchHashId,
     expectBranchObjectIdByBranchHashId,
 
     -- ** causal_parent table
@@ -1044,6 +1045,9 @@ loadBranchObjectIdByCausalHashIdSql =
 
 expectBranchObjectIdByBranchHashId :: BranchHashId -> Transaction BranchObjectId
 expectBranchObjectIdByBranchHashId id = queryOneCol loadBranchObjectIdByBranchHashIdSql (Only id)
+
+loadBranchObjectIdByBranchHashId :: BranchHashId -> Transaction (Maybe BranchObjectId)
+loadBranchObjectIdByBranchHashId id = queryMaybeCol loadBranchObjectIdByBranchHashIdSql (Only id)
 
 loadBranchObjectIdByBranchHashIdSql :: Sql
 loadBranchObjectIdByBranchHashIdSql =

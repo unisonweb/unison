@@ -45,6 +45,7 @@ module Unison.Codebase
     getShallowCausalFromRoot,
     getShallowRootBranch,
     getShallowRootCausal,
+    getShallowBranchForHash,
 
     -- * Root branch
     getRootBranch,
@@ -117,7 +118,9 @@ import qualified Data.Set as Set
 import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (BranchHash)
 import qualified U.Codebase.Referent as V2
+import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Queries
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtin
@@ -222,6 +225,13 @@ getShallowBranchAtPath codebase path mayBranch = do
         Just childCausal -> do
           childBranch <- V2Causal.value childCausal
           getShallowBranchAtPath codebase p (Just childBranch)
+
+-- | Recursively descend into causals following the given path,
+-- Use the root causal if none is provided.
+getShallowBranchForHash :: (MonadIO m) => Codebase m v a -> BranchHash -> m (Maybe (V2Branch.Branch m))
+getShallowBranchForHash codebase bh = do
+  runTransaction codebase do
+    fmap (V2Branch.hoist (runTransaction codebase)) <$> Ops.loadBranchByBranchHash bh
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.CausalHash -> m (Maybe (Branch m))

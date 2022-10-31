@@ -10,6 +10,7 @@ module U.Codebase.Sqlite.Operations
     saveBranch,
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
+    loadBranchByBranchHash,
     expectBranchByBranchHash,
     expectNamespaceStatsByHash,
     expectNamespaceStatsByHashId,
@@ -728,10 +729,20 @@ expectBranchByBranchHashId bhId = do
   boId <- Q.expectBranchObjectIdByBranchHashId bhId
   expectBranch boId
 
+loadBranchByBranchHashId :: Db.BranchHashId -> Transaction (Maybe (C.Branch.Branch Transaction))
+loadBranchByBranchHashId bhId = runMaybeT do
+  boId <- MaybeT $ Q.loadBranchObjectIdByBranchHashId bhId
+  lift $ expectBranch boId
+
 expectBranchByBranchHash :: BranchHash -> Transaction (C.Branch.Branch Transaction)
 expectBranchByBranchHash bh = do
   bhId <- Q.saveBranchHash bh
   expectBranchByBranchHashId bhId
+
+loadBranchByBranchHash :: BranchHash -> Transaction (Maybe (C.Branch.Branch Transaction))
+loadBranchByBranchHash bh = do
+  bhId <- Q.saveBranchHash bh
+  loadBranchByBranchHashId bhId
 
 -- | Expect a branch value given its causal hash id.
 expectDbBranchByCausalHashId :: Db.CausalHashId -> Transaction S.DbBranch

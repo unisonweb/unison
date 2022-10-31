@@ -22,6 +22,7 @@ library
       Unison.Server.Doc
       Unison.Server.Doc.AsHtml
       Unison.Server.Endpoints.DefinitionSummary
+      Unison.Server.Endpoints.DiffNamespaces
       Unison.Server.Endpoints.FuzzyFind
       Unison.Server.Endpoints.GetDefinitions
       Unison.Server.Endpoints.NamespaceDetails
