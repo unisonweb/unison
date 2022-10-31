@@ -93,7 +93,7 @@ module U.Codebase.Sqlite.Operations
     Q.s2cTermWithType,
     Q.s2cDecl,
     declReferencesByPrefix,
-    branchHashesByPrefix,
+    namespaceHashesByPrefix,
     derivedDependencies,
   )
 where
@@ -1020,8 +1020,8 @@ declReferentsByPrefix b32prefix pos cid = do
       (_localIds, decl) <- Q.expectDeclObject r (decodeDeclElement i)
       pure (C.Decl.declType decl, length (C.Decl.constructorTypes decl))
 
-branchHashesByPrefix :: ShortNamespaceHash -> Transaction (Set BranchHash)
-branchHashesByPrefix (ShortNamespaceHash b32prefix) = do
+namespaceHashesByPrefix :: ShortNamespaceHash -> Transaction (Set BranchHash)
+namespaceHashesByPrefix (ShortNamespaceHash b32prefix) = do
   hashIds <- Q.namespaceHashIdByBase32Prefix b32prefix
   hashes <- traverse (Q.expectHash . Db.unBranchHashId) hashIds
   pure $ Set.fromList . map BranchHash $ hashes

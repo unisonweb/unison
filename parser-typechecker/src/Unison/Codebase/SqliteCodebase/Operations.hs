@@ -568,8 +568,8 @@ referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to
         ]
   pure . Set.fromList $ termReferents <> declReferents
 
-branchHashesByPrefix :: ShortCausalHash -> Transaction (Set Branch.CausalHash)
-branchHashesByPrefix sh = do
+causalHashesByPrefix :: ShortCausalHash -> Transaction (Set Branch.CausalHash)
+causalHashesByPrefix sh = do
   -- given that a Branch is shallow, it's really `CausalHash` that you'd
   -- refer to to specify a full namespace w/ history.
   -- but do we want to be able to refer to a namespace without its history?

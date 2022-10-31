@@ -782,7 +782,7 @@ data DefinitionResults v = DefinitionResults
 expandShortCausalHash ::
   Monad m => Codebase m v a -> ShortCausalHash -> Backend m Branch.CausalHash
 expandShortCausalHash codebase hash = do
-  hashSet <- lift $ Codebase.branchHashesByPrefix codebase hash
+  hashSet <- lift $ Codebase.causalHashesByPrefix codebase hash
   len <- lift $ Codebase.branchHashLength codebase
   case Set.toList hashSet of
     [] -> throwError $ CouldntExpandBranchHash hash

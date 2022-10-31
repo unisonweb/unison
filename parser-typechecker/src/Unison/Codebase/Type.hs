@@ -156,7 +156,7 @@ data Codebase m v a = Codebase
     -- | The number of base32 characters needed to distinguish any two branch in the codebase.
     branchHashLength :: m Int,
     -- | Get the set of branches whose hash matches the given prefix.
-    branchHashesByPrefix :: ShortCausalHash -> m (Set Branch.CausalHash),
+    causalHashesByPrefix :: ShortCausalHash -> m (Set Branch.CausalHash),
     -- returns `Nothing` to not implemented, fallback to in-memory
     --    also `Nothing` if no LCA
     -- The result is undefined if the two hashes are not in the codebase.

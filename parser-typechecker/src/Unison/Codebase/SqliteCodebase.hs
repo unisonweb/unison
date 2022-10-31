@@ -417,9 +417,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             referentsByPrefix sh =
               runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
 
-            branchHashesByPrefix :: ShortCausalHash -> m (Set Branch.CausalHash)
-            branchHashesByPrefix sh =
-              runTransaction (CodebaseOps.branchHashesByPrefix sh)
+            causalHashesByPrefix :: ShortCausalHash -> m (Set Branch.CausalHash)
+            causalHashesByPrefix sh =
+              runTransaction (CodebaseOps.causalHashesByPrefix sh)
 
             sqlLca :: Branch.CausalHash -> Branch.CausalHash -> m (Maybe (Branch.CausalHash))
             sqlLca h1 h2 =
@@ -483,7 +483,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   typeReferencesByPrefix = declReferencesByPrefix,
                   termReferentsByPrefix = referentsByPrefix,
                   branchHashLength,
-                  branchHashesByPrefix,
+                  causalHashesByPrefix,
                   lcaImpl = Just sqlLca,
                   beforeImpl,
                   namesAtPath,
@@ -700,7 +700,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior act
           Nothing -> time "Get remote root branch" $ Codebase1.getRootBranch codebase
           -- load from a specific `ShortCausalHash`
           Just sbh -> do
-            branchCompletions <- Codebase1.branchHashesByPrefix codebase sbh
+            branchCompletions <- Codebase1.causalHashesByPrefix codebase sbh
             case toList branchCompletions of
               [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
               [h] ->

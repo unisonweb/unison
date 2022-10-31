@@ -36,7 +36,7 @@ module Unison.Codebase
     branchExists,
     getBranchForHash,
     putBranch,
-    branchHashesByPrefix,
+    causalHashesByPrefix,
     lca,
     beforeImpl,
     getShallowBranchAtPath,

@@ -1440,8 +1440,8 @@ loop e = do
             DebugNameDiffI fromSBH toSBH -> do
               Cli.Env {codebase} <- ask
               sbhLen <- liftIO $ Codebase.branchHashLength codebase
-              fromCHs <- liftIO $ Codebase.branchHashesByPrefix codebase fromSBH
-              toCHs <- liftIO $ Codebase.branchHashesByPrefix codebase toSBH
+              fromCHs <- liftIO $ Codebase.causalHashesByPrefix codebase fromSBH
+              toCHs <- liftIO $ Codebase.causalHashesByPrefix codebase toSBH
               (fromCH, toCH) <- case (Set.toList fromCHs, Set.toList toCHs) of
                 ((_ : _ : _), _) -> Cli.returnEarly $ Output.BranchHashAmbiguous fromSBH (Set.map (SBH.fromHash sbhLen) fromCHs)
                 ([], _) -> Cli.returnEarly $ Output.NoBranchWithHash fromSBH
