@@ -119,7 +119,7 @@ import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C
 import qualified U.Codebase.Referent as C.Referent
 import qualified U.Codebase.Reflog as Reflog
-import U.Codebase.ShortHash (ShortBranchHash (ShortBranchHash))
+import U.Codebase.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
 import qualified U.Codebase.Sqlite.Branch.Diff as S.BranchDiff
@@ -1020,14 +1020,14 @@ declReferentsByPrefix b32prefix pos cid = do
       (_localIds, decl) <- Q.expectDeclObject r (decodeDeclElement i)
       pure (C.Decl.declType decl, length (C.Decl.constructorTypes decl))
 
-branchHashesByPrefix :: ShortBranchHash -> Transaction (Set BranchHash)
-branchHashesByPrefix (ShortBranchHash b32prefix) = do
+branchHashesByPrefix :: ShortNamespaceHash -> Transaction (Set BranchHash)
+branchHashesByPrefix (ShortNamespaceHash b32prefix) = do
   hashIds <- Q.namespaceHashIdByBase32Prefix b32prefix
   hashes <- traverse (Q.expectHash . Db.unBranchHashId) hashIds
   pure $ Set.fromList . map BranchHash $ hashes
 
-causalHashesByPrefix :: ShortBranchHash -> Transaction (Set CausalHash)
-causalHashesByPrefix (ShortBranchHash b32prefix) = do
+causalHashesByPrefix :: ShortCausalHash -> Transaction (Set CausalHash)
+causalHashesByPrefix (ShortCausalHash b32prefix) = do
   hashIds <- Q.causalHashIdByBase32Prefix b32prefix
   hashes <- traverse (Q.expectHash . Db.unCausalHashId) hashIds
   pure $ Set.fromList . map CausalHash $ hashes

@@ -12,6 +12,7 @@ import qualified Data.Text as Text
 import qualified Unison.Hash as Hash
 import Unison.Prelude
 
+-- | Causal Hash Prefix
 newtype ShortBranchHash = ShortBranchHash {toText :: Text} -- base32hex characters
   deriving stock (Eq, Ord, Generic)
 
@@ -30,8 +31,8 @@ fromHash len =
 fromText :: Text -> Maybe ShortBranchHash
 fromText (Text.dropWhile (== '#') -> t)
   | Text.all (`Set.member` Hash.validBase32HexChars) t =
-    Just $
-      ShortBranchHash t
+      Just $
+        ShortBranchHash t
 fromText _ = Nothing
 
 instance Show ShortBranchHash where
