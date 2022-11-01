@@ -10,10 +10,12 @@ import qualified Data.Set as Set
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant (ServerError (..), err400, err404, err409, err500)
-import U.Codebase.HashTags (BranchHash)
+import U.Codebase.HashTags (BranchHash, CausalHash)
+import U.Codebase.ShortHash (ShortNamespaceHash (shortNamespaceHashToText))
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.ShortCausalHash as SBH
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.Prelude
@@ -41,7 +43,7 @@ backendError = \case
   Backend.NoSuchNamespace n ->
     noSuchNamespace . Path.toText $ Path.unabsolute n
   Backend.BadNamespace err namespace -> badNamespace err namespace
-  Backend.NoBranchForHash h ->
+  Backend.NoCausalForHash h ->
     noSuchNamespace . Text.toStrict . Text.pack $ show h
   Backend.NoNamespaceForHash shorthash ->
     couldntLoadNamespace shorthash
@@ -49,8 +51,12 @@ backendError = \case
     couldntLoadBranch h
   Backend.CouldntExpandBranchHash h ->
     noSuchNamespace . Text.toStrict . Text.pack $ show h
-  Backend.AmbiguousBranchHash sbh hashes ->
-    ambiguousNamespace (SBH.toText sbh) (Set.map SBH.toText hashes)
+  Backend.AmbiguousCausalHash sbh hashes ->
+    ambiguousCausalHash sbh hashes
+  Backend.CouldntExpandNamespaceHash h ->
+    noSuchNamespace . Text.toStrict . Text.pack $ show h
+  Backend.AmbiguousNamespaceHash sbh hashes ->
+    ambiguousNamespaceHash sbh hashes
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
   Backend.NoSuchDefinition hqName -> noSuchDefinition hqName
   Backend.AmbiguousHashForDefinition shorthash -> ambiguousHashForDefinition shorthash
@@ -87,12 +93,22 @@ couldntLoadNamespace h =
           <> " couldn't be loaded."
     }
 
-ambiguousNamespace :: HashQualifiedName -> Set HashQualifiedName -> ServerError
-ambiguousNamespace name namespaces =
+ambiguousNamespaceHash :: ShortNamespaceHash -> Set BranchHash -> ServerError
+ambiguousNamespaceHash snh namespaces =
   err409
     { errBody =
         "Ambiguous namespace reference: "
-          <> munge name
+          <> munge (shortNamespaceHashToText snh)
+          <> ". It could refer to any of "
+          <> mungeShow (Set.toList namespaces)
+    }
+
+ambiguousCausalHash :: ShortCausalHash -> Set CausalHash -> ServerError
+ambiguousCausalHash sch namespaces =
+  err409
+    { errBody =
+        "Ambiguous namespace reference: "
+          <> munge (SCH.toText sch)
           <> ". It could refer to any of "
           <> mungeShow (Set.toList namespaces)
     }

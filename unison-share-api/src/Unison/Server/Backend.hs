@@ -43,7 +43,6 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
 import Unison.Codebase.Path (Path)
@@ -52,7 +51,6 @@ import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortCausalHash
   ( ShortCausalHash,
   )
-import qualified Unison.Codebase.ShortCausalHash as SBH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
@@ -141,10 +139,10 @@ data BackendError
       -- ^ namespace
   | CouldntExpandBranchHash ShortCausalHash
   | CouldntExpandNamespaceHash ShortNamespaceHash
-  | AmbiguousBranchHash ShortCausalHash (Set ShortCausalHash)
+  | AmbiguousCausalHash ShortCausalHash (Set V2.CausalHash)
   | AmbiguousNamespaceHash ShortNamespaceHash (Set BranchHash)
   | AmbiguousHashForDefinition ShortHash
-  | NoBranchForHash Branch.CausalHash
+  | NoCausalForHash Branch.CausalHash
   | NoNamespaceForHash V2.BranchHash
   | CouldntLoadBranch Branch.CausalHash
   | MissingSignatureForTerm Reference
@@ -789,12 +787,11 @@ expandShortCausalHash ::
   Monad m => Codebase m v a -> ShortCausalHash -> Backend m Branch.CausalHash
 expandShortCausalHash codebase hash = do
   hashSet <- lift $ Codebase.causalHashesByPrefix codebase hash
-  len <- lift $ Codebase.branchHashLength codebase
   case Set.toList hashSet of
     [] -> throwError $ CouldntExpandBranchHash hash
     [h] -> pure h
     _ ->
-      throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
+      throwError $ AmbiguousCausalHash hash (Set.map Cv.causalHash1to2 hashSet)
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
 getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (V2Branch.CausalBranch m)
@@ -1139,7 +1136,7 @@ resolveCausalHash h codebase = case h of
   Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
-    whenNothing mayBranch (throwError $ NoBranchForHash bhash)
+    whenNothing mayBranch (throwError $ NoCausalForHash bhash)
 
 resolveCausalHashV2 ::
   Monad m => Codebase m v a -> Maybe V2Branch.CausalHash -> Backend m (V2Branch.CausalBranch m)
