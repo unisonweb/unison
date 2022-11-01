@@ -31,8 +31,10 @@ import qualified Text.FuzzyFind as FZF
 import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
+import U.Codebase.HashTags (BranchHash)
 import qualified U.Codebase.HashTags as V2
 import qualified U.Codebase.Referent as V2Referent
+import U.Codebase.ShortHash (ShortNamespaceHash)
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -138,7 +140,9 @@ data BackendError
       String
       -- ^ namespace
   | CouldntExpandBranchHash ShortCausalHash
+  | CouldntExpandNamespaceHash ShortNamespaceHash
   | AmbiguousBranchHash ShortCausalHash (Set ShortCausalHash)
+  | AmbiguousNamespaceHash ShortNamespaceHash (Set BranchHash)
   | AmbiguousHashForDefinition ShortHash
   | NoBranchForHash Branch.CausalHash
   | NoNamespaceForHash V2.BranchHash

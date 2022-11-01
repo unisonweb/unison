@@ -10,6 +10,7 @@ import qualified Data.Set as Set
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant (ServerError (..), err400, err404, err409, err500)
+import U.Codebase.HashTags (BranchHash)
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.ShortCausalHash as SBH
@@ -42,6 +43,8 @@ backendError = \case
   Backend.BadNamespace err namespace -> badNamespace err namespace
   Backend.NoBranchForHash h ->
     noSuchNamespace . Text.toStrict . Text.pack $ show h
+  Backend.NoNamespaceForHash shorthash ->
+    couldntLoadNamespace shorthash
   Backend.CouldntLoadBranch h ->
     couldntLoadBranch h
   Backend.CouldntExpandBranchHash h ->
@@ -73,6 +76,15 @@ couldntLoadBranch h =
         "The namespace "
           <> munge (Text.toStrict . Text.pack $ show h)
           <> " exists but couldn't be loaded."
+    }
+
+couldntLoadNamespace :: BranchHash -> ServerError
+couldntLoadNamespace h =
+  err404
+    { errBody =
+        "The namespace "
+          <> munge (Text.toStrict . Text.pack $ show h)
+          <> " couldn't be loaded."
     }
 
 ambiguousNamespace :: HashQualifiedName -> Set HashQualifiedName -> ServerError
