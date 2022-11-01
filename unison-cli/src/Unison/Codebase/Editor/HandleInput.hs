@@ -101,7 +101,7 @@ import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
@@ -267,12 +267,12 @@ loop e = do
   case e of
     Left (IncomingRootBranch hashes) -> do
       Cli.Env {codebase} <- ask
-      sbhLength <- liftIO (Codebase.branchHashLength codebase)
+      schLength <- liftIO (Codebase.branchHashLength codebase)
       rootBranch <- Cli.getRootBranch
       Cli.respond $
         WarnIncomingRootBranch
-          (SBH.fromHash sbhLength $ Branch.headHash rootBranch)
-          (Set.map (SBH.fromHash sbhLength) hashes)
+          (SCH.fromHash schLength $ Branch.headHash rootBranch)
+          (Set.map (SCH.fromHash schLength) hashes)
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
@@ -386,18 +386,18 @@ loop e = do
               Cli.respond $ PrintMessage pretty
             ShowReflogI -> do
               Cli.Env {codebase} <- ask
-              sbhLength <- liftIO (Codebase.branchHashLength codebase)
+              schLength <- liftIO (Codebase.branchHashLength codebase)
               let numEntriesToShow = 500
-              entries <- liftIO (Codebase.getReflog codebase numEntriesToShow) <&> fmap (first $ SBH.fromHash sbhLength)
+              entries <- liftIO (Codebase.getReflog codebase numEntriesToShow) <&> fmap (first $ SCH.fromHash schLength)
               let moreEntriesToLoad = length entries == numEntriesToShow
               let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
-              let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SBH.toString hash
+              let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SCH.toString hash
               #numberedArgs .= numberedEntries
               Cli.respond $ ShowReflog expandedEntries
               where
                 expandEntries ::
-                  ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool) ->
-                  Maybe ((Maybe UTCTime, SBH.ShortBranchHash, Text), ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool))
+                  ([Reflog.Entry SCH.ShortCausalHash Text], Maybe SCH.ShortCausalHash, Bool) ->
+                  Maybe ((Maybe UTCTime, SCH.ShortCausalHash, Text), ([Reflog.Entry SCH.ShortCausalHash Text], Maybe SCH.ShortCausalHash, Bool))
                 expandEntries ([], Just expectedHash, moreEntriesToLoad) =
                   if moreEntriesToLoad
                     then Nothing
@@ -417,7 +417,7 @@ loop e = do
               Cli.time "reset-root" do
                 newRoot <-
                   case src0 of
-                    Left hash -> Cli.resolveShortBranchHash hash
+                    Left hash -> Cli.resolveShortCausalHash hash
                     Right path' -> Cli.expectBranchAtPath' path'
                 description <- inputDescription input
                 Cli.updateRoot newRoot description
@@ -425,7 +425,7 @@ loop e = do
             ForkLocalBranchI src0 dest0 -> do
               srcb <-
                 case src0 of
-                  Left hash -> Cli.resolveShortBranchHash hash
+                  Left hash -> Cli.resolveShortCausalHash hash
                   Right path' -> Cli.expectBranchAtPath' path'
               Cli.assertNoBranchAtPath' dest0
               description <- inputDescription input
@@ -587,27 +587,27 @@ loop e = do
             HistoryI resultsCap diffCap from -> do
               branch <-
                 case from of
-                  Left hash -> Cli.resolveShortBranchHash hash
+                  Left hash -> Cli.resolveShortCausalHash hash
                   Right path' -> do
                     path <- Cli.resolvePath' path'
                     Cli.getMaybeBranchAt path & onNothingM (Cli.returnEarly (CreatedNewBranch path))
               Cli.Env {codebase} <- ask
-              sbhLength <- liftIO (Codebase.branchHashLength codebase)
-              history <- liftIO (doHistory sbhLength 0 branch [])
+              schLength <- liftIO (Codebase.branchHashLength codebase)
+              history <- liftIO (doHistory schLength 0 branch [])
               Cli.respondNumbered history
               where
                 doHistory :: Int -> Int -> Branch IO -> [(Causal.CausalHash, NamesWithHistory.Diff)] -> IO NumberedOutput
-                doHistory sbhLength !n b acc =
+                doHistory schLength !n b acc =
                   if maybe False (n >=) resultsCap
-                    then pure (History diffCap sbhLength acc (PageEnd (Branch.headHash b) n))
+                    then pure (History diffCap schLength acc (PageEnd (Branch.headHash b) n))
                     else case Branch._history b of
-                      Causal.One {} -> pure (History diffCap sbhLength acc (EndOfLog $ Branch.headHash b))
+                      Causal.One {} -> pure (History diffCap schLength acc (EndOfLog $ Branch.headHash b))
                       Causal.Merge _ _ _ tails ->
-                        pure (History diffCap sbhLength acc (MergeTail (Branch.headHash b) $ Map.keys tails))
+                        pure (History diffCap schLength acc (MergeTail (Branch.headHash b) $ Map.keys tails))
                       Causal.Cons _ _ _ tail -> do
                         b' <- fmap Branch.Branch $ snd tail
                         let elem = (Branch.headHash b, Branch.namesDiff b' b)
-                        doHistory sbhLength (n + 1) b' (elem : acc)
+                        doHistory schLength (n + 1) b' (elem : acc)
             UndoI -> do
               rootBranch <- Cli.getRootBranch
               (_, prev) <-
@@ -939,11 +939,11 @@ loop e = do
               #numberedArgs .= fmap entryToHQString entries
               getRoot <- atomically . STM.readTMVar <$> use #root
               let buildPPE = do
-                    sbhLength <- liftIO (Codebase.branchHashLength codebase)
+                    schLength <- liftIO (Codebase.branchHashLength codebase)
                     rootBranch <- getRoot
                     pure $
                       Backend.basicSuffixifiedNames
-                        sbhLength
+                        schLength
                         rootBranch
                         (Backend.AllNames (Path.unabsolute pathArgAbs))
               Cli.respond $ ListShallow buildPPE entries
@@ -1437,16 +1437,16 @@ loop e = do
               Cli.Env {codebase} <- ask
               r <- liftIO (Codebase.runTransaction codebase IntegrityCheck.integrityCheckFullCodebase)
               Cli.respond (IntegrityCheck r)
-            DebugNameDiffI fromSBH toSBH -> do
+            DebugNameDiffI fromSCH toSCH -> do
               Cli.Env {codebase} <- ask
-              sbhLen <- liftIO $ Codebase.branchHashLength codebase
-              fromCHs <- liftIO $ Codebase.branchHashesByPrefix codebase fromSBH
-              toCHs <- liftIO $ Codebase.branchHashesByPrefix codebase toSBH
+              schLen <- liftIO $ Codebase.branchHashLength codebase
+              fromCHs <- liftIO $ Codebase.causalHashesByPrefix codebase fromSCH
+              toCHs <- liftIO $ Codebase.causalHashesByPrefix codebase toSCH
               (fromCH, toCH) <- case (Set.toList fromCHs, Set.toList toCHs) of
-                ((_ : _ : _), _) -> Cli.returnEarly $ Output.BranchHashAmbiguous fromSBH (Set.map (SBH.fromHash sbhLen) fromCHs)
-                ([], _) -> Cli.returnEarly $ Output.NoBranchWithHash fromSBH
-                (_, []) -> Cli.returnEarly $ Output.NoBranchWithHash toSBH
-                (_, (_ : _ : _)) -> Cli.returnEarly $ Output.BranchHashAmbiguous toSBH (Set.map (SBH.fromHash sbhLen) toCHs)
+                ((_ : _ : _), _) -> Cli.returnEarly $ Output.BranchHashAmbiguous fromSCH (Set.map (SCH.fromHash schLen) fromCHs)
+                ([], _) -> Cli.returnEarly $ Output.NoBranchWithHash fromSCH
+                (_, []) -> Cli.returnEarly $ Output.NoBranchWithHash toSCH
+                (_, (_ : _ : _)) -> Cli.returnEarly $ Output.BranchHashAmbiguous toSCH (Set.map (SCH.fromHash schLen) toCHs)
                 ([fromCH], [toCH]) -> pure (fromCH, toCH)
               output <- liftIO do
                 fromBranch <- (Codebase.getShallowCausalForHash codebase $ Cv.causalHash1to2 fromCH) >>= V2Causal.value
@@ -1660,7 +1660,7 @@ inputDescription input =
     VersionI -> wat
     DebugTabCompletionI _input -> wat
   where
-    hp' :: Either SBH.ShortBranchHash Path' -> Cli Text
+    hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
     hp' = either (pure . Text.pack . show) p'
     p' :: Path' -> Cli Text
     p' = fmap tShow . Cli.resolvePath'
@@ -1883,13 +1883,13 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
         Cli.ioE (Codebase.pushGitBranch codebase repo opts (\_remoteRoot -> pure (Right sourceBranch))) \err ->
           Cli.returnEarly (Output.GitError err)
       _branch <- result & onLeft Cli.returnEarly
-      sbhLength <- liftIO (Codebase.branchHashLength codebase)
+      schLength <- liftIO (Codebase.branchHashLength codebase)
       Cli.respond $
         GistCreated
           ( ReadRemoteNamespaceGit
               ReadGitRemoteNamespace
                 { repo = writeToReadGit repo,
-                  sbh = Just (SBH.fromHash sbhLength (Branch.headHash sourceBranch)),
+                  sch = Just (SCH.fromHash schLength (Branch.headHash sourceBranch)),
                   path = Path.empty
                 }
           )

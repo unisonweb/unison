@@ -37,8 +37,8 @@ import Unison.Codebase.Path (Path')
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.Runtime as Runtime
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.InputPattern as Input
 import Unison.DataDeclaration (Decl)
@@ -123,7 +123,7 @@ data Output
     NoMainFunction String PPE.PrettyPrintEnv [Type Symbol Ann]
   | -- Main function found, but has improper type
     BadMainFunction String (Type Symbol Ann) PPE.PrettyPrintEnv [Type Symbol Ann]
-  | BranchEmpty (Either ShortBranchHash Path')
+  | BranchEmpty (Either ShortCausalHash Path')
   | BranchNotEmpty Path'
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -141,7 +141,7 @@ data Output
   | DeleteNameAmbiguous Int Path.HQSplit' (Set Referent) (Set Reference)
   | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
-  | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
+  | BranchHashAmbiguous ShortCausalHash (Set ShortCausalHash)
   | BadNamespace String String
   | BranchNotFound Path'
   | EmptyPush Path'
@@ -235,9 +235,9 @@ data Output
     NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
-  | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)
+  | WarnIncomingRootBranch ShortCausalHash (Set ShortCausalHash)
   | StartOfCurrentPathHistory
-  | ShowReflog [(Maybe UTCTime, SBH.ShortBranchHash, Text)]
+  | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
   | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | PullSuccessful ReadRemoteNamespace Path'
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
@@ -247,7 +247,7 @@ data Output
   | -- | No conflicts or edits remain for the current patch.
     NoConflictsOrEdits
   | NotImplemented
-  | NoBranchWithHash ShortBranchHash
+  | NoBranchWithHash ShortCausalHash
   | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
   | -- | List dependents of a type or term.
     ListDependents Int LabeledDependency [(Reference, Maybe Name)]

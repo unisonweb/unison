@@ -36,7 +36,7 @@ module Unison.Codebase
     branchExists,
     getBranchForHash,
     putBranch,
-    branchHashesByPrefix,
+    causalHashesByPrefix,
     lca,
     beforeImpl,
     getShallowBranchAtPath,
@@ -447,7 +447,7 @@ data Preprocessing m
   | Preprocessed (Branch m -> m (Branch m))
 
 -- | Sync elements as needed from a remote git codebase into the local one.
--- If `sbh` is supplied, we try to load the specified branch hash;
+-- If `sch` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
 importRemoteBranch ::
   forall m v a.

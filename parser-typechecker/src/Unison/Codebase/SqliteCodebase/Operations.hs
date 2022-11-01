@@ -42,7 +42,7 @@ import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (BranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -568,12 +568,12 @@ referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to
         ]
   pure . Set.fromList $ termReferents <> declReferents
 
-branchHashesByPrefix :: ShortBranchHash -> Transaction (Set Branch.CausalHash)
-branchHashesByPrefix sh = do
+causalHashesByPrefix :: ShortCausalHash -> Transaction (Set Branch.CausalHash)
+causalHashesByPrefix sh = do
   -- given that a Branch is shallow, it's really `CausalHash` that you'd
   -- refer to to specify a full namespace w/ history.
   -- but do we want to be able to refer to a namespace without its history?
-  cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
+  cs <- Ops.causalHashesByPrefix (Cv.sch1to2 sh)
   pure $ Set.map (Causal.CausalHash . unCausalHash) cs
 
 sqlLca :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Branch.CausalHash)

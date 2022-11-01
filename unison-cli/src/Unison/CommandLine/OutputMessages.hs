@@ -73,8 +73,8 @@ import qualified Unison.Codebase.Patch as Patch
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SqliteCodebase.GitError
   ( GitSqliteCodebaseError (..),
@@ -354,14 +354,14 @@ notifyNumbered o = case o of
           ],
       numberedArgsForEndangerments ppeDecl endangerments
     )
-  History _cap sbhLength history tail ->
+  History _cap schLength history tail ->
     let (tailMsg, tailHashes) = handleTail (length history + 1)
         msg :: Pretty
         msg =
           P.lines
             [ note $ "The most recent namespace hash is immediately below this message.",
               "",
-              P.sep "\n\n" [go i (toSBH h) diff | (i, (h, diff)) <- zip [1 ..] reversedHistory],
+              P.sep "\n\n" [go i (toSCH h) diff | (i, (h, diff)) <- zip [1 ..] reversedHistory],
               "",
               tailMsg
             ]
@@ -369,8 +369,8 @@ notifyNumbered o = case o of
         branchHashes = (fst <$> reversedHistory) <> tailHashes
      in (msg, displayBranchHash <$> branchHashes)
     where
-      toSBH :: Branch.CausalHash -> ShortBranchHash
-      toSBH h = SBH.fromHash sbhLength h
+      toSCH :: Branch.CausalHash -> ShortCausalHash
+      toSCH h = SCH.fromHash schLength h
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
@@ -378,7 +378,7 @@ notifyNumbered o = case o of
       handleTail n = case tail of
         E.EndOfLog h ->
           ( P.lines
-              [ "□ " <> showNum n <> prettySBH (toSBH h) <> " (start of history)"
+              [ "□ " <> showNum n <> prettySCH (toSCH h) <> " (start of history)"
               ],
             [h]
           )
@@ -386,9 +386,9 @@ notifyNumbered o = case o of
           ( P.lines
               [ P.wrap $ "This segment of history starts with a merge." <> ex,
                 "",
-                "⊙ " <> showNum n <> prettySBH (toSBH h),
+                "⊙ " <> showNum n <> prettySCH (toSCH h),
                 "⑃",
-                P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySBH (toSBH h))
+                P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySCH (toSCH h))
               ],
             h : hs
           )
@@ -398,15 +398,15 @@ notifyNumbered o = case o of
                 "",
                 dots,
                 "",
-                "⊙ " <> showNum n <> prettySBH (toSBH h),
+                "⊙ " <> showNum n <> prettySCH (toSCH h),
                 ""
               ],
             [h]
           )
       dots = "⠇"
-      go i sbh diff =
+      go i sch diff =
         P.lines
-          [ "⊙ " <> showNum i <> prettySBH sbh,
+          [ "⊙ " <> showNum i <> prettySCH sch,
             "",
             P.indentN 2 $ prettyDiff diff
           ]
@@ -596,13 +596,13 @@ notifyUser dir o = case o of
                   <> P.group (P.plural hashes "hash" <> ":"),
               "",
               (P.indentN 2 . P.oxfordCommas)
-                (map prettySBH $ toList hashes),
+                (map prettySCH $ toList hashes),
               "",
               P.wrap $
                 "and I'm not sure what to do about it."
                   <> "The last root namespace hash that I knew about was:",
               "",
-              P.indentN 2 $ prettySBH current,
+              P.indentN 2 $ prettySCH current,
               "",
               P.wrap $ "Now might be a good time to make a backup of your codebase. 😬",
               "",
@@ -1236,15 +1236,15 @@ notifyUser dir o = case o of
             <> P.shown path
             <> "in the repository at"
             <> prettyReadGitRepo repo
-      NoRemoteNamespaceWithHash repo sbh ->
+      NoRemoteNamespaceWithHash repo sch ->
         P.wrap $
           "The repository at" <> prettyReadGitRepo repo
             <> "doesn't contain a namespace with the hash prefix"
-            <> (P.blue . P.text . SBH.toText) sbh
-      RemoteNamespaceHashAmbiguous repo sbh hashes ->
+            <> (P.blue . P.text . SCH.toText) sch
+      RemoteNamespaceHashAmbiguous repo sch hashes ->
         P.lines
           [ P.wrap $
-              "The namespace hash" <> prettySBH sbh
+              "The namespace hash" <> prettySCH sch
                 <> "at"
                 <> prettyReadGitRepo repo
                 <> "is ambiguous."
@@ -1252,7 +1252,7 @@ notifyUser dir o = case o of
             "",
             P.indentN 2 $
               P.lines
-                ( prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
+                ( prettySCH . SCH.fromHash ((Text.length . SCH.toText) sch * 2)
                     <$> Set.toList hashes
                 ),
             "",
@@ -1403,10 +1403,10 @@ notifyUser dir o = case o of
   BranchHashAmbiguous h rs ->
     pure . P.callout "\129300" . P.lines $
       [ P.wrap $
-          "The namespace hash" <> prettySBH h <> "is ambiguous."
+          "The namespace hash" <> prettySCH h <> "is ambiguous."
             <> "Did you mean one of these hashes?",
         "",
-        P.indentN 2 $ P.lines (prettySBH <$> Set.toList rs),
+        P.indentN 2 $ P.lines (prettySCH <$> Set.toList rs),
         "",
         P.wrap "Try again with a few more hash characters to disambiguate."
       ]
@@ -1445,7 +1445,7 @@ notifyUser dir o = case o of
     where
       header =
         case entries of
-          (_head : (_, prevSBH, _) : _) ->
+          (_head : (_, prevSCH, _) : _) ->
             P.lines
               [ P.wrap $
                   "Here is a log of the root namespace hashes,"
@@ -1457,11 +1457,11 @@ notifyUser dir o = case o of
                     [ ( IP.makeExample IP.forkLocal ["2", ".old"],
                         ""
                       ),
-                      ( IP.makeExample IP.forkLocal [prettySBH prevSBH, ".old"],
+                      ( IP.makeExample IP.forkLocal [prettySCH prevSCH, ".old"],
                         "to make an old namespace accessible again,"
                       ),
                       (mempty, mempty),
-                      ( IP.makeExample IP.resetRoot [prettySBH prevSBH],
+                      ( IP.makeExample IP.resetRoot [prettySCH prevSCH],
                         "to reset the root namespace and its history to that of the specified"
                           <> "namespace."
                       )
@@ -1470,9 +1470,9 @@ notifyUser dir o = case o of
                 ""
               ]
           _ -> mempty
-      renderEntry3Column :: UTCTime -> (Maybe UTCTime, SBH.ShortBranchHash, Text) -> [Pretty]
-      renderEntry3Column now (mayTime, sbh, reason) =
-        [maybe "" (prettyHumanReadableTime now) mayTime, P.blue (prettySBH sbh), P.text $ truncateReason reason]
+      renderEntry3Column :: UTCTime -> (Maybe UTCTime, SCH.ShortCausalHash, Text) -> [Pretty]
+      renderEntry3Column now (mayTime, sch, reason) =
+        [maybe "" (prettyHumanReadableTime now) mayTime, P.blue (prettySCH sch), P.text $ truncateReason reason]
       truncateReason :: Text -> Text
       truncateReason txt = case Text.splitAt 60 txt of
         (short, "") -> short
@@ -1905,7 +1905,7 @@ prettyPath' p' =
 
 prettyBranchId :: Input.AbsBranchId -> Pretty
 prettyBranchId = \case
-  Left sbh -> prettySBH sbh
+  Left sch -> prettySCH sch
   Right absPath -> prettyAbsolute $ absPath
 
 prettyRelative :: Path.Relative -> Pretty
@@ -1914,8 +1914,8 @@ prettyRelative = P.blue . P.shown
 prettyAbsolute :: Path.Absolute -> Pretty
 prettyAbsolute = P.blue . P.shown
 
-prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
-prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
+prettySCH :: IsString s => ShortCausalHash -> P.Pretty s
+prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)
 
 prettyCausalHash :: IsString s => Causal.CausalHash -> P.Pretty s
 prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . Causal.unCausalHash $ hash)
@@ -2863,7 +2863,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -- prefixBranchId ".base" "List.map" -> ".base.List.map"
     prefixBranchId :: Input.AbsBranchId -> Name -> String
     prefixBranchId branchId name = case branchId of
-      Left sbh -> "#" <> SBH.toString sbh <> ":" <> Name.toString (Name.makeAbsolute name)
+      Left sch -> "#" <> SCH.toString sch <> ":" <> Name.toString (Name.makeAbsolute name)
       Right pathPrefix -> Name.toString (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
 
     addNumberedArg' :: String -> Numbered Pretty

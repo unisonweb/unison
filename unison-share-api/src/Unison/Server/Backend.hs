@@ -46,10 +46,10 @@ import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
-import Unison.Codebase.ShortBranchHash
-  ( ShortBranchHash,
+import Unison.Codebase.ShortCausalHash
+  ( ShortCausalHash,
   )
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
@@ -136,8 +136,8 @@ data BackendError
       -- ^ error message
       String
       -- ^ namespace
-  | CouldntExpandBranchHash ShortBranchHash
-  | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
+  | CouldntExpandBranchHash ShortCausalHash
+  | AmbiguousBranchHash ShortCausalHash (Set ShortCausalHash)
   | AmbiguousHashForDefinition ShortHash
   | NoBranchForHash Branch.CausalHash
   | CouldntLoadBranch Branch.CausalHash
@@ -779,16 +779,16 @@ data DefinitionResults v = DefinitionResults
     noResults :: [HQ.HashQualified Name]
   }
 
-expandShortBranchHash ::
-  Monad m => Codebase m v a -> ShortBranchHash -> Backend m Branch.CausalHash
-expandShortBranchHash codebase hash = do
-  hashSet <- lift $ Codebase.branchHashesByPrefix codebase hash
+expandShortCausalHash ::
+  Monad m => Codebase m v a -> ShortCausalHash -> Backend m Branch.CausalHash
+expandShortCausalHash codebase hash = do
+  hashSet <- lift $ Codebase.causalHashesByPrefix codebase hash
   len <- lift $ Codebase.branchHashLength codebase
   case Set.toList hashSet of
     [] -> throwError $ CouldntExpandBranchHash hash
     [h] -> pure h
     _ ->
-      throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
+      throwError . AmbiguousBranchHash hash $ Set.map (SCH.fromHash len) hashSet
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
 getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (V2Branch.CausalBranch m)
@@ -1142,21 +1142,21 @@ resolveCausalHashV2 codebase h = case h of
   Just ch -> lift $ Codebase.getShallowCausalForHash codebase ch
 
 resolveRootBranchHash ::
-  Monad m => Maybe ShortBranchHash -> Codebase m v a -> Backend m (Branch m)
+  Monad m => Maybe ShortCausalHash -> Codebase m v a -> Backend m (Branch m)
 resolveRootBranchHash mayRoot codebase = case mayRoot of
   Nothing ->
     lift (Codebase.getRootBranch codebase)
-  Just sbh -> do
-    h <- expandShortBranchHash codebase sbh
+  Just sch -> do
+    h <- expandShortCausalHash codebase sch
     resolveCausalHash (Just h) codebase
 
 resolveRootBranchHashV2 ::
-  Monad m => Codebase m v a -> Maybe ShortBranchHash -> Backend m (V2Branch.CausalBranch m)
+  Monad m => Codebase m v a -> Maybe ShortCausalHash -> Backend m (V2Branch.CausalBranch m)
 resolveRootBranchHashV2 codebase mayRoot = case mayRoot of
   Nothing ->
     lift (Codebase.getShallowRootCausal codebase)
-  Just sbh -> do
-    h <- Cv.causalHash1to2 <$> expandShortBranchHash codebase sbh
+  Just sch -> do
+    h <- Cv.causalHash1to2 <$> expandShortCausalHash codebase sch
     resolveCausalHashV2 codebase (Just h)
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
