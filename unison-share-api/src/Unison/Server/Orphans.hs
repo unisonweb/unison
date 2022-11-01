@@ -160,8 +160,19 @@ instance ToJSON Name where
   toEncoding = toEncoding . Name.toText
   toJSON = toJSON . Name.toText
 
+instance FromJSON Name where
+  parseJSON = withText "Name" \txt ->
+    either (fail . Text.unpack) pure $ Name.fromTextEither txt
+
 instance ToSchema Name where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToJSONKey Name
+
+instance FromJSONKey Name
+
+instance ToHttpApiData Name where
+  toQueryParam = Name.toText
 
 deriving anyclass instance ToParamSchema ShortCausalHash
 
@@ -338,9 +349,6 @@ instance ToParamSchema (HQ'.HashQualified n) where
     mempty
       & type_ ?~ OpenApiString
       & example ?~ Aeson.String "name@hash"
-
-instance ToHttpApiData Name where
-  toQueryParam = Name.toText
 
 deriving newtype instance ToSchema NameSegment
 

@@ -11,6 +11,8 @@
 module Unison.Server.Endpoints.DiffNamespaces where
 
 import Control.Monad.Except
+import Data.Aeson
+import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import Servant.OpenApi ()
 import U.Codebase.Branch (Branch)
@@ -28,25 +30,13 @@ import qualified Unison.Server.Backend as Backend
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.List as ListUtils
 
--- | All the terms which exist _only_ in one side or the other of the diff.
--- Terms which are unchanged between from<->to are omitted.
-data NamespaceDiffResponse = NamespaceDiffResponse
-  { onlyFrom :: DiffContents,
-    onlyTo :: DiffContents
-  }
-
-data DiffContents = DiffContents
-  { terms :: Map Name [Referent],
-    types :: Map Name [Reference]
-  }
-
 serveDiffNamespaces ::
   forall m.
   MonadIO m =>
   Codebase m Symbol Ann ->
   SBH.ShortNamespaceHash ->
   SBH.ShortNamespaceHash ->
-  Backend.Backend m NamespaceDiffResponse
+  Backend.Backend m (NamespaceDiffResponse Referent Reference)
 serveDiffNamespaces codebase fromNamespaceHash toNamespaceHash = do
   fromNamespace <- resolveNamespaceFromHash fromNamespaceHash
   toNamespace <- resolveNamespaceFromHash toNamespaceHash
@@ -66,3 +56,29 @@ serveDiffNamespaces codebase fromNamespaceHash toNamespaceHash = do
         [] -> throwError $ Backend.CouldntExpandNamespaceHash snh
         [nsh] -> (lift $ Codebase.getShallowBranchForHash codebase nsh) `whenNothingM` throwError (Backend.NoNamespaceForHash nsh)
         _ -> throwError . Backend.AmbiguousNamespaceHash snh $ hashMatches
+
+-- | All the terms which exist _only_ in one side or the other of the diff.
+-- Terms which are unchanged between from<->to are omitted.
+data NamespaceDiffResponse termRef typeRef = NamespaceDiffResponse
+  { onlyFrom :: DiffContents termRef typeRef,
+    onlyTo :: DiffContents termRef typeRef
+  }
+
+instance (ToJSON termRef, ToJSON typeRef) => ToJSON (NamespaceDiffResponse termRef typeRef) where
+  toJSON (NamespaceDiffResponse {onlyFrom, onlyTo}) =
+    Aeson.object
+      [ "onlyFrom" .= onlyFrom,
+        "onlyTo" .= onlyTo
+      ]
+
+data DiffContents termRef typeRef = DiffContents
+  { terms :: Map Name [termRef],
+    types :: Map Name [typeRef]
+  }
+
+instance (ToJSON termRef, ToJSON typeRef) => ToJSON (DiffContents termRef typeRef) where
+  toJSON (DiffContents {terms, types}) =
+    Aeson.object
+      [ "terms" .= terms,
+        "types" .= types
+      ]
