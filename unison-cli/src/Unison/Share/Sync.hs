@@ -159,7 +159,22 @@ fastForwardPush httpClient unisonShareUrl connect path localHeadHash uploadedCal
     Left (GetCausalHashByPathErrorNoReadPermission _) -> pure (Left (FastForwardPushErrorNoReadPermission path))
     Right Nothing -> pure (Left (FastForwardPushErrorNoHistory path))
     Right (Just (Share.hashJWTHash -> remoteHeadHash)) -> do
-      let doLoadCausalSpineBetween = loadCausalSpineBetween remoteHeadHash (causalHashToHash32 localHeadHash)
+      let doLoadCausalSpineBetween = do
+            -- (Temporary?) optimization - perform the "is ancestor?" check within sqlite before reconstructing the
+            -- actual path.
+            let isBefore :: Sqlite.Transaction Bool
+                isBefore = do
+                  maybeHashIds <-
+                    runMaybeT $
+                      (,)
+                        <$> MaybeT (Q.loadCausalHashIdByCausalHash (hash32ToCausalHash remoteHeadHash))
+                        <*> MaybeT (Q.loadCausalHashIdByCausalHash localHeadHash)
+                  case maybeHashIds of
+                    Nothing -> pure False
+                    Just (remoteHeadHashId, localHeadHashId) -> Q.before remoteHeadHashId localHeadHashId
+            isBefore >>= \case
+              False -> pure Nothing
+              True -> loadCausalSpineBetween remoteHeadHash (causalHashToHash32 localHeadHash)
       (connect \conn -> Sqlite.runTransaction conn doLoadCausalSpineBetween) >>= \case
         -- After getting the remote causal hash, we can tell from a local computation that this wouldn't be a
         -- fast-forward push, so we don't bother trying - just report the error now.
