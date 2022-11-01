@@ -672,7 +672,7 @@ viewRemoteBranch' ::
   Git.GitBranchBehavior ->
   ((Branch m, CodebasePath) -> m r) ->
   m (Either C.GitError r)
-viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior action = UnliftIO.try $ do
+viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior action = UnliftIO.try $ do
   -- set up the cache dir
   time "Git fetch" $
     throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
@@ -695,19 +695,19 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior act
 
       result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote MigrateAfterPrompt \codebase -> do
         -- try to load the requested branch from it
-        branch <- time "Git fetch (sbh)" $ case sbh of
+        branch <- time "Git fetch (sch)" $ case sch of
           -- no sub-branch was specified, so use the root.
           Nothing -> time "Get remote root branch" $ Codebase1.getRootBranch codebase
           -- load from a specific `ShortCausalHash`
-          Just sbh -> do
-            branchCompletions <- Codebase1.causalHashesByPrefix codebase sbh
+          Just sch -> do
+            branchCompletions <- Codebase1.causalHashesByPrefix codebase sch
             case toList branchCompletions of
-              [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+              [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
               [h] ->
                 (Codebase1.getBranchForHash codebase h) >>= \case
                   Just b -> pure b
-                  Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+                  Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
+              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sch branchCompletions
         case Branch.getAt path branch of
           Just b -> action (b, remotePath)
           Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path

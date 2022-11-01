@@ -573,7 +573,7 @@ causalHashesByPrefix sh = do
   -- given that a Branch is shallow, it's really `CausalHash` that you'd
   -- refer to to specify a full namespace w/ history.
   -- but do we want to be able to refer to a namespace without its history?
-  cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
+  cs <- Ops.causalHashesByPrefix (Cv.sch1to2 sh)
   pure $ Set.map (Causal.CausalHash . unCausalHash) cs
 
 sqlLca :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Branch.CausalHash)

@@ -135,8 +135,8 @@ serve codebase mayRoot mayOwner = projects
     projects = do
       shallowRootBranch <- case mayRoot of
         Nothing -> lift (Codebase.getShallowRootBranch codebase)
-        Just sbh -> do
-          h <- Backend.expandShortCausalHash codebase sbh
+        Just sch -> do
+          h <- Backend.expandShortCausalHash codebase sch
           -- TODO: can this ever be missing?
           causal <- lift $ Codebase.getShallowCausalForHash codebase (Cv.causalHash1to2 h)
           lift $ V2Causal.value causal

@@ -26,7 +26,7 @@ test :: Test ()
 test = scope "uriparser" . tests $ [testShare, testGit]
 
 gitHelper :: (ReadGitRepo, Maybe ShortCausalHash, Path) -> ReadRemoteNamespace
-gitHelper (repo, sbh, path) = ReadRemoteNamespaceGit (ReadGitRemoteNamespace repo sbh path)
+gitHelper (repo, sch, path) = ReadRemoteNamespaceGit (ReadGitRemoteNamespace repo sch path)
 
 testShare :: Test ()
 testShare =
@@ -49,13 +49,13 @@ testGit =
             gitHelper (ReadGitRepo "/srv/git/project.git" Nothing, Nothing, Path.empty)
           ),
           ( "git(/srv/git/project.git:abc)#def.hij.klm",
-            gitHelper (ReadGitRepo "/srv/git/project.git" (Just "abc"), sbh "def", path ["hij", "klm"])
+            gitHelper (ReadGitRepo "/srv/git/project.git" (Just "abc"), sch "def", path ["hij", "klm"])
           ),
           ( "git(srv/git/project.git)",
             gitHelper (ReadGitRepo "srv/git/project.git" Nothing, Nothing, Path.empty)
           ),
           ( "git(srv/git/project.git:abc)#def.hij.klm",
-            gitHelper (ReadGitRepo "srv/git/project.git" (Just "abc"), sbh "def", path ["hij", "klm"])
+            gitHelper (ReadGitRepo "srv/git/project.git" (Just "abc"), sch "def", path ["hij", "klm"])
           )
         ],
       -- File Protocol
@@ -65,13 +65,13 @@ testGit =
             gitHelper (ReadGitRepo "file:///srv/git/project.git" Nothing, Nothing, Path.empty)
           ),
           ( "git(file:///srv/git/project.git:abc)#def.hij.klm",
-            gitHelper (ReadGitRepo "file:///srv/git/project.git" (Just "abc"), sbh "def", path ["hij", "klm"])
+            gitHelper (ReadGitRepo "file:///srv/git/project.git" (Just "abc"), sch "def", path ["hij", "klm"])
           ),
           ( "git(file://srv/git/project.git)",
             gitHelper (ReadGitRepo "file://srv/git/project.git" Nothing, Nothing, Path.empty)
           ),
           ( "git(file://srv/git/project.git:abc)#def.hij.klm",
-            gitHelper (ReadGitRepo "file://srv/git/project.git" (Just "abc"), sbh "def", path ["hij", "klm"])
+            gitHelper (ReadGitRepo "file://srv/git/project.git" (Just "abc"), sch "def", path ["hij", "klm"])
           )
         ],
       -- Smart / Dumb HTTP protocol
@@ -81,7 +81,7 @@ testGit =
             gitHelper (ReadGitRepo "https://example.com/git/project.git" Nothing, Nothing, Path.empty)
           ),
           ( "git(https://user@example.com/git/project.git:abc)#def.hij.klm]",
-            gitHelper (ReadGitRepo "https://user@example.com/git/project.git" (Just "abc"), sbh "def", path ["hij", "klm"])
+            gitHelper (ReadGitRepo "https://user@example.com/git/project.git" (Just "abc"), sch "def", path ["hij", "klm"])
           )
         ],
       -- SSH Protocol
@@ -91,7 +91,7 @@ testGit =
             gitHelper (ReadGitRepo "ssh://git@8.8.8.8:222/user/project.git" Nothing, Nothing, Path.empty)
           ),
           ( "git(ssh://git@github.com/user/project.git:abc)#def.hij.klm",
-            gitHelper (ReadGitRepo "ssh://git@github.com/user/project.git" (Just "abc"), sbh "def", path ["hij", "klm"])
+            gitHelper (ReadGitRepo "ssh://git@github.com/user/project.git" (Just "abc"), sch "def", path ["hij", "klm"])
           )
         ],
       --  $ git clone [user@]server:project.git[:treeish][:[#hash][.path]]
@@ -103,7 +103,7 @@ testGit =
             gitHelper (ReadGitRepo "github.com:user/project.git" Nothing, Nothing, Path.empty)
           ),
           ( "git(git@github.com:user/project.git:abc)#def.hij.klm",
-            gitHelper (ReadGitRepo "git@github.com:user/project.git" (Just "abc"), sbh "def", path ["hij", "klm"])
+            gitHelper (ReadGitRepo "git@github.com:user/project.git" (Just "abc"), sch "def", path ["hij", "klm"])
           )
         ]
     ]
@@ -120,5 +120,5 @@ expectParseFailure s = void . scope (Text.unpack s) . expectLeft . P.parse UriPa
 path :: [Text] -> Path
 path = Path . Seq.fromList . fmap NameSegment
 
-sbh :: Text -> Maybe ShortCausalHash
-sbh = Just . ShortCausalHash
+sch :: Text -> Maybe ShortCausalHash
+sch = Just . ShortCausalHash

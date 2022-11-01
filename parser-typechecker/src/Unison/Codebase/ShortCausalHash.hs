@@ -26,8 +26,8 @@ fromHash :: Coercible h Hash.Hash => Int -> h -> ShortCausalHash
 fromHash len =
   ShortCausalHash . Text.take len . Hash.base32Hex . coerce
 
--- abc -> SBH abc
--- #abc -> SBH abc
+-- abc -> SCH abc
+-- #abc -> SCH abc
 fromText :: Text -> Maybe ShortCausalHash
 fromText (Text.dropWhile (== '#') -> t)
   | Text.all (`Set.member` Hash.validBase32HexChars) t =

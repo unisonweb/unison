@@ -38,7 +38,7 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.InputPattern as Input
 import Unison.DataDeclaration (Decl)
@@ -237,7 +237,7 @@ data Output
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch ShortCausalHash (Set ShortCausalHash)
   | StartOfCurrentPathHistory
-  | ShowReflog [(Maybe UTCTime, SBH.ShortCausalHash, Text)]
+  | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
   | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | PullSuccessful ReadRemoteNamespace Path'
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.

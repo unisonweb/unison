@@ -49,7 +49,7 @@ import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortCausalHash
   ( ShortCausalHash,
   )
-import qualified Unison.Codebase.ShortCausalHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
@@ -788,7 +788,7 @@ expandShortCausalHash codebase hash = do
     [] -> throwError $ CouldntExpandBranchHash hash
     [h] -> pure h
     _ ->
-      throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
+      throwError . AmbiguousBranchHash hash $ Set.map (SCH.fromHash len) hashSet
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
 getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (V2Branch.CausalBranch m)
@@ -1146,8 +1146,8 @@ resolveRootBranchHash ::
 resolveRootBranchHash mayRoot codebase = case mayRoot of
   Nothing ->
     lift (Codebase.getRootBranch codebase)
-  Just sbh -> do
-    h <- expandShortCausalHash codebase sbh
+  Just sch -> do
+    h <- expandShortCausalHash codebase sch
     resolveCausalHash (Just h) codebase
 
 resolveRootBranchHashV2 ::
@@ -1155,8 +1155,8 @@ resolveRootBranchHashV2 ::
 resolveRootBranchHashV2 codebase mayRoot = case mayRoot of
   Nothing ->
     lift (Codebase.getShallowRootCausal codebase)
-  Just sbh -> do
-    h <- Cv.causalHash1to2 <$> expandShortCausalHash codebase sbh
+  Just sch -> do
+    h <- Cv.causalHash1to2 <$> expandShortCausalHash codebase sch
     resolveCausalHashV2 codebase (Just h)
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)

@@ -29,7 +29,7 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Verbosity
 import qualified Unison.HashQualified as HQ
@@ -63,13 +63,13 @@ data Insistence = Force | Try
   deriving (Show, Eq)
 
 parseBranchId :: String -> Either String BranchId
-parseBranchId ('#' : s) = case SBH.fromText (Text.pack s) of
+parseBranchId ('#' : s) = case SCH.fromText (Text.pack s) of
   Nothing -> Left "Invalid hash, expected a base32hex string."
   Just h -> pure $ Left h
 parseBranchId s = Right <$> Path.parsePath' s
 
 parseShortCausalHash :: String -> Either String ShortCausalHash
-parseShortCausalHash ('#' : s) | Just sbh <- SBH.fromText (Text.pack s) = Right sbh
+parseShortCausalHash ('#' : s) | Just sch <- SCH.fromText (Text.pack s) = Right sch
 parseShortCausalHash _ = Left "Invalid hash, expected a base32hex string."
 
 data PullMode

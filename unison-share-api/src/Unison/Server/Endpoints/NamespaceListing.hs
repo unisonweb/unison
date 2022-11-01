@@ -168,9 +168,9 @@ serve ::
   Maybe Path.Path ->
   Maybe Path.Path ->
   Backend.Backend IO NamespaceListing
-serve codebase maySBH mayRelativeTo mayNamespaceName = do
+serve codebase maySCH mayRelativeTo mayNamespaceName = do
   useIndex <- asks Backend.useNamesIndex
-  mayRootHash <- traverse (Backend.expandShortCausalHash codebase) maySBH
+  mayRootHash <- traverse (Backend.expandShortCausalHash codebase) maySCH
   codebaseRootHash <- liftIO $ Codebase.getRootCausalHash codebase
 
   -- Relative and Listing Path resolution

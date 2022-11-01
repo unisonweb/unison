@@ -31,7 +31,7 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.ShortCausalHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
@@ -52,7 +52,7 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 
 type FuzzyFindAPI =
-  "find" :> QueryParam "rootBranch" SBH.ShortCausalHash
+  "find" :> QueryParam "rootBranch" SCH.ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "limit" Int
     :> QueryParam "renderWidth" Width
@@ -130,7 +130,7 @@ serveFuzzyFind ::
   forall m.
   MonadIO m =>
   Codebase m Symbol Ann ->
-  Maybe SBH.ShortCausalHash ->
+  Maybe SCH.ShortCausalHash ->
   Maybe Path.Path ->
   Maybe Int ->
   Maybe Width ->

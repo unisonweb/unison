@@ -12,7 +12,7 @@ import qualified Data.Text.Lazy.Encoding as Text
 import Servant (ServerError (..), err400, err404, err409, err500)
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.ShortCausalHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.Prelude
@@ -46,8 +46,8 @@ backendError = \case
     couldntLoadBranch h
   Backend.CouldntExpandBranchHash h ->
     noSuchNamespace . Text.toStrict . Text.pack $ show h
-  Backend.AmbiguousBranchHash sbh hashes ->
-    ambiguousNamespace (SBH.toText sbh) (Set.map SBH.toText hashes)
+  Backend.AmbiguousBranchHash sch hashes ->
+    ambiguousNamespace (SCH.toText sch) (Set.map SCH.toText hashes)
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
   Backend.NoSuchDefinition hqName -> noSuchDefinition hqName
   Backend.AmbiguousHashForDefinition shorthash -> ambiguousHashForDefinition shorthash

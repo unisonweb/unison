@@ -57,8 +57,8 @@ import qualified Unison.Util.Star3 as V1.Star3
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as V1.WK
 
-sbh1to2 :: V1.ShortCausalHash -> V2.ShortCausalHash
-sbh1to2 (V1.ShortCausalHash b32) = V2.ShortCausalHash b32
+sch1to2 :: V1.ShortCausalHash -> V2.ShortCausalHash
+sch1to2 (V1.ShortCausalHash b32) = V2.ShortCausalHash b32
 
 decltype2to1 :: V2.Decl.DeclType -> CT.ConstructorType
 decltype2to1 = \case

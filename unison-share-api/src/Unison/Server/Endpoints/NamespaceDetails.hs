@@ -77,10 +77,10 @@ namespaceDetails ::
   Maybe ShortCausalHash ->
   Maybe Width ->
   Backend IO NamespaceDetails
-namespaceDetails runtime codebase namespacePath maySBH mayWidth =
+namespaceDetails runtime codebase namespacePath maySCH mayWidth =
   let width = mayDefaultWidth mayWidth
    in do
-        rootCausal <- Backend.resolveRootBranchHashV2 codebase maySBH
+        rootCausal <- Backend.resolveRootBranchHashV2 codebase maySCH
         namespaceCausal <- lift $ Codebase.getShallowCausalAtPath codebase namespacePath (Just rootCausal)
         shallowBranch <- lift $ V2Causal.value namespaceCausal
         namespaceDetails <- do

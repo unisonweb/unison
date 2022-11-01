@@ -93,7 +93,7 @@ import qualified Unison.Codebase.Patch as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment)
@@ -156,7 +156,7 @@ resolveShortCausalHash hash = do
         Cli.returnEarly
           if Set.null hashSet
             then Output.NoBranchWithHash hash
-            else Output.BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet)
+            else Output.BranchHashAmbiguous hash (Set.map (SCH.fromHash len) hashSet)
     branch <- liftIO (Codebase.getBranchForHash codebase h)
     pure (fromMaybe Branch.empty branch)
 

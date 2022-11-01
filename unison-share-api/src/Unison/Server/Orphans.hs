@@ -24,7 +24,7 @@ import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.ShortCausalHash
   ( ShortCausalHash (..),
   )
-import qualified Unison.Codebase.ShortCausalHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -68,7 +68,7 @@ instance FromJSONKey ShortHash where
         Just sh -> pure sh
 
 instance FromHttpApiData ShortCausalHash where
-  parseUrlPiece = maybe (Left "Invalid ShortCausalHash") Right . SBH.fromText
+  parseUrlPiece = maybe (Left "Invalid ShortCausalHash") Right . SCH.fromText
 
 -- | Always renders to the form: #abcdef
 instance ToHttpApiData ShortHash where
