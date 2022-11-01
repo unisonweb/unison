@@ -16,6 +16,7 @@ import qualified Data.Text as Text
 import Servant
 import Servant.Docs (DocCapture (DocCapture), DocQueryParam (..), ParamKind (..), ToCapture (..), ToParam (..))
 import U.Codebase.HashTags
+import U.Codebase.ShortHash (ShortNamespaceHash, parseShortNamespaceHash, shortNamespaceHashToText)
 import U.Util.Hash (Hash (..))
 import qualified U.Util.Hash as Hash
 import Unison.Codebase.Editor.DisplayObject
@@ -69,6 +70,12 @@ instance FromJSONKey ShortHash where
 
 instance FromHttpApiData ShortCausalHash where
   parseUrlPiece = maybe (Left "Invalid ShortCausalHash") Right . SBH.fromText
+
+instance ToHttpApiData ShortNamespaceHash where
+  toUrlPiece = shortNamespaceHashToText
+
+instance FromHttpApiData ShortNamespaceHash where
+  parseUrlPiece = parseShortNamespaceHash
 
 -- | Always renders to the form: #abcdef
 instance ToHttpApiData ShortHash where
@@ -135,6 +142,12 @@ instance FromHttpApiData Referent.Referent where
         )
           & Referent.fromText
           & maybe (Left "Invalid Referent") Right
+
+instance ToJSON Referent.Referent where
+  toJSON = String . Referent.toText
+
+instance ToJSON Reference.Reference where
+  toJSON = String . Reference.toText
 
 instance ToSchema Reference where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)

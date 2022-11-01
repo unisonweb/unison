@@ -7,12 +7,16 @@ module U.Codebase.ShortHash
     ShortCausalHash (..),
     ShortNamespaceHash (..),
     shortenTo,
+    shortCausalHashToText,
+    shortNamespaceHashToText,
+    parseShortCausalHash,
+    parseShortNamespaceHash,
   )
 where
 
-import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Word (Word64)
+import U.Util.Base32Hex as Base32
+import Unison.Prelude
 
 -- ##Text.++
 --   ^^^^^^^-- builtin
@@ -26,12 +30,32 @@ data ShortHash
   | ShortHash {prefix :: Text, cycle :: Maybe Word64, cid :: Maybe Word64}
   deriving (Eq, Ord, Show)
 
-newtype ShortCausalHash = ShortCausalHash {shortCausalHashToText :: Text}
+newtype ShortCausalHash = ShortCausalHash Text
   deriving stock (Eq, Ord, Show)
 
-newtype ShortNamespaceHash = ShortNamespaceHash {shortNamespaceHashToText :: Text}
+newtype ShortNamespaceHash = ShortNamespaceHash Text
   deriving stock (Eq, Ord, Show)
+
+shortNamespaceHashToText :: ShortNamespaceHash -> Text
+shortNamespaceHashToText (ShortNamespaceHash base32) = "#" <> base32
+
+shortCausalHashToText :: ShortCausalHash -> Text
+shortCausalHashToText (ShortCausalHash base32) = "#" <> base32
 
 shortenTo :: Int -> ShortHash -> ShortHash
 shortenTo _ b@(Builtin _) = b
 shortenTo i s@ShortHash {..} = s {prefix = Text.take i prefix}
+
+parseShortCausalHash :: Text -> Either Text ShortCausalHash
+parseShortCausalHash = fmap ShortCausalHash . parseHashLike
+
+parseShortNamespaceHash :: Text -> Either Text ShortNamespaceHash
+parseShortNamespaceHash = fmap ShortNamespaceHash . parseHashLike
+
+parseHashLike :: Text -> Either Text Text
+parseHashLike txt =
+  case Text.stripPrefix "#" txt <|> Text.stripPrefix "#" txt of
+    Nothing -> Left $ "Hash arguments must begin with a # or @ prefix, but this did not: " <> (fromString . Text.unpack $ txt)
+    Just h -> case Base32.fromText h of
+      Nothing -> Left $ "Hash argument was invalid base32: " <> (fromString . Text.unpack $ txt)
+      Just (Base32.UnsafeFromText bh) -> Right bh

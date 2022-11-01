@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -13,6 +14,9 @@ module Unison.Server.Endpoints.DiffNamespaces where
 import Control.Monad.Except
 import Data.Aeson
 import qualified Data.Aeson as Aeson
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bifunctor
+import Data.Bitraversable
 import qualified Data.Set as Set
 import Servant.OpenApi ()
 import U.Codebase.Branch (Branch)
@@ -64,6 +68,22 @@ data NamespaceDiffResponse termRef typeRef = NamespaceDiffResponse
     onlyTo :: DiffContents termRef typeRef
   }
 
+instance Bifunctor NamespaceDiffResponse where
+  bimap = bimapDefault
+
+instance Bifoldable NamespaceDiffResponse where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable NamespaceDiffResponse where
+  bitraverse l r (NamespaceDiffResponse {onlyFrom, onlyTo}) = do
+    onlyFrom <- bitraverse l r onlyFrom
+    onlyTo <- bitraverse l r onlyTo
+    pure $
+      NamespaceDiffResponse
+        { onlyFrom,
+          onlyTo
+        }
+
 instance (ToJSON termRef, ToJSON typeRef) => ToJSON (NamespaceDiffResponse termRef typeRef) where
   toJSON (NamespaceDiffResponse {onlyFrom, onlyTo}) =
     Aeson.object
@@ -75,6 +95,18 @@ data DiffContents termRef typeRef = DiffContents
   { terms :: Map Name [termRef],
     types :: Map Name [typeRef]
   }
+
+instance Bifunctor DiffContents where
+  bimap = bimapDefault
+
+instance Bifoldable DiffContents where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable DiffContents where
+  bitraverse l r (DiffContents {terms, types}) = do
+    terms <- (traverse . traverse) l terms
+    types <- (traverse . traverse) r types
+    pure $ DiffContents {terms, types}
 
 instance (ToJSON termRef, ToJSON typeRef) => ToJSON (DiffContents termRef typeRef) where
   toJSON (DiffContents {terms, types}) =

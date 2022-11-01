@@ -11,7 +11,7 @@ import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant (ServerError (..), err400, err404, err409, err500)
 import U.Codebase.HashTags (BranchHash, CausalHash)
-import U.Codebase.ShortHash (ShortNamespaceHash (shortNamespaceHashToText))
+import U.Codebase.ShortHash (ShortNamespaceHash, shortNamespaceHashToText)
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
