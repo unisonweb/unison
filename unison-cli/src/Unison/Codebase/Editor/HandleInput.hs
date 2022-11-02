@@ -265,7 +265,7 @@ loop e = do
         #latestTypecheckedFile .= (Just unisonFile)
 
   case e of
-    Left (IncomingRootBranch hashes) -> do
+    Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
       Cli.Env {codebase} <- ask
       schLength <- liftIO (Codebase.branchHashLength codebase)
       rootBranch <- Cli.getRootBranch
@@ -273,7 +273,7 @@ loop e = do
         WarnIncomingRootBranch
           (SCH.fromHash schLength $ Branch.headHash rootBranch)
           (Set.map (SCH.fromHash schLength) hashes)
-    Left (UnisonFileChanged sourceName text) ->
+    Left (UnisonFileChanged sourceName text) -> Cli.time "UnisonFileChanged" do
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
         Just (_, True) -> (#latestFile . _Just . _2) .= False
@@ -369,7 +369,7 @@ loop e = do
               else do
                 ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                 Cli.respondNumbered (CantDeleteDefinitions ppeDecl endangerments)
-       in case input of
+       in Cli.time "InputPattern" case input of
             ApiI -> do
               Cli.Env {serverBaseUrl} <- ask
               whenJust serverBaseUrl \baseUrl ->
