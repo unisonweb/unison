@@ -222,7 +222,7 @@ enclose keep rec t@(Handle' h body)
       | otherwise = lam' a evs lbody
 enclose _ _ _ = Nothing
 
-data Prefix v x = Pfx (Map v [v])
+newtype Prefix v x = Pfx (Map v [v]) deriving (Show)
 
 instance Functor (Prefix v) where
   fmap _ (Pfx m) = Pfx m
@@ -235,19 +235,19 @@ common (u:us) (v:vs)
   | u == v = u : common us vs
 common _ _ = []
 
-pfx :: v -> [Term v a] -> Prefix v ()
-pfx v = Pfx . Map.singleton v . mkPfx
+splitPfx :: v -> [Term v a] -> (Prefix v x, [Term v a])
+splitPfx v = first (Pfx . Map.singleton v) . split
   where
-    mkPfx (Var' u : as) = u : mkPfx as
-    mkPfx _ = []
+    split (Var' u : as) = first (u :) $ split as
+    split rest = ([], rest)
 
 -- Finds the common variable prefixes that function variables are
 -- applied to, so that they can be reduced.
 prefix :: Ord v => Term v a -> Prefix v (Term v a)
-prefix = ABT.visit_ \case
-  App (Var' u) a -> pfx u [a]
-  App (Apps' (Var' u) as) a -> pfx u (as ++ [a])
-  _ -> pure ()
+prefix = ABT.visit \case
+  Apps' (Var' u) as -> case splitPfx u as of
+    (pf, rest) -> Just $ traverse prefix rest *> pf
+  _ -> Nothing
 
 appPfx :: Ord v => Prefix v a -> v -> [v] -> [v]
 appPfx (Pfx m) v = maybe id common $ Map.lookup v m
