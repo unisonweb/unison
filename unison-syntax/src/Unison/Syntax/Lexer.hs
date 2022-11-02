@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -45,6 +44,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import GHC.Exts (sortWith)
+import Text.Megaparsec (errorBundlePretty)
 import qualified Text.Megaparsec as P
 import Text.Megaparsec.Char (char)
 import qualified Text.Megaparsec.Char as CP
@@ -300,13 +300,13 @@ lexer0' scope rem =
     tweak (h@(payload -> Reserved _) : t) = h : tweak t
     tweak (t1 : t2@(payload -> Numeric num) : rem)
       | notLayout t1 && touches t1 t2 && isSigned num =
-          t1 :
-          Token
-            (SymbolyId (take 1 num) Nothing)
-            (start t2)
-            (inc $ start t2) :
-          Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
-          tweak rem
+        t1 :
+        Token
+          (SymbolyId (take 1 num) Nothing)
+          (start t2)
+          (inc $ start t2) :
+        Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
+        tweak rem
     tweak (h : t) = h : tweak t
     isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
 
@@ -341,6 +341,92 @@ restoreStack lbl p = do
   S.put (s2 {layout = layout1})
   pure $ p <> closes
 
+anyId :: P (String, [String], Maybe SH.ShortHash)
+anyId = do
+  dot <- P.optional (lit ".")
+  segs <- P.sepBy1 (wordyIdSeg <|> symbolyIdSeg) (P.try (char '.' <* P.lookAhead (P.satisfy (\c -> wordyIdChar c || symbolyIdChar c))))
+  shorthash <- P.optional shorthash
+  pure (fromMaybe "" dot, segs, shorthash)
+
+wordyId :: P Lexeme
+wordyId = P.label wordyMsg . P.try $ do
+  (dot, segs, shorthash) <- anyId
+  r <- lift $ P.runParserT wordyIdSeg "" (last segs)
+  if isRight r
+    then pure $ WordyId (dot <> intercalate "." segs) shorthash
+    else P.empty
+  where
+    wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
+
+symbolyId :: P Lexeme
+symbolyId = P.label symbolMsg . P.try $ do
+  (dot, segs, shorthash) <- anyId
+  r <- lift $ P.runParserT symbolyIdSeg "" (last segs)
+  if isRight r
+    then pure $ SymbolyId (dot <> intercalate "." segs) shorthash
+    else P.empty
+
+symbolMsg :: String
+symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
+
+symbolyIdSeg :: P String
+symbolyIdSeg = do
+  start <- pos
+  id <- P.takeWhile1P (Just symbolMsg) symbolyIdChar
+  when (Set.member id reservedOperators) $ do
+    stop <- pos
+    P.customFailure (Token (ReservedSymbolyId id) start stop)
+  pure id
+
+hashMsg :: String
+hashMsg = "hash (ex: #af3sj3)"
+
+shorthash :: P ShortHash
+shorthash = P.label hashMsg $ do
+  P.lookAhead (char '#')
+  -- `foo#xyz` should parse
+  (start, potentialHash, _) <- positioned $ P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
+  case SH.fromString potentialHash of
+    Nothing -> err start (InvalidShortHash potentialHash)
+    Just sh -> pure sh
+
+positioned :: P b -> P (Pos, b, Pos)
+positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
+
+wordyIdSeg :: P String
+wordyIdSeg = P.try $ do
+  start <- pos
+  ch <- P.satisfy wordyIdStartChar
+  rest <- P.many (P.satisfy wordyIdChar)
+  let word = ch : rest
+  when (Set.member word keywords) $ do
+    stop <- pos
+    P.customFailure
+      (Token (ReservedWordyId word) start stop)
+  pure (ch : rest)
+
+symbolyId0 :: String -> Either String (String, String)
+symbolyId0 s = flip S.evalState (ParsingEnv [] (Just "") True 0 0) $ do
+  e <- P.runParserT p "" s
+  pure $ mapLeft errorBundlePretty e
+  where
+    p :: P (String, String)
+    p = do
+      seg <- symbolyIdSeg
+      rem <- P.getInput
+      pure (seg, rem)
+
+wordyId0 :: String -> Either String (String, String)
+wordyId0 s = flip S.evalState (ParsingEnv [] (Just "") True 0 0) $ do
+  e <- P.runParserT p "" s
+  pure $ mapLeft errorBundlePretty e
+  where
+    p :: P (String, String)
+    p = do
+      seg <- wordyIdSeg
+      rem <- P.getInput
+      pure (seg, rem)
+
 lexemes' :: P [Token Lexeme] -> P [Token Lexeme]
 lexemes' eof =
   P.optional space >> do
@@ -356,7 +442,6 @@ lexemes' eof =
         <|> (asum . map token) [semi, textual, hash]
 
     wordySep c = isSpace c || not (wordyIdChar c)
-    positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
 
     tok :: P a -> P [Token a]
     tok p = do
@@ -380,11 +465,11 @@ lexemes' eof =
       pure $ case (tn, docToks) of
         (Just (WordyId tname _), ht : _)
           | isTopLevel ->
-              startToks
-                <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
-                <> docToks0
-                <> [Close <$ last docToks]
-                <> endToks
+            startToks
+              <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
+              <> docToks0
+              <> [Close <$ last docToks]
+              <> endToks
           where
             isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
         _ -> docToks <> endToks
@@ -566,7 +651,7 @@ lexemes' eof =
                   skip col ('\t' : r) = skip (col - tabWidth) r
                   skip col (c : r)
                     | isSpace c && (not $ isControl c) =
-                        skip (col - 1) r
+                      skip (col - 1) r
                   skip _ s = s
                in intercalate "\n" $ skip column <$> lines s
 
@@ -779,50 +864,6 @@ lexemes' eof =
     character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
       where
         spEsc = P.try (char '\\' *> char 's' $> ' ')
-    wordyId :: P Lexeme
-    wordyId = P.label wordyMsg . P.try $ do
-      dot <- P.optional (lit ".")
-      segs <- P.sepBy1 wordyIdSeg (P.try (char '.' <* P.lookAhead (P.satisfy wordyIdChar)))
-      shorthash <- P.optional shorthash
-      pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
-      where
-        wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
-
-    symbolyId :: P Lexeme
-    symbolyId = P.label symbolMsg . P.try $ do
-      dot <- P.optional (lit ".")
-      segs <- P.optional segs
-      shorthash <- P.optional shorthash
-      case (dot, segs) of
-        (_, Just segs) -> pure $ SymbolyId (fromMaybe "" dot <> segs) shorthash
-        -- a single . or .#somehash is parsed as a symboly id
-        (Just dot, Nothing) -> pure $ SymbolyId dot shorthash
-        (Nothing, Nothing) -> fail symbolMsg
-      where
-        segs = symbolyIdSeg <|> (wordyIdSeg <+> lit "." <+> segs)
-
-    symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
-
-    symbolyIdSeg :: P String
-    symbolyIdSeg = do
-      start <- pos
-      id <- P.takeWhile1P (Just symbolMsg) symbolyIdChar
-      when (Set.member id reservedOperators) $ do
-        stop <- pos
-        P.customFailure (Token (ReservedSymbolyId id) start stop)
-      pure id
-
-    wordyIdSeg :: P String
-    -- wordyIdSeg = litSeg <|> (P.try do -- todo
-    wordyIdSeg = P.try $ do
-      start <- pos
-      ch <- P.satisfy wordyIdStartChar
-      rest <- P.many (P.satisfy wordyIdChar)
-      let word = ch : rest
-      when (Set.member word keywords) $ do
-        stop <- pos
-        P.customFailure (Token (ReservedWordyId word) start stop)
-      pure (ch : rest)
 
     {-
     -- ``an-identifier-with-dashes``
@@ -835,15 +876,6 @@ lexemes' eof =
       let escTick = lit "\\`" $> '`'
       P.manyTill (LP.charLiteral <|> escTick) (lit ticks)
     -}
-
-    hashMsg = "hash (ex: #af3sj3)"
-    shorthash = P.label hashMsg $ do
-      P.lookAhead (char '#')
-      -- `foo#xyz` should parse
-      (start, potentialHash, _) <- positioned $ P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
-      case SH.fromString potentialHash of
-        Nothing -> err start (InvalidShortHash potentialHash)
-        Just sh -> pure sh
 
     separated :: (Char -> Bool) -> P a -> P a
     separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)
@@ -1011,7 +1043,7 @@ lexemes' eof =
           case topBlockName (layout env) of
             Just match
               | allowCommaToClose match ->
-                  blockDelimiter ["[", "("] (lit ",")
+                blockDelimiter ["[", "("] (lit ",")
             _ -> fail "this comma is a pattern separator"
 
         delim = P.try $ do
@@ -1204,15 +1236,6 @@ showEscapeChar c =
 isSep :: Char -> Bool
 isSep c = isSpace c || Set.member c delimiters
 
--- Not a keyword, '.' delimited list of wordyId0 (should not include a trailing '.')
-wordyId0 :: String -> Either Err (String, String)
-wordyId0 s = span' wordyIdChar s $ \case
-  (id@(ch : _), rem)
-    | not (Set.member id keywords)
-        && wordyIdStartChar ch ->
-        Right (id, rem)
-  (id, _rem) -> Left (InvalidWordyId id)
-
 wordyIdStartChar :: Char -> Bool
 wordyIdStartChar ch = isAlpha ch || isEmoji ch || ch == '_'
 
@@ -1223,47 +1246,11 @@ wordyIdChar ch =
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
-symbolyId :: String -> Either Err (String, String)
-symbolyId r@('.' : s)
-  | s == "" = symbolyId0 r --
-  | isSpace (head s) = symbolyId0 r -- lone dot treated as an operator
-  | isDelimiter (head s) = symbolyId0 r --
-  | otherwise = (\(s, rem) -> ('.' : s, rem)) <$> symbolyId' s
-symbolyId s = symbolyId' s
-
--- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
-symbolyId' :: String -> Either Err (String, String)
-symbolyId' s = case wordyId0 s of
-  Left _ -> symbolyId0 s
-  Right (wid, '.' : rem) -> case symbolyId rem of
-    Left e -> Left e
-    Right (rest, rem) -> Right (wid <> "." <> rest, rem)
-  Right (w, _) -> Left (InvalidSymbolyId w)
-
-wordyId :: String -> Either Err (String, String)
-wordyId ('.' : s) = (\(s, rem) -> ('.' : s, rem)) <$> wordyId' s
-wordyId s = wordyId' s
-
--- Is a '.' delimited list of wordyId
-wordyId' :: String -> Either Err (String, String)
-wordyId' s = case wordyId0 s of
-  Left e -> Left e
-  Right (wid, '.' : rem@(ch : _)) | wordyIdStartChar ch -> case wordyId rem of
-    Left e -> Left e
-    Right (rest, rem) -> Right (wid <> "." <> rest, rem)
-  Right (w, rem) -> Right (w, rem)
-
--- Returns either an error or an id and a remainder
-symbolyId0 :: String -> Either Err (String, String)
-symbolyId0 s = span' symbolyIdChar s $ \case
-  (id@(_ : _), rem) | not (Set.member id reservedOperators) -> Right (id, rem)
-  (id, _rem) -> Left (InvalidSymbolyId id)
-
 symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>~\\/|:"
 
 keywords :: Set String
 keywords =
@@ -1308,8 +1295,8 @@ typeModifiersAlt f =
 delimiters :: Set Char
 delimiters = Set.fromList "()[]{},?;"
 
-isDelimiter :: Char -> Bool
-isDelimiter ch = Set.member ch delimiters
+-- isDelimiter :: Char -> Bool
+-- isDelimiter ch = Set.member ch delimiters
 
 reservedOperators :: Set String
 reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'"]
@@ -1342,8 +1329,8 @@ debugLex' = debugLex'' . lexer "debugLex"
 debugLex''' :: String -> String -> String
 debugLex''' s = debugLex'' . lexer s
 
-span' :: (a -> Bool) -> [a] -> (([a], [a]) -> r) -> r
-span' f a k = k (span f a)
+-- span' :: (a -> Bool) -> [a] -> (([a], [a]) -> r) -> r
+-- span' f a k = k (span f a)
 
 instance EP.ShowErrorComponent (Token Err) where
   showErrorComponent (Token err _ _) = go err

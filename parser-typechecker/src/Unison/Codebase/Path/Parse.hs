@@ -69,7 +69,7 @@ parsePathImpl' p = case p of
 parseSegment :: String -> Either String (String, String)
 parseSegment s =
   first show
-    . (Lexer.wordyId <> Lexer.symbolyId)
+    . (Lexer.wordyId0 <> Lexer.symbolyId0)
     <> unit'
     <> const (Left ("I expected an identifier but found " <> s))
     $ s
@@ -96,7 +96,7 @@ unit s = case unit' s of
 definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s <> unit s
   where
     symbolyNameSegment s = case Lexer.symbolyId0 s of
-      Left e -> Left (show e)
+      Left e -> Left e
       Right (a, "") -> Right (NameSegment (Text.pack a))
       Right (a, rem) ->
         Left $ "trailing characters after " <> show a <> ": " <> show rem

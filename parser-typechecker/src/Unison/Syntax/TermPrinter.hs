@@ -38,7 +38,7 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-import Unison.Syntax.Lexer (showEscapeChar, symbolyId)
+import Unison.Syntax.Lexer (showEscapeChar, symbolyId0)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import qualified Unison.Syntax.TypePrinter as TypePrinter
 import Unison.Term
@@ -948,7 +948,7 @@ isSymbolic (HQ.HashQualified name _) = isSymbolic' name
 isSymbolic (HQ.HashOnly _) = False
 
 isSymbolic' :: Name -> Bool
-isSymbolic' name = case symbolyId . Name.toString $ name of
+isSymbolic' name = case symbolyId0 . Name.toString $ name of
   Right _ -> True
   _ -> False
 
@@ -1250,7 +1250,7 @@ calcImports im tm = (im', render $ getUses result)
         |> filter
           ( \s ->
               let (p, i) = lookupOrDie s m
-               in (i > 1 || isRight (symbolyId (unpack s)))
+               in (i > 1 || isRight (symbolyId0 (unpack s)))
                     && not (null p)
           )
         |> map (\s -> (s, lookupOrDie s m))
