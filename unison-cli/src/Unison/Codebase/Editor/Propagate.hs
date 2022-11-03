@@ -266,7 +266,7 @@ propagate patch b = case validatePatch patch of
     Cli.Env {codebase} <- ask
     initialDirty <-
       computeDirty
-        (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
+        (liftIO . Codebase.runTransaction codebase . Codebase.dependents codebase Queries.ExcludeOwnComponent)
         patch
         (Names.contains names0)
 
@@ -316,7 +316,7 @@ propagate patch b = case validatePatch patch of
                     (Just edits', seen') -> do
                       -- plan to update the dependents of this component too
                       dependents <- case r of
-                        Reference.Builtin {} -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+                        Reference.Builtin {} -> liftIO (Codebase.runTransaction codebase (Codebase.dependents codebase Queries.ExcludeOwnComponent r))
                         Reference.Derived h _i -> liftIO (Codebase.dependentsOfComponent codebase h)
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
@@ -461,11 +461,11 @@ propagate patch b = case validatePatch patch of
     sortDependentsGraph codebase dependencies restrictTo = do
       closure <-
         transitiveClosure
-          (fmap (Set.intersection restrictTo) . liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
+          (fmap (Set.intersection restrictTo) . Codebase.runTransaction codebase . Codebase.dependents codebase Queries.ExcludeOwnComponent)
           dependencies
       dependents <-
         traverse
-          (\r -> (r,) <$> (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent) r)
+          (\r -> (r,) <$> (Codebase.runTransaction codebase . Codebase.dependents codebase Queries.ExcludeOwnComponent) r)
           (toList closure)
       let graphEdges = [(r, r, toList deps) | (r, deps) <- toList dependents]
           (graph, getReference, _) = Graph.graphFromEdges graphEdges

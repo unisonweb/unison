@@ -343,9 +343,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             patchExists h =
               runTransaction (CodebaseOps.patchExists h)
 
-            dependentsImpl :: Q.DependentsSelector -> Reference -> m (Set Reference.Id)
-            dependentsImpl selector r =
-              runTransaction (CodebaseOps.dependentsImpl selector r)
+            dependentsImpl :: Q.DependentsSelector -> Reference -> Sqlite.Transaction (Set Reference.Id)
+            dependentsImpl =
+              CodebaseOps.dependentsImpl
 
             dependentsOfComponentImpl :: Hash -> m (Set Reference.Id)
             dependentsOfComponentImpl h =
