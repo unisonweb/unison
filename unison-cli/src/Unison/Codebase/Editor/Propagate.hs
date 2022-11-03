@@ -302,7 +302,7 @@ propagate patch b = case validatePatch patch of
               if Map.member r termEdits || Set.member r seen || Map.member r typeEdits
                 then collectEdits es seen todo
                 else do
-                  haveType <- liftIO (Codebase.isType codebase r)
+                  haveType <- liftIO (Codebase.runTransaction codebase (Codebase.isType codebase r))
                   haveTerm <- liftIO (Codebase.isTerm codebase r)
                   let message =
                         "This reference is not a term nor a type " <> show r

@@ -23,6 +23,7 @@ import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
@@ -146,8 +147,12 @@ serveTypeSummary ::
 serveTypeSummary codebase reference mayName _mayRoot _relativeTo mayWidth = do
   let shortHash = Reference.toShortHash reference
   let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
-  tag <- lift $ Backend.getTypeTag codebase reference
-  displayDecl <- lift $ Backend.displayType codebase reference
+  (tag, displayDecl) <-
+    lift do
+      Codebase.runTransaction codebase do
+        tag <- Backend.getTypeTag codebase reference
+        displayDecl <- Backend.displayType codebase reference
+        pure (tag, displayDecl)
   let syntaxHeader = Backend.typeToSyntaxHeader width displayName displayDecl
   pure $
     TypeSummary

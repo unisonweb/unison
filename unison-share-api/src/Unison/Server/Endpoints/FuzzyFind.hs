@@ -171,6 +171,6 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
             te <- Backend.typeListEntry codebase relativeToBranch (ExactName (NameSegment n) r)
             let namedType = Backend.typeEntryToNamedType te
             let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
-            typeHeader <- Backend.typeDeclHeader codebase ppe r
+            typeHeader <- Codebase.runTransaction codebase (Backend.typeDeclHeader codebase ppe r)
             let ft = FoundType typeName typeHeader namedType
             pure (a, FoundTypeResult ft)
