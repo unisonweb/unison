@@ -58,7 +58,7 @@ import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -417,9 +417,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             referentsByPrefix sh =
               runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
 
-            branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.CausalHash)
-            branchHashesByPrefix sh =
-              runTransaction (CodebaseOps.branchHashesByPrefix sh)
+            causalHashesByPrefix :: ShortCausalHash -> m (Set Branch.CausalHash)
+            causalHashesByPrefix sh =
+              runTransaction (CodebaseOps.causalHashesByPrefix sh)
 
             sqlLca :: Branch.CausalHash -> Branch.CausalHash -> m (Maybe (Branch.CausalHash))
             sqlLca h1 h2 =
@@ -483,7 +483,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   typeReferencesByPrefix = declReferencesByPrefix,
                   termReferentsByPrefix = referentsByPrefix,
                   branchHashLength,
-                  branchHashesByPrefix,
+                  causalHashesByPrefix,
                   lcaImpl = Just sqlLca,
                   beforeImpl,
                   namesAtPath,
@@ -672,7 +672,7 @@ viewRemoteBranch' ::
   Git.GitBranchBehavior ->
   ((Branch m, CodebasePath) -> m r) ->
   m (Either C.GitError r)
-viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior action = UnliftIO.try $ do
+viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior action = UnliftIO.try $ do
   -- set up the cache dir
   time "Git fetch" $
     throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
@@ -695,19 +695,19 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior act
 
       result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote MigrateAfterPrompt \codebase -> do
         -- try to load the requested branch from it
-        branch <- time "Git fetch (sbh)" $ case sbh of
+        branch <- time "Git fetch (sch)" $ case sch of
           -- no sub-branch was specified, so use the root.
           Nothing -> time "Get remote root branch" $ Codebase1.getRootBranch codebase
-          -- load from a specific `ShortBranchHash`
-          Just sbh -> do
-            branchCompletions <- Codebase1.branchHashesByPrefix codebase sbh
+          -- load from a specific `ShortCausalHash`
+          Just sch -> do
+            branchCompletions <- Codebase1.causalHashesByPrefix codebase sch
             case toList branchCompletions of
-              [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+              [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
               [h] ->
                 (Codebase1.getBranchForHash codebase h) >>= \case
                   Just b -> pure b
-                  Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+                  Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
+              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sch branchCompletions
         case Branch.getAt path branch of
           Just b -> action (b, remotePath)
           Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path

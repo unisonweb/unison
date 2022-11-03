@@ -124,11 +124,11 @@ resolveMetadata name = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath' <- Cli.getCurrentPath
-  sbhLength <- liftIO (Codebase.branchHashLength codebase)
+  schLength <- liftIO (Codebase.branchHashLength codebase)
 
   let ppe :: PPE.PrettyPrintEnv
       ppe =
-        Backend.basicSuffixifiedNames sbhLength root' (Backend.Within $ Path.unabsolute currentPath')
+        Backend.basicSuffixifiedNames schLength root' (Backend.Within $ Path.unabsolute currentPath')
 
   terms <- getHQTerms name
   ref <-

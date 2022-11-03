@@ -23,7 +23,7 @@ import ArgParse
     parseCLIArgs,
   )
 import Compat (defaultInterruptHandler, onWindows, withInterruptHandler)
-import Control.Concurrent (newEmptyMVar, takeMVar)
+import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
@@ -86,7 +86,7 @@ import UnliftIO.Directory (getHomeDirectory)
 import qualified Version
 
 main :: IO ()
-main = withCP65001 . Ki.scoped $ \scope -> do
+main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
   -- Replace the default exception handler with one that pretty-prints.
   setUncaughtExceptionHandler (pHPrint stderr)
 
