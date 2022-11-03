@@ -1505,7 +1505,7 @@ getDependenciesBetweenTerms oid1 oid2 =
       elems(path_elem, path_init) AS (
         SELECT null, path_init
         FROM paths
-        WHERE paths.path_elem = ?
+        WHERE paths.path_last = ?
         UNION ALL
         SELECT
           substr(path_init, 0, instr(path_init, ',')),
