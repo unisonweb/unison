@@ -80,7 +80,7 @@ data Codebase m v a = Codebase
     putTypeDeclarationComponent :: Hash -> [Decl v a] -> Sqlite.Transaction (),
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
-    getDeclComponent :: Hash -> m (Maybe [Decl v a]),
+    getDeclComponent :: Hash -> Sqlite.Transaction (Maybe [Decl v a]),
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
     -- | Get the root causal Hash.
     getRootCausalHash :: m V2.CausalHash,
