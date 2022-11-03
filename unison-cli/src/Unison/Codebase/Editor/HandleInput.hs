@@ -359,7 +359,7 @@ loop e = do
                 toDelete = Names (toRel terms) (toRel types)
             endangerments <-
               liftIO $
-                Codebase.runTransaction codebase (getEndangeredDependents undefined toDelete rootNames)
+                Codebase.runTransaction codebase (getEndangeredDependents codebase toDelete rootNames)
             if null endangerments
               then do
                 let makeDeleteTermNames = map (BranchUtil.makeDeleteTermName resolvedPath) . Set.toList $ terms
