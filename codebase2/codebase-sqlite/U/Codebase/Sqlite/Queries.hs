@@ -1412,9 +1412,9 @@ getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
 -- | Given two term (components) A and B, return the set of all terms that are along any "dependency path" from A to B,
 -- not including A nor B; i.e., the transitive dependencies of A that are transitive dependents of B.
 --
--- For example, if A depends on X and Y, and Y depends on Z, and X and Z depend on B...
+-- For example, if A depends on X and Y, X depends on Q, Y depends on Z, and X and Z depend on B...
 --
---     --X--
+--     --X-----Q
 --    /     \
 --   A       B
 --    \     /
@@ -1430,33 +1430,41 @@ getDependenciesBetweenTerms oid1 oid2 =
     -- First, the `paths` table finds all paths from source `A`, exploring depth-first. As a minor optimization, we seed
     -- the search not with `A`, but rather the direct dependencies of `A` (namely `X` and `Y`).
     --
-    -- +-paths-------------------------------+
-    -- +-level-+-object_id-+-object_id_array-+
-    -- |     0 |         X |              '' |
-    -- |     0 |         Y |              '' |
-    -- |     1 |         B |            'X,' |
-    -- |     1 |         Z |            'Y,' |
-    -- |     2 |         B |          'Z,Y,' |
-    -- +-------+-----------+-----------------+
+    -- Naming note: "path_init" / "path_last" refer to the "init" / "last" elements of a list segments of a list (though
+    -- our "last" is in reverse order):
+    --
+    --        [foo, bar, baz, qux]
+    --   init  ^^^^^^^^^^^^^
+    --   last                 ^^^
+    --
+    -- +-paths-------------------------+
+    -- +-level-+-path_last-+-path_init-+
+    -- |     0 |         X |        '' | -- path: [X]
+    -- |     0 |         Y |        '' | -- path: [Y]
+    -- |     1 |         B |      'X,' | -- path: [X,B]   -- ends in B, yay!
+    -- |     1 |         Q |      'X,' | -- path: [X,Q]
+    -- |     1 |         Z |      'Y,' | -- path: [Y,Z]
+    -- |     2 |         B |    'Z,Y,' | -- path: [Y,Z,B] -- ends in B, yay!
+    -- +-------+-----------+-----------+
     --
     -- Next, we seed another recursive CTE with those paths that end in the sink `B`. This is just the (very verbose)
     -- way to unnest an array in SQLite. All we're doing is turning the set of strings {'X,' 'Z,Y,'}, each of which
     -- represents the inner nodes of a full path between `A` and `B`, into the set {X Z Y}, which is just the full set
     -- of such inner nodes, along any path.
     --
-    -- +-elems-----------------------+
-    -- +-object_id-+-object_id_array-+
-    -- |           |            'X,' |
-    -- |           |          'Z,Y,' |
-    -- |       'X' |              '' |
-    -- |       'Z' |            'Y,' |
-    -- |       'Y' |              '' |
-    -- +-----------+-----------------+
+    -- +-elems-----------------+
+    -- +-path_elem-+-path_init-+
+    -- |           |      'X,' |
+    -- |           |    'Z,Y,' |
+    -- |       'X' |        '' |
+    -- |       'Z' |      'Y,' |
+    -- |       'Y' |        '' |
+    -- +-----------+-----------+
     --
-    -- And finally, we just select out the non-null `object_id` rows from here, casting the strings back to integers for
+    -- And finally, we just select out the non-null `path_elem` rows from here, casting the strings back to integers for
     -- clarity (this isn't very matter - SQLite would cast on-the-fly).
     --
-    -- +-object_id-+
+    -- +-path_elem-+
     -- |         X |
     -- |         Z |
     -- |         Y |
@@ -1464,12 +1472,13 @@ getDependenciesBetweenTerms oid1 oid2 =
     --
     -- Notes
     --
-    -- (1) We only care about term dependencies, not type dependencies
-    -- (2) No need to search beyond the sink itself, since component dependencies form a DAG
-    -- (3) An explicit cast from e.g. string '1' to int 1 isn't strictly necessary
+    -- (1) We only care about term dependencies, not type dependencies. This is because a type can only depend on types,
+    --     not terms, so there is no point in searching through a type's transitive dependencies looking for our sink.
+    -- (2) No need to search beyond the sink itself, since component dependencies form a DAG.
+    -- (3) An explicit cast from e.g. string '1' to int 1 isn't strictly necessary.
     sql :: Sql
     sql = [here|
-      WITH RECURSIVE paths(level, object_id, object_id_array) AS (
+      WITH RECURSIVE paths(level, path_last, path_init) AS (
         SELECT
           0,
           dependents_index.dependency_object_id,
@@ -1483,30 +1492,30 @@ getDependenciesBetweenTerms oid1 oid2 =
         SELECT
           paths.level + 1 AS level,
           dependents_index.dependency_object_id,
-          dependents_index.dependent_object_id || ',' || paths.object_id_array
+          dependents_index.dependent_object_id || ',' || paths.path_init
         FROM paths
           JOIN dependents_index
-            ON paths.object_id = dependents_index.dependent_object_id
+            ON paths.path_last = dependents_index.dependent_object_id
           JOIN object ON dependents_index.dependency_object_id = object.id
         WHERE object.type_id = 0 -- Note (1)
           AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
-          AND paths.object_id != ? -- Note (2)
+          AND paths.path_last != ? -- Note (2)
         ORDER BY level DESC
       ),
-      elems(object_id, object_id_array) AS (
-        SELECT null, object_id_array
+      elems(path_elem, path_init) AS (
+        SELECT null, path_init
         FROM paths
-        WHERE paths.object_id = ?
+        WHERE paths.path_elem = ?
         UNION ALL
         SELECT
-          substr(object_id_array, 0, instr(object_id_array, ',')),
-          substr(object_id_array, instr(object_id_array, ',') + 1)
+          substr(path_init, 0, instr(path_init, ',')),
+          substr(path_init, instr(path_init, ',') + 1)
         FROM elems
-        WHERE object_id_array != ''
+        WHERE path_init != ''
       )
-      SELECT DISTINCT CAST(object_id AS integer) AS object_id -- Note (3)
+      SELECT DISTINCT CAST(path_elem AS integer) AS path_elem -- Note (3)
       FROM elems
-      WHERE object_id IS NOT null
+      WHERE path_elem IS NOT null
     |]
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
