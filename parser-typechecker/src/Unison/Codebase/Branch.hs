@@ -317,7 +317,9 @@ deriveDeepEdits branch =
 
 deepChildrenHelper :: [NameSegment] -> Branch0 m -> [([NameSegment], Branch0 m)]
 deepChildrenHelper reversePrefix b0 =
-  [(ns : reversePrefix, head b) | (ns, b) <- Map.toList (nonEmptyChildren b0)]
+  case reversePrefix of
+    lib@"lib" : rest | elem lib rest -> []
+    _ -> [(ns : reversePrefix, head b) | (ns, b) <- Map.toList (nonEmptyChildren b0)]
 
 deepMetadataHelper :: Ord r => Metadata.Star r NameSegment -> [(r, NameSegment, Metadata.Type, Metadata.Value)]
 deepMetadataHelper s =
