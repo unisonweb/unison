@@ -65,17 +65,27 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 .> view baz.qux
 ```
 
-Note that we can always still view indirect dependencies by using more name segments:
-
 ```ucm
 .> view distributed.abra.cadabra
+```
+
+Note that we cannot view indirect dependencies without descending manually:
+```ucm:error
 .> names distributed.lib.baz.qux
+```
+
+```ucm
+.lib.distributed> names baz.qux
 ```
 
 ## Corner cases
 
 If a definition is given in a scratch file, its suffixes shadow existing definitions that exist in the codebase with the same suffixes. For example:
 
+```ucm:hide
+-- I need to get out of .lib.distributed in order to access .builtin
+.>
+```
 ```unison:hide
 unique type A = Thing1 Nat | thing2 Nat
 
