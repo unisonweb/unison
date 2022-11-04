@@ -264,19 +264,19 @@ deriveDeepTermMetadata branch =
 -- | Derive the 'deepTypeMetadata' field of a branch.
 deriveDeepTypeMetadata :: Branch0 m -> Branch0 m
 deriveDeepTypeMetadata branch =
-  branch {deepTypeMetadata = makeDeepTypeMetadata branch}
+  branch {deepTypeMetadata = R4.fromList (makeDeepTypeMetadata branch)}
   where
-    makeDeepTypeMetadata :: Branch0 m -> Metadata.R4 TypeReference Name
+    makeDeepTypeMetadata :: Branch0 m -> [(TypeReference, Name, Metadata.Type, Metadata.Value)]
     makeDeepTypeMetadata branch = go [(mempty, branch)] mempty
       where
-        go :: forall m. [([NameSegment], Branch0 m)] -> Metadata.R4 TypeReference Name -> Metadata.R4 TypeReference Name
+        go :: forall m. [([NameSegment], Branch0 m)] -> [(TypeReference, Name, Metadata.Type, Metadata.Value)] -> [(TypeReference, Name, Metadata.Type, Metadata.Value)]
         go [] acc = acc
         go ((reversePrefix, b0) : work) acc =
-          let typeMetadata :: Metadata.R4 TypeReference Name
+          let typeMetadata :: [(TypeReference, Name, Metadata.Type, Metadata.Value)]
               typeMetadata =
-                R4.mapD2Monotonic
-                  (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
-                  (Metadata.starToR4 (_types b0))
+                map
+                  (\(r, n, t, v) -> (r, Name.fromReverseSegments (n NonEmpty.:| reversePrefix), t, v))
+                  (deepMetadataHelper (_types b0))
            in go (deepChildrenHelper reversePrefix b0 <> work) (typeMetadata <> acc)
 
 -- | Derive the 'deepPaths' field of a branch.
@@ -319,7 +319,7 @@ deepChildrenHelper :: [NameSegment] -> Branch0 m -> [([NameSegment], Branch0 m)]
 deepChildrenHelper reversePrefix b0 =
   [(ns : reversePrefix, head b) | (ns, b) <- Map.toList (nonEmptyChildren b0)]
 
-deepMetadataHelper :: Metadata.Star Referent NameSegment -> [(Referent, NameSegment, Metadata.Type, Metadata.Value)]
+deepMetadataHelper :: Ord r => Metadata.Star r NameSegment -> [(r, NameSegment, Metadata.Type, Metadata.Value)]
 deepMetadataHelper s =
   [ (f, x, y, z)
     | f <- Set.toList (Star3.fact s),
