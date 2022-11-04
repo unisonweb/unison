@@ -221,22 +221,35 @@ deriveDeepTerms branch =
     makeDeepTerms :: Branch0 m -> [(Referent, Name)]
     makeDeepTerms branch = go [(mempty, branch)] mempty
       where
-        go :: forall m. [([NameSegment], Branch0 m)] -> [(Referent, Name)] -> [(Referent, Name)]
+        -- `reversePrefix` might be ["Nat", "base", "lib"], and `b0` the `Nat` sub-namespace.
+        -- Then `R.toList` might produce the NameSegment "+", and we put the two together to
+        -- construct the name `Name Relative ("+" :| ["Nat","base","lib"])`.
+        go ::
+          forall m.
+          [([NameSegment], Branch0 m)] ->
+          [(Referent, Name)] ->
+          [(Referent, Name)]
         go [] acc = acc
         go ((reversePrefix, b0) : work) acc =
           let terms :: [(Referent, Name)]
-              terms = map (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))) (R.toList (Star3.d1 (_terms b0)))
+              terms =
+                map
+                  (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix)))
+                  (R.toList (Star3.d1 (_terms b0)))
            in go (deepChildrenHelper reversePrefix b0 <> work) (terms <> acc)
 
 -- | Derive the 'deepTypes' field of a branch.
-deriveDeepTypes :: Branch0 m -> Branch0 m
+deriveDeepTypes :: forall m. Branch0 m -> Branch0 m
 deriveDeepTypes branch =
   branch {deepTypes = R.fromList (makeDeepTypes branch)}
   where
     makeDeepTypes :: Branch0 m -> [(TypeReference, Name)]
     makeDeepTypes branch = go [(mempty, branch)] mempty
       where
-        go :: forall m. [([NameSegment], Branch0 m)] -> [(TypeReference, Name)] -> [(TypeReference, Name)]
+        go ::
+          [([NameSegment], Branch0 m)] ->
+          [(TypeReference, Name)] ->
+          [(TypeReference, Name)]
         go [] acc = acc
         go ((reversePrefix, b0) : work) acc =
           let types :: [(TypeReference, Name)]
@@ -244,14 +257,17 @@ deriveDeepTypes branch =
            in go (deepChildrenHelper reversePrefix b0 <> work) (types <> acc)
 
 -- | Derive the 'deepTermMetadata' field of a branch.
-deriveDeepTermMetadata :: Branch0 m -> Branch0 m
+deriveDeepTermMetadata :: forall m. Branch0 m -> Branch0 m
 deriveDeepTermMetadata branch =
   branch {deepTermMetadata = R4.fromList (makeDeepTermMetadata branch)}
   where
     makeDeepTermMetadata :: Branch0 m -> [(Referent, Name, Metadata.Type, Metadata.Value)]
     makeDeepTermMetadata branch = go [(mempty, branch)] mempty
       where
-        go :: forall m. [([NameSegment], Branch0 m)] -> [(Referent, Name, Metadata.Type, Metadata.Value)] -> [(Referent, Name, Metadata.Type, Metadata.Value)]
+        go ::
+          [([NameSegment], Branch0 m)] ->
+          [(Referent, Name, Metadata.Type, Metadata.Value)] ->
+          [(Referent, Name, Metadata.Type, Metadata.Value)]
         go [] acc = acc
         go ((reversePrefix, b0) : work) acc =
           let termMetadata :: [(Referent, Name, Metadata.Type, Metadata.Value)]
@@ -262,14 +278,17 @@ deriveDeepTermMetadata branch =
            in go (deepChildrenHelper reversePrefix b0 <> work) (termMetadata <> acc)
 
 -- | Derive the 'deepTypeMetadata' field of a branch.
-deriveDeepTypeMetadata :: Branch0 m -> Branch0 m
+deriveDeepTypeMetadata :: forall m. Branch0 m -> Branch0 m
 deriveDeepTypeMetadata branch =
   branch {deepTypeMetadata = R4.fromList (makeDeepTypeMetadata branch)}
   where
     makeDeepTypeMetadata :: Branch0 m -> [(TypeReference, Name, Metadata.Type, Metadata.Value)]
     makeDeepTypeMetadata branch = go [(mempty, branch)] mempty
       where
-        go :: forall m. [([NameSegment], Branch0 m)] -> [(TypeReference, Name, Metadata.Type, Metadata.Value)] -> [(TypeReference, Name, Metadata.Type, Metadata.Value)]
+        go ::
+          [([NameSegment], Branch0 m)] ->
+          [(TypeReference, Name, Metadata.Type, Metadata.Value)] ->
+          [(TypeReference, Name, Metadata.Type, Metadata.Value)]
         go [] acc = acc
         go ((reversePrefix, b0) : work) acc =
           let typeMetadata :: [(TypeReference, Name, Metadata.Type, Metadata.Value)]
@@ -280,14 +299,14 @@ deriveDeepTypeMetadata branch =
            in go (deepChildrenHelper reversePrefix b0 <> work) (typeMetadata <> acc)
 
 -- | Derive the 'deepPaths' field of a branch.
-deriveDeepPaths :: Branch0 m -> Branch0 m
+deriveDeepPaths :: forall m. Branch0 m -> Branch0 m
 deriveDeepPaths branch =
   branch {deepPaths = makeDeepPaths branch}
   where
     makeDeepPaths :: Branch0 m -> Set Path
     makeDeepPaths branch = go [(mempty, branch)] mempty
       where
-        go :: forall m. [([NameSegment], Branch0 m)] -> Set Path -> Set Path
+        go :: [([NameSegment], Branch0 m)] -> Set Path -> Set Path
         go [] acc = acc
         go ((reversePrefix, b0) : work) acc =
           let paths :: Set Path
@@ -298,14 +317,14 @@ deriveDeepPaths branch =
            in go (deepChildrenHelper reversePrefix b0 <> work) (paths <> acc)
 
 -- | Derive the 'deepEdits' field of a branch.
-deriveDeepEdits :: Branch0 m -> Branch0 m
+deriveDeepEdits :: forall m. Branch0 m -> Branch0 m
 deriveDeepEdits branch =
   branch {deepEdits = makeDeepEdits branch}
   where
     makeDeepEdits :: Branch0 m -> Map Name EditHash
     makeDeepEdits branch = go [(mempty, branch)] mempty
       where
-        go :: forall m. [([NameSegment], Branch0 m)] -> Map Name EditHash -> Map Name EditHash
+        go :: [([NameSegment], Branch0 m)] -> Map Name EditHash -> Map Name EditHash
         go [] acc = acc
         go ((reversePrefix, b0) : work) acc =
           let edits :: Map Name EditHash
