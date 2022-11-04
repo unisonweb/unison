@@ -211,7 +211,7 @@ branch0 terms types children edits =
 -- | Derive the 'deepTerms' field of a branch.
 deriveDeepTerms :: Branch0 m -> Branch0 m
 deriveDeepTerms branch =
-  branch {deepTerms = makeDeepTerms (_terms branch) (nonEmptyChildren branch)}
+  branch {deepTerms = makeDeepTerms (_terms branch) (_children branch)}
   where
     makeDeepTerms :: Metadata.Star Referent NameSegment -> Map NameSegment (Branch m) -> Relation Referent Name
     makeDeepTerms terms children =
@@ -219,12 +219,13 @@ deriveDeepTerms branch =
       where
         go :: NameSegment -> Branch m -> Relation Referent Name
         go n b =
-          R.mapRan (Name.cons n) (deepTerms $ head b)
+          let b0 = head b
+           in R.mapRan (Name.cons n) (makeDeepTerms (_terms b0) (_children b0))
 
 -- | Derive the 'deepTypes' field of a branch.
 deriveDeepTypes :: Branch0 m -> Branch0 m
 deriveDeepTypes branch =
-  branch {deepTypes = makeDeepTypes (_types branch) (nonEmptyChildren branch)}
+  branch {deepTypes = makeDeepTypes (_types branch) (_children branch)}
   where
     makeDeepTypes :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Relation TypeReference Name
     makeDeepTypes types children =
@@ -232,12 +233,13 @@ deriveDeepTypes branch =
       where
         go :: NameSegment -> Branch m -> Relation TypeReference Name
         go n b =
-          R.mapRan (Name.cons n) (deepTypes $ head b)
+          let b0 = head b
+           in R.mapRan (Name.cons n) (makeDeepTypes (_types b0) (_children b0))
 
 -- | Derive the 'deepTermMetadata' field of a branch.
 deriveDeepTermMetadata :: Branch0 m -> Branch0 m
 deriveDeepTermMetadata branch =
-  branch {deepTermMetadata = makeDeepTermMetadata (_terms branch) (nonEmptyChildren branch)}
+  branch {deepTermMetadata = makeDeepTermMetadata (_terms branch) (_children branch)}
   where
     makeDeepTermMetadata :: Metadata.Star Referent NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 Referent Name
     makeDeepTermMetadata terms children =
@@ -245,12 +247,13 @@ deriveDeepTermMetadata branch =
       where
         go :: NameSegment -> Branch m -> Metadata.R4 Referent Name
         go n b =
-          R4.mapD2 (Name.cons n) (deepTermMetadata $ head b)
+          let b0 = head b
+           in R4.mapD2 (Name.cons n) (makeDeepTermMetadata (_terms b0) (_children b0))
 
 -- | Derive the 'deepTypeMetadata' field of a branch.
 deriveDeepTypeMetadata :: Branch0 m -> Branch0 m
 deriveDeepTypeMetadata branch =
-  branch {deepTypeMetadata = makeDeepTypeMetadata (_types branch) (nonEmptyChildren branch)}
+  branch {deepTypeMetadata = makeDeepTypeMetadata (_types branch) (_children branch)}
   where
     makeDeepTypeMetadata :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 TypeReference Name
     makeDeepTypeMetadata types children =
@@ -258,7 +261,8 @@ deriveDeepTypeMetadata branch =
       where
         go :: NameSegment -> Branch m -> Metadata.R4 TypeReference Name
         go n b =
-          R4.mapD2 (Name.cons n) (deepTypeMetadata $ head b)
+          let b0 = head b
+           in R4.mapD2 (Name.cons n) (makeDeepTypeMetadata (_types b0) (_children b0))
 
 -- | Derive the 'deepPaths' field of a branch.
 deriveDeepPaths :: Branch0 m -> Branch0 m
@@ -618,13 +622,13 @@ addTypeName r new md =
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b
   | Star3.memberD1 (r, n) (view terms b) =
-      over terms (Star3.deletePrimaryD1 (r, n)) b
+    over terms (Star3.deletePrimaryD1 (r, n)) b
 deleteTermName _ _ b = b
 
 deleteTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b
   | Star3.memberD1 (r, n) (view types b) =
-      over types (Star3.deletePrimaryD1 (r, n)) b
+    over types (Star3.deletePrimaryD1 (r, n)) b
 deleteTypeName _ _ b = b
 
 lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
