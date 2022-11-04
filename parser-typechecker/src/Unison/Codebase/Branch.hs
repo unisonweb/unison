@@ -122,7 +122,6 @@ import Unison.Prelude hiding (empty)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import qualified Unison.Util.List as List
-import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Relation4 as R4
@@ -217,55 +216,49 @@ branch0 terms types children edits =
 -- | Derive the 'deepTerms' field of a branch.
 deriveDeepTerms :: Branch0 m -> Branch0 m
 deriveDeepTerms branch =
-  branch {deepTerms = makeDeepTerms branch}
+  branch {deepTerms = R.fromList (makeDeepTerms branch)}
   where
-    makeDeepTerms :: Branch0 m -> Relation Referent Name
+    makeDeepTerms :: Branch0 m -> [(Referent, Name)]
     makeDeepTerms branch = go [(mempty, branch)] mempty
       where
-        go :: forall m. [([NameSegment], Branch0 m)] -> Relation Referent Name -> Relation Referent Name
+        go :: forall m. [([NameSegment], Branch0 m)] -> [(Referent, Name)] -> [(Referent, Name)]
         go [] acc = acc
         go ((reversePrefix, b0) : work) acc =
-          let terms :: Relation Referent Name
-              terms =
-                R.mapRanMonotonic
-                  (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
-                  (Star3.d1 (_terms b0))
+          let terms :: [(Referent, Name)]
+              terms = map (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))) (R.toList (Star3.d1 (_terms b0)))
            in go (deepChildrenHelper reversePrefix b0 <> work) (terms <> acc)
 
 -- | Derive the 'deepTypes' field of a branch.
 deriveDeepTypes :: Branch0 m -> Branch0 m
 deriveDeepTypes branch =
-  branch {deepTypes = makeDeepTypes branch}
+  branch {deepTypes = R.fromList (makeDeepTypes branch)}
   where
-    makeDeepTypes :: Branch0 m -> Relation TypeReference Name
+    makeDeepTypes :: Branch0 m -> [(TypeReference, Name)]
     makeDeepTypes branch = go [(mempty, branch)] mempty
       where
-        go :: forall m. [([NameSegment], Branch0 m)] -> Relation TypeReference Name -> Relation TypeReference Name
+        go :: forall m. [([NameSegment], Branch0 m)] -> [(TypeReference, Name)] -> [(TypeReference, Name)]
         go [] acc = acc
         go ((reversePrefix, b0) : work) acc =
-          let types :: Relation TypeReference Name
-              types =
-                R.mapRanMonotonic
-                  (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
-                  (Star3.d1 (_types b0))
+          let types :: [(TypeReference, Name)]
+              types = map (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))) (R.toList (Star3.d1 (_types b0)))
            in go (deepChildrenHelper reversePrefix b0 <> work) (types <> acc)
 
 -- | Derive the 'deepTermMetadata' field of a branch.
 deriveDeepTermMetadata :: Branch0 m -> Branch0 m
 deriveDeepTermMetadata branch =
-  branch {deepTermMetadata = makeDeepTermMetadata branch}
+  branch {deepTermMetadata = R4.fromList (makeDeepTermMetadata branch)}
   where
-    makeDeepTermMetadata :: Branch0 m -> Metadata.R4 Referent Name
+    makeDeepTermMetadata :: Branch0 m -> [(Referent, Name, Metadata.Type, Metadata.Value)]
     makeDeepTermMetadata branch = go [(mempty, branch)] mempty
       where
-        go :: forall m. [([NameSegment], Branch0 m)] -> Metadata.R4 Referent Name -> Metadata.R4 Referent Name
+        go :: forall m. [([NameSegment], Branch0 m)] -> [(Referent, Name, Metadata.Type, Metadata.Value)] -> [(Referent, Name, Metadata.Type, Metadata.Value)]
         go [] acc = acc
         go ((reversePrefix, b0) : work) acc =
-          let termMetadata :: Metadata.R4 Referent Name
+          let termMetadata :: [(Referent, Name, Metadata.Type, Metadata.Value)]
               termMetadata =
-                R4.mapD2Monotonic
-                  (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
-                  (Metadata.starToR4 (_terms b0))
+                map
+                  (\(r, n, t, v) -> (r, Name.fromReverseSegments (n NonEmpty.:| reversePrefix), t, v))
+                  (deepMetadataHelper (_terms b0))
            in go (deepChildrenHelper reversePrefix b0 <> work) (termMetadata <> acc)
 
 -- | Derive the 'deepTypeMetadata' field of a branch.
@@ -325,6 +318,14 @@ deriveDeepEdits branch =
 deepChildrenHelper :: [NameSegment] -> Branch0 m -> [([NameSegment], Branch0 m)]
 deepChildrenHelper reversePrefix b0 =
   [(ns : reversePrefix, head b) | (ns, b) <- Map.toList (nonEmptyChildren b0)]
+
+deepMetadataHelper :: Metadata.Star Referent NameSegment -> [(Referent, NameSegment, Metadata.Type, Metadata.Value)]
+deepMetadataHelper s =
+  [ (f, x, y, z)
+    | f <- Set.toList (Star3.fact s),
+      x <- Set.toList (R.lookupDom f (Star3.d1 s)),
+      (y, z) <- Set.toList (R.lookupDom f (Star3.d3 s))
+  ]
 
 -- | Update the head of the current causal.
 -- This re-hashes the current causal head after modifications.
