@@ -234,13 +234,12 @@ shallowNames codebase b = do
   pure (Names (R.fromMultimap newTerms) (R.fromMultimap newTypes))
 
 loadReferentType ::
-  MonadIO m =>
   Codebase m Symbol Ann ->
   Referent ->
-  m (Maybe (Type Symbol Ann))
+  Sqlite.Transaction (Maybe (Type Symbol Ann))
 loadReferentType codebase = \case
   Referent.Ref r -> Codebase.getTypeOfTerm codebase r
-  Referent.Con r _ -> Codebase.runTransaction codebase (getTypeOfConstructor r)
+  Referent.Con r _ -> getTypeOfConstructor r
   where
     -- Mitchell wonders: why was this definition copied from Unison.Codebase?
     getTypeOfConstructor (ConstructorReference (Reference.DerivedId r) cid) = do
@@ -372,7 +371,7 @@ findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
    in liftIO $ do
         traverse (renderReadme ppe) readme
 
-isDoc :: MonadIO m => Codebase m Symbol Ann -> Referent.Referent -> m Bool
+isDoc :: Codebase m Symbol Ann -> Referent.Referent -> Sqlite.Transaction Bool
 isDoc codebase ref = do
   ot <- loadReferentType codebase ref
   pure $ isDoc' ot
@@ -408,7 +407,7 @@ termListEntry ::
   m (TermEntry Symbol Ann)
 termListEntry codebase branch (ExactName nameSegment ref) = do
   v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
-  ot <- loadReferentType codebase v1Referent
+  ot <- Codebase.runTransaction codebase (loadReferentType codebase v1Referent)
   tag <- getTermTag codebase ref ot
   pure $
     TermEntry
@@ -857,7 +856,7 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
   branchAtPath <- lift $ V2Causal.value causalAtPath
   let width = mayDefaultWidth renderWidth
       -- Return only references which refer to docs.
-      filterForDocs :: [Referent] -> IO [TermReference]
+      filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
       filterForDocs rs = do
         rts <- fmap join . for rs $ \case
           Referent.Ref r ->
@@ -877,20 +876,19 @@ prettyDefinitionsForHQName path mayRoot renderWidth suffixifyBindings rt codebas
         -- too.
         let allPotentialDocRefs = Set.insert selfRef docRefs
         -- lookup the type of each, make sure it's a doc
-        docs <- filterForDocs (toList allPotentialDocRefs)
+        docs <- Codebase.runTransaction codebase (filterForDocs (toList allPotentialDocRefs))
         -- render all the docs
         traverse (renderDoc pped width rt codebase) docs
 
       mkTermDefinition ::
-        ( Reference ->
-          DisplayObject
-            (AnnotatedText (UST.Element Reference))
-            (AnnotatedText (UST.Element Reference)) ->
-          Backend IO TermDefinition
-        )
+        Reference ->
+        DisplayObject
+          (AnnotatedText (UST.Element Reference))
+          (AnnotatedText (UST.Element Reference)) ->
+        Backend IO TermDefinition
       mkTermDefinition r tm = do
         let referent = Referent.Ref r
-        ts <- lift (Codebase.getTypeOfTerm codebase r)
+        ts <- liftIO (Codebase.runTransaction codebase (Codebase.getTypeOfTerm codebase r))
         let hqTermName = PPE.termNameOrHashOnly fqnPPE referent
         let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref r)
         tag <-
@@ -962,7 +960,13 @@ renderDoc ppe width rt codebase r = do
   let hash = Reference.toText r
   (name,hash,)
     <$> let tm = Term.ref () r
-         in Doc.renderDoc ppe terms typeOf eval (Codebase.runTransaction codebase . decls) tm
+         in Doc.renderDoc
+              ppe
+              terms
+              (Codebase.runTransaction codebase . typeOf)
+              eval
+              (Codebase.runTransaction codebase . decls)
+              tm
   where
     terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
     terms (Reference.DerivedId r) =
@@ -999,7 +1003,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
   -- ignores docs inside lib namespace, recursively
   let notLib (_, name) = "lib" `notElem` Name.segments name
-  docTermsWithNames <- filterM (isDoc codebase . fst) (filter notLib allTerms)
+  docTermsWithNames <- Codebase.runTransaction codebase (filterM (isDoc codebase . fst) (filter notLib allTerms))
   let docNamesByRef = Map.fromList docTermsWithNames
   hqLength <- Codebase.hashLength codebase
   let printNames = prettyNamesForBranch root (AllNames currentPath)
@@ -1209,7 +1213,7 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
           SR.Tp' _ r _ -> Just r
           _ -> Nothing
 
-displayTerm :: Monad m => Codebase m Symbol Ann -> Reference -> m (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+displayTerm :: MonadIO m => Codebase m Symbol Ann -> Reference -> m (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
 displayTerm codebase = \case
   ref@(Reference.Builtin _) -> do
     pure case Map.lookup ref B.termRefTypes of
@@ -1312,10 +1316,9 @@ typeToSyntaxHeader width hqName obj =
         DeclPrinter.prettyDeclHeader hqName d
 
 loadSearchResults ::
-  MonadIO m =>
   Codebase m Symbol Ann ->
   [SR.SearchResult] ->
-  m [SR'.SearchResult' Symbol Ann]
+  Sqlite.Transaction [SR'.SearchResult' Symbol Ann]
 loadSearchResults c = traverse loadSearchResult
   where
     loadSearchResult = \case
@@ -1323,7 +1326,7 @@ loadSearchResults c = traverse loadSearchResult
         typ <- loadReferentType c r
         pure $ SR'.Tm name typ r aliases
       SR.Tp (SR.TypeResult name r aliases) -> do
-        dt <- Codebase.runTransaction c (loadTypeDisplayObject c r)
+        dt <- loadTypeDisplayObject c r
         pure $ SR'.Tp name dt r aliases
 
 loadTypeDisplayObject ::

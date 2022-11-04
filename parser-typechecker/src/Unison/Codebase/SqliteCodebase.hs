@@ -244,10 +244,10 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getTerm id =
               runTransaction (CodebaseOps.getTerm getDeclType id)
 
-            getTypeOfTermImpl :: Reference.Id -> m (Maybe (Type Symbol Ann))
+            getTypeOfTermImpl :: Reference.Id -> Sqlite.Transaction (Maybe (Type Symbol Ann))
             getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
             getTypeOfTermImpl id =
-              runTransaction (CodebaseOps.getTypeOfTermImpl id)
+              CodebaseOps.getTypeOfTermImpl id
 
             getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
             getTermComponentWithTypes =
@@ -442,7 +442,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
         let codebase =
               C.Codebase
                 { getTerm = Cache.applyDefined termCache getTerm,
-                  getTypeOfTermImpl = Cache.applyDefined typeOfTermCache getTypeOfTermImpl,
+                  getTypeOfTermImpl = applyDefined typeOfTermCache getTypeOfTermImpl,
                   getTypeDeclaration = applyDefined declCache getTypeDeclaration,
                   getDeclType =
                     \r ->
