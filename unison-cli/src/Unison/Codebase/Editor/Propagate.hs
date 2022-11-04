@@ -266,7 +266,7 @@ propagate patch b = case validatePatch patch of
     Cli.Env {codebase} <- ask
     initialDirty <-
       computeDirty
-        (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
+        (liftIO . Codebase.runTransaction codebase . Codebase.dependents codebase Queries.ExcludeOwnComponent)
         patch
         (Names.contains names0)
 
@@ -276,7 +276,7 @@ propagate patch b = case validatePatch patch of
     -- in the patch which have a `Referent.Con` as their LHS.
     initialCtorMappings <- genInitialCtorMapping codebase rootNames initialTypeReplacements
 
-    order <- liftIO (sortDependentsGraph codebase initialDirty entireBranch)
+    order <- liftIO (Codebase.runTransaction codebase (sortDependentsGraph codebase initialDirty entireBranch))
     let getOrdered :: Set Reference -> Map Int Reference
         getOrdered rs =
           Map.fromList [(i, r) | r <- toList rs, Just i <- [Map.lookup r order]]
@@ -316,7 +316,7 @@ propagate patch b = case validatePatch patch of
                     (Just edits', seen') -> do
                       -- plan to update the dependents of this component too
                       dependents <- case r of
-                        Reference.Builtin {} -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+                        Reference.Builtin {} -> liftIO (Codebase.runTransaction codebase (Codebase.dependents codebase Queries.ExcludeOwnComponent r))
                         Reference.Derived h _i -> liftIO (Codebase.dependentsOfComponent codebase h)
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
@@ -457,15 +457,15 @@ propagate patch b = case validatePatch patch of
     initialTermReplacements ctors es =
       ctors
         <> (Map.mapKeys Referent.Ref . fmap Referent.Ref . Map.mapMaybe TermEdit.toReference) es
-    sortDependentsGraph :: Codebase IO Symbol Ann -> Set Reference -> Set Reference -> IO (Map Reference Int)
+    sortDependentsGraph :: Codebase IO Symbol Ann -> Set Reference -> Set Reference -> Sqlite.Transaction (Map Reference Int)
     sortDependentsGraph codebase dependencies restrictTo = do
       closure <-
         transitiveClosure
-          (fmap (Set.intersection restrictTo) . liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
+          (fmap (Set.intersection restrictTo) . Codebase.dependents codebase Queries.ExcludeOwnComponent)
           dependencies
       dependents <-
         traverse
-          (\r -> (r,) <$> (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent) r)
+          (\r -> (r,) <$> (Codebase.dependents codebase Queries.ExcludeOwnComponent) r)
           (toList closure)
       let graphEdges = [(r, r, toList deps) | (r, deps) <- toList dependents]
           (graph, getReference, _) = Graph.graphFromEdges graphEdges
