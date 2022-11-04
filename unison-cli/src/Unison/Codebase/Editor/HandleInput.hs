@@ -1337,7 +1337,7 @@ loop e = do
               for_ lds \ld -> do
                 dependencies :: Set Reference <-
                   let tp r@(Reference.DerivedId i) =
-                        liftIO (Codebase.getTypeDeclaration codebase i) <&> \case
+                        Codebase.getTypeDeclaration codebase i <&> \case
                           Nothing -> error $ "What happened to " ++ show i ++ "?"
                           Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
                       tp _ = pure mempty
@@ -1346,13 +1346,13 @@ loop e = do
                           Nothing -> error $ "What happened to " ++ show i ++ "?"
                           Just tm -> Set.delete r $ Term.dependencies tm
                       tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
-                        liftIO (Codebase.getTypeDeclaration codebase i) <&> \case
+                        liftIO (Codebase.runTransaction codebase (Codebase.getTypeDeclaration codebase i)) <&> \case
                           Nothing -> error $ "What happened to " ++ show i ++ "?"
                           Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
                             Nothing -> error $ "What happened to " ++ show con ++ "?"
                             Just tp -> Type.dependencies tp
                       tm _ = pure mempty
-                   in LD.fold tp tm ld
+                   in LD.fold (liftIO . Codebase.runTransaction codebase . tp) tm ld
                 (missing, names0) <- liftIO (Branch.findHistoricalRefs' dependencies rootBranch)
                 let types = R.toList $ Names.types names0
                 let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
@@ -2284,13 +2284,20 @@ doDisplay outputLoc names tm = do
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
       loadTerm _ = pure Nothing
       loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
-        Nothing -> fmap (fmap $ DD.amap (const ())) $ liftIO (Codebase.getTypeDeclaration codebase r)
+        Nothing -> fmap (fmap $ DD.amap (const ())) $ Codebase.getTypeDeclaration codebase r
         Just decl -> pure (Just $ DD.amap (const ()) decl)
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
         | Just (_, ty) <- Map.lookup r tms = pure $ Just (void ty)
       loadTypeOfTerm' r = fmap (fmap void) . loadTypeOfTerm codebase $ r
-  rendered <- DisplayValues.displayTerm ppe (liftIO . loadTerm) (liftIO . loadTypeOfTerm') evalTerm loadDecl tm
+  rendered <-
+    DisplayValues.displayTerm
+      ppe
+      (liftIO . loadTerm)
+      (liftIO . loadTypeOfTerm')
+      evalTerm
+      (liftIO . Codebase.runTransaction codebase . loadDecl)
+      tm
   Cli.respond $ DisplayRendered loc rendered
 
 getLinks ::
@@ -2684,18 +2691,17 @@ loadDisplayInfo ::
 loadDisplayInfo refs = do
   Cli.Env {codebase} <- ask
   termRefs <- filterM (liftIO . Codebase.isTerm codebase) (toList refs)
-  typeRefs <- filterM (liftIO . Codebase.isType codebase) (toList refs)
+  typeRefs <- liftIO (Codebase.runTransaction codebase (filterM (Codebase.isType codebase) (toList refs)))
   terms <- forM termRefs $ \r -> (r,) <$> liftIO (Codebase.getTypeOfTerm codebase r)
-  types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject r
+  types <- liftIO (Codebase.runTransaction codebase (forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject codebase r))
   pure (terms, types)
 
-loadTypeDisplayObject :: Reference -> Cli (DisplayObject () (DD.Decl Symbol Ann))
-loadTypeDisplayObject = \case
+loadTypeDisplayObject :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (DisplayObject () (DD.Decl Symbol Ann))
+loadTypeDisplayObject codebase = \case
   Reference.Builtin _ -> pure (BuiltinObject ())
-  Reference.DerivedId id -> do
-    Cli.Env {codebase} <- ask
+  Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
-      <$> liftIO (Codebase.getTypeDeclaration codebase id)
+      <$> Codebase.getTypeDeclaration codebase id
 
 lexedSource :: Text -> Text -> Cli (NamesWithHistory, (Text, [L.Token L.Lexeme]))
 lexedSource name src = do
@@ -2881,10 +2887,10 @@ executePPE ::
 executePPE unisonFile =
   suffixifiedPPE =<< displayNames unisonFile
 
-loadTypeOfTerm :: Monad m => Codebase m Symbol Ann -> Referent -> m (Maybe (Type Symbol Ann))
+loadTypeOfTerm :: MonadIO m => Codebase m Symbol Ann -> Referent -> m (Maybe (Type Symbol Ann))
 loadTypeOfTerm codebase (Referent.Ref r) = Codebase.getTypeOfTerm codebase r
 loadTypeOfTerm codebase (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
-  decl <- Codebase.getTypeDeclaration codebase r
+  decl <- Codebase.runTransaction codebase (Codebase.getTypeDeclaration codebase r)
   case decl of
     Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
     Nothing -> pure Nothing

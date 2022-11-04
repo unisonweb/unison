@@ -90,6 +90,7 @@ import qualified Unison.Server.Syntax as Syntax
 import Unison.Server.Types
 import Unison.ShortHash
 import qualified Unison.ShortHash as SH
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.NamePrinter as NP
@@ -233,13 +234,13 @@ shallowNames codebase b = do
   pure (Names (R.fromMultimap newTerms) (R.fromMultimap newTypes))
 
 loadReferentType ::
-  Applicative m =>
+  MonadIO m =>
   Codebase m Symbol Ann ->
   Referent ->
   m (Maybe (Type Symbol Ann))
 loadReferentType codebase = \case
   Referent.Ref r -> Codebase.getTypeOfTerm codebase r
-  Referent.Con r _ -> getTypeOfConstructor r
+  Referent.Con r _ -> Codebase.runTransaction codebase (getTypeOfConstructor r)
   where
     -- Mitchell wonders: why was this definition copied from Unison.Codebase?
     getTypeOfConstructor (ConstructorReference (Reference.DerivedId r) cid) = do
@@ -371,7 +372,7 @@ findShallowReadmeInBranchAndRender width runtime codebase ppe namespaceBranch =
    in liftIO $ do
         traverse (renderReadme ppe) readme
 
-isDoc :: Monad m => Codebase m Symbol Ann -> Referent.Referent -> m Bool
+isDoc :: MonadIO m => Codebase m Symbol Ann -> Referent.Referent -> m Bool
 isDoc codebase ref = do
   ot <- loadReferentType codebase ref
   pure $ isDoc' ot
@@ -400,7 +401,7 @@ resultListType :: (Ord v, Monoid a) => Type v a
 resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testResultRef)
 
 termListEntry ::
-  Monad m =>
+  MonadIO m =>
   Codebase m Symbol Ann ->
   V2Branch.Branch m ->
   ExactName NameSegment V2Referent.Referent ->
@@ -456,11 +457,10 @@ getTermTag codebase r sig = do
         | otherwise -> Plain
 
 getTypeTag ::
-  Monad m =>
   Var v =>
   Codebase m v Ann ->
   Reference ->
-  m TypeTag
+  Sqlite.Transaction TypeTag
 getTypeTag codebase r = do
   case Reference.toId r of
     Just r -> do
@@ -471,7 +471,7 @@ getTypeTag codebase r = do
     _ -> pure (if Set.member r Type.builtinAbilities then Ability else Data)
 
 typeListEntry ::
-  Monad m =>
+  MonadIO m =>
   Var v =>
   Codebase m v Ann ->
   V2Branch.Branch m ->
@@ -479,7 +479,7 @@ typeListEntry ::
   m TypeEntry
 typeListEntry codebase b (ExactName nameSegment ref) = do
   hashLength <- Codebase.hashLength codebase
-  tag <- getTypeTag codebase ref
+  tag <- Codebase.runTransaction codebase (getTypeTag codebase ref)
   pure $
     TypeEntry
       { typeEntryReference = ref,
@@ -498,12 +498,11 @@ typeListEntry codebase b (ExactName nameSegment ref) = do
 
 typeDeclHeader ::
   forall v m.
-  Monad m =>
   Var v =>
   Codebase m v Ann ->
   PPE.PrettyPrintEnv ->
   Reference ->
-  m (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
+  Sqlite.Transaction (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
 typeDeclHeader code ppe r = case Reference.toId r of
   Just rid ->
     Codebase.getTypeDeclaration code rid <&> \case
@@ -963,7 +962,7 @@ renderDoc ppe width rt codebase r = do
   let hash = Reference.toText r
   (name,hash,)
     <$> let tm = Term.ref () r
-         in Doc.renderDoc ppe terms typeOf eval decls tm
+         in Doc.renderDoc ppe terms typeOf eval (Codebase.runTransaction codebase . decls) tm
   where
     terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
     terms (Reference.DerivedId r) =
@@ -1101,9 +1100,9 @@ scopedNamesForBranchHash codebase mbh path = do
     Nothing
       | shouldUseNamesIndex -> indexNames
       | otherwise -> do
-        rootBranch <- lift $ Codebase.getRootBranch codebase
-        let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
-        pure (parseNames, localNames)
+          rootBranch <- lift $ Codebase.getRootBranch codebase
+          let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
+          pure (parseNames, localNames)
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       let v1CausalHash = Cv.causalHash2to1 ch
@@ -1194,7 +1193,7 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
           (Codebase.componentReferencesForReference codebase)
           typeRefsWithoutCycles
       DontIncludeCycles -> pure typeRefsWithoutCycles
-    Map.foldMapM (\ref -> (ref,) <$> displayType codebase ref) typeRefs
+    Codebase.runTransaction codebase (Map.foldMapM (\ref -> (ref,) <$> displayType codebase ref) typeRefs)
   pure (DefinitionResults terms types misses)
   where
     searchResultsToTermRefs :: [SR.SearchResult] -> Set Reference
@@ -1225,7 +1224,7 @@ displayTerm codebase = \case
       -- manually annotate if necessary
       _ -> UserObject (Term.ann (ABT.annotation term) term ty)
 
-displayType :: Monad m => Codebase m Symbol Ann -> Reference -> m (DisplayObject () (DD.Decl Symbol Ann))
+displayType :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (DisplayObject () (DD.Decl Symbol Ann))
 displayType codebase = \case
   Reference.Builtin _ -> pure (BuiltinObject ())
   Reference.DerivedId rid -> do
@@ -1313,7 +1312,7 @@ typeToSyntaxHeader width hqName obj =
         DeclPrinter.prettyDeclHeader hqName d
 
 loadSearchResults ::
-  Applicative m =>
+  MonadIO m =>
   Codebase m Symbol Ann ->
   [SR.SearchResult] ->
   m [SR'.SearchResult' Symbol Ann]
@@ -1324,14 +1323,13 @@ loadSearchResults c = traverse loadSearchResult
         typ <- loadReferentType c r
         pure $ SR'.Tm name typ r aliases
       SR.Tp (SR.TypeResult name r aliases) -> do
-        dt <- loadTypeDisplayObject c r
+        dt <- Codebase.runTransaction c (loadTypeDisplayObject c r)
         pure $ SR'.Tp name dt r aliases
 
 loadTypeDisplayObject ::
-  Applicative m =>
   Codebase m v Ann ->
   Reference ->
-  m (DisplayObject () (DD.Decl v Ann))
+  Sqlite.Transaction (DisplayObject () (DD.Decl v Ann))
 loadTypeDisplayObject c = \case
   Reference.Builtin _ -> pure (BuiltinObject ())
   Reference.DerivedId id ->

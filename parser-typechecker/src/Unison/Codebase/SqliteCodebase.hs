@@ -80,6 +80,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Sqlite as Sqlite
+import qualified Unison.Sqlite.Transaction as Sqlite.Transaction
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -252,9 +253,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getTermComponentWithTypes =
               CodebaseOps.getTermComponentWithTypes getDeclType
 
-            getTypeDeclaration :: Reference.Id -> m (Maybe (Decl Symbol Ann))
-            getTypeDeclaration id =
-              runTransaction (CodebaseOps.getTypeDeclaration id)
+            getTypeDeclaration :: Reference.Id -> Sqlite.Transaction (Maybe (Decl Symbol Ann))
+            getTypeDeclaration =
+              CodebaseOps.getTypeDeclaration
 
             getDeclComponent :: Hash -> m (Maybe [Decl Symbol Ann])
             getDeclComponent h =
@@ -442,7 +443,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
               C.Codebase
                 { getTerm = Cache.applyDefined termCache getTerm,
                   getTypeOfTermImpl = Cache.applyDefined typeOfTermCache getTypeOfTermImpl,
-                  getTypeDeclaration = Cache.applyDefined declCache getTypeDeclaration,
+                  getTypeDeclaration = applyDefined declCache getTypeDeclaration,
                   getDeclType =
                     \r ->
                       withConn \conn ->
@@ -500,6 +501,17 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
     runTransaction :: Sqlite.Transaction a -> m a
     runTransaction action =
       withConn \conn -> Sqlite.runTransaction conn action
+
+    -- Like Cache.applyDefined, but in Transaction
+    applyDefined ::
+      (Applicative g, Traversable g) =>
+      Cache.Cache k v ->
+      (k -> Sqlite.Transaction (g v)) ->
+      k ->
+      Sqlite.Transaction (g v)
+    applyDefined c f k = do
+      conn <- Sqlite.Transaction.unsafeGetConnection
+      Sqlite.unsafeIO (Cache.applyDefined c (\k1 -> Sqlite.unsafeUnTransaction (f k1) conn) k)
 
 syncInternal ::
   forall m.

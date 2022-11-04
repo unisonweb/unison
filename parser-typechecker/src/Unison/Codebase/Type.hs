@@ -66,7 +66,7 @@ data Codebase m v a = Codebase
     --
     -- Note that it is possible to call 'putTypeDeclaration', then 'getTypeDeclaration', and receive @Nothing@, per the
     -- semantics of 'putTypeDeclaration'.
-    getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a)),
+    getTypeDeclaration :: Reference.Id -> Sqlite.Transaction (Maybe (Decl v a)),
     -- | Get the type of a given decl.
     getDeclType :: V2.Reference -> m CT.ConstructorType,
     -- | Enqueue the put of a user-defined term (with its type) into the codebase, if it doesn't already exist. The
