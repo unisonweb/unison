@@ -28,7 +28,6 @@ module Unison.Codebase.Branch
 
     -- * Branch tests
     isEmpty,
-    isEmpty0,
     isOne,
     before,
     lca,
@@ -86,8 +85,10 @@ where
 
 import Control.Lens hiding (children, cons, transform, uncons)
 import Data.Bifunctor (second)
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import qualified Data.Semialign as Align
+import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.These (These (..))
 import U.Codebase.Branch (NamespaceStats (..))
@@ -194,6 +195,11 @@ branch0 terms types children edits =
       _children = children,
       _edits = edits,
       -- These are all overwritten immediately
+      isEmpty0 =
+        R.null (Star3.d1 terms)
+          && R.null (Star3.d1 types)
+          && Map.null edits
+          && all (isEmpty0 . head) children,
       deepTerms = R.empty,
       deepTypes = R.empty,
       deepTermMetadata = R4.empty,
@@ -211,84 +217,114 @@ branch0 terms types children edits =
 -- | Derive the 'deepTerms' field of a branch.
 deriveDeepTerms :: Branch0 m -> Branch0 m
 deriveDeepTerms branch =
-  branch {deepTerms = makeDeepTerms (_terms branch) (_children branch)}
+  branch {deepTerms = makeDeepTerms branch}
   where
-    makeDeepTerms :: Metadata.Star Referent NameSegment -> Map NameSegment (Branch m) -> Relation Referent Name
-    makeDeepTerms terms children =
-      R.mapRanMonotonic Name.fromSegment (Star3.d1 terms) <> ifoldMap go children
+    makeDeepTerms :: Branch0 m -> Relation Referent Name
+    makeDeepTerms branch = go [(mempty, branch)] mempty
       where
-        go :: NameSegment -> Branch m -> Relation Referent Name
-        go n b =
-          let b0 = head b
-           in R.mapRan (Name.cons n) (makeDeepTerms (_terms b0) (_children b0))
+        go :: forall m. [([NameSegment], Branch0 m)] -> Relation Referent Name -> Relation Referent Name
+        go [] acc = acc
+        go ((reversePrefix, b0) : work) acc =
+          let terms :: Relation Referent Name
+              terms =
+                R.mapRanMonotonic
+                  (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
+                  (Star3.d1 (_terms b0))
+           in go (deepChildrenHelper reversePrefix b0 <> work) (terms <> acc)
 
 -- | Derive the 'deepTypes' field of a branch.
 deriveDeepTypes :: Branch0 m -> Branch0 m
 deriveDeepTypes branch =
-  branch {deepTypes = makeDeepTypes (_types branch) (_children branch)}
+  branch {deepTypes = makeDeepTypes branch}
   where
-    makeDeepTypes :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Relation TypeReference Name
-    makeDeepTypes types children =
-      R.mapRanMonotonic Name.fromSegment (Star3.d1 types) <> ifoldMap go children
+    makeDeepTypes :: Branch0 m -> Relation TypeReference Name
+    makeDeepTypes branch = go [(mempty, branch)] mempty
       where
-        go :: NameSegment -> Branch m -> Relation TypeReference Name
-        go n b =
-          let b0 = head b
-           in R.mapRan (Name.cons n) (makeDeepTypes (_types b0) (_children b0))
+        go :: forall m. [([NameSegment], Branch0 m)] -> Relation TypeReference Name -> Relation TypeReference Name
+        go [] acc = acc
+        go ((reversePrefix, b0) : work) acc =
+          let types :: Relation TypeReference Name
+              types =
+                R.mapRanMonotonic
+                  (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
+                  (Star3.d1 (_types b0))
+           in go (deepChildrenHelper reversePrefix b0 <> work) (types <> acc)
 
 -- | Derive the 'deepTermMetadata' field of a branch.
 deriveDeepTermMetadata :: Branch0 m -> Branch0 m
 deriveDeepTermMetadata branch =
-  branch {deepTermMetadata = makeDeepTermMetadata (_terms branch) (_children branch)}
+  branch {deepTermMetadata = makeDeepTermMetadata branch}
   where
-    makeDeepTermMetadata :: Metadata.Star Referent NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 Referent Name
-    makeDeepTermMetadata terms children =
-      R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 terms) <> ifoldMap go children
+    makeDeepTermMetadata :: Branch0 m -> Metadata.R4 Referent Name
+    makeDeepTermMetadata branch = go [(mempty, branch)] mempty
       where
-        go :: NameSegment -> Branch m -> Metadata.R4 Referent Name
-        go n b =
-          let b0 = head b
-           in R4.mapD2 (Name.cons n) (makeDeepTermMetadata (_terms b0) (_children b0))
+        go :: forall m. [([NameSegment], Branch0 m)] -> Metadata.R4 Referent Name -> Metadata.R4 Referent Name
+        go [] acc = acc
+        go ((reversePrefix, b0) : work) acc =
+          let termMetadata :: Metadata.R4 Referent Name
+              termMetadata =
+                R4.mapD2Monotonic
+                  (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
+                  (Metadata.starToR4 (_terms b0))
+           in go (deepChildrenHelper reversePrefix b0 <> work) (termMetadata <> acc)
 
 -- | Derive the 'deepTypeMetadata' field of a branch.
 deriveDeepTypeMetadata :: Branch0 m -> Branch0 m
 deriveDeepTypeMetadata branch =
-  branch {deepTypeMetadata = makeDeepTypeMetadata (_types branch) (_children branch)}
+  branch {deepTypeMetadata = makeDeepTypeMetadata branch}
   where
-    makeDeepTypeMetadata :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 TypeReference Name
-    makeDeepTypeMetadata types children =
-      R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 types) <> ifoldMap go children
+    makeDeepTypeMetadata :: Branch0 m -> Metadata.R4 TypeReference Name
+    makeDeepTypeMetadata branch = go [(mempty, branch)] mempty
       where
-        go :: NameSegment -> Branch m -> Metadata.R4 TypeReference Name
-        go n b =
-          let b0 = head b
-           in R4.mapD2 (Name.cons n) (makeDeepTypeMetadata (_types b0) (_children b0))
+        go :: forall m. [([NameSegment], Branch0 m)] -> Metadata.R4 TypeReference Name -> Metadata.R4 TypeReference Name
+        go [] acc = acc
+        go ((reversePrefix, b0) : work) acc =
+          let typeMetadata :: Metadata.R4 TypeReference Name
+              typeMetadata =
+                R4.mapD2Monotonic
+                  (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
+                  (Metadata.starToR4 (_types b0))
+           in go (deepChildrenHelper reversePrefix b0 <> work) (typeMetadata <> acc)
 
 -- | Derive the 'deepPaths' field of a branch.
 deriveDeepPaths :: Branch0 m -> Branch0 m
 deriveDeepPaths branch =
-  branch {deepPaths = makeDeepPaths (nonEmptyChildren branch)}
+  branch {deepPaths = makeDeepPaths branch}
   where
-    makeDeepPaths :: Map NameSegment (Branch m) -> Set Path
-    makeDeepPaths children =
-      Set.mapMonotonic Path.singleton (Map.keysSet children) <> ifoldMap go children
+    makeDeepPaths :: Branch0 m -> Set Path
+    makeDeepPaths branch = go [(mempty, branch)] mempty
       where
-        go :: NameSegment -> Branch m -> Set Path
-        go n b =
-          Set.map (Path.cons n) (deepPaths $ head b)
+        go :: forall m. [([NameSegment], Branch0 m)] -> Set Path -> Set Path
+        go [] acc = acc
+        go ((reversePrefix, b0) : work) acc =
+          let paths :: Set Path
+              paths =
+                if isEmpty0 b0
+                  then Set.empty
+                  else (Set.singleton . Path . Seq.fromList . reverse) reversePrefix
+           in go (deepChildrenHelper reversePrefix b0 <> work) (paths <> acc)
 
 -- | Derive the 'deepEdits' field of a branch.
 deriveDeepEdits :: Branch0 m -> Branch0 m
 deriveDeepEdits branch =
-  branch {deepEdits = makeDeepEdits (_edits branch) (nonEmptyChildren branch)}
+  branch {deepEdits = makeDeepEdits branch}
   where
-    makeDeepEdits :: Map NameSegment (EditHash, m Patch) -> Map NameSegment (Branch m) -> Map Name EditHash
-    makeDeepEdits edits children =
-      Map.mapKeysMonotonic Name.fromSegment (Map.map fst edits) <> ifoldMap go children
+    makeDeepEdits :: Branch0 m -> Map Name EditHash
+    makeDeepEdits branch = go [(mempty, branch)] mempty
       where
-        go :: NameSegment -> Branch m -> Map Name EditHash
-        go n b =
-          Map.mapKeys (Name.cons n) (deepEdits $ head b)
+        go :: forall m. [([NameSegment], Branch0 m)] -> Map Name EditHash -> Map Name EditHash
+        go [] acc = acc
+        go ((reversePrefix, b0) : work) acc =
+          let edits :: Map Name EditHash
+              edits =
+                Map.mapKeysMonotonic
+                  (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
+                  (fst <$> _edits b0)
+           in go (deepChildrenHelper reversePrefix b0 <> work) (edits <> acc)
+
+deepChildrenHelper :: [NameSegment] -> Branch0 m -> [([NameSegment], Branch0 m)]
+deepChildrenHelper reversePrefix b0 =
+  [(ns : reversePrefix, head b) | (ns, b) <- Map.toList (nonEmptyChildren b0)]
 
 -- | Update the head of the current causal.
 -- This re-hashes the current causal head after modifications.
@@ -364,17 +400,7 @@ one = Branch . Causal.one
 
 empty0 :: Branch0 m
 empty0 =
-  Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
-
--- | Checks whether a Branch0 is empty, which means that the branch contains no terms or
--- types, and that the heads of all children are empty by the same definition.
--- This is not as easy as checking whether the branch is equal to the `empty0` branch
--- because child branches may be empty, but still have history.
-isEmpty0 :: Branch0 m -> Bool
-isEmpty0 (Branch0 _terms _types _children _edits deepTerms deepTypes _deepTermMetadata _deepTypeMetadata _deepPaths deepEdits) =
-  Relation.null deepTerms
-    && Relation.null deepTypes
-    && Map.null deepEdits
+  Branch0 mempty mempty mempty mempty True mempty mempty mempty mempty mempty mempty
 
 -- | Checks whether a branch is empty AND has no history.
 isEmpty :: Branch m -> Bool

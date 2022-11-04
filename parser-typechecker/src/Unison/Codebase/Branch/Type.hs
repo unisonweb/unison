@@ -65,6 +65,11 @@ data Branch0 m = Branch0
     -- Every level in the tree has a history.
     _children :: Map NameSegment (Branch m),
     _edits :: Map NameSegment (EditHash, m Patch),
+    -- | Checks whether a Branch0 is empty, which means that the branch contains no terms or
+    -- types, and that the heads of all children are empty by the same definition.
+    -- This is not as easy as checking whether the branch is equal to the `empty0` branch
+    -- because child branches may be empty, but still have history.
+    isEmpty0 :: Bool,
     -- names and metadata for this branch and its children
     -- (ref, (name, value)) iff ref has metadata `value` at name `name`
     deepTerms :: Relation Referent Name,
