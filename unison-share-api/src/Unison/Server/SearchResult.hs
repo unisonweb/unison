@@ -1,6 +1,5 @@
 module Unison.Server.SearchResult where
 
-import qualified Data.List as List
 import qualified Data.Set as Set
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified' as HQ'
@@ -95,12 +94,12 @@ _fromNames n0@(Names terms types) = typeResults <> termResults
 
 -- | Sort a list of search results by name. If names are equal, fall back to comparing by reference (putting types
 -- before terms).
-sortByName :: [SearchResult] -> [SearchResult]
-sortByName =
-  List.sortBy \x y -> primary x y <> secondary x y
+compareByName :: SearchResult -> SearchResult -> Ordering
+compareByName x y =
+  primary <> secondary
   where
-    primary x y = Name.compareAlphabetical (name x) (name y)
-    secondary x y =
+    primary = Name.compareAlphabetical (name x) (name y)
+    secondary =
       case (x, y) of
         (Tp _, Tm _) -> LT
         (Tm _, Tp _) -> GT

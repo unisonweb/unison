@@ -1730,34 +1730,33 @@ handleFindI isVerbose fscope ws input = do
          in scopeFilter (Backend.prettyNamesForBranch root' nameScope)
   let getResults :: Names -> Cli [SearchResult]
       getResults names =
-        fmap SR.sortByName do
-          case ws of
-            [] -> pure (SR.fromNames names)
-            -- type query
-            ":" : ws -> do
-              typ <- parseSearchType (show input) (unwords ws)
-              let named = Branch.deepReferents currentBranch0
-              matches <-
-                fmap (filter (`Set.member` named) . toList) $
-                  liftIO (Codebase.termsOfType codebase typ)
-              matches <-
-                if null matches
-                  then do
-                    Cli.respond NoExactTypeMatches
-                    fmap (filter (`Set.member` named) . toList) $
-                      liftIO (Codebase.termsMentioningType codebase typ)
-                  else pure matches
-              pure $
-                -- in verbose mode, aliases are shown, so we collapse all
-                -- aliases to a single search result; in non-verbose mode,
-                -- a separate result may be shown for each alias
-                (if isVerbose then uniqueBy SR.toReferent else id) $
-                  searchResultsFor names matches []
+        case ws of
+          [] -> pure (SR.fromNames names)
+          -- type query
+          ":" : ws -> do
+            typ <- parseSearchType (show input) (unwords ws)
+            let named = Branch.deepReferents currentBranch0
+            matches <-
+              fmap (filter (`Set.member` named) . toList) $
+                liftIO (Codebase.termsOfType codebase typ)
+            matches <-
+              if null matches
+                then do
+                  Cli.respond NoExactTypeMatches
+                  fmap (filter (`Set.member` named) . toList) $
+                    liftIO (Codebase.termsMentioningType codebase typ)
+                else pure matches
+            pure $
+              -- in verbose mode, aliases are shown, so we collapse all
+              -- aliases to a single search result; in non-verbose mode,
+              -- a separate result may be shown for each alias
+              (if isVerbose then uniqueBy SR.toReferent else id) $
+                searchResultsFor names matches []
 
-            -- name query
-            (map HQ.unsafeFromString -> qs) -> do
-              let srs = searchBranchScored names fuzzyNameDistance qs
-              pure $ uniqueBy SR.toReferent srs
+          -- name query
+          (map HQ.unsafeFromString -> qs) -> do
+            let srs = searchBranchScored names fuzzyNameDistance qs
+            pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
         #numberedArgs .= fmap searchResultToHQString results
         results' <- liftIO (Backend.loadSearchResults codebase results)
@@ -2454,13 +2453,16 @@ searchBranchScored ::
   [HQ.HashQualified Name] ->
   [SearchResult]
 searchBranchScored names0 score queries =
-  nubOrd . fmap snd . toList $ searchTermNamespace <> searchTypeNamespace
+  nubOrd
+    . fmap snd
+    . List.sortBy (\(s0, r0) (s1, r1) -> compare s0 s1 <> SR.compareByName r0 r1)
+    $ searchTermNamespace <> searchTypeNamespace
   where
-    searchTermNamespace = foldMap do1query queries
+    searchTermNamespace = queries >>= do1query
       where
-        do1query :: HQ.HashQualified Name -> Set (Maybe score, SearchResult)
-        do1query q = foldMap (score1hq q) (R.toList . Names.terms $ names0)
-        score1hq :: HQ.HashQualified Name -> (Name, Referent) -> Set (Maybe score, SearchResult)
+        do1query :: HQ.HashQualified Name -> [(Maybe score, SearchResult)]
+        do1query q = mapMaybe (score1hq q) (R.toList . Names.terms $ names0)
+        score1hq :: HQ.HashQualified Name -> (Name, Referent) -> Maybe (Maybe score, SearchResult)
         score1hq query (name, ref) = case query of
           HQ.NameOnly qn ->
             pair qn
@@ -2469,18 +2471,17 @@ searchBranchScored names0 score queries =
                 pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
-          _ -> mempty
+                Just (Nothing, result)
+          _ -> Nothing
           where
             result = SR.termSearchResult names0 name ref
-            pair qn = case score qn name of
-              Just score -> Set.singleton (Just score, result)
-              Nothing -> mempty
-    searchTypeNamespace = foldMap do1query queries
+            pair qn =
+              (\score -> (Just score, result)) <$> score qn name
+    searchTypeNamespace = queries >>= do1query
       where
-        do1query :: HQ.HashQualified Name -> Set (Maybe score, SearchResult)
-        do1query q = foldMap (score1hq q) (R.toList . Names.types $ names0)
-        score1hq :: HQ.HashQualified Name -> (Name, Reference) -> Set (Maybe score, SearchResult)
+        do1query :: HQ.HashQualified Name -> [(Maybe score, SearchResult)]
+        do1query q = mapMaybe (score1hq q) (R.toList . Names.types $ names0)
+        score1hq :: HQ.HashQualified Name -> (Name, Reference) -> Maybe (Maybe score, SearchResult)
         score1hq query (name, ref) = case query of
           HQ.NameOnly qn ->
             pair qn
@@ -2489,13 +2490,12 @@ searchBranchScored names0 score queries =
                 pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
-          _ -> mempty
+                Just (Nothing, result)
+          _ -> Nothing
           where
             result = SR.typeSearchResult names0 name ref
-            pair qn = case score qn name of
-              Just score -> Set.singleton (Just score, result)
-              Nothing -> mempty
+            pair qn =
+              (\score -> (Just score, result)) <$> score qn name
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
