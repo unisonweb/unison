@@ -84,6 +84,8 @@ module Unison.Codebase.Branch
 where
 
 import Control.Lens hiding (children, cons, transform, uncons)
+import Control.Monad.State (State)
+import qualified Control.Monad.State as State
 import Data.Bifunctor (second)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
@@ -91,7 +93,7 @@ import qualified Data.Semialign as Align
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.These (These (..))
-import U.Codebase.Branch (NamespaceStats (..))
+import U.Codebase.Branch.Type (NamespaceStats (..))
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
@@ -105,6 +107,7 @@ import Unison.Codebase.Branch.Type
     head,
     headHash,
     history,
+    namespaceHash,
   )
 import Unison.Codebase.Causal (Causal)
 import qualified Unison.Codebase.Causal as Causal
@@ -122,6 +125,7 @@ import Unison.Prelude hiding (empty)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import qualified Unison.Util.List as List
+import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Relation4 as R4
@@ -219,7 +223,7 @@ deriveDeepTerms branch =
   branch {deepTerms = R.fromList (makeDeepTerms branch)}
   where
     makeDeepTerms :: Branch0 m -> [(Referent, Name)]
-    makeDeepTerms branch = go [(mempty, branch)] mempty
+    makeDeepTerms branch = flip State.evalState mempty $ go [(mempty, branch)] mempty
       where
         -- `reversePrefix` might be ["Nat", "base", "lib"], and `b0` the `Nat` sub-namespace.
         -- Then `R.toList` might produce the NameSegment "+", and we put the two together to
@@ -228,15 +232,16 @@ deriveDeepTerms branch =
           forall m.
           [([NameSegment], Branch0 m)] ->
           [(Referent, Name)] ->
-          [(Referent, Name)]
-        go [] acc = acc
-        go ((reversePrefix, b0) : work) acc =
+          State (Set (NamespaceHash m)) [(Referent, Name)]
+        go [] acc = pure acc
+        go ((reversePrefix, b0) : work) acc = do
           let terms :: [(Referent, Name)]
               terms =
                 map
                   (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix)))
                   (R.toList (Star3.d1 (_terms b0)))
-           in go (deepChildrenHelper reversePrefix b0 <> work) (terms <> acc)
+          children <- deepChildrenHelper reversePrefix b0
+          go (work <> children) (terms <> acc)
 
 -- | Derive the 'deepTypes' field of a branch.
 deriveDeepTypes :: forall m. Branch0 m -> Branch0 m
@@ -244,17 +249,18 @@ deriveDeepTypes branch =
   branch {deepTypes = R.fromList (makeDeepTypes branch)}
   where
     makeDeepTypes :: Branch0 m -> [(TypeReference, Name)]
-    makeDeepTypes branch = go [(mempty, branch)] mempty
+    makeDeepTypes branch = flip State.evalState mempty $ go [(mempty, branch)] mempty
       where
         go ::
           [([NameSegment], Branch0 m)] ->
           [(TypeReference, Name)] ->
-          [(TypeReference, Name)]
-        go [] acc = acc
-        go ((reversePrefix, b0) : work) acc =
+          State (Set (NamespaceHash m)) [(TypeReference, Name)]
+        go [] acc = pure acc
+        go ((reversePrefix, b0) : work) acc = do
           let types :: [(TypeReference, Name)]
               types = map (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))) (R.toList (Star3.d1 (_types b0)))
-           in go (deepChildrenHelper reversePrefix b0 <> work) (types <> acc)
+          children <- deepChildrenHelper reversePrefix b0
+          go (work <> children) (types <> acc)
 
 -- | Derive the 'deepTermMetadata' field of a branch.
 deriveDeepTermMetadata :: forall m. Branch0 m -> Branch0 m
@@ -262,20 +268,21 @@ deriveDeepTermMetadata branch =
   branch {deepTermMetadata = R4.fromList (makeDeepTermMetadata branch)}
   where
     makeDeepTermMetadata :: Branch0 m -> [(Referent, Name, Metadata.Type, Metadata.Value)]
-    makeDeepTermMetadata branch = go [(mempty, branch)] mempty
+    makeDeepTermMetadata branch = flip State.evalState mempty $ go [(mempty, branch)] mempty
       where
         go ::
           [([NameSegment], Branch0 m)] ->
           [(Referent, Name, Metadata.Type, Metadata.Value)] ->
-          [(Referent, Name, Metadata.Type, Metadata.Value)]
-        go [] acc = acc
-        go ((reversePrefix, b0) : work) acc =
+          State (Set (NamespaceHash m)) [(Referent, Name, Metadata.Type, Metadata.Value)]
+        go [] acc = pure acc
+        go ((reversePrefix, b0) : work) acc = do
           let termMetadata :: [(Referent, Name, Metadata.Type, Metadata.Value)]
               termMetadata =
                 map
                   (\(r, n, t, v) -> (r, Name.fromReverseSegments (n NonEmpty.:| reversePrefix), t, v))
                   (deepMetadataHelper (_terms b0))
-           in go (deepChildrenHelper reversePrefix b0 <> work) (termMetadata <> acc)
+          children <- deepChildrenHelper reversePrefix b0
+          go (work <> children) (termMetadata <> acc)
 
 -- | Derive the 'deepTypeMetadata' field of a branch.
 deriveDeepTypeMetadata :: forall m. Branch0 m -> Branch0 m
@@ -283,20 +290,21 @@ deriveDeepTypeMetadata branch =
   branch {deepTypeMetadata = R4.fromList (makeDeepTypeMetadata branch)}
   where
     makeDeepTypeMetadata :: Branch0 m -> [(TypeReference, Name, Metadata.Type, Metadata.Value)]
-    makeDeepTypeMetadata branch = go [(mempty, branch)] mempty
+    makeDeepTypeMetadata branch = flip State.evalState mempty $ go [(mempty, branch)] mempty
       where
         go ::
           [([NameSegment], Branch0 m)] ->
           [(TypeReference, Name, Metadata.Type, Metadata.Value)] ->
-          [(TypeReference, Name, Metadata.Type, Metadata.Value)]
-        go [] acc = acc
-        go ((reversePrefix, b0) : work) acc =
+          State (Set (NamespaceHash m)) [(TypeReference, Name, Metadata.Type, Metadata.Value)]
+        go [] acc = pure acc
+        go ((reversePrefix, b0) : work) acc = do
           let typeMetadata :: [(TypeReference, Name, Metadata.Type, Metadata.Value)]
               typeMetadata =
                 map
                   (\(r, n, t, v) -> (r, Name.fromReverseSegments (n NonEmpty.:| reversePrefix), t, v))
                   (deepMetadataHelper (_types b0))
-           in go (deepChildrenHelper reversePrefix b0 <> work) (typeMetadata <> acc)
+          children <- deepChildrenHelper reversePrefix b0
+          go (work <> children) (typeMetadata <> acc)
 
 -- | Derive the 'deepPaths' field of a branch.
 deriveDeepPaths :: forall m. Branch0 m -> Branch0 m
@@ -304,17 +312,18 @@ deriveDeepPaths branch =
   branch {deepPaths = makeDeepPaths branch}
   where
     makeDeepPaths :: Branch0 m -> Set Path
-    makeDeepPaths branch = go [(mempty, branch)] mempty
+    makeDeepPaths branch = flip State.evalState mempty $ go [(mempty, branch)] mempty
       where
-        go :: [([NameSegment], Branch0 m)] -> Set Path -> Set Path
-        go [] acc = acc
-        go ((reversePrefix, b0) : work) acc =
+        go :: [([NameSegment], Branch0 m)] -> Set Path -> State (Set (NamespaceHash m)) (Set Path)
+        go [] acc = pure acc
+        go ((reversePrefix, b0) : work) acc = do
           let paths :: Set Path
               paths =
                 if isEmpty0 b0
                   then Set.empty
                   else (Set.singleton . Path . Seq.fromList . reverse) reversePrefix
-           in go (deepChildrenHelper reversePrefix b0 <> work) (paths <> acc)
+          children <- deepChildrenHelper reversePrefix b0
+          go (work <> children) (paths <> acc)
 
 -- | Derive the 'deepEdits' field of a branch.
 deriveDeepEdits :: forall m. Branch0 m -> Branch0 m
@@ -322,23 +331,34 @@ deriveDeepEdits branch =
   branch {deepEdits = makeDeepEdits branch}
   where
     makeDeepEdits :: Branch0 m -> Map Name EditHash
-    makeDeepEdits branch = go [(mempty, branch)] mempty
+    makeDeepEdits branch = flip State.evalState mempty $ go [(mempty, branch)] mempty
       where
-        go :: [([NameSegment], Branch0 m)] -> Map Name EditHash -> Map Name EditHash
-        go [] acc = acc
+        go :: [([NameSegment], Branch0 m)] -> Map Name EditHash -> State (Set (NamespaceHash m)) (Map Name EditHash)
+        go [] acc = pure acc
         go ((reversePrefix, b0) : work) acc =
           let edits :: Map Name EditHash
               edits =
                 Map.mapKeysMonotonic
                   (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
                   (fst <$> _edits b0)
-           in go (deepChildrenHelper reversePrefix b0 <> work) (edits <> acc)
+           in do
+                children <- deepChildrenHelper reversePrefix b0
+                go (work <> children) (edits <> acc)
 
-deepChildrenHelper :: [NameSegment] -> Branch0 m -> [([NameSegment], Branch0 m)]
+deepChildrenHelper :: [NameSegment] -> Branch0 m -> State (Set (NamespaceHash m)) [([NameSegment], Branch0 m)]
 deepChildrenHelper reversePrefix b0 =
-  case reversePrefix of
-    lib@"lib" : rest | elem lib rest -> []
-    _ -> [(ns : reversePrefix, head b) | (ns, b) <- Map.toList (nonEmptyChildren b0)]
+  Monoid.foldMapM
+    ( \(ns, b) -> do
+        let h = namespaceHash b
+        ifM
+          (State.gets (Set.member h))
+          (pure [])
+          ( do
+              State.modify (Set.insert h)
+              pure [(ns : reversePrefix, head b)]
+          )
+    )
+    (Map.toList (nonEmptyChildren b0))
 
 deepMetadataHelper :: Ord r => Metadata.Star r NameSegment -> [(r, NameSegment, Metadata.Type, Metadata.Value)]
 deepMetadataHelper s =

@@ -5,6 +5,7 @@ module Unison.Codebase.Branch.Type
     CausalHash (..),
     head,
     headHash,
+    namespaceHash,
     Branch (..),
     Branch0 (..),
     history,
@@ -50,6 +51,9 @@ head (Branch c) = Causal.head c
 
 headHash :: Branch m -> CausalHash
 headHash (Branch c) = Causal.currentHash c
+
+namespaceHash :: Branch m -> NamespaceHash m
+namespaceHash (Branch c) = Causal.valueHash c
 
 -- | A node in the Unison namespace hierarchy.
 --
