@@ -257,10 +257,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getTypeDeclaration =
               CodebaseOps.getTypeDeclaration
 
-            getDeclComponent :: Hash -> Sqlite.Transaction (Maybe [Decl Symbol Ann])
-            getDeclComponent =
-              CodebaseOps.getDeclComponent
-
             getCycleLength :: Hash -> m (Maybe Reference.CycleSize)
             getCycleLength h =
               runTransaction (Ops.getCycleLen h)
@@ -453,7 +449,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   putTypeDeclaration,
                   putTypeDeclarationComponent,
                   getTermComponentWithTypes,
-                  getDeclComponent,
                   getComponentLength = getCycleLength,
                   getRootBranch = getRootBranch rootBranchCache,
                   getRootCausalHash,

@@ -133,6 +133,7 @@ import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import Unison.Codebase.SqliteCodebase.Operations (getDeclComponent)
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),

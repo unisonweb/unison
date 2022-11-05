@@ -144,12 +144,12 @@ propagateCtorMapping oldComponent newComponent =
 -- If the cycle is size 1 for old and new, then the type names need not be the same,
 -- and if the number of constructors is 1, then the constructor names need not
 -- be the same.
-genInitialCtorMapping :: Codebase IO Symbol Ann -> Names -> Map Reference Reference -> Sqlite.Transaction (Map Referent Referent)
-genInitialCtorMapping codebase rootNames initialTypeReplacements = do
+genInitialCtorMapping :: Names -> Map Reference Reference -> Sqlite.Transaction (Map Referent Referent)
+genInitialCtorMapping rootNames initialTypeReplacements = do
   let mappings :: (Reference, Reference) -> Sqlite.Transaction (Map Referent Referent)
       mappings (old, new) = do
-        old <- unhashTypeComponent codebase old
-        new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent codebase new
+        old <- unhashTypeComponent old
+        new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent new
         pure $ ctorMapping old new
   Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
   where
@@ -276,7 +276,7 @@ propagate patch b = case validatePatch patch of
       -- TODO: once patches can directly contain constructor replacements, this
       -- line can turn into a pure function that takes the subset of the term replacements
       -- in the patch which have a `Referent.Con` as their LHS.
-      initialCtorMappings <- genInitialCtorMapping codebase rootNames initialTypeReplacements
+      initialCtorMappings <- genInitialCtorMapping rootNames initialTypeReplacements
 
       order <- sortDependentsGraph codebase initialDirty entireBranch
 
@@ -327,7 +327,7 @@ propagate patch b = case validatePatch patch of
               doType :: Reference -> Sqlite.Transaction (Maybe (Edits Symbol), Set Reference)
               doType r = do
                 when debugMode $ traceM ("Rewriting type: " <> refName r)
-                componentMap <- unhashTypeComponent codebase r
+                componentMap <- unhashTypeComponent r
                 let componentMap' =
                       over _2 (Decl.updateDependencies typeReplacements)
                         <$> componentMap
@@ -560,16 +560,16 @@ typecheckFile codebase ambient file = do
   pure . fmap Right $ synthesizeFile' ambient (typeLookup <> Builtin.typeLookup) file
 
 -- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
-unhashTypeComponent :: Codebase IO Symbol Ann -> Reference -> Sqlite.Transaction (Map Symbol (Reference, Decl Symbol Ann))
-unhashTypeComponent codebase r = case Reference.toId r of
+unhashTypeComponent :: Reference -> Sqlite.Transaction (Map Symbol (Reference, Decl Symbol Ann))
+unhashTypeComponent r = case Reference.toId r of
   Nothing -> pure mempty
   Just id -> do
-    unhashed <- unhashTypeComponent' codebase (Reference.idToHash id)
+    unhashed <- unhashTypeComponent' (Reference.idToHash id)
     pure $ over _1 Reference.DerivedId <$> unhashed
 
-unhashTypeComponent' :: Codebase IO Symbol Ann -> Hash -> Sqlite.Transaction (Map Symbol (Reference.Id, Decl Symbol Ann))
-unhashTypeComponent' codebase h =
-  Codebase.getDeclComponent codebase h <&> foldMap \decls ->
+unhashTypeComponent' :: Hash -> Sqlite.Transaction (Map Symbol (Reference.Id, Decl Symbol Ann))
+unhashTypeComponent' h =
+  Codebase.getDeclComponent h <&> foldMap \decls ->
     unhash $ Map.fromList (Reference.componentFor h decls)
   where
     unhash =
