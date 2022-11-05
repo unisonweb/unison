@@ -274,7 +274,7 @@ debug :: Bool
 debug = False
 
 -- | Write all of UCM's dependencies (builtins types and an empty namespace) into the codebase
-installUcmDependencies :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
+installUcmDependencies :: forall m. MonadIO m => Codebase m Symbol Parser.Ann -> m ()
 installUcmDependencies c = do
   let uf =
         ( UF.typecheckedUnisonFile
@@ -289,7 +289,7 @@ installUcmDependencies c = do
 -- if it makes sense to later.
 addDefsToCodebase ::
   forall m v a.
-  (Monad m, Var v, Show a) =>
+  (MonadIO m, Var v, Show a) =>
   Codebase m v a ->
   UF.TypecheckedUnisonFile v a ->
   m ()
@@ -297,7 +297,7 @@ addDefsToCodebase c uf = do
   traverse_ (goType Right) (UF.dataDeclarationsId' uf)
   traverse_ (goType Left) (UF.effectDeclarationsId' uf)
   -- put terms
-  traverse_ goTerm (UF.hashTermsId uf)
+  traverse_ (runTransaction c . goTerm) (UF.hashTermsId uf)
   where
     goTerm t | debug && trace ("Codebase.addDefsToCodebase.goTerm " ++ show t) False = undefined
     goTerm (r, Nothing, tm, tp) = putTerm c r tm tp
