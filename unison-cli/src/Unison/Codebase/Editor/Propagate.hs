@@ -320,7 +320,7 @@ propagate patch b = case validatePatch patch of
                         -- plan to update the dependents of this component too
                         dependents <- case r of
                           Reference.Builtin {} -> Codebase.dependents Queries.ExcludeOwnComponent r
-                          Reference.Derived h _i -> Codebase.dependentsOfComponent codebase h
+                          Reference.Derived h _i -> Codebase.dependentsOfComponent h
                         let todo' = todo <> getOrdered dependents
                         collectEdits edits' seen' todo'
 

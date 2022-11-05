@@ -340,10 +340,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             patchExists h =
               runTransaction (CodebaseOps.patchExists h)
 
-            dependentsOfComponentImpl :: Hash -> Sqlite.Transaction (Set Reference.Id)
-            dependentsOfComponentImpl =
-              CodebaseOps.dependentsOfComponentImpl
-
             syncFromDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
             syncFromDirectory srcRoot _syncMode b =
               withConnection (debugName ++ ".sync.src") srcRoot \srcConn ->
@@ -457,7 +453,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   getPatch,
                   putPatch,
                   patchExists,
-                  dependentsOfComponentImpl,
                   syncFromDirectory,
                   syncToDirectory,
                   viewRemoteBranch',

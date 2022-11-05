@@ -26,7 +26,7 @@ module Unison.Codebase
     -- * Type declarations
     getTypeDeclaration,
     unsafeGetTypeDeclaration,
-    getDeclComponent,
+    Operations.getDeclComponent,
     putTypeDeclaration,
     putTypeDeclarationComponent,
     typeReferencesByPrefix,
@@ -133,7 +133,7 @@ import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import Unison.Codebase.SqliteCodebase.Operations (dependentsImpl, getDeclComponent)
+import qualified Unison.Codebase.SqliteCodebase.Operations as Operations
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
@@ -398,13 +398,13 @@ dependents :: Queries.DependentsSelector -> Reference -> Sqlite.Transaction (Set
 dependents selector r =
   Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
-    <$> dependentsImpl selector r
+    <$> Operations.dependentsImpl selector r
 
-dependentsOfComponent :: Codebase m v a -> Hash -> Sqlite.Transaction (Set Reference)
-dependentsOfComponent c h =
+dependentsOfComponent :: Hash -> Sqlite.Transaction (Set Reference)
+dependentsOfComponent h =
   Set.union (Builtin.builtinTypeDependentsOfComponent h)
     . Set.map Reference.DerivedId
-    <$> dependentsOfComponentImpl c h
+    <$> Operations.dependentsOfComponentImpl h
 
 -- | Get the set of terms-or-constructors that have the given type.
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)

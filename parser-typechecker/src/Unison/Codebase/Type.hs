@@ -108,7 +108,6 @@ data Codebase m v a = Codebase
     putPatch :: Branch.EditHash -> Patch -> m (),
     -- | Check whether the given patch exists in the codebase.
     patchExists :: Branch.EditHash -> m Bool,
-    dependentsOfComponentImpl :: Hash -> Sqlite.Transaction (Set Reference.Id),
     -- | Copy a branch and all of its dependencies from the given codebase into this one.
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
