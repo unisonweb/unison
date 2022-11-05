@@ -281,9 +281,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             putTermComponent =
               CodebaseOps.putTermComponent termBuffer declBuffer
 
-            putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> m ()
-            putTypeDeclaration id decl =
-              runTransaction (CodebaseOps.putTypeDeclaration termBuffer declBuffer id decl)
+            putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> Sqlite.Transaction ()
+            putTypeDeclaration =
+              CodebaseOps.putTypeDeclaration termBuffer declBuffer
 
             putTypeDeclarationComponent :: Hash -> [Decl Symbol Ann] -> Sqlite.Transaction ()
             putTypeDeclarationComponent =

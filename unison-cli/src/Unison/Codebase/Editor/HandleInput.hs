@@ -1114,7 +1114,7 @@ loop e = do
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
               Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
-              liftIO . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
+              Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
               addDefaultMetadata adds
@@ -1129,7 +1129,7 @@ loop e = do
               let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
               Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
-              liftIO . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
+              Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               Cli.returnEarly $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
               addDefaultMetadata adds
@@ -1249,7 +1249,7 @@ loop e = do
                       (Map.fromList Builtin.builtinEffectDecls)
                       [Builtin.builtinTermsSrc Intrinsic]
                       mempty
-              liftIO (Codebase.addDefsToCodebase codebase uf)
+              Cli.runTransaction (Codebase.addDefsToCodebase codebase uf)
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names0
@@ -1268,9 +1268,10 @@ loop e = do
                       (Map.fromList Builtin.builtinEffectDecls)
                       [Builtin.builtinTermsSrc Intrinsic]
                       mempty
-              liftIO (Codebase.addDefsToCodebase codebase uf)
-              -- these have not necessarily been added yet
-              liftIO (Codebase.addDefsToCodebase codebase IOSource.typecheckedFile')
+              Cli.runTransaction do
+                Codebase.addDefsToCodebase codebase uf
+                -- these have not necessarily been added yet
+                Codebase.addDefsToCodebase codebase IOSource.typecheckedFile'
 
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.

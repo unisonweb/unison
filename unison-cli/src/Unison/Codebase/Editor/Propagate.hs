@@ -307,18 +307,17 @@ propagate patch b = case validatePatch patch of
               if Map.member r termEdits || Set.member r seen || Map.member r typeEdits
                 then collectEdits es seen todo
                 else do
-                  (haveType, haveTerm) <-
+                  mayEdits <-
                     Cli.runTransaction do
                       haveType <- Codebase.isType codebase r
                       haveTerm <- Codebase.isTerm codebase r
-                      pure (haveType, haveTerm)
-                  let message =
-                        "This reference is not a term nor a type " <> show r
+                      let message =
+                            "This reference is not a term nor a type " <> show r
+                          mmayEdits
+                            | haveTerm = doTerm r
+                            | haveType = doType r
+                            | otherwise = error message
                       mmayEdits
-                        | haveTerm = Cli.runTransaction (doTerm r)
-                        | haveType = doType r
-                        | otherwise = error message
-                  mayEdits <- mmayEdits
                   case mayEdits of
                     (Nothing, seen') -> collectEdits es seen' todo
                     (Just edits', seen') -> do
@@ -330,10 +329,10 @@ propagate patch b = case validatePatch patch of
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
 
-            doType :: Reference -> Cli (Maybe (Edits Symbol), Set Reference)
+            doType :: Reference -> Sqlite.Transaction (Maybe (Edits Symbol), Set Reference)
             doType r = do
               when debugMode $ traceM ("Rewriting type: " <> refName r)
-              componentMap <- Cli.runTransaction (unhashTypeComponent codebase r)
+              componentMap <- unhashTypeComponent codebase r
               let componentMap' =
                     over _2 (Decl.updateDependencies typeReplacements)
                       <$> componentMap
@@ -374,7 +373,7 @@ propagate patch b = case validatePatch patch of
                     )
                   seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
                   writeTypes = traverse_ $ \case
-                    (Reference.DerivedId id, tp) -> liftIO (Codebase.putTypeDeclaration codebase id tp)
+                    (Reference.DerivedId id, tp) -> Codebase.putTypeDeclaration codebase id tp
                     _ -> error "propagate: Expected DerivedId"
                   !newCtorMappings =
                     let r = propagateCtorMapping componentMap hashedComponents'
