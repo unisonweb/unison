@@ -129,30 +129,19 @@ lib.distributed.lib.baz.qux = "indirect dependency"
   lib.distributed.baz.qux = "direct dependency 2"
 
 ```
+Note that we can always still view indirect dependencies by using more name segments:
+
 ```ucm
 .> view distributed.abra.cadabra
 
   lib.distributed.abra.cadabra : Text
   lib.distributed.abra.cadabra = "direct dependency 1"
 
-```
-Note that we cannot view indirect dependencies without descending manually:
-```ucm
 .> names distributed.lib.baz.qux
 
-  😶
-  
-  I couldn't find anything by that name.
-  
-  Tip: Use `names.global` to see more results.
-
-```
-```ucm
-.lib.distributed> names baz.qux
-
   Term
-  Hash:   #ds9vgj2c7m
-  Names:  baz.qux
+  Hash:   #nhup096n2s
+  Names:  lib.distributed.lib.baz.qux
   
   Tip: Use `names.global` to see more results.
 
