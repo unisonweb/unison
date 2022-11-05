@@ -344,7 +344,6 @@ loop e = do
             Path.HQSplit' ->
             Cli ()
           delete getTerms getTypes hq' = do
-            Cli.Env {codebase} <- ask
             hq <- Cli.resolveSplit' hq'
             terms <- getTerms hq
             types <- getTypes hq
@@ -357,7 +356,7 @@ loop e = do
                 toRel = R.fromList . fmap (name,) . toList
                 -- these names are relative to the root
                 toDelete = Names (toRel terms) (toRel types)
-            endangerments <- Cli.runTransaction (getEndangeredDependents codebase toDelete rootNames)
+            endangerments <- Cli.runTransaction (getEndangeredDependents toDelete rootNames)
             if null endangerments
               then do
                 let makeDeleteTermNames = map (BranchUtil.makeDeleteTermName resolvedPath) . Set.toList $ terms
@@ -540,7 +539,6 @@ loop e = do
                   Cli.respond DeletedEverything
                 else Cli.respond DeleteEverythingConfirmation
             DeleteBranchI insistence (Just p) -> do
-              Cli.Env {codebase} <- ask
               branch <- Cli.expectBranchAtPath' (Path.unsplit' p)
               description <- inputDescription input
               absPath <- Cli.resolveSplit' p
@@ -550,7 +548,7 @@ loop e = do
                       (Branch.toNames (Branch.head branch))
               afterDelete <- do
                 rootNames <- Branch.toNames <$> Cli.getRootBranch0
-                endangerments <- Cli.runTransaction (getEndangeredDependents codebase toDelete rootNames)
+                endangerments <- Cli.runTransaction (getEndangeredDependents toDelete rootNames)
                 case (null endangerments, insistence) of
                   (True, _) -> pure (Cli.respond Success)
                   (False, Force) -> do
@@ -1794,11 +1792,11 @@ handleDependents hq = do
   for_ lds \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
-      let tp r = Codebase.dependents codebase Queries.ExcludeOwnComponent r
+      let tp r = Codebase.dependents Queries.ExcludeOwnComponent r
           tm = \case
-            Referent.Ref r -> Codebase.dependents codebase Queries.ExcludeOwnComponent r
+            Referent.Ref r -> Codebase.dependents Queries.ExcludeOwnComponent r
             Referent.Con (ConstructorReference r _cid) _ct ->
-              Codebase.dependents codebase Queries.ExcludeOwnComponent r
+              Codebase.dependents Queries.ExcludeOwnComponent r
        in Cli.runTransaction (LD.fold tp tm ld)
     -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
     -- unambiguous name.
@@ -2384,7 +2382,7 @@ checkTodo codebase patch names0 = do
       --   2. Have a name in this namespace
       getDependents :: Reference -> Sqlite.Transaction (Set Reference)
       getDependents ref = do
-        dependents <- Codebase.dependents codebase Queries.ExcludeSelf ref
+        dependents <- Codebase.dependents Queries.ExcludeSelf ref
         pure (dependents & removeEditedThings & removeNamelessThings)
   -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
   dependsOn <- Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited
@@ -2561,14 +2559,13 @@ loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
 -- definition is going "extinct"). In this case we may wish to take some action or warn the
 -- user about these "endangered" definitions which would now contain unnamed references.
 getEndangeredDependents ::
-  Codebase m v a ->
   -- | Which names we want to delete
   Names ->
   -- | All names from the root branch
   Names ->
   -- | map from references going extinct to the set of endangered dependents
   Sqlite.Transaction (Map LabeledDependency (NESet LabeledDependency))
-getEndangeredDependents codebase namesToDelete rootNames = do
+getEndangeredDependents namesToDelete rootNames = do
   let remainingNames :: Names
       remainingNames = rootNames `Names.difference` namesToDelete
       refsToDelete, remainingRefs, extinct :: Set LabeledDependency
@@ -2578,7 +2575,7 @@ getEndangeredDependents codebase namesToDelete rootNames = do
       accumulateDependents :: LabeledDependency -> Sqlite.Transaction (Map LabeledDependency (Set LabeledDependency))
       accumulateDependents ld =
         let ref = LD.fold id Referent.toReference ld
-         in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents codebase Queries.ExcludeOwnComponent ref
+         in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents Queries.ExcludeOwnComponent ref
   -- All dependents of extinct, including terms which might themselves be in the process of being deleted.
   allDependentsOfExtinct :: Map LabeledDependency (Set LabeledDependency) <-
     Map.unionsWith (<>) <$> for (Set.toList extinct) accumulateDependents

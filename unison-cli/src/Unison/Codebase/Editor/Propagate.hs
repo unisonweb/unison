@@ -268,7 +268,7 @@ propagate patch b = case validatePatch patch of
     Cli.runTransaction do
       initialDirty <-
         computeDirty
-          (Codebase.dependents codebase Queries.ExcludeOwnComponent)
+          (Codebase.dependents Queries.ExcludeOwnComponent)
           patch
           (Names.contains names0)
 
@@ -278,7 +278,7 @@ propagate patch b = case validatePatch patch of
       -- in the patch which have a `Referent.Con` as their LHS.
       initialCtorMappings <- genInitialCtorMapping rootNames initialTypeReplacements
 
-      order <- sortDependentsGraph codebase initialDirty entireBranch
+      order <- sortDependentsGraph initialDirty entireBranch
 
       let getOrdered :: Set Reference -> Map Int Reference
           getOrdered rs =
@@ -319,7 +319,7 @@ propagate patch b = case validatePatch patch of
                       (Just edits', seen') -> do
                         -- plan to update the dependents of this component too
                         dependents <- case r of
-                          Reference.Builtin {} -> Codebase.dependents codebase Queries.ExcludeOwnComponent r
+                          Reference.Builtin {} -> Codebase.dependents Queries.ExcludeOwnComponent r
                           Reference.Derived h _i -> Codebase.dependentsOfComponent codebase h
                         let todo' = todo <> getOrdered dependents
                         collectEdits edits' seen' todo'
@@ -460,15 +460,15 @@ propagate patch b = case validatePatch patch of
     initialTermReplacements ctors es =
       ctors
         <> (Map.mapKeys Referent.Ref . fmap Referent.Ref . Map.mapMaybe TermEdit.toReference) es
-    sortDependentsGraph :: Codebase IO Symbol Ann -> Set Reference -> Set Reference -> Sqlite.Transaction (Map Reference Int)
-    sortDependentsGraph codebase dependencies restrictTo = do
+    sortDependentsGraph :: Set Reference -> Set Reference -> Sqlite.Transaction (Map Reference Int)
+    sortDependentsGraph dependencies restrictTo = do
       closure <-
         transitiveClosure
-          (fmap (Set.intersection restrictTo) . Codebase.dependents codebase Queries.ExcludeOwnComponent)
+          (fmap (Set.intersection restrictTo) . Codebase.dependents Queries.ExcludeOwnComponent)
           dependencies
       dependents <-
         traverse
-          (\r -> (r,) <$> (Codebase.dependents codebase Queries.ExcludeOwnComponent) r)
+          (\r -> (r,) <$> (Codebase.dependents Queries.ExcludeOwnComponent) r)
           (toList closure)
       let graphEdges = [(r, r, toList deps) | (r, deps) <- toList dependents]
           (graph, getReference, _) = Graph.graphFromEdges graphEdges

@@ -340,10 +340,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             patchExists h =
               runTransaction (CodebaseOps.patchExists h)
 
-            dependentsImpl :: Q.DependentsSelector -> Reference -> Sqlite.Transaction (Set Reference.Id)
-            dependentsImpl =
-              CodebaseOps.dependentsImpl
-
             dependentsOfComponentImpl :: Hash -> Sqlite.Transaction (Set Reference.Id)
             dependentsOfComponentImpl =
               CodebaseOps.dependentsOfComponentImpl
@@ -461,7 +457,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   getPatch,
                   putPatch,
                   patchExists,
-                  dependentsImpl,
                   dependentsOfComponentImpl,
                   syncFromDirectory,
                   syncToDirectory,

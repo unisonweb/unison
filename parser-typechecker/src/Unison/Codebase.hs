@@ -133,7 +133,7 @@ import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import Unison.Codebase.SqliteCodebase.Operations (getDeclComponent)
+import Unison.Codebase.SqliteCodebase.Operations (dependentsImpl, getDeclComponent)
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
@@ -394,11 +394,11 @@ componentReferencesForReference c = \case
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.
-dependents :: Codebase m v a -> Queries.DependentsSelector -> Reference -> Sqlite.Transaction (Set Reference)
-dependents c selector r =
+dependents :: Queries.DependentsSelector -> Reference -> Sqlite.Transaction (Set Reference)
+dependents selector r =
   Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
-    <$> dependentsImpl c selector r
+    <$> dependentsImpl selector r
 
 dependentsOfComponent :: Codebase m v a -> Hash -> Sqlite.Transaction (Set Reference)
 dependentsOfComponent c h =
