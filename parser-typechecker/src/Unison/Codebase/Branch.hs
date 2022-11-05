@@ -84,11 +84,13 @@ module Unison.Codebase.Branch
 where
 
 import Control.Lens hiding (children, cons, transform, uncons)
+import Control.Monad.Extra ((||^))
 import Control.Monad.State (State)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (second)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
+import Data.Monoid (Sum)
 import qualified Data.Semialign as Align
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
@@ -232,7 +234,7 @@ deriveDeepTerms branch =
           forall m.
           [([NameSegment], Branch0 m)] ->
           [(Referent, Name)] ->
-          State (Set (NamespaceHash m)) [(Referent, Name)]
+          DeepState m [(Referent, Name)]
         go [] acc = pure acc
         go ((reversePrefix, b0) : work) acc = do
           let terms :: [(Referent, Name)]
@@ -254,7 +256,7 @@ deriveDeepTypes branch =
         go ::
           [([NameSegment], Branch0 m)] ->
           [(TypeReference, Name)] ->
-          State (Set (NamespaceHash m)) [(TypeReference, Name)]
+          DeepState m [(TypeReference, Name)]
         go [] acc = pure acc
         go ((reversePrefix, b0) : work) acc = do
           let types :: [(TypeReference, Name)]
@@ -273,7 +275,7 @@ deriveDeepTermMetadata branch =
         go ::
           [([NameSegment], Branch0 m)] ->
           [(Referent, Name, Metadata.Type, Metadata.Value)] ->
-          State (Set (NamespaceHash m)) [(Referent, Name, Metadata.Type, Metadata.Value)]
+          DeepState m [(Referent, Name, Metadata.Type, Metadata.Value)]
         go [] acc = pure acc
         go ((reversePrefix, b0) : work) acc = do
           let termMetadata :: [(Referent, Name, Metadata.Type, Metadata.Value)]
@@ -295,7 +297,7 @@ deriveDeepTypeMetadata branch =
         go ::
           [([NameSegment], Branch0 m)] ->
           [(TypeReference, Name, Metadata.Type, Metadata.Value)] ->
-          State (Set (NamespaceHash m)) [(TypeReference, Name, Metadata.Type, Metadata.Value)]
+          DeepState m [(TypeReference, Name, Metadata.Type, Metadata.Value)]
         go [] acc = pure acc
         go ((reversePrefix, b0) : work) acc = do
           let typeMetadata :: [(TypeReference, Name, Metadata.Type, Metadata.Value)]
@@ -314,7 +316,7 @@ deriveDeepPaths branch =
     makeDeepPaths :: Branch0 m -> Set Path
     makeDeepPaths branch = flip State.evalState mempty $ go [(mempty, branch)] mempty
       where
-        go :: [([NameSegment], Branch0 m)] -> Set Path -> State (Set (NamespaceHash m)) (Set Path)
+        go :: [([NameSegment], Branch0 m)] -> Set Path -> DeepState m (Set Path)
         go [] acc = pure acc
         go ((reversePrefix, b0) : work) acc = do
           let paths :: Set Path
@@ -333,7 +335,7 @@ deriveDeepEdits branch =
     makeDeepEdits :: Branch0 m -> Map Name EditHash
     makeDeepEdits branch = flip State.evalState mempty $ go [(mempty, branch)] mempty
       where
-        go :: [([NameSegment], Branch0 m)] -> Map Name EditHash -> State (Set (NamespaceHash m)) (Map Name EditHash)
+        go :: [([NameSegment], Branch0 m)] -> Map Name EditHash -> DeepState m (Map Name EditHash)
         go [] acc = pure acc
         go ((reversePrefix, b0) : work) acc =
           let edits :: Map Name EditHash
@@ -345,21 +347,29 @@ deriveDeepEdits branch =
                 children <- deepChildrenHelper reversePrefix b0
                 go (work <> children) (edits <> acc)
 
-deepChildrenHelper :: [NameSegment] -> Branch0 m -> State (Set (NamespaceHash m)) [([NameSegment], Branch0 m)]
-deepChildrenHelper reversePrefix b0 =
-  Monoid.foldMapM
-    ( \(ns, b) -> do
-        let h = namespaceHash b
-        ifM
-          (State.gets (Set.member h))
-          (pure [])
-          ( do
-              State.modify (Set.insert h)
-              pure [(ns : reversePrefix, head b)]
-          )
-    )
-    (Map.toList (nonEmptyChildren b0))
+type DeepState m = State (Set (NamespaceHash m), Sum Int)
 
+-- | Helper for knowing whether to descend into a child branch or not.
+-- Accepts child namespaces with previously unseen hashes, and any nested under fewer than 2 `lib` segments.
+deepChildrenHelper :: [NameSegment] -> Branch0 m -> DeepState m [([NameSegment], Branch0 m)]
+deepChildrenHelper reversePrefix b0 = do
+  case reversePrefix of
+    "lib" : _ -> modifying _2 (+ 1)
+    _ -> pure ()
+  flip
+    Monoid.foldMapM
+    (Map.toList (nonEmptyChildren b0))
+    \(ns, b) -> do
+      let h = namespaceHash b
+      result <-
+        ifM
+          (uses _1 (Set.notMember h) ||^ uses _2 (< 2))
+          (pure [(ns : reversePrefix, head b)])
+          (pure [])
+      modifying _1 (Set.insert h)
+      pure result
+
+-- | Flattens a Metadata.Star into a 4-tuple.
 deepMetadataHelper :: Ord r => Metadata.Star r NameSegment -> [(r, NameSegment, Metadata.Type, Metadata.Value)]
 deepMetadataHelper s =
   [ (f, x, y, z)
