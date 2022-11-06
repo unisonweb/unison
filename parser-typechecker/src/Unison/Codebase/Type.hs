@@ -104,8 +104,6 @@ data Codebase m v a = Codebase
     termsOfTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.
     termsMentioningTypeImpl :: Reference -> m (Set Referent.Id),
-    -- | The number of base32 characters needed to distinguish any two references in the codebase.
-    hashLength :: m Int,
     -- | Get the set of user-defined terms whose hash matches the given prefix.
     termReferencesByPrefix :: ShortHash -> m (Set Reference.Id),
     -- | Get the set of type declarations whose hash matches the given prefix.

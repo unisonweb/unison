@@ -342,10 +342,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             termsMentioningTypeImpl r =
               runTransaction (CodebaseOps.termsMentioningTypeImpl getDeclType r)
 
-            hashLength :: m Int
-            hashLength =
-              runTransaction CodebaseOps.hashLength
-
             branchHashLength :: m Int
             branchHashLength =
               runTransaction CodebaseOps.branchHashLength
@@ -409,7 +405,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   getWatch,
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
-                  hashLength,
                   termReferencesByPrefix,
                   typeReferencesByPrefix = declReferencesByPrefix,
                   termReferentsByPrefix = referentsByPrefix,

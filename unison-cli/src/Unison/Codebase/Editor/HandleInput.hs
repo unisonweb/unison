@@ -46,6 +46,7 @@ import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Cli.NamesUtils (basicParseNames, basicPrettyPrintNamesA, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
+import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.TypeCheck (typecheck)
 import Unison.Cli.UnisonConfigUtils (gitUrlKey, remoteMappingKey)
 import Unison.Codebase (Codebase, Preprocessing (..), PushGitBranchOpts (..))
@@ -190,20 +191,6 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import qualified UnliftIO.STM as STM
 import Web.Browser (openBrowser)
-
-prettyPrintEnvDecl :: NamesWithHistory -> Cli PPE.PrettyPrintEnvDecl
-prettyPrintEnvDecl ns = do
-  Cli.Env {codebase} <- ask
-  liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNamesDecl` ns)
-
--- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli PPE.PrettyPrintEnvDecl
-currentPrettyPrintEnvDecl scoping = do
-  Cli.Env {codebase} <- ask
-  root' <- Cli.getRootBranch
-  currentPath <- Cli.getCurrentPath
-  hqLen <- liftIO (Codebase.hashLength codebase)
-  pure $ Backend.getCurrentPrettyNames hqLen (scoping (Path.unabsolute currentPath)) root'
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -646,8 +633,7 @@ loop e = do
                     (True, Right name) -> pure (TermNotFound name)
                     (False, Left hash) -> pure (HashAmbiguous hash srcTerms)
                     (False, Right name) -> do
-                      Cli.Env {codebase} <- ask
-                      hqLength <- liftIO (Codebase.hashLength codebase)
+                      hqLength <- Cli.runTransaction Codebase.hashLength
                       pure (DeleteNameAmbiguous hqLength name srcTerms Set.empty)
               dest <- Cli.resolveSplit' dest'
               destTerms <- Cli.getTermsAt (Path.convert dest)
@@ -679,8 +665,7 @@ loop e = do
                     (True, Right name) -> pure (TypeNotFound name)
                     (False, Left hash) -> pure (HashAmbiguous hash (Set.map Referent.Ref srcTypes))
                     (False, Right name) -> do
-                      Cli.Env {codebase} <- ask
-                      hqLength <- liftIO (Codebase.hashLength codebase)
+                      hqLength <- Cli.runTransaction Codebase.hashLength
                       pure (DeleteNameAmbiguous hqLength name Set.empty srcTypes)
               dest <- Cli.resolveSplit' dest'
               destTypes <- Cli.getTypesAt (Path.convert dest)
@@ -760,9 +745,8 @@ loop e = do
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
                 fixupOutput = fmap Path.unsafeToName . HQ'.toHQ . Path.unsplitHQ
             NamesI global query -> do
-              Cli.Env {codebase} <- ask
               currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
-              hqLength <- liftIO (Codebase.hashLength codebase)
+              hqLength <- Cli.runTransaction Codebase.hashLength
               root <- Cli.getRootBranch
               (names, pped) <-
                 if global || any Name.isAbsolute query
@@ -863,8 +847,7 @@ loop e = do
                   if Set.null srcTerms
                     then Cli.returnEarly (TermNotFound src')
                     else do
-                      Cli.Env {codebase} <- ask
-                      hqLength <- liftIO (Codebase.hashLength codebase)
+                      hqLength <- Cli.runTransaction Codebase.hashLength
                       Cli.returnEarly (DeleteNameAmbiguous hqLength src' srcTerms Set.empty)
               dest <- Cli.resolveSplit' dest'
               destTerms <- Cli.getTermsAt (Path.convert dest)
@@ -890,8 +873,7 @@ loop e = do
                   if Set.null srcTypes
                     then Cli.returnEarly (TypeNotFound src')
                     else do
-                      Cli.Env {codebase} <- ask
-                      hqLength <- liftIO (Codebase.hashLength codebase)
+                      hqLength <- Cli.runTransaction Codebase.hashLength
                       Cli.returnEarly (DeleteNameAmbiguous hqLength src' Set.empty srcTypes)
               dest <- Cli.resolveSplit' dest'
               destTypes <- Cli.getTypesAt (Path.convert dest)
@@ -972,8 +954,7 @@ loop e = do
                   if Set.null types
                     then Cli.returnEarly (TypeNotFound path')
                     else do
-                      Cli.Env {codebase} <- ask
-                      hqLength <- liftIO (Codebase.hashLength codebase)
+                      hqLength <- Cli.runTransaction Codebase.hashLength
                       Cli.returnEarly (DeleteNameAmbiguous hqLength path' Set.empty types)
               Cli.stepAt
                 description
@@ -989,8 +970,7 @@ loop e = do
                     if Set.null terms
                       then Cli.returnEarly (TermNotFound path')
                       else do
-                        Cli.Env {codebase} <- ask
-                        hqLength <- liftIO (Codebase.hashLength codebase)
+                        hqLength <- Cli.runTransaction Codebase.hashLength
                         Cli.returnEarly (DeleteNameAmbiguous hqLength path' terms Set.empty)
               description <- inputDescription input
               terms <- Cli.getTermsAt path
@@ -1002,7 +982,7 @@ loop e = do
                 & Cli.stepManyAt description
             ReplaceI from to patchPath -> do
               Cli.Env {codebase} <- ask
-              hqLength <- liftIO (Codebase.hashLength codebase)
+              hqLength <- Cli.runTransaction Codebase.hashLength
 
               let patchPath' = fromMaybe Cli.defaultPatchPath patchPath
               patch <- Cli.getPatchAt patchPath'
@@ -1327,7 +1307,7 @@ loop e = do
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> do
               Cli.Env {codebase} <- ask
-              hqLength <- liftIO (Codebase.hashLength codebase)
+              hqLength <- Cli.runTransaction Codebase.hashLength
               -- todo: add flag to handle transitive efficiently
               lds <- resolveHQToLabeledDependencies hq
               when (null lds) do
@@ -1370,8 +1350,7 @@ loop e = do
               numArgs <- use #numberedArgs
               Cli.respond (DumpNumberedArgs numArgs)
             DebugTypecheckedUnisonFileI -> do
-              Cli.Env {codebase} <- ask
-              hqLength <- liftIO (Codebase.hashLength codebase)
+              hqLength <- Cli.runTransaction Codebase.hashLength
               uf <- Cli.expectLatestTypecheckedFile
               let datas, effects, terms :: [(Name, Reference.Id)]
                   datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
@@ -1780,8 +1759,7 @@ handleFindI isVerbose fscope ws input = do
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
 handleDependents hq = do
-  Cli.Env {codebase} <- ask
-  hqLength <- liftIO (Codebase.hashLength codebase)
+  hqLength <- Cli.runTransaction Codebase.hashLength
   -- todo: add flag to handle transitive efficiently
   lds <- resolveHQToLabeledDependencies hq
 
@@ -1995,7 +1973,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> [HQ.HashQualified Name] -> Cli ()
 handleShowDefinition outputLoc showDefinitionScope inputQuery = do
   Cli.Env {codebase} <- ask
-  hqLength <- liftIO (Codebase.hashLength codebase)
+  hqLength <- Cli.runTransaction Codebase.hashLength
   -- If the query is empty, run a fuzzy search.
   query <-
     if null inputQuery
@@ -2112,7 +2090,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
         Reference.DerivedId rid ->
           liftIO (Codebase.getTerm codebase rid) >>= \case
             Nothing -> do
-              hqLength <- liftIO (Codebase.hashLength codebase)
+              hqLength <- Cli.runTransaction Codebase.hashLength
               Cli.respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
               pure []
             Just tm -> do
@@ -2709,14 +2687,12 @@ lexedSource name src = do
   pure (parseNames, (src, tokens))
 
 suffixifiedPPE :: NamesWithHistory -> Cli PPE.PrettyPrintEnv
-suffixifiedPPE ns = do
-  Cli.Env {codebase} <- ask
-  liftIO (Codebase.hashLength codebase) <&> (`PPE.fromSuffixNames` ns)
+suffixifiedPPE ns =
+  Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` ns)
 
 fqnPPE :: NamesWithHistory -> Cli PPE.PrettyPrintEnv
-fqnPPE ns = do
-  Cli.Env {codebase} <- ask
-  liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNames` ns)
+fqnPPE ns =
+  Cli.runTransaction Codebase.hashLength <&> (`PPE.fromNames` ns)
 
 parseSearchType :: SrcLoc -> String -> Cli (Type Symbol Ann)
 parseSearchType srcLoc typ = Type.removeAllEffectVars <$> parseType srcLoc typ
@@ -2896,7 +2872,7 @@ hqNameQuery query = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath <- Cli.getCurrentPath
-  hqLength <- liftIO (Codebase.hashLength codebase)
+  hqLength <- Cli.runTransaction Codebase.hashLength
   let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
   let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
   liftIO (Backend.hqNameQuery codebase nameSearch query)

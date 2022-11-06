@@ -537,6 +537,7 @@ termsMentioningTypeImpl doGetDeclType r =
   Ops.termsMentioningType (Cv.reference1to2 r)
     >>= Set.traverse (Cv.referentid2to1 doGetDeclType)
 
+-- | The number of base32 characters needed to distinguish any two references in the codebase.
 hashLength :: Transaction Int
 hashLength = pure 10
 

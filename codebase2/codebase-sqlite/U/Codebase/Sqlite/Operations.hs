@@ -40,7 +40,7 @@ module U.Codebase.Sqlite.Operations
     saveWatch,
     loadWatch,
     listWatches,
-    clearWatches,
+    Q.clearWatches,
 
     -- * indexes
 

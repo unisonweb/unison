@@ -69,7 +69,7 @@ module Unison.Codebase
     Operations.getReflog,
 
     -- * Unambiguous hash length
-    hashLength,
+    Operations.hashLength,
     branchHashLength,
 
     -- * Dependents
