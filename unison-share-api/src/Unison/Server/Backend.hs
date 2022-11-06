@@ -981,11 +981,11 @@ renderDoc ppe width rt codebase r = do
       r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
       case r of
         Just tmr ->
-          Codebase.putWatch
-            codebase
-            WK.RegularWatch
-            (Hashing.hashClosedTerm tm)
-            (Term.amap (const mempty) tmr)
+          Codebase.runTransaction codebase do
+            Codebase.putWatch
+              WK.RegularWatch
+              (Hashing.hashClosedTerm tm)
+              (Term.amap (const mempty) tmr)
         Nothing -> pure ()
       pure $ r <&> Term.amap (const mempty)
 

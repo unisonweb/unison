@@ -334,10 +334,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getWatch k r =
               runTransaction (CodebaseOps.getWatch getDeclType k r)
 
-            putWatch :: UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
-            putWatch k r tm =
-              runTransaction (CodebaseOps.putWatch k r tm)
-
             clearWatches :: m ()
             clearWatches =
               runTransaction CodebaseOps.clearWatches
@@ -418,7 +414,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   viewRemoteBranch',
                   pushGitBranch = \repo opts action -> withConn \conn -> pushGitBranch conn repo opts action,
                   getWatch,
-                  putWatch,
                   clearWatches,
                   getReflog,
                   termsOfTypeImpl,

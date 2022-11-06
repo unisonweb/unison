@@ -2126,7 +2126,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
                   pure []
                 Right tm' -> do
                   -- After evaluation, cache the result of the test
-                  liftIO (Codebase.putWatch codebase WK.TestWatch rid tm')
+                  Cli.runTransaction (Codebase.putWatch WK.TestWatch rid tm')
                   Cli.respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
                   pure [(r, tm')]
         r -> error $ "unpossible, tests can't be builtins: " <> show r
@@ -3009,7 +3009,7 @@ evalUnisonFile sandbox ppe unisonFile args = do
     for_ (Map.elems map) \(_loc, kind, hash, _src, value, isHit) ->
       when (not isHit) do
         let value' = Term.amap (\() -> Ann.External) value
-        liftIO (Codebase.putWatch codebase kind hash value')
+        Cli.runTransaction (Codebase.putWatch kind hash value')
     pure rs
 
 -- | Evaluate a single closed definition.
@@ -3033,9 +3033,8 @@ evalUnisonTermE sandbox ppe useCache tm = do
   when useCache do
     case r of
       Right tmr ->
-        liftIO $
+        Cli.runTransaction do
           Codebase.putWatch
-            codebase
             WK.RegularWatch
             (Hashing.hashClosedTerm tm)
             (Term.amap (const Ann.External) tmr)

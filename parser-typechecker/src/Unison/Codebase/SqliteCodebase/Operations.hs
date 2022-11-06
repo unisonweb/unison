@@ -498,6 +498,16 @@ getWatch doGetDeclType k r@(Reference.Id h _i) =
       lift (Cv.term2to1 h doGetDeclType watch)
     else pure Nothing
 
+-- | @putWatch k r t@ puts a watch of kind @k@, with hash-of-expression @r@ and decompiled result @t@ into the
+-- codebase.
+--
+-- For example, in the watch expression below, @k@ is 'WK.Regular', @r@ is the hash of @x@, and @t@ is @7@.
+--
+-- @
+-- > x = 3 + 4
+--   ⧩
+--   7
+-- @
 putWatch :: UF.WatchKind -> Reference.Id -> Term Symbol Ann -> Transaction ()
 putWatch k r@(Reference.Id h _i) tm =
   when (elem k standardWatchKinds) do

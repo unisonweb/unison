@@ -101,17 +101,6 @@ data Codebase m v a = Codebase
     pushGitBranch :: forall e. WriteGitRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
     -- | @getWatch k r@ returns watch result @t@ that was previously put by @putWatch k r t@.
     getWatch :: WK.WatchKind -> Reference.Id -> m (Maybe (Term v a)),
-    -- | @putWatch k r t@ puts a watch of kind @k@, with hash-of-expression @r@ and decompiled result @t@ into the
-    -- codebase.
-    --
-    -- For example, in the watch expression below, @k@ is 'WK.Regular', @r@ is the hash of @x@, and @t@ is @7@.
-    --
-    -- @
-    -- > x = 3 + 4
-    --   ⧩
-    --   7
-    -- @
-    putWatch :: WK.WatchKind -> Reference.Id -> Term v a -> m (),
     -- | Delete all watches that were put by 'putWatch'.
     clearWatches :: m (),
     -- | Gets the specified number of reflog entries in chronological order, most recent first.
