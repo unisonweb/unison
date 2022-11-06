@@ -80,8 +80,6 @@ data Codebase m v a = Codebase
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
-    -- | Get the root causal Hash.
-    getRootCausalHash :: m V2.CausalHash,
     -- | Get the root branch.
     getRootBranch :: m (Branch m),
     -- | Get whether the root branch exists.

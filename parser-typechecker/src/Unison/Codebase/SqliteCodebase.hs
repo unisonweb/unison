@@ -285,10 +285,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             putTypeDeclarationComponent =
               CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer
 
-            getRootCausalHash :: MonadIO m => m V2Branch.CausalHash
-            getRootCausalHash =
-              runTransaction Ops.expectRootCausalHash
-
             getShallowCausalForHash :: MonadIO m => V2Branch.CausalHash -> m (V2Branch.CausalBranch m)
             getShallowCausalForHash bh =
               V2Branch.hoistCausalBranch runTransaction <$> runTransaction (Ops.expectCausalBranchByCausalHash bh)
@@ -443,7 +439,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   getTermComponentWithTypes,
                   getComponentLength = getCycleLength,
                   getRootBranch = getRootBranch rootBranchCache,
-                  getRootCausalHash,
                   getRootBranchExists,
                   putRootBranch = putRootBranch rootBranchCache,
                   getShallowCausalForHash,

@@ -49,7 +49,6 @@ module Unison.Codebase
     -- * Root branch
     getRootBranch,
     getRootBranchExists,
-    getRootCausalHash,
     putRootBranch,
     namesAtPath,
 
@@ -118,6 +117,7 @@ import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.Referent as V2
+import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified U.Codebase.Sqlite.Queries as Queries
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtin
@@ -172,7 +172,7 @@ runTransaction Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransaction conn action
 
 getShallowCausalFromRoot ::
-  Monad m =>
+  MonadIO m =>
   Codebase m v a ->
   -- Optional root branch, if Nothing use the codebase's root branch.
   Maybe V2.CausalHash ->
@@ -186,20 +186,20 @@ getShallowCausalFromRoot codebase mayRootHash p = do
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
-getShallowRootBranch :: Monad m => Codebase m v a -> m (V2.Branch m)
+getShallowRootBranch :: MonadIO m => Codebase m v a -> m (V2.Branch m)
 getShallowRootBranch codebase = do
   getShallowRootCausal codebase >>= V2Causal.value
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
-getShallowRootCausal :: Monad m => Codebase m v a -> m (V2.CausalBranch m)
+getShallowRootCausal :: MonadIO m => Codebase m v a -> m (V2.CausalBranch m)
 getShallowRootCausal codebase = do
-  hash <- getRootCausalHash codebase
+  hash <- runTransaction codebase Operations.expectRootCausalHash
   getShallowCausalForHash codebase hash
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
-getShallowCausalAtPath :: Monad m => Codebase m v a -> Path -> Maybe (V2Branch.CausalBranch m) -> m (V2Branch.CausalBranch m)
+getShallowCausalAtPath :: MonadIO m => Codebase m v a -> Path -> Maybe (V2Branch.CausalBranch m) -> m (V2Branch.CausalBranch m)
 getShallowCausalAtPath codebase path mayCausal = do
   causal <- whenNothing mayCausal (getShallowRootCausal codebase)
   case path of
@@ -212,7 +212,7 @@ getShallowCausalAtPath codebase path mayCausal = do
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
-getShallowBranchAtPath :: Monad m => Codebase m v a -> Path -> Maybe (V2Branch.Branch m) -> m (V2Branch.Branch m)
+getShallowBranchAtPath :: MonadIO m => Codebase m v a -> Path -> Maybe (V2Branch.Branch m) -> m (V2Branch.Branch m)
 getShallowBranchAtPath codebase path mayBranch = do
   branch <- whenNothing mayBranch (getShallowRootCausal codebase >>= V2Causal.value)
   case path of
@@ -244,7 +244,7 @@ getBranchForHash codebase h =
 
 -- | Get the metadata attached to the term at a given path and name relative to the given branch.
 termMetadata ::
-  Monad m =>
+  MonadIO m =>
   Codebase m v a ->
   -- | The branch to search inside. Use the current root if 'Nothing'.
   Maybe (V2Branch.Branch m) ->

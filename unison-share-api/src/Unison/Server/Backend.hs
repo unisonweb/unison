@@ -32,6 +32,7 @@ import U.Codebase.Branch (NamespaceStats (..))
 import qualified U.Codebase.Branch as V2Branch
 import qualified U.Codebase.Causal as V2Causal
 import qualified U.Codebase.Referent as V2Referent
+import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -790,7 +791,7 @@ expandShortCausalHash codebase hash = do
       throwError . AmbiguousBranchHash hash $ Set.map (SCH.fromHash len) hashSet
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
-getShallowCausalAtPathFromRootHash :: Monad m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (V2Branch.CausalBranch m)
+getShallowCausalAtPathFromRootHash :: MonadIO m => Codebase m v a -> Maybe Branch.CausalHash -> Path -> Backend m (V2Branch.CausalBranch m)
 getShallowCausalAtPathFromRootHash codebase mayRootHash path = do
   shallowRoot <- case mayRootHash of
     Nothing -> lift (Codebase.getShallowRootCausal codebase)
@@ -1096,7 +1097,7 @@ bestNameForType ppe width =
 -- - 'local' includes ONLY the names within the provided path
 -- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
 --     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash :: forall m v a. Monad m => Codebase m v a -> Maybe (V2Branch.CausalBranch m) -> Path -> Backend m (Names, PPED.PrettyPrintEnvDecl)
+scopedNamesForBranchHash :: forall m v a. MonadIO m => Codebase m v a -> Maybe (V2Branch.CausalBranch m) -> Path -> Backend m (Names, PPED.PrettyPrintEnvDecl)
 scopedNamesForBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   hashLen <- lift $ Codebase.hashLength codebase
@@ -1110,7 +1111,7 @@ scopedNamesForBranchHash codebase mbh path = do
     Just rootCausal -> do
       let ch = V2Causal.causalHash rootCausal
       let v1CausalHash = Cv.causalHash2to1 ch
-      rootHash <- lift $ Codebase.getRootCausalHash codebase
+      rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash
       if (ch == rootHash) && shouldUseNamesIndex
         then indexNames
         else do
@@ -1140,7 +1141,7 @@ resolveCausalHash h codebase = case h of
     whenNothing mayBranch (throwError $ NoBranchForHash bhash)
 
 resolveCausalHashV2 ::
-  Monad m => Codebase m v a -> Maybe V2Branch.CausalHash -> Backend m (V2Branch.CausalBranch m)
+  MonadIO m => Codebase m v a -> Maybe V2Branch.CausalHash -> Backend m (V2Branch.CausalBranch m)
 resolveCausalHashV2 codebase h = case h of
   Nothing -> lift $ Codebase.getShallowRootCausal codebase
   Just ch -> lift $ Codebase.getShallowCausalForHash codebase ch
@@ -1155,10 +1156,9 @@ resolveRootBranchHash mayRoot codebase = case mayRoot of
     resolveCausalHash (Just h) codebase
 
 resolveRootBranchHashV2 ::
-  Monad m => Codebase m v a -> Maybe ShortCausalHash -> Backend m (V2Branch.CausalBranch m)
+  MonadIO m => Codebase m v a -> Maybe ShortCausalHash -> Backend m (V2Branch.CausalBranch m)
 resolveRootBranchHashV2 codebase mayRoot = case mayRoot of
-  Nothing ->
-    lift (Codebase.getShallowRootCausal codebase)
+  Nothing -> lift (Codebase.getShallowRootCausal codebase)
   Just sch -> do
     h <- Cv.causalHash1to2 <$> expandShortCausalHash codebase sch
     resolveCausalHashV2 codebase (Just h)
