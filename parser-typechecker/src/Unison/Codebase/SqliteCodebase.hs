@@ -56,7 +56,6 @@ import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
-import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
@@ -312,10 +311,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
               withRunInIO \runInIO ->
                 runInIO (runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch)))
 
-            putPatch :: Branch.EditHash -> Patch -> m ()
-            putPatch h p =
-              runTransaction (CodebaseOps.putPatch h p)
-
             patchExists :: Branch.EditHash -> m Bool
             patchExists h =
               runTransaction (CodebaseOps.patchExists h)
@@ -426,7 +421,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   getShallowCausalForHash,
                   getBranchForHashImpl = getBranchForHash,
                   putBranch,
-                  putPatch,
                   patchExists,
                   syncFromDirectory,
                   syncToDirectory,

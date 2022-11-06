@@ -10,7 +10,6 @@ import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ReadShareRemoteNamespace (..))
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.SqliteCodebase.Operations as Codebase
 import qualified Unison.Codebase.SyncMode as SyncMode
 import qualified Unison.Codebase.Verbosity as Verbosity
 import Unison.NameSegment (NameSegment (NameSegment))

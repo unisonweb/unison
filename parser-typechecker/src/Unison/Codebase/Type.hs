@@ -23,7 +23,6 @@ import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, WriteGitRepo)
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
-import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
@@ -93,10 +92,6 @@ data Codebase m v a = Codebase
     --
     -- The terms and type declarations that a branch references must already exist in the codebase.
     putBranch :: Branch m -> m (),
-    -- | Put a patch into the codebase.
-    --
-    -- Note that 'putBranch' may also put patches.
-    putPatch :: Branch.EditHash -> Patch -> m (),
     -- | Check whether the given patch exists in the codebase.
     patchExists :: Branch.EditHash -> m Bool,
     -- | Copy a branch and all of its dependencies from the given codebase into this one.

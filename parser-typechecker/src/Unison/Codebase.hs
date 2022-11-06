@@ -33,6 +33,7 @@ module Unison.Codebase
     isType,
 
     -- * Branches
+    Operations.branchExists,
     getBranchForHash,
     putBranch,
     causalHashesByPrefix,
@@ -47,12 +48,15 @@ module Unison.Codebase
 
     -- * Root branch
     getRootBranch,
+    Operations.getRootBranchExists,
+    Operations.expectRootCausalHash,
     putRootBranch,
     namesAtPath,
 
     -- * Patches
     patchExists,
-    putPatch,
+    Operations.getPatch,
+    Operations.putPatch,
 
     -- * Watches
     getWatch,

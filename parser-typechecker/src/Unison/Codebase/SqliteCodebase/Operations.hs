@@ -459,6 +459,9 @@ getPatch h =
     patch <- lift (Ops.expectPatch patchId)
     pure (Cv.patch2to1 patch)
 
+-- | Put a patch into the codebase.
+--
+-- Note that 'putBranch' may also put patches.
 putPatch :: Branch.EditHash -> Patch -> Transaction ()
 putPatch h p =
   void $ Ops.savePatch v2HashHandle (Cv.patchHash1to2 h) (Cv.patch1to2 p)
