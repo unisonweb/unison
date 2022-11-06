@@ -1146,6 +1146,7 @@ loadWatchesByWatchKind k = queryListRow sql (Only k) where sql = [here|
   SELECT hash_id, component_index FROM watch WHERE watch_kind_id = ?
 |]
 
+-- | Delete all watches that were put by 'putWatch'.
 clearWatches :: Transaction ()
 clearWatches = do
   execute_ "DELETE FROM watch_result"

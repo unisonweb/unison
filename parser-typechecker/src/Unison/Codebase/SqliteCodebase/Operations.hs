@@ -519,9 +519,6 @@ putWatch k r@(Reference.Id h _i) tm =
 standardWatchKinds :: [UF.WatchKind]
 standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
 
-clearWatches :: Transaction ()
-clearWatches = Ops.clearWatches
-
 termsOfTypeImpl ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->

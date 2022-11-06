@@ -63,7 +63,7 @@ module Unison.Codebase
     lookupWatchCache,
     Operations.watches,
     Operations.putWatch,
-    clearWatches,
+    Queries.clearWatches,
 
     -- * Reflog
     getReflog,

@@ -101,8 +101,6 @@ data Codebase m v a = Codebase
     pushGitBranch :: forall e. WriteGitRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
     -- | @getWatch k r@ returns watch result @t@ that was previously put by @putWatch k r t@.
     getWatch :: WK.WatchKind -> Reference.Id -> m (Maybe (Term v a)),
-    -- | Delete all watches that were put by 'putWatch'.
-    clearWatches :: m (),
     -- | Gets the specified number of reflog entries in chronological order, most recent first.
     getReflog :: Int -> m [Reflog.Entry V2.CausalHash Text],
     -- | Get the set of user-defined terms-or-constructors that have the given type.
