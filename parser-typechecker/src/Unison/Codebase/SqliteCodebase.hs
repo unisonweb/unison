@@ -312,10 +312,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
               withRunInIO \runInIO ->
                 runInIO (runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch)))
 
-            isCausalHash :: Branch.CausalHash -> m Bool
-            isCausalHash h =
-              runTransaction (CodebaseOps.isCausalHash h)
-
             getPatch :: Branch.EditHash -> m (Maybe Patch)
             getPatch h =
               runTransaction (CodebaseOps.getPatch h)
@@ -434,7 +430,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   getShallowCausalForHash,
                   getBranchForHashImpl = getBranchForHash,
                   putBranch,
-                  branchExists = isCausalHash,
                   getPatch,
                   putPatch,
                   patchExists,
@@ -514,7 +509,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
             traceM $ "processBranches " ++ show b0
             traceM $ " queue: " ++ show rest
           ifM
-            (runDest (CodebaseOps.isCausalHash h))
+            (runDest (CodebaseOps.branchExists h))
             do
               when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " already exists in dest db"
               processBranches rest
@@ -536,7 +531,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
                       traceM $ "  decls: " ++ show ds
                       traceM $ "  edits: " ++ show es
                     (cs, es, ts, ds) <- runDest do
-                      cs <- filterM (fmap not . CodebaseOps.isCausalHash . fst) branchDeps
+                      cs <- filterM (fmap not . CodebaseOps.branchExists . fst) branchDeps
                       es <- filterM (fmap not . CodebaseOps.patchExists) es
                       ts <- filterM (fmap not . CodebaseOps.termExists) ts
                       ds <- filterM (fmap not . CodebaseOps.declExists) ds

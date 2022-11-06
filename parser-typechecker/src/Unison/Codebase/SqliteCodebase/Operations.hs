@@ -445,8 +445,9 @@ putBranch :: Branch Transaction -> Transaction ()
 putBranch =
   void . Ops.saveBranch v2HashHandle . Cv.causalbranch1to2
 
-isCausalHash :: Branch.CausalHash -> Transaction Bool
-isCausalHash (Causal.CausalHash h) =
+-- | Check whether the given branch exists in the codebase.
+branchExists :: Branch.CausalHash -> Transaction Bool
+branchExists (Causal.CausalHash h) =
   Q.loadHashIdByHash h >>= \case
     Nothing -> pure False
     Just hId -> Q.isCausalHash hId

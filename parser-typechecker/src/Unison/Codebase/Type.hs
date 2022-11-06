@@ -93,8 +93,6 @@ data Codebase m v a = Codebase
     --
     -- The terms and type declarations that a branch references must already exist in the codebase.
     putBranch :: Branch m -> m (),
-    -- | Check whether the given branch exists in the codebase.
-    branchExists :: Branch.CausalHash -> m Bool,
     -- | Get a patch from the codebase.
     getPatch :: Branch.EditHash -> m (Maybe Patch),
     -- | Put a patch into the codebase.

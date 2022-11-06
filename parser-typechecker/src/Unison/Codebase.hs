@@ -33,7 +33,6 @@ module Unison.Codebase
     isType,
 
     -- * Branches
-    branchExists,
     getBranchForHash,
     putBranch,
     causalHashesByPrefix,
@@ -257,12 +256,15 @@ termMetadata codebase mayBranch (path, nameSeg) ref = do
   V2Branch.termMetadata b (coerce @NameSegment.NameSegment nameSeg) ref
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
-lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
+lca :: MonadIO m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
 lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case lcaImpl code of
   Nothing -> Branch.lca b1 b2
   Just lca -> do
-    eb1 <- branchExists code h1
-    eb2 <- branchExists code h2
+    (eb1, eb2) <-
+      runTransaction code do
+        eb1 <- Operations.branchExists h1
+        eb2 <- Operations.branchExists h2
+        pure (eb1, eb2)
     if eb1 && eb2
       then do
         lca h1 h2 >>= \case
