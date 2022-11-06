@@ -334,9 +334,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getWatch k r =
               runTransaction (CodebaseOps.getWatch getDeclType k r)
 
-            getReflog :: Int -> m [Reflog.Entry CausalHash Text]
-            getReflog numEntries = runTransaction $ Ops.getReflog numEntries
-
             termsOfTypeImpl :: Reference -> m (Set Referent.Id)
             termsOfTypeImpl r =
               runTransaction (CodebaseOps.termsOfTypeImpl getDeclType r)
@@ -410,7 +407,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   viewRemoteBranch',
                   pushGitBranch = \repo opts action -> withConn \conn -> pushGitBranch conn repo opts action,
                   getWatch,
-                  getReflog,
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
                   hashLength,

@@ -66,7 +66,7 @@ module Unison.Codebase
     Queries.clearWatches,
 
     -- * Reflog
-    getReflog,
+    Operations.getReflog,
 
     -- * Unambiguous hash length
     hashLength,

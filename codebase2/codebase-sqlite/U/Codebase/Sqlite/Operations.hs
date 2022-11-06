@@ -1140,6 +1140,7 @@ namespaceStatsForDbBranch S.Branch {terms, types, patches, children} = do
            in childPatchCount + patchCount
       }
 
+-- | Gets the specified number of reflog entries in chronological order, most recent first.
 getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
 getReflog numEntries = do
   entries <- Q.getReflog numEntries
