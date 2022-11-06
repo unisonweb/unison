@@ -257,10 +257,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getTypeDeclaration =
               CodebaseOps.getTypeDeclaration
 
-            getCycleLength :: Hash -> m (Maybe Reference.CycleSize)
-            getCycleLength h =
-              runTransaction (Ops.getCycleLen h)
-
             -- putTermComponent :: MonadIO m => Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> m ()
             -- putTerms :: MonadIO m => Map Reference.Id (Term Symbol Ann, Type Symbol Ann) -> m () -- dies horribly if missing dependencies?
 
@@ -433,7 +429,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   putTypeDeclaration,
                   putTypeDeclarationComponent,
                   getTermComponentWithTypes,
-                  getComponentLength = getCycleLength,
                   getRootBranch = getRootBranch rootBranchCache,
                   putRootBranch = putRootBranch rootBranchCache,
                   getShallowCausalForHash,

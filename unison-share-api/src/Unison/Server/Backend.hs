@@ -1184,18 +1184,20 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
     let termRefsWithoutCycles = searchResultsToTermRefs results
     termRefs <- case includeCycles of
       IncludeCycles ->
-        Monoid.foldMapM
-          (Codebase.componentReferencesForReference codebase)
-          termRefsWithoutCycles
+        Codebase.runTransaction codebase do
+          Monoid.foldMapM
+            Codebase.componentReferencesForReference
+            termRefsWithoutCycles
       DontIncludeCycles -> pure termRefsWithoutCycles
     Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) termRefs
   types <- do
     let typeRefsWithoutCycles = searchResultsToTypeRefs results
     typeRefs <- case includeCycles of
       IncludeCycles ->
-        Monoid.foldMapM
-          (Codebase.componentReferencesForReference codebase)
-          typeRefsWithoutCycles
+        Codebase.runTransaction codebase do
+          Monoid.foldMapM
+            Codebase.componentReferencesForReference
+            typeRefsWithoutCycles
       DontIncludeCycles -> pure typeRefsWithoutCycles
     Codebase.runTransaction codebase (Map.foldMapM (\ref -> (ref,) <$> displayType codebase ref) typeRefs)
   pure (DefinitionResults terms types misses)

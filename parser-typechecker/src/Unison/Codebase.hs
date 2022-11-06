@@ -385,11 +385,11 @@ getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
   Referent.Con r _ -> getTypeOfConstructor c r
 
-componentReferencesForReference :: Monad m => Codebase m v a -> Reference -> m (Set Reference)
-componentReferencesForReference c = \case
+componentReferencesForReference :: Reference -> Sqlite.Transaction (Set Reference)
+componentReferencesForReference = \case
   r@Reference.Builtin {} -> pure (Set.singleton r)
   Reference.Derived h _i ->
-    Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength c h
+    Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength h
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.
@@ -486,9 +486,9 @@ viewRemoteBranch ::
 viewRemoteBranch codebase ns gitBranchBehavior action =
   viewRemoteBranch' codebase ns gitBranchBehavior (\(b, _dir) -> action b)
 
-unsafeGetComponentLength :: (HasCallStack, Monad m) => Codebase m v a -> Hash -> m Reference.CycleSize
-unsafeGetComponentLength codebase h =
-  getComponentLength codebase h >>= \case
+unsafeGetComponentLength :: HasCallStack => Hash -> Sqlite.Transaction Reference.CycleSize
+unsafeGetComponentLength h =
+  Operations.getCycleLen h >>= \case
     Nothing -> error (reportBug "E713350" ("component with hash " ++ show h ++ " not found"))
     Just size -> pure size
 
