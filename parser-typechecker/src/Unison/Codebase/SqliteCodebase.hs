@@ -312,10 +312,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
               withRunInIO \runInIO ->
                 runInIO (runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch)))
 
-            getPatch :: Branch.EditHash -> m (Maybe Patch)
-            getPatch h =
-              runTransaction (CodebaseOps.getPatch h)
-
             putPatch :: Branch.EditHash -> Patch -> m ()
             putPatch h p =
               runTransaction (CodebaseOps.putPatch h p)
@@ -430,7 +426,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   getShallowCausalForHash,
                   getBranchForHashImpl = getBranchForHash,
                   putBranch,
-                  getPatch,
                   putPatch,
                   patchExists,
                   syncFromDirectory,

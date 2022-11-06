@@ -52,7 +52,6 @@ module Unison.Codebase
 
     -- * Patches
     patchExists,
-    getPatch,
     putPatch,
 
     -- * Watches
