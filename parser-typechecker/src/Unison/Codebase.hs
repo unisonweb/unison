@@ -54,7 +54,7 @@ module Unison.Codebase
     namesAtPath,
 
     -- * Patches
-    patchExists,
+    Operations.patchExists,
     Operations.getPatch,
     Operations.putPatch,
 

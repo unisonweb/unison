@@ -466,6 +466,7 @@ putPatch :: Branch.EditHash -> Patch -> Transaction ()
 putPatch h p =
   void $ Ops.savePatch v2HashHandle (Cv.patchHash1to2 h) (Cv.patch1to2 p)
 
+-- | Check whether the given patch exists in the codebase.
 patchExists :: Branch.EditHash -> Transaction Bool
 patchExists h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash (Cv.patchHash1to2 h)
 
