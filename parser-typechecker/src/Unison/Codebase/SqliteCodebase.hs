@@ -330,10 +330,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                     Sqlite.runWriteTransaction destConn \runDest -> do
                       syncInternal (syncProgress progressStateRef) runSrc runDest b
 
-            watches :: UF.WatchKind -> m [Reference.Id]
-            watches w =
-              runTransaction (CodebaseOps.watches w)
-
             getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
             getWatch k r =
               runTransaction (CodebaseOps.getWatch getDeclType k r)
@@ -421,7 +417,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   syncToDirectory,
                   viewRemoteBranch',
                   pushGitBranch = \repo opts action -> withConn \conn -> pushGitBranch conn repo opts action,
-                  watches,
                   getWatch,
                   putWatch,
                   clearWatches,

@@ -61,7 +61,7 @@ module Unison.Codebase
     -- * Watches
     getWatch,
     lookupWatchCache,
-    watches,
+    Operations.watches,
     putWatch,
     clearWatches,
 

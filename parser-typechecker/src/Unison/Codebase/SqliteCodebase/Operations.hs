@@ -479,10 +479,11 @@ dependentsOfComponentImpl :: Hash -> Transaction (Set Reference.Id)
 dependentsOfComponentImpl h =
   Set.map Cv.referenceid2to1 <$> Ops.dependentsOfComponent h
 
+-- | @watches k@ returns all of the references @r@ that were previously put by a @putWatch k r t@. @t@ can be
+-- retrieved by @getWatch k r@.
 watches :: UF.WatchKind -> Transaction [Reference.Id]
 watches w =
-  Ops.listWatches (Cv.watchKind1to2 w)
-    <&> fmap Cv.referenceid2to1
+  Ops.listWatches (Cv.watchKind1to2 w) <&> fmap Cv.referenceid2to1
 
 getWatch ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.

@@ -99,9 +99,6 @@ data Codebase m v a = Codebase
     viewRemoteBranch' :: forall r. ReadGitRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
     -- | Push the given branch to the given repo, and optionally set it as the root branch.
     pushGitBranch :: forall e. WriteGitRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
-    -- | @watches k@ returns all of the references @r@ that were previously put by a @putWatch k r t@. @t@ can be
-    -- retrieved by @getWatch k r@.
-    watches :: WK.WatchKind -> m [Reference.Id],
     -- | @getWatch k r@ returns watch result @t@ that was previously put by @putWatch k r t@.
     getWatch :: WK.WatchKind -> Reference.Id -> m (Maybe (Term v a)),
     -- | @putWatch k r t@ puts a watch of kind @k@, with hash-of-expression @r@ and decompiled result @t@ into the
