@@ -293,10 +293,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getRootBranch rootBranchCache =
               Branch.transform runTransaction <$> runTransaction (CodebaseOps.getRootBranch branchCache getDeclType rootBranchCache)
 
-            getRootBranchExists :: m Bool
-            getRootBranchExists =
-              runTransaction CodebaseOps.getRootBranchExists
-
             putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> Text -> Branch m -> m ()
             putRootBranch rootBranchCache reason branch1 = do
               now <- liftIO getCurrentTime
@@ -439,7 +435,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   getTermComponentWithTypes,
                   getComponentLength = getCycleLength,
                   getRootBranch = getRootBranch rootBranchCache,
-                  getRootBranchExists,
                   putRootBranch = putRootBranch rootBranchCache,
                   getShallowCausalForHash,
                   getBranchForHashImpl = getBranchForHash,
@@ -738,7 +733,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
       . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote MigrateAfterPrompt
       $ \(codebaseStatus, destCodebase) -> do
         currentRootBranch <-
-          C.getRootBranchExists destCodebase >>= \case
+          Codebase1.runTransaction destCodebase CodebaseOps.getRootBranchExists >>= \case
             False -> pure Branch.empty
             True -> C.getRootBranch destCodebase
         action currentRootBranch >>= \case

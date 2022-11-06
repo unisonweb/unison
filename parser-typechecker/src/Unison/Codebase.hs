@@ -48,7 +48,6 @@ module Unison.Codebase
 
     -- * Root branch
     getRootBranch,
-    getRootBranchExists,
     putRootBranch,
     namesAtPath,
 

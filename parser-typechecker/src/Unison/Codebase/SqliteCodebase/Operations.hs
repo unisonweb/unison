@@ -414,6 +414,7 @@ uncachedLoadRootBranch branchCache getDeclType = do
   causal2 <- Ops.expectRootCausal
   Cv.causalbranch2to1 branchCache getDeclType causal2
 
+-- | Get whether the root branch exists.
 getRootBranchExists :: Transaction Bool
 getRootBranchExists =
   isJust <$> Ops.loadRootCausalHash
