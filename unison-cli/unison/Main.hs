@@ -46,7 +46,7 @@ import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryR
 import System.Environment (getProgName, lookupEnv, withArgs)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
-import System.IO (Handle, stderr)
+import System.IO (stderr)
 import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
 import qualified System.IO.Temp as Temp
@@ -561,6 +561,6 @@ codebasePathOptionToPath codebasePathOption =
     CreateCodebaseWhenMissing p -> p
     DontCreateCodebaseWhenMissing p -> p
 
-runFromHandle :: Handle -> Symbol -> IO ()
-runFromHandle handle sym = do
-  _
+-- runFromHandle :: Handle -> Symbol -> IO ()
+-- runFromHandle handle sym = do
+--   _

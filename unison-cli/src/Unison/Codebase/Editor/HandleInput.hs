@@ -2830,7 +2830,8 @@ getTerm main =
     GetTermSuccess x -> pure x
 
 getTerm' :: Symbol -> Cli GetTermResult
-getTerm' mainName =
+getTerm' mainName = do
+  Cli.Env {codebase, runtime} <- ask
   let getFromCodebase = do
         parseNames <- basicParseNames
         let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
@@ -2845,10 +2846,10 @@ getTerm' mainName =
              in case getMainResultType typ runtime of
                   Nothing -> pure $ TermHasBadType typ
                   Just otyp -> pure (GetTermSuccess (v, tm, typ, otyp))
-   in Cli.getLatestTypecheckedFile >>= \case
-        Nothing -> getFromCodebase
-        Just uf -> do
-          (GetTermSuccess <$> mainTermFromFile uf runtime mainName) `whenNothing` getFromCodebase
+  Cli.getLatestTypecheckedFile >>= \case
+    Nothing -> getFromCodebase
+    Just uf -> do
+      (GetTermSuccess <$> mainTermFromFile uf runtime mainName) `whenNothing` getFromCodebase
 
 mainTermFromFile :: TypecheckedUnisonFile Symbol Ann -> Runtime.Runtime Symbol -> Symbol -> Maybe (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
 mainTermFromFile uf runtime sym = do
