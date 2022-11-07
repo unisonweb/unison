@@ -11,7 +11,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Set.NonEmpty as NESet
-import qualified Data.Tuple as Tuple
+import qualified U.Codebase.Sqlite.Queries as Queries
 import qualified Unison.ABT as ABT
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -40,6 +40,7 @@ import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TypeEdit as TypeEdit
+import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Name (Name)
 import qualified Unison.Name as Name
@@ -48,7 +49,7 @@ import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
-import Unison.Reference (Reference (..), TermReference, TermReferenceId, TypeReference)
+import Unison.Reference (Reference (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -65,7 +66,7 @@ import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import Unison.UnisonFile.Type (UnisonFile (UnisonFileId))
-import qualified Unison.Util.Map as Map (remap)
+import qualified Unison.Util.Map as Map (remap, upsert)
 import Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Set as Set
@@ -242,6 +243,15 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
     -- terms in it fails.
     let slurp0 = slurp unisonFile0
 
+    -- Grab some interim info out of the original slurp.
+    --
+    -- Running example:
+    --
+    --   "ping" => (#newping, Nothing, <#wham + 4>, <Nat>)
+    let nameToInterimInfo :: Map Symbol (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
+        nameToInterimInfo =
+          UF.hashTermsId (Slurp.originalFile slurp0)
+
     -- Get the set of names that are being updated.
     --
     -- Running example:
@@ -251,14 +261,21 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
         namesBeingUpdated =
           SC.terms (Slurp.updates slurp0)
 
-    -- Associate each such name with the set of "old" references (already in the codebase) that it's associated with.
+    -- Associate each such name with the set of old (already in the codebase) and new (in the scratch file) references
+    -- that it's associated with.
     --
     -- Running example:
     --
-    --   "ping" => { #pingpong.ping }
-    let updatedNameToOldRefs :: Map Symbol (Set TermReference)
-        updatedNameToOldRefs =
-          Map.fromSet nameToTermRefs namesBeingUpdated
+    --   "ping" => ({ #pingpong.ping }, #newping)
+    let updatedNameToRefs :: Map Symbol (Set TermReference, TermReferenceId)
+        updatedNameToRefs =
+          Map.fromSet
+            ( \name ->
+                case Map.lookup name nameToInterimInfo of
+                  Nothing -> error (reportBug "E798907" "no interim ref for name")
+                  Just (interimRef, _, _, _) -> (nameToTermRefs name, interimRef)
+            )
+            namesBeingUpdated
 
     -- Identify all of the implicit terms, which are:
     --
@@ -294,64 +311,126 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
     -- Furthermore, #wham is both a dependent of #pingpong (B), and a dependency of #newping, so it too is an implicit
     -- term.
     --
-    -- FIXME: this currently only looks at old components; doesn't search for new cycles.
-    --
     -- Running example:
     --
     --   #pingpong.pong => (<#pingpong.ping + 2>, "pong")
     --   #wham          => (<#pingpong.pong + 3>, "wham")
     implicitTerms :: Map TermReferenceId (Term Symbol Ann, Symbol) <-
       liftIO do
-        -- Running example:
-        --
-        --
-        --   { #pingpong }
-        let oldHashes :: Set Hash
-            oldHashes =
-              foldMap (Set.mapMaybe Reference.toHash) updatedNameToOldRefs
+        Codebase.withConnection codebase \conn ->
+          Sqlite.runTransaction conn do
+            -- Running example:
+            --
+            --   #pingpong => #newping
+            let oldHashToInterimHash :: Map Hash Hash
+                oldHashToInterimHash =
+                  updatedNameToRefs & foldMap \(oldRefs, interimRef) ->
+                    let interimHash = Reference.idToHash interimRef
+                     in Map.fromList $
+                          oldRefs
+                            & Set.toList
+                            & mapMaybe Reference.toHash
+                            & map (,interimHash)
 
-        oldHashes & foldMapM \oldHash -> do
-          -- Running example:
-          --
-          --   [ (<#pingpong.pong + 1>, <Nat>),
-          --     (<#pingpong.ping + 2>, <Nat>)
-          --   ]
-          terms <-
-            Codebase.withConnection codebase \conn ->
-              Sqlite.runTransaction conn (Codebase.unsafeGetTermComponent codebase oldHash)
-          pure $
-            terms
-              -- Running example:
-              --
-              --   [ (#pingpong.ping, (<#pingpong.pong + 1>, <Nat>)),
-              --     (#pingpong.pong, (<#pingpong.ping + 2>, <Nat>))
-              --   ]
-              & Reference.componentFor oldHash
-              & List.foldl'
-                ( \acc (ref, (term, _typ)) ->
-                    let -- (D) After getting the entire component of `oldHash`, which has at least one member being
-                        -- updated, we want to keep only the members that are *not* being updated (i.e. those who have
-                        -- no name that is being updated).
-                        --
-                        -- Running example, first time through (processing #pingpong.ping):
-                        --
-                        --   Set.disjoint { "ping" } { "ping" } is false, so don't add to the map.
-                        --
-                        -- Running example, second time through (processing #pingpong.pong):
-                        --
-                        --   Set.disjoint { "ping" } { "pong" } is true, so add
-                        --   #pingpong.pong => (<#pingpong.ping + 2>, { "pong" })) to the map.
-                        notBeingUpdated = Set.disjoint namesBeingUpdated
-                        nameIsUnconflicted name = Set.size (nameToTermRefs name) == 1
-                        names = termRefToNames ref
-                     in if notBeingUpdated names
-                          then case Foldable.find nameIsUnconflicted names {- (E) -} of
-                            Nothing -> acc
-                            Just name -> Map.insert ref (term, name) acc
-                          else acc
-                )
-                Map.empty
+            let hashToImplicitTerms :: Hash -> Sqlite.Transaction (Map TermReferenceId (Term Symbol Ann, Symbol))
+                hashToImplicitTerms hash = do
+                  -- Running example (for `oldHash` iteration):
+                  --
+                  --   [ (<#pingpong.pong + 1>, <Nat>),
+                  --     (<#pingpong.ping + 2>, <Nat>)
+                  --   ]
+                  terms <- Codebase.unsafeGetTermComponent codebase hash
+                  let keep :: TermReferenceId -> Maybe Symbol
+                      keep ref =
+                        if notBeingUpdated names
+                          then Foldable.find nameIsUnconflicted names -- (E)
+                          else Nothing
+                        where
+                          -- (D) After getting the entire component of `oldHash`, which has at least one member being
+                          -- updated, we want to keep only the members that are *not* being updated (i.e. those who have
+                          -- no name that is being updated).
+                          --
+                          -- Running example, first time through (processing #pingpong.ping):
+                          --
+                          --   Set.disjoint { "ping" } { "ping" } is false, so don't add to the map.
+                          --
+                          -- Running example, second time through (processing #pingpong.pong):
+                          --
+                          --   Set.disjoint { "ping" } { "pong" } is true, so add
+                          --   #pingpong.pong => (<#pingpong.ping + 2>, { "pong" })) to the map.
+                          notBeingUpdated = Set.disjoint namesBeingUpdated
+                          nameIsUnconflicted name = Set.size (nameToTermRefs name) == 1
+                          names = termRefToNames ref
+                  pure $
+                    terms
+                      -- Running example:
+                      --
+                      --   [ (#pingpong.ping, (<#pingpong.pong + 1>, <Nat>)),
+                      --     (#pingpong.pong, (<#pingpong.ping + 2>, <Nat>))
+                      --   ]
+                      & Reference.componentFor hash
+                      & List.foldl'
+                        ( \acc (ref, (term, _typ)) ->
+                            case keep ref of
+                              Nothing -> acc
+                              Just name -> Map.insert ref (term, name) acc
+                        )
+                        Map.empty
 
+            if Map.null oldHashToInterimHash
+              then pure Map.empty
+              else do
+                Sqlite.savepoint do
+                  -- Compute the actual interim decl/term components in the latest typechecked file. These aren't quite
+                  -- given in the unison file structure itself - in the `topLevelComponents'` field we have the
+                  -- components in some arbitrary order (I *think*), each tagged with its stringy name, and in the
+                  -- `hashTermsId` field we have all of the individual terms organized by reference.
+                  let interimDeclComponents :: [(Hash, [Decl Symbol Ann])]
+                      interimDeclComponents =
+                        decls UF.dataDeclarationsId' Right ++ decls UF.effectDeclarationsId' Left
+                        where
+                          decls ::
+                            (TypecheckedUnisonFile Symbol Ann -> Map Symbol (TypeReferenceId, decl)) ->
+                            (decl -> Decl Symbol Ann) ->
+                            [(Hash, [Decl Symbol Ann])]
+                          decls project inject =
+                            slurp0
+                              & Slurp.originalFile
+                              & project
+                              & Map.elems
+                              & recomponentize
+                              & over (mapped . _2 . mapped) inject
+                      interimTermComponents :: [(Hash, [(Term Symbol Ann, Type Symbol Ann)])]
+                      interimTermComponents =
+                        nameToInterimInfo
+                          & Map.elems
+                          & map (\(ref, _wk, term, typ) -> (ref, (term, typ)))
+                          & componentize
+                          & uncomponentize
+
+                  -- Insert each interim component into the codebase proper. Note: this relies on the codebase interface
+                  -- being smart enough to handle out-of-order components (i.e. inserting a dependent before a
+                  -- dependency). That's currently how the codebase interface works, but maybe in the future it'll grow
+                  -- a precondition that components can only be inserted after their dependencies.
+                  for_ interimDeclComponents \(hash, decls) -> Codebase.putTypeDeclarationComponent codebase hash decls
+                  for_ interimTermComponents \(hash, terms) -> Codebase.putTermComponent codebase hash terms
+
+                  terms <-
+                    let interimHashes :: Set Hash
+                        interimHashes = Set.fromList (map fst interimTermComponents)
+                     in Map.toList oldHashToInterimHash & foldMapM \(oldHash, interimHash) -> do
+                          hashes <-
+                            Queries.loadObjectIdForAnyHash oldHash >>= \case
+                              -- better would be to short-circuit all the way to the user and say, actually we can't
+                              -- perform this update at all, due to some intervening delete (e.g. some sort of
+                              -- hard-reset or garbage collection on the codebase)
+                              Nothing -> pure Set.empty
+                              Just oldOid -> do
+                                interimOid <- Queries.expectObjectIdForPrimaryHash interimHash
+                                betweenOids <- Queries.getDependenciesBetweenTerms interimOid oldOid
+                                (Set.\\ interimHashes) <$> Set.traverse Queries.expectPrimaryHashByObjectId betweenOids
+                          foldMapM hashToImplicitTerms (oldHash : Set.toList hashes)
+                  pure (Left terms) -- left = rollback to savepoint
     if Map.null implicitTerms
       then pure slurp0
       else do
@@ -361,26 +440,6 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
         --      taking care to adjust their references to each other, so that the proper components are discovered.
         --
         --   2. Re-typecheck, and if it that succeeds, use the resulting typechecked unison file and slurp.
-
-        -- Grab some interim info out of the original slurp.
-        --
-        -- Running example:
-        --
-        --   "ping" => (#newping, Nothing, <#wham + 4>, <Nat>)
-        let nameToInterimInfo :: Map Symbol (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
-            nameToInterimInfo =
-              UF.hashTermsId (Slurp.originalFile slurp0)
-
-        -- Associate each term name being updated with its interim reference.
-        --
-        -- Running example:
-        --
-        --   "ping" <=> #newping
-        let nameToInterimRef :: Bij Symbol TermReferenceId
-            nameToInterimRef =
-              nameToInterimInfo
-                & Map.map (\(ref, _wk, _term, _typ) -> ref)
-                & bijFromMap
 
         -- Remap the references contained in each implicit term, then add back in the slurped interim terms and unhash
         -- the collection. The unhashing process will invent a fresh variable name for each term.
@@ -422,21 +481,13 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                 --   ref            -> ref
                 rewrite :: Term Symbol Ann -> Term Symbol Ann
                 rewrite =
-                  updatedNameToOldRefs
-                    & Map.toList
-                    & foldMap
-                      ( \(name, oldRefs) ->
-                          oldRefs
-                            & Set.toList
-                            & map
-                              ( \oldRef ->
-                                  case bijLookupL name nameToInterimRef of
-                                    Just interimRef -> (oldRef, interimRef)
-                                    Nothing -> error (reportBug "E798907" "no interim ref for name")
-                              )
-                            & Map.fromList
-                      )
-                    & rewriteTermReferences
+                  rewriteTermReferences (foldMap toMapping updatedNameToRefs)
+                  where
+                    toMapping ::
+                      (Set TermReference, TermReferenceId) ->
+                      Map TermReference TermReferenceId
+                    toMapping (oldRefs, interimRef) =
+                      foldMap (\oldRef -> Map.singleton oldRef interimRef) oldRefs
 
         let unisonFile :: UnisonFile Symbol Ann
             unisonFile =
@@ -468,13 +519,22 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                 generatedNameToName =
                   refToGeneratedNameAndTerm & Map.remap \(ref, (generatedName, _term)) ->
                     ( generatedName,
-                      case bijLookupR ref nameToInterimRef of
+                      case Map.lookup ref interimRefToName of
                         Just name -> name
                         Nothing ->
                           case Map.lookup ref implicitTerms of
                             Just (_term, name) -> name
                             Nothing -> error (reportBug "E836680" "ref not interim nor implicit")
                     )
+                  where
+                    -- Associate each term name being updated with its interim reference.
+                    --
+                    -- Running example:
+                    --
+                    --   #newping => "ping"
+                    interimRefToName :: Map TermReferenceId Symbol
+                    interimRefToName =
+                      Map.remap (\(name, (ref, _wk, _term, _typ)) -> (ref, name)) nameToInterimInfo
 
             let renameTerm ::
                   (Symbol, Term Symbol Ann, Type Symbol Ann) ->
@@ -598,23 +658,26 @@ propagatePatchNoSync patch scopePath =
   Cli.time "propagatePatchNoSync" do
     Cli.stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
-------------------------------------------------------------------------------------------------------------------------
--- Tiny helper bijection type
---
--- This is semantically a set of `(a, b)` tuples, where no `a` nor `b` appears more than once. An `a` can be looked up
--- given its associated `b`, and vice-versa.
+recomponentize :: [(Reference.Id, a)] -> [(Hash, [a])]
+recomponentize =
+  uncomponentize . componentize
 
-data Bij a b
-  = Bij (Map a b) (Map b a)
+-- Misc. helper: convert a component in listy-form to mappy-form.
+componentize :: [(Reference.Id, a)] -> Map Hash (Map Reference.Pos a)
+componentize =
+  foldl' step Map.empty
+  where
+    step :: Map Hash (Map Reference.Pos a) -> (Reference.Id, a) -> Map Hash (Map Reference.Pos a)
+    step acc (Reference.Id hash pos, x) =
+      Map.upsert
+        ( \case
+            Nothing -> Map.singleton pos x
+            Just acc1 -> Map.insert pos x acc1
+        )
+        hash
+        acc
 
-bijFromMap :: Ord b => Map a b -> Bij a b
-bijFromMap m =
-  Bij m (Map.remap Tuple.swap m)
-
-bijLookupL :: Ord a => a -> Bij a b -> Maybe b
-bijLookupL x (Bij m _) =
-  Map.lookup x m
-
-bijLookupR :: Ord b => b -> Bij a b -> Maybe a
-bijLookupR x (Bij _ m) =
-  Map.lookup x m
+-- Misc. helper: convert a component in mappy-form to listy-form.
+uncomponentize :: Map Hash (Map Reference.Pos a) -> [(Hash, [a])]
+uncomponentize =
+  over (mapped . _2) Map.elems . Map.toList
