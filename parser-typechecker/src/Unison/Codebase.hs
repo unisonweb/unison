@@ -260,20 +260,18 @@ termMetadata codebase mayBranch (path, nameSeg) ref = do
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
 lca :: MonadIO m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
-lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case lcaImpl code of
-  Nothing -> Branch.lca b1 b2
-  Just lca -> do
-    (eb1, eb2) <-
-      runTransaction code do
-        eb1 <- SqliteCodebase.Operations.branchExists h1
-        eb2 <- SqliteCodebase.Operations.branchExists h2
-        pure (eb1, eb2)
-    if eb1 && eb2
-      then do
-        lca h1 h2 >>= \case
-          Just h -> getBranchForHash code h
-          Nothing -> pure Nothing -- no common ancestor
-      else Branch.lca b1 b2
+lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = do
+  action <-
+    runTransaction code do
+      eb1 <- SqliteCodebase.Operations.branchExists h1
+      eb2 <- SqliteCodebase.Operations.branchExists h2
+      if eb1 && eb2 
+        then do
+          SqliteCodebase.Operations.sqlLca h1 h2 >>= \case
+            Just h -> pure (getBranchForHash code h)
+            Nothing -> pure (pure Nothing) -- no common ancestor
+        else pure (Branch.lca b1 b2)
+  action
 
 debug :: Bool
 debug = False

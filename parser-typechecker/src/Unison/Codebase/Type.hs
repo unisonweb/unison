@@ -105,11 +105,6 @@ data Codebase m v a = Codebase
     termsMentioningTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors whose hash matches the given prefix.
     termReferentsByPrefix :: ShortHash -> m (Set Referent.Id),
-    -- returns `Nothing` to not implemented, fallback to in-memory
-    --    also `Nothing` if no LCA
-    -- The result is undefined if the two hashes are not in the codebase.
-    -- Use `Codebase.lca` which wraps this in a nice API.
-    lcaImpl :: Maybe (Branch.CausalHash -> Branch.CausalHash -> m (Maybe Branch.CausalHash)),
     -- `beforeImpl` returns `Nothing` if not implemented by the codebase
     -- `beforeImpl b1 b2` is undefined if `b2` not in the codebase
     --

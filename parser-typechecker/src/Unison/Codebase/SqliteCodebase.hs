@@ -333,10 +333,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             referentsByPrefix sh =
               runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
 
-            sqlLca :: Branch.CausalHash -> Branch.CausalHash -> m (Maybe (Branch.CausalHash))
-            sqlLca h1 h2 =
-              runTransaction (CodebaseOps.sqlLca h1 h2)
-
             beforeImpl :: Maybe (Branch.CausalHash -> Branch.CausalHash -> m Bool)
             beforeImpl =
               Just \l r ->
@@ -377,7 +373,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
                   termReferentsByPrefix = referentsByPrefix,
-                  lcaImpl = Just sqlLca,
                   beforeImpl,
                   namesAtPath,
                   updateNameLookup,

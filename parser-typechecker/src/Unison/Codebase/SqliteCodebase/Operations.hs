@@ -594,6 +594,10 @@ causalHashesByPrefix sh = do
   cs <- Ops.causalHashesByPrefix (Cv.sch1to2 sh)
   pure $ Set.map (Causal.CausalHash . unCausalHash) cs
 
+-- returns `Nothing` to not implemented, fallback to in-memory
+--    also `Nothing` if no LCA
+-- The result is undefined if the two hashes are not in the codebase.
+-- Use `Codebase.lca` which wraps this in a nice API.
 sqlLca :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Branch.CausalHash)
 sqlLca h1 h2 = do
   h3 <- Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
