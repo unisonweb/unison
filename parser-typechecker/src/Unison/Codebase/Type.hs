@@ -66,7 +66,7 @@ data Codebase m v a = Codebase
     --
     -- Note that it is possible to call 'putTypeDeclaration', then 'getTypeDeclaration', and receive @Nothing@, per the
     -- semantics of 'putTypeDeclaration'.
-    getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a)),
+    getTypeDeclaration :: Reference.Id -> Sqlite.Transaction (Maybe (Decl v a)),
     -- | Get the type of a given decl.
     getDeclType :: V2.Reference -> m CT.ConstructorType,
     -- | Enqueue the put of a user-defined term (with its type) into the codebase, if it doesn't already exist. The
@@ -80,7 +80,7 @@ data Codebase m v a = Codebase
     putTypeDeclarationComponent :: Hash -> [Decl v a] -> Sqlite.Transaction (),
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
-    getDeclComponent :: Hash -> m (Maybe [Decl v a]),
+    getDeclComponent :: Hash -> Sqlite.Transaction (Maybe [Decl v a]),
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
     -- | Get the root causal Hash.
     getRootCausalHash :: m V2.CausalHash,
@@ -112,7 +112,7 @@ data Codebase m v a = Codebase
     patchExists :: Branch.EditHash -> m Bool,
     -- | Get the set of user-defined terms and type declarations that depend on the given term, type declaration, or
     -- builtin type.
-    dependentsImpl :: Queries.DependentsSelector -> Reference -> m (Set Reference.Id),
+    dependentsImpl :: Queries.DependentsSelector -> Reference -> Sqlite.Transaction (Set Reference.Id),
     dependentsOfComponentImpl :: Hash -> m (Set Reference.Id),
     -- | Copy a branch and all of its dependencies from the given codebase into this one.
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),

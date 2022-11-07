@@ -160,6 +160,7 @@ import qualified Unison.Share.Sync as Share
 import qualified Unison.Share.Sync.Types as Share
 import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
 import qualified Unison.Syntax.HashQualified as HQ (unsafeFromString)
@@ -345,6 +346,7 @@ loop e = do
             Path.HQSplit' ->
             Cli ()
           delete getTerms getTypes hq' = do
+            Cli.Env {codebase} <- ask
             hq <- Cli.resolveSplit' hq'
             terms <- getTerms hq
             types <- getTypes hq
@@ -357,7 +359,9 @@ loop e = do
                 toRel = R.fromList . fmap (name,) . toList
                 -- these names are relative to the root
                 toDelete = Names (toRel terms) (toRel types)
-            endangerments <- getEndangeredDependents toDelete rootNames
+            endangerments <-
+              liftIO $
+                Codebase.runTransaction codebase (getEndangeredDependents codebase toDelete rootNames)
             if null endangerments
               then do
                 let makeDeleteTermNames = map (BranchUtil.makeDeleteTermName resolvedPath) . Set.toList $ terms
@@ -540,6 +544,7 @@ loop e = do
                   Cli.respond DeletedEverything
                 else Cli.respond DeleteEverythingConfirmation
             DeleteBranchI insistence (Just p) -> do
+              Cli.Env {codebase} <- ask
               branch <- Cli.expectBranchAtPath' (Path.unsplit' p)
               description <- inputDescription input
               absPath <- Cli.resolveSplit' p
@@ -549,7 +554,9 @@ loop e = do
                       (Branch.toNames (Branch.head branch))
               afterDelete <- do
                 rootNames <- Branch.toNames <$> Cli.getRootBranch0
-                endangerments <- getEndangeredDependents toDelete rootNames
+                endangerments <-
+                  liftIO $
+                    Codebase.runTransaction codebase (getEndangeredDependents codebase toDelete rootNames)
                 case (null endangerments, insistence) of
                   (True, _) -> pure (Cli.respond Success)
                   (False, Force) -> do
@@ -1328,7 +1335,7 @@ loop e = do
               for_ lds \ld -> do
                 dependencies :: Set Reference <-
                   let tp r@(Reference.DerivedId i) =
-                        liftIO (Codebase.getTypeDeclaration codebase i) <&> \case
+                        Codebase.getTypeDeclaration codebase i <&> \case
                           Nothing -> error $ "What happened to " ++ show i ++ "?"
                           Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
                       tp _ = pure mempty
@@ -1337,13 +1344,13 @@ loop e = do
                           Nothing -> error $ "What happened to " ++ show i ++ "?"
                           Just tm -> Set.delete r $ Term.dependencies tm
                       tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
-                        liftIO (Codebase.getTypeDeclaration codebase i) <&> \case
+                        liftIO (Codebase.runTransaction codebase (Codebase.getTypeDeclaration codebase i)) <&> \case
                           Nothing -> error $ "What happened to " ++ show i ++ "?"
                           Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
                             Nothing -> error $ "What happened to " ++ show con ++ "?"
                             Just tp -> Type.dependencies tp
                       tm _ = pure mempty
-                   in LD.fold tp tm ld
+                   in LD.fold (liftIO . Codebase.runTransaction codebase . tp) tm ld
                 (missing, names0) <- liftIO (Branch.findHistoricalRefs' dependencies rootBranch)
                 let types = R.toList $ Names.types names0
                 let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
@@ -1785,12 +1792,12 @@ handleDependents hq = do
   for_ lds \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
-      let tp r = liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+      let tp r = Codebase.dependents codebase Queries.ExcludeOwnComponent r
           tm = \case
-            Referent.Ref r -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+            Referent.Ref r -> Codebase.dependents codebase Queries.ExcludeOwnComponent r
             Referent.Con (ConstructorReference r _cid) _ct ->
-              liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
-       in LD.fold tp tm ld
+              Codebase.dependents codebase Queries.ExcludeOwnComponent r
+       in liftIO (Codebase.runTransaction codebase (LD.fold tp tm ld))
     -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
     -- unambiguous name.
     ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
@@ -2275,13 +2282,20 @@ doDisplay outputLoc names tm = do
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
       loadTerm _ = pure Nothing
       loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
-        Nothing -> fmap (fmap $ DD.amap (const ())) $ liftIO (Codebase.getTypeDeclaration codebase r)
+        Nothing -> fmap (fmap $ DD.amap (const ())) $ Codebase.getTypeDeclaration codebase r
         Just decl -> pure (Just $ DD.amap (const ()) decl)
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
         | Just (_, ty) <- Map.lookup r tms = pure $ Just (void ty)
       loadTypeOfTerm' r = fmap (fmap void) . loadTypeOfTerm codebase $ r
-  rendered <- DisplayValues.displayTerm ppe (liftIO . loadTerm) (liftIO . loadTypeOfTerm') evalTerm loadDecl tm
+  rendered <-
+    DisplayValues.displayTerm
+      ppe
+      (liftIO . loadTerm)
+      (liftIO . loadTypeOfTerm')
+      evalTerm
+      (liftIO . Codebase.runTransaction codebase . loadDecl)
+      tm
   Cli.respond $ DisplayRendered loc rendered
 
 getLinks ::
@@ -2366,14 +2380,17 @@ checkTodo patch names0 = do
   let -- Get the dependents of a reference which:
       --   1. Don't appear on the LHS of this patch
       --   2. Have a name in this namespace
-      getDependents :: Reference -> IO (Set Reference)
+      getDependents :: Reference -> Sqlite.Transaction (Set Reference)
       getDependents ref = do
         dependents <- Codebase.dependents codebase Queries.ExcludeSelf ref
         pure (dependents & removeEditedThings & removeNamelessThings)
   -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
-  dependsOn <- liftIO (Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited)
-  let dirty = R.dom dependsOn
-  transitiveDirty <- liftIO (transitiveClosure getDependents dirty)
+  (dependsOn, dirty, transitiveDirty) <- do
+    (liftIO . Codebase.runTransaction codebase) do
+      dependsOn <- Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited
+      let dirty = R.dom dependsOn
+      transitiveDirty <- transitiveClosure getDependents dirty
+      pure (dependsOn, dirty, transitiveDirty)
   (frontierTerms, frontierTypes) <- loadDisplayInfo (R.ran dependsOn)
   (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
   pure $
@@ -2546,27 +2563,27 @@ loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
 -- definition is going "extinct"). In this case we may wish to take some action or warn the
 -- user about these "endangered" definitions which would now contain unnamed references.
 getEndangeredDependents ::
+  Codebase m v a ->
   -- | Which names we want to delete
   Names ->
   -- | All names from the root branch
   Names ->
   -- | map from references going extinct to the set of endangered dependents
-  Cli (Map LabeledDependency (NESet LabeledDependency))
-getEndangeredDependents namesToDelete rootNames = do
-  Cli.Env {codebase} <- ask
+  Sqlite.Transaction (Map LabeledDependency (NESet LabeledDependency))
+getEndangeredDependents codebase namesToDelete rootNames = do
   let remainingNames :: Names
       remainingNames = rootNames `Names.difference` namesToDelete
       refsToDelete, remainingRefs, extinct :: Set LabeledDependency
       refsToDelete = Names.labeledReferences namesToDelete
       remainingRefs = Names.labeledReferences remainingNames -- left over after delete
       extinct = refsToDelete `Set.difference` remainingRefs -- deleting and not left over
-      accumulateDependents :: LabeledDependency -> IO (Map LabeledDependency (Set LabeledDependency))
+      accumulateDependents :: LabeledDependency -> Sqlite.Transaction (Map LabeledDependency (Set LabeledDependency))
       accumulateDependents ld =
         let ref = LD.fold id Referent.toReference ld
          in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents codebase Queries.ExcludeOwnComponent ref
   -- All dependents of extinct, including terms which might themselves be in the process of being deleted.
   allDependentsOfExtinct :: Map LabeledDependency (Set LabeledDependency) <-
-    liftIO (Map.unionsWith (<>) <$> for (Set.toList extinct) accumulateDependents)
+    Map.unionsWith (<>) <$> for (Set.toList extinct) accumulateDependents
 
   -- Filtered to only include dependencies which are not being deleted, but depend one which
   -- is going extinct.
@@ -2673,18 +2690,17 @@ loadDisplayInfo ::
 loadDisplayInfo refs = do
   Cli.Env {codebase} <- ask
   termRefs <- filterM (liftIO . Codebase.isTerm codebase) (toList refs)
-  typeRefs <- filterM (liftIO . Codebase.isType codebase) (toList refs)
+  typeRefs <- liftIO (Codebase.runTransaction codebase (filterM (Codebase.isType codebase) (toList refs)))
   terms <- forM termRefs $ \r -> (r,) <$> liftIO (Codebase.getTypeOfTerm codebase r)
-  types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject r
+  types <- liftIO (Codebase.runTransaction codebase (forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject codebase r))
   pure (terms, types)
 
-loadTypeDisplayObject :: Reference -> Cli (DisplayObject () (DD.Decl Symbol Ann))
-loadTypeDisplayObject = \case
+loadTypeDisplayObject :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (DisplayObject () (DD.Decl Symbol Ann))
+loadTypeDisplayObject codebase = \case
   Reference.Builtin _ -> pure (BuiltinObject ())
-  Reference.DerivedId id -> do
-    Cli.Env {codebase} <- ask
+  Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
-      <$> liftIO (Codebase.getTypeDeclaration codebase id)
+      <$> Codebase.getTypeDeclaration codebase id
 
 lexedSource :: Text -> Text -> Cli (NamesWithHistory, (Text, [L.Token L.Lexeme]))
 lexedSource name src = do
@@ -2870,10 +2886,10 @@ executePPE ::
 executePPE unisonFile =
   suffixifiedPPE =<< displayNames unisonFile
 
-loadTypeOfTerm :: Monad m => Codebase m Symbol Ann -> Referent -> m (Maybe (Type Symbol Ann))
+loadTypeOfTerm :: MonadIO m => Codebase m Symbol Ann -> Referent -> m (Maybe (Type Symbol Ann))
 loadTypeOfTerm codebase (Referent.Ref r) = Codebase.getTypeOfTerm codebase r
 loadTypeOfTerm codebase (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
-  decl <- Codebase.getTypeDeclaration codebase r
+  decl <- Codebase.runTransaction codebase (Codebase.getTypeDeclaration codebase r)
   case decl of
     Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
     Nothing -> pure Nothing
