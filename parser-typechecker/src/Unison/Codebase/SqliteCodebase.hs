@@ -67,7 +67,6 @@ import Unison.Codebase.Type (LocalOrRemote (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase.Type as C
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
-import Unison.Names.Scoped (ScopedNames)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -331,10 +330,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             referentsByPrefix sh =
               runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
 
-            namesAtPath :: Path -> m ScopedNames
-            namesAtPath path =
-              runTransaction (CodebaseOps.namesAtPath path)
-
             updateNameLookup :: Path -> Maybe BranchHash -> BranchHash -> m ()
             updateNameLookup pathPrefix fromBH toBH =
               runTransaction (CodebaseOps.updateNameLookupIndex getDeclType pathPrefix fromBH toBH)
@@ -366,7 +361,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
                   termReferentsByPrefix = referentsByPrefix,
-                  namesAtPath,
                   updateNameLookup,
                   withConnection = withConn,
                   withConnectionIO = withConnection debugName root

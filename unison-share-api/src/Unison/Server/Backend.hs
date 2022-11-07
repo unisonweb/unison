@@ -1111,7 +1111,7 @@ scopedNamesForBranchHash codebase mbh path = do
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
   (parseNames, localNames) <- case mbh of
     Nothing
-      | shouldUseNamesIndex -> indexNames
+      | shouldUseNamesIndex -> lift $ Codebase.runTransaction codebase indexNames
       | otherwise -> do
           rootBranch <- lift $ Codebase.getRootBranch codebase
           let (parseNames, _prettyNames, localNames) = namesForBranch rootBranch (AllNames path)
@@ -1121,7 +1121,7 @@ scopedNamesForBranchHash codebase mbh path = do
       let v1CausalHash = Cv.causalHash2to1 ch
       rootHash <- lift $ Codebase.runTransaction codebase Operations.expectRootCausalHash
       if (ch == rootHash) && shouldUseNamesIndex
-        then indexNames
+        then lift $ Codebase.runTransaction codebase indexNames
         else do
           (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just v1CausalHash) codebase
           pure (parseNames, localNames)
@@ -1135,9 +1135,9 @@ scopedNamesForBranchHash codebase mbh path = do
       PPED.PrettyPrintEnvDecl
         (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE addFallback)
         (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE addFallback)
-    indexNames :: Backend m (Names, Names)
+    indexNames :: Sqlite.Transaction (Names, Names)
     indexNames = do
-      scopedNames <- lift $ Codebase.namesAtPath codebase path
+      scopedNames <- Codebase.namesAtPath path
       pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::

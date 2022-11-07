@@ -29,7 +29,6 @@ import Unison.CodebasePath (CodebasePath)
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
-import Unison.Names.Scoped (ScopedNames)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -105,11 +104,6 @@ data Codebase m v a = Codebase
     termsMentioningTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors whose hash matches the given prefix.
     termReferentsByPrefix :: ShortHash -> m (Set Referent.Id),
-    -- Use the name lookup index to build a 'Names' for all names found within 'Path' of the current root namespace.
-    --
-    -- NOTE: this method requires an up-to-date name lookup index, which is
-    -- currently not kept up-to-date automatically (because it's slow to do so).
-    namesAtPath :: Path -> m ScopedNames,
     -- Updates the root namespace names index from an old BranchHash to a new one.
     -- This isn't run automatically because it can be a bit slow.
     updateNameLookup ::

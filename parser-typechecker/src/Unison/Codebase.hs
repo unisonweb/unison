@@ -51,7 +51,7 @@ module Unison.Codebase
     SqliteCodebase.Operations.getRootBranchExists,
     Operations.expectRootCausalHash,
     putRootBranch,
-    namesAtPath,
+    SqliteCodebase.Operations.namesAtPath,
 
     -- * Patches
     SqliteCodebase.Operations.patchExists,

@@ -616,6 +616,9 @@ before h1 h2 =
 
 -- | Construct a 'ScopedNames' which can produce names which are relative to the provided
 -- Path.
+--
+-- NOTE: this method requires an up-to-date name lookup index, which is
+-- currently not kept up-to-date automatically (because it's slow to do so).
 namesAtPath ::
   Path ->
   Transaction ScopedNames
