@@ -8,13 +8,19 @@ module Unison.Cli.NamesUtils
     makeHistoricalParsingNames,
     makePrintNamesFromLabeled',
     makeShadowedPrintNamesFromHQ,
+    executePPE,
+    suffixifiedPPE,
+    fqnPPE,
   )
 where
 
 import Control.Lens
+import Control.Monad.Reader
 import qualified Data.Set as Set
 import Unison.Cli.Monad (Cli)
+import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
@@ -27,6 +33,8 @@ import qualified Unison.Names as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Prelude
+import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.Server.Backend as Backend
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
@@ -47,17 +55,6 @@ basicNames' nameScoping = do
   currentPath' <- Cli.getCurrentPath
   let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
   pure (parse, pretty)
-
--- | Produce a `Names` needed to display all the hashes used in the given file.
-displayNames ::
-  Var v =>
-  TypecheckedUnisonFile v a ->
-  Cli NamesWithHistory
-displayNames unisonFile =
-  -- voodoo
-  makeShadowedPrintNamesFromLabeled
-    (UF.termSignatureExternalLabeledDependencies unisonFile)
-    (UF.typecheckedToNames unisonFile)
 
 -- discards inputs that aren't hashqualified;
 -- I'd enforce it with finer-grained types if we had them.
@@ -132,6 +129,34 @@ makePrintNamesFromLabeled' deps = do
   basicNames <- basicPrettyPrintNamesA
   pure $ NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames)
 
+executePPE ::
+  Var v =>
+  TypecheckedUnisonFile v a ->
+  Cli PPE.PrettyPrintEnv
+executePPE unisonFile =
+  suffixifiedPPE =<< displayNames unisonFile
+
+suffixifiedPPE :: NamesWithHistory -> Cli PPE.PrettyPrintEnv
+suffixifiedPPE ns = do
+  Cli.Env {codebase} <- ask
+  liftIO (Codebase.hashLength codebase) <&> (`PPE.fromSuffixNames` ns)
+
+fqnPPE :: NamesWithHistory -> Cli PPE.PrettyPrintEnv
+fqnPPE ns = do
+  Cli.Env {codebase} <- ask
+  liftIO (Codebase.hashLength codebase) <&> (`PPE.fromNames` ns)
+
+-- | Produce a `Names` needed to display all the hashes used in the given file.
+displayNames ::
+  Var v =>
+  TypecheckedUnisonFile v a ->
+  Cli NamesWithHistory
+displayNames unisonFile =
+  -- voodoo
+  makeShadowedPrintNamesFromLabeled
+    (UF.termSignatureExternalLabeledDependencies unisonFile)
+    (UF.typecheckedToNames unisonFile)
+
 makeShadowedPrintNamesFromHQ :: Set (HQ.HashQualified Name) -> Names -> Cli NamesWithHistory
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
@@ -142,7 +167,7 @@ makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   pure $
     NamesWithHistory.shadowing
       shadowing
-      (NamesWithHistory basicNames (fixupNamesRelative currentPath rawHistoricalNames))
+      (NamesWithHistory basicNames (Backend.fixupNamesRelative currentPath rawHistoricalNames))
 
 makeShadowedPrintNamesFromLabeled :: Set LabeledDependency -> Names -> Cli NamesWithHistory
 makeShadowedPrintNamesFromLabeled deps shadowing =
