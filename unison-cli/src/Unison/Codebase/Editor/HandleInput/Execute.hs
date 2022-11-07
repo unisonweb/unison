@@ -1,0 +1,21 @@
+module Unison.Codebase.Editor.HandleInput.Execute where
+
+-- x = do
+--   (unisonFile, mainResType) <- do
+--     (sym, term, typ, otyp) <- getTerm mainSym
+--     mayLastFile <- Cli.getLatestTypecheckedFile
+--     let wf = UF.createWatcherFile magicMainWatcherString mayLastFile sym term typ
+--     pure (wf, otyp)
+--   ppe <- executePPE unisonFile
+--   (_, xs) <- evalUnisonFile False ppe unisonFile args
+--   mainRes :: Term Symbol () <-
+--     let bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) = (watchKind, term1)
+--      in case lookup magicMainWatcherString (map bonk (Map.toList xs)) of
+--           Nothing ->
+--             error
+--               ( "impossible: we manually added the watcher "
+--                   <> show magicMainWatcherString
+--                   <> " with 'createWatcherFile', but it isn't here."
+--               )
+--           Just x -> pure (stripUnisonFileReferences unisonFile x)
+--   _

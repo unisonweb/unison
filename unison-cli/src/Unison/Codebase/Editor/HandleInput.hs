@@ -162,6 +162,7 @@ import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
+import qualified Unison.Symbol as Symbol
 import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
@@ -1161,11 +1162,13 @@ loop e = do
               scopePath <- Cli.resolvePath' scopePath'
               updated <- propagatePatch description patch scopePath
               when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath')
-            ExecuteI main args -> do
+            ExecuteI mainStr args -> do
+              let mainSym = Symbol.symbol (Text.pack mainStr)
               (unisonFile, mainResType) <- do
-                (sym, term, typ, otyp) <- getTerm main
-                uf <- createWatcherFile sym term typ
-                pure (uf, otyp)
+                (sym, term, typ, otyp) <- getTerm mainSym
+                mayLastFile <- Cli.getLatestTypecheckedFile
+                let wf = UF.createWatcherFile magicMainWatcherString mayLastFile sym term typ
+                pure (wf, otyp)
               ppe <- executePPE unisonFile
               (_, xs) <- evalUnisonFile False ppe unisonFile args
               mainRes :: Term Symbol () <-
@@ -1197,8 +1200,8 @@ loop e = do
                       let codeLookup = () <$ Codebase.toCodeLookup codebase
                       whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
                         Cli.returnEarly (EvaluationFailure err)
-                  | otherwise -> Cli.returnEarly (BadMainFunction smain ty ppe [mainType])
-                _ -> Cli.returnEarly (NoMainFunction smain ppe [mainType])
+                  | otherwise -> Cli.returnEarly (BadMainFunction (Symbol.symbol $ Text.pack smain) ty ppe [mainType])
+                _ -> Cli.returnEarly (NoMainFunction (Symbol.symbol $ Text.pack smain) ppe [mainType])
             IOTestI main -> do
               Cli.Env {codebase, runtime} <- ask
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -1221,7 +1224,7 @@ loop e = do
 
                   results = NamesWithHistory.lookupHQTerm main parseNames
               ref <- do
-                let noMain = Cli.returnEarly $ NoMainFunction (HQ.toString main) ppe [testType]
+                let noMain = Cli.returnEarly $ NoMainFunction (Symbol.symbol $ HQ.toText main) ppe [testType]
                 case toList results of
                   [Referent.Ref ref] -> do
                     liftIO (loadTypeOfTerm codebase (Referent.Ref ref)) >>= \case
@@ -2811,7 +2814,7 @@ addSavedTermToUnisonFile resultName = do
 -- | Look up runnable term with the given name in the codebase or
 -- latest typechecked unison file. Return its symbol, term, type, and
 -- the type of the evaluated term.
-getTerm :: String -> Cli (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
+getTerm :: Symbol -> Cli (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
 getTerm main =
   getTerm' main >>= \case
     NoTermWithThatName -> do
@@ -2826,59 +2829,43 @@ getTerm main =
       Cli.returnEarly $ BadMainFunction main ty ppe [mainType]
     GetTermSuccess x -> pure x
 
-getTerm' :: String -> Cli GetTermResult
-getTerm' mainName =
+getTerm' :: Symbol -> Cli GetTermResult
+getTerm' mainName = do
+  Cli.Env {codebase, runtime} <- ask
   let getFromCodebase = do
-        Cli.Env {codebase, runtime} <- ask
-
         parseNames <- basicParseNames
         let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
-        mainToFile
-          =<< MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
+        mainToFile runtime
+          =<< MainTerm.getMainTerm loadTypeOfTerm parseNames (Var.nameStr mainName) (Runtime.mainType runtime)
         where
-          mainToFile (MainTerm.NotAFunctionName _) = pure NoTermWithThatName
-          mainToFile (MainTerm.NotFound _) = pure NoTermWithThatName
-          mainToFile (MainTerm.BadType _ ty) = pure $ maybe NoTermWithThatName TermHasBadType ty
-          mainToFile (MainTerm.Success hq tm typ) =
+          mainToFile _runtime (MainTerm.NotAFunctionName _) = pure NoTermWithThatName
+          mainToFile _runtime (MainTerm.NotFound _) = pure NoTermWithThatName
+          mainToFile _runtime (MainTerm.BadType _ ty) = pure $ maybe NoTermWithThatName TermHasBadType ty
+          mainToFile runtime (MainTerm.Success hq tm typ) =
             let v = Var.named (HQ.toText hq)
-             in checkType typ \otyp ->
-                  pure (GetTermSuccess (v, tm, typ, otyp))
-      getFromFile uf = do
-        let components = join $ UF.topLevelComponents uf
-        let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
-        case mainComponent of
-          [(v, tm, ty)] ->
-            checkType ty \otyp ->
-              let runMain = DD.forceTerm a a (Term.var a v)
-                  v2 = Var.freshIn (Set.fromList [v]) v
-                  a = ABT.annotation tm
-               in pure (GetTermSuccess (v2, runMain, ty, otyp))
-          _ -> getFromCodebase
-      checkType :: Type Symbol Ann -> (Type Symbol Ann -> Cli GetTermResult) -> Cli GetTermResult
-      checkType ty f = do
-        Cli.Env {runtime} <- ask
-        case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
-          True -> f (synthesizeForce ty)
-          False -> pure (TermHasBadType ty)
-   in Cli.getLatestTypecheckedFile >>= \case
-        Nothing -> getFromCodebase
-        Just uf -> getFromFile uf
-
--- | Produce a typechecked unison file where the given term is the
--- only watcher, with the watch type set to 'magicMainWatcherString'.
-createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli (TypecheckedUnisonFile Symbol Ann)
-createWatcherFile v tm typ =
+             in case getMainResultType typ runtime of
+                  Nothing -> pure $ TermHasBadType typ
+                  Just otyp -> pure (GetTermSuccess (v, tm, typ, otyp))
   Cli.getLatestTypecheckedFile >>= \case
-    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, tm, typ)])])
-    Just uf ->
-      let v2 = Var.freshIn (Set.fromList [v]) v
-       in pure $
-            UF.typecheckedUnisonFile
-              (UF.dataDeclarationsId' uf)
-              (UF.effectDeclarationsId' uf)
-              (UF.topLevelComponents' uf)
-              -- what about main's component? we have dropped them if they existed.
-              [(magicMainWatcherString, [(v2, tm, typ)])]
+    Nothing -> getFromCodebase
+    Just uf -> do
+      (GetTermSuccess <$> mainTermFromFile uf runtime mainName) `whenNothing` getFromCodebase
+
+mainTermFromFile :: TypecheckedUnisonFile Symbol Ann -> Runtime.Runtime Symbol -> Symbol -> Maybe (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
+mainTermFromFile uf runtime sym = do
+  (v, tm, ty) <- UF.namedTermFromTypecheckedFile uf sym
+  otyp <- getMainResultType ty runtime
+  let runMain = DD.forceTerm a a (Term.var a v)
+      v2 = Var.freshIn (Set.fromList [v]) v
+      a = ABT.annotation tm
+  pure (v2, runMain, ty, otyp)
+
+-- | Assert that the type is a valid main type, if so, return the type of evaluating it.
+getMainResultType :: Type Symbol Ann -> Runtime.Runtime Symbol -> Maybe (Type Symbol Ann)
+getMainResultType ty runtime = do
+  if Typechecker.fitsScheme ty (Runtime.mainType runtime)
+    then Just (synthesizeForce ty)
+    else Nothing
 
 executePPE ::
   Var v =>

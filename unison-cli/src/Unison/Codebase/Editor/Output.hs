@@ -120,9 +120,9 @@ data Output
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
-    NoMainFunction String PPE.PrettyPrintEnv [Type Symbol Ann]
+    NoMainFunction Symbol PPE.PrettyPrintEnv [Type Symbol Ann]
   | -- Main function found, but has improper type
-    BadMainFunction String (Type Symbol Ann) PPE.PrettyPrintEnv [Type Symbol Ann]
+    BadMainFunction Symbol (Type Symbol Ann) PPE.PrettyPrintEnv [Type Symbol Ann]
   | BranchEmpty (Either ShortCausalHash Path')
   | BranchNotEmpty Path'
   | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'

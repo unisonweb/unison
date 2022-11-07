@@ -560,3 +560,7 @@ codebasePathOptionToPath codebasePathOption =
   case codebasePathOption of
     CreateCodebaseWhenMissing p -> p
     DontCreateCodebaseWhenMissing p -> p
+
+-- runFromHandle :: Handle -> Symbol -> IO ()
+-- runFromHandle handle sym = do
+--   _
