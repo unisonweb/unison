@@ -974,6 +974,7 @@ componentReferencesByPrefix ot b32prefix pos = do
   let filterComponent l = [x | x@(C.Reference.Id _ pos) <- l, test pos]
   join <$> traverse (fmap filterComponent . componentByObjectId) oIds
 
+-- | Get the set of user-defined terms whose hash matches the given prefix.
 termReferencesByPrefix :: Text -> Maybe Word64 -> Transaction [C.Reference.Id]
 termReferencesByPrefix t w =
   componentReferencesByPrefix ObjectType.TermComponent t w

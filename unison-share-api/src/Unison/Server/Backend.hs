@@ -586,9 +586,9 @@ typeReferencesByShortHash codebase sh = do
           B.intrinsicTypeReferences
   pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
 
-termReferencesByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
-termReferencesByShortHash codebase sh = do
-  fromCodebase <- Codebase.termReferencesByPrefix codebase sh
+termReferencesByShortHash :: ShortHash -> Sqlite.Transaction (Set Reference)
+termReferencesByShortHash sh = do
+  fromCodebase <- Codebase.termReferencesByPrefix sh
   let fromBuiltins =
         Set.filter
           (\r -> sh == Reference.toShortHash r)

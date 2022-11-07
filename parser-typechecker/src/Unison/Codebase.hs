@@ -20,7 +20,7 @@ module Unison.Codebase
     -- ** Search
     termsOfType,
     termsMentioningType,
-    termReferencesByPrefix,
+    Operations.termReferencesByPrefix,
     termReferentsByPrefix,
 
     -- * Type declarations
