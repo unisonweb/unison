@@ -752,9 +752,22 @@ initializeNameLookupIndexFromV2Root getDeclType = do
         fold <$> (ifor (V2Branch.children b) $ \nameSegment cb -> (nameMapsFromV2Branch (nameSegment : reversedNamePrefix) cb))
       pure (Map.mapKeys (NEList.:| reversedNamePrefix) shallowTermNames <> prefixedChildTerms, Map.mapKeys (NEList.:| reversedNamePrefix) shallowTypeNames <> prefixedChildTypes)
 
-mkGetDeclType :: MonadIO m => m (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType)
-mkGetDeclType = do
-  declTypeCache <- Cache.semispaceCache 2048
-  pure $ \ref -> do
+-- | Given a transaction, return a transaction that first checks a semispace cache of the given size.
+makeCachedTransaction :: (Ord a, MonadIO m) => Word -> (a -> Sqlite.Transaction b) -> m (a -> Sqlite.Transaction b)
+makeCachedTransaction size action = do
+  cache <- Cache.semispaceCache size
+  pure \x -> do
     conn <- Sqlite.unsafeGetConnection
-    Sqlite.unsafeIO $ Cache.apply declTypeCache (\ref -> Sqlite.unsafeUnTransaction (getDeclType ref) conn) ref
+    Sqlite.unsafeIO (Cache.apply cache (\x -> Sqlite.unsafeUnTransaction (action x) conn) x)
+
+-- | Like 'makeCachedTransaction', but for when the transaction returns a Maybe; only cache the Justs.
+makeMaybeCachedTransaction ::
+  (Ord a, MonadIO m) =>
+  Word ->
+  (a -> Sqlite.Transaction (Maybe b)) ->
+  m (a -> Sqlite.Transaction (Maybe b))
+makeMaybeCachedTransaction size action = do
+  cache <- Cache.semispaceCache size
+  pure \x -> do
+    conn <- Sqlite.unsafeGetConnection
+    Sqlite.unsafeIO (Cache.applyDefined cache (\x -> Sqlite.unsafeUnTransaction (action x) conn) x)
