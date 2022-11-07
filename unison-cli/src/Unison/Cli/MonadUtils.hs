@@ -149,8 +149,11 @@ resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
 resolveShortCausalHash hash = do
   Cli.time "resolveShortCausalHash" do
     Cli.Env {codebase} <- ask
-    hashSet <- liftIO (Codebase.causalHashesByPrefix codebase hash)
-    len <- Cli.runTransaction Codebase.branchHashLength
+    (hashSet, len) <-
+      Cli.runTransaction do
+        hashSet <- Codebase.causalHashesByPrefix hash
+        len <- Codebase.branchHashLength
+        pure (hashSet, len)
     h <-
       Set.asSingleton hashSet & onNothing do
         Cli.returnEarly

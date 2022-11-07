@@ -171,8 +171,11 @@ serve ::
   Backend.Backend IO NamespaceListing
 serve codebase maySCH mayRelativeTo mayNamespaceName = do
   useIndex <- asks Backend.useNamesIndex
-  mayRootHash <- traverse (Backend.expandShortCausalHash codebase) maySCH
-  codebaseRootHash <- liftIO $ Codebase.runTransaction codebase Operations.expectRootCausalHash
+  (mayRootHash, codebaseRootHash) <- 
+    Backend.hoistBackend (Codebase.runTransaction codebase) do
+      mayRootHash <- traverse Backend.expandShortCausalHash maySCH
+      codebaseRootHash <- lift Operations.expectRootCausalHash
+      pure (mayRootHash, codebaseRootHash)
 
   -- Relative and Listing Path resolution
   --

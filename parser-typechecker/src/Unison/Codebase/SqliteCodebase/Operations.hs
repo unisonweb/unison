@@ -585,6 +585,7 @@ referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to
         ]
   pure . Set.fromList $ termReferents <> declReferents
 
+-- | Get the set of branches whose hash matches the given prefix.
 causalHashesByPrefix :: ShortCausalHash -> Transaction (Set Branch.CausalHash)
 causalHashesByPrefix sh = do
   -- given that a Branch is shallow, it's really `CausalHash` that you'd

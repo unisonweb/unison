@@ -158,6 +158,10 @@ newtype Backend m a = Backend {runBackend :: ReaderT BackendEnv (ExceptT Backend
 instance MonadTrans Backend where
   lift m = Backend (lift . lift $ m)
 
+hoistBackend :: (forall x. m x -> n x) -> Backend m a -> Backend n a
+hoistBackend f (Backend m) =
+  Backend (mapReaderT (mapExceptT f) m)
+
 suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
   PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
@@ -781,11 +785,10 @@ data DefinitionResults v = DefinitionResults
     noResults :: [HQ.HashQualified Name]
   }
 
-expandShortCausalHash ::
-  MonadIO m => Codebase m v a -> ShortCausalHash -> Backend m Branch.CausalHash
-expandShortCausalHash codebase hash = do
-  hashSet <- lift $ Codebase.causalHashesByPrefix codebase hash
-  len <- lift $ Codebase.runTransaction codebase Codebase.branchHashLength
+expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction Branch.CausalHash
+expandShortCausalHash hash = do
+  hashSet <- lift $ Codebase.causalHashesByPrefix hash
+  len <- lift $ Codebase.branchHashLength
   case Set.toList hashSet of
     [] -> throwError $ CouldntExpandBranchHash hash
     [h] -> pure h
@@ -1157,7 +1160,7 @@ resolveRootBranchHash mayRoot codebase = case mayRoot of
   Nothing ->
     lift (Codebase.getRootBranch codebase)
   Just sch -> do
-    h <- expandShortCausalHash codebase sch
+    h <- hoistBackend (Codebase.runTransaction codebase) (expandShortCausalHash sch)
     resolveCausalHash (Just h) codebase
 
 resolveRootBranchHashV2 ::
@@ -1165,7 +1168,7 @@ resolveRootBranchHashV2 ::
 resolveRootBranchHashV2 codebase mayRoot = case mayRoot of
   Nothing -> lift (Codebase.getShallowRootCausal codebase)
   Just sch -> do
-    h <- Cv.causalHash1to2 <$> expandShortCausalHash codebase sch
+    h <- Cv.causalHash1to2 <$> hoistBackend (Codebase.runTransaction codebase) (expandShortCausalHash sch)
     resolveCausalHashV2 codebase (Just h)
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)

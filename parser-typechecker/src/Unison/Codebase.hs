@@ -20,23 +20,23 @@ module Unison.Codebase
     -- ** Search
     termsOfType,
     termsMentioningType,
-    Operations.termReferencesByPrefix,
+    SqliteCodebase.Operations.termReferencesByPrefix,
     termReferentsByPrefix,
 
     -- * Type declarations
     getTypeDeclaration,
     unsafeGetTypeDeclaration,
-    Operations.getDeclComponent,
+    SqliteCodebase.Operations.getDeclComponent,
     putTypeDeclaration,
     putTypeDeclarationComponent,
-    Operations.typeReferencesByPrefix,
+    SqliteCodebase.Operations.typeReferencesByPrefix,
     isType,
 
     -- * Branches
-    Operations.branchExists,
+    SqliteCodebase.Operations.branchExists,
     getBranchForHash,
     putBranch,
-    causalHashesByPrefix,
+    SqliteCodebase.Operations.causalHashesByPrefix,
     lca,
     beforeImpl,
     getShallowBranchAtPath,
@@ -48,29 +48,29 @@ module Unison.Codebase
 
     -- * Root branch
     getRootBranch,
-    Operations.getRootBranchExists,
+    SqliteCodebase.Operations.getRootBranchExists,
     Operations.expectRootCausalHash,
     putRootBranch,
     namesAtPath,
 
     -- * Patches
-    Operations.patchExists,
-    Operations.getPatch,
-    Operations.putPatch,
+    SqliteCodebase.Operations.patchExists,
+    SqliteCodebase.Operations.getPatch,
+    SqliteCodebase.Operations.putPatch,
 
     -- * Watches
     getWatch,
     lookupWatchCache,
-    Operations.watches,
-    Operations.putWatch,
+    SqliteCodebase.Operations.watches,
+    SqliteCodebase.Operations.putWatch,
     Queries.clearWatches,
 
     -- * Reflog
     Operations.getReflog,
 
     -- * Unambiguous hash length
-    Operations.hashLength,
-    Operations.branchHashLength,
+    SqliteCodebase.Operations.hashLength,
+    SqliteCodebase.Operations.branchHashLength,
 
     -- * Dependents
     dependents,
@@ -134,7 +134,7 @@ import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.Path
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.Codebase.SqliteCodebase.Operations as Operations
+import qualified Unison.Codebase.SqliteCodebase.Operations as SqliteCodebase.Operations
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
@@ -265,8 +265,8 @@ lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case lcaImpl co
   Just lca -> do
     (eb1, eb2) <-
       runTransaction code do
-        eb1 <- Operations.branchExists h1
-        eb2 <- Operations.branchExists h2
+        eb1 <- SqliteCodebase.Operations.branchExists h1
+        eb2 <- SqliteCodebase.Operations.branchExists h2
         pure (eb1, eb2)
     if eb1 && eb2
       then do
@@ -402,13 +402,13 @@ dependents :: Queries.DependentsSelector -> Reference -> Sqlite.Transaction (Set
 dependents selector r =
   Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
-    <$> Operations.dependentsImpl selector r
+    <$> SqliteCodebase.Operations.dependentsImpl selector r
 
 dependentsOfComponent :: Hash -> Sqlite.Transaction (Set Reference)
 dependentsOfComponent h =
   Set.union (Builtin.builtinTypeDependentsOfComponent h)
     . Set.map Reference.DerivedId
-    <$> Operations.dependentsOfComponentImpl h
+    <$> SqliteCodebase.Operations.dependentsOfComponentImpl h
 
 -- | Get the set of terms-or-constructors that have the given type.
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)

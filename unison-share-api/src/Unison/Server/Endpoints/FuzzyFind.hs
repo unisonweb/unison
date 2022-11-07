@@ -138,7 +138,7 @@ serveFuzzyFind ::
   Backend.Backend m [(FZF.Alignment, FoundResult)]
 serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
   let path = fromMaybe Path.empty relativeTo
-  rootHash <- traverse (Backend.expandShortCausalHash codebase) mayRoot
+  rootHash <- traverse (Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.expandShortCausalHash) mayRoot
   rootCausal <- Backend.resolveCausalHashV2 codebase (Cv.causalHash1to2 <$> rootHash)
   (localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) path
   relativeToCausal <- lift $ Codebase.getShallowCausalAtPath codebase path (Just rootCausal)

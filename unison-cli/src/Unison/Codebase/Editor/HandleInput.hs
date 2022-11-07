@@ -1420,9 +1420,12 @@ loop e = do
               Cli.respond (IntegrityCheck r)
             DebugNameDiffI fromSCH toSCH -> do
               Cli.Env {codebase} <- ask
-              schLen <- Cli.runTransaction Codebase.branchHashLength
-              fromCHs <- liftIO $ Codebase.causalHashesByPrefix codebase fromSCH
-              toCHs <- liftIO $ Codebase.causalHashesByPrefix codebase toSCH
+              (schLen, fromCHs, toCHs) <- 
+                Cli.runTransaction do
+                  schLen <- Codebase.branchHashLength
+                  fromCHs <- Codebase.causalHashesByPrefix fromSCH
+                  toCHs <- Codebase.causalHashesByPrefix toSCH
+                  pure (schLen, fromCHs, toCHs)
               (fromCH, toCH) <- case (Set.toList fromCHs, Set.toList toCHs) of
                 ((_ : _ : _), _) -> Cli.returnEarly $ Output.BranchHashAmbiguous fromSCH (Set.map (SCH.fromHash schLen) fromCHs)
                 ([], _) -> Cli.returnEarly $ Output.NoBranchWithHash fromSCH

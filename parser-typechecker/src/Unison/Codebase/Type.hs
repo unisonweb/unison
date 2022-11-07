@@ -23,7 +23,6 @@ import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, W
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Path (Path)
-import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
@@ -106,8 +105,6 @@ data Codebase m v a = Codebase
     termsMentioningTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors whose hash matches the given prefix.
     termReferentsByPrefix :: ShortHash -> m (Set Referent.Id),
-    -- | Get the set of branches whose hash matches the given prefix.
-    causalHashesByPrefix :: ShortCausalHash -> m (Set Branch.CausalHash),
     -- returns `Nothing` to not implemented, fallback to in-memory
     --    also `Nothing` if no LCA
     -- The result is undefined if the two hashes are not in the codebase.

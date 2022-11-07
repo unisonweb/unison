@@ -56,7 +56,6 @@ import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Path (Path)
-import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -334,10 +333,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             referentsByPrefix sh =
               runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
 
-            causalHashesByPrefix :: ShortCausalHash -> m (Set Branch.CausalHash)
-            causalHashesByPrefix sh =
-              runTransaction (CodebaseOps.causalHashesByPrefix sh)
-
             sqlLca :: Branch.CausalHash -> Branch.CausalHash -> m (Maybe (Branch.CausalHash))
             sqlLca h1 h2 =
               runTransaction (CodebaseOps.sqlLca h1 h2)
@@ -382,7 +377,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
                   termReferentsByPrefix = referentsByPrefix,
-                  causalHashesByPrefix,
                   lcaImpl = Just sqlLca,
                   beforeImpl,
                   namesAtPath,
@@ -599,7 +593,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior act
           Nothing -> time "Get remote root branch" $ Codebase1.getRootBranch codebase
           -- load from a specific `ShortCausalHash`
           Just sch -> do
-            branchCompletions <- Codebase1.causalHashesByPrefix codebase sch
+            branchCompletions <- Codebase1.runTransaction codebase (Codebase1.causalHashesByPrefix sch)
             case toList branchCompletions of
               [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
               [h] ->
