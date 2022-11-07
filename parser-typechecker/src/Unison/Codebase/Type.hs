@@ -110,8 +110,6 @@ data Codebase m v a = Codebase
     typeReferencesByPrefix :: ShortHash -> m (Set Reference.Id),
     -- | Get the set of user-defined terms-or-constructors whose hash matches the given prefix.
     termReferentsByPrefix :: ShortHash -> m (Set Referent.Id),
-    -- | The number of base32 characters needed to distinguish any two branch in the codebase.
-    branchHashLength :: m Int,
     -- | Get the set of branches whose hash matches the given prefix.
     causalHashesByPrefix :: ShortCausalHash -> m (Set Branch.CausalHash),
     -- returns `Nothing` to not implemented, fallback to in-memory

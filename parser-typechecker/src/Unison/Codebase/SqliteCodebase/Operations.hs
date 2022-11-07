@@ -541,6 +541,7 @@ termsMentioningTypeImpl doGetDeclType r =
 hashLength :: Transaction Int
 hashLength = pure 10
 
+-- | The number of base32 characters needed to distinguish any two branch in the codebase.
 branchHashLength :: Transaction Int
 branchHashLength = pure 10
 

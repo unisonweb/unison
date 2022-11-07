@@ -70,7 +70,7 @@ module Unison.Codebase
 
     -- * Unambiguous hash length
     Operations.hashLength,
-    branchHashLength,
+    Operations.branchHashLength,
 
     -- * Dependents
     dependents,

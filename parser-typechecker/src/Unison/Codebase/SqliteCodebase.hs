@@ -330,10 +330,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             termsMentioningTypeImpl r =
               runTransaction (CodebaseOps.termsMentioningTypeImpl getDeclType r)
 
-            branchHashLength :: m Int
-            branchHashLength =
-              runTransaction CodebaseOps.branchHashLength
-
             termReferencesByPrefix :: ShortHash -> m (Set Reference.Id)
             termReferencesByPrefix sh =
               runTransaction (CodebaseOps.termReferencesByPrefix sh)
@@ -396,7 +392,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   termReferencesByPrefix,
                   typeReferencesByPrefix = declReferencesByPrefix,
                   termReferentsByPrefix = referentsByPrefix,
-                  branchHashLength,
                   causalHashesByPrefix,
                   lcaImpl = Just sqlLca,
                   beforeImpl,

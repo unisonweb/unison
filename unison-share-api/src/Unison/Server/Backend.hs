@@ -781,10 +781,10 @@ data DefinitionResults v = DefinitionResults
   }
 
 expandShortCausalHash ::
-  Monad m => Codebase m v a -> ShortCausalHash -> Backend m Branch.CausalHash
+  MonadIO m => Codebase m v a -> ShortCausalHash -> Backend m Branch.CausalHash
 expandShortCausalHash codebase hash = do
   hashSet <- lift $ Codebase.causalHashesByPrefix codebase hash
-  len <- lift $ Codebase.branchHashLength codebase
+  len <- lift $ Codebase.runTransaction codebase Codebase.branchHashLength
   case Set.toList hashSet of
     [] -> throwError $ CouldntExpandBranchHash hash
     [h] -> pure h
@@ -1151,7 +1151,7 @@ resolveCausalHashV2 codebase h = case h of
   Just ch -> lift $ Codebase.getShallowCausalForHash codebase ch
 
 resolveRootBranchHash ::
-  Monad m => Maybe ShortCausalHash -> Codebase m v a -> Backend m (Branch m)
+  MonadIO m => Maybe ShortCausalHash -> Codebase m v a -> Backend m (Branch m)
 resolveRootBranchHash mayRoot codebase = case mayRoot of
   Nothing ->
     lift (Codebase.getRootBranch codebase)

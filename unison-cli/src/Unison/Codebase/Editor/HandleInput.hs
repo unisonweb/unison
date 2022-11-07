@@ -254,8 +254,7 @@ loop e = do
 
   case e of
     Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
-      Cli.Env {codebase} <- ask
-      schLength <- liftIO (Codebase.branchHashLength codebase)
+      schLength <- Cli.runTransaction Codebase.branchHashLength
       rootBranch <- Cli.getRootBranch
       Cli.respond $
         WarnIncomingRootBranch
@@ -373,10 +372,11 @@ loop e = do
             CreateMessage pretty ->
               Cli.respond $ PrintMessage pretty
             ShowReflogI -> do
-              Cli.Env {codebase} <- ask
-              schLength <- liftIO (Codebase.branchHashLength codebase)
               let numEntriesToShow = 500
-              entries <- Cli.runTransaction (Codebase.getReflog numEntriesToShow) <&> fmap (first $ SCH.fromHash schLength)
+              entries <- 
+                Cli.runTransaction do
+                  schLength <- Codebase.branchHashLength
+                  Codebase.getReflog numEntriesToShow <&> fmap (first $ SCH.fromHash schLength)
               let moreEntriesToLoad = length entries == numEntriesToShow
               let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
               let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SCH.toString hash
@@ -579,8 +579,7 @@ loop e = do
                   Right path' -> do
                     path <- Cli.resolvePath' path'
                     Cli.getMaybeBranchAt path & onNothingM (Cli.returnEarly (CreatedNewBranch path))
-              Cli.Env {codebase} <- ask
-              schLength <- liftIO (Codebase.branchHashLength codebase)
+              schLength <- Cli.runTransaction Codebase.branchHashLength
               history <- liftIO (doHistory schLength 0 branch [])
               Cli.respondNumbered history
               where
@@ -922,7 +921,7 @@ loop e = do
               #numberedArgs .= fmap entryToHQString entries
               getRoot <- atomically . STM.readTMVar <$> use #root
               let buildPPE = do
-                    schLength <- liftIO (Codebase.branchHashLength codebase)
+                    schLength <- Codebase.runTransaction codebase Codebase.branchHashLength
                     rootBranch <- getRoot
                     pure $
                       Backend.basicSuffixifiedNames
@@ -1422,7 +1421,7 @@ loop e = do
               Cli.respond (IntegrityCheck r)
             DebugNameDiffI fromSCH toSCH -> do
               Cli.Env {codebase} <- ask
-              schLen <- liftIO $ Codebase.branchHashLength codebase
+              schLen <- Cli.runTransaction Codebase.branchHashLength
               fromCHs <- liftIO $ Codebase.causalHashesByPrefix codebase fromSCH
               toCHs <- liftIO $ Codebase.causalHashesByPrefix codebase toSCH
               (fromCH, toCH) <- case (Set.toList fromCHs, Set.toList toCHs) of
@@ -1865,7 +1864,7 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
         Cli.ioE (Codebase.pushGitBranch codebase repo opts (\_remoteRoot -> pure (Right sourceBranch))) \err ->
           Cli.returnEarly (Output.GitError err)
       _branch <- result & onLeft Cli.returnEarly
-      schLength <- liftIO (Codebase.branchHashLength codebase)
+      schLength <- Cli.runTransaction Codebase.branchHashLength
       Cli.respond $
         GistCreated
           ( ReadRemoteNamespaceGit
@@ -2633,8 +2632,7 @@ docsI srcLoc prettyPrintNames src =
       case out of
         [] -> codebaseByName
         [(_name, ref, _tm)] -> do
-          Cli.Env {codebase} <- ask
-          len <- liftIO (Codebase.branchHashLength codebase)
+          len <- Cli.runTransaction Codebase.branchHashLength
           let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
           let tm = Term.ref External ref
           tm <- evalUnisonTerm True (PPE.fromNames len names) True tm
