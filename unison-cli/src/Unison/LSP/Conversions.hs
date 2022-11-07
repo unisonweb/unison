@@ -13,12 +13,6 @@ rangeToInterval :: Range -> Interval.Interval Position
 rangeToInterval (Range start end) =
   Interval.ClosedInterval start end
 
--- -- Selections are are open on the right-side
---  start == end = Interval.ClosedInterval start end
--- -- Ranges of a single 'point' need to be closed for some interval map operations to work as
--- -- intended (E.g. intersecting).
---  otherwise = Interval.ClosedInterval start end
-
 annToInterval :: Ann -> Maybe (Interval.Interval Position)
 annToInterval ann = annToRange ann <&> rangeToInterval
 

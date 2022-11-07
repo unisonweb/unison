@@ -38,15 +38,14 @@ module Unison.Cli.Monad
 
     -- * Misc types
     LoadSourceResult (..),
-    Label,
-    R,
   )
 where
 
+import Control.Exception (throwIO)
 import Control.Lens (lens, (.=))
-import Control.Monad.Reader (MonadReader (..), ReaderT (ReaderT))
-import Control.Monad.State.Strict (MonadState, StateT (StateT))
-import Control.Monad.Trans.Cont
+import Control.Monad.Reader (MonadReader (..))
+import Control.Monad.State.Strict (MonadState)
+import qualified Control.Monad.State.Strict as State
 import qualified Data.Configurator.Types as Configurator
 import Data.Generics.Labels ()
 import qualified Data.List.NonEmpty as List (NonEmpty)
@@ -54,6 +53,7 @@ import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
+import Data.Unique (Unique, newUnique)
 import GHC.OverloadedLabels (IsLabel (..))
 import System.CPUTime (getCPUTime)
 import Text.Printf (printf)
@@ -77,6 +77,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
 import UnliftIO.STM
+import Unsafe.Coerce (unsafeCoerce)
 
 -- | The main command-line app monad.
 --
@@ -84,34 +85,45 @@ import UnliftIO.STM
 --
 -- * It is a state monad of 'LoopState'.
 --
--- * It is a short-circuiting monad: a @Cli@ computation can short-circuit with success or failure.
+-- * It is a short-circuiting monad: a @Cli@ computation can short-circuit with success or failure in a delimited scope.
 --
--- * It is a resource monad: resources can be acquired with straight-line syntax, and will be released at the end of
--- do-block.
+-- * It is a resource monad: resources can be acquired in callback-style.
 --
 -- * It is an IO monad: you can do IO things, but throwing synchronous exceptions is discouraged. Use the built-in
 -- short-circuiting mechanism instead.
---
--- The @r@ type variable is boilerplate. It starts out as @r@, and grows an new 'R' layer for each scoped action (e.g.
--- 'with' / 'label'). For this reason, whenever you find yourself writing down an explicit type that has to carefully
--- mention how many 'R' layers are inferred, you may prefer to use an @_@ (with @PartialTypeSignatures@) instead, as the
--- precise type is not very meaningful useful to a reader.
-newtype Cli r a = Cli
+newtype Cli a = Cli
   { unCli ::
+      forall r.
       Env ->
       (a -> LoopState -> IO (ReturnType r, LoopState)) ->
       LoopState ->
       IO (ReturnType r, LoopState)
   }
-  deriving
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadReader Env,
-      MonadState LoopState
-    )
-    via ReaderT Env (ContT (ReturnType r) (StateT LoopState IO))
+  deriving stock (Functor)
+
+instance Applicative Cli where
+  pure x = Cli \_ k -> k x
+  (<*>) = ap
+
+instance Monad Cli where
+  return = pure
+  Cli mx >>= f =
+    Cli \env k ->
+      mx env \a -> unCli (f a) env k
+
+instance MonadIO Cli where
+  liftIO mx =
+    Cli \_ k s -> do
+      x <- mx
+      k x s
+
+instance MonadReader Env Cli where
+  ask = Cli \env k -> k env
+  local f m = Cli \env -> unCli m (f env)
+
+instance MonadState LoopState Cli where
+  get = Cli \_ k s -> k s s
+  put s = Cli \_ k _ -> k () s
 
 -- | What a Cli action returns: a value, an instruction to continue processing input, or an instruction to stop
 -- processing input.
@@ -119,6 +131,7 @@ data ReturnType a
   = Success a
   | Continue
   | HaltRepl
+  deriving stock (Eq, Show)
 
 -- | The command-line app monad environment.
 --
@@ -200,23 +213,15 @@ loopState0 lastSavedRootHash b p = do
     }
 
 -- | Run a @Cli@ action down to @IO@.
-runCli :: Env -> LoopState -> Cli a a -> IO (ReturnType a, LoopState)
-runCli = runCli' id
-
-runCli' :: (a -> b) -> Env -> LoopState -> Cli b a -> IO (ReturnType b, LoopState)
-runCli' f env s0 (Cli action) =
-  action env (\x s1 -> pure (Success (f x), s1)) s0
+runCli :: Env -> LoopState -> Cli a -> IO (ReturnType a, LoopState)
+runCli env s0 (Cli action) =
+  action env (\x s1 -> pure (Success x, s1)) s0
 
 feed :: (a -> LoopState -> IO (ReturnType b, LoopState)) -> (ReturnType a, LoopState) -> IO (ReturnType b, LoopState)
 feed k = \case
   (Success x, s) -> k x s
   (Continue, s) -> pure (Continue, s)
   (HaltRepl, s) -> pure (HaltRepl, s)
-
-feedE :: (a -> LoopState -> IO (ReturnType r, LoopState)) -> (ReturnType (R r a), LoopState) -> IO (ReturnType r, LoopState)
-feedE k = feed \era s -> case era of
-  GoL r -> pure (Success r, s)
-  GoR a -> k a s
 
 -- | The result of calling 'loadSource'.
 data LoadSourceResult
@@ -225,28 +230,28 @@ data LoadSourceResult
   | LoadSuccess Text
 
 -- | Lift an action of type @IO (Either e a)@, given a continuation for @e@.
-ioE :: IO (Either e a) -> (e -> Cli r a) -> Cli r a
+ioE :: IO (Either e a) -> (e -> Cli a) -> Cli a
 ioE action errK =
   liftIO action >>= \case
     Left err -> errK err
     Right value -> pure value
 
-short :: ReturnType r -> Cli r a
+short :: (forall r. ReturnType r) -> Cli a
 short r = Cli \_env _k s -> pure (r, s)
 
 -- | Short-circuit the processing of the current input.
-returnEarly :: Output -> Cli r a
+returnEarly :: Output -> Cli a
 returnEarly x = do
   respond x
   returnEarlyWithoutOutput
 
 -- | Variant of 'returnEarly' that doesn't take a final output message.
-returnEarlyWithoutOutput :: Cli r a
+returnEarlyWithoutOutput :: Cli a
 returnEarlyWithoutOutput =
   short Continue
 
 -- | Stop processing inputs from the user.
-haltRepl :: Cli r a
+haltRepl :: Cli a
 haltRepl = short HaltRepl
 
 -- | Wrap a continuation with 'Cli'.
@@ -257,25 +262,32 @@ haltRepl = short HaltRepl
 -- with (bracket create destroy) \\resource ->
 --   ...
 -- @
-with :: (forall x. (a -> IO x) -> IO x) -> (a -> Cli (R r b) b) -> Cli r b
+with :: (forall x. (a -> IO x) -> IO x) -> (a -> Cli b) -> Cli b
 with resourceK action =
   Cli \env k s ->
-    resourceK (runCli' GoR env s . action) >>= feedE k
+    resourceK (runCli env s . action) >>= feed k
 
 -- | A variant of 'with' for actions that don't acquire a resource (like 'Control.Exception.bracket_').
-with_ :: (forall x. IO x -> IO x) -> Cli (R r a) a -> Cli r a
+with_ :: (forall x. IO x -> IO x) -> Cli a -> Cli a
 with_ resourceK action =
   Cli \env k s ->
-    resourceK (runCli' GoR env s action) >>= feedE k
+    resourceK (runCli env s action) >>= feed k
 
 -- | A variant of 'with' for the variant of bracketing function that may return a Left rather than call the provided
 -- continuation.
-withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (Either e a -> Cli (R r b) b) -> Cli r b
+withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (Either e a -> Cli b) -> Cli b
 withE resourceK action =
   Cli \env k s ->
-    resourceK (\a -> runCli' GoR env s (action (Right a))) >>= \case
-      Left err -> runCli' GoR env s (action (Left err)) >>= feedE k
-      Right result -> feedE k result
+    resourceK (\a -> runCli env s (action (Right a))) >>= \case
+      Left err -> runCli env s (action (Left err)) >>= feed k
+      Right result -> feed k result
+
+data X
+  = forall a. X !Unique !LoopState a
+  deriving anyclass (Exception)
+
+instance Show X where
+  show _ = "<internal exception type>"
 
 -- | Create a label that can be jumped to.
 --
@@ -289,28 +301,28 @@ withE resourceK action =
 --   ... -- We don't get here
 -- -- x is bound to someValue
 -- @
-label :: forall r a. ((forall t b. Label (R r a) t => a -> Cli t b) -> Cli (R r a) a) -> Cli r a
-label f = Cli \env k s0 -> do
-  res <-
-    unCli
-      ( f
-          ( \a -> Cli \_ _ s1 ->
-              pure (Success (wrap @(R r a) (GoR a)), s1)
-          )
-      )
-      env
-      (\a s -> pure (Success (GoR a), s))
-      s0
-  feedE k res
+label :: forall a. ((forall void. a -> Cli void) -> Cli a) -> Cli a
+label f =
+  Cli \env k s0 -> do
+    n <- newUnique
+    let bail :: forall void. a -> Cli void
+        bail a = do
+          s1 <- State.get
+          liftIO (throwIO (X n s1 a))
+    try (runCli env s0 (f bail)) >>= \case
+      Left err@(X m s1 a)
+        | n == m -> k (unsafeCoerce a) s1
+        | otherwise -> throwIO err
+      Right a -> feed k a
 
 -- | Time an action.
-time :: String -> Cli r a -> Cli r a
+time :: String -> Cli a -> Cli a
 time label action =
   if Debug.shouldDebug Debug.Timing
     then Cli \env k s -> do
       systemStart <- getSystemTime
       cpuPicoStart <- getCPUTime
-      r <- unCli action env k s
+      a <- unCli action env (\a loopState -> pure (Success a, loopState)) s
       cpuPicoEnd <- getCPUTime
       systemEnd <- getSystemTime
       let systemDiff =
@@ -318,7 +330,7 @@ time label action =
               (diffAbsoluteTime (systemToTAITime systemEnd) (systemToTAITime systemStart))
       let cpuDiff = picosToNanos (cpuPicoEnd - cpuPicoStart)
       printf "%s: %s (cpu), %s (system)\n" label (renderNanos cpuDiff) (renderNanos systemDiff)
-      pure r
+      feed k a
     else action
   where
     diffTimeToNanos :: DiffTime -> Double
@@ -348,30 +360,14 @@ time label action =
         ms = ns / 1_000_000
         s = ns / 1_000_000_000
 
-respond :: Output -> Cli r ()
+respond :: Output -> Cli ()
 respond output = do
   Env {notify} <- ask
   liftIO (notify output)
 
-respondNumbered :: NumberedOutput -> Cli r ()
+respondNumbered :: NumberedOutput -> Cli ()
 respondNumbered output = do
   Env {notifyNumbered} <- ask
   args <- liftIO (notifyNumbered output)
   unless (null args) do
     #numberedArgs .= args
-
-class Label s t where
-  wrap :: s -> t
-  -- this default is only provided so that the haddocks don't show
-  -- 'wrap'
-  default wrap :: s ~ t => s -> t
-  wrap = id
-
-instance Label (R t x) (R t x)
-
-instance {-# OVERLAPPABLE #-} Label s t => Label s (R t x) where
-  wrap = GoL . wrap
-
-data R a b
-  = GoL a
-  | GoR b

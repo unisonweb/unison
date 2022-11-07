@@ -33,6 +33,7 @@ import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import qualified Unison.Syntax.TypePrinter as TP
 import qualified Unison.UnisonFile as UF
@@ -52,36 +53,36 @@ data Aliases
       }
   deriving (Show, Eq, Ord)
 
-data SlurpResult v = SlurpResult
+data SlurpResult = SlurpResult
   { -- The file that we tried to add from
-    originalFile :: UF.TypecheckedUnisonFile v Ann,
+    originalFile :: UF.TypecheckedUnisonFile Symbol Ann,
     -- Extra definitions that were added to satisfy transitive closure,
     -- beyond what the user specified.
-    extraDefinitions :: SlurpComponent v,
+    extraDefinitions :: SlurpComponent,
     -- Previously existed only in the file; now added to the codebase.
-    adds :: SlurpComponent v,
+    adds :: SlurpComponent,
     -- Exists in the branch and the file, with the same name and contents.
-    duplicates :: SlurpComponent v,
+    duplicates :: SlurpComponent,
     -- Not added to codebase due to the name already existing
     -- in the branch with a different definition.
     -- I.e. an update is required but we're performing an add.
-    collisions :: SlurpComponent v,
+    collisions :: SlurpComponent,
     -- Names that already exist in the branch, but whose definitions
     -- in `originalFile` are treated as updates.
-    updates :: SlurpComponent v,
+    updates :: SlurpComponent,
     -- Names of terms in `originalFile` that couldn't be updated because
     -- they refer to existing constructors. (User should instead do a find/replace,
     -- a constructor rename, or refactor the type that the name comes from).
-    termExistingConstructorCollisions :: Set v,
-    constructorExistingTermCollisions :: Set v,
+    termExistingConstructorCollisions :: Set Symbol,
+    constructorExistingTermCollisions :: Set Symbol,
     -- -- Already defined in the branch, but with a different name.
-    termAlias :: Map v Aliases,
-    typeAlias :: Map v Aliases,
-    defsWithBlockedDependencies :: SlurpComponent v
+    termAlias :: Map Symbol Aliases,
+    typeAlias :: Map Symbol Aliases,
+    defsWithBlockedDependencies :: SlurpComponent
   }
   deriving (Show)
 
-hasAddsOrUpdates :: Ord v => SlurpResult v -> Bool
+hasAddsOrUpdates :: SlurpResult -> Bool
 hasAddsOrUpdates s =
   -- We intentionally ignore constructors here since they are added as part of adding their
   -- types.
@@ -120,11 +121,9 @@ aliasesToShow :: Int
 aliasesToShow = 5
 
 pretty ::
-  forall v.
-  Var v =>
   IsPastTense ->
   PPE.PrettyPrintEnv ->
-  SlurpResult v ->
+  SlurpResult ->
   P.Pretty P.ColorText
 pretty isPast ppe sr =
   let tms = UF.hashTerms (originalFile sr)
@@ -190,7 +189,7 @@ pretty isPast ppe sr =
                 ++ (if null newNames then mempty else [newMessage])
 
       -- The second field in the result is an optional second column.
-      okTerm :: v -> [(P.Pretty P.ColorText, Maybe (P.Pretty P.ColorText))]
+      okTerm :: Symbol -> [(P.Pretty P.ColorText, Maybe (P.Pretty P.ColorText))]
       okTerm v = case Map.lookup v tms of
         Nothing ->
           [(P.bold (prettyVar v), Just $ P.red "(Unison bug, unknown term)")]
@@ -303,14 +302,14 @@ pretty isPast ppe sr =
             sr
         ]
 
-isOk :: Ord v => SlurpResult v -> Bool
+isOk :: SlurpResult -> Bool
 isOk SlurpResult {..} =
   SC.isEmpty collisions
     && Set.null termExistingConstructorCollisions
     && Set.null constructorExistingTermCollisions
     && SC.isEmpty defsWithBlockedDependencies
 
-isAllDuplicates :: Ord v => SlurpResult v -> Bool
+isAllDuplicates :: SlurpResult -> Bool
 isAllDuplicates SlurpResult {..} =
   emptyIgnoringConstructors adds
     && emptyIgnoringConstructors updates
@@ -322,15 +321,14 @@ isAllDuplicates SlurpResult {..} =
     && Set.null constructorExistingTermCollisions
     && emptyIgnoringConstructors defsWithBlockedDependencies
   where
-    emptyIgnoringConstructors :: SlurpComponent v -> Bool
+    emptyIgnoringConstructors :: SlurpComponent -> Bool
     emptyIgnoringConstructors SlurpComponent {types, terms} =
       null types && null terms
 
 filterUnisonFile ::
-  Ord v =>
-  SlurpResult v ->
-  UF.TypecheckedUnisonFile v Ann ->
-  UF.TypecheckedUnisonFile v Ann
+  SlurpResult ->
+  UF.TypecheckedUnisonFile Symbol Ann ->
+  UF.TypecheckedUnisonFile Symbol Ann
 filterUnisonFile
   SlurpResult {adds, updates}
   ( UF.TypecheckedUnisonFileId

@@ -32,7 +32,6 @@ import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Server.Backend as Backend
-import Unison.Symbol (Symbol)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Set as Set
@@ -40,7 +39,7 @@ import qualified Unison.Util.Set as Set
 -- Add default metadata to all added types and terms in a slurp component.
 --
 -- No-op if the slurp component is empty.
-addDefaultMetadata :: SlurpComponent Symbol -> Cli r ()
+addDefaultMetadata :: SlurpComponent -> Cli ()
 addDefaultMetadata adds =
   when (not (SC.isEmpty adds)) do
     Cli.time "add-default-metadata" do
@@ -84,7 +83,7 @@ manageLinks ::
     Branch.Star r NameSegment ->
     Branch.Star r NameSegment
   ) ->
-  Cli r ()
+  Cli ()
 manageLinks silent srcs' metadataNames op = do
   metadatas <- traverse resolveMetadata metadataNames
   before <- Cli.getRootBranch0
@@ -120,16 +119,16 @@ manageLinks silent srcs' metadataNames op = do
               diff
 
 -- | Resolve a metadata name to its type/value, or return early if no such metadata is found.
-resolveMetadata :: HQ.HashQualified Name -> Cli r (Either Output (Metadata.Type, Metadata.Value))
+resolveMetadata :: HQ.HashQualified Name -> Cli (Either Output (Metadata.Type, Metadata.Value))
 resolveMetadata name = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath' <- Cli.getCurrentPath
-  sbhLength <- liftIO (Codebase.branchHashLength codebase)
+  schLength <- liftIO (Codebase.branchHashLength codebase)
 
   let ppe :: PPE.PrettyPrintEnv
       ppe =
-        Backend.basicSuffixifiedNames sbhLength root' (Backend.Within $ Path.unabsolute currentPath')
+        Backend.basicSuffixifiedNames schLength root' (Backend.Within $ Path.unabsolute currentPath')
 
   terms <- getHQTerms name
   ref <-
@@ -142,7 +141,7 @@ resolveMetadata name = do
     Nothing ->
       pure (Left (MetadataMissingType ppe (Referent.Ref ref)))
 
-resolveDefaultMetadata :: Path.Absolute -> Cli r [String]
+resolveDefaultMetadata :: Path.Absolute -> Cli [String]
 resolveDefaultMetadata path = do
   let superpaths = Path.ancestors path
   xs <-
@@ -155,7 +154,7 @@ resolveDefaultMetadata path = do
   pure . join $ toList xs
 
 -- | Get the set of terms related to a hash-qualified name.
-getHQTerms :: HQ.HashQualified Name -> Cli r (Set Referent)
+getHQTerms :: HQ.HashQualified Name -> Cli (Set Referent)
 getHQTerms = \case
   HQ.NameOnly n -> do
     root0 <- Cli.getRootBranch0

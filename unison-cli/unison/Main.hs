@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
@@ -22,7 +23,7 @@ import ArgParse
     parseCLIArgs,
   )
 import Compat (defaultInterruptHandler, onWindows, withInterruptHandler)
-import Control.Concurrent (newEmptyMVar, takeMVar)
+import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Concurrent.STM
 import Control.Error.Safe (rightMay)
 import Control.Exception (evaluate)
@@ -37,10 +38,12 @@ import qualified Data.Text.IO as Text
 import GHC.Conc (setUncaughtExceptionHandler)
 import qualified GHC.Conc
 import qualified Ki
+import qualified Language.Haskell.TH as TH
+import qualified Language.Haskell.TH.Syntax as TH
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
-import System.Environment (getProgName, withArgs)
+import System.Environment (getProgName, lookupEnv, withArgs)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
 import System.IO (stderr)
@@ -55,6 +58,7 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (ReadShareRemoteNamespace)
+import Unison.Codebase.Editor.UriParser (parseReadShareRemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import Unison.Codebase.Execute (execute)
 import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResult (..), SpecifiedCodebase (..))
@@ -82,7 +86,7 @@ import UnliftIO.Directory (getHomeDirectory)
 import qualified Version
 
 main :: IO ()
-main = withCP65001 . Ki.scoped $ \scope -> do
+main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
   -- Replace the default exception handler with one that pretty-prints.
   setUncaughtExceptionHandler (pHPrint stderr)
 
@@ -468,8 +472,14 @@ getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseD
 
 defaultBaseLib :: Maybe ReadShareRemoteNamespace
 defaultBaseLib =
-  rightMay $
-    runParser VP.defaultBaseLib "version" gitRef
+  let mayBaseSharePath =
+        $( do
+             mayPath <- TH.runIO (lookupEnv "UNISON_BASE_PATH")
+             TH.lift mayPath
+         )
+   in mayBaseSharePath & \case
+        Just s -> eitherToMaybe $ parseReadShareRemoteNamespace "UNISON_BASE_PATH" s
+        Nothing -> rightMay $ runParser VP.defaultBaseLib "version" gitRef
   where
     (gitRef, _date) = Version.gitDescribe
 

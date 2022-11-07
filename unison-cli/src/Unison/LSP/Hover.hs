@@ -31,35 +31,19 @@ import Unison.Util.List (safeHead)
 
 -- | Hover help handler
 --
--- TODO: Add docs
+-- TODO:
+--   * Add docs
+--   * Resolve fqn on hover
 hoverHandler :: RequestMessage 'TextDocumentHover -> (Either ResponseError (ResponseResult 'TextDocumentHover) -> Lsp ()) -> Lsp ()
 hoverHandler m respond =
   respond . Right =<< runMaybeT do
     let pos = (m ^. params . position)
-    -- let p = (m ^. params)
-    -- txtIdentifier <- MaybeT $ identifierAtPosition p
-    -- hqIdentifier <- MaybeT . pure $ HQ.fromText txtIdentifier
-    -- cb <- asks codebase
-    -- rt <- asks runtime
-
     hoverTxt <- hoverInfo (m ^. params . textDocument . uri) pos
-    -- results <- MaybeT . fmap eitherToMaybe $ (lspBackend $ Backend.prettyDefinitionsForHQName Path.empty Nothing Nothing (Backend.Suffixify True) rt cb hqIdentifier)
-    -- let termResults = formatTermDefinition <$> toList (Backend.termDefinitions results)
-    -- let typeResults = formatTypeDefinition <$> toList (Backend.typeDefinitions results)
-    -- let markup = Text.intercalate "\n\n---\n\n" $ termResults <> typeResults
     pure $
       Hover
         { _contents = HoverContents (MarkupContent MkMarkdown hoverTxt),
           _range = Nothing -- TODO add range info
         }
-  where
-
--- formatTermDefinition :: Backend.TermDefinition -> Text
--- formatTermDefinition (Backend.TermDefinition {bestTermName, signature}) =
---   bestTermName <> " : " <> Text.pack (Server.toPlain signature)
-
--- formatTypeDefinition :: Backend.TypeDefinition -> Text
--- formatTypeDefinition (Backend.TypeDefinition {bestTypeName}) = bestTypeName
 
 hoverInfo :: Uri -> Position -> MaybeT Lsp Text
 hoverInfo uri p = do
@@ -92,15 +76,11 @@ hoverInfo uri p = do
   Debug.debugM Debug.LSP "Rendered" renderedTypes
   -- Due to the way hover info is computed, there should be at most one.
   typ <- MaybeT . pure $ safeHead renderedTypes
-  typeSig <- MaybeT . pure $ case listToMaybe matchingLexeme of
-    Just (Lex.WordyId n _) -> Just $ Text.pack n <> " : " <> typ
-    Just (Lex.SymbolyId n _) -> Just $ Text.pack n <> " : " <> typ
-    Just (Lex.Textual _) -> Just $ "<text literal> : " <> typ
-    Just (Lex.Character _) -> Just $ "<char literal> : " <> typ
-    Just (Lex.Numeric _) -> Just $ "<numeric literal> : " <> typ
-    Just (Lex.Bytes _) -> Just $ "<byte literal> : " <> typ
-    -- TODO: add other lexemes
-    _ -> Nothing
+  let typeSig = case listToMaybe matchingLexeme of
+        Just (Lex.WordyId n _) -> Text.pack n <> " : " <> typ
+        Just (Lex.SymbolyId n _) -> Text.pack n <> " : " <> typ
+        -- TODO: add other lexemes
+        _ -> ": " <> typ
   pure $ Text.unlines ["```unison", typeSig, "```"]
 
 mkSubTermMap :: (Parser.Annotated a, Show a) => Map Symbol a -> UF.TypecheckedUnisonFile Symbol a -> IM.IntervalMap Position [HoverInfo]
@@ -151,7 +131,6 @@ termHoverInfo fileDefs = folding \term ->
       Term.Match {} -> Nothing
       Term.TermLink {} -> Nothing
       Term.TypeLink {} -> Nothing
-    -- ABT.Abs v r -> case f of
     ABT.Var v ->
       case Map.lookup v fileDefs of
         Nothing -> Just (LocalVar v)

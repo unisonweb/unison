@@ -1,14 +1,18 @@
-module Unison.Test.Util.Bytes where
+module Main (main) where
 
-import Control.Monad
 import qualified Data.ByteString as BS
-import Data.List (foldl')
 import EasyTest
+import System.IO.CodePage (withCP65001)
+import Unison.Prelude
 import qualified Unison.Util.Bytes as Bytes
+
+main :: IO ()
+main =
+  withCP65001 (run (scope "util.bytes" test))
 
 test :: Test ()
 test =
-  scope "util.bytes" . tests $
+  tests $
     [ scope "empty ==" . expect $ Bytes.empty == Bytes.empty,
       scope "empty `compare`" . expect $ Bytes.empty `compare` Bytes.empty == EQ,
       scope "==" . expect $

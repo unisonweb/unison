@@ -25,19 +25,42 @@ isConstructor = \case
 
 -- Parse a string like those described in Referent.fromText:
 -- examples:
--- `##Text.take` — builtins don’t have cycles or cids
--- `#2tWjVAuc7` — term ref, no cycle
--- `#y9ycWkiC1.y9` — term ref, part of cycle
--- `#cWkiC1x89#1` — constructor
--- `#DCxrnCAPS.WD#0` — constructor of a type in a cycle
+--
+-- builtins don’t have cycles or cids
+-- >>> fromText "##Text.take"
+-- Just (Builtin "Text.take")
+--
+-- term ref, no cycle
+-- >>> fromText "#2tWjVAuc7"
+-- Just (ShortHash {prefix = "2tWjVAuc7", cycle = Nothing, cid = Nothing})
+--
+-- term ref, part of cycle
+-- >>> fromText "#y9ycWkiC1.y9"
+-- Just (ShortHash {prefix = "y9ycWkiC1", cycle = Just "y9", cid = Nothing})
+--
+-- constructor
+-- >>> fromText "#cWkiC1x89#1"
+-- Just (ShortHash {prefix = "cWkiC1x89", cycle = Nothing, cid = Just "1"})
+--
+-- constructor of a type in a cycle
+-- >>> fromText "#DCxrnCAPS.WD#0"
+-- Just (ShortHash {prefix = "DCxrnCAPS", cycle = Just "WD", cid = Just "0"})
+--
 -- A constructor ID on a builtin is ignored:
---  e.g. ##FileIO#2 is parsed as ##FileIO
+-- >>> fromText "##FileIO#2"
+-- Just (Builtin "FileIO")
+--
 -- Anything to the left of the first # is
---   e.g. foo#abc is parsed as #abc
+-- >>> fromText "foo#abc "
+-- Just (ShortHash {prefix = "abc ", cycle = Nothing, cid = Nothing})
+--
 -- Anything including and following a third # is ignored.
---   e.g. foo#abc#2#hello is parsed as #abc#2
+-- >>> fromText "foo#abc#2#hello"
+-- Just (ShortHash {prefix = "abc", cycle = Nothing, cid = Just "2"})
+--
 -- Anything after a second . before a second # is ignored.
---   e.g. foo#abc.1f.x is parsed as #abc.1f
+-- >>> fromText "foo#abc.1f.x"
+-- Just (ShortHash {prefix = "abc", cycle = Just "1f", cid = Nothing})
 fromText :: Text -> Maybe ShortHash
 fromText t = case Text.split (== '#') t of
   [_, "", b] -> Just $ Builtin b -- builtin starts with ##

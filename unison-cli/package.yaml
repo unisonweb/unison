@@ -28,6 +28,7 @@ dependencies:
   - exceptions
   - extra
   - filepath
+  - free
   - fuzzyfind
   - friendly-time
   - generic-lens
@@ -74,6 +75,7 @@ dependencies:
   - unison-pretty-printer
   - unison-share-api
   - unison-sqlite
+  - unison-syntax
   - unison-util
   - unison-util-base32hex
   - unison-util-relation

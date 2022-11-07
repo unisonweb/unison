@@ -1,0 +1,67 @@
+name: unison-util-bytes
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2022 Unison Computing, PBC and contributors
+
+ghc-options: -Wall
+
+dependencies:
+  - base
+  - basement
+  - bytestring
+  - bytestring-to-vector
+  - deepseq
+  - memory
+  - primitive
+  - text
+  - vector
+  - unison-prelude
+  - unison-util-rope
+  - zlib
+
+library:
+  source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_util_bytes
+
+tests:
+  util-bytes-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util_bytes
+    dependencies:
+      - code-page
+      - easytest
+      - unison-util-bytes
+    main: Main.hs
+    source-dirs: test
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - DeriveAnyClass
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - FunctionalDependencies
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - ViewPatterns

@@ -8,7 +8,7 @@
 module Unison.Codebase.SqliteCodebase.Operations where
 
 import Control.Lens (ifor)
-import Data.Bifunctor (Bifunctor (bimap), second)
+import Data.Bifunctor (second)
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
 import qualified Data.List as List
@@ -18,8 +18,9 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified U.Codebase.Branch as V2Branch
+import qualified U.Codebase.Branch.Diff as BranchDiff
 import qualified U.Codebase.Causal as V2Causal
-import U.Codebase.HashTags (CausalHash (unCausalHash))
+import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
@@ -41,7 +42,7 @@ import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (BranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -157,16 +158,16 @@ tryFlushBuffer ::
   (Hash -> Transaction ()) ->
   Hash ->
   Transaction ()
-tryFlushBuffer buf saveComponent tryWaiting h@(Cv.hash1to2 -> h2) =
+tryFlushBuffer buf saveComponent tryWaiting h =
   -- skip if it has already been flushed
-  unlessM (Ops.objectExistsForHash h2) do
+  unlessM (Ops.objectExistsForHash h) do
     BufferEntry size comp (Set.delete h -> missing) waiting <- Sqlite.unsafeIO (getBuffer buf h)
     case size of
       Just size -> do
-        missing' <- filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) (toList missing)
+        missing' <- filterM (fmap not . Ops.objectExistsForHash) (toList missing)
         if null missing' && size == fromIntegral (length comp)
           then do
-            saveComponent h2 (toList comp)
+            saveComponent h (toList comp)
             Sqlite.unsafeIO (removeBuffer buf h)
             traverse_ tryWaiting waiting
           else Sqlite.unsafeIO do
@@ -184,10 +185,10 @@ getTerm ::
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   Reference.Id ->
   Transaction (Maybe (Term Symbol Ann))
-getTerm doGetDeclType (Reference.Id h1@(Cv.hash1to2 -> h2) i) =
+getTerm doGetDeclType (Reference.Id h i) =
   runMaybeT do
-    term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
-    lift (Cv.term2to1 h1 doGetDeclType term2)
+    term2 <- Ops.loadTermByReference (C.Reference.Id h i)
+    lift (Cv.term2to1 h doGetDeclType term2)
 
 getDeclType :: C.Reference.Reference -> Transaction CT.ConstructorType
 getDeclType = \case
@@ -205,9 +206,9 @@ expectDeclTypeById :: C.Reference.Id -> Transaction CT.ConstructorType
 expectDeclTypeById = fmap Cv.decltype2to1 . Ops.expectDeclTypeById
 
 getTypeOfTermImpl :: Reference.Id -> Transaction (Maybe (Type Symbol Ann))
-getTypeOfTermImpl (Reference.Id (Cv.hash1to2 -> h2) i) =
+getTypeOfTermImpl (Reference.Id h i) =
   runMaybeT do
-    type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h2 i)
+    type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h i)
     pure (Cv.ttype2to1 type2)
 
 getTermComponentWithTypes ::
@@ -215,26 +216,35 @@ getTermComponentWithTypes ::
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   Hash ->
   Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
-getTermComponentWithTypes doGetDeclType h1@(Cv.hash1to2 -> h2) =
+getTermComponentWithTypes doGetDeclType h =
   runMaybeT do
-    tms <- Ops.loadTermComponent h2
-    for tms (bitraverse (lift . Cv.term2to1 h1 doGetDeclType) (pure . Cv.ttype2to1))
+    tms <- Ops.loadTermComponent h
+    for tms (bitraverse (lift . Cv.term2to1 h doGetDeclType) (pure . Cv.ttype2to1))
 
 getTypeDeclaration :: Reference.Id -> Transaction (Maybe (Decl Symbol Ann))
-getTypeDeclaration (Reference.Id h1@(Cv.hash1to2 -> h2) i) =
+getTypeDeclaration (Reference.Id h i) =
   runMaybeT do
-    decl2 <- Ops.loadDeclByReference (C.Reference.Id h2 i)
-    pure (Cv.decl2to1 h1 decl2)
+    decl2 <- Ops.loadDeclByReference (C.Reference.Id h i)
+    pure (Cv.decl2to1 h decl2)
 
 getDeclComponent :: Hash -> Transaction (Maybe [Decl Symbol Ann])
-getDeclComponent h1@(Cv.hash1to2 -> h2) =
+getDeclComponent h =
   runMaybeT do
-    decl2 <- Ops.loadDeclComponent h2
-    pure (map (Cv.decl2to1 h1) decl2)
+    decl2 <- Ops.loadDeclComponent h
+    pure (map (Cv.decl2to1 h) decl2)
 
-getCycleLength :: Hash -> Transaction (Maybe Reference.CycleSize)
-getCycleLength (Cv.hash1to2 -> h2) =
-  Ops.getCycleLen h2
+putTermComponent ::
+  TVar (Map Hash TermBufferEntry) ->
+  TVar (Map Hash DeclBufferEntry) ->
+  -- | The hash of the term component.
+  Hash ->
+  [(Term Symbol Ann, Type Symbol Ann)] ->
+  Transaction ()
+putTermComponent termBuffer declBuffer h component =
+  unlessM (Ops.objectExistsForHash h) do
+    for_ (Reference.componentFor h component) \(ref, (tm, tp)) -> do
+      putTerm_ termBuffer declBuffer ref tm tp
+      tryFlushTermBuffer termBuffer h
 
 putTerm ::
   TVar (Map Hash TermBufferEntry) ->
@@ -243,46 +253,50 @@ putTerm ::
   Term Symbol Ann ->
   Type Symbol Ann ->
   Transaction ()
-putTerm termBuffer declBuffer (Reference.Id h@(Cv.hash1to2 -> h2) i) tm tp =
-  unlessM (Ops.objectExistsForHash h2) do
-    BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer termBuffer h)
-    let termDependencies = Set.toList $ Term.termDependencies tm
-    -- update the component target size if we encounter any higher self-references
-    let size' = max size (Just $ biggestSelfReference + 1)
-          where
-            biggestSelfReference =
-              maximum1 $
-                i :| [i' | Reference.Derived h' i' <- termDependencies, h == h']
-    let comp' = Map.insert i (tm, tp) comp
-    -- for the component element that's been passed in, add its dependencies to missing'
-    missingTerms' <-
-      filterM
-        (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
-        [h | Reference.Derived h _i <- termDependencies]
-    missingTypes' <-
-      filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) $
-        [h | Reference.Derived h _i <- Set.toList $ Term.typeDependencies tm]
-          ++ [h | Reference.Derived h _i <- Set.toList $ Type.dependencies tp]
-    let missing' = missing <> Set.fromList (missingTerms' <> missingTypes')
-    Sqlite.unsafeIO do
-      -- notify each of the dependencies that h depends on them.
-      traverse_ (addBufferDependent h termBuffer) missingTerms'
-      traverse_ (addBufferDependent h declBuffer) missingTypes'
-      putBuffer termBuffer h (BufferEntry size' comp' missing' waiting)
+putTerm termBuffer declBuffer ref@(Reference.Id h _) tm tp =
+  unlessM (Ops.objectExistsForHash h) do
+    putTerm_ termBuffer declBuffer ref tm tp
     tryFlushTermBuffer termBuffer h
+
+putTerm_ ::
+  TVar (Map Hash TermBufferEntry) ->
+  TVar (Map Hash DeclBufferEntry) ->
+  Reference.Id ->
+  Term Symbol Ann ->
+  Type Symbol Ann ->
+  Transaction ()
+putTerm_ termBuffer declBuffer (Reference.Id h i) tm tp = do
+  BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer termBuffer h)
+  let termDependencies = Set.toList $ Term.termDependencies tm
+  -- update the component target size if we encounter any higher self-references
+  let size' = max size (Just $ biggestSelfReference + 1)
+        where
+          biggestSelfReference =
+            maximum1 $
+              i :| [i' | Reference.Derived h' i' <- termDependencies, h == h']
+  let comp' = Map.insert i (tm, tp) comp
+  -- for the component element that's been passed in, add its dependencies to missing'
+  missingTerms' <-
+    filterM
+      (fmap not . Ops.objectExistsForHash)
+      [h | Reference.Derived h _i <- termDependencies]
+  missingTypes' <-
+    filterM (fmap not . Ops.objectExistsForHash) $
+      [h | Reference.Derived h _i <- Set.toList $ Term.typeDependencies tm]
+        ++ [h | Reference.Derived h _i <- Set.toList $ Type.dependencies tp]
+  let missing' = missing <> Set.fromList (missingTerms' <> missingTypes')
+  Sqlite.unsafeIO do
+    -- notify each of the dependencies that h depends on them.
+    traverse_ (addBufferDependent h termBuffer) missingTerms'
+    traverse_ (addBufferDependent h declBuffer) missingTypes'
+    putBuffer termBuffer h (BufferEntry size' comp' missing' waiting)
 
 tryFlushTermBuffer :: TVar (Map Hash TermBufferEntry) -> Hash -> Transaction ()
 tryFlushTermBuffer termBuffer =
   let loop h =
         tryFlushBuffer
           termBuffer
-          ( \h2 component ->
-              void $
-                saveTermComponent
-                  Nothing
-                  h2
-                  (fmap (bimap (Cv.term1to2 h) Cv.ttype1to2) component)
-          )
+          (\h2 component -> void $ saveTermComponent Nothing h2 (Cv.termComponent1to2 h component))
           loop
           h
    in loop
@@ -297,30 +311,50 @@ addDeclComponentTypeIndex oId ctorss =
       Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
       Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
 
+putTypeDeclarationComponent ::
+  TVar (Map Hash TermBufferEntry) ->
+  TVar (Map Hash DeclBufferEntry) ->
+  Hash ->
+  [Decl Symbol Ann] ->
+  Transaction ()
+putTypeDeclarationComponent termBuffer declBuffer h decls =
+  unlessM (Ops.objectExistsForHash h) do
+    for_ (Reference.componentFor h decls) \(ref, decl) ->
+      putTypeDeclaration_ declBuffer ref decl
+    tryFlushDeclBuffer termBuffer declBuffer h
+
 putTypeDeclaration ::
   TVar (Map Hash TermBufferEntry) ->
   TVar (Map Hash DeclBufferEntry) ->
   Reference.Id ->
   Decl Symbol Ann ->
   Transaction ()
-putTypeDeclaration termBuffer declBuffer (Reference.Id h@(Cv.hash1to2 -> h2) i) decl =
-  unlessM (Ops.objectExistsForHash h2) do
-    BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer declBuffer h)
-    let declDependencies = Set.toList $ Decl.declDependencies decl
-    let size' = max size (Just $ biggestSelfReference + 1)
-          where
-            biggestSelfReference =
-              maximum1 $
-                i :| [i' | Reference.Derived h' i' <- declDependencies, h == h']
-    let comp' = Map.insert i decl comp
-    moreMissing <-
-      filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) $
-        [h | Reference.Derived h _i <- declDependencies]
-    let missing' = missing <> Set.fromList moreMissing
-    Sqlite.unsafeIO do
-      traverse_ (addBufferDependent h declBuffer) moreMissing
-      putBuffer declBuffer h (BufferEntry size' comp' missing' waiting)
+putTypeDeclaration termBuffer declBuffer ref@(Reference.Id h _) decl = do
+  unlessM (Ops.objectExistsForHash h) do
+    putTypeDeclaration_ declBuffer ref decl
     tryFlushDeclBuffer termBuffer declBuffer h
+
+putTypeDeclaration_ ::
+  TVar (Map Hash DeclBufferEntry) ->
+  Reference.Id ->
+  Decl Symbol Ann ->
+  Transaction ()
+putTypeDeclaration_ declBuffer (Reference.Id h i) decl = do
+  BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer declBuffer h)
+  let declDependencies = Set.toList $ Decl.declDependencies decl
+  let size' = max size (Just $ biggestSelfReference + 1)
+        where
+          biggestSelfReference =
+            maximum1 $
+              i :| [i' | Reference.Derived h' i' <- declDependencies, h == h']
+  let comp' = Map.insert i decl comp
+  moreMissing <-
+    filterM (fmap not . Ops.objectExistsForHash) $
+      [h | Reference.Derived h _i <- declDependencies]
+  let missing' = missing <> Set.fromList moreMissing
+  Sqlite.unsafeIO do
+    traverse_ (addBufferDependent h declBuffer) moreMissing
+    putBuffer declBuffer h (BufferEntry size' comp' missing' waiting)
 
 tryFlushDeclBuffer ::
   TVar (Map Hash TermBufferEntry) ->
@@ -412,7 +446,7 @@ putBranch =
 
 isCausalHash :: Branch.CausalHash -> Transaction Bool
 isCausalHash (Causal.CausalHash h) =
-  Q.loadHashIdByHash (Cv.hash1to2 h) >>= \case
+  Q.loadHashIdByHash h >>= \case
     Nothing -> pure False
     Just hId -> Q.isCausalHash hId
 
@@ -437,8 +471,7 @@ dependentsImpl selector r =
 
 dependentsOfComponentImpl :: Hash -> Transaction (Set Reference.Id)
 dependentsOfComponentImpl h =
-  Set.map Cv.referenceid2to1
-    <$> Ops.dependentsOfComponent (Cv.hash1to2 h)
+  Set.map Cv.referenceid2to1 <$> Ops.dependentsOfComponent h
 
 watches :: UF.WatchKind -> Transaction [Reference.Id]
 watches w =
@@ -521,21 +554,27 @@ referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to
   termReferents <-
     Ops.termReferentsByPrefix prefix cycle
       >>= traverse (Cv.referentid2to1 doGetDeclType)
-  declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
+  cid' <- case cid of
+    Nothing -> pure Nothing
+    Just c ->
+      case readMaybe (Text.unpack c) of
+        Nothing -> error $ reportBug "994787297" "cid of ShortHash must be an integer but got: " <> show cid
+        Just cInt -> pure $ Just cInt
+  declReferents' <- Ops.declReferentsByPrefix prefix cycle cid'
   let declReferents =
-        [ Referent.ConId (ConstructorReference (Reference.Id (Cv.hash2to1 h) pos) (fromIntegral cid)) (Cv.decltype2to1 ct)
+        [ Referent.ConId (ConstructorReference (Reference.Id h pos) (fromIntegral cid)) (Cv.decltype2to1 ct)
           | (h, pos, ct, cids) <- declReferents',
             cid <- cids
         ]
   pure . Set.fromList $ termReferents <> declReferents
 
-branchHashesByPrefix :: ShortBranchHash -> Transaction (Set Branch.CausalHash)
-branchHashesByPrefix sh = do
+causalHashesByPrefix :: ShortCausalHash -> Transaction (Set Branch.CausalHash)
+causalHashesByPrefix sh = do
   -- given that a Branch is shallow, it's really `CausalHash` that you'd
   -- refer to to specify a full namespace w/ history.
   -- but do we want to be able to refer to a namespace without its history?
-  cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
-  pure $ Set.map (Causal.CausalHash . Cv.hash2to1 . unCausalHash) cs
+  cs <- Ops.causalHashesByPrefix (Cv.sch1to2 sh)
+  pure $ Set.map (Causal.CausalHash . unCausalHash) cs
 
 sqlLca :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Branch.CausalHash)
 sqlLca h1 h2 = do
@@ -544,7 +583,7 @@ sqlLca h1 h2 = do
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists, declExists :: Hash -> Transaction Bool
-termExists = fmap isJust . Q.loadObjectIdForPrimaryHash . Cv.hash1to2
+termExists = fmap isJust . Q.loadObjectIdForPrimaryHash
 declExists = termExists
 
 before :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Bool)
@@ -606,11 +645,49 @@ namesAtPath path = do
 
 -- | Update the root namespace names index which is used by the share server for serving api
 -- requests.
+updateNameLookupIndex ::
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  Path ->
+  -- | "from" branch, if 'Nothing' use the empty branch
+  Maybe BranchHash ->
+  -- | "to" branch
+  BranchHash ->
+  Sqlite.Transaction ()
+updateNameLookupIndex getDeclType pathPrefix mayFromBranchHash toBranchHash = do
+  fromBranch <- case mayFromBranchHash of
+    Nothing -> pure V2Branch.empty
+    Just fromBH -> Ops.expectBranchByBranchHash fromBH
+  toBranch <- Ops.expectBranchByBranchHash toBranchHash
+  treeDiff <- BranchDiff.diffBranches fromBranch toBranch
+  let namePrefix = case pathPrefix of
+        Path.Empty -> Nothing
+        (p Path.:< ps) -> Just $ Name.fromSegments (p :| Path.toList ps)
+  let BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} = BranchDiff.nameChanges namePrefix treeDiff
+  termNameAddsWithCT <- do
+    for termNameAdds \(name, ref) -> do
+      refWithCT <- addReferentCT ref
+      pure $ toNamedRef (name, refWithCT)
+  Ops.updateNameIndex (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
+  where
+    toNamedRef :: (Name, ref) -> S.NamedRef ref
+    toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
+    addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
+    addReferentCT referent = case referent of
+      C.Referent.Ref {} -> pure (referent, Nothing)
+      C.Referent.Con ref _conId -> do
+        ct <- getDeclType ref
+        pure (referent, Just $ Cv.constructorType1to2 ct)
+
+-- | Compute the root namespace names index which is used by the share server for serving api
+-- requests. Using 'updateNameLookupIndex' is preferred whenever possible, since it's
+-- considerably faster. This can be used to reset the index if it ever gets out of sync due to
+-- a bug.
 --
--- This version should be used if you've already got the root Branch pre-loaded, otherwise
--- it's faster to use 'updateNameLookupIndexFromV2Branch'
-updateNameLookupIndexFromV1Branch :: Branch Transaction -> Sqlite.Transaction ()
-updateNameLookupIndexFromV1Branch root = do
+-- This version can be used if you've already got the root Branch pre-loaded, otherwise
+-- it's faster to use 'initializeNameLookupIndexFromV2Root'
+initializeNameLookupIndexFromV1Branch :: Branch Transaction -> Sqlite.Transaction ()
+initializeNameLookupIndexFromV1Branch root = do
+  Q.dropNameLookupTables
   saveRootNamesIndexV1 (V1Branch.toNames . Branch.head $ root)
   where
     saveRootNamesIndexV1 :: Names -> Transaction ()
@@ -623,7 +700,7 @@ updateNameLookupIndexFromV1Branch root = do
               <&> ( \(name, ref) ->
                       S.NamedRef {reversedSegments = nameSegments name, ref = Cv.reference1to2 ref}
                   )
-      Ops.rebuildNameIndex termNames typeNames
+      Ops.updateNameIndex (termNames, []) (typeNames, [])
       where
         nameSegments :: Name -> NonEmpty Text
         nameSegments = coerce @(NonEmpty NameSegment) @(NonEmpty Text) . Name.reverseSegments
@@ -632,13 +709,16 @@ updateNameLookupIndexFromV1Branch root = do
           Referent.Ref {} -> (Cv.referent1to2 referent, Nothing)
           Referent.Con _ref ct -> (Cv.referent1to2 referent, Just (Cv.constructorType1to2 ct))
 
--- | Update the root namespace names index which is used by the share server for serving api
--- requests.
+-- | Compute the root namespace names index which is used by the share server for serving api
+-- requests. Using 'updateNameLookupIndex' is preferred whenever possible, since it's
+-- considerably faster. This can be used to reset the index if it ever gets out of sync due to
+-- a bug.
 --
 -- This version should be used if you don't already have the root Branch pre-loaded,
--- If you do, use 'updateNameLookupIndexFromV2Branch' instead.
-updateNameLookupIndexFromV2Root :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
-updateNameLookupIndexFromV2Root getDeclType = do
+-- If you do, use 'initializeNameLookupIndexFromV1Branch' instead.
+initializeNameLookupIndexFromV2Root :: (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) -> Sqlite.Transaction ()
+initializeNameLookupIndexFromV2Root getDeclType = do
+  Q.dropNameLookupTables
   rootHash <- Ops.expectRootCausalHash
   causalBranch <- Ops.expectCausalBranchByCausalHash rootHash
   (termNameMap, typeNameMap) <- nameMapsFromV2Branch [] causalBranch
@@ -651,7 +731,7 @@ updateNameLookupIndexFromV2Root getDeclType = do
         (name, refs) <- Map.toList typeNameMap
         ref <- Set.toList refs
         pure $ S.NamedRef {S.reversedSegments = coerce name, S.ref = ref}
-  Ops.rebuildNameIndex termNameList typeNameList
+  Ops.updateNameIndex (termNameList, []) (typeNameList, [])
   where
     addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
     addReferentCT referent = case referent of

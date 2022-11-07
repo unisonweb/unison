@@ -1,20 +1,29 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Unison.LSP.Types where
 
 import Colog.Core hiding (Lens')
-import Control.Lens hiding (List)
+import Control.Comonad.Cofree (Cofree)
+import qualified Control.Comonad.Cofree as Cofree
+import Control.Lens hiding (List, (:<))
 import Control.Monad.Except
 import Control.Monad.Reader
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy.Char8 as BSC
 import qualified Data.HashMap.Strict as HM
 import Data.IntervalMap.Lazy (IntervalMap)
 import qualified Data.IntervalMap.Lazy as IM
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Ki
 import qualified Language.LSP.Logging as LSP
 import Language.LSP.Server
+import qualified Language.LSP.Server as LSP
 import Language.LSP.Types
 import Language.LSP.Types.Lens
 import Language.LSP.VFS
@@ -23,6 +32,9 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.DataDeclaration as DD
 import Unison.LSP.Orphans ()
+import Unison.LabeledDependency (LabeledDependency)
+import Unison.Name (Name)
+import Unison.NameSegment (NameSegment)
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
@@ -70,8 +82,24 @@ data Env = Env
     dirtyFilesVar :: TVar (Set Uri),
     -- A map  of request IDs to an action which kills that request.
     cancellationMapVar :: TVar (Map SomeLspId (IO ())),
+    -- A lazily computed map of all valid completion suffixes from the current path.
+    completionsVar :: TVar CompletionTree,
     scope :: Ki.Scope
   }
+
+-- | A suffix tree over path segments of name completions.
+-- see 'namesToCompletionTree' for more on how this is built and the invariants it should have.
+newtype CompletionTree = CompletionTree
+  { unCompletionTree :: Cofree (Map NameSegment) (Set (Name, LabeledDependency))
+  }
+  deriving (Show)
+
+instance Semigroup CompletionTree where
+  CompletionTree (a Cofree.:< subtreeA) <> CompletionTree (b Cofree.:< subtreeB) =
+    CompletionTree (a <> b Cofree.:< Map.unionWith (\a b -> unCompletionTree $ CompletionTree a <> CompletionTree b) subtreeA subtreeB)
+
+instance Monoid CompletionTree where
+  mempty = CompletionTree $ mempty Cofree.:< mempty
 
 -- | A monotonically increasing file version tracked by the lsp client.
 type FileVersion = Int32
@@ -110,6 +138,9 @@ data FileSummary = FileSummary
 getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO
 
+getCompletions :: Lsp CompletionTree
+getCompletions = asks completionsVar >>= readTVarIO
+
 globalPPE :: Lsp PrettyPrintEnvDecl
 globalPPE = asks ppeCache >>= liftIO
 
@@ -117,6 +148,41 @@ getParseNames :: Lsp NamesWithHistory
 getParseNames = asks parseNamesCache >>= liftIO
 
 data Config = Config
+  { -- 'Nothing' will load ALL available completions, which is slower, but may provide a better
+    -- solution for some users.
+    --
+    -- 'Just n' will only fetch the first 'n' completions and will prompt the client to ask for
+    -- more completions after more typing.
+    maxCompletions :: Maybe Int
+  }
+  deriving stock (Show)
+
+instance Aeson.FromJSON Config where
+  parseJSON = Aeson.withObject "Config" \obj -> do
+    maxCompletions <- obj Aeson..:! "maxCompletions" Aeson..!= maxCompletions defaultLSPConfig
+    let invalidKeys = Set.fromList (HM.keys obj) `Set.difference` validKeys
+    when (not . null $ invalidKeys) do
+      fail . Text.unpack $
+        "Unrecognized configuration key(s): "
+          <> Text.intercalate ", " (Set.toList invalidKeys)
+          <> ".\nThe default configuration is:\n"
+          <> Text.pack defaultConfigExample
+    pure Config {..}
+    where
+      validKeys = Set.fromList ["maxCompletions"]
+      defaultConfigExample =
+        BSC.unpack $ Aeson.encode defaultLSPConfig
+
+instance Aeson.ToJSON Config where
+  toJSON (Config maxCompletions) =
+    Aeson.object
+      [ "maxCompletions" Aeson..= maxCompletions
+      ]
+
+defaultLSPConfig :: Config
+defaultLSPConfig = Config {..}
+  where
+    maxCompletions = Just 100
 
 -- | Lift a backend computation into the Lsp monad.
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
@@ -164,3 +230,9 @@ includeEdits uri replacement ranges rca =
             _changeAnnotations = Nothing
           }
    in rca & codeAction . edit ?~ workspaceEdit
+
+getConfig :: Lsp Config
+getConfig = LSP.getConfig
+
+setConfig :: Config -> Lsp ()
+setConfig = LSP.setConfig

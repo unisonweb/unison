@@ -51,6 +51,7 @@ dependencies:
   - unison-util-base32hex-orphans-aeson
   - unison-util-relation
   - unison-sqlite
+  - unison-syntax
   - unliftio
   - unordered-containers
   - uri-encode
