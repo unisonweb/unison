@@ -1738,7 +1738,7 @@ handleFindI isVerbose fscope ws input = do
   let getResults :: Names -> Cli [SearchResult]
       getResults names =
         case ws of
-          [] -> pure (SR.fromNames names)
+          [] -> pure (List.sortBy SR.compareByName (SR.fromNames names))
           -- type query
           ":" : ws -> do
             typ <- parseSearchType (show input) (unwords ws)
