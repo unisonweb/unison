@@ -650,11 +650,10 @@ loop e = do
                 (BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata)
               Cli.respond Success
             AliasTypeI src' dest' -> do
-              Cli.Env {codebase} <- ask
               src <- traverseOf _Right Cli.resolveSplit' src'
               srcTypes <-
                 either
-                  (liftIO . Backend.typeReferencesByShortHash codebase)
+                  (Cli.runTransaction . Backend.typeReferencesByShortHash)
                   Cli.getTypesAt
                   src
               srcType <-
@@ -2235,7 +2234,7 @@ resolveHQToLabeledDependencies = \case
     resolveHashOnly sh = do
       Cli.Env {codebase} <- ask
       terms <- liftIO (Backend.termReferentsByShortHash codebase sh)
-      types <- liftIO (Backend.typeReferencesByShortHash codebase sh)
+      types <- Cli.runTransaction (Backend.typeReferencesByShortHash sh)
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
 doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Cli ()

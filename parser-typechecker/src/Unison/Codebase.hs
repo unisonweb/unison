@@ -29,7 +29,7 @@ module Unison.Codebase
     Operations.getDeclComponent,
     putTypeDeclaration,
     putTypeDeclarationComponent,
-    typeReferencesByPrefix,
+    Operations.typeReferencesByPrefix,
     isType,
 
     -- * Branches

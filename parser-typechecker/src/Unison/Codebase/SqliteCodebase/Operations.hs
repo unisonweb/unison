@@ -557,8 +557,9 @@ defnReferencesByPrefix ot (ShortHash.ShortHash prefix (fmap Cv.shortHashSuffix1t
 termReferencesByPrefix :: ShortHash -> Transaction (Set Reference.Id)
 termReferencesByPrefix = defnReferencesByPrefix OT.TermComponent
 
-declReferencesByPrefix :: ShortHash -> Transaction (Set Reference.Id)
-declReferencesByPrefix = defnReferencesByPrefix OT.DeclComponent
+-- | Get the set of type declarations whose hash matches the given prefix.
+typeReferencesByPrefix :: ShortHash -> Transaction (Set Reference.Id)
+typeReferencesByPrefix = defnReferencesByPrefix OT.DeclComponent
 
 referentsByPrefix ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.

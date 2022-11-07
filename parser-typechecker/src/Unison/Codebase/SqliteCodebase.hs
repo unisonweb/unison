@@ -330,10 +330,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             termsMentioningTypeImpl r =
               runTransaction (CodebaseOps.termsMentioningTypeImpl getDeclType r)
 
-            declReferencesByPrefix :: ShortHash -> m (Set Reference.Id)
-            declReferencesByPrefix sh =
-              runTransaction (CodebaseOps.declReferencesByPrefix sh)
-
             referentsByPrefix :: ShortHash -> m (Set Referent.Id)
             referentsByPrefix sh =
               runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
@@ -385,7 +381,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   getWatch,
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
-                  typeReferencesByPrefix = declReferencesByPrefix,
                   termReferentsByPrefix = referentsByPrefix,
                   causalHashesByPrefix,
                   lcaImpl = Just sqlLca,

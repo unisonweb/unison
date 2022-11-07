@@ -577,9 +577,9 @@ lsBranch codebase b0 = do
       ++ patchEntries
 
 -- | Look up types in the codebase by short hash, and include builtins.
-typeReferencesByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
-typeReferencesByShortHash codebase sh = do
-  fromCodebase <- Codebase.typeReferencesByPrefix codebase sh
+typeReferencesByShortHash :: ShortHash -> Sqlite.Transaction (Set Reference)
+typeReferencesByShortHash sh = do
+  fromCodebase <- Codebase.typeReferencesByPrefix sh
   let fromBuiltins =
         Set.filter
           (\r -> sh == Reference.toShortHash r)
@@ -717,7 +717,7 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
      in makeResult (HQ'.toHQ primaryName) ref aliases
 
 hqNameQuery ::
-  Monad m =>
+  MonadIO m =>
   Codebase m v Ann ->
   NameSearch ->
   [HQ.HashQualified Name] ->
@@ -733,10 +733,11 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
         hashes
   -- Find types with those hashes.
   typeRefs <-
-    filter (not . Set.null . snd) . zip hashes
-      <$> traverse
-        (typeReferencesByShortHash codebase)
-        hashes
+    Codebase.runTransaction codebase do
+      filter (not . Set.null . snd) . zip hashes
+        <$> traverse
+          typeReferencesByShortHash
+          hashes
   -- Now do the name queries.
   let mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty
       mkTypeResult sh r = SR.typeResult (HQ.HashOnly sh) r Set.empty
