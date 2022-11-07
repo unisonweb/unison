@@ -665,8 +665,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -675,6 +675,7 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
+
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -794,21 +795,21 @@ notifyUser dir o = case o of
     pure . P.callout "😶" $
       P.lines
         [ P.wrap $
-            "I looked for a function" <> P.backticked (prettyVar main)
+            "I looked for a function" <> P.backticked (P.string main)
               <> "in the most recently typechecked file and codebase but couldn't find one. It has to have the type:",
           "",
-          P.indentN 2 $ P.lines [prettyVar main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
+          P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
   BadMainFunction main ty ppe ts ->
     pure . P.callout "😶" $
       P.lines
         [ P.string "I found this function:",
           "",
-          P.indentN 2 $ prettyVar main <> " : " <> TypePrinter.pretty ppe ty,
+          P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
           "",
           P.wrap $ P.string "but in order for me to" <> P.backticked (P.string "run") <> "it needs be a subtype of:",
           "",
-          P.indentN 2 $ P.lines [prettyVar main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
+          P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
@@ -2463,7 +2464,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
@@ -3222,6 +3223,3 @@ prettyHumanReadableTime now time =
 
     dir True = " from now"
     dir False = " ago"
-
-prettyVar :: Var sym => sym -> Pretty
-prettyVar = P.string . Var.nameStr
