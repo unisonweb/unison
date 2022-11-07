@@ -223,18 +223,18 @@ deriveDeepTerms branch =
   branch {deepTerms = R.fromList (makeDeepTerms branch)}
   where
     makeDeepTerms :: Branch0 m -> [(Referent, Name)]
-    makeDeepTerms branch = State.evalState (go [([], 0, branch)] mempty) Set.empty
+    makeDeepTerms branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
       where
         -- `reversePrefix` might be ["Nat", "base", "lib"], and `b0` the `Nat` sub-namespace.
         -- Then `R.toList` might produce the NameSegment "+", and we put the two together to
         -- construct the name `Name Relative ("+" :| ["Nat","base","lib"])`.
         go ::
           forall m.
-          [DeepChildAcc m] ->
+          Seq (DeepChildAcc m) ->
           [(Referent, Name)] ->
           DeepState m [(Referent, Name)]
-        go [] acc = pure acc
-        go (e@(reversePrefix, _, b0) : work) acc = do
+        go Seq.Empty acc = pure acc
+        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let terms :: [(Referent, Name)]
               terms =
                 map
@@ -249,14 +249,14 @@ deriveDeepTypes branch =
   branch {deepTypes = R.fromList (makeDeepTypes branch)}
   where
     makeDeepTypes :: Branch0 m -> [(TypeReference, Name)]
-    makeDeepTypes branch = State.evalState (go [([], 0, branch)] mempty) Set.empty
+    makeDeepTypes branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
       where
         go ::
-          [DeepChildAcc m] ->
+          Seq (DeepChildAcc m) ->
           [(TypeReference, Name)] ->
           DeepState m [(TypeReference, Name)]
-        go [] acc = pure acc
-        go (e@(reversePrefix, _, b0) : work) acc = do
+        go Seq.Empty acc = pure acc
+        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let types :: [(TypeReference, Name)]
               types = map (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))) (R.toList (Star3.d1 (_types b0)))
           children <- deepChildrenHelper e
@@ -268,14 +268,14 @@ deriveDeepTermMetadata branch =
   branch {deepTermMetadata = R4.fromList (makeDeepTermMetadata branch)}
   where
     makeDeepTermMetadata :: Branch0 m -> [(Referent, Name, Metadata.Type, Metadata.Value)]
-    makeDeepTermMetadata branch = State.evalState (go [([], 0, branch)] mempty) Set.empty
+    makeDeepTermMetadata branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
       where
         go ::
-          [DeepChildAcc m] ->
+          Seq (DeepChildAcc m) ->
           [(Referent, Name, Metadata.Type, Metadata.Value)] ->
           DeepState m [(Referent, Name, Metadata.Type, Metadata.Value)]
-        go [] acc = pure acc
-        go (e@(reversePrefix, _, b0) : work) acc = do
+        go Seq.Empty acc = pure acc
+        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let termMetadata :: [(Referent, Name, Metadata.Type, Metadata.Value)]
               termMetadata =
                 map
@@ -290,14 +290,14 @@ deriveDeepTypeMetadata branch =
   branch {deepTypeMetadata = R4.fromList (makeDeepTypeMetadata branch)}
   where
     makeDeepTypeMetadata :: Branch0 m -> [(TypeReference, Name, Metadata.Type, Metadata.Value)]
-    makeDeepTypeMetadata branch = State.evalState (go [([], 0, branch)] mempty) Set.empty
+    makeDeepTypeMetadata branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
       where
         go ::
-          [DeepChildAcc m] ->
+          Seq (DeepChildAcc m) ->
           [(TypeReference, Name, Metadata.Type, Metadata.Value)] ->
           DeepState m [(TypeReference, Name, Metadata.Type, Metadata.Value)]
-        go [] acc = pure acc
-        go (e@(reversePrefix, _, b0) : work) acc = do
+        go Seq.Empty acc = pure acc
+        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let typeMetadata :: [(TypeReference, Name, Metadata.Type, Metadata.Value)]
               typeMetadata =
                 map
@@ -312,11 +312,11 @@ deriveDeepPaths branch =
   branch {deepPaths = makeDeepPaths branch}
   where
     makeDeepPaths :: Branch0 m -> Set Path
-    makeDeepPaths branch = State.evalState (go [([], 0, branch)] mempty) Set.empty
+    makeDeepPaths branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
       where
-        go :: [DeepChildAcc m] -> Set Path -> DeepState m (Set Path)
-        go [] acc = pure acc
-        go (e@(reversePrefix, _, b0) : work) acc = do
+        go :: Seq (DeepChildAcc m) -> Set Path -> DeepState m (Set Path)
+        go Seq.Empty acc = pure acc
+        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let paths :: Set Path
               paths =
                 if isEmpty0 b0
@@ -331,19 +331,18 @@ deriveDeepEdits branch =
   branch {deepEdits = makeDeepEdits branch}
   where
     makeDeepEdits :: Branch0 m -> Map Name EditHash
-    makeDeepEdits branch = State.evalState (go [([], 0, branch)] mempty) Set.empty
+    makeDeepEdits branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
       where
-        go :: [DeepChildAcc m] -> Map Name EditHash -> DeepState m (Map Name EditHash)
-        go [] acc = pure acc
-        go (e@(reversePrefix, _, b0) : work) acc =
+        go :: (Seq (DeepChildAcc m)) -> Map Name EditHash -> DeepState m (Map Name EditHash)
+        go Seq.Empty acc = pure acc
+        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let edits :: Map Name EditHash
               edits =
                 Map.mapKeysMonotonic
                   (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
                   (fst <$> _edits b0)
-           in do
-                children <- deepChildrenHelper e
-                go (work <> children) (edits <> acc)
+          children <- deepChildrenHelper e
+          go (work <> children) (edits <> acc)
 
 type DeepState m = State (Set (NamespaceHash m))
 
@@ -351,12 +350,12 @@ type DeepChildAcc m = ([NameSegment], Int, Branch0 m)
 
 -- | Helper for knowing whether to descend into a child branch or not.
 -- Accepts child namespaces with previously unseen hashes, and any nested under fewer than 2 `lib` segments.
-deepChildrenHelper :: forall m. DeepChildAcc m -> DeepState m [DeepChildAcc m]
+deepChildrenHelper :: forall m. DeepChildAcc m -> DeepState m (Seq (DeepChildAcc m))
 deepChildrenHelper (reversePrefix, libDepth, b0) = do
   let libDepth' = case reversePrefix of
         "lib" : _ -> libDepth + 1
         _other -> libDepth
-  let go :: (NameSegment, Branch m) -> DeepState m [(DeepChildAcc m)]
+  let go :: (NameSegment, Branch m) -> DeepState m (Seq (DeepChildAcc m))
       go (ns, b) = do
         let h = namespaceHash b
         result <- do
@@ -364,8 +363,8 @@ deepChildrenHelper (reversePrefix, libDepth, b0) = do
           let okLibDepth = libDepth' < 2
           pure
             if unseen || okLibDepth
-              then [(ns : reversePrefix, libDepth', head b)]
-              else []
+              then Seq.singleton (ns : reversePrefix, libDepth', head b)
+              else Seq.empty
         State.modify' (Set.insert h)
         pure result
   Monoid.foldMapM go (Map.toList (nonEmptyChildren b0))
