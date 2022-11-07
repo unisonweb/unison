@@ -100,7 +100,6 @@ library
     , mtl
     , nonempty-containers
     , prelude-extras
-    , recover-rtti
     , rfc5051
     , safe
     , text

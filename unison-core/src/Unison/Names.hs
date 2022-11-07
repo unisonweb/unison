@@ -2,7 +2,6 @@
 
 module Unison.Names
   ( Names (..),
-    showNames,
     addTerm,
     addType,
     labeledReferences,
@@ -82,7 +81,7 @@ data Names = Names
   { terms :: Relation Name Referent,
     types :: Relation Name TypeReference
   }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 instance Semigroup (Names) where
   Names e1 t1 <> Names e2 t2 =
@@ -90,15 +89,6 @@ instance Semigroup (Names) where
 
 instance Monoid (Names) where
   mempty = Names mempty mempty
-
-showNames :: (Name -> String) -> Names -> String
-showNames showName (Names terms types) =
-  "Terms:\n"
-    ++ foldMap (\(n, r) -> "  " ++ showName n ++ " -> " ++ show r ++ "\n") (R.toList terms)
-    ++ "\n"
-    ++ "Types:\n"
-    ++ foldMap (\(n, r) -> "  " ++ showName n ++ " -> " ++ show r ++ "\n") (R.toList types)
-    ++ "\n"
 
 isEmpty :: Names -> Bool
 isEmpty n = R.null (terms n) && R.null (types n)
@@ -489,11 +479,7 @@ hashQualifyTermsRelation = hashQualifyRelation HQ.fromNamedReferent
 hashQualifyTypesRelation :: R.Relation Name TypeReference -> R.Relation (HQ.HashQualified Name) TypeReference
 hashQualifyTypesRelation = hashQualifyRelation HQ.fromNamedReference
 
-hashQualifyRelation ::
-  Ord r =>
-  (Name -> r -> HQ.HashQualified Name) ->
-  R.Relation Name r ->
-  R.Relation (HQ.HashQualified Name) r
+hashQualifyRelation :: Ord r => (Name -> r -> HQ.HashQualified Name) -> R.Relation Name r -> R.Relation (HQ.HashQualified Name) r
 hashQualifyRelation fromNamedRef rel = R.map go rel
   where
     go (n, r) =

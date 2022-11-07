@@ -6,7 +6,6 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Data.Sequence (Seq)
 import Data.Text (Text, unpack)
-import Debug.RecoverRTTI (anythingToString)
 import qualified Unison.ABT as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -161,7 +160,7 @@ builtinDataDecls = rs1 ++ rs
         [ (v "Link", link)
         ] of
       Right a -> a
-      Left e -> error $ "builtinDataDecls: " <> anythingToString e
+      Left e -> error $ "builtinDataDecls: " <> show e
     rs = case hashDataDecls $
       Map.fromList
         [ (v "Unit", unit),
@@ -188,7 +187,7 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.STMFailure", stmFailure)
         ] of
       Right a -> a
-      Left e -> error $ "builtinDataDecls: " <> anythingToString e
+      Left e -> error $ "builtinDataDecls: " <> show e
     linkRef = case rs1 of
       [(_, linkRef, _)] -> linkRef
       _ -> error "builtinDataDecls: Expected a single linkRef"
@@ -427,7 +426,7 @@ builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
 builtinEffectDecls =
   case hashDataDecls $ Map.fromList [(v "Exception", exception)] of
     Right a -> over _3 DD.EffectDeclaration <$> a
-    Left e -> error $ "builtinEffectDecls: " <> anythingToString e
+    Left e -> error $ "builtinEffectDecls: " <> show e
   where
     v = Var.named
     var name = Type.var () (v name)

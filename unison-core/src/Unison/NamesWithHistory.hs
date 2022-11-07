@@ -34,6 +34,7 @@ data NamesWithHistory = NamesWithHistory
     -- context to users rather than just a hash.
     oldNames :: Names.Names
   }
+  deriving (Show)
 
 instance Semigroup NamesWithHistory where
   NamesWithHistory cur1 old1 <> NamesWithHistory cur2 old2 =

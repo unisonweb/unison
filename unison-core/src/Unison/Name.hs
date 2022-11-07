@@ -56,7 +56,6 @@ import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Map as Map
 import qualified Data.RFC5051 as RFC5051
 import qualified Data.Set as Set
-import Debug.RecoverRTTI (anythingToString)
 import Unison.Name.Internal (Name (..))
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
@@ -109,7 +108,7 @@ cons x name =
       error $
         reportBug
           "E495986"
-          ("cannot cons " ++ anythingToString x ++ " onto absolute name" ++ anythingToString name)
+          ("cannot cons " ++ show x ++ " onto absolute name" ++ show name)
     Name Relative (y :| ys) -> Name Relative (y :| ys ++ [x])
 
 -- | Return the number of name segments in a name.
@@ -191,9 +190,9 @@ joinDot n1@(Name p0 ss0) n2@(Name p1 ss1) =
         reportBug
           "E261635"
           ( "joinDot: second name cannot be absolute. (name 1 = "
-              ++ anythingToString n1
+              ++ show n1
               ++ ", name 2 = "
-              ++ anythingToString n2
+              ++ show n2
               ++ ")"
           )
 

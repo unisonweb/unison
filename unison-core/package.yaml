@@ -22,7 +22,6 @@ library:
     - prelude-extras
     - memory
     - mtl
-    - recover-rtti
     - rfc5051
     - safe
     - text

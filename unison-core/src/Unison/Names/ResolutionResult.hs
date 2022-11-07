@@ -11,13 +11,13 @@ data ResolutionError ref
   | -- Contains the names which were in scope and which refs were possible options
     -- The NonEmpty set of refs must contain 2 or more refs (otherwise what is ambiguous?).
     Ambiguous Names (NESet ref)
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 -- | ResolutionFailure represents the failure to resolve a given variable.
 data ResolutionFailure var annotation
   = TypeResolutionFailure var annotation (ResolutionError Reference)
   | TermResolutionFailure var annotation (ResolutionError Referent)
-  deriving (Eq, Ord, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 getAnnotation :: ResolutionFailure v a -> a
 getAnnotation = \case
