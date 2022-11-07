@@ -69,7 +69,7 @@ data TermSummary = TermSummary
     summary :: DisplayObject SyntaxText SyntaxText,
     tag :: TermTag
   }
-  deriving (Generic, Show)
+  deriving (Generic)
 
 instance ToJSON TermSummary where
   toEncoding = genericToEncoding defaultOptions

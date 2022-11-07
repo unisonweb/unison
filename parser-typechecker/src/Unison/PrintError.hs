@@ -21,7 +21,6 @@ import Unison.Builtin.Decls (pattern TupleType')
 import qualified Unison.Codebase.Path as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
-import qualified Unison.HashQualified as HQ
 import Unison.Kind (Kind)
 import qualified Unison.Kind as Kind
 import Unison.Name (Name)
@@ -38,7 +37,9 @@ import Unison.Referent (Referent, pattern Ref)
 import Unison.Result (Note (..))
 import qualified Unison.Result as Result
 import qualified Unison.Settings as Settings
+import qualified Unison.Syntax.HashQualified as HQ (toString)
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified0)
 import Unison.Syntax.Parser (Annotated, ann)
 import qualified Unison.Syntax.Parser as Parser
@@ -1463,13 +1464,13 @@ renderParseErrors s = \case
                           "You can write"
                             <> Pr.group
                               ( Pr.blue $
-                                  "use " <> Pr.shown (Name.makeRelative parent) <> " "
-                                    <> Pr.shown (Name.unqualified (L.payload tok))
+                                  "use " <> Pr.text (Name.toText (Name.makeRelative parent)) <> " "
+                                    <> Pr.text (Name.toText (Name.unqualified (L.payload tok)))
                               )
                             <> "to introduce "
-                            <> Pr.backticked (Pr.shown (Name.unqualified (L.payload tok)))
+                            <> Pr.backticked (Pr.text (Name.toText (Name.unqualified (L.payload tok))))
                             <> "as a local alias for "
-                            <> Pr.backticked (Pr.shown (L.payload tok))
+                            <> Pr.backticked (Pr.text (Name.toText (L.payload tok)))
                   ]
              in (txts, ranges)
           (Right tok, _) ->

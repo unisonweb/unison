@@ -77,15 +77,8 @@ take i = \case
   HashOnly s -> HashOnly (SH.take i s)
   HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.take i s)
 
-toString :: Show n => HashQualified n -> String
-toString = Text.unpack . toText
-
 toStringWith :: (n -> String) -> HashQualified n -> String
 toStringWith f = Text.unpack . toTextWith (Text.pack . f)
-
-toText :: Show n => HashQualified n -> Text
-toText =
-  toTextWith (Text.pack . show)
 
 toTextWith :: (n -> Text) -> HashQualified n -> Text
 toTextWith f = \case

@@ -11,7 +11,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-import Unison.Syntax.Name ()
+import Unison.Syntax.Name {- instance Name.Alphabetical Name -} ()
 import qualified Unison.Util.Relation as R
 
 data SearchResult = Tp TypeResult | Tm TermResult deriving (Eq, Ord)

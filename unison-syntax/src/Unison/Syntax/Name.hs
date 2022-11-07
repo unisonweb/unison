@@ -36,10 +36,6 @@ instance IsString Name where
   fromString =
     unsafeFromString
 
-instance Show Name where
-  show =
-    Text.unpack . toText
-
 -- | Convert a name to a string representation.
 toString :: Name -> String
 toString =

@@ -10,6 +10,7 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Syntax.HashQualified as HQ (toText)
 import qualified Unison.Syntax.Name as Name (toText)
 import Unison.Util.Pretty (Pretty)
 import qualified Unison.Util.Pretty as PP

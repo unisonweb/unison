@@ -47,7 +47,6 @@ import Unison.Codebase.Runtime (Error, Runtime (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import qualified Unison.ConstructorReference as RF
 import Unison.DataDeclaration (Decl, declDependencies, declFields)
-import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.LabeledDependency as RF
 import Unison.Parser.Ann (Ann (External))
@@ -92,6 +91,7 @@ import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.HashQualified as HQ (toString)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Syntax.TermPrinter
 import qualified Unison.Term as Tm
@@ -400,12 +400,12 @@ executeMainComb init cc = do
       let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
       pure . either id (bugMsg PPE.empty tr nm) $ decom c
 
-bugMsg
-  :: PrettyPrintEnv
-  -> [(Reference, Int)]
-  -> Text
-  -> Term Symbol
-  -> Pretty ColorText
+bugMsg ::
+  PrettyPrintEnv ->
+  [(Reference, Int)] ->
+  Text ->
+  Term Symbol ->
+  Pretty ColorText
 bugMsg ppe tr name tm
   | name == "blank expression" =
       P.callout icon . P.lines $
@@ -477,10 +477,11 @@ stackTrace ppe tr = "Stack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
           | n > 1 = " (" <> fromString (show n) <> " copies)"
           | otherwise = ""
         name =
-          syntaxToColor .
-            prettyHashQualified .
-            PPE.termName ppe .
-            RF.Ref $ rf
+          syntaxToColor
+            . prettyHashQualified
+            . PPE.termName ppe
+            . RF.Ref
+            $ rf
 
 icon :: Pretty ColorText
 icon = "💔💥"

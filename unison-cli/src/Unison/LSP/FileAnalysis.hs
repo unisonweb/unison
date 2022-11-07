@@ -27,7 +27,6 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Debug as Debug
-import qualified Unison.HashQualified' as HQ'
 import Unison.LSP.Conversions
 import Unison.LSP.Diagnostics
   ( mkDiagnostic,
@@ -49,6 +48,7 @@ import qualified Unison.PrintError as PrintError
 import Unison.Result (Note)
 import qualified Unison.Result as Result
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.HashQualified' as HQ' (toText)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
 import qualified Unison.Syntax.TypePrinter as TypePrinter

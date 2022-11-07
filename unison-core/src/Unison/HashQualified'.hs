@@ -15,7 +15,7 @@ import qualified Unison.ShortHash as SH
 import Prelude hiding (take)
 
 data HashQualified n = NameOnly n | HashQualified n ShortHash
-  deriving stock (Eq, Functor, Generic, Foldable, Ord, Traversable)
+  deriving stock (Eq, Functor, Generic, Foldable, Ord, Show, Traversable)
 
 type HQSegment = HashQualified NameSegment
 
@@ -59,15 +59,8 @@ toHash = \case
   NameOnly _ -> Nothing
   HashQualified _ sh -> Just sh
 
-toString :: Show n => HashQualified n -> String
-toString = Text.unpack . toText
-
 toStringWith :: (n -> String) -> HashQualified n -> String
 toStringWith f = Text.unpack . toTextWith (Text.pack . f)
-
-toText :: Show n => HashQualified n -> Text
-toText =
-  toTextWith (Text.pack . show)
 
 toTextWith :: (n -> Text) -> HashQualified n -> Text
 toTextWith f = \case
@@ -114,9 +107,6 @@ instance Name.Alphabetical n => Name.Alphabetical (HashQualified n) where
   compareAlphabetical NameOnly {} HashQualified {} = LT
   compareAlphabetical HashQualified {} NameOnly {} = GT
   compareAlphabetical (HashQualified n sh) (HashQualified n2 sh2) = Name.compareAlphabetical n n2 <> compare sh sh2
-
-instance Show n => Show (HashQualified n) where
-  show = Text.unpack . toText
 
 instance Convert n n2 => Parse (HashQualified n) n2 where
   parse = \case

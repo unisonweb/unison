@@ -27,7 +27,7 @@ data Name
       Position
       -- the name segments in reverse order
       (List.NonEmpty NameSegment)
-  deriving stock (Eq, Generic)
+  deriving stock (Eq, Generic, Show)
 
 instance Ord Name where
   compare (Name p0 ss0) (Name p1 ss1) =

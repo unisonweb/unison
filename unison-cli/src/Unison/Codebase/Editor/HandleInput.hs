@@ -163,7 +163,7 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
-import qualified Unison.Syntax.HashQualified as HQ (unsafeFromString)
+import qualified Unison.Syntax.HashQualified as HQ (unsafeFromString, toText, toString)
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Name as Name (toString, toVar, unsafeFromString, unsafeFromVar)
 import qualified Unison.Syntax.Parser as Parser
@@ -1681,7 +1681,7 @@ inputDescription input =
     hqs' :: Path.HQSplit' -> Cli Text
     hqs' (p0, hq) = do
       p <- if Path.isRoot' p0 then pure mempty else p' p0
-      pure (p <> "." <> tShow hq)
+      pure (p <> "." <> HQ'.toTextWith NameSegment.toText hq)
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
 

@@ -129,7 +129,7 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
-import qualified Unison.Syntax.HashQualified as HQ (unsafeFromVar)
+import qualified Unison.Syntax.HashQualified as HQ (toString, toText, unsafeFromVar)
 import qualified Unison.Syntax.Name as Name (toString, toText)
 import Unison.Syntax.NamePrinter
   ( prettyHashQualified,

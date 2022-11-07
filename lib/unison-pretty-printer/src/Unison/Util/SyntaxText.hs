@@ -5,7 +5,6 @@ import Unison.Name (Name)
 import Unison.Pattern (SeqOp)
 import Unison.Prelude
 import Unison.Referent' (Referent')
-import Unison.Syntax.Name ()
 import Unison.Util.AnnotatedText (AnnotatedText (..), annotate, segment)
 
 type SyntaxText' r = AnnotatedText (Element r)

@@ -19,7 +19,6 @@ import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
 import Lucid
 import qualified Lucid as L
-import qualified Unison.HashQualified as HashQualified
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
@@ -28,6 +27,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
+import qualified Unison.Syntax.HashQualified as HashQualified (toText)
 import qualified Unison.Syntax.Name as Name (unsafeFromText)
 import Unison.Util.AnnotatedText
   ( AnnotatedText (..),

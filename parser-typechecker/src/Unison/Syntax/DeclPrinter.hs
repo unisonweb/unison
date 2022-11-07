@@ -20,7 +20,7 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.Reference (Reference (DerivedId))
 import qualified Unison.Referent as Referent
 import qualified Unison.Result as Result
-import qualified Unison.Syntax.HashQualified as HQ (toVar, unsafeFromString)
+import qualified Unison.Syntax.HashQualified as HQ (toString, toVar, unsafeFromString)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.TypePrinter (runPretty)
 import qualified Unison.Syntax.TypePrinter as TypePrinter

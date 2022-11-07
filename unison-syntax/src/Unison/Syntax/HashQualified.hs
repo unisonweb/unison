@@ -7,6 +7,8 @@ module Unison.Syntax.HashQualified
     unsafeFromString,
     unsafeFromText,
     unsafeFromVar,
+    toString,
+    toText,
     toVar,
   )
 where
@@ -53,5 +55,14 @@ unsafeFromText txt = fromMaybe msg . fromText $ txt
 unsafeFromVar :: Var v => v -> HashQualified Name
 unsafeFromVar = unsafeFromText . Var.name
 
+toString :: HashQualified Name -> String
+toString =
+  Text.unpack . toText
+
+toText :: HashQualified Name -> Text
+toText =
+  HashQualified.toTextWith Name.toText
+
 toVar :: Var v => HashQualified Name -> v
-toVar = Var.named . HashQualified.toTextWith Name.toText
+toVar =
+  Var.named . toText

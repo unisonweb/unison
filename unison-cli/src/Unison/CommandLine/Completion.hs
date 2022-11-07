@@ -208,9 +208,9 @@ completeWithinNamespace compTypes query codebase currentPath = do
         qualifyRefs :: V2Branch.NameSegment -> (Map r metadata) -> [HQ'.HashQualified V2Branch.NameSegment]
         qualifyRefs n refs
           | ((Text.isInfixOf "#" . NameSegment.toText) querySuffix) || length refs > 1 =
-            refs
-              & Map.keys
-              <&> qualify n
+              refs
+                & Map.keys
+                <&> qualify n
           | otherwise = [HQ'.NameOnly n]
 
     -- If we're not completing namespaces, then all namespace completions should automatically
@@ -390,10 +390,10 @@ shareCompletion completionTypes authHTTPClient str =
                   let name = Server.namespaceName nn
                    in (NamespaceCompletion, name)
                 Server.TermObject nt ->
-                  let name = HQ'.toText $ Server.termName nt
+                  let name = HQ'.toTextWith NameSegment.toText $ Server.termName nt
                    in (NamespaceCompletion, name)
                 Server.TypeObject nt ->
-                  let name = HQ'.toText $ Server.typeName nt
+                  let name = HQ'.toTextWith NameSegment.toText $ Server.typeName nt
                    in (TermCompletion, name)
                 Server.PatchObject np ->
                   let name = Server.patchName np
