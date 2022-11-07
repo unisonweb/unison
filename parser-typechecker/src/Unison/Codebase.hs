@@ -41,7 +41,7 @@ module Unison.Codebase
     SqliteCodebase.Operations.before,
     getShallowBranchAtPath,
     getShallowCausalAtPath,
-    getShallowCausalForHash,
+    Operations.expectCausalBranchByCausalHash,
     getShallowCausalFromRoot,
     getShallowRootBranch,
     getShallowRootCausal,
@@ -173,49 +173,53 @@ runTransaction Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransaction conn action
 
 getShallowCausalFromRoot ::
-  MonadIO m =>
-  Codebase m v a ->
   -- Optional root branch, if Nothing use the codebase's root branch.
   Maybe V2.CausalHash ->
   Path.Path ->
-  m (V2Branch.CausalBranch m)
-getShallowCausalFromRoot codebase mayRootHash p = do
+  Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+getShallowCausalFromRoot mayRootHash p = do
   rootCausal <- case mayRootHash of
-    Nothing -> getShallowRootCausal codebase
-    Just ch -> getShallowCausalForHash codebase ch
-  getShallowCausalAtPath codebase p (Just rootCausal)
+    Nothing -> getShallowRootCausal
+    Just ch -> Operations.expectCausalBranchByCausalHash ch
+  getShallowCausalAtPath p (Just rootCausal)
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
-getShallowRootBranch :: MonadIO m => Codebase m v a -> m (V2.Branch m)
-getShallowRootBranch codebase = do
-  getShallowRootCausal codebase >>= V2Causal.value
+getShallowRootBranch :: Sqlite.Transaction (V2.Branch Sqlite.Transaction)
+getShallowRootBranch = do
+  getShallowRootCausal >>= V2Causal.value
 
 -- | Get the shallow representation of the root branches without loading the children or
 -- history.
-getShallowRootCausal :: MonadIO m => Codebase m v a -> m (V2.CausalBranch m)
-getShallowRootCausal codebase = do
-  hash <- runTransaction codebase Operations.expectRootCausalHash
-  getShallowCausalForHash codebase hash
+getShallowRootCausal :: Sqlite.Transaction (V2.CausalBranch Sqlite.Transaction)
+getShallowRootCausal = do
+  hash <- Operations.expectRootCausalHash
+  Operations.expectCausalBranchByCausalHash hash
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
-getShallowCausalAtPath :: MonadIO m => Codebase m v a -> Path -> Maybe (V2Branch.CausalBranch m) -> m (V2Branch.CausalBranch m)
-getShallowCausalAtPath codebase path mayCausal = do
-  causal <- whenNothing mayCausal (getShallowRootCausal codebase)
+getShallowCausalAtPath ::
+  Path ->
+  Maybe (V2Branch.CausalBranch Sqlite.Transaction) ->
+  Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+getShallowCausalAtPath path mayCausal = do
+  causal <- whenNothing mayCausal getShallowRootCausal
   case path of
     Path.Empty -> pure causal
     (ns Path.:< p) -> do
       b <- V2Causal.value causal
       case (V2Branch.childAt (Cv.namesegment1to2 ns) b) of
         Nothing -> pure (Cv.causalbranch1to2 Branch.empty)
-        Just childCausal -> getShallowCausalAtPath codebase p (Just childCausal)
+        Just childCausal -> getShallowCausalAtPath p (Just childCausal)
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
-getShallowBranchAtPath :: MonadIO m => Codebase m v a -> Path -> Maybe (V2Branch.Branch m) -> m (V2Branch.Branch m)
-getShallowBranchAtPath codebase path mayBranch = do
-  branch <- whenNothing mayBranch (getShallowRootCausal codebase >>= V2Causal.value)
+getShallowBranchAtPath ::
+  Path ->
+  Maybe (V2Branch.Branch Sqlite.Transaction) ->
+  Sqlite.Transaction (V2Branch.Branch Sqlite.Transaction)
+getShallowBranchAtPath path mayBranch = do
+  branch <- whenNothing mayBranch (getShallowRootCausal >>= V2Causal.value)
   case path of
     Path.Empty -> pure branch
     (ns Path.:< p) -> do
@@ -223,7 +227,7 @@ getShallowBranchAtPath codebase path mayBranch = do
         Nothing -> pure V2Branch.empty
         Just childCausal -> do
           childBranch <- V2Causal.value childCausal
-          getShallowBranchAtPath codebase p (Just childBranch)
+          getShallowBranchAtPath p (Just childBranch)
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.CausalHash -> m (Maybe (Branch m))
@@ -245,17 +249,15 @@ getBranchForHash codebase h =
 
 -- | Get the metadata attached to the term at a given path and name relative to the given branch.
 termMetadata ::
-  MonadIO m =>
-  Codebase m v a ->
   -- | The branch to search inside. Use the current root if 'Nothing'.
-  Maybe (V2Branch.Branch m) ->
+  Maybe (V2Branch.Branch Sqlite.Transaction) ->
   Split ->
   -- | There may be multiple terms at the given name. You can specify a Referent to
   -- disambiguate if desired.
   Maybe V2.Referent ->
-  m [Map V2Branch.MetadataValue V2Branch.MetadataType]
-termMetadata codebase mayBranch (path, nameSeg) ref = do
-  b <- getShallowBranchAtPath codebase path mayBranch
+  Sqlite.Transaction [Map V2Branch.MetadataValue V2Branch.MetadataType]
+termMetadata mayBranch (path, nameSeg) ref = do
+  b <- getShallowBranchAtPath path mayBranch
   V2Branch.termMetadata b (coerce @NameSegment.NameSegment nameSeg) ref
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
@@ -265,7 +267,7 @@ lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = do
     runTransaction code do
       eb1 <- SqliteCodebase.Operations.branchExists h1
       eb2 <- SqliteCodebase.Operations.branchExists h2
-      if eb1 && eb2 
+      if eb1 && eb2
         then do
           SqliteCodebase.Operations.sqlLca h1 h2 >>= \case
             Just h -> pure (getBranchForHash code h)

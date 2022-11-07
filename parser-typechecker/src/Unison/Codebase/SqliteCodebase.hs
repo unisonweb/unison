@@ -25,7 +25,6 @@ import Data.Time (getCurrentTime)
 import qualified System.Console.ANSI as ANSI
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
-import qualified U.Codebase.Branch as V2Branch
 import U.Codebase.HashTags (BranchHash, CausalHash (CausalHash))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -264,10 +263,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             putTypeDeclarationComponent =
               CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer
 
-            getShallowCausalForHash :: MonadIO m => V2Branch.CausalHash -> m (V2Branch.CausalBranch m)
-            getShallowCausalForHash bh =
-              V2Branch.hoistCausalBranch runTransaction <$> runTransaction (Ops.expectCausalBranchByCausalHash bh)
-
             getRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> m (Branch m)
             getRootBranch rootBranchCache =
               Branch.transform runTransaction <$> runTransaction (CodebaseOps.getRootBranch branchCache getDeclType rootBranchCache)
@@ -350,7 +345,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   getTermComponentWithTypes,
                   getRootBranch = getRootBranch rootBranchCache,
                   putRootBranch = putRootBranch rootBranchCache,
-                  getShallowCausalForHash,
                   getBranchForHashImpl = getBranchForHash,
                   putBranch,
                   syncFromDirectory,
