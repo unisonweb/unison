@@ -359,10 +359,10 @@ deepChildrenHelper (reversePrefix, libDepth, b0) = do
       go (ns, b) = do
         let h = namespaceHash b
         result <- do
-          unseen <- State.gets (Set.notMember h)
-          let okLibDepth = libDepth' < 2
+          let isDirectDependency = libDepth' < 2
+          isUnseenTransitiveDep <- State.gets (Set.notMember h)
           pure
-            if unseen || okLibDepth
+            if isDirectDependency || isUnseenTransitiveDep
               then Seq.singleton (ns : reversePrefix, libDepth', head b)
               else Seq.empty
         State.modify' (Set.insert h)
