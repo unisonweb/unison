@@ -2696,7 +2696,7 @@ declareForeigns = do
   declareForeign Untracked "Scope.bytearray" natToBox . mkForeign $ PA.newByteArray
   declareForeign Untracked "Scope.bytearrayOf" natNatToBox
     . mkForeign
-    $ \(sz, init) -> do
+    $ \(init, sz) -> do
       arr <- PA.newByteArray sz
       PA.fillByteArray arr 0 sz init
       pure arr
