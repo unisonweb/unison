@@ -11,8 +11,8 @@ import qualified Data.Text as Text
 import qualified U.Util.Monoid as Monoid
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.Prelude
 import Unison.Share.Types
 
@@ -66,7 +66,7 @@ writeToReadGit = \case
 writePathToRead :: WriteRemotePath -> ReadRemoteNamespace
 writePathToRead = \case
   WriteRemotePathGit WriteGitRemotePath {repo, path} ->
-    ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo = writeToReadGit repo, sbh = Nothing, path}
+    ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo = writeToReadGit repo, sch = Nothing, path}
   WriteRemotePathShare WriteShareRemotePath {server, repo, path} ->
     ReadRemoteNamespaceShare ReadShareRemoteNamespace {server, repo, path}
 
@@ -80,12 +80,12 @@ printWriteGitRepo WriteGitRepo {url, branch} = "git(" <> url <> Monoid.fromMaybe
 -- | print remote namespace
 printNamespace :: ReadRemoteNamespace -> Text
 printNamespace = \case
-  ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo, sbh, path} ->
-    printReadGitRepo repo <> maybePrintSBH sbh <> maybePrintPath path
+  ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo, sch, path} ->
+    printReadGitRepo repo <> maybePrintSCH sch <> maybePrintPath path
     where
-      maybePrintSBH = \case
+      maybePrintSCH = \case
         Nothing -> mempty
-        Just sbh -> "#" <> SBH.toText sbh
+        Just sch -> "#" <> SCH.toText sch
   ReadRemoteNamespaceShare ReadShareRemoteNamespace {server, repo, path} ->
     displayShareCodeserver server repo path
 
@@ -110,7 +110,7 @@ data ReadRemoteNamespace
 
 data ReadGitRemoteNamespace = ReadGitRemoteNamespace
   { repo :: ReadGitRepo,
-    sbh :: Maybe ShortBranchHash,
+    sch :: Maybe ShortCausalHash,
     path :: Path
   }
   deriving stock (Eq, Show)
@@ -118,7 +118,7 @@ data ReadGitRemoteNamespace = ReadGitRemoteNamespace
 data ReadShareRemoteNamespace = ReadShareRemoteNamespace
   { server :: ShareCodeserver,
     repo :: Text,
-    -- sbh :: Maybe ShortBranchHash, -- maybe later
+    -- sch :: Maybe ShortCausalHash, -- maybe later
     path :: Path
   }
   deriving stock (Eq, Show)

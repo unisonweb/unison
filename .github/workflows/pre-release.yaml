@@ -1,5 +1,9 @@
 name: "pre-release"
 
+defaults:
+  run:
+    shell: bash
+
 on:
   workflow_run:
     workflows: ["CI"]
@@ -10,14 +14,17 @@ jobs:
   build_linux:
 
     name: "build_linux"
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v2
-      - name: install stack
+
+      - name: install stack (Linux)
+        working-directory: ${{ github.workspace }}
         run: |
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-linux-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
@@ -50,10 +57,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: install stack
+      - name: install stack (macOS)
+        working-directory: ${{ github.workspace }}
         run: |
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-osx-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
@@ -89,17 +98,29 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+
+      - name: install stack (windows)
+        working-directory: ${{ github.workspace }}
+        if: runner.os == 'Windows'
+        run: |
+          mkdir stack && cd stack
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-windows-x86_64.tar.gz | tar -xz
+          echo "$PWD/stack-"* >> $GITHUB_PATH
+
       - name: build
         run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
       - name: fetch latest codebase-ui and package with ucm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Powershell
+        shell: pwsh
         run: |
           mkdir -p tmp\ui
           mkdir -p release\ui
-          $UCM = stack exec -- where unison
+          $UCM = .\stack\stack-2.7.5-windows-x86_64\stack.exe exec -- where unison
           cp $UCM .\release\ucm.exe
-          Invoke-WebRequest -Uri https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
+          Invoke-WebRequest -Uri https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
           Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui
           Compress-Archive -Path .\release\* -DestinationPath ucm-windows.zip
 
@@ -112,7 +133,7 @@ jobs:
 
   release:
     name: "create_release"
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-20.04
     needs:
       - build_linux
       - build_macos

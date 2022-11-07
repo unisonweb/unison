@@ -16,6 +16,7 @@ packages:
 - unison-cli
 - unison-hashing-v2
 - unison-share-api
+- unison-syntax
 - codebase2/codebase
 - codebase2/codebase-sqlite
 - codebase2/codebase-sqlite-hashing-v2
@@ -29,7 +30,9 @@ packages:
 - lib/unison-util-base32hex
 - lib/unison-util-base32hex-orphans-aeson
 - lib/unison-util-base32hex-orphans-sqlite
+- lib/unison-util-bytes
 - lib/unison-util-relation
+- lib/unison-util-rope
 - lib/unison-pretty-printer
 
 #compiler-check: match-exact
@@ -69,6 +72,8 @@ extra-deps:
 - co-log-core-0.3.1.0
 # lts 18.28 provides 0.3.2.1 but we need at least 0.3.3
 - terminal-size-0.3.3
+# lts 18.28 provides 3.1.1.1 but we need at least 3.1.2.7
+- network-3.1.2.7
 
 ghc-options:
  # All packages

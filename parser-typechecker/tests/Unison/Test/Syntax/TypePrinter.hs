@@ -1,3 +1,7 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use camelCase" #-}
+
 module Unison.Test.Syntax.TypePrinter where
 
 import qualified Data.Map as Map
@@ -18,7 +22,7 @@ tc_diff_rtt :: Bool -> String -> String -> PP.Width -> Test ()
 tc_diff_rtt rtt s expected width =
   let input_type = Common.t s
       get_names = PPE.fromNames Common.hqLength Unison.Builtin.names
-      prettied = fmap toPlain $ PP.syntaxToColor $ prettyRaw get_names Map.empty (-1) input_type
+      prettied = fmap toPlain $ PP.syntaxToColor . runPretty get_names $ prettyRaw Map.empty (-1) input_type
       actual =
         if width == 0
           then PP.renderUnbroken $ prettied
@@ -26,26 +30,24 @@ tc_diff_rtt rtt s expected width =
       actual_reparsed = Common.t actual
    in scope s $
         tests
-          [ ( if actual == expected
-                then ok
-                else do
-                  note $ "expected: " ++ show expected
-                  note $ "actual  : " ++ show actual
-                  note $ "expectedS:\n" ++ expected
-                  note $ "actualS:\n" ++ actual
-                  note $ "show(input)  : " ++ show input_type
-                  note $ "prettyprint  : " ++ show prettied
-                  crash "actual != expected"
-            ),
-            ( if (not rtt) || (input_type == actual_reparsed)
-                then ok
-                else do
-                  note $ "round trip test..."
-                  note $ "single parse: " ++ show input_type
-                  note $ "double parse: " ++ show actual_reparsed
-                  note $ "prettyprint  : " ++ show prettied
-                  crash "single parse != double parse"
-            )
+          [ if actual == expected
+              then ok
+              else do
+                note $ "expected: " ++ show expected
+                note $ "actual  : " ++ show actual
+                note $ "expectedS:\n" ++ expected
+                note $ "actualS:\n" ++ actual
+                note $ "show(input)  : " ++ show input_type
+                note $ "prettyprint  : " ++ show prettied
+                crash "actual != expected",
+            if not rtt || (input_type == actual_reparsed)
+              then ok
+              else do
+                note $ "round trip test..."
+                note $ "single parse: " ++ show input_type
+                note $ "double parse: " ++ show actual_reparsed
+                note $ "prettyprint  : " ++ show prettied
+                crash "single parse != double parse"
           ]
 
 -- As above, but do the round-trip test unconditionally.
@@ -87,6 +89,9 @@ test =
       tc "Pair (a -> b) (c -> d)",
       tc "Pair a b ->{e1, e2} Pair a b ->{} Pair (a -> b) d -> Pair c d",
       tc "[Pair a a]",
+      tc "[a]",
+      tc "[a -> b]",
+      tc "[a ->{g} b]",
       tc "'a",
       tc "'Pair a a",
       tc "a -> 'b",

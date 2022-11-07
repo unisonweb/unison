@@ -33,7 +33,7 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Conversions (causalHash2to1)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.NameSegment as NameSegment
@@ -56,7 +56,7 @@ import Unison.Util.Pretty (Width)
 import Unison.Var (Var)
 
 type NamespaceListingAPI =
-  "list" :> QueryParam "rootBranch" ShortBranchHash
+  "list" :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "namespace" Path.Path
     :> APIGet NamespaceListing
@@ -164,13 +164,13 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
 
 serve ::
   Codebase IO Symbol Ann ->
-  Maybe ShortBranchHash ->
+  Maybe ShortCausalHash ->
   Maybe Path.Path ->
   Maybe Path.Path ->
   Backend.Backend IO NamespaceListing
-serve codebase maySBH mayRelativeTo mayNamespaceName = do
+serve codebase maySCH mayRelativeTo mayNamespaceName = do
   useIndex <- asks Backend.useNamesIndex
-  mayRootHash <- traverse (Backend.expandShortBranchHash codebase) maySBH
+  mayRootHash <- traverse (Backend.expandShortCausalHash codebase) maySCH
   codebaseRootHash <- liftIO $ Codebase.getRootCausalHash codebase
 
   -- Relative and Listing Path resolution

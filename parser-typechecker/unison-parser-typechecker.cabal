@@ -23,6 +23,7 @@ flag optimized
 
 library
   exposed-modules:
+      U.Codebase.Branch.Diff
       Unison.Builtin
       Unison.Builtin.Decls
       Unison.Builtin.Terms
@@ -60,7 +61,7 @@ library
       Unison.Codebase.PushBehavior
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
-      Unison.Codebase.ShortBranchHash
+      Unison.Codebase.ShortCausalHash
       Unison.Codebase.SqliteCodebase
       Unison.Codebase.SqliteCodebase.Branch.Cache
       Unison.Codebase.SqliteCodebase.Branch.Dependencies
@@ -88,10 +89,10 @@ library
       Unison.CodebasePath
       Unison.FileParsers
       Unison.Hashing.V2.Convert
-      Unison.Parser.Ann
       Unison.Parsers
       Unison.PrettyPrintEnv
       Unison.PrettyPrintEnv.FQN
+      Unison.PrettyPrintEnv.MonadPretty
       Unison.PrettyPrintEnv.Names
       Unison.PrettyPrintEnv.Util
       Unison.PrettyPrintEnvDecl
@@ -119,9 +120,7 @@ library
       Unison.Share.Types
       Unison.Syntax.DeclPrinter
       Unison.Syntax.FileParser
-      Unison.Syntax.Lexer
       Unison.Syntax.NamePrinter
-      Unison.Syntax.Parser
       Unison.Syntax.TermParser
       Unison.Syntax.TermPrinter
       Unison.Syntax.TypeParser
@@ -135,10 +134,8 @@ library
       Unison.Typechecker.TypeVar
       Unison.UnisonFile
       Unison.UnisonFile.Env
-      Unison.UnisonFile.Error
       Unison.UnisonFile.Names
       Unison.UnisonFile.Type
-      Unison.Util.Bytes
       Unison.Util.Convert
       Unison.Util.CycleTable
       Unison.Util.CyclicEq
@@ -147,7 +144,7 @@ library
       Unison.Util.Exception
       Unison.Util.Logger
       Unison.Util.PinBoard
-      Unison.Util.Rope
+      Unison.Util.Pretty.MegaParsec
       Unison.Util.Star3
       Unison.Util.Text
       Unison.Util.Text.Pattern
@@ -199,6 +196,7 @@ library
     , bytestring-to-vector
     , cereal
     , clock
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -212,6 +210,7 @@ library
     , extra
     , filepath
     , fingertree
+    , free
     , fsnotify
     , fuzzyfind
     , generic-lens
@@ -280,9 +279,12 @@ library
     , unison-prelude
     , unison-pretty-printer
     , unison-sqlite
+    , unison-syntax
     , unison-util
     , unison-util-base32hex
+    , unison-util-bytes
     , unison-util-relation
+    , unison-util-rope
     , unison-util-serialization
     , unliftio
     , uri-encode
@@ -316,7 +318,6 @@ test-suite parser-typechecker-tests
       Unison.Test.MCode
       Unison.Test.Referent
       Unison.Test.Syntax.FileParser
-      Unison.Test.Syntax.Lexer
       Unison.Test.Syntax.TermParser
       Unison.Test.Syntax.TermPrinter
       Unison.Test.Syntax.TypePrinter
@@ -327,7 +328,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.TypeError
       Unison.Test.UnisonSources
-      Unison.Test.Util.Bytes
       Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
@@ -380,6 +380,7 @@ test-suite parser-typechecker-tests
     , cereal
     , clock
     , code-page
+    , concurrent-output
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -395,6 +396,7 @@ test-suite parser-typechecker-tests
     , filemanip
     , filepath
     , fingertree
+    , free
     , fsnotify
     , fuzzyfind
     , generic-lens
@@ -465,9 +467,12 @@ test-suite parser-typechecker-tests
     , unison-prelude
     , unison-pretty-printer
     , unison-sqlite
+    , unison-syntax
     , unison-util
     , unison-util-base32hex
+    , unison-util-bytes
     , unison-util-relation
+    , unison-util-rope
     , unison-util-serialization
     , unliftio
     , uri-encode

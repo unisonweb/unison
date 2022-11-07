@@ -37,15 +37,17 @@ import qualified Unison.Util.Relation4 as Relation4
 --
 -- Returns a Set of names rather than using the PPE since we already have the correct names in
 -- scope on this branch, and also want to list ALL names of dependents, including aliases.
-namespaceDependencies :: forall m r. Branch0 m -> Cli r (Map LabeledDependency (Set Name))
+namespaceDependencies :: Branch0 m -> Cli (Map LabeledDependency (Set Name))
 namespaceDependencies branch = do
   Env {codebase} <- ask
 
-  typeDeps <- for (Map.toList currentBranchTypeRefs) $ \(typeRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
-    refId <- MaybeT . pure $ Reference.toId typeRef
-    decl <- MaybeT $ liftIO (Codebase.getTypeDeclaration codebase refId)
-    let typeDeps = Set.map LD.typeRef $ DD.dependencies (DD.asDataDecl decl)
-    pure $ foldMap (`Map.singleton` names) typeDeps
+  typeDeps <-
+    (liftIO . Codebase.runTransaction codebase) do
+      for (Map.toList currentBranchTypeRefs) $ \(typeRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
+        refId <- MaybeT . pure $ Reference.toId typeRef
+        decl <- MaybeT $ Codebase.getTypeDeclaration codebase refId
+        let typeDeps = Set.map LD.typeRef $ DD.dependencies (DD.asDataDecl decl)
+        pure $ foldMap (`Map.singleton` names) typeDeps
 
   termDeps <- for (Map.toList currentBranchTermRefs) $ \(termRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
     refId <- MaybeT . pure $ Referent.toReferenceId termRef

@@ -24,13 +24,11 @@ import qualified U.Codebase.TypeEdit as V2.TypeEdit
 import qualified U.Codebase.WatchKind as V2
 import qualified U.Codebase.WatchKind as V2.WatchKind
 import qualified U.Core.ABT as ABT
-import qualified U.Util.Hash as V2
-import qualified U.Util.Hash as V2.Hash
 import qualified Unison.Codebase.Branch as V1.Branch
 import qualified Unison.Codebase.Causal.Type as V1.Causal
 import qualified Unison.Codebase.Metadata as V1.Metadata
 import qualified Unison.Codebase.Patch as V1
-import qualified Unison.Codebase.ShortBranchHash as V1
+import qualified Unison.Codebase.ShortCausalHash as V1
 import Unison.Codebase.SqliteCodebase.Branch.Cache
 import qualified Unison.Codebase.TermEdit as V1.TermEdit
 import qualified Unison.Codebase.TypeEdit as V1.TypeEdit
@@ -59,8 +57,8 @@ import qualified Unison.Util.Star3 as V1.Star3
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as V1.WK
 
-sbh1to2 :: V1.ShortBranchHash -> V2.ShortBranchHash
-sbh1to2 (V1.ShortBranchHash b32) = V2.ShortBranchHash b32
+sch1to2 :: V1.ShortCausalHash -> V2.ShortCausalHash
+sch1to2 (V1.ShortCausalHash b32) = V2.ShortCausalHash b32
 
 decltype2to1 :: V2.Decl.DeclType -> CT.ConstructorType
 decltype2to1 = \case
@@ -206,6 +204,13 @@ term2to1 h lookupCT =
           V2.Term.PConcat -> V1.Pattern.Concat
         a = Ann.External
 
+termComponent1to2 ::
+  Hash ->
+  [(V1.Term.Term V1.Symbol Ann, V1.Type.Type V1.Symbol a)] ->
+  [(V2.Term.Term V2.Symbol, V2.Type.TypeT V2.Symbol)]
+termComponent1to2 h =
+  map (bimap (term1to2 h) ttype1to2)
+
 decl2to1 :: Hash -> V2.Decl.Decl V2.Symbol -> V1.Decl.Decl V1.Symbol Ann
 decl2to1 h (V2.Decl.DataDeclaration dt m bound cts) =
   goCT dt $
@@ -248,37 +253,34 @@ shortHashSuffix1to2 =
   -- todo: move suffix parsing to frontend
   either error id . V1.Reference.readSuffix
 
-rreference2to1 :: Hash -> V2.Reference' Text (Maybe V2.Hash) -> V1.Reference
+rreference2to1 :: Hash -> V2.Reference' Text (Maybe Hash) -> V1.Reference
 rreference2to1 h = \case
   V2.ReferenceBuiltin t -> V1.Reference.Builtin t
   V2.ReferenceDerived i -> V1.Reference.DerivedId $ rreferenceid2to1 h i
 
-rreference1to2 :: Hash -> V1.Reference -> V2.Reference' Text (Maybe V2.Hash)
+rreference1to2 :: Hash -> V1.Reference -> V2.Reference' Text (Maybe Hash)
 rreference1to2 h = \case
   V1.Reference.Builtin t -> V2.ReferenceBuiltin t
   V1.Reference.DerivedId i -> V2.ReferenceDerived (rreferenceid1to2 h i)
 
-rreferenceid2to1 :: Hash -> V2.Reference.Id' (Maybe V2.Hash) -> V1.Reference.Id
+rreferenceid2to1 :: Hash -> V2.Reference.Id' (Maybe Hash) -> V1.Reference.Id
 rreferenceid2to1 h (V2.Reference.Id oh i) = V1.Reference.Id h' i
   where
-    h' = maybe h hash2to1 oh
+    h' = fromMaybe h oh
 
-rreferenceid1to2 :: Hash -> V1.Reference.Id -> V2.Reference.Id' (Maybe V2.Hash)
+rreferenceid1to2 :: Hash -> V1.Reference.Id -> V2.Reference.Id' (Maybe Hash)
 rreferenceid1to2 h (V1.Reference.Id h' i) = V2.Reference.Id oh i
   where
-    oh = if h == h' then Nothing else Just (hash1to2 h')
-
-hash1to2 :: Hash -> V2.Hash
-hash1to2 (V1.Hash bs) = V2.Hash.Hash bs
+    oh = if h == h' then Nothing else Just h'
 
 branchHash1to2 :: V1.Branch.NamespaceHash m -> V2.BranchHash
-branchHash1to2 = V2.BranchHash . hash1to2 . V1.genericHash
+branchHash1to2 = V2.BranchHash . V1.genericHash
 
 branchHash2to1 :: forall m. V2.BranchHash -> V1.Branch.NamespaceHash m
-branchHash2to1 = V1.HashFor . hash2to1 . V2.unBranchHash
+branchHash2to1 = V1.HashFor . V2.unBranchHash
 
 patchHash1to2 :: V1.Branch.EditHash -> V2.PatchHash
-patchHash1to2 = V2.PatchHash . hash1to2
+patchHash1to2 = V2.PatchHash
 
 reference2to1 :: V2.Reference -> V1.Reference
 reference2to1 = \case
@@ -291,12 +293,10 @@ reference1to2 = \case
   V1.Reference.DerivedId i -> V2.ReferenceDerived (referenceid1to2 i)
 
 referenceid1to2 :: V1.Reference.Id -> V2.Reference.Id
-referenceid1to2 (V1.Reference.Id h i) = V2.Reference.Id (hash1to2 h) i
+referenceid1to2 (V1.Reference.Id h i) = V2.Reference.Id h i
 
 referenceid2to1 :: V2.Reference.Id -> V1.Reference.Id
-referenceid2to1 (V2.Reference.Id h i) = V1.Reference.Id sh i
-  where
-    sh = hash2to1 h
+referenceid2to1 (V2.Reference.Id h i) = V1.Reference.Id h i
 
 rreferent2to1 :: Applicative m => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.ReferentH -> m V1.Referent
 rreferent2to1 h lookupCT = \case
@@ -334,14 +334,11 @@ constructorType2to1 = \case
   V2.DataConstructor -> CT.Data
   V2.EffectConstructor -> CT.Effect
 
-hash2to1 :: V2.Hash.Hash -> Hash
-hash2to1 (V2.Hash.Hash sbs) = V1.Hash sbs
-
 causalHash2to1 :: V2.CausalHash -> V1.Branch.CausalHash
-causalHash2to1 = V1.Causal.CausalHash . hash2to1 . V2.unCausalHash
+causalHash2to1 = V1.Causal.CausalHash . V2.unCausalHash
 
 causalHash1to2 :: V1.Branch.CausalHash -> V2.CausalHash
-causalHash1to2 = V2.CausalHash . hash1to2 . V1.Causal.unCausalHash
+causalHash1to2 = V2.CausalHash . V1.Causal.unCausalHash
 
 ttype2to1 :: V2.Term.Type V2.Symbol -> V1.Type.Type V1.Symbol Ann
 ttype2to1 = type2to1' reference2to1
@@ -523,10 +520,10 @@ patch1to2 (V1.Patch v1termedits v1typeedits) = V2.Branch.Patch v2termedits v2typ
       V1.TermEdit.Different -> V2.TermEdit.Different
 
 edithash2to1 :: V2.PatchHash -> V1.Branch.EditHash
-edithash2to1 = hash2to1 . V2.unPatchHash
+edithash2to1 = V2.unPatchHash
 
 edithash1to2 :: V1.Branch.EditHash -> V2.PatchHash
-edithash1to2 = V2.PatchHash . hash1to2
+edithash1to2 = V2.PatchHash
 
 namesegment2to1 :: V2.Branch.NameSegment -> V1.NameSegment
 namesegment2to1 (V2.Branch.NameSegment t) = V1.NameSegment t

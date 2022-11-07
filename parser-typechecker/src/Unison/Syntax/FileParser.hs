@@ -342,9 +342,14 @@ dataDeclaration mod = do
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
       record = do
         _ <- openBlockWith "{"
-        fields <-
-          sepBy1 (reserved "," <* optional semi) $
-            liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
+        let field = do
+              f <- liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
+              optional (reserved ",")
+                >>= ( \case
+                        Nothing -> pure [f]
+                        Just _ -> maybe [f] (f :) <$> (optional semi *> optional field)
+                    )
+        fields <- field
         _ <- closeBlock
         let lastSegment = name <&> (\v -> Var.named (Name.toText $ Name.unqualified (Name.unsafeFromVar v)))
         pure ([go lastSegment (snd <$> fields)], [(name, fields)])

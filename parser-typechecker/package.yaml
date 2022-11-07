@@ -29,6 +29,7 @@ dependencies:
   - bytestring-to-vector
   - cereal
   - clock
+  - concurrent-output
   - configurator
   - containers >= 0.6.3
   - cryptonite
@@ -44,6 +45,7 @@ dependencies:
   - fingertree
   - fsnotify
   - fuzzyfind
+  - free
   - generic-lens
   - generic-monoid
   - hashable
@@ -110,9 +112,12 @@ dependencies:
   - unison-prelude
   - unison-pretty-printer
   - unison-sqlite
+  - unison-syntax
   - unison-util
   - unison-util-base32hex
+  - unison-util-bytes
   - unison-util-relation
+  - unison-util-rope
   - unison-util-serialization
   - unliftio
   - uri-encode
