@@ -105,11 +105,6 @@ data Codebase m v a = Codebase
     termsMentioningTypeImpl :: Reference -> m (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors whose hash matches the given prefix.
     termReferentsByPrefix :: ShortHash -> m (Set Referent.Id),
-    -- `beforeImpl` returns `Nothing` if not implemented by the codebase
-    -- `beforeImpl b1 b2` is undefined if `b2` not in the codebase
-    --
-    --  Use `Codebase.before` which wraps this in a nice API.
-    beforeImpl :: Maybe (Branch.CausalHash -> Branch.CausalHash -> m Bool),
     -- Use the name lookup index to build a 'Names' for all names found within 'Path' of the current root namespace.
     --
     -- NOTE: this method requires an up-to-date name lookup index, which is

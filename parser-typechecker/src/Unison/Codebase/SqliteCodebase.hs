@@ -19,7 +19,6 @@ import qualified Data.Char as Char
 import Data.Either.Extra ()
 import Data.IORef
 import qualified Data.Map as Map
-import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time (getCurrentTime)
@@ -46,7 +45,6 @@ import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadGitRepo,
     WriteGitRepo (..),
-    printWriteGitRepo,
     writeToReadGit,
   )
 import qualified Unison.Codebase.GitError as GitError
@@ -333,11 +331,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             referentsByPrefix sh =
               runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
 
-            beforeImpl :: Maybe (Branch.CausalHash -> Branch.CausalHash -> m Bool)
-            beforeImpl =
-              Just \l r ->
-                runTransaction $ fromJust <$> CodebaseOps.before l r
-
             namesAtPath :: Path -> m ScopedNames
             namesAtPath path =
               runTransaction (CodebaseOps.namesAtPath path)
@@ -373,7 +366,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
                   termReferentsByPrefix = referentsByPrefix,
-                  beforeImpl,
                   namesAtPath,
                   updateNameLookup,
                   withConnection = withConn,
@@ -641,15 +633,15 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
           Left e -> pure $ Left e
           Right newBranch -> do
             C.withConnection destCodebase \destConn ->
-              doSync codebaseStatus (Git.gitDirToPath pushStaging) destConn newBranch
+              doSync codebaseStatus destConn newBranch
             pure (Right newBranch)
     for newBranchOrErr $ push pushStaging repo
     pure newBranchOrErr
   where
     readRepo :: ReadGitRepo
     readRepo = writeToReadGit repo
-    doSync :: CodebaseStatus -> FilePath -> Sqlite.Connection -> Branch m -> m ()
-    doSync codebaseStatus remotePath destConn newBranch = do
+    doSync :: CodebaseStatus -> Sqlite.Connection -> Branch m -> m ()
+    doSync codebaseStatus destConn newBranch = do
       progressStateRef <- liftIO (newIORef emptySyncProgressState)
       Sqlite.runReadOnlyTransaction srcConn \runSrc -> do
         Sqlite.runWriteTransaction destConn \runDest -> do
@@ -664,23 +656,14 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
                         Nothing -> pure ()
                         Just oldRootHash -> do
                           runDest (CodebaseOps.before (Cv.causalHash2to1 oldRootHash) newBranchHash) >>= \case
-                            Nothing ->
-                              error $
-                                "I couldn't find the hash " ++ show newBranchHash
-                                  ++ " that I just synced to the cached copy of "
-                                  ++ repoString
-                                  ++ " in "
-                                  ++ show remotePath
-                                  ++ "."
-                            Just False -> throwIO . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-                            Just True -> pure ()
+                            False -> throwIO . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                            True -> pure ()
                   CreatedCodebase -> pure ()
                 runDest (setRepoRoot newBranchHash)
           case behavior of
             C.GitPushBehaviorGist -> pure ()
             C.GitPushBehaviorFf -> overwriteRoot False
             C.GitPushBehaviorForce -> overwriteRoot True
-    repoString = Text.unpack $ printWriteGitRepo repo
     setRepoRoot :: Branch.CausalHash -> Sqlite.Transaction ()
     setRepoRoot h = do
       let h2 = Cv.causalHash1to2 h

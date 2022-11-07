@@ -9,6 +9,7 @@ module Unison.Codebase.SqliteCodebase.Operations where
 
 import Control.Lens (ifor)
 import Data.Bifunctor (second)
+import Data.Maybe (fromJust)
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
 import qualified Data.List as List
@@ -608,9 +609,10 @@ termExists, declExists :: Hash -> Transaction Bool
 termExists = fmap isJust . Q.loadObjectIdForPrimaryHash
 declExists = termExists
 
-before :: Branch.CausalHash -> Branch.CausalHash -> Transaction (Maybe Bool)
+-- `before b1 b2` is undefined if `b2` not in the codebase
+before :: Branch.CausalHash -> Branch.CausalHash -> Transaction Bool
 before h1 h2 =
-  Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
+  fromJust <$> Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
 
 -- | Construct a 'ScopedNames' which can produce names which are relative to the provided
 -- Path.

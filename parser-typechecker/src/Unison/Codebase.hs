@@ -38,7 +38,7 @@ module Unison.Codebase
     putBranch,
     SqliteCodebase.Operations.causalHashesByPrefix,
     lca,
-    beforeImpl,
+    SqliteCodebase.Operations.before,
     getShallowBranchAtPath,
     getShallowCausalAtPath,
     getShallowCausalForHash,
