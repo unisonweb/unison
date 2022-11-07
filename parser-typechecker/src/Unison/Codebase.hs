@@ -328,7 +328,7 @@ getTypeOfConstructor codebase (ConstructorReference r0 cid) =
 --     MaybeT (getWatch codebase RegularWatch ref)
 --       <|> MaybeT (getWatch codebase TestWatch ref))
 -- @
-lookupWatchCache :: (Monad m) => Codebase m v a -> Reference.Id -> m (Maybe (Term v a))
+lookupWatchCache :: Codebase m v a -> Reference.Id -> Sqlite.Transaction (Maybe (Term v a))
 lookupWatchCache codebase h = do
   m1 <- getWatch codebase WK.RegularWatch h
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
