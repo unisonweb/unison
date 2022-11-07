@@ -84,7 +84,6 @@ module Unison.Codebase.Branch
 where
 
 import Control.Lens hiding (children, cons, transform, uncons)
-import Control.Monad.Extra ((||^))
 import Control.Monad.State (State)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (second)
@@ -360,12 +359,14 @@ deepChildrenHelper (reversePrefix, libDepth, b0) = do
   let go :: (NameSegment, Branch m) -> DeepState m [(DeepChildAcc m)]
       go (ns, b) = do
         let h = namespaceHash b
-        result <-
-          ifM
-            (pure (libDepth' < 2) ||^ State.gets (Set.notMember h))
-            (pure [(ns : reversePrefix, libDepth', head b)])
-            (pure [])
-        State.modify (Set.insert h)
+        result <- do
+          unseen <- State.gets (Set.notMember h)
+          let okLibDepth = libDepth' < 2
+          pure
+            if unseen || okLibDepth
+              then [(ns : reversePrefix, libDepth', head b)]
+              else []
+        State.modify' (Set.insert h)
         pure result
   Monoid.foldMapM go (Map.toList (nonEmptyChildren b0))
 
