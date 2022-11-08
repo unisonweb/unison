@@ -1933,6 +1933,8 @@ reflectValue rty = goV
           pure (ANF.Quote v)
       | Just g <- maybeUnwrapForeign Rf.codeRef f =
           pure (ANF.Code g)
+      | Just a <- maybeUnwrapForeign Rf.ibytearrayRef f =
+          pure (ANF.BArr a)
       | otherwise = die $ err $ "foreign value: " <> (show f)
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
@@ -2005,6 +2007,7 @@ reifyValue0 (rty, rtm) = goV
     goL (ANF.Bytes b) = pure . Foreign $ Wrap Rf.bytesRef b
     goL (ANF.Quote v) = pure . Foreign $ Wrap Rf.valueRef v
     goL (ANF.Code g) = pure . Foreign $ Wrap Rf.codeRef g
+    goL (ANF.BArr a) = pure . Foreign $ Wrap Rf.ibytearrayRef a
 
 -- Universal comparison functions
 

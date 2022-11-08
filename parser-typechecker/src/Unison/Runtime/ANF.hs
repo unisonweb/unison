@@ -76,6 +76,7 @@ import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
+import qualified Data.Primitive as PA
 import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or)
 import qualified Data.Map as Map
@@ -1155,6 +1156,7 @@ data BLit
   | Bytes Bytes
   | Quote Value
   | Code (SuperGroup Symbol)
+  | BArr PA.ByteArray
   deriving (Show)
 
 groupVars :: ANFM v (Set v)

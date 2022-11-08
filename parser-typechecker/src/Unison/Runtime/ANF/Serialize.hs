@@ -70,7 +70,15 @@ data LtTag
   | LMT
   | LYT
 
-data BLTag = TextT | ListT | TmLinkT | TyLinkT | BytesT | QuoteT | CodeT
+data BLTag
+  = TextT
+  | ListT
+  | TmLinkT
+  | TyLinkT
+  | BytesT
+  | QuoteT
+  | CodeT
+  | BArrT
 
 data VaTag = PartialT | DataT | ContT | BLitT
 
@@ -170,6 +178,7 @@ instance Tag BLTag where
     BytesT -> 4
     QuoteT -> 5
     CodeT -> 6
+    BArrT -> 7
 
   word2tag = \case
     0 -> pure TextT
@@ -179,6 +188,7 @@ instance Tag BLTag where
     4 -> pure BytesT
     5 -> pure QuoteT
     6 -> pure CodeT
+    7 -> pure BArrT
     t -> unknownTag "BLTag" t
 
 instance Tag VaTag where
@@ -579,6 +589,7 @@ putBLit (TyLink r) = putTag TyLinkT *> putReference r
 putBLit (Bytes b) = putTag BytesT *> putBytes b
 putBLit (Quote v) = putTag QuoteT *> putValue v
 putBLit (Code g) = putTag CodeT *> putGroup mempty g
+putBLit (BArr a) = putTag BArrT *> putByteArray a
 
 getBLit :: MonadGet m => Version -> m BLit
 getBLit v =
@@ -590,6 +601,7 @@ getBLit v =
     BytesT -> Bytes <$> getBytes
     QuoteT -> Quote <$> getValue v
     CodeT -> Code <$> getGroup
+    BArrT -> BArr <$> getByteArray
 
 putRefs :: MonadPut m => [Reference] -> m ()
 putRefs rs = putFoldable putReference rs

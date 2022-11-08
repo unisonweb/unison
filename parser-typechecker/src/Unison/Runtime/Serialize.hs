@@ -18,6 +18,7 @@ import Data.Map.Strict as Map (Map, fromList, toList)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Vector.Primitive as BA
+import qualified Data.Primitive as PA
 import Data.Word (Word64, Word8)
 import qualified U.Util.Hash as Hash
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
@@ -34,6 +35,7 @@ import Unison.Runtime.MCode
   )
 import qualified Unison.Util.Bytes as Bytes
 import Unison.Util.EnumContainers as EC
+import GHC.Exts as IL (IsList(..))
 
 unknownTag :: MonadGet m => String -> Word8 -> m a
 unknownTag t w =
@@ -155,6 +157,12 @@ getBytes = Bytes.fromChunks <$> getList getBlock
 
 putBytes :: MonadPut m => Bytes.Bytes -> m ()
 putBytes = putFoldable putBlock . Bytes.chunks
+
+getByteArray :: MonadGet m => m PA.ByteArray
+getByteArray = PA.byteArrayFromList <$> getList getWord8
+
+putByteArray :: MonadPut m => PA.ByteArray -> m ()
+putByteArray a = putFoldable putWord8 (IL.toList a)
 
 getBlock :: MonadGet m => m Bytes.Chunk
 getBlock = getLength >>= fmap Bytes.byteStringToChunk . getByteString
