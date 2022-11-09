@@ -53,6 +53,7 @@ dependencies:
   - nonempty-containers
   - open-browser
   - pretty-simple
+  - process
   - random >= 1.2.0
   - regex-tdfa
   - semialign

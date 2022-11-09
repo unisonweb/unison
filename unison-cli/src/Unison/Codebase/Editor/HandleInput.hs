@@ -28,7 +28,16 @@ import qualified Data.Text as Text
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
+import System.Cmd (system)
 import System.Environment (withArgs)
+import System.Exit (ExitCode(..))
+import System.Directory
+  ( createDirectoryIfMissing,
+    doesFileExist,
+    XdgDirectory(..),
+    getXdgDirectory,
+  )
+import System.FilePath ((</>))
 import qualified Text.Megaparsec as P
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Reflog as Reflog
@@ -1181,6 +1190,9 @@ loop e = do
               whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
                 Cli.returnEarly (EvaluationFailure err)
             CompileSchemeI output main -> doCompileScheme output main
+            ExecuteSchemeI main -> doRunAsScheme main
+            GenSchemeLibsI -> doGenerateSchemeBoot True Nothing
+            FetchSchemeCompilerI -> doFetchCompiler
             IOTestI main -> do
               Cli.Env {codebase, runtime} <- ask
               -- todo - allow this to run tests from scratch file, using addRunMain
@@ -2479,6 +2491,13 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
           Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
         pure b
 
+basicPPE :: Cli PPE.PrettyPrintEnv
+basicPPE = do
+  parseNames <- 
+    flip NamesWithHistory.NamesWithHistory mempty
+      <$> basicParseNames
+  suffixifiedPPE parseNames
+
 compilerPath :: Path.Path'
 compilerPath = Path.Path' { Path.unPath' = Left abs }
   where
@@ -2512,25 +2531,58 @@ doFetchCompiler =
       Input.PullWithoutHistory
       Verbosity.Silent
 
-doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
-doCompileScheme (Text.pack -> output) main = do
+ensureCompilerExists :: Cli ()
+ensureCompilerExists =
+  Cli.branchExistsAtPath' compilerPath >>=
+    flip unless doFetchCompiler
+
+getCacheDir :: Cli String
+getCacheDir = liftIO $ getXdgDirectory XdgCache "unisonlanguage"
+
+getSchemeGenLibDir :: Cli String
+getSchemeGenLibDir = Cli.getConfig "SchemeLibs.Generated" >>= \case
+  Just dir -> pure dir
+  Nothing -> (</> "scheme-libs") <$> getCacheDir
+
+getSchemeStaticLibDir :: Cli String
+getSchemeStaticLibDir = Cli.getConfig "SchemeLibs.Static" >>= \case
+  Just dir -> pure dir
+  Nothing -> liftIO $
+    getXdgDirectory XdgData ("unisonlanguage" </> "scheme-libs")
+
+doGenerateSchemeBoot :: Bool -> Maybe PPE.PrettyPrintEnv -> Cli ()
+doGenerateSchemeBoot force mppe = do
+  ppe <- maybe basicPPE pure mppe
   Cli.Env {codebase, runtime} <- ask
-  haveCompiler <- Cli.branchExistsAtPath' compilerPath
-  when (not haveCompiler) doFetchCompiler
-  (comp, ppe) <- resolveMainRef main
-  -- Term.termLink rf
-  sscm <- Term.ref a <$> resolveTermRef saveNm
-  fprf <- resolveCon filePathNm
-  let toCmp = Term.termLink a (Referent.Ref comp)
-      outTm = Term.text a (output <> ".scm")
-      fpc = Term.constructor a fprf
-      fp = Term.app a fpc outTm
-      mty = Runtime.mainType runtime
-      tm :: Term Symbol Ann
-      tm = Term.apps' sscm [toCmp, fp]
-      rendered = P.toPlainUnbroken $ TP.pretty ppe tm
-  tcRes <- typecheckTerm (Term.delay a tm)
-  case tcRes of
+  dir <- getSchemeGenLibDir
+  let bootf = dir </> "unison" </> "boot-generated.ss"
+      binf = dir </> "unison" </> "builtin-generated.ss"
+      dirTm = Term.text a (Text.pack dir)
+  liftIO $ createDirectoryIfMissing True dir
+  saveBase <- Term.ref a <$> resolveTermRef sbName
+  gen ppe saveBase bootf dirTm bootName
+  gen ppe saveBase binf dirTm builtinName
+  where
+  a = External
+  hq nm
+    | Just hqn <- HQ.fromString nm = hqn
+    | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
+
+  sbName = hq ".unison.internal.compiler.scheme.saveBaseFile"
+  bootName = hq ".unison.internal.compiler.scheme.bootSpec"
+  builtinName = hq ".unison.internal.compiler.scheme.builtinSpec"
+
+  gen ppe save file dir nm =
+    liftIO (doesFileExist file) >>= \b -> when (not b || force) do
+      spec <- Term.ref a <$> resolveTermRef nm
+      let make = Term.apps' save [dir, spec]
+      typecheckAndEval ppe make
+
+typecheckAndEval :: PPE.PrettyPrintEnv -> Term Symbol Ann -> Cli ()
+typecheckAndEval ppe tm = do
+  Cli.Env {runtime} <- ask
+  let mty = Runtime.mainType runtime
+  typecheckTerm (Term.delay a tm) >>= \case
     -- Type checking succeeded
     Result.Result _ (Just ty)
       | Typechecker.fitsScheme ty mty ->
@@ -2540,7 +2592,59 @@ doCompileScheme (Text.pack -> output) main = do
     Result.Result notes Nothing -> do
       currentPath <- Cli.getCurrentPath
       let tes = [ err | Result.TypeError err <- toList notes ]
-      Cli.respond (TypeErrors currentPath (Text.pack rendered) ppe tes)
+      Cli.returnEarly (TypeErrors currentPath (Text.pack rendered) ppe tes)
+  where
+  a = External
+  rendered = P.toPlainUnbroken $ TP.pretty ppe tm
+
+runScheme :: String -> Cli ()
+runScheme file = do
+  gendir <- getSchemeGenLibDir
+  statdir <- getSchemeStaticLibDir
+  let includes = gendir ++ ":" ++ statdir
+      lib = "--libdirs " ++ includes
+      opt = "--optimize-level 3"
+      cmd = "scheme -q " ++ opt ++ " " ++ lib ++ " --script " ++ file
+  liftIO (system cmd) >>= \case
+    ExitSuccess -> pure ()
+    ExitFailure _ ->
+      Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
+
+buildScheme :: String -> Cli ()
+buildScheme file = do
+  -- todo
+  Cli.returnEarly (PrintMessage "standalone scheme binary not yet implemented")
+
+doRunAsScheme :: HQ.HashQualified Name -> Cli ()
+doRunAsScheme main = do
+  fullpath <- generateSchemeFile (HQ.toString main) main
+  runScheme fullpath
+
+doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
+doCompileScheme out main =
+  generateSchemeFile out main >>= buildScheme
+
+generateSchemeFile :: String -> HQ.HashQualified Name -> Cli String
+generateSchemeFile out main = do
+  (comp, ppe) <- resolveMainRef main
+  ensureCompilerExists
+  Cli.Env {codebase} <- ask
+  doGenerateSchemeBoot False $ Just ppe
+  cacheDir <- getCacheDir
+  liftIO $ createDirectoryIfMissing True (cacheDir </> "scheme-tmp")
+  let scratch = out ++ ".scm"
+      fullpath = cacheDir </> "scheme-tmp" </> scratch
+      output = Text.pack fullpath
+  sscm <- Term.ref a <$> resolveTermRef saveNm
+  fprf <- resolveCon filePathNm
+  let toCmp = Term.termLink a (Referent.Ref comp)
+      outTm = Term.text a output
+      fpc = Term.constructor a fprf
+      fp = Term.app a fpc outTm
+      tm :: Term Symbol Ann
+      tm = Term.apps' sscm [toCmp, fp]
+  typecheckAndEval ppe tm
+  pure fullpath
   where
   a = External
   hq nm

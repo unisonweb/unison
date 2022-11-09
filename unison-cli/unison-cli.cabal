@@ -164,6 +164,7 @@ library
     , nonempty-containers
     , open-browser
     , pretty-simple
+    , process
     , random >=1.2.0
     , regex-tdfa
     , semialign
@@ -522,6 +523,7 @@ executable unison
     , open-browser
     , optparse-applicative >=0.16.1.0
     , pretty-simple
+    , process
     , random >=1.2.0
     , regex-tdfa
     , semialign
@@ -648,6 +650,7 @@ test-suite cli-tests
     , nonempty-containers
     , open-browser
     , pretty-simple
+    , process
     , random >=1.2.0
     , regex-tdfa
     , semialign
