@@ -249,11 +249,10 @@ branchExistsAtPath' :: Path' -> Cli Bool
 branchExistsAtPath' path' = do
   absPath <- resolvePath' path'
   Cli.Env {codebase} <- ask
-  liftIO $ do
-    causal <- Codebase.getShallowCausalFromRoot codebase Nothing (Path.unabsolute absPath)
-    branch <- V2Causal.value causal
-    isEmpty <- Codebase.runTransaction codebase $ V2Branch.isEmpty branch
-    pure (not isEmpty)
+  causal <- liftIO $ Codebase.getShallowCausalFromRoot codebase Nothing (Path.unabsolute absPath)
+  branch <- liftIO $ V2Causal.value causal
+  isEmpty <- Cli.runTransaction $ V2Branch.isEmpty branch
+  pure (not isEmpty)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Updating branches

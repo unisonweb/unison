@@ -91,7 +91,7 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
   let termReference = Referent.toReference referent
   let v2Referent = Cv.referent1to2 referent
   root <- Backend.resolveRootBranchHashV2 codebase mayRoot
-  sig <- lift $ Backend.loadReferentType codebase referent
+  sig <- lift (Codebase.runTransaction codebase (Backend.loadReferentType codebase referent))
   case sig of
     Nothing ->
       throwError (Backend.MissingSignatureForTerm termReference)

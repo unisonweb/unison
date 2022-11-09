@@ -61,7 +61,7 @@ data Codebase m v a = Codebase
     --
     -- Note that it is possible to call 'putTerm', then 'getTypeOfTermImpl', and receive @Nothing@, per the semantics of
     -- 'putTerm'.
-    getTypeOfTermImpl :: Reference.Id -> m (Maybe (Type v a)),
+    getTypeOfTermImpl :: Reference.Id -> Sqlite.Transaction (Maybe (Type v a)),
     -- | Get a type declaration.
     --
     -- Note that it is possible to call 'putTypeDeclaration', then 'getTypeDeclaration', and receive @Nothing@, per the

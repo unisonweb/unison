@@ -238,10 +238,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
         getTermTransaction <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTerm getDeclType)
         let getTerm id = runTransaction (getTermTransaction id)
 
-        getTypeOfTermImplTransaction <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTypeOfTermImpl)
-        let getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
-            getTypeOfTermImpl id = runTransaction (getTypeOfTermImplTransaction id)
-
+        getTypeOfTermImpl <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTypeOfTermImpl)
         getTypeDeclaration <- CodebaseOps.makeMaybeCachedTransaction 1024 CodebaseOps.getTypeDeclaration
 
         let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
