@@ -513,9 +513,10 @@ test =
                     |]
                 )
                 ( \cb -> do
-                    void . fmap (fromJust . sequence) $
-                      traverse (Codebase.getWatch cb TestWatch)
-                        =<< Codebase.runTransaction cb (Codebase.watches TestWatch)
+                    Codebase.runTransaction cb do
+                      void . fmap (fromJust . sequence) $
+                        traverse (Codebase.getWatch cb TestWatch)
+                          =<< Codebase.watches TestWatch
                 ),
               gistTest fmt,
               pushPullBranchesTests fmt,
