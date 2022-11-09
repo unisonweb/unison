@@ -36,6 +36,9 @@ module Unison.Cli.Monad
     -- * Debug-timing actions
     time,
 
+    -- * Running transactions
+    runTransaction,
+
     -- * Misc types
     LoadSourceResult (..),
   )
@@ -61,6 +64,7 @@ import qualified U.Codebase.Branch as V2Branch
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
@@ -71,6 +75,7 @@ import qualified Unison.Debug as Debug
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Server.CodebaseServer as Server
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
@@ -371,3 +376,8 @@ respondNumbered output = do
   args <- liftIO (notifyNumbered output)
   unless (null args) do
     #numberedArgs .= args
+
+runTransaction :: Sqlite.Transaction a -> Cli a
+runTransaction action = do
+  Env {codebase} <- ask
+  liftIO (Codebase.runTransaction codebase action)

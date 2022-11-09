@@ -357,9 +357,7 @@ loop e = do
                 toRel = R.fromList . fmap (name,) . toList
                 -- these names are relative to the root
                 toDelete = Names (toRel terms) (toRel types)
-            endangerments <-
-              liftIO $
-                Codebase.runTransaction codebase (getEndangeredDependents codebase toDelete rootNames)
+            endangerments <- Cli.runTransaction (getEndangeredDependents codebase toDelete rootNames)
             if null endangerments
               then do
                 let makeDeleteTermNames = map (BranchUtil.makeDeleteTermName resolvedPath) . Set.toList $ terms
@@ -552,9 +550,7 @@ loop e = do
                       (Branch.toNames (Branch.head branch))
               afterDelete <- do
                 rootNames <- Branch.toNames <$> Cli.getRootBranch0
-                endangerments <-
-                  liftIO $
-                    Codebase.runTransaction codebase (getEndangeredDependents codebase toDelete rootNames)
+                endangerments <- Cli.runTransaction (getEndangeredDependents codebase toDelete rootNames)
                 case (null endangerments, insistence) of
                   (True, _) -> pure (Cli.respond Success)
                   (False, Force) -> do
@@ -1038,8 +1034,11 @@ loop e = do
 
                   replaceTerms :: Reference -> Reference -> Cli ()
                   replaceTerms fr tr = do
-                    mft <- liftIO (Codebase.getTypeOfTerm codebase fr)
-                    mtt <- liftIO (Codebase.getTypeOfTerm codebase tr)
+                    (mft, mtt) <-
+                      Cli.runTransaction do
+                        mft <- Codebase.getTypeOfTerm codebase fr
+                        mtt <- Codebase.getTypeOfTerm codebase tr
+                        pure (mft, mtt)
                     let termNotFound =
                           Cli.returnEarly
                             . TermNotFound'
@@ -1189,8 +1188,9 @@ loop e = do
               let resolved = toList $ NamesWithHistory.lookupHQTerm main parseNames
                   smain = HQ.toString main
               filtered <-
-                catMaybes
-                  <$> traverse (\r -> fmap (r,) <$> liftIO (loadTypeOfTerm codebase r)) resolved
+                Cli.runTransaction do
+                  catMaybes
+                    <$> traverse (\r -> fmap (r,) <$> loadTypeOfTerm codebase r) resolved
               case filtered of
                 [(Referent.Ref ref, ty)]
                   | Typechecker.fitsScheme ty mainType -> do
@@ -1224,7 +1224,7 @@ loop e = do
                 let noMain = Cli.returnEarly $ NoMainFunction (HQ.toString main) ppe [testType]
                 case toList results of
                   [Referent.Ref ref] -> do
-                    liftIO (loadTypeOfTerm codebase (Referent.Ref ref)) >>= \case
+                    Cli.runTransaction (loadTypeOfTerm codebase (Referent.Ref ref)) >>= \case
                       Just typ | Typechecker.isSubtype typ testType -> pure ref
                       _ -> noMain
                   _ -> noMain
@@ -1346,13 +1346,13 @@ loop e = do
                           Nothing -> error $ "What happened to " ++ show i ++ "?"
                           Just tm -> Set.delete r $ Term.dependencies tm
                       tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
-                        liftIO (Codebase.runTransaction codebase (Codebase.getTypeDeclaration codebase i)) <&> \case
+                        Cli.runTransaction (Codebase.getTypeDeclaration codebase i) <&> \case
                           Nothing -> error $ "What happened to " ++ show i ++ "?"
                           Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
                             Nothing -> error $ "What happened to " ++ show con ++ "?"
                             Just tp -> Type.dependencies tp
                       tm _ = pure mempty
-                   in LD.fold (liftIO . Codebase.runTransaction codebase . tp) tm ld
+                   in LD.fold (Cli.runTransaction . tp) tm ld
                 (missing, names0) <- liftIO (Branch.findHistoricalRefs' dependencies rootBranch)
                 let types = R.toList $ Names.types names0
                 let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
@@ -1441,8 +1441,7 @@ loop e = do
               Cli.Env {codebase} <- ask
               liftIO (Codebase.clearWatches codebase)
             DebugDoctorI {} -> do
-              Cli.Env {codebase} <- ask
-              r <- liftIO (Codebase.runTransaction codebase IntegrityCheck.integrityCheckFullCodebase)
+              r <- Cli.runTransaction IntegrityCheck.integrityCheckFullCodebase
               Cli.respond (IntegrityCheck r)
             DebugNameDiffI fromSCH toSCH -> do
               Cli.Env {codebase} <- ask
@@ -1768,7 +1767,7 @@ handleFindI isVerbose fscope ws input = do
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
         #numberedArgs .= fmap searchResultToHQString results
-        results' <- liftIO (Backend.loadSearchResults codebase results)
+        results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
         ppe <-
           suffixifiedPPE
             =<< makePrintNamesFromLabeled'
@@ -1799,7 +1798,7 @@ handleDependents hq = do
             Referent.Ref r -> Codebase.dependents codebase Queries.ExcludeOwnComponent r
             Referent.Con (ConstructorReference r _cid) _ct ->
               Codebase.dependents codebase Queries.ExcludeOwnComponent r
-       in liftIO (Codebase.runTransaction codebase (LD.fold tp tm ld))
+       in Cli.runTransaction (LD.fold tp tm ld)
     -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
     -- unambiguous name.
     ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
@@ -1924,7 +1923,7 @@ handlePushToUnisonShare remote@WriteShareRemotePath {server, repo, path = remote
 
   -- doesn't handle the case where a non-existent path is supplied
   localCausalHash <-
-    liftIO (Codebase.runTransaction codebase (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath)))) & onNothingM do
+    Cli.runTransaction (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))) & onNothingM do
       Cli.returnEarly (EmptyPush . Path.absoluteToPath' $ localPath)
 
   let checkAndSetPush :: Maybe Hash32 -> IO (Either (Share.SyncError Share.CheckAndSetPushError) ())
@@ -2294,9 +2293,9 @@ doDisplay outputLoc names tm = do
     DisplayValues.displayTerm
       ppe
       (liftIO . loadTerm)
-      (liftIO . loadTypeOfTerm')
+      (Cli.runTransaction . loadTypeOfTerm')
       evalTerm
-      (liftIO . Codebase.runTransaction codebase . loadDecl)
+      (Cli.runTransaction . loadDecl)
       tm
   Cli.respond $ DisplayRendered loc rendered
 
@@ -2336,7 +2335,7 @@ getLinks' src selection0 = do
       allMd' = maybe allMd (`R.restrictDom` allMd) selection0
       -- then list the values after filtering by type
       allRefs :: Set Reference = R.ran allMd'
-  sigs <- for (toList allRefs) (liftIO . loadTypeOfTerm codebase . Referent.Ref)
+  sigs <- Cli.runTransaction (for (toList allRefs) (loadTypeOfTerm codebase . Referent.Ref))
   let deps =
         Set.map LD.termRef allRefs
           <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
@@ -2361,8 +2360,9 @@ propagatePatch inputDescription patch scopePath = do
 -- | Show todo output if there are any conflicts or edits.
 doShowTodoOutput :: Patch -> Path.Absolute -> Cli ()
 doShowTodoOutput patch scopePath = do
+  Cli.Env {codebase} <- ask
   names0 <- Branch.toNames <$> Cli.getBranch0At scopePath
-  todo <- checkTodo patch names0
+  todo <- Cli.runTransaction (checkTodo codebase patch names0)
   if TO.noConflicts todo && TO.noEdits todo
     then Cli.respond NoConflictsOrEdits
     else do
@@ -2376,9 +2376,8 @@ doShowTodoOutput patch scopePath = do
         prettyPrintEnvDecl names
       Cli.respondNumbered $ TodoOutput ppe todo
 
-checkTodo :: Patch -> Names -> Cli (TO.TodoOutput Symbol Ann)
-checkTodo patch names0 = do
-  Cli.Env {codebase} <- ask
+checkTodo :: Codebase m Symbol Ann -> Patch -> Names -> Sqlite.Transaction (TO.TodoOutput Symbol Ann)
+checkTodo codebase patch names0 = do
   let -- Get the dependents of a reference which:
       --   1. Don't appear on the LHS of this patch
       --   2. Have a name in this namespace
@@ -2387,14 +2386,11 @@ checkTodo patch names0 = do
         dependents <- Codebase.dependents codebase Queries.ExcludeSelf ref
         pure (dependents & removeEditedThings & removeNamelessThings)
   -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
-  (dependsOn, dirty, transitiveDirty) <- do
-    (liftIO . Codebase.runTransaction codebase) do
-      dependsOn <- Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited
-      let dirty = R.dom dependsOn
-      transitiveDirty <- transitiveClosure getDependents dirty
-      pure (dependsOn, dirty, transitiveDirty)
-  (frontierTerms, frontierTypes) <- loadDisplayInfo (R.ran dependsOn)
-  (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
+  dependsOn <- Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited
+  let dirty = R.dom dependsOn
+  transitiveDirty <- transitiveClosure getDependents dirty
+  (frontierTerms, frontierTypes) <- loadDisplayInfo codebase (R.ran dependsOn)
+  (dirtyTerms, dirtyTypes) <- loadDisplayInfo codebase dirty
   pure $
     TO.TodoOutput
       (Set.size transitiveDirty)
@@ -2683,17 +2679,17 @@ docsI srcLoc prettyPrintNames src =
           | otherwise -> Cli.respond $ ListOfLinks PPE.empty []
 
 loadDisplayInfo ::
+  Codebase m Symbol Ann ->
   Set Reference ->
-  Cli
+  Sqlite.Transaction
     ( [(Reference, Maybe (Type Symbol Ann))],
       [(Reference, DisplayObject () (DD.Decl Symbol Ann))]
     )
-loadDisplayInfo refs = do
-  Cli.Env {codebase} <- ask
-  termRefs <- filterM (liftIO . Codebase.isTerm codebase) (toList refs)
-  typeRefs <- liftIO (Codebase.runTransaction codebase (filterM (Codebase.isType codebase) (toList refs)))
-  terms <- forM termRefs $ \r -> (r,) <$> liftIO (Codebase.getTypeOfTerm codebase r)
-  types <- liftIO (Codebase.runTransaction codebase (forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject codebase r))
+loadDisplayInfo codebase refs = do
+  termRefs <- filterM (Codebase.isTerm codebase) (toList refs)
+  typeRefs <- filterM (Codebase.isType codebase) (toList refs)
+  terms <- forM termRefs $ \r -> (r,) <$> Codebase.getTypeOfTerm codebase r
+  types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject codebase r
   pure (terms, types)
 
 loadTypeDisplayObject :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (DisplayObject () (DD.Decl Symbol Ann))
@@ -2832,7 +2828,7 @@ getTerm' mainName =
         Cli.Env {codebase, runtime} <- ask
 
         parseNames <- basicParseNames
-        let loadTypeOfTerm ref = liftIO (Codebase.getTypeOfTerm codebase ref)
+        let loadTypeOfTerm ref = Cli.runTransaction (Codebase.getTypeOfTerm codebase ref)
         mainToFile
           =<< MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
         where
@@ -2887,10 +2883,10 @@ executePPE ::
 executePPE unisonFile =
   suffixifiedPPE =<< displayNames unisonFile
 
-loadTypeOfTerm :: MonadIO m => Codebase m Symbol Ann -> Referent -> m (Maybe (Type Symbol Ann))
+loadTypeOfTerm :: Codebase m Symbol Ann -> Referent -> Sqlite.Transaction (Maybe (Type Symbol Ann))
 loadTypeOfTerm codebase (Referent.Ref r) = Codebase.getTypeOfTerm codebase r
 loadTypeOfTerm codebase (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
-  decl <- Codebase.runTransaction codebase (Codebase.getTypeDeclaration codebase r)
+  decl <- Codebase.getTypeDeclaration codebase r
   case decl of
     Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
     Nothing -> pure Nothing
