@@ -247,7 +247,7 @@ analyseNotes fileUri ppe src notes = do
           Env {codebase} <- ask
           ppe <- PPE.suffixifiedPPE <$> globalPPE
           let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
-          refs <- liftIO $ Codebase.termsOfType codebase cleanedTyp
+          refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
           forMaybe (toList refs) $ \ref -> runMaybeT $ do
             hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
             typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref

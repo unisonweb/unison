@@ -313,9 +313,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getWatch =
               CodebaseOps.getWatch getDeclType
 
-            termsOfTypeImpl :: Reference -> m (Set Referent.Id)
-            termsOfTypeImpl r =
-              runTransaction (CodebaseOps.termsOfTypeImpl getDeclType r)
+            termsOfTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id)
+            termsOfTypeImpl =
+              CodebaseOps.termsOfTypeImpl getDeclType
 
             termsMentioningTypeImpl :: Reference -> m (Set Referent.Id)
             termsMentioningTypeImpl r =
