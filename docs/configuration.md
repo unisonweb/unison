@@ -1,10 +1,7 @@
 # Configuration
 
 
-<!-- toc GFM -->
-
 * [UCM Configuration](#ucm-configuration)
-  * [Environment variables](#environment-variables)
     * [`UNISON_DEBUG`](#unison_debug)
     * [`UNISON_PAGER`](#unison_pager)
     * [`UNISON_LSP_PORT`](#unison_lsp_port)
@@ -13,13 +10,9 @@
     * [Local Codebase Server](#local-codebase-server)
 * [Codebase Configuration](#codebase-configuration)
 
-<!-- tocstop -->
-
 ## UCM Configuration
 
-### Environment variables
-
-#### `UNISON_DEBUG`
+### `UNISON_DEBUG`
 
 Enable debugging output for various portions of the application. 
 See `lib/unison-prelude/src/Unison/Debug.hs` for the full list of supported flags.
@@ -35,7 +28,7 @@ $ UNISON_DEBUG=TIMING ucm
 $ UNISON_DEBUG=LSP,TIMING ucm
 ```
 
-#### `UNISON_PAGER`
+### `UNISON_PAGER`
 
 Allows selecting which pager to use for long command outputs.
 Defaults to `less` on Linux & Mac, `more` on Windows
@@ -47,7 +40,7 @@ E.g.
 $ UNISON_PAGER=more ucm
 ```
 
-#### `UNISON_LSP_PORT`
+### `UNISON_LSP_PORT`
 
 Allows selecting the port to run the LSP server on. Defaults to `5757`.
 
@@ -57,7 +50,7 @@ E.g.
 $ UNISON_LSP_PORT=8080 ucm
 ```
 
-#### `UNISON_SHARE_HOST`
+### `UNISON_SHARE_HOST`
 
 Allows selecting the location for the default Share server.
 
@@ -67,7 +60,7 @@ E.g.
 $ UNISON_SHARE_HOST="http://localhost:5424" ucm
 ```
 
-#### `UNISON_SHARE_ACCESS_TOKEN`
+### `UNISON_SHARE_ACCESS_TOKEN`
 
 Allows overriding the credentials used when authenticating with the Share server.
 
@@ -77,7 +70,7 @@ E.g.
 $ UNISON_SHARE_ACCESS_TOKEN="my.token.string" ucm
 ```
 
-#### Local Codebase Server
+### Local Codebase Server
 
 The port, host and token to be used for the local codebase server can all be configured by providing environment
 variables when starting `ucm`, using `UCM_PORT`, `UCM_HOST`, and `UCM_TOKEN`.
