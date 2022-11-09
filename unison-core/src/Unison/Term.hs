@@ -38,7 +38,7 @@ import qualified Unison.NamesWithHistory as Names
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
-import Unison.Reference (Reference, pattern Builtin)
+import Unison.Reference (Reference, TermReference, pattern Builtin)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -1169,7 +1169,7 @@ unReqOrCtor _ = Nothing
 dependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 dependencies t = Set.map (LD.fold id Referent.toReference) (labeledDependencies t)
 
-termDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
+termDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set TermReference
 termDependencies =
   Set.fromList
     . mapMaybe
