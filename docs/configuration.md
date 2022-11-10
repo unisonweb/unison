@@ -70,18 +70,6 @@ E.g.
 $ UNISON_SHARE_ACCESS_TOKEN="my.token.string" ucm
 ```
 
-### `UNISON_DISABLE_FILE_WATCH`
-
-Disables file-watching behaviour if set to any value (even the empty string).
-
-Use the `.> load scratch.u` command to load unison code instead.
-
-E.g.
-
-```sh
-$ UNISON_DISABLE_FILE_WATCH= ucm
-```
-
 ### Local Codebase Server
 
 The port, host and token to be used for the local codebase server can all be configured by providing environment
