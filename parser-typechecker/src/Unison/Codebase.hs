@@ -360,7 +360,7 @@ typeLookupForDependencies codebase s = do
 
 toCodeLookup :: MonadIO m => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
 toCodeLookup c =
-  CL.CodeLookup (getTerm c) (runTransaction c . getTypeDeclaration c)
+  CL.CodeLookup (runTransaction c . getTerm c) (runTransaction c . getTypeDeclaration c)
     <> Builtin.codeLookup
     <> IOSource.codeLookupM
 
@@ -499,7 +499,7 @@ unsafeGetComponentLength h =
     Just size -> pure size
 
 -- | Like 'getTerm', for when the term is known to exist in the codebase.
-unsafeGetTerm :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a)
+unsafeGetTerm :: HasCallStack => Codebase m v a -> Reference.Id -> Sqlite.Transaction (Term v a)
 unsafeGetTerm codebase rid =
   getTerm codebase rid >>= \case
     Nothing -> error (reportBug "E520818" ("term " ++ show rid ++ " not found"))
@@ -520,7 +520,7 @@ unsafeGetTypeOfTermById codebase rid =
     Just ty -> pure ty
 
 -- | Like 'unsafeGetTerm', but returns the type of the term, too.
-unsafeGetTermWithType :: (HasCallStack, MonadIO m) => Codebase m v a -> Reference.Id -> m (Term v a, Type v a)
+unsafeGetTermWithType :: HasCallStack => Codebase m v a -> Reference.Id -> Sqlite.Transaction (Term v a, Type v a)
 unsafeGetTermWithType codebase rid = do
   term <- unsafeGetTerm codebase rid
   ty <-
@@ -528,7 +528,7 @@ unsafeGetTermWithType codebase rid = do
     -- inferred type). In this case, we can avoid looking up the type separately.
     case term of
       Term.Ann' _ ty -> pure ty
-      _ -> runTransaction codebase (unsafeGetTypeOfTermById codebase rid)
+      _ -> unsafeGetTypeOfTermById codebase rid
   pure (term, ty)
 
 -- | Like 'getTermComponentWithTypes', for when the term component is known to exist in the codebase.

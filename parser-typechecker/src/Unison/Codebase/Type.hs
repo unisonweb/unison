@@ -50,7 +50,7 @@ data Codebase m v a = Codebase
     --
     -- Note that it is possible to call 'putTerm', then 'getTerm', and receive @Nothing@, per the semantics of
     -- 'putTerm'.
-    getTerm :: Reference.Id -> m (Maybe (Term v a)),
+    getTerm :: Reference.Id -> Sqlite.Transaction (Maybe (Term v a)),
     -- | Get the type of a user-defined term.
     --
     -- Note that it is possible to call 'putTerm', then 'getTypeOfTermImpl', and receive @Nothing@, per the semantics of

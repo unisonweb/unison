@@ -1313,23 +1313,24 @@ loop e = do
               rootBranch <- Cli.getRootBranch
               for_ lds \ld -> do
                 dependencies :: Set Reference <-
-                  let tp r@(Reference.DerivedId i) =
-                        Codebase.getTypeDeclaration codebase i <&> \case
-                          Nothing -> error $ "What happened to " ++ show i ++ "?"
-                          Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
-                      tp _ = pure mempty
-                      tm (Referent.Ref r@(Reference.DerivedId i)) =
-                        liftIO (Codebase.getTerm codebase i) <&> \case
-                          Nothing -> error $ "What happened to " ++ show i ++ "?"
-                          Just tm -> Set.delete r $ Term.dependencies tm
-                      tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
-                        Cli.runTransaction (Codebase.getTypeDeclaration codebase i) <&> \case
-                          Nothing -> error $ "What happened to " ++ show i ++ "?"
-                          Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
-                            Nothing -> error $ "What happened to " ++ show con ++ "?"
-                            Just tp -> Type.dependencies tp
-                      tm _ = pure mempty
-                   in LD.fold (Cli.runTransaction . tp) tm ld
+                  Cli.runTransaction do
+                    let tp r@(Reference.DerivedId i) =
+                          Codebase.getTypeDeclaration codebase i <&> \case
+                            Nothing -> error $ "What happened to " ++ show i ++ "?"
+                            Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
+                        tp _ = pure mempty
+                        tm (Referent.Ref r@(Reference.DerivedId i)) =
+                          Codebase.getTerm codebase i <&> \case
+                            Nothing -> error $ "What happened to " ++ show i ++ "?"
+                            Just tm -> Set.delete r $ Term.dependencies tm
+                        tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
+                          Codebase.getTypeDeclaration codebase i <&> \case
+                            Nothing -> error $ "What happened to " ++ show i ++ "?"
+                            Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
+                              Nothing -> error $ "What happened to " ++ show con ++ "?"
+                              Just tp -> Type.dependencies tp
+                        tm _ = pure mempty
+                     in LD.fold tp tm ld
                 (missing, names0) <- liftIO (Branch.findHistoricalRefs' dependencies rootBranch)
                 let types = R.toList $ Names.types names0
                 let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
@@ -1337,11 +1338,13 @@ loop e = do
                 #numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
                 Cli.respond $ ListDependencies hqLength ld names missing
             NamespaceDependenciesI namespacePath' -> do
+              Cli.Env {codebase} <- ask
               path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
               Cli.getMaybeBranchAt path >>= \case
                 Nothing -> Cli.respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
-                  externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
+                  externalDependencies <-
+                    Cli.runTransaction (NamespaceDependencies.namespaceDependencies codebase (Branch.head b))
                   ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
                   Cli.respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> do
@@ -2004,7 +2007,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = Backend.makeNameSearch hqLength names
-    liftIO (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
+    Cli.runTransaction (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
     let ppe = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE
@@ -2086,7 +2089,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
     computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
       case r of
         Reference.DerivedId rid ->
-          liftIO (Codebase.getTerm codebase rid) >>= \case
+          Cli.runTransaction (Codebase.getTerm codebase rid) >>= \case
             Nothing -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
               Cli.respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
@@ -2256,23 +2259,23 @@ doDisplay outputLoc names tm = do
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
           evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
-        Nothing -> fmap (fmap Term.unannotate) $ liftIO (Codebase.getTerm codebase r)
+        Nothing -> fmap (fmap Term.unannotate) $ Cli.runTransaction (Codebase.getTerm codebase r)
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
       loadTerm _ = pure Nothing
       loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
-        Nothing -> fmap (fmap $ DD.amap (const ())) $ Codebase.getTypeDeclaration codebase r
+        Nothing -> fmap (fmap $ DD.amap (const ())) $ Cli.runTransaction $ Codebase.getTypeDeclaration codebase r
         Just decl -> pure (Just $ DD.amap (const ()) decl)
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
         | Just (_, ty) <- Map.lookup r tms = pure $ Just (void ty)
-      loadTypeOfTerm' r = fmap (fmap void) . loadTypeOfTerm codebase $ r
+      loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . loadTypeOfTerm codebase $ r
   rendered <-
     DisplayValues.displayTerm
       ppe
-      (liftIO . loadTerm)
-      (Cli.runTransaction . loadTypeOfTerm')
+      loadTerm
+      loadTypeOfTerm'
       evalTerm
-      (Cli.runTransaction . loadDecl)
+      loadDecl
       tm
   Cli.respond $ DisplayRendered loc rendered
 

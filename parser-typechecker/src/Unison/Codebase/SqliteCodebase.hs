@@ -229,9 +229,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             printBuffer "Terms:" terms
 
       flip finally finalizer do
-        getTermTransaction <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTerm getDeclType)
-        let getTerm id = runTransaction (getTermTransaction id)
-
+        getTerm <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTerm getDeclType)
         getTypeOfTermImpl <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTypeOfTermImpl)
         getTypeDeclaration <- CodebaseOps.makeMaybeCachedTransaction 1024 CodebaseOps.getTypeDeclaration
 
