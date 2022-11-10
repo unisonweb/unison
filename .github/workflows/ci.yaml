@@ -184,12 +184,12 @@ jobs:
 
       - name: Upload perf results
         if: runner.os == 'macOS'
-        uses: w9jds/firebase-action@v11.9.0
         working-directory: unison-src/transcripts-benchmarks/
         env:
-          FIREBASE_TOKEN: ""
+          FIREBASE_TOKEN: "${{ secrets.PERFORMANCE_TRACKER_FIREBASE_TOKEN }}"
           PROJECT_ID: "284654152807"
         run: |
+          npm i -g firebase-tools@11.9.0
           firebase database:get --order-by-key --limit-to-last 1 /runs/${GITHUB_BASE_REF} > base-results.json
           firebase database:push "/runs/${GITHUB_HEAD_REF}" head-results.json
           git diff --no-index base-result.json perf-results.json
