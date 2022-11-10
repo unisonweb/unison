@@ -423,7 +423,7 @@ termsOfTypeByReference c r =
     <$> termsOfTypeImpl c r
 
 -- | Get the set of terms-or-constructors mention the given type anywhere in their signature.
-termsMentioningType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
+termsMentioningType :: Var v => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
 termsMentioningType c ty =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByTypeMention)
     . Set.map (fmap Reference.DerivedId)
