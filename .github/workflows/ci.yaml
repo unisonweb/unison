@@ -151,7 +151,6 @@ jobs:
           done
       - name: build
         run: stack --no-terminal build --fast --no-run-tests --test
-
       # Run each test suite (tests and transcripts)
       - name: unison-cli tests
         run: stack --no-terminal build --fast --test unison-cli
@@ -174,3 +173,21 @@ jobs:
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
       - name: cli-integration-tests
         run: stack --no-terminal exec cli-integration-tests
+
+      - name: performance transcripts
+        working-directory: unison-src/transcripts-benchmarks/
+        run: |
+          ./run-benchmarks.sh "stack exec unison"
+          # Combine all results into a single json object
+          cat *.json | jq -s add > head-results.json
+
+      - name: Upload perf results
+        uses: w9jds/firebase-action@v11.9.0
+        working-directory: unison-src/transcripts-benchmarks/
+        env:
+          FIREBASE_TOKEN: ""
+          PROJECT_ID: "284654152807"
+        run: |
+          firebase database:get --order-by-key --limit-to-last 1 /runs/${GITHUB_BASE_REF} > base-results.json
+          firebase database:push "/runs/${GITHUB_HEAD_REF}" head-results.json
+          git diff --no-index base-result.json perf-results.json
