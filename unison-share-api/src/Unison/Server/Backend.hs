@@ -600,7 +600,7 @@ termReferencesByShortHash sh = do
   pure (fromBuiltins <> Set.mapMonotonic Reference.DerivedId fromCodebase)
 
 -- | Look up terms in the codebase by short hash, and include builtins.
-termReferentsByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Referent)
+termReferentsByShortHash :: Codebase m v a -> ShortHash -> Sqlite.Transaction (Set Referent)
 termReferentsByShortHash codebase sh = do
   fromCodebase <- Codebase.termReferentsByPrefix codebase sh
   let fromBuiltins =
@@ -721,11 +721,10 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
      in makeResult (HQ'.toHQ primaryName) ref aliases
 
 hqNameQuery ::
-  MonadIO m =>
   Codebase m v Ann ->
   NameSearch ->
   [HQ.HashQualified Name] ->
-  m QueryResult
+  Sqlite.Transaction QueryResult
 hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hashes, hqnames) = partitionEithers (map HQ'.fromHQ2 hqs)
@@ -737,11 +736,10 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
         hashes
   -- Find types with those hashes.
   typeRefs <-
-    Codebase.runTransaction codebase do
-      filter (not . Set.null . snd) . zip hashes
-        <$> traverse
-          typeReferencesByShortHash
-          hashes
+    filter (not . Set.null . snd) . zip hashes
+      <$> traverse
+        typeReferencesByShortHash
+        hashes
   -- Now do the name queries.
   let mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty
       mkTypeResult sh r = SR.typeResult (HQ.HashOnly sh) r Set.empty
@@ -1197,7 +1195,7 @@ definitionsBySuffixes ::
   [HQ.HashQualified Name] ->
   m (DefinitionResults Symbol)
 definitionsBySuffixes codebase nameSearch includeCycles query = do
-  QueryResult misses results <- hqNameQuery codebase nameSearch query
+  QueryResult misses results <- Codebase.runTransaction codebase (hqNameQuery codebase nameSearch query)
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- do

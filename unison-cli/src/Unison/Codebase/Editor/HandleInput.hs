@@ -622,7 +622,7 @@ loop e = do
               src <- traverseOf _Right Cli.resolveSplit' src'
               srcTerms <-
                 either
-                  (liftIO . Backend.termReferentsByShortHash codebase)
+                  (Cli.runTransaction . Backend.termReferentsByShortHash codebase)
                   Cli.getTermsAt
                   src
               srcTerm <-
@@ -2233,8 +2233,11 @@ resolveHQToLabeledDependencies = \case
   where
     resolveHashOnly sh = do
       Cli.Env {codebase} <- ask
-      terms <- liftIO (Backend.termReferentsByShortHash codebase sh)
-      types <- Cli.runTransaction (Backend.typeReferencesByShortHash sh)
+      (terms, types) <-
+        Cli.runTransaction do
+          terms <- Backend.termReferentsByShortHash codebase sh
+          types <- Backend.typeReferencesByShortHash sh
+          pure (terms, types)
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
 doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Cli ()
@@ -2869,10 +2872,11 @@ hqNameQuery query = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath <- Cli.getCurrentPath
-  hqLength <- Cli.runTransaction Codebase.hashLength
-  let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
-  let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
-  liftIO (Backend.hqNameQuery codebase nameSearch query)
+  Cli.runTransaction do
+    hqLength <- Codebase.hashLength
+    let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
+    let nameSearch = Backend.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+    Backend.hqNameQuery codebase nameSearch query
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.

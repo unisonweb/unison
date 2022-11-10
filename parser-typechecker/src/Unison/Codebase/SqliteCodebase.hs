@@ -321,9 +321,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             termsMentioningTypeImpl =
               CodebaseOps.termsMentioningTypeImpl getDeclType
 
-            referentsByPrefix :: ShortHash -> m (Set Referent.Id)
-            referentsByPrefix sh =
-              runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
+            referentsByPrefix :: ShortHash -> Sqlite.Transaction (Set Referent.Id)
+            referentsByPrefix =
+              CodebaseOps.referentsByPrefix getDeclType
 
             updateNameLookup :: Path -> Maybe BranchHash -> BranchHash -> m ()
             updateNameLookup pathPrefix fromBH toBH =
