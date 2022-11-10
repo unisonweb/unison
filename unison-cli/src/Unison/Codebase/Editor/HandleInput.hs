@@ -1726,8 +1726,8 @@ handleFindI isVerbose fscope ws input = do
               Cli.runTransaction do
                 matches <- keepNamed <$> Codebase.termsOfType codebase typ
                 if null matches
-                  then (False,) . keepNamed <$> Codebase.termsMentioningType codebase typ
-                  else pure (True, matches)
+                  then (True,) . keepNamed <$> Codebase.termsMentioningType codebase typ
+                  else pure (False, matches)
             when noExactTypeMatches (Cli.respond NoExactTypeMatches)
             pure $
               -- in verbose mode, aliases are shown, so we collapse all
