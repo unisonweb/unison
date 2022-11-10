@@ -1164,6 +1164,8 @@ resolveRootBranchHashV2 codebase mayRoot = case mayRoot of
     resolveCausalHashV2 codebase (Just h)
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
+-- This was once used for term components, but is no longer, because now 'update' Does The Right Thing when editing a
+-- member of a term component. Decl components, on the other hand... :grimace:
 data IncludeCycles
   = IncludeCycles
   | DontIncludeCycles
@@ -1180,15 +1182,7 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
   QueryResult misses results <- hqNameQuery codebase nameSearch query
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
-  terms <- do
-    let termRefsWithoutCycles = searchResultsToTermRefs results
-    termRefs <- case includeCycles of
-      IncludeCycles ->
-        Monoid.foldMapM
-          (Codebase.componentReferencesForReference codebase)
-          termRefsWithoutCycles
-      DontIncludeCycles -> pure termRefsWithoutCycles
-    Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) termRefs
+  terms <- Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) (searchResultsToTermRefs results)
   types <- do
     let typeRefsWithoutCycles = searchResultsToTypeRefs results
     typeRefs <- case includeCycles of
