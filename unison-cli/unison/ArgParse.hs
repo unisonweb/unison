@@ -57,7 +57,7 @@ import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
-import Unison.CommandLine.Main (ShouldWatchFiles (..))
+import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import qualified Unison.PrettyTerminal as PT
 import Unison.Server.CodebaseServer (CodebaseServerOpts (..))
 import qualified Unison.Server.CodebaseServer as Server

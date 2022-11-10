@@ -1,6 +1,5 @@
 module Unison.CommandLine.Main
   ( main,
-    ShouldWatchFiles (..),
   )
 where
 
@@ -38,6 +37,7 @@ import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
+import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import qualified Unison.CommandLine.Welcome as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -49,11 +49,6 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified UnliftIO
 import UnliftIO.STM
-
-data ShouldWatchFiles
-  = ShouldWatchFiles
-  | ShouldNotWatchFiles
-  deriving (Show, Eq)
 
 getUserInput ::
   forall m v a.
