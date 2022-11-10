@@ -140,7 +140,20 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                   let noOpPathNotifier _ = pure ()
                   let serverUrl = Nothing
                   let startPath = Nothing
-                  launch currentDir config rt sbrt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] serverUrl startPath ShouldNotDownloadBase initRes noOpRootNotifier noOpPathNotifier
+                  launch
+                    currentDir
+                    config
+                    rt
+                    sbrt
+                    theCodebase
+                    [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                    serverUrl
+                    startPath
+                    ShouldNotDownloadBase
+                    initRes
+                    noOpRootNotifier
+                    noOpPathNotifier
+                    CommandLine.ShouldNotWatchFiles
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
@@ -167,6 +180,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                 initRes
                 noOpRootNotifier
                 noOpPathNotifier
+                CommandLine.ShouldNotWatchFiles
       Run (RunCompiled file) args ->
         BL.readFile file >>= \bs ->
           try (evaluate $ RTI.decodeStandalone bs) >>= \case
@@ -233,7 +247,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                     ]
       Transcript shouldFork shouldSaveCodebase transcriptFiles ->
         runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
-      Launch isHeadless codebaseServerOpts downloadBase mayStartingPath -> do
+      Launch isHeadless codebaseServerOpts downloadBase mayStartingPath shouldWatchFiles -> do
         getCodebaseOrExit mCodePathOption SC.MigrateAfterPrompt \(initRes, _, theCodebase) -> do
           runtime <- RTI.startRuntime False RTI.Persistent Version.gitDescribeWithDate
           rootVar <- newEmptyTMVarIO
@@ -275,7 +289,20 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                     takeMVar mvar
                   WithCLI -> do
                     PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                    launch currentDir config runtime sbRuntime theCodebase [] (Just baseUrl) mayStartingPath downloadBase initRes notifyOnRootChanges notifyOnPathChanges
+                    launch
+                      currentDir
+                      config
+                      runtime
+                      sbRuntime
+                      theCodebase
+                      []
+                      (Just baseUrl)
+                      mayStartingPath
+                      downloadBase
+                      initRes
+                      notifyOnRootChanges
+                      notifyOnPathChanges
+                      shouldWatchFiles
               Exit -> do Exit.exitSuccess
 
 -- | Set user agent and configure TLS on global http client.
@@ -426,8 +453,9 @@ launch ::
   InitResult ->
   (Branch IO -> STM ()) ->
   (Path.Absolute -> STM ()) ->
+  CommandLine.ShouldWatchFiles ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath shouldDownloadBase initResult notifyRootChange notifyPathChange =
+launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath shouldDownloadBase initResult notifyRootChange notifyPathChange shouldWatchFiles =
   let downloadBase = case defaultBaseLib of
         Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
         _ -> Welcome.DontDownloadBase
@@ -450,6 +478,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPat
         ucmVersion
         notifyRootChange
         notifyPathChange
+        shouldWatchFiles
 
 newtype MarkdownFile = MarkdownFile FilePath
 

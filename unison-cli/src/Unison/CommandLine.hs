@@ -35,7 +35,6 @@ import Data.List (isPrefixOf, isSuffixOf)
 import Data.ListLike (ListLike)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import System.Environment (lookupEnv)
 import System.FilePath (takeFileName)
 import Text.Regex.TDFA ((=~))
 import Unison.Codebase.Branch (Branch0)
@@ -71,20 +70,11 @@ watchConfig path =
 
 watchFileSystem :: Q.TQueue Event -> FilePath -> IO (IO ())
 watchFileSystem q dir = do
-  shouldWatchFileSystem >>= \case
-    False -> pure (pure ())
-    True -> do
-      (cancel, watcher) <- Watch.watchDirectory dir allow
-      t <- forkIO . forever $ do
-        (filePath, text) <- watcher
-        atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
-      pure (cancel >> killThread t)
-  where
-    -- File watching can be disabled by providing any value for the UNISON_DISABLE_FILE_WATCH
-    -- env var.
-    shouldWatchFileSystem :: IO Bool
-    shouldWatchFileSystem = do
-      isNothing <$> lookupEnv "UNISON_DISABLE_FILE_WATCH"
+  (cancel, watcher) <- Watch.watchDirectory dir allow
+  t <- forkIO . forever $ do
+    (filePath, text) <- watcher
+    atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
+  pure (cancel >> killThread t)
 
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
