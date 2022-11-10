@@ -70,6 +70,7 @@ import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.CommandLine (plural', watchConfig)
 import qualified Unison.CommandLine.Main as CommandLine
+import qualified Unison.CommandLine.Types as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import qualified Unison.CommandLine.Welcome as Welcome
 import qualified Unison.LSP as LSP
@@ -464,7 +465,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPat
         _ -> PreviouslyCreatedCodebase
 
       (ucmVersion, _date) = Version.gitDescribe
-      welcome = Welcome.welcome isNewCodebase downloadBase dir ucmVersion
+      welcome = Welcome.welcome isNewCodebase downloadBase dir ucmVersion shouldWatchFiles
    in CommandLine.main
         dir
         welcome
