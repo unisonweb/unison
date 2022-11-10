@@ -1,4 +1,4 @@
-Not yet working: using update to establish a cycle.
+`update` properly discovers and establishes new cycles.
 
 ```unison
 ping : 'Nat
@@ -31,7 +31,10 @@ pong _ = !ping + 2
 ```
 ```unison
 ping : 'Nat
-ping _ = !pong + 1
+ping _ = !clang + 1
+
+clang : 'Nat
+clang _ = !pong + 3
 ```
 
 ```ucm
@@ -40,6 +43,10 @@ ping _ = !pong + 1
   do an `add` or `update`, here's how your codebase would
   change:
   
+    ⍟ These new definitions are ok to `add`:
+    
+      clang : 'Nat
+    
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
@@ -47,23 +54,32 @@ ping _ = !pong + 1
 
 ```
 ```ucm
-.> update
+.> update ping
 
+  ⍟ I've added these definitions:
+  
+    clang : 'Nat
+  
   ⍟ I've updated these names to your new definition:
   
     ping : 'Nat
+    pong : 'Nat
 
-.> view ping pong
+.> view ping pong clang
 
+  clang : 'Nat
+  clang _ =
+    use Nat +
+    !pong + 3
+  
   ping : 'Nat
   ping _ =
     use Nat +
-    !pong + 1
+    !clang + 1
   
   pong : 'Nat
   pong _ =
     use Nat +
-    !#tte2bk37hp + 2
+    !ping + 2
 
 ```
-The bug: `pong` should refer to the new `ping` by name, not the (now nameless) old `ping.
