@@ -753,6 +753,8 @@ initializeNameLookupIndexFromV2Root getDeclType = do
       pure (Map.mapKeys (NEList.:| reversedNamePrefix) shallowTermNames <> prefixedChildTerms, Map.mapKeys (NEList.:| reversedNamePrefix) shallowTypeNames <> prefixedChildTypes)
 
 -- | Given a transaction, return a transaction that first checks a semispace cache of the given size.
+--
+-- The transaction should probably be read-only, as we (of course) don't hit SQLite on a cache hit.
 makeCachedTransaction :: (Ord a, MonadIO m) => Word -> (a -> Sqlite.Transaction b) -> m (a -> Sqlite.Transaction b)
 makeCachedTransaction size action = do
   cache <- Cache.semispaceCache size
