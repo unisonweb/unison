@@ -175,6 +175,7 @@ jobs:
         run: stack --no-terminal exec cli-integration-tests
 
       - name: performance transcripts
+        if: runner.os == 'macOS'
         working-directory: unison-src/transcripts-benchmarks/
         run: |
           ./run-benchmarks.sh "stack exec unison"
@@ -182,6 +183,7 @@ jobs:
           cat *.json | jq -s add > head-results.json
 
       - name: Upload perf results
+        if: runner.os == 'macOS'
         uses: w9jds/firebase-action@v11.9.0
         working-directory: unison-src/transcripts-benchmarks/
         env:
