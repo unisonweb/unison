@@ -29,10 +29,9 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          # temporarily disable non-windows builds to speed up iteration time
-          - ubuntu-20.04
+          # - ubuntu-20.04
           - macOS-11.0
-          - windows-2019
+          # - windows-2019
     steps:
       - uses: actions/checkout@v2
         with:
@@ -151,6 +150,27 @@ jobs:
           done
       - name: build
         run: stack --no-terminal build --fast --no-run-tests --test
+
+      - name: performance transcripts
+        if: runner.os == 'macOS'
+        working-directory: ./unison/unison-src/transcripts-benchmarks
+        run: |
+          ./run-benchmarks.sh "stack exec unison"
+          # Combine all results into a single json object
+          cat *.json | jq -s add > head-results.json
+
+      - name: Upload perf results
+        if: runner.os == 'macOS'
+        working-directory: ./unison/unison-src/transcripts-benchmarks
+        env:
+          FIREBASE_TOKEN: "${{ secrets.PERFORMANCE_TRACKER_FIREBASE_TOKEN }}"
+          PROJECT_ID: "284654152807"
+        run: |
+          npm i -g firebase-tools@11.9.0
+          firebase database:get --order-by-key --limit-to-last 1 /runs/${GITHUB_BASE_REF} > base-results.json
+          firebase database:push "/runs/${GITHUB_HEAD_REF}" head-results.json
+          git diff --no-index base-result.json perf-results.json
+
       # Run each test suite (tests and transcripts)
       - name: unison-cli tests
         run: stack --no-terminal build --fast --test unison-cli
@@ -173,23 +193,3 @@ jobs:
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
       - name: cli-integration-tests
         run: stack --no-terminal exec cli-integration-tests
-
-      - name: performance transcripts
-        if: runner.os == 'macOS'
-        working-directory: unison-src/transcripts-benchmarks/
-        run: |
-          ./run-benchmarks.sh "stack exec unison"
-          # Combine all results into a single json object
-          cat *.json | jq -s add > head-results.json
-
-      - name: Upload perf results
-        if: runner.os == 'macOS'
-        working-directory: unison-src/transcripts-benchmarks/
-        env:
-          FIREBASE_TOKEN: "${{ secrets.PERFORMANCE_TRACKER_FIREBASE_TOKEN }}"
-          PROJECT_ID: "284654152807"
-        run: |
-          npm i -g firebase-tools@11.9.0
-          firebase database:get --order-by-key --limit-to-last 1 /runs/${GITHUB_BASE_REF} > base-results.json
-          firebase database:push "/runs/${GITHUB_HEAD_REF}" head-results.json
-          git diff --no-index base-result.json perf-results.json
