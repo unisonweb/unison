@@ -166,12 +166,12 @@ jobs:
           FIREBASE_TOKEN: "${{ secrets.PERFORMANCE_TRACKER_FIREBASE_TOKEN }}"
           PROJECT_ID: "284654152807"
         run: |
-          npm i -g firebase-tools || true
-          firebase database:get --order-by-key --limit-to-last 1 /runs/${GITHUB_BASE_REF} > base-results.json
-          firebase database:push "/runs/${GITHUB_HEAD_REF}" head-results.json
+          # npm i -g firebase-tools || true
+          gcloud firebase database:get --order-by-key --limit-to-last 1 /runs/${GITHUB_BASE_REF} > base-results.json
+          gcloud firebase database:push "/runs/${GITHUB_HEAD_REF}" head-results.json
           git diff --no-index base-result.json perf-results.json
           # Test
-          gcloud firebase database:get --order-by-key --limit-to-last 1 /runs/${GITHUB_BASE_REF} > base-results.json || true
+          # gcloud firebase database:get --order-by-key --limit-to-last 1 /runs/${GITHUB_BASE_REF} > base-results.json || true
 
       # Run each test suite (tests and transcripts)
       - name: unison-cli tests
