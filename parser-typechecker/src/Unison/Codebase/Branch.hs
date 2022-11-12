@@ -197,12 +197,12 @@ branch0 terms types children edits =
       _types = types,
       _children = children,
       _edits = edits,
-      -- These are all overwritten immediately
       isEmpty0 =
         R.null (Star3.d1 terms)
           && R.null (Star3.d1 types)
           && Map.null edits
           && all (isEmpty0 . head) children,
+      -- These are all overwritten immediately
       deepTerms = R.empty,
       deepTypes = R.empty,
       deepTermMetadata = R4.empty,
@@ -280,7 +280,7 @@ deriveDeepTermMetadata branch =
               termMetadata =
                 map
                   (\(r, n, t, v) -> (r, Name.fromReverseSegments (n NonEmpty.:| reversePrefix), t, v))
-                  (deepMetadataHelper (_terms b0))
+                  (Metadata.starToR4List (_terms b0))
           children <- deepChildrenHelper e
           go (work <> children) (termMetadata <> acc)
 
@@ -302,7 +302,7 @@ deriveDeepTypeMetadata branch =
               typeMetadata =
                 map
                   (\(r, n, t, v) -> (r, Name.fromReverseSegments (n NonEmpty.:| reversePrefix), t, v))
-                  (deepMetadataHelper (_types b0))
+                  (Metadata.starToR4List (_types b0))
           children <- deepChildrenHelper e
           go (work <> children) (typeMetadata <> acc)
 
@@ -344,39 +344,33 @@ deriveDeepEdits branch =
           children <- deepChildrenHelper e
           go (work <> children) (edits <> acc)
 
+-- | State used by deepChildrenHelper to determine whether to descend into a child branch.
+-- Contains the set of visited namespace hashes.
 type DeepState m = State (Set (NamespaceHash m))
 
+-- | Represents a unit of remaining work in traversing children for computing `deep*`.
+-- (reverse prefix to a branch, the number of `lib` segments in the reverse prefix, and the branch itself)
 type DeepChildAcc m = ([NameSegment], Int, Branch0 m)
 
 -- | Helper for knowing whether to descend into a child branch or not.
--- Accepts child namespaces with previously unseen hashes, and any nested under fewer than 2 `lib` segments.
+-- Accepts child namespaces with previously unseen hashes, and any nested under 1 or fewer `lib` segments.
 deepChildrenHelper :: forall m. DeepChildAcc m -> DeepState m (Seq (DeepChildAcc m))
 deepChildrenHelper (reversePrefix, libDepth, b0) = do
-  let libDepth' = case reversePrefix of
-        "lib" : _ -> libDepth + 1
-        _other -> libDepth
   let go :: (NameSegment, Branch m) -> DeepState m (Seq (DeepChildAcc m))
       go (ns, b) = do
         let h = namespaceHash b
         result <- do
-          let isDirectDependency = libDepth' < 2
-          isUnseenTransitiveDep <- State.gets (Set.notMember h)
+          let isShallowDependency = libDepth <= 1
+          isUnseenNamespace <- State.gets (Set.notMember h)
           pure
-            if isDirectDependency || isUnseenTransitiveDep
-              then Seq.singleton (ns : reversePrefix, libDepth', head b)
+            if isShallowDependency || isUnseenNamespace
+              then
+                let libDepth' = if ns == "lib" then libDepth + 1 else libDepth
+                 in Seq.singleton (ns : reversePrefix, libDepth', head b)
               else Seq.empty
         State.modify' (Set.insert h)
         pure result
   Monoid.foldMapM go (Map.toList (nonEmptyChildren b0))
-
--- | Flattens a Metadata.Star into a 4-tuple.
-deepMetadataHelper :: Ord r => Metadata.Star r NameSegment -> [(r, NameSegment, Metadata.Type, Metadata.Value)]
-deepMetadataHelper s =
-  [ (f, x, y, z)
-    | f <- Set.toList (Star3.fact s),
-      x <- Set.toList (R.lookupDom f (Star3.d1 s)),
-      (y, z) <- Set.toList (R.lookupDom f (Star3.d3 s))
-  ]
 
 -- | Update the head of the current causal.
 -- This re-hashes the current causal head after modifications.
