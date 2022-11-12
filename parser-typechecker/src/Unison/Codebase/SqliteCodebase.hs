@@ -34,7 +34,6 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import qualified U.Codebase.Sync as Sync
-import qualified U.Util.Cache as Cache
 import U.Util.Timing (time)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
@@ -80,7 +79,6 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sqlite.Transaction as Sqlite.Transaction
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -198,12 +196,9 @@ sqliteCodebase ::
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote migrationStrategy action = do
-  termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
-  typeOfTermCache <- Cache.semispaceCache 8192
-  declCache <- Cache.semispaceCache 1024
   rootBranchCache <- newTVarIO Nothing
   branchCache <- newBranchCache
-  getDeclType <- CodebaseOps.mkGetDeclType
+  getDeclType <- CodebaseOps.makeCachedTransaction 2048 CodebaseOps.getDeclType
   -- The v1 codebase interface has operations to read and write individual definitions
   -- whereas the v2 codebase writes them as complete components.  These two fields buffer
   -- the individual definitions until a complete component has been written.
@@ -240,22 +235,15 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             printBuffer "Terms:" terms
 
       flip finally finalizer do
-        let getTerm :: Reference.Id -> m (Maybe (Term Symbol Ann))
-            getTerm id =
-              runTransaction (CodebaseOps.getTerm getDeclType id)
+        getTermTransaction <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTerm getDeclType)
+        let getTerm id = runTransaction (getTermTransaction id)
 
-            getTypeOfTermImpl :: Reference.Id -> Sqlite.Transaction (Maybe (Type Symbol Ann))
-            getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
-            getTypeOfTermImpl id =
-              CodebaseOps.getTypeOfTermImpl id
+        getTypeOfTermImpl <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTypeOfTermImpl)
+        getTypeDeclaration <- CodebaseOps.makeMaybeCachedTransaction 1024 CodebaseOps.getTypeDeclaration
 
-            getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
+        let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
             getTermComponentWithTypes =
               CodebaseOps.getTermComponentWithTypes getDeclType
-
-            getTypeDeclaration :: Reference.Id -> Sqlite.Transaction (Maybe (Decl Symbol Ann))
-            getTypeDeclaration =
-              CodebaseOps.getTypeDeclaration
 
             getDeclComponent :: Hash -> Sqlite.Transaction (Maybe [Decl Symbol Ann])
             getDeclComponent =
@@ -441,9 +429,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
 
         let codebase =
               C.Codebase
-                { getTerm = Cache.applyDefined termCache getTerm,
-                  getTypeOfTermImpl = applyDefined typeOfTermCache getTypeOfTermImpl,
-                  getTypeDeclaration = applyDefined declCache getTypeDeclaration,
+                { getTerm,
+                  getTypeOfTermImpl,
+                  getTypeDeclaration,
                   getDeclType =
                     \r ->
                       withConn \conn ->
@@ -501,17 +489,6 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
     runTransaction :: Sqlite.Transaction a -> m a
     runTransaction action =
       withConn \conn -> Sqlite.runTransaction conn action
-
-    -- Like Cache.applyDefined, but in Transaction
-    applyDefined ::
-      (Applicative g, Traversable g) =>
-      Cache.Cache k v ->
-      (k -> Sqlite.Transaction (g v)) ->
-      k ->
-      Sqlite.Transaction (g v)
-    applyDefined c f k = do
-      conn <- Sqlite.Transaction.unsafeGetConnection
-      Sqlite.unsafeIO (Cache.applyDefined c (\k1 -> Sqlite.unsafeUnTransaction (f k1) conn) k)
 
 syncInternal ::
   forall m.
