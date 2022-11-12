@@ -832,7 +832,7 @@ loop e = do
                 AuthorInfo.createAuthorInfo Ann.External authorFullName
               description <- inputDescription input
               -- add the new definitions to the codebase and to the namespace
-              traverse_ (liftIO . uncurry3 (Codebase.putTerm codebase)) [guid, author, copyrightHolder]
+              Cli.runTransaction (traverse_ (uncurry3 (Codebase.putTerm codebase)) [guid, author, copyrightHolder])
               authorPath <- Cli.resolveSplit' authorPath'
               copyrightHolderPath <- Cli.resolveSplit' (base |> "copyrightHolders" |> authorNameSegment)
               guidPath <- Cli.resolveSplit' (authorPath' |> "guid")

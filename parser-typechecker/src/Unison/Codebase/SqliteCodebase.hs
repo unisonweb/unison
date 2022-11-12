@@ -260,10 +260,10 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             -- option 2: switch codebase interface from putTerm to putTerms -- buffering can be local to the function
             -- option 3: switch from putTerm to putTermComponent -- needs to buffer dependencies non-locally (or require application to manage + die horribly)
 
-            putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
+            putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> Sqlite.Transaction ()
             putTerm id tm tp | debug && trace ("SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
             putTerm id tm tp =
-              runTransaction (CodebaseOps.putTerm termBuffer declBuffer id tm tp)
+              CodebaseOps.putTerm termBuffer declBuffer id tm tp
 
             putTermComponent :: Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> Sqlite.Transaction ()
             putTermComponent =

@@ -315,7 +315,7 @@ propagate patch b = case validatePatch patch of
                   let message =
                         "This reference is not a term nor a type " <> show r
                       mmayEdits
-                        | haveTerm = doTerm r
+                        | haveTerm = Cli.runTransaction (doTerm r)
                         | haveType = doType r
                         | otherwise = error message
                   mayEdits <- mmayEdits
@@ -393,20 +393,18 @@ propagate patch b = case validatePatch patch of
                       constructorReplacements',
                   seen'
                 )
-            doTerm :: Reference -> Cli (Maybe (Edits Symbol), Set Reference)
+            doTerm :: Reference -> Sqlite.Transaction (Maybe (Edits Symbol), Set Reference)
             doTerm r = do
               when debugMode (traceM $ "Rewriting term: " <> show r)
-              (componentMap, seen', mayComponent) <-
-                Cli.runTransaction do
-                  componentMap <- unhashTermComponent codebase r
-                  let componentMap' =
-                        over
-                          _2
-                          (Term.updateDependencies termReplacements typeReplacements)
-                          <$> componentMap
-                      seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
-                  mayComponent <- verifyTermComponent codebase componentMap' es
-                  pure (componentMap, seen', mayComponent)
+              componentMap <- unhashTermComponent codebase r
+              let seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
+              mayComponent <- do
+                let componentMap' =
+                      over
+                        _2
+                        (Term.updateDependencies termReplacements typeReplacements)
+                        <$> componentMap
+                verifyTermComponent codebase componentMap' es
               case mayComponent of
                 Nothing -> do
                   when debugMode (traceM $ refName r <> " did not typecheck after substitutions")
@@ -436,7 +434,7 @@ propagate patch b = case validatePatch patch of
                       toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
                       writeTerms =
                         traverse_ \case
-                          (Reference.DerivedId id, (tm, tp)) -> liftIO (Codebase.putTerm codebase id tm tp)
+                          (Reference.DerivedId id, (tm, tp)) -> Codebase.putTerm codebase id tm tp
                           _ -> error "propagate: Expected DerivedId"
                   writeTerms
                     [(r, (tm, ty)) | (_old, r, tm, _oldTy, ty) <- joinedStuff]
