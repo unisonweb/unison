@@ -694,7 +694,7 @@ addTypeName r new md =
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b
   | Star3.memberD1 (r, n) (view terms b) =
-    over terms (Star3.deletePrimaryD1 (r, n)) b
+      over terms (Star3.deletePrimaryD1 (r, n)) b
 deleteTermName _ _ b = b
 
 deleteTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
