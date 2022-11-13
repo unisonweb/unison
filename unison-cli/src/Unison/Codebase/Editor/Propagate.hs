@@ -396,13 +396,14 @@ propagate patch b = case validatePatch patch of
             doTerm r = do
               when debugMode (traceM $ "Rewriting term: " <> show r)
               componentMap <- unhashTermComponent codebase r
-              let componentMap' =
-                    over
-                      _2
-                      (Term.updateDependencies termReplacements typeReplacements)
-                      <$> componentMap
-                  seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
-              mayComponent <- verifyTermComponent codebase componentMap' es
+              let seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
+              mayComponent <- do
+                let componentMap' =
+                      over
+                        _2
+                        (Term.updateDependencies termReplacements typeReplacements)
+                        <$> componentMap
+                verifyTermComponent codebase componentMap' es
               case mayComponent of
                 Nothing -> do
                   when debugMode (traceM $ refName r <> " did not typecheck after substitutions")

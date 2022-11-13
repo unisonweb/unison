@@ -638,7 +638,8 @@ saveBranch ::
 saveBranch hh (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
 
-  (chId, bhId) <- flip Monad.fromMaybeM (Q.loadCausalByCausalHash hc) do
+  -- Save the causal
+  (chId, bhId) <- whenNothingM (Q.loadCausalByCausalHash hc) do
     -- if not exist, create these
     chId <- Q.saveCausalHash hc
     bhId <- Q.saveBranchHash he
@@ -655,7 +656,9 @@ saveBranch hh (C.Causal hc he parents me) = do
     -- Save these CausalHashIds to the causal_parents table,
     Q.saveCausal hh chId bhId parentCausalHashIds
     pure (chId, bhId)
-  boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByCausalHashId chId) do
+
+  -- Save the namespace
+  boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByBranchHashId bhId) do
     branch <- me
     dbBranch <- c2sBranch branch
     stats <- namespaceStatsForDbBranch dbBranch

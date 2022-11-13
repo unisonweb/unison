@@ -12,6 +12,7 @@ module Unison.Codebase
     unsafeGetTypeOfTermById,
     isTerm,
     putTerm,
+    putTermComponent,
     termMetadata,
 
     -- ** Referents (sorta-termlike)
