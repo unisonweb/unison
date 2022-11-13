@@ -71,7 +71,7 @@ data Branch0 m = Branch0
     _children :: Map NameSegment (Branch m),
     _edits :: Map NameSegment (EditHash, m Patch),
     -- | True if a branch and its children have no definitions or edits in them.
-    -- (Computed recursively and stored here to avoid doing so more than once.)
+    -- (Computed recursively, and small enough to justify storing here to avoid computing more than once.)
     isEmpty0 :: Bool,
     -- names and metadata for this branch and its children
     -- (ref, (name, value)) iff ref has metadata `value` at name `name`
