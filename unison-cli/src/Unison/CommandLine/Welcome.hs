@@ -15,7 +15,6 @@ import qualified Unison.Codebase.Verbosity as Verbosity
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Prelude
-import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import Prelude hiding (readFile, writeFile)
 
@@ -187,6 +186,8 @@ getStarted shouldWatchFiles dir = do
                 ("📚", "Read the official docs at " <> P.blue "https://www.unison-lang.org/learn/"),
                 (earth, "Visit Unison Share at " <> P.blue "https://share.unison-lang.org" <> " to discover libraries")
               ]
-                <> Monoid.whenM (shouldWatchFiles == ShouldWatchFiles) [("👀", "I'm watching for changes to " <> P.bold ".u" <> " files under " <> (P.group . P.blue $ P.string dir))]
+                <> case shouldWatchFiles of
+                  ShouldWatchFiles -> [("👀", "I'm watching for changes to " <> P.bold ".u" <> " files under " <> (P.group . P.blue $ P.string dir))]
+                  ShouldNotWatchFiles -> [("📝", "File watching is disabled, use the 'load' command to parse and typecheck unison files.")]
             )
       ]
