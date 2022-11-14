@@ -29,6 +29,7 @@ import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
 import System.Cmd (system)
+import System.Process (shell, readCreateProcess)
 import System.Environment (withArgs)
 import System.Exit (ExitCode(..))
 import System.Directory
@@ -2610,10 +2611,31 @@ runScheme file = do
     ExitFailure _ ->
       Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
-buildScheme :: String -> Cli ()
-buildScheme file = do
-  -- todo
-  Cli.returnEarly (PrintMessage "standalone scheme binary not yet implemented")
+buildScheme :: String -> String -> Cli ()
+buildScheme main file = do
+  statDir <- getSchemeStaticLibDir
+  genDir <- getSchemeGenLibDir
+  let cmd = shell "scheme -q --optimize-level 3"
+  liftIO $ putStrLn (build statDir genDir)
+  void . liftIO $ readCreateProcess cmd (build statDir genDir)
+  where
+  surround s = '"' : s ++ "\""
+  parens s = '(' : s ++ ")"
+  lns dir nms = surround . ln dir <$> nms
+  ln dir nm = dir </> "unison" </> (nm ++ ".ss")
+
+  static = ["core", "cont", "bytevector", "string", "primops", "boot"]
+  gen = ["boot-generated", "builtin-generated"]
+
+  bootf = surround $ main ++ ".boot"
+  base = "'(\"scheme\" \"petite\")"
+
+  build sd gd = parens . List.intercalate " " $
+    ["make-boot-file",bootf,base] ++
+    lns sd static ++
+    lns gd gen ++
+    [surround file]
+
 
 doRunAsScheme :: HQ.HashQualified Name -> Cli ()
 doRunAsScheme main = do
@@ -2622,7 +2644,7 @@ doRunAsScheme main = do
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
-  generateSchemeFile out main >>= buildScheme
+  generateSchemeFile out main >>= buildScheme out
 
 generateSchemeFile :: String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile out main = do
