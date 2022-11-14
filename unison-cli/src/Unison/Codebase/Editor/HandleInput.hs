@@ -2616,7 +2616,6 @@ buildScheme main file = do
   statDir <- getSchemeStaticLibDir
   genDir <- getSchemeGenLibDir
   let cmd = shell "scheme -q --optimize-level 3"
-  liftIO $ putStrLn (build statDir genDir)
   void . liftIO $ readCreateProcess cmd (build statDir genDir)
   where
   surround s = '"' : s ++ "\""
