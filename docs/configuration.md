@@ -23,9 +23,9 @@ E.g.
 # Enable ALL debugging flags (likely quite noisy)
 $ UNISON_DEBUG= ucm
 # Enable timing debugging, printing how long different actions take.
-$ UNISON_DEBUG=TIMING ucm
+$ UNISON_DEBUG=timing ucm
 # Enable LSP and TIMING debugging
-$ UNISON_DEBUG=LSP,TIMING ucm
+$ UNISON_DEBUG=lsp,timing ucm
 ```
 
 ### `UNISON_PAGER`
