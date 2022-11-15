@@ -28,6 +28,7 @@ dependencies:
   - exceptions
   - extra
   - filepath
+  - free
   - fuzzyfind
   - friendly-time
   - generic-lens
@@ -54,6 +55,7 @@ dependencies:
   - open-browser
   - pretty-simple
   - random >= 1.2.0
+  - recover-rtti
   - regex-tdfa
   - semialign
   - servant

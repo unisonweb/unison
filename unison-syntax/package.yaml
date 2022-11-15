@@ -17,7 +17,6 @@ dependencies:
   - text-builder
   - unison-core1
   - unison-prelude
-  - unison-pretty-printer
   - unison-util-base32hex
   - unison-util-bytes
 

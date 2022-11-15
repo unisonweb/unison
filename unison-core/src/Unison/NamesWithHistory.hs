@@ -71,7 +71,6 @@ data Diff = Diff
     addedNames :: Names,
     removedNames :: Names
   }
-  deriving (Show)
 
 -- Add `n1` to `currentNames`, shadowing anything with the same name and
 -- moving shadowed definitions into `oldNames` so they can can still be

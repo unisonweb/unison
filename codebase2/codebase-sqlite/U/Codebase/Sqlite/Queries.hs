@@ -80,6 +80,7 @@ module U.Codebase.Sqlite.Queries
     expectCausalByCausalHash,
     loadBranchObjectIdByCausalHashId,
     expectBranchObjectIdByCausalHashId,
+    expectBranchObjectIdByBranchHashId,
 
     -- ** causal_parent table
     saveCausalParents,
@@ -130,9 +131,12 @@ module U.Codebase.Sqlite.Queries
     causalHashIdByBase32Prefix,
 
     -- * Name Lookup
-    resetNameLookupTables,
+    ensureNameLookupTables,
+    dropNameLookupTables,
     insertTermNames,
     insertTypeNames,
+    removeTermNames,
+    removeTypeNames,
     rootTermNamesByPath,
     rootTypeNamesByPath,
     getNamespaceDefinitionCount,
@@ -1038,6 +1042,16 @@ loadBranchObjectIdByCausalHashIdSql =
     WHERE causal.self_hash_id = ?
   |]
 
+expectBranchObjectIdByBranchHashId :: BranchHashId -> Transaction BranchObjectId
+expectBranchObjectIdByBranchHashId id = queryOneCol loadBranchObjectIdByBranchHashIdSql (Only id)
+
+loadBranchObjectIdByBranchHashIdSql :: Sql
+loadBranchObjectIdByBranchHashIdSql =
+  [here|
+    SELECT object_id FROM hash_object
+    WHERE hash_id = ?
+  |]
+
 saveCausalParents :: CausalHashId -> [CausalHashId] -> Transaction ()
 saveCausalParents child parents = executeMany sql $ (child,) <$> parents where
   sql = [here|
@@ -1387,7 +1401,7 @@ getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
         FROM dependents_index
         WHERE dependency_builtin IS NULL
           AND dependent_object_id = ?
-          AND dependen_component_index = ?
+          AND dependent_component_index = ?
       |]
 
     isNotSelfReference :: Reference.Id -> Bool
@@ -1441,14 +1455,26 @@ removeHashObjectsByHashingVersion hashVersion =
       WHERE hash_version = ?
 |]
 
--- | Drop and recreate the name lookup tables. Use this when resetting names to a new branch.
-resetNameLookupTables :: Transaction ()
-resetNameLookupTables = do
-  execute_ "DROP TABLE IF EXISTS term_name_lookup"
-  execute_ "DROP TABLE IF EXISTS type_name_lookup"
+-- | Not used in typical operations, but if we ever end up in a situation where a bug
+-- has caused the name lookup index to go out of sync this can be used to get back to a clean
+-- slate.
+dropNameLookupTables :: Transaction ()
+dropNameLookupTables = do
   execute_
     [here|
-      CREATE TABLE term_name_lookup (
+    DROP TABLE IF EXISTS term_name_lookup
+  |]
+  execute_
+    [here|
+    DROP TABLE IF EXISTS type_name_lookup
+  |]
+
+-- | Ensure the name lookup tables exist.
+ensureNameLookupTables :: Transaction ()
+ensureNameLookupTables = do
+  execute_
+    [here|
+      CREATE TABLE IF NOT EXISTS term_name_lookup (
         -- The name of the term: E.g. map.List.base
         reversed_name TEXT NOT NULL,
         -- The namespace containing this term, not reversed: E.g. base.List
@@ -1463,7 +1489,7 @@ resetNameLookupTables = do
     |]
   execute_
     [here|
-      CREATE INDEX term_names_by_namespace ON term_name_lookup(namespace)
+      CREATE INDEX IF NOT EXISTS term_names_by_namespace ON term_name_lookup(namespace)
     |]
   -- Don't need this index at the moment, but will likely be useful later.
   -- execute_
@@ -1472,7 +1498,7 @@ resetNameLookupTables = do
   --   |]
   execute_
     [here|
-      CREATE TABLE type_name_lookup (
+      CREATE TABLE IF NOT EXISTS type_name_lookup (
         -- The name of the term: E.g. List.base
         reversed_name TEXT NOT NULL,
         -- The namespace containing this term, not reversed: E.g. base.List
@@ -1485,7 +1511,7 @@ resetNameLookupTables = do
     |]
   execute_
     [here|
-      CREATE INDEX type_names_by_namespace ON type_name_lookup(namespace)
+      CREATE INDEX IF NOT EXISTS type_names_by_namespace ON type_name_lookup(namespace)
     |]
 
 -- Don't need this index at the moment, but will likely be useful later.
@@ -1506,6 +1532,37 @@ insertTermNames names = do
       INSERT INTO term_name_lookup (reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type, namespace)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
+        |]
+
+-- | Remove the given set of term names into the name lookup table
+removeTermNames :: [NamedRef Referent.TextReferent] -> Transaction ()
+removeTermNames names = do
+  executeMany sql names
+  where
+    sql =
+      [here|
+      DELETE FROM term_name_lookup
+        WHERE
+        reversed_name IS ?
+        AND referent_builtin IS ?
+        AND referent_component_hash IS ?
+        AND referent_component_index IS ?
+        AND referent_constructor_index IS ?
+        |]
+
+-- | Remove the given set of term names into the name lookup table
+removeTypeNames :: [NamedRef (Reference.TextReference)] -> Transaction ()
+removeTypeNames names = do
+  executeMany sql names
+  where
+    sql =
+      [here|
+      DELETE FROM type_name_lookup
+        WHERE
+        reversed_name IS ?
+        AND reference_builtin IS ?
+        AND reference_component_hash IS ?
+        AND reference_component_index IS ?
         |]
 
 -- | We need to escape any special characters for globbing.
@@ -1612,6 +1669,7 @@ rootTypeNamesByPath mayNamespace = do
         ORDER BY (namespace GLOB ? OR namespace = ?) DESC
         |]
 
+-- | @before x y@ returns whether or not @x@ occurred before @y@, i.e. @x@ is an ancestor of @y@.
 before :: CausalHashId -> CausalHashId -> Transaction Bool
 before chId1 chId2 = queryOneCol sql (chId2, chId1)
   where

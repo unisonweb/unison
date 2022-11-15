@@ -1,6 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE Rank2Types #-}
-
 module Unison.Result where
 
 import Control.Error.Util (note)
@@ -30,7 +27,6 @@ data Note v loc
   | TypeError (Context.ErrorNote v loc)
   | TypeInfo (Context.InfoNote v loc)
   | CompilerBug (CompilerBug v loc)
-  deriving (Show)
 
 data CompilerBug v loc
   = TopLevelComponentNotFound v (Term v loc)

@@ -36,8 +36,11 @@ library:
 default-extensions:
   - ApplicativeDo
   - BlockArguments
+  - DeriveAnyClass
+  - DeriveFoldable
   - DeriveFunctor
   - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts
@@ -48,6 +51,7 @@ default-extensions:
   - NamedFieldPuns
   - OverloadedStrings
   - PatternSynonyms
+  - RankNTypes
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications

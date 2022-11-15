@@ -21,21 +21,25 @@ import qualified U.Util.Hash as Hash
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
-import Unison.Codebase.ShortBranchHash
-  ( ShortBranchHash (..),
+import Unison.Codebase.ShortCausalHash
+  ( ShortCausalHash (..),
   )
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
+import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Syntax.HashQualified as HQ (fromText, toText)
+import qualified Unison.Syntax.HashQualified' as HQ' (fromText, toText)
+import qualified Unison.Syntax.Name as Name (fromTextEither, toText)
 import Unison.Util.Pretty (Width (..))
 
 instance ToJSON Hash where
@@ -67,8 +71,8 @@ instance FromJSONKey ShortHash where
         Nothing -> fail $ "Invalid Shorthash" <> Text.unpack txt
         Just sh -> pure sh
 
-instance FromHttpApiData ShortBranchHash where
-  parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
+instance FromHttpApiData ShortCausalHash where
+  parseUrlPiece = maybe (Left "Invalid ShortCausalHash") Right . SCH.fromText
 
 -- | Always renders to the form: #abcdef
 instance ToHttpApiData ShortHash where
@@ -89,7 +93,7 @@ instance FromHttpApiData ShortHash where
             else ("#" <> t)
         )
           & SH.fromText
-          & maybe (Left "Invalid ShortBranchHash") Right
+          & maybe (Left "Invalid ShortCausalHash") Right
 
 instance ToSchema ShortHash where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -143,7 +147,7 @@ deriving via ShortByteString instance Binary Hash
 
 deriving via Hash instance Binary CausalHash
 
-deriving via Text instance ToHttpApiData ShortBranchHash
+deriving via Text instance ToHttpApiData ShortCausalHash
 
 instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
   toEncoding = genericToEncoding defaultOptions
@@ -163,7 +167,7 @@ instance ToJSON Name where
 instance ToSchema Name where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
-deriving anyclass instance ToParamSchema ShortBranchHash
+deriving anyclass instance ToParamSchema ShortCausalHash
 
 instance ToParamSchema ShortHash where
   toParamSchema _ =
@@ -287,11 +291,17 @@ instance ToJSON Path.Path where
 instance ToSchema Path.Path where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
-instance Show n => ToJSON (HQ.HashQualified n) where
+instance ToJSON (HQ.HashQualified Name) where
   toJSON = Aeson.String . HQ.toText
 
-instance Show n => ToJSON (HQ'.HashQualified n) where
+instance ToJSON (HQ.HashQualified NameSegment) where
+  toJSON = Aeson.String . HQ.toTextWith NameSegment.toText
+
+instance ToJSON (HQ'.HashQualified Name) where
   toJSON = Aeson.String . HQ'.toText
+
+instance ToJSON (HQ'.HashQualified NameSegment) where
+  toJSON = Aeson.String . HQ'.toTextWith NameSegment.toText
 
 instance FromJSON (HQ'.HashQualified Name) where
   parseJSON = Aeson.withText "HashQualified'" \txt ->

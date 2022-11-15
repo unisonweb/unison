@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Syntax.TypePrinter
   ( pretty,
@@ -12,6 +13,7 @@ module Unison.Syntax.TypePrinter
     prettySignaturesCTCollapsed,
     prettySignaturesAlt,
     prettySignaturesAlt',
+    runPretty,
   )
 where
 
@@ -23,6 +25,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import Unison.PrettyPrintEnv.FQN (Imports, elideFQN)
+import Unison.PrettyPrintEnv.MonadPretty (MonadPretty, getPPE, runPretty, willCapture)
 import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (Referent)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
@@ -36,17 +39,17 @@ import qualified Unison.Var as Var
 
 type SyntaxText = S.SyntaxText' Reference
 
-pretty :: forall v a. (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
-pretty ppe = PP.syntaxToColor . prettySyntax ppe
+pretty :: Var v => PrettyPrintEnv -> Type v a -> Pretty ColorText
+pretty ppe t = PP.syntaxToColor $ prettySyntax ppe t
 
-prettySyntax :: forall v a. (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
-prettySyntax ppe = pretty0 ppe mempty (-1)
+prettySyntax :: Var v => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
+prettySyntax ppe = runPretty ppe . pretty0 Map.empty (-1)
 
 prettyStr :: Var v => Maybe Width -> PrettyPrintEnv -> Type v a -> String
-prettyStr (Just width) n t =
-  toPlain $ PP.render width $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
-prettyStr Nothing n t =
-  toPlain $ PP.render maxBound $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
+prettyStr (Just width) ppe t =
+  toPlain . PP.render width . PP.syntaxToColor . runPretty ppe $ pretty0 Map.empty (-1) t
+prettyStr Nothing ppe t =
+  toPlain . PP.render maxBound . PP.syntaxToColor . runPretty ppe $ pretty0 Map.empty (-1) t
 
 {- Explanation of precedence handling
 
@@ -71,90 +74,103 @@ prettyStr Nothing n t =
 -}
 
 pretty0 ::
-  forall v a.
-  (Var v) =>
-  PrettyPrintEnv ->
+  forall v a m.
+  MonadPretty v m =>
   Imports ->
   Int ->
   Type v a ->
-  Pretty SyntaxText
-pretty0 n im p tp = prettyRaw n im p (cleanup (removePureEffects tp))
+  m (Pretty SyntaxText)
+pretty0 im p tp = prettyRaw im p (cleanup (removePureEffects tp))
 
 prettyRaw ::
-  forall v a.
-  (Var v) =>
-  PrettyPrintEnv ->
+  forall v a m.
+  MonadPretty v m =>
   Imports ->
   Int ->
   Type v a ->
-  Pretty SyntaxText
+  m (Pretty SyntaxText)
 -- p is the operator precedence of the enclosing context (a number from 0 to
 -- 11, or -1 to avoid outer parentheses unconditionally).  Function
 -- application has precedence 10.
-prettyRaw n im p tp = go n im p tp
+prettyRaw im p tp = go im p tp
   where
-    go :: PrettyPrintEnv -> Imports -> Int -> Type v a -> Pretty SyntaxText
-    go n im p tp = case stripIntroOuters tp of
-      Var' v -> fmt S.Var $ PP.text (Var.name v)
-      DD.TupleType' xs | length xs /= 1 -> PP.parenthesizeCommas $ map (go n im 0) xs
+    go :: Imports -> Int -> Type v a -> m (Pretty SyntaxText)
+    go im p tp = case stripIntroOuters tp of
+      Var' v -> pure . fmt S.Var $ PP.text (Var.name v)
+      DD.TupleType' xs | length xs /= 1 -> PP.parenthesizeCommas <$> traverse (go im 0) xs
       -- Would be nice to use a different SyntaxHighlights color if the reference is an ability.
-      Ref' r -> styleHashQualified'' (fmt $ S.TypeReference r) $ elideFQN im (PrettyPrintEnv.typeName n r)
-      Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
-      Abs' _ -> fromString "error: TypeParser does not currently emit Abs"
-      Ann' _ _ -> fromString "error: TypeParser does not currently emit Ann"
-      App' (Ref' (Builtin "Sequence")) x ->
-        PP.group $ (fmt S.DelimiterChar "[") <> go n im 0 x <> (fmt S.DelimiterChar "]")
+      Ref' r -> do
+        n <- getPPE
+        pure $ styleHashQualified'' (fmt $ S.TypeReference r) $ elideFQN im (PrettyPrintEnv.typeName n r)
+      Cycle' _ _ -> pure $ fromString "bug: TypeParser does not currently emit Cycle"
+      Abs' _ -> pure $ fromString "bug: TypeParser does not currently emit Abs"
+      Ann' _ _ -> pure $ fromString "bug: TypeParser does not currently emit Ann"
+      App' (Ref' (Builtin "Sequence")) x -> do
+        x' <- go im (-1) x
+        pure $ PP.group $ fmt S.DelimiterChar "[" <> x' <> fmt S.DelimiterChar "]"
       Apps' f xs ->
-        PP.parenthesizeIf (p >= 10) $
-          go n im 9 f
-            `PP.hang` PP.spaced
-              (go n im 10 <$> xs)
+        PP.parenthesizeIf (p >= 10)
+          <$> ( PP.hang <$> go im 9 f <*> (PP.spaced <$> traverse (go im 10) xs)
+              )
       Effect1' e t ->
-        PP.parenthesizeIf (p >= 10) $ go n im 9 e <> " " <> go n im 10 t
+        PP.parenthesizeIf (p >= 10) <$> ((\x y -> x <> " " <> y) <$> go im 9 e <*> go im 10 t)
       Effects' es -> effects (Just es)
       ForallsNamed' vs' body ->
         let vs = filter (\v -> Var.name v /= "()") vs'
-         in if p < 0 && all Var.universallyQuantifyIfFree vs
-              then go n im p body
-              else
-                paren (p >= 0) $
-                  let vformatted = PP.sep " " (fmt S.Var . PP.text . Var.name <$> vs)
-                   in (fmt S.TypeOperator "∀ " <> vformatted <> fmt S.TypeOperator ".")
-                        `PP.hang` go n im (-1) body
+            prettyForall p = do
+              let vformatted = PP.sep " " (fmt S.Var . PP.text . Var.name <$> vs)
+              PP.hang (fmt S.TypeOperator "∀ " <> vformatted <> fmt S.TypeOperator ".") <$> go im p body
+         in -- if we're printing a type signature, and all the type variables
+            -- are universally quantified, then we can omit the `forall` keyword
+            -- only if the type variables are not bound in an outer scope
+            if p < 0 && all Var.universallyQuantifyIfFree vs
+              then ifM (willCapture vs) (prettyForall p) (go im p body)
+              else paren (p >= 0) <$> prettyForall (-1)
       t@(Arrow' _ _) -> case t of
         EffectfulArrows' (Ref' DD.UnitRef) rest ->
-          PP.parenthesizeIf (p >= 10) $ arrows True True rest
+          PP.parenthesizeIf (p >= 10) <$> arrows True True rest
         EffectfulArrows' fst rest ->
           case fst of
             Var' v
               | Var.name v == "()" ->
-                  PP.parenthesizeIf (p >= 10) $ arrows True True rest
+                PP.parenthesizeIf (p >= 10) <$> arrows True True rest
             _ ->
-              PP.parenthesizeIf (p >= 0) $
-                go n im 0 fst <> arrows False False rest
-        _ -> "error"
-      _ -> "error"
-    effects Nothing = mempty
-    effects (Just es) = PP.group $ fmt S.AbilityBraces "{" <> PP.commas (go n im 0 <$> es) <> (fmt S.AbilityBraces "}")
+              PP.parenthesizeIf (p >= 0)
+                <$> ((<>) <$> go im 0 fst <*> arrows False False rest)
+        _ -> pure . fromString $ "bug: unexpected Arrow form in prettyRaw: " <> show t
+      _ -> pure . fromString $ "bug: unexpected form in prettyRaw: " <> show tp
+    effects Nothing = pure mempty
+    effects (Just es) =
+      PP.group . (fmt S.AbilityBraces "{" <>) . (<> fmt S.AbilityBraces "}")
+        <$> (PP.commas <$> traverse (go im 0) es)
     -- `first`: is this the first argument?
     -- `mes`: list of effects
-    arrow delay first mes =
-      (if first then mempty else PP.softbreak <> fmt S.TypeOperator "->")
-        <> (if delay then (if first then fmt S.DelayForceChar "'" else fmt S.DelayForceChar " '") else mempty)
-        <> effects mes
-        <> if isJust mes || not delay && not first then " " else mempty
+    arrow delay first mes = do
+      es <- effects mes
+      pure $
+        (if first then mempty else PP.softbreak <> fmt S.TypeOperator "->")
+          <> (if delay then (if first then fmt S.DelayForceChar "'" else fmt S.DelayForceChar " '") else mempty)
+          <> es
+          <> if isJust mes || not delay && not first then " " else mempty
 
-    arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> fmt S.Unit "()"
-    arrows delay first ((mes, Ref' DD.UnitRef) : rest) =
-      arrow delay first mes <> parenNoGroup delay (arrows True True rest)
-    arrows delay first ((mes, arg) : rest) =
-      arrow delay first mes
-        <> parenNoGroup
-          (delay && not (null rest))
-          (go n im 0 arg <> arrows False False rest)
-    arrows False False [] = mempty
-    arrows False True [] = mempty -- not reachable
-    arrows True _ [] = mempty -- not reachable
+    arrows ::
+      Bool ->
+      Bool ->
+      [(Maybe [Type v a], Type v a)] ->
+      m (Pretty SyntaxText)
+    arrows delay first [(mes, Ref' DD.UnitRef)] = (<> fmt S.Unit "()") <$> arrow delay first mes
+    arrows delay first ((mes, Ref' DD.UnitRef) : rest) = do
+      es <- arrow delay first mes
+      rest' <- arrows True True rest
+      pure $ es <> parenNoGroup delay rest'
+    arrows delay first ((mes, arg) : rest) = do
+      es <- arrow delay first mes
+      arg' <- go im 0 arg
+      rest' <- arrows False False rest
+      pure $ es <> parenNoGroup (delay && not (null rest)) (arg' <> rest')
+    arrows False False [] = pure mempty
+    arrows False True [] = pure mempty -- not reachable
+    arrows True _ [] = pure mempty -- not reachable
     paren True s = PP.group $ fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
     paren False s = PP.group s
 
@@ -170,30 +186,32 @@ prettySignaturesCT ::
   PrettyPrintEnv ->
   [(Referent, HashQualified Name, Type v a)] ->
   [Pretty ColorText]
-prettySignaturesCT env ts = map PP.syntaxToColor $ prettySignaturesST env ts
+prettySignaturesCT ppe ts = map PP.syntaxToColor $ prettySignaturesST ppe ts
 
 prettySignaturesCTCollapsed ::
   Var v =>
   PrettyPrintEnv ->
   [(Referent, HashQualified Name, Type v a)] ->
   Pretty ColorText
-prettySignaturesCTCollapsed env ts =
-  PP.lines $
-    PP.group <$> prettySignaturesCT env ts
+prettySignaturesCTCollapsed ppe ts =
+  PP.lines
+    . map PP.group
+    $ prettySignaturesCT ppe ts
 
 prettySignaturesST ::
   Var v =>
   PrettyPrintEnv ->
   [(Referent, HashQualified Name, Type v a)] ->
   [Pretty SyntaxText]
-prettySignaturesST env ts =
-  PP.align [(name r hq, sig typ) | (r, hq, typ) <- ts]
+prettySignaturesST ppe ts =
+  PP.align . runPretty ppe $ traverse (\(r, hq, typ) -> (name r hq,) <$> sig typ) ts
   where
     name r hq =
       styleHashQualified'' (fmt $ S.TermReference r) hq
-    sig typ =
-      (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
-        `PP.orElse` (fmt S.TypeAscriptionColon ": " <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ))
+    sig typ = do
+      t <- pretty0 Map.empty (-1) typ
+      let col = fmt S.TypeAscriptionColon ": "
+      pure $ (col <> t) `PP.orElse` (col <> PP.indentNAfterNewline 2 t)
 
 -- todo: provide sample output in comment; different from prettySignatures'
 prettySignaturesAlt' ::
@@ -201,19 +219,21 @@ prettySignaturesAlt' ::
   PrettyPrintEnv ->
   [([HashQualified Name], Type v a)] ->
   [Pretty ColorText]
-prettySignaturesAlt' env ts =
-  map PP.syntaxToColor $
-    PP.align
-      [ ( PP.commas . fmap (\name -> styleHashQualified'' (fmt $ S.HashQualifier name) name) $ names,
-          (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
-            `PP.orElse` ( fmt S.TypeAscriptionColon ": "
-                            <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ)
-                        )
+prettySignaturesAlt' ppe ts = runPretty ppe $
+  do
+    ts' <- traverse f ts
+    pure $ map PP.syntaxToColor $ PP.align ts'
+  where
+    f :: MonadPretty v m => ([HashQualified Name], Type v a) -> m (Pretty SyntaxText, Pretty SyntaxText)
+    f (names, typ) = do
+      typ' <- pretty0 Map.empty (-1) typ
+      let col = fmt S.TypeAscriptionColon ": "
+      pure
+        ( PP.commas . fmap (\name -> styleHashQualified'' (fmt $ S.HashQualifier name) name) $ names,
+          (col <> typ') `PP.orElse` (col <> PP.indentNAfterNewline 2 typ')
         )
-        | (names, typ) <- ts
-      ]
 
--- prettySignatures'' :: Var v => PrettyPrintEnv -> [(Name, Type v a)] -> [Pretty ColorText]
+-- prettySignatures'' :: Var v => [(Name, Type v a)] -> [Pretty ColorText]
 -- prettySignatures'' env ts = prettySignatures' env (first HQ.fromName <$> ts)
 
 prettySignaturesAlt ::
@@ -221,6 +241,7 @@ prettySignaturesAlt ::
   PrettyPrintEnv ->
   [([HashQualified Name], Type v a)] ->
   Pretty ColorText
-prettySignaturesAlt env ts =
-  PP.lines $
-    PP.group <$> prettySignaturesAlt' env ts
+prettySignaturesAlt ppe ts =
+  PP.lines
+    . map PP.group
+    $ prettySignaturesAlt' ppe ts

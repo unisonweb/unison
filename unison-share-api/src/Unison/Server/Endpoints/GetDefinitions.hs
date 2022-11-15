@@ -21,8 +21,8 @@ import Servant.Docs
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Rt
-import Unison.Codebase.ShortBranchHash
-  ( ShortBranchHash,
+import Unison.Codebase.ShortCausalHash
+  ( ShortCausalHash,
   )
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
@@ -40,7 +40,7 @@ import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty (Width)
 
 type DefinitionsAPI =
-  "getDefinition" :> QueryParam "rootBranch" ShortBranchHash
+  "getDefinition" :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParams "names" (HQ.HashQualified Name)
     :> QueryParam "renderWidth" Width
@@ -92,7 +92,7 @@ instance ToParam (QueryParam "namespace" Path.Path) where
       )
       Normal
 
-instance ToParam (QueryParam "rootBranch" ShortBranchHash) where
+instance ToParam (QueryParam "rootBranch" ShortCausalHash) where
   toParam _ =
     DocQueryParam
       "rootBranch"
@@ -116,7 +116,7 @@ instance ToSample DefinitionDisplayResults where
 serveDefinitions ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  Maybe ShortBranchHash ->
+  Maybe ShortCausalHash ->
   Maybe Path.Path ->
   [HQ.HashQualified Name] ->
   Maybe Width ->
@@ -124,7 +124,7 @@ serveDefinitions ::
   Backend.Backend IO DefinitionDisplayResults
 serveDefinitions rt codebase mayRoot relativePath hqns width suff =
   do
-    root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
+    root <- traverse (Backend.expandShortCausalHash codebase) mayRoot
     hqns
       & foldMapM
         ( Backend.prettyDefinitionsForHQName

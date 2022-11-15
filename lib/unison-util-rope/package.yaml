@@ -2,8 +2,7 @@ name: unison-util-rope
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2022 Unison Computing, PBC and contributors
 
-ghc-options: -Wall -O0
-# -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+ghc-options: -Wall
 
 dependencies:
   - base

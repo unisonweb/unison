@@ -23,6 +23,7 @@ flag optimized
 
 library
   exposed-modules:
+      U.Codebase.Branch.Diff
       Unison.Builtin
       Unison.Builtin.Decls
       Unison.Builtin.Terms
@@ -60,7 +61,7 @@ library
       Unison.Codebase.PushBehavior
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
-      Unison.Codebase.ShortBranchHash
+      Unison.Codebase.ShortCausalHash
       Unison.Codebase.SqliteCodebase
       Unison.Codebase.SqliteCodebase.Branch.Cache
       Unison.Codebase.SqliteCodebase.Branch.Dependencies
@@ -91,6 +92,7 @@ library
       Unison.Parsers
       Unison.PrettyPrintEnv
       Unison.PrettyPrintEnv.FQN
+      Unison.PrettyPrintEnv.MonadPretty
       Unison.PrettyPrintEnv.Names
       Unison.PrettyPrintEnv.Util
       Unison.PrettyPrintEnvDecl
@@ -142,6 +144,7 @@ library
       Unison.Util.Exception
       Unison.Util.Logger
       Unison.Util.PinBoard
+      Unison.Util.Pretty.MegaParsec
       Unison.Util.Star3
       Unison.Util.Text
       Unison.Util.Text.Pattern
@@ -207,6 +210,7 @@ library
     , extra
     , filepath
     , fingertree
+    , free
     , fsnotify
     , fuzzyfind
     , generic-lens
@@ -242,6 +246,7 @@ library
     , process
     , random >=1.2.0
     , raw-strings-qq
+    , recover-rtti
     , regex-base
     , regex-tdfa
     , safe
@@ -392,6 +397,7 @@ test-suite parser-typechecker-tests
     , filemanip
     , filepath
     , fingertree
+    , free
     , fsnotify
     , fuzzyfind
     , generic-lens
@@ -427,6 +433,7 @@ test-suite parser-typechecker-tests
     , process
     , random >=1.2.0
     , raw-strings-qq
+    , recover-rtti
     , regex-base
     , regex-tdfa
     , safe

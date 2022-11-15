@@ -4,11 +4,13 @@ module U.Codebase.Sqlite.Operations
     loadRootCausalHash,
     expectRootCausalHash,
     expectRootCausal,
+    expectRootBranchHash,
     loadCausalHashAtPath,
     expectCausalHashAtPath,
     saveBranch,
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
+    expectBranchByBranchHash,
     expectNamespaceStatsByHash,
     expectNamespaceStatsByHashId,
 
@@ -65,7 +67,7 @@ module U.Codebase.Sqlite.Operations
     termsMentioningType,
 
     -- ** name lookup index
-    rebuildNameIndex,
+    updateNameIndex,
     rootNamesByPath,
     NamesByPath (..),
 
@@ -91,7 +93,7 @@ module U.Codebase.Sqlite.Operations
     Q.s2cTermWithType,
     Q.s2cDecl,
     declReferencesByPrefix,
-    branchHashesByPrefix,
+    namespaceHashesByPrefix,
     derivedDependencies,
   )
 where
@@ -117,7 +119,7 @@ import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C
 import qualified U.Codebase.Referent as C.Referent
 import qualified U.Codebase.Reflog as Reflog
-import U.Codebase.ShortHash (ShortBranchHash (ShortBranchHash))
+import U.Codebase.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
 import qualified U.Codebase.Sqlite.Branch.Diff as S.BranchDiff
@@ -195,6 +197,11 @@ expectValueHashByCausalHashId = loadValueHashById <=< Q.expectCausalValueHashId
 
 expectRootCausalHash :: Transaction CausalHash
 expectRootCausalHash = Q.expectCausalHash =<< Q.expectNamespaceRoot
+
+expectRootBranchHash :: Transaction BranchHash
+expectRootBranchHash = do
+  rootCausalHashId <- Q.expectNamespaceRoot
+  expectValueHashByCausalHashId rootCausalHashId
 
 loadRootCausalHash :: Transaction (Maybe CausalHash)
 loadRootCausalHash =
@@ -716,6 +723,16 @@ loadDbBranchByCausalHashId causalHashId =
     Nothing -> pure Nothing
     Just branchObjectId -> Just <$> expectDbBranch branchObjectId
 
+expectBranchByBranchHashId :: Db.BranchHashId -> Transaction (C.Branch.Branch Transaction)
+expectBranchByBranchHashId bhId = do
+  boId <- Q.expectBranchObjectIdByBranchHashId bhId
+  expectBranch boId
+
+expectBranchByBranchHash :: BranchHash -> Transaction (C.Branch.Branch Transaction)
+expectBranchByBranchHash bh = do
+  bhId <- Q.saveBranchHash bh
+  expectBranchByBranchHashId bhId
+
 -- | Expect a branch value given its causal hash id.
 expectDbBranchByCausalHashId :: Db.CausalHashId -> Transaction S.DbBranch
 expectDbBranchByCausalHashId causalHashId = do
@@ -1003,14 +1020,14 @@ declReferentsByPrefix b32prefix pos cid = do
       (_localIds, decl) <- Q.expectDeclObject r (decodeDeclElement i)
       pure (C.Decl.declType decl, length (C.Decl.constructorTypes decl))
 
-branchHashesByPrefix :: ShortBranchHash -> Transaction (Set BranchHash)
-branchHashesByPrefix (ShortBranchHash b32prefix) = do
+namespaceHashesByPrefix :: ShortNamespaceHash -> Transaction (Set BranchHash)
+namespaceHashesByPrefix (ShortNamespaceHash b32prefix) = do
   hashIds <- Q.namespaceHashIdByBase32Prefix b32prefix
   hashes <- traverse (Q.expectHash . Db.unBranchHashId) hashIds
   pure $ Set.fromList . map BranchHash $ hashes
 
-causalHashesByPrefix :: ShortBranchHash -> Transaction (Set CausalHash)
-causalHashesByPrefix (ShortBranchHash b32prefix) = do
+causalHashesByPrefix :: ShortCausalHash -> Transaction (Set CausalHash)
+causalHashesByPrefix (ShortCausalHash b32prefix) = do
   hashIds <- Q.causalHashIdByBase32Prefix b32prefix
   hashes <- traverse (Q.expectHash . Db.unCausalHashId) hashIds
   pure $ Set.fromList . map CausalHash $ hashes
@@ -1018,9 +1035,18 @@ causalHashesByPrefix (ShortBranchHash b32prefix) = do
 -- | returns a list of known definitions referencing `r`
 dependents :: Q.DependentsSelector -> C.Reference -> Transaction (Set C.Reference.Id)
 dependents selector r = do
-  r' <- c2sReference r
-  sIds <- Q.getDependentsForDependency selector r'
-  Set.traverse s2cReferenceId sIds
+  mr <- case r of
+    C.ReferenceBuiltin {} -> pure (Just r)
+    C.ReferenceDerived id_ ->
+      objectExistsForHash (view C.idH id_) <&> \case
+        True -> Just r
+        False -> Nothing
+  case mr of
+    Nothing -> pure mempty
+    Just r -> do
+      r' <- c2sReference r
+      sIds <- Q.getDependentsForDependency selector r'
+      Set.traverse s2cReferenceId sIds
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)
@@ -1038,13 +1064,19 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
--- | Given the list of term and type names from the root branch, rebuild the name lookup
--- table.
-rebuildNameIndex :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)] -> [S.NamedRef C.Reference] -> Transaction ()
-rebuildNameIndex termNames typeNames = do
-  Q.resetNameLookupTables
-  Q.insertTermNames ((fmap (c2sTextReferent *** fmap c2sConstructorType) <$> termNames))
-  Q.insertTypeNames ((fmap c2sTextReference <$> typeNames))
+-- | Given lists of names to add and remove, update the index accordingly.
+updateNameIndex ::
+  -- |  (add terms, remove terms)
+  ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
+  -- |  (add types, remove types)
+  ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
+  Transaction ()
+updateNameIndex (newTermNames, removedTermNames) (newTypeNames, removedTypeNames) = do
+  Q.ensureNameLookupTables
+  Q.removeTermNames ((fmap c2sTextReferent <$> removedTermNames))
+  Q.removeTypeNames ((fmap c2sTextReference <$> removedTypeNames))
+  Q.insertTermNames (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
+  Q.insertTypeNames (fmap c2sTextReference <$> newTypeNames)
 
 data NamesByPath = NamesByPath
   { termNamesInPath :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],

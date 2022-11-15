@@ -1,8 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Names
   ( Names (..),
@@ -85,7 +81,7 @@ data Names = Names
   { terms :: Relation Name Referent,
     types :: Relation Name TypeReference
   }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 instance Semigroup (Names) where
   Names e1 t1 <> Names e2 t2 =
@@ -93,15 +89,6 @@ instance Semigroup (Names) where
 
 instance Monoid (Names) where
   mempty = Names mempty mempty
-
-instance Show (Names) where
-  show (Names terms types) =
-    "Terms:\n"
-      ++ foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList terms)
-      ++ "\n"
-      ++ "Types:\n"
-      ++ foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList types)
-      ++ "\n"
 
 isEmpty :: Names -> Bool
 isEmpty n = R.null (terms n) && R.null (types n)
@@ -121,12 +108,13 @@ makeRelative = map Name.makeRelative
 -- Finds names that are supersequences of all the given strings, ordered by
 -- score and grouped by name.
 fuzzyFind ::
+  (Name -> Text) ->
   [String] ->
   Names ->
   [(FZF.Alignment, Name, Set (Either Referent TypeReference))]
-fuzzyFind query names =
+fuzzyFind nameToText query names =
   fmap flatten
-    . fuzzyFinds (Name.toString . fst) query
+    . fuzzyFinds (Text.unpack . nameToText . fst) query
     . Prelude.filter prefilter
     . Map.toList
     -- `mapMonotonic` is safe here and saves a log n factor
@@ -137,7 +125,7 @@ fuzzyFind query names =
     -- For performance, case-insensitive substring matching as a pre-filter
     -- This finds fewer matches than subsequence matching, but is
     -- (currently) way faster even on large name sets.
-    prefilter (Name.toText -> name, _) = case lowerqueryt of
+    prefilter (nameToText -> name, _) = case lowerqueryt of
       -- Special cases here just to help optimizer, since
       -- not sure if `all` will get sufficiently unrolled for
       -- Text fusion to work out.

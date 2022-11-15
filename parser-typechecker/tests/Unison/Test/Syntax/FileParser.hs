@@ -1,6 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.Test.Syntax.FileParser where
 
 import Data.List (uncons)
@@ -9,6 +6,7 @@ import EasyTest
 import qualified Text.Megaparsec.Error as MPE
 import qualified Unison.Parser.Ann as P
 import Unison.Parsers (unsafeGetRightFrom, unsafeParseFileBuiltinsOnly)
+import Unison.PrintError (renderParseErrorAsANSI)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FileParser (file)
 import qualified Unison.Syntax.Parser as P
@@ -76,7 +74,7 @@ expectFileParseFailure s expectation = scope s $ do
         Just (MPE.ErrorCustom e) -> expectation e
         Just _ -> crash "Error encountered was not custom"
         Nothing -> crash "No error found"
-    Left e -> crash ("Parser failed with an error which was a trivial parser error: " ++ show e)
+    Left e -> crash ("Parser failed with an error which was a trivial parser error: " ++ renderParseErrorAsANSI 80 s e)
 
 emptyWatchTest :: Test ()
 emptyWatchTest =

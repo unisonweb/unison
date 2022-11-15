@@ -1,9 +1,4 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns #-}
--- pTrace
 {-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Unison.Syntax.Parser where
@@ -20,7 +15,6 @@ import qualified Data.Text as Text
 import Data.Typeable (Proxy (..))
 import Text.Megaparsec (runParserT)
 import qualified Text.Megaparsec as P
-import Text.Megaparsec.Error (ShowErrorComponent)
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified Unison.ABT as ABT
 import Unison.ConstructorReference (ConstructorReference)
@@ -39,6 +33,7 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Syntax.Identifier as Identifier
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name (unsafeFromString)
 import Unison.Term (MatchCase (..))
 import qualified Unison.UnisonFile.Error as UF
 import Unison.Util.Bytes (Bytes)
@@ -116,10 +111,7 @@ data Error v
   | DuplicateTermNames [(v, [Ann])]
   | PatternArityMismatch Int Int Ann -- PatternArityMismatch expectedArity actualArity location
   | FloatPattern Ann
-  deriving (Show, Eq, Ord)
-
-instance (Ord v, Show v) => ShowErrorComponent (Error v) where
-  showErrorComponent e = show e
+  deriving stock (Eq, Ord)
 
 tokenToPair :: L.Token a -> (Ann, a)
 tokenToPair t = (ann t, L.payload t)

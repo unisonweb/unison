@@ -19,7 +19,6 @@ import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
-import Unison.Cli.TypeCheck (typecheck)
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
@@ -30,6 +29,8 @@ import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
 import System.Environment (withArgs)
 import qualified Text.Megaparsec as P
+import qualified U.Codebase.Branch.Diff as V2Branch
+import qualified U.Codebase.Causal as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -45,6 +46,7 @@ import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
 import Unison.Cli.NamesUtils (basicParseNames, basicPrettyPrintNamesA, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
+import Unison.Cli.TypeCheck (typecheck)
 import Unison.Cli.UnisonConfigUtils (gitUrlKey, remoteMappingKey)
 import Unison.Codebase (Codebase, Preprocessing (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase as Codebase
@@ -99,7 +101,7 @@ import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
@@ -158,9 +160,12 @@ import qualified Unison.Share.Sync as Share
 import qualified Unison.Share.Sync.Types as Share
 import Unison.Share.Types (codeserverBaseURL)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share (Path (..), hashJWTHash)
+import qualified Unison.Syntax.HashQualified as HQ (unsafeFromString, toText, toString)
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name (toString, toVar, unsafeFromString, unsafeFromVar)
 import qualified Unison.Syntax.Parser as Parser
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -263,15 +268,15 @@ loop e = do
         #latestTypecheckedFile .= (Just unisonFile)
 
   case e of
-    Left (IncomingRootBranch hashes) -> do
+    Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
       Cli.Env {codebase} <- ask
-      sbhLength <- liftIO (Codebase.branchHashLength codebase)
+      schLength <- liftIO (Codebase.branchHashLength codebase)
       rootBranch <- Cli.getRootBranch
       Cli.respond $
         WarnIncomingRootBranch
-          (SBH.fromHash sbhLength $ Branch.headHash rootBranch)
-          (Set.map (SBH.fromHash sbhLength) hashes)
-    Left (UnisonFileChanged sourceName text) ->
+          (SCH.fromHash schLength $ Branch.headHash rootBranch)
+          (Set.map (SCH.fromHash schLength) hashes)
+    Left (UnisonFileChanged sourceName text) -> Cli.time "UnisonFileChanged" do
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
         Just (_, True) -> (#latestFile . _Just . _2) .= False
@@ -341,6 +346,7 @@ loop e = do
             Path.HQSplit' ->
             Cli ()
           delete getTerms getTypes hq' = do
+            Cli.Env {codebase} <- ask
             hq <- Cli.resolveSplit' hq'
             terms <- getTerms hq
             types <- getTypes hq
@@ -353,7 +359,9 @@ loop e = do
                 toRel = R.fromList . fmap (name,) . toList
                 -- these names are relative to the root
                 toDelete = Names (toRel terms) (toRel types)
-            endangerments <- getEndangeredDependents toDelete rootNames
+            endangerments <-
+              liftIO $
+                Codebase.runTransaction codebase (getEndangeredDependents codebase toDelete rootNames)
             if null endangerments
               then do
                 let makeDeleteTermNames = map (BranchUtil.makeDeleteTermName resolvedPath) . Set.toList $ terms
@@ -367,7 +375,7 @@ loop e = do
               else do
                 ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
                 Cli.respondNumbered (CantDeleteDefinitions ppeDecl endangerments)
-       in case input of
+       in Cli.time "InputPattern" case input of
             ApiI -> do
               Cli.Env {serverBaseUrl} <- ask
               whenJust serverBaseUrl \baseUrl ->
@@ -384,18 +392,18 @@ loop e = do
               Cli.respond $ PrintMessage pretty
             ShowReflogI -> do
               Cli.Env {codebase} <- ask
-              sbhLength <- liftIO (Codebase.branchHashLength codebase)
+              schLength <- liftIO (Codebase.branchHashLength codebase)
               let numEntriesToShow = 500
-              entries <- liftIO (Codebase.getReflog codebase numEntriesToShow) <&> fmap (first $ SBH.fromHash sbhLength)
+              entries <- liftIO (Codebase.getReflog codebase numEntriesToShow) <&> fmap (first $ SCH.fromHash schLength)
               let moreEntriesToLoad = length entries == numEntriesToShow
               let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
-              let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SBH.toString hash
+              let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SCH.toString hash
               #numberedArgs .= numberedEntries
               Cli.respond $ ShowReflog expandedEntries
               where
                 expandEntries ::
-                  ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool) ->
-                  Maybe ((Maybe UTCTime, SBH.ShortBranchHash, Text), ([Reflog.Entry SBH.ShortBranchHash Text], Maybe SBH.ShortBranchHash, Bool))
+                  ([Reflog.Entry SCH.ShortCausalHash Text], Maybe SCH.ShortCausalHash, Bool) ->
+                  Maybe ((Maybe UTCTime, SCH.ShortCausalHash, Text), ([Reflog.Entry SCH.ShortCausalHash Text], Maybe SCH.ShortCausalHash, Bool))
                 expandEntries ([], Just expectedHash, moreEntriesToLoad) =
                   if moreEntriesToLoad
                     then Nothing
@@ -415,7 +423,7 @@ loop e = do
               Cli.time "reset-root" do
                 newRoot <-
                   case src0 of
-                    Left hash -> Cli.resolveShortBranchHash hash
+                    Left hash -> Cli.resolveShortCausalHash hash
                     Right path' -> Cli.expectBranchAtPath' path'
                 description <- inputDescription input
                 Cli.updateRoot newRoot description
@@ -423,7 +431,7 @@ loop e = do
             ForkLocalBranchI src0 dest0 -> do
               srcb <-
                 case src0 of
-                  Left hash -> Cli.resolveShortBranchHash hash
+                  Left hash -> Cli.resolveShortCausalHash hash
                   Right path' -> Cli.expectBranchAtPath' path'
               Cli.assertNoBranchAtPath' dest0
               description <- inputDescription input
@@ -536,6 +544,7 @@ loop e = do
                   Cli.respond DeletedEverything
                 else Cli.respond DeleteEverythingConfirmation
             DeleteBranchI insistence (Just p) -> do
+              Cli.Env {codebase} <- ask
               branch <- Cli.expectBranchAtPath' (Path.unsplit' p)
               description <- inputDescription input
               absPath <- Cli.resolveSplit' p
@@ -545,7 +554,9 @@ loop e = do
                       (Branch.toNames (Branch.head branch))
               afterDelete <- do
                 rootNames <- Branch.toNames <$> Cli.getRootBranch0
-                endangerments <- getEndangeredDependents toDelete rootNames
+                endangerments <-
+                  liftIO $
+                    Codebase.runTransaction codebase (getEndangeredDependents codebase toDelete rootNames)
                 case (null endangerments, insistence) of
                   (True, _) -> pure (Cli.respond Success)
                   (False, Force) -> do
@@ -585,27 +596,27 @@ loop e = do
             HistoryI resultsCap diffCap from -> do
               branch <-
                 case from of
-                  Left hash -> Cli.resolveShortBranchHash hash
+                  Left hash -> Cli.resolveShortCausalHash hash
                   Right path' -> do
                     path <- Cli.resolvePath' path'
                     Cli.getMaybeBranchAt path & onNothingM (Cli.returnEarly (CreatedNewBranch path))
               Cli.Env {codebase} <- ask
-              sbhLength <- liftIO (Codebase.branchHashLength codebase)
-              history <- liftIO (doHistory sbhLength 0 branch [])
+              schLength <- liftIO (Codebase.branchHashLength codebase)
+              history <- liftIO (doHistory schLength 0 branch [])
               Cli.respondNumbered history
               where
                 doHistory :: Int -> Int -> Branch IO -> [(Causal.CausalHash, NamesWithHistory.Diff)] -> IO NumberedOutput
-                doHistory sbhLength !n b acc =
+                doHistory schLength !n b acc =
                   if maybe False (n >=) resultsCap
-                    then pure (History diffCap sbhLength acc (PageEnd (Branch.headHash b) n))
+                    then pure (History diffCap schLength acc (PageEnd (Branch.headHash b) n))
                     else case Branch._history b of
-                      Causal.One {} -> pure (History diffCap sbhLength acc (EndOfLog $ Branch.headHash b))
+                      Causal.One {} -> pure (History diffCap schLength acc (EndOfLog $ Branch.headHash b))
                       Causal.Merge _ _ _ tails ->
-                        pure (History diffCap sbhLength acc (MergeTail (Branch.headHash b) $ Map.keys tails))
+                        pure (History diffCap schLength acc (MergeTail (Branch.headHash b) $ Map.keys tails))
                       Causal.Cons _ _ _ tail -> do
                         b' <- fmap Branch.Branch $ snd tail
                         let elem = (Branch.headHash b, Branch.namesDiff b' b)
-                        doHistory sbhLength (n + 1) b' (elem : acc)
+                        doHistory schLength (n + 1) b' (elem : acc)
             UndoI -> do
               rootBranch <- Cli.getRootBranch
               (_, prev) <-
@@ -778,15 +789,11 @@ loop e = do
               let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
                   terms = NamesWithHistory.lookupHQTerm query names
                   types = NamesWithHistory.lookupHQType query names
-                  terms' :: Set (Referent, Set (HQ'.HashQualified Name))
-                  terms' = Set.map go terms
-                    where
-                      go r = (r, Set.fromList $ PPE.allTermNames unsuffixifiedPPE r)
-                  types' :: Set (Reference, Set (HQ'.HashQualified Name))
-                  types' = Set.map go types
-                    where
-                      go r = (r, Set.fromList $ PPE.allTypeNames unsuffixifiedPPE r)
-              Cli.respond $ ListNames global hqLength (toList types') (toList terms')
+                  terms' :: [(Referent, [HQ'.HashQualified Name])]
+                  terms' = map (\r -> (r, PPE.allTermNames unsuffixifiedPPE r)) (Set.toList terms)
+                  types' :: [(Reference, [HQ'.HashQualified Name])]
+                  types' = map (\r -> (r, PPE.allTypeNames unsuffixifiedPPE r)) (Set.toList types)
+              Cli.respond $ ListNames global hqLength types' terms'
             LinkI mdValue srcs -> do
               description <- inputDescription input
               manageLinks False srcs [mdValue] Metadata.insert
@@ -937,11 +944,11 @@ loop e = do
               #numberedArgs .= fmap entryToHQString entries
               getRoot <- atomically . STM.readTMVar <$> use #root
               let buildPPE = do
-                    sbhLength <- liftIO (Codebase.branchHashLength codebase)
+                    schLength <- liftIO (Codebase.branchHashLength codebase)
                     rootBranch <- getRoot
                     pure $
                       Backend.basicSuffixifiedNames
-                        sbhLength
+                        schLength
                         rootBranch
                         (Backend.AllNames (Path.unabsolute pathArgAbs))
               Cli.respond $ ListShallow buildPPE entries
@@ -1328,7 +1335,7 @@ loop e = do
               for_ lds \ld -> do
                 dependencies :: Set Reference <-
                   let tp r@(Reference.DerivedId i) =
-                        liftIO (Codebase.getTypeDeclaration codebase i) <&> \case
+                        Codebase.getTypeDeclaration codebase i <&> \case
                           Nothing -> error $ "What happened to " ++ show i ++ "?"
                           Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
                       tp _ = pure mempty
@@ -1337,13 +1344,13 @@ loop e = do
                           Nothing -> error $ "What happened to " ++ show i ++ "?"
                           Just tm -> Set.delete r $ Term.dependencies tm
                       tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
-                        liftIO (Codebase.getTypeDeclaration codebase i) <&> \case
+                        liftIO (Codebase.runTransaction codebase (Codebase.getTypeDeclaration codebase i)) <&> \case
                           Nothing -> error $ "What happened to " ++ show i ++ "?"
                           Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
                             Nothing -> error $ "What happened to " ++ show con ++ "?"
                             Just tp -> Type.dependencies tp
                       tm _ = pure mempty
-                   in LD.fold tp tm ld
+                   in LD.fold (liftIO . Codebase.runTransaction codebase . tp) tm ld
                 (missing, names0) <- liftIO (Branch.findHistoricalRefs' dependencies rootBranch)
                 let types = R.toList $ Names.types names0
                 let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
@@ -1435,6 +1442,24 @@ loop e = do
               Cli.Env {codebase} <- ask
               r <- liftIO (Codebase.runTransaction codebase IntegrityCheck.integrityCheckFullCodebase)
               Cli.respond (IntegrityCheck r)
+            DebugNameDiffI fromSCH toSCH -> do
+              Cli.Env {codebase} <- ask
+              schLen <- liftIO $ Codebase.branchHashLength codebase
+              fromCHs <- liftIO $ Codebase.causalHashesByPrefix codebase fromSCH
+              toCHs <- liftIO $ Codebase.causalHashesByPrefix codebase toSCH
+              (fromCH, toCH) <- case (Set.toList fromCHs, Set.toList toCHs) of
+                ((_ : _ : _), _) -> Cli.returnEarly $ Output.BranchHashAmbiguous fromSCH (Set.map (SCH.fromHash schLen) fromCHs)
+                ([], _) -> Cli.returnEarly $ Output.NoBranchWithHash fromSCH
+                (_, []) -> Cli.returnEarly $ Output.NoBranchWithHash toSCH
+                (_, (_ : _ : _)) -> Cli.returnEarly $ Output.BranchHashAmbiguous toSCH (Set.map (SCH.fromHash schLen) toCHs)
+                ([fromCH], [toCH]) -> pure (fromCH, toCH)
+              output <- liftIO do
+                fromBranch <- (Codebase.getShallowCausalForHash codebase $ Cv.causalHash1to2 fromCH) >>= V2Causal.value
+                toBranch <- (Codebase.getShallowCausalForHash codebase $ Cv.causalHash1to2 toCH) >>= V2Causal.value
+                treeDiff <- V2Branch.diffBranches fromBranch toBranch
+                let nameChanges = V2Branch.nameChanges Nothing treeDiff
+                pure (DisplayDebugNameDiff nameChanges)
+              Cli.respond output
             DeprecateTermI {} -> Cli.respond NotImplemented
             DeprecateTypeI {} -> Cli.respond NotImplemented
             RemoveTermReplacementI from patchPath -> doRemoveReplacement from patchPath True
@@ -1600,6 +1625,7 @@ inputDescription input =
     CreatePullRequestI {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat
+    DebugNameDiffI {} -> wat
     DebugDumpNamespaceSimpleI {} -> wat
     DebugDumpNamespacesI {} -> wat
     DebugNumberedArgsI {} -> wat
@@ -1639,7 +1665,7 @@ inputDescription input =
     VersionI -> wat
     DebugTabCompletionI _input -> wat
   where
-    hp' :: Either SBH.ShortBranchHash Path' -> Cli Text
+    hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
     hp' = either (pure . Text.pack . show) p'
     p' :: Path' -> Cli Text
     p' = fmap tShow . Cli.resolvePath'
@@ -1655,7 +1681,7 @@ inputDescription input =
     hqs' :: Path.HQSplit' -> Cli Text
     hqs' (p0, hq) = do
       p <- if Path.isRoot' p0 then pure mempty else p' p0
-      pure (p <> "." <> tShow hq)
+      pure (p <> "." <> HQ'.toTextWith NameSegment.toText hq)
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
 
@@ -1710,9 +1736,9 @@ handleFindI isVerbose fscope ws input = do
                  in Names.filter f
          in scopeFilter (Backend.prettyNamesForBranch root' nameScope)
   let getResults :: Names -> Cli [SearchResult]
-      getResults names = do
+      getResults names =
         case ws of
-          [] -> pure (List.sortOn (\s -> (SR.name s, s)) (SR.fromNames names))
+          [] -> pure (List.sortBy SR.compareByName (SR.fromNames names))
           -- type query
           ":" : ws -> do
             typ <- parseSearchType (show input) (unwords ws)
@@ -1766,12 +1792,12 @@ handleDependents hq = do
   for_ lds \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
-      let tp r = liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+      let tp r = Codebase.dependents codebase Queries.ExcludeOwnComponent r
           tm = \case
-            Referent.Ref r -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+            Referent.Ref r -> Codebase.dependents codebase Queries.ExcludeOwnComponent r
             Referent.Con (ConstructorReference r _cid) _ct ->
-              liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
-       in LD.fold tp tm ld
+              Codebase.dependents codebase Queries.ExcludeOwnComponent r
+       in liftIO (Codebase.runTransaction codebase (LD.fold tp tm ld))
     -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
     -- unambiguous name.
     ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
@@ -1862,13 +1888,13 @@ doPushRemoteBranch pushFlavor localPath0 syncMode = do
         Cli.ioE (Codebase.pushGitBranch codebase repo opts (\_remoteRoot -> pure (Right sourceBranch))) \err ->
           Cli.returnEarly (Output.GitError err)
       _branch <- result & onLeft Cli.returnEarly
-      sbhLength <- liftIO (Codebase.branchHashLength codebase)
+      schLength <- liftIO (Codebase.branchHashLength codebase)
       Cli.respond $
         GistCreated
           ( ReadRemoteNamespaceGit
               ReadGitRemoteNamespace
                 { repo = writeToReadGit repo,
-                  sbh = Just (SBH.fromHash sbhLength (Branch.headHash sourceBranch)),
+                  sch = Just (SCH.fromHash schLength (Branch.headHash sourceBranch)),
                   path = Path.empty
                 }
           )
@@ -2256,13 +2282,20 @@ doDisplay outputLoc names tm = do
         Just (tm, _) -> pure (Just $ Term.unannotate tm)
       loadTerm _ = pure Nothing
       loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
-        Nothing -> fmap (fmap $ DD.amap (const ())) $ liftIO (Codebase.getTypeDeclaration codebase r)
+        Nothing -> fmap (fmap $ DD.amap (const ())) $ Codebase.getTypeDeclaration codebase r
         Just decl -> pure (Just $ DD.amap (const ()) decl)
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
         | Just (_, ty) <- Map.lookup r tms = pure $ Just (void ty)
       loadTypeOfTerm' r = fmap (fmap void) . loadTypeOfTerm codebase $ r
-  rendered <- DisplayValues.displayTerm ppe (liftIO . loadTerm) (liftIO . loadTypeOfTerm') evalTerm loadDecl tm
+  rendered <-
+    DisplayValues.displayTerm
+      ppe
+      (liftIO . loadTerm)
+      (liftIO . loadTypeOfTerm')
+      evalTerm
+      (liftIO . Codebase.runTransaction codebase . loadDecl)
+      tm
   Cli.respond $ DisplayRendered loc rendered
 
 getLinks ::
@@ -2347,14 +2380,17 @@ checkTodo patch names0 = do
   let -- Get the dependents of a reference which:
       --   1. Don't appear on the LHS of this patch
       --   2. Have a name in this namespace
-      getDependents :: Reference -> IO (Set Reference)
+      getDependents :: Reference -> Sqlite.Transaction (Set Reference)
       getDependents ref = do
         dependents <- Codebase.dependents codebase Queries.ExcludeSelf ref
         pure (dependents & removeEditedThings & removeNamelessThings)
   -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
-  dependsOn <- liftIO (Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited)
-  let dirty = R.dom dependsOn
-  transitiveDirty <- liftIO (transitiveClosure getDependents dirty)
+  (dependsOn, dirty, transitiveDirty) <- do
+    (liftIO . Codebase.runTransaction codebase) do
+      dependsOn <- Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited
+      let dirty = R.dom dependsOn
+      transitiveDirty <- transitiveClosure getDependents dirty
+      pure (dependsOn, dirty, transitiveDirty)
   (frontierTerms, frontierTypes) <- loadDisplayInfo (R.ran dependsOn)
   (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
   pure $
@@ -2428,19 +2464,22 @@ searchResultsFor ns terms types =
 
 searchBranchScored ::
   forall score.
-  (Ord score) =>
+  Ord score =>
   Names ->
   (Name -> Name -> Maybe score) ->
   [HQ.HashQualified Name] ->
   [SearchResult]
 searchBranchScored names0 score queries =
-  nubOrd . fmap snd . toList $ searchTermNamespace <> searchTypeNamespace
+  nubOrd
+    . fmap snd
+    . List.sortBy (\(s0, r0) (s1, r1) -> compare s0 s1 <> SR.compareByName r0 r1)
+    $ searchTermNamespace <> searchTypeNamespace
   where
-    searchTermNamespace = foldMap do1query queries
+    searchTermNamespace = queries >>= do1query
       where
-        do1query :: HQ.HashQualified Name -> Set (Maybe score, SearchResult)
-        do1query q = foldMap (score1hq q) (R.toList . Names.terms $ names0)
-        score1hq :: HQ.HashQualified Name -> (Name, Referent) -> Set (Maybe score, SearchResult)
+        do1query :: HQ.HashQualified Name -> [(Maybe score, SearchResult)]
+        do1query q = mapMaybe (score1hq q) (R.toList . Names.terms $ names0)
+        score1hq :: HQ.HashQualified Name -> (Name, Referent) -> Maybe (Maybe score, SearchResult)
         score1hq query (name, ref) = case query of
           HQ.NameOnly qn ->
             pair qn
@@ -2449,18 +2488,17 @@ searchBranchScored names0 score queries =
                 pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Referent.toShortHash ref ->
-                Set.singleton (Nothing, result)
-          _ -> mempty
+                Just (Nothing, result)
+          _ -> Nothing
           where
             result = SR.termSearchResult names0 name ref
-            pair qn = case score qn name of
-              Just score -> Set.singleton (Just score, result)
-              Nothing -> mempty
-    searchTypeNamespace = foldMap do1query queries
+            pair qn =
+              (\score -> (Just score, result)) <$> score qn name
+    searchTypeNamespace = queries >>= do1query
       where
-        do1query :: HQ.HashQualified Name -> Set (Maybe score, SearchResult)
-        do1query q = foldMap (score1hq q) (R.toList . Names.types $ names0)
-        score1hq :: HQ.HashQualified Name -> (Name, Reference) -> Set (Maybe score, SearchResult)
+        do1query :: HQ.HashQualified Name -> [(Maybe score, SearchResult)]
+        do1query q = mapMaybe (score1hq q) (R.toList . Names.types $ names0)
+        score1hq :: HQ.HashQualified Name -> (Name, Reference) -> Maybe (Maybe score, SearchResult)
         score1hq query (name, ref) = case query of
           HQ.NameOnly qn ->
             pair qn
@@ -2469,13 +2507,12 @@ searchBranchScored names0 score queries =
                 pair qn
           HQ.HashOnly h
             | h `SH.isPrefixOf` Reference.toShortHash ref ->
-                Set.singleton (Nothing, result)
-          _ -> mempty
+                Just (Nothing, result)
+          _ -> Nothing
           where
             result = SR.typeSearchResult names0 name ref
-            pair qn = case score qn name of
-              Just score -> Set.singleton (Just score, result)
-              Nothing -> mempty
+            pair qn =
+              (\score -> (Just score, result)) <$> score qn name
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
@@ -2526,27 +2563,27 @@ loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
 -- definition is going "extinct"). In this case we may wish to take some action or warn the
 -- user about these "endangered" definitions which would now contain unnamed references.
 getEndangeredDependents ::
+  Codebase m v a ->
   -- | Which names we want to delete
   Names ->
   -- | All names from the root branch
   Names ->
   -- | map from references going extinct to the set of endangered dependents
-  Cli (Map LabeledDependency (NESet LabeledDependency))
-getEndangeredDependents namesToDelete rootNames = do
-  Cli.Env {codebase} <- ask
+  Sqlite.Transaction (Map LabeledDependency (NESet LabeledDependency))
+getEndangeredDependents codebase namesToDelete rootNames = do
   let remainingNames :: Names
       remainingNames = rootNames `Names.difference` namesToDelete
       refsToDelete, remainingRefs, extinct :: Set LabeledDependency
       refsToDelete = Names.labeledReferences namesToDelete
       remainingRefs = Names.labeledReferences remainingNames -- left over after delete
       extinct = refsToDelete `Set.difference` remainingRefs -- deleting and not left over
-      accumulateDependents :: LabeledDependency -> IO (Map LabeledDependency (Set LabeledDependency))
+      accumulateDependents :: LabeledDependency -> Sqlite.Transaction (Map LabeledDependency (Set LabeledDependency))
       accumulateDependents ld =
         let ref = LD.fold id Referent.toReference ld
          in Map.singleton ld . Set.map LD.termRef <$> Codebase.dependents codebase Queries.ExcludeOwnComponent ref
   -- All dependents of extinct, including terms which might themselves be in the process of being deleted.
   allDependentsOfExtinct :: Map LabeledDependency (Set LabeledDependency) <-
-    liftIO (Map.unionsWith (<>) <$> for (Set.toList extinct) accumulateDependents)
+    Map.unionsWith (<>) <$> for (Set.toList extinct) accumulateDependents
 
   -- Filtered to only include dependencies which are not being deleted, but depend one which
   -- is going extinct.
@@ -2653,18 +2690,17 @@ loadDisplayInfo ::
 loadDisplayInfo refs = do
   Cli.Env {codebase} <- ask
   termRefs <- filterM (liftIO . Codebase.isTerm codebase) (toList refs)
-  typeRefs <- filterM (liftIO . Codebase.isType codebase) (toList refs)
+  typeRefs <- liftIO (Codebase.runTransaction codebase (filterM (Codebase.isType codebase) (toList refs)))
   terms <- forM termRefs $ \r -> (r,) <$> liftIO (Codebase.getTypeOfTerm codebase r)
-  types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject r
+  types <- liftIO (Codebase.runTransaction codebase (forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject codebase r))
   pure (terms, types)
 
-loadTypeDisplayObject :: Reference -> Cli (DisplayObject () (DD.Decl Symbol Ann))
-loadTypeDisplayObject = \case
+loadTypeDisplayObject :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (DisplayObject () (DD.Decl Symbol Ann))
+loadTypeDisplayObject codebase = \case
   Reference.Builtin _ -> pure (BuiltinObject ())
-  Reference.DerivedId id -> do
-    Cli.Env {codebase} <- ask
+  Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
-      <$> liftIO (Codebase.getTypeDeclaration codebase id)
+      <$> Codebase.getTypeDeclaration codebase id
 
 lexedSource :: Text -> Text -> Cli (NamesWithHistory, (Text, [L.Token L.Lexeme]))
 lexedSource name src = do
@@ -2707,7 +2743,7 @@ parseType input src = do
     Parsers.parseType (Text.unpack (fst lexed)) (Parser.ParsingEnv mempty names) & onLeft \err ->
       Cli.returnEarly (TypeParseError src err)
 
-  Type.bindNames mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->
+  Type.bindNames Name.unsafeFromVar mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->
     Cli.returnEarly (ParseResolutionFailures src (toList errs))
 
 getTermsIncludingHistorical :: Monad m => Path.HQSplit -> Branch0 m -> Cli (Set Referent)
@@ -2850,10 +2886,10 @@ executePPE ::
 executePPE unisonFile =
   suffixifiedPPE =<< displayNames unisonFile
 
-loadTypeOfTerm :: Monad m => Codebase m Symbol Ann -> Referent -> m (Maybe (Type Symbol Ann))
+loadTypeOfTerm :: MonadIO m => Codebase m Symbol Ann -> Referent -> m (Maybe (Type Symbol Ann))
 loadTypeOfTerm codebase (Referent.Ref r) = Codebase.getTypeOfTerm codebase r
 loadTypeOfTerm codebase (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
-  decl <- Codebase.getTypeDeclaration codebase r
+  decl <- Codebase.runTransaction codebase (Codebase.getTypeDeclaration codebase r)
   case decl of
     Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
     Nothing -> pure Nothing

@@ -25,14 +25,13 @@ import qualified Unison.CommandLine.InputPatterns as InputPatterns
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Server.Backend as Backend
-import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.Name as Name (unsafeFromVar)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Set as Set
@@ -40,7 +39,7 @@ import qualified Unison.Util.Set as Set
 -- Add default metadata to all added types and terms in a slurp component.
 --
 -- No-op if the slurp component is empty.
-addDefaultMetadata :: SlurpComponent Symbol -> Cli ()
+addDefaultMetadata :: SlurpComponent -> Cli ()
 addDefaultMetadata adds =
   when (not (SC.isEmpty adds)) do
     Cli.time "add-default-metadata" do
@@ -125,11 +124,11 @@ resolveMetadata name = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath' <- Cli.getCurrentPath
-  sbhLength <- liftIO (Codebase.branchHashLength codebase)
+  schLength <- liftIO (Codebase.branchHashLength codebase)
 
   let ppe :: PPE.PrettyPrintEnv
       ppe =
-        Backend.basicSuffixifiedNames sbhLength root' (Backend.Within $ Path.unabsolute currentPath')
+        Backend.basicSuffixifiedNames schLength root' (Backend.Within $ Path.unabsolute currentPath')
 
   terms <- getHQTerms name
   ref <-

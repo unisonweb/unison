@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-
 module Unison.Util.SyntaxText where
 
 import Unison.HashQualified (HashQualified)

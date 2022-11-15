@@ -1,8 +1,34 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
-
-module Unison.Var where
+module Unison.Var
+  ( Var (..),
+    Type (..),
+    InferenceType (..),
+    blank,
+    freshIn,
+    inferAbility,
+    inferInput,
+    inferOther,
+    inferOutput,
+    inferPatternBindE,
+    inferPatternBindV,
+    inferPatternPureE,
+    inferPatternPureV,
+    inferTypeConstructor,
+    inferTypeConstructorArg,
+    joinDot,
+    missingResult,
+    name,
+    nameStr,
+    named,
+    nameds,
+    namespaced,
+    rawName,
+    reset,
+    uncapitalize,
+    universallyQuantifyIfFree,
+    unnamedRef,
+    unnamedTest,
+  )
+where
 
 import Data.Char (isLower, toLower)
 import Data.Text (pack)
@@ -168,9 +194,6 @@ joinDot prefix v2 =
   if name prefix == "."
     then named (name prefix `mappend` name v2)
     else named (name prefix `mappend` "." `mappend` name v2)
-
-freshNamed :: Var v => Set v -> Text -> v
-freshNamed used n = ABT.freshIn used (named n)
 
 universallyQuantifyIfFree :: forall v. Var v => v -> Bool
 universallyQuantifyIfFree v =

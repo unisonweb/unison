@@ -144,9 +144,9 @@ propagateCtorMapping oldComponent newComponent =
 -- If the cycle is size 1 for old and new, then the type names need not be the same,
 -- and if the number of constructors is 1, then the constructor names need not
 -- be the same.
-genInitialCtorMapping :: Codebase IO Symbol Ann -> Names -> Map Reference Reference -> Cli (Map Referent Referent)
+genInitialCtorMapping :: Codebase IO Symbol Ann -> Names -> Map Reference Reference -> Sqlite.Transaction (Map Referent Referent)
 genInitialCtorMapping codebase rootNames initialTypeReplacements = do
-  let mappings :: (Reference, Reference) -> Cli (Map Referent Referent)
+  let mappings :: (Reference, Reference) -> Sqlite.Transaction (Map Referent Referent)
       mappings (old, new) = do
         old <- unhashTypeComponent codebase old
         new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent codebase new
@@ -266,7 +266,7 @@ propagate patch b = case validatePatch patch of
     Cli.Env {codebase} <- ask
     initialDirty <-
       computeDirty
-        (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
+        (liftIO . Codebase.runTransaction codebase . Codebase.dependents codebase Queries.ExcludeOwnComponent)
         patch
         (Names.contains names0)
 
@@ -274,9 +274,10 @@ propagate patch b = case validatePatch patch of
     -- TODO: once patches can directly contain constructor replacements, this
     -- line can turn into a pure function that takes the subset of the term replacements
     -- in the patch which have a `Referent.Con` as their LHS.
-    initialCtorMappings <- genInitialCtorMapping codebase rootNames initialTypeReplacements
+    initialCtorMappings <-
+      liftIO (Codebase.runTransaction codebase (genInitialCtorMapping codebase rootNames initialTypeReplacements))
 
-    order <- liftIO (sortDependentsGraph codebase initialDirty entireBranch)
+    order <- liftIO (Codebase.runTransaction codebase (sortDependentsGraph codebase initialDirty entireBranch))
     let getOrdered :: Set Reference -> Map Int Reference
         getOrdered rs =
           Map.fromList [(i, r) | r <- toList rs, Just i <- [Map.lookup r order]]
@@ -302,7 +303,7 @@ propagate patch b = case validatePatch patch of
               if Map.member r termEdits || Set.member r seen || Map.member r typeEdits
                 then collectEdits es seen todo
                 else do
-                  haveType <- liftIO (Codebase.isType codebase r)
+                  haveType <- liftIO (Codebase.runTransaction codebase (Codebase.isType codebase r))
                   haveTerm <- liftIO (Codebase.isTerm codebase r)
                   let message =
                         "This reference is not a term nor a type " <> show r
@@ -316,7 +317,7 @@ propagate patch b = case validatePatch patch of
                     (Just edits', seen') -> do
                       -- plan to update the dependents of this component too
                       dependents <- case r of
-                        Reference.Builtin {} -> liftIO (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
+                        Reference.Builtin {} -> liftIO (Codebase.runTransaction codebase (Codebase.dependents codebase Queries.ExcludeOwnComponent r))
                         Reference.Derived h _i -> liftIO (Codebase.dependentsOfComponent codebase h)
                       let todo' = todo <> getOrdered dependents
                       collectEdits edits' seen' todo'
@@ -324,7 +325,7 @@ propagate patch b = case validatePatch patch of
             doType :: Reference -> Cli (Maybe (Edits Symbol), Set Reference)
             doType r = do
               when debugMode $ traceM ("Rewriting type: " <> refName r)
-              componentMap <- unhashTypeComponent codebase r
+              componentMap <- liftIO (Codebase.runTransaction codebase (unhashTypeComponent codebase r))
               let componentMap' =
                     over _2 (Decl.updateDependencies typeReplacements)
                       <$> componentMap
@@ -457,15 +458,15 @@ propagate patch b = case validatePatch patch of
     initialTermReplacements ctors es =
       ctors
         <> (Map.mapKeys Referent.Ref . fmap Referent.Ref . Map.mapMaybe TermEdit.toReference) es
-    sortDependentsGraph :: Codebase IO Symbol Ann -> Set Reference -> Set Reference -> IO (Map Reference Int)
+    sortDependentsGraph :: Codebase IO Symbol Ann -> Set Reference -> Set Reference -> Sqlite.Transaction (Map Reference Int)
     sortDependentsGraph codebase dependencies restrictTo = do
       closure <-
         transitiveClosure
-          (fmap (Set.intersection restrictTo) . liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent)
+          (fmap (Set.intersection restrictTo) . Codebase.dependents codebase Queries.ExcludeOwnComponent)
           dependencies
       dependents <-
         traverse
-          (\r -> (r,) <$> (liftIO . Codebase.dependents codebase Queries.ExcludeOwnComponent) r)
+          (\r -> (r,) <$> (Codebase.dependents codebase Queries.ExcludeOwnComponent) r)
           (toList closure)
       let graphEdges = [(r, r, toList deps) | (r, deps) <- toList dependents]
           (graph, getReference, _) = Graph.graphFromEdges graphEdges
@@ -554,16 +555,16 @@ typecheckFile ambient file = do
   pure . fmap Right $ synthesizeFile' ambient (typeLookup <> Builtin.typeLookup) file
 
 -- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
-unhashTypeComponent :: Codebase IO Symbol Ann -> Reference -> Cli (Map Symbol (Reference, Decl Symbol Ann))
+unhashTypeComponent :: Codebase IO Symbol Ann -> Reference -> Sqlite.Transaction (Map Symbol (Reference, Decl Symbol Ann))
 unhashTypeComponent codebase r = case Reference.toId r of
   Nothing -> pure mempty
   Just id -> do
     unhashed <- unhashTypeComponent' codebase (Reference.idToHash id)
     pure $ over _1 Reference.DerivedId <$> unhashed
 
-unhashTypeComponent' :: Codebase IO Symbol Ann -> Hash -> Cli (Map Symbol (Reference.Id, Decl Symbol Ann))
+unhashTypeComponent' :: Codebase IO Symbol Ann -> Hash -> Sqlite.Transaction (Map Symbol (Reference.Id, Decl Symbol Ann))
 unhashTypeComponent' codebase h =
-  liftIO (Codebase.getDeclComponent codebase h) <&> foldMap \decls ->
+  Codebase.getDeclComponent codebase h <&> foldMap \decls ->
     unhash $ Map.fromList (Reference.componentFor h decls)
   where
     unhash =

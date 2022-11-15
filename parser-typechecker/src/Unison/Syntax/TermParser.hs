@@ -1,8 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Unison.Syntax.TermParser where
@@ -37,6 +33,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Syntax.Lexer as L
+import qualified Unison.Syntax.Name as Name (toText, toVar, unsafeFromVar)
 import Unison.Syntax.Parser hiding (seq)
 import qualified Unison.Syntax.Parser as Parser (seq, uniqueName)
 import qualified Unison.Syntax.TypeParser as TypeParser

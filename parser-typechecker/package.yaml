@@ -45,6 +45,7 @@ dependencies:
   - fingertree
   - fsnotify
   - fuzzyfind
+  - free
   - generic-lens
   - generic-monoid
   - hashable
@@ -78,6 +79,7 @@ dependencies:
   - process
   - random >= 1.2.0
   - raw-strings-qq
+  - recover-rtti
   - regex-base
   - regex-tdfa
   - safe

@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.Syntax.TypeParser where
 
 import Control.Monad.Reader (asks)
@@ -7,8 +5,8 @@ import qualified Data.Set as Set
 import qualified Text.Megaparsec as P
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.HashQualified as HQ
-import qualified Unison.Name as Name
 import qualified Unison.NamesWithHistory as Names
+import qualified Unison.Syntax.Name as Name (toVar)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer as L

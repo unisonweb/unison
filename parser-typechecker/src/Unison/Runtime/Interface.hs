@@ -47,7 +47,6 @@ import Unison.Codebase.Runtime (Error, Runtime (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import qualified Unison.ConstructorReference as RF
 import Unison.DataDeclaration (Decl, declDependencies, declFields)
-import qualified Unison.HashQualified as HQ
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.LabeledDependency as RF
 import Unison.Parser.Ann (Ann (External))
@@ -92,6 +91,8 @@ import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
+import qualified Unison.Syntax.HashQualified as HQ (toString)
+import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Syntax.TermPrinter
 import qualified Unison.Term as Tm
 import Unison.Util.EnumContainers as EC
@@ -361,7 +362,7 @@ evalInContext ppe ctx activeThreads w = do
       decom = decompile (backReferenceTm crs (decompTm ctx))
 
       prettyError (PE _ p) = p
-      prettyError (BU nm c) = either id (bugMsg ppe nm) $ decom c
+      prettyError (BU tr nm c) = either id (bugMsg ppe tr nm) $ decom c
 
       tr tx c = case decom c of
         Right dv -> do
@@ -394,13 +395,18 @@ executeMainComb init cc = do
     Right () -> pure (Right ())
   where
     formatErr (PE _ msg) = pure msg
-    formatErr (BU nm c) = do
+    formatErr (BU tr nm c) = do
       crs <- readTVarIO (combRefs cc)
       let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
-      pure . either id (bugMsg PPE.empty nm) $ decom c
+      pure . either id (bugMsg PPE.empty tr nm) $ decom c
 
-bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
-bugMsg ppe name tm
+bugMsg ::
+  PrettyPrintEnv ->
+  [(Reference, Int)] ->
+  Text ->
+  Term Symbol ->
+  Pretty ColorText
+bugMsg ppe tr name tm
   | name == "blank expression" =
       P.callout icon . P.lines $
         [ P.wrap
@@ -409,8 +415,8 @@ bugMsg ppe name tm
             ),
           "",
           P.indentN 2 $ pretty ppe tm,
-          "",
-          sorryMsg
+          "\n",
+          stackTrace ppe tr
         ]
   | "pattern match failure" `isPrefixOf` name =
       P.callout icon . P.lines $
@@ -423,13 +429,16 @@ bugMsg ppe name tm
           "",
           "This happens when calling a function that doesn't handle all \
           \possible inputs",
-          sorryMsg
+          "\n",
+          stackTrace ppe tr
         ]
   | name == "builtin.raise" =
       P.callout icon . P.lines $
         [ P.wrap ("The program halted with an unhandled exception:"),
           "",
-          P.indentN 2 $ pretty ppe tm
+          P.indentN 2 $ pretty ppe tm,
+          "\n",
+          stackTrace ppe tr
         ]
   | name == "builtin.bug",
     RF.TupleTerm' [Tm.Text' msg, x] <- tm,
@@ -444,9 +453,10 @@ bugMsg ppe name tm
           "",
           "This happens when calling a function that doesn't handle all \
           \possible inputs",
-          sorryMsg
+          "\n",
+          stackTrace ppe tr
         ]
-bugMsg ppe name tm =
+bugMsg ppe tr name tm =
   P.callout icon . P.lines $
     [ P.wrap
         ( "I've encountered a call to" <> P.red (P.text name)
@@ -454,18 +464,27 @@ bugMsg ppe name tm =
         ),
       "",
       P.indentN 2 $ pretty ppe tm,
-      "",
-      sorryMsg
+      "\n",
+      stackTrace ppe tr
     ]
-  where
 
-icon, sorryMsg :: Pretty ColorText
+stackTrace :: PrettyPrintEnv -> [(Reference, Int)] -> Pretty ColorText
+stackTrace ppe tr = "Stack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
+  where
+    f (rf, n) = name <> count
+      where
+        count
+          | n > 1 = " (" <> fromString (show n) <> " copies)"
+          | otherwise = ""
+        name =
+          syntaxToColor
+            . prettyHashQualified
+            . PPE.termName ppe
+            . RF.Ref
+            $ rf
+
+icon :: Pretty ColorText
 icon = "💔💥"
-sorryMsg =
-  P.wrap $
-    "I'm sorry this message doesn't have more detail about"
-      <> "the location of the failure."
-      <> "My makers plan to fix this in a future release. 😢"
 
 catchInternalErrors ::
   IO (Either Error a) ->
@@ -536,7 +555,7 @@ tryM :: IO () -> IO (Maybe Error)
 tryM = fmap (either (Just . extract) (const Nothing)) . try
   where
     extract (PE _ e) = e
-    extract (BU _ _) = "impossible"
+    extract (BU _ _ _) = "impossible"
 
 runStandalone :: StoredCache -> Word64 -> IO (Either (Pretty ColorText) ())
 runStandalone sc init =

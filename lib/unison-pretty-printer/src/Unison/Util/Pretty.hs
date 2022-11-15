@@ -40,6 +40,7 @@ module Unison.Util.Pretty
     column3UnzippedM,
     column3sep,
     column3Header,
+    columnNHeader,
     commas,
     commented,
     oxfordCommas,
@@ -101,6 +102,7 @@ module Unison.Util.Pretty
     spaceIfNeeded,
     spaced,
     spacedMap,
+    spacedTraverse,
     spacesIfBreak,
     string,
     surroundCommas,
@@ -405,6 +407,9 @@ spaced = intercalateMap softbreak id
 spacedMap :: (Foldable f, IsString s) => (a -> Pretty s) -> f a -> Pretty s
 spacedMap f as = spaced . fmap f $ toList as
 
+spacedTraverse :: (Traversable f, IsString s, Applicative m) => (a -> m (Pretty s)) -> f a -> m (Pretty s)
+spacedTraverse f as = spaced <$> traverse f as
+
 commas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 commas = intercalateMap ("," <> softbreak) id
 
@@ -469,7 +474,7 @@ excerptSep' ::
 excerptSep' maxCount summarize s ps = case maxCount of
   Just max
     | length ps > max ->
-        sep s (take max ps) <> summarize (length ps - max)
+      sep s (take max ps) <> summarize (length ps - max)
   _ -> sep s ps
 
 nonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> [Pretty s]
@@ -579,7 +584,7 @@ excerptColumn2Headed ::
 excerptColumn2Headed max hd cols = case max of
   Just max
     | len > max ->
-        lines [column2 (hd : take max cols), "... " <> shown (len - max) <> " more"]
+      lines [column2 (hd : take max cols), "... " <> shown (len - max) <> " more"]
   _ -> column2 (hd : cols)
   where
     len = length cols
@@ -721,7 +726,7 @@ wrapColumn2 rows = lines (align rows)
 
 -- Pad with enough space on the right to make all rows the same width
 leftJustify ::
-  (Eq s, Show s, LL.ListLike s Char, IsString s) =>
+  (Eq s, LL.ListLike s Char, IsString s) =>
   [(Pretty s, a)] ->
   [(Pretty s, a)]
 leftJustify rows =

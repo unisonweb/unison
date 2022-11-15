@@ -27,7 +27,7 @@ import qualified System.Console.ANSI as ANSI
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
 import qualified U.Codebase.Branch as V2Branch
-import U.Codebase.HashTags (CausalHash (CausalHash))
+import U.Codebase.HashTags (BranchHash, CausalHash (CausalHash))
 import qualified U.Codebase.Reflog as Reflog
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -58,7 +58,7 @@ import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -80,6 +80,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Sqlite as Sqlite
+import qualified Unison.Sqlite.Transaction as Sqlite.Transaction
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -252,13 +253,13 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getTermComponentWithTypes =
               CodebaseOps.getTermComponentWithTypes getDeclType
 
-            getTypeDeclaration :: Reference.Id -> m (Maybe (Decl Symbol Ann))
-            getTypeDeclaration id =
-              runTransaction (CodebaseOps.getTypeDeclaration id)
+            getTypeDeclaration :: Reference.Id -> Sqlite.Transaction (Maybe (Decl Symbol Ann))
+            getTypeDeclaration =
+              CodebaseOps.getTypeDeclaration
 
-            getDeclComponent :: Hash -> m (Maybe [Decl Symbol Ann])
-            getDeclComponent h =
-              runTransaction (CodebaseOps.getDeclComponent h)
+            getDeclComponent :: Hash -> Sqlite.Transaction (Maybe [Decl Symbol Ann])
+            getDeclComponent =
+              CodebaseOps.getDeclComponent
 
             getCycleLength :: Hash -> m (Maybe Reference.CycleSize)
             getCycleLength h =
@@ -275,6 +276,10 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             putTerm id tm tp | debug && trace ("SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
             putTerm id tm tp =
               runTransaction (CodebaseOps.putTerm termBuffer declBuffer id tm tp)
+
+            putTermComponent :: Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> Sqlite.Transaction ()
+            putTermComponent =
+              CodebaseOps.putTermComponent termBuffer declBuffer
 
             putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> m ()
             putTypeDeclaration id decl =
@@ -339,9 +344,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             patchExists h =
               runTransaction (CodebaseOps.patchExists h)
 
-            dependentsImpl :: Q.DependentsSelector -> Reference -> m (Set Reference.Id)
-            dependentsImpl selector r =
-              runTransaction (CodebaseOps.dependentsImpl selector r)
+            dependentsImpl :: Q.DependentsSelector -> Reference -> Sqlite.Transaction (Set Reference.Id)
+            dependentsImpl =
+              CodebaseOps.dependentsImpl
 
             dependentsOfComponentImpl :: Hash -> m (Set Reference.Id)
             dependentsOfComponentImpl h =
@@ -413,9 +418,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             referentsByPrefix sh =
               runTransaction (CodebaseOps.referentsByPrefix getDeclType sh)
 
-            branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.CausalHash)
-            branchHashesByPrefix sh =
-              runTransaction (CodebaseOps.branchHashesByPrefix sh)
+            causalHashesByPrefix :: ShortCausalHash -> m (Set Branch.CausalHash)
+            causalHashesByPrefix sh =
+              runTransaction (CodebaseOps.causalHashesByPrefix sh)
 
             sqlLca :: Branch.CausalHash -> Branch.CausalHash -> m (Maybe (Branch.CausalHash))
             sqlLca h1 h2 =
@@ -430,20 +435,21 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             namesAtPath path =
               runTransaction (CodebaseOps.namesAtPath path)
 
-            updateNameLookup :: m ()
-            updateNameLookup =
-              runTransaction (CodebaseOps.updateNameLookupIndexFromV2Root getDeclType)
+            updateNameLookup :: Path -> Maybe BranchHash -> BranchHash -> m ()
+            updateNameLookup pathPrefix fromBH toBH =
+              runTransaction (CodebaseOps.updateNameLookupIndex getDeclType pathPrefix fromBH toBH)
 
         let codebase =
               C.Codebase
                 { getTerm = Cache.applyDefined termCache getTerm,
                   getTypeOfTermImpl = Cache.applyDefined typeOfTermCache getTypeOfTermImpl,
-                  getTypeDeclaration = Cache.applyDefined declCache getTypeDeclaration,
+                  getTypeDeclaration = applyDefined declCache getTypeDeclaration,
                   getDeclType =
                     \r ->
                       withConn \conn ->
                         Sqlite.runReadOnlyTransaction conn \run -> run (getDeclType r),
                   putTerm,
+                  putTermComponent,
                   putTypeDeclaration,
                   putTypeDeclarationComponent,
                   getTermComponentWithTypes,
@@ -478,7 +484,7 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   typeReferencesByPrefix = declReferencesByPrefix,
                   termReferentsByPrefix = referentsByPrefix,
                   branchHashLength,
-                  branchHashesByPrefix,
+                  causalHashesByPrefix,
                   lcaImpl = Just sqlLca,
                   beforeImpl,
                   namesAtPath,
@@ -495,6 +501,17 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
     runTransaction :: Sqlite.Transaction a -> m a
     runTransaction action =
       withConn \conn -> Sqlite.runTransaction conn action
+
+    -- Like Cache.applyDefined, but in Transaction
+    applyDefined ::
+      (Applicative g, Traversable g) =>
+      Cache.Cache k v ->
+      (k -> Sqlite.Transaction (g v)) ->
+      k ->
+      Sqlite.Transaction (g v)
+    applyDefined c f k = do
+      conn <- Sqlite.Transaction.unsafeGetConnection
+      Sqlite.unsafeIO (Cache.applyDefined c (\k1 -> Sqlite.unsafeUnTransaction (f k1) conn) k)
 
 syncInternal ::
   forall m.
@@ -667,7 +684,7 @@ viewRemoteBranch' ::
   Git.GitBranchBehavior ->
   ((Branch m, CodebasePath) -> m r) ->
   m (Either C.GitError r)
-viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior action = UnliftIO.try $ do
+viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior action = UnliftIO.try $ do
   -- set up the cache dir
   time "Git fetch" $
     throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
@@ -690,19 +707,19 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sbh, path} gitBranchBehavior act
 
       result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote MigrateAfterPrompt \codebase -> do
         -- try to load the requested branch from it
-        branch <- time "Git fetch (sbh)" $ case sbh of
+        branch <- time "Git fetch (sch)" $ case sch of
           -- no sub-branch was specified, so use the root.
           Nothing -> time "Get remote root branch" $ Codebase1.getRootBranch codebase
-          -- load from a specific `ShortBranchHash`
-          Just sbh -> do
-            branchCompletions <- Codebase1.branchHashesByPrefix codebase sbh
+          -- load from a specific `ShortCausalHash`
+          Just sch -> do
+            branchCompletions <- Codebase1.causalHashesByPrefix codebase sch
             case toList branchCompletions of
-              [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+              [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
               [h] ->
                 (Codebase1.getBranchForHash codebase h) >>= \case
                   Just b -> pure b
-                  Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+                  Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
+              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sch branchCompletions
         case Branch.getAt path branch of
           Just b -> action (b, remotePath)
           Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
