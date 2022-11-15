@@ -13,7 +13,7 @@ foo.lib.qux = 4
 .> find foo
 ```
 
-```ucm:error
+```ucm
 .> find bar
 ```
 
