@@ -2160,6 +2160,7 @@ universalCompare frn = cmpc False
       | Just sl <- maybeUnwrapForeign Rf.listRef fl,
         Just sr <- maybeUnwrapForeign Rf.listRef fr =
           fold (Sq.zipWith (cmpc tyEq) sl sr)
+            <> compare (length sl) (length sr)
       | Just al <- maybeUnwrapForeign Rf.iarrayRef fl,
         Just ar <- maybeUnwrapForeign Rf.iarrayRef fr =
           arrayCmp (cmpc tyEq) al ar
