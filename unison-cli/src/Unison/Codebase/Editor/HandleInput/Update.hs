@@ -190,7 +190,10 @@ handleUpdate input optionalPatch requestedNames = do
             Nothing -> []
             Just (_, update, p) -> [(Path.unabsolute p, update)]
       )
-    liftIO . Codebase.addDefsToCodebase codebase . Slurp.filterUnisonFile sr $ Slurp.originalFile sr
+    Cli.runTransaction
+      . Codebase.addDefsToCodebase codebase
+      . Slurp.filterUnisonFile sr
+      $ Slurp.originalFile sr
   ppe <- prettyPrintEnvDecl =<< displayNames (Slurp.originalFile sr)
   Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
   whenJust patchOps \(updatedPatch, _, _) ->
