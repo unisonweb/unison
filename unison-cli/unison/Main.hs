@@ -454,7 +454,7 @@ initialPath = Path.absoluteEmpty
 
 launch ::
   FilePath ->
-  (Config, IO ()) ->
+  Config ->
   Rt.Runtime Symbol ->
   Rt.Runtime Symbol ->
   Codebase.Codebase IO Symbol Ann ->
