@@ -400,7 +400,7 @@ dependents c selector r =
     . Set.map Reference.DerivedId
     <$> dependentsImpl c selector r
 
-dependentsOfComponent :: Functor f => Codebase f v a -> Hash -> f (Set Reference)
+dependentsOfComponent :: Codebase m v a -> Hash -> Sqlite.Transaction (Set Reference)
 dependentsOfComponent c h =
   Set.union (Builtin.builtinTypeDependentsOfComponent h)
     . Set.map Reference.DerivedId

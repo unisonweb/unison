@@ -265,203 +265,198 @@ propagate patch b = case validatePatch patch of
 
     Cli.Env {codebase} <- ask
 
-    (initialDirty, initialTypeReplacements, initialCtorMappings, order) <-
-      Cli.runTransaction do
-        initialDirty <-
-          computeDirty
-            (Codebase.dependents codebase Queries.ExcludeOwnComponent)
-            patch
-            (Names.contains names0)
+    Cli.runTransaction do
+      initialDirty <-
+        computeDirty
+          (Codebase.dependents codebase Queries.ExcludeOwnComponent)
+          patch
+          (Names.contains names0)
 
-        let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
-        -- TODO: once patches can directly contain constructor replacements, this
-        -- line can turn into a pure function that takes the subset of the term replacements
-        -- in the patch which have a `Referent.Con` as their LHS.
-        initialCtorMappings <- genInitialCtorMapping codebase rootNames initialTypeReplacements
+      let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
+      -- TODO: once patches can directly contain constructor replacements, this
+      -- line can turn into a pure function that takes the subset of the term replacements
+      -- in the patch which have a `Referent.Con` as their LHS.
+      initialCtorMappings <- genInitialCtorMapping codebase rootNames initialTypeReplacements
 
-        order <- sortDependentsGraph codebase initialDirty entireBranch
-        pure (initialDirty, initialTypeReplacements, initialCtorMappings, order)
+      order <- sortDependentsGraph codebase initialDirty entireBranch
 
-    let getOrdered :: Set Reference -> Map Int Reference
-        getOrdered rs =
-          Map.fromList [(i, r) | r <- toList rs, Just i <- [Map.lookup r order]]
-        collectEdits ::
-          Edits Symbol ->
-          Set Reference ->
-          Map Int Reference ->
-          Cli (Edits Symbol)
-        collectEdits es@Edits {..} seen todo = case Map.minView todo of
-          Nothing -> pure es
-          Just (r, todo) -> case r of
-            Reference.Builtin _ -> collectEdits es seen todo
-            Reference.DerivedId _ -> go r todo
-          where
-            debugCtors =
-              unlines
-                [ referentName old <> " -> " <> referentName new
-                  | (old, new) <- Map.toList constructorReplacements
-                ]
-            go r _ | debugMode && traceShow ("Rewriting: " :: Text, refName r) False = undefined
-            go _ _ | debugMode && trace ("** Constructor replacements:\n\n" <> debugCtors) False = undefined
-            go r todo =
-              if Map.member r termEdits || Set.member r seen || Map.member r typeEdits
-                then collectEdits es seen todo
-                else do
-                  mayEdits <-
-                    Cli.runTransaction do
-                      haveType <- Codebase.isType codebase r
-                      haveTerm <- Codebase.isTerm codebase r
-                      let message =
-                            "This reference is not a term nor a type " <> show r
-                          mmayEdits
-                            | haveTerm = doTerm r
-                            | haveType = doType r
-                            | otherwise = error message
-                      mmayEdits
-                  case mayEdits of
-                    (Nothing, seen') -> collectEdits es seen' todo
-                    (Just edits', seen') -> do
-                      -- plan to update the dependents of this component too
-                      dependents <- case r of
-                        Reference.Builtin {} ->
-                          Cli.runTransaction (Codebase.dependents codebase Queries.ExcludeOwnComponent r)
-                        Reference.Derived h _i -> liftIO (Codebase.dependentsOfComponent codebase h)
-                      let todo' = todo <> getOrdered dependents
-                      collectEdits edits' seen' todo'
+      let getOrdered :: Set Reference -> Map Int Reference
+          getOrdered rs =
+            Map.fromList [(i, r) | r <- toList rs, Just i <- [Map.lookup r order]]
+          collectEdits ::
+            Edits Symbol ->
+            Set Reference ->
+            Map Int Reference ->
+            Sqlite.Transaction (Edits Symbol)
+          collectEdits es@Edits {..} seen todo = case Map.minView todo of
+            Nothing -> pure es
+            Just (r, todo) -> case r of
+              Reference.Builtin _ -> collectEdits es seen todo
+              Reference.DerivedId _ -> go r todo
+            where
+              debugCtors =
+                unlines
+                  [ referentName old <> " -> " <> referentName new
+                    | (old, new) <- Map.toList constructorReplacements
+                  ]
+              go r _ | debugMode && traceShow ("Rewriting: " :: Text, refName r) False = undefined
+              go _ _ | debugMode && trace ("** Constructor replacements:\n\n" <> debugCtors) False = undefined
+              go r todo =
+                if Map.member r termEdits || Set.member r seen || Map.member r typeEdits
+                  then collectEdits es seen todo
+                  else do
+                    haveType <- Codebase.isType codebase r
+                    haveTerm <- Codebase.isTerm codebase r
+                    let message =
+                          "This reference is not a term nor a type " <> show r
+                        mmayEdits
+                          | haveTerm = doTerm r
+                          | haveType = doType r
+                          | otherwise = error message
+                    mayEdits <- mmayEdits
+                    case mayEdits of
+                      (Nothing, seen') -> collectEdits es seen' todo
+                      (Just edits', seen') -> do
+                        -- plan to update the dependents of this component too
+                        dependents <- case r of
+                          Reference.Builtin {} -> Codebase.dependents codebase Queries.ExcludeOwnComponent r
+                          Reference.Derived h _i -> Codebase.dependentsOfComponent codebase h
+                        let todo' = todo <> getOrdered dependents
+                        collectEdits edits' seen' todo'
 
-            doType :: Reference -> Sqlite.Transaction (Maybe (Edits Symbol), Set Reference)
-            doType r = do
-              when debugMode $ traceM ("Rewriting type: " <> refName r)
-              componentMap <- unhashTypeComponent codebase r
-              let componentMap' =
-                    over _2 (Decl.updateDependencies typeReplacements)
-                      <$> componentMap
-                  declMap = over _2 (either Decl.toDataDecl id) <$> componentMap'
-                  -- TODO: kind-check the new components
-                  hashedDecls =
-                    (fmap . fmap) (over _2 DerivedId)
-                      . Hashing.hashDataDecls
-                      $ view _2 <$> declMap
-              hashedComponents' <- case hashedDecls of
-                Left _ ->
-                  error $
-                    "Edit propagation failed because some of the dependencies of "
-                      <> show r
-                      <> " could not be resolved."
-                Right c -> pure . Map.fromList $ (\(v, r, d) -> (v, (r, d))) <$> c
-              let -- Relation: (nameOfType, oldRef, newRef, newType)
-                  joinedStuff :: [(Symbol, (Reference, Reference, Decl.DataDeclaration Symbol Ann))]
-                  joinedStuff =
-                    Map.toList (Map.intersectionWith f declMap hashedComponents')
-                  f (oldRef, _) (newRef, newType) = (oldRef, newRef, newType)
-                  typeEdits' = typeEdits <> (Map.fromList . fmap toEdit) joinedStuff
-                  toEdit (_, (r, r', _)) = (r, TypeEdit.Replace r')
-                  typeReplacements' =
-                    typeReplacements
-                      <> (Map.fromList . fmap toReplacement) joinedStuff
-                  toReplacement (_, (r, r', _)) = (r, r')
-                  -- New types this iteration
-                  newNewTypes = (Map.fromList . fmap toNewType) joinedStuff
-                  -- Accumulated new types
-                  newTypes' = newTypes <> newNewTypes
-                  toNewType (v, (_, r', tp)) =
-                    ( r',
-                      case Map.lookup v componentMap of
-                        Just (_, Left _) -> Left (Decl.EffectDeclaration tp)
-                        Just (_, Right _) -> Right tp
-                        _ -> error "It's not gone well!"
-                    )
-                  seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
-                  writeTypes = traverse_ $ \case
-                    (Reference.DerivedId id, tp) -> Codebase.putTypeDeclaration codebase id tp
-                    _ -> error "propagate: Expected DerivedId"
-                  !newCtorMappings =
-                    let r = propagateCtorMapping componentMap hashedComponents'
-                     in if debugMode then traceShow ("constructorMappings: " :: Text, r) r else r
-                  constructorReplacements' = constructorReplacements <> newCtorMappings
-              writeTypes $ Map.toList newNewTypes
-              pure
-                ( Just $
-                    Edits
-                      termEdits
-                      (newCtorMappings <> termReplacements)
-                      newTerms
-                      typeEdits'
-                      typeReplacements'
-                      newTypes'
-                      constructorReplacements',
-                  seen'
-                )
-            doTerm :: Reference -> Sqlite.Transaction (Maybe (Edits Symbol), Set Reference)
-            doTerm r = do
-              when debugMode (traceM $ "Rewriting term: " <> show r)
-              componentMap <- unhashTermComponent codebase r
-              let seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
-              mayComponent <- do
+              doType :: Reference -> Sqlite.Transaction (Maybe (Edits Symbol), Set Reference)
+              doType r = do
+                when debugMode $ traceM ("Rewriting type: " <> refName r)
+                componentMap <- unhashTypeComponent codebase r
                 let componentMap' =
-                      over
-                        _2
-                        (Term.updateDependencies termReplacements typeReplacements)
+                      over _2 (Decl.updateDependencies typeReplacements)
                         <$> componentMap
-                verifyTermComponent codebase componentMap' es
-              case mayComponent of
-                Nothing -> do
-                  when debugMode (traceM $ refName r <> " did not typecheck after substitutions")
-                  pure (Nothing, seen')
-                Just componentMap'' -> do
-                  let joinedStuff =
-                        toList (Map.intersectionWith f componentMap componentMap'')
-                      f (oldRef, _oldTerm, oldType) (newRef, _newWatchKind, newTerm, newType) =
-                        (oldRef, newRef, newTerm, oldType, newType')
-                        where
-                          -- Don't replace the type if it hasn't changed.
+                    declMap = over _2 (either Decl.toDataDecl id) <$> componentMap'
+                    -- TODO: kind-check the new components
+                    hashedDecls =
+                      (fmap . fmap) (over _2 DerivedId)
+                        . Hashing.hashDataDecls
+                        $ view _2 <$> declMap
+                hashedComponents' <- case hashedDecls of
+                  Left _ ->
+                    error $
+                      "Edit propagation failed because some of the dependencies of "
+                        <> show r
+                        <> " could not be resolved."
+                  Right c -> pure . Map.fromList $ (\(v, r, d) -> (v, (r, d))) <$> c
+                let -- Relation: (nameOfType, oldRef, newRef, newType)
+                    joinedStuff :: [(Symbol, (Reference, Reference, Decl.DataDeclaration Symbol Ann))]
+                    joinedStuff =
+                      Map.toList (Map.intersectionWith f declMap hashedComponents')
+                    f (oldRef, _) (newRef, newType) = (oldRef, newRef, newType)
+                    typeEdits' = typeEdits <> (Map.fromList . fmap toEdit) joinedStuff
+                    toEdit (_, (r, r', _)) = (r, TypeEdit.Replace r')
+                    typeReplacements' =
+                      typeReplacements
+                        <> (Map.fromList . fmap toReplacement) joinedStuff
+                    toReplacement (_, (r, r', _)) = (r, r')
+                    -- New types this iteration
+                    newNewTypes = (Map.fromList . fmap toNewType) joinedStuff
+                    -- Accumulated new types
+                    newTypes' = newTypes <> newNewTypes
+                    toNewType (v, (_, r', tp)) =
+                      ( r',
+                        case Map.lookup v componentMap of
+                          Just (_, Left _) -> Left (Decl.EffectDeclaration tp)
+                          Just (_, Right _) -> Right tp
+                          _ -> error "It's not gone well!"
+                      )
+                    seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
+                    writeTypes = traverse_ $ \case
+                      (Reference.DerivedId id, tp) -> Codebase.putTypeDeclaration codebase id tp
+                      _ -> error "propagate: Expected DerivedId"
+                    !newCtorMappings =
+                      let r = propagateCtorMapping componentMap hashedComponents'
+                       in if debugMode then traceShow ("constructorMappings: " :: Text, r) r else r
+                    constructorReplacements' = constructorReplacements <> newCtorMappings
+                writeTypes $ Map.toList newNewTypes
+                pure
+                  ( Just $
+                      Edits
+                        termEdits
+                        (newCtorMappings <> termReplacements)
+                        newTerms
+                        typeEdits'
+                        typeReplacements'
+                        newTypes'
+                        constructorReplacements',
+                    seen'
+                  )
+              doTerm :: Reference -> Sqlite.Transaction (Maybe (Edits Symbol), Set Reference)
+              doTerm r = do
+                when debugMode (traceM $ "Rewriting term: " <> show r)
+                componentMap <- unhashTermComponent codebase r
+                let seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
+                mayComponent <- do
+                  let componentMap' =
+                        over
+                          _2
+                          (Term.updateDependencies termReplacements typeReplacements)
+                          <$> componentMap
+                  verifyTermComponent codebase componentMap' es
+                case mayComponent of
+                  Nothing -> do
+                    when debugMode (traceM $ refName r <> " did not typecheck after substitutions")
+                    pure (Nothing, seen')
+                  Just componentMap'' -> do
+                    let joinedStuff =
+                          toList (Map.intersectionWith f componentMap componentMap'')
+                        f (oldRef, _oldTerm, oldType) (newRef, _newWatchKind, newTerm, newType) =
+                          (oldRef, newRef, newTerm, oldType, newType')
+                          where
+                            -- Don't replace the type if it hasn't changed.
 
-                          newType'
-                            | Typechecker.isEqual oldType newType = oldType
-                            | otherwise = newType
-                      -- collect the hashedComponents into edits/replacements/newterms/seen
-                      termEdits' =
-                        termEdits <> (Map.fromList . fmap toEdit) joinedStuff
-                      toEdit (r, r', _newTerm, oldType, newType) =
-                        (r, TermEdit.Replace r' $ TermEdit.typing newType oldType)
-                      termReplacements' =
-                        termReplacements
-                          <> (Map.fromList . fmap toReplacement) joinedStuff
-                      toReplacement (r, r', _, _, _) = (Referent.Ref r, Referent.Ref r')
-                      newTerms' =
-                        newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
-                      toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
-                      writeTerms =
-                        traverse_ \case
-                          (Reference.DerivedId id, (tm, tp)) -> Codebase.putTerm codebase id tm tp
-                          _ -> error "propagate: Expected DerivedId"
-                  writeTerms
-                    [(r, (tm, ty)) | (_old, r, tm, _oldTy, ty) <- joinedStuff]
-                  pure
-                    ( Just $
-                        Edits
-                          termEdits'
-                          termReplacements'
-                          newTerms'
-                          typeEdits
-                          typeReplacements
-                          newTypes
-                          constructorReplacements,
-                      seen'
-                    )
+                            newType'
+                              | Typechecker.isEqual oldType newType = oldType
+                              | otherwise = newType
+                        -- collect the hashedComponents into edits/replacements/newterms/seen
+                        termEdits' =
+                          termEdits <> (Map.fromList . fmap toEdit) joinedStuff
+                        toEdit (r, r', _newTerm, oldType, newType) =
+                          (r, TermEdit.Replace r' $ TermEdit.typing newType oldType)
+                        termReplacements' =
+                          termReplacements
+                            <> (Map.fromList . fmap toReplacement) joinedStuff
+                        toReplacement (r, r', _, _, _) = (Referent.Ref r, Referent.Ref r')
+                        newTerms' =
+                          newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
+                        toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
+                        writeTerms =
+                          traverse_ \case
+                            (Reference.DerivedId id, (tm, tp)) -> Codebase.putTerm codebase id tm tp
+                            _ -> error "propagate: Expected DerivedId"
+                    writeTerms
+                      [(r, (tm, ty)) | (_old, r, tm, _oldTy, ty) <- joinedStuff]
+                    pure
+                      ( Just $
+                          Edits
+                            termEdits'
+                            termReplacements'
+                            newTerms'
+                            typeEdits
+                            typeReplacements
+                            newTypes
+                            constructorReplacements,
+                        seen'
+                      )
 
-    collectEdits
-      ( Edits
-          initialTermEdits
-          (initialTermReplacements initialCtorMappings initialTermEdits)
-          mempty
-          initialTypeEdits
-          initialTypeReplacements
-          mempty
-          initialCtorMappings
-      )
-      mempty -- things to skip
-      (getOrdered initialDirty)
+      collectEdits
+        ( Edits
+            initialTermEdits
+            (initialTermReplacements initialCtorMappings initialTermEdits)
+            mempty
+            initialTypeEdits
+            initialTypeReplacements
+            mempty
+            initialCtorMappings
+        )
+        mempty -- things to skip
+        (getOrdered initialDirty)
   where
     initialTermReplacements ctors es =
       ctors
