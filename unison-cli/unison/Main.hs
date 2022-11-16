@@ -83,9 +83,9 @@ import qualified Unison.Server.Backend as Backend
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
+import qualified UnliftIO
 import UnliftIO.Directory (getHomeDirectory)
 import qualified Version
-import qualified UnliftIO
 
 main :: IO ()
 main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
@@ -244,7 +244,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
           runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
         Launch isHeadless codebaseServerOpts downloadBase mayStartingPath shouldWatchFiles -> do
           getCodebaseOrExit mCodePathOption SC.MigrateAfterPrompt \(initRes, _, theCodebase) -> do
-            withRuntimes RTI.Persistent \(runtime, sbRuntime) ->  do
+            withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
               rootVar <- newEmptyTMVarIO
               pathVar <- newTVarIO initialPath
               let notifyOnRootChanges :: Branch IO -> STM ()
@@ -299,7 +299,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                           shouldWatchFiles
                   Exit -> do Exit.exitSuccess
   where
-    -- | (runtime, sandboxed runtime)
+    -- (runtime, sandboxed runtime)
     withRuntimes :: RTI.RuntimeHost -> ((RTI.Runtime Symbol, RTI.Runtime Symbol) -> IO a) -> IO a
     withRuntimes mode action =
       RTI.withRuntime False mode Version.gitDescribeWithDate \runtime -> do
@@ -308,11 +308,11 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
     withConfig :: Maybe CodebasePathOption -> (Config -> IO a) -> IO a
     withConfig mCodePathOption action = do
       UnliftIO.bracket
-        (do
-          let mcodepath = fmap codebasePathOptionToPath mCodePathOption
-          configFilePath <- getConfigFilePath mcodepath
-          catchIOError (watchConfig configFilePath) $ \_ ->
-            exitError "Your .unisonConfig could not be loaded. Check that it's correct!"
+        ( do
+            let mcodepath = fmap codebasePathOptionToPath mCodePathOption
+            configFilePath <- getConfigFilePath mcodepath
+            catchIOError (watchConfig configFilePath) $ \_ ->
+              exitError "Your .unisonConfig could not be loaded. Check that it's correct!"
         )
         (\(_config, cancel) -> cancel)
         (\(config, _cancel) -> action config)
