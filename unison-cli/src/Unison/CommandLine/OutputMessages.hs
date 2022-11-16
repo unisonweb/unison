@@ -1051,8 +1051,7 @@ notifyUser dir o = case o of
               ]
   -- TODO: Present conflicting TermEdits and TypeEdits
   -- if we ever allow users to edit hashes directly.
-  CheckedUnisonFile sourceName ppe slurpResult uf fileContents bindings watches -> do
-    evaluationResult <- prettyEvaluate ppe fileContents bindings watches
+  CheckedUnisonFile sourceName ppe slurpResult uf evalutationResults -> do
     slurpMsg <-
       if UF.nonEmpty uf
         then prettySlurpResult ppe slurpResult uf sourceName
@@ -1062,7 +1061,11 @@ notifyUser dir o = case o of
               pure . P.wrap $
                 "I loaded " <> P.text sourceName <> " and didn't find anything."
             else pure mempty
-    pure (P.lines [slurpMsg, "", evaluationResult])
+    case evalutationResults of
+      Just (fileContents, bindings, watches) -> do
+        evaluations <- prettyEvaluate ppe fileContents bindings watches
+        pure (P.lines [slurpMsg, "", evaluations])
+      Nothing -> pure slurpMsg
   GitError e -> pure $ case e of
     GitSqliteCodebaseError e -> case e of
       NoDatabaseFile repo localPath ->

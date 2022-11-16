@@ -200,10 +200,13 @@ data Output
       PPE.PrettyPrintEnv
       SlurpResult
       (UF.TypecheckedUnisonFile Symbol Ann)
-      -- evaluated watch expressions:
-      SourceFileContents
-      [(Symbol, Term Symbol ())]
-      (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
+      -- Optionally print evaluated watch expressions:
+      ( Maybe
+          ( SourceFileContents,
+            [(Symbol, Term Symbol ())],
+            (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
+          )
+      )
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
     DisplayDefinitions

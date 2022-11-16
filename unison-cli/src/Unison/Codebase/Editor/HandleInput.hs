@@ -257,13 +257,11 @@ loop e = do
         names <- displayNames unisonFile
         pped <- prettyPrintEnvDecl names
         let ppe = PPE.suffixifiedPPE pped
-        Cli.respond $ Typechecked sourceName ppe sr unisonFile
         (bindings, e) <- evalUnisonFile False ppe unisonFile []
         let e' = Map.map go e
             go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-        when (not (null e')) do
-          Cli.respond $ Evaluated text ppe bindings e'
         #latestTypecheckedFile .= (Just unisonFile)
+        Cli.respond $ CheckedUnisonFile sourceName ppe sr unisonFile (Just (text, bindings, e'))
 
   case e of
     Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
@@ -333,10 +331,16 @@ loop e = do
             currentPath <- Cli.getCurrentPath
             void $ propagatePatch description patch' currentPath
             Cli.respond Success
+          previewResponse ::
+            ( String ->
+              SlurpResult.SlurpResult ->
+              TypecheckedUnisonFile Symbol Ann ->
+              Cli ()
+            )
           previewResponse sourceName sr uf = do
             names <- displayNames uf
             ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
-            Cli.respond $ Typechecked (Text.pack sourceName) ppe sr uf
+            Cli.respond $ CheckedUnisonFile (Text.pack sourceName) ppe sr uf Nothing
 
           delete ::
             ((Path.Absolute, HQ'.HQSegment) -> Cli (Set Referent)) -> -- compute matching terms
