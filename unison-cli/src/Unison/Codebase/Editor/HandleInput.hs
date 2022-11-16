@@ -1443,26 +1443,6 @@ loop e = do
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
 
--- resolveMain
---   :: HQ.HashQualified Name -> Cli (Reference, PPE.PrettyPrintEnv)
--- resolveMain main = do
---   Cli.Env {codebase, runtime} <- ask
---   let mainType = Runtime.mainType runtime
---   parseNames <-
---     flip NamesWithHistory.NamesWithHistory mempty
---       <$> basicPrettyPrintNamesA
---   ppe <- suffixifiedPPE parseNames
---   let resolved = toList $ NamesWithHistory.lookupHQTerm main parseNames
---       smain = HQ.toString main
---   filtered <-
---     catMaybes
---       <$> traverse (\r -> fmap (r,) <$> liftIO (loadTypeOfTerm codebase r)) resolved
---   case filtered of
---     [(Referent.Ref ref, ty)]
---       | Typechecker.fitsScheme ty mainType -> pure (ref, ppe)
---       | otherwise -> Cli.returnEarly (BadMainFunction smain ty ppe [mainType])
---     _ -> Cli.returnEarly (NoMainFunction smain ppe [mainType])
-
 inputDescription :: Input -> Cli Text
 inputDescription input =
   case input of
