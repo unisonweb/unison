@@ -312,7 +312,6 @@ loop e = do
                         patchName
                         (const (if isTerm then termPatch else typePatch))
                     )
-                  -- Say something
                   Cli.respond Success
             when (Set.null hits) do
               Cli.respond (SearchTermsNotFoundDetailed isTerm misses (Set.toList opHits))
