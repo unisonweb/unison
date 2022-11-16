@@ -476,7 +476,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
                   Left _ -> s1
                   Right inp -> s1 & #lastInput ?~ inp
             loop sNext
-          (Cli.Continue, s1) -> do
+          (Cli.Continue _response, s1) -> do
             let sNext = case input of
                   Left _ -> s1
                   Right inp -> s1 & #lastInput ?~ inp

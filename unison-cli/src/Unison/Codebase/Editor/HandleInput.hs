@@ -246,7 +246,7 @@ handleInput e = do
             Cli.respond_ (TypeErrors currentPath text ppe tes)
           when (not (null cbs)) do
             Cli.respond_ (CompilerBugs text ppe cbs)
-          Cli.returnEarlyWithoutOutput
+          Cli.returnEarly NoOutput
 
       loadUnisonFile :: Text -> Text -> Cli CommandResponse
       loadUnisonFile sourceName text = do

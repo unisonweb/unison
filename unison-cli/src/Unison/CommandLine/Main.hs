@@ -239,7 +239,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
               when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
               case result of
                 Cli.Success _commandResponse -> loop0 s1
-                Cli.Continue -> loop0 s1
+                Cli.Continue _commandResponse -> loop0 s1
                 Cli.HaltRepl -> pure ()
 
     withInterruptHandler onInterrupt (loop0 initialState `finally` cleanup)

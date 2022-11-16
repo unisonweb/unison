@@ -27,7 +27,7 @@ module Unison.Cli.Monad
     label,
     returnEarly,
     returnEarlyNumbered,
-    returnEarlyWithoutOutput,
+    -- returnEarlyWithoutOutput,
     haltRepl,
 
     -- * Communicating output to the user
@@ -137,9 +137,8 @@ instance MonadState LoopState Cli where
 -- processing input.
 data ReturnType a
   = Success a
-  | Continue
+  | Continue CommandResponse
   | HaltRepl
-  deriving stock (Eq, Show)
 
 -- | The command-line app monad environment.
 --
@@ -228,7 +227,7 @@ runCli env s0 (Cli action) =
 feed :: (a -> LoopState -> IO (ReturnType b, LoopState)) -> (ReturnType a, LoopState) -> IO (ReturnType b, LoopState)
 feed k = \case
   (Success x, s) -> k x s
-  (Continue, s) -> pure (Continue, s)
+  (Continue resp, s) -> pure (Continue resp, s)
   (HaltRepl, s) -> pure (HaltRepl, s)
 
 -- | The result of calling 'loadSource'.
@@ -250,19 +249,19 @@ short r = Cli \_env _k s -> pure (r, s)
 -- | Short-circuit the processing of the current input.
 returnEarly :: Output -> Cli a
 returnEarly x = do
-  respond_ x
-  returnEarlyWithoutOutput
+  response <- respond x
+  short (Continue response)
 
 -- | Short-circuit the processing of the current input.
 returnEarlyNumbered :: NumberedOutput -> Cli a
 returnEarlyNumbered x = do
-  respondNumbered_ x
-  returnEarlyWithoutOutput
+  response <- respondNumbered x
+  short (Continue response)
 
--- | Variant of 'returnEarly' that doesn't take a final output message.
-returnEarlyWithoutOutput :: Cli a
-returnEarlyWithoutOutput =
-  short Continue
+-- -- | Variant of 'returnEarly' that doesn't take a final output message.
+-- returnEarlyWithoutOutput :: Cli a
+-- returnEarlyWithoutOutput =
+--   short Continue
 
 -- | Stop processing inputs from the user.
 haltRepl :: Cli a
