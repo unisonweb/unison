@@ -221,7 +221,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
         loop0 s0 = do
           let step = do
                 input <- awaitInput s0
-                (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                (result, resultState) <- Cli.runCli env s0 (HandleInput.handleInput input)
                 let sNext = case input of
                       Left _ -> resultState
                       Right inp -> resultState & #lastInput ?~ inp
@@ -238,7 +238,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
             Right (Right (result, s1)) -> do
               when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
               case result of
-                Cli.Success () -> loop0 s1
+                Cli.Success apiResponse -> loop0 s1
                 Cli.Continue -> loop0 s1
                 Cli.HaltRepl -> pure ()
 

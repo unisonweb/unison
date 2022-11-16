@@ -26,12 +26,15 @@ module Unison.Cli.Monad
     -- * Short-circuiting
     label,
     returnEarly,
+    returnEarlyNumbered,
     returnEarlyWithoutOutput,
     haltRepl,
 
     -- * Communicating output to the user
     respond,
+    respond_,
     respondNumbered,
+    respondNumbered_,
 
     -- * Debug-timing actions
     time,
@@ -67,7 +70,7 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input)
-import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
+import Unison.Codebase.Editor.Output (CommandResponse, NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
@@ -247,7 +250,13 @@ short r = Cli \_env _k s -> pure (r, s)
 -- | Short-circuit the processing of the current input.
 returnEarly :: Output -> Cli a
 returnEarly x = do
-  respond x
+  respond_ x
+  returnEarlyWithoutOutput
+
+-- | Short-circuit the processing of the current input.
+returnEarlyNumbered :: NumberedOutput -> Cli a
+returnEarlyNumbered x = do
+  respondNumbered_ x
   returnEarlyWithoutOutput
 
 -- | Variant of 'returnEarly' that doesn't take a final output message.
@@ -365,17 +374,25 @@ time label action =
         ms = ns / 1_000_000
         s = ns / 1_000_000_000
 
-respond :: Output -> Cli ()
+respond :: Output -> Cli CommandResponse
 respond output = do
   Env {notify} <- ask
   liftIO (notify output)
+  pure (Left output)
 
-respondNumbered :: NumberedOutput -> Cli ()
+respond_ :: Output -> Cli ()
+respond_ = void . respond
+
+respondNumbered :: NumberedOutput -> Cli CommandResponse
 respondNumbered output = do
   Env {notifyNumbered} <- ask
   args <- liftIO (notifyNumbered output)
   unless (null args) do
     #numberedArgs .= args
+  pure (Right output)
+
+respondNumbered_ :: NumberedOutput -> Cli ()
+respondNumbered_ = void . respondNumbered
 
 runTransaction :: Sqlite.Transaction a -> Cli a
 runTransaction action = do

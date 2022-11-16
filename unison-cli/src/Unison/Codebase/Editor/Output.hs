@@ -9,6 +9,7 @@ module Unison.Codebase.Editor.Output
     TestReportStats (..),
     UndoFailureReason (..),
     ShareError (..),
+    CommandResponse,
     isFailure,
     isNumberedFailure,
   )
@@ -78,6 +79,8 @@ type SourceName = Text
 type NumberedArgs = [String]
 
 type HashLength = Int
+
+type CommandResponse = Either Output NumberedOutput
 
 data NumberedOutput
   = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -277,6 +280,8 @@ data Output
   | IntegrityCheck IntegrityResult
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
+  | NoOutput
+  | ResponseNotImplemented
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError

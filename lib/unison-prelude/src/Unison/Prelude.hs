@@ -18,6 +18,7 @@ module Unison.Prelude
     whenJustM,
     eitherToMaybe,
     maybeToEither,
+    guardMaybe,
 
     -- * @Either@ control flow
     onLeft,
@@ -101,6 +102,11 @@ whenJust mx f =
 whenJustM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
 whenJustM mx f = do
   mx >>= maybe (pure ()) f
+
+guardMaybe :: Alternative m => Maybe a -> m a
+guardMaybe = \case
+  Nothing -> empty
+  Just a -> pure a
 
 onLeft :: Applicative m => (a -> m b) -> Either a b -> m b
 onLeft =

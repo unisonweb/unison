@@ -35,6 +35,7 @@ import Unison.Auth.Types
   )
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
+import Unison.Codebase.Editor.Output (CommandResponse)
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Debug as Debug
 import Unison.Prelude
@@ -51,11 +52,11 @@ ensureAuthenticatedWithCodeserver codeserverURI = do
   Cli.Env {credentialManager} <- ask
   getCredentials credentialManager (codeserverIdFromCodeserverURI codeserverURI) >>= \case
     Right _ -> pure ()
-    Left _ -> authLogin codeserverURI
+    Left _ -> void $ authLogin codeserverURI
 
 -- | Direct the user through an authentication flow with the given server and store the credentials in the provided
 -- credential manager.
-authLogin :: CodeserverURI -> Cli ()
+authLogin :: CodeserverURI -> Cli CommandResponse
 authLogin host = do
   Cli.Env {credentialManager} <- ask
   httpClient <- liftIO HTTP.getGlobalManager

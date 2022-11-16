@@ -75,7 +75,7 @@ import Unison.WatchKind (WatchKind)
 import qualified Unison.WatchKind as WK
 
 -- | Handle an @update@ command.
-handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli ()
+handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli CommandResponse
 handleUpdate input optionalPatch requestedNames = do
   Cli.Env {codebase} <- ask
   currentPath' <- Cli.getCurrentPath
@@ -195,7 +195,7 @@ handleUpdate input optionalPatch requestedNames = do
       . Slurp.filterUnisonFile sr
       $ Slurp.originalFile sr
   ppe <- prettyPrintEnvDecl =<< displayNames (Slurp.originalFile sr)
-  Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+  response <- Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
   whenJust patchOps \(updatedPatch, _, _) ->
     void $ propagatePatchNoSync updatedPatch currentPath'
   addDefaultMetadata addsAndUpdates
@@ -205,6 +205,7 @@ handleUpdate input optionalPatch requestedNames = do
       p & Path.unsplit'
         & Path.resolve @_ @_ @Path.Absolute currentPath'
         & tShow
+  pure response
 
 getSlurpResultForUpdate :: Set Name -> Names -> Cli SlurpResult
 getSlurpResultForUpdate requestedNames slurpCheckNames = do

@@ -4,13 +4,13 @@ import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Output (Output (..))
+import Unison.Codebase.Editor.Output (CommandResponse, Output (..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Prelude
 
 -- | Moves a branch and its history from one location to another, and saves the new root
 -- branch.
-doMoveBranch :: Text -> Bool -> Path.Path' -> Path.Path' -> Cli ()
+doMoveBranch :: Text -> Bool -> Path.Path' -> Path.Path' -> Cli CommandResponse
 doMoveBranch actionDescription hasConfirmed src' dest' = do
   srcAbs <- Cli.resolvePath' src'
   destAbs <- Cli.resolvePath' dest'
