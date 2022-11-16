@@ -8,12 +8,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Runtime.Interface
-  ( startRuntime,
+  ( withRuntime,
     standalone,
     runStandalone,
     StoredCache,
     decodeStandalone,
     RuntimeHost (..),
+    Runtime (..),
   )
 where
 
@@ -328,9 +329,9 @@ prepareEvaluation ppe tm ctx = do
             $ Map.fromList bs,
         mn <- Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0,
         rmn <- RF.DerivedId $ Hashing.hashClosedTerm mn =
-          (rmn, (rmn, mn) : Map.elems hcs)
+        (rmn, (rmn, mn) : Map.elems hcs)
       | rmn <- RF.DerivedId $ Hashing.hashClosedTerm tm =
-          (rmn, [(rmn, tm)])
+        (rmn, [(rmn, tm)])
 
     (rgrp0, rbkr) = intermediateTerms ppe ctx rtms
     rgrp = Map.toList rgrp0
@@ -400,62 +401,62 @@ executeMainComb init cc = do
       let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
       pure . either id (bugMsg PPE.empty tr nm) $ decom c
 
-bugMsg
-  :: PrettyPrintEnv
-  -> [(Reference, Int)]
-  -> Text
-  -> Term Symbol
-  -> Pretty ColorText
+bugMsg ::
+  PrettyPrintEnv ->
+  [(Reference, Int)] ->
+  Text ->
+  Term Symbol ->
+  Pretty ColorText
 bugMsg ppe tr name tm
   | name == "blank expression" =
-      P.callout icon . P.lines $
-        [ P.wrap
-            ( "I encountered a" <> P.red (P.text name)
-                <> "with the following name/message:"
-            ),
-          "",
-          P.indentN 2 $ pretty ppe tm,
-          "\n",
-          stackTrace ppe tr
-        ]
+    P.callout icon . P.lines $
+      [ P.wrap
+          ( "I encountered a" <> P.red (P.text name)
+              <> "with the following name/message:"
+          ),
+        "",
+        P.indentN 2 $ pretty ppe tm,
+        "\n",
+        stackTrace ppe tr
+      ]
   | "pattern match failure" `isPrefixOf` name =
-      P.callout icon . P.lines $
-        [ P.wrap
-            ( "I've encountered a" <> P.red (P.text name)
-                <> "while scrutinizing:"
-            ),
-          "",
-          P.indentN 2 $ pretty ppe tm,
-          "",
-          "This happens when calling a function that doesn't handle all \
-          \possible inputs",
-          "\n",
-          stackTrace ppe tr
-        ]
+    P.callout icon . P.lines $
+      [ P.wrap
+          ( "I've encountered a" <> P.red (P.text name)
+              <> "while scrutinizing:"
+          ),
+        "",
+        P.indentN 2 $ pretty ppe tm,
+        "",
+        "This happens when calling a function that doesn't handle all \
+        \possible inputs",
+        "\n",
+        stackTrace ppe tr
+      ]
   | name == "builtin.raise" =
-      P.callout icon . P.lines $
-        [ P.wrap ("The program halted with an unhandled exception:"),
-          "",
-          P.indentN 2 $ pretty ppe tm,
-          "\n",
-          stackTrace ppe tr
-        ]
+    P.callout icon . P.lines $
+      [ P.wrap ("The program halted with an unhandled exception:"),
+        "",
+        P.indentN 2 $ pretty ppe tm,
+        "\n",
+        stackTrace ppe tr
+      ]
   | name == "builtin.bug",
     RF.TupleTerm' [Tm.Text' msg, x] <- tm,
     "pattern match failure" `isPrefixOf` msg =
-      P.callout icon . P.lines $
-        [ P.wrap
-            ( "I've encountered a" <> P.red (P.text msg)
-                <> "while scrutinizing:"
-            ),
-          "",
-          P.indentN 2 $ pretty ppe x,
-          "",
-          "This happens when calling a function that doesn't handle all \
-          \possible inputs",
-          "\n",
-          stackTrace ppe tr
-        ]
+    P.callout icon . P.lines $
+      [ P.wrap
+          ( "I've encountered a" <> P.red (P.text msg)
+              <> "while scrutinizing:"
+          ),
+        "",
+        P.indentN 2 $ pretty ppe x,
+        "",
+        "This happens when calling a function that doesn't handle all \
+        \possible inputs",
+        "\n",
+        stackTrace ppe tr
+      ]
 bugMsg ppe tr name tm =
   P.callout icon . P.lines $
     [ P.wrap
@@ -477,10 +478,11 @@ stackTrace ppe tr = "Stack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
           | n > 1 = " (" <> fromString (show n) <> " copies)"
           | otherwise = ""
         name =
-          syntaxToColor .
-            prettyHashQualified .
-            PPE.termName ppe .
-            RF.Ref $ rf
+          syntaxToColor
+            . prettyHashQualified
+            . PPE.termName ppe
+            . RF.Ref
+            $ rf
 
 icon :: Pretty ColorText
 icon = "💔💥"
@@ -549,6 +551,10 @@ startRuntime sandboxed runtimeHost version = do
         mainType = builtinMain External,
         ioTestType = builtinTest External
       }
+
+withRuntime :: MonadUnliftIO m => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
+withRuntime sandboxed runtimeHost version action =
+  UnliftIO.bracket (liftIO $ startRuntime sandboxed runtimeHost version) (liftIO . terminate) action
 
 tryM :: IO () -> IO (Maybe Error)
 tryM = fmap (either (Just . extract) (const Nothing)) . try
@@ -631,7 +637,7 @@ traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init
     go acc w
       | hasKey w acc = pure acc
       | Just co <- EC.lookup w src =
-          foldlM go (mapInsert w co acc) (foldMap combDeps co)
+        foldlM go (mapInsert w co acc) (foldMap combDeps co)
       | otherwise = die $ "traceNeeded: unknown combinator: " ++ show w
 
 buildSCache ::
