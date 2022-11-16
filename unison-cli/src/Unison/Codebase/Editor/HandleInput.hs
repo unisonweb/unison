@@ -7,6 +7,7 @@ where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import qualified Control.Error.Util as ErrorUtil
+import Control.Exception (catch)
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
@@ -28,10 +29,8 @@ import qualified Data.Text as Text
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Regions as Console.Regions
-import System.Cmd (system)
-import System.Process (shell, readCreateProcess)
+import System.Process (shell, readCreateProcess, callCommand)
 import System.Environment (withArgs)
-import System.Exit (ExitCode(..))
 import System.Directory
   ( createDirectoryIfMissing,
     doesFileExist,
@@ -56,8 +55,7 @@ import qualified Unison.Builtin.Terms as Builtin
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.NamesUtils (basicParseNames, basicPrettyPrintNamesA, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
-import Unison.Cli.TypeCheck (typecheck)
+import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.UnisonConfigUtils (gitUrlKey, remoteMappingKey)
 import Unison.Codebase (Codebase, Preprocessing (..), PushGitBranchOpts (..))
 import qualified Unison.Codebase as Codebase
@@ -1574,6 +1572,10 @@ inputDescription input =
     MergeBuiltinsI -> pure "builtins.merge"
     MergeIOBuiltinsI -> pure "builtins.mergeio"
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
+    ExecuteSchemeI nm -> pure ("run.scheme " <> HQ.toText nm)
+    CompileSchemeI fi nm -> pure ("compile.scheme " <> HQ.toText nm <> " " <> Text.pack fi)
+    GenSchemeLibsI -> pure "compile.scheme.genlibs"
+    FetchSchemeCompilerI -> pure "compile.scheme.fetch"
     PullRemoteBranchI orepo dest0 _syncMode pullMode _ -> do
       dest <- p' dest0
       let command =
@@ -2589,7 +2591,6 @@ getSchemeStaticLibDir = Cli.getConfig "SchemeLibs.Static" >>= \case
 doGenerateSchemeBoot :: Bool -> Maybe PPE.PrettyPrintEnv -> Cli ()
 doGenerateSchemeBoot force mppe = do
   ppe <- maybe basicPPE pure mppe
-  Cli.Env {codebase, runtime} <- ask
   dir <- getSchemeGenLibDir
   let bootf = dir </> "unison" </> "boot-generated.ss"
       binf = dir </> "unison" </> "builtin-generated.ss"
@@ -2641,10 +2642,11 @@ runScheme file = do
       lib = "--libdirs " ++ includes
       opt = "--optimize-level 3"
       cmd = "scheme -q " ++ opt ++ " " ++ lib ++ " --script " ++ file
-  liftIO (system cmd) >>= \case
-    ExitSuccess -> pure ()
-    ExitFailure _ ->
-      Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
+  success <-
+    liftIO $ (True <$ callCommand cmd) `catch` \(_ :: IOException) ->
+      pure False
+  unless success $
+    Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
 buildScheme :: String -> String -> Cli ()
 buildScheme main file = do
@@ -2684,7 +2686,6 @@ generateSchemeFile :: String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile out main = do
   (comp, ppe) <- resolveMainRef main
   ensureCompilerExists
-  Cli.Env {codebase} <- ask
   doGenerateSchemeBoot False $ Just ppe
   cacheDir <- getCacheDir
   liftIO $ createDirectoryIfMissing True (cacheDir </> "scheme-tmp")

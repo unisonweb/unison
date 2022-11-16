@@ -3,11 +3,11 @@ module Unison.Codebase.Editor.HandleInput.TermResolution
   ( lookupTermRefs
   , lookupTermRefWithType
   , resolveCon
+  , resolveTerm
   , resolveTermRef
   , resolveMainRef
   ) where
 
-import Control.Lens ((<&>))
 import Control.Monad.Trans (liftIO)
 import Control.Monad.Reader (ask)
 import Data.Maybe (catMaybes, fromJust)
@@ -35,6 +35,7 @@ import qualified Unison.Cli.Monad as Cli
 import Unison.Symbol (Symbol)
 import Unison.Type (Type)
 
+addHistory :: Names -> NamesWithHistory
 addHistory names = NamesWithHistory names mempty
 
 lookupTerm :: HQ.HashQualified Name -> Names -> [Referent]

@@ -8,7 +8,6 @@ where
 
 import Control.Monad.Reader (ask)
 import qualified Data.Text as Text
-import qualified Data.Map as Map
 import qualified Unison.Builtin as Builtin
 import Unison.Cli.Monad (Cli)
 import qualified Unison.Cli.Monad as Cli
@@ -81,8 +80,7 @@ typecheckTerm ::
         (Seq (Result.Note Symbol Ann))
         (Type Symbol Ann))
 typecheckTerm tm = do
-  Cli.Env { codebase, generateUniqueName } <- ask
-  un <- liftIO generateUniqueName
+  Cli.Env { codebase } <- ask
   let v = Symbol 0 (Var.Inference Var.Other)
   liftIO $ fmap extract <$>
     Codebase.runTransaction codebase (typecheckFile' codebase [] (UF.UnisonFileId mempty mempty [(v, tm)] mempty))
