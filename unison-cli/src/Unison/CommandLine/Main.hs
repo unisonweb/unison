@@ -38,6 +38,7 @@ import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
+import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import qualified Unison.CommandLine.Welcome as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -104,8 +105,9 @@ main ::
   UCMVersion ->
   (Branch IO -> STM ()) ->
   (Path.Absolute -> STM ()) ->
+  ShouldWatchFiles ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange = Ki.scoped \scope -> do
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   _ <- Ki.fork scope $ do
@@ -135,7 +137,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
   welcomeEvents <- Welcome.run codebase welcome
   initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
   pageOutput <- newIORef True
-  cancelFileSystemWatch <- watchFileSystem eventQueue dir
+  cancelFileSystemWatch <- case shouldWatchFiles of
+    ShouldNotWatchFiles -> pure (pure ())
+    ShouldWatchFiles -> watchFileSystem eventQueue dir
   credentialManager <- newCredentialManager
   let tokenProvider = AuthN.newTokenProvider credentialManager
   authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
