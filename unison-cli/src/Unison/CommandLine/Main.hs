@@ -238,7 +238,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
             Right (Right (result, s1)) -> do
               when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
               case result of
-                Cli.Success commandResponse -> loop0 s1
+                Cli.Success _commandResponse -> loop0 s1
                 Cli.Continue -> loop0 s1
                 Cli.HaltRepl -> pure ()
 
