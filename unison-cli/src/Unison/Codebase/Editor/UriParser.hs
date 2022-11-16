@@ -5,9 +5,12 @@ module Unison.Codebase.Editor.UriParser
     writeGitRepo,
     deprecatedWriteGitRemotePath,
     writeRemotePath,
+    parseReadRemoteNamespace,
+    parseReadShareRemoteNamespace,
   )
 where
 
+import Data.Bifunctor (first)
 import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Sequence as Seq
 import qualified Data.Text as Text
@@ -27,12 +30,14 @@ import Unison.Codebase.Editor.RemoteRepo
   )
 import Unison.Codebase.Path (Path (..))
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
+import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import qualified Unison.Hash as Hash
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.Syntax.Lexer
+import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Pretty.MegaParsec as P
 
 type P = P.Parsec Void Text.Text
 
@@ -59,6 +64,16 @@ repoPath =
   P.label "generic repo" $
     fmap ReadRemoteNamespaceGit readGitRemoteNamespace
       <|> fmap ReadRemoteNamespaceShare readShareRemoteNamespace
+
+parseReadRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
+parseReadRemoteNamespace label input =
+  let printError err = P.lines [P.string "I couldn't parse the repository address given above.", P.prettyPrintParseError input err]
+   in first printError (P.parse repoPath label (Text.pack input))
+
+parseReadShareRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadShareRemoteNamespace
+parseReadShareRemoteNamespace label input =
+  let printError err = P.lines [P.string "I couldn't parse this as a share path.", P.prettyPrintParseError input err]
+   in first printError (P.parse readShareRemoteNamespace label (Text.pack input))
 
 -- >>> P.parseMaybe writeRemotePath "unisonweb.base._releases.M4"
 -- >>> P.parseMaybe writeRemotePath "git(git@github.com:unisonweb/base:v3)._releases.M3"
@@ -88,7 +103,7 @@ readShareRemoteNamespace = do
   P.label "read share remote namespace" $
     ReadShareRemoteNamespace
       <$> pure DefaultCodeserver
-      -- <*> sbh <- P.optional shortBranchHash
+      -- <*> sch <- P.optional shortBranchHash
       <*> (NameSegment.toText <$> nameSegment)
       <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
 
@@ -97,11 +112,11 @@ readShareRemoteNamespace = do
 -- >>> P.parseMaybe readGitRemoteNamespace "git(user@server:project.git:branch)"
 -- >>> P.parseMaybe readGitRemoteNamespace "git(git@github.com:unisonweb/base:v3)._releases.M3"
 -- >>> P.parseMaybe readGitRemoteNamespace "git( user@server:project.git:branch )#asdf.foo.bar"
--- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sbh = Just #asdf, path = })
--- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sbh = Just #asdf, path = })
--- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sbh = Nothing, path = })
--- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "git@github.com:unisonweb/base", ref = Just "v3"}, sbh = Nothing, path = _releases.M3})
--- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sbh = Just #asdf, path = foo.bar})
+-- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sch = Just #asdf, path = })
+-- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sch = Just #asdf, path = })
+-- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sch = Nothing, path = })
+-- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "git@github.com:unisonweb/base", ref = Just "v3"}, sch = Nothing, path = _releases.M3})
+-- Just (ReadGitRemoteNamespace {repo = ReadGitRepo {url = "user@server:project.git", ref = Just "branch"}, sch = Just #asdf, path = foo.bar})
 readGitRemoteNamespace :: P ReadGitRemoteNamespace
 readGitRemoteNamespace = P.label "generic git repo" $ do
   C.string "git("
@@ -111,8 +126,8 @@ readGitRemoteNamespace = P.label "generic git repo" $ do
   C.string ")"
   nshashPath <- P.optional namespaceHashPath
   pure case nshashPath of
-    Nothing -> ReadGitRemoteNamespace {repo, sbh = Nothing, path = Path.empty}
-    Just (sbh, path) -> ReadGitRemoteNamespace {repo, sbh, path}
+    Nothing -> ReadGitRemoteNamespace {repo, sch = Nothing, path = Path.empty}
+    Just (sch, path) -> ReadGitRemoteNamespace {repo, sch, path}
 
 -- >>> P.parseMaybe writeGitRepo "git(/srv/git/project.git)"
 -- >>> P.parseMaybe writeGitRepo "git(/srv/git/project.git:branch)"
@@ -321,11 +336,11 @@ parseGitProtocol =
 --
 -- >>> P.parseMaybe namespaceHashPath "."
 -- Just (Nothing,)
-namespaceHashPath :: P (Maybe ShortBranchHash, Path)
+namespaceHashPath :: P (Maybe ShortCausalHash, Path)
 namespaceHashPath = do
-  sbh <- P.optional shortBranchHash
+  sch <- P.optional shortCausalHash
   p <- P.optional absolutePath
-  pure (sbh, fromMaybe Path.empty p)
+  pure (sch, fromMaybe Path.empty p)
 
 -- >>> P.parseMaybe absolutePath "."
 -- Just
@@ -349,8 +364,8 @@ gitTreeishSuffix = P.label "git treeish" . P.try $ do
   void $ C.char ':'
   P.takeWhile1P (Just "not close paren") (/= ')')
 
-shortBranchHash :: P ShortBranchHash
-shortBranchHash = P.label "short branch hash" $ do
+shortCausalHash :: P ShortCausalHash
+shortCausalHash = P.label "short causal hash" $ do
   void $ C.char '#'
-  ShortBranchHash
+  ShortCausalHash
     <$> P.takeWhile1P (Just "base32hex chars") (`elem` Hash.validBase32HexChars)

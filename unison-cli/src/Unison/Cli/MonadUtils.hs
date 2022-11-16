@@ -13,7 +13,7 @@ module Unison.Cli.MonadUtils
 
     -- ** Resolving branch identifiers
     resolveAbsBranchId,
-    resolveShortBranchHash,
+    resolveShortCausalHash,
 
     -- ** Getting/setting branches
     getRootBranch,
@@ -92,8 +92,8 @@ import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment (NameSegment)
@@ -141,22 +141,22 @@ resolveSplit' =
 -- branches by path are OK - the empty branch will be returned).
 resolveAbsBranchId :: Input.AbsBranchId -> Cli (Branch IO)
 resolveAbsBranchId = \case
-  Left hash -> resolveShortBranchHash hash
+  Left hash -> resolveShortCausalHash hash
   Right path -> getBranchAt path
 
--- | Resolve a @ShortBranchHash@ to the corresponding @Branch IO@, or fail if no such branch hash is found.
-resolveShortBranchHash :: ShortBranchHash -> Cli (Branch IO)
-resolveShortBranchHash hash = do
-  Cli.time "resolveShortBranchHash" do
+-- | Resolve a @ShortCausalHash@ to the corresponding @Branch IO@, or fail if no such branch hash is found.
+resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
+resolveShortCausalHash hash = do
+  Cli.time "resolveShortCausalHash" do
     Cli.Env {codebase} <- ask
-    hashSet <- liftIO (Codebase.branchHashesByPrefix codebase hash)
+    hashSet <- liftIO (Codebase.causalHashesByPrefix codebase hash)
     len <- liftIO (Codebase.branchHashLength codebase)
     h <-
       Set.asSingleton hashSet & onNothing do
         Cli.returnEarly
           if Set.null hashSet
             then Output.NoBranchWithHash hash
-            else Output.BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet)
+            else Output.BranchHashAmbiguous hash (Set.map (SCH.fromHash len) hashSet)
     branch <- liftIO (Codebase.getBranchForHash codebase h)
     pure (fromMaybe Branch.empty branch)
 
@@ -249,11 +249,10 @@ branchExistsAtPath' :: Path' -> Cli Bool
 branchExistsAtPath' path' = do
   absPath <- resolvePath' path'
   Cli.Env {codebase} <- ask
-  liftIO $ do
-    causal <- Codebase.getShallowCausalFromRoot codebase Nothing (Path.unabsolute absPath)
-    branch <- V2Causal.value causal
-    isEmpty <- Codebase.runTransaction codebase $ V2Branch.isEmpty branch
-    pure (not isEmpty)
+  causal <- liftIO $ Codebase.getShallowCausalFromRoot codebase Nothing (Path.unabsolute absPath)
+  branch <- liftIO $ V2Causal.value causal
+  isEmpty <- Cli.runTransaction $ V2Branch.isEmpty branch
+  pure (not isEmpty)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Updating branches

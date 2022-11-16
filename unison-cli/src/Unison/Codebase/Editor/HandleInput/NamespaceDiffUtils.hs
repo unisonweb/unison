@@ -27,6 +27,7 @@ import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
 import Unison.Reference (Reference (..))
 import qualified Unison.Reference as Reference
 import qualified Unison.Server.Backend as Backend
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol)
 
 diffHelper ::
@@ -42,18 +43,17 @@ diffHelper before after =
     diff <- liftIO (BranchDiff.diff0 before after)
     let (_parseNames, prettyNames0, _local) = Backend.namesForBranch rootBranch (Backend.AllNames $ Path.unabsolute currentPath)
     ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
-    liftIO do
-      fmap (ppe,) do
-        OBranchDiff.toOutput
-          (Codebase.getTypeOfReferent codebase)
-          (declOrBuiltin codebase)
-          hqLength
-          (Branch.toNames before)
-          (Branch.toNames after)
-          ppe
-          diff
+    fmap (ppe,) do
+      OBranchDiff.toOutput
+        (Cli.runTransaction . Codebase.getTypeOfReferent codebase)
+        (Cli.runTransaction . declOrBuiltin codebase)
+        hqLength
+        (Branch.toNames before)
+        (Branch.toNames after)
+        ppe
+        diff
 
-declOrBuiltin :: Applicative m => Codebase m Symbol Ann -> Reference -> m (Maybe (DD.DeclOrBuiltin Symbol Ann))
+declOrBuiltin :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (Maybe (DD.DeclOrBuiltin Symbol Ann))
 declOrBuiltin codebase r = case r of
   Reference.Builtin {} ->
     pure . fmap DD.Builtin $ Map.lookup r Builtin.builtinConstructorType

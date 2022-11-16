@@ -223,6 +223,108 @@ enclose keep rec t@(Handle' h body)
       | otherwise = lam' a evs lbody
 enclose _ _ _ = Nothing
 
+newtype Prefix v x = Pfx (Map v [v]) deriving (Show)
+
+instance Functor (Prefix v) where
+  fmap _ (Pfx m) = Pfx m
+instance Ord v => Applicative (Prefix v) where
+  pure _ = Pfx Map.empty
+  Pfx ml <*> Pfx mr = Pfx $ Map.unionWith common ml mr
+
+common :: Eq v => [v] -> [v] -> [v]
+common (u:us) (v:vs)
+  | u == v = u : common us vs
+common _ _ = []
+
+splitPfx :: v -> [Term v a] -> (Prefix v x, [Term v a])
+splitPfx v = first (Pfx . Map.singleton v) . split
+  where
+    split (Var' u : as) = first (u :) $ split as
+    split rest = ([], rest)
+
+-- Finds the common variable prefixes that function variables are
+-- applied to, so that they can be reduced.
+prefix :: Ord v => Term v a -> Prefix v (Term v a)
+prefix = ABT.visit \case
+  Apps' (Var' u) as -> case splitPfx u as of
+    (pf, rest) -> Just $ traverse prefix rest *> pf
+  _ -> Nothing
+
+appPfx :: Ord v => Prefix v a -> v -> [v] -> [v]
+appPfx (Pfx m) v = maybe id common $ Map.lookup v m
+
+-- Rewrites a term by dropping the first n arguments to every
+-- application of `v`. This just assumes such a thing makes sense, as
+-- in `beta`, where we've calculated how many arguments to drop by
+-- looking at every occurrence of `v`.
+dropPrefix :: Ord v => Semigroup a => v -> Int -> Term v a -> Term v a
+dropPrefix _ 0 = id
+dropPrefix v n = ABT.visitPure rw
+  where
+    rw (Apps' f@(Var' u) as)
+      | v == u = Just (apps' (var (ABT.annotation f) u) (drop n as))
+    rw _ = Nothing
+
+dropPrefixes
+  :: Ord v => Semigroup a => Map v Int -> Term v a -> Term v a
+dropPrefixes m = ABT.visitPure rw
+  where
+    rw (Apps' f@(Var' u) as)
+      | Just n <- Map.lookup u m =
+        Just (apps' (var (ABT.annotation f) u) (drop n as))
+    rw _ = Nothing
+
+-- Performs opposite transformations to those in enclose. Named after
+-- the lambda case, which is beta reduction.
+beta :: Var v => Monoid a => (Term v a -> Term v a) -> Term v a -> Maybe (Term v a)
+beta rec (LetRecNamedTop' top (fmap (fmap rec) -> vbs) (rec -> bd)) =
+  Just $ letRec' top lvbs lbd
+  where
+  -- Avoid completely reducing a lambda expression, because recursive
+  -- lets must be guarded.
+  args (v, LamsNamed' vs Ann'{}) = (v, vs)
+  args (v, LamsNamed' vs _) = (v, init vs)
+  args (v, _) = (v, [])
+
+  Pfx m0 = traverse_ (prefix . snd) vbs *> prefix bd
+
+  f ls rs = case common ls rs of
+    [] -> Nothing
+    vs -> Just vs
+
+  m = Map.map length $ Map.differenceWith f (Map.fromList $ map args vbs) m0
+  lvbs = vbs <&> \(v, b0) -> (,) v $ case b0 of
+    LamsNamed' vs b | Just n <- Map.lookup v m ->
+      lam' (ABT.annotation b0) (drop n vs) (dropPrefixes m b)
+    -- shouldn't happen
+    b -> dropPrefixes m b
+
+  lbd = dropPrefixes m bd
+
+beta rec (Let1NamedTop' top v l@(LamsNamed' vs bd) (rec -> e))
+  | n > 0 = Just $ let1' top [(v, lamb)] (dropPrefix v n e)
+  | otherwise = Nothing
+  where
+    lamb = lam' al (drop n vs) (bd)
+    al = ABT.annotation l
+    -- Calculate a maximum number of arguments to drop.
+    -- Enclosing doesn't create let-bound lambdas, so we
+    -- should never reduce a lambda to a non-lambda, as that
+    -- could affect evaluation order.
+    m | Ann' _ _ <- bd = length vs
+      | otherwise = length vs - 1
+    n = min m . length $ appPfx (prefix e) v vs
+
+beta rec (Apps' l@(LamsNamed' vs body) as)
+  | n <- matchVars 0 vs as
+  , n > 0 = Just $ apps' (lam' al (drop n vs) (rec body)) (drop n as)
+  | otherwise = Nothing
+  where
+    al = ABT.annotation l
+    matchVars !n (u:us) (Var' v : as) | u == v = matchVars (1+n) us as
+    matchVars n _ _ = n
+beta _ _ = Nothing
+
 isStructured :: Var v => Term v a -> Bool
 isStructured (Var' _) = False
 isStructured (Lam' _) = False
@@ -241,6 +343,10 @@ isStructured _ = True
 
 close :: (Var v, Monoid a) => Set v -> Term v a -> Term v a
 close keep tm = ABT.visitPure (enclose keep close) tm
+
+-- Attempts to undo what was done in `close`. Useful for decompiling.
+open :: (Var v, Monoid a) => Term v a -> Term v a
+open x = ABT.visitPure (beta open) x
 
 type FloatM v a r = State (Set v, [(v, Term v a)], [(v, Term v a)]) r
 
@@ -365,7 +471,7 @@ float tm = case runState go0 (Set.empty, [], []) of
         subm = Map.fromList subvs
      in ( letRec' True [] . ABT.substs subs . deannotate $ bd,
           fmap (first DerivedId) tops,
-          dcmp <&> \(v, tm) -> (DerivedId $ subm Map.! v, tm)
+          dcmp <&> \(v, tm) -> (DerivedId $ subm Map.! v, open tm)
         )
   where
     go0 = fromMaybe (go tm) (floater True go tm)

@@ -215,6 +215,8 @@ test> Text.tests.patterns =
     run (capture (many (notCharIn [?,,]))) "abracadabra,123" == Some (["abracadabra"], ",123"),
     run (capture (many (or digit letter))) "11234abc,remainder" == Some (["11234abc"], ",remainder"),
     run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa" == Some (["1a2ba"], " aaa"),
+    -- Regression test for: https://github.com/unisonweb/unison/issues/3530
+    run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac" == Some ([""], "ac"),
     isMatch (join [many letter, eof]) "aaaaabbbb" == true,
     isMatch (join [many letter, eof]) "aaaaabbbb1" == false,
     isMatch (join [l "abra", many (l "cadabra")]) "abracadabracadabra" == true,
@@ -250,12 +252,27 @@ test> Bytes.tests.compression =
           isLeft (gzip.decompress 0xs201209348750982374593939393939709827345789023457892345)
         ]
 
-test> Bytes.tests.fromBase64UrlUnpadded = 
+test> Bytes.tests.fromBase64UrlUnpadded =
   checks [Exception.catch
            '(fromUtf8
               (raiseMessage () (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ")))) == Right "hello world"
          , isLeft (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ="))]
-  
+
+```
+
+## `List` comparison
+
+```unison
+test> checks [
+        compare [] [1,2,3] == -1,
+        compare [1,2,3] [1,2,3,4] == -1,
+        compare [1,2,3,4] [1,2,3] == +1,
+        compare [1,2,3] [1,2,3] == +0,
+        compare [3] [1,2,3] == +1,
+        compare [1,2,3] [1,2,4] == -1,
+        compare [1,2,2] [1,2,1,2] == +1,
+        compare [1,2,3,4] [3,2,1] == -1
+      ]
 ```
 
 ## `Any` functions
@@ -369,13 +386,14 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Sandbox.test1                       Passed
   ◉ Sandbox.test2                       Passed
   ◉ Sandbox.test3                       Passed
+  ◉ test.rtjqan7bcs                     Passed
   ◉ Text.tests.alignment                Passed
   ◉ Text.tests.literalsEq               Passed
   ◉ Text.tests.patterns                 Passed
   ◉ Text.tests.repeat                   Passed
   ◉ Text.tests.takeDropAppend           Passed
   
-  ✅ 22 test(s) passing
+  ✅ 23 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 

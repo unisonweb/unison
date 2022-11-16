@@ -19,7 +19,6 @@ import qualified Unison.Test.DataDeclaration as DataDeclaration
 import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.Referent as Referent
 import qualified Unison.Test.Syntax.FileParser as FileParser
-import qualified Unison.Test.Syntax.Lexer as Lexer
 import qualified Unison.Test.Syntax.TermParser as TermParser
 import qualified Unison.Test.Syntax.TermPrinter as TermPrinter
 import qualified Unison.Test.Syntax.TypePrinter as TypePrinter
@@ -29,7 +28,6 @@ import qualified Unison.Test.Typechecker as Typechecker
 import qualified Unison.Test.Typechecker.Context as Context
 import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.UnisonSources as UnisonSources
-import qualified Unison.Test.Util.Bytes as Bytes
 import qualified Unison.Test.Util.PinBoard as PinBoard
 import qualified Unison.Test.Util.Relation as Relation
 import qualified Unison.Test.Util.Text as Text
@@ -39,7 +37,6 @@ test :: Test ()
 test =
   tests
     [ Cache.test,
-      Lexer.test,
       Term.test,
       TermParser.test,
       TermPrinter.test,
@@ -49,7 +46,6 @@ test =
       UnisonSources.test,
       FileParser.test,
       DataDeclaration.test,
-      Bytes.test,
       Text.test,
       Relation.test,
       Path.test,

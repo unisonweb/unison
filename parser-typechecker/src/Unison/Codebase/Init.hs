@@ -146,7 +146,7 @@ withNewUcmCodebaseOrExit cbInit debugName path action = do
   prettyDir <- P.string <$> canonicalizePath path
   let codebaseSetup codebase = do
         liftIO $ PT.putPrettyLn' . P.wrap $ "Initializing a new codebase in: " <> prettyDir
-        Codebase.installUcmDependencies codebase
+        Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
   createCodebase cbInit debugName path (\cb -> codebaseSetup cb *> action cb)
     >>= \case
       Left error -> liftIO $ PT.putPrettyLn' error >> exitFailure

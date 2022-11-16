@@ -11,7 +11,6 @@ import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase.Branch as Branch
@@ -20,8 +19,9 @@ import Unison.Codebase.Editor.Input (Input)
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import qualified Unison.Codebase.Editor.Output.PushPull as PushPull
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemotePath)
+import Unison.Codebase.Editor.RemoteRepo (WriteGitRepo, WriteRemotePath)
 import qualified Unison.Codebase.Editor.SlurpResult as SR
+import Unison.Codebase.Editor.UriParser (parseReadRemoteNamespace)
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
@@ -1358,46 +1358,6 @@ loadPullRequest =
         _ -> Left (I.help loadPullRequest)
     )
 
-parseReadRemoteNamespace :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
-parseReadRemoteNamespace label input =
-  let printError err = P.lines [P.string "I couldn't parse the repository address given above.", prettyPrintParseError input err]
-   in first printError (P.parse UriParser.repoPath label (Text.pack input))
-
-prettyPrintParseError :: String -> P.ParseErrorBundle Text Void -> P.Pretty P.ColorText
-prettyPrintParseError input errBundle =
-  let (firstError, sp) = NE.head . fst $ P.attachSourcePos P.errorOffset (P.bundleErrors errBundle) (P.bundlePosState errBundle)
-   in case firstError of
-        P.TrivialError _errorOffset ue ee ->
-          P.lines
-            [ printLocation sp,
-              P.newline,
-              printTrivial ue ee
-            ]
-        P.FancyError _errorOffset ee ->
-          let errors = foldMap (P.string . mappend "\n" . showErrorFancy) ee
-           in P.lines
-                [ printLocation sp,
-                  errors
-                ]
-  where
-    printLocation :: P.SourcePos -> P.Pretty P.ColorText
-    printLocation sp =
-      let col = (P.unPos $ P.sourceColumn sp) - 1
-          row = (P.unPos $ P.sourceLine sp) - 1
-          errorLine = lines input !! row
-       in P.lines
-            [ P.newline,
-              P.string errorLine,
-              P.string $ replicate col ' ' <> "^-- This is where I gave up."
-            ]
-
-    printTrivial :: (Maybe (P.ErrorItem Char)) -> (Set (P.ErrorItem Char)) -> P.Pretty P.ColorText
-    printTrivial ue ee =
-      let expected = "I expected " <> foldMap (P.singleQuoted . P.string . showErrorItem) ee
-          found = P.string . mappend "I found " . showErrorItem <$> ue
-          message = [expected] <> catMaybes [found]
-       in P.oxfordCommasWith "." message
-
 parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
 parseWriteGitRepo label input = do
   first
@@ -2005,6 +1965,24 @@ debugDoctor =
         _ -> Left (showPatternHelp debugDoctor)
     )
 
+debugNameDiff :: InputPattern
+debugNameDiff =
+  InputPattern
+    { patternName = "debug.name-diff",
+      aliases = [],
+      visibility = I.Hidden,
+      argTypes = [(Required, namespaceArg), (Required, namespaceArg)],
+      help = P.wrap "List all name changes between two causal hashes. Does not detect patch or metadata changes.",
+      parse =
+        ( \case
+            [from, to] -> first fromString $ do
+              fromSCH <- Input.parseShortCausalHash from
+              toSCH <- Input.parseShortCausalHash to
+              pure $ Input.DebugNameDiffI fromSCH toSCH
+            _ -> Left (I.help debugNameDiff)
+        )
+    }
+
 test :: InputPattern
 test =
   InputPattern
@@ -2412,6 +2390,7 @@ validInputs =
       debugClearWatchCache,
       debugDoctor,
       debugTabCompletion,
+      debugNameDiff,
       gist,
       authLogin,
       printVersion

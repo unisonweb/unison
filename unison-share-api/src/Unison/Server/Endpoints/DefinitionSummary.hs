@@ -23,9 +23,10 @@ import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
@@ -54,7 +55,7 @@ type TermSummaryAPI =
     -- It's propagated through to the response as-is.
     -- If missing, the short hash will be used instead.
     :> QueryParam "name" Name
-    :> QueryParam "rootBranch" ShortBranchHash
+    :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "renderWidth" Width
     :> APIGet TermSummary
@@ -79,7 +80,7 @@ serveTermSummary ::
   Codebase IO Symbol Ann ->
   Referent ->
   Maybe Name ->
-  Maybe ShortBranchHash ->
+  Maybe ShortCausalHash ->
   Maybe Path.Path ->
   Maybe Width ->
   Backend IO TermSummary
@@ -90,7 +91,7 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
   let termReference = Referent.toReference referent
   let v2Referent = Cv.referent1to2 referent
   root <- Backend.resolveRootBranchHashV2 codebase mayRoot
-  sig <- lift $ Backend.loadReferentType codebase referent
+  sig <- lift (Codebase.runTransaction codebase (Backend.loadReferentType codebase referent))
   case sig of
     Nothing ->
       throwError (Backend.MissingSignatureForTerm termReference)
@@ -114,7 +115,7 @@ type TypeSummaryAPI =
     -- It's propagated through to the response as-is.
     -- If missing, the short hash will be used instead.
     :> QueryParam "name" Name
-    :> QueryParam "rootBranch" ShortBranchHash
+    :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "renderWidth" Width
     :> APIGet TypeSummary
@@ -139,15 +140,19 @@ serveTypeSummary ::
   Codebase IO Symbol Ann ->
   Reference ->
   Maybe Name ->
-  Maybe ShortBranchHash ->
+  Maybe ShortCausalHash ->
   Maybe Path.Path ->
   Maybe Width ->
   Backend IO TypeSummary
 serveTypeSummary codebase reference mayName _mayRoot _relativeTo mayWidth = do
   let shortHash = Reference.toShortHash reference
   let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
-  tag <- lift $ Backend.getTypeTag codebase reference
-  displayDecl <- lift $ Backend.displayType codebase reference
+  (tag, displayDecl) <-
+    lift do
+      Codebase.runTransaction codebase do
+        tag <- Backend.getTypeTag codebase reference
+        displayDecl <- Backend.displayType codebase reference
+        pure (tag, displayDecl)
   let syntaxHeader = Backend.typeToSyntaxHeader width displayName displayDecl
   pure $
     TypeSummary

@@ -2,7 +2,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module U.Codebase.ShortHash where
+module U.Codebase.ShortHash
+  ( ShortHash (..),
+    ShortCausalHash (..),
+    ShortNamespaceHash (..),
+    shortenTo,
+  )
+where
 
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -20,7 +26,11 @@ data ShortHash
   | ShortHash {prefix :: Text, cycle :: Maybe Word64, cid :: Maybe Word64}
   deriving (Eq, Ord, Show)
 
-data ShortBranchHash = ShortBranchHash {toText :: Text} deriving (Eq, Ord, Show)
+newtype ShortCausalHash = ShortCausalHash {shortCausalHashToText :: Text}
+  deriving stock (Eq, Ord, Show)
+
+newtype ShortNamespaceHash = ShortNamespaceHash {shortNamespaceHashToText :: Text}
+  deriving stock (Eq, Ord, Show)
 
 shortenTo :: Int -> ShortHash -> ShortHash
 shortenTo _ b@(Builtin _) = b

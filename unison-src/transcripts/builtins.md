@@ -234,6 +234,8 @@ test> Text.tests.patterns =
     run (capture (many (notCharIn [?,,]))) "abracadabra,123" == Some (["abracadabra"], ",123"),
     run (capture (many (or digit letter))) "11234abc,remainder" == Some (["11234abc"], ",remainder"),
     run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa" == Some (["1a2ba"], " aaa"),
+    -- Regression test for: https://github.com/unisonweb/unison/issues/3530
+    run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac" == Some ([""], "ac"),
     isMatch (join [many letter, eof]) "aaaaabbbb" == true,
     isMatch (join [many letter, eof]) "aaaaabbbb1" == false,
     isMatch (join [l "abra", many (l "cadabra")]) "abracadabracadabra" == true,
@@ -273,12 +275,31 @@ test> Bytes.tests.compression =
           isLeft (gzip.decompress 0xs201209348750982374593939393939709827345789023457892345)
         ]
 
-test> Bytes.tests.fromBase64UrlUnpadded = 
+test> Bytes.tests.fromBase64UrlUnpadded =
   checks [Exception.catch
            '(fromUtf8
               (raiseMessage () (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ")))) == Right "hello world"
          , isLeft (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ="))]
-  
+
+```
+
+```ucm:hide
+.> add
+```
+
+## `List` comparison
+
+```unison:hide
+test> checks [
+        compare [] [1,2,3] == -1,
+        compare [1,2,3] [1,2,3,4] == -1,
+        compare [1,2,3,4] [1,2,3] == +1,
+        compare [1,2,3] [1,2,3] == +0,
+        compare [3] [1,2,3] == +1,
+        compare [1,2,3] [1,2,4] == -1,
+        compare [1,2,2] [1,2,1,2] == +1,
+        compare [1,2,3,4] [3,2,1] == -1
+      ]
 ```
 
 ```ucm:hide

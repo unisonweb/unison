@@ -234,7 +234,7 @@ test =
           \else c) with\n\
           \  112 -> x", -- dodgy layout.  note #517
         tc "handle bar with Pair 1 1",
-        tc "handle bar with x -> foo",
+        tcDiff "handle bar with x -> foo" "handle bar with 'foo",
         tcDiffRtt
           True
           "let\n\
@@ -399,8 +399,8 @@ test =
         tcDiff "'('bar)" "''bar",
         tcDiff "!('bar)" "!'bar",
         tcDiff "'(!foo)" "'!foo",
-        tc "x -> '(y -> 'z)",
-        tc "'(x -> '(y -> z))",
+        tcDiff "x -> '(y -> 'z)" "''''z",
+        tcDiff "'(x -> '(y -> z))" "''''z",
         tc "(\"a\", 2)",
         tc "(\"a\", 2, 2.0)",
         tcDiff "(2)" "2",
@@ -463,6 +463,12 @@ test =
         tcBinding 50 "+" Nothing "a b -> foo a b" "a + b = foo a b",
         tcBinding 50 "+" Nothing "a b c -> foo a b c" "(+) a b c = foo a b c",
         tcBinding 50 "." Nothing "f g x -> f (g x)" "(.) f g x = f (g x)",
+        tcBinding
+          50
+          "foo"
+          (Just "forall a. a -> a")
+          "x -> let\n  bar : forall a. a -> a\n  bar x = x\n  bar 10\n  x"
+          "foo : a -> a\nfoo x =\n  bar : \8704 a. a -> a\n  bar x = x\n  bar 10\n  x",
         tcBreaks
           32
           "let\n\

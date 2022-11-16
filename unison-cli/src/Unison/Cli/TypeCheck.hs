@@ -20,6 +20,7 @@ import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.Result as Result
+import qualified Unison.Sqlite as Sqlite
 import Unison.Symbol (Symbol(Symbol))
 import qualified Unison.Syntax.Lexer as L
 import qualified Unison.Syntax.Parser as Parser
@@ -42,7 +43,7 @@ typecheck ambient names sourceName source =
   Cli.time "typecheck" do
     Cli.Env {codebase, generateUniqueName} <- ask
     uniqueName <- liftIO generateUniqueName
-    (liftIO . Result.getResult) $
+    (Cli.runTransaction . Result.getResult) $
       parseAndSynthesizeFile
         ambient
         (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
@@ -65,7 +66,7 @@ typecheckHelper ::
     )
 typecheckHelper codebase generateUniqueName ambient names sourceName source = do
   uniqueName <- liftIO generateUniqueName
-  (liftIO . Result.getResult) $
+  (liftIO . Codebase.runTransaction codebase . Result.getResult) $
     parseAndSynthesizeFile
       ambient
       (((<> Builtin.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
@@ -80,37 +81,38 @@ typecheckTerm ::
         (Seq (Result.Note Symbol Ann))
         (Type Symbol Ann))
 typecheckTerm tm = do
-  Cli.Env { generateUniqueName } <- ask
+  Cli.Env { codebase, generateUniqueName } <- ask
   un <- liftIO generateUniqueName
   let v = Symbol 0 (Var.Inference Var.Other)
-  fmap extract <$>
-    typecheckFile' [] (UF.UnisonFileId mempty mempty [(v, tm)] mempty)
+  liftIO $ fmap extract <$>
+    Codebase.runTransaction codebase (typecheckFile' codebase [] (UF.UnisonFileId mempty mempty [(v, tm)] mempty))
   where
     extract tuf
       | [[(_,_,ty)]] <- UF.topLevelComponents' tuf = ty
       | otherwise = error "internal error: typecheckTerm"
 
 typecheckFile' ::
+  Codebase m Symbol Ann ->
   [Type Symbol Ann] ->
   UF.UnisonFile Symbol Ann ->
-  Cli
+  Sqlite.Transaction
     ( Result.Result
         (Seq (Result.Note Symbol Ann))
         (UF.TypecheckedUnisonFile Symbol Ann))
-typecheckFile' ambient file = do
-  Cli.Env {codebase} <- ask
+typecheckFile' codebase ambient file = do
   typeLookup <-
-    liftIO $
-      (<> Builtin.typeLookup)
-        <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
+    (<> Builtin.typeLookup)
+      <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   pure $ synthesizeFile' ambient typeLookup file
 
 typecheckFile ::
+  Codebase m Symbol Ann ->
   [Type Symbol Ann] ->
   UF.UnisonFile Symbol Ann ->
-  Cli
+  Sqlite.Transaction
     ( Result.Result
         (Seq (Result.Note Symbol Ann))
         (Either Names (UF.TypecheckedUnisonFile Symbol Ann))
     )
-typecheckFile ambient file = fmap Right <$> typecheckFile' ambient file
+typecheckFile codebase ambient file =
+  fmap Right <$> typecheckFile' codebase ambient file

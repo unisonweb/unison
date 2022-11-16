@@ -16,6 +16,7 @@ packages:
 - unison-cli
 - unison-hashing-v2
 - unison-share-api
+- unison-syntax
 - codebase2/codebase
 - codebase2/codebase-sqlite
 - codebase2/codebase-sqlite-hashing-v2
@@ -29,7 +30,9 @@ packages:
 - lib/unison-util-base32hex
 - lib/unison-util-base32hex-orphans-aeson
 - lib/unison-util-base32hex-orphans-sqlite
+- lib/unison-util-bytes
 - lib/unison-util-relation
+- lib/unison-util-rope
 - lib/unison-pretty-printer
 
 #compiler-check: match-exact

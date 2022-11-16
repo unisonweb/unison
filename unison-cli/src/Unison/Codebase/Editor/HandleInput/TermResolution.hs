@@ -66,10 +66,14 @@ lookupTermRefWithType
   -> Cli [(Reference,Type Symbol Ann)]
 lookupTermRefWithType codebase name = do
   nms <- basicParseNames
-  fmap catMaybes . traverse annot . fst $ lookupTermRefs name nms
+  liftIO .
+    Codebase.runTransaction codebase .
+    fmap catMaybes .
+    traverse annot .
+    fst $ lookupTermRefs name nms
   where
     annot tm =
-      fmap ((,) tm) <$> liftIO (Codebase.getTypeOfTerm codebase tm)
+      fmap ((,) tm) <$> Codebase.getTypeOfTerm codebase tm
 
 resolveTerm :: HQ.HashQualified Name -> Cli Referent
 resolveTerm name = basicParseNames >>= \nms ->

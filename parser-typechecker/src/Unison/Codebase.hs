@@ -12,6 +12,7 @@ module Unison.Codebase
     unsafeGetTypeOfTermById,
     isTerm,
     putTerm,
+    putTermComponent,
     termMetadata,
 
     -- ** Referents (sorta-termlike)
@@ -28,6 +29,7 @@ module Unison.Codebase
     unsafeGetTypeDeclaration,
     getDeclComponent,
     putTypeDeclaration,
+    putTypeDeclarationComponent,
     typeReferencesByPrefix,
     isType,
 
@@ -35,7 +37,7 @@ module Unison.Codebase
     branchExists,
     getBranchForHash,
     putBranch,
-    branchHashesByPrefix,
+    causalHashesByPrefix,
     lca,
     beforeImpl,
     getShallowBranchAtPath,
@@ -273,7 +275,7 @@ debug :: Bool
 debug = False
 
 -- | Write all of UCM's dependencies (builtins types and an empty namespace) into the codebase
-installUcmDependencies :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
+installUcmDependencies :: Codebase m Symbol Parser.Ann -> Sqlite.Transaction ()
 installUcmDependencies c = do
   let uf =
         ( UF.typecheckedUnisonFile
@@ -288,10 +290,10 @@ installUcmDependencies c = do
 -- if it makes sense to later.
 addDefsToCodebase ::
   forall m v a.
-  (Monad m, Var v, Show a) =>
+  (Var v, Show a) =>
   Codebase m v a ->
   UF.TypecheckedUnisonFile v a ->
-  m ()
+  Sqlite.Transaction ()
 addDefsToCodebase c uf = do
   traverse_ (goType Right) (UF.dataDeclarationsId' uf)
   traverse_ (goType Left) (UF.effectDeclarationsId' uf)
@@ -302,11 +304,11 @@ addDefsToCodebase c uf = do
     goTerm (r, Nothing, tm, tp) = putTerm c r tm tp
     goTerm (r, Just WK.TestWatch, tm, tp) = putTerm c r tm tp
     goTerm _ = pure ()
-    goType :: Show t => (t -> Decl v a) -> (Reference.Id, t) -> m ()
+    goType :: Show t => (t -> Decl v a) -> (Reference.Id, t) -> Sqlite.Transaction ()
     goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
-getTypeOfConstructor :: (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
+getTypeOfConstructor :: Ord v => Codebase m v a -> ConstructorReference -> Sqlite.Transaction (Maybe (Type v a))
 getTypeOfConstructor codebase (ConstructorReference r0 cid) =
   case r0 of
     Reference.DerivedId r -> do
@@ -330,10 +332,10 @@ lookupWatchCache codebase h = do
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
 typeLookupForDependencies ::
-  (Monad m, BuiltinAnnotation a) =>
+  BuiltinAnnotation a =>
   Codebase m Symbol a ->
   Set Reference ->
-  m (TL.TypeLookup Symbol a)
+  Sqlite.Transaction (TL.TypeLookup Symbol a)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
   foldM go mempty s
@@ -351,9 +353,9 @@ typeLookupForDependencies codebase s = do
               Nothing -> pure mempty
     go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
 
-toCodeLookup :: Monad m => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
+toCodeLookup :: MonadIO m => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
 toCodeLookup c =
-  CL.CodeLookup (getTerm c) (getTypeDeclaration c)
+  CL.CodeLookup (getTerm c) (runTransaction c . getTypeDeclaration c)
     <> Builtin.codeLookup
     <> IOSource.codeLookupM
 
@@ -362,10 +364,10 @@ toCodeLookup c =
 -- Note that it is possible to call 'putTerm', then 'getTypeOfTerm', and receive @Nothing@, per the semantics of
 -- 'putTerm'.
 getTypeOfTerm ::
-  (Applicative m, BuiltinAnnotation a) =>
+  BuiltinAnnotation a =>
   Codebase m Symbol a ->
   Reference ->
-  m (Maybe (Type Symbol a))
+  Sqlite.Transaction (Maybe (Type Symbol a))
 getTypeOfTerm _c r | debug && trace ("Codebase.getTypeOfTerm " ++ show r) False = undefined
 getTypeOfTerm c r = case r of
   Reference.DerivedId h -> getTypeOfTermImpl c h
@@ -376,10 +378,10 @@ getTypeOfTerm c r = case r of
 
 -- | Get the type of a referent.
 getTypeOfReferent ::
-  (BuiltinAnnotation a, Monad m) =>
+  BuiltinAnnotation a =>
   Codebase m Symbol a ->
   Referent.Referent ->
-  m (Maybe (Type Symbol a))
+  Sqlite.Transaction (Maybe (Type Symbol a))
 getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
   Referent.Con r _ -> getTypeOfConstructor c r
@@ -392,7 +394,7 @@ componentReferencesForReference c = \case
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.
-dependents :: Functor m => Codebase m v a -> Queries.DependentsSelector -> Reference -> m (Set Reference)
+dependents :: Codebase m v a -> Queries.DependentsSelector -> Reference -> Sqlite.Transaction (Set Reference)
 dependents c selector r =
   Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
@@ -426,13 +428,13 @@ termsMentioningType c ty =
 
 -- | Check whether a reference is a term.
 isTerm ::
-  (Applicative m, BuiltinAnnotation a) =>
+  BuiltinAnnotation a =>
   Codebase m Symbol a ->
   Reference ->
-  m Bool
+  Sqlite.Transaction Bool
 isTerm code = fmap isJust . getTypeOfTerm code
 
-isType :: Applicative m => Codebase m v a -> Reference -> m Bool
+isType :: Codebase m v a -> Reference -> Sqlite.Transaction Bool
 isType c r = case r of
   Reference.Builtin {} -> pure $ Builtin.isBuiltinType r
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
@@ -446,7 +448,7 @@ data Preprocessing m
   | Preprocessed (Branch m -> m (Branch m))
 
 -- | Sync elements as needed from a remote git codebase into the local one.
--- If `sbh` is supplied, we try to load the specified branch hash;
+-- If `sch` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
 importRemoteBranch ::
   forall m v a.
@@ -499,21 +501,21 @@ unsafeGetTerm codebase rid =
     Just term -> pure term
 
 -- | Like 'getTypeDeclaration', for when the type declaration is known to exist in the codebase.
-unsafeGetTypeDeclaration :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Decl v a)
+unsafeGetTypeDeclaration :: HasCallStack => Codebase m v a -> Reference.Id -> Sqlite.Transaction (Decl v a)
 unsafeGetTypeDeclaration codebase rid =
   getTypeDeclaration codebase rid >>= \case
     Nothing -> error (reportBug "E129043" ("type decl " ++ show rid ++ " not found"))
     Just decl -> pure decl
 
 -- | Like 'getTypeOfTerm', but for when the term is known to exist in the codebase.
-unsafeGetTypeOfTermById :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Type v a)
+unsafeGetTypeOfTermById :: HasCallStack => Codebase m v a -> Reference.Id -> Sqlite.Transaction (Type v a)
 unsafeGetTypeOfTermById codebase rid =
   getTypeOfTermImpl codebase rid >>= \case
     Nothing -> error (reportBug "E377910" ("type of term " ++ show rid ++ " not found"))
     Just ty -> pure ty
 
 -- | Like 'unsafeGetTerm', but returns the type of the term, too.
-unsafeGetTermWithType :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a, Type v a)
+unsafeGetTermWithType :: (HasCallStack, MonadIO m) => Codebase m v a -> Reference.Id -> m (Term v a, Type v a)
 unsafeGetTermWithType codebase rid = do
   term <- unsafeGetTerm codebase rid
   ty <-
@@ -521,7 +523,7 @@ unsafeGetTermWithType codebase rid = do
     -- inferred type). In this case, we can avoid looking up the type separately.
     case term of
       Term.Ann' _ ty -> pure ty
-      _ -> unsafeGetTypeOfTermById codebase rid
+      _ -> runTransaction codebase (unsafeGetTypeOfTermById codebase rid)
   pure (term, ty)
 
 -- | Like 'getTermComponentWithTypes', for when the term component is known to exist in the codebase.

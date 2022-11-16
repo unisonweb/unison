@@ -21,10 +21,10 @@ import qualified U.Util.Hash as Hash
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
-import Unison.Codebase.ShortBranchHash
-  ( ShortBranchHash (..),
+import Unison.Codebase.ShortCausalHash
+  ( ShortCausalHash (..),
   )
-import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.ShortCausalHash as SCH
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -67,8 +67,8 @@ instance FromJSONKey ShortHash where
         Nothing -> fail $ "Invalid Shorthash" <> Text.unpack txt
         Just sh -> pure sh
 
-instance FromHttpApiData ShortBranchHash where
-  parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
+instance FromHttpApiData ShortCausalHash where
+  parseUrlPiece = maybe (Left "Invalid ShortCausalHash") Right . SCH.fromText
 
 -- | Always renders to the form: #abcdef
 instance ToHttpApiData ShortHash where
@@ -89,7 +89,7 @@ instance FromHttpApiData ShortHash where
             else ("#" <> t)
         )
           & SH.fromText
-          & maybe (Left "Invalid ShortBranchHash") Right
+          & maybe (Left "Invalid ShortCausalHash") Right
 
 instance ToSchema ShortHash where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -143,7 +143,7 @@ deriving via ShortByteString instance Binary Hash
 
 deriving via Hash instance Binary CausalHash
 
-deriving via Text instance ToHttpApiData ShortBranchHash
+deriving via Text instance ToHttpApiData ShortCausalHash
 
 instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
   toEncoding = genericToEncoding defaultOptions
@@ -163,7 +163,7 @@ instance ToJSON Name where
 instance ToSchema Name where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
-deriving anyclass instance ToParamSchema ShortBranchHash
+deriving anyclass instance ToParamSchema ShortCausalHash
 
 instance ToParamSchema ShortHash where
   toParamSchema _ =

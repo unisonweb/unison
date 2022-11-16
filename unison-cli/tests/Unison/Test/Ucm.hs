@@ -67,7 +67,7 @@ runTranscript (Codebase codebasePath fmt) transcript = do
       cbInit = case fmt of CodebaseFormat2 -> SC.init
   TR.withTranscriptRunner "Unison.Test.Ucm.runTranscript Invalid Version String" configFile $ \runner -> do
     result <- Codebase.Init.withOpenCodebase cbInit "transcript" codebasePath SC.DontMigrate \codebase -> do
-      Codebase.installUcmDependencies codebase
+      Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
       let transcriptSrc = Text.pack . stripMargin $ unTranscript transcript
       output <- either err Text.unpack <$> runner "transcript" transcriptSrc (codebasePath, codebase)
       when debugTranscriptOutput $ traceM output
