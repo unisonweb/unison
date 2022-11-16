@@ -471,7 +471,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
       loop s0 = do
         input <- awaitInput s0
         Cli.runCli env s0 (HandleInput.handleInput input) >>= \case
-          (Cli.Success apiResponse, s1) -> do
+          (Cli.Success _commandResponse, s1) -> do
             let sNext = case input of
                   Left _ -> s1
                   Right inp -> s1 & #lastInput ?~ inp
