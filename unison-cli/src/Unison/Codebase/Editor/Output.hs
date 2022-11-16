@@ -194,13 +194,16 @@ data Output
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure Runtime.Error
-  | Evaluated
-      SourceFileContents
+  | RunResult PPE.PrettyPrintEnv (Term Symbol ())
+  | CheckedUnisonFile
+      SourceName
       PPE.PrettyPrintEnv
+      SlurpResult
+      (UF.TypecheckedUnisonFile Symbol Ann)
+      -- evaluated watch expressions:
+      SourceFileContents
       [(Symbol, Term Symbol ())]
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
-  | RunResult PPE.PrettyPrintEnv (Term Symbol ())
-  | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
     DisplayDefinitions
@@ -367,8 +370,7 @@ isFailure o = case o of
   CompilerBugs {} -> True
   DisplayConflicts {} -> False
   EvaluationFailure {} -> True
-  Evaluated {} -> False
-  Typechecked {} -> False
+  CheckedUnisonFile {} -> False
   DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False

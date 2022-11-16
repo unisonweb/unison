@@ -127,6 +127,7 @@ import qualified Unison.Share.Sync as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
+import Unison.Symbol (Symbol)
 import qualified Unison.Sync.Types as Share
 import qualified Unison.Syntax.DeclPrinter as DeclPrinter
 import Unison.Syntax.NamePrinter
@@ -665,8 +666,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -675,6 +676,7 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
+
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1026,33 +1028,6 @@ notifyUser dir o = case o of
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs
     where
       bug = renderCompilerBug env (Text.unpack src)
-  Evaluated fileContents ppe bindings watches ->
-    if null watches
-      then pure "\n"
-      else -- todo: hashqualify binding names if necessary to distinguish them from
-      --       defs in the codebase.  In some cases it's fine for bindings to
-      --       shadow codebase names, but you don't want it to capture them in
-      --       the decompiled output.
-
-        let prettyBindings =
-              P.bracket . P.lines $
-                P.wrap "The watch expression(s) reference these definitions:" :
-                "" :
-                  [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
-                    | (v, b) <- bindings
-                  ]
-            prettyWatches =
-              P.sep
-                "\n\n"
-                [ watchPrinter fileContents ppe ann kind evald isCacheHit
-                  | (ann, kind, evald, isCacheHit) <-
-                      sortOn (\(a, _, _, _) -> a) . toList $ watches
-                ]
-         in -- todo: use P.nonempty
-            pure $
-              if null bindings
-                then prettyWatches
-                else prettyBindings <> "\n" <> prettyWatches
   RunResult ppe term -> pure (TermPrinter.pretty ppe term)
   DisplayConflicts termNamespace typeNamespace ->
     pure $
@@ -1076,59 +1051,18 @@ notifyUser dir o = case o of
               ]
   -- TODO: Present conflicting TermEdits and TypeEdits
   -- if we ever allow users to edit hashes directly.
-  Typechecked sourceName ppe slurpResult uf -> do
-    let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
-    let containsWatchExpressions = notNull $ UF.watchComponents uf
-    if UF.nonEmpty uf
-      then do
-        fileName <- renderFileName $ Text.unpack sourceName
-        pure $
-          P.linesNonEmpty
-            ( [ if fileStatusMsg == mempty
-                  then P.okCallout $ fileName <> " changed."
-                  else
-                    if SlurpResult.isAllDuplicates slurpResult
-                      then
-                        P.wrap $
-                          "I found and"
-                            <> P.bold "typechecked"
-                            <> "the definitions in "
-                            <> P.group (fileName <> ".")
-                            <> "This file "
-                            <> P.bold "has been previously added"
-                            <> "to the codebase."
-                      else
-                        P.linesSpaced $
-                          [ P.wrap $
-                              "I found and"
-                                <> P.bold "typechecked"
-                                <> "these definitions in "
-                                <> P.group (fileName <> ".")
-                                <> "If you do an "
-                                <> IP.makeExample' IP.add
-                                <> " or "
-                                <> P.group (IP.makeExample' IP.update <> ",")
-                                <> "here's how your codebase would"
-                                <> "change:",
-                            P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
-                          ]
-              ]
-                ++ if containsWatchExpressions
-                  then
-                    [ "",
-                      P.wrap $
-                        "Now evaluating any watch expressions"
-                          <> "(lines starting with `>`)... "
-                          <> P.group (P.hiBlack "Ctrl+C cancels.")
-                    ]
-                  else []
-            )
-      else
-        if (null $ UF.watchComponents uf)
-          then
-            pure . P.wrap $
-              "I loaded " <> P.text sourceName <> " and didn't find anything."
-          else pure mempty
+  CheckedUnisonFile sourceName ppe slurpResult uf fileContents bindings watches -> do
+    evaluationResult <- prettyEvaluate ppe fileContents bindings watches
+    slurpMsg <-
+      if UF.nonEmpty uf
+        then prettySlurpResult ppe slurpResult uf sourceName
+        else
+          if (null $ UF.watchComponents uf)
+            then
+              pure . P.wrap $
+                "I loaded " <> P.text sourceName <> " and didn't find anything."
+            else pure mempty
+    pure (P.lines [slurpMsg, "", evaluationResult])
   GitError e -> pure $ case e of
     GitSqliteCodebaseError e -> case e of
       NoDatabaseFile repo localPath ->
@@ -1855,6 +1789,92 @@ notifyUser dir o = case o of
             }
       )
 
+prettySlurpResult ::
+  PPE.PrettyPrintEnv ->
+  SlurpResult.SlurpResult ->
+  UF.TypecheckedUnisonFile v a ->
+  Text ->
+  IO (P.Pretty P.ColorText)
+prettySlurpResult ppe slurpResult uf sourceName = do
+  let containsWatchExpressions = notNull $ UF.watchComponents uf
+  let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
+  fileName <- renderFileName $ Text.unpack sourceName
+  pure $
+    P.linesNonEmpty
+      ( [ if fileStatusMsg == mempty
+            then P.okCallout $ fileName <> " changed."
+            else
+              if SlurpResult.isAllDuplicates slurpResult
+                then
+                  P.wrap $
+                    "I found and"
+                      <> P.bold "typechecked"
+                      <> "the definitions in "
+                      <> P.group (fileName <> ".")
+                      <> "This file "
+                      <> P.bold "has been previously added"
+                      <> "to the codebase."
+                else
+                  P.linesSpaced $
+                    [ P.wrap $
+                        "I found and"
+                          <> P.bold "typechecked"
+                          <> "these definitions in "
+                          <> P.group (fileName <> ".")
+                          <> "If you do an "
+                          <> IP.makeExample' IP.add
+                          <> " or "
+                          <> P.group (IP.makeExample' IP.update <> ",")
+                          <> "here's how your codebase would"
+                          <> "change:",
+                      P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
+                    ]
+        ]
+          ++ if containsWatchExpressions
+            then
+              [ "",
+                P.wrap $
+                  "Now evaluating any watch expressions"
+                    <> "(lines starting with `>`)... "
+                    <> P.group (P.hiBlack "Ctrl+C cancels.")
+              ]
+            else []
+      )
+
+prettyEvaluate ::
+  PPE.PrettyPrintEnv ->
+  Text ->
+  [(Symbol, Term Symbol ())] ->
+  (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit)) ->
+  IO (P.Pretty P.ColorText)
+prettyEvaluate ppe fileContents bindings watches =
+  if null watches
+    then pure "\n"
+    else -- todo: hashqualify binding names if necessary to distinguish them from
+    --       defs in the codebase.  In some cases it's fine for bindings to
+    --       shadow codebase names, but you don't want it to capture them in
+    --       the decompiled output.
+
+      let prettyBindings =
+            P.bracket . P.lines $
+              P.wrap "The watch expression(s) reference these definitions:" :
+              "" :
+                [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
+                  | (v, b) <- bindings
+                ]
+          prettyWatches =
+            P.sep
+              "\n\n"
+              [ watchPrinter fileContents ppe ann kind evald isCacheHit
+                | (ann, kind, evald, isCacheHit) <-
+                    sortOn (\(a, _, _, _) -> a) . toList $ watches
+              ]
+       in -- todo: use P.nonempty
+          pure $
+            if null bindings
+              then prettyWatches
+              else prettyBindings <> "\n" <> prettyWatches
+
 -- do
 --   when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
 --     P.wrap $ "I" <> pastTenseCmd <> "the"
@@ -2463,7 +2483,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
