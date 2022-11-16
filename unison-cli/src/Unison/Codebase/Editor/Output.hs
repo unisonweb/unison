@@ -429,6 +429,10 @@ isFailure o = case o of
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
   DisplayDebugNameDiff {} -> False
+  NoOutput {} -> False
+  -- This indicates that we simply haven't implemented the response yet, not that the command
+  -- itself failed to run, so it's not a failure as such.
+  ResponseNotImplemented {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

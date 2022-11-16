@@ -1778,7 +1778,7 @@ handleFindI isVerbose fscope ws input = do
             matches <-
               if null matches
                 then do
-                  Cli.respond NoExactTypeMatches
+                  Cli.respond_ NoExactTypeMatches
                   fmap (filter (`Set.member` named) . toList) $
                     liftIO (Codebase.termsMentioningType codebase typ)
                 else pure matches
@@ -1804,7 +1804,7 @@ handleFindI isVerbose fscope ws input = do
   results <- getResults (getNames fscope)
   case (results, fscope) of
     ([], FindLocal) -> do
-      Cli.respond FindNoLocalMatches
+      Cli.respond_ FindNoLocalMatches
       respondResults =<< getResults (getNames FindLocalAndDeps)
     _ -> respondResults results
 
