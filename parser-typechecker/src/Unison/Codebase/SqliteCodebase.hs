@@ -54,6 +54,7 @@ import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Path (Path)
+import Unison.Codebase.RootBranchCache
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -191,7 +192,7 @@ sqliteCodebase ::
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote migrationStrategy action = do
-  rootBranchCache <- newTVarIO Nothing
+  rootBranchCache <- newEmptyRootBranchCacheIO
   branchCache <- newBranchCache
   getDeclType <- CodebaseOps.makeCachedTransaction 2048 CodebaseOps.getDeclType
   -- The v1 codebase interface has operations to read and write individual definitions
@@ -268,21 +269,36 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             getShallowCausalForHash bh =
               V2Branch.hoistCausalBranch runTransaction <$> runTransaction (Ops.expectCausalBranchByCausalHash bh)
 
-            getRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> m (Branch m)
-            getRootBranch rootBranchCache =
-              Branch.transform runTransaction <$> runTransaction (CodebaseOps.getRootBranch branchCache getDeclType rootBranchCache)
+            getRootBranch :: m (Branch m)
+            getRootBranch =
+              Branch.transform runTransaction
+                <$> fetchRootBranch
+                  rootBranchCache
+                  (runTransaction (CodebaseOps.uncachedLoadRootBranch branchCache getDeclType))
 
-            putRootBranch :: TVar (Maybe (Sqlite.DataVersion, Branch Sqlite.Transaction)) -> Text -> Branch m -> m ()
-            putRootBranch rootBranchCache reason branch1 = do
+            putRootBranch :: Text -> Branch m -> m ()
+            putRootBranch reason branch1 = do
               now <- liftIO getCurrentTime
               withRunInIO \runInIO -> do
-                runInIO do
-                  runTransaction do
-                    let emptyCausalHash = Cv.causalHash1to2 $ Branch.headHash Branch.empty
-                    fromRootCausalHash <- fromMaybe emptyCausalHash <$> Ops.loadRootCausalHash
-                    let toRootCausalHash = Cv.causalHash1to2 $ Branch.headHash branch1
-                    CodebaseOps.putRootBranch rootBranchCache (Branch.transform (Sqlite.unsafeIO . runInIO) branch1)
-                    Ops.appendReflog (Reflog.Entry {time = now, fromRootCausalHash, toRootCausalHash, reason})
+                -- this is naughty, the type says Transaction but it
+                -- won't run automatically with whatever Transaction
+                -- it is composed into unless the enclosing
+                -- Transaction is applied to the same db connection.
+                let branch1Trans = Branch.transform (Sqlite.unsafeIO . runInIO) branch1
+                    putRootBranchTrans :: Sqlite.Transaction () = do
+                      let emptyCausalHash = Cv.causalHash1to2 (Branch.headHash Branch.empty)
+                      fromRootCausalHash <- fromMaybe emptyCausalHash <$> Ops.loadRootCausalHash
+                      let toRootCausalHash = Cv.causalHash1to2 (Branch.headHash branch1)
+                      CodebaseOps.putRootBranch branch1Trans
+                      Ops.appendReflog (Reflog.Entry {time = now, fromRootCausalHash, toRootCausalHash, reason})
+
+                -- We need to update the database and the cached
+                -- value. We want to keep these in sync, so we take
+                -- the cache lock while updating sqlite.
+                withLock
+                  rootBranchCache
+                  (\restore _ -> restore $ runInIO $ runTransaction putRootBranchTrans)
+                  (\_ -> Just branch1Trans)
 
             -- if this blows up on cromulent hashes, then switch from `hashToHashId`
             -- to one that returns Maybe.
@@ -348,8 +364,8 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
                   putTypeDeclaration,
                   putTypeDeclarationComponent,
                   getTermComponentWithTypes,
-                  getRootBranch = getRootBranch rootBranchCache,
-                  putRootBranch = putRootBranch rootBranchCache,
+                  getRootBranch = getRootBranch,
+                  putRootBranch = putRootBranch,
                   getShallowCausalForHash,
                   getBranchForHashImpl = getBranchForHash,
                   putBranch,
