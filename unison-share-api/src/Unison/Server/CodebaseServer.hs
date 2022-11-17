@@ -262,7 +262,7 @@ defaultCodebaseServerOpts =
       codebaseUIPath = Nothing
     }
 
--- The auth token required for accessing the server is passed to the function k
+-- | The auth token required for accessing the server is passed to the onStart function.
 startServer ::
   BackendEnv ->
   CodebaseServerOpts ->

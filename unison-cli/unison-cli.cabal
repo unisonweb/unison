@@ -67,6 +67,9 @@ library
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
+      Unison.CommandLine.Server.API
+      Unison.CommandLine.Server.Impl
+      Unison.CommandLine.Server.Types
       Unison.CommandLine.Types
       Unison.CommandLine.Welcome
       Unison.LSP
@@ -171,6 +174,7 @@ library
     , semialign
     , servant
     , servant-client
+    , servant-server
     , stm
     , text
     , text-rope
@@ -295,6 +299,7 @@ executable cli-integration-tests
     , semialign
     , servant
     , servant-client
+    , servant-server
     , shellmet
     , stm
     , text
@@ -413,6 +418,7 @@ executable transcripts
     , semialign
     , servant
     , servant-client
+    , servant-server
     , shellmet
     , stm
     , text
@@ -535,6 +541,7 @@ executable unison
     , semialign
     , servant
     , servant-client
+    , servant-server
     , shellmet
     , stm
     , template-haskell
@@ -663,6 +670,7 @@ test-suite cli-tests
     , semialign
     , servant
     , servant-client
+    , servant-server
     , shellmet
     , stm
     , temporary
