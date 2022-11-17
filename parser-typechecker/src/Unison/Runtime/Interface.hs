@@ -8,7 +8,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Runtime.Interface
-  ( withRuntime,
+  ( startRuntime,
+    withRuntime,
     standalone,
     runStandalone,
     StoredCache,

@@ -60,14 +60,14 @@ bad r = EasyTest.expectLeft r >> done
 
 test :: Test ()
 test = do
-  rt <- io (RTI.startRuntime False RTI.OneOff "")
-  scope "unison-src"
-    . tests
-    $ [ go rt shouldPassNow good,
-        go rt shouldFailNow bad,
-        go rt shouldPassLater (pending . bad),
-        go rt shouldFailLater (pending . good)
-      ]
+  using (RTI.startRuntime False RTI.OneOff "") RTI.terminate \rt -> do
+    scope "unison-src"
+      . tests
+      $ [ go rt shouldPassNow good,
+          go rt shouldFailNow bad,
+          go rt shouldPassLater (pending . bad),
+          go rt shouldFailLater (pending . good)
+        ]
 
 shouldPassPath, shouldFailPath :: String
 shouldPassPath = "unison-src/tests"
