@@ -182,7 +182,7 @@ withTranscriptRunner ::
   (TranscriptRunner -> m r) ->
   m r
 withTranscriptRunner ucmVersion configFile action = do
-  withRuntime $ \runtime sbRuntime -> withConfig $ \config -> do
+  withRuntimes $ \runtime sbRuntime -> withConfig $ \config -> do
     action $ \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase $ \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
@@ -190,16 +190,11 @@ withTranscriptRunner ucmVersion configFile action = do
           liftIO $ run codebaseDir stanzas codebase runtime sbRuntime config ucmVersion (tShow baseUrl)
         pure $ join @(Either TranscriptError) result
   where
-    withRuntime :: ((Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a)
-    withRuntime action =
-      UnliftIO.bracket
-        (liftIO $ RTI.startRuntime False RTI.Persistent ucmVersion)
-        (liftIO . Runtime.terminate)
-        $ \runtime ->
-          UnliftIO.bracket
-            (liftIO $ RTI.startRuntime True RTI.Persistent ucmVersion)
-            (liftIO . Runtime.terminate)
-            (action runtime)
+    withRuntimes :: ((Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a)
+    withRuntimes action =
+      RTI.withRuntime False RTI.Persistent ucmVersion $ \runtime -> do
+        RTI.withRuntime True RTI.Persistent ucmVersion $ \sbRuntime -> do
+          action runtime sbRuntime
     withConfig :: forall a. ((Maybe Config -> m a) -> m a)
     withConfig action = do
       case configFile of

@@ -336,9 +336,9 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
             dependentsImpl =
               CodebaseOps.dependentsImpl
 
-            dependentsOfComponentImpl :: Hash -> m (Set Reference.Id)
-            dependentsOfComponentImpl h =
-              runTransaction (CodebaseOps.dependentsOfComponentImpl h)
+            dependentsOfComponentImpl :: Hash -> Sqlite.Transaction (Set Reference.Id)
+            dependentsOfComponentImpl =
+              CodebaseOps.dependentsOfComponentImpl
 
             syncFromDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
             syncFromDirectory srcRoot _syncMode b =

@@ -9,11 +9,13 @@
 
 module Unison.Runtime.Interface
   ( startRuntime,
+    withRuntime,
     standalone,
     runStandalone,
     StoredCache,
     decodeStandalone,
     RuntimeHost (..),
+    Runtime (..),
   )
 where
 
@@ -400,12 +402,12 @@ executeMainComb init cc = do
       let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
       pure . either id (bugMsg PPE.empty tr nm) $ decom c
 
-bugMsg
-  :: PrettyPrintEnv
-  -> [(Reference, Int)]
-  -> Text
-  -> Term Symbol
-  -> Pretty ColorText
+bugMsg ::
+  PrettyPrintEnv ->
+  [(Reference, Int)] ->
+  Text ->
+  Term Symbol ->
+  Pretty ColorText
 bugMsg ppe tr name tm
   | name == "blank expression" =
       P.callout icon . P.lines $
@@ -477,10 +479,11 @@ stackTrace ppe tr = "Stack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
           | n > 1 = " (" <> fromString (show n) <> " copies)"
           | otherwise = ""
         name =
-          syntaxToColor .
-            prettyHashQualified .
-            PPE.termName ppe .
-            RF.Ref $ rf
+          syntaxToColor
+            . prettyHashQualified
+            . PPE.termName ppe
+            . RF.Ref
+            $ rf
 
 icon :: Pretty ColorText
 icon = "💔💥"
@@ -549,6 +552,10 @@ startRuntime sandboxed runtimeHost version = do
         mainType = builtinMain External,
         ioTestType = builtinTest External
       }
+
+withRuntime :: MonadUnliftIO m => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
+withRuntime sandboxed runtimeHost version action =
+  UnliftIO.bracket (liftIO $ startRuntime sandboxed runtimeHost version) (liftIO . terminate) action
 
 tryM :: IO () -> IO (Maybe Error)
 tryM = fmap (either (Just . extract) (const Nothing)) . try
