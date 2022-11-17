@@ -360,7 +360,7 @@ executable transcripts
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
+  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
   build-depends:
       IntervalMap
     , ListLike
@@ -483,7 +483,7 @@ executable unison
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -optP-Wno-nonportable-include-path
   build-depends:
       IntervalMap
     , ListLike
