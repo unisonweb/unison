@@ -3,14 +3,18 @@
 module Unison.CommandLine.Server.Types where
 
 import Control.Monad.Except
+import Control.Monad.Reader
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Servant.Server
-import Unison.Cli.Monad
+import qualified Unison.Cli.Monad as Cli
+import qualified Unison.Codebase as Codebase
+import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Editor.Output (CommandResponse)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import Unison.Server.Orphans ()
+import UnliftIO
 
 data RunCommandRequest = RunCommandRequest
   { command :: String,
@@ -36,7 +40,20 @@ data RunCommandResponse = RunCommandResponse
 instance ToJSON RunCommandResponse where
   toJSON (RunCommandResponse r) = either toJSON toJSON r
 
-type CommandLineServer = ExceptT ServerError Cli
+data Env = Env
+  { rootVar :: TMVar (Branch IO),
+    cliEnv :: Cli.Env
+  }
 
-liftCli :: Cli a -> CommandLineServer a
-liftCli = lift
+type CommandLineServer = ReaderT Env (ExceptT ServerError Cli.Cli)
+
+liftCli :: Cli.Cli a -> CommandLineServer (Either CommandResponse a)
+liftCli cli = do
+  Env {cliEnv, rootVar} <- ask
+  lastSavedRoot <- liftIO $ Codebase.getRootCausalHash (Cli.codebase cliEnv)
+  let ls = Cli.loopState0 lastSavedRoot rootVar Path.absoluteEmpty
+  liftIO (Cli.runCli cliEnv ls cli) >>= \case
+    (rt, _ls) -> case rt of
+      Cli.Success a -> pure (Right a)
+      Cli.Continue response -> pure (Left response)
+      Cli.HaltRepl -> throwError err500

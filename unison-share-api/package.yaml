@@ -30,6 +30,7 @@ dependencies:
   - memory
   - mtl
   - mwc-random
+  - network
   - nonempty-containers
   - openapi3
   - regex-tdfa

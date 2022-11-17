@@ -9,8 +9,7 @@
 module Unison.Server.CodebaseServer where
 
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
-import Control.Concurrent.Async (race)
-import Control.Exception (ErrorCall (..), throwIO)
+import Control.Concurrent.Async (withAsync)
 import Control.Lens ((.~))
 import Control.Monad.Reader
 import Control.Monad.Trans.Except
@@ -30,17 +29,17 @@ import GHC.Generics ()
 import Network.HTTP.Media ((//), (/:))
 import Network.HTTP.Types (HeaderName)
 import Network.HTTP.Types.Status (ok200)
+import qualified Network.Socket as Socket
 import qualified Network.URI.Encode as URI
 import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp
   ( Port,
     defaultSettings,
-    runSettings,
     setBeforeMainLoop,
     setHost,
     setPort,
-    withApplicationSettings,
   )
+import qualified Network.Wai.Handler.Warp as Warp
 import Servant
   ( Handler,
     HasServer,
@@ -100,6 +99,7 @@ import qualified Unison.Server.Endpoints.Projects as Projects
 import Unison.Server.Errors (backendError)
 import Unison.Server.Types (mungeString, setCacheControl)
 import Unison.Symbol (Symbol)
+import qualified UnliftIO
 
 -- HTML content type
 data HTML = HTML
@@ -114,7 +114,7 @@ instance MimeRender HTML RawHtml where
 
 type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
-type UnisonAndDocsAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
+type UnisonAndDocsAPI = UnisonAPI :<|> OpenApiJSON :<|> CommandLineServerAPI :<|> Raw
 
 type UnisonAPI =
   NamespaceListing.NamespaceListingAPI
@@ -124,6 +124,9 @@ type UnisonAPI =
     :<|> FuzzyFindAPI
     :<|> TermSummaryAPI
     :<|> TypeSummaryAPI
+
+-- | This is defined in the unison-cli package, but is 'Raw' here to avoid a circular dependency.
+type CommandLineServerAPI = "commands" :> Raw
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -207,9 +210,10 @@ app ::
   Codebase IO Symbol Ann ->
   FilePath ->
   Strict.ByteString ->
+  Application ->
   Application
-app env rt codebase uiPath expectedToken =
-  serve appAPI $ server env rt codebase uiPath expectedToken
+app env rt codebase uiPath expectedToken commandLineServer =
+  serve appAPI $ server env rt codebase uiPath expectedToken commandLineServer
 
 -- | The Token is used to help prevent multiple users on a machine gain access to
 -- each others codebases.
@@ -268,33 +272,35 @@ startServer ::
   CodebaseServerOpts ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
+  (BaseUrl -> Application) ->
   (BaseUrl -> IO a) ->
   IO a
-startServer env opts rt codebase onStart = do
+startServer env opts rt codebase commandLineServer onStart = do
   -- the `canonicalizePath` resolves symlinks
   exePath <- canonicalizePath =<< getExecutablePath
   envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") (codebaseUIPath opts)
   token <- case token opts of
     Just t -> return $ C8.pack t
     _ -> genToken
-  let baseUrl = BaseUrl "http://127.0.0.1" token
+  let mkBaseUrl = BaseUrl "http://127.0.0.1" token
   let settings =
         defaultSettings
           & maybe id setPort (port opts)
           & maybe id (setHost . fromString) (host opts)
-  let a = app env rt codebase envUI token
+  let buildApp baseUrl = app env rt codebase envUI token (commandLineServer baseUrl)
   case port opts of
-    Nothing -> withApplicationSettings settings (pure a) (onStart . baseUrl)
+    Nothing -> do
+      UnliftIO.bracket Warp.openFreePort (\(_port, socket) -> Socket.close socket) \(port, socket) -> do
+        waiter <- mkWaiter
+        let settings' = settings & setPort port & setBeforeMainLoop (notify waiter ())
+        let baseUrl = mkBaseUrl port
+        withAsync (Warp.runSettingsSocket settings' socket (buildApp baseUrl)) \_async -> do
+          waitFor waiter
+          onStart baseUrl
     Just p -> do
-      started <- mkWaiter
-      let settings' = setBeforeMainLoop (notify started ()) settings
-      result <-
-        race
-          (runSettings settings' a)
-          (waitFor started *> onStart (baseUrl p))
-      case result of
-        Left () -> throwIO $ ErrorCall "Server exited unexpectedly!"
-        Right x -> pure x
+      let baseUrl = mkBaseUrl p
+      withAsync (Warp.runSettings settings (buildApp baseUrl)) \_async -> do
+        onStart baseUrl
 
 serveIndex :: FilePath -> Handler RawHtml
 serveIndex path = do
@@ -324,19 +330,24 @@ server ::
   Codebase IO Symbol Ann ->
   FilePath ->
   Strict.ByteString ->
+  Application ->
   Server AppAPI
-server backendEnv rt codebase uiPath expectedToken =
+server backendEnv rt codebase uiPath expectedToken commandLineServer =
   serveDirectoryWebApp (uiPath </> "static")
     :<|> hoistWithAuth serverAPI expectedToken serveServer
   where
     serveServer :: Server ServerAPI
     serveServer =
       ( serveUI uiPath
-          :<|> serveUnisonAndDocs backendEnv rt codebase
+          :<|> serveUnisonAndDocs backendEnv rt codebase commandLineServer
       )
 
-serveUnisonAndDocs :: BackendEnv -> Rt.Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
-serveUnisonAndDocs env rt codebase = serveUnison env codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
+serveUnisonAndDocs :: BackendEnv -> Rt.Runtime Symbol -> Codebase IO Symbol Ann -> Application -> Server UnisonAndDocsAPI
+serveUnisonAndDocs env rt codebase commandLineServer =
+  serveUnison env codebase rt
+    :<|> serveOpenAPI
+    :<|> Tagged commandLineServer
+    :<|> Tagged serveDocs
 
 serveDocs :: Application
 serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS

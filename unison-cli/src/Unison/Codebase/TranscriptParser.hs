@@ -56,6 +56,7 @@ import Unison.CommandLine
 import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
+import qualified Unison.CommandLine.Server.Impl as CliServer
 import Unison.CommandLine.Welcome (asciiartUnison)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -183,8 +184,10 @@ withTranscriptRunner ::
   m r
 withTranscriptRunner ucmVersion configFile action = do
   withRuntimes $ \runtime sbRuntime -> withConfig $ \config -> do
+    mkEnv _respond runtime sbRuntime ucmVersion config codebase
+    let cliServer = CliServer.application
     action $ \transcriptName transcriptSrc (codebaseDir, codebase) -> do
-      Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase $ \baseUrl -> do
+      Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase cliServer $ \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
         result <- for parsed $ \stanzas -> do
           liftIO $ run codebaseDir stanzas codebase runtime sbRuntime config ucmVersion (tShow baseUrl)

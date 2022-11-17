@@ -32,6 +32,7 @@ import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Runtime as RTI
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
@@ -91,22 +92,54 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
     tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
 
+mkEnv :: (Output -> IO ()) -> RTI.Runtime Symbol -> RTI.Runtime Symbol -> UCMVersion -> Config -> Codebase IO Symbol Ann -> Maybe Server.BaseUrl -> IO Cli.Env
+mkEnv notify runtime sbRuntime ucmVersion config codebase serverBaseUrl = do
+  credentialManager <- newCredentialManager
+  let tokenProvider = AuthN.newTokenProvider credentialManager
+  authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
+  let loadSourceFile :: Text -> IO Cli.LoadSourceResult
+      loadSourceFile fname =
+        if allow $ Text.unpack fname
+          then
+            let handle :: IOException -> IO Cli.LoadSourceResult
+                handle e =
+                  case e of
+                    _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
+                    _ -> return Cli.LoadError
+                go = do
+                  contents <- readUtf8 $ Text.unpack fname
+                  return $ Cli.LoadSuccess contents
+             in catch go handle
+          else return Cli.InvalidSourceNameError
+  pure $
+    Cli.Env
+      { authHTTPClient,
+        codebase,
+        config,
+        credentialManager,
+        loadSource = loadSourceFile,
+        generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
+        notify,
+        notifyNumbered = \o ->
+          let (p, args) = notifyNumbered o
+           in putPrettyNonempty p $> args,
+        runtime,
+        sandboxedRuntime = sbRuntime,
+        serverBaseUrl,
+        ucmVersion
+      }
+
 main ::
   FilePath ->
   Welcome.Welcome ->
   Path.Absolute ->
-  Config ->
   [Either Event Input] ->
-  Runtime.Runtime Symbol ->
-  Runtime.Runtime Symbol ->
-  Codebase IO Symbol Ann ->
-  Maybe Server.BaseUrl ->
-  UCMVersion ->
   (Branch IO -> STM ()) ->
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
+  Cli.Env ->
   IO ()
-main dir welcome initialPath config initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
+main dir welcome initialPath initialInputs notifyBranchChange notifyPathChange shouldWatchFiles env@(Cli.Env {codebase, authHTTPClient}) = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.getRootCausalHash codebase
   _ <- Ki.fork scope $ do
@@ -139,9 +172,6 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
   cancelFileSystemWatch <- case shouldWatchFiles of
     ShouldNotWatchFiles -> pure (pure ())
     ShouldWatchFiles -> watchFileSystem eventQueue dir
-  credentialManager <- newCredentialManager
-  let tokenProvider = AuthN.newTokenProvider credentialManager
-  authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
   let getInput :: Cli.LoopState -> IO Input
       getInput loopState = do
         getUserInput
@@ -150,20 +180,6 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
           (atomically . readTMVar $ loopState ^. #root)
           (loopState ^. #currentPath)
           (loopState ^. #numberedArgs)
-  let loadSourceFile :: Text -> IO Cli.LoadSourceResult
-      loadSourceFile fname =
-        if allow $ Text.unpack fname
-          then
-            let handle :: IOException -> IO Cli.LoadSourceResult
-                handle e =
-                  case e of
-                    _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
-                    _ -> return Cli.LoadError
-                go = do
-                  contents <- readUtf8 $ Text.unpack fname
-                  return $ Cli.LoadSuccess contents
-             in catch go handle
-          else return Cli.InvalidSourceNameError
   let notify :: Output -> IO ()
       notify =
         notifyUser dir
@@ -191,24 +207,6 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
               x -> do
                 writeIORef pageOutput True
                 pure x
-
-  let env =
-        Cli.Env
-          { authHTTPClient,
-            codebase,
-            config,
-            credentialManager,
-            loadSource = loadSourceFile,
-            generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
-            notify,
-            notifyNumbered = \o ->
-              let (p, args) = notifyNumbered o
-               in putPrettyNonempty p $> args,
-            runtime,
-            sandboxedRuntime = sbRuntime,
-            serverBaseUrl,
-            ucmVersion
-          }
 
   (onInterrupt, waitForInterrupt) <- buildInterruptHandler
 
