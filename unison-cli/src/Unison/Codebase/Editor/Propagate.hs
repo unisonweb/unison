@@ -627,23 +627,19 @@ applyPropagate patch Edits {..} = do
         terms0 = Star3.replaceFacts replaceConstructor constructorReplacements _terms
         terms :: Branch.Star Referent NameSegment
         terms =
-          updateMetadatas Referent.Ref $
+          updateMetadatas $
             Star3.replaceFacts replaceTerm termEdits terms0
         types :: Branch.Star Reference NameSegment
         types =
-          updateMetadatas id $
+          updateMetadatas $
             Star3.replaceFacts replaceType typeEdits _types
 
         updateMetadatas ::
           Ord r =>
-          (Reference -> r) ->
           Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value) ->
           Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value)
-        updateMetadatas ref s = clearPropagated $ Star3.mapD3 go s
+        updateMetadatas s = Star3.mapD3 go s
           where
-            clearPropagated s = foldl' go s allPatchTargets
-              where
-                go s r = Metadata.delete (propagatedMd $ ref r) s
             go (tp, v) = case Map.lookup (Referent.Ref v) termEdits of
               Just (Referent.Ref r) -> (typeOf r tp, r)
               _ -> (tp, v)
