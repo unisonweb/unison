@@ -2119,13 +2119,13 @@ makeStandalone =
 runScheme :: InputPattern
 runScheme =
   InputPattern
-    "run.scheme"
+    "run.native"
     []
     I.Visible
     [(Required, exactDefinitionTermQueryArg)]
     ( P.wrapColumn2
-        [ ( "`run.scheme main`",
-            "Executes !main using compilation to scheme."
+        [ ( makeExample runScheme ["main"],
+            "Executes !main using native compilation via scheme."
           )
         ]
     )
@@ -2138,12 +2138,12 @@ runScheme =
 compileScheme :: InputPattern
 compileScheme =
   InputPattern
-    "compile.scheme"
+    "compile.native"
     []
     I.Visible
     [(Required, exactDefinitionTermQueryArg), (Required, noCompletionsArg)]
     ( P.wrapColumn2
-        [ ( "`compile.scheme main file`",
+        [ ( makeExample compileScheme ["main", "file"],
             "Creates stand alone executable via compilation to"
               <> "scheme. The created executable will have the effect"
               <> "of running `!main`."
@@ -2159,14 +2159,15 @@ compileScheme =
 schemeLibgen :: InputPattern
 schemeLibgen =
   InputPattern
-    "compile.scheme.genlibs"
+    "compile.native.genlibs"
     []
     I.Visible
     []
     ( P.wrapColumn2
-        [ ( "`compile.scheme.genlibs`",
+        [ ( makeExample schemeLibgen [],
             "Generates libraries necessary for scheme compilation.\n\n\
-            \There is no need to run this before `compile.scheme`, as\
+            \There is no need to run this before" <>
+            P.group (makeExample compileScheme []) <> "as\
             \ the latter will check if the libraries are missing and\
             \ auto-generate them. However, this will generate the\
             \ libraries even if their files already exist, so if the\
@@ -2183,14 +2184,15 @@ schemeLibgen =
 fetchScheme :: InputPattern
 fetchScheme =
   InputPattern
-    "compile.scheme.fetch"
+    "compile.native.fetch"
     []
     I.Visible
     []
     ( P.wrapColumn2
-        [ ( "`compile.scheme.fetch`",
+        [ ( makeExample fetchScheme [],
             "Fetches the unison library for compiling to scheme.\n\n\
-            \This is done automatically when `compile.scheme` is run\
+            \This is done automatically when" <>
+            P.group (makeExample compileScheme []) <> "is run\
             \ if the library is not already in the standard location\
             \ (unison.internal). However, this command will force\
             \ a pull even if the library already exists."

@@ -1552,10 +1552,10 @@ inputDescription input =
     MergeBuiltinsI -> pure "builtins.merge"
     MergeIOBuiltinsI -> pure "builtins.mergeio"
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
-    ExecuteSchemeI nm -> pure ("run.scheme " <> HQ.toText nm)
-    CompileSchemeI fi nm -> pure ("compile.scheme " <> HQ.toText nm <> " " <> Text.pack fi)
-    GenSchemeLibsI -> pure "compile.scheme.genlibs"
-    FetchSchemeCompilerI -> pure "compile.scheme.fetch"
+    ExecuteSchemeI nm -> pure ("run.native " <> HQ.toText nm)
+    CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
+    GenSchemeLibsI -> pure "compile.native.genlibs"
+    FetchSchemeCompilerI -> pure "compile.native.fetch"
     PullRemoteBranchI orepo dest0 _syncMode pullMode _ -> do
       dest <- p' dest0
       let command =
