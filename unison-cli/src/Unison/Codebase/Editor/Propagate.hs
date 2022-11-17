@@ -601,7 +601,7 @@ applyDeprecations patch =
 -- definition that is created by the `Edits` which is passed in is marked as
 -- a propagated change.
 applyPropagate :: Applicative m => Patch -> Edits Symbol -> Branch0 m -> Branch0 m
-applyPropagate patch Edits {..} = do
+applyPropagate patch Edits {newTerms, termReplacements, typeReplacements, constructorReplacements} = do
   let termTypes = Map.map (Hashing.typeToReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
   Branch.stepEverywhere (updateLevel termReplacements typeReplacements termTypes)
