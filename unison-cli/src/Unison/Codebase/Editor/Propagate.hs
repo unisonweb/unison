@@ -650,9 +650,9 @@ applyPropagate patch Edits {..} = do
             typeOf r t = fromMaybe t $ Map.lookup r termTypes
 
         replaceTerm :: Referent -> Referent -> Metadata.Star Referent NameSegment -> Metadata.Star Referent NameSegment
-        replaceTerm r r' s =
+        replaceTerm _r r' s =
           ( if isPropagatedReferent r'
-              then Metadata.insert (propagatedMd r') . Metadata.delete (propagatedMd r)
+              then Metadata.insert (propagatedMd r')
               else Metadata.delete (propagatedMd r')
           )
             $ s
