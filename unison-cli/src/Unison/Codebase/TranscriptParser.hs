@@ -30,6 +30,7 @@ import Data.IORef
 import Data.List (isSubsequenceOf)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Ki
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (doesFileExist)
@@ -98,10 +99,12 @@ data UcmLine
 
 data APIRequest
   = GetRequest Text
+  | PostRequest Text Text
   | APIComment Text
 
 instance Show APIRequest where
-  show (GetRequest txt) = "GET " <> Text.unpack txt
+  show (GetRequest path) = "GET " <> Text.unpack path
+  show (PostRequest path payload) = Text.unpack $ Text.unwords ["POST", path, payload]
   show (APIComment txt) = "-- " <> Text.unpack txt
 
 data Stanza
@@ -286,6 +289,16 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             req <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
               Left err -> dieWithMsg (show err)
               Right req -> pure req
+            respBytes <- HTTP.httpLbs req httpManager
+            case Aeson.eitherDecode (HTTP.responseBody respBytes) of
+              Right (v :: Aeson.Value) -> do
+                let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
+                output . (<> "\n") . BL.unpack $ prettyBytes
+              Left err -> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err)
+          (PostRequest path payload) -> do
+            req <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
+              Left err -> dieWithMsg (show err)
+              Right req -> pure (req {HTTP.method = "POST", HTTP.requestBody = HTTP.RequestBodyLBS . BL.fromStrict . Text.encodeUtf8 $ payload})
             respBytes <- HTTP.httpLbs req httpManager
             case Aeson.eitherDecode (HTTP.responseBody respBytes) of
               Right (v :: Aeson.Value) -> do
@@ -525,7 +538,7 @@ ucmLine = ucmCommand <|> ucmComment
 
 apiRequest :: P APIRequest
 apiRequest = do
-  apiComment <|> getRequest
+  apiComment <|> getRequest <|> postRequest
   where
     getRequest = do
       word "GET"
@@ -533,6 +546,13 @@ apiRequest = do
       path <- P.takeWhile1P Nothing (/= '\n')
       spaces
       pure (GetRequest path)
+    postRequest = do
+      word "POST"
+      spaces
+      path <- P.takeWhile1P Nothing (not . Char.isSpace)
+      spaces
+      payload <- P.takeWhileP Nothing (/= '\n')
+      pure (PostRequest path payload)
     apiComment = do
       word "--"
       comment <- P.takeWhileP Nothing (/= '\n')
