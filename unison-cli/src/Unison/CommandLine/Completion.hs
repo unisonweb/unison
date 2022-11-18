@@ -141,7 +141,7 @@ completeWithinNamespace ::
   Path.Absolute ->
   m [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace compTypes query codebase currentPath = do
-  shortHashLen <- Codebase.hashLength codebase
+  shortHashLen <- Codebase.runTransaction codebase Codebase.hashLength
   b <- Codebase.getShallowBranchAtPath codebase (Path.unabsolute absQueryPath) Nothing
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b

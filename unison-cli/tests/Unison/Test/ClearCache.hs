@@ -16,7 +16,7 @@ test = scope "clearWatchCache" $
   for_ enumerate \codebaseFormat -> scope (show codebaseFormat) do
     c <- io $ Ucm.initCodebase codebaseFormat
     let listWatches = io $ Ucm.lowLevel c \c ->
-          Codebase.watches c WatchKind.RegularWatch
+          Codebase.runTransaction c (Codebase.watches WatchKind.RegularWatch)
 
     io $
       Ucm.runTranscript
