@@ -39,7 +39,7 @@ diffHelper before after =
     Cli.Env {codebase} <- ask
     rootBranch <- Cli.getRootBranch
     currentPath <- Cli.getCurrentPath
-    hqLength <- liftIO (Codebase.hashLength codebase)
+    hqLength <- Cli.runTransaction Codebase.hashLength
     diff <- liftIO (BranchDiff.diff0 before after)
     let (_parseNames, prettyNames0, _local) = Backend.namesForBranch rootBranch (Backend.AllNames $ Path.unabsolute currentPath)
     ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
