@@ -394,12 +394,12 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion = UnliftIO.try $ Ki
               req <- case HTTP.parseRequest (Text.unpack $ tShow baseURL <> path) of
                 Left err -> absurd <$> dieWithMsg (show err)
                 Right req -> pure (req {HTTP.method = "POST", HTTP.requestBody = HTTP.RequestBodyLBS . BL.fromStrict . Text.encodeUtf8 $ payload})
-              respBytes <- HTTP.httpLbs req httpManager
-              case Aeson.eitherDecode (HTTP.responseBody respBytes) of
+              respBytes <- HTTP.responseBody <$> HTTP.httpLbs req httpManager
+              case Aeson.eitherDecode respBytes of
                 Right (v :: Aeson.Value) -> do
                   let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
                   output . (<> "\n") . BL.unpack $ prettyBytes
-                Left err -> absurd <$> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err)
+                Left err -> absurd <$> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err <> "\n" <> BL.unpack respBytes)
 
     let awaitInput :: Cli.LoopState -> IO (Either Event Input)
         awaitInput loopState = do
