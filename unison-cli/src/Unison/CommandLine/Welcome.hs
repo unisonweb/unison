@@ -105,7 +105,7 @@ toInput pretty =
 
 determineFirstStep :: DownloadBase -> Codebase IO v a -> IO Onboarding
 determineFirstStep downloadBase codebase = do
-  isEmptyCodebase <- Codebase.getRootBranchExists codebase
+  isEmptyCodebase <- Codebase.runTransaction codebase Codebase.getRootBranchExists
   case downloadBase of
     DownloadBase ns
       | isEmptyCodebase ->

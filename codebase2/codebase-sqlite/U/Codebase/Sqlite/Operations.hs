@@ -40,7 +40,7 @@ module U.Codebase.Sqlite.Operations
     saveWatch,
     loadWatch,
     listWatches,
-    clearWatches,
+    Q.clearWatches,
 
     -- * indexes
 
@@ -455,9 +455,6 @@ saveWatch w r t = do
   wterm <- c2wTerm t
   let bytes = S.putBytes S.putWatchResultFormat (uncurry S.Term.WatchResult wterm)
   Q.saveWatch w rs bytes
-
-clearWatches :: Transaction ()
-clearWatches = Q.clearWatches
 
 c2wTerm :: C.Term Symbol -> Transaction (WatchLocalIds, S.Term.Term)
 c2wTerm tm = Q.c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)
@@ -980,6 +977,7 @@ componentReferencesByPrefix ot b32prefix pos = do
   let filterComponent l = [x | x@(C.Reference.Id _ pos) <- l, test pos]
   join <$> traverse (fmap filterComponent . componentByObjectId) oIds
 
+-- | Get the set of user-defined terms whose hash matches the given prefix.
 termReferencesByPrefix :: Text -> Maybe Word64 -> Transaction [C.Reference.Id]
 termReferencesByPrefix t w =
   componentReferencesByPrefix ObjectType.TermComponent t w
@@ -1146,6 +1144,7 @@ namespaceStatsForDbBranch S.Branch {terms, types, patches, children} = do
            in childPatchCount + patchCount
       }
 
+-- | Gets the specified number of reflog entries in chronological order, most recent first.
 getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
 getReflog numEntries = do
   entries <- Q.getReflog numEntries

@@ -39,6 +39,7 @@ import System.Exit (die)
 import qualified System.IO as IO
 import System.IO.Error (catchIOError)
 import qualified Text.Megaparsec as P
+import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified Unison.Auth.CredentialManager as AuthN
 import qualified Unison.Auth.HTTPClient as AuthN
 import qualified Unison.Auth.Tokens as AuthN
@@ -230,7 +231,7 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion = UnliftIO.try $ Ki
         "Running the provided transcript file...",
         ""
       ]
-  initialRootCausalHash <- Codebase.getRootCausalHash codebase
+  initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   void $ Ki.fork scope do
     root <- Codebase.getRootBranch codebase
     atomically $ putTMVar rootVar root

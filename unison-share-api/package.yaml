@@ -85,6 +85,7 @@ default-extensions:
   - NumericUnderscores
   - OverloadedStrings
   - PatternSynonyms
+  - RankNTypes
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications

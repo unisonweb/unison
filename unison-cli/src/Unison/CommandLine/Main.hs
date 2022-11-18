@@ -20,6 +20,8 @@ import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
 import Text.Pretty.Simple (pShow)
 import Unison.Auth.CredentialManager (CredentialManager)
+import qualified U.Codebase.Sqlite.Operations as Operations
+import Unison.Auth.CredentialManager (newCredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase)
@@ -158,7 +160,7 @@ main ::
   IO ()
 main dir welcome initialPath initialInputs notifyBranchChange notifyPathChange shouldWatchFiles env@(Cli.Env {codebase, authHTTPClient}) = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
-  initialRootCausalHash <- Codebase.getRootCausalHash codebase
+  initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   _ <- Ki.fork scope $ do
     root <- Codebase.getRootBranch codebase
     atomically $ do

@@ -124,7 +124,7 @@ resolveMetadata name = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath' <- Cli.getCurrentPath
-  schLength <- liftIO (Codebase.branchHashLength codebase)
+  schLength <- Cli.runTransaction Codebase.branchHashLength
 
   let ppe :: PPE.PrettyPrintEnv
       ppe =
