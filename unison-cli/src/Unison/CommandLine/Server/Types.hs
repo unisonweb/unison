@@ -7,6 +7,7 @@ import Control.Monad.Reader
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Servant.Server
+import qualified Servant.Server as Servant
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..))
@@ -45,7 +46,7 @@ data Env = Env
     cliEnv :: Cli.Env
   }
 
-type CommandLineServer = ReaderT Env (ExceptT ServerError Cli.Cli)
+type CommandLineServer = ReaderT Env Servant.Handler
 
 liftCli :: Cli.Cli a -> CommandLineServer (Either CommandResponse a)
 liftCli cli = do

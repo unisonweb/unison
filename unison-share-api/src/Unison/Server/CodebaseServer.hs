@@ -294,12 +294,14 @@ startServer env opts rt codebase commandLineServer onStart = do
         waiter <- mkWaiter
         let settings' = settings & setPort port & setBeforeMainLoop (notify waiter ())
         let baseUrl = mkBaseUrl port
-        withAsync (Warp.runSettingsSocket settings' socket (buildApp baseUrl)) \_async -> do
+        let app = buildApp baseUrl
+        withAsync (Warp.runSettingsSocket settings' socket app) \_async -> do
           waitFor waiter
           onStart baseUrl
     Just p -> do
       let baseUrl = mkBaseUrl p
-      withAsync (Warp.runSettings settings (buildApp baseUrl)) \_async -> do
+      let app = buildApp baseUrl
+      withAsync (Warp.runSettings settings app) \_async -> do
         onStart baseUrl
 
 serveIndex :: FilePath -> Handler RawHtml

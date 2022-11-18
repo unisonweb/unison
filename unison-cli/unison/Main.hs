@@ -70,6 +70,7 @@ import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.CommandLine (plural', watchConfig)
 import qualified Unison.CommandLine.Main as CommandLine
+import qualified Unison.CommandLine.Server.Impl as CliServer
 import qualified Unison.CommandLine.Types as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import qualified Unison.CommandLine.Welcome as Welcome
@@ -261,7 +262,10 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
               -- Windows when we move to GHC 9.*
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
               when (not onWindows) . void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTMVar rootVar) (readTVar pathVar)
-              Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase commandLineServer $ \baseUrl -> do
+              let cliEnvBuilder baseUrl = Cli.mkEnv runtime sbRuntime theCodebase notifyOnRootChanges notifyOnPathChanges notifier numberedNotifier baseUrl
+              let (ucmVersion, _date) = Version.gitDescribe
+              let cliServer baseUrl = CliServer.application cliEnvBuilder rootVar baseUrl
+              Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase cliServer $ \baseUrl -> do
                 case exitOption of
                   DoNotExit -> do
                     case isHeadless of
@@ -297,6 +301,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                           notifyOnRootChanges
                           notifyOnPathChanges
                           shouldWatchFiles
+                          cliEnv
                   Exit -> do Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)
@@ -466,8 +471,9 @@ launch ::
   (Branch IO -> STM ()) ->
   (Path.Absolute -> STM ()) ->
   CommandLine.ShouldWatchFiles ->
+  Cli.Env ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath shouldDownloadBase initResult notifyRootChange notifyPathChange shouldWatchFiles =
+launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath shouldDownloadBase initResult notifyRootChange notifyPathChange shouldWatchFiles cliEnv =
   let downloadBase = case defaultBaseLib of
         Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
         _ -> Welcome.DontDownloadBase
@@ -491,6 +497,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPat
         notifyRootChange
         notifyPathChange
         shouldWatchFiles
+        cliEnv
 
 newtype MarkdownFile = MarkdownFile FilePath
 

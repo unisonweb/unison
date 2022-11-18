@@ -1,5 +1,6 @@
 module Unison.CommandLine.Main
   ( main,
+    mkEnv,
   )
 where
 
@@ -18,10 +19,8 @@ import qualified System.Console.Haskeline as Line
 import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
 import Text.Pretty.Simple (pShow)
-import Unison.Auth.CredentialManager (newCredentialManager)
+import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
-import qualified Unison.Auth.HTTPClient as AuthN
-import qualified Unison.Auth.Tokens as AuthN
 import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -30,10 +29,10 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
+import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as RTI
-import qualified Unison.Codebase.Runtime as Runtime
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import qualified Unison.CommandLine.InputPatterns as IP
@@ -92,42 +91,60 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
     tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
 
-mkEnv :: (Output -> IO ()) -> RTI.Runtime Symbol -> RTI.Runtime Symbol -> UCMVersion -> Config -> Codebase IO Symbol Ann -> Maybe Server.BaseUrl -> IO Cli.Env
-mkEnv notify runtime sbRuntime ucmVersion config codebase serverBaseUrl = do
-  credentialManager <- newCredentialManager
-  let tokenProvider = AuthN.newTokenProvider credentialManager
-  authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
-  let loadSourceFile :: Text -> IO Cli.LoadSourceResult
-      loadSourceFile fname =
-        if allow $ Text.unpack fname
-          then
-            let handle :: IOException -> IO Cli.LoadSourceResult
-                handle e =
-                  case e of
-                    _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
-                    _ -> return Cli.LoadError
-                go = do
-                  contents <- readUtf8 $ Text.unpack fname
-                  return $ Cli.LoadSuccess contents
-             in catch go handle
-          else return Cli.InvalidSourceNameError
-  pure $
-    Cli.Env
-      { authHTTPClient,
-        codebase,
-        config,
-        credentialManager,
-        loadSource = loadSourceFile,
-        generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
-        notify,
-        notifyNumbered = \o ->
-          let (p, args) = notifyNumbered o
-           in putPrettyNonempty p $> args,
-        runtime,
-        sandboxedRuntime = sbRuntime,
-        serverBaseUrl,
-        ucmVersion
-      }
+mkEnv ::
+  CredentialManager ->
+  AuthenticatedHttpClient ->
+  RTI.Runtime Symbol ->
+  RTI.Runtime Symbol ->
+  UCMVersion ->
+  Config ->
+  Codebase IO Symbol Ann ->
+  (Output -> IO ()) ->
+  ( Output.NumberedOutput ->
+    IO Output.NumberedArgs
+  ) ->
+  Maybe Server.BaseUrl ->
+  Cli.Env
+mkEnv credentialManager authHTTPClient runtime sbRuntime ucmVersion config codebase notify notifyNumbered serverBaseUrl = do
+  Cli.Env
+    { authHTTPClient,
+      codebase,
+      config,
+      credentialManager,
+      loadSource = loadSourceFile,
+      generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
+      notify,
+      notifyNumbered,
+      runtime,
+      sandboxedRuntime = sbRuntime,
+      serverBaseUrl,
+      ucmVersion
+    }
+
+loadSourceFile :: Text -> IO Cli.LoadSourceResult
+loadSourceFile fname =
+  if allow $ Text.unpack fname
+    then
+      let handle :: IOException -> IO Cli.LoadSourceResult
+          handle e =
+            case e of
+              _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
+              _ -> return Cli.LoadError
+          go = do
+            contents <- readUtf8 $ Text.unpack fname
+            return $ Cli.LoadSuccess contents
+       in catch go handle
+    else return Cli.InvalidSourceNameError
+
+-- let notify :: Output -> IO ()
+--     notify =
+--       notifyUser dir
+--         >=> ( \o ->
+--                 ifM
+--                   (readIORef pageOutput)
+--                   (putPrettyNonempty o)
+--                   (putPrettyLnUnpaged o)
+--             )
 
 main ::
   FilePath ->
@@ -180,8 +197,9 @@ main dir welcome initialPath initialInputs notifyBranchChange notifyPathChange s
           (atomically . readTMVar $ loopState ^. #root)
           (loopState ^. #currentPath)
           (loopState ^. #numberedArgs)
-  let notify :: Output -> IO ()
-      notify =
+
+  let notifyStdout :: Output -> IO ()
+      notifyStdout =
         notifyUser dir
           >=> ( \o ->
                   ifM
@@ -190,9 +208,15 @@ main dir welcome initialPath initialInputs notifyBranchChange notifyPathChange s
                     (putPrettyLnUnpaged o)
               )
 
+  let notifyNumberedStdout output = do
+        let (msg, args) = notifyNumbered output
+        putPrettyNonempty msg
+        pure args
+
   let cleanup :: IO ()
       cleanup = cancelFileSystemWatch
-      awaitInput :: Cli.LoopState -> IO (Either Event Input)
+
+  let awaitInput :: Cli.LoopState -> IO (Either Event Input)
       awaitInput loopState = do
         -- use up buffered input before consulting external events
         readIORef initialInputsRef >>= \case
@@ -216,7 +240,7 @@ main dir welcome initialPath initialInputs notifyBranchChange notifyPathChange s
         loop0 s0 = do
           let step = do
                 input <- awaitInput s0
-                (result, resultState) <- Cli.runCli env s0 (HandleInput.handleInput input)
+                (result, resultState) <- Cli.runCli (env {Cli.notify = notifyStdout, Cli.notifyNumbered = notifyNumberedStdout}) s0 (HandleInput.handleInput input)
                 let sNext = case input of
                       Left _ -> resultState
                       Right inp -> resultState & #lastInput ?~ inp
