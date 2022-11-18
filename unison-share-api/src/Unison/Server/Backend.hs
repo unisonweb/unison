@@ -263,7 +263,7 @@ data TermEntry v a = TermEntry
   deriving (Eq, Ord, Show, Generic)
 
 termEntryDisplayName :: TermEntry v a -> Text
-termEntryDisplayName = HQ'.toText . termEntryHQName
+termEntryDisplayName = HQ'.toTextWith NameSegment.toText . termEntryHQName
 
 termEntryHQName :: TermEntry v a -> HQ'.HashQualified NameSegment
 termEntryHQName TermEntry {termEntryName, termEntryConflicted, termEntryHash} =
@@ -281,7 +281,7 @@ data TypeEntry = TypeEntry
   deriving (Eq, Ord, Show, Generic)
 
 typeEntryDisplayName :: TypeEntry -> Text
-typeEntryDisplayName = HQ'.toText . typeEntryHQName
+typeEntryDisplayName = HQ'.toTextWith NameSegment.toText . typeEntryHQName
 
 typeEntryHQName :: TypeEntry -> HQ'.HashQualified NameSegment
 typeEntryHQName TypeEntry {typeEntryName, typeEntryConflicted, typeEntryReference} =

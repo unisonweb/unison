@@ -390,10 +390,10 @@ shareCompletion completionTypes authHTTPClient str =
                   let name = Server.namespaceName nn
                    in (NamespaceCompletion, name)
                 Server.TermObject nt ->
-                  let name = HQ'.toText $ Server.termName nt
+                  let name = HQ'.toTextWith NameSegment.toText $ Server.termName nt
                    in (NamespaceCompletion, name)
                 Server.TypeObject nt ->
-                  let name = HQ'.toText $ Server.typeName nt
+                  let name = HQ'.toTextWith NameSegment.toText $ Server.typeName nt
                    in (TermCompletion, name)
                 Server.PatchObject np ->
                   let name = Server.patchName np
