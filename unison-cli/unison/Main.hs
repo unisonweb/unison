@@ -336,7 +336,7 @@ prepareTranscriptDir shouldFork mCodePathOption = do
       Path.copyDir (CodebaseInit.codebasePath cbInit path) (CodebaseInit.codebasePath cbInit tmp)
     DontFork -> do
       PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-      CodebaseInit.withNewUcmCodebaseOrExit cbInit "main.transcript" tmp (const $ pure ())
+      CodebaseInit.withNewUcmCodebaseOrExit cbInit "main.transcript" tmp SC.DoLock (const $ pure ())
   pure tmp
 
 runTranscripts' ::
@@ -516,7 +516,7 @@ defaultBaseLib =
 getCodebaseOrExit :: Maybe CodebasePathOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
 getCodebaseOrExit codebasePathOption migrationStrategy action = do
   initOptions <- argsToCodebaseInitOptions codebasePathOption
-  result <- CodebaseInit.withOpenOrCreateCodebase SC.init "main" initOptions migrationStrategy \case
+  result <- CodebaseInit.withOpenOrCreateCodebase SC.init "main" initOptions SC.DoLock migrationStrategy \case
     cbInit@(CreatedCodebase, dir, _) -> do
       pDir <- prettyDir dir
       PT.putPrettyLn' ""
@@ -535,6 +535,13 @@ getCodebaseOrExit codebasePathOption migrationStrategy action = do
             case err of
               InitErrorOpen err ->
                 case err of
+                  OpenCodebaseFileLockFailed ->
+                    pure
+                      ( P.lines
+                          [ "Failed to obtain a file lock on the codebase. ",
+                            "Perhaps you are running multiple ucm processes against the same codebase."
+                          ]
+                      )
                   OpenCodebaseDoesntExist ->
                     pure
                       ( P.lines

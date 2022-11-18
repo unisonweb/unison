@@ -665,8 +665,8 @@ notifyUser dir o = case o of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n'
       | n == n' ->
-        pure $
-          P.lines [cache, "", displayTestResults True ppe oks fails]
+          pure $
+            P.lines [cache, "", displayTestResults True ppe oks fails]
     CachedTests _n m ->
       pure $
         if m == 0
@@ -675,6 +675,7 @@ notifyUser dir o = case o of
             P.indentN 2 $
               P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
       where
+
     NewlyComputed -> do
       clearCurrentLine
       pure $
@@ -1131,6 +1132,10 @@ notifyUser dir o = case o of
           else pure mempty
   GitError e -> pure $ case e of
     GitSqliteCodebaseError e -> case e of
+      CodebaseFileLockFailed ->
+        P.wrap $
+          "Failed to obtain a file lock on the codebase. "
+            <> "Perhaps you are running multiple ucm processes against the same codebase."
       NoDatabaseFile repo localPath ->
         P.wrap $
           "I didn't find a codebase in the repository at"
@@ -2463,7 +2468,7 @@ showDiffNamespace ::
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
-    ("The namespaces are identical.", mempty)
+      ("The namespaces are identical.", mempty)
 showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where

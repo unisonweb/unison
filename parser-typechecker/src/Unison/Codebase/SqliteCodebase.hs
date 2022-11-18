@@ -9,6 +9,7 @@
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
     MigrationStrategy (..),
+    CodebaseLockOption (..),
   )
 where
 
@@ -23,6 +24,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time (getCurrentTime)
 import qualified System.Console.ANSI as ANSI
+import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
 import qualified U.Codebase.Branch as V2Branch
@@ -48,7 +50,7 @@ import Unison.Codebase.Editor.RemoteRepo
     writeToReadGit,
   )
 import qualified Unison.Codebase.GitError as GitError
-import Unison.Codebase.Init (MigrationStrategy (..))
+import Unison.Codebase.Init (CodebaseLockOption (..), MigrationStrategy (..))
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
@@ -107,13 +109,14 @@ withOpenOrCreateCodebase ::
   Codebase.DebugName ->
   CodebasePath ->
   LocalOrRemote ->
+  CodebaseLockOption ->
   MigrationStrategy ->
   ((CodebaseStatus, Codebase m Symbol Ann) -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
-withOpenOrCreateCodebase debugName codebasePath localOrRemote migrationStrategy action = do
-  createCodebaseOrError debugName codebasePath (action' CreatedCodebase) >>= \case
+withOpenOrCreateCodebase debugName codebasePath localOrRemote lockOption migrationStrategy action = do
+  createCodebaseOrError debugName codebasePath lockOption (action' CreatedCodebase) >>= \case
     Left (Codebase1.CreateCodebaseAlreadyExists) -> do
-      sqliteCodebase debugName codebasePath localOrRemote migrationStrategy (action' ExistingCodebase)
+      sqliteCodebase debugName codebasePath localOrRemote lockOption migrationStrategy (action' ExistingCodebase)
     Right r -> pure (Right r)
   where
     action' openOrCreate codebase = action (openOrCreate, codebase)
@@ -123,9 +126,10 @@ createCodebaseOrError ::
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
+  CodebaseLockOption ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.CreateCodebaseError r)
-createCodebaseOrError debugName path action = do
+createCodebaseOrError debugName path lockOption action = do
   ifM
     (doesFileExist $ makeCodebasePath path)
     (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
@@ -137,7 +141,7 @@ createCodebaseOrError debugName path action = do
           Q.createSchema
           void . Ops.saveRootBranch v2HashHandle $ Cv.causalbranch1to2 Branch.empty
 
-      sqliteCodebase debugName path Local DontMigrate action >>= \case
+      sqliteCodebase debugName path Local lockOption DontMigrate action >>= \case
         Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
         Right result -> pure (Right result)
 
@@ -148,13 +152,14 @@ withCodebaseOrError ::
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
+  CodebaseLockOption ->
   MigrationStrategy ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
-withCodebaseOrError debugName dir migrationStrategy action = do
+withCodebaseOrError debugName dir lockOption migrationStrategy action = do
   doesFileExist (makeCodebasePath dir) >>= \case
     False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
-    True -> sqliteCodebase debugName dir Local migrationStrategy action
+    True -> sqliteCodebase debugName dir Local lockOption migrationStrategy action
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
@@ -188,10 +193,11 @@ sqliteCodebase ::
   CodebasePath ->
   -- | When local, back up the existing codebase before migrating, in case there's a catastrophic bug in the migration.
   LocalOrRemote ->
+  CodebaseLockOption ->
   MigrationStrategy ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
-sqliteCodebase debugName root localOrRemote migrationStrategy action = do
+sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action = handleLockOption do
   rootBranchCache <- newEmptyRootBranchCacheIO
   branchCache <- newBranchCache
   getDeclType <- CodebaseOps.makeCachedTransaction 2048 CodebaseOps.getDeclType
@@ -391,6 +397,13 @@ sqliteCodebase debugName root localOrRemote migrationStrategy action = do
     runTransaction action =
       withConn \conn -> Sqlite.runTransaction conn action
 
+    handleLockOption ma = case lockOption of
+      DontLock -> ma
+      DoLock -> withRunInIO \runInIO ->
+        withTryFileLock (lockfilePath root) Exclusive (\_flock -> runInIO ma) <&> \case
+          Nothing -> Left OpenCodebaseFileLockFailed
+          Just x -> x
+
 syncInternal ::
   forall m.
   MonadUnliftIO m =>
@@ -583,7 +596,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior act
           then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
           else throwIO exception
 
-      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote MigrateAfterPrompt \codebase -> do
+      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote DoLock MigrateAfterPrompt \codebase -> do
         -- try to load the requested branch from it
         branch <- time "Git fetch (sch)" $ case sch of
           -- no sub-branch was specified, so use the root.
@@ -633,7 +646,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
   -- set up the cache dir
   throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
     newBranchOrErr <- throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
-      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote MigrateAfterPrompt
+      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote DoLock MigrateAfterPrompt
       $ \(codebaseStatus, destCodebase) -> do
         currentRootBranch <-
           Codebase1.runTransaction destCodebase CodebaseOps.getRootBranchExists >>= \case
@@ -712,9 +725,10 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
         -- so we have to convert our expected path to test.
         posixCodebasePath =
           FilePath.Posix.joinPath (FilePath.splitDirectories codebasePath)
+        posixLockfilePath = FilePath.replaceExtension posixCodebasePath "lockfile"
         statusLines = Text.unpack <$> Text.lines status
         t = dropWhile Char.isSpace
-        okLine (t -> '?' : '?' : (t -> p)) | p == posixCodebasePath = True
+        okLine (t -> '?' : '?' : (t -> p)) | p == posixCodebasePath || p == posixLockfilePath = True
         okLine (t -> 'M' : (t -> p)) | p == posixCodebasePath = True
         okLine line = isWalDelete line || isShmDelete line
         isWalDelete (t -> 'D' : (t -> p)) | p == posixCodebasePath ++ "-wal" = True
