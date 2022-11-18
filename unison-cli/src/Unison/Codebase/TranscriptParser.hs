@@ -387,8 +387,8 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             let f = Cli.LoadSuccess <$> readUtf8 (Text.unpack name)
              in f <|> pure Cli.InvalidSourceNameError
 
-      print :: Output.Output -> IO ()
-      print o = do
+      print :: Cli.Paging -> Output.Output -> IO ()
+      print _paging o = do
         msg <- notifyUser dir o
         errOk <- readIORef allowErrors
         let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
@@ -398,8 +398,8 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             then writeIORef hasErrors True
             else dieWithMsg rendered
 
-      printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
-      printNumbered o = do
+      printNumbered :: Cli.Paging -> Output.NumberedOutput -> IO Output.NumberedArgs
+      printNumbered _paging o = do
         let (msg, numberedArgs) = notifyNumbered o
         errOk <- readIORef allowErrors
         let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
@@ -465,7 +465,8 @@ run dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.
             runtime,
             sandboxedRuntime = sbRuntime,
             serverBaseUrl = Nothing,
-            ucmVersion
+            ucmVersion,
+            paging = Cli.NoPager
           }
 
   let loop :: Cli.LoopState -> IO Text

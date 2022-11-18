@@ -10,6 +10,7 @@ module Unison.Cli.Monad
 
     -- * Envronment
     Env (..),
+    Paging (..),
 
     -- * Immutable state
     LoopState (..),
@@ -151,15 +152,19 @@ data Env = Env
     -- | How to load source code.
     loadSource :: Text -> IO LoadSourceResult,
     -- | What to do with output for the user.
-    notify :: Output -> IO (),
+    notify :: Paging -> Output -> IO (),
     -- | What to do with numbered output for the user.
-    notifyNumbered :: NumberedOutput -> IO NumberedArgs,
+    notifyNumbered :: Paging -> NumberedOutput -> IO NumberedArgs,
     runtime :: Runtime Symbol,
     sandboxedRuntime :: Runtime Symbol,
     serverBaseUrl :: Maybe Server.BaseUrl,
-    ucmVersion :: UCMVersion
+    ucmVersion :: UCMVersion,
+    paging :: Paging
   }
   deriving stock (Generic)
+
+data Paging = UsePager | NoPager
+  deriving stock (Eq, Ord, Show)
 
 -- | The command-line app monad mutable state.
 --
@@ -367,13 +372,13 @@ time label action =
 
 respond :: Output -> Cli ()
 respond output = do
-  Env {notify} <- ask
-  liftIO (notify output)
+  Env {notify, paging} <- ask
+  liftIO (notify paging output)
 
 respondNumbered :: NumberedOutput -> Cli ()
 respondNumbered output = do
-  Env {notifyNumbered} <- ask
-  args <- liftIO (notifyNumbered output)
+  Env {notifyNumbered, paging} <- ask
+  args <- liftIO (notifyNumbered paging output)
   unless (null args) do
     #numberedArgs .= args
 

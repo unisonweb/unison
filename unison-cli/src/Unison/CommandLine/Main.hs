@@ -31,6 +31,7 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
+import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -136,7 +137,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
   eventQueue <- Q.newIO
   welcomeEvents <- Welcome.run codebase welcome
   initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
-  pageOutput <- newIORef True
   cancelFileSystemWatch <- case shouldWatchFiles of
     ShouldNotWatchFiles -> pure (pure ())
     ShouldWatchFiles -> watchFileSystem eventQueue dir
@@ -165,16 +165,6 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
                   return $ Cli.LoadSuccess contents
              in catch go handle
           else return Cli.InvalidSourceNameError
-  let notify :: Output -> IO ()
-      notify =
-        notifyUser dir
-          >=> ( \o ->
-                  ifM
-                    (readIORef pageOutput)
-                    (putPrettyNonempty o)
-                    (putPrettyLnUnpaged o)
-              )
-
   let cleanup = do
         Runtime.terminate runtime
         Runtime.terminate sbRuntime
@@ -189,12 +179,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
             -- Race the user input and file watch.
             Async.race (atomically $ Q.peek eventQueue) (getInput loopState) >>= \case
               Left _ -> do
-                let e = Left <$> atomically (Q.dequeue eventQueue)
-                writeIORef pageOutput False
-                e
-              x -> do
-                writeIORef pageOutput True
-                pure x
+                Left <$> atomically (Q.dequeue eventQueue)
+              x -> pure x
 
   let env =
         Cli.Env
@@ -204,14 +190,13 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
             credentialManager,
             loadSource = loadSourceFile,
             generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
-            notify,
-            notifyNumbered = \o ->
-              let (p, args) = notifyNumbered o
-               in putPrettyNonempty p $> args,
+            notify = stdoutNotifier dir,
+            notifyNumbered = stdoutNumberedNotifier,
             runtime,
             sandboxedRuntime = sbRuntime,
             serverBaseUrl,
-            ucmVersion
+            ucmVersion,
+            paging = Cli.UsePager
           }
 
   (onInterrupt, waitForInterrupt) <- buildInterruptHandler
@@ -222,7 +207,12 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime sbRunt
         loop0 s0 = do
           let step = do
                 input <- awaitInput s0
-                (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                -- Disable paging on automated responses so we don't gum up small terminals.
+                -- while users work on their scratch files.
+                let env' = case input of
+                      Left {} -> env {Cli.paging = Cli.NoPager}
+                      Right {} -> env
+                (result, resultState) <- Cli.runCli env' s0 (HandleInput.loop input)
                 let sNext = case input of
                       Left _ -> resultState
                       Right inp -> resultState & #lastInput ?~ inp
@@ -257,3 +247,18 @@ buildInterruptHandler = do
   let onInterrupt = void $ UnliftIO.tryPutMVar ctrlCMarker ()
   let waitForInterrupt = UnliftIO.takeMVar ctrlCMarker
   pure $ (onInterrupt, waitForInterrupt)
+
+stdoutNotifier :: FilePath -> Cli.Paging -> Output -> IO ()
+stdoutNotifier dir paging output = do
+  msg <- notifyUser dir output
+  case paging of
+    Cli.UsePager -> putPrettyNonempty msg
+    Cli.NoPager -> putPrettyLnUnpaged msg
+
+stdoutNumberedNotifier :: Cli.Paging -> Output.NumberedOutput -> IO Output.NumberedArgs
+stdoutNumberedNotifier paging output = do
+  let (msg, args) = notifyNumbered output
+  case paging of
+    Cli.UsePager -> putPrettyNonempty msg
+    Cli.NoPager -> putPrettyLnUnpaged msg
+  pure args

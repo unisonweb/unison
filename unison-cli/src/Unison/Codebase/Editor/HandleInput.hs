@@ -373,7 +373,7 @@ loop e = do
               Cli.respond $ PrintMessage pretty
             ShowReflogI -> do
               let numEntriesToShow = 500
-              entries <- 
+              entries <-
                 Cli.runTransaction do
                   schLength <- Codebase.branchHashLength
                   Codebase.getReflog numEntriesToShow <&> fmap (first $ SCH.fromHash schLength)
@@ -1413,14 +1413,14 @@ loop e = do
                 traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
               for_ (Relation.toList . Branch.deepTerms $ rootBranch0) \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
-            DebugClearWatchI {} -> 
+            DebugClearWatchI {} ->
               Cli.runTransaction Codebase.clearWatches
             DebugDoctorI {} -> do
               r <- Cli.runTransaction IntegrityCheck.integrityCheckFullCodebase
               Cli.respond (IntegrityCheck r)
             DebugNameDiffI fromSCH toSCH -> do
               Cli.Env {codebase} <- ask
-              (schLen, fromCHs, toCHs) <- 
+              (schLen, fromCHs, toCHs) <-
                 Cli.runTransaction do
                   schLen <- Codebase.branchHashLength
                   fromCHs <- Codebase.causalHashesByPrefix fromSCH
