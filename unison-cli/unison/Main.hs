@@ -53,6 +53,10 @@ import qualified System.IO.Temp as Temp
 import qualified System.Path as Path
 import Text.Megaparsec (runParser)
 import Text.Pretty.Simple (pHPrint)
+import qualified Unison.Auth.CredentialManager as AuthN
+import qualified Unison.Auth.HTTPClient as AuthN
+import qualified Unison.Auth.Tokens as AuthN
+import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
@@ -65,7 +69,6 @@ import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResul
 import qualified Unison.Codebase.Init as CodebaseInit
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.CommandLine (plural', watchConfig)
@@ -93,6 +96,9 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
   -- Replace the default exception handler with one that pretty-prints.
   setUncaughtExceptionHandler (pHPrint stderr)
 
+  -- TODO: clean this up
+  let noopNotifier _msg = pure ()
+  let numberedNotifier _output = pure mempty
   interruptHandler <- defaultInterruptHandler
   withInterruptHandler interruptHandler $ do
     void $ Ki.fork scope initHTTPClient
@@ -102,6 +108,10 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
     let GlobalOptions {codebasePathOption = mCodePathOption, exitOption = exitOption} = globalOptions
     withConfig mCodePathOption \config -> do
       currentDir <- getCurrentDirectory
+      let (ucmVersion, _date) = Version.gitDescribe
+      credentialManager <- AuthN.newCredentialManager
+      let tokenProvider = AuthN.newTokenProvider credentialManager
+      authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
       case command of
         PrintVersion ->
           Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate
@@ -137,20 +147,17 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                       let noOpPathNotifier _ = pure ()
                       let serverUrl = Nothing
                       let startPath = Nothing
+                      let cliEnv = CommandLine.mkEnv credentialManager authHTTPClient rt sbrt ucmVersion config theCodebase noopNotifier numberedNotifier serverUrl
                       launch
                         currentDir
-                        config
-                        rt
-                        sbrt
-                        theCodebase
                         [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
-                        serverUrl
                         startPath
                         ShouldNotDownloadBase
                         initRes
                         noOpRootNotifier
                         noOpPathNotifier
                         CommandLine.ShouldNotWatchFiles
+                        cliEnv
         Run (RunFromPipe mainName) args -> do
           e <- safeReadUtf8StdIn
           case e of
@@ -163,20 +170,17 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                   let noOpPathNotifier _ = pure ()
                   let serverUrl = Nothing
                   let startPath = Nothing
+                  let cliEnv = CommandLine.mkEnv credentialManager authHTTPClient rt sbrt ucmVersion config theCodebase noopNotifier numberedNotifier serverUrl
                   launch
                     currentDir
-                    config
-                    rt
-                    sbrt
-                    theCodebase
                     [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
-                    serverUrl
                     startPath
                     ShouldNotDownloadBase
                     initRes
                     noOpRootNotifier
                     noOpPathNotifier
                     CommandLine.ShouldNotWatchFiles
+                    cliEnv
         Run (RunCompiled file) args ->
           BL.readFile file >>= \bs ->
             try (evaluate $ RTI.decodeStandalone bs) >>= \case
@@ -262,10 +266,11 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
               -- Windows when we move to GHC 9.*
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
               when (not onWindows) . void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTMVar rootVar) (readTVar pathVar)
-              let cliEnvBuilder baseUrl = Cli.mkEnv runtime sbRuntime theCodebase notifyOnRootChanges notifyOnPathChanges notifier numberedNotifier baseUrl
-              let (ucmVersion, _date) = Version.gitDescribe
+
+              let cliEnvBuilder baseUrl = CommandLine.mkEnv credentialManager authHTTPClient runtime sbRuntime ucmVersion config theCodebase noopNotifier numberedNotifier baseUrl
               let cliServer baseUrl = CliServer.application cliEnvBuilder rootVar baseUrl
               Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase cliServer $ \baseUrl -> do
+                let cliEnv = cliEnvBuilder (Just baseUrl)
                 case exitOption of
                   DoNotExit -> do
                     case isHeadless of
@@ -289,12 +294,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                         PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
                         launch
                           currentDir
-                          config
-                          runtime
-                          sbRuntime
-                          theCodebase
                           []
-                          (Just baseUrl)
                           mayStartingPath
                           downloadBase
                           initRes
@@ -459,12 +459,7 @@ initialPath = Path.absoluteEmpty
 
 launch ::
   FilePath ->
-  Config ->
-  Rt.Runtime Symbol ->
-  Rt.Runtime Symbol ->
-  Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
-  Maybe Server.BaseUrl ->
   Maybe Path.Absolute ->
   ShouldDownloadBase ->
   InitResult ->
@@ -473,7 +468,7 @@ launch ::
   CommandLine.ShouldWatchFiles ->
   Cli.Env ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath shouldDownloadBase initResult notifyRootChange notifyPathChange shouldWatchFiles cliEnv =
+launch dir inputs mayStartingPath shouldDownloadBase initResult notifyRootChange notifyPathChange shouldWatchFiles cliEnv =
   let downloadBase = case defaultBaseLib of
         Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
         _ -> Welcome.DontDownloadBase
@@ -487,13 +482,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPat
         dir
         welcome
         (fromMaybe initialPath mayStartingPath)
-        config
         inputs
-        runtime
-        sbRuntime
-        codebase
-        serverBaseUrl
-        ucmVersion
         notifyRootChange
         notifyPathChange
         shouldWatchFiles
