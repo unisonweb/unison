@@ -334,6 +334,7 @@ view =
     ( P.lines
         [ P.wrap $ makeExample view ["foo"] <> "shows definitions named `foo` within your current namespace.",
           P.wrap $ makeExample view [] <> "without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH.",
+          " ", -- hmm, this blankline seems to be ignored by pretty printer
           P.wrap $
             "Supports glob syntax, where ? acts a wildcard, so"
               <> makeExample view ["List.?"]
