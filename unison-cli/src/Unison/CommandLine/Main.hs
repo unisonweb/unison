@@ -19,9 +19,8 @@ import qualified System.Console.Haskeline as Line
 import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isDoesNotExistError)
 import Text.Pretty.Simple (pShow)
-import Unison.Auth.CredentialManager (CredentialManager)
 import qualified U.Codebase.Sqlite.Operations as Operations
-import Unison.Auth.CredentialManager (newCredentialManager)
+import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import qualified Unison.Cli.Monad as Cli
 import Unison.Codebase (Codebase)

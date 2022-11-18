@@ -8,6 +8,7 @@ import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Servant.Server
 import qualified Servant.Server as Servant
+import qualified U.Codebase.Sqlite.Operations as Operations
 import qualified Unison.Cli.Monad as Cli
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (..))
@@ -51,7 +52,7 @@ type CommandLineServer = ReaderT Env Servant.Handler
 liftCli :: Cli.Cli a -> CommandLineServer (Either CommandResponse a)
 liftCli cli = do
   Env {cliEnv, rootVar} <- ask
-  lastSavedRoot <- liftIO $ Codebase.getRootCausalHash (Cli.codebase cliEnv)
+  lastSavedRoot <- liftIO $ Codebase.runTransaction (Cli.codebase cliEnv) Operations.expectRootCausalHash
   let ls = Cli.loopState0 lastSavedRoot rootVar Path.absoluteEmpty
   liftIO (Cli.runCli cliEnv ls cli) >>= \case
     (rt, _ls) -> case rt of
