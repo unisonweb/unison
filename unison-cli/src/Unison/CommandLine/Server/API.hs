@@ -7,4 +7,4 @@ import Servant.API
 import Unison.CommandLine.Server.Types
 
 type CommandLineAPI =
-  "commands" :> "run" :> ReqBody '[JSON] RunCommandRequest :> Post '[JSON] RunCommandResponse
+  "run" :> ReqBody '[JSON] RunCommandRequest :> Post '[JSON] RunCommandResponse
