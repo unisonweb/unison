@@ -332,8 +332,13 @@ view =
     I.Visible
     [(ZeroPlus, definitionQueryArg)]
     ( P.lines
-        [ "`view foo` prints definitions named `foo` within your current namespace.",
-          "`view` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
+        [ P.wrap $ makeExample view ["foo"] <> "shows definitions named `foo` within your current namespace.",
+          P.wrap $ makeExample view [] <> "without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH.",
+          P.wrap $
+            "Supports glob syntax, where ? acts a wildcard, so"
+              <> makeExample view ["List.?"]
+              <> "will show `List.map`, `List.filter`, etc, but "
+              <> "not `List.map.doc` (since ? only matches 1 name segment)."
         ]
     )
     ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
